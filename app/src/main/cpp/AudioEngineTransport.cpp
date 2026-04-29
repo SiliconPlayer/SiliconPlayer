@@ -63,6 +63,7 @@ namespace {
 }
 
 bool AudioEngine::start() {
+    std::lock_guard<std::mutex> lifecycleLock(lifecycleMutex);
     recoverStreamIfNeeded();
 
     if (refreshPausedStreamOnNextStart.exchange(false, std::memory_order_relaxed) &&
@@ -205,6 +206,7 @@ void AudioEngine::setFastTrackSwitchStartupHint(bool enabled) {
 }
 
 void AudioEngine::stop() {
+    std::lock_guard<std::mutex> lifecycleLock(lifecycleMutex);
     pendingPauseFadeRequest.store(false, std::memory_order_relaxed);
     pendingResumeFadeOnStart.store(false, std::memory_order_relaxed);
     refreshPausedStreamOnNextStart.store(true, std::memory_order_relaxed);
@@ -262,6 +264,7 @@ bool AudioEngine::isEnginePlaying() const {
 }
 
 void AudioEngine::setUrl(const char* url) {
+    std::lock_guard<std::mutex> lifecycleLock(lifecycleMutex);
     LOGD("URL set to: %s", url);
     std::string previousDecoderName;
 

@@ -287,6 +287,9 @@ private:
     // Serializes join/start/swap of audioTrackWriteThread so concurrent
     // callers cannot both reach pthread_join on the same handle.
     std::mutex audioTrackThreadMutex;
+    // Serializes stop/setUrl/start so a follow-up setUrl/start cannot
+    // race the detached stopEngine thread and have its prefill cleared.
+    std::mutex lifecycleMutex;
     std::vector<float> audioTrackFloatBuffer;
     std::vector<int16_t> audioTrackPcmBuffer;
     int audioTrackBufferFrames = 4096;
