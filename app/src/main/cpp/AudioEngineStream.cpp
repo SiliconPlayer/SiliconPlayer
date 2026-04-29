@@ -819,6 +819,36 @@ bool AudioEngine::requestStreamStart() {
         }
 
         audioTrackStopRequested.store(false, std::memory_order_relaxed);
+
+        // Prime the AudioTrack internal buffer before play() so the first
+        // audible frame is sample 0; otherwise the playback head advances
+        // through silence before the render thread's first write lands.
+        const int primeFrames = audioTrackBufferFrames;
+        const size_t primeSampleCount = static_cast<size_t>(primeFrames) * 2u;
+        if (audioTrackFloatBuffer.size() != primeSampleCount) {
+            audioTrackFloatBuffer.assign(primeSampleCount, 0.0f);
+        }
+        if (audioTrackPcmBuffer.size() != primeSampleCount) {
+            audioTrackPcmBuffer.assign(primeSampleCount, 0);
+        }
+        const int primeRate = streamSampleRate > 0 ? streamSampleRate : 48000;
+        const bool primeShouldStop = renderOutputCallbackFrames(
+                audioTrackFloatBuffer.data(),
+                primeFrames,
+                primeRate
+        );
+        for (size_t i = 0; i < primeSampleCount; ++i) {
+            const float clamped = std::clamp(audioTrackFloatBuffer[i], -1.0f, 1.0f);
+            audioTrackPcmBuffer[i] = static_cast<int16_t>(clamped * 32767.0f);
+        }
+        if (!writeAudioTrackOutput(audioTrackPcmBuffer.data(), static_cast<int>(primeSampleCount))) {
+            LOGE("AudioTrack startup prime write failed");
+            return false;
+        }
+        if (primeShouldStop) {
+            audioTrackStopRequested.store(true, std::memory_order_relaxed);
+        }
+
         if (!startAudioTrackOutput()) {
             LOGE("AudioTrack start request failed");
             return false;
