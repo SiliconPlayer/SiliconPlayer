@@ -823,7 +823,33 @@ void AudioEngine::renderWorkerLoop() {
                 timelineSmoothedSeconds = nextPosition;
                 positionSeconds.store(nextPosition);
             } else if (calculatedPosition >= 0.0 && sharedAbsoluteInputPosition > 0) {
-                positionSeconds.store(calculatedPosition);
+                decoderPosition = decoder->getPlaybackPositionSeconds();
+                const int repeatModeNow = repeatMode.load();
+                const double backwardJumpSeconds = decoderPosition >= 0.0
+                        ? calculatedPosition - decoderPosition
+                        : 0.0;
+                const bool loopPointBackwardJump =
+                        repeatModeNow == 2 &&
+                        decoderPosition >= 0.0 &&
+                        backwardJumpSeconds > 0.5;
+                const bool restartBackwardJump =
+                        (repeatModeNow == 1 || repeatModeNow == 3) &&
+                        decoderPosition >= 0.0 &&
+                        backwardJumpSeconds > 1.0 &&
+                        decoderPosition < 2.0;
+                if (loopPointBackwardJump || restartBackwardJump) {
+                    positionSeconds.store(decoderPosition);
+                    sharedAbsoluteInputPositionBaseSeconds =
+                            decoderPosition -
+                            (static_cast<double>(sharedAbsoluteInputPosition) / decoderRenderSampleRate);
+                    outputClockSeconds = decoderPosition;
+                    timelineSmoothedSeconds = decoderPosition;
+                    timelineSmootherInitialized = false;
+                    pendingBackwardTimelineTargetSeconds = -1.0;
+                    pendingBackwardTimelineConfirmations = 0;
+                } else {
+                    positionSeconds.store(calculatedPosition);
+                }
             } else if (!reachedEnd && callbackDeltaSeconds > 0.0) {
                 decoderPosition = decoder->getPlaybackPositionSeconds();
                 if (decoderPosition >= 0.0) {

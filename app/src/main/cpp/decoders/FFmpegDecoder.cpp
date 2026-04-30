@@ -789,6 +789,7 @@ int FFmpegDecoder::read(float* buffer, int numFrames) {
     if (!formatContext || !codecContext) return 0;
 
     int framesRead = 0;
+    int framesForPosition = 0;
     while (framesRead < numFrames) {
         // 1. Consume existing buffer
         if (sampleBufferCursor < sampleBuffer.size()) {
@@ -802,6 +803,7 @@ int FFmpegDecoder::read(float* buffer, int numFrames) {
                    toCopy * outputChannelCount * sizeof(float));
 
             framesRead += toCopy;
+            framesForPosition += toCopy;
             sampleBufferCursor += toCopy * outputChannelCount;
 
             // Reset buffer if empty
@@ -820,6 +822,7 @@ int FFmpegDecoder::read(float* buffer, int numFrames) {
                     if (!seekInternalLocked(loopStartSeconds)) {
                         break;
                     }
+                    framesForPosition = 0;
                     continue;
                 }
                 // For regular repeat-track mode, optionally seek internally and continue
@@ -828,6 +831,7 @@ int FFmpegDecoder::read(float* buffer, int numFrames) {
                     if (!seekInternalLocked(0.0)) {
                         break;
                     }
+                    framesForPosition = 0;
                     continue;
                 }
                 break;
@@ -835,7 +839,7 @@ int FFmpegDecoder::read(float* buffer, int numFrames) {
         }
     }
     // Track total frames output for position calculation
-    totalFramesOutput += framesRead;
+    totalFramesOutput += framesForPosition;
     return framesRead;
 }
 
