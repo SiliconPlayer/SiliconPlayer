@@ -1,6 +1,8 @@
 #include "VGMDecoder.h"
+#include "../ChannelScopeSharedState.h"
 #include <android/log.h>
 #include <algorithm>
+#include <cmath>
 #include <cstring>
 #include <fstream>
 #include <limits>
@@ -25,6 +27,8 @@
 
 namespace {
 constexpr uint32_t kPlayerOutputBufferFrames = 4096;
+constexpr int kChannelScopeTextStride = 10;
+constexpr int kChannelScopeTextFlagActive = 1 << 0;
 
 bool parseBoolString(const std::string& value, bool fallback) {
     std::string normalized;
@@ -88,7 +92,7 @@ std::string fallbackChipName(uint8_t type) {
 }
 }
 
-VGMDecoder::VGMDecoder() {
+VGMDecoder::VGMDecoder() : channelScopeState(std::make_shared<ChannelScopeSharedState>()) {
 }
 
 VGMDecoder::~VGMDecoder() {
@@ -237,6 +241,7 @@ bool VGMDecoder::open(const char* path) {
     applyDeviceOptionsLocked(vgmPlayer);
     rebuildToggleChannelsLocked(vgmPlayer);
     applyToggleChannelMutesLocked(vgmPlayer);
+    vgmPlayer->SetChannelScopeEnabled(1);
     return true;
 }
 
@@ -273,6 +278,14 @@ void VGMDecoder::closeInternal() {
     playbackTimeOffsetSeconds = 0.0;
     songHasLoopPoint = false;
     toggleChipEntries.clear();
+    if (channelScopeState) {
+        channelScopeState->clear();
+    }
+    channelScopeSourceSerial = 0;
+    scopeRingRaw.clear();
+    scopeRingChannels = 0;
+    scopeRingWritePos = 0;
+    scopeRingSamples = 0;
 }
 
 void VGMDecoder::close() {
@@ -296,6 +309,12 @@ void VGMDecoder::ensurePlayerStarted() {
     player->Render(0, nullptr);
 
     playerStarted = true;
+    if (PlayerBase* playerBase = player->GetPlayer()) {
+        if (VGMPlayer* vgmPlayer = dynamic_cast<VGMPlayer*>(playerBase)) {
+            rebuildToggleChannelsLocked(vgmPlayer);
+            applyToggleChannelMutesLocked(vgmPlayer);
+        }
+    }
 }
 
 int VGMDecoder::read(float* buffer, int numFrames) {
@@ -335,6 +354,12 @@ int VGMDecoder::read(float* buffer, int numFrames) {
 
     for (int i = 0; i < framesRendered * channels; ++i) {
         buffer[i] = static_cast<float>(int16Buffer[i]) / 32768.0f;
+    }
+
+    if (PlayerBase* playerBase = player->GetPlayer()) {
+        if (VGMPlayer* vgmPlayer = dynamic_cast<VGMPlayer*>(playerBase)) {
+            captureScopeSnapshotLocked(vgmPlayer);
+        }
     }
 
     const uint32_t loopCount = player->GetCurLoop();
@@ -491,6 +516,13 @@ void VGMDecoder::setOutputSampleRate(int rate) {
         return;
     }
     playerStarted = true;
+    if (PlayerBase* playerBase = player->GetPlayer()) {
+        if (VGMPlayer* vgmPlayer = dynamic_cast<VGMPlayer*>(playerBase)) {
+            rebuildToggleChannelsLocked(vgmPlayer);
+            applyToggleChannelMutesLocked(vgmPlayer);
+            vgmPlayer->SetChannelScopeEnabled(1);
+        }
+    }
     player->Seek(PLAYPOS_SAMPLE, static_cast<uint32_t>(std::max(0.0, currentSeconds) * sampleRate));
     pendingTerminalEnd = false;
     playbackTimeOffsetSeconds = 0.0;
@@ -716,16 +748,17 @@ void VGMDecoder::applyDeviceOptionsLocked(VGMPlayer* vgmPlayer) {
 }
 
 void VGMDecoder::rebuildToggleChannelsLocked(VGMPlayer* vgmPlayer) {
-    toggleChipEntries.clear();
+    const std::vector<ToggleChipEntry> previousEntries = toggleChipEntries;
     if (!vgmPlayer) {
         return;
     }
 
     std::vector<PLR_DEV_INFO> deviceInfos;
-    if (vgmPlayer->GetSongDeviceInfo(deviceInfos) != 0x00) {
+    if (vgmPlayer->GetSongDeviceInfo(deviceInfos) >= 0x80) {
         return;
     }
 
+    std::vector<ToggleChipEntry> nextEntries;
     for (const auto& deviceInfo : deviceInfos) {
         if (deviceInfo.parentIdx != std::numeric_limits<uint32_t>::max()) {
             continue; // Skip linked devices; expose only top-level chips in UI.
@@ -756,9 +789,18 @@ void VGMDecoder::rebuildToggleChannelsLocked(VGMPlayer* vgmPlayer) {
             entry.channelBit = static_cast<uint8_t>(channel);
             entry.name = chipName + " #" + std::to_string(channel + 1);
             entry.muted = false;
-            toggleChipEntries.push_back(std::move(entry));
+            for (const auto& previous : previousEntries) {
+                if (previous.name == entry.name &&
+                    previous.muteTargetId == entry.muteTargetId &&
+                    previous.channelBit == entry.channelBit) {
+                    entry.muted = previous.muted;
+                    break;
+                }
+            }
+            nextEntries.push_back(std::move(entry));
         }
     }
+    toggleChipEntries = std::move(nextEntries);
 }
 
 void VGMDecoder::applyToggleChannelMutesLocked(VGMPlayer* vgmPlayer) {
@@ -841,4 +883,153 @@ std::vector<std::string> VGMDecoder::getSupportedExtensions() {
             "vgz",
             "vgm.gz"
     };
+}
+
+std::shared_ptr<ChannelScopeSharedState> VGMDecoder::getChannelScopeSharedState() const {
+    return channelScopeState;
+}
+
+std::vector<int32_t> VGMDecoder::getChannelScopeTextState(int maxChannels) {
+    std::lock_guard<std::mutex> lock(decodeMutex);
+    const int channels = std::min(
+            static_cast<int>(toggleChipEntries.size()),
+            std::clamp(maxChannels, 1, 64)
+    );
+    if (channels <= 0) {
+        return {};
+    }
+
+    std::vector<float> vu;
+    if (channelScopeState) {
+        std::lock_guard<std::mutex> scopeLock(channelScopeState->mutex);
+        vu = channelScopeState->snapshotVu;
+    }
+
+    std::vector<int32_t> flat(static_cast<size_t>(channels * kChannelScopeTextStride), -1);
+    for (int channel = 0; channel < channels; ++channel) {
+        const size_t base = static_cast<size_t>(channel * kChannelScopeTextStride);
+        const auto& entry = toggleChipEntries[static_cast<size_t>(channel)];
+        const float peak = (static_cast<size_t>(channel) < vu.size())
+                ? vu[static_cast<size_t>(channel)]
+                : 0.0f;
+        int flags = 0;
+        if (!entry.muted && peak > 0.0015f) {
+            flags |= kChannelScopeTextFlagActive;
+        }
+        flat[base + 0] = channel;
+        flat[base + 1] = -1;
+        flat[base + 2] = std::clamp(static_cast<int>(std::lround(peak * 64.0f)), 0, 64);
+        flat[base + 3] = 0;
+        flat[base + 4] = -1;
+        flat[base + 5] = 0;
+        flat[base + 6] = -1;
+        flat[base + 7] = -1;
+        flat[base + 8] = -1;
+        flat[base + 9] = flags;
+    }
+    return flat;
+}
+
+void VGMDecoder::captureScopeSnapshotLocked(VGMPlayer* vgmPlayer) {
+    if (!channelScopeState || !vgmPlayer) {
+        return;
+    }
+
+    const UINT32 devCount = vgmPlayer->GetChannelScopeDeviceCount();
+    if (devCount == 0) {
+        vgmPlayer->SetChannelScopeEnabled(1);
+        return;
+    }
+
+    const UINT32 sampleCount = vgmPlayer->GetChannelScopeSampleCount();
+    if (sampleCount == 0 || toggleChipEntries.empty()) {
+        return;
+    }
+
+    const int numChannels = std::min(static_cast<int>(toggleChipEntries.size()), 64);
+    const int maxSamples = ChannelScopeSharedState::kMaxSamples;
+    const size_t ringSize = static_cast<size_t>(numChannels) * maxSamples;
+    if (scopeRingChannels != numChannels || scopeRingRaw.size() != ringSize) {
+        scopeRingRaw.assign(ringSize, 0.0f);
+        scopeRingChannels = numChannels;
+        scopeRingWritePos = 0;
+        scopeRingSamples = 0;
+    }
+
+    const UINT32 samplesToRead = std::min(static_cast<UINT32>(maxSamples), sampleCount);
+
+    thread_local std::vector<WAVE_32BS> scopeTempBuffer;
+    scopeTempBuffer.resize(samplesToRead);
+    thread_local std::vector<float> channelBlock;
+    channelBlock.assign(static_cast<size_t>(numChannels) * samplesToRead, 0.0f);
+
+    for (int channel = 0; channel < numChannels; ++channel) {
+        const auto& entry = toggleChipEntries[static_cast<size_t>(channel)];
+        if (entry.deviceId >= devCount) {
+            continue;
+        }
+        std::fill(scopeTempBuffer.begin(), scopeTempBuffer.end(), WAVE_32BS{0, 0});
+
+        if (vgmPlayer->GetChannelScopeSamples(entry.deviceId, entry.channelBit, samplesToRead, scopeTempBuffer.data()) != 0x00) {
+            continue;
+        }
+
+        float* dest = channelBlock.data() + static_cast<size_t>(channel) * samplesToRead;
+
+        for (UINT32 s = 0; s < samplesToRead; ++s) {
+            const float sampleL = static_cast<float>(scopeTempBuffer[s].L) / 8388608.0f;
+            const float sampleR = static_cast<float>(scopeTempBuffer[s].R) / 8388608.0f;
+            dest[s] = std::clamp((sampleL + sampleR) * 0.5f, -1.0f, 1.0f);
+        }
+    }
+
+    for (UINT32 s = 0; s < samplesToRead; ++s) {
+        for (int channel = 0; channel < numChannels; ++channel) {
+            scopeRingRaw[
+                    static_cast<size_t>(channel) * maxSamples +
+                    static_cast<size_t>(scopeRingWritePos)
+            ] = channelBlock[
+                    static_cast<size_t>(channel) * samplesToRead +
+                    static_cast<size_t>(s)
+            ];
+        }
+        scopeRingWritePos = (scopeRingWritePos + 1) % maxSamples;
+    }
+    scopeRingSamples = std::min(
+            scopeRingSamples + static_cast<int>(samplesToRead),
+            maxSamples
+    );
+
+    std::vector<float> raw(ringSize, 0.0f);
+    std::vector<float> vu(static_cast<size_t>(numChannels), 0.0f);
+    const int filledSamples = std::clamp(scopeRingSamples, 0, maxSamples);
+    const int zeroPrefix = maxSamples - filledSamples;
+    const int trailingSamples = std::clamp(sampleRate > 0 ? sampleRate / 50 : 64, 64, 2048);
+
+    for (int channel = 0; channel < numChannels; ++channel) {
+        float* dest = raw.data() + static_cast<size_t>(channel) * maxSamples;
+        for (int i = 0; i < filledSamples; ++i) {
+            const int ringIndex =
+                    (scopeRingWritePos - filledSamples + i + maxSamples) % maxSamples;
+            dest[zeroPrefix + i] = scopeRingRaw[
+                    static_cast<size_t>(channel) * maxSamples +
+                    static_cast<size_t>(ringIndex)
+            ];
+        }
+
+        float peak = 0.0f;
+        const int start = std::max(0, maxSamples - trailingSamples);
+        for (int i = start; i < maxSamples; ++i) {
+            peak = std::max(peak, std::abs(dest[i]));
+        }
+        vu[static_cast<size_t>(channel)] = std::clamp(peak, 0.0f, 1.0f);
+    }
+
+    {
+        std::lock_guard<std::mutex> scopeLock(channelScopeState->mutex);
+        channelScopeState->snapshotRaw = std::move(raw);
+        channelScopeState->snapshotVu = std::move(vu);
+        channelScopeState->snapshotChannels = numChannels;
+        channelScopeState->snapshotSerial = ++channelScopeSourceSerial;
+    }
 }

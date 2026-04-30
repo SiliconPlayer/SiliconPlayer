@@ -9,6 +9,8 @@
 #include <atomic>
 #include <unordered_map>
 
+struct ChannelScopeSharedState;
+
 // Forward declarations for libvgm types
 class PlayerA;
 class VGMPlayer;
@@ -59,6 +61,8 @@ public:
     void clearToggleChannelMutes() override;
     void setOption(const char* name, const char* value) override;
     int getOptionApplyPolicy(const char* name) const override;
+    std::shared_ptr<ChannelScopeSharedState> getChannelScopeSharedState() const override;
+    std::vector<int32_t> getChannelScopeTextState(int maxChannels) override;
 
     // Framework
     const char* getName() const override { return "VGMPlay"; }
@@ -122,6 +126,16 @@ private:
     void rebuildToggleChannelsLocked(VGMPlayer* vgmPlayer);
     void applyToggleChannelMutesLocked(VGMPlayer* vgmPlayer);
     uint32_t resolveChipCoreForOption(uint8_t deviceType, int optionValue) const;
+
+    // Channel scope support
+    std::shared_ptr<ChannelScopeSharedState> channelScopeState;
+    uint32_t channelScopeSourceSerial = 0;
+    std::vector<float> scopeRingRaw;
+    int scopeRingChannels = 0;
+    int scopeRingWritePos = 0;
+    int scopeRingSamples = 0;
+
+    void captureScopeSnapshotLocked(VGMPlayer* vgmPlayer);
 };
 
 #endif //SILICONPLAYER_VGMDECODER_H

@@ -1992,6 +1992,14 @@ internal fun AlbumArtPlaceholder(
                         .mapIndexed { index, name -> index to name }
                         .toMap()
             }
+            DecoderNames.VGM_PLAY -> {
+                visChannelScopeInstrumentNamesByIndex = emptyMap()
+                visChannelScopeSampleNamesByIndex = emptyMap()
+                visChannelScopeChipNamesByChannelIndex =
+                    NativeBridge.getDecoderToggleChannelNames()
+                        .mapIndexed { index, name -> index to name }
+                        .toMap()
+            }
             DecoderNames.KLYSTRACK -> {
                 visChannelScopeInstrumentNamesByIndex =
                     parseIndexedNames(NativeBridge.getKlystrackInstrumentNames())

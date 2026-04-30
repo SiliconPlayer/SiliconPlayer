@@ -125,7 +125,8 @@ internal fun supportsChannelScopeVisualization(coreNameForUi: String?): Boolean 
         DecoderNames.SC68,
         DecoderNames.HIVELY_TRACKER,
         DecoderNames.KLYSTRACK,
-        DecoderNames.UADE -> true
+        DecoderNames.UADE,
+        DecoderNames.VGM_PLAY -> true
         else -> false
     }
 }
