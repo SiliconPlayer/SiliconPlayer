@@ -3,57 +3,10 @@ package com.flopster101.siliconplayer
 import android.content.SharedPreferences
 import java.io.File
 
-internal enum class PreviousTrackAction {
-    RestartCurrent,
-    PlayPreviousTrack,
-    NoAction
-}
-
 internal sealed class ResumeTarget {
     data class LocalFile(val file: File) : ResumeTarget()
     data class SourceId(val sourceId: String) : ResumeTarget()
 }
-
-internal data class SubtuneState(
-    val count: Int,
-    val currentIndex: Int
-)
-
-internal data class NativeSubtuneCursor(
-    val count: Int,
-    val index: Int
-)
-
-internal data class DeferredPlaybackSeek(
-    val sourceId: String,
-    val positionSeconds: Double
-)
-
-internal data class SnapshotApplicationResult(
-    val decoderName: String?,
-    val pluginVolumeDb: Float?,
-    val title: String,
-    val artist: String,
-    val sampleRateHz: Int,
-    val channelCount: Int,
-    val bitDepthLabel: String,
-    val repeatModeCapabilitiesFlags: Int,
-    val playbackCapabilitiesFlags: Int,
-    val durationSeconds: Double
-)
-
-internal data class SubtuneSelectionResult(
-    val success: Boolean,
-    val snapshot: NativeTrackSnapshot? = null,
-    val durationSeconds: Double = 0.0,
-    val isPlaying: Boolean = false,
-    val sourceId: String? = null
-)
-
-internal data class LoadedTrackSelectionState(
-    val snapshot: NativeTrackSnapshot,
-    val initialSubtuneApplied: Boolean
-)
 
 internal fun readSubtuneState(selectedFile: File?): SubtuneState {
     if (selectedFile == null) {
@@ -72,14 +25,6 @@ internal fun readNativeSubtuneCursor(): NativeSubtuneCursor {
     val count = NativeBridge.getSubtuneCount().coerceAtLeast(1)
     val index = NativeBridge.getCurrentSubtuneIndex().coerceIn(0, count - 1)
     return NativeSubtuneCursor(count = count, index = index)
-}
-
-internal fun hasNativeSubtuneCursorChanged(
-    nativeCursor: NativeSubtuneCursor,
-    currentSubtuneCount: Int,
-    currentSubtuneIndex: Int
-): Boolean {
-    return nativeCursor.count != currentSubtuneCount || nativeCursor.index != currentSubtuneIndex
 }
 
 internal fun readSubtuneEntries(subtuneCount: Int): List<SubtuneEntry> {
@@ -144,21 +89,6 @@ internal fun resolveNextRepeatMode(
         includeSubtuneRepeat = allowSubtuneRepeat,
         includeTrackRepeat = allowTrackRepeat
     )
-}
-
-internal fun snapshotAppearsValid(snapshot: NativeTrackSnapshot): Boolean {
-    return snapshot.sampleRateHz > 0 ||
-        snapshot.durationSeconds > 0.0 ||
-        snapshot.title.isNotBlank() ||
-        snapshot.artist.isNotBlank()
-}
-
-internal fun shouldPollTrackMetadata(
-    metadataPollElapsedMs: Long,
-    metadataTitle: String,
-    metadataArtist: String
-): Boolean {
-    return metadataPollElapsedMs >= 540L || metadataTitle.isBlank() || metadataArtist.isBlank()
 }
 
 internal fun resolvePlaybackServiceSourceId(
@@ -252,23 +182,6 @@ internal fun tryPlayAdjacentTrack(
     ) ?: return false
     onPlay(target)
     return true
-}
-
-internal fun resolvePreviousTrackAction(
-    previousRestartsAfterThreshold: Boolean,
-    hasTrackLoaded: Boolean,
-    positionSeconds: Double,
-    hasPreviousTrack: Boolean
-): PreviousTrackAction {
-    val shouldRestartCurrent = shouldRestartCurrentTrackOnPrevious(
-        previousRestartsAfterThreshold = previousRestartsAfterThreshold,
-        hasTrackLoaded = hasTrackLoaded,
-        positionSeconds = positionSeconds
-    )
-    if (shouldRestartCurrent) return PreviousTrackAction.RestartCurrent
-    if (hasPreviousTrack) return PreviousTrackAction.PlayPreviousTrack
-    if (hasTrackLoaded) return PreviousTrackAction.RestartCurrent
-    return PreviousTrackAction.NoAction
 }
 
 internal fun resolveResumeTarget(

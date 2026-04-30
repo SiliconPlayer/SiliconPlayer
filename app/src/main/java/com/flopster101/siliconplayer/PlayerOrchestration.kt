@@ -4,18 +4,6 @@ import android.content.Context
 import android.widget.Toast
 import java.io.File
 
-internal data class NativeTrackSnapshot(
-    val decoderName: String?,
-    val title: String,
-    val artist: String,
-    val sampleRateHz: Int,
-    val channelCount: Int,
-    val bitDepthLabel: String,
-    val repeatModeCapabilitiesFlags: Int,
-    val playbackCapabilitiesFlags: Int,
-    val durationSeconds: Double
-)
-
 internal fun readNativeTrackSnapshot(): NativeTrackSnapshot {
     val decoder = readCurrentDecoderName()
     return NativeTrackSnapshot(
@@ -137,16 +125,6 @@ internal fun adjacentTrackForOffset(
     val targetIndex = index + offset
     if (targetIndex !in visiblePlayableFiles.indices) return null
     return visiblePlayableFiles[targetIndex]
-}
-
-internal fun shouldRestartCurrentTrackOnPrevious(
-    previousRestartsAfterThreshold: Boolean,
-    hasTrackLoaded: Boolean,
-    positionSeconds: Double
-): Boolean {
-    return previousRestartsAfterThreshold &&
-        hasTrackLoaded &&
-        positionSeconds > PREVIOUS_RESTART_THRESHOLD_SECONDS
 }
 
 internal fun pluginNameForCoreName(coreName: String?): String? {
