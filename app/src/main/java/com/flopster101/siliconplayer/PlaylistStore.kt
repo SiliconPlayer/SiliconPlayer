@@ -71,34 +71,10 @@ internal fun upsertStoredPlaylist(
     state: PlaylistLibraryState,
     playlist: StoredPlaylist
 ): PlaylistLibraryState {
-    val existingIndex = state.playlists.indexOfFirst { existing ->
-        existing.sourceIdHint != null &&
-            playlist.sourceIdHint != null &&
-            samePath(existing.sourceIdHint, playlist.sourceIdHint)
-    }
-    val updatedPlaylist = if (existingIndex >= 0) {
-        playlist.copy(
-            id = state.playlists[existingIndex].id,
-            updatedAtMs = System.currentTimeMillis()
-        )
-    } else {
-        playlist.copy(updatedAtMs = System.currentTimeMillis())
-    }
-    val withoutExisting = if (existingIndex >= 0) {
-        state.playlists.toMutableList().apply { removeAt(existingIndex) }
-    } else {
-        state.playlists.toMutableList()
-    }
-    withoutExisting.add(0, updatedPlaylist)
-    return state.copy(playlists = withoutExisting)
-}
-
-internal fun removeStoredPlaylist(
-    state: PlaylistLibraryState,
-    playlistId: String
-): PlaylistLibraryState {
-    return state.copy(
-        playlists = state.playlists.filterNot { it.id == playlistId }
+    return upsertStoredPlaylist(
+        state = state,
+        playlist = playlist,
+        sameSource = ::samePath
     )
 }
 
@@ -106,37 +82,11 @@ internal fun upsertFavoriteTrack(
     state: PlaylistLibraryState,
     track: PlaylistTrackEntry
 ): PlaylistLibraryState {
-    val withoutExisting = state.favorites.filterNot { existing ->
-        samePath(existing.source, track.source) &&
-            (existing.subtuneIndex ?: -1) == (track.subtuneIndex ?: -1)
-    }
-    return state.copy(favorites = listOf(track) + withoutExisting)
-}
-
-internal fun removeFavoriteTrack(
-    state: PlaylistLibraryState,
-    favoriteId: String
-): PlaylistLibraryState {
-    return state.copy(
-        favorites = state.favorites.filterNot { it.id == favoriteId }
+    return upsertFavoriteTrack(
+        state = state,
+        track = track,
+        sameSource = ::samePath
     )
-}
-
-internal fun moveFavoriteTrack(
-    state: PlaylistLibraryState,
-    favoriteId: String,
-    offset: Int
-): PlaylistLibraryState {
-    if (offset == 0 || state.favorites.size < 2) return state
-    val currentIndex = state.favorites.indexOfFirst { it.id == favoriteId }
-    if (currentIndex < 0) return state
-    val targetIndex = (currentIndex + offset).coerceIn(0, state.favorites.lastIndex)
-    if (targetIndex == currentIndex) return state
-    val reorderedFavorites = state.favorites.toMutableList().apply {
-        val entry = removeAt(currentIndex)
-        add(targetIndex, entry)
-    }
-    return state.copy(favorites = reorderedFavorites)
 }
 
 internal fun readStoredPlaylistFromJson(raw: String?): StoredPlaylist? {
@@ -165,13 +115,13 @@ private fun readStoredPlaylist(item: JSONObject): StoredPlaylist? {
     val entries = readPlaylistTrackEntries(entriesArray)
     if (title.isBlank() || entries.isEmpty()) return null
     return StoredPlaylist(
-        id = item.optString(STORED_PLAYLIST_ID_KEY).trim().ifBlank { java.util.UUID.randomUUID().toString() },
+        id = item.optString(STORED_PLAYLIST_ID_KEY).trim().ifBlank { generatePlaylistId() },
         title = title,
         format = PlaylistStoredFormat.fromStorage(item.optString(STORED_PLAYLIST_FORMAT_KEY)),
         sourceIdHint = item.optString(STORED_PLAYLIST_SOURCE_HINT_KEY).trim().ifBlank { null },
         entries = entries,
         updatedAtMs = item.optLong(STORED_PLAYLIST_UPDATED_AT_KEY).takeIf { it > 0L }
-            ?: System.currentTimeMillis()
+            ?: currentPlaylistTimeMillis()
     )
 }
 
@@ -184,7 +134,7 @@ private fun readPlaylistTrackEntries(array: JSONArray): List<PlaylistTrackEntry>
         if (source.isBlank() || title.isBlank()) continue
         val fallbackAddedAt = (array.length() - index).toLong()
         entries += PlaylistTrackEntry(
-            id = item.optString(PLAYLIST_ENTRY_ID_KEY).trim().ifBlank { java.util.UUID.randomUUID().toString() },
+            id = item.optString(PLAYLIST_ENTRY_ID_KEY).trim().ifBlank { generatePlaylistId() },
             source = source,
             requestUrlHint = item.optString(PLAYLIST_ENTRY_REQUEST_URL_HINT_KEY).trim().ifBlank { null },
             title = title,

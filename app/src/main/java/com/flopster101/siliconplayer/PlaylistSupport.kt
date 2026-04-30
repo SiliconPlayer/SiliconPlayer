@@ -9,70 +9,6 @@ import java.nio.charset.CharacterCodingException
 import java.nio.charset.CodingErrorAction
 import java.nio.charset.Charset
 import java.util.Locale
-import java.util.UUID
-
-private val SUPPORTED_PLAYLIST_EXTENSIONS = setOf("m3u", "m3u8")
-
-internal enum class PlaylistStoredFormat(
-    val storageValue: String,
-    val label: String
-) {
-    Internal("internal", "Internal"),
-    M3u("m3u", "M3U"),
-    M3u8("m3u8", "M3U8");
-
-    companion object {
-        fun fromStorage(value: String?): PlaylistStoredFormat {
-            return values().firstOrNull { it.storageValue == value } ?: Internal
-        }
-    }
-}
-
-internal data class PlaylistTrackEntry(
-    val id: String = UUID.randomUUID().toString(),
-    val source: String,
-    val requestUrlHint: String? = null,
-    val title: String,
-    val artist: String? = null,
-    val album: String? = null,
-    val artworkThumbnailCacheKey: String? = null,
-    val subtuneIndex: Int? = null,
-    val durationSecondsOverride: Double? = null,
-    val addedAtMs: Long = System.currentTimeMillis()
-)
-
-internal data class StoredPlaylist(
-    val id: String = UUID.randomUUID().toString(),
-    val title: String,
-    val format: PlaylistStoredFormat,
-    val sourceIdHint: String? = null,
-    val entries: List<PlaylistTrackEntry>,
-    val updatedAtMs: Long = System.currentTimeMillis()
-)
-
-internal data class PlaylistLibraryState(
-    val favorites: List<PlaylistTrackEntry>,
-    val playlists: List<StoredPlaylist>
-)
-
-internal data class ParsedPlaylistDocument(
-    val title: String,
-    val format: PlaylistStoredFormat,
-    val sourceIdHint: String? = null,
-    val entries: List<PlaylistTrackEntry>
-)
-
-internal fun emptyPlaylistLibraryState(): PlaylistLibraryState {
-    return PlaylistLibraryState(
-        favorites = emptyList(),
-        playlists = emptyList()
-    )
-}
-
-internal fun isSupportedPlaylistFileName(name: String): Boolean {
-    return inferredPrimaryExtensionForName(name)
-        ?.lowercase(Locale.ROOT) in SUPPORTED_PLAYLIST_EXTENSIONS
-}
 
 internal fun isSupportedPlaylistFile(file: File?): Boolean {
     return file != null && file.isFile && isSupportedPlaylistFileName(file.name)
@@ -112,29 +48,6 @@ internal fun playlistEntryMatchesPlayback(
     return entrySubtune == currentSubtuneIndex
 }
 
-internal fun buildInternalPlaylistCopy(
-    title: String,
-    entries: List<PlaylistTrackEntry>
-): StoredPlaylist {
-    val normalizedTitle = title.trim().ifBlank { "Playlist" }
-    return StoredPlaylist(
-        title = normalizedTitle,
-        format = PlaylistStoredFormat.Internal,
-        entries = entries
-    )
-}
-
-internal fun buildImportedPlaylist(
-    document: ParsedPlaylistDocument
-): StoredPlaylist {
-    return StoredPlaylist(
-        title = document.title,
-        format = document.format,
-        sourceIdHint = document.sourceIdHint,
-        entries = document.entries
-    )
-}
-
 internal fun playlistTrackSubtitle(entry: PlaylistTrackEntry): String {
     val artist = entry.artist?.trim().orEmpty()
     val sourceTail = when {
@@ -146,10 +59,11 @@ internal fun playlistTrackSubtitle(entry: PlaylistTrackEntry): String {
         if (artist.isNotBlank()) {
             append(artist)
         }
-        if (entry.subtuneIndex != null) {
+        val subtuneIndex = entry.subtuneIndex
+        if (subtuneIndex != null) {
             if (isNotEmpty()) append(" • ")
             append("Subtune ")
-            append(entry.subtuneIndex + 1)
+            append(subtuneIndex + 1)
         }
         if (sourceTail.isNotBlank()) {
             if (isNotEmpty()) append(" • ")
