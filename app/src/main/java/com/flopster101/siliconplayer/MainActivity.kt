@@ -4105,8 +4105,20 @@ private fun AppNavigation(
     }
 
     Box(modifier = Modifier.fillMaxSize()) {
+        val browserLaunchState = browserNavigator.launchState
+        val browserLaunchDirectory = browserLaunchState.directoryPath.orEmpty()
+        val keepRemoteBrowserComposed =
+            currentView == MainView.Browser &&
+                (
+                    browserLaunchState.smbSourceNodeId != null ||
+                        browserLaunchState.httpSourceNodeId != null ||
+                        browserLaunchDirectory.startsWith("smb://", ignoreCase = true) ||
+                        browserLaunchDirectory.startsWith("http://", ignoreCase = true) ||
+                        browserLaunchDirectory.startsWith("https://", ignoreCase = true)
+                    )
         val shouldComposeBackgroundContent =
-            playerTransition.collapseDragInProgress ||
+            keepRemoteBrowserComposed ||
+                playerTransition.collapseDragInProgress ||
                 !playerTransition.expandedOverlayCurrentVisible ||
                 !playerTransition.expandedOverlaySettledVisible
         val backgroundContentStateHolder = rememberSaveableStateHolder()
@@ -4467,7 +4479,7 @@ private fun AppNavigation(
                 rememberBrowserLocation = rememberBrowserLocation,
                 lastBrowserLocationId = lastBrowserLocationId,
                 lastBrowserDirectoryPath = lastBrowserDirectoryPath,
-                browserLaunchState = browserNavigator.launchState,
+                browserLaunchState = browserLaunchState,
                 browserFocusRestoreRequestToken = browserFocusRestoreRequestToken,
                 showParentDirectoryEntry = showParentDirectoryEntry,
                 showFileIconChipBackground = showFileIconChipBackground,
