@@ -437,6 +437,24 @@ double LazyUsf2Decoder::getPlaybackPositionSeconds() {
     return static_cast<double>(renderedFrames) / outputSampleRate;
 }
 
+std::string LazyUsf2Decoder::getCoreStringInfo(const char* name) {
+    if (name == nullptr) return "";
+    if (std::strcmp(name, "gameName") == 0) return getGameName();
+    if (std::strcmp(name, "copyright") == 0) return getCopyright();
+    if (std::strcmp(name, "year") == 0) return getYear();
+    if (std::strcmp(name, "usfBy") == 0) return getUsfBy();
+    if (std::strcmp(name, "lengthTag") == 0) return getLengthTag();
+    if (std::strcmp(name, "fadeTag") == 0) return getFadeTag();
+    return "";
+}
+
+int LazyUsf2Decoder::getCoreIntInfo(const char* name, int fallback) {
+    if (name == nullptr) return fallback;
+    if (std::strcmp(name, "enableCompare") == 0) return getEnableCompare() ? 1 : 0;
+    if (std::strcmp(name, "enableFifoFull") == 0) return getEnableFifoFull() ? 1 : 0;
+    return fallback;
+}
+
 std::vector<std::string> LazyUsf2Decoder::getSupportedExtensions() {
     return {"usf", "miniusf"};
 }

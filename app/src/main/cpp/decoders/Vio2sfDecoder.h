@@ -50,6 +50,7 @@ public:
     int getFixedSampleRateHz() const override;
     double getPlaybackPositionSeconds() override;
     TimelineMode getTimelineMode() const override { return TimelineMode::ContinuousLinear; }
+    std::string getCoreStringInfo(const char* name) override;
 
     const char* getName() const override { return "Vio2SF"; }
     static std::vector<std::string> getSupportedExtensions();

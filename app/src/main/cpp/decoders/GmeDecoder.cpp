@@ -1626,6 +1626,26 @@ AudioDecoder::TimelineMode GmeDecoder::getTimelineMode() const {
     return TimelineMode::Discontinuous;
 }
 
+std::string GmeDecoder::getCoreStringInfo(const char* name) {
+    if (name == nullptr) return "";
+    if (std::strcmp(name, "systemName") == 0) return getSystemName();
+    if (std::strcmp(name, "gameName") == 0) return getGameName();
+    if (std::strcmp(name, "copyright") == 0) return getCopyright();
+    if (std::strcmp(name, "comment") == 0) return getComment();
+    if (std::strcmp(name, "dumper") == 0) return getDumper();
+    return "";
+}
+
+int GmeDecoder::getCoreIntInfo(const char* name, int fallback) {
+    if (name == nullptr) return fallback;
+    if (std::strcmp(name, "trackCount") == 0) return getTrackCountInfo();
+    if (std::strcmp(name, "voiceCount") == 0) return getVoiceCountInfo();
+    if (std::strcmp(name, "hasLoopPoint") == 0) return getHasLoopPointInfo() ? 1 : 0;
+    if (std::strcmp(name, "loopStartMs") == 0) return getLoopStartMsInfo();
+    if (std::strcmp(name, "loopLengthMs") == 0) return getLoopLengthMsInfo();
+    return fallback;
+}
+
 std::vector<std::string> GmeDecoder::getSupportedExtensions() {
     std::vector<std::string> extensions;
     const gme_type_t* typeList = gme_type_list();

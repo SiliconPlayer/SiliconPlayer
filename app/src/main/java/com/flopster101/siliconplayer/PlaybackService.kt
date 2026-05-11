@@ -399,7 +399,7 @@ class PlaybackService : Service() {
     private fun stopAndClear() {
         abandonAudioFocus()
         resumeOnFocusGain = false
-        NativeBridge.stopEngine()
+        NativeBridge.releaseCurrentDecoder()
         isPlaying = false
         releaseWakeLock()
         currentPath = null

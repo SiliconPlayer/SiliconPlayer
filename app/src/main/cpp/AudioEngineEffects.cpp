@@ -1,5 +1,4 @@
 #include "AudioEngine.h"
-#include "decoders/FFmpegDecoder.h"
 
 #include <algorithm>
 #include <chrono>
@@ -1070,12 +1069,7 @@ int64_t AudioEngine::getTrackBitrate() {
     if (!decoder) {
         return 0;
     }
-    // Check if decoder is FFmpegDecoder
-    FFmpegDecoder* ffmpegDecoder = dynamic_cast<FFmpegDecoder*>(decoder.get());
-    if (ffmpegDecoder) {
-        return ffmpegDecoder->getBitrate();
-    }
-    return 0;
+    return decoder->getCoreIntInfo("bitrate", 0);
 }
 
 bool AudioEngine::isTrackVBR() {
@@ -1083,10 +1077,5 @@ bool AudioEngine::isTrackVBR() {
     if (!decoder) {
         return false;
     }
-    // Check if decoder is FFmpegDecoder
-    FFmpegDecoder* ffmpegDecoder = dynamic_cast<FFmpegDecoder*>(decoder.get());
-    if (ffmpegDecoder) {
-        return ffmpegDecoder->isVBR();
-    }
-    return false;
+    return decoder->getCoreIntInfo("isVbr", 0) != 0;
 }

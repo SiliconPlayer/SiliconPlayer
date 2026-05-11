@@ -49,6 +49,8 @@ public:
     int getPlaybackCapabilities() const override;
     double getPlaybackPositionSeconds() override;
     TimelineMode getTimelineMode() const override { return TimelineMode::Discontinuous; }
+    std::string getCoreStringInfo(const char* name) override;
+    int getCoreIntInfo(const char* name, int fallback) override;
 
     const char* getName() const override { return "LazyUSF2"; }
     static std::vector<std::string> getSupportedExtensions();

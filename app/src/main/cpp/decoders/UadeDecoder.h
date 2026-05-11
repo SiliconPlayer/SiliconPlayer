@@ -18,8 +18,6 @@ public:
     UadeDecoder();
     ~UadeDecoder() override;
 
-    static void setRuntimePaths(const std::string& baseDir, const std::string& uadeCorePath);
-
     bool open(const char* path) override;
     void close() override;
     int read(float* buffer, int numFrames) override;
@@ -71,6 +69,9 @@ public:
     int getPlaybackCapabilities() const override;
     double getPlaybackPositionSeconds() override;
     TimelineMode getTimelineMode() const override { return TimelineMode::ContinuousLinear; }
+    std::string getCoreStringInfo(const char* name) override;
+    int getCoreIntInfo(const char* name, int fallback = 0) override;
+    int64_t getCoreInt64Info(const char* name, int64_t fallback = 0) override;
     std::shared_ptr<ChannelScopeSharedState> getChannelScopeSharedState() const override { return channelScopeState; }
     std::vector<int32_t> getChannelScopeTextState(int maxChannels) override;
 

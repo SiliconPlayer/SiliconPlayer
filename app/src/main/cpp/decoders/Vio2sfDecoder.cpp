@@ -7,6 +7,7 @@
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
+#include <dlfcn.h>
 #include <filesystem>
 #include <limits>
 
@@ -22,11 +23,6 @@ extern "C" {
 #define LOGW(...) __android_log_print(ANDROID_LOG_WARN, LOG_TAG, __VA_ARGS__)
 #define LOGE(...) __android_log_print(ANDROID_LOG_ERROR, LOG_TAG, __VA_ARGS__)
 
-extern std::string resolveArchiveCompanionPathForNative(
-        const std::string& basePath,
-        const std::string& requestedPath
-);
-
 namespace {
 constexpr int kNativeSampleRate = 44100;
 constexpr int kNativeChannels = 2;
@@ -34,6 +30,36 @@ constexpr int kRenderChunkFrames = 1024;
 constexpr double kFallbackDurationSeconds = 180.0;
 constexpr unsigned long kInvalidPsfTime = 0xC0CAC01A;
 constexpr int kNdsVoices = 16;
+using ResolveArchiveCompanionPathFn = int (*)(const char*, const char*, char*, size_t);
+
+ResolveArchiveCompanionPathFn getArchiveCompanionResolver() {
+    static ResolveArchiveCompanionPathFn resolver = []() {
+        void* handle = dlopen("libsiliconplayer.so", RTLD_NOW | RTLD_NOLOAD);
+        if (handle == nullptr) {
+            handle = dlopen("libsiliconplayer.so", RTLD_NOW);
+        }
+        if (handle == nullptr) {
+            return ResolveArchiveCompanionPathFn{};
+        }
+        return reinterpret_cast<ResolveArchiveCompanionPathFn>(
+                dlsym(handle, "siliconplayer_resolve_archive_companion_path")
+        );
+    }();
+    return resolver;
+}
+
+std::string resolveArchiveCompanionPathForPlugin(
+        const std::string& basePath,
+        const std::string& requestedPath
+) {
+    char resolvedPath[4096] = {};
+    const auto resolver = getArchiveCompanionResolver();
+    if (resolver == nullptr ||
+        resolver(basePath.c_str(), requestedPath.c_str(), resolvedPath, sizeof(resolvedPath)) == 0) {
+        return {};
+    }
+    return resolvedPath;
+}
 
 struct PsfStatusContext {
     const char* stage = "?";
@@ -55,7 +81,7 @@ static void* stdioFopen(void* context, const char* path) {
     const auto* openContext = static_cast<const PsfOpenContext*>(context);
     std::string candidatePath = normalized;
     if (openContext != nullptr && !openContext->sourcePath.empty()) {
-        const std::string resolvedPath = resolveArchiveCompanionPathForNative(
+        const std::string resolvedPath = resolveArchiveCompanionPathForPlugin(
                 openContext->sourcePath,
                 normalized
         );
@@ -75,7 +101,7 @@ static void* stdioFopen(void* context, const char* path) {
     if (!sizeError && candidateSize == 0 && openContext != nullptr && !openContext->sourcePath.empty()) {
         std::fclose(handle);
         handle = nullptr;
-        const std::string resolvedPath = resolveArchiveCompanionPathForNative(
+        const std::string resolvedPath = resolveArchiveCompanionPathForPlugin(
                 openContext->sourcePath,
                 normalized
         );
@@ -867,6 +893,17 @@ double Vio2sfDecoder::getPlaybackPositionSeconds() {
     std::lock_guard<std::mutex> lock(decodeMutex);
     if (sampleRate <= 0) return 0.0;
     return static_cast<double>(renderedFrames) / sampleRate;
+}
+
+std::string Vio2sfDecoder::getCoreStringInfo(const char* name) {
+    if (name == nullptr) return "";
+    if (std::strcmp(name, "gameName") == 0) return getGameName();
+    if (std::strcmp(name, "copyright") == 0) return getCopyright();
+    if (std::strcmp(name, "year") == 0) return getYear();
+    if (std::strcmp(name, "comment") == 0) return getComment();
+    if (std::strcmp(name, "lengthTag") == 0) return getLengthTag();
+    if (std::strcmp(name, "fadeTag") == 0) return getFadeTag();
+    return "";
 }
 
 std::vector<std::string> Vio2sfDecoder::getSupportedExtensions() {

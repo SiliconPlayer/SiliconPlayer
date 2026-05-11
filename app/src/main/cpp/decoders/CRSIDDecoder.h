@@ -61,6 +61,8 @@ public:
     std::string getSidCurrentModelSummary() override;
     std::string getSidBaseAddressSummary() override;
     std::string getSidCommentSummary() override;
+    std::string getCoreStringInfo(const char* name) override;
+    int getCoreIntInfo(const char* name, int fallback = 0) override;
 
     const char* getName() const override { return "cRSID"; }
     static std::vector<std::string> getSupportedExtensions();

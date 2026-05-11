@@ -648,6 +648,22 @@ AudioDecoder::TimelineMode KlystrackDecoder::getTimelineMode() const {
     return TimelineMode::Discontinuous;
 }
 
+std::string KlystrackDecoder::getCoreStringInfo(const char* name) {
+    if (name == nullptr) return "";
+    if (std::strcmp(name, "formatName") == 0) return getFormatNameInfo();
+    if (std::strcmp(name, "instrumentNames") == 0) return getInstrumentNamesInfo();
+    return "";
+}
+
+int KlystrackDecoder::getCoreIntInfo(const char* name, int fallback) {
+    if (name == nullptr) return fallback;
+    if (std::strcmp(name, "trackCount") == 0) return getTrackCountInfo();
+    if (std::strcmp(name, "instrumentCount") == 0) return getInstrumentCountInfo();
+    if (std::strcmp(name, "songLengthRows") == 0) return getSongLengthRowsInfo();
+    if (std::strcmp(name, "currentRow") == 0) return getCurrentRowInfo();
+    return fallback;
+}
+
 std::vector<std::string> KlystrackDecoder::getSupportedExtensions() {
     return {
             "kt",

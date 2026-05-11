@@ -9,21 +9,83 @@
 #include <cstdlib>
 #include <set>
 #include <cstdio>
+#include <limits>
 #include <strings.h>
+#include <dlfcn.h>
 #include <libavutil/error.h>
 
 #define LOG_TAG "FFmpegDecoder"
 #define LOGE(...) __android_log_print(ANDROID_LOG_ERROR, LOG_TAG, __VA_ARGS__)
 #define LOGD(...) __android_log_print(ANDROID_LOG_DEBUG, LOG_TAG, __VA_ARGS__)
 
-extern bool openSmbAvioHandleForNative(const std::string& requestUri, int64_t* outHandleId);
-extern int readSmbAvioHandleForNative(int64_t handleId, int64_t offset, uint8_t* buffer, int length);
-extern int64_t getSmbAvioHandleSizeForNative(int64_t handleId);
-extern void closeSmbAvioHandleForNative(int64_t handleId);
-
 namespace {
 std::once_flag gFfmpegNetworkInitOnce;
 constexpr int kSmbAvioBufferSize = 64 * 1024;
+using OpenSmbAvioHandleFn = int (*)(const char*, int64_t*);
+using ReadSmbAvioHandleFn = int (*)(int64_t, int64_t, uint8_t*, int);
+using GetSmbAvioHandleSizeFn = int64_t (*)(int64_t);
+using CloseSmbAvioHandleFn = void (*)(int64_t);
+
+void* getMainLibraryHandle() {
+    static void* handle = []() {
+        void* loaded = dlopen("libsiliconplayer.so", RTLD_NOW | RTLD_NOLOAD);
+        if (loaded == nullptr) {
+            loaded = dlopen("libsiliconplayer.so", RTLD_NOW);
+        }
+        return loaded;
+    }();
+    return handle;
+}
+
+OpenSmbAvioHandleFn getOpenSmbAvioHandleFn() {
+    static OpenSmbAvioHandleFn fn = reinterpret_cast<OpenSmbAvioHandleFn>(
+            dlsym(getMainLibraryHandle(), "siliconplayer_open_smb_avio_handle")
+    );
+    return fn;
+}
+
+ReadSmbAvioHandleFn getReadSmbAvioHandleFn() {
+    static ReadSmbAvioHandleFn fn = reinterpret_cast<ReadSmbAvioHandleFn>(
+            dlsym(getMainLibraryHandle(), "siliconplayer_read_smb_avio_handle")
+    );
+    return fn;
+}
+
+GetSmbAvioHandleSizeFn getSmbAvioHandleSizeFn() {
+    static GetSmbAvioHandleSizeFn fn = reinterpret_cast<GetSmbAvioHandleSizeFn>(
+            dlsym(getMainLibraryHandle(), "siliconplayer_get_smb_avio_handle_size")
+    );
+    return fn;
+}
+
+CloseSmbAvioHandleFn getCloseSmbAvioHandleFn() {
+    static CloseSmbAvioHandleFn fn = reinterpret_cast<CloseSmbAvioHandleFn>(
+            dlsym(getMainLibraryHandle(), "siliconplayer_close_smb_avio_handle")
+    );
+    return fn;
+}
+
+bool openSmbAvioHandleForPlugin(const std::string& requestUri, int64_t* outHandleId) {
+    const auto fn = getOpenSmbAvioHandleFn();
+    return fn != nullptr && fn(requestUri.c_str(), outHandleId) != 0;
+}
+
+int readSmbAvioHandleForPlugin(int64_t handleId, int64_t offset, uint8_t* buffer, int length) {
+    const auto fn = getReadSmbAvioHandleFn();
+    return fn != nullptr ? fn(handleId, offset, buffer, length) : -1;
+}
+
+int64_t getSmbAvioHandleSizeForPlugin(int64_t handleId) {
+    const auto fn = getSmbAvioHandleSizeFn();
+    return fn != nullptr ? fn(handleId) : -1;
+}
+
+void closeSmbAvioHandleForPlugin(int64_t handleId) {
+    const auto fn = getCloseSmbAvioHandleFn();
+    if (fn != nullptr) {
+        fn(handleId);
+    }
+}
 
 std::string ffErrString(int errnum) {
     char errbuf[AV_ERROR_MAX_STRING_SIZE] = {0};
@@ -515,7 +577,7 @@ bool FFmpegDecoder::openSmbCustomIoLocked(const char* path) {
         return false;
     }
 
-    if (!openSmbAvioHandleForNative(path, &smbAvioHandleId)) {
+    if (!openSmbAvioHandleForPlugin(path, &smbAvioHandleId)) {
         LOGE("Failed to open SMB AVIO handle for %s", path);
         return false;
     }
@@ -572,7 +634,7 @@ void FFmpegDecoder::closeSmbCustomIoLocked() {
     }
     avioBuffer = nullptr;
     if (smbAvioHandleId > 0) {
-        closeSmbAvioHandleForNative(smbAvioHandleId);
+        closeSmbAvioHandleForPlugin(smbAvioHandleId);
         smbAvioHandleId = 0;
     }
     smbAvioPosition = 0;
@@ -585,7 +647,7 @@ int FFmpegDecoder::readPacketCallback(void* opaque, uint8_t* buffer, int bufferS
         return AVERROR(EINVAL);
     }
 
-    const int bytesRead = readSmbAvioHandleForNative(
+    const int bytesRead = readSmbAvioHandleForPlugin(
             decoder->smbAvioHandleId,
             decoder->smbAvioPosition,
             buffer,
@@ -616,11 +678,11 @@ int64_t FFmpegDecoder::seekCallback(void* opaque, int64_t offset, int whence) {
     }
 
     if ((whence & AVSEEK_SIZE) == AVSEEK_SIZE) {
-        return getSmbAvioHandleSizeForNative(decoder->smbAvioHandleId);
+        return getSmbAvioHandleSizeForPlugin(decoder->smbAvioHandleId);
     }
 
     const int baseWhence = whence & ~AVSEEK_FORCE;
-    const int64_t sizeBytes = getSmbAvioHandleSizeForNative(decoder->smbAvioHandleId);
+    const int64_t sizeBytes = getSmbAvioHandleSizeForPlugin(decoder->smbAvioHandleId);
     if (sizeBytes < 0) {
         return AVERROR(EIO);
     }
@@ -1254,6 +1316,30 @@ double FFmpegDecoder::getPlaybackPositionSeconds() {
         return static_cast<double>(totalFramesOutput) / outputSampleRate;
     }
     return 0.0;
+}
+
+std::string FFmpegDecoder::getCoreStringInfo(const char* name) {
+    if (name == nullptr) return "";
+    const std::string key(name);
+    if (key == "codecName") return getCodecName();
+    if (key == "containerName") return getContainerName();
+    if (key == "sampleFormatName") return getSampleFormatName();
+    if (key == "channelLayoutName") return getChannelLayoutName();
+    if (key == "encoderName") return getEncoderName();
+    return "";
+}
+
+int FFmpegDecoder::getCoreIntInfo(const char* name, int fallback) {
+    if (name == nullptr) return fallback;
+    const std::string key(name);
+    if (key == "bitrate") {
+        const int64_t value = getBitrate();
+        return value > static_cast<int64_t>(std::numeric_limits<int>::max())
+                ? std::numeric_limits<int>::max()
+                : static_cast<int>(value);
+    }
+    if (key == "isVbr") return isVBR() ? 1 : 0;
+    return fallback;
 }
 
 std::vector<std::string> FFmpegDecoder::getSupportedExtensions() {

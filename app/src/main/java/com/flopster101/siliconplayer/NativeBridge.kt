@@ -100,6 +100,7 @@ object NativeBridge {
     external fun startEngineWithPauseResumeFade()
     external fun stopEngine()
     external fun stopEngineWithPauseResumeFade()
+    external fun releaseCurrentDecoder()
     external fun isEnginePlaying(): Boolean
     external fun loadAudio(path: String)
 

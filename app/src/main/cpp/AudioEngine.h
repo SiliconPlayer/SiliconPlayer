@@ -28,6 +28,7 @@ public:
     bool startWithPauseResumeFade(int durationMs, float attenuationDb);
     void stop();
     void stopWithPauseResumeFade(int durationMs, float attenuationDb);
+    void releaseCurrentDecoder();
     bool isEnginePlaying() const;
     void restart();
     void setUrl(const char* url);

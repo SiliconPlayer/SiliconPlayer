@@ -1041,6 +1041,29 @@ AudioDecoder::TimelineMode HivelyTrackerDecoder::getTimelineMode() const {
     return TimelineMode::Discontinuous;
 }
 
+std::string HivelyTrackerDecoder::getCoreStringInfo(const char* name) {
+    if (name == nullptr) return "";
+    if (std::strcmp(name, "formatName") == 0) return getFormatNameInfo();
+    if (std::strcmp(name, "instrumentNames") == 0) return getInstrumentNamesInfo();
+    return "";
+}
+
+int HivelyTrackerDecoder::getCoreIntInfo(const char* name, int fallback) {
+    if (name == nullptr) return fallback;
+    if (std::strcmp(name, "formatVersion") == 0) return getFormatVersionInfo();
+    if (std::strcmp(name, "positionCount") == 0) return getPositionCountInfo();
+    if (std::strcmp(name, "restartPosition") == 0) return getRestartPositionInfo();
+    if (std::strcmp(name, "trackLengthRows") == 0) return getTrackLengthRowsInfo();
+    if (std::strcmp(name, "trackCount") == 0) return getTrackCountInfo();
+    if (std::strcmp(name, "instrumentCount") == 0) return getInstrumentCountInfo();
+    if (std::strcmp(name, "speedMultiplier") == 0) return getSpeedMultiplierInfo();
+    if (std::strcmp(name, "currentPosition") == 0) return getCurrentPositionInfo();
+    if (std::strcmp(name, "currentRow") == 0) return getCurrentRowInfo();
+    if (std::strcmp(name, "currentTempo") == 0) return getCurrentTempoInfo();
+    if (std::strcmp(name, "mixGainPercent") == 0) return getMixGainPercentInfo();
+    return fallback;
+}
+
 std::vector<std::string> HivelyTrackerDecoder::getSupportedExtensions() {
     return {
             "ahx",

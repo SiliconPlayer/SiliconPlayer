@@ -53,6 +53,8 @@ public:
     int getPlaybackCapabilities() const override;
     double getPlaybackPositionSeconds() override;
     TimelineMode getTimelineMode() const override;
+    std::string getCoreStringInfo(const char* name) override;
+    int getCoreIntInfo(const char* name, int fallback) override;
 
     const char* getName() const override { return "Klystrack-plus"; }
     static std::vector<std::string> getSupportedExtensions();

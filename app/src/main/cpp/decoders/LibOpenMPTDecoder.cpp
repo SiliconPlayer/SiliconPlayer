@@ -611,6 +611,35 @@ std::string LibOpenMPTDecoder::getSampleNames() {
     return sampleNames;
 }
 
+std::string LibOpenMPTDecoder::getCoreStringInfo(const char* name) {
+    if (name == nullptr) return "";
+    const std::string key(name);
+    if (key == "moduleTypeLong") return getModuleTypeLong();
+    if (key == "tracker") return getTracker();
+    if (key == "songMessage") return getSongMessage();
+    if (key == "instrumentNames") return getInstrumentNames();
+    if (key == "sampleNames") return getSampleNames();
+    return "";
+}
+
+int LibOpenMPTDecoder::getCoreIntInfo(const char* name, int fallback) {
+    if (name == nullptr) return fallback;
+    const std::string key(name);
+    if (key == "orderCount") return getOrderCount();
+    if (key == "patternCount") return getPatternCount();
+    if (key == "instrumentCount") return getInstrumentCount();
+    if (key == "sampleCount") return getSampleCount();
+    if (key == "moduleChannelCount") return getModuleChannelCount();
+    return fallback;
+}
+
+std::vector<float> LibOpenMPTDecoder::getCoreFloatVectorInfo(const char* name) {
+    if (name == nullptr) return {};
+    const std::string key(name);
+    if (key == "channelVuLevels") return getCurrentChannelVuLevels();
+    return {};
+}
+
 std::vector<std::string> LibOpenMPTDecoder::getSupportedExtensions() {
     return openmpt::get_supported_extensions();
 }

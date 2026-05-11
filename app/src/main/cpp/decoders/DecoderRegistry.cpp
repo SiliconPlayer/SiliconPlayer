@@ -74,7 +74,12 @@ DecoderRegistry& DecoderRegistry::getInstance() {
     return instance;
 }
 
-void DecoderRegistry::registerDecoder(const std::string& name, const std::vector<std::string>& extensions, DecoderFactory factory, int priority) {
+void DecoderRegistry::registerDecoder(
+        const std::string& name,
+        const std::vector<std::string>& extensions,
+        DecoderFactory factory,
+        int priority,
+        DecoderStaticInfo staticInfo) {
     DecoderInfo info;
     info.name = name;
     info.supportedExtensions = extensions;
@@ -83,6 +88,7 @@ void DecoderRegistry::registerDecoder(const std::string& name, const std::vector
     info.priority = priority;
     info.enabled = true; // Enabled by default
     info.enabledExtensions = {}; // Empty means all extensions enabled
+    info.staticInfo = std::move(staticInfo);
 
     decoders.push_back(info);
 
@@ -236,4 +242,13 @@ std::vector<std::string> DecoderRegistry::getRegisteredDecoderNames() {
         names.push_back(info.name);
     }
     return names;
+}
+
+bool DecoderRegistry::getDecoderStaticInfo(const std::string& name, DecoderStaticInfo& staticInfo) {
+    DecoderInfo* info = findDecoderInfo(name);
+    if (!info) {
+        return false;
+    }
+    staticInfo = info->staticInfo;
+    return true;
 }

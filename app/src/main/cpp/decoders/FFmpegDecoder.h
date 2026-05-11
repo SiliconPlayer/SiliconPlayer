@@ -57,6 +57,8 @@ public:
     int getPlaybackCapabilities() const override;
     double getPlaybackPositionSeconds() override;
     TimelineMode getTimelineMode() const override { return TimelineMode::ContinuousLinear; }
+    std::string getCoreStringInfo(const char* name) override;
+    int getCoreIntInfo(const char* name, int fallback = 0) override;
 
     // Bitrate information
     int64_t getBitrate() const;

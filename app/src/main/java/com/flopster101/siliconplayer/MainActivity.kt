@@ -2370,7 +2370,7 @@ private fun AppNavigation(
             lastStoppedFile = file
             lastStoppedSourceId = sourceId
         },
-        onStopEngine = { NativeBridge.stopEngine() }
+        onStopEngine = { NativeBridge.releaseCurrentDecoder() }
     )
 
     val trackLoadDelegates = AppNavigationTrackLoadDelegates(

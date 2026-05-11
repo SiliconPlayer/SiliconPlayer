@@ -1,11 +1,11 @@
 #include <jni.h>
 #include <string>
 #include <cstdint>
+#include <cstring>
 #include "AudioEngine.h"
 #include "AudioTrackJniBridge.h"
 #include "ChannelScopeTrigger.h"
 #include "decoders/DecoderRegistry.h"
-#include "decoders/UadeDecoder.h"
 #include <algorithm>
 #include <vector>
 #include <string_view>
@@ -23,6 +23,9 @@ static jmethodID gOpenSmbAvioHandleMethod = nullptr;
 static jmethodID gReadSmbAvioHandleMethod = nullptr;
 static jmethodID gGetSmbAvioHandleSizeMethod = nullptr;
 static jmethodID gCloseSmbAvioHandleMethod = nullptr;
+static std::mutex gUadeRuntimePathsMutex;
+static std::string gUadeRuntimeBaseDir;
+static std::string gUadeRuntimeCorePath;
 
 namespace {
 struct AttachedEnv {
@@ -236,6 +239,46 @@ void closeSmbAvioHandleForNative(int64_t handleId) {
     }
 }
 
+extern "C" __attribute__((visibility("default")))
+int siliconplayer_open_smb_avio_handle(const char* requestUri, int64_t* outHandleId) {
+    if (requestUri == nullptr) return 0;
+    return openSmbAvioHandleForNative(requestUri, outHandleId) ? 1 : 0;
+}
+
+extern "C" __attribute__((visibility("default")))
+int siliconplayer_read_smb_avio_handle(int64_t handleId, int64_t offset, uint8_t* buffer, int length) {
+    return readSmbAvioHandleForNative(handleId, offset, buffer, length);
+}
+
+extern "C" __attribute__((visibility("default")))
+int64_t siliconplayer_get_smb_avio_handle_size(int64_t handleId) {
+    return getSmbAvioHandleSizeForNative(handleId);
+}
+
+extern "C" __attribute__((visibility("default")))
+void siliconplayer_close_smb_avio_handle(int64_t handleId) {
+    closeSmbAvioHandleForNative(handleId);
+}
+
+extern "C" __attribute__((visibility("default")))
+int siliconplayer_resolve_archive_companion_path(
+        const char* basePath,
+        const char* requestedPath,
+        char* outputPath,
+        size_t outputPathSize
+) {
+    if (basePath == nullptr || requestedPath == nullptr || outputPath == nullptr || outputPathSize == 0) {
+        return 0;
+    }
+    const std::string resolved = resolveArchiveCompanionPathForNative(basePath, requestedPath);
+    if (resolved.empty() || resolved.size() >= outputPathSize) {
+        outputPath[0] = '\0';
+        return 0;
+    }
+    std::memcpy(outputPath, resolved.c_str(), resolved.size() + 1);
+    return 1;
+}
+
 extern "C" JNIEXPORT jint JNICALL JNI_OnLoad(JavaVM* vm, void*) {
     gJavaVm = vm;
     JNIEnv* env = nullptr;
@@ -335,7 +378,9 @@ Java_com_flopster101_siliconplayer_NativeBridge_setUadeRuntimePaths(
         jstring baseDir,
         jstring uadeCorePath) {
     if (baseDir == nullptr) {
-        UadeDecoder::setRuntimePaths("", "");
+        std::lock_guard<std::mutex> lock(gUadeRuntimePathsMutex);
+        gUadeRuntimeBaseDir.clear();
+        gUadeRuntimeCorePath.clear();
         return;
     }
     const char* nativeBaseDir = env->GetStringUTFChars(baseDir, 0);
@@ -344,11 +389,19 @@ Java_com_flopster101_siliconplayer_NativeBridge_setUadeRuntimePaths(
         nativeUadeCorePath = env->GetStringUTFChars(uadeCorePath, 0);
     }
     if (nativeBaseDir != nullptr && nativeUadeCorePath != nullptr) {
-        UadeDecoder::setRuntimePaths(nativeBaseDir, nativeUadeCorePath);
+        {
+            std::lock_guard<std::mutex> lock(gUadeRuntimePathsMutex);
+            gUadeRuntimeBaseDir = nativeBaseDir;
+            gUadeRuntimeCorePath = nativeUadeCorePath;
+        }
         env->ReleaseStringUTFChars(uadeCorePath, nativeUadeCorePath);
         env->ReleaseStringUTFChars(baseDir, nativeBaseDir);
     } else if (nativeBaseDir != nullptr) {
-        UadeDecoder::setRuntimePaths(nativeBaseDir, "");
+        {
+            std::lock_guard<std::mutex> lock(gUadeRuntimePathsMutex);
+            gUadeRuntimeBaseDir = nativeBaseDir;
+            gUadeRuntimeCorePath.clear();
+        }
         if (nativeUadeCorePath != nullptr) {
             env->ReleaseStringUTFChars(uadeCorePath, nativeUadeCorePath);
         }
@@ -357,8 +410,33 @@ Java_com_flopster101_siliconplayer_NativeBridge_setUadeRuntimePaths(
         if (nativeUadeCorePath != nullptr) {
             env->ReleaseStringUTFChars(uadeCorePath, nativeUadeCorePath);
         }
-        UadeDecoder::setRuntimePaths("", "");
+        std::lock_guard<std::mutex> lock(gUadeRuntimePathsMutex);
+        gUadeRuntimeBaseDir.clear();
+        gUadeRuntimeCorePath.clear();
     }
+}
+
+extern "C" __attribute__((visibility("default")))
+int siliconplayer_get_uade_runtime_paths(
+        char* baseDir,
+        size_t baseDirSize,
+        char* uadeCorePath,
+        size_t uadeCorePathSize
+) {
+    if (baseDir == nullptr || uadeCorePath == nullptr || baseDirSize == 0 || uadeCorePathSize == 0) {
+        return 0;
+    }
+    std::lock_guard<std::mutex> lock(gUadeRuntimePathsMutex);
+    if (gUadeRuntimeBaseDir.empty()) {
+        baseDir[0] = '\0';
+        uadeCorePath[0] = '\0';
+        return 0;
+    }
+    std::strncpy(baseDir, gUadeRuntimeBaseDir.c_str(), baseDirSize - 1);
+    baseDir[baseDirSize - 1] = '\0';
+    std::strncpy(uadeCorePath, gUadeRuntimeCorePath.c_str(), uadeCorePathSize - 1);
+    uadeCorePath[uadeCorePathSize - 1] = '\0';
+    return 1;
 }
 
 static jfloatArray toJFloatArray(JNIEnv* env, const std::vector<float>& values) {
@@ -1905,6 +1983,14 @@ Java_com_flopster101_siliconplayer_NativeBridge_stopEngineWithPauseResumeFade(JN
         return;
     }
     audioEngine->stopWithPauseResumeFade(100, 16.0f);
+}
+
+extern "C" JNIEXPORT void JNICALL
+Java_com_flopster101_siliconplayer_NativeBridge_releaseCurrentDecoder(JNIEnv*, jobject) {
+    if (audioEngine == nullptr) {
+        return;
+    }
+    audioEngine->releaseCurrentDecoder();
 }
 
 extern "C" JNIEXPORT jboolean JNICALL

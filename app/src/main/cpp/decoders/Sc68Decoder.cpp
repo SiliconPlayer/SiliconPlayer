@@ -1664,3 +1664,28 @@ int Sc68Decoder::getOptionApplyPolicy(const char* name) const {
     }
     return OPTION_APPLY_LIVE;
 }
+
+std::string Sc68Decoder::getCoreStringInfo(const char* name) {
+    if (name == nullptr) return "";
+    if (std::strcmp(name, "formatName") == 0) return getFormatName();
+    if (std::strcmp(name, "hardwareName") == 0) return getHardwareName();
+    if (std::strcmp(name, "platformName") == 0) return getPlatformName();
+    if (std::strcmp(name, "replayName") == 0) return getReplayName();
+    if (std::strcmp(name, "albumName") == 0) return getAlbumName();
+    if (std::strcmp(name, "year") == 0) return getYearTag();
+    if (std::strcmp(name, "ripper") == 0) return getRipperTag();
+    if (std::strcmp(name, "converter") == 0) return getConverterTag();
+    if (std::strcmp(name, "timer") == 0) return getTimerTag();
+    return "";
+}
+
+int Sc68Decoder::getCoreIntInfo(const char* name, int fallback) {
+    if (name == nullptr) return fallback;
+    if (std::strcmp(name, "replayRateHz") == 0) return getReplayRateHz();
+    if (std::strcmp(name, "trackCount") == 0) return getTrackCountInfo();
+    if (std::strcmp(name, "canAsid") == 0) return getCanAsid() ? 1 : 0;
+    if (std::strcmp(name, "usesYm") == 0) return getUsesYm() ? 1 : 0;
+    if (std::strcmp(name, "usesSte") == 0) return getUsesSte() ? 1 : 0;
+    if (std::strcmp(name, "usesAmiga") == 0) return getUsesAmiga() ? 1 : 0;
+    return fallback;
+}

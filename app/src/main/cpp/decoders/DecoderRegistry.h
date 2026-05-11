@@ -10,6 +10,18 @@
 // Factory function type
 using DecoderFactory = std::function<std::unique_ptr<AudioDecoder>()>;
 
+struct DecoderStaticInfo {
+    bool hasPlaybackCapabilities = false;
+    int playbackCapabilities = 0;
+    bool hasRepeatModeCapabilities = false;
+    int repeatModeCapabilities = AudioDecoder::REPEAT_CAP_TRACK;
+    bool hasTimelineMode = false;
+    AudioDecoder::TimelineMode timelineMode = AudioDecoder::TimelineMode::Unknown;
+    bool hasFixedSampleRateHz = false;
+    int fixedSampleRateHz = 0;
+    std::function<int(const char*)> optionApplyPolicy;
+};
+
 struct DecoderInfo {
     std::string name;
     std::vector<std::string> supportedExtensions;
@@ -18,13 +30,19 @@ struct DecoderInfo {
     int priority; // Lower numeric value means higher priority (Linux nice-style)
     bool enabled; // Whether this decoder is enabled
     std::vector<std::string> enabledExtensions; // Subset of supportedExtensions that are enabled (empty = all enabled)
+    DecoderStaticInfo staticInfo;
 };
 
 class DecoderRegistry {
 public:
     static DecoderRegistry& getInstance();
 
-    void registerDecoder(const std::string& name, const std::vector<std::string>& extensions, DecoderFactory factory, int priority = 0);
+    void registerDecoder(
+            const std::string& name,
+            const std::vector<std::string>& extensions,
+            DecoderFactory factory,
+            int priority = 0,
+            DecoderStaticInfo staticInfo = {});
 
     std::unique_ptr<AudioDecoder> createDecoder(const char* path);
     std::unique_ptr<AudioDecoder> createDecoderByName(const std::string& name);
@@ -42,6 +60,7 @@ public:
     std::vector<std::string> getDecoderEnabledExtensions(const std::string& name);
     std::vector<std::string> getDecoderSupportedExtensions(const std::string& name);
     std::vector<std::string> getRegisteredDecoderNames();
+    bool getDecoderStaticInfo(const std::string& name, DecoderStaticInfo& staticInfo);
 
 private:
     DecoderRegistry() = default;

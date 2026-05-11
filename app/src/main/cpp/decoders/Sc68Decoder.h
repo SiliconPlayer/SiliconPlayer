@@ -70,6 +70,8 @@ public:
     TimelineMode getTimelineMode() const override { return TimelineMode::ContinuousLinear; }
     void setOption(const char* name, const char* value) override;
     int getOptionApplyPolicy(const char* name) const override;
+    std::string getCoreStringInfo(const char* name) override;
+    int getCoreIntInfo(const char* name, int fallback) override;
 
     const char* getName() const override { return "SC68"; }
     static std::vector<std::string> getSupportedExtensions();

@@ -55,6 +55,12 @@ int AudioEngine::getCoreOptionApplyPolicy(
         }
     }
 
+    DecoderStaticInfo staticInfo;
+    if (DecoderRegistry::getInstance().getDecoderStaticInfo(coreName, staticInfo) &&
+        staticInfo.optionApplyPolicy) {
+        return staticInfo.optionApplyPolicy(optionName.c_str());
+    }
+
     auto tempDecoder = DecoderRegistry::getInstance().createDecoderByName(coreName);
     if (tempDecoder) {
         return tempDecoder->getOptionApplyPolicy(optionName.c_str());
@@ -73,7 +79,12 @@ int AudioEngine::getCoreCapabilities(const std::string& coreName) {
         }
     }
 
-    // Create a temporary instance to query capabilities.
+    DecoderStaticInfo staticInfo;
+    if (DecoderRegistry::getInstance().getDecoderStaticInfo(coreName, staticInfo) &&
+        staticInfo.hasPlaybackCapabilities) {
+        return staticInfo.playbackCapabilities;
+    }
+
     auto tempDecoder = DecoderRegistry::getInstance().createDecoderByName(coreName);
     if (tempDecoder) {
         return tempDecoder->getPlaybackCapabilities();
@@ -89,6 +100,12 @@ int AudioEngine::getCoreRepeatModeCapabilities(const std::string& coreName) {
         if (decoder && decoder->getName() == coreName) {
             return decoder->getRepeatModeCapabilities();
         }
+    }
+
+    DecoderStaticInfo staticInfo;
+    if (DecoderRegistry::getInstance().getDecoderStaticInfo(coreName, staticInfo) &&
+        staticInfo.hasRepeatModeCapabilities) {
+        return staticInfo.repeatModeCapabilities;
     }
 
     auto tempDecoder = DecoderRegistry::getInstance().createDecoderByName(coreName);
@@ -110,6 +127,12 @@ int AudioEngine::getCoreTimelineMode(const std::string& coreName) {
         }
     }
 
+    DecoderStaticInfo staticInfo;
+    if (DecoderRegistry::getInstance().getDecoderStaticInfo(coreName, staticInfo) &&
+        staticInfo.hasTimelineMode) {
+        return static_cast<int>(staticInfo.timelineMode);
+    }
+
     auto tempDecoder = DecoderRegistry::getInstance().createDecoderByName(coreName);
     if (tempDecoder) {
         return static_cast<int>(tempDecoder->getTimelineMode());
@@ -125,6 +148,12 @@ int AudioEngine::getCoreFixedSampleRateHz(const std::string& coreName) {
         if (decoder && decoder->getName() == coreName) {
             return decoder->getFixedSampleRateHz();
         }
+    }
+
+    DecoderStaticInfo staticInfo;
+    if (DecoderRegistry::getInstance().getDecoderStaticInfo(coreName, staticInfo) &&
+        staticInfo.hasFixedSampleRateHz) {
+        return staticInfo.fixedSampleRateHz;
     }
 
     auto tempDecoder = DecoderRegistry::getInstance().createDecoderByName(coreName);

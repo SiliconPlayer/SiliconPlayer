@@ -767,6 +767,25 @@ AudioDecoder::TimelineMode AdPlugDecoder::getTimelineMode() const {
     return TimelineMode::ContinuousLinear;
 }
 
+std::string AdPlugDecoder::getCoreStringInfo(const char* name) {
+    if (name == nullptr) return "";
+    if (std::strcmp(name, "description") == 0) return getDescription();
+    if (std::strcmp(name, "instrumentNames") == 0) return getInstrumentNamesInfo();
+    return "";
+}
+
+int AdPlugDecoder::getCoreIntInfo(const char* name, int fallback) {
+    if (name == nullptr) return fallback;
+    if (std::strcmp(name, "patternCount") == 0) return getPatternCountInfo();
+    if (std::strcmp(name, "currentPattern") == 0) return getCurrentPatternInfo();
+    if (std::strcmp(name, "orderCount") == 0) return getOrderCountInfo();
+    if (std::strcmp(name, "currentOrder") == 0) return getCurrentOrderInfo();
+    if (std::strcmp(name, "currentRow") == 0) return getCurrentRowInfo();
+    if (std::strcmp(name, "currentSpeed") == 0) return getCurrentSpeedInfo();
+    if (std::strcmp(name, "instrumentCount") == 0) return getInstrumentCountInfo();
+    return fallback;
+}
+
 std::vector<std::string> AdPlugDecoder::getSupportedExtensions() {
     // Do not touch CAdPlug::players during process startup:
     // decoder registration runs in global init, and AdPlug's own global

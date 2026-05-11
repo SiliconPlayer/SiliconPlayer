@@ -480,6 +480,25 @@ bool VGMDecoder::hasLoopPoint() {
     return songHasLoopPoint;
 }
 
+std::string VGMDecoder::getCoreStringInfo(const char* name) {
+    if (name == nullptr) return "";
+    if (std::strcmp(name, "gameName") == 0) return getGameName();
+    if (std::strcmp(name, "systemName") == 0) return getSystemName();
+    if (std::strcmp(name, "releaseDate") == 0) return getReleaseDate();
+    if (std::strcmp(name, "encodedBy") == 0) return getEncodedBy();
+    if (std::strcmp(name, "notes") == 0) return getNotes();
+    if (std::strcmp(name, "fileVersion") == 0) return getFileVersion();
+    if (std::strcmp(name, "usedChipList") == 0) return getUsedChipList();
+    return "";
+}
+
+int VGMDecoder::getCoreIntInfo(const char* name, int fallback) {
+    if (name == nullptr) return fallback;
+    if (std::strcmp(name, "deviceCount") == 0) return getDeviceCount();
+    if (std::strcmp(name, "hasLoopPoint") == 0) return hasLoopPoint() ? 1 : 0;
+    return fallback;
+}
+
 void VGMDecoder::setOutputSampleRate(int rate) {
     std::lock_guard<std::mutex> lock(decodeMutex);
     if (rate <= 0 || rate == sampleRate) {

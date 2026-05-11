@@ -1689,6 +1689,26 @@ std::string LibSidPlayFpDecoder::getSidCommentSummary() {
     return sidCommentSummary;
 }
 
+std::string LibSidPlayFpDecoder::getCoreStringInfo(const char* name) {
+    if (name == nullptr) return "";
+    if (std::strcmp(name, "sidFormatName") == 0) return getSidFormatName();
+    if (std::strcmp(name, "sidClockName") == 0) return getSidClockName();
+    if (std::strcmp(name, "sidSpeedName") == 0) return getSidSpeedName();
+    if (std::strcmp(name, "sidCompatibilityName") == 0) return getSidCompatibilityName();
+    if (std::strcmp(name, "sidBackendName") == 0) return getSidBackendName();
+    if (std::strcmp(name, "sidModelSummary") == 0) return getSidModelSummary();
+    if (std::strcmp(name, "sidCurrentModelSummary") == 0) return getSidCurrentModelSummary();
+    if (std::strcmp(name, "sidBaseAddressSummary") == 0) return getSidBaseAddressSummary();
+    if (std::strcmp(name, "sidCommentSummary") == 0) return getSidCommentSummary();
+    return "";
+}
+
+int LibSidPlayFpDecoder::getCoreIntInfo(const char* name, int fallback) {
+    if (name == nullptr) return fallback;
+    if (std::strcmp(name, "sidChipCount") == 0) return getSidChipCountInfo();
+    return fallback;
+}
+
 void LibSidPlayFpDecoder::setRepeatMode(int mode) {
     const int normalizedMode = (mode >= 0 && mode <= 3) ? mode : 0;
     repeatMode.store(normalizedMode);

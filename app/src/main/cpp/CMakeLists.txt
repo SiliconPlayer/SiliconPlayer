@@ -31,29 +31,11 @@ add_library(
         AudioEnginePipeline.cpp
         AudioEngineEffects.cpp
         effects/openmpt_dsp/OpenMptDspEffects.cpp
-        decoders/sid/ReSidBuilder.cpp
-        decoders/sid/ReSidEmu.cpp
-        decoders/FFmpegDecoder.cpp
+        decoders/DecoderPluginLoader.cpp
         decoders/DecoderRegistry.cpp
-        decoders/LibOpenMPTDecoder.cpp
-        decoders/VGMDecoder.cpp
-        decoders/GmeDecoder.cpp
-        decoders/CRSIDDecoder.cpp
-        decoders/LibSidPlayFpDecoder.cpp
-        decoders/LazyUsf2Decoder.cpp
-        decoders/Vio2sfDecoder.cpp
-        decoders/Sc68Decoder.cpp
-        decoders/AdPlugDecoder.cpp
-        decoders/UadeDecoder.cpp
-        decoders/HivelyTrackerDecoder.cpp
-        decoders/KlystrackDecoder.cpp
-        decoders/FurnaceDecoder.cpp
         decoders/SdlCompat.c
         decoders/CPConvStub.c
 )
-
-# Furnace exported headers rely on this define for SFWrapper-dependent structs.
-target_compile_definitions(siliconplayer PRIVATE HAVE_SNDFILE)
 
 # Android 15+ prefers 16KB page-aligned native libraries.
 if (ANDROID)
@@ -215,42 +197,421 @@ include_directories(${CMAKE_SOURCE_DIR}/../../../../external/furnace/extern/libs
             ${android-lib}
             ${opensles-lib}
             ${mediandk-lib}
-            libopenmpt
-            libavformat
-            libavcodec
             libavutil
             libswresample
             libsoxr
-            libvgm-player
-            libvgm-emu
-            libvgm-utils
-            libgme
-            liblazyusf2
-            libvio2sf
-            libpsflib
-            libsc68
-            libfile68
-            libunice68
-            libadplug
-            libbinio
-            libuade
-            libzakalwe
-            libbencodetools
-            libhivelytracker
-            libklystrack
-            libsidplayfp
-            libresidfp
-            libresid
-            libfurnace
             z # zlib is needed for openmpt/ffmpeg/vgm
             m # libbinio can require libm symbols on some toolchains
             ${dl-lib}
     )
 
-    if (HAS_CRSID_PREBUILT)
-        target_link_libraries(siliconplayer libcRSID)
-    endif()
-
     if (HAS_OPENSSL_PREBUILT)
         target_link_libraries(siliconplayer libssl libcrypto)
     endif()
+
+    add_library(
+            siliconplayer_ffmpeg_decoder
+            SHARED
+            decoders/FFmpegDecoder.cpp
+            decoders/FFmpegDecoderPlugin.cpp
+    )
+    if (ANDROID)
+        target_compile_options(
+                siliconplayer_ffmpeg_decoder
+                PRIVATE
+                "-fvisibility=hidden"
+                "-fvisibility-inlines-hidden"
+        )
+        target_link_options(
+                siliconplayer_ffmpeg_decoder
+                PRIVATE
+                "-Wl,-z,max-page-size=16384"
+                "-Wl,-z,common-page-size=16384"
+        )
+    endif()
+    target_link_libraries(
+            siliconplayer_ffmpeg_decoder
+            libavformat
+            libavcodec
+            libavutil
+            libswresample
+            libsoxr
+            ${log-lib}
+            m
+    )
+
+    add_library(
+            siliconplayer_openmpt_decoder
+            SHARED
+            decoders/LibOpenMPTDecoder.cpp
+            decoders/LibOpenMPTDecoderPlugin.cpp
+            ChannelScopeSharedState.cpp
+    )
+    if (ANDROID)
+        target_compile_options(
+                siliconplayer_openmpt_decoder
+                PRIVATE
+                "-fvisibility=hidden"
+                "-fvisibility-inlines-hidden"
+        )
+        target_link_options(
+                siliconplayer_openmpt_decoder
+                PRIVATE
+                "-Wl,-z,max-page-size=16384"
+                "-Wl,-z,common-page-size=16384"
+        )
+    endif()
+    target_link_libraries(
+            siliconplayer_openmpt_decoder
+            libopenmpt
+            ${log-lib}
+            m
+    )
+
+    add_library(
+            siliconplayer_uade_decoder
+            SHARED
+            decoders/UadeDecoder.cpp
+            decoders/UadeDecoderPlugin.cpp
+            ChannelScopeSharedState.cpp
+    )
+    if (ANDROID)
+        target_compile_options(
+                siliconplayer_uade_decoder
+                PRIVATE
+                "-fvisibility=hidden"
+                "-fvisibility-inlines-hidden"
+        )
+        target_link_options(
+                siliconplayer_uade_decoder
+                PRIVATE
+                "-Wl,-z,max-page-size=16384"
+                "-Wl,-z,common-page-size=16384"
+        )
+    endif()
+    target_link_libraries(
+            siliconplayer_uade_decoder
+            libuade
+            libzakalwe
+            libbencodetools
+            ${log-lib}
+            ${dl-lib}
+            m
+    )
+
+    add_library(
+            siliconplayer_vgm_decoder
+            SHARED
+            decoders/VGMDecoder.cpp
+            decoders/VGMDecoderPlugin.cpp
+            ChannelScopeSharedState.cpp
+    )
+    if (ANDROID)
+        target_compile_options(
+                siliconplayer_vgm_decoder
+                PRIVATE
+                "-fvisibility=hidden"
+                "-fvisibility-inlines-hidden"
+        )
+        target_link_options(
+                siliconplayer_vgm_decoder
+                PRIVATE
+                "-Wl,-z,max-page-size=16384"
+                "-Wl,-z,common-page-size=16384"
+        )
+    endif()
+    target_link_libraries(
+            siliconplayer_vgm_decoder
+            libvgm-player
+            libvgm-emu
+            libvgm-utils
+            ${log-lib}
+            m
+    )
+
+    add_library(
+            siliconplayer_gme_decoder
+            SHARED
+            decoders/GmeDecoder.cpp
+            decoders/GmeDecoderPlugin.cpp
+            ChannelScopeSharedState.cpp
+    )
+    if (ANDROID)
+        target_compile_options(
+                siliconplayer_gme_decoder
+                PRIVATE
+                "-fvisibility=hidden"
+                "-fvisibility-inlines-hidden"
+        )
+        target_link_options(
+                siliconplayer_gme_decoder
+                PRIVATE
+                "-Wl,-z,max-page-size=16384"
+                "-Wl,-z,common-page-size=16384"
+        )
+    endif()
+    target_link_libraries(
+            siliconplayer_gme_decoder
+            libgme
+            ${log-lib}
+            m
+    )
+
+    add_library(
+            siliconplayer_crsid_decoder
+            SHARED
+            decoders/CRSIDDecoder.cpp
+            decoders/CRSIDDecoderPlugin.cpp
+            ChannelScopeSharedState.cpp
+    )
+    if (ANDROID)
+        target_compile_options(
+                siliconplayer_crsid_decoder
+                PRIVATE
+                "-fvisibility=hidden"
+                "-fvisibility-inlines-hidden"
+        )
+        target_link_options(
+                siliconplayer_crsid_decoder
+                PRIVATE
+                "-Wl,-z,max-page-size=16384"
+                "-Wl,-z,common-page-size=16384"
+        )
+    endif()
+    target_link_libraries(
+            siliconplayer_crsid_decoder
+            libcRSID
+            ${log-lib}
+            m
+    )
+
+    add_library(
+            siliconplayer_libsidplayfp_decoder
+            SHARED
+            decoders/LibSidPlayFpDecoder.cpp
+            decoders/LibSidPlayFpDecoderPlugin.cpp
+            decoders/sid/ReSidBuilder.cpp
+            decoders/sid/ReSidEmu.cpp
+            ChannelScopeSharedState.cpp
+    )
+    if (ANDROID)
+        target_compile_options(
+                siliconplayer_libsidplayfp_decoder
+                PRIVATE
+                "-fvisibility=hidden"
+                "-fvisibility-inlines-hidden"
+        )
+        target_link_options(
+                siliconplayer_libsidplayfp_decoder
+                PRIVATE
+                "-Wl,-z,max-page-size=16384"
+                "-Wl,-z,common-page-size=16384"
+        )
+    endif()
+    target_link_libraries(
+            siliconplayer_libsidplayfp_decoder
+            libsidplayfp
+            libresidfp
+            libresid
+            ${log-lib}
+            m
+    )
+
+    add_library(
+            siliconplayer_sc68_decoder
+            SHARED
+            decoders/Sc68Decoder.cpp
+            decoders/Sc68DecoderPlugin.cpp
+            ChannelScopeSharedState.cpp
+    )
+    if (ANDROID)
+        target_compile_options(
+                siliconplayer_sc68_decoder
+                PRIVATE
+                "-fvisibility=hidden"
+                "-fvisibility-inlines-hidden"
+        )
+        target_link_options(
+                siliconplayer_sc68_decoder
+                PRIVATE
+                "-Wl,-z,max-page-size=16384"
+                "-Wl,-z,common-page-size=16384"
+        )
+    endif()
+    target_link_libraries(
+            siliconplayer_sc68_decoder
+            libsc68
+            libfile68
+            libunice68
+            ${log-lib}
+            m
+    )
+
+    add_library(
+            siliconplayer_adplug_decoder
+            SHARED
+            decoders/AdPlugDecoder.cpp
+            decoders/AdPlugDecoderPlugin.cpp
+    )
+    if (ANDROID)
+        target_compile_options(
+                siliconplayer_adplug_decoder
+                PRIVATE
+                "-fvisibility=hidden"
+                "-fvisibility-inlines-hidden"
+        )
+        target_link_options(
+                siliconplayer_adplug_decoder
+                PRIVATE
+                "-Wl,-z,max-page-size=16384"
+                "-Wl,-z,common-page-size=16384"
+        )
+    endif()
+    target_link_libraries(
+            siliconplayer_adplug_decoder
+            libadplug
+            libbinio
+            ${log-lib}
+            m
+    )
+
+    add_library(
+            siliconplayer_lazyusf2_decoder
+            SHARED
+            decoders/LazyUsf2Decoder.cpp
+            decoders/LazyUsf2DecoderPlugin.cpp
+    )
+    if (ANDROID)
+        target_compile_options(
+                siliconplayer_lazyusf2_decoder
+                PRIVATE
+                "-fvisibility=hidden"
+                "-fvisibility-inlines-hidden"
+        )
+        target_link_options(
+                siliconplayer_lazyusf2_decoder
+                PRIVATE
+                "-Wl,-z,max-page-size=16384"
+                "-Wl,-z,common-page-size=16384"
+        )
+    endif()
+    target_link_libraries(
+            siliconplayer_lazyusf2_decoder
+            liblazyusf2
+            ${log-lib}
+            m
+    )
+
+    add_library(
+            siliconplayer_vio2sf_decoder
+            SHARED
+            decoders/Vio2sfDecoder.cpp
+            decoders/Vio2sfDecoderPlugin.cpp
+    )
+    if (ANDROID)
+        target_compile_options(
+                siliconplayer_vio2sf_decoder
+                PRIVATE
+                "-fvisibility=hidden"
+                "-fvisibility-inlines-hidden"
+        )
+        target_link_options(
+                siliconplayer_vio2sf_decoder
+                PRIVATE
+                "-Wl,-z,max-page-size=16384"
+                "-Wl,-z,common-page-size=16384"
+        )
+    endif()
+    target_link_libraries(
+            siliconplayer_vio2sf_decoder
+            libvio2sf
+            libpsflib
+            z
+            ${log-lib}
+            m
+    )
+
+    add_library(
+            siliconplayer_hivelytracker_decoder
+            SHARED
+            decoders/HivelyTrackerDecoder.cpp
+            decoders/HivelyTrackerDecoderPlugin.cpp
+            ChannelScopeSharedState.cpp
+    )
+    if (ANDROID)
+        target_compile_options(
+                siliconplayer_hivelytracker_decoder
+                PRIVATE
+                "-fvisibility=hidden"
+                "-fvisibility-inlines-hidden"
+        )
+        target_link_options(
+                siliconplayer_hivelytracker_decoder
+                PRIVATE
+                "-Wl,-z,max-page-size=16384"
+                "-Wl,-z,common-page-size=16384"
+        )
+    endif()
+    target_link_libraries(
+            siliconplayer_hivelytracker_decoder
+            libhivelytracker
+            ${log-lib}
+            m
+    )
+
+    add_library(
+            siliconplayer_klystrack_decoder
+            SHARED
+            decoders/KlystrackDecoder.cpp
+            decoders/KlystrackDecoderPlugin.cpp
+            ChannelScopeSharedState.cpp
+    )
+    if (ANDROID)
+        target_compile_options(
+                siliconplayer_klystrack_decoder
+                PRIVATE
+                "-fvisibility=hidden"
+                "-fvisibility-inlines-hidden"
+        )
+        target_link_options(
+                siliconplayer_klystrack_decoder
+                PRIVATE
+                "-Wl,-z,max-page-size=16384"
+                "-Wl,-z,common-page-size=16384"
+        )
+    endif()
+    target_link_libraries(
+            siliconplayer_klystrack_decoder
+            libklystrack
+            ${log-lib}
+            m
+    )
+
+    add_library(
+            siliconplayer_furnace_decoder
+            SHARED
+            decoders/FurnaceDecoder.cpp
+            decoders/FurnaceDecoderPlugin.cpp
+            ChannelScopeSharedState.cpp
+    )
+    target_compile_definitions(siliconplayer_furnace_decoder PRIVATE HAVE_SNDFILE)
+    if (ANDROID)
+        target_compile_options(
+                siliconplayer_furnace_decoder
+                PRIVATE
+                "-fvisibility=hidden"
+                "-fvisibility-inlines-hidden"
+        )
+        target_link_options(
+                siliconplayer_furnace_decoder
+                PRIVATE
+                "-Wl,-z,max-page-size=16384"
+                "-Wl,-z,common-page-size=16384"
+        )
+    endif()
+    target_link_libraries(
+            siliconplayer_furnace_decoder
+            libfurnace
+            ${log-lib}
+            m
+    )

@@ -259,6 +259,45 @@ void AudioEngine::stopWithPauseResumeFade(int durationMs, float attenuationDb) {
     renderWorkerCv.notify_all();
 }
 
+void AudioEngine::releaseCurrentDecoder() {
+    std::lock_guard<std::mutex> lifecycleLock(lifecycleMutex);
+    if (seekInProgress.load()) {
+        decoderSerial.fetch_add(1);
+        {
+            std::lock_guard<std::mutex> lock(seekWorkerMutex);
+            seekAbortRequested.store(true);
+            seekRequestPending = false;
+        }
+        stopStreamAfterSeek.store(true);
+        seekWorkerCv.notify_one();
+        while (seekInProgress.load()) {
+            std::this_thread::sleep_for(std::chrono::milliseconds(1));
+        }
+    }
+
+    if (outputStreamReady.load(std::memory_order_relaxed)) {
+        resumeAfterRebuild.store(false);
+        requestStreamStop();
+    }
+    isPlaying.store(false);
+    naturalEndPending.store(false);
+    clearRenderQueue();
+    renderWorkerCv.notify_all();
+
+    std::lock_guard<std::mutex> lock(decoderMutex);
+    decoder.reset();
+    cachedDurationSeconds.store(0.0);
+    resetResamplerStateLocked();
+    openMptDspEffects.reset();
+    outputLimiterGain = 1.0f;
+    decoderRenderSampleRate = streamSampleRate;
+    positionSeconds.store(0.0);
+    sharedAbsoluteInputPositionBaseSeconds = 0.0;
+    outputClockSeconds = 0.0;
+    timelineSmoothedSeconds = 0.0;
+    timelineSmootherInitialized = false;
+}
+
 bool AudioEngine::isEnginePlaying() const {
     return isPlaying.load();
 }

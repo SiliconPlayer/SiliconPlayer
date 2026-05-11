@@ -4,6 +4,7 @@
 #include <cstdint>
 #include <memory>
 #include <string>
+#include <utility>
 #include <vector>
 
 struct ChannelScopeSharedState;
@@ -86,7 +87,19 @@ public:
     virtual void setToggleChannelMuted(int /*channelIndex*/, bool /*enabled*/) {}
     virtual bool getToggleChannelMuted(int /*channelIndex*/) const { return false; }
     virtual void clearToggleChannelMutes() {}
+    virtual std::string getCoreStringInfo(const char* /*name*/) { return ""; }
+    virtual int getCoreIntInfo(const char* /*name*/, int fallback = 0) { return fallback; }
+    virtual int64_t getCoreInt64Info(const char* /*name*/, int64_t fallback = 0) { return fallback; }
+    virtual float getCoreFloatInfo(const char* /*name*/, float fallback = 0.0f) { return fallback; }
+    virtual std::vector<float> getCoreFloatVectorInfo(const char* /*name*/) { return {}; }
     virtual const char* getName() const = 0; // Instance name
+
+    void attachDynamicLibraryLease(std::shared_ptr<void> lease) {
+        dynamicLibraryLease = std::move(lease);
+    }
+
+private:
+    std::shared_ptr<void> dynamicLibraryLease;
 };
 
 #endif //SILICONPLAYER_AUDIODECODER_H

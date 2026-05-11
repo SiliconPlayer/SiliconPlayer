@@ -1306,3 +1306,37 @@ std::vector<std::string> FurnaceDecoder::getSupportedExtensions() {
             "dmf"
     };
 }
+
+std::string FurnaceDecoder::getCoreStringInfo(const char* name) {
+    if (name == nullptr) return "";
+    if (std::strcmp(name, "instrumentNames") == 0) return getInstrumentNamesInfo();
+    if (std::strcmp(name, "sampleNames") == 0) return getSampleNamesInfo();
+    if (std::strcmp(name, "formatName") == 0) return getFormatNameInfo();
+    if (std::strcmp(name, "systemName") == 0) return getSystemNameInfo();
+    if (std::strcmp(name, "systemNames") == 0) return getSystemNamesInfo();
+    return "";
+}
+
+int FurnaceDecoder::getCoreIntInfo(const char* name, int fallback) {
+    if (name == nullptr) return fallback;
+    if (std::strcmp(name, "songVersion") == 0) return getSongVersionInfo();
+    if (std::strcmp(name, "systemCount") == 0) return getSystemCountInfo();
+    if (std::strcmp(name, "songChannelCount") == 0) return getSongChannelCountInfo();
+    if (std::strcmp(name, "instrumentCount") == 0) return getInstrumentCountInfo();
+    if (std::strcmp(name, "wavetableCount") == 0) return getWavetableCountInfo();
+    if (std::strcmp(name, "sampleCount") == 0) return getSampleCountInfo();
+    if (std::strcmp(name, "orderCount") == 0) return getOrderCountInfo();
+    if (std::strcmp(name, "rowsPerPattern") == 0) return getRowsPerPatternInfo();
+    if (std::strcmp(name, "currentOrder") == 0) return getCurrentOrderInfo();
+    if (std::strcmp(name, "currentRow") == 0) return getCurrentRowInfo();
+    if (std::strcmp(name, "currentTick") == 0) return getCurrentTickInfo();
+    if (std::strcmp(name, "currentSpeed") == 0) return getCurrentSpeedInfo();
+    if (std::strcmp(name, "grooveLength") == 0) return getGrooveLengthInfo();
+    return fallback;
+}
+
+float FurnaceDecoder::getCoreFloatInfo(const char* name, float fallback) {
+    if (name == nullptr) return fallback;
+    if (std::strcmp(name, "currentHz") == 0) return getCurrentHzInfo();
+    return fallback;
+}

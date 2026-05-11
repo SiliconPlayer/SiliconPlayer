@@ -59,6 +59,8 @@ public:
     TimelineMode getTimelineMode() const override;
     std::shared_ptr<ChannelScopeSharedState> getChannelScopeSharedState() const override { return channelScopeState; }
     std::vector<int32_t> getChannelScopeTextState(int maxChannels) override;
+    std::string getCoreStringInfo(const char* name) override;
+    int getCoreIntInfo(const char* name, int fallback) override;
 
     const char* getName() const override { return "Game Music Emu"; }
     static std::vector<std::string> getSupportedExtensions();
