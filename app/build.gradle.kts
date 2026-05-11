@@ -289,16 +289,6 @@ extensions.configure<com.android.build.api.dsl.ApplicationExtension>("android") 
                 cppFlags += "-std=c++20"
             }
         }
-        ndk {
-            // x86 is opt-in via -PenableX86=true for compatibility testing.
-            // Default app builds keep x86 excluded to reduce size/build time.
-            abiFilters += "arm64-v8a"
-            abiFilters += "armeabi-v7a"
-            abiFilters += "x86_64"
-            if (parseBooleanGradleProperty(providers.gradleProperty("enableX86").orNull)) {
-                abiFilters += "x86"
-            }
-        }
     }
 
     buildTypes {
@@ -326,6 +316,19 @@ extensions.configure<com.android.build.api.dsl.ApplicationExtension>("android") 
             matchingFallbacks += listOf("release")
         }
     }
+
+    splits {
+        abi {
+            isEnable = true
+            reset()
+            include("arm64-v8a", "armeabi-v7a", "x86_64")
+            if (parseBooleanGradleProperty(providers.gradleProperty("enableX86").orNull)) {
+                include("x86")
+            }
+            isUniversalApk = false
+        }
+    }
+
     externalNativeBuild {
         cmake {
             path = file("src/main/cpp/CMakeLists.txt")
@@ -513,8 +516,9 @@ fun register16kAlignTaskForVariant(variantName: String) {
     }
 }
 
-register16kAlignTaskForVariant("debug")
-register16kAlignTaskForVariant("optimizedDebug")
+// No APK to align when APK splits are used
+// register16kAlignTaskForVariant("debug")
+// register16kAlignTaskForVariant("optimizedDebug")
 
 val enableX86 = parseBooleanGradleProperty(providers.gradleProperty("enableX86").orNull)
 val uadeRuntimeAssetAbis = buildList {

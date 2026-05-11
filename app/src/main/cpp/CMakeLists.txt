@@ -93,118 +93,118 @@ include_directories(${CMAKE_SOURCE_DIR}/../../../../external/furnace/extern/libs
 
     set(PREBUILT_DIR ${CMAKE_SOURCE_DIR}/prebuilt/${ANDROID_ABI})
 
-    # Import libopenmpt (Static)
-    add_library(libopenmpt STATIC IMPORTED)
-    set_target_properties(libopenmpt PROPERTIES IMPORTED_LOCATION "${PREBUILT_DIR}/lib/${ANDROID_ABI}/libopenmpt.a")
+    # Import libopenmpt (Shared)
+    add_library(libopenmpt SHARED IMPORTED)
+    set_target_properties(libopenmpt PROPERTIES IMPORTED_LOCATION "${PREBUILT_DIR}/lib/${ANDROID_ABI}/libopenmpt.so")
 
-    # Import FFmpeg libraries (Static) - Order matters for static linking!
-    add_library(libavformat STATIC IMPORTED)
-    set_target_properties(libavformat PROPERTIES IMPORTED_LOCATION "${PREBUILT_DIR}/lib/libavformat.a")
+    # Import FFmpeg libraries (Shared)
+    add_library(libavformat SHARED IMPORTED)
+    set_target_properties(libavformat PROPERTIES IMPORTED_LOCATION "${PREBUILT_DIR}/lib/libavformat.so")
 
-    add_library(libavcodec STATIC IMPORTED)
-    set_target_properties(libavcodec PROPERTIES IMPORTED_LOCATION "${PREBUILT_DIR}/lib/libavcodec.a")
+    add_library(libavcodec SHARED IMPORTED)
+    set_target_properties(libavcodec PROPERTIES IMPORTED_LOCATION "${PREBUILT_DIR}/lib/libavcodec.so")
 
-    add_library(libavutil STATIC IMPORTED)
-    set_target_properties(libavutil PROPERTIES IMPORTED_LOCATION "${PREBUILT_DIR}/lib/libavutil.a")
+    add_library(libavutil SHARED IMPORTED)
+    set_target_properties(libavutil PROPERTIES IMPORTED_LOCATION "${PREBUILT_DIR}/lib/libavutil.so")
 
-    add_library(libswresample STATIC IMPORTED)
-    set_target_properties(libswresample PROPERTIES IMPORTED_LOCATION "${PREBUILT_DIR}/lib/libswresample.a")
+    add_library(libswresample SHARED IMPORTED)
+    set_target_properties(libswresample PROPERTIES IMPORTED_LOCATION "${PREBUILT_DIR}/lib/libswresample.so")
 
-    add_library(libsoxr STATIC IMPORTED)
-    set_target_properties(libsoxr PROPERTIES IMPORTED_LOCATION "${PREBUILT_DIR}/lib/libsoxr.a")
+    add_library(libsoxr SHARED IMPORTED)
+    set_target_properties(libsoxr PROPERTIES IMPORTED_LOCATION "${PREBUILT_DIR}/lib/libsoxr.so")
 
-    # Import libvgm libraries (Static)
-    add_library(libvgm-utils STATIC IMPORTED)
-    set_target_properties(libvgm-utils PROPERTIES IMPORTED_LOCATION "${PREBUILT_DIR}/lib/libvgm-utils.a")
+    # Import libvgm libraries (Shared)
+    add_library(libvgm-utils SHARED IMPORTED)
+    set_target_properties(libvgm-utils PROPERTIES IMPORTED_LOCATION "${PREBUILT_DIR}/lib/libvgm-utils.so")
 
-    add_library(libvgm-emu STATIC IMPORTED)
-    set_target_properties(libvgm-emu PROPERTIES IMPORTED_LOCATION "${PREBUILT_DIR}/lib/libvgm-emu.a")
+    add_library(libvgm-emu SHARED IMPORTED)
+    set_target_properties(libvgm-emu PROPERTIES IMPORTED_LOCATION "${PREBUILT_DIR}/lib/libvgm-emu.so")
 
-    add_library(libvgm-player STATIC IMPORTED)
-    set_target_properties(libvgm-player PROPERTIES IMPORTED_LOCATION "${PREBUILT_DIR}/lib/libvgm-player.a")
+    add_library(libvgm-player SHARED IMPORTED)
+    set_target_properties(libvgm-player PROPERTIES IMPORTED_LOCATION "${PREBUILT_DIR}/lib/libvgm-player.so")
 
-    # Import libgme (Static)
-    add_library(libgme STATIC IMPORTED)
-    set_target_properties(libgme PROPERTIES IMPORTED_LOCATION "${PREBUILT_DIR}/lib/libgme.a")
+    # Import libgme (Shared)
+    add_library(libgme SHARED IMPORTED)
+    set_target_properties(libgme PROPERTIES IMPORTED_LOCATION "${PREBUILT_DIR}/lib/libgme.so")
 
-    # Import lazyusf2 (Static)
-    add_library(liblazyusf2 STATIC IMPORTED)
-    set_target_properties(liblazyusf2 PROPERTIES IMPORTED_LOCATION "${PREBUILT_DIR}/lib/liblazyusf2.a")
+    # Import lazyusf2 (Shared)
+    add_library(liblazyusf2 SHARED IMPORTED)
+    set_target_properties(liblazyusf2 PROPERTIES IMPORTED_LOCATION "${PREBUILT_DIR}/lib/liblazyusf2.so")
 
-    # Import psflib + vio2sf (Static)
-    add_library(libpsflib STATIC IMPORTED)
-    set_target_properties(libpsflib PROPERTIES IMPORTED_LOCATION "${PREBUILT_DIR}/lib/libpsflib.a")
+    # Import psflib + vio2sf (Shared)
+    add_library(libpsflib SHARED IMPORTED)
+    set_target_properties(libpsflib PROPERTIES IMPORTED_LOCATION "${PREBUILT_DIR}/lib/libpsflib.so")
 
-    add_library(libvio2sf STATIC IMPORTED)
-    set_target_properties(libvio2sf PROPERTIES IMPORTED_LOCATION "${PREBUILT_DIR}/lib/libvio2sf.a")
+    add_library(libvio2sf SHARED IMPORTED)
+    set_target_properties(libvio2sf PROPERTIES IMPORTED_LOCATION "${PREBUILT_DIR}/lib/libvio2sf.so")
 
-    # Import sc68 stack (Static)
-    add_library(libsc68 STATIC IMPORTED)
-    set_target_properties(libsc68 PROPERTIES IMPORTED_LOCATION "${PREBUILT_DIR}/lib/libsc68.a")
+    # Import sc68 stack (Shared)
+    add_library(libsc68 SHARED IMPORTED)
+    set_target_properties(libsc68 PROPERTIES IMPORTED_LOCATION "${PREBUILT_DIR}/lib/libsc68.so")
 
-    add_library(libfile68 STATIC IMPORTED)
-    set_target_properties(libfile68 PROPERTIES IMPORTED_LOCATION "${PREBUILT_DIR}/lib/libfile68.a")
+    add_library(libfile68 SHARED IMPORTED)
+    set_target_properties(libfile68 PROPERTIES IMPORTED_LOCATION "${PREBUILT_DIR}/lib/libfile68.so")
 
-    add_library(libunice68 STATIC IMPORTED)
-    set_target_properties(libunice68 PROPERTIES IMPORTED_LOCATION "${PREBUILT_DIR}/lib/libunice68.a")
+    add_library(libunice68 SHARED IMPORTED)
+    set_target_properties(libunice68 PROPERTIES IMPORTED_LOCATION "${PREBUILT_DIR}/lib/libunice68.so")
 
-    # Import adplug stack (Static)
-    add_library(libadplug STATIC IMPORTED)
-    set_target_properties(libadplug PROPERTIES IMPORTED_LOCATION "${PREBUILT_DIR}/lib/libadplug.a")
+    # Import adplug stack (Shared)
+    add_library(libadplug SHARED IMPORTED)
+    set_target_properties(libadplug PROPERTIES IMPORTED_LOCATION "${PREBUILT_DIR}/lib/libadplug.so")
 
-    set(LIBBINIO_LOCATION "${PREBUILT_DIR}/lib/libbinio.a")
+    set(LIBBINIO_LOCATION "${PREBUILT_DIR}/lib/libbinio.so")
     if (NOT EXISTS "${LIBBINIO_LOCATION}")
-        set(LIBBINIO_LOCATION "${PREBUILT_DIR}/lib/liblibbinio.a")
+        set(LIBBINIO_LOCATION "${PREBUILT_DIR}/lib/liblibbinio.so")
     endif()
-    add_library(libbinio STATIC IMPORTED)
+    add_library(libbinio SHARED IMPORTED)
     set_target_properties(libbinio PROPERTIES IMPORTED_LOCATION "${LIBBINIO_LOCATION}")
 
-    # Import UADE stack (Static)
-    add_library(libuade STATIC IMPORTED)
-    set_target_properties(libuade PROPERTIES IMPORTED_LOCATION "${PREBUILT_DIR}/lib/libuade.a")
+    # Import UADE stack (Shared)
+    add_library(libuade SHARED IMPORTED)
+    set_target_properties(libuade PROPERTIES IMPORTED_LOCATION "${PREBUILT_DIR}/lib/libuade.so")
 
-    add_library(libzakalwe STATIC IMPORTED)
-    set_target_properties(libzakalwe PROPERTIES IMPORTED_LOCATION "${PREBUILT_DIR}/lib/libzakalwe.a")
+    add_library(libzakalwe SHARED IMPORTED)
+    set_target_properties(libzakalwe PROPERTIES IMPORTED_LOCATION "${PREBUILT_DIR}/lib/libzakalwe.so")
 
-    add_library(libbencodetools STATIC IMPORTED)
-    set_target_properties(libbencodetools PROPERTIES IMPORTED_LOCATION "${PREBUILT_DIR}/lib/libbencodetools.a")
+    add_library(libbencodetools SHARED IMPORTED)
+    set_target_properties(libbencodetools PROPERTIES IMPORTED_LOCATION "${PREBUILT_DIR}/lib/libbencodetools.so")
 
-    # Import hivelytracker (Static)
-    add_library(libhivelytracker STATIC IMPORTED)
-    set_target_properties(libhivelytracker PROPERTIES IMPORTED_LOCATION "${PREBUILT_DIR}/lib/libhivelytracker.a")
+    # Import hivelytracker (Shared)
+    add_library(libhivelytracker SHARED IMPORTED)
+    set_target_properties(libhivelytracker PROPERTIES IMPORTED_LOCATION "${PREBUILT_DIR}/lib/libhivelytracker.so")
 
-    # Import klystrack replayer (Static)
-    add_library(libklystrack STATIC IMPORTED)
-    set_target_properties(libklystrack PROPERTIES IMPORTED_LOCATION "${PREBUILT_DIR}/lib/libklystrack.a")
+    # Import klystrack replayer (Shared)
+    add_library(libklystrack SHARED IMPORTED)
+    set_target_properties(libklystrack PROPERTIES IMPORTED_LOCATION "${PREBUILT_DIR}/lib/libklystrack.so")
 
     # Import furnace headless engine (Shared)
     add_library(libfurnace SHARED IMPORTED)
     set_target_properties(libfurnace PROPERTIES IMPORTED_LOCATION "${PREBUILT_DIR}/lib/libfurnace.so")
 
-    # Import libsidplayfp + libresidfp (Static)
-    add_library(libsidplayfp STATIC IMPORTED)
-    set_target_properties(libsidplayfp PROPERTIES IMPORTED_LOCATION "${PREBUILT_DIR}/lib/libsidplayfp.a")
+    # Import libsidplayfp + libresidfp (Shared)
+    add_library(libsidplayfp SHARED IMPORTED)
+    set_target_properties(libsidplayfp PROPERTIES IMPORTED_LOCATION "${PREBUILT_DIR}/lib/libsidplayfp.so")
 
-    add_library(libresidfp STATIC IMPORTED)
-    set_target_properties(libresidfp PROPERTIES IMPORTED_LOCATION "${PREBUILT_DIR}/lib/libresidfp.a")
+    add_library(libresidfp SHARED IMPORTED)
+    set_target_properties(libresidfp PROPERTIES IMPORTED_LOCATION "${PREBUILT_DIR}/lib/libresidfp.so")
 
-    add_library(libresid STATIC IMPORTED)
-    set_target_properties(libresid PROPERTIES IMPORTED_LOCATION "${PREBUILT_DIR}/lib/libresid.a")
+    add_library(libresid SHARED IMPORTED)
+    set_target_properties(libresid PROPERTIES IMPORTED_LOCATION "${PREBUILT_DIR}/lib/libresid.so")
 
     set(HAS_CRSID_PREBUILT FALSE)
-    if (EXISTS "${PREBUILT_DIR}/lib/libcRSID.a")
-        add_library(libcRSID STATIC IMPORTED)
-        set_target_properties(libcRSID PROPERTIES IMPORTED_LOCATION "${PREBUILT_DIR}/lib/libcRSID.a")
+    if (EXISTS "${PREBUILT_DIR}/lib/libcRSID.so")
+        add_library(libcRSID SHARED IMPORTED)
+        set_target_properties(libcRSID PROPERTIES IMPORTED_LOCATION "${PREBUILT_DIR}/lib/libcRSID.so")
         set(HAS_CRSID_PREBUILT TRUE)
     endif()
 
     set(HAS_OPENSSL_PREBUILT FALSE)
-    if (EXISTS "${PREBUILT_DIR}/lib/libssl.a" AND EXISTS "${PREBUILT_DIR}/lib/libcrypto.a")
-        add_library(libssl STATIC IMPORTED)
-        set_target_properties(libssl PROPERTIES IMPORTED_LOCATION "${PREBUILT_DIR}/lib/libssl.a")
+    if (EXISTS "${PREBUILT_DIR}/lib/libssl.so" AND EXISTS "${PREBUILT_DIR}/lib/libcrypto.so")
+        add_library(libssl SHARED IMPORTED)
+        set_target_properties(libssl PROPERTIES IMPORTED_LOCATION "${PREBUILT_DIR}/lib/libssl.so")
 
-        add_library(libcrypto STATIC IMPORTED)
-        set_target_properties(libcrypto PROPERTIES IMPORTED_LOCATION "${PREBUILT_DIR}/lib/libcrypto.a")
+        add_library(libcrypto SHARED IMPORTED)
+        set_target_properties(libcrypto PROPERTIES IMPORTED_LOCATION "${PREBUILT_DIR}/lib/libcrypto.so")
         set(HAS_OPENSSL_PREBUILT TRUE)
     endif()
 
@@ -238,11 +238,9 @@ include_directories(${CMAKE_SOURCE_DIR}/../../../../external/furnace/extern/libs
             libbencodetools
             libhivelytracker
             libklystrack
-            "-Wl,--start-group"
             libsidplayfp
             libresidfp
             libresid
-            "-Wl,--end-group"
             libfurnace
             z # zlib is needed for openmpt/ffmpeg/vgm
             m # libbinio can require libm symbols on some toolchains
