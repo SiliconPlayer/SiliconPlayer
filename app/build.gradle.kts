@@ -336,6 +336,9 @@ extensions.configure<com.android.build.api.dsl.ApplicationExtension>("android") 
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
     }
+    lint {
+        disable += "NewApi"
+    }
     buildFeatures {
         compose = true
         buildConfig = true
@@ -353,7 +356,7 @@ extensions.configure<com.android.build.api.dsl.ApplicationExtension>("android") 
     sourceSets {
         getByName("main") {
             assets.directories.add("build/generated/uadeRuntimeAssets/main")
-            jniLibs.directories.add("build/generated/uadeRuntimeJniLibs/main")
+            jniLibs.directories.add("build/generated/prebuiltNativeLibs/main")
             java.directories.add("build/generated/source/aboutVersions/main")
         }
     }
@@ -565,37 +568,37 @@ val syncUadeRuntimeAssets = tasks.register("syncUadeRuntimeAssets") {
     }
 }
 
-val syncUadeRuntimeJniLibs = tasks.register("syncUadeRuntimeJniLibs") {
+val syncPrebuiltNativeLibs = tasks.register("syncPrebuiltNativeLibs") {
     group = "build setup"
-    description = "Sync ABI-specific runtime helper/shared native binaries into generated jniLibs."
+    description = "Sync all ABI-specific prebuilt shared native libraries into generated jniLibs."
 
     doLast {
         val destinationRoot = layout.buildDirectory
-            .dir("generated/uadeRuntimeJniLibs/main")
+            .dir("generated/prebuiltNativeLibs/main")
             .get()
             .asFile
         delete(destinationRoot)
 
         uadeRuntimeAssetAbis.forEach { abi ->
+            val prebuiltDir = file("src/main/cpp/prebuilt/$abi")
+            if (!prebuiltDir.isDirectory) {
+                logger.lifecycle("Prebuilt directory missing for $abi, skipping (${prebuiltDir.absolutePath})")
+                return@forEach
+            }
+
+            prebuiltDir.walkTopDown().filter { it.isFile && it.name.endsWith(".so") }.forEach { soFile ->
+                copy {
+                    from(soFile)
+                    into(File(destinationRoot, abi))
+                }
+            }
+
             val sourceUadeCore = file("src/main/cpp/prebuilt/$abi/lib/uade/uadecore")
-            if (!sourceUadeCore.isFile) {
-                logger.lifecycle("UADE core executable missing for $abi, skipping (${sourceUadeCore.absolutePath})")
-            } else {
+            if (sourceUadeCore.isFile) {
                 copy {
                     from(sourceUadeCore)
                     into(File(destinationRoot, abi))
                     rename { "libuadecore_exec.so" }
-                }
-            }
-
-            val sourceFurnaceCore = file("src/main/cpp/prebuilt/$abi/lib/libfurnace.so")
-            if (!sourceFurnaceCore.isFile) {
-                logger.lifecycle("Furnace shared core missing for $abi, skipping (${sourceFurnaceCore.absolutePath})")
-            } else {
-                copy {
-                    from(sourceFurnaceCore)
-                    into(File(destinationRoot, abi))
-                    rename { "libfurnace.so" }
                 }
             }
         }
@@ -604,5 +607,5 @@ val syncUadeRuntimeJniLibs = tasks.register("syncUadeRuntimeJniLibs") {
 
 tasks.named("preBuild").configure {
     dependsOn(syncUadeRuntimeAssets)
-    dependsOn(syncUadeRuntimeJniLibs)
+    dependsOn(syncPrebuiltNativeLibs)
 }

@@ -549,7 +549,7 @@ build_libsoxr() {
         -DCMAKE_C_FLAGS_RELEASE="$DEP_OPT_FLAGS -DNDEBUG" \
         -DCMAKE_CXX_FLAGS_RELEASE="$DEP_OPT_FLAGS -DNDEBUG" \
         -DCMAKE_BUILD_TYPE=Release \
-        -DBUILD_SHARED_LIBS=OFF \
+        -DBUILD_SHARED_LIBS=ON \
         -DBUILD_TESTS=OFF \
         -DBUILD_EXAMPLES=OFF \
         -DWITH_OPENMP=OFF \
@@ -558,12 +558,12 @@ build_libsoxr() {
     cmake --build "$BUILD_DIR" -j"$NPROC"
     cmake --install "$BUILD_DIR"
 
-    if [ ! -f "$INSTALL_DIR/lib/libsoxr.a" ]; then
+    if [ ! -f "$INSTALL_DIR/lib/libsoxr.so" ]; then
         local built_lib
-        built_lib="$(find "$BUILD_DIR" -type f -name libsoxr.a | head -n 1)"
+        built_lib="$(find "$BUILD_DIR" -type f -name libsoxr.so | head -n 1)"
         if [ -n "$built_lib" ]; then
             mkdir -p "$INSTALL_DIR/lib"
-            cp "$built_lib" "$INSTALL_DIR/lib/libsoxr.a"
+            cp "$built_lib" "$INSTALL_DIR/lib/libsoxr.so"
         fi
     fi
 }
@@ -579,7 +579,7 @@ build_openssl() {
     local OPENSSL_TARGET=""
     local OPENSSL_CROSS_PREFIX=""
     local OPENSSL_CLANG_BIN=""
-    local OPENSSL_BUILD_SIGNATURE="openssl-android-static-pic-noasm-v2"
+    local OPENSSL_BUILD_SIGNATURE="openssl-android-shared-pic-noasm-v2"
     local OPENSSL_STAMP_FILE="$INSTALL_DIR/lib/.openssl_build_signature"
 
     if [ ! -d "$PROJECT_PATH" ]; then
@@ -588,7 +588,7 @@ build_openssl() {
         return 1
     fi
 
-    if [ "$FORCE_CLEAN" -ne 1 ] && [ -f "$INSTALL_DIR/lib/libssl.a" ] && [ -f "$INSTALL_DIR/lib/libcrypto.a" ] && [ -f "$INSTALL_DIR/include/openssl/ssl.h" ] && [ -f "$OPENSSL_STAMP_FILE" ]; then
+    if [ "$FORCE_CLEAN" -ne 1 ] && [ -f "$INSTALL_DIR/lib/libssl.so" ] && [ -f "$INSTALL_DIR/lib/libcrypto.so" ] && [ -f "$INSTALL_DIR/include/openssl/ssl.h" ] && [ -f "$OPENSSL_STAMP_FILE" ]; then
         if [ "$(cat "$OPENSSL_STAMP_FILE")" = "$OPENSSL_BUILD_SIGNATURE" ]; then
             echo "OpenSSL already built for $ABI -> skipping"
             return 0
@@ -671,7 +671,7 @@ EOF
         --cross-compile-prefix="$OPENSSL_CROSS_PREFIX" \
         no-tests \
         no-asm \
-        no-shared \
+        shared \
         no-module \
         no-engine \
         no-apps \
@@ -746,7 +746,7 @@ build_ffmpeg() {
 
     export ASFLAGS="-fPIC"
 
-    if [ -f "$BUILD_DIR/lib/libsoxr.a" ] && [ -f "$BUILD_DIR/include/soxr.h" ]; then
+    if [ -f "$BUILD_DIR/lib/libsoxr.so" ] && [ -f "$BUILD_DIR/include/soxr.h" ]; then
         echo "libsoxr detected for $ABI -> enabling FFmpeg libsoxr support"
         SOXR_ENABLE_FLAG="--enable-libsoxr"
         SOXR_CFLAGS="-I$BUILD_DIR/include"
@@ -757,7 +757,7 @@ build_ffmpeg() {
         echo "libsoxr not available for $ABI -> FFmpeg will use built-in swr resampler only"
     fi
 
-    if [ -f "$BUILD_DIR/lib/libssl.a" ] && [ -f "$BUILD_DIR/lib/libcrypto.a" ] && [ -f "$BUILD_DIR/include/openssl/ssl.h" ]; then
+    if [ -f "$BUILD_DIR/lib/libssl.so" ] && [ -f "$BUILD_DIR/lib/libcrypto.so" ] && [ -f "$BUILD_DIR/include/openssl/ssl.h" ]; then
         echo "OpenSSL detected for $ABI -> enabling FFmpeg HTTPS/TLS support"
         OPENSSL_ENABLE_FLAG="--enable-openssl"
         OPENSSL_CFLAGS="-I$BUILD_DIR/include"
@@ -780,8 +780,8 @@ build_ffmpeg() {
         --prefix="$BUILD_DIR" \
         --enable-cross-compile \
         --sysroot="$SYSROOT" \
-        --enable-static \
-        --disable-shared \
+        --disable-static \
+        --enable-shared \
         --enable-pic \
         --disable-doc \
         --disable-programs \
@@ -829,7 +829,7 @@ build_libopenmpt() {
 
     local INSTALL_DIR="$ABSOLUTE_PATH/../app/src/main/cpp/prebuilt/$ABI"
     local PROJECT_PATH="$ABSOLUTE_PATH/libopenmpt"
-    local OPENMPT_LIB="$INSTALL_DIR/lib/$ABI/libopenmpt.a"
+    local OPENMPT_LIB="$INSTALL_DIR/lib/$ABI/libopenmpt.so"
     local OPENMPT_HEADER="$INSTALL_DIR/include/libopenmpt/libopenmpt.h"
     local OPENMPT_STAMP="$INSTALL_DIR/lib/.libopenmpt_build_stamp"
     local OPENMPT_STAMP_EXPECTED="api=$ANDROID_API"
@@ -848,8 +848,8 @@ build_libopenmpt() {
     cp "$PROJECT_PATH/build/android_ndk/Android.mk" "$PROJECT_PATH/"
     cp "$PROJECT_PATH/build/android_ndk/Application.mk" "$PROJECT_PATH/"
 
-    # Patch to static library
-    sed -i 's/BUILD_SHARED_LIBRARY/BUILD_STATIC_LIBRARY/g' "$PROJECT_PATH/Android.mk"
+    # Ensure shared library build
+    sed -i 's/BUILD_STATIC_LIBRARY/BUILD_SHARED_LIBRARY/g' "$PROJECT_PATH/Android.mk"
 
     # Use ndk-build
     "$ANDROID_NDK_HOME/ndk-build" \
@@ -867,12 +867,11 @@ build_libopenmpt() {
         MPT_WITH_STBVORBIS=1 \
         -j"$NPROC"
 
-    # Copy static library manually
-    # ndk-build puts static libs in obj/local/$ABI/libopenmpt.a (relative to NDK_OUT)
-    # Our NDK_OUT is $PROJECT_PATH/obj/$ABI
-    # So it should be at $PROJECT_PATH/obj/$ABI/local/$ABI/libopenmpt.a
-    mkdir -p "$INSTALL_DIR/lib/$ABI"
-    cp "$PROJECT_PATH/obj/$ABI/local/$ABI/libopenmpt.a" "$INSTALL_DIR/lib/$ABI/" || echo "Failed to copy libopenmpt.a"
+    # ndk-build puts shared libs directly in NDK_LIBS_OUT/$ABI/; verify it exists.
+    if [ ! -f "$INSTALL_DIR/lib/$ABI/libopenmpt.so" ]; then
+        mkdir -p "$INSTALL_DIR/lib/$ABI"
+        cp "$PROJECT_PATH/obj/$ABI/local/$ABI/libopenmpt.so" "$INSTALL_DIR/lib/$ABI/" || echo "Failed to copy libopenmpt.so"
+    fi
 
     # Copy headers manually since ndk-build might not install them nicely
     # libopenmpt headers are in libopenmpt/ directory
@@ -920,7 +919,7 @@ build_libvgm() {
         -DCMAKE_C_FLAGS_RELEASE="$DEP_OPT_FLAGS -DNDEBUG" \
         -DCMAKE_CXX_FLAGS_RELEASE="$DEP_OPT_FLAGS -DNDEBUG" \
         -DCMAKE_BUILD_TYPE=Release \
-        -DLIBRARY_TYPE=STATIC \
+        -DLIBRARY_TYPE=SHARED \
         -DBUILD_LIBAUDIO=OFF \
         -DBUILD_LIBEMU=ON \
         -DBUILD_LIBPLAYER=ON \
@@ -928,7 +927,7 @@ build_libvgm() {
         -DBUILD_PLAYER=OFF \
         -DBUILD_VGM2WAV=OFF \
         -DUSE_SANITIZERS=OFF \
-        -DUTIL_CHARSET_CONV=OFF \
+        -DUTIL_CHARSET_CONV=ON \
         -DCMAKE_INSTALL_PREFIX="$INSTALL_DIR"
 
     cmake --build "$BUILD_DIR" -j"$NPROC"
@@ -974,9 +973,9 @@ build_libgme() {
         -DCMAKE_C_FLAGS_RELEASE="$DEP_OPT_FLAGS -DNDEBUG" \
         -DCMAKE_CXX_FLAGS_RELEASE="$DEP_OPT_FLAGS -DNDEBUG" \
         -DCMAKE_BUILD_TYPE=Release \
-        -DBUILD_SHARED_LIBS=OFF \
-        -DGME_BUILD_SHARED=OFF \
-        -DGME_BUILD_STATIC=ON \
+        -DBUILD_SHARED_LIBS=ON \
+        -DGME_BUILD_SHARED=ON \
+        -DGME_BUILD_STATIC=OFF \
         -DGME_BUILD_TESTING=OFF \
         -DGME_BUILD_EXAMPLES=OFF \
         -DGME_ZLIB=ON \
@@ -1011,7 +1010,7 @@ build_lazyusf2() {
 
         case "$ABI" in
             "arm64-v8a")
-                make -s -j"$NPROC" liblazyusf.a \
+                make -s -j"$NPROC" liblazyusf.so \
                     CC="$TOOLCHAIN/bin/${TRIPLE}${ANDROID_API}-clang" \
                     AR="$TOOLCHAIN/bin/llvm-ar" \
                     CPU="AArch64" \
@@ -1022,7 +1021,7 @@ build_lazyusf2() {
                     ROPTS_AArch64="-DARCH_MIN_ARM_NEON"
                 ;;
             "armeabi-v7a")
-                make -s -j"$NPROC" liblazyusf.a \
+                make -s -j"$NPROC" liblazyusf.so \
                     CC="$TOOLCHAIN/bin/${TRIPLE}${ANDROID_API}-clang" \
                     AR="$TOOLCHAIN/bin/llvm-ar" \
                     CPU="arm" \
@@ -1034,7 +1033,7 @@ build_lazyusf2() {
                     ROPTS_arm=""
                 ;;
             "x86")
-                make -s -j"$NPROC" liblazyusf.a \
+                make -s -j"$NPROC" liblazyusf.so \
                     CC="$TOOLCHAIN/bin/${TRIPLE}${ANDROID_API}-clang" \
                     AR="$TOOLCHAIN/bin/llvm-ar" \
                     CPU="x86" \
@@ -1046,7 +1045,7 @@ build_lazyusf2() {
                     ROPTS_x86="-DARCH_MIN_SSE2"
                 ;;
             "x86_64")
-                make -s -j"$NPROC" liblazyusf.a \
+                make -s -j"$NPROC" liblazyusf.so \
                     CC="$TOOLCHAIN/bin/${TRIPLE}${ANDROID_API}-clang" \
                     AR="$TOOLCHAIN/bin/llvm-ar" \
                     CPU="x86_64" \
@@ -1064,14 +1063,16 @@ build_lazyusf2() {
         esac
     )
 
-    LIB_OUTPUT="$PROJECT_PATH/liblazyusf.a"
+    # The Makefile produces a versioned library (liblazyusf.so.2.0).
+    # Find the real built artifact and copy it under the plain .so name.
+    LIB_OUTPUT="$(find "$PROJECT_PATH" -maxdepth 1 -name 'liblazyusf.so*' -type f | sort | tail -n 1)"
 
     if [ -z "$LIB_OUTPUT" ] || [ ! -f "$LIB_OUTPUT" ]; then
-        echo "Error: lazyusf2 static library not found after build."
+        echo "Error: lazyusf2 shared library not found after build."
         return 1
     fi
-    cp "$LIB_OUTPUT" "$INSTALL_DIR/lib/liblazyusf2.a"
-    cp "$LIB_OUTPUT" "$INSTALL_DIR/lib/liblazyusf.a"
+    cp "$LIB_OUTPUT" "$INSTALL_DIR/lib/liblazyusf2.so"
+    cp "$LIB_OUTPUT" "$INSTALL_DIR/lib/liblazyusf.so"
 
     while IFS= read -r header_path; do
         local rel_path
@@ -1105,14 +1106,24 @@ build_psflib() {
             CC="$TOOLCHAIN/bin/${TRIPLE}${ANDROID_API}-clang" \
             AR="$TOOLCHAIN/bin/llvm-ar" \
             CFLAGS="-c -fPIC $DEP_OPT_FLAGS"
+        # Link object files into a shared library.
+        local objs=()
+        while IFS= read -r obj; do
+            objs+=("$obj")
+        done < <(find "$PROJECT_PATH" -maxdepth 1 -name '*.o' | sort)
+        "$TOOLCHAIN/bin/${TRIPLE}${ANDROID_API}-clang" -shared \
+            -o "$PROJECT_PATH/libpsflib.so" \
+            -Wl,-soname -Wl,libpsflib.so \
+            -fPIC $DEP_OPT_FLAGS \
+            "${objs[@]}"
     )
 
-    if [ ! -f "$PROJECT_PATH/libpsflib.a" ]; then
-        echo "Error: psflib static library not found after build."
+    if [ ! -f "$PROJECT_PATH/libpsflib.so" ]; then
+        echo "Error: psflib shared library not found after build."
         return 1
     fi
 
-    cp "$PROJECT_PATH/libpsflib.a" "$INSTALL_DIR/lib/libpsflib.a"
+    cp "$PROJECT_PATH/libpsflib.so" "$INSTALL_DIR/lib/libpsflib.so"
     cp "$PROJECT_PATH/psflib.h" "$INSTALL_DIR/include/"
     cp "$PROJECT_PATH/psf2fs.h" "$INSTALL_DIR/include/"
     cp "$PROJECT_PATH/psflib.h" "$INSTALL_DIR/include/psflib/"
@@ -1135,7 +1146,7 @@ build_vio2sf() {
     fi
 
     # libvio2sf is typically used together with psflib, so ensure psflib exists.
-    if [ ! -f "$INSTALL_DIR/lib/libpsflib.a" ]; then
+    if [ ! -f "$INSTALL_DIR/lib/libpsflib.so" ]; then
         build_psflib "$ABI"
     fi
 
@@ -1150,14 +1161,24 @@ build_vio2sf() {
             CFLAGS="-c -fPIC $DEP_OPT_FLAGS" \
             CXXFLAGS="-c -fPIC $DEP_OPT_FLAGS" \
             OPTS="-O3 -I. -DBARRAY_DECORATE=TWOSF -DRESAMPLER_DECORATE=TWOSF $DEP_OPT_FLAGS"
+        # Link object files into a shared library.
+        local objs=()
+        while IFS= read -r obj; do
+            objs+=("$obj")
+        done < <(find "$PROJECT_PATH" -name '*.o' | sort)
+        "$TOOLCHAIN/bin/${TRIPLE}${ANDROID_API}-clang++" -shared \
+            -o "$PROJECT_PATH/libvio2sf.so" \
+            -Wl,-soname -Wl,libvio2sf.so \
+            -fPIC $DEP_OPT_FLAGS \
+            "${objs[@]}"
     )
 
-    if [ ! -f "$PROJECT_PATH/libvio2sf.a" ]; then
-        echo "Error: vio2sf static library not found after build."
+    if [ ! -f "$PROJECT_PATH/libvio2sf.so" ]; then
+        echo "Error: vio2sf shared library not found after build."
         return 1
     fi
 
-    cp "$PROJECT_PATH/libvio2sf.a" "$INSTALL_DIR/lib/libvio2sf.a"
+    cp "$PROJECT_PATH/libvio2sf.so" "$INSTALL_DIR/lib/libvio2sf.so"
     cp "$PROJECT_PATH/desmume/"*.h "$INSTALL_DIR/include/vio2sf/desmume/"
 }
 
@@ -1192,7 +1213,7 @@ build_fluidsynth() {
         -DCMAKE_C_FLAGS_RELEASE="$DEP_OPT_FLAGS -DNDEBUG" \
         -DCMAKE_CXX_FLAGS_RELEASE="$DEP_OPT_FLAGS -DNDEBUG" \
         -DCMAKE_BUILD_TYPE=Release \
-        -DBUILD_SHARED_LIBS=OFF \
+        -DBUILD_SHARED_LIBS=ON \
         -DCMAKE_POSITION_INDEPENDENT_CODE=ON \
         -Dosal=cpp11 \
         -Denable-alsa=OFF \
@@ -1222,16 +1243,15 @@ build_fluidsynth() {
 
     cmake --build "$BUILD_DIR" --target libfluidsynth -j"$NPROC"
 
-    if [ -f "$BUILD_DIR/src/libfluidsynth.a" ]; then
-        cp "$BUILD_DIR/src/libfluidsynth.a" "$INSTALL_DIR/lib/"
+    if [ -f "$BUILD_DIR/src/libfluidsynth.so" ]; then
+        cp "$BUILD_DIR/src/libfluidsynth.so" "$INSTALL_DIR/lib/"
     else
         local built_lib
-        built_lib="$(find "$BUILD_DIR" -type f -name 'libfluidsynth.a' | head -n 1)"
-        if [ -z "$built_lib" ]; then
-            echo "Error: FluidSynth static library not found after build."
-            return 1
+        built_lib="$(find "$BUILD_DIR" -type f -name 'libfluidsynth.so' | head -n 1)"
+        if [ -n "$built_lib" ]; then
+            mkdir -p "$INSTALL_DIR/lib"
+            cp "$built_lib" "$INSTALL_DIR/lib/"
         fi
-        cp "$built_lib" "$INSTALL_DIR/lib/"
     fi
 
     mkdir -p "$INSTALL_DIR/include/fluidsynth"
@@ -1257,7 +1277,7 @@ build_libresid() {
         return 0
     fi
 
-    if [ "$FORCE_CLEAN" -ne 1 ] && [ -f "$INSTALL_DIR/lib/libresid.a" ] && \
+    if [ "$FORCE_CLEAN" -ne 1 ] && [ -f "$INSTALL_DIR/lib/libresid.so" ] && \
        [ -f "$INSTALL_DIR/include/resid/sid.h" ] && \
        [ -f "$INSTALL_DIR/include/resid/siddefs.h" ]; then
         echo "libresid already built for $ABI -> skipping"
@@ -1316,13 +1336,23 @@ build_libresid() {
         make --no-print-directory V=0 -j"$NPROC"
     )
 
-    local built_lib
-    built_lib="$(find "$BUILD_DIR" -type f -name 'libresid.a' | head -n 1)"
-    if [ -z "$built_lib" ]; then
-        echo "Error: libresid static library not found after build."
+    # resid only builds a static archive; manually link a shared library.
+    local static_lib
+    static_lib="$(find "$BUILD_DIR" -type f -name 'libresid.a' | head -n 1)"
+    if [ -z "$static_lib" ]; then
+        echo "Error: libresid static archive not found after build."
         return 1
     fi
-    cp "$built_lib" "$INSTALL_DIR/lib/libresid.a"
+    mkdir -p "$BUILD_DIR/.so_work"
+    cd "$BUILD_DIR/.so_work"
+    "$TOOLCHAIN/bin/llvm-ar" x "$static_lib"
+    "$TOOLCHAIN/bin/${TRIPLE}${ANDROID_API}-clang++" -shared \
+        -o "$BUILD_DIR/libresid.so" \
+        -Wl,-soname -Wl,libresid.so \
+        -fPIC $DEP_OPT_FLAGS \
+        ./*.o
+    cd -
+    cp "$BUILD_DIR/libresid.so" "$INSTALL_DIR/lib/libresid.so"
 
     cp "$PROJECT_PATH/"*.h "$INSTALL_DIR/include/resid/" 2>/dev/null || true
     cp "$BUILD_DIR/"*.h "$INSTALL_DIR/include/resid/" 2>/dev/null || true
@@ -1345,7 +1375,7 @@ build_libresidfp() {
         return 0
     fi
 
-    if [ "$FORCE_CLEAN" -ne 1 ] && [ -f "$INSTALL_DIR/lib/libresidfp.a" ] && \
+    if [ "$FORCE_CLEAN" -ne 1 ] && [ -f "$INSTALL_DIR/lib/libresidfp.so" ] && \
        [ -f "$INSTALL_DIR/include/residfp/residfp.h" ] && \
        [ -f "$INSTALL_DIR/lib/pkgconfig/libresidfp.pc" ]; then
         echo "libresidfp already built for $ABI -> skipping"
@@ -1392,8 +1422,8 @@ build_libresidfp() {
         "$PROJECT_PATH/configure" \
             --host="$CONFIGURE_HOST" \
             --prefix="$INSTALL_DIR" \
-            --disable-shared \
-            --enable-static \
+            --enable-shared \
+            --disable-static \
             --enable-silent-rules \
             CC="$TOOLCHAIN/bin/${TRIPLE}${ANDROID_API}-clang" \
             CXX="$TOOLCHAIN/bin/${TRIPLE}${ANDROID_API}-clang++" \
@@ -1407,11 +1437,11 @@ build_libresidfp() {
         make --no-print-directory V=0 install
     )
 
-    if [ ! -f "$INSTALL_DIR/lib/libresidfp.a" ]; then
+    if [ ! -f "$INSTALL_DIR/lib/libresidfp.so" ]; then
         local built_lib
-        built_lib="$(find "$BUILD_DIR" -type f -name 'libresidfp.a' | head -n 1)"
+        built_lib="$(find "$BUILD_DIR" -type f -name 'libresidfp.so' | head -n 1)"
         if [ -z "$built_lib" ]; then
-            echo "Error: libresidfp static library not found after build."
+            echo "Error: libresidfp shared library not found after build."
             return 1
         fi
         mkdir -p "$INSTALL_DIR/lib"
@@ -1431,8 +1461,18 @@ build_libsidplayfp() {
     local BUILD_DIR="$PROJECT_PATH/build_android_${ABI}"
     local CONFIGURE_HOST=""
 
+    local SIDPLAYFP_STAMP="$INSTALL_DIR/lib/.libsidplayfp_build_stamp"
+    local SIDPLAYFP_STAMP_EXPECTED="api=$ANDROID_API;compat=export-sidemu-v2"
+
     if [ ! -d "$PROJECT_PATH" ]; then
         echo "libsidplayfp source not found at $PROJECT_PATH (skipping)."
+        return 0
+    fi
+
+    if [ "$FORCE_CLEAN" -ne 1 ] && [ -f "$INSTALL_DIR/lib/libsidplayfp.so" ] && \
+       [ -f "$SIDPLAYFP_STAMP" ] && \
+       [ "$(cat "$SIDPLAYFP_STAMP" 2>/dev/null)" = "$SIDPLAYFP_STAMP_EXPECTED" ]; then
+        echo "libsidplayfp already built for $ABI -> skipping"
         return 0
     fi
 
@@ -1498,8 +1538,8 @@ build_libsidplayfp() {
         "$PROJECT_PATH/configure" \
             --host="$CONFIGURE_HOST" \
             --prefix="$INSTALL_DIR" \
-            --disable-shared \
-            --enable-static \
+            --enable-shared \
+            --disable-static \
             --disable-tests \
             --enable-tests=no \
             --enable-testsuite=no \
@@ -1518,22 +1558,24 @@ build_libsidplayfp() {
         make --no-print-directory V=0 install
     )
 
-    if [ -f "$INSTALL_DIR/lib/libsidplayfp.a" ]; then
+    if [ -f "$INSTALL_DIR/lib/libsidplayfp.so" ]; then
         :
     else
         local built_lib
-        built_lib="$(find "$BUILD_DIR" -type f -name 'libsidplayfp.a' | head -n 1)"
+        built_lib="$(find "$BUILD_DIR" -type f -name 'libsidplayfp.so' | head -n 1)"
         if [ -z "$built_lib" ]; then
-            echo "Error: libsidplayfp static library not found after build."
+            echo "Error: libsidplayfp shared library not found after build."
             return 1
         fi
         mkdir -p "$INSTALL_DIR/lib"
         cp "$built_lib" "$INSTALL_DIR/lib/"
     fi
+
+    printf '%s\n' "$SIDPLAYFP_STAMP_EXPECTED" > "$SIDPLAYFP_STAMP"
 }
 
 # -----------------------------------------------------------------------------
-# Function: Build cRSID static library
+# Function: Build cRSID shared library
 # -----------------------------------------------------------------------------
 build_crsid() {
     local ABI=$1
@@ -1565,8 +1607,10 @@ build_crsid() {
         -fPIC $DEP_OPT_FLAGS \
         -DCRSID_LIBRARY
 
-    "$TOOLCHAIN/bin/llvm-ar" rcs "$INSTALL_DIR/lib/libcRSID.a" "$BUILD_DIR/libcRSID.o"
-    "$TOOLCHAIN/bin/llvm-ranlib" "$INSTALL_DIR/lib/libcRSID.a"
+    "$TARGET_CC" -shared \
+        -o "$INSTALL_DIR/lib/libcRSID.so" \
+        -Wl,-soname -Wl,libcRSID.so \
+        "$BUILD_DIR/libcRSID.o"
 
     cp "$LIBCRSID_DIR/libcRSID.h" "$INSTALL_DIR/include/crsid/"
     cp "$LIBCRSID_DIR/Config.h" "$INSTALL_DIR/include/crsid/"
@@ -1599,9 +1643,9 @@ build_sc68() {
         return 0
     fi
 
-    if [ "$FORCE_CLEAN" -ne 1 ] && [ -f "$INSTALL_DIR/lib/libsc68.a" ] && \
-       [ -f "$INSTALL_DIR/lib/libfile68.a" ] && \
-       [ -f "$INSTALL_DIR/lib/libunice68.a" ] && \
+    if [ "$FORCE_CLEAN" -ne 1 ] && [ -f "$INSTALL_DIR/lib/libsc68.so" ] && \
+       [ -f "$INSTALL_DIR/lib/libfile68.so" ] && \
+       [ -f "$INSTALL_DIR/lib/libunice68.so" ] && \
        [ -f "$INSTALL_DIR/include/sc68/sc68.h" ] && [ -f "$SC68_STAMP" ] && \
        [ "$(cat "$SC68_STAMP" 2>/dev/null)" = "$SC68_STAMP_EXPECTED" ]; then
         echo "sc68 already built for $ABI -> skipping"
@@ -1659,8 +1703,8 @@ build_sc68() {
         ./configure \
             --host="$CONFIGURE_HOST" \
             --prefix="$INSTALL_DIR" \
-            --disable-shared \
-            --enable-static \
+            --enable-shared \
+            --disable-static \
             --disable-unice68-cli \
             CC="$TOOLCHAIN/bin/${TRIPLE}${ANDROID_API}-clang" \
             CXX="$TOOLCHAIN/bin/${TRIPLE}${ANDROID_API}-clang++" \
@@ -1684,8 +1728,8 @@ build_sc68() {
         ./configure \
             --host="$CONFIGURE_HOST" \
             --prefix="$INSTALL_DIR" \
-            --disable-shared \
-            --enable-static \
+            --enable-shared \
+            --disable-static \
             --enable-replay-rom=yes \
             --enable-file68-data=no \
             --enable-file=yes \
@@ -1714,8 +1758,8 @@ build_sc68() {
         ./configure \
             --host="$CONFIGURE_HOST" \
             --prefix="$INSTALL_DIR" \
-            --disable-shared \
-            --enable-static \
+            --enable-shared \
+            --disable-static \
             --enable-dialog=no \
             CC="$TOOLCHAIN/bin/${TRIPLE}${ANDROID_API}-clang" \
             CXX="$TOOLCHAIN/bin/${TRIPLE}${ANDROID_API}-clang++" \
@@ -1788,8 +1832,8 @@ build_libbinio() {
         -DCMAKE_C_FLAGS_RELEASE="$DEP_OPT_FLAGS -DNDEBUG" \
         -DCMAKE_CXX_FLAGS_RELEASE="$DEP_OPT_FLAGS -DNDEBUG" \
         -DCMAKE_BUILD_TYPE=Release \
-        -DBUILD_SHARED_LIBS=OFF \
-        -Dlibbinio_BUILD_SHARED_LIBS=OFF \
+        -DBUILD_SHARED_LIBS=ON \
+        -Dlibbinio_BUILD_SHARED_LIBS=ON \
         -Dlibbinio_BUILD_DOCUMENTATION=OFF \
         -Dlibbinio_INCLUDE_PACKAGING=ON \
         -DCMAKE_INSTALL_PREFIX="$INSTALL_DIR"
@@ -1797,19 +1841,19 @@ build_libbinio() {
     cmake --build "$BUILD_DIR" -j"$NPROC"
     cmake --install "$BUILD_DIR"
 
-    if [ -f "$INSTALL_DIR/lib/liblibbinio.a" ] && [ ! -f "$INSTALL_DIR/lib/libbinio.a" ]; then
-        cp "$INSTALL_DIR/lib/liblibbinio.a" "$INSTALL_DIR/lib/libbinio.a"
+    if [ -f "$INSTALL_DIR/lib/liblibbinio.so" ] && [ ! -f "$INSTALL_DIR/lib/libbinio.so" ]; then
+        cp "$INSTALL_DIR/lib/liblibbinio.so" "$INSTALL_DIR/lib/libbinio.so"
     fi
 
-    if [ ! -f "$INSTALL_DIR/lib/libbinio.a" ] && [ ! -f "$INSTALL_DIR/lib/liblibbinio.a" ]; then
+    if [ ! -f "$INSTALL_DIR/lib/libbinio.so" ] && [ ! -f "$INSTALL_DIR/lib/liblibbinio.so" ]; then
         local built_lib
-        built_lib="$(find "$BUILD_DIR" -type f -name 'lib*binio.a' | head -n 1)"
+        built_lib="$(find "$BUILD_DIR" -type f -name 'lib*binio.so' | head -n 1)"
         if [ -z "$built_lib" ]; then
-            echo "Error: libbinio static library not found after build."
+            echo "Error: libbinio shared library not found after build."
             return 1
         fi
         mkdir -p "$INSTALL_DIR/lib"
-        cp "$built_lib" "$INSTALL_DIR/lib/libbinio.a"
+        cp "$built_lib" "$INSTALL_DIR/lib/libbinio.so"
     fi
 
     if [ ! -f "$INSTALL_DIR/include/binio.h" ]; then
@@ -1842,7 +1886,7 @@ build_adplug() {
         return 1
     fi
 
-    if [ ! -f "$INSTALL_DIR/lib/libbinio.a" ]; then
+    if [ ! -f "$INSTALL_DIR/lib/libbinio.so" ]; then
         build_libbinio "$ABI"
     fi
 
@@ -1861,8 +1905,8 @@ build_adplug() {
         -DCMAKE_C_FLAGS_RELEASE="$DEP_OPT_FLAGS -DNDEBUG" \
         -DCMAKE_CXX_FLAGS_RELEASE="$DEP_OPT_FLAGS -DNDEBUG" \
         -DCMAKE_BUILD_TYPE=Release \
-        -DBUILD_SHARED_LIBS=OFF \
-        -Dadplug_BUILD_SHARED_LIBS=OFF \
+        -DBUILD_SHARED_LIBS=ON \
+        -Dadplug_BUILD_SHARED_LIBS=ON \
         -DADPLUG_PRECOMPILED_HEADERS=OFF \
         -Dlibadplug_BUILD_DOCUMENTATION=OFF \
         -Dadplug_INCLUDE_TEST=OFF \
@@ -1874,15 +1918,15 @@ build_adplug() {
     cmake --build "$BUILD_DIR" -j"$NPROC"
     cmake --install "$BUILD_DIR"
 
-    if [ ! -f "$INSTALL_DIR/lib/libadplug.a" ]; then
+    if [ ! -f "$INSTALL_DIR/lib/libadplug.so" ]; then
         local built_lib
-        built_lib="$(find "$BUILD_DIR" -type f -name 'libadplug.a' | head -n 1)"
+        built_lib="$(find "$BUILD_DIR" -type f -name 'libadplug.so' | head -n 1)"
         if [ -z "$built_lib" ]; then
-            echo "Error: adplug static library not found after build."
+            echo "Error: adplug shared library not found after build."
             return 1
         fi
         mkdir -p "$INSTALL_DIR/lib"
-        cp "$built_lib" "$INSTALL_DIR/lib/libadplug.a"
+        cp "$built_lib" "$INSTALL_DIR/lib/libadplug.so"
     fi
 
     mkdir -p "$INSTALL_DIR/include/adplug"
@@ -1900,7 +1944,7 @@ build_libzakalwe() {
     local INSTALL_DIR="$ABSOLUTE_PATH/../app/src/main/cpp/prebuilt/$ABI"
     local PROJECT_PATH="$ABSOLUTE_PATH/libzakalwe"
     local ZAKALWE_STAMP="$INSTALL_DIR/lib/.libzakalwe_build_stamp"
-    local ZAKALWE_STAMP_EXPECTED="api=$ANDROID_API;compat=api21-stdio-v1"
+    local ZAKALWE_STAMP_EXPECTED="api=$ANDROID_API;compat=api21-stdio-v2"
     local ZAKALWE_CFLAGS="-fPIC $DEP_OPT_FLAGS"
 
     if [ ! -d "$PROJECT_PATH" ]; then
@@ -1912,7 +1956,7 @@ build_libzakalwe() {
         ZAKALWE_CFLAGS="$ZAKALWE_CFLAGS -U_FORTIFY_SOURCE -D_FORTIFY_SOURCE=0 -Dstderr=__sF+2 -Dstdout=__sF+1"
     fi
 
-    if [ "$FORCE_CLEAN" -ne 1 ] && [ -f "$INSTALL_DIR/lib/libzakalwe.a" ] && \
+    if [ "$FORCE_CLEAN" -ne 1 ] && [ -f "$INSTALL_DIR/lib/libzakalwe.so" ] && \
        [ -f "$INSTALL_DIR/include/zakalwe/string.h" ] && [ -f "$ZAKALWE_STAMP" ] && \
        [ "$(cat "$ZAKALWE_STAMP" 2>/dev/null)" = "$ZAKALWE_STAMP_EXPECTED" ]; then
         echo "libzakalwe already built for $ABI -> skipping"
@@ -1929,16 +1973,30 @@ build_libzakalwe() {
         CFLAGS="$ZAKALWE_CFLAGS" \
         ./configure
 
-        # Build static archive payload target from upstream Makefile.in.
-        make --no-print-directory V=0 -j"$NPROC" AR="$TOOLCHAIN/bin/llvm-ar" static_pack.o
+        # configure hardcodes CFLAGS; override on the make command line.
+        make --no-print-directory V=0 -j"$NPROC" \
+            AR="$TOOLCHAIN/bin/llvm-ar" \
+            CC="$TOOLCHAIN/bin/${TRIPLE}${ANDROID_API}-clang" \
+            CFLAGS="$ZAKALWE_CFLAGS -I include -g -pthread -D_DEFAULT_SOURCE" \
+            static_pack.o
     )
 
     if [ ! -f "$PROJECT_PATH/static_pack.o" ]; then
-        echo "Error: libzakalwe static archive payload not found after build."
+        echo "Error: libzakalwe object payload not found after build."
         return 1
     fi
 
-    cp "$PROJECT_PATH/static_pack.o" "$INSTALL_DIR/lib/libzakalwe.a"
+    # static_pack.o is a static archive (ar cr), not a real object.
+    # Extract objects and link them into a shared library.
+    mkdir -p "$PROJECT_PATH/.so_work"
+    cd "$PROJECT_PATH/.so_work"
+    "$TOOLCHAIN/bin/llvm-ar" x "$PROJECT_PATH/static_pack.o"
+    "$TOOLCHAIN/bin/${TRIPLE}${ANDROID_API}-clang" -shared \
+        -o "$INSTALL_DIR/lib/libzakalwe.so" \
+        -Wl,-soname -Wl,libzakalwe.so \
+        -fPIC $ZAKALWE_CFLAGS \
+        ./*.o
+    cd -
     cp "$PROJECT_PATH/include/zakalwe/"*.h "$INSTALL_DIR/include/zakalwe/" 2>/dev/null || true
     printf '%s\n' "$ZAKALWE_STAMP_EXPECTED" > "$ZAKALWE_STAMP"
 }
@@ -1965,7 +2023,7 @@ build_bencodetools() {
         BENCODE_CFLAGS="$BENCODE_CFLAGS -U_FORTIFY_SOURCE -D_FORTIFY_SOURCE=0 -Dstderr=__sF+2 -Dstdout=__sF+1"
     fi
 
-    if [ "$FORCE_CLEAN" -ne 1 ] && [ -f "$INSTALL_DIR/lib/libbencodetools.a" ] && \
+    if [ "$FORCE_CLEAN" -ne 1 ] && [ -f "$INSTALL_DIR/lib/libbencodetools.so" ] && \
        [ -f "$INSTALL_DIR/include/bencodetools/bencode.h" ] && [ -f "$BENCODE_STAMP" ] && \
        [ "$(cat "$BENCODE_STAMP" 2>/dev/null)" = "$BENCODE_STAMP_EXPECTED" ]; then
         echo "bencodetools already built for $ABI -> skipping"
@@ -1993,7 +2051,10 @@ build_bencodetools() {
         return 1
     fi
 
-    "$TOOLCHAIN/bin/llvm-ar" rcs "$INSTALL_DIR/lib/libbencodetools.a" "$PROJECT_PATH/bencode.o"
+    "$TOOLCHAIN/bin/${TRIPLE}${ANDROID_API}-clang" -shared \
+        -o "$INSTALL_DIR/lib/libbencodetools.so" \
+        -Wl,-soname -Wl,libbencodetools.so \
+        "$PROJECT_PATH/bencode.o"
     cp "$PROJECT_PATH/include/bencodetools/"*.h "$INSTALL_DIR/include/bencodetools/" 2>/dev/null || true
     printf '%s\n' "$BENCODE_STAMP_EXPECTED" > "$BENCODE_STAMP"
 }
@@ -2035,7 +2096,7 @@ build_vasm_host() {
 }
 
 # -----------------------------------------------------------------------------
-# Function: Build uade (libuade static)
+# Function: Build uade (libuade shared)
 # -----------------------------------------------------------------------------
 build_uade() {
     local ABI=$1
@@ -2049,7 +2110,7 @@ build_uade() {
     local HOST_VASM_WRAPPER_DIR="$BUILD_DIR/.host-tools"
     local HOST_VASM_WRAPPER="$HOST_VASM_WRAPPER_DIR/vasm.vasmm68k-mot"
     local HOST_NATIVE_CC=""
-    local UADE_LIB="$INSTALL_DIR/lib/libuade.a"
+    local UADE_LIB="$INSTALL_DIR/lib/libuade.so"
     local UADE_HEADER="$INSTALL_DIR/include/uade/uade.h"
     local UADE_CORE="$INSTALL_DIR/lib/uade/uadecore"
     local UADE_STAMP="$INSTALL_DIR/lib/.uade_build_stamp"
@@ -2085,16 +2146,16 @@ build_uade() {
 
     # UADE libuade build depends on libzakalwe + bencode-tools.
     # Auto-build dependencies when missing, or when clean mode is requested.
-    if [ "$FORCE_CLEAN" -eq 1 ] || [ ! -f "$INSTALL_DIR/lib/libzakalwe.a" ] || \
+    if [ "$FORCE_CLEAN" -eq 1 ] || [ ! -f "$INSTALL_DIR/lib/libzakalwe.so" ] || \
        [ ! -f "$INSTALL_DIR/include/zakalwe/string.h" ]; then
         build_libzakalwe "$ABI"
     fi
-    if [ "$FORCE_CLEAN" -eq 1 ] || [ ! -f "$INSTALL_DIR/lib/libbencodetools.a" ] || \
+    if [ "$FORCE_CLEAN" -eq 1 ] || [ ! -f "$INSTALL_DIR/lib/libbencodetools.so" ] || \
        [ ! -f "$INSTALL_DIR/include/bencodetools/bencode.h" ]; then
         build_bencodetools "$ABI"
     fi
-    if [ ! -f "$INSTALL_DIR/lib/libzakalwe.a" ] || [ ! -f "$INSTALL_DIR/include/zakalwe/string.h" ] || \
-       [ ! -f "$INSTALL_DIR/lib/libbencodetools.a" ] || [ ! -f "$INSTALL_DIR/include/bencodetools/bencode.h" ]; then
+    if [ ! -f "$INSTALL_DIR/lib/libzakalwe.so" ] || [ ! -f "$INSTALL_DIR/include/zakalwe/string.h" ] || \
+       [ ! -f "$INSTALL_DIR/lib/libbencodetools.so" ] || [ ! -f "$INSTALL_DIR/include/bencodetools/bencode.h" ]; then
         echo "Error: uade dependencies still missing for $ABI after attempted build."
         return 1
     fi
@@ -2124,9 +2185,8 @@ build_uade() {
     mkdir -p "$HOST_VASM_WRAPPER_DIR"
 
     # UADE configure looks for shared-lib names when resolving prefixes.
-    # Provide local ABI-scoped shim names pointing to our static archives.
-    ln -sfn "$INSTALL_DIR/lib/libzakalwe.a" "$UADE_DEPS_PREFIX/lib/libzakalwe.so"
-    ln -sfn "$INSTALL_DIR/lib/libbencodetools.a" "$UADE_DEPS_PREFIX/lib/libbencodetools.so"
+    ln -sfn "$INSTALL_DIR/lib/libzakalwe.so" "$UADE_DEPS_PREFIX/lib/libzakalwe.so"
+    ln -sfn "$INSTALL_DIR/lib/libbencodetools.so" "$UADE_DEPS_PREFIX/lib/libbencodetools.so"
     ln -sfn "$INSTALL_DIR/include/zakalwe" "$UADE_DEPS_PREFIX/include/zakalwe"
     ln -sfn "$INSTALL_DIR/include/bencodetools" "$UADE_DEPS_PREFIX/include/bencodetools"
 
@@ -2168,7 +2228,13 @@ EOF
         return 1
     fi
 
-    cp "$BUILD_DIR/src/frontends/common/libuade.a" "$INSTALL_DIR/lib/libuade.a"
+    # Wrap the static archive into a shared library.
+    "$TOOLCHAIN/bin/${TRIPLE}${ANDROID_API}-clang" -shared \
+        -o "$INSTALL_DIR/lib/libuade.so" \
+        -Wl,-soname -Wl,libuade.so \
+        -fPIC \
+        -Wl,--whole-archive "$BUILD_DIR/src/frontends/common/libuade.a" -Wl,--no-whole-archive \
+        -L"$INSTALL_DIR/lib" -lzakalwe -lbencodetools
     cp "$BUILD_DIR/src/frontends/include/uade/"*.h "$INSTALL_DIR/include/uade/" 2>/dev/null || true
 
     if [ ! -f "$BUILD_DIR/src/uadecore" ]; then
@@ -2193,7 +2259,7 @@ EOF
 }
 
 # -----------------------------------------------------------------------------
-# Function: Build hivelytracker replayer (libhivelytracker static)
+# Function: Build hivelytracker replayer (libhivelytracker shared)
 # -----------------------------------------------------------------------------
 build_hivelytracker() {
     local ABI=$1
@@ -2216,7 +2282,7 @@ build_hivelytracker() {
         return 1
     fi
 
-    if [ "$FORCE_CLEAN" -ne 1 ] && [ -f "$INSTALL_DIR/lib/libhivelytracker.a" ] && \
+    if [ "$FORCE_CLEAN" -ne 1 ] && [ -f "$INSTALL_DIR/lib/libhivelytracker.so" ] && \
        [ -f "$INSTALL_DIR/include/hivelytracker/hvl_replay.h" ] && \
        [ -f "$INSTALL_DIR/include/hivelytracker/hvl_tables.h" ]; then
         echo "hivelytracker already built for $ABI -> skipping"
@@ -2237,17 +2303,17 @@ build_hivelytracker() {
         -o "$BUILD_DIR/hvl_tables.o" \
         -fPIC -fcommon -fsigned-char $DEP_OPT_FLAGS
 
-    "$TOOLCHAIN/bin/llvm-ar" rcs "$INSTALL_DIR/lib/libhivelytracker.a" \
+    "$TARGET_CC" -shared -o "$INSTALL_DIR/lib/libhivelytracker.so" \
+        -Wl,-soname -Wl,libhivelytracker.so \
         "$BUILD_DIR/hvl_replay.o" \
         "$BUILD_DIR/hvl_tables.o"
-    "$TOOLCHAIN/bin/llvm-ranlib" "$INSTALL_DIR/lib/libhivelytracker.a"
 
     cp "$REPLAYER_DIR/hvl_replay.h" "$INSTALL_DIR/include/hivelytracker/"
     cp "$REPLAYER_DIR/hvl_tables.h" "$INSTALL_DIR/include/hivelytracker/"
 }
 
 # -----------------------------------------------------------------------------
-# Function: Build klystrack replay engine (libklystrack static)
+# Function: Build klystrack replay engine (libklystrack shared)
 # -----------------------------------------------------------------------------
 build_klystrack() {
     local ABI=$1
@@ -2277,7 +2343,7 @@ build_klystrack() {
         return 1
     fi
 
-    if [ "$FORCE_CLEAN" -ne 1 ] && [ -f "$INSTALL_DIR/lib/libklystrack.a" ] && \
+    if [ "$FORCE_CLEAN" -ne 1 ] && [ -f "$INSTALL_DIR/lib/libklystrack.so" ] && \
        [ -f "$INSTALL_DIR/include/klystrack/ksnd.h" ]; then
         echo "klystrack already built for $ABI -> skipping"
         return 0
@@ -2414,6 +2480,54 @@ static inline Uint32 SDL_Swap32(Uint32 value) {
 #endif
 EOF
 
+    # Build SDL shim implementation with stub functions for klystrack.
+    cat > "$SDL_SHIM_DIR/SDL_shim.c" <<'EOF'
+#include "SDL.h"
+#include <stdlib.h>
+#include <pthread.h>
+
+struct SDL_mutex {
+    pthread_mutex_t mutex;
+};
+
+SDL_mutex *SDL_CreateMutex(void) {
+    SDL_mutex *m = (SDL_mutex *)malloc(sizeof(SDL_mutex));
+    if (m) {
+        pthread_mutex_init(&m->mutex, NULL);
+    }
+    return m;
+}
+
+void SDL_DestroyMutex(SDL_mutex *m) {
+    if (m) {
+        pthread_mutex_destroy(&m->mutex);
+        free(m);
+    }
+}
+
+int SDL_LockMutex(SDL_mutex *m) {
+    if (!m) return -1;
+    return pthread_mutex_lock(&m->mutex);
+}
+
+int SDL_UnlockMutex(SDL_mutex *m) {
+    if (!m) return -1;
+    return pthread_mutex_unlock(&m->mutex);
+}
+
+int SDL_OpenAudio(void *desired, void *obtained) {
+    return -1;
+}
+
+void SDL_CloseAudio(void) {
+}
+
+void SDL_PauseAudio(int pause_on) {
+}
+EOF
+    "$TARGET_CC" -c "$SDL_SHIM_DIR/SDL_shim.c" -o "$BUILD_DIR/SDL_shim.o" \
+        -I"$SDL_SHIM_DIR" -fPIC $DEP_OPT_FLAGS
+
     local common_flags
     # klystrack's replay sources need standalone mode to avoid editor globals, plus libm symbols and M_PI.
     common_flags="$KLYSTRACK_COMMON_FLAGS -include math.h -DM_PI=3.14159265358979323846 -DSTANDALONE_COMPILE -DNOSDL_MIXER -DSTEREOOUTPUT -DUSESDLMUTEXES -I$SDL_SHIM_DIR -I$KLYSTRON_PATH/src"
@@ -2425,8 +2539,9 @@ EOF
         "$TARGET_CC" -c "$src" -o "$obj" $common_flags
     done
 
-    "$TOOLCHAIN/bin/llvm-ar" rcs "$INSTALL_DIR/lib/libklystrack.a" "$BUILD_DIR"/*.o
-    "$TOOLCHAIN/bin/llvm-ranlib" "$INSTALL_DIR/lib/libklystrack.a"
+    "$TARGET_CC" -shared -o "$INSTALL_DIR/lib/libklystrack.so" \
+        -Wl,-soname -Wl,libklystrack.so \
+        "$BUILD_DIR"/*.o
 
     cp "$KLYSTRON_PATH/src/lib/ksnd.h" "$INSTALL_DIR/include/klystrack/"
 }

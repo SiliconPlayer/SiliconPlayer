@@ -889,7 +889,11 @@ class PlaybackService : Service() {
                 Build.VERSION.SDK_INT >= Build.VERSION_CODES.S &&
                     error is ForegroundServiceStartNotAllowedException
             if (!blockedForegroundStart) throw error
-            notificationManager.notify(NOTIFICATION_ID, notification)
+            try {
+                notificationManager.notify(NOTIFICATION_ID, notification)
+            } catch (_: SecurityException) {
+                // Notification permission revoked after foreground start attempt.
+            }
         }
         recordNotificationSnapshot(
             positionBucket = positionBucket,
