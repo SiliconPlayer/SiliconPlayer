@@ -434,16 +434,23 @@ fun register16kAlignTaskForVariant(variantName: String) {
     }
     val assembleTaskName = "assemble$taskSuffix"
     val alignTaskName = "align${taskSuffix}Apk16k"
-    val apkRelativePath = "outputs/apk/$variantName/app-$variantName.apk"
 
     val alignTask = tasks.register(alignTaskName) {
         group = "build"
         description = "Zipalign $variantName APK native libs to 16KB page boundaries and re-sign."
 
         doLast {
-            val apk = layout.buildDirectory.file(apkRelativePath).get().asFile
-            if (!apk.exists()) {
-                throw GradleException("APK not found at: ${apk.absolutePath}")
+            val apkDir = layout.buildDirectory.dir("outputs/apk/$variantName").get().asFile
+            if (!apkDir.exists()) {
+                throw GradleException("APK directory not found at: ${apkDir.absolutePath}")
+            }
+
+            val apks = apkDir.listFiles { file ->
+                file.isFile && file.name.startsWith("app-") && file.name.endsWith("-$variantName.apk")
+            } ?: emptyArray()
+
+            if (apks.isEmpty()) {
+                throw GradleException("No APKs found in: ${apkDir.absolutePath}")
             }
 
             val sdkDir = resolveAndroidSdkDir()
@@ -462,50 +469,55 @@ fun register16kAlignTaskForVariant(variantName: String) {
 
             logger.lifecycle("Using zipalign: ${zipalign.absolutePath}")
             logger.lifecycle("Using apksigner: ${apksigner.absolutePath}")
-
-            val alignedUnsigned = File(apk.parentFile, "app-$variantName-aligned-unsigned.apk")
-            val alignedSigned = File(apk.parentFile, "app-$variantName-aligned-signed.apk")
-
-            val zipalignExitCode = runProcessWithInheritedIo(
-                command = listOf(
-                    zipalign.absolutePath,
-                    "-f",
-                    "-P", "16",
-                    "-v", "4",
-                    apk.absolutePath,
-                    alignedUnsigned.absolutePath
-                )
-            )
-            if (zipalignExitCode != 0) {
-                throw GradleException("zipalign failed with exit code $zipalignExitCode")
-            }
+            logger.lifecycle("Aligning ${apks.size} APK(s)")
 
             val debugKeystore = rootProject.file("debug.keystore")
             require(debugKeystore.exists()) { "Debug keystore not found at ${debugKeystore.absolutePath}" }
 
-            val apksignerExitCode = runProcessWithInheritedIo(
-                command = listOf(
-                    apksigner.absolutePath,
-                    "sign",
-                    "--ks", debugKeystore.absolutePath,
-                    "--ks-key-alias", "androiddebugkey",
-                    "--ks-pass", "pass:android",
-                    "--key-pass", "pass:android",
-                    "--out", alignedSigned.absolutePath,
-                    alignedUnsigned.absolutePath
-                )
-            )
-            if (apksignerExitCode != 0) {
-                throw GradleException("apksigner failed with exit code $apksignerExitCode")
-            }
+            apks.forEach { apk ->
+                logger.lifecycle("Aligning: ${apk.name}")
 
-            copy {
-                from(alignedSigned)
-                into(apk.parentFile)
-                rename { apk.name }
+                val alignedUnsigned = File(apk.parentFile, "${apk.name}-aligned-unsigned.apk")
+                val alignedSigned = File(apk.parentFile, "${apk.name}-aligned-signed.apk")
+
+                val zipalignExitCode = runProcessWithInheritedIo(
+                    command = listOf(
+                        zipalign.absolutePath,
+                        "-f",
+                        "-P", "16",
+                        "-v", "4",
+                        apk.absolutePath,
+                        alignedUnsigned.absolutePath
+                    )
+                )
+                if (zipalignExitCode != 0) {
+                    throw GradleException("zipalign failed for ${apk.name} with exit code $zipalignExitCode")
+                }
+
+                val apksignerExitCode = runProcessWithInheritedIo(
+                    command = listOf(
+                        apksigner.absolutePath,
+                        "sign",
+                        "--ks", debugKeystore.absolutePath,
+                        "--ks-key-alias", "androiddebugkey",
+                        "--ks-pass", "pass:android",
+                        "--key-pass", "pass:android",
+                        "--out", alignedSigned.absolutePath,
+                        alignedUnsigned.absolutePath
+                    )
+                )
+                if (apksignerExitCode != 0) {
+                    throw GradleException("apksigner failed for ${apk.name} with exit code $apksignerExitCode")
+                }
+
+                copy {
+                    from(alignedSigned)
+                    into(apk.parentFile)
+                    rename { apk.name }
+                }
+                alignedUnsigned.delete()
+                alignedSigned.delete()
             }
-            alignedUnsigned.delete()
-            alignedSigned.delete()
         }
     }
 
@@ -516,9 +528,8 @@ fun register16kAlignTaskForVariant(variantName: String) {
     }
 }
 
-// No APK to align when APK splits are used
-// register16kAlignTaskForVariant("debug")
-// register16kAlignTaskForVariant("optimizedDebug")
+register16kAlignTaskForVariant("debug")
+register16kAlignTaskForVariant("optimizedDebug")
 
 val enableX86 = parseBooleanGradleProperty(providers.gradleProperty("enableX86").orNull)
 val uadeRuntimeAssetAbis = buildList {
