@@ -60,6 +60,12 @@ class PlaybackService : Service() {
         }
     }
 
+    private val wakeLock by lazy {
+        powerManager.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "SiliconPlayer:Playback").apply {
+            setReferenceCounted(false)
+        }
+    }
+
     private var mediaSession: MediaSession? = null
     private var audioFocusRequest: AudioFocusRequest? = null // For Android O+
     private var resumeOnFocusGain = false
@@ -234,6 +240,7 @@ class PlaybackService : Service() {
         handler.removeCallbacks(ticker)
         serviceScope.cancel()
         releaseSmbWifiLockIfHeld()
+        releaseWakeLock()
         unregisterReceiver(noisyReceiver)
         abandonAudioFocus()
         NativeBridge.stopEngine()
@@ -255,10 +262,10 @@ class PlaybackService : Service() {
             ACTION_REPEAT_CYCLE -> cycleRepeatMode()
             ACTION_STOP_CLEAR -> stopAndClear()
             ACTION_REFRESH_SETTINGS -> {
-                // Settings are read lazily from SharedPreferences in callbacks.
                 updateMediaSessionState()
                 pushNotification()
             }
+            else -> restorePersistedSessionIfAvailable()
         }
         return START_STICKY
     }
@@ -346,6 +353,7 @@ class PlaybackService : Service() {
     private fun playPlayback() {
         if (currentPath == null) return
         requestAudioFocus()
+        acquireWakeLock()
         if (shouldApplyPauseResumeFade()) {
             NativeBridge.startEngineWithPauseResumeFade()
         } else {
@@ -363,6 +371,7 @@ class PlaybackService : Service() {
             abandonAudioFocus()
             resumeOnFocusGain = false
         }
+        releaseWakeLock()
         if (!shouldApplyPauseResumeFade() || !NativeBridge.isEnginePlaying()) {
             NativeBridge.stopEngine()
             isPlaying = false
@@ -392,6 +401,7 @@ class PlaybackService : Service() {
         resumeOnFocusGain = false
         NativeBridge.stopEngine()
         isPlaying = false
+        releaseWakeLock()
         currentPath = null
         currentRequestUrl = null
         updateNetworkPlaybackLocks()
@@ -416,6 +426,7 @@ class PlaybackService : Service() {
         resumeOnFocusGain = false
         NativeBridge.stopEngine()
         isPlaying = false
+        releaseWakeLock()
         updateNetworkPlaybackLocks()
         persistResumeCheckpointIfNeeded(force = true)
         stopForegroundCompat(removeNotification = true)
@@ -473,6 +484,47 @@ class PlaybackService : Service() {
     private fun releaseSmbWifiLockIfHeld() {
         if (!smbWifiLock.isHeld) return
         runCatching { smbWifiLock.release() }
+    }
+
+    private fun acquireWakeLock() {
+        if (!wakeLock.isHeld) runCatching { wakeLock.acquire() }
+    }
+
+    private fun releaseWakeLock() {
+        if (wakeLock.isHeld) runCatching { wakeLock.release() }
+    }
+
+    private fun restorePersistedSessionIfAvailable() {
+        val path = prefs.getString(PREF_SESSION_CURRENT_PATH, null) ?: return
+        val requestUrl = prefs.getString(PREF_SESSION_CURRENT_REQUEST_URL, null)
+        currentPath = path
+        currentRequestUrl = requestUrl
+        currentTitle = prefs.getString(AppPreferenceKeys.SESSION_RESUME_TITLE, null) ?: "No track selected"
+        currentArtist = prefs.getString(AppPreferenceKeys.SESSION_RESUME_ARTIST, null) ?: "Silicon Player"
+        durationSeconds = prefs.getFloat(AppPreferenceKeys.SESSION_RESUME_DURATION_SECONDS, 0f).toDouble()
+        positionSeconds = prefs.getFloat(AppPreferenceKeys.SESSION_RESUME_POSITION_SECONDS, 0f).toDouble()
+        isPlaying = false
+        currentPlaybackCapabilitiesFlags = prefs.getInt(
+            AppPreferenceKeys.SESSION_RESUME_PLAYBACK_CAPABILITIES,
+            PLAYBACK_CAP_SEEK or PLAYBACK_CAP_RELIABLE_DURATION or PLAYBACK_CAP_LIVE_REPEAT_MODE
+        )
+        currentRepeatModeCapabilitiesFlags = prefs.getInt(
+            AppPreferenceKeys.SESSION_RESUME_REPEAT_CAPABILITIES,
+            REPEAT_CAP_ALL
+        )
+        currentRepeatMode = RepeatMode.fromStorage(
+            prefs.getString(AppPreferenceKeys.SESSION_CURRENT_REPEAT_MODE, null)
+                ?: prefs.getString(AppPreferenceKeys.PREFERRED_REPEAT_MODE, RepeatMode.None.storageValue)
+        )
+        currentPreferredRepeatMode = RepeatMode.fromStorage(
+            prefs.getString(AppPreferenceKeys.PREFERRED_REPEAT_MODE, RepeatMode.None.storageValue)
+        )
+        val artworkKey = requestUrl?.takeIf { it.isNotBlank() } ?: path
+        currentArtworkKey = artworkKey
+        scheduleArtworkLoad(path = path, requestUrl = requestUrl, artworkKey = artworkKey)
+        updateMediaSessionState()
+        pushNotification()
+        handler.post(ticker)
     }
 
     private fun setupMediaSession() {
@@ -829,20 +881,6 @@ class PlaybackService : Service() {
                 (isPlaying && lastNotificationPositionBucket != positionBucket)
         if (!shouldRefresh) return
         val notification = buildNotification()
-        if (!isPlaying) {
-            if (isForegroundNotificationShown) {
-                stopForegroundCompat(removeNotification = false)
-                isForegroundNotificationShown = false
-            }
-            notificationManager.notify(NOTIFICATION_ID, notification)
-            recordNotificationSnapshot(
-                positionBucket = positionBucket,
-                durationBucket = durationBucket,
-                artworkKey = artworkKey,
-                repeatSignature = repeatSignature
-            )
-            return
-        }
         try {
             startForeground(NOTIFICATION_ID, notification)
             isForegroundNotificationShown = true
