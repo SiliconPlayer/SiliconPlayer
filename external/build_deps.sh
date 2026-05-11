@@ -228,9 +228,14 @@ apply_libvgm_patches() {
         [ -e "$patch_file" ] || continue
         local patch_name
         patch_name="$(basename "$patch_file")"
+        local patch_subject
+        patch_subject="$(extract_patch_subject "$patch_file")"
 
-        # Reliable idempotency check:
-        # If reverse-apply check succeeds, patch content is already present.
+        if [ -n "$patch_subject" ] && git -C "$PROJECT_PATH" log --format=%s | grep -Fqx "$patch_subject"; then
+            echo "libvgm patch already applied (subject): $patch_name"
+            continue
+        fi
+
         if git -C "$PROJECT_PATH" apply --check --reverse "$patch_file" >/dev/null 2>&1; then
             echo "libvgm patch already applied: $patch_name"
             continue
@@ -258,8 +263,14 @@ apply_libgme_patches() {
         [ -e "$patch_file" ] || continue
         local patch_name
         patch_name="$(basename "$patch_file")"
+        local patch_subject
+        patch_subject="$(extract_patch_subject "$patch_file")"
 
-        # If reverse-apply check succeeds, patch content is already present.
+        if [ -n "$patch_subject" ] && git -C "$PROJECT_PATH" log --format=%s | grep -Fqx "$patch_subject"; then
+            echo "libgme patch already applied (subject): $patch_name"
+            continue
+        fi
+
         if git -C "$PROJECT_PATH" apply --check --reverse "$patch_file" >/dev/null 2>&1; then
             echo "libgme patch already applied: $patch_name"
             continue
@@ -328,6 +339,13 @@ apply_vio2sf_patches() {
         [ -e "$patch_file" ] || continue
         local patch_name
         patch_name="$(basename "$patch_file")"
+        local patch_subject
+        patch_subject="$(extract_patch_subject "$patch_file")"
+
+        if [ -n "$patch_subject" ] && git -C "$PROJECT_PATH" log --format=%s | grep -Fqx "$patch_subject"; then
+            echo "vio2sf patch already applied (subject): $patch_name"
+            continue
+        fi
 
         if git -C "$PROJECT_PATH" apply --check --reverse "$patch_file" >/dev/null 2>&1; then
             echo "vio2sf patch already applied: $patch_name"
@@ -359,6 +377,13 @@ apply_adplug_patches() {
         [ -e "$patch_file" ] || continue
         local patch_name
         patch_name="$(basename "$patch_file")"
+        local patch_subject
+        patch_subject="$(extract_patch_subject "$patch_file")"
+
+        if [ -n "$patch_subject" ] && git -C "$PROJECT_PATH" log --format=%s | grep -Fqx "$patch_subject"; then
+            echo "adplug patch already applied (subject): $patch_name"
+            continue
+        fi
 
         if git -C "$PROJECT_PATH" apply --check --reverse "$patch_file" >/dev/null 2>&1; then
             echo "adplug patch already applied: $patch_name"
