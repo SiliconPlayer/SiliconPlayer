@@ -235,6 +235,8 @@ class PlaybackService : Service() {
         serviceScope.cancel()
         releaseSmbWifiLockIfHeld()
         unregisterReceiver(noisyReceiver)
+        abandonAudioFocus()
+        NativeBridge.stopEngine()
         mediaSession?.release()
     }
 
