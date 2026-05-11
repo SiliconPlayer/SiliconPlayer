@@ -119,18 +119,17 @@ jobs:
           VERSION_NAME=$(grep -oP 'versionName\s*=\s*"\K[^"]+' app/build.gradle.kts)
           echo "version_name=${VERSION_NAME}-optdebug" >> "$GITHUB_OUTPUT"
 
-      - name: Prepare artifact
+      - name: Prepare artifacts
         run: |
           mkdir -p artifact
-          APK=$(find app/build/outputs -type f -name "*.apk" | grep -i optimizeddebug | head -n1)
-          if [ -z "$APK" ]; then
-            echo "No optimizedDebug APK found" >&2
-            exit 1
-          fi
-          cp "$APK" "artifact/SiliconPlayer-${{ steps.version.outputs.version_name }}-optimizedDebug-${{ steps.vars.outputs.short_sha }}.apk"
+          find app/build/outputs -type f -name "*.apk" | grep -i optimizeddebug | while read -r APK; do
+            ABI=$(basename "$APK" | sed -n 's/.*app-\(.*\)-optimizedDebug\.apk/\1/p')
+            cp "$APK" "artifact/SiliconPlayer-${{ steps.version.outputs.version_name }}-${{ steps.vars.outputs.short_sha }}-$ABI.apk"
+          done
+          ls -la artifact/
 
-      - name: Upload APK artifact
+      - name: Upload APK artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: SiliconPlayer-${{ steps.version.outputs.version_name }}-optimizedDebug-${{ steps.vars.outputs.short_sha }}
-          path: artifact/SiliconPlayer-${{ steps.version.outputs.version_name }}-optimizedDebug-${{ steps.vars.outputs.short_sha }}.apk
+          name: SiliconPlayer-${{ steps.version.outputs.version_name }}-${{ steps.vars.outputs.short_sha }}
+          path: artifact/*.apk
