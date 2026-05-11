@@ -144,6 +144,28 @@ std::string getRuntimeUadeCorePath() {
     return gUadeCorePath;
 }
 
+void configureUadeCoreLibraryPath(const std::string& uadeCorePath) {
+    if (uadeCorePath.empty()) {
+        return;
+    }
+    const std::filesystem::path libraryDir = std::filesystem::path(uadeCorePath).parent_path();
+    if (libraryDir.empty()) {
+        return;
+    }
+    const std::string libraryDirString = libraryDir.string();
+    const char* existing = std::getenv("LD_LIBRARY_PATH");
+    if (existing != nullptr) {
+        const std::string existingValue(existing);
+        if (existingValue.find(libraryDirString) != std::string::npos) {
+            return;
+        }
+        const std::string combined = libraryDirString + ":" + existingValue;
+        setenv("LD_LIBRARY_PATH", combined.c_str(), 1);
+        return;
+    }
+    setenv("LD_LIBRARY_PATH", libraryDirString.c_str(), 1);
+}
+
 std::string buildUadeMuteMaskOption(uint32_t muteMask) {
     std::string option;
     option.reserve(10);
@@ -249,6 +271,7 @@ uade_state* UadeDecoder::createStateLocked() {
                 !runtimeUadeCorePath.empty() ? runtimeUadeCorePath : (runtimeBaseDir + "/uadecore");
         const std::string scorePath = runtimeBaseDir + "/score";
         const std::string uaercPath = runtimeBaseDir + "/uaerc";
+        configureUadeCoreLibraryPath(uadeCorePath);
         const int coreExecCheck = access(uadeCorePath.c_str(), X_OK);
         const int coreErrno = (coreExecCheck != 0) ? errno : 0;
         const int scoreReadCheck = access(scorePath.c_str(), R_OK);
