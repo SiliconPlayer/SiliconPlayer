@@ -31,6 +31,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
+import android.os.Build
 import androidx.compose.ui.unit.dp
 
 @Composable
@@ -38,7 +39,8 @@ internal fun AboutSettingsBody(
     useMonet: Boolean
 ) {
     val context = LocalContext.current
-    val versionLabel = "v${BuildConfig.VERSION_NAME}-${BuildConfig.GIT_SHA}"
+    val abi = Build.SUPPORTED_ABIS.firstOrNull()?.replace("-", "") ?: "unknown"
+    val versionLabel = "v${BuildConfig.VERSION_NAME}-${abi}-${BuildConfig.GIT_SHA}"
     val coreEntries = remember { AboutCatalog.cores }
     val libraryEntries = remember { AboutCatalog.libraries }
     var selectedAboutEntry by remember { mutableStateOf<AboutEntity?>(null) }
