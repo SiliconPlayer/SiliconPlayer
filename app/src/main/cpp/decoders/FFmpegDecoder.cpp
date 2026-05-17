@@ -13,6 +13,8 @@
 #include <strings.h>
 #include <dlfcn.h>
 #include <libavutil/error.h>
+#include <chrono>
+#include <thread>
 
 #define LOG_TAG "FFmpegDecoder"
 #define LOGE(...) __android_log_print(ANDROID_LOG_ERROR, LOG_TAG, __VA_ARGS__)
@@ -265,6 +267,14 @@ bool isSmbRequestPath(const char* path) {
     }
     constexpr char kPrefix[] = "smb://";
     return strncasecmp(path, kPrefix, sizeof(kPrefix) - 1) == 0;
+}
+
+bool isHttpRequestPath(const char* path) {
+    if (path == nullptr) {
+        return false;
+    }
+    return strncasecmp(path, "http://", 7) == 0 ||
+           strncasecmp(path, "https://", 8) == 0;
 }
 }
 
@@ -1102,13 +1112,50 @@ bool FFmpegDecoder::reopenSmbContextForSeekLocked(double seconds) {
     return performSeekWithinCurrentContextLocked(seconds);
 }
 
+bool FFmpegDecoder::reopenFromStartLocked() {
+    if (openedPath.empty()) {
+        return false;
+    }
+
+    const std::string reopenPath = openedPath;
+    const int preservedRepeatMode = repeatMode;
+    const bool preservedGaplessRepeatTrack = gaplessRepeatTrack;
+    const bool httpReopen = isHttpRequestPath(reopenPath.c_str());
+    const int maxAttempts = httpReopen ? 3 : 1;
+
+    for (int attempt = 0; attempt < maxAttempts; ++attempt) {
+        close();
+        decoderDrainStarted = false;
+        if (openLocked(reopenPath.c_str())) {
+            repeatMode = preservedRepeatMode;
+            gaplessRepeatTrack = preservedGaplessRepeatTrack;
+            totalFramesOutput = 0;
+            return true;
+        }
+
+        openedPath = reopenPath;
+        repeatMode = preservedRepeatMode;
+        gaplessRepeatTrack = preservedGaplessRepeatTrack;
+        if (attempt + 1 < maxAttempts) {
+            std::this_thread::sleep_for(std::chrono::milliseconds(80));
+        }
+    }
+
+    return false;
+}
+
 bool FFmpegDecoder::seekInternalLocked(double seconds) {
-    if (smbAvioHandleId > 0) {
+    if (usingSmbCustomIo || isSmbRequestPath(openedPath.c_str())) {
         if (performSeekWithinCurrentContextLocked(seconds)) {
             return true;
         }
         return reopenSmbContextForSeekLocked(seconds);
     }
+
+    if (seconds <= 0.0) {
+        return reopenFromStartLocked();
+    }
+
     return performSeekWithinCurrentContextLocked(seconds);
 }
 

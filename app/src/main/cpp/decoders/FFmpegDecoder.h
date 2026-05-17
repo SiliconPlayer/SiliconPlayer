@@ -127,6 +127,7 @@ private:
     int64_t currentSmbLogicalPositionLocked() const;
     bool performSeekWithinCurrentContextLocked(double seconds);
     bool reopenSmbContextForSeekLocked(double seconds);
+    bool reopenFromStartLocked();
     bool seekInternalLocked(double seconds);
     void rebuildToggleChannelsLocked();
     int decodeFrame(); // Decodes one frame and appends to sampleBuffer. Returns 0 on success, <0 on error/EOF
