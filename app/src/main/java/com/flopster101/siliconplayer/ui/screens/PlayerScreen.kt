@@ -621,6 +621,7 @@ internal fun PlayerScreen(
     positionSeconds: Double,
     title: String,
     artist: String,
+    album: String,
     sampleRateHz: Int,
     channelCount: Int,
     bitDepthLabel: String,
@@ -725,7 +726,7 @@ internal fun PlayerScreen(
         portraitDeviceAspectRatio < 1.9f ||
             configuration.screenHeightDp < 640
     )
-    val collapseThresholdPx = with(density) { 120.dp.toPx() }
+    val collapseThresholdPx = with(density) { 128.dp.toPx() }
     val collapseDecisionThresholdPx = with(density) { 96.dp.toPx() }
     val screenHeightPx = with(density) { configuration.screenHeightDp.dp.toPx() }
     val maxCollapseDragPx = screenHeightPx
@@ -777,39 +778,7 @@ internal fun PlayerScreen(
         }
     }
     val displayArtist = artist.ifBlank { if (hasTrack) "Unknown Artist" else "Unknown" }
-    var displayAlbum by remember { mutableStateOf("") }
-    var lastAlbumTrackKey by remember { mutableStateOf<String?>(null) }
-    LaunchedEffect(file?.absolutePath, hasTrack, title) {
-        val trackKey = file?.absolutePath
-        if (!hasTrack || trackKey == null) {
-            lastAlbumTrackKey = null
-            displayAlbum = ""
-            return@LaunchedEffect
-        }
-        val rawAlbum = withContext(Dispatchers.PlaybackIo) {
-            NativeBridge.getTrackAlbum().trim()
-        }
-        val trackChanged = trackKey != lastAlbumTrackKey
-        lastAlbumTrackKey = trackKey
-        when {
-            rawAlbum.isNotBlank() -> {
-                displayAlbum = rawAlbum
-            }
-            trackChanged && displayAlbum.isNotBlank() -> {
-                displayAlbum = "Unknown album"
-                delay(420)
-                val retryAlbum = withContext(Dispatchers.PlaybackIo) {
-                    NativeBridge.getTrackAlbum().trim()
-                }
-                if (lastAlbumTrackKey == trackKey && retryAlbum.isBlank()) {
-                    displayAlbum = ""
-                }
-            }
-            else -> {
-                displayAlbum = ""
-            }
-        }
-    }
+    val displayAlbum = album.ifBlank { if (hasTrack) "Unknown Album" else "" }
     val displayFilename = file?.let { toDisplayFilename(it) }.orEmpty()
     val fileSizeBytes = file?.length() ?: 0L
     val formatLabel = file?.name?.let(::inferredPrimaryExtensionForName)?.uppercase() ?: "EMPTY"
@@ -826,8 +795,8 @@ internal fun PlayerScreen(
             decoderName.equals(DecoderNames.FFMPEG, ignoreCase = true) -> {
                 var resolved: String? = null
                 repeat(8) { attempt ->
-                    val bitrate = NativeBridge.getTrackBitrate()
-                    val isVBR = NativeBridge.isTrackVBR()
+                    val bitrate = withContext(Dispatchers.PlaybackIo) { NativeBridge.getTrackBitrate() }
+                    val isVBR = withContext(Dispatchers.PlaybackIo) { NativeBridge.isTrackVBR() }
                     if (bitrate > 0) {
                         resolved = formatBitrate(bitrate, isVBR)
                         return@repeat

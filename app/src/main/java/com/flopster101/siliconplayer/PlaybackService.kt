@@ -157,35 +157,77 @@ class PlaybackService : Service() {
     private var artworkLoadGeneration = 0L
     private val ticker = object : Runnable {
         override fun run() {
+            val self = this
             if (currentPath != null) {
-                val deviceInteractive = powerManager.isInteractive
-                val trackLoaded = currentPath != null
-                val seekInProgress = trackLoaded && NativeBridge.isSeekInProgress()
-                if (!seekInProgress && trackLoaded) {
-                    positionSeconds = NativeBridge.getPosition()
-                    if (durationRefreshCountdown <= 0) {
-                        durationSeconds = NativeBridge.getDuration()
-                        durationRefreshCountdown = nextDurationRefreshCountdown(
-                            isPlaying = isPlaying,
-                            deviceInteractive = deviceInteractive
+                serviceScope.launch {
+                    val deviceInteractive = powerManager.isInteractive
+                    val trackLoaded = currentPath != null
+                    val snapshot = withContext(Dispatchers.PlaybackIo) {
+                        val seekInProgress = trackLoaded && NativeBridge.isSeekInProgress()
+                        var pos = positionSeconds
+                        var dur = durationSeconds
+                        if (!seekInProgress && trackLoaded) {
+                            pos = NativeBridge.getPosition()
+                            if (durationRefreshCountdown <= 0) {
+                                dur = NativeBridge.getDuration()
+                            }
+                        }
+                        val enginePlaying = if (trackLoaded) NativeBridge.isEnginePlaying() else false
+                        val playbackCapabilities = if (trackLoaded) NativeBridge.getPlaybackCapabilities() else 0
+                        val repeatCapabilities = if (trackLoaded) NativeBridge.getRepeatModeCapabilities() else REPEAT_CAP_ALL
+                        val sampleRate = if (trackLoaded) NativeBridge.getTrackSampleRate() else 0
+                        TickerSnapshot(
+                            seekInProgress = seekInProgress,
+                            positionSeconds = pos,
+                            durationSeconds = dur,
+                            isEnginePlaying = enginePlaying,
+                            playbackCapabilities = playbackCapabilities,
+                            repeatCapabilities = repeatCapabilities,
+                            sampleRate = sampleRate
                         )
-                    } else {
-                        durationRefreshCountdown -= 1
                     }
+
+                    if (!snapshot.seekInProgress && trackLoaded) {
+                        positionSeconds = snapshot.positionSeconds
+                        if (durationRefreshCountdown <= 0) {
+                            durationSeconds = snapshot.durationSeconds
+                            durationRefreshCountdown = nextDurationRefreshCountdown(
+                                isPlaying = snapshot.isEnginePlaying,
+                                deviceInteractive = deviceInteractive
+                            )
+                        } else {
+                            durationRefreshCountdown -= 1
+                        }
+                    }
+                    isPlaying = snapshot.isEnginePlaying
+                    persistResumeCheckpointIfNeeded(
+                        force = false,
+                        playbackCapabilities = snapshot.playbackCapabilities,
+                        repeatCapabilities = snapshot.repeatCapabilities,
+                        sampleRate = snapshot.sampleRate
+                    )
+                    updateMediaSessionState()
+                    pushNotification()
+                    val delayMs = nextTickerDelayMs(
+                        seekInProgress = snapshot.seekInProgress,
+                        isPlaying = isPlaying,
+                        deviceInteractive = deviceInteractive
+                    )
+                    handler.postDelayed(self, delayMs)
                 }
-                isPlaying = if (trackLoaded) NativeBridge.isEnginePlaying() else false
-                persistResumeCheckpointIfNeeded()
-                updateMediaSessionState()
-                pushNotification()
-                val delayMs = nextTickerDelayMs(
-                    seekInProgress = seekInProgress,
-                    isPlaying = isPlaying,
-                    deviceInteractive = deviceInteractive
-                )
-                handler.postDelayed(this, delayMs)
             }
         }
     }
+
+    private data class TickerSnapshot(
+        val seekInProgress: Boolean,
+        val positionSeconds: Double,
+        val durationSeconds: Double,
+        val isEnginePlaying: Boolean,
+        val playbackCapabilities: Int,
+        val repeatCapabilities: Int,
+        val sampleRate: Int
+    )
 
     private fun nextDurationRefreshCountdown(
         isPlaying: Boolean,
@@ -218,7 +260,7 @@ class PlaybackService : Service() {
         override fun onReceive(context: Context?, intent: Intent?) {
             if (intent?.action != AudioManager.ACTION_AUDIO_BECOMING_NOISY) return
             if (!prefs.getBoolean(PREF_PAUSE_ON_DISCONNECT, true)) return
-            if (!NativeBridge.isEnginePlaying()) return
+            if (!isPlaying) return
             pausePlayback()
         }
     }
@@ -243,7 +285,7 @@ class PlaybackService : Service() {
         releaseWakeLock()
         unregisterReceiver(noisyReceiver)
         abandonAudioFocus()
-        NativeBridge.stopEngine()
+        kotlinx.coroutines.GlobalScope.launch(kotlinx.coroutines.Dispatchers.IO) { NativeBridge.stopEngine() }
         mediaSession?.release()
     }
 
@@ -254,7 +296,7 @@ class PlaybackService : Service() {
             ACTION_SYNC -> syncFromIntent(intent)
             ACTION_PLAY -> playPlayback()
             ACTION_PAUSE -> pausePlayback()
-            ACTION_TOGGLE -> if (NativeBridge.isEnginePlaying()) pausePlayback() else playPlayback()
+            ACTION_TOGGLE -> if (isPlaying) pausePlayback() else playPlayback()
             ACTION_PREVIOUS_TRACK -> requestAdjacentTrack(-1)
             ACTION_NEXT_TRACK -> requestAdjacentTrack(1)
             ACTION_SEEK_BACK -> seekBy(-10.0)
@@ -354,16 +396,20 @@ class PlaybackService : Service() {
         if (currentPath == null) return
         requestAudioFocus()
         acquireWakeLock()
-        if (shouldApplyPauseResumeFade()) {
-            NativeBridge.startEngineWithPauseResumeFade()
-        } else {
-            NativeBridge.startEngine()
+        serviceScope.launch {
+            withContext(Dispatchers.PlaybackIo) {
+                if (shouldApplyPauseResumeFade()) {
+                    NativeBridge.startEngineWithPauseResumeFade()
+                } else {
+                    NativeBridge.startEngine()
+                }
+            }
+            isPlaying = true
+            updateNetworkPlaybackLocks()
+            persistResumeCheckpointIfNeeded(force = true)
+            updateMediaSessionState()
+            pushNotification()
         }
-        isPlaying = true
-        updateNetworkPlaybackLocks()
-        persistResumeCheckpointIfNeeded(force = true)
-        updateMediaSessionState()
-        pushNotification()
     }
 
     private fun pausePlayback(abandonFocus: Boolean = true) {
@@ -372,21 +418,21 @@ class PlaybackService : Service() {
             resumeOnFocusGain = false
         }
         releaseWakeLock()
-        if (!shouldApplyPauseResumeFade() || !NativeBridge.isEnginePlaying()) {
-            NativeBridge.stopEngine()
+        serviceScope.launch {
+            val shouldFade = shouldApplyPauseResumeFade()
+            withContext(Dispatchers.PlaybackIo) {
+                if (!shouldFade || !isPlaying) {
+                    NativeBridge.stopEngine()
+                } else {
+                    NativeBridge.stopEngineWithPauseResumeFade()
+                }
+            }
             isPlaying = false
             updateNetworkPlaybackLocks()
             persistResumeCheckpointIfNeeded(force = true)
             updateMediaSessionState()
             pushNotification()
-            return
         }
-        NativeBridge.stopEngineWithPauseResumeFade()
-        isPlaying = false
-        updateNetworkPlaybackLocks()
-        persistResumeCheckpointIfNeeded(force = true)
-        updateMediaSessionState()
-        pushNotification()
     }
 
     private fun shouldApplyPauseResumeFade(): Boolean {
@@ -399,7 +445,7 @@ class PlaybackService : Service() {
     private fun stopAndClear() {
         abandonAudioFocus()
         resumeOnFocusGain = false
-        NativeBridge.releaseCurrentDecoder()
+        serviceScope.launch { withContext(Dispatchers.PlaybackIo) { NativeBridge.releaseCurrentDecoder() } }
         isPlaying = false
         releaseWakeLock()
         currentPath = null
@@ -593,26 +639,34 @@ class PlaybackService : Service() {
 
     private fun cycleRepeatMode() {
         if (currentPath == null) return
-        val next = resolveNextRepeatMode(
-            playbackCapabilitiesFlags = currentPlaybackCapabilitiesFlags,
-            seekInProgress = NativeBridge.isSeekInProgress(),
-            selectedFile = currentPath?.let(::File)?.takeIf { it.exists() },
-            durationSeconds = durationSeconds,
-            subtuneCount = NativeBridge.getSubtuneCount(),
-            activeRepeatMode = currentRepeatMode,
-            repeatModeCapabilitiesFlags = currentRepeatModeCapabilitiesFlags
-        ) ?: return
-        currentRepeatMode = next
-        currentPreferredRepeatMode = next
-        applyRepeatModeToNative(next)
-        persistCurrentRepeatMode()
-        updateMediaSessionState()
-        pushNotification()
-        sendBroadcast(
-            Intent(ACTION_BROADCAST_REPEAT_MODE_CHANGED)
-                .setPackage(packageName)
-                .putExtra(EXTRA_REPEAT_MODE, next.storageValue)
-        )
+        serviceScope.launch {
+            val snapshot = withContext(Dispatchers.PlaybackIo) {
+                val isLoaded = NativeBridge.getTrackSampleRate() > 0
+                val seekInProgress = isLoaded && NativeBridge.isSeekInProgress()
+                val subtuneCount = if (isLoaded) NativeBridge.getSubtuneCount() else 0
+                Triple(seekInProgress, subtuneCount, currentPath)
+            }
+            val next = resolveNextRepeatMode(
+                playbackCapabilitiesFlags = currentPlaybackCapabilitiesFlags,
+                seekInProgress = snapshot.first,
+                selectedFile = snapshot.third?.let(::File)?.takeIf { it.exists() },
+                durationSeconds = durationSeconds,
+                subtuneCount = snapshot.second,
+                activeRepeatMode = currentRepeatMode,
+                repeatModeCapabilitiesFlags = currentRepeatModeCapabilitiesFlags
+            ) ?: return@launch
+            currentRepeatMode = next
+            currentPreferredRepeatMode = next
+            applyRepeatModeToNative(next)
+            persistCurrentRepeatMode()
+            updateMediaSessionState()
+            pushNotification()
+            sendBroadcast(
+                Intent(ACTION_BROADCAST_REPEAT_MODE_CHANGED)
+                    .setPackage(packageName)
+                    .putExtra(EXTRA_REPEAT_MODE, next.storageValue)
+            )
+        }
     }
 
     private fun seekBy(deltaSeconds: Double) {
@@ -622,51 +676,74 @@ class PlaybackService : Service() {
 
     private fun seekToPosition(seconds: Double) {
         if (currentPath == null) return
-        val maxDuration = durationSeconds.coerceAtLeast(0.0)
-        val clamped = if (maxDuration > 0.0) {
-            seconds.coerceIn(0.0, maxDuration)
-        } else {
-            seconds.coerceAtLeast(0.0)
+        serviceScope.launch {
+            val maxDuration = durationSeconds.coerceAtLeast(0.0)
+            val clamped = if (maxDuration > 0.0) {
+                seconds.coerceIn(0.0, maxDuration)
+            } else {
+                seconds.coerceAtLeast(0.0)
+            }
+            withContext(Dispatchers.PlaybackIo) {
+                NativeBridge.seekTo(clamped)
+            }
+            positionSeconds = clamped
+            persistResumeCheckpointIfNeeded(force = true)
+            updateMediaSessionState()
+            pushNotification()
         }
-        NativeBridge.seekTo(clamped)
-        positionSeconds = clamped
-        persistResumeCheckpointIfNeeded(force = true)
-        updateMediaSessionState()
-        pushNotification()
     }
 
-    private fun persistResumeCheckpointIfNeeded(force: Boolean = false) {
+    private fun persistResumeCheckpointIfNeeded(
+        force: Boolean = false,
+        playbackCapabilities: Int = Int.MIN_VALUE,
+        repeatCapabilities: Int = Int.MIN_VALUE,
+        sampleRate: Int = Int.MIN_VALUE
+    ) {
         val sourceId = currentPath?.takeIf { it.isNotBlank() }
         if (sourceId == null) {
             clearResumeCheckpoint()
             return
         }
 
-        val trackLoaded = NativeBridge.getTrackSampleRate() > 0
-        val storedSourceId = prefs.getString(AppPreferenceKeys.SESSION_RESUME_SOURCE_ID, null)
-        val playbackCapabilities = if (trackLoaded) {
-            NativeBridge.getPlaybackCapabilities()
-        } else {
-            if (storedSourceId != sourceId) {
-                clearResumeCheckpoint()
-                return
+        serviceScope.launch {
+            val (effectiveSampleRate, effectivePlaybackCaps, effectiveRepeatCaps) = withContext(Dispatchers.PlaybackIo) {
+                val effSampleRate = if (sampleRate != Int.MIN_VALUE) sampleRate else NativeBridge.getTrackSampleRate()
+                val trackLoaded = effSampleRate > 0
+                val effPlaybackCaps = if (trackLoaded) {
+                    if (playbackCapabilities != Int.MIN_VALUE) playbackCapabilities else NativeBridge.getPlaybackCapabilities()
+                } else Int.MIN_VALUE
+                val effRepeatCaps = if (trackLoaded) {
+                    if (repeatCapabilities != Int.MIN_VALUE) repeatCapabilities else NativeBridge.getRepeatModeCapabilities()
+                } else Int.MIN_VALUE
+                Triple(effSampleRate, effPlaybackCaps, effRepeatCaps)
             }
-            prefs.getInt(AppPreferenceKeys.SESSION_RESUME_PLAYBACK_CAPABILITIES, 0)
-        }
-        val repeatCapabilities = if (trackLoaded) {
-            NativeBridge.getRepeatModeCapabilities()
-        } else {
-            prefs.getInt(AppPreferenceKeys.SESSION_RESUME_REPEAT_CAPABILITIES, REPEAT_CAP_ALL)
-        }
+            val trackLoaded = effectiveSampleRate > 0
+            val storedSourceId = prefs.getString(AppPreferenceKeys.SESSION_RESUME_SOURCE_ID, null)
+
+            val finalPlaybackCaps = if (trackLoaded) {
+                effectivePlaybackCaps
+            } else {
+                if (storedSourceId != sourceId) {
+                    clearResumeCheckpoint()
+                    return@launch
+                }
+                prefs.getInt(AppPreferenceKeys.SESSION_RESUME_PLAYBACK_CAPABILITIES, 0)
+            }
+
+            val finalRepeatCaps = if (trackLoaded) {
+                effectiveRepeatCaps
+            } else {
+                prefs.getInt(AppPreferenceKeys.SESSION_RESUME_REPEAT_CAPABILITIES, REPEAT_CAP_ALL)
+            }
         if (durationSeconds <= 0.0) {
             clearResumeCheckpoint()
-            return
+            return@launch
         }
         if (positionSeconds > durationSeconds + RESUME_POSITION_DURATION_EPSILON_SECONDS) {
             // Some looping cores can report elapsed time beyond declared duration.
             // Treat this as non-resumable timeline data.
             clearResumeCheckpoint()
-            return
+            return@launch
         }
 
         val clampedDuration = durationSeconds.coerceAtLeast(0.0)
@@ -683,10 +760,10 @@ class PlaybackService : Service() {
             isPlaying == lastPersistedResumeIsPlaying &&
             currentTitle == lastPersistedResumeTitle &&
             currentArtist == lastPersistedResumeArtist &&
-            playbackCapabilities == lastPersistedResumePlaybackCaps &&
-            repeatCapabilities == lastPersistedResumeRepeatCaps
+            finalPlaybackCaps == lastPersistedResumePlaybackCaps &&
+            finalRepeatCaps == lastPersistedResumeRepeatCaps
         ) {
-            return
+            return@launch
         }
 
         prefs.edit()
@@ -696,8 +773,8 @@ class PlaybackService : Service() {
             .putBoolean(AppPreferenceKeys.SESSION_RESUME_WAS_PLAYING, isPlaying)
             .putString(AppPreferenceKeys.SESSION_RESUME_TITLE, currentTitle)
             .putString(AppPreferenceKeys.SESSION_RESUME_ARTIST, currentArtist)
-            .putInt(AppPreferenceKeys.SESSION_RESUME_PLAYBACK_CAPABILITIES, playbackCapabilities)
-            .putInt(AppPreferenceKeys.SESSION_RESUME_REPEAT_CAPABILITIES, repeatCapabilities)
+            .putInt(AppPreferenceKeys.SESSION_RESUME_PLAYBACK_CAPABILITIES, finalPlaybackCaps)
+            .putInt(AppPreferenceKeys.SESSION_RESUME_REPEAT_CAPABILITIES, finalRepeatCaps)
             .apply()
 
         hasPersistedResumeCheckpoint = true
@@ -707,8 +784,9 @@ class PlaybackService : Service() {
         lastPersistedResumeIsPlaying = isPlaying
         lastPersistedResumeTitle = currentTitle
         lastPersistedResumeArtist = currentArtist
-        lastPersistedResumePlaybackCaps = playbackCapabilities
-        lastPersistedResumeRepeatCaps = repeatCapabilities
+        lastPersistedResumePlaybackCaps = finalPlaybackCaps
+        lastPersistedResumeRepeatCaps = finalRepeatCaps
+        }
     }
 
     private fun clearResumeCheckpoint() {
@@ -1122,7 +1200,11 @@ class PlaybackService : Service() {
     private fun unduckAudio() {
         if (!isDucked) return
         isDucked = false
-        NativeBridge.setMasterGain(originalMasterVolume)
+        serviceScope.launch {
+            withContext(Dispatchers.PlaybackIo) {
+                NativeBridge.setMasterGain(originalMasterVolume)
+            }
+        }
     }
 
     companion object {

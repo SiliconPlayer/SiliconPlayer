@@ -90,11 +90,6 @@ internal fun placeholderArtworkIconForFile(
     val effectiveDecoderName = decoderName
         ?.trim()
         ?.takeIf { it.isNotEmpty() }
-        ?: if (allowCurrentDecoderFallback) {
-            NativeBridge.getCurrentDecoderName().trim().takeIf { it.isNotEmpty() }
-        } else {
-            null
-        }
     val resolvedHint =
         decoderArtworkHintForName(effectiveDecoderName)
             ?: file?.name?.let { resolveDecoderArtworkHintForFileName(it, decoderExtensionArtworkHints) }

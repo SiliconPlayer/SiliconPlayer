@@ -14,7 +14,9 @@ private data class PlaybackPollSnapshot(
     val seekInProgress: Boolean,
     val isPlaying: Boolean,
     val durationSeconds: Double,
-    val positionSeconds: Double
+    val positionSeconds: Double,
+    val naturalEnd: Boolean,
+    val trackSnapshot: NativeTrackSnapshot?
 )
 
 private suspend fun readPlaybackPollSnapshot(
@@ -25,6 +27,13 @@ private suspend fun readPlaybackPollSnapshot(
 ): PlaybackPollSnapshot = withContext(Dispatchers.PlaybackIo) {
     val nextSeekInProgress = NativeBridge.isSeekInProgress()
     val nextIsPlaying = NativeBridge.isEnginePlaying()
+    val endedNaturally = NativeBridge.consumeNaturalEndEvent()
+    // Skip the expensive snapshot during active seek. The seek worker holds
+    // decoderMutex for the entire seek duration, and readNativeTrackSnapshot
+    // would block on that mutex, stalling the PlaybackIo thread and freezing
+    // UI state updates. The snapshot is only consumed when !seekInProgress.
+    val trackSnapshot = if (nextSeekInProgress) null else readNativeTrackSnapshot()
+    
     val nextDuration = if (nextSeekInProgress) {
         localDuration
     } else if (
@@ -32,7 +41,7 @@ private suspend fun readPlaybackPollSnapshot(
         !(localDuration > 0.0) ||
         !localDuration.isFinite()
     ) {
-        NativeBridge.getDuration()
+        trackSnapshot?.durationSeconds ?: localDuration
     } else {
         localDuration
     }
@@ -54,7 +63,9 @@ private suspend fun readPlaybackPollSnapshot(
         seekInProgress = nextSeekInProgress,
         isPlaying = nextIsPlaying,
         durationSeconds = nextDuration,
-        positionSeconds = nextPosition
+        positionSeconds = nextPosition,
+        naturalEnd = endedNaturally,
+        trackSnapshot = trackSnapshot
     )
 }
 
@@ -78,6 +89,7 @@ internal fun AppNavigationPlaybackPollEffects(
     playbackWatchPath: String?,
     metadataTitleProvider: () -> String,
     metadataArtistProvider: () -> String,
+    metadataAlbumProvider: () -> String,
     lastBrowserLocationId: String?,
     onSeekInProgressChanged: (Boolean) -> Unit,
     onSeekStartedAtMsChanged: (Long) -> Unit,
@@ -89,6 +101,15 @@ internal fun AppNavigationPlaybackPollEffects(
     onPlaybackWatchPathChanged: (String?) -> Unit,
     onMetadataTitleChanged: (String) -> Unit,
     onMetadataArtistChanged: (String) -> Unit,
+    onMetadataAlbumChanged: (String) -> Unit,
+    onMetadataSampleRateChanged: (Int) -> Unit,
+    onMetadataChannelCountChanged: (Int) -> Unit,
+    onMetadataBitDepthLabelChanged: (String) -> Unit,
+    onLastUsedCoreNameChanged: (String?) -> Unit,
+    onSubtuneCountChanged: (Int) -> Unit,
+    onCurrentSubtuneIndexChanged: (Int) -> Unit,
+    onRepeatModeCapabilitiesFlagsChanged: (Int) -> Unit,
+    onPlaybackCapabilitiesFlagsChanged: (Int) -> Unit,
     onSubtuneCursorChanged: (File?) -> Unit,
     onAddRecentPlayedTrack: (path: String, locationId: String?, title: String?, artist: String?) -> Unit,
     onPlayAdjacentTrack: (offset: Int, wrapOverride: Boolean?, notifyWrap: Boolean) -> Boolean,
@@ -277,7 +298,7 @@ internal fun AppNavigationPlaybackPollEffects(
                         }
                         continue
                     }
-                    val endedNaturally = NativeBridge.consumeNaturalEndEvent()
+                    val endedNaturally = snapshot.naturalEnd
                     if (endedNaturally && suppressTrackEndEvents) {
                         continue
                     }
@@ -303,24 +324,37 @@ internal fun AppNavigationPlaybackPollEffects(
                 metadataPollElapsedMs += pollDelayMs
                 val currentMetadataTitle = metadataTitleProvider()
                 val currentMetadataArtist = metadataArtistProvider()
+                val currentMetadataAlbum = metadataAlbumProvider()
                 if (shouldPollTrackMetadata(metadataPollElapsedMs, currentMetadataTitle, currentMetadataArtist)) {
                     metadataPollElapsedMs = 0L
-                    val (nextTitle, nextArtist) = withContext(Dispatchers.PlaybackIo) {
-                        sanitizeRemoteCachedMetadataTitle(
-                            rawTitle = NativeBridge.getTrackTitle(),
-                            selectedFile = currentFile
-                        ) to NativeBridge.getTrackArtist()
-                    }
-                    val titleChanged = nextTitle != currentMetadataTitle
-                    val artistChanged = nextArtist != currentMetadataArtist
-                    if (titleChanged) {
+                    val trackSnapshot = snapshot.trackSnapshot ?: continue
+                    val nextTitle = sanitizeRemoteCachedMetadataTitle(
+                        rawTitle = trackSnapshot.title,
+                        selectedFile = currentFile
+                    )
+                    val nextArtist = trackSnapshot.artist
+                    val nextAlbum = trackSnapshot.album
+                    
+                    if (nextTitle != currentMetadataTitle) {
                         onMetadataTitleChanged(nextTitle)
                     }
-                    if (artistChanged) {
+                    if (nextArtist != currentMetadataArtist) {
                         onMetadataArtistChanged(nextArtist)
                     }
+                    if (nextAlbum != currentMetadataAlbum) {
+                        onMetadataAlbumChanged(nextAlbum)
+                    }
+                    onMetadataSampleRateChanged(trackSnapshot.sampleRateHz)
+                    onMetadataChannelCountChanged(trackSnapshot.channelCount)
+                    onMetadataBitDepthLabelChanged(trackSnapshot.bitDepthLabel)
+                    onLastUsedCoreNameChanged(trackSnapshot.decoderName)
+                    onSubtuneCountChanged(trackSnapshot.subtuneCount)
+                    onCurrentSubtuneIndexChanged(trackSnapshot.currentSubtuneIndex)
+                    onRepeatModeCapabilitiesFlagsChanged(trackSnapshot.repeatModeCapabilitiesFlags)
+                    onPlaybackCapabilitiesFlagsChanged(trackSnapshot.playbackCapabilitiesFlags)
+
                     val recentSourceId = currentPlaybackSourceIdProvider() ?: currentFile?.absolutePath
-                    if (nextIsPlaying && (titleChanged || artistChanged) && recentSourceId != null) {
+                    if (nextIsPlaying && (nextTitle != currentMetadataTitle || nextArtist != currentMetadataArtist) && recentSourceId != null) {
                         onAddRecentPlayedTrack(
                             recentSourceId,
                             if (isLocalPlayableFile(currentFile)) lastBrowserLocationId else null,

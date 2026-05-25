@@ -8,12 +8,15 @@ internal data class NativeTrackSnapshot(
     val decoderName: String?,
     val title: String,
     val artist: String,
+    val album: String,
     val sampleRateHz: Int,
     val channelCount: Int,
     val bitDepthLabel: String,
     val repeatModeCapabilitiesFlags: Int,
     val playbackCapabilitiesFlags: Int,
-    val durationSeconds: Double
+    val durationSeconds: Double,
+    val subtuneCount: Int,
+    val currentSubtuneIndex: Int
 )
 
 internal fun readNativeTrackSnapshot(): NativeTrackSnapshot {
@@ -22,12 +25,15 @@ internal fun readNativeTrackSnapshot(): NativeTrackSnapshot {
         decoderName = decoder,
         title = NativeBridge.getTrackTitle(),
         artist = NativeBridge.getTrackArtist(),
+        album = NativeBridge.getTrackAlbum(),
         sampleRateHz = NativeBridge.getTrackSampleRate(),
         channelCount = NativeBridge.getTrackChannelCount(),
         bitDepthLabel = NativeBridge.getTrackBitDepthLabel(),
         repeatModeCapabilitiesFlags = NativeBridge.getRepeatModeCapabilities(),
         playbackCapabilitiesFlags = NativeBridge.getPlaybackCapabilities(),
-        durationSeconds = NativeBridge.getDuration()
+        durationSeconds = NativeBridge.getDuration(),
+        subtuneCount = NativeBridge.getSubtuneCount(),
+        currentSubtuneIndex = NativeBridge.getCurrentSubtuneIndex()
     )
 }
 

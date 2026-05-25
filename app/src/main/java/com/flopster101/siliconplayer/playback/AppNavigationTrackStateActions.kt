@@ -21,9 +21,12 @@ internal fun applyNativeTrackSnapshotAction(
     onPluginGainChanged: (Float) -> Unit,
     onMetadataTitleChanged: (String) -> Unit,
     onMetadataArtistChanged: (String) -> Unit,
+    onMetadataAlbumChanged: (String) -> Unit,
     onMetadataSampleRateChanged: (Int) -> Unit,
     onMetadataChannelCountChanged: (Int) -> Unit,
     onMetadataBitDepthLabelChanged: (String) -> Unit,
+    onSubtuneCountChanged: (Int) -> Unit,
+    onCurrentSubtuneIndexChanged: (Int) -> Unit,
     onRepeatModeCapabilitiesFlagsChanged: (Int) -> Unit,
     onPlaybackCapabilitiesFlagsChanged: (Int) -> Unit,
     onDurationChanged: (Double) -> Unit
@@ -42,9 +45,12 @@ internal fun applyNativeTrackSnapshotAction(
     )
     onMetadataTitleChanged(sanitizedTitle)
     onMetadataArtistChanged(applied.artist)
+    onMetadataAlbumChanged(applied.album)
     onMetadataSampleRateChanged(applied.sampleRateHz)
     onMetadataChannelCountChanged(applied.channelCount)
     onMetadataBitDepthLabelChanged(applied.bitDepthLabel)
+    onSubtuneCountChanged(applied.subtuneCount)
+    onCurrentSubtuneIndexChanged(applied.currentSubtuneIndex)
     onRepeatModeCapabilitiesFlagsChanged(applied.repeatModeCapabilitiesFlags)
     onPlaybackCapabilitiesFlagsChanged(applied.playbackCapabilitiesFlags)
     onDurationChanged(applied.durationSeconds)
@@ -380,7 +386,7 @@ internal suspend fun restorePlayerStateFromSessionAndNativeAction(
         )
     }
     onVisiblePlayableFilesChanged(restoredContextualPlayableFiles)
-    onPlayerSurfaceVisibleChanged(false)
+    onPlayerSurfaceVisibleChanged(openExpanded)
     onPlayerExpandedChanged(openExpanded)
 
     val isLoaded = withContext(Dispatchers.IO) {
@@ -398,9 +404,12 @@ internal suspend fun restorePlayerStateFromSessionAndNativeAction(
                 decoderName = null,
                 title = resumeCheckpoint.title,
                 artist = resumeCheckpoint.artist,
+                album = "",
                 sampleRateHz = 0,
                 channelCount = 0,
                 bitDepthLabel = "Unknown",
+                subtuneCount = 0,
+                currentSubtuneIndex = 0,
                 repeatModeCapabilitiesFlags = resumeCheckpoint.repeatCapabilitiesFlags,
                 playbackCapabilitiesFlags = resumeCheckpoint.playbackCapabilitiesFlags,
                 durationSeconds = resumeCheckpoint.durationSeconds

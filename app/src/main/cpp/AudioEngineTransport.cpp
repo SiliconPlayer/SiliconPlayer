@@ -447,50 +447,16 @@ bool AudioEngine::isSeekInProgress() const {
 void AudioEngine::seekToSeconds(double seconds) {
     const uint64_t targetDecoderSerial = decoderSerial.load();
     const double normalizedTarget = std::max(0.0, seconds);
-    bool handledDirectSeek = false;
     clearRenderQueue();
 
     // Cancel any pending async-seek request first so a stale worker cycle
-    // cannot overwrite a direct-seek result.
+    // cannot overwrite a new seek result.
     {
         std::lock_guard<std::mutex> lock(seekWorkerMutex);
         seekAbortRequested.store(true);
         seekRequestPending = false;
     }
     seekWorkerCv.notify_one();
-
-    {
-        std::lock_guard<std::mutex> lock(decoderMutex);
-        if (decoder) {
-            const int capabilities = decoder->getPlaybackCapabilities();
-    if ((capabilities & AudioDecoder::PLAYBACK_CAP_DIRECT_SEEK) != 0 &&
-        (capabilities & AudioDecoder::PLAYBACK_CAP_ASYNC_DIRECT_SEEK) == 0 &&
-        (capabilities & AudioDecoder::PLAYBACK_CAP_SEEK) != 0) {
-                decoder->seek(normalizedTarget);
-                const double decoderPosition = decoder->getPlaybackPositionSeconds();
-                const double resolvedPosition = decoderPosition >= 0.0 ? decoderPosition : normalizedTarget;
-                const double duration = decoder->getDuration();
-                cachedDurationSeconds.store(duration);
-                resetResamplerStateLocked();
-                positionSeconds.store(resolvedPosition);
-                sharedAbsoluteInputPositionBaseSeconds = resolvedPosition;
-                outputClockSeconds = resolvedPosition;
-                timelineSmoothedSeconds = resolvedPosition;
-                timelineSmootherInitialized = false;
-                naturalEndPending.store(false);
-                handledDirectSeek = true;
-            }
-        }
-    }
-
-    if (handledDirectSeek) {
-        std::lock_guard<std::mutex> lock(seekWorkerMutex);
-        seekAbortRequested.store(false);
-        seekInProgress.store(false);
-        stopStreamAfterSeek.store(false);
-        renderWorkerCv.notify_one();
-        return;
-    }
 
     positionSeconds.store(normalizedTarget);
     naturalEndPending.store(false);
@@ -583,18 +549,18 @@ void AudioEngine::seekWorkerLoop() {
             seekRequestPending = false;
         }
 
-        if (decoder && targetDecoderSerial == decoderSerial.load() && !seekAbortRequested.load()) {
-            double resolvedPosition = runAsyncSeekLocked(targetSeconds);
-            if (!seekAbortRequested.load()) {
-                const double duration = decoder->getDuration();
-                if (duration > 0.0 && repeatMode.load() != 2) {
-                    resolvedPosition = std::clamp(resolvedPosition, 0.0, duration);
-                } else if (resolvedPosition < 0.0) {
-                    resolvedPosition = 0.0;
-                }
-                cachedDurationSeconds.store(duration);
-                {
-                    std::lock_guard<std::mutex> lock(decoderMutex);
+        {
+            std::lock_guard<std::mutex> lock(decoderMutex);
+            if (decoder && targetDecoderSerial == decoderSerial.load() && !seekAbortRequested.load()) {
+                double resolvedPosition = runAsyncSeekLocked(targetSeconds);
+                if (!seekAbortRequested.load()) {
+                    const double duration = decoder->getDuration();
+                    if (duration > 0.0 && repeatMode.load() != 2) {
+                        resolvedPosition = std::clamp(resolvedPosition, 0.0, duration);
+                    } else if (resolvedPosition < 0.0) {
+                        resolvedPosition = 0.0;
+                    }
+                    cachedDurationSeconds.store(duration);
                     resetResamplerStateLocked();
                     positionSeconds.store(resolvedPosition);
                     sharedAbsoluteInputPositionBaseSeconds = resolvedPosition;

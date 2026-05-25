@@ -8,8 +8,11 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import com.flopster101.siliconplayer.DecoderNames
 import com.flopster101.siliconplayer.NativeBridge
+import com.flopster101.siliconplayer.PlaybackIo
 import com.flopster101.siliconplayer.matchesDecoderName
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.withContext
 
 internal data class OpenMptMetadata(
     val typeLong: String = "",
@@ -224,7 +227,9 @@ internal fun rememberTrackInfoLiveMetadata(
     LaunchedEffect(filePath, decoderName, isDialogVisible) {
         if (!isDialogVisible) return@LaunchedEffect
         while (isDialogVisible) {
-            metadata = queryTrackInfoLiveMetadata(decoderName)
+            metadata = withContext(Dispatchers.PlaybackIo) {
+                queryTrackInfoLiveMetadata(decoderName)
+            }
             delay(500)
         }
     }

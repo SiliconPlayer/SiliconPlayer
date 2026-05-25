@@ -1421,11 +1421,13 @@ private fun AppNavigation(
     var activeRepeatMode by remember { mutableStateOf(RepeatMode.None) }
     var metadataTitle by remember { mutableStateOf("") }
     var metadataArtist by remember { mutableStateOf("") }
+    var metadataAlbum by remember { mutableStateOf("") }
     var metadataSampleRate by remember { mutableIntStateOf(0) }
     var metadataChannelCount by remember { mutableIntStateOf(0) }
     var metadataBitDepthLabel by remember { mutableStateOf("Unknown") }
     var subtuneCount by remember { mutableIntStateOf(0) }
     var currentSubtuneIndex by remember { mutableIntStateOf(0) }
+    var lastUsedCoreName by remember { mutableStateOf<String?>(null) }
     var subtuneEntries by remember { mutableStateOf<List<SubtuneEntry>>(emptyList()) }
     var showSubtuneSelectorDialog by remember { mutableStateOf(false) }
     var showPlaylistSelectorDialog by remember { mutableStateOf(false) }
@@ -1439,7 +1441,6 @@ private fun AppNavigation(
                 PLAYBACK_CAP_LIVE_REPEAT_MODE
         )
     }
-    var lastUsedCoreName by remember { mutableStateOf<String?>(null) }
     var artworkBitmap by remember { mutableStateOf<ImageBitmap?>(null) }
     var artworkResolvedTrackKey by remember { mutableStateOf<String?>(null) }
     var artworkReloadToken by remember { mutableIntStateOf(0) }
@@ -1577,7 +1578,7 @@ private fun AppNavigation(
     }
     val startEngineWithPauseResumeFade = remember(fadePauseResume) {
         {
-            val currentPositionSeconds = NativeBridge.getPosition()
+            val currentPositionSeconds = position
             val shouldFade = fadePauseResume && currentPositionSeconds > 0.05
             if (!shouldFade) {
                 NativeBridge.startEngine()
@@ -1588,7 +1589,7 @@ private fun AppNavigation(
     }
     val pauseEngineWithPauseResumeFade = remember(fadePauseResume) {
         { onPaused: () -> Unit ->
-            val currentPositionSeconds = NativeBridge.getPosition()
+            val currentPositionSeconds = position
             val shouldFade = fadePauseResume && currentPositionSeconds > 0.05
             if (!shouldFade) {
                 NativeBridge.stopEngine()
@@ -1829,33 +1830,32 @@ private fun AppNavigation(
     }
 
     val settingsStates = rememberAppNavigationSettingsStates(prefs)
-    var respondHeadphoneMediaButtons by settingsStates.respondHeadphoneMediaButtons
-    var pauseOnHeadphoneDisconnect by settingsStates.pauseOnHeadphoneDisconnect
-    var audioBackendPreference by settingsStates.audioBackendPreference
-    var audioPerformanceMode by settingsStates.audioPerformanceMode
-    var audioBufferPreset by settingsStates.audioBufferPreset
-    var audioResamplerPreference by settingsStates.audioResamplerPreference
-    var audioOutputLimiterEnabled by settingsStates.audioOutputLimiterEnabled
-    var pendingSoxExperimentalDialog by settingsStates.pendingSoxExperimentalDialog
-    var showSoxExperimentalDialog by settingsStates.showSoxExperimentalDialog
-    var showUrlOrPathDialog by settingsStates.showUrlOrPathDialog
-    var urlOrPathInput by settingsStates.urlOrPathInput
-    var remoteLoadUiState by settingsStates.remoteLoadUiState
-    var remoteLoadJob by settingsStates.remoteLoadJob
-    var urlOrPathForceCaching by settingsStates.urlOrPathForceCaching
-    var urlCacheClearOnLaunch by settingsStates.urlCacheClearOnLaunch
-    var urlCacheMaxTracks by settingsStates.urlCacheMaxTracks
-    var urlCacheMaxBytes by settingsStates.urlCacheMaxBytes
-    var archiveCacheClearOnLaunch by settingsStates.archiveCacheClearOnLaunch
-    var archiveCacheMaxMounts by settingsStates.archiveCacheMaxMounts
-    var archiveCacheMaxBytes by settingsStates.archiveCacheMaxBytes
-    var archiveCacheMaxAgeDays by settingsStates.archiveCacheMaxAgeDays
-    var cachedSourceFiles by settingsStates.cachedSourceFiles
-    var pendingCacheExportPaths by settingsStates.pendingCacheExportPaths
-    var audioAllowBackendFallback by settingsStates.audioAllowBackendFallback
-    var openPlayerFromNotification by settingsStates.openPlayerFromNotification
-    var playbackWatchPath by settingsStates.playbackWatchPath
-    var currentPlaybackSourceId by settingsStates.currentPlaybackSourceId
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
     var currentPlaybackRequestUrl by remember {
         mutableStateOf(prefs.getString(AppPreferenceKeys.SESSION_CURRENT_REQUEST_URL, null))
     }
@@ -1898,12 +1898,12 @@ private fun AppNavigation(
             !sourceId.isNullOrBlank() &&
                 !currentPlaybackRequestUrl.isNullOrBlank() &&
                 samePath(sourceId, currentPlaybackRequestUrl)
-        currentPlaybackSourceId = sourceId
+        settingsStates.currentPlaybackSourceId.value = sourceId
         if (!preserveRequestUrl) {
             currentPlaybackRequestUrl = null
         }
     }
-    val currentTrackPathOrUrl = currentPlaybackSourceId ?: selectedFile?.absolutePath
+    val currentTrackPathOrUrl = settingsStates.currentPlaybackSourceId.value ?: selectedFile?.absolutePath
     val pendingPlaylistEntry = resolvePendingPlaylistEntry(
         activePlaylist = activePlaylist,
         pendingPlaylistSubtuneSelection = pendingPlaylistSubtuneSelection
@@ -1987,7 +1987,7 @@ private fun AppNavigation(
         ?.album
         ?.trim()
         ?.takeIf { it.isNotBlank() }
-        ?: NativeBridge.getTrackAlbum()
+        ?: metadataAlbum
     val playlistDurationOverride = activePlaylistMetadataEntry
         ?.durationSecondsOverride
         ?.takeIf { it.isFinite() && it > 0.0 }
@@ -2027,8 +2027,8 @@ private fun AppNavigation(
         } else {
             playbackCapabilitiesFlags
         }
-    val playbackSourceLabel = remember(selectedFile, currentPlaybackSourceId) {
-        resolvePlaybackSourceLabel(selectedFile, currentPlaybackSourceId)
+    val playbackSourceLabel = remember(selectedFile, settingsStates.currentPlaybackSourceId.value) {
+        resolvePlaybackSourceLabel(selectedFile, settingsStates.currentPlaybackSourceId.value)
     }
 
     LaunchedEffect(
@@ -2107,14 +2107,14 @@ private fun AppNavigation(
     val refreshCachedSourceFiles = buildRefreshCachedSourceFilesDelegate(
         appScope = appScope,
         cacheRoot = File(context.cacheDir, REMOTE_SOURCE_CACHE_DIR),
-        onCachedSourceFilesChanged = { cachedSourceFiles = it }
+        onCachedSourceFilesChanged = { settingsStates.cachedSourceFiles.value = it }
     )
 
     val cacheExportDirectoryLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.OpenDocumentTree()
     ) { treeUri ->
-        val selectedPaths = pendingCacheExportPaths
-        pendingCacheExportPaths = emptyList()
+        val selectedPaths = settingsStates.pendingCacheExportPaths.value
+        settingsStates.pendingCacheExportPaths.value = emptyList()
         if (treeUri == null || selectedPaths.isEmpty()) {
             if (selectedPaths.isNotEmpty()) {
                 Toast.makeText(context, "Export canceled", Toast.LENGTH_SHORT).show()
@@ -2181,7 +2181,7 @@ private fun AppNavigation(
         recentFilesLimitProvider = { recentFilesLimit },
         onRecentPlayedChanged = { recentPlayedFiles = it },
         selectedFileProvider = { selectedFile },
-        currentPlaybackSourceIdProvider = { currentPlaybackSourceId },
+        currentPlaybackSourceIdProvider = { settingsStates.currentPlaybackSourceId.value },
         currentPlaybackRequestUrlProvider = { currentPlaybackRequestUrl },
         metadataTitleProvider = { effectiveMetadataTitle },
         metadataArtistProvider = { effectiveMetadataArtist },
@@ -2229,7 +2229,7 @@ private fun AppNavigation(
                     locationId = playlistOverride.locationId ?: locationId,
                     title = null,
                     artist = null,
-                    decoderName = NativeBridge.getCurrentDecoderName().trim().takeIf { it.isNotEmpty() },
+                    decoderName = lastUsedCoreName?.trim()?.takeIf { it.isNotEmpty() },
                     isPlaylist = true,
                     playlistSourceHint = playlistOverride.sourceHint,
                     limit = recentFilesLimit
@@ -2268,7 +2268,7 @@ private fun AppNavigation(
     }
 
     LaunchedEffect(
-        currentPlaybackSourceId,
+        settingsStates.currentPlaybackSourceId.value,
         selectedFile?.absolutePath,
         metadataTitle,
         metadataArtist,
@@ -2276,10 +2276,10 @@ private fun AppNavigation(
         isPlaying
     ) {
         if (!isPlaying) return@LaunchedEffect
-        val sourceId = currentPlaybackSourceId ?: selectedFile?.absolutePath ?: return@LaunchedEffect
+        val sourceId = settingsStates.currentPlaybackSourceId.value ?: selectedFile?.absolutePath ?: return@LaunchedEffect
         val normalizedTitle = metadataTitle.trim()
         val normalizedArtist = metadataArtist.trim()
-        val decoderName = NativeBridge.getCurrentDecoderName().trim().takeIf { it.isNotEmpty() }
+        val decoderName = lastUsedCoreName?.trim()?.takeIf { it.isNotEmpty() }
         val playlistOverride = currentExternalPlaylistRecentOverride()
         val recentEntryPath = playlistOverride?.playlistPath ?: sourceId
         val recentEntryLocationId = if (playlistOverride != null) {
@@ -2321,7 +2321,7 @@ private fun AppNavigation(
         prefs = prefs,
         selectedFileProvider = { selectedFile },
         onSelectedFileChanged = { selectedFile = it },
-        currentPlaybackSourceIdProvider = { currentPlaybackSourceId },
+        currentPlaybackSourceIdProvider = { settingsStates.currentPlaybackSourceId.value },
         currentPlaybackRequestUrlProvider = { currentPlaybackRequestUrl },
         onCurrentPlaybackSourceIdChanged = { updateCurrentPlaybackSource(it) },
         isPlayingProvider = { isPlaying },
@@ -2345,7 +2345,10 @@ private fun AppNavigation(
         onDurationChanged = { duration = it },
         onPositionChanged = { position = it },
         onIsPlayingChanged = { isPlaying = it },
-        onSeekInProgressChanged = { seekInProgress = it },
+        onSeekInProgressChanged = {
+            seekInProgress = it
+            if (!it) deferredPlaybackSeek = null
+        },
         onSeekUiBusyChanged = { seekUiBusy = it },
         onSeekStartedAtMsChanged = { seekStartedAtMs = it },
         onSeekRequestedAtMsChanged = { seekRequestedAtMs = it },
@@ -2370,7 +2373,7 @@ private fun AppNavigation(
             lastStoppedFile = file
             lastStoppedSourceId = sourceId
         },
-        onStopEngine = { NativeBridge.releaseCurrentDecoder() }
+onStopEngine = { NativeBridge.releaseCurrentDecoder() }, onMetadataAlbumChanged = {},
     )
 
     val trackLoadDelegates = AppNavigationTrackLoadDelegates(
@@ -2433,20 +2436,20 @@ private fun AppNavigation(
         onDeferredPlaybackSeekChanged = { deferredPlaybackSeek = it }
     )
 
-    LaunchedEffect(selectedFile?.absolutePath, currentPlaybackSourceId) {
-        val activeSourceId = currentPlaybackSourceId ?: selectedFile?.absolutePath
+    LaunchedEffect(selectedFile?.absolutePath, settingsStates.currentPlaybackSourceId.value) {
+        val activeSourceId = settingsStates.currentPlaybackSourceId.value ?: selectedFile?.absolutePath
         if (deferredPlaybackSeek?.sourceId != activeSourceId) {
             deferredPlaybackSeek = null
         }
     }
     val displayedArtworkBitmap = rememberDisplayedPlayerArtwork(
-        trackKey = currentPlaybackSourceId ?: selectedFile?.absolutePath,
+        trackKey = settingsStates.currentPlaybackSourceId.value ?: selectedFile?.absolutePath,
         artwork = artworkBitmap,
         resolvedTrackKey = artworkResolvedTrackKey
     )
     val artworkSwipePreviewState = rememberLocalArtworkSwipePreviewState(
         selectedFile = selectedFile,
-        currentPlaybackSourceId = currentPlaybackSourceId,
+        currentPlaybackSourceId = settingsStates.currentPlaybackSourceId.value,
         visiblePlayableFiles = visiblePlayableFiles
     )
     LaunchedEffect(isPlayerExpanded, isPlayerSurfaceVisible, restoreMiniPlayerFocusOnCollapse) {
@@ -2459,8 +2462,8 @@ private fun AppNavigation(
         }
     }
 
-    LaunchedEffect(currentPlaybackSourceId, RemotePlayableSourceIdsHolder.current) {
-        val activeSourceId = currentPlaybackSourceId?.trim().takeUnless { it.isNullOrBlank() }
+    LaunchedEffect(settingsStates.currentPlaybackSourceId.value, RemotePlayableSourceIdsHolder.current) {
+        val activeSourceId = settingsStates.currentPlaybackSourceId.value?.trim().takeUnless { it.isNullOrBlank() }
             ?: return@LaunchedEffect
         val resolvedQueue = RemotePlayableSourceIdsHolder.resolvedCurrentOrLastForSource(activeSourceId)
         if (resolvedQueue.isNotEmpty()) {
@@ -2468,8 +2471,8 @@ private fun AppNavigation(
         }
     }
 
-    LaunchedEffect(currentPlaybackSourceId) {
-        val activeSourceId = currentPlaybackSourceId?.trim().takeUnless { it.isNullOrBlank() }
+    LaunchedEffect(settingsStates.currentPlaybackSourceId.value) {
+        val activeSourceId = settingsStates.currentPlaybackSourceId.value?.trim().takeUnless { it.isNullOrBlank() }
             ?: return@LaunchedEffect
         if (RemotePlayableSourceIdsHolder.resolvedCurrentOrLastForSource(activeSourceId).isNotEmpty()) {
             return@LaunchedEffect
@@ -2494,14 +2497,14 @@ private fun AppNavigation(
         isPlayerExpandedProvider = { isPlayerExpanded },
         activeRepeatModeProvider = { activeRepeatMode },
         selectedFileAbsolutePathProvider = { selectedFile?.absolutePath },
-        urlCacheMaxTracksProvider = { urlCacheMaxTracks },
-        urlCacheMaxBytesProvider = { urlCacheMaxBytes },
-        currentRemoteLoadJobProvider = { remoteLoadJob },
-        onRemoteLoadUiStateChanged = { remoteLoadUiState = it },
-        onRemoteLoadJobChanged = { remoteLoadJob = it },
+        urlCacheMaxTracksProvider = { settingsStates.urlCacheMaxTracks.value },
+        urlCacheMaxBytesProvider = { settingsStates.urlCacheMaxBytes.value },
+        currentRemoteLoadJobProvider = { settingsStates.remoteLoadJob.value },
+        onRemoteLoadUiStateChanged = { settingsStates.remoteLoadUiState.value = it },
+        onRemoteLoadJobChanged = { settingsStates.remoteLoadJob.value = it },
         onResetPlayback = { playbackStateDelegates.resetAndOptionallyKeepLastTrack(keepLastTrack = false) },
         onSelectedFileChanged = { selectedFile = it },
-        onCurrentPlaybackSourceIdChanged = { currentPlaybackSourceId = it },
+        onCurrentPlaybackSourceIdChanged = { settingsStates.currentPlaybackSourceId.value = it },
         onCurrentPlaybackRequestUrlChanged = { currentPlaybackRequestUrl = it },
         onVisiblePlayableFilesChanged = { visiblePlayableFiles = it },
         onPlayerSurfaceVisibleChanged = { isPlayerSurfaceVisible = it },
@@ -2650,7 +2653,7 @@ private fun AppNavigation(
         toggleCurrentTrackFavorite(
             context = context,
             playlistLibraryState = playlistLibraryState,
-            currentPlaybackSourceId = currentPlaybackSourceId,
+            currentPlaybackSourceId = settingsStates.currentPlaybackSourceId.value,
             currentPlaybackRequestUrl = currentPlaybackRequestUrl,
             selectedFile = selectedFile,
             metadataTitle = effectiveMetadataTitle,
@@ -2665,7 +2668,7 @@ private fun AppNavigation(
     AppNavigationPlaylistEffects(
         pendingFileToOpen = pendingFileToOpen,
         pendingFileFromExternalIntent = pendingFileFromExternalIntent,
-        currentPlaybackSourceId = currentPlaybackSourceId,
+        currentPlaybackSourceId = settingsStates.currentPlaybackSourceId.value,
         selectedFile = selectedFile,
         currentSubtuneIndex = currentSubtuneIndex,
         activePlaylist = activePlaylist,
@@ -2687,10 +2690,10 @@ private fun AppNavigation(
             lastStoppedFile = null
             lastStoppedSourceId = null
         },
-        urlOrPathForceCachingProvider = { urlOrPathForceCaching },
+        urlOrPathForceCachingProvider = { settingsStates.urlOrPathForceCaching.value },
         isPlayerExpandedProvider = { isPlayerExpanded },
         selectedFileProvider = { selectedFile },
-        currentPlaybackSourceIdProvider = { currentPlaybackSourceId },
+        currentPlaybackSourceIdProvider = { settingsStates.currentPlaybackSourceId.value },
         visiblePlayableFilesProvider = { visiblePlayableFiles },
         visiblePlayableSourceIdsProvider = { RemotePlayableSourceIdsHolder.current },
         playlistWrapNavigationProvider = { playlistWrapNavigation },
@@ -2817,7 +2820,7 @@ private fun AppNavigation(
                 onPendingPlaylistSubtuneSelectionChanged = { pendingPlaylistSubtuneSelection = it }
             )
         } else {
-            val activeSourceId = currentPlaybackSourceId ?: selectedFile?.absolutePath
+            val activeSourceId = settingsStates.currentPlaybackSourceId.value ?: selectedFile?.absolutePath
             if (isRemoteQueuePlaybackSource(activeSourceId)) {
                 false
             } else {
@@ -2862,9 +2865,13 @@ private fun AppNavigation(
     }
     val playPreviousTrackFromUiAction: () -> Boolean = {
         val restartCurrentSelection = {
-            NativeBridge.seekTo(0.0)
             position = 0.0
-            playbackSessionCoordinator.syncPlaybackService()
+            appScope.launch {
+                withContext(Dispatchers.PlaybackIo) {
+                    NativeBridge.seekTo(0.0)
+                }
+                playbackSessionCoordinator.syncPlaybackService()
+            }
         }
         val currentEntryId = currentPlaylistNavigationEntryId
         val playlistEntries = activePlaylist?.entries
@@ -2928,19 +2935,22 @@ private fun AppNavigation(
         subtuneCountProvider = { subtuneCount },
         currentSubtuneIndexProvider = { currentSubtuneIndex },
         activeRepeatModeProvider = { activeRepeatMode },
-        currentPlaybackSourceIdProvider = { currentPlaybackSourceId },
-        playbackWatchPath = playbackWatchPath,
+        currentPlaybackSourceIdProvider = { settingsStates.currentPlaybackSourceId.value },
+        playbackWatchPath = settingsStates.playbackWatchPath.value,
         metadataTitleProvider = { metadataTitle },
         metadataArtistProvider = { metadataArtist },
         lastBrowserLocationId = lastBrowserLocationId,
-        onSeekInProgressChanged = { seekInProgress = it },
+        onSeekInProgressChanged = {
+            seekInProgress = it
+            if (!it) deferredPlaybackSeek = null
+        },
         onSeekStartedAtMsChanged = { seekStartedAtMs = it },
         onSeekRequestedAtMsChanged = { seekRequestedAtMs = it },
         onSeekUiBusyChanged = { seekUiBusy = it },
         onDurationChanged = { duration = it },
         onPositionChanged = { position = it },
         onIsPlayingChanged = { isPlaying = it },
-        onPlaybackWatchPathChanged = { playbackWatchPath = it },
+        onPlaybackWatchPathChanged = { settingsStates.playbackWatchPath.value = it },
         onMetadataTitleChanged = { metadataTitle = it },
         onMetadataArtistChanged = { metadataArtist = it },
         onSubtuneCursorChanged = { _ ->
@@ -2955,21 +2965,35 @@ private fun AppNavigation(
             playAdjacentActivePlaylistEntryAction(offset, wrapOverride, notifyWrap)
         },
         onRestartCurrentTrack = {
-            NativeBridge.seekTo(0.0)
             position = 0.0
-            runtimeDelegates.syncPlaybackService()
+            appScope.launch {
+                withContext(Dispatchers.PlaybackIo) {
+                    NativeBridge.seekTo(0.0)
+                }
+                runtimeDelegates.syncPlaybackService()
+            }
         },
         onStopPlaybackAndUnload = {
             stopAndEmptyTrackAction(context, playbackStateDelegates)
         },
-        isLocalPlayableFile = isLocalPlayableFile
+        isLocalPlayableFile = isLocalPlayableFile,
+        onMetadataAlbumChanged = { metadataAlbum = it },
+        metadataAlbumProvider = { metadataAlbum },
+        onMetadataSampleRateChanged = { metadataSampleRate = it },
+        onMetadataChannelCountChanged = { metadataChannelCount = it },
+        onMetadataBitDepthLabelChanged = { metadataBitDepthLabel = it },
+        onLastUsedCoreNameChanged = { lastUsedCoreName = it },
+        onSubtuneCountChanged = { subtuneCount = it },
+        onCurrentSubtuneIndexChanged = { currentSubtuneIndex = it },
+        onRepeatModeCapabilitiesFlagsChanged = { repeatModeCapabilitiesFlags = it },
+        onPlaybackCapabilitiesFlagsChanged = { playbackCapabilitiesFlags = it },
     )
 
     AppNavigationTrackPreferenceEffects(
         context = context,
         prefs = prefs,
         selectedFile = selectedFile,
-        currentPlaybackSourceId = currentPlaybackSourceId,
+        currentPlaybackSourceId = settingsStates.currentPlaybackSourceId.value,
         currentPlaybackRequestUrl = currentPlaybackRequestUrl,
         artworkReloadToken = artworkReloadToken,
         preferredRepeatMode = preferredRepeatMode,
@@ -3011,12 +3035,12 @@ private fun AppNavigation(
         context = context,
         isPlaying,
         selectedFile = selectedFile,
-        currentPlaybackSourceId = currentPlaybackSourceId,
+        currentPlaybackSourceId = settingsStates.currentPlaybackSourceId.value,
         currentPlaybackRequestUrl = currentPlaybackRequestUrl,
         activeRepeatMode = activeRepeatMode,
         preloadNextCachedRemoteTrack = preloadNextCachedRemoteTrack,
         playlistWrapNavigation = playlistWrapNavigation,
-        urlOrPathForceCaching = urlOrPathForceCaching,
+        urlOrPathForceCaching = settingsStates.urlOrPathForceCaching.value,
         visiblePlayableFiles = visiblePlayableFiles,
         visiblePlayableSourceIds = RemotePlayableSourceIdsHolder.current
     )
@@ -3041,22 +3065,22 @@ private fun AppNavigation(
     AppNavigationPlaybackEffects(
         context = context,
         prefs = prefs,
-        respondHeadphoneMediaButtons = respondHeadphoneMediaButtons,
-        pauseOnHeadphoneDisconnect = pauseOnHeadphoneDisconnect,
-        audioBackendPreference = audioBackendPreference,
-        audioPerformanceMode = audioPerformanceMode,
-        audioBufferPreset = audioBufferPreset,
-        audioResamplerPreference = audioResamplerPreference,
-        audioOutputLimiterEnabled = audioOutputLimiterEnabled,
-        audioAllowBackendFallback = audioAllowBackendFallback,
-        pendingSoxExperimentalDialog = pendingSoxExperimentalDialog,
-        onPendingSoxExperimentalDialogChanged = { pendingSoxExperimentalDialog = it },
-        onShowSoxExperimentalDialogChanged = { showSoxExperimentalDialog = it },
-        openPlayerFromNotification = openPlayerFromNotification,
+        respondHeadphoneMediaButtons = settingsStates.respondHeadphoneMediaButtons.value,
+        pauseOnHeadphoneDisconnect = settingsStates.pauseOnHeadphoneDisconnect.value,
+        audioBackendPreference = settingsStates.audioBackendPreference.value,
+        audioPerformanceMode = settingsStates.audioPerformanceMode.value,
+        audioBufferPreset = settingsStates.audioBufferPreset.value,
+        audioResamplerPreference = settingsStates.audioResamplerPreference.value,
+        audioOutputLimiterEnabled = settingsStates.audioOutputLimiterEnabled.value,
+        audioAllowBackendFallback = settingsStates.audioAllowBackendFallback.value,
+        pendingSoxExperimentalDialog = settingsStates.pendingSoxExperimentalDialog.value,
+        onPendingSoxExperimentalDialogChanged = { settingsStates.pendingSoxExperimentalDialog.value = it },
+        onShowSoxExperimentalDialogChanged = { settingsStates.showSoxExperimentalDialog.value = it },
+        openPlayerFromNotification = settingsStates.openPlayerFromNotification.value,
         persistRepeatMode = persistRepeatMode,
         preferredRepeatMode = preferredRepeatMode,
         selectedFile = selectedFile,
-        currentPlaybackSourceId = currentPlaybackSourceId,
+        currentPlaybackSourceId = settingsStates.currentPlaybackSourceId.value,
         isPlaying = isPlaying,
         metadataTitle = effectiveMetadataTitle,
         metadataArtist = effectiveMetadataArtist,
@@ -3065,8 +3089,8 @@ private fun AppNavigation(
         syncPlaybackService = playbackSessionCoordinator.syncPlaybackService,
         restorePlayerStateFromSessionAndNative = playbackSessionCoordinator.restorePlayerStateFromSessionAndNative
     )
-    LaunchedEffect(currentPlaybackSourceId, metadataTitle, metadataArtist) {
-        val sourceId = currentPlaybackSourceId ?: return@LaunchedEffect
+    LaunchedEffect(settingsStates.currentPlaybackSourceId.value, metadataTitle, metadataArtist) {
+        val sourceId = settingsStates.currentPlaybackSourceId.value ?: return@LaunchedEffect
         applyNetworkSourceMetadata(sourceId, metadataTitle, metadataArtist)
     }
 
@@ -3103,9 +3127,9 @@ private fun AppNavigation(
         manualOpenDelegates.cancelPendingManualInputSelection()
         deferredPlaybackSeek = null
         cancelRemoteNextTrackPreload()
-        remoteLoadJob?.cancel()
-        remoteLoadJob = null
-        remoteLoadUiState = null
+        settingsStates.remoteLoadJob.value?.cancel()
+        settingsStates.remoteLoadJob.value = null
+        settingsStates.remoteLoadUiState.value = null
         stopAndEmptyTrackBase()
     }
     val activeCoreNameForUi = lastUsedCoreName
@@ -3195,7 +3219,7 @@ private fun AppNavigation(
         isPlayerExpanded = isPlayerExpanded,
         isPlayerSurfaceVisible = isPlayerSurfaceVisible,
         settingsLaunchedFromPlayer = settingsLaunchedFromPlayer,
-        showUrlOrPathDialog = showUrlOrPathDialog,
+        showUrlOrPathDialog = settingsStates.showUrlOrPathDialog.value,
         showMiniPlayerFocusHighlight = showMiniPlayerFocusHighlight,
         onRestoreMiniPlayerFocusOnCollapseChanged = { restoreMiniPlayerFocusOnCollapse = it },
         onPlayerExpandedChanged = { isPlayerExpanded = it },
@@ -3255,7 +3279,7 @@ private fun AppNavigation(
             !lastStoppedSourceId.isNullOrBlank()
         val startPlaybackFromSurface = buildStartPlaybackFromSurfaceAction(
             selectedFileProvider = { selectedFile },
-            currentPlaybackSourceIdProvider = { currentPlaybackSourceId },
+            currentPlaybackSourceIdProvider = { settingsStates.currentPlaybackSourceId.value },
             lastBrowserLocationIdProvider = { lastBrowserLocationId },
             metadataTitleProvider = { effectiveMetadataTitle },
             metadataArtistProvider = { effectiveMetadataArtist },
@@ -3277,7 +3301,7 @@ private fun AppNavigation(
         )
         val startPlaybackFromSurfaceWithDeferredSeek: () -> Unit = {
             val activeSelectedFile = selectedFile
-            val activeSourceId = currentPlaybackSourceId ?: activeSelectedFile?.absolutePath
+            val activeSourceId = settingsStates.currentPlaybackSourceId.value ?: activeSelectedFile?.absolutePath
             val pendingSeek = deferredPlaybackSeek
             if (
                 activeSelectedFile != null &&
@@ -3291,7 +3315,7 @@ private fun AppNavigation(
                     pendingSeek.positionSeconds.coerceAtLeast(0.0)
                 }
                 deferredPlaybackSeek = null
-                if (NativeBridge.getTrackSampleRate() <= 0) {
+                if (metadataSampleRate <= 0) {
                     trackLoadDelegates.applyTrackSelection(
                         file = activeSelectedFile,
                         autoStart = true,
@@ -3299,10 +3323,14 @@ private fun AppNavigation(
                         initialSeekSeconds = clampedSeekSeconds
                     )
                 } else {
-                    if (clampedSeekSeconds > 0.0) {
-                        NativeBridge.seekTo(clampedSeekSeconds)
-                    }
                     position = clampedSeekSeconds
+                    if (clampedSeekSeconds > 0.0) {
+                        appScope.launch {
+                            withContext(Dispatchers.PlaybackIo) {
+                                NativeBridge.seekTo(clampedSeekSeconds)
+                            }
+                        }
+                    }
                     startPlaybackFromSurface()
                 }
             } else {
@@ -3453,7 +3481,7 @@ private fun AppNavigation(
             previousRestartsAfterThreshold = previousRestartsAfterThreshold,
             onSeek = { seconds ->
                 if (!seekInProgress) {
-                    val activeSourceId = currentPlaybackSourceId ?: selectedFile?.absolutePath
+                    val activeSourceId = settingsStates.currentPlaybackSourceId.value ?: selectedFile?.absolutePath
                     val pendingSeek = deferredPlaybackSeek
                     if (
                         pendingSeek != null &&
@@ -3465,24 +3493,51 @@ private fun AppNavigation(
                         } else {
                             seconds.coerceAtLeast(0.0)
                         }
-                        if (NativeBridge.getTrackSampleRate() <= 0) {
+                        if (metadataSampleRate <= 0) {
                             deferredPlaybackSeek = pendingSeek.copy(positionSeconds = clamped)
                             position = clamped
                             playbackSessionCoordinator.syncPlaybackService()
                         } else {
-                            deferredPlaybackSeek = null
-                            NativeBridge.seekTo(clamped)
+                            // Keep deferred seek set so polling uses target position, not native position during seek
+                            deferredPlaybackSeek = pendingSeek.copy(positionSeconds = clamped)
+                            seekInProgress = true
                             seekRequestedAtMs = SystemClock.elapsedRealtime()
                             seekUiBusy = false
                             position = clamped
-                            playbackSessionCoordinator.syncPlaybackService()
+                            appScope.launch {
+                                withContext(Dispatchers.PlaybackIo) {
+                                    NativeBridge.seekTo(clamped)
+                                }
+                            }
+                            appScope.launch {
+                                delay(seekUiBusyThresholdMs)
+                                if (seekInProgress) {
+                                    seekUiBusy = true
+                                }
+                            }
                         }
                     } else {
-                        NativeBridge.seekTo(seconds)
+                        // No pending seek: create deferred seek to hold target position during seek
+                        val targetDeferred = DeferredPlaybackSeek(
+                            sourceId = activeSourceId.orEmpty(),
+                            positionSeconds = seconds
+                        )
+                        deferredPlaybackSeek = targetDeferred
+                        seekInProgress = true
                         seekRequestedAtMs = SystemClock.elapsedRealtime()
                         seekUiBusy = false
                         position = seconds
-                        playbackSessionCoordinator.syncPlaybackService()
+                        appScope.launch {
+                            withContext(Dispatchers.PlaybackIo) {
+                                NativeBridge.seekTo(seconds)
+                            }
+                        }
+                        appScope.launch {
+                            delay(seekUiBusyThresholdMs)
+                            if (seekInProgress) {
+                                seekUiBusy = true
+                            }
+                        }
                     }
                 }
             },
@@ -3517,7 +3572,7 @@ private fun AppNavigation(
             titleCurrentSubtuneIndex = titleCurrentSubtuneIndex,
             titleSubtuneCount = titleSubtuneCount,
             subtuneTitleClickable = subtuneTitleClickable,
-            onCycleRepeatMode = { runtimeDelegates.cycleRepeatMode() }
+onCycleRepeatMode = { runtimeDelegates.cycleRepeatMode() }, metadataAlbum = "",
         )
         AppNavigationPlaybackDialogsSection(
             prefs = prefs,
@@ -3528,18 +3583,18 @@ private fun AppNavigation(
             playbackStateDelegates = playbackStateDelegates,
             onCancelRemoteLoadJob = {
                 manualOpenDelegates.cancelPendingManualInputSelection()
-                remoteLoadJob?.cancel()
+                settingsStates.remoteLoadJob.value?.cancel()
             },
-            showUrlOrPathDialog = showUrlOrPathDialog,
-            urlOrPathInput = urlOrPathInput,
-            urlOrPathForceCaching = urlOrPathForceCaching,
-            onUrlOrPathInputChanged = { urlOrPathInput = it },
-            onUrlOrPathForceCachingChanged = { urlOrPathForceCaching = it },
-            onShowUrlOrPathDialogChanged = { showUrlOrPathDialog = it },
-            remoteLoadUiState = remoteLoadUiState,
-            onRemoteLoadUiStateChanged = { remoteLoadUiState = it },
-            showSoxExperimentalDialog = showSoxExperimentalDialog,
-            onShowSoxExperimentalDialogChanged = { showSoxExperimentalDialog = it },
+            showUrlOrPathDialog = settingsStates.showUrlOrPathDialog.value,
+            urlOrPathInput = settingsStates.urlOrPathInput.value,
+            urlOrPathForceCaching = settingsStates.urlOrPathForceCaching.value,
+            onUrlOrPathInputChanged = { settingsStates.urlOrPathInput.value = it },
+            onUrlOrPathForceCachingChanged = { settingsStates.urlOrPathForceCaching.value = it },
+            onShowUrlOrPathDialogChanged = { settingsStates.showUrlOrPathDialog.value = it },
+            remoteLoadUiState = settingsStates.remoteLoadUiState.value,
+            onRemoteLoadUiStateChanged = { settingsStates.remoteLoadUiState.value = it },
+            showSoxExperimentalDialog = settingsStates.showSoxExperimentalDialog.value,
+            onShowSoxExperimentalDialogChanged = { settingsStates.showSoxExperimentalDialog.value = it },
             showSubtuneSelectorDialog = showSubtuneSelectorDialog,
             subtuneEntries = subtuneEntries,
             currentSubtuneIndex = currentSubtuneIndex,
@@ -3758,8 +3813,8 @@ private fun AppNavigation(
                                     onPlaylistWrapNavigationChanged = { playlistWrapNavigation = it },
                                     onPreviousRestartsAfterThresholdChanged = { previousRestartsAfterThreshold = it },
                                     onFadePauseResumeChanged = { fadePauseResume = it },
-                                    onRespondHeadphoneMediaButtonsChanged = { respondHeadphoneMediaButtons = it },
-                                    onPauseOnHeadphoneDisconnectChanged = { pauseOnHeadphoneDisconnect = it },
+                                    onRespondHeadphoneMediaButtonsChanged = { settingsStates.respondHeadphoneMediaButtons.value = it },
+                                    onPauseOnHeadphoneDisconnectChanged = { settingsStates.pauseOnHeadphoneDisconnect.value = it },
                                     onAudioFocusInterruptChanged = {
                             updateAudioFocusInterruptAction(
                                 context = context,
@@ -3780,25 +3835,25 @@ private fun AppNavigation(
                             updateAudioBackendPreferenceSelection(
                                 prefs = prefs,
                                 selectedBackend = selectedBackend,
-                                currentBackend = audioBackendPreference,
-                                currentPerformanceMode = audioPerformanceMode,
-                                currentBufferPreset = audioBufferPreset,
-                                onAudioBackendPreferenceChanged = { audioBackendPreference = it },
-                                onAudioPerformanceModeChanged = { audioPerformanceMode = it },
-                                onAudioBufferPresetChanged = { audioBufferPreset = it }
+                                currentBackend = settingsStates.audioBackendPreference.value,
+                                currentPerformanceMode = settingsStates.audioPerformanceMode.value,
+                                currentBufferPreset = settingsStates.audioBufferPreset.value,
+                                onAudioBackendPreferenceChanged = { settingsStates.audioBackendPreference.value = it },
+                                onAudioPerformanceModeChanged = { settingsStates.audioPerformanceMode.value = it },
+                                onAudioBufferPresetChanged = { settingsStates.audioBufferPreset.value = it }
                             )
                         },
-                                    onAudioPerformanceModeChanged = { audioPerformanceMode = it },
-                                    onAudioBufferPresetChanged = { audioBufferPreset = it },
+                                    onAudioPerformanceModeChanged = { settingsStates.audioPerformanceMode.value = it },
+                                    onAudioBufferPresetChanged = { settingsStates.audioBufferPreset.value = it },
                                     onAudioResamplerPreferenceChanged = {
-                            audioResamplerPreference = it
+                            settingsStates.audioResamplerPreference.value = it
                             if (it == AudioResamplerPreference.Sox) {
-                                pendingSoxExperimentalDialog = true
+                                settingsStates.pendingSoxExperimentalDialog.value = true
                             }
                         },
-                                    onAudioOutputLimiterEnabledChanged = { audioOutputLimiterEnabled = it },
-                                    onAudioAllowBackendFallbackChanged = { audioAllowBackendFallback = it },
-                                    onOpenPlayerFromNotificationChanged = { openPlayerFromNotification = it },
+                                    onAudioOutputLimiterEnabledChanged = { settingsStates.audioOutputLimiterEnabled.value = it },
+                                    onAudioAllowBackendFallbackChanged = { settingsStates.audioAllowBackendFallback.value = it },
+                                    onOpenPlayerFromNotificationChanged = { settingsStates.openPlayerFromNotification.value = it },
                                     onPersistRepeatModeChanged = { persistRepeatMode = it },
                                     onThemeModeChanged = onThemeModeChanged,
                                     onUseMonetChanged = onUseMonetChanged,
@@ -3813,7 +3868,7 @@ private fun AppNavigation(
                             updateUrlCacheClearOnLaunchAction(
                                 prefs = prefs,
                                 enabled = enabled,
-                                onUrlCacheClearOnLaunchChanged = { urlCacheClearOnLaunch = it }
+                                onUrlCacheClearOnLaunchChanged = { settingsStates.urlCacheClearOnLaunch.value = it }
                             )
                         },
                                     onUrlCacheMaxTracksChanged = { value ->
@@ -3822,8 +3877,8 @@ private fun AppNavigation(
                                 prefs = prefs,
                                 appScope = appScope,
                                 cacheRoot = File(context.cacheDir, REMOTE_SOURCE_CACHE_DIR),
-                                urlCacheMaxBytes = urlCacheMaxBytes,
-                                onUrlCacheMaxTracksChanged = { urlCacheMaxTracks = it },
+                                urlCacheMaxBytes = settingsStates.urlCacheMaxBytes.value,
+                                onUrlCacheMaxTracksChanged = { settingsStates.urlCacheMaxTracks.value = it },
                                 onRefreshCachedSourceFiles = refreshCachedSourceFiles
                             )
                         },
@@ -3833,8 +3888,8 @@ private fun AppNavigation(
                                 prefs = prefs,
                                 appScope = appScope,
                                 cacheRoot = File(context.cacheDir, REMOTE_SOURCE_CACHE_DIR),
-                                urlCacheMaxTracks = urlCacheMaxTracks,
-                                onUrlCacheMaxBytesChanged = { urlCacheMaxBytes = it },
+                                urlCacheMaxTracks = settingsStates.urlCacheMaxTracks.value,
+                                onUrlCacheMaxBytesChanged = { settingsStates.urlCacheMaxBytes.value = it },
                                 onRefreshCachedSourceFiles = refreshCachedSourceFiles
                             )
                         },
@@ -3842,7 +3897,7 @@ private fun AppNavigation(
                             updateArchiveCacheClearOnLaunchAction(
                                 prefs = prefs,
                                 enabled = enabled,
-                                onArchiveCacheClearOnLaunchChanged = { archiveCacheClearOnLaunch = it }
+                                onArchiveCacheClearOnLaunchChanged = { settingsStates.archiveCacheClearOnLaunch.value = it }
                             )
                         },
                                     onArchiveCacheMaxMountsChanged = { value ->
@@ -3851,9 +3906,9 @@ private fun AppNavigation(
                                 prefs = prefs,
                                 appScope = appScope,
                                 cacheDir = context.cacheDir,
-                                archiveCacheMaxBytes = archiveCacheMaxBytes,
-                                archiveCacheMaxAgeDays = archiveCacheMaxAgeDays,
-                                onArchiveCacheMaxMountsChanged = { archiveCacheMaxMounts = it }
+                                archiveCacheMaxBytes = settingsStates.archiveCacheMaxBytes.value,
+                                archiveCacheMaxAgeDays = settingsStates.archiveCacheMaxAgeDays.value,
+                                onArchiveCacheMaxMountsChanged = { settingsStates.archiveCacheMaxMounts.value = it }
                             )
                         },
                                     onArchiveCacheMaxBytesChanged = { value ->
@@ -3862,9 +3917,9 @@ private fun AppNavigation(
                                 prefs = prefs,
                                 appScope = appScope,
                                 cacheDir = context.cacheDir,
-                                archiveCacheMaxMounts = archiveCacheMaxMounts,
-                                archiveCacheMaxAgeDays = archiveCacheMaxAgeDays,
-                                onArchiveCacheMaxBytesChanged = { archiveCacheMaxBytes = it }
+                                archiveCacheMaxMounts = settingsStates.archiveCacheMaxMounts.value,
+                                archiveCacheMaxAgeDays = settingsStates.archiveCacheMaxAgeDays.value,
+                                onArchiveCacheMaxBytesChanged = { settingsStates.archiveCacheMaxBytes.value = it }
                             )
                         },
                                     onArchiveCacheMaxAgeDaysChanged = { value ->
@@ -3873,9 +3928,9 @@ private fun AppNavigation(
                                 prefs = prefs,
                                 appScope = appScope,
                                 cacheDir = context.cacheDir,
-                                archiveCacheMaxMounts = archiveCacheMaxMounts,
-                                archiveCacheMaxBytes = archiveCacheMaxBytes,
-                                onArchiveCacheMaxAgeDaysChanged = { archiveCacheMaxAgeDays = it }
+                                archiveCacheMaxMounts = settingsStates.archiveCacheMaxMounts.value,
+                                archiveCacheMaxBytes = settingsStates.archiveCacheMaxBytes.value,
+                                onArchiveCacheMaxAgeDaysChanged = { settingsStates.archiveCacheMaxAgeDays.value = it }
                             )
                         },
                                     onClearUrlCacheNow = {
@@ -3911,7 +3966,7 @@ private fun AppNavigation(
                             exportCachedSourceFilesAction(
                                 context = context,
                                 paths = paths,
-                                onPendingCacheExportPathsChanged = { pendingCacheExportPaths = it },
+                                onPendingCacheExportPathsChanged = { settingsStates.pendingCacheExportPaths.value = it },
                                 launchDirectoryPicker = { cacheExportDirectoryLauncher.launch(null) }
                             )
                         },
@@ -4202,7 +4257,7 @@ private fun AppNavigation(
                         },
                         context = context,
                         prefs = prefs,
-                        currentPlaybackSourceId = currentPlaybackSourceId,
+                        currentPlaybackSourceId = settingsStates.currentPlaybackSourceId.value,
                         currentPlaybackRequestUrl = currentPlaybackRequestUrl,
                         selectedFile = selectedFile,
                         playingPlaylistFile = activePlaylistBrowserFile,
@@ -4450,8 +4505,8 @@ private fun AppNavigation(
                 onOpenBrowser = openBrowser,
                 onCurrentViewChanged = { currentView = it },
                 onOpenUrlOrPathDialog = {
-                    urlOrPathInput = ""
-                    showUrlOrPathDialog = true
+                    settingsStates.urlOrPathInput.value = ""
+                    settingsStates.showUrlOrPathDialog.value = true
                 },
                 isPlayerExpanded = isPlayerExpanded,
                 networkCurrentFolderId = networkCurrentFolderId,
