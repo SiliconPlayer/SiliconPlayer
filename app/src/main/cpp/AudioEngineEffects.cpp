@@ -547,17 +547,29 @@ void AudioEngine::applyOpenMptDspEffects(float* buffer, int numFrames, int chann
         return;
     }
 
-    // Phase 1 headroom: fixed DSP bus staging to avoid callback-rate gain modulation.
-    constexpr float kDspBusPreGain = 0.5623413f;      // -5.0 dB
-    constexpr float kDspBusMakeupGain = 1.5848932f;   // +4.0 dB (net: -1.0 dB)
+    constexpr float kDspBusDefaultPreGain = 0.5623413f; // -5.0 dB
+    constexpr float kDspBusTargetPeak = 0.72f;
+    constexpr float kDspBusNetGain = 0.8912509f; // -1.0 dB
     const int totalSamples = numFrames * channels;
+    float peak = 0.0f;
     for (int i = 0; i < totalSamples; ++i) {
-        buffer[i] *= kDspBusPreGain;
+        const float sample = buffer[i];
+        if (std::isfinite(sample)) {
+            peak = std::max(peak, std::abs(sample));
+        }
+    }
+    float dspBusPreGain = kDspBusDefaultPreGain;
+    if (peak * dspBusPreGain > kDspBusTargetPeak) {
+        dspBusPreGain = kDspBusTargetPeak / peak;
+    }
+    const float dspBusMakeupGain = kDspBusNetGain / std::max(dspBusPreGain, 0.001f);
+    for (int i = 0; i < totalSamples; ++i) {
+        buffer[i] *= dspBusPreGain;
     }
 
     openMptDspEffects.process(buffer, numFrames, channels, sampleRate, params);
     for (int i = 0; i < totalSamples; ++i) {
-        buffer[i] *= kDspBusMakeupGain;
+        buffer[i] *= dspBusMakeupGain;
     }
 }
 
