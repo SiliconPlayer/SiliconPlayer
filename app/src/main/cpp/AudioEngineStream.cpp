@@ -976,8 +976,14 @@ void AudioEngine::reconfigureStream(bool resumePlayback) {
     requestStreamStop();
     isPlaying.store(false);
 
+    const int previousSampleRate = streamSampleRate;
+
     closeStream();
     createStream();
+
+    if (streamSampleRate != previousSampleRate) {
+        clearRenderQueue();
+    }
 
     {
         std::lock_guard<std::mutex> lock(decoderMutex);
@@ -1133,9 +1139,15 @@ void AudioEngine::recoverStreamIfNeeded() {
         return;
     }
 
+    const int previousSampleRate = streamSampleRate;
+
     closeStream();
     createStream();
     streamNeedsRebuild.store(false);
+
+    if (streamSampleRate != previousSampleRate) {
+        clearRenderQueue();
+    }
 
     {
         std::lock_guard<std::mutex> lock(decoderMutex);
