@@ -20,6 +20,7 @@
 #define LOGE(...) __android_log_print(ANDROID_LOG_ERROR, LOG_TAG, __VA_ARGS__)
 
 namespace {
+constexpr float kAdPlugScopeGain = 1.5f;
 class TrackingOplProxy final : public Copl {
 public:
     enum class Engine : int {
@@ -908,7 +909,7 @@ void AdPlugDecoder::captureScopeSnapshotLocked(int numFrames) {
                 scopeRingRaw[
                     static_cast<size_t>(ch) * ChannelScopeSharedState::kMaxSamples +
                     static_cast<size_t>(scopeRingWritePos)
-                ] = std::clamp(static_cast<float>(scopeScratch[frame * 18 + ch]) / 32768.0f, -1.0f, 1.0f);
+                ] = std::clamp((static_cast<float>(scopeScratch[frame * 18 + ch]) / 32768.0f) * kAdPlugScopeGain, -1.0f, 1.0f);
             }
             scopeRingWritePos = (scopeRingWritePos + 1) % ChannelScopeSharedState::kMaxSamples;
             scopeRingSamples = std::min(scopeRingSamples + 1, ChannelScopeSharedState::kMaxSamples);
@@ -922,7 +923,7 @@ void AdPlugDecoder::captureScopeSnapshotLocked(int numFrames) {
                 scopeRingRaw[
                     static_cast<size_t>(ch) * ChannelScopeSharedState::kMaxSamples +
                     static_cast<size_t>(dstIndex)
-                ] = std::clamp(static_cast<float>(scopeScratch[srcIndex]) / 32768.0f, -1.0f, 1.0f);
+                ] = std::clamp((static_cast<float>(scopeScratch[srcIndex]) / 32768.0f) * kAdPlugScopeGain, -1.0f, 1.0f);
             }
         }
         scopeRingWritePos = (scopeRingWritePos + numFrames) % ChannelScopeSharedState::kMaxSamples;
