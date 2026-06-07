@@ -146,6 +146,7 @@ import java.io.File
 import kotlin.math.roundToInt
 import kotlin.math.pow
 import com.flopster101.siliconplayer.PlaybackIo
+import com.flopster101.siliconplayer.readCurrentFormatName
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -781,7 +782,20 @@ internal fun PlayerScreen(
     val displayAlbum = album.ifBlank { if (hasTrack) "Unknown Album" else "" }
     val displayFilename = file?.let { toDisplayFilename(it) }.orEmpty()
     val fileSizeBytes = file?.length() ?: 0L
-    val formatLabel = file?.name?.let(::inferredPrimaryExtensionForName)?.uppercase() ?: "EMPTY"
+    val formatLabel by produceState<String>(
+        initialValue = file?.name?.let(::inferredPrimaryExtensionForName)?.uppercase() ?: "EMPTY",
+        hasTrack,
+        decoderName,
+        file?.absolutePath
+    ) {
+        value = if (hasTrack && decoderName != null) {
+            withContext(Dispatchers.PlaybackIo) {
+                readCurrentFormatName(decoderName)
+            } ?: file?.name?.let(::inferredPrimaryExtensionForName)?.uppercase() ?: "UNKNOWN"
+        } else {
+            file?.name?.let(::inferredPrimaryExtensionForName)?.uppercase() ?: "EMPTY"
+        }
+    }
     val trackBitrateOrSize by produceState<String?>(
         initialValue = null,
         hasTrack,
@@ -811,7 +825,7 @@ internal fun PlayerScreen(
             else -> null
         }
     }
-    val trackTechnicalSummary = remember(
+    val trackTechnicalInfo = remember(
         formatLabel,
         trackBitrateOrSize,
         sampleRateHz,
@@ -819,7 +833,7 @@ internal fun PlayerScreen(
         bitDepthLabel,
         decoderName
     ) {
-        buildTrackTechnicalSummary(
+        buildTrackTechnicalInfo(
             formatLabel = formatLabel,
             bitrateOrSize = trackBitrateOrSize,
             sampleRateHz = sampleRateHz,
@@ -1163,7 +1177,8 @@ internal fun PlayerScreen(
                                         layoutScale = landscapeLayoutScale,
                                         titleScaleBoost = landscapeTitleScaleBoost,
                                         supportingScaleBoost = landscapeSupportingScaleBoost,
-                                        technicalSummary = trackTechnicalSummary,
+                                        formatLine = trackTechnicalInfo.formatLine,
+                                        techSpecsLine = trackTechnicalInfo.techSpecsLine,
                                         modifier = Modifier.fillMaxWidth()
                                     )
                                 }
@@ -1526,7 +1541,8 @@ internal fun PlayerScreen(
                                         subtuneTitleClickable = subtuneTitleClickable,
                                         onOpenSubtuneSelector = onOpenSubtuneSelector,
                                         layoutScale = portraitLayoutScale,
-                                        technicalSummary = trackTechnicalSummary,
+                                        formatLine = trackTechnicalInfo.formatLine,
+                                        techSpecsLine = trackTechnicalInfo.techSpecsLine,
                                         modifier = Modifier.width(portraitContentWidth)
                                     )
                                     if (balancedPortraitSpacing) {
@@ -2612,7 +2628,8 @@ private fun PortraitTrackMetadataBlock(
     layoutScale: Float = 1f,
     titleScaleBoost: Float = 0f,
     supportingScaleBoost: Float = 0f,
-    technicalSummary: String? = null,
+    formatLine: String? = null,
+    techSpecsLine: String? = null,
     modifier: Modifier = Modifier
 ) {
     val effectiveTitleScale = layoutScale.coerceIn(0f, 1f)
@@ -2846,7 +2863,7 @@ private fun PortraitTrackMetadataBlock(
                         }
                     }
                     AnimatedVisibility(
-                        visible = !technicalSummary.isNullOrBlank(),
+                        visible = !formatLine.isNullOrBlank(),
                         enter = fadeIn(animationSpec = tween(durationMillis = 180)) + expandVertically(
                             animationSpec = tween(durationMillis = 220),
                             expandFrom = Alignment.Top
@@ -2859,15 +2876,15 @@ private fun PortraitTrackMetadataBlock(
                         Column {
                             Spacer(modifier = Modifier.height(lerpDp(3.dp, 7.dp, layoutScale)))
                             AnimatedContent(
-                                targetState = technicalSummary.orEmpty(),
+                                targetState = formatLine.orEmpty(),
                                 transitionSpec = {
                                     fadeIn(animationSpec = tween(durationMillis = 180, delayMillis = 20)) togetherWith
                                         fadeOut(animationSpec = tween(durationMillis = 110))
                                 },
-                                label = "portraitTrackTechnicalSummarySwap"
-                            ) { animatedTechnicalSummary ->
+                                label = "portraitTrackFormatLineSwap"
+                            ) { animatedFormatLine ->
                                 Text(
-                                    text = animatedTechnicalSummary,
+                                    text = animatedFormatLine,
                                     style = technicalSummaryTextStyle,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.9f),
                                     maxLines = 1,
@@ -2875,6 +2892,27 @@ private fun PortraitTrackMetadataBlock(
                                     textAlign = TextAlign.Start,
                                     modifier = Modifier.fillMaxWidth()
                                 )
+                            }
+                            if (!techSpecsLine.isNullOrBlank()) {
+                                Spacer(modifier = Modifier.height(lerpDp(1.dp, 2.dp, layoutScale)))
+                                AnimatedContent(
+                                    targetState = techSpecsLine,
+                                    transitionSpec = {
+                                        fadeIn(animationSpec = tween(durationMillis = 180, delayMillis = 20)) togetherWith
+                                            fadeOut(animationSpec = tween(durationMillis = 110))
+                                    },
+                                    label = "portraitTrackTechSpecsLineSwap"
+                                ) { animatedTechSpecsLine ->
+                                    Text(
+                                        text = animatedTechSpecsLine,
+                                        style = technicalSummaryTextStyle,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.9f),
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis,
+                                        textAlign = TextAlign.Start,
+                                        modifier = Modifier.fillMaxWidth()
+                                    )
+                                }
                             }
                         }
                     }
@@ -4645,14 +4683,19 @@ private fun formatBitrate(bitrateInBitsPerSecond: Long, isVBR: Boolean): String 
     }
 }
 
-private fun buildTrackTechnicalSummary(
+private data class TrackTechnicalInfo(
+    val formatLine: String,
+    val techSpecsLine: String
+)
+
+private fun buildTrackTechnicalInfo(
     formatLabel: String,
     bitrateOrSize: String?,
     sampleRateHz: Int,
     channelCount: Int,
     bitDepthLabel: String,
     decoderName: String?
-): String {
+): TrackTechnicalInfo {
     val bitrateLabel = bitrateOrSize?.ifBlank { "--" } ?: "--"
     val sampleRateLabel = if (sampleRateHz > 0) {
         formatSampleRateForDetails(sampleRateHz)
@@ -4667,12 +4710,17 @@ private fun buildTrackTechnicalSummary(
         showBitDepth -> depthDisplay
         else -> "-- ch"
     }
-    return listOfNotNull(
-        formatLabel,
+    
+    val techSpecs = listOfNotNull(
         bitrateLabel,
         sampleRateLabel,
         channelsAndDepth
     ).joinToString(" • ")
+    
+    return TrackTechnicalInfo(
+        formatLine = formatLabel,
+        techSpecsLine = techSpecs
+    )
 }
 
 private fun formatSampleRateForDetails(rateHz: Int): String {

@@ -41,6 +41,61 @@ internal fun readCurrentDecoderName(): String? {
     return NativeBridge.getCurrentDecoderName().trim().takeIf { it.isNotEmpty() }
 }
 
+internal fun readCurrentFormatName(decoderName: String?): String? {
+    if (decoderName.isNullOrBlank()) return null
+    return try {
+        when {
+            decoderName.equals(DecoderNames.FFMPEG, ignoreCase = true) -> {
+                val container = NativeBridge.getFfmpegContainerName().trim()
+                val codec = NativeBridge.getFfmpegCodecName().trim()
+                when {
+                    container.isNotEmpty() -> container
+                    codec.isNotEmpty() -> codec
+                    else -> null
+                }
+            }
+            decoderName.equals(DecoderNames.LIB_OPEN_MPT, ignoreCase = true) -> {
+                NativeBridge.getOpenMptModuleTypeLong().trim().takeIf { it.isNotEmpty() }
+            }
+            decoderName.equals(DecoderNames.VGM_PLAY, ignoreCase = true) -> {
+                val system = NativeBridge.getVgmSystemName().trim()
+                if (system.isNotEmpty()) "VGM ($system)" else null
+            }
+            decoderName.equals(DecoderNames.GAME_MUSIC_EMU, ignoreCase = true) -> {
+                NativeBridge.getGmeSystemName().trim().takeIf { it.isNotEmpty() }
+            }
+            decoderName.equals(DecoderNames.C_RSID, ignoreCase = true) ||
+            decoderName.equals(DecoderNames.LIB_SID_PLAY_FP, ignoreCase = true) -> {
+                NativeBridge.getSidFormatName().trim().takeIf { it.isNotEmpty() }
+            }
+            decoderName.equals(DecoderNames.SC68, ignoreCase = true) -> {
+                NativeBridge.getSc68FormatName().trim().takeIf { it.isNotEmpty() }
+            }
+            decoderName.equals(DecoderNames.HIVELY_TRACKER, ignoreCase = true) -> {
+                NativeBridge.getHivelyFormatName().trim().takeIf { it.isNotEmpty() }
+            }
+            decoderName.matchesDecoderName(DecoderNames.KLYSTRACK) -> {
+                NativeBridge.getKlystrackFormatName().trim().takeIf { it.isNotEmpty() }
+            }
+            decoderName.equals(DecoderNames.FURNACE, ignoreCase = true) -> {
+                NativeBridge.getFurnaceFormatName().trim().takeIf { it.isNotEmpty() }
+            }
+            decoderName.equals(DecoderNames.UADE, ignoreCase = true) -> {
+                val detected = NativeBridge.getUadeDetectedFormatName().trim()
+                val format = NativeBridge.getUadeFormatName().trim()
+                when {
+                    detected.isNotEmpty() -> detected
+                    format.isNotEmpty() -> format
+                    else -> null
+                }
+            }
+            else -> null
+        }
+    } catch (e: Throwable) {
+        null
+    }
+}
+
 internal fun syncPlaybackServiceForState(
     context: Context,
     selectedFile: File?,
