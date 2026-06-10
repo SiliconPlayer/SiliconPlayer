@@ -306,14 +306,7 @@ internal fun AppNavigationPlaybackDialogsSection(
         }
     }
 
-    LaunchedEffect(
-        lastUsedCoreName,
-        globalDspSettings,
-        coreDspSettings,
-        coreDspHasOverrides,
-        coreIgnoreGlobalDsp,
-        showAudioEffectsDialog
-    ) {
+    LaunchedEffect(showAudioEffectsDialog) {
         if (showAudioEffectsDialog) return@LaunchedEffect
         applyDspSettingsToNative(
             resolveEffectiveDspSettings(

@@ -1,5 +1,6 @@
 package com.flopster101.siliconplayer
 
+import android.content.Context
 import android.content.SharedPreferences
 import java.io.File
 
@@ -317,8 +318,16 @@ internal fun loadTrackSnapshotForSelection(
         ?.takeIf { subtuneCount > 0 && it in 0 until subtuneCount }
         ?.let { targetIndex -> NativeBridge.selectSubtune(targetIndex) }
         ?: false
+    val snapshot = readNativeTrackSnapshot()
+    val decoderName = snapshot.decoderName?.trim()?.takeIf { it.isNotEmpty() } ?: readCurrentDecoderName()
+    if (decoderName != null) {
+        val context = NativeBridge.requireAppContext()
+        val prefs = context.getSharedPreferences(AppPreferenceKeys.PREFS_NAME, Context.MODE_PRIVATE)
+        applyEffectiveDspSettingsForCoreAction(prefs, decoderName)
+    }
+
     return LoadedTrackSelectionState(
-        snapshot = readNativeTrackSnapshot(),
+        snapshot = snapshot,
         initialSubtuneApplied = initialSubtuneApplied
     )
 }
@@ -330,9 +339,17 @@ internal fun selectSubtuneAndReadState(
 ): SubtuneSelectionResult {
     if (selectedFile == null) return SubtuneSelectionResult(success = false)
     if (!NativeBridge.selectSubtune(index)) return SubtuneSelectionResult(success = false)
+    val snapshot = readNativeTrackSnapshot()
+    val decoderName = snapshot.decoderName?.trim()?.takeIf { it.isNotEmpty() } ?: readCurrentDecoderName()
+    if (decoderName != null) {
+        val context = NativeBridge.requireAppContext()
+        val prefs = context.getSharedPreferences(AppPreferenceKeys.PREFS_NAME, Context.MODE_PRIVATE)
+        applyEffectiveDspSettingsForCoreAction(prefs, decoderName)
+    }
+
     return SubtuneSelectionResult(
         success = true,
-        snapshot = readNativeTrackSnapshot(),
+        snapshot = snapshot,
         durationSeconds = NativeBridge.getDuration(),
         isPlaying = NativeBridge.isEnginePlaying(),
         sourceId = currentPlaybackSourceId ?: selectedFile.absolutePath

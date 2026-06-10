@@ -191,7 +191,7 @@ private fun applyImmediateDspSettingsToNative(settings: ImmediateDspSettings) {
     NativeBridge.setDspBitCrushBits(settings.bitCrushBits)
 }
 
-private fun applyEffectiveDspSettingsForCoreAction(
+internal fun applyEffectiveDspSettingsForCoreAction(
     prefs: SharedPreferences,
     coreName: String
 ) {
@@ -437,7 +437,12 @@ internal suspend fun restorePlayerStateFromSessionAndNativeAction(
                         loadSongVolumeForFile(restoreTarget.displayFile.absolutePath)
                     }
                     NativeBridge.replaceCurrentAudio(restoreOpenPath)
-                    readNativeTrackSnapshot()
+                    val snapshot = readNativeTrackSnapshot()
+                    val decoderName = snapshot.decoderName?.trim()?.takeIf { it.isNotEmpty() } ?: readCurrentDecoderName()
+                    if (decoderName != null) {
+                        applyEffectiveDspSettingsForCoreAction(prefs, decoderName)
+                    }
+                    snapshot
                 }
             }
         }
