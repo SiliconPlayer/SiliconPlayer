@@ -51,8 +51,8 @@ jobs:
 
       - name: Configure git identity for patch application
         run: |
-          git config --global user.name "Flopster101 CI"
-          git config --global user.email "nahuelgomez329@gmail.com"
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "41898282+github-actions[bot]@users.noreply.github.com"
 
       - name: Add NDK gcc compatibility wrappers for OpenSSL configure
         run: |
