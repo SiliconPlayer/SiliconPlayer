@@ -4,8 +4,8 @@
 	ignore = dirty
 [submodule "external/libopenmpt"]
 	path = external/libopenmpt
-	url = https://github.com/OpenMPT/openmpt.git
-	ignore = dirty
+	url = https://github.com/SiliconPlayer/openmpt.git
+  ignore = dirty
 [submodule "external/libsoxr"]
 	path = external/libsoxr
 	url = https://git.code.sf.net/p/soxr/code
