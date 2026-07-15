@@ -80,7 +80,7 @@
 	ignore = dirty
 [submodule "external/klystrack"]
 	path = external/klystrack
-	url = https://github.com/LTVA1/klystrack.git
+	url = https://github.com/SiliconPlayer/klystrack
 	ignore = dirty
 [submodule "external/furnace"]
 	path = external/furnace
