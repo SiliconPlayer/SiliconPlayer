@@ -27,3 +27,19 @@ external/libopenmpt/Application.mk
 
 # Android studio
 .idea/
+
+# sc68 autotools build artifacts
+external/sc68/**/confdefs.h
+external/sc68/**/autom4te.cache/
+external/sc68/**/Makefile
+external/sc68/**/Makefile.in
+external/sc68/**/config.status
+external/sc68/**/config.log
+external/sc68/**/config.h
+external/sc68/**/stamp-h1
+external/sc68/**/.deps/
+external/sc68/**/*.o
+external/sc68/**/*.lo
+external/sc68/**/*.la
+external/sc68/**/.libs/
+external/sc68/as68/as68
