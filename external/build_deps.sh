@@ -44,7 +44,6 @@ DEFAULT_ABIS=("arm64-v8a" "armeabi-v7a" "x86_64")
 SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )"
 ABSOLUTE_PATH="$SCRIPT_DIR"
 PATCHES_DIR_LIBGME="$ABSOLUTE_PATH/patches/libgme"
-PATCHES_DIR_LAZYUSF2="$ABSOLUTE_PATH/patches/lazyusf2"
 PATCHES_DIR_VIO2SF="$ABSOLUTE_PATH/patches/vio2sf"
 PATCHES_DIR_UADE="$ABSOLUTE_PATH/patches/uade"
 PATCHES_DIR_LIBSIDPLAYFP="$ABSOLUTE_PATH/patches/libsidplayfp"
@@ -241,46 +240,7 @@ apply_libgme_patches() {
     done
 }
 
-# -----------------------------------------------------------------------------
-# Function: Apply lazyusf2 patches (idempotent)
-# -----------------------------------------------------------------------------
-apply_lazyusf2_patches() {
-    local PROJECT_PATH="$ABSOLUTE_PATH/lazyusf2"
-    if [ ! -d "$PATCHES_DIR_LAZYUSF2" ]; then
-        return
-    fi
 
-    for patch_file in "$PATCHES_DIR_LAZYUSF2"/*.patch; do
-        [ -e "$patch_file" ] || continue
-        local patch_name
-        patch_name="$(basename "$patch_file")"
-        local patch_subject
-        patch_subject="$(extract_patch_subject "$patch_file")"
-
-        # If the patch subject already exists in git history, treat it as applied.
-        # This avoids false negatives from reverse-apply checks when later patches
-        # in the same series touch nearby context lines from earlier patches.
-        if [ -n "$patch_subject" ] && git -C "$PROJECT_PATH" log --format=%s | grep -Fq "$patch_subject"; then
-            echo "lazyusf2 patch already applied (subject): $patch_name"
-            continue
-        fi
-
-        if git -C "$PROJECT_PATH" apply --check --reverse "$patch_file" >/dev/null 2>&1; then
-            echo "lazyusf2 patch already applied: $patch_name"
-            continue
-        fi
-
-        echo "Applying lazyusf2 patch: $patch_name"
-        # lazyusf2 upstream mixes CRLF/LF files (notably in usf/), and our
-        # patch series is generated with normalized diff lines. Allow
-        # whitespace-insensitive matching so git am can apply cleanly.
-        git -C "$PROJECT_PATH" am --ignore-whitespace "$patch_file" || {
-            echo "Error applying patch $patch_name"
-            git -C "$PROJECT_PATH" am --abort
-            exit 1
-        }
-    done
-}
 
 # -----------------------------------------------------------------------------
 # Function: Apply vio2sf patches (idempotent)
@@ -2736,10 +2696,6 @@ fi
 
 if target_has_lib "libgme"; then
     apply_libgme_patches
-fi
-
-if target_has_lib "lazyusf2"; then
-    apply_lazyusf2_patches
 fi
 
 if target_has_lib "vio2sf"; then

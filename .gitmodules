@@ -28,7 +28,7 @@
 	ignore = dirty
 [submodule "external/lazyusf2"]
 	path = external/lazyusf2
-	url = https://bitbucket.org/losnoco/lazyusf2/
+	url = https://github.com/SiliconPlayer/lazyusf2
 	ignore = dirty
 [submodule "external/fluidsynth"]
 	path = external/fluidsynth
