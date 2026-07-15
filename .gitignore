@@ -1,32 +1,26 @@
+# IDE / Local files
 *.iml
 .gradle
+android/.gradle/
 /local.properties
-/.idea/caches
-/.idea/libraries
-/.idea/modules.xml
-/.idea/workspace.xml
-/.idea/navEditor.xml
-/.idea/assetWizardSettings.xml
-.DS_Store
-/build
-/captures
-.externalNativeBuild
-.cxx
-local.properties
+android/local.properties
+/.idea/
+.idea/
 .kotlin/
+android/.kotlin/
+.DS_Store
 
 # Android Module Build
-app/build/
-app/src/main/cpp/prebuilt/
+android/app/build/
+android/.externalNativeBuild/
+android/.cxx/
+android/app/src/main/cpp/prebuilt/
 
 # Native Build Artifacts
 external/libopenmpt/obj/
 external/libopenmpt/libs/
 external/libopenmpt/Android.mk
 external/libopenmpt/Application.mk
-
-# Android studio
-.idea/
 
 # sc68 autotools build artifacts
 external/sc68/**/confdefs.h
@@ -43,3 +37,16 @@ external/sc68/**/*.lo
 external/sc68/**/*.la
 external/sc68/**/.libs/
 external/sc68/as68/as68
+
+# Flutter / Dart / Pub
+.dart_tool/
+.packages
+.flutter-plugins
+.flutter-plugins-dependencies
+.pub-cache/
+.pub/
+/build/
+
+# Platform ephemeral files
+linux/flutter/ephemeral/
+windows/flutter/ephemeral/
