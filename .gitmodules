@@ -86,3 +86,6 @@
 	path = external/furnace
 	url = https://github.com/tildearrow/furnace
 	ignore = dirty
+[submodule "external/miniaudio"]
+	path = external/miniaudio
+	url = https://github.com/mackron/miniaudio.git
