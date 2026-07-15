@@ -1,66 +1,88 @@
 [submodule "external/ffmpeg"]
 	path = external/ffmpeg
 	url = https://git.ffmpeg.org/ffmpeg.git
+	ignore = dirty
 [submodule "external/libopenmpt"]
 	path = external/libopenmpt
 	url = https://github.com/SiliconPlayer/openmpt.git
+  ignore = dirty
 [submodule "external/libsoxr"]
 	path = external/libsoxr
 	url = https://git.code.sf.net/p/soxr/code
+	ignore = dirty
 [submodule "external/libvgm"]
 	path = external/libvgm
 	url = https://github.com/ValleyBell/libvgm.git
+	ignore = dirty
 [submodule "external/libgme"]
 	path = external/libgme
 	url = https://github.com/libgme/game-music-emu.git
+	ignore = dirty
 [submodule "external/openssl"]
 	path = external/openssl
 	url = https://github.com/openssl/openssl
+	ignore = dirty
 [submodule "external/libsidplayfp"]
 	path = external/libsidplayfp
 	url = https://github.com/libsidplayfp/libsidplayfp
+	ignore = dirty
 [submodule "external/lazyusf2"]
 	path = external/lazyusf2
 	url = https://bitbucket.org/losnoco/lazyusf2/
+	ignore = dirty
 [submodule "external/fluidsynth"]
 	path = external/fluidsynth
 	url = https://github.com/FluidSynth/fluidsynth
+	ignore = dirty
 [submodule "external/libresidfp"]
 	path = external/libresidfp
 	url = https://github.com/libsidplayfp/libresidfp
+	ignore = dirty
 [submodule "external/resid"]
 	path = external/resid
 	url = https://github.com/libsidplayfp/resid
+	ignore = dirty
 [submodule "external/2sf/vio2sf"]
 	path = external/2sf/vio2sf
 	url = https://bitbucket.org/kode54/vio2sf
+	ignore = dirty
 [submodule "external/psflib"]
 	path = external/psflib
 	url = https://github.com/kode54/psflib
+	ignore = dirty
 [submodule "external/adplug"]
 	path = external/adplug
 	url = https://github.com/adplug/adplug
+	ignore = dirty
 [submodule "external/libbinio"]
 	path = external/libbinio
 	url = https://github.com/adplug/libbinio
+	ignore = dirty
 [submodule "external/uade"]
 	path = external/uade
 	url = https://gitlab.com/uade-music-player/uade
+	ignore = dirty
 [submodule "external/libzakalwe"]
 	path = external/libzakalwe
 	url = https://gitlab.com/hors/libzakalwe
+	ignore = dirty
 [submodule "external/bencodetools"]
 	path = external/bencodetools
 	url = https://gitlab.com/heikkiorsila/bencodetools
+	ignore = dirty
 [submodule "external/vasm"]
 	path = external/vasm
 	url = https://github.com/StarWolf3000/vasm-mirror
+	ignore = dirty
 [submodule "external/hivelytracker"]
 	path = external/hivelytracker
 	url = https://github.com/pete-gordon/hivelytracker
+	ignore = dirty
 [submodule "external/klystrack"]
 	path = external/klystrack
 	url = https://github.com/LTVA1/klystrack.git
+	ignore = dirty
 [submodule "external/furnace"]
 	path = external/furnace
 	url = https://github.com/tildearrow/furnace
+	ignore = dirty
