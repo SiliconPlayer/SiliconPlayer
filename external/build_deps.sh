@@ -44,7 +44,6 @@ DEFAULT_ABIS=("arm64-v8a" "armeabi-v7a" "x86_64")
 SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )"
 ABSOLUTE_PATH="$SCRIPT_DIR"
 PATCHES_DIR_VIO2SF="$ABSOLUTE_PATH/patches/vio2sf"
-PATCHES_DIR_UADE="$ABSOLUTE_PATH/patches/uade"
 PATCHES_DIR_LIBSIDPLAYFP="$ABSOLUTE_PATH/patches/libsidplayfp"
 OPENSSL_DIR="$ABSOLUTE_PATH/openssl"
 
@@ -215,40 +214,6 @@ apply_vio2sf_patches() {
 
 
 # -----------------------------------------------------------------------------
-# Function: Apply uade patches (idempotent)
-# -----------------------------------------------------------------------------
-apply_uade_patches() {
-    local PROJECT_PATH="$ABSOLUTE_PATH/uade"
-    if [ ! -d "$PATCHES_DIR_UADE" ]; then
-        return
-    fi
-
-    for patch_file in "$PATCHES_DIR_UADE"/*.patch; do
-        [ -e "$patch_file" ] || continue
-        local patch_name
-        patch_name="$(basename "$patch_file")"
-        local patch_subject
-        patch_subject="$(extract_patch_subject "$patch_file")"
-
-        if [ -n "$patch_subject" ] && git -C "$PROJECT_PATH" log --format=%s | grep -Fqx "$patch_subject"; then
-            echo "uade patch already applied (subject): $patch_name"
-            continue
-        fi
-
-        if git -C "$PROJECT_PATH" apply --check --reverse "$patch_file" >/dev/null 2>&1; then
-            echo "uade patch already applied: $patch_name"
-            continue
-        fi
-
-        echo "Applying uade patch: $patch_name"
-        git -C "$PROJECT_PATH" am "$patch_file" || {
-            echo "Error applying patch $patch_name"
-            git -C "$PROJECT_PATH" am --abort
-            exit 1
-        }
-    done
-}
-
 apply_libsidplayfp_patches() {
     local PROJECT_PATH="$ABSOLUTE_PATH/libsidplayfp"
     if [ ! -d "$PATCHES_DIR_LIBSIDPLAYFP" ]; then
@@ -2623,10 +2588,6 @@ fi
 
 if target_has_lib "vio2sf"; then
     apply_vio2sf_patches
-fi
-
-if target_has_lib "uade"; then
-    apply_uade_patches
 fi
 
 if target_has_lib "libsidplayfp"; then
