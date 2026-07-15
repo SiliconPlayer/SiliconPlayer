@@ -65,6 +65,8 @@ include_directories(${CMAKE_SOURCE_DIR}/../../../../../external/furnace/extern/f
 include_directories(${CMAKE_SOURCE_DIR}/../../../../../external/furnace/extern/blip_buf)
 # Furnace SFWrapper type declarations require bundled libsndfile public headers.
 include_directories(${CMAKE_SOURCE_DIR}/../../../../../external/furnace/extern/libsndfile-modified/include)
+# miniaudio headers are exposed from the external submodule tree.
+include_directories(${CMAKE_SOURCE_DIR}/../../../../../external/miniaudio)
 
     # Find Android libraries
     find_library(log-lib log)

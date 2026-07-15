@@ -1,8 +1,15 @@
 #include "AudioEngine.h"
+#ifdef __ANDROID__
 #include "AudioTrackJniBridge.h"
+#endif
 
+#define MINIAUDIO_IMPLEMENTATION
+#include "miniaudio.h"
+
+#ifdef __ANDROID__
 #include <android/log.h>
 #include <android/api-level.h>
+#endif
 #include <algorithm>
 #include <cerrno>
 #include <chrono>
@@ -14,8 +21,14 @@
 #include <unistd.h>
 
 #define LOG_TAG "AudioEngine"
+#ifdef __ANDROID__
 #define LOGD(...) __android_log_print(ANDROID_LOG_DEBUG, LOG_TAG, __VA_ARGS__)
 #define LOGE(...) __android_log_print(ANDROID_LOG_ERROR, LOG_TAG, __VA_ARGS__)
+#else
+#include <cstdio>
+#define LOGD(...) do { printf("[%s] ", LOG_TAG); printf(__VA_ARGS__); printf("\n"); } while(0)
+#define LOGE(...) do { fprintf(stderr, "[%s] ", LOG_TAG); fprintf(stderr, __VA_ARGS__); fprintf(stderr, "\n"); } while(0)
+#endif
 
 namespace {
     constexpr int kOpenSlStartupReadyWaitColdMs = 90;
@@ -425,6 +438,7 @@ void AudioEngine::createStream() {
     closeStream();
 
     auto tryBackend = [this](int backend) -> bool {
+#ifdef __ANDROID__
         if (backend == 1) {
             return createAaudioStream();
         }
@@ -434,10 +448,14 @@ void AudioEngine::createStream() {
         if (backend == 3) {
             return createAudioTrackStream();
         }
+#endif
+        if (backend == 4) {
+            return createMiniaudioStream();
+        }
         return false;
     };
 
-    std::array<int, 3> attempts {};
+    std::array<int, 4> attempts {};
     int attemptCount = 0;
     auto addAttempt = [&](int backend) {
         if (backend <= 0) return;
@@ -447,12 +465,14 @@ void AudioEngine::createStream() {
         attempts[attemptCount++] = backend;
     };
 
+#ifdef __ANDROID__
     switch (outputBackendPreference) {
         case 1:
             addAttempt(1);
             if (outputAllowFallback) {
                 addAttempt(2);
                 addAttempt(3);
+                addAttempt(4);
             }
             break;
         case 2:
@@ -460,6 +480,7 @@ void AudioEngine::createStream() {
             if (outputAllowFallback) {
                 addAttempt(1);
                 addAttempt(3);
+                addAttempt(4);
             }
             break;
         case 3:
@@ -467,18 +488,30 @@ void AudioEngine::createStream() {
             if (outputAllowFallback) {
                 addAttempt(2);
                 addAttempt(1);
+                addAttempt(4);
             }
             break;
-        case 0:
-        default:
-            // Auto: prefer AAudio, then OpenSL, then AudioTrack fallback.
-            addAttempt(1);
+        case 4:
+            addAttempt(4);
             if (outputAllowFallback) {
+                addAttempt(1);
                 addAttempt(2);
                 addAttempt(3);
             }
             break;
+        case 0:
+        default:
+            addAttempt(1);
+            if (outputAllowFallback) {
+                addAttempt(2);
+                addAttempt(3);
+                addAttempt(4);
+            }
+            break;
     }
+#else
+    addAttempt(4);
+#endif
 
     for (int i = 0; i < attemptCount; ++i) {
         if (tryBackend(attempts[i])) {
@@ -746,6 +779,16 @@ bool AudioEngine::enqueueOpenSlBuffer(bool allowUnderrun) {
 
 bool AudioEngine::requestStreamStart() {
     const int backend = activeOutputBackend.load(std::memory_order_relaxed);
+    if (backend == 4) {
+        if (miniaudioActive.load()) {
+            if (ma_device_start(&miniaudioDevice) != MA_SUCCESS) {
+                LOGE("Failed to start miniaudio device");
+                return false;
+            }
+        }
+        return true;
+    }
+#ifdef __ANDROID__
     if (backend == 2) {
         if (!outputStreamReady.load(std::memory_order_relaxed) ||
             openSlPlayerPlay == nullptr ||
@@ -875,10 +918,20 @@ bool AudioEngine::requestStreamStart() {
         return false;
     }
     return true;
+#else
+    return false;
+#endif
 }
 
 void AudioEngine::requestStreamStop() {
     const int backend = activeOutputBackend.load(std::memory_order_relaxed);
+    if (backend == 4) {
+        if (miniaudioActive.load()) {
+            ma_device_stop(&miniaudioDevice);
+        }
+        return;
+    }
+#ifdef __ANDROID__
     if (backend == 2) {
         openSlStopAfterCurrentBuffer.store(false, std::memory_order_relaxed);
         if (openSlPlayerPlay != nullptr) {
@@ -906,6 +959,7 @@ void AudioEngine::requestStreamStop() {
         return;
     }
     AAudioDyn::api().streamRequestStop(stream);
+#endif
 }
 
 bool AudioEngine::isStreamDisconnectedOrClosed() const {
@@ -914,6 +968,10 @@ bool AudioEngine::isStreamDisconnectedOrClosed() const {
     }
 
     const int backend = activeOutputBackend.load(std::memory_order_relaxed);
+    if (backend == 4) {
+        return !miniaudioActive.load();
+    }
+#ifdef __ANDROID__
     if (backend == 2) {
         return openSlPlayerObject == nullptr || openSlPlayerPlay == nullptr || openSlBufferQueue == nullptr;
     }
@@ -934,10 +992,17 @@ bool AudioEngine::isStreamDisconnectedOrClosed() const {
     return state == AAUDIO_STREAM_STATE_DISCONNECTED ||
            state == AAUDIO_STREAM_STATE_CLOSING ||
            state == AAUDIO_STREAM_STATE_CLOSED;
+#else
+    return true;
+#endif
 }
 
 int AudioEngine::getStreamBurstFrames() const {
     const int backend = activeOutputBackend.load(std::memory_order_relaxed);
+    if (backend == 4) {
+        return 512;
+    }
+#ifdef __ANDROID__
     if (backend == 2) {
         return openSlBufferFrames;
     }
@@ -952,6 +1017,9 @@ int AudioEngine::getStreamBurstFrames() const {
         return 0;
     }
     return static_cast<int>(AAudioDyn::api().streamGetFramesPerBurst(stream));
+#else
+    return 0;
+#endif
 }
 
 std::string AudioEngine::getAudioBackendLabel() const {
@@ -966,6 +1034,8 @@ std::string AudioEngine::getAudioBackendLabel() const {
             return "OpenSL ES";
         case 3:
             return "AudioTrack";
+        case 4:
+            return "miniaudio";
         default:
             return "Unknown";
     }
@@ -1111,13 +1181,17 @@ void AudioEngine::closeAudioTrackStream() {
 }
 
 void AudioEngine::closeStream() {
+#ifdef __ANDROID__
     closeAaudioStream();
     closeOpenSlStream();
     closeAudioTrackStream();
+#endif
+    closeMiniaudioStream();
     activeOutputBackend.store(0, std::memory_order_relaxed);
     outputStreamReady.store(false, std::memory_order_relaxed);
 }
 
+#ifdef __ANDROID__
 void AudioEngine::errorCallback(
         AAudioStream * /*stream*/,
         void *userData,
@@ -1128,6 +1202,7 @@ void AudioEngine::errorCallback(
     engine->isPlaying.store(false);
     engine->streamNeedsRebuild.store(true);
 }
+#endif
 
 void AudioEngine::recoverStreamIfNeeded() {
     if (!streamNeedsRebuild.load()) {
@@ -1168,6 +1243,7 @@ void AudioEngine::recoverStreamIfNeeded() {
     }
 }
 
+#ifdef __ANDROID__
 aaudio_data_callback_result_t AudioEngine::dataCallback(
         AAudioStream *callbackStream,
         void *userData,
@@ -1213,5 +1289,53 @@ void AudioEngine::openSlBufferQueueCallback(SLAndroidSimpleBufferQueueItf /*buff
 
     if (!engine->enqueueOpenSlBuffer()) {
         engine->requestStreamStop();
+    }
+}
+#endif
+
+void AudioEngine::miniaudioDataCallback(ma_device* pDevice, void* pOutput, const void* /*pInput*/, ma_uint32 frameCount) {
+    auto *engine = static_cast<AudioEngine *>(pDevice->pUserData);
+    if (engine == nullptr) return;
+    
+    // miniaudio works with float outputs in our config, render frames using our unified audio callback
+    engine->renderOutputCallbackFrames(static_cast<float*>(pOutput), static_cast<int32_t>(frameCount), pDevice->sampleRate);
+}
+
+bool AudioEngine::createMiniaudioStream() {
+    if (miniaudioActive.load()) {
+        return true;
+    }
+
+    ma_device_config config = ma_device_config_init(ma_device_type_playback);
+    config.playback.format   = ma_format_f32;
+    config.playback.channels = 2;
+    config.sampleRate        = streamSampleRate > 0 ? streamSampleRate : 48000;
+    config.dataCallback      = miniaudioDataCallback;
+    config.pUserData         = this;
+
+    if (ma_device_init(nullptr, &config, &miniaudioDevice) != MA_SUCCESS) {
+        LOGE("Failed to initialize miniaudio device");
+        return false;
+    }
+
+    if (ma_device_start(&miniaudioDevice) != MA_SUCCESS) {
+        LOGE("Failed to start miniaudio device");
+        ma_device_uninit(&miniaudioDevice);
+        return false;
+    }
+
+    miniaudioActive.store(true);
+    activeOutputBackend.store(4, std::memory_order_relaxed); // backend 4 is miniaudio
+    outputStreamReady.store(true, std::memory_order_relaxed);
+
+    LOGD("Miniaudio stream opened: sampleRate=%d, channels=2", config.sampleRate);
+    return true;
+}
+
+void AudioEngine::closeMiniaudioStream() {
+    if (miniaudioActive.exchange(false)) {
+        ma_device_stop(&miniaudioDevice);
+        ma_device_uninit(&miniaudioDevice);
+        LOGD("Miniaudio stream closed");
     }
 }

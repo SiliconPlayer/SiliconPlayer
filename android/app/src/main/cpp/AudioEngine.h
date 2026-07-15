@@ -1,9 +1,12 @@
 #ifndef SILICONPLAYER_AUDIOENGINE_H
 #define SILICONPLAYER_AUDIOENGINE_H
 
+#ifdef __ANDROID__
 #include <aaudio/AAudio.h>
 #include <SLES/OpenSLES.h>
 #include <SLES/OpenSLES_Android.h>
+#endif
+#include "miniaudio.h"
 #include <cstdint>
 #include <thread>
 #include <atomic>
@@ -272,6 +275,7 @@ public:
     int getDspBitCrushBits() const;
 
 private:
+#ifdef __ANDROID__
     AAudioStream *stream = nullptr;
     SLObjectItf openSlEngineObject = nullptr;
     SLEngineItf openSlEngine = nullptr;
@@ -296,6 +300,9 @@ private:
     std::vector<int16_t> audioTrackPcmBuffer;
     int audioTrackBufferFrames = 4096;
     std::atomic<bool> audioTrackStopRequested { false };
+#endif
+    ma_device miniaudioDevice;
+    std::atomic<bool> miniaudioActive { false };
     int aaudioBufferFrames = 0;
     int streamSampleRate = 48000;
     int streamChannelCount = 2;
@@ -421,15 +428,19 @@ private:
     void requestStreamStop();
     bool isStreamDisconnectedOrClosed() const;
     int getStreamBurstFrames() const;
+#ifdef __ANDROID__
     bool createAaudioStream();
     bool createOpenSlStream();
     bool createAudioTrackStream();
     void closeAaudioStream();
     void closeOpenSlStream();
     void closeAudioTrackStream();
-    bool renderOutputCallbackFrames(float* outputData, int32_t numFrames, int callbackRate);
     bool enqueueOpenSlBuffer(bool allowUnderrun = true);
     void audioTrackRenderLoop();
+#endif
+    bool renderOutputCallbackFrames(float* outputData, int32_t numFrames, int callbackRate);
+    bool createMiniaudioStream();
+    void closeMiniaudioStream();
 
     void createStream();
     void closeStream();
@@ -452,6 +463,7 @@ private:
     bool shouldUpdateVisualization(uint32_t* outFeatures) const;
 
     // Callback
+#ifdef __ANDROID__
     static aaudio_data_callback_result_t dataCallback(
             AAudioStream *stream,
             void *userData,
@@ -462,6 +474,8 @@ private:
             void *userData,
             aaudio_result_t error);
     static void openSlBufferQueueCallback(SLAndroidSimpleBufferQueueItf bufferQueue, void *context);
+#endif
+    static void miniaudioDataCallback(ma_device* pDevice, void* pOutput, const void* pInput, ma_uint32 frameCount);
 
     float phase = 0.0f;
     std::atomic<bool> streamNeedsRebuild { false };
