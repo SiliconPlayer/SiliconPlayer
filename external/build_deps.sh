@@ -43,7 +43,6 @@ DEP_OPT_FLAGS="$DEP_WARN_FLAGS -Ofast"
 DEFAULT_ABIS=("arm64-v8a" "armeabi-v7a" "x86_64")
 SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )"
 ABSOLUTE_PATH="$SCRIPT_DIR"
-PATCHES_DIR_LIBGME="$ABSOLUTE_PATH/patches/libgme"
 PATCHES_DIR_VIO2SF="$ABSOLUTE_PATH/patches/vio2sf"
 PATCHES_DIR_UADE="$ABSOLUTE_PATH/patches/uade"
 PATCHES_DIR_LIBSIDPLAYFP="$ABSOLUTE_PATH/patches/libsidplayfp"
@@ -205,40 +204,7 @@ apply_libvgm_patches() {
     done
 }
 
-# -----------------------------------------------------------------------------
-# Function: Apply libgme patches (idempotent)
-# -----------------------------------------------------------------------------
-apply_libgme_patches() {
-    local PROJECT_PATH="$ABSOLUTE_PATH/libgme"
-    if [ ! -d "$PATCHES_DIR_LIBGME" ]; then
-        return
-    fi
 
-    for patch_file in "$PATCHES_DIR_LIBGME"/*.patch; do
-        [ -e "$patch_file" ] || continue
-        local patch_name
-        patch_name="$(basename "$patch_file")"
-        local patch_subject
-        patch_subject="$(extract_patch_subject "$patch_file")"
-
-        if [ -n "$patch_subject" ] && git -C "$PROJECT_PATH" log --format=%s | grep -Fqx "$patch_subject"; then
-            echo "libgme patch already applied (subject): $patch_name"
-            continue
-        fi
-
-        if git -C "$PROJECT_PATH" apply --check --reverse "$patch_file" >/dev/null 2>&1; then
-            echo "libgme patch already applied: $patch_name"
-            continue
-        fi
-
-        echo "Applying libgme patch: $patch_name"
-        git -C "$PROJECT_PATH" am "$patch_file" || {
-            echo "Error applying patch $patch_name"
-            git -C "$PROJECT_PATH" am --abort
-            exit 1
-        }
-    done
-}
 
 
 
@@ -2692,10 +2658,6 @@ fi
 
 if target_has_lib "libvgm"; then
     apply_libvgm_patches
-fi
-
-if target_has_lib "libgme"; then
-    apply_libgme_patches
 fi
 
 if target_has_lib "vio2sf"; then

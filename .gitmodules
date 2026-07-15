@@ -16,7 +16,7 @@
 	ignore = dirty
 [submodule "external/libgme"]
 	path = external/libgme
-	url = https://github.com/libgme/game-music-emu.git
+	url = https://github.com/SiliconPlayer/game-music-emu
 	ignore = dirty
 [submodule "external/openssl"]
 	path = external/openssl
