@@ -2564,8 +2564,159 @@ if [ "$TARGET_LIB" != "all" ]; then
     done
 fi
 
+# -----------------------------------------------------------------------------
+# Clean: Remove build artifacts for the targeted ABI(s) and lib(s)
+# -----------------------------------------------------------------------------
+clean_target_artifacts() {
+    local PREBUILT_BASE="$ABSOLUTE_PATH/../app/src/main/cpp/prebuilt"
+    local abi_list=()
+    local lib_list=()
+
+    # Resolve ABI list
+    case "$TARGET_ABI" in
+        all)           abi_list=("${DEFAULT_ABIS[@]}") ;;
+        all_legacy)    abi_list=("${DEFAULT_ABIS[@]}" "x86") ;;
+        arm64-v8a|armeabi-v7a|x86_64|x86) abi_list=("$TARGET_ABI") ;;
+    esac
+
+    # Resolve lib list
+    if [ "$TARGET_LIB" = "all" ]; then
+        lib_list=(libsoxr openssl ffmpeg libopenmpt libvgm libgme libresid libresidfp libsidplayfp crsid lazyusf2 psflib vio2sf fluidsynth sc68 libbinio adplug libzakalwe bencodetools vasm uade hivelytracker klystrack furnace)
+    else
+        IFS=',' read -r -a requested <<< "$TARGET_LIB"
+        for raw in "${requested[@]}"; do
+            item="$(echo "$raw" | xargs)"
+            lib_list+=("$(normalize_lib_name "$item")")
+        done
+    fi
+
+    echo "Clean mode: removing build artifacts for: ${lib_list[*]}"
+
+    for lib in "${lib_list[@]}"; do
+        local PROJ=""
+        local CMAKE=0
+
+        case "$lib" in
+            libsoxr)        PROJ="$ABSOLUTE_PATH/libsoxr"; CMAKE=1 ;;
+            openssl)        PROJ="$OPENSSL_DIR"; CMAKE=1 ;;
+            ffmpeg)         PROJ="$ABSOLUTE_PATH/ffmpeg" ;;
+            libopenmpt)     PROJ="$ABSOLUTE_PATH/libopenmpt" ;;
+            libvgm)         PROJ="$ABSOLUTE_PATH/libvgm"; CMAKE=1 ;;
+            libgme)         PROJ="$ABSOLUTE_PATH/libgme"; CMAKE=1 ;;
+            libresid)       PROJ="$ABSOLUTE_PATH/resid"; CMAKE=1 ;;
+            libresidfp)     PROJ="$ABSOLUTE_PATH/libresidfp"; CMAKE=1 ;;
+            libsidplayfp)   PROJ="$ABSOLUTE_PATH/libsidplayfp"; CMAKE=1 ;;
+            crsid)          PROJ="$ABSOLUTE_PATH/cRSID"; CMAKE=1 ;;
+            lazyusf2)       PROJ="$ABSOLUTE_PATH/lazyusf2" ;;
+            psflib)         PROJ="$ABSOLUTE_PATH/psflib" ;;
+            vio2sf)         PROJ="$ABSOLUTE_PATH/2sf/vio2sf/src/vio2sf" ;;
+            fluidsynth)     PROJ="$ABSOLUTE_PATH/fluidsynth"; CMAKE=1 ;;
+            sc68)           PROJ="$ABSOLUTE_PATH/sc68" ;;
+            libbinio)       PROJ="$ABSOLUTE_PATH/libbinio"; CMAKE=1 ;;
+            adplug)         PROJ="$ABSOLUTE_PATH/adplug"; CMAKE=1 ;;
+            libzakalwe)     PROJ="$ABSOLUTE_PATH/libzakalwe" ;;
+            bencodetools)   PROJ="$ABSOLUTE_PATH/bencodetools" ;;
+            vasm)           PROJ="$ABSOLUTE_PATH/vasm" ;;
+            uade)           PROJ="$ABSOLUTE_PATH/uade"; CMAKE=1 ;;
+            hivelytracker)  PROJ="$ABSOLUTE_PATH/hivelytracker"; CMAKE=1 ;;
+            klystrack)      PROJ="$ABSOLUTE_PATH/klystrack"; CMAKE=1 ;;
+            furnace)        PROJ="$ABSOLUTE_PATH/furnace"; CMAKE=1 ;;
+        esac
+
+        # Clean CMake build_android_* directories
+        if [ "$CMAKE" -eq 1 ] && [ -n "$PROJ" ] && [ -d "$PROJ" ]; then
+            if [ "$TARGET_LIB" = "all" ]; then
+                rm -rf "$PROJ/build_android_"*
+            else
+                for a in "${abi_list[@]}"; do
+                    rm -rf "$PROJ/build_android_$a"
+                done
+            fi
+        fi
+
+        # Clean in-place build artifacts (Makefile / autotools / ndk-build)
+        case "$lib" in
+            ffmpeg)
+                [ -d "$PROJ" ] && (cd "$PROJ" && make distclean >/dev/null 2>&1 || true) ;;
+            lazyusf2|psflib|vio2sf|libzakalwe|bencodetools)
+                [ -d "$PROJ" ] && (cd "$PROJ" && make clean >/dev/null 2>&1 || true) ;;
+            sc68)
+                if [ -d "$PROJ" ]; then
+                    for sub in unice68 file68 libsc68; do
+                        (cd "$PROJ/$sub" && make distclean >/dev/null 2>&1 || true)
+                        rm -rf "$PROJ/$sub/autom4te.cache" 2>/dev/null || true
+                    done
+                    rm -f "$PROJ/as68/as68" 2>/dev/null || true
+                fi ;;
+            libopenmpt)
+                for a in "${abi_list[@]}"; do
+                    rm -rf "$PROJ/obj/$a" 2>/dev/null || true
+                done
+                [ "$TARGET_LIB" = "all" ] && rm -rf "$PROJ/obj/"* 2>/dev/null || true
+                # Also restore Android.mk if it was modified by our build
+                if [ -f "$PROJ/build/android_ndk/Android.mk" ]; then
+                    cp "$PROJ/build/android_ndk/Android.mk" "$PROJ/Android.mk" 2>/dev/null || true
+                fi ;;
+            vasm)
+                [ -d "$PROJ" ] && (cd "$PROJ" && make clean >/dev/null 2>&1 || true)
+                rm -f "$PROJ/vasmm68k_mot" 2>/dev/null || true ;;
+        esac
+
+        # Clean installed output from prebuilt directory
+        for a in "${abi_list[@]}"; do
+            local inst="$PREBUILT_BASE/$a"
+            [ ! -d "$inst" ] && continue
+
+            case "$lib" in
+                libsoxr)
+                    rm -f "$inst/lib/libsoxr.so" 2>/dev/null || true
+                    rm -rf "$inst/include/soxr"* 2>/dev/null || true ;;
+                openssl)
+                    rm -f "$inst/lib/libssl.so" "$inst/lib/libcrypto.so" 2>/dev/null || true
+                    rm -rf "$inst/include/openssl" 2>/dev/null || true ;;
+                ffmpeg)
+                    rm -f "$inst/lib"/libav{codec,format,util,device,filter,swresample,swscale}.so 2>/dev/null || true
+                    for inc in libavcodec libavformat libavutil libswresample; do
+                        rm -rf "$inst/include/$inc" 2>/dev/null || true
+                    done ;;
+                libopenmpt)
+                    rm -f "$inst/lib/$a/libopenmpt.so" "$inst/lib/libopenmpt.so" 2>/dev/null || true
+                    rm -rf "$inst/include/libopenmpt" 2>/dev/null || true
+                    rm -f "$inst/lib/.libopenmpt_build_stamp" 2>/dev/null || true ;;
+                libvgm)    rm -f "$inst/lib/libvgm.so" 2>/dev/null || true; rm -rf "$inst/include/libvgm" 2>/dev/null || true ;;
+                libgme)    rm -f "$inst/lib/libgme.so" 2>/dev/null || true; rm -rf "$inst/include/libgme" 2>/dev/null || true ;;
+                libresid)  rm -f "$inst/lib/libresid.so" 2>/dev/null || true; rm -rf "$inst/include/resid" 2>/dev/null || true ;;
+                libresidfp) rm -f "$inst/lib/libresidfp.so" 2>/dev/null || true; rm -rf "$inst/include/libresidfp" 2>/dev/null || true ;;
+                libsidplayfp) rm -f "$inst/lib/libsidplayfp.so" 2>/dev/null || true; rm -rf "$inst/include/libsidplayfp" 2>/dev/null || true ;;
+                crsid)     rm -f "$inst/lib/libcRSID.so" 2>/dev/null || true; rm -rf "$inst/include/crsid" 2>/dev/null || true ;;
+                lazyusf2)  rm -f "$inst/lib/liblazyusf2.a" "$inst/lib/liblazyusf.a" 2>/dev/null || true; rm -rf "$inst/include/lazyusf2" 2>/dev/null || true ;;
+                psflib)    rm -f "$inst/lib/libpsflib.so" 2>/dev/null || true; rm -rf "$inst/include/psflib" 2>/dev/null || true ;;
+                vio2sf)    rm -f "$inst/lib/libvio2sf.so" 2>/dev/null || true; rm -rf "$inst/include/vio2sf" 2>/dev/null || true ;;
+                fluidsynth) rm -f "$inst/lib/libfluidsynth.so" 2>/dev/null || true; rm -rf "$inst/include/fluidsynth" 2>/dev/null || true ;;
+                sc68)      rm -f "$inst/lib/libsc68.so" "$inst/lib/libfile68.so" "$inst/lib/libunice68.so" 2>/dev/null || true; rm -rf "$inst/include/sc68" "$inst/include/file68" "$inst/include/unice68" 2>/dev/null || true; rm -f "$inst/lib/.sc68_build_stamp" 2>/dev/null || true ;;
+                libbinio)  rm -f "$inst/lib/libbinio.so" 2>/dev/null || true; rm -rf "$inst/include/libbinio" 2>/dev/null || true ;;
+                adplug)    rm -f "$inst/lib/libadplug.so" 2>/dev/null || true; rm -rf "$inst/include/adplug" 2>/dev/null || true ;;
+                libzakalwe) rm -f "$inst/lib/libzakalwe.so" 2>/dev/null || true; rm -rf "$inst/include/zakalwe" 2>/dev/null || true; rm -f "$inst/lib/.libzakalwe_build_stamp" 2>/dev/null || true ;;
+                bencodetools) rm -f "$inst/lib/libbencodetools.so" 2>/dev/null || true; rm -rf "$inst/include/bencodetools" 2>/dev/null || true; rm -f "$inst/lib/.bencodetools_build_stamp" 2>/dev/null || true ;;
+                uade)      rm -f "$inst/lib/libuade.so" 2>/dev/null || true; rm -rf "$inst/include/uade" 2>/dev/null || true ;;
+                hivelytracker) rm -f "$inst/lib/libhivelytracker.so" 2>/dev/null || true; rm -rf "$inst/include/hivelytracker" 2>/dev/null || true ;;
+                klystrack) rm -f "$inst/lib/libklystrack.so" 2>/dev/null || true; rm -rf "$inst/include/klystrack" 2>/dev/null || true ;;
+                furnace)   rm -f "$inst/lib/libfurnace.so" 2>/dev/null || true; rm -rf "$inst/include/furnace" 2>/dev/null || true ;;
+            esac
+        done
+    done
+
+    # For "all" libs, nuke the entire prebuilt tree
+    if [ "$TARGET_LIB" = "all" ]; then
+        echo "Clean mode: removing entire prebuilt output directory..."
+        rm -rf "$PREBUILT_BASE" 2>/dev/null || true
+    fi
+
+    echo "Clean complete."
+}
+
 if [ "$FORCE_CLEAN" -eq 1 ]; then
-    echo "Clean mode enabled: forcing rebuilds (skip checks disabled)."
+    clean_target_artifacts
 fi
 
 # Resolve effective ABI list for this invocation.
