@@ -52,7 +52,7 @@
 	ignore = dirty
 [submodule "external/adplug"]
 	path = external/adplug
-	url = https://github.com/adplug/adplug
+	url = https://github.com/SiliconPlayer/adplug
 	ignore = dirty
 [submodule "external/libbinio"]
 	path = external/libbinio
