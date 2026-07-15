@@ -76,7 +76,7 @@
 	ignore = dirty
 [submodule "external/hivelytracker"]
 	path = external/hivelytracker
-	url = https://github.com/pete-gordon/hivelytracker
+	url = https://github.com/SiliconPlayer/hivelytracker
 	ignore = dirty
 [submodule "external/klystrack"]
 	path = external/klystrack
