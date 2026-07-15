@@ -167,42 +167,7 @@ extract_patch_subject() {
     ' "$patch_file"
 }
 
-# -----------------------------------------------------------------------------
-# Function: Apply libvgm patches (idempotent)
-# -----------------------------------------------------------------------------
-apply_libvgm_patches() {
-    local PROJECT_PATH="$ABSOLUTE_PATH/libvgm"
-    local PATCHES_DIR_VGM="$ABSOLUTE_PATH/patches/libvgm"
-    
-    if [ ! -d "$PATCHES_DIR_VGM" ]; then
-        return
-    fi
 
-    for patch_file in "$PATCHES_DIR_VGM"/*.patch; do
-        [ -e "$patch_file" ] || continue
-        local patch_name
-        patch_name="$(basename "$patch_file")"
-        local patch_subject
-        patch_subject="$(extract_patch_subject "$patch_file")"
-
-        if [ -n "$patch_subject" ] && git -C "$PROJECT_PATH" log --format=%s | grep -Fqx "$patch_subject"; then
-            echo "libvgm patch already applied (subject): $patch_name"
-            continue
-        fi
-
-        if git -C "$PROJECT_PATH" apply --check --reverse "$patch_file" >/dev/null 2>&1; then
-            echo "libvgm patch already applied: $patch_name"
-            continue
-        fi
-
-        echo "Applying libvgm patch: $patch_name"
-        git -C "$PROJECT_PATH" am "$patch_file" || {
-            echo "Error applying patch $patch_name"
-            git -C "$PROJECT_PATH" am --abort
-            exit 1
-        }
-    done
-}
 
 
 
@@ -2654,10 +2619,6 @@ esac
 # -----------------------------------------------------------------------------
 if target_has_lib "libsidplayfp"; then
     ensure_system_dependencies
-fi
-
-if target_has_lib "libvgm"; then
-    apply_libvgm_patches
 fi
 
 if target_has_lib "vio2sf"; then

@@ -12,7 +12,7 @@
 	ignore = dirty
 [submodule "external/libvgm"]
 	path = external/libvgm
-	url = https://github.com/ValleyBell/libvgm.git
+	url = https://github.com/SiliconPlayer/libvgm
 	ignore = dirty
 [submodule "external/libgme"]
 	path = external/libgme
