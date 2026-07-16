@@ -211,11 +211,7 @@ class _MainContainerPageState extends State<MainContainerPage> {
       if (_isPlaying) {
         await _channel.invokeMethod('pause');
       } else {
-        if (_currentTrackPath != null && _currentTrackPath != 'active') {
-          await _playFile(_currentTrackPath!);
-        } else {
-          await _channel.invokeMethod('pause');
-        }
+        await _channel.invokeMethod('resume');
       }
       _fetchStatus();
     } on PlatformException catch (e) {

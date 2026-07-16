@@ -111,6 +111,15 @@ class MainActivity : FlutterActivity() {
                                     result.success(null)
                                 }
                             }
+                            "resume" -> {
+                                val intent = Intent(context, PlaybackService::class.java).apply {
+                                    action = PlaybackService.ACTION_PLAY
+                                }
+                                context.startService(intent)
+                                withContext(Dispatchers.Main) {
+                                    result.success(null)
+                                }
+                            }
                             "stop" -> {
                                 val intent = Intent(context, PlaybackService::class.java).apply {
                                     action = PlaybackService.ACTION_STOP_CLEAR
