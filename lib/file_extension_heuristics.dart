@@ -125,24 +125,18 @@ class FileExtensionHeuristics {
   static IconData getExtensionIcon(String ext) {
     final cleanExt = ext.toLowerCase();
     
-    if (const {'mod', 'xm', 'it', 's3m', 'med', 'okt'}.contains(cleanExt)) {
-      return Icons.piano;
+    // Tracker modules
+    if (const {
+      'mod', 'xm', 'it', 's3m', 'med', 'okt', 'ahx', 'hvl', 'dmf', 'sfx', 'sfz'
+    }.contains(cleanExt)) {
+      return Icons.queue_music;
     }
-    if (const {'sid', 'prg'}.contains(cleanExt)) {
-      return Icons.developer_board;
+    // Game files / sound chips
+    if (const {
+      'sid', 'prg', 'vgm', 'vgz', 'nsf', 'gbs', 'spc', 'imf', 'la', 'rol', 'bp'
+    }.contains(cleanExt)) {
+      return Icons.sports_esports;
     }
-    if (const {'vgm', 'vgz'}.contains(cleanExt)) {
-      return Icons.videogame_asset;
-    }
-    if (const {'nsf', 'gbs', 'spc'}.contains(cleanExt)) {
-      return Icons.gamepad;
-    }
-    if (const {'imf', 'la', 'rol'}.contains(cleanExt)) {
-      return Icons.tune;
-    }
-    if (const {'ahx', 'hvl', 'bp'}.contains(cleanExt)) {
-      return Icons.memory;
-    }
-    return Icons.audiotrack;
+    return Icons.audio_file;
   }
 }

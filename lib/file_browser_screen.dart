@@ -27,6 +27,12 @@ class _FileBrowserScreenState extends State<FileBrowserScreen> with WidgetsBindi
   String _errorMessage = '';
   bool _hasStoragePermission = false;
 
+  // Cache for folder summary count to prevent recalculating on scroll
+  final Map<String, String> _folderSummaryCache = {};
+
+  // Storage locations list
+  final List<String> _storageLocations = [];
+
   // Dynamic set loaded from the C++ core engine via MethodChannel
   final Set<String> _supportedExtensions = {};
 
@@ -46,7 +52,6 @@ class _FileBrowserScreenState extends State<FileBrowserScreen> with WidgetsBindi
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state == AppLifecycleState.resumed) {
-      // Recheck permissions when returning to the app
       _checkAndInit();
     }
   }
@@ -61,9 +66,9 @@ class _FileBrowserScreenState extends State<FileBrowserScreen> with WidgetsBindi
       if (_supportedExtensions.isEmpty) {
         await _loadSupportedExtensions();
       }
+      await _detectStorageLocations();
       _initDirectory();
       
-      // Request notification permissions for background media playbacks on Android 13+
       await _channel.invokeMethod('requestNotificationPermission');
     }
   }
@@ -79,10 +84,8 @@ class _FileBrowserScreenState extends State<FileBrowserScreen> with WidgetsBindi
         setState(() {
           _supportedExtensions.addAll(extensions.map((e) => e.toString().toLowerCase()));
         });
-        debugPrint('Loaded ${_supportedExtensions.length} supported extensions from C++ engine');
       }
     } catch (e) {
-      debugPrint('Failed to load supported extensions: $e');
       setState(() {
         _supportedExtensions.addAll({
           'mod', 'xm', 'it', 's3m', 'sid', 'vgm', 'vgz', 'nsf',
@@ -91,6 +94,40 @@ class _FileBrowserScreenState extends State<FileBrowserScreen> with WidgetsBindi
         });
       });
     }
+  }
+
+  Future<void> _detectStorageLocations() async {
+    final List<String> detected = [];
+    
+    if (Platform.isAndroid) {
+      detected.add('/storage/emulated/0');
+      detected.add('/');
+      try {
+        final storageDir = Directory('/storage');
+        if (await storageDir.exists()) {
+          final list = await storageDir.list().toList();
+          for (final entity in list) {
+            if (entity is Directory) {
+              final name = p.basename(entity.path);
+              if (name != 'self' && name != 'emulated' && name != 'knox' && !name.startsWith('.')) {
+                if (await entity.exists()) {
+                  detected.add(entity.path);
+                }
+              }
+            }
+          }
+        }
+      } catch (_) {}
+    } else {
+      detected.add(Platform.environment['HOME'] ?? Directory.current.path);
+      detected.add('/');
+    }
+
+    final unique = detected.toSet().toList();
+    setState(() {
+      _storageLocations.clear();
+      _storageLocations.addAll(unique);
+    });
   }
 
   void _initDirectory() {
@@ -167,6 +204,63 @@ class _FileBrowserScreenState extends State<FileBrowserScreen> with WidgetsBindi
     return '${(bytes / (1024 * 1024)).toStringAsFixed(1)} MB';
   }
 
+  String _getStorageLabel(String path) {
+    if (path == '/storage/emulated/0') return 'Internal Storage';
+    if (path == '/') return 'System Root';
+    if (path.startsWith('/storage/')) {
+      final name = path.substring(9);
+      return 'SD Card / USB ($name)';
+    }
+    return p.basename(path).isEmpty ? path : p.basename(path);
+  }
+
+  IconData _getStorageIcon(String path) {
+    if (path == '/storage/emulated/0') return Icons.phone_android;
+    if (path == '/') return Icons.folder_copy;
+    if (path.startsWith('/storage/')) return Icons.sd_card;
+    return Icons.home;
+  }
+
+  // Fast asynchronous folder children counter
+  Future<String> _getFolderSummary(Directory dir) async {
+    final cacheKey = dir.path;
+    if (_folderSummaryCache.containsKey(cacheKey)) {
+      return _folderSummaryCache[cacheKey]!;
+    }
+
+    try {
+      int filesCount = 0;
+      int foldersCount = 0;
+      final children = await dir.list().toList();
+      for (final child in children) {
+        if (child is Directory) {
+          foldersCount++;
+        } else if (child is File) {
+          final ext = p.extension(child.path).replaceAll('.', '').toLowerCase();
+          // Only count supported files
+          if (_supportedExtensions.contains(ext) || 
+              FileExtensionHeuristics.fileMatchesSupportedExtensions(child.path, _supportedExtensions)) {
+            filesCount++;
+          }
+        }
+      }
+
+      String summary = '';
+      if (foldersCount == 0) {
+        summary = '$filesCount file${filesCount == 1 ? "" : "s"}';
+      } else if (filesCount == 0) {
+        summary = '$foldersCount folder${foldersCount == 1 ? "" : "s"}';
+      } else {
+        summary = '$foldersCount folder${foldersCount == 1 ? "" : "s"} • $filesCount file${filesCount == 1 ? "" : "s"}';
+      }
+
+      _folderSummaryCache[cacheKey] = summary;
+      return summary;
+    } catch (_) {
+      return '0 files';
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -174,7 +268,7 @@ class _FileBrowserScreenState extends State<FileBrowserScreen> with WidgetsBindi
     if (!_hasStoragePermission) {
       return Scaffold(
         appBar: AppBar(
-          title: const Text('File Browser', style: TextStyle(fontWeight: FontWeight.bold)),
+          title: const Text('Silicon Player', style: TextStyle(fontWeight: FontWeight.bold)),
         ),
         body: Center(
           child: Padding(
@@ -226,58 +320,109 @@ class _FileBrowserScreenState extends State<FileBrowserScreen> with WidgetsBindi
 
     final isRoot = _currentDirectory.path == _currentDirectory.parent.path;
 
+    // Build the list of entities, injecting the parent directory ".." if not at root
+    final List<FileSystemEntity?> displayList = [];
+    if (!isRoot) {
+      displayList.add(null); // null acts as placeholder for the ".." entry
+    }
+    displayList.addAll(_entities);
+
+    // Dynamic storage location dropdown key
+    final GlobalKey<State> _dropdownKey = GlobalKey<State>();
+
     return Scaffold(
       appBar: AppBar(
-        title: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Text(
-              'File Browser',
-              style: TextStyle(fontWeight: FontWeight.bold),
-            ),
-            Text(
-              _currentDirectory.path,
-              style: theme.textTheme.bodySmall?.copyWith(
-                color: theme.colorScheme.onSurfaceVariant,
-              ),
-              overflow: TextOverflow.fade,
-              maxLines: 1,
-              softWrap: false,
-            ),
-          ],
+        title: const Text(
+          'Silicon Player',
+          style: TextStyle(fontWeight: FontWeight.bold),
         ),
         actions: [
           IconButton(
             icon: const Icon(Icons.home),
-            tooltip: 'Go to Home Directory',
+            tooltip: 'Home Directory',
             onPressed: _initDirectory,
+          ),
+          IconButton(
+            icon: const Icon(Icons.link),
+            tooltip: 'Network Link',
+            onPressed: () {},
+          ),
+          IconButton(
+            icon: const Icon(Icons.settings),
+            tooltip: 'Settings',
+            onPressed: () {},
           ),
         ],
       ),
       body: Column(
         children: [
-          // Path breadcrumbs navigation header
+          // Sub-bar containing storage dropdown, path info, and search
           Container(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
             color: theme.colorScheme.surfaceContainerLow,
             child: Row(
               children: [
-                IconButton(
-                  icon: const Icon(Icons.arrow_upward),
-                  tooltip: 'Go up a directory',
-                  onPressed: isRoot ? null : _goUp,
+                // Pop-up location list trigger dropdown button
+                Theme(
+                  data: theme.copyWith(cardColor: theme.colorScheme.surfaceContainer),
+                  child: PopupMenuButton<String>(
+                    key: _dropdownKey,
+                    offset: const Offset(0, 40),
+                    child: const Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(
+                          'File Browser',
+                          style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
+                        ),
+                        Icon(Icons.arrow_drop_down, size: 20),
+                      ],
+                    ),
+                    onSelected: (path) {
+                      _navigateTo(Directory(path));
+                    },
+                    itemBuilder: (context) {
+                      return _storageLocations.map((path) {
+                        return PopupMenuItem<String>(
+                          value: path,
+                          child: Row(
+                            children: [
+                              Icon(_getStorageIcon(path), size: 20, color: theme.colorScheme.primary),
+                              const SizedBox(width: 12),
+                              Text(_getStorageLabel(path)),
+                            ],
+                          ),
+                        );
+                      }).toList();
+                    },
+                  ),
                 ),
-                const SizedBox(width: 8),
+                const SizedBox(width: 12),
+                
+                // Device Icon + Current path
+                Icon(
+                  _getStorageIcon(_currentDirectory.path),
+                  size: 16,
+                  color: theme.colorScheme.onSurfaceVariant,
+                ),
+                const SizedBox(width: 6),
                 Expanded(
                   child: Text(
-                    p.basename(_currentDirectory.path).isEmpty 
-                        ? 'Root' 
-                        : p.basename(_currentDirectory.path),
-                    style: theme.textTheme.titleMedium?.copyWith(
-                      fontWeight: FontWeight.w600,
+                    _currentDirectory.path,
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: theme.colorScheme.onSurfaceVariant,
                     ),
                     overflow: TextOverflow.ellipsis,
+                    maxLines: 1,
                   ),
+                ),
+
+                // Search Icon
+                IconButton(
+                  icon: const Icon(Icons.search, size: 20),
+                  padding: EdgeInsets.zero,
+                  constraints: const BoxConstraints(),
+                  onPressed: () {},
                 ),
               ],
             ),
@@ -316,7 +461,7 @@ class _FileBrowserScreenState extends State<FileBrowserScreen> with WidgetsBindi
                           ),
                         ),
                       )
-                    : _entities.isEmpty
+                    : displayList.isEmpty
                         ? Center(
                             child: Column(
                               mainAxisAlignment: MainAxisAlignment.center,
@@ -337,9 +482,35 @@ class _FileBrowserScreenState extends State<FileBrowserScreen> with WidgetsBindi
                             ),
                           )
                         : ListView.builder(
-                            itemCount: _entities.length,
+                            itemCount: displayList.length,
                             itemBuilder: (context, index) {
-                              final entity = _entities[index];
+                              final entity = displayList[index];
+
+                              // Render ".." parent folder entry
+                              if (entity == null) {
+                                return ListTile(
+                                  contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 2),
+                                  leading: Container(
+                                    width: 40,
+                                    height: 40,
+                                    decoration: BoxDecoration(
+                                      color: theme.colorScheme.primary.withOpacity(0.85),
+                                      borderRadius: BorderRadius.circular(10),
+                                    ),
+                                    child: const Icon(Icons.folder, color: Colors.white),
+                                  ),
+                                  title: const Text(
+                                    '..',
+                                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                                  ),
+                                  subtitle: const Text(
+                                    'Parent directory',
+                                    style: TextStyle(fontSize: 13, color: Colors.grey),
+                                  ),
+                                  onTap: _goUp,
+                                );
+                              }
+
                               final isDir = entity is Directory;
                               final name = p.basename(entity.path);
                               final isPlaying = widget.currentPlayingPath == entity.path;
@@ -361,37 +532,55 @@ class _FileBrowserScreenState extends State<FileBrowserScreen> with WidgetsBindi
                                   : FileExtensionHeuristics.getExtensionIcon(primaryExt);
 
                               return ListTile(
-                                leading: CircleAvatar(
-                                  backgroundColor: isDir
-                                      ? theme.colorScheme.primaryContainer
-                                      : isPlaying
-                                          ? theme.colorScheme.tertiaryContainer
-                                          : badgeColor.withOpacity(0.15),
-                                  foregroundColor: isDir
-                                      ? theme.colorScheme.onPrimaryContainer
-                                      : isPlaying
-                                          ? theme.colorScheme.onTertiaryContainer
-                                          : badgeColor,
-                                  child: Icon(leadingIcon),
+                                contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 2),
+                                leading: Container(
+                                  width: 40,
+                                  height: 40,
+                                  decoration: BoxDecoration(
+                                    color: isDir
+                                        ? theme.colorScheme.primary.withOpacity(0.85)
+                                        : theme.colorScheme.surfaceContainerHighest,
+                                    borderRadius: BorderRadius.circular(10),
+                                  ),
+                                  child: Icon(
+                                    leadingIcon,
+                                    color: isDir 
+                                        ? Colors.white 
+                                        : isPlaying 
+                                            ? theme.colorScheme.primary 
+                                            : badgeColor,
+                                  ),
                                 ),
                                 title: Text(
                                   cleanTitle,
                                   style: TextStyle(
                                     fontWeight: isDir ? FontWeight.bold : FontWeight.normal,
+                                    fontSize: 16,
                                     color: isPlaying ? theme.colorScheme.primary : null,
                                   ),
                                   overflow: TextOverflow.ellipsis,
                                 ),
                                 subtitle: isDir
-                                    ? null
+                                    ? FutureBuilder<String>(
+                                        future: _getFolderSummary(entity),
+                                        builder: (context, snapshot) {
+                                          return Text(
+                                            snapshot.data ?? 'Loading...',
+                                            style: const TextStyle(fontSize: 13, color: Colors.grey),
+                                          );
+                                        },
+                                      )
                                     : FutureBuilder<FileStat>(
                                         future: entity.stat(),
                                         builder: (context, snapshot) {
                                           if (snapshot.hasData) {
                                             final stat = snapshot.data!;
-                                            return Text('${primaryExt.toUpperCase()} • ${_formatSize(stat.size)}');
+                                            return Text(
+                                              '${primaryExt.toUpperCase()} • ${_formatSize(stat.size)}',
+                                              style: const TextStyle(fontSize: 13, color: Colors.grey),
+                                            );
                                           }
-                                          return const Text('Loading...');
+                                          return const Text('Loading...', style: TextStyle(fontSize: 13, color: Colors.grey));
                                         },
                                       ),
                                 trailing: isPlaying
@@ -410,7 +599,9 @@ class _FileBrowserScreenState extends State<FileBrowserScreen> with WidgetsBindi
                                           ),
                                         ),
                                       )
-                                    : const Icon(Icons.chevron_right),
+                                    : isDir
+                                        ? const Icon(Icons.chevron_right, size: 20)
+                                        : null,
                                 onTap: () {
                                   if (isDir) {
                                     _navigateTo(entity);

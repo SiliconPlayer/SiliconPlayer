@@ -13,8 +13,8 @@ class VisualizerWidget extends StatelessWidget {
     return ClipRRect(
       borderRadius: BorderRadius.circular(16),
       child: Container(
-        height: 120,
         width: double.infinity,
+        height: double.infinity,
         color: Theme.of(context).colorScheme.surfaceContainerHighest.withOpacity(0.15),
         padding: const EdgeInsets.all(12),
         child: CustomPaint(
