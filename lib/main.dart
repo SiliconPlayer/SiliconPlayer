@@ -73,6 +73,7 @@ class _MainContainerPageState extends State<MainContainerPage> {
   bool _isPlayerExpanded = false;
   bool _isSeeking = false;
   bool _showVisualizer = false;
+  final GlobalKey<FileBrowserScreenState> _fileBrowserKey = GlobalKey<FileBrowserScreenState>();
 
   @override
   void initState() {
@@ -383,14 +384,20 @@ class _MainContainerPageState extends State<MainContainerPage> {
             : screenHeight;
 
     return PopScope(
-      canPop: !_isPlayerExpanded,
-      onPopInvoked: (didPop) {
+      canPop: false,
+      onPopInvoked: (didPop) async {
         if (didPop) return;
         if (_isPlayerExpanded) {
           setState(() {
             _isPlayerExpanded = false;
           });
+          return;
         }
+        final browserState = _fileBrowserKey.currentState;
+        if (browserState != null && await browserState.handleBackPress()) {
+          return;
+        }
+        SystemNavigator.pop();
       },
       child: Scaffold(
         body: Stack(
@@ -402,6 +409,7 @@ class _MainContainerPageState extends State<MainContainerPage> {
                   bottom: showPlayer ? 92.0 : 0.0, // Space so list doesn't overlap the floating miniplayer
                 ),
                 child: FileBrowserScreen(
+                  key: _fileBrowserKey,
                   onFileSelected: _playFile,
                   currentPlayingPath: _currentTrackPath,
                 ),

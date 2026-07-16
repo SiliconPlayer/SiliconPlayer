@@ -15,10 +15,10 @@ class FileBrowserScreen extends StatefulWidget {
   });
 
   @override
-  State<FileBrowserScreen> createState() => _FileBrowserScreenState();
+  State<FileBrowserScreen> createState() => FileBrowserScreenState();
 }
 
-class _FileBrowserScreenState extends State<FileBrowserScreen> with WidgetsBindingObserver {
+class FileBrowserScreenState extends State<FileBrowserScreen> with WidgetsBindingObserver {
   static const _channel = MethodChannel('com.flopster101.siliconplayer/playback');
 
   late Directory _currentDirectory;
@@ -35,6 +35,11 @@ class _FileBrowserScreenState extends State<FileBrowserScreen> with WidgetsBindi
 
   // Dynamic set loaded from the C++ core engine via MethodChannel
   final Set<String> _supportedExtensions = {};
+
+  bool _isInitialized = false;
+  final List<String> _navigationHistory = [];
+  bool _isSearching = false;
+  String _searchQuery = '';
 
   @override
   void initState() {
@@ -130,21 +135,21 @@ class _FileBrowserScreenState extends State<FileBrowserScreen> with WidgetsBindi
     });
   }
 
-  void _initDirectory() {
-    String startPath = '/storage/emulated/0';
+  String _getHomePath() {
     if (Platform.isAndroid) {
-      final dir = Directory(startPath);
-      if (!dir.existsSync()) {
-        startPath = '/sdcard';
-      }
-    } else {
-      startPath = Platform.environment['HOME'] ?? Directory.current.path;
+      final dir = Directory('/storage/emulated/0');
+      if (dir.existsSync()) return '/storage/emulated/0';
+      return '/sdcard';
     }
-    
-    _navigateTo(Directory(startPath));
+    return Platform.environment['HOME'] ?? Directory.current.path;
   }
 
-  Future<void> _navigateTo(Directory directory) async {
+  void _initDirectory() {
+    _navigationHistory.clear();
+    _navigateTo(Directory(_getHomePath()));
+  }
+
+  Future<void> _navigateTo(Directory directory, {bool isBack = false}) async {
     setState(() {
       _isLoading = true;
       _errorMessage = '';
@@ -163,8 +168,13 @@ class _FileBrowserScreenState extends State<FileBrowserScreen> with WidgetsBindi
           return p.basename(a.path).toLowerCase().compareTo(p.basename(b.path).toLowerCase());
         });
 
+        if (_isInitialized && !isBack && _currentDirectory.path != directory.path) {
+          _navigationHistory.add(_currentDirectory.path);
+        }
+
         setState(() {
           _currentDirectory = directory;
+          _isInitialized = true;
           _entities = list.where((entity) {
             if (entity is Directory) return true;
             if (entity is File) {
@@ -189,6 +199,30 @@ class _FileBrowserScreenState extends State<FileBrowserScreen> with WidgetsBindi
         _isLoading = false;
       });
     }
+  }
+
+  Future<bool> handleBackPress() async {
+    if (_isSearching) {
+      setState(() {
+        _isSearching = false;
+        _searchQuery = '';
+      });
+      return true;
+    }
+    
+    if (_navigationHistory.isNotEmpty) {
+      final prevPath = _navigationHistory.removeLast();
+      await _navigateTo(Directory(prevPath), isBack: true);
+      return true;
+    }
+    
+    final homePath = _getHomePath();
+    if (_currentDirectory.path != homePath) {
+      await _navigateTo(Directory(homePath));
+      return true;
+    }
+    
+    return false;
   }
 
   void _goUp() {
@@ -261,6 +295,218 @@ class _FileBrowserScreenState extends State<FileBrowserScreen> with WidgetsBindi
     }
   }
 
+  Widget _buildBodyContent(ThemeData theme, List<FileSystemEntity?> displayList) {
+    if (!_isInitialized || _isLoading) {
+      return const Center(
+        key: ValueKey('loading'),
+        child: CircularProgressIndicator(),
+      );
+    }
+    
+    if (_errorMessage.isNotEmpty) {
+      return Center(
+        key: const ValueKey('error'),
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(
+                Icons.error_outline,
+                color: theme.colorScheme.error,
+                size: 48,
+              ),
+              const SizedBox(height: 16),
+              Text(
+                _errorMessage,
+                textAlign: TextAlign.center,
+                style: theme.textTheme.bodyMedium?.copyWith(
+                  color: theme.colorScheme.error,
+                ),
+              ),
+              const SizedBox(height: 24),
+              ElevatedButton.icon(
+                onPressed: _initDirectory,
+                icon: const Icon(Icons.refresh),
+                label: const Text('Reset to Start'),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+    
+    final filteredList = displayList.where((entity) {
+      if (entity == null) return true; // keep parent directory
+      if (_searchQuery.isEmpty) return true;
+      final name = p.basename(entity.path);
+      return name.toLowerCase().contains(_searchQuery.toLowerCase());
+    }).toList();
+
+    if (filteredList.isEmpty || (filteredList.length == 1 && filteredList.first == null)) {
+      return RefreshIndicator(
+        key: const ValueKey('empty'),
+        onRefresh: () => _navigateTo(_currentDirectory),
+        child: ListView(
+          physics: const AlwaysScrollableScrollPhysics(),
+          children: [
+            SizedBox(height: MediaQuery.of(context).size.height * 0.25),
+            Icon(
+              Icons.folder_open,
+              color: theme.colorScheme.onSurfaceVariant.withOpacity(0.5),
+              size: 48,
+            ),
+            const SizedBox(height: 16),
+            Center(
+              child: Text(
+                _searchQuery.isNotEmpty ? 'No matches found' : 'No supported audio files found',
+                style: theme.textTheme.bodyLarge?.copyWith(
+                  color: theme.colorScheme.onSurfaceVariant,
+                ),
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
+    return RefreshIndicator(
+      key: ValueKey<String>('${_currentDirectory.path}_${_searchQuery}'),
+      onRefresh: () => _navigateTo(_currentDirectory),
+      child: ListView.builder(
+        itemCount: filteredList.length,
+        itemBuilder: (context, index) {
+          final entity = filteredList[index];
+
+          // Render ".." parent folder entry
+          if (entity == null) {
+            return ListTile(
+              contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 2),
+              leading: Container(
+                width: 40,
+                height: 40,
+                decoration: BoxDecoration(
+                  color: theme.colorScheme.primary.withOpacity(0.85),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: const Icon(Icons.folder, color: Colors.white),
+              ),
+              title: const Text(
+                '..',
+                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+              ),
+              subtitle: const Text(
+                'Parent directory',
+                style: TextStyle(fontSize: 13, color: Colors.grey),
+              ),
+              onTap: _goUp,
+            );
+          }
+
+          final isDir = entity is Directory;
+          final name = p.basename(entity.path);
+          final isPlaying = widget.currentPlayingPath == entity.path;
+
+          final cleanTitle = isDir 
+              ? name 
+              : FileExtensionHeuristics.inferredDisplayTitleForName(name);
+          
+          final primaryExt = isDir
+              ? ''
+              : FileExtensionHeuristics.inferredPrimaryExtensionForName(entity.path) ?? '';
+          
+          final badgeColor = isDir
+              ? theme.colorScheme.primary
+              : FileExtensionHeuristics.getExtensionColor(primaryExt, theme);
+
+          final leadingIcon = isDir
+              ? Icons.folder
+              : FileExtensionHeuristics.getExtensionIcon(primaryExt);
+
+          return ListTile(
+            contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 2),
+            leading: Container(
+              width: 40,
+              height: 40,
+              decoration: BoxDecoration(
+                color: isDir
+                    ? theme.colorScheme.primary.withOpacity(0.85)
+                    : theme.colorScheme.surfaceContainerHighest,
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: Icon(
+                leadingIcon,
+                color: isDir 
+                    ? Colors.white 
+                    : isPlaying 
+                        ? theme.colorScheme.primary 
+                        : badgeColor,
+              ),
+            ),
+            title: Text(
+              cleanTitle,
+              style: TextStyle(
+                fontWeight: isDir ? FontWeight.bold : FontWeight.normal,
+                fontSize: 16,
+                color: isPlaying ? theme.colorScheme.primary : null,
+              ),
+              overflow: TextOverflow.ellipsis,
+            ),
+            subtitle: isDir
+                ? FutureBuilder<String>(
+                    future: _getFolderSummary(entity),
+                    builder: (context, snapshot) {
+                      return Text(
+                        snapshot.data ?? 'Loading...',
+                        style: const TextStyle(fontSize: 13, color: Colors.grey),
+                      );
+                    },
+                  )
+                : FutureBuilder<FileStat>(
+                    future: entity.stat(),
+                    builder: (context, snapshot) {
+                      if (snapshot.hasData) {
+                        final stat = snapshot.data!;
+                        return Text(
+                          '${primaryExt.toUpperCase()} • ${_formatSize(stat.size)}',
+                          style: const TextStyle(fontSize: 13, color: Colors.grey),
+                        );
+                      }
+                      return const Text('Loading...', style: TextStyle(fontSize: 13, color: Colors.grey));
+                    },
+                  ),
+            trailing: isPlaying
+                ? Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: theme.colorScheme.primary.withOpacity(0.2),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Text(
+                      'PLAYING',
+                      style: TextStyle(
+                        color: theme.colorScheme.primary,
+                        fontSize: 10,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  )
+                : isDir
+                    ? const Icon(Icons.chevron_right, size: 20)
+                    : null,
+            onTap: () {
+              if (isDir) {
+                _navigateTo(entity);
+              } else {
+                widget.onFileSelected(entity.path);
+              }
+            },
+          );
+        },
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -318,300 +564,190 @@ class _FileBrowserScreenState extends State<FileBrowserScreen> with WidgetsBindi
       );
     }
 
-    final isRoot = _currentDirectory.path == _currentDirectory.parent.path;
+    final isRoot = _isInitialized && _currentDirectory.path == _currentDirectory.parent.path;
 
     // Build the list of entities, injecting the parent directory ".." if not at root
     final List<FileSystemEntity?> displayList = [];
-    if (!isRoot) {
+    if (!isRoot && _isInitialized) {
       displayList.add(null); // null acts as placeholder for the ".." entry
     }
-    displayList.addAll(_entities);
-
-    // Dynamic storage location dropdown key
-    final GlobalKey<State> _dropdownKey = GlobalKey<State>();
+    if (_isInitialized) {
+      displayList.addAll(_entities);
+    }
 
     return Scaffold(
-      appBar: AppBar(
-        title: const Text(
-          'Silicon Player',
-          style: TextStyle(fontWeight: FontWeight.bold),
-        ),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.home),
-            tooltip: 'Home Directory',
-            onPressed: _initDirectory,
-          ),
-          IconButton(
-            icon: const Icon(Icons.link),
-            tooltip: 'Network Link',
-            onPressed: () {},
-          ),
-          IconButton(
-            icon: const Icon(Icons.settings),
-            tooltip: 'Settings',
-            onPressed: () {},
-          ),
-        ],
-      ),
-      body: Column(
-        children: [
-          // Sub-bar containing storage dropdown, path info, and search
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-            color: theme.colorScheme.surfaceContainerLow,
-            child: Row(
-              children: [
-                // Pop-up location list trigger dropdown button
-                Theme(
-                  data: theme.copyWith(cardColor: theme.colorScheme.surfaceContainer),
-                  child: PopupMenuButton<String>(
-                    key: _dropdownKey,
-                    offset: const Offset(0, 40),
-                    child: const Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Text(
-                          'File Browser',
-                          style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
-                        ),
-                        Icon(Icons.arrow_drop_down, size: 20),
-                      ],
-                    ),
-                    onSelected: (path) {
-                      _navigateTo(Directory(path));
-                    },
-                    itemBuilder: (context) {
-                      return _storageLocations.map((path) {
-                        return PopupMenuItem<String>(
-                          value: path,
-                          child: Row(
-                            children: [
-                              Icon(_getStorageIcon(path), size: 20, color: theme.colorScheme.primary),
-                              const SizedBox(width: 12),
-                              Text(_getStorageLabel(path)),
-                            ],
-                          ),
-                        );
-                      }).toList();
+      appBar: _isSearching
+          ? AppBar(
+              leading: IconButton(
+                icon: const Icon(Icons.arrow_back),
+                onPressed: () {
+                  setState(() {
+                    _isSearching = false;
+                    _searchQuery = '';
+                  });
+                },
+              ),
+              title: TextField(
+                autofocus: true,
+                style: TextStyle(color: theme.colorScheme.onSurface),
+                decoration: const InputDecoration(
+                  hintText: 'Search files & folders...',
+                  border: InputBorder.none,
+                ),
+                onChanged: (val) {
+                  setState(() {
+                    _searchQuery = val;
+                  });
+                },
+              ),
+              actions: [
+                if (_searchQuery.isNotEmpty)
+                  IconButton(
+                    icon: const Icon(Icons.clear),
+                    onPressed: () {
+                      setState(() {
+                        _searchQuery = '';
+                      });
                     },
                   ),
-                ),
-                const SizedBox(width: 12),
-                
-                // Device Icon + Current path
-                Icon(
-                  _getStorageIcon(_currentDirectory.path),
-                  size: 16,
-                  color: theme.colorScheme.onSurfaceVariant,
-                ),
-                const SizedBox(width: 6),
-                Expanded(
-                  child: Text(
-                    _currentDirectory.path,
-                    style: theme.textTheme.bodySmall?.copyWith(
-                      color: theme.colorScheme.onSurfaceVariant,
-                    ),
-                    overflow: TextOverflow.ellipsis,
-                    maxLines: 1,
-                  ),
-                ),
-
-                // Search Icon
+              ],
+            )
+          : AppBar(
+              title: const Text(
+                'Silicon Player',
+                style: TextStyle(fontWeight: FontWeight.bold),
+              ),
+              actions: [
                 IconButton(
-                  icon: const Icon(Icons.search, size: 20),
-                  padding: EdgeInsets.zero,
-                  constraints: const BoxConstraints(),
+                  icon: const Icon(Icons.home),
+                  tooltip: 'Home Directory',
+                  onPressed: _initDirectory,
+                ),
+                IconButton(
+                  icon: const Icon(Icons.link),
+                  tooltip: 'Network Link',
+                  onPressed: () {},
+                ),
+                IconButton(
+                  icon: const Icon(Icons.settings),
+                  tooltip: 'Settings',
                   onPressed: () {},
                 ),
               ],
             ),
-          ),
-          
-          Expanded(
-            child: _isLoading
-                ? const Center(child: CircularProgressIndicator())
-                : _errorMessage.isNotEmpty
-                    ? Center(
-                        child: Padding(
-                          padding: const EdgeInsets.all(24),
-                          child: Column(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              Icon(
-                                Icons.error_outline,
-                                color: theme.colorScheme.error,
-                                size: 48,
+      body: Column(
+        children: [
+          // Sub-bar exactly matching Compose layout in Screenshot 2!
+          if (_isInitialized && !_isSearching)
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+              color: theme.colorScheme.surfaceContainerLow,
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  // Left side clickable storage dropdown (Huge hitbox!)
+                  Expanded(
+                    child: Theme(
+                      data: theme.copyWith(cardColor: theme.colorScheme.surfaceContainer),
+                      child: PopupMenuButton<String>(
+                        offset: const Offset(0, 40),
+                        tooltip: 'Select storage location',
+                        onSelected: (path) {
+                          _navigateTo(Directory(path));
+                        },
+                        itemBuilder: (context) {
+                          return _storageLocations.map((path) {
+                            return PopupMenuItem<String>(
+                              value: path,
+                              child: Row(
+                                children: [
+                                  Icon(_getStorageIcon(path), size: 20, color: theme.colorScheme.primary),
+                                  const SizedBox(width: 12),
+                                  Text(_getStorageLabel(path)),
+                                ],
                               ),
-                              const SizedBox(height: 16),
-                              Text(
-                                _errorMessage,
-                                textAlign: TextAlign.center,
-                                style: theme.textTheme.bodyMedium?.copyWith(
-                                  color: theme.colorScheme.error,
+                            );
+                          }).toList();
+                        },
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Text(
+                                  'File Browser',
+                                  style: theme.textTheme.bodyLarge?.copyWith(
+                                    fontWeight: FontWeight.bold,
+                                  ),
                                 ),
-                              ),
-                              const SizedBox(height: 24),
-                              ElevatedButton.icon(
-                                onPressed: _initDirectory,
-                                icon: const Icon(Icons.refresh),
-                                label: const Text('Reset to Start'),
-                              ),
-                            ],
-                          ),
-                        ),
-                      )
-                    : displayList.isEmpty
-                        ? Center(
-                            child: Column(
-                              mainAxisAlignment: MainAxisAlignment.center,
+                                const SizedBox(width: 4),
+                                const Icon(Icons.arrow_drop_down, size: 20),
+                              ],
+                            ),
+                            const SizedBox(height: 2),
+                            Row(
+                              mainAxisSize: MainAxisSize.min,
                               children: [
                                 Icon(
-                                  Icons.folder_open,
-                                  color: theme.colorScheme.onSurfaceVariant.withOpacity(0.5),
-                                  size: 48,
+                                  _getStorageIcon(_currentDirectory.path),
+                                  size: 14,
+                                  color: theme.colorScheme.onSurfaceVariant,
                                 ),
-                                const SizedBox(height: 16),
-                                Text(
-                                  'No supported audio files found',
-                                  style: theme.textTheme.bodyLarge?.copyWith(
-                                    color: theme.colorScheme.onSurfaceVariant,
+                                const SizedBox(width: 4),
+                                Expanded(
+                                  child: Text(
+                                    _currentDirectory.path,
+                                    style: theme.textTheme.bodySmall?.copyWith(
+                                      color: theme.colorScheme.onSurfaceVariant,
+                                    ),
+                                    overflow: TextOverflow.ellipsis,
+                                    maxLines: 1,
                                   ),
                                 ),
                               ],
                             ),
-                          )
-                        : ListView.builder(
-                            itemCount: displayList.length,
-                            itemBuilder: (context, index) {
-                              final entity = displayList[index];
-
-                              // Render ".." parent folder entry
-                              if (entity == null) {
-                                return ListTile(
-                                  contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 2),
-                                  leading: Container(
-                                    width: 40,
-                                    height: 40,
-                                    decoration: BoxDecoration(
-                                      color: theme.colorScheme.primary.withOpacity(0.85),
-                                      borderRadius: BorderRadius.circular(10),
-                                    ),
-                                    child: const Icon(Icons.folder, color: Colors.white),
-                                  ),
-                                  title: const Text(
-                                    '..',
-                                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
-                                  ),
-                                  subtitle: const Text(
-                                    'Parent directory',
-                                    style: TextStyle(fontSize: 13, color: Colors.grey),
-                                  ),
-                                  onTap: _goUp,
-                                );
-                              }
-
-                              final isDir = entity is Directory;
-                              final name = p.basename(entity.path);
-                              final isPlaying = widget.currentPlayingPath == entity.path;
-
-                              final cleanTitle = isDir 
-                                  ? name 
-                                  : FileExtensionHeuristics.inferredDisplayTitleForName(name);
-                              
-                              final primaryExt = isDir
-                                  ? ''
-                                  : FileExtensionHeuristics.inferredPrimaryExtensionForName(entity.path) ?? '';
-                              
-                              final badgeColor = isDir
-                                  ? theme.colorScheme.primary
-                                  : FileExtensionHeuristics.getExtensionColor(primaryExt, theme);
-
-                              final leadingIcon = isDir
-                                  ? Icons.folder
-                                  : FileExtensionHeuristics.getExtensionIcon(primaryExt);
-
-                              return ListTile(
-                                contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 2),
-                                leading: Container(
-                                  width: 40,
-                                  height: 40,
-                                  decoration: BoxDecoration(
-                                    color: isDir
-                                        ? theme.colorScheme.primary.withOpacity(0.85)
-                                        : theme.colorScheme.surfaceContainerHighest,
-                                    borderRadius: BorderRadius.circular(10),
-                                  ),
-                                  child: Icon(
-                                    leadingIcon,
-                                    color: isDir 
-                                        ? Colors.white 
-                                        : isPlaying 
-                                            ? theme.colorScheme.primary 
-                                            : badgeColor,
-                                  ),
-                                ),
-                                title: Text(
-                                  cleanTitle,
-                                  style: TextStyle(
-                                    fontWeight: isDir ? FontWeight.bold : FontWeight.normal,
-                                    fontSize: 16,
-                                    color: isPlaying ? theme.colorScheme.primary : null,
-                                  ),
-                                  overflow: TextOverflow.ellipsis,
-                                ),
-                                subtitle: isDir
-                                    ? FutureBuilder<String>(
-                                        future: _getFolderSummary(entity),
-                                        builder: (context, snapshot) {
-                                          return Text(
-                                            snapshot.data ?? 'Loading...',
-                                            style: const TextStyle(fontSize: 13, color: Colors.grey),
-                                          );
-                                        },
-                                      )
-                                    : FutureBuilder<FileStat>(
-                                        future: entity.stat(),
-                                        builder: (context, snapshot) {
-                                          if (snapshot.hasData) {
-                                            final stat = snapshot.data!;
-                                            return Text(
-                                              '${primaryExt.toUpperCase()} • ${_formatSize(stat.size)}',
-                                              style: const TextStyle(fontSize: 13, color: Colors.grey),
-                                            );
-                                          }
-                                          return const Text('Loading...', style: TextStyle(fontSize: 13, color: Colors.grey));
-                                        },
-                                      ),
-                                trailing: isPlaying
-                                    ? Container(
-                                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                                        decoration: BoxDecoration(
-                                          color: theme.colorScheme.primary.withOpacity(0.2),
-                                          borderRadius: BorderRadius.circular(12),
-                                        ),
-                                        child: Text(
-                                          'PLAYING',
-                                          style: TextStyle(
-                                            color: theme.colorScheme.primary,
-                                            fontSize: 10,
-                                            fontWeight: FontWeight.bold,
-                                          ),
-                                        ),
-                                      )
-                                    : isDir
-                                        ? const Icon(Icons.chevron_right, size: 20)
-                                        : null,
-                                onTap: () {
-                                  if (isDir) {
-                                    _navigateTo(entity);
-                                  } else {
-                                    widget.onFileSelected(entity.path);
-                                  }
-                                },
-                              );
-                            },
-                          ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                  
+                  // Right side: Search button
+                  IconButton(
+                    icon: const Icon(Icons.search),
+                    tooltip: 'Search',
+                    onPressed: () {
+                      setState(() {
+                        _isSearching = true;
+                      });
+                    },
+                  ),
+                ],
+              ),
+            ),
+            
+          Expanded(
+            child: AnimatedSwitcher(
+              duration: const Duration(milliseconds: 200),
+              transitionBuilder: (child, animation) {
+                return FadeTransition(
+                  opacity: animation,
+                  child: SlideTransition(
+                    position: Tween<Offset>(
+                      begin: const Offset(0.04, 0.0),
+                      end: Offset.zero,
+                    ).animate(CurvedAnimation(
+                      parent: animation,
+                      curve: Curves.easeOut,
+                    )),
+                    child: child,
+                  ),
+                );
+              },
+              child: _buildBodyContent(theme, displayList),
+            ),
           ),
         ],
       ),
