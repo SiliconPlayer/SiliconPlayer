@@ -72,6 +72,7 @@ class _MainContainerPageState extends State<MainContainerPage> {
   // UI States
   bool _isPlayerExpanded = false;
   bool _isSeeking = false;
+  bool _showVisualizer = false;
 
   @override
   void initState() {
@@ -97,10 +98,11 @@ class _MainContainerPageState extends State<MainContainerPage> {
 
   void _startVisualizerPolling() {
     _visualizerTimer?.cancel();
+    if (!_showVisualizer) return;
     _visualizerTimer = Timer.periodic(const Duration(milliseconds: 33), (timer) {
-      if (_isPlaying && _isPlayerExpanded) {
+      if (_isPlaying && _isPlayerExpanded && _showVisualizer) {
         _fetchVisualization();
-      } else if (!_isPlayerExpanded) {
+      } else {
         timer.cancel();
       }
     });
@@ -368,24 +370,31 @@ class _MainContainerPageState extends State<MainContainerPage> {
     final screenWidth = mediaQuery.size.width;
     final bottomPadding = mediaQuery.padding.bottom;
 
-    final isPlayerActive = _currentTrackPath != null;
+    final bool showPlayer = _currentTrackPath != null;
 
     // Miniplayer / Fullscreen Position states
     final double left = _isPlayerExpanded ? 0 : 14;
     final double right = _isPlayerExpanded ? 0 : 14;
-    final double bottom = _isPlayerExpanded ? 0 : bottomPadding + 8;
-    final double? top = _isPlayerExpanded ? 0 : null;
-    final double? height = _isPlayerExpanded ? null : 76;
+    final double bottom = _isPlayerExpanded
+        ? 0
+        : showPlayer
+            ? bottomPadding + 8
+            : -100;
+    final double top = _isPlayerExpanded
+        ? 0
+        : showPlayer
+            ? (screenHeight - 76 - bottomPadding - 8)
+            : screenHeight;
 
-    return WillPopScope(
-      onWillPop: () async {
+    return PopScope(
+      canPop: !_isPlayerExpanded,
+      onPopInvoked: (didPop) {
+        if (didPop) return;
         if (_isPlayerExpanded) {
           setState(() {
             _isPlayerExpanded = false;
           });
-          return false;
         }
-        return true;
       },
       child: Scaffold(
         body: Stack(
@@ -394,7 +403,7 @@ class _MainContainerPageState extends State<MainContainerPage> {
             Positioned.fill(
               child: Padding(
                 padding: EdgeInsets.only(
-                  bottom: isPlayerActive ? 92.0 : 0.0, // Space so list doesn't overlap the floating miniplayer
+                  bottom: showPlayer ? 92.0 : 0.0, // Space so list doesn't overlap the floating miniplayer
                 ),
                 child: FileBrowserScreen(
                   onFileSelected: _playFile,
@@ -404,15 +413,15 @@ class _MainContainerPageState extends State<MainContainerPage> {
             ),
 
             // 2. Translucent Floating Miniplayer / Fullscreen Morph Card
-            if (isPlayerActive)
-              AnimatedPositioned(
-                duration: const Duration(milliseconds: 320),
-                curve: Curves.fastOutSlowIn,
-                left: left,
-                right: right,
-                bottom: bottom,
-                top: top,
-                height: height,
+            AnimatedPositioned(
+              duration: const Duration(milliseconds: 320),
+              curve: Curves.fastOutSlowIn,
+              left: left,
+              right: right,
+              bottom: bottom,
+              top: top,
+              child: IgnorePointer(
+                ignoring: !showPlayer,
                 child: GestureDetector(
                   onVerticalDragUpdate: (details) {
                     if (details.primaryDelta! > 8 && _isPlayerExpanded) {
@@ -427,13 +436,6 @@ class _MainContainerPageState extends State<MainContainerPage> {
                     decoration: BoxDecoration(
                       color: const Color(0xFF212121), // Dark Slate/Gray matching screenshot
                       borderRadius: BorderRadius.circular(_isPlayerExpanded ? 0 : 16),
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors.black.withOpacity(0.4),
-                          blurRadius: 10,
-                          offset: const Offset(0, -2),
-                        ),
-                      ],
                       border: Border.all(
                         color: _isPlayerExpanded 
                             ? Colors.transparent 
@@ -445,7 +447,7 @@ class _MainContainerPageState extends State<MainContainerPage> {
                       borderRadius: BorderRadius.circular(_isPlayerExpanded ? 0 : 16),
                       child: SafeArea(
                         top: _isPlayerExpanded,
-                        bottom: false, // handled manually in Stack for progress indicator
+                        bottom: _isPlayerExpanded, // respects bottom safe area when fullscreen
                         left: _isPlayerExpanded,
                         right: _isPlayerExpanded,
                         child: AnimatedCrossFade(
@@ -454,14 +456,14 @@ class _MainContainerPageState extends State<MainContainerPage> {
                               ? CrossFadeState.showSecond
                               : CrossFadeState.showFirst,
                           firstChild: _buildFloatingMiniplayer(theme, bottomPadding),
-                          secondChild: _buildFullscreenPlayer(theme, screenWidth),
+                          secondChild: _buildFullscreenPlayer(theme, screenWidth, screenHeight),
                         ),
                       ),
                     ),
                   ),
                 ),
               ),
-          ],
+            ),],
         ),
       ),
     );
@@ -477,6 +479,16 @@ class _MainContainerPageState extends State<MainContainerPage> {
     final miniIcon = FileExtensionHeuristics.getExtensionIcon(formatLabel.toLowerCase());
 
     final progress = _duration > 0 ? (_position / _duration).clamp(0.0, 1.0) : 0.0;
+
+    final String displayTitle = _title.isNotEmpty && _title != 'No Track Loaded'
+        ? _title
+        : _currentTrackPath != null && _currentTrackPath != 'active'
+            ? FileExtensionHeuristics.inferredDisplayTitleForName(p.basename(_currentTrackPath!))
+            : 'Unknown Title';
+            
+    final String displayArtist = _artist.isNotEmpty && _artist != 'Unknown Artist'
+        ? _artist
+        : 'Unknown Artist';
 
     return InkWell(
       onTap: () {
@@ -520,7 +532,7 @@ class _MainContainerPageState extends State<MainContainerPage> {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
-                          _title.isEmpty ? 'Unknown Title' : _title,
+                          displayTitle,
                           style: theme.textTheme.titleSmall?.copyWith(
                             fontWeight: FontWeight.bold,
                           ),
@@ -528,7 +540,7 @@ class _MainContainerPageState extends State<MainContainerPage> {
                           overflow: TextOverflow.ellipsis,
                         ),
                         Text(
-                          _artist.isEmpty ? 'Unknown Artist' : _artist,
+                          displayArtist,
                           style: theme.textTheme.bodySmall?.copyWith(
                             color: theme.colorScheme.onSurfaceVariant,
                           ),
@@ -592,9 +604,12 @@ class _MainContainerPageState extends State<MainContainerPage> {
   }
 
   // --- Fullscreen Player ---
-  Widget _buildFullscreenPlayer(ThemeData theme, double screenWidth) {
-    // Determine the size of the square visualizer card to fit beautifully
-    final double visualizerCardSize = (screenWidth - 48).clamp(200.0, 420.0);
+  Widget _buildFullscreenPlayer(ThemeData theme, double screenWidth, double screenHeight) {
+    debugPrint('FullscreenPlayer Build: title="$_title", artist="$_artist", path="$_currentTrackPath"');
+    
+    // Calculate artwork card size based on screen width/height to fit on smaller screens
+    final double maxArtworkSize = screenHeight - 420;
+    final double visualizerCardSize = (screenWidth - 48).clamp(160.0, maxArtworkSize.clamp(160.0, 400.0));
 
     final formatLabel = _currentTrackPath != 'active' && _currentTrackPath != null
         ? FileExtensionHeuristics.inferredPrimaryExtensionForName(_currentTrackPath!)?.toUpperCase() ?? 'UNK'
@@ -607,301 +622,320 @@ class _MainContainerPageState extends State<MainContainerPage> {
     final accentColor = FileExtensionHeuristics.getExtensionColor(formatLabel.toLowerCase(), theme);
     final detailIcon = FileExtensionHeuristics.getExtensionIcon(formatLabel.toLowerCase());
 
+    final String displayTitle = _title.isNotEmpty && _title != 'No Track Loaded'
+        ? _title
+        : _currentTrackPath != null && _currentTrackPath != 'active'
+            ? FileExtensionHeuristics.inferredDisplayTitleForName(p.basename(_currentTrackPath!))
+            : 'Unknown Title';
+            
+    final String displayArtist = _artist.isNotEmpty && _artist != 'Unknown Artist'
+        ? _artist
+        : 'Unknown Artist';
+
     return Container(
       color: const Color(0xFF121212), // Clean flat dark background
       child: Column(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
           // Header / Top bar (Down chevron only!)
-          AppBar(
-            backgroundColor: Colors.transparent,
-            elevation: 0,
-            leading: IconButton(
-              icon: const Icon(Icons.keyboard_arrow_down, size: 36),
-              tooltip: 'Minimize Player',
-              onPressed: () {
-                setState(() {
-                  _isPlayerExpanded = false;
-                });
-              },
+          Padding(
+            padding: const EdgeInsets.only(top: 8.0, left: 8.0),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.start,
+              children: [
+                IconButton(
+                  icon: const Icon(Icons.keyboard_arrow_down, size: 36),
+                  tooltip: 'Minimize Player',
+                  onPressed: () {
+                    setState(() {
+                      _isPlayerExpanded = false;
+                    });
+                  },
+                ),
+              ],
             ),
           ),
           
-          Expanded(
-            child: SingleChildScrollView(
-              padding: const EdgeInsets.symmetric(horizontal: 24.0),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.center,
-                children: [
-                  const SizedBox(height: 12),
-                  
-                  // Central SQUARE Visualizer / Artwork Card (exactly like Compose layout!)
-                  Container(
-                    width: visualizerCardSize,
-                    height: visualizerCardSize,
-                    decoration: BoxDecoration(
-                      borderRadius: BorderRadius.circular(24),
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors.black.withOpacity(0.3),
-                          blurRadius: 16,
-                          offset: const Offset(0, 8),
-                        ),
-                      ],
-                    ),
-                    child: _isPlaying 
-                        ? VisualizerWidget(bars: _visualizationBars)
-                        : Card(
-                            margin: EdgeInsets.zero,
-                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
-                            color: const Color(0xFF2E2E2E), // Solid dark gray artwork card background
-                            child: Center(
-                              child: Icon(
-                                detailIcon,
-                                size: 84,
-                                color: accentColor.withOpacity(0.7),
-                              ),
-                            ),
+          // Player Content Column (No scroll view, fits perfectly!)
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 24.0),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.center,
+              children: [
+                // Central SQUARE Visualizer / Artwork Card
+                Container(
+                  width: visualizerCardSize,
+                  height: visualizerCardSize,
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(24),
+                    color: const Color(0xFF2E2E2E),
+                  ),
+                  child: (_showVisualizer && _isPlaying)
+                      ? VisualizerWidget(bars: _visualizationBars)
+                      : Center(
+                          child: Icon(
+                            detailIcon,
+                            size: visualizerCardSize * 0.25,
+                            color: accentColor.withOpacity(0.7),
                           ),
-                  ),
-                  
-                  const SizedBox(height: 28),
+                        ),
+                ),
+                
+                const SizedBox(height: 20),
 
-                  // Title (space_debris)
-                  Text(
-                    _title.isEmpty ? 'Unknown Title' : _title,
-                    style: theme.textTheme.headlineSmall?.copyWith(
-                      fontWeight: FontWeight.bold,
-                    ),
-                    textAlign: TextAlign.center,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
+                // Title
+                Text(
+                  displayTitle,
+                  style: theme.textTheme.headlineSmall?.copyWith(
+                    fontWeight: FontWeight.bold,
+                    color: Colors.white,
                   ),
-                  const SizedBox(height: 4),
-                  
-                  // Artist (Unknown Artist)
-                  Text(
-                    _artist.isEmpty ? 'Unknown Artist' : _artist,
-                    style: theme.textTheme.bodyLarge?.copyWith(
-                      color: theme.colorScheme.onSurfaceVariant,
-                    ),
-                    textAlign: TextAlign.center,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
+                  textAlign: TextAlign.center,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+                const SizedBox(height: 4),
+                
+                // Artist
+                Text(
+                  displayArtist,
+                  style: theme.textTheme.bodyLarge?.copyWith(
+                    color: Colors.white.withOpacity(0.7),
                   ),
-                  const SizedBox(height: 4),
+                  textAlign: TextAlign.center,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+                const SizedBox(height: 4),
 
-                  // Filename (space_debris.mod)
-                  Text(
-                    filename,
-                    style: theme.textTheme.bodySmall?.copyWith(
-                      color: theme.colorScheme.onSurfaceVariant.withOpacity(0.6),
-                    ),
-                    textAlign: TextAlign.center,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
+                // Filename
+                Text(
+                  filename,
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: Colors.white.withOpacity(0.5),
                   ),
-                  
-                  const SizedBox(height: 20),
+                  textAlign: TextAlign.center,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+                
+                const SizedBox(height: 16),
 
-                  // Tech specs lines (exactly like screenshot 3!)
-                  // Line 1: format description (e.g. ProTracker MOD (M.K.))
-                  Text(
-                    _decoderDescription.isEmpty ? 'Audio Track' : _decoderDescription,
-                    style: theme.textTheme.bodyMedium?.copyWith(
-                      color: theme.colorScheme.onSurfaceVariant,
-                      fontWeight: FontWeight.w500,
-                    ),
-                    textAlign: TextAlign.center,
+                // Tech specs line 1
+                Text(
+                  _decoderDescription.isEmpty ? 'Audio Track' : _decoderDescription,
+                  style: theme.textTheme.bodyMedium?.copyWith(
+                    color: Colors.white.withOpacity(0.7),
+                    fontWeight: FontWeight.w500,
                   ),
-                  const SizedBox(height: 2),
-                  // Line 2: size, sample rate, channels (e.g. 339.4 KB • 44.1 kHz • 4 ch)
-                  Text(
-                    '$_trackSizeLabel • ${(_sampleRateHz / 1000).toStringAsFixed(1)} kHz • ${_channelCount == 1 ? "Mono" : _channelCount == 2 ? "Stereo" : "$_channelCount ch"}${_bitDepthLabel.isNotEmpty ? " • $_bitDepthLabel" : ""}',
-                    style: theme.textTheme.bodySmall?.copyWith(
-                      color: theme.colorScheme.onSurfaceVariant.withOpacity(0.8),
-                    ),
-                    textAlign: TextAlign.center,
+                  textAlign: TextAlign.center,
+                ),
+                const SizedBox(height: 2),
+                // Tech specs line 2
+                Text(
+                  '$_trackSizeLabel • ${(_sampleRateHz / 1000).toStringAsFixed(1)} kHz • ${_channelCount == 1 ? "Mono" : _channelCount == 2 ? "Stereo" : "$_channelCount ch"}${_bitDepthLabel.isNotEmpty ? " • $_bitDepthLabel" : ""}',
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: Colors.white.withOpacity(0.6),
                   ),
+                  textAlign: TextAlign.center,
+                ),
 
-                  // Subtune selector chip
-                  if (_subtuneCount > 1) ...[
-                    const SizedBox(height: 16),
-                    ActionChip(
-                      avatar: const Icon(Icons.music_video, size: 16),
-                      label: Text('Subtune ${_currentSubtuneIndex + 1} / $_subtuneCount'),
-                      onPressed: _openSubtunePicker,
+                // Subtune selector chip (conditional)
+                if (_subtuneCount > 1) ...[
+                  const SizedBox(height: 12),
+                  ActionChip(
+                    avatar: const Icon(Icons.music_video, size: 16),
+                    label: Text('Subtune ${_currentSubtuneIndex + 1} / $_subtuneCount'),
+                    onPressed: _openSubtunePicker,
+                  ),
+                ],
+              ],
+            ),
+          ),
+
+          // Controls Block at the Bottom
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 24.0),
+            child: Column(
+              children: [
+                // Seek slider
+                Column(
+                  children: [
+                    SliderTheme(
+                      data: SliderTheme.of(context).copyWith(
+                        trackHeight: 4,
+                        thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 6),
+                        overlayShape: const RoundSliderOverlayShape(overlayRadius: 14),
+                        activeTrackColor: theme.colorScheme.primary,
+                        inactiveTrackColor: theme.colorScheme.surfaceContainerHighest,
+                        thumbColor: theme.colorScheme.primary,
+                      ),
+                      child: Slider(
+                        value: _position.clamp(0.0, _duration > 0 ? _duration : 0.0),
+                        min: 0.0,
+                        max: _duration > 0 ? _duration : 0.0,
+                        onChangeStart: (_) {
+                          setState(() {
+                            _isSeeking = true;
+                          });
+                        },
+                        onChanged: (val) {
+                          setState(() {
+                            _position = val;
+                          });
+                        },
+                        onChangeEnd: (val) async {
+                          await _seek(val);
+                          setState(() {
+                            _isSeeking = false;
+                          });
+                        },
+                      ),
+                    ),
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 16.0),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Text(
+                            _formatDuration(_position),
+                            style: theme.textTheme.bodySmall?.copyWith(color: Colors.white70),
+                          ),
+                          Text(
+                            _formatDuration(_duration),
+                            style: theme.textTheme.bodySmall?.copyWith(color: Colors.white70),
+                          ),
+                        ],
+                      ),
                     ),
                   ],
+                ),
 
-                  const SizedBox(height: 28),
+                const SizedBox(height: 16),
 
-                  // Seek slider and time counters
-                  Column(
-                    children: [
-                      SliderTheme(
-                        data: SliderTheme.of(context).copyWith(
-                          trackHeight: 4,
-                          thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 6),
-                          overlayShape: const RoundSliderOverlayShape(overlayRadius: 14),
-                          activeTrackColor: theme.colorScheme.primary,
-                          inactiveTrackColor: theme.colorScheme.surfaceContainerHighest,
-                          thumbColor: theme.colorScheme.primary,
-                        ),
-                        child: Slider(
-                          value: _position.clamp(0.0, _duration > 0 ? _duration : 0.0),
-                          min: 0.0,
-                          max: _duration > 0 ? _duration : 0.0,
-                          onChangeStart: (_) {
-                            setState(() {
-                              _isSeeking = true;
-                            });
-                          },
-                          onChanged: (val) {
-                            setState(() {
-                              _position = val;
-                            });
-                          },
-                          onChangeEnd: (val) async {
-                            await _seek(val);
-                            setState(() {
-                              _isSeeking = false;
-                            });
-                          },
-                        ),
+                // Transport Controls
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                  children: [
+                    // Stop button
+                    CircleAvatar(
+                      radius: 26,
+                      backgroundColor: theme.colorScheme.surfaceContainerHighest,
+                      foregroundColor: Colors.white,
+                      child: IconButton(
+                        iconSize: 22,
+                        icon: const Icon(Icons.stop),
+                        onPressed: _stop,
                       ),
-                      Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 16.0),
-                        child: Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                          children: [
-                            Text(
-                              _formatDuration(_position),
-                              style: theme.textTheme.bodySmall,
-                            ),
-                            Text(
-                              _formatDuration(_duration),
-                              style: theme.textTheme.bodySmall,
-                            ),
-                          ],
-                        ),
+                    ),
+                    
+                    // Prev button
+                    IconButton(
+                      iconSize: 28,
+                      icon: const Icon(Icons.skip_previous),
+                      color: Colors.white70,
+                      onPressed: _prev,
+                    ),
+                    
+                    // Play/Pause button
+                    CircleAvatar(
+                      radius: 36,
+                      backgroundColor: theme.colorScheme.primary,
+                      foregroundColor: Colors.white,
+                      child: IconButton(
+                        iconSize: 36,
+                        icon: Icon(_isPlaying ? Icons.pause : Icons.play_arrow),
+                        onPressed: _togglePlayPause,
                       ),
-                    ],
+                    ),
+                    
+                    // Next button
+                    IconButton(
+                      iconSize: 28,
+                      icon: const Icon(Icons.skip_next),
+                      color: Colors.white70,
+                      onPressed: _next,
+                    ),
+                    
+                    // Repeat mode button
+                    CircleAvatar(
+                      radius: 26,
+                      backgroundColor: theme.colorScheme.surfaceContainerHighest,
+                      foregroundColor: Colors.white,
+                      child: IconButton(
+                        iconSize: 20,
+                        icon: const Icon(Icons.repeat),
+                        onPressed: () {},
+                      ),
+                    ),
+                  ],
+                ),
+
+                const SizedBox(height: 24),
+
+                // Bottom Action Strip
+                Container(
+                  padding: const EdgeInsets.symmetric(vertical: 6),
+                  decoration: BoxDecoration(
+                    color: theme.colorScheme.surfaceContainerLow,
+                    borderRadius: BorderRadius.circular(16),
                   ),
-
-                  const SizedBox(height: 24),
-
-                  // Transport controls row (Exactly matching screenshot 3!)
-                  Row(
+                  child: Row(
                     mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                     children: [
-                      // Stop button (Grey circle container containing white square stop icon)
-                      CircleAvatar(
-                        radius: 26,
-                        backgroundColor: theme.colorScheme.surfaceContainerHighest,
-                        foregroundColor: Colors.white,
-                        child: IconButton(
-                          iconSize: 22,
-                          icon: const Icon(Icons.stop),
-                          onPressed: _stop,
-                        ),
-                      ),
-                      
-                      // Prev button (Grey icon)
                       IconButton(
-                        iconSize: 28,
-                        icon: const Icon(Icons.skip_previous),
-                        color: theme.colorScheme.onSurfaceVariant,
-                        onPressed: _prev,
-                      ),
-                      
-                      // Play/Pause button (Large blue circle containing white play/pause)
-                      CircleAvatar(
-                        radius: 36,
-                        backgroundColor: theme.colorScheme.primary,
-                        foregroundColor: Colors.white,
-                        child: IconButton(
-                          iconSize: 36,
-                          icon: Icon(_isPlaying ? Icons.pause : Icons.play_arrow),
-                          onPressed: _togglePlayPause,
+                        icon: Icon(
+                          Icons.analytics,
+                          color: _showVisualizer ? theme.colorScheme.primary : Colors.white54,
                         ),
+                        tooltip: 'Visualizer Mode',
+                        onPressed: () {
+                          setState(() {
+                            _showVisualizer = !_showVisualizer;
+                          });
+                          if (_showVisualizer) {
+                            _startVisualizerPolling();
+                          } else {
+                            _visualizerTimer?.cancel();
+                          }
+                        },
                       ),
-                      
-                      // Next button (Grey icon)
                       IconButton(
-                        iconSize: 28,
-                        icon: const Icon(Icons.skip_next),
-                        color: theme.colorScheme.onSurfaceVariant,
-                        onPressed: _next,
+                        icon: const Icon(Icons.settings, color: Colors.white70),
+                        tooltip: 'Core Settings',
+                        onPressed: () {},
                       ),
-                      
-                      // Repeat mode button (Grey circle containing loop icon)
-                      CircleAvatar(
-                        radius: 26,
-                        backgroundColor: theme.colorScheme.surfaceContainerHighest,
-                        foregroundColor: Colors.white,
-                        child: IconButton(
-                          iconSize: 20,
-                          icon: const Icon(Icons.repeat),
-                          onPressed: () {},
-                        ),
+                      IconButton(
+                        icon: const Icon(Icons.playlist_play, color: Colors.white70),
+                        tooltip: 'Playlist',
+                        onPressed: () {},
+                      ),
+                      IconButton(
+                        icon: const Icon(Icons.star_border, color: Colors.white70),
+                        tooltip: 'Favorite',
+                        onPressed: () {},
+                      ),
+                      IconButton(
+                        icon: const Icon(Icons.info_outline, color: Colors.white70),
+                        tooltip: 'Track Info',
+                        onPressed: () {},
+                      ),
+                      IconButton(
+                        icon: const Icon(Icons.tune, color: Colors.white70),
+                        tooltip: 'Equalizer / Effects',
+                        onPressed: () {},
+                      ),
+                      IconButton(
+                        icon: const Icon(Icons.waves, color: Colors.white70),
+                        tooltip: 'Channel Controls',
+                        onPressed: () {},
                       ),
                     ],
                   ),
-
-                  const SizedBox(height: 36),
-
-                  // Bottom Action Strip (Exactly matching the 7 icons in screenshot 3!)
-                  Container(
-                    padding: const EdgeInsets.symmetric(vertical: 8),
-                    decoration: BoxDecoration(
-                      color: theme.colorScheme.surfaceContainerLow,
-                      borderRadius: BorderRadius.circular(16),
-                    ),
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                      children: [
-                        IconButton(
-                          icon: const Icon(Icons.analytics_outlined),
-                          tooltip: 'Visualizer Mode',
-                          onPressed: () {},
-                        ),
-                        IconButton(
-                          icon: const Icon(Icons.settings),
-                          tooltip: 'Core Settings',
-                          onPressed: () {},
-                        ),
-                        IconButton(
-                          icon: const Icon(Icons.playlist_play),
-                          tooltip: 'Playlist',
-                          onPressed: () {},
-                        ),
-                        IconButton(
-                          icon: const Icon(Icons.star_border),
-                          tooltip: 'Favorite',
-                          onPressed: () {},
-                        ),
-                        IconButton(
-                          icon: const Icon(Icons.info_outline),
-                          tooltip: 'Track Info',
-                          onPressed: () {},
-                        ),
-                        IconButton(
-                          icon: const Icon(Icons.tune),
-                          tooltip: 'Equalizer / Effects',
-                          onPressed: () {},
-                        ),
-                        IconButton(
-                          icon: const Icon(Icons.waves),
-                          tooltip: 'Channel Controls',
-                          onPressed: () {},
-                        ),
-                      ],
-                    ),
-                  ),
-                  
-                  const SizedBox(height: 24),
-                ],
-              ),
+                ),
+                
+                const SizedBox(height: 12),
+              ],
             ),
           ),
         ],

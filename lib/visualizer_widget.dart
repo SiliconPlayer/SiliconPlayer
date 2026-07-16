@@ -53,10 +53,13 @@ class _VisualizerPainter extends CustomPainter {
   }
 
   void _drawBars(Canvas canvas, Size size, List<double> data) {
+    if (size.width <= 0 || size.height <= 0) return;
     final barCount = data.length;
+    if (barCount == 0) return;
+
     final spacing = 2.0;
     final totalSpacing = spacing * (barCount - 1);
-    final barWidth = (size.width - totalSpacing) / barCount;
+    final barWidth = ((size.width - totalSpacing) / barCount).clamp(0.1, double.infinity);
 
     final paint = Paint()
       ..style = PaintingStyle.fill;
