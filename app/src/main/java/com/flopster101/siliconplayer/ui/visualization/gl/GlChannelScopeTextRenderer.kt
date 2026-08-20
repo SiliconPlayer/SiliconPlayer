@@ -1,0 +1,437 @@
+package com.flopster101.siliconplayer.ui.visualization.gl
+
+import android.content.Context
+import android.graphics.Typeface
+import androidx.core.content.res.ResourcesCompat
+import com.flopster101.siliconplayer.R
+import com.flopster101.siliconplayer.VisualizationChannelScopeLayout
+import com.flopster101.siliconplayer.VisualizationChannelScopeTextAnchor
+import com.flopster101.siliconplayer.VisualizationChannelScopeTextFont
+import com.flopster101.siliconplayer.VisualizationNoteNameFormat
+import com.flopster101.siliconplayer.NativeBridge
+import com.flopster101.siliconplayer.ui.visualization.channel.ChannelScopeChannelTextState
+import java.nio.FloatBuffer
+import kotlin.math.ceil
+import kotlin.math.max
+import kotlin.math.min
+
+/**
+ * Palette colors (ARGB integers) for OpenGL channel scope text rendering.
+ */
+data class GlChannelScopeTextPalette(
+    val channelArgb: Int,
+    val noteArgb: Int,
+    val volumeArgb: Int,
+    val effectArgb: Int,
+    val instrumentOrSampleArgb: Int,
+    val separatorArgb: Int
+)
+
+/**
+ * Frame parameters for channel scope text rendering in OpenGL.
+ */
+data class GlChannelScopeTextFrame(
+    val channelCount: Int,
+    val channelTextStates: List<ChannelScopeChannelTextState>,
+    val instrumentNamesByIndex: Map<Int, String>,
+    val sampleNamesByIndex: Map<Int, String>,
+    val chipNamesByChannelIndex: Map<Int, String>,
+    val layoutStrategy: VisualizationChannelScopeLayout,
+    val anchor: VisualizationChannelScopeTextAnchor,
+    val paddingPx: Float,
+    val textSizeSp: Int,
+    val density: Float,
+    val hideWhenOverflow: Boolean,
+    val textShadowEnabled: Boolean,
+    val textFont: VisualizationChannelScopeTextFont,
+    val noteFormat: VisualizationNoteNameFormat,
+    val showChannel: Boolean,
+    val showNote: Boolean,
+    val showVolume: Boolean,
+    val showEffectPrimary: Boolean,
+    val showEffectSecondary: Boolean,
+    val showChip: Boolean,
+    val showInstrument: Boolean,
+    val showSample: Boolean,
+    val palette: GlChannelScopeTextPalette
+)
+
+/**
+ * High-performance batched OpenGL text renderer for Channel Scope view.
+ */
+internal class GlChannelScopeTextRenderer(private val context: Context) {
+    private var fontAtlas: GlFontAtlas? = null
+    private var currentFont: VisualizationChannelScopeTextFont? = null
+    private val textProgram = GlTextProgram()
+    private val batchBuilder = GlTextBatchBuilder(1024)
+    private var textVertexBuffer: FloatBuffer? = null
+    private var vertexCount: Int = 0
+
+    fun onSurfaceCreated() {
+        textProgram.init()
+    }
+
+    fun release() {
+        textProgram.release()
+        fontAtlas?.release()
+        fontAtlas = null
+        currentFont = null
+        textVertexBuffer = null
+        vertexCount = 0
+    }
+
+    private fun ensureAtlas(font: VisualizationChannelScopeTextFont) {
+        if (fontAtlas != null && currentFont == font) return
+        fontAtlas?.release()
+        val typeface = resolveTypeface(context, font)
+        val atlas = GlFontAtlas(typeface = typeface, baseFontSizePx = 32f)
+        atlas.initGl()
+        fontAtlas = atlas
+        currentFont = font
+    }
+
+    fun buildGeometry(
+        frame: GlChannelScopeTextFrame,
+        surfaceWidth: Float,
+        surfaceHeight: Float
+    ) {
+        val channels = frame.channelCount
+        if (channels <= 0 || surfaceWidth <= 0f || surfaceHeight <= 0f) {
+            vertexCount = 0
+            return
+        }
+
+        ensureAtlas(frame.textFont)
+        val atlas = fontAtlas ?: return
+
+        val (columns, rows) = resolveChannelGrid(channels, frame.layoutStrategy)
+        val safeCols = columns.coerceAtLeast(1)
+        val safeRows = rows.coerceAtLeast(1)
+        val cellWidth = surfaceWidth / safeCols.toFloat()
+        val cellHeight = surfaceHeight / safeRows.toFloat()
+
+        val density = frame.density.coerceAtLeast(1f)
+        val selectedTextSizeSp = frame.textSizeSp.coerceIn(6, 22)
+        val selectedTextSizePx = selectedTextSizeSp.toFloat() * density
+        val scale = selectedTextSizePx / atlas.baseFontSizePx
+        val lineHeightPx = atlas.lineHeightPx * scale
+        val padding = frame.paddingPx.coerceAtLeast(2f)
+
+        batchBuilder.clear()
+        val sideCounts = IntArray(2)
+
+        for (col in 0 until safeCols) {
+            for (row in 0 until safeRows) {
+                val channel = (col * safeRows) + row
+                if (channel >= channels) continue
+
+                val cellLeft = col * cellWidth
+                val cellTop = row * cellHeight
+                val cellRight = cellLeft + cellWidth
+                val cellBottom = cellTop + cellHeight
+
+                val fields = buildChannelFields(
+                    channel = channel,
+                    state = frame.channelTextStates.getOrNull(channel),
+                    instrumentNamesByIndex = frame.instrumentNamesByIndex,
+                    sampleNamesByIndex = frame.sampleNamesByIndex,
+                    chipNamesByChannelIndex = frame.chipNamesByChannelIndex,
+                    noteFormat = frame.noteFormat,
+                    showChannel = frame.showChannel,
+                    showNote = frame.showNote,
+                    showVolume = frame.showVolume,
+                    showEffectPrimary = frame.showEffectPrimary,
+                    showEffectSecondary = frame.showEffectSecondary,
+                    showChip = frame.showChip,
+                    showInstrument = frame.showInstrument,
+                    showSample = frame.showSample,
+                    sideCounts = sideCounts
+                )
+
+                renderChannelCellText(
+                    atlas = atlas,
+                    fields = fields,
+                    cellLeft = cellLeft,
+                    cellTop = cellTop,
+                    cellRight = cellRight,
+                    cellBottom = cellBottom,
+                    anchor = frame.anchor,
+                    padding = padding,
+                    scale = scale,
+                    lineHeightPx = lineHeightPx,
+                    palette = frame.palette,
+                    shadow = frame.textShadowEnabled
+                )
+            }
+        }
+
+        vertexCount = batchBuilder.count
+        if (vertexCount > 0) {
+            textVertexBuffer = batchBuilder.uploadToBuffer(textVertexBuffer)
+        }
+    }
+
+    fun draw(surfaceWidth: Float, surfaceHeight: Float) {
+        val atlas = fontAtlas ?: return
+        val buffer = textVertexBuffer ?: return
+        if (vertexCount <= 0 || !textProgram.isReady) return
+
+        textProgram.draw(
+            buffer = buffer,
+            vertexCount = vertexCount,
+            atlas = atlas,
+            surfaceWidth = surfaceWidth,
+            surfaceHeight = surfaceHeight
+        )
+    }
+
+    private fun renderChannelCellText(
+        atlas: GlFontAtlas,
+        fields: GlChannelTextFields,
+        cellLeft: Float,
+        cellTop: Float,
+        cellRight: Float,
+        cellBottom: Float,
+        anchor: VisualizationChannelScopeTextAnchor,
+        padding: Float,
+        scale: Float,
+        lineHeightPx: Float,
+        palette: GlChannelScopeTextPalette,
+        shadow: Boolean
+    ) {
+        // Collect tokens in order: [channel, note, volume, effect1, effect2, chip/instrument]
+        val tokens = ArrayList<GlTextToken>(6)
+        fields.channel?.let { tokens.add(GlTextToken(it, palette.channelArgb)) }
+        fields.note?.let { tokens.add(GlTextToken(it, palette.noteArgb)) }
+        fields.volume?.let { tokens.add(GlTextToken(it, palette.volumeArgb)) }
+        for (eff in fields.effects) {
+            tokens.add(GlTextToken(eff, palette.effectArgb))
+        }
+        fields.chip?.let { tokens.add(GlTextToken(it, palette.channelArgb)) }
+        fields.instrumentOrSample?.let { tokens.add(GlTextToken(it, palette.instrumentOrSampleArgb)) }
+
+        if (tokens.isEmpty()) return
+
+        val spaceWidth = atlas.measureTextWidth(" ", scale)
+        val totalWidth = tokens.sumOf { atlas.measureTextWidth(it.text, scale).toDouble() }.toFloat() +
+                (tokens.size - 1).coerceAtLeast(0) * spaceWidth
+
+        val cellW = cellRight - cellLeft
+        val cellH = cellBottom - cellTop
+        val paddingX = padding
+        val paddingTop = (padding * 0.42f).coerceAtLeast(1f)
+        val paddingBottom = padding
+
+        val (originX, originY) = when (anchor) {
+            VisualizationChannelScopeTextAnchor.TopLeft -> {
+                (cellLeft + paddingX) to (cellTop + paddingTop)
+            }
+            VisualizationChannelScopeTextAnchor.TopCenter -> {
+                (cellLeft + (cellW - totalWidth) * 0.5f).coerceAtLeast(cellLeft + paddingX) to (cellTop + paddingTop)
+            }
+            VisualizationChannelScopeTextAnchor.TopRight -> {
+                (cellRight - totalWidth - paddingX).coerceAtLeast(cellLeft + paddingX) to (cellTop + paddingTop)
+            }
+            VisualizationChannelScopeTextAnchor.BottomLeft -> {
+                (cellLeft + paddingX) to (cellBottom - lineHeightPx - paddingBottom)
+            }
+            VisualizationChannelScopeTextAnchor.BottomCenter -> {
+                (cellLeft + (cellW - totalWidth) * 0.5f).coerceAtLeast(cellLeft + paddingX) to (cellBottom - lineHeightPx - paddingBottom)
+            }
+            VisualizationChannelScopeTextAnchor.BottomRight -> {
+                (cellRight - totalWidth - paddingX).coerceAtLeast(cellLeft + paddingX) to (cellBottom - lineHeightPx - paddingBottom)
+            }
+        }
+
+        var cursorX = originX
+        for (token in tokens) {
+            val a = ((token.colorArgb ushr 24) and 0xFF) / 255f
+            val r = ((token.colorArgb ushr 16) and 0xFF) / 255f
+            val g = ((token.colorArgb ushr 8) and 0xFF) / 255f
+            val b = (token.colorArgb and 0xFF) / 255f
+
+            val adv = batchBuilder.addText(
+                atlas = atlas,
+                text = token.text,
+                startX = cursorX,
+                startY = originY,
+                scale = scale,
+                r = r,
+                g = g,
+                b = b,
+                a = a,
+                shadow = shadow
+            )
+            cursorX += adv + spaceWidth
+        }
+    }
+
+    private data class GlTextToken(val text: String, val colorArgb: Int)
+
+    private data class GlChannelTextFields(
+        val channel: String?,
+        val note: String?,
+        val volume: String?,
+        val effects: List<String>,
+        val chip: String?,
+        val instrumentOrSample: String?
+    )
+
+    private fun buildChannelFields(
+        channel: Int,
+        state: ChannelScopeChannelTextState?,
+        instrumentNamesByIndex: Map<Int, String>,
+        sampleNamesByIndex: Map<Int, String>,
+        chipNamesByChannelIndex: Map<Int, String>,
+        noteFormat: VisualizationNoteNameFormat,
+        showChannel: Boolean,
+        showNote: Boolean,
+        showVolume: Boolean,
+        showEffectPrimary: Boolean,
+        showEffectSecondary: Boolean,
+        showChip: Boolean,
+        showInstrument: Boolean,
+        showSample: Boolean,
+        sideCounts: IntArray
+    ): GlChannelTextFields {
+        val effects = ArrayList<String>(2)
+        if (showEffectPrimary) {
+            effects += formatEffect(
+                state?.effectPrimaryLetterAscii ?: 0,
+                state?.effectPrimaryParam ?: -1
+            )
+        }
+        if (showEffectSecondary) {
+            effects += formatEffect(
+                state?.effectSecondaryLetterAscii ?: 0,
+                state?.effectSecondaryParam ?: -1
+            )
+        }
+        val channelLabel = if (showChannel) {
+            resolveChannelLabel(channel, state, sideCounts, chipNamesByChannelIndex)
+        } else null
+
+        val chipLabel = if (showChip) {
+            formatChipName(channel, state, chipNamesByChannelIndex)
+        } else null
+
+        return GlChannelTextFields(
+            channel = channelLabel,
+            note = if (showNote) (formatNoteName(state?.note ?: -1, noteFormat) ?: "--") else null,
+            volume = if (showVolume) formatVolume(state?.volume ?: 0) else null,
+            effects = effects,
+            chip = chipLabel?.takeUnless { it == channelLabel },
+            instrumentOrSample = if (showInstrument || showSample) {
+                formatInstrumentOrSample(state, instrumentNamesByIndex, sampleNamesByIndex, showInstrument, showSample)
+            } else null
+        )
+    }
+
+    private fun resolveChannelLabel(
+        channel: Int,
+        state: ChannelScopeChannelTextState?,
+        sideCounts: IntArray,
+        channelNamesByChannelIndex: Map<Int, String>
+    ): String {
+        val preferredIndex = state?.channelIndex ?: channel
+        val explicitName = channelNamesByChannelIndex[preferredIndex] ?: channelNamesByChannelIndex[channel]
+        if (!explicitName.isNullOrBlank()) return explicitName
+
+        val flags = state?.flags ?: 0
+        val isLeft = (flags and NativeBridge.CHANNEL_SCOPE_TEXT_FLAG_AMIGA_LEFT) != 0
+        val isRight = (flags and NativeBridge.CHANNEL_SCOPE_TEXT_FLAG_AMIGA_RIGHT) != 0
+        if (isLeft) {
+            sideCounts[0]++
+            return if (sideCounts[0] <= 2) "L${sideCounts[0]}" else "Ch ${channel + 1}"
+        }
+        if (isRight) {
+            sideCounts[1]++
+            return if (sideCounts[1] <= 2) "R${sideCounts[1]}" else "Ch ${channel + 1}"
+        }
+        return "Ch ${channel + 1}"
+    }
+
+    private fun formatNoteName(note: Int, format: VisualizationNoteNameFormat): String? {
+        if (note <= 0) return null
+        val idx = (note - 1) % 12
+        val octave = (note - 1) / 12
+        val names = if (format == VisualizationNoteNameFormat.International) {
+            arrayOf("Do", "Do#", "Re", "Re#", "Mi", "Fa", "Fa#", "Sol", "Sol#", "La", "La#", "Si")
+        } else {
+            arrayOf("C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B")
+        }
+        return "${names[idx]}$octave"
+    }
+
+    private fun formatVolume(volume: Int): String {
+        return "V" + volume.coerceIn(0, 999).toString().padStart(3, '0')
+    }
+
+    private fun formatEffect(effectLetterAscii: Int, effectParam: Int): String {
+        if (effectLetterAscii <= 0 || effectParam < 0) return "---"
+        if (effectLetterAscii >= 0x100) {
+            val codeHex = (effectLetterAscii and 0xFF).toString(16).uppercase().padStart(2, '0')
+            val paramHex = effectParam.coerceIn(0, 255).toString(16).uppercase().padStart(2, '0')
+            return codeHex + paramHex
+        }
+        val effectChar = effectLetterAscii.toChar()
+        val paramHex = effectParam.coerceIn(0, 255).toString(16).uppercase().padStart(2, '0')
+        return "$effectChar$paramHex"
+    }
+
+    private fun formatInstrumentOrSample(
+        state: ChannelScopeChannelTextState?,
+        instrumentNamesByIndex: Map<Int, String>,
+        sampleNamesByIndex: Map<Int, String>,
+        showInstrument: Boolean,
+        showSample: Boolean
+    ): String? {
+        if (state == null) return null
+        val parts = ArrayList<String>(2)
+        if (showInstrument && state.instrumentIndex > 0) {
+            val name = instrumentNamesByIndex[state.instrumentIndex].orEmpty()
+            parts += if (name.isNotBlank()) "I#${state.instrumentIndex} $name" else "I#${state.instrumentIndex}"
+        }
+        if (showSample && state.sampleIndex > 0) {
+            val name = sampleNamesByIndex[state.sampleIndex].orEmpty()
+            parts += if (name.isNotBlank()) "S#${state.sampleIndex} $name" else "S#${state.sampleIndex}"
+        }
+        return parts.takeIf { it.isNotEmpty() }?.joinToString(" / ")
+    }
+
+    private fun formatChipName(
+        channel: Int,
+        state: ChannelScopeChannelTextState?,
+        chipNamesByChannelIndex: Map<Int, String>
+    ): String? {
+        val preferredIndex = state?.channelIndex ?: channel
+        return (chipNamesByChannelIndex[preferredIndex] ?: chipNamesByChannelIndex[channel])?.takeIf { it.isNotBlank() }
+    }
+
+    private fun resolveChannelGrid(channels: Int, strategy: VisualizationChannelScopeLayout): Pair<Int, Int> {
+        if (channels <= 1) return 1 to 1
+        return when (strategy) {
+            VisualizationChannelScopeLayout.ColumnFirst -> {
+                val targetRows = 7
+                val cols = if (channels <= 4) 1 else ceil(channels / targetRows.toDouble()).toInt().coerceAtLeast(2)
+                val rows = ceil(channels / cols.toDouble()).toInt().coerceAtLeast(1)
+                cols to rows
+            }
+            VisualizationChannelScopeLayout.BalancedTwoColumn -> {
+                val cols = ceil(kotlin.math.sqrt(channels.toDouble())).toInt().coerceAtLeast(1)
+                val rows = ceil(channels / cols.toDouble()).toInt().coerceAtLeast(1)
+                cols to rows
+            }
+        }
+    }
+
+    private fun resolveTypeface(context: Context, font: VisualizationChannelScopeTextFont): Typeface {
+        return when (font) {
+            VisualizationChannelScopeTextFont.System -> Typeface.MONOSPACE
+            VisualizationChannelScopeTextFont.RaccoonSerif -> ResourcesCompat.getFont(context, R.font.raccoon_serif_base) ?: Typeface.MONOSPACE
+            VisualizationChannelScopeTextFont.RaccoonMono -> ResourcesCompat.getFont(context, R.font.raccoon_serif_mono) ?: Typeface.MONOSPACE
+            VisualizationChannelScopeTextFont.RetroCuteMono -> ResourcesCompat.getFont(context, R.font.retro_pixel_cute_mono) ?: Typeface.MONOSPACE
+            VisualizationChannelScopeTextFont.RetroThick -> ResourcesCompat.getFont(context, R.font.retro_pixel_thick) ?: Typeface.MONOSPACE
+        }
+    }
+}

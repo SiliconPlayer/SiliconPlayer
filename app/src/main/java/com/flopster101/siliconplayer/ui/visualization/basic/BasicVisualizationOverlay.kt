@@ -16,6 +16,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.graphics.luminance
@@ -343,6 +344,45 @@ fun BasicVisualizationOverlay(
 
         VisualizationMode.ChannelScope -> {
             Box(modifier = modifier.clip(channelScopeCornerRadiusShape)) {
+                val isGlBackend = channelScopeRenderBackend == VisualizationRenderBackend.OpenGlTexture ||
+                        channelScopeRenderBackend == VisualizationRenderBackend.OpenGlSurface
+                val glTextFrame = if (isGlBackend && channelScopeTextEnabled && channelScopeHistories.isNotEmpty()) {
+                    val density = LocalDensity.current.density
+                    val paddingPx = with(LocalDensity.current) { channelScopeTextPaddingDp.dp.toPx() }
+                    com.flopster101.siliconplayer.ui.visualization.gl.GlChannelScopeTextFrame(
+                        channelCount = channelScopeHistories.size,
+                        channelTextStates = channelScopeTextStates,
+                        instrumentNamesByIndex = channelScopeInstrumentNamesByIndex,
+                        sampleNamesByIndex = channelScopeSampleNamesByIndex,
+                        chipNamesByChannelIndex = channelScopeChipNamesByChannelIndex,
+                        layoutStrategy = channelScopeLayout,
+                        anchor = channelScopeTextAnchor,
+                        paddingPx = paddingPx,
+                        textSizeSp = channelScopeTextSizeSp,
+                        density = density,
+                        hideWhenOverflow = channelScopeTextHideWhenOverflow,
+                        textShadowEnabled = channelScopeTextShadowEnabled,
+                        textFont = channelScopeTextFont,
+                        noteFormat = channelScopeTextNoteFormat,
+                        showChannel = channelScopeTextShowChannel,
+                        showNote = channelScopeTextShowNote,
+                        showVolume = channelScopeTextShowVolume,
+                        showEffectPrimary = channelScopeTextShowEffectPrimary,
+                        showEffectSecondary = channelScopeTextShowEffectSecondary,
+                        showChip = channelScopeTextShowChip,
+                        showInstrument = channelScopeTextShowInstrument,
+                        showSample = channelScopeTextShowSample,
+                        palette = com.flopster101.siliconplayer.ui.visualization.gl.GlChannelScopeTextPalette(
+                            channelArgb = channelScopeTextPalette.channel.toArgb(),
+                            noteArgb = channelScopeTextPalette.note.toArgb(),
+                            volumeArgb = channelScopeTextPalette.volume.toArgb(),
+                            effectArgb = channelScopeTextPalette.effect.toArgb(),
+                            instrumentOrSampleArgb = channelScopeTextPalette.instrumentOrSample.toArgb(),
+                            separatorArgb = channelScopeTextPalette.separator.toArgb()
+                        )
+                    )
+                } else null
+
                 when (channelScopeRenderBackend) {
                     VisualizationRenderBackend.Compose -> {
                         ChannelScopeVisualization(
@@ -373,6 +413,7 @@ fun BasicVisualizationOverlay(
                             triggerIndices = channelScopeTriggerIndices,
                             layoutStrategy = channelScopeLayout,
                             outerCornerRadiusPx = channelScopeCornerRadiusPx,
+                            textFrame = glTextFrame,
                             onFrameStats = channelScopeOnFrameStats,
                             modifier = Modifier.fillMaxSize()
                         )
@@ -391,12 +432,18 @@ fun BasicVisualizationOverlay(
                             triggerIndices = channelScopeTriggerIndices,
                             layoutStrategy = channelScopeLayout,
                             outerCornerRadiusPx = channelScopeCornerRadiusPx,
+                            textFrame = glTextFrame,
                             onFrameStats = channelScopeOnFrameStats,
                             modifier = Modifier.fillMaxSize()
                         )
                     }
                 }
-                if ((channelScopeTextEnabled || channelScopeTextVuEnabled) && channelScopeHistories.isNotEmpty()) {
+                val needComposeOverlay = if (isGlBackend) {
+                    channelScopeTextVuEnabled && channelScopeHistories.isNotEmpty()
+                } else {
+                    (channelScopeTextEnabled || channelScopeTextVuEnabled) && channelScopeHistories.isNotEmpty()
+                }
+                if (needComposeOverlay) {
                     ChannelScopeTextOverlay(
                         channelHistories = channelScopeHistories,
                         channelTextStates = channelScopeTextStates,
@@ -411,14 +458,14 @@ fun BasicVisualizationOverlay(
                         textShadowEnabled = channelScopeTextShadowEnabled,
                         textFont = channelScopeTextFont,
                         noteFormat = channelScopeTextNoteFormat,
-                        showChannel = channelScopeTextEnabled && channelScopeTextShowChannel,
-                        showNote = channelScopeTextEnabled && channelScopeTextShowNote,
-                        showVolume = channelScopeTextEnabled && channelScopeTextShowVolume,
-                        showEffectPrimary = channelScopeTextEnabled && channelScopeTextShowEffectPrimary,
-                        showEffectSecondary = channelScopeTextEnabled && channelScopeTextShowEffectSecondary,
-                        showChip = channelScopeTextEnabled && channelScopeTextShowChip,
-                        showInstrument = channelScopeTextEnabled && channelScopeTextShowInstrument,
-                        showSample = channelScopeTextEnabled && channelScopeTextShowSample,
+                        showChannel = !isGlBackend && channelScopeTextEnabled && channelScopeTextShowChannel,
+                        showNote = !isGlBackend && channelScopeTextEnabled && channelScopeTextShowNote,
+                        showVolume = !isGlBackend && channelScopeTextEnabled && channelScopeTextShowVolume,
+                        showEffectPrimary = !isGlBackend && channelScopeTextEnabled && channelScopeTextShowEffectPrimary,
+                        showEffectSecondary = !isGlBackend && channelScopeTextEnabled && channelScopeTextShowEffectSecondary,
+                        showChip = !isGlBackend && channelScopeTextEnabled && channelScopeTextShowChip,
+                        showInstrument = !isGlBackend && channelScopeTextEnabled && channelScopeTextShowInstrument,
+                        showSample = !isGlBackend && channelScopeTextEnabled && channelScopeTextShowSample,
                         vuEnabled = channelScopeTextVuEnabled,
                         vuAnchor = channelScopeTextVuAnchor,
                         vuColor = channelScopeVuColor,

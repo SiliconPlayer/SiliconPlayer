@@ -42,6 +42,7 @@ fun ChannelScopeGlTextureVisualization(
     triggerIndices: IntArray,
     layoutStrategy: com.flopster101.siliconplayer.VisualizationChannelScopeLayout,
     outerCornerRadiusPx: Float = 0f,
+    textFrame: GlChannelScopeTextFrame? = null,
     onFrameStats: ((fps: Int, frameMs: Int) -> Unit)? = null,
     modifier: Modifier = Modifier
 ) {
@@ -69,7 +70,8 @@ fun ChannelScopeGlTextureVisualization(
                     lineColorArgb = lineColor.toArgb(),
                     gridColorArgb = gridColor.toArgb(),
                     lineWidthPx = lineWidthPx.coerceAtLeast(1f),
-                    gridWidthPx = gridWidthPx.coerceAtLeast(0.5f)
+                    gridWidthPx = gridWidthPx.coerceAtLeast(0.5f),
+                    textFrame = textFrame
                 )
             )
         }
@@ -97,7 +99,7 @@ fun ChannelScopeGlTextureVisualization(
     }
 }
 
-private data class ChannelScopeGlTextureFrame(
+internal data class ChannelScopeGlTextureFrame(
     val channelHistories: List<FloatArray>,
     val triggerIndices: IntArray,
     val triggerModeNative: Int,
@@ -108,7 +110,8 @@ private data class ChannelScopeGlTextureFrame(
     val lineColorArgb: Int,
     val gridColorArgb: Int,
     val lineWidthPx: Float,
-    val gridWidthPx: Float
+    val gridWidthPx: Float,
+    val textFrame: GlChannelScopeTextFrame? = null
 )
 
 private class ChannelScopeGlTextureView(context: Context) : TextureView(context), TextureView.SurfaceTextureListener {
@@ -162,6 +165,7 @@ private class ChannelScopeGlTextureView(context: Context) : TextureView(context)
         stopRenderThread()
         val surface = Surface(surfaceTexture)
         val thread = ChannelScopeTextureRenderThread(
+            context = context,
             outputSurface = surface,
             initialWidth = width.coerceAtLeast(1),
             initialHeight = height.coerceAtLeast(1),
@@ -188,6 +192,7 @@ private class ChannelScopeGlTextureView(context: Context) : TextureView(context)
 }
 
 private class ChannelScopeTextureRenderThread(
+    private val context: Context,
     private val outputSurface: Surface,
     initialWidth: Int,
     initialHeight: Int,
@@ -205,7 +210,7 @@ private class ChannelScopeTextureRenderThread(
     private var eglDisplay: EGLDisplay = EGL14.EGL_NO_DISPLAY
     private var eglContext: EGLContext = EGL14.EGL_NO_CONTEXT
     private var eglSurface: EGLSurface = EGL14.EGL_NO_SURFACE
-    private val coreRenderer = ChannelScopeGlCoreRenderer()
+    private val coreRenderer = ChannelScopeGlCoreRenderer(context)
     private data class LoopState(
         val frame: ChannelScopeGlTextureFrame?,
         val frameSequence: Long,
@@ -355,7 +360,7 @@ private class ChannelScopeTextureRenderThread(
     }
 }
 
-private class ChannelScopeGlCoreRenderer {
+private class ChannelScopeGlCoreRenderer(private val context: Context) {
     private var surfaceWidth: Int = 1
     private var surfaceHeight: Int = 1
     private var program: Int = 0
@@ -368,6 +373,7 @@ private class ChannelScopeGlCoreRenderer {
     private var gridVertexCount: Int = 0
     private val waveformBuilder = TextureFloatLineBuilder(16_384)
     private val gridBuilder = TextureFloatLineBuilder(4_096)
+    private val textRenderer = GlChannelScopeTextRenderer(context)
     private var rendererReady: Boolean = false
     private var frameStatsCallback: ((fps: Int, frameMs: Int) -> Unit)? = null
     private var drawFrameCount: Int = 0
@@ -388,6 +394,7 @@ private class ChannelScopeGlCoreRenderer {
             GLES20.glDisable(GLES20.GL_CULL_FACE)
             GLES20.glEnable(GLES20.GL_BLEND)
             GLES20.glBlendFunc(GLES20.GL_SRC_ALPHA, GLES20.GL_ONE_MINUS_SRC_ALPHA)
+            textRenderer.onSurfaceCreated()
             true
         }.getOrElse { false }
     }
@@ -440,6 +447,11 @@ private class ChannelScopeGlCoreRenderer {
             colorArgb = frame.lineColorArgb,
             widthPx = frame.lineWidthPx
         )
+
+        frame.textFrame?.let { tf ->
+            textRenderer.buildGeometry(tf, surfaceWidth.toFloat(), surfaceHeight.toFloat())
+            textRenderer.draw(surfaceWidth.toFloat(), surfaceHeight.toFloat())
+        }
     }
 
     private fun buildGeometry(frame: ChannelScopeGlTextureFrame) {

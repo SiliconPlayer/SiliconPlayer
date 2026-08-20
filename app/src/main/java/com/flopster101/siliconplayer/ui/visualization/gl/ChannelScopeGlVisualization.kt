@@ -38,6 +38,7 @@ fun ChannelScopeGlVisualization(
     triggerIndices: IntArray,
     layoutStrategy: VisualizationChannelScopeLayout,
     outerCornerRadiusPx: Float = 0f,
+    textFrame: GlChannelScopeTextFrame? = null,
     onFrameStats: ((fps: Int, frameMs: Int) -> Unit)? = null,
     modifier: Modifier = Modifier
 ) {
@@ -65,7 +66,8 @@ fun ChannelScopeGlVisualization(
                 triggerModeNative = triggerModeNative,
                 triggerIndices = triggerIndices,
                 layoutStrategy = layoutStrategy,
-                outerCornerRadiusPx = outerCornerRadiusPx
+                outerCornerRadiusPx = outerCornerRadiusPx,
+                textFrame = textFrame
             )
         }
     )
@@ -92,7 +94,7 @@ fun ChannelScopeGlVisualization(
     }
 }
 
-private data class ChannelScopeGlFrame(
+internal data class ChannelScopeGlFrame(
     val channelHistories: List<FloatArray>,
     val triggerIndices: IntArray,
     val triggerModeNative: Int,
@@ -104,7 +106,8 @@ private data class ChannelScopeGlFrame(
     val backgroundColorArgb: Int,
     val lineWidthPx: Float,
     val gridWidthPx: Float,
-    val outerCornerRadiusPx: Float
+    val outerCornerRadiusPx: Float,
+    val textFrame: GlChannelScopeTextFrame? = null
 )
 
 private class ChannelScopeGlSurfaceView(context: Context) : GLSurfaceView(context) {
@@ -130,7 +133,8 @@ private class ChannelScopeGlSurfaceView(context: Context) : GLSurfaceView(contex
         triggerModeNative: Int,
         triggerIndices: IntArray,
         layoutStrategy: VisualizationChannelScopeLayout,
-        outerCornerRadiusPx: Float
+        outerCornerRadiusPx: Float,
+        textFrame: GlChannelScopeTextFrame? = null
     ) {
         renderer.setFrameData(
             ChannelScopeGlFrame(
@@ -145,7 +149,8 @@ private class ChannelScopeGlSurfaceView(context: Context) : GLSurfaceView(contex
                 backgroundColorArgb = backgroundColorArgb,
                 lineWidthPx = lineWidthPx.coerceAtLeast(1f),
                 gridWidthPx = gridWidthPx.coerceAtLeast(0.5f),
-                outerCornerRadiusPx = outerCornerRadiusPx.coerceAtLeast(0f)
+                outerCornerRadiusPx = outerCornerRadiusPx.coerceAtLeast(0f),
+                textFrame = textFrame
             )
         )
         requestRender()
@@ -176,6 +181,8 @@ private class ChannelScopeGlRenderer(
     private var gridBuffer: FloatBuffer? = null
     private var gridVertexCount: Int = 0
 
+    private val textRenderer = GlChannelScopeTextRenderer(owner.context)
+
     private var drawFrameCount: Int = 0
     private var drawWindowStartNs: Long = 0L
     private var lastDrawNs: Long = 0L
@@ -194,6 +201,7 @@ private class ChannelScopeGlRenderer(
             GLES20.glDisable(GLES20.GL_CULL_FACE)
             GLES20.glEnable(GLES20.GL_BLEND)
             GLES20.glBlendFunc(GLES20.GL_SRC_ALPHA, GLES20.GL_ONE_MINUS_SRC_ALPHA)
+            textRenderer.onSurfaceCreated()
             true
         }.getOrElse {
             false
@@ -259,6 +267,11 @@ private class ChannelScopeGlRenderer(
             colorArgb = data.lineColorArgb,
             widthPx = data.lineWidthPx
         )
+
+        data.textFrame?.let { tf ->
+            textRenderer.buildGeometry(tf, surfaceWidth.toFloat(), surfaceHeight.toFloat())
+            textRenderer.draw(surfaceWidth.toFloat(), surfaceHeight.toFloat())
+        }
     }
 
     fun setFrameData(data: ChannelScopeGlFrame) {
