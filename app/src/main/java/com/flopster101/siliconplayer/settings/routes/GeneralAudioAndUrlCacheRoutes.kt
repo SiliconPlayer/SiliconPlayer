@@ -138,41 +138,20 @@ internal fun GeneralAudioRouteContent(
         onSelectedPreferenceChanged = actions.onAudioBackendPreferenceChanged
     )
     val selectedBackend = state.audioBackendPreference
-    when (selectedBackend) {
-        AudioBackendPreference.AAudio -> {
-            SettingsRowSpacer()
-            AudioPerformanceModeSelectorCard(
-                selectedMode = state.audioPerformanceMode,
-                onSelectedModeChanged = actions.onAudioPerformanceModeChanged,
-                description = "AAudio stream mode. Low latency is recommended for responsive playback."
-            )
-            SettingsRowSpacer()
-            AudioBufferPresetSelectorCard(
-                selectedPreset = state.audioBufferPreset,
-                onSelectedPresetChanged = actions.onAudioBufferPresetChanged,
-                title = "AAudio buffer preset",
-                description = "AAudio buffer sizing profile. Large is the recommended default; Very large adds extra underrun headroom on slower devices."
-            )
-        }
-        AudioBackendPreference.OpenSLES -> {
-            SettingsRowSpacer()
-            AudioBufferPresetSelectorCard(
-                selectedPreset = state.audioBufferPreset,
-                onSelectedPresetChanged = actions.onAudioBufferPresetChanged,
-                title = "OpenSL ES buffer preset",
-                description = "OpenSL ES queue buffer profile. Large is the recommended default; Very large adds extra underrun headroom on slower devices."
-            )
-        }
-        AudioBackendPreference.AudioTrack -> {
-            SettingsRowSpacer()
-            AudioBufferPresetSelectorCard(
-                selectedPreset = state.audioBufferPreset,
-                onSelectedPresetChanged = actions.onAudioBufferPresetChanged,
-                title = "AudioTrack buffer preset",
-                description = "AudioTrack write buffer profile. Large is the recommended default; Very large adds extra underrun headroom on slower devices."
-            )
-        }
-    }
+    SettingsRowSpacer()
+    AudioPerformanceModeSelectorCard(
+        selectedMode = state.audioPerformanceMode,
+        onSelectedModeChanged = actions.onAudioPerformanceModeChanged,
+        title = "${selectedBackend.label} performance mode",
+        description = "Stream mode for ${selectedBackend.label}. Low latency is recommended for responsive playback; power saving reduces CPU overhead."
+    )
+    SettingsRowSpacer()
+    AudioBufferPresetSelectorCard(
+        selectedPreset = state.audioBufferPreset,
+        onSelectedPresetChanged = actions.onAudioBufferPresetChanged,
+        title = "${selectedBackend.label} buffer preset",
+        description = "Buffer sizing profile for ${selectedBackend.label}. Large is the recommended default; Very large adds extra underrun headroom on slower devices."
+    )
     SettingsRowSpacer()
     AudioResamplerSelectorCard(
         selectedPreference = state.audioResamplerPreference,

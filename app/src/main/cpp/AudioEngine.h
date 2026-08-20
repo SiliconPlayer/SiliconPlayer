@@ -1,9 +1,7 @@
 #ifndef SILICONPLAYER_AUDIOENGINE_H
 #define SILICONPLAYER_AUDIOENGINE_H
 
-#include <aaudio/AAudio.h>
-#include <SLES/OpenSLES.h>
-#include <SLES/OpenSLES_Android.h>
+#include "miniaudio.h"
 #include <cstdint>
 #include <thread>
 #include <atomic>
@@ -272,39 +270,22 @@ public:
     int getDspBitCrushBits() const;
 
 private:
-    AAudioStream *stream = nullptr;
-    SLObjectItf openSlEngineObject = nullptr;
-    SLEngineItf openSlEngine = nullptr;
-    SLObjectItf openSlOutputMixObject = nullptr;
-    SLObjectItf openSlPlayerObject = nullptr;
-    SLPlayItf openSlPlayerPlay = nullptr;
-    SLAndroidSimpleBufferQueueItf openSlBufferQueue = nullptr;
-    static constexpr int kOpenSlBufferQueueCount = 6;
-    std::array<std::vector<int16_t>, kOpenSlBufferQueueCount> openSlPcmBuffers {};
-    std::vector<float> openSlFloatBuffer;
-    size_t openSlNextBufferIndex = 0;
-    int openSlBufferFrames = 4096;
-    std::atomic<bool> openSlStopAfterCurrentBuffer { false };
-    std::thread audioTrackWriteThread;
-    // Serializes join/start/swap of audioTrackWriteThread so concurrent
-    // callers cannot both reach pthread_join on the same handle.
-    std::mutex audioTrackThreadMutex;
+    ma_context miniaudioContext {};
+    bool miniaudioContextInitialized = false;
+    ma_device miniaudioDevice {};
+    bool miniaudioDeviceInitialized = false;
+    ma_backend activeMiniaudioBackend = ma_backend_null;
+    int miniaudioBufferFrames = 4096;
     // Serializes stop/setUrl/start so a follow-up setUrl/start cannot
     // race the detached stopEngine thread and have its prefill cleared.
     std::mutex lifecycleMutex;
-    std::vector<float> audioTrackFloatBuffer;
-    std::vector<int16_t> audioTrackPcmBuffer;
-    int audioTrackBufferFrames = 4096;
-    std::atomic<bool> audioTrackStopRequested { false };
-    int aaudioBufferFrames = 0;
     int streamSampleRate = 48000;
     int streamChannelCount = 2;
     bool streamStartupPrerollPending = true;
-    std::atomic<int> openSlStartupProfile { 0 }; // 0 cold, 1 fast
     std::atomic<bool> fastTrackSwitchStartupHint { false }; // one-shot hint from UI track switching
     std::atomic<bool> outputStreamReady { false };
-    std::atomic<int> activeOutputBackend { 0 }; // 0 inactive, 1 AAudio, 2 OpenSL ES, 3 AudioTrack
-    int outputBackendPreference = 0; // 0 auto, 1 aaudio, 2 opensl, 3 audiotrack
+    std::atomic<int> activeOutputBackend { 0 }; // 0 inactive, or ma_backend value + 1
+    int outputBackendPreference = 0; // 0 auto, 1 aaudio, 2 opensl, 3 wasapi, ...
     int outputPerformanceMode = 2; // 0 auto, 1 low-latency, 2 none, 3 power-saving
     int outputBufferPreset = 3; // 0 very small, 1 small, 2 medium, 3 large, 4 very large
     int outputResamplerPreference = 1; // 1 built-in, 2 sox
@@ -421,15 +402,9 @@ private:
     void requestStreamStop();
     bool isStreamDisconnectedOrClosed() const;
     int getStreamBurstFrames() const;
-    bool createAaudioStream();
-    bool createOpenSlStream();
-    bool createAudioTrackStream();
-    void closeAaudioStream();
-    void closeOpenSlStream();
-    void closeAudioTrackStream();
+    bool createMiniaudioStream();
+    void closeMiniaudioStream();
     bool renderOutputCallbackFrames(float* outputData, int32_t numFrames, int callbackRate);
-    bool enqueueOpenSlBuffer(bool allowUnderrun = true);
-    void audioTrackRenderLoop();
 
     void createStream();
     void closeStream();
@@ -452,16 +427,12 @@ private:
     bool shouldUpdateVisualization(uint32_t* outFeatures) const;
 
     // Callback
-    static aaudio_data_callback_result_t dataCallback(
-            AAudioStream *stream,
-            void *userData,
-            void *audioData,
-            int32_t numFrames);
-    static void errorCallback(
-            AAudioStream *stream,
-            void *userData,
-            aaudio_result_t error);
-    static void openSlBufferQueueCallback(SLAndroidSimpleBufferQueueItf bufferQueue, void *context);
+    static void miniaudioDataCallback(
+            ma_device* pDevice,
+            void* pOutput,
+            const void* pInput,
+            ma_uint32 frameCount);
+    static void miniaudioStopCallback(ma_device* pDevice);
 
     float phase = 0.0f;
     std::atomic<bool> streamNeedsRebuild { false };

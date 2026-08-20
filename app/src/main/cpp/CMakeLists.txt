@@ -21,7 +21,7 @@ add_library(
         SiliconPlayerNative.cpp
         ChannelScopeSharedState.cpp
         ChannelScopeTrigger.cpp
-        AudioTrackJniBridge.cpp
+        ../../../../external/miniaudio/miniaudio.c
         AudioEngine.cpp
         AudioEngineStream.cpp
         AudioEngineRender.cpp
@@ -35,6 +35,16 @@ add_library(
         decoders/DecoderRegistry.cpp
         decoders/SdlCompat.c
         decoders/CPConvStub.c
+)
+
+target_compile_definitions(
+        siliconplayer
+        PRIVATE
+        MA_NO_DECODING
+        MA_NO_ENCODING
+        MA_NO_RESOURCE_MANAGER
+        MA_NO_NODE_GRAPH
+        MA_NO_ENGINE
 )
 
 # Android 15+ prefers 16KB page-aligned native libraries.
@@ -55,6 +65,8 @@ if (ANDROID)
 endif()
 
 include_directories(${CMAKE_SOURCE_DIR}/prebuilt/${ANDROID_ABI}/include)
+# Expose miniaudio headers from the submodule tree.
+include_directories(${CMAKE_SOURCE_DIR}/../../../../external/miniaudio)
 # Expose full libopenmpt headers (including libopenmpt_ext.hpp) from the submodule tree.
 include_directories(${CMAKE_SOURCE_DIR}/../../../../external/libopenmpt)
 # ReSID backend implementation requires libsidplayfp internal SID emulation headers.
@@ -173,12 +185,8 @@ include_directories(${CMAKE_SOURCE_DIR}/../../../../external/furnace/extern/libs
     add_library(libresid SHARED IMPORTED)
     set_target_properties(libresid PROPERTIES IMPORTED_LOCATION "${PREBUILT_DIR}/lib/libresid.so")
 
-    set(HAS_CRSID_PREBUILT FALSE)
-    if (EXISTS "${PREBUILT_DIR}/lib/libcRSID.so")
-        add_library(libcRSID SHARED IMPORTED)
-        set_target_properties(libcRSID PROPERTIES IMPORTED_LOCATION "${PREBUILT_DIR}/lib/libcRSID.so")
-        set(HAS_CRSID_PREBUILT TRUE)
-    endif()
+    add_library(libcRSID SHARED IMPORTED)
+    set_target_properties(libcRSID PROPERTIES IMPORTED_LOCATION "${PREBUILT_DIR}/lib/libcRSID.so")
 
     set(HAS_OPENSSL_PREBUILT FALSE)
     if (EXISTS "${PREBUILT_DIR}/lib/libssl.so" AND EXISTS "${PREBUILT_DIR}/lib/libcrypto.so")

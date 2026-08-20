@@ -65,7 +65,7 @@ internal fun AppNavigationPlaybackEffects(
                 AppPreferenceKeys.audioPerformanceModeForBackend(audioBackendPreference),
                 audioPerformanceMode.storageValue
             )
-        if (audioBackendPreference == AudioBackendPreference.AAudio) {
+        if (audioBackendPreference == AudioBackendPreference.AAudio || audioBackendPreference == AudioBackendPreference.Auto) {
             editor.putString(
                 AppPreferenceKeys.AUDIO_PERFORMANCE_MODE,
                 audioPerformanceMode.storageValue
@@ -80,7 +80,7 @@ internal fun AppNavigationPlaybackEffects(
                 AppPreferenceKeys.audioBufferPresetForBackend(audioBackendPreference),
                 audioBufferPreset.storageValue
             )
-        if (audioBackendPreference == AudioBackendPreference.AAudio) {
+        if (audioBackendPreference == AudioBackendPreference.AAudio || audioBackendPreference == AudioBackendPreference.Auto) {
             editor.putString(
                 AppPreferenceKeys.AUDIO_BUFFER_PRESET,
                 audioBufferPreset.storageValue

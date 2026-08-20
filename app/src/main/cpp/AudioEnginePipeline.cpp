@@ -28,7 +28,7 @@ void AudioEngine::setAudioPipelineConfig(
         int bufferPreset,
         int resamplerPreference,
         bool allowFallback) {
-    const int normalizedBackend = (backendPreference >= 0 && backendPreference <= 3) ? backendPreference : 0;
+    const int normalizedBackend = (backendPreference >= 0 && backendPreference <= 13) ? backendPreference : 0;
     const int normalizedPerformance = (performanceMode >= 0 && performanceMode <= 3) ? performanceMode : 1;
     const int normalizedBufferPreset = (bufferPreset >= 0 && bufferPreset <= 4) ? bufferPreset : 3;
     const int normalizedResampler = (resamplerPreference >= 1 && resamplerPreference <= 2) ? resamplerPreference : 1;

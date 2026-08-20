@@ -15,12 +15,26 @@ enum class ThemeMode(val storageValue: String, val label: String) {
 }
 
 enum class AudioBackendPreference(val storageValue: String, val label: String, val nativeValue: Int) {
+    Auto("auto", "Auto (Default)", 0),
     AAudio("aaudio", "AAudio", 1),
     OpenSLES("opensl", "OpenSL ES", 2),
-    AudioTrack("audiotrack", "AudioTrack", 3);
+    WASAPI("wasapi", "WASAPI", 3),
+    DirectSound("dsound", "DirectSound", 4),
+    WinMM("winmm", "WinMM", 5),
+    CoreAudio("coreaudio", "Core Audio", 6),
+    ALSA("alsa", "ALSA", 7),
+    PulseAudio("pulseaudio", "PulseAudio", 8),
+    JACK("jack", "JACK", 9),
+    Sndio("sndio", "sndio", 10),
+    Audio4("audio4", "audio(4)", 11),
+    OSS("oss", "OSS", 12),
+    NullAudio("null", "Null Audio", 13);
 
     companion object {
         fun fromStorage(value: String?): AudioBackendPreference {
+            if (value == "audiotrack") {
+                return defaultAudioBackendForCurrentApi()
+            }
             val stored = entries.firstOrNull { it.storageValue == value } ?: defaultAudioBackendForCurrentApi()
             return stored.coerceForCurrentApi()
         }
@@ -40,15 +54,47 @@ fun defaultAudioBackendForCurrentApi(): AudioBackendPreference {
     return if (isAaudioAvailableOnDevice()) AudioBackendPreference.AAudio else AudioBackendPreference.OpenSLES
 }
 
+fun AudioBackendPreference.isAvailableOnCurrentPlatform(): Boolean {
+    return when (this) {
+        AudioBackendPreference.Auto -> true
+        AudioBackendPreference.AAudio -> isAaudioAvailableOnDevice()
+        AudioBackendPreference.OpenSLES -> true
+        AudioBackendPreference.NullAudio -> true
+        else -> false
+    }
+}
+
+fun AudioBackendPreference.platformRequirementLabel(): String? {
+    return when (this) {
+        AudioBackendPreference.AAudio -> if (!isAaudioAvailableOnDevice()) "Android 8.0+ (API 26) required" else null
+        AudioBackendPreference.WASAPI,
+        AudioBackendPreference.DirectSound,
+        AudioBackendPreference.WinMM -> "Windows"
+        AudioBackendPreference.CoreAudio -> "macOS / iOS"
+        AudioBackendPreference.ALSA,
+        AudioBackendPreference.PulseAudio,
+        AudioBackendPreference.JACK -> "Linux"
+        AudioBackendPreference.Sndio -> "OpenBSD"
+        AudioBackendPreference.Audio4 -> "NetBSD / OpenBSD"
+        AudioBackendPreference.OSS -> "FreeBSD"
+        else -> null
+    }
+}
+
 fun supportsMonetTheming(): Boolean = Build.VERSION.SDK_INT >= Build.VERSION_CODES.S
 
 fun defaultUseMonetForCurrentApi(): Boolean = supportsMonetTheming()
 
 fun AudioBackendPreference.defaultPerformanceMode(): AudioPerformanceMode {
     return when (this) {
-        AudioBackendPreference.AAudio -> AudioPerformanceMode.LowLatency
-        AudioBackendPreference.OpenSLES,
-        AudioBackendPreference.AudioTrack -> AudioPerformanceMode.None
+        AudioBackendPreference.Auto,
+        AudioBackendPreference.AAudio,
+        AudioBackendPreference.WASAPI,
+        AudioBackendPreference.ALSA,
+        AudioBackendPreference.PulseAudio,
+        AudioBackendPreference.JACK,
+        AudioBackendPreference.CoreAudio -> AudioPerformanceMode.LowLatency
+        else -> AudioPerformanceMode.None
     }
 }
 

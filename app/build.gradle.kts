@@ -156,7 +156,8 @@ val aboutVersionSources = linkedMapOf(
     "lib.libresidfp" to "external/libresidfp",
     "lib.resid" to "external/resid",
     "lib.openssl" to "external/openssl",
-    "lib.libbinio" to "external/libbinio"
+    "lib.libbinio" to "external/libbinio",
+    "lib.miniaudio" to "external/miniaudio"
 )
 
 // Prefer dependency-specific release tag families where upstream uses multiple namespaces.

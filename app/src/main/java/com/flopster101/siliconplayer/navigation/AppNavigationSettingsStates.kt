@@ -503,7 +503,7 @@ internal fun rememberAppNavigationSettingsStates(
         val backendKey = AppPreferenceKeys.audioPerformanceModeForBackend(backend)
         val restoredValue = when {
             prefs.contains(backendKey) -> prefs.getString(backendKey, backend.defaultPerformanceMode().storageValue)
-            backend == AudioBackendPreference.AAudio -> prefs.getString(
+            backend == AudioBackendPreference.AAudio || backend == AudioBackendPreference.Auto -> prefs.getString(
                 AppPreferenceKeys.AUDIO_PERFORMANCE_MODE,
                 backend.defaultPerformanceMode().storageValue
             )
@@ -520,7 +520,7 @@ internal fun rememberAppNavigationSettingsStates(
         val backendKey = AppPreferenceKeys.audioBufferPresetForBackend(backend)
         val restoredValue = when {
             prefs.contains(backendKey) -> prefs.getString(backendKey, backend.defaultBufferPreset().storageValue)
-            backend == AudioBackendPreference.AAudio -> prefs.getString(
+            backend == AudioBackendPreference.AAudio || backend == AudioBackendPreference.Auto -> prefs.getString(
                 AppPreferenceKeys.AUDIO_BUFFER_PRESET,
                 backend.defaultBufferPreset().storageValue
             )

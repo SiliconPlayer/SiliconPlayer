@@ -3,7 +3,6 @@
 #include <cstdint>
 #include <cstring>
 #include "AudioEngine.h"
-#include "AudioTrackJniBridge.h"
 #include "ChannelScopeTrigger.h"
 #include "decoders/DecoderRegistry.h"
 #include <algorithm>
@@ -341,9 +340,6 @@ extern "C" JNIEXPORT jint JNICALL JNI_OnLoad(JavaVM* vm, void*) {
         return JNI_ERR;
     }
 
-    if (!initAudioTrackJniBridge(vm, env)) {
-        return JNI_ERR;
-    }
     return JNI_VERSION_1_6;
 }
 
@@ -352,7 +348,6 @@ extern "C" JNIEXPORT void JNICALL JNI_OnUnload(JavaVM* vm, void*) {
     if (vm->GetEnv(reinterpret_cast<void**>(&env), JNI_VERSION_1_6) != JNI_OK || env == nullptr) {
         return;
     }
-    shutdownAudioTrackJniBridge(env);
     if (gNativeBridgeClass != nullptr) {
         env->DeleteGlobalRef(gNativeBridgeClass);
         gNativeBridgeClass = nullptr;
@@ -621,8 +616,32 @@ extern "C" JNIEXPORT jstring JNICALL
 Java_com_flopster101_siliconplayer_MainActivity_stringFromJNI(
         JNIEnv* env,
         jobject /* this */) {
-    std::string hello = "Hello from AAudio C++";
+    std::string hello = "Hello from Miniaudio C++";
     return toJString(env, hello);
+}
+
+extern "C" JNIEXPORT jboolean JNICALL
+Java_com_flopster101_siliconplayer_NativeBridge_isAudioBackendSupported(
+        JNIEnv* /*env*/, jobject /*thiz*/, jint backendId) {
+    if (backendId == 0) return JNI_TRUE;
+    ma_backend backend = ma_backend_null;
+    switch (backendId) {
+        case 1: backend = ma_backend_aaudio; break;
+        case 2: backend = ma_backend_opensl; break;
+        case 3: backend = ma_backend_wasapi; break;
+        case 4: backend = ma_backend_dsound; break;
+        case 5: backend = ma_backend_winmm; break;
+        case 6: backend = ma_backend_coreaudio; break;
+        case 7: backend = ma_backend_alsa; break;
+        case 8: backend = ma_backend_pulseaudio; break;
+        case 9: backend = ma_backend_jack; break;
+        case 10: backend = ma_backend_sndio; break;
+        case 11: backend = ma_backend_audio4; break;
+        case 12: backend = ma_backend_oss; break;
+        case 13: backend = ma_backend_null; break;
+        default: return JNI_FALSE;
+    }
+    return ma_is_backend_enabled(backend) ? JNI_TRUE : JNI_FALSE;
 }
 
 extern "C" JNIEXPORT void JNICALL

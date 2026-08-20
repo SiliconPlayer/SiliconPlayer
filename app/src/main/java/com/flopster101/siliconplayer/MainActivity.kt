@@ -1148,7 +1148,7 @@ private fun updateAudioBackendPreferenceSelection(
                 selectedBackend.defaultPerformanceMode().storageValue
             )
         }
-        selectedBackend == AudioBackendPreference.AAudio -> {
+        selectedBackend == AudioBackendPreference.AAudio || selectedBackend == AudioBackendPreference.Auto -> {
             prefs.getString(
                 AppPreferenceKeys.AUDIO_PERFORMANCE_MODE,
                 selectedBackend.defaultPerformanceMode().storageValue
@@ -1166,7 +1166,7 @@ private fun updateAudioBackendPreferenceSelection(
                 selectedBackend.defaultBufferPreset().storageValue
             )
         }
-        selectedBackend == AudioBackendPreference.AAudio -> {
+        selectedBackend == AudioBackendPreference.AAudio || selectedBackend == AudioBackendPreference.Auto -> {
             prefs.getString(
                 AppPreferenceKeys.AUDIO_BUFFER_PRESET,
                 selectedBackend.defaultBufferPreset().storageValue

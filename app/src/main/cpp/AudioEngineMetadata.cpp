@@ -268,21 +268,7 @@ std::vector<float> AudioEngine::getChannelScopeSamples(int samplesPerChannel) {
 
     // Decoder-output -> ear FIFO drained at outputSampleRate so the window
     // slides smoothly between callbacks across all backends.
-    const int outputBackend = activeOutputBackend.load(std::memory_order_relaxed);
-    int backendBufferedFrames = 0;
-    switch (outputBackend) {
-        case 1:
-            backendBufferedFrames = std::max(aaudioBufferFrames, 0);
-            break;
-        case 2:
-            backendBufferedFrames = std::max(openSlBufferFrames, 0);
-            break;
-        case 3:
-            backendBufferedFrames = std::max(audioTrackBufferFrames, 0);
-            break;
-        default:
-            break;
-    }
+    const int backendBufferedFrames = std::max(miniaudioBufferFrames, 0);
 
     double presentationDelayOutputFrames = static_cast<double>(renderQueueFrames());
     if (lookaheadClipperMode.load(std::memory_order_relaxed) > 0) {

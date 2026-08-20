@@ -285,6 +285,21 @@ internal object AboutCatalog {
             integrationNotes = listOf(
                 "Linked as a static dependency for the AdPlug core."
             )
+        ),
+        AboutEntity(
+            id = "lib.miniaudio",
+            kind = AboutEntityKind.Library,
+            name = "miniaudio",
+            description = "Single-file audio playback and capture library used for cross-platform audio backend output.",
+            author = "David Reid and miniaudio contributors",
+            license = "Public Domain (Unlicense) / MIT-0",
+            links = listOf(
+                AboutEntityLink("Project", "https://miniaud.io/"),
+                AboutEntityLink("Source", "https://github.com/mackron/miniaudio")
+            ),
+            integrationNotes = listOf(
+                "Provides unified audio output backend handling across AAudio, OpenSL ES, and desktop audio pipelines."
+            )
         )
     )
 

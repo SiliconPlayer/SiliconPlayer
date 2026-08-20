@@ -150,25 +150,21 @@ internal fun AudioBackendSelectorCard(
     selectedPreference: AudioBackendPreference,
     onSelectedPreferenceChanged: (AudioBackendPreference) -> Unit
 ) {
-    val isAaudioAvailable = Build.VERSION.SDK_INT >= Build.VERSION_CODES.O
+    val options = AudioBackendPreference.entries
+        .filter { it.isAvailableOnCurrentPlatform() || it == selectedPreference }
+        .map { backend ->
+            EnumChoice(
+                value = backend,
+                label = backend.label,
+                enabled = backend.isAvailableOnCurrentPlatform()
+            )
+        }
+
     SettingsEnumSelectorCard(
         title = "Audio output backend",
-        description = "Preferred output backend implementation.",
-        highlightedDescription = if (!isAaudioAvailable) {
-            "AAudio is only available on Android 8.0 (API 26) and up."
-        } else {
-            null
-        },
+        description = "Preferred output backend implementation via Miniaudio.",
         selectedValue = selectedPreference,
-        options = listOf(
-            EnumChoice(
-                AudioBackendPreference.AAudio,
-                AudioBackendPreference.AAudio.label,
-                enabled = isAaudioAvailable
-            ),
-            EnumChoice(AudioBackendPreference.OpenSLES, AudioBackendPreference.OpenSLES.label),
-            EnumChoice(AudioBackendPreference.AudioTrack, AudioBackendPreference.AudioTrack.label)
-        ),
+        options = options,
         onSelected = onSelectedPreferenceChanged
     )
 }
