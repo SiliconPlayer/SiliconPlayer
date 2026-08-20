@@ -85,8 +85,16 @@ internal fun placeholderArtworkIconForFile(
     decoderName: String?,
     allowCurrentDecoderFallback: Boolean = true
 ): ImageVector {
-    val extension = file?.name?.let(::inferredPrimaryExtensionForName) ?: return Icons.Default.MusicNote
-    val decoderExtensionArtworkHints = remember { buildDecoderExtensionArtworkHintMap() }
+    val resId = placeholderArtworkDrawableResIdForFile(file, decoderName)
+    return ImageVector.vectorResource(resId)
+}
+
+internal fun placeholderArtworkDrawableResIdForFile(
+    file: File?,
+    decoderName: String?
+): Int {
+    val extension = file?.name?.let(::inferredPrimaryExtensionForName) ?: return R.drawable.ic_placeholder_music_note
+    val decoderExtensionArtworkHints = buildDecoderExtensionArtworkHintMap()
     val effectiveDecoderName = decoderName
         ?.trim()
         ?.takeIf { it.isNotEmpty() }
@@ -94,15 +102,9 @@ internal fun placeholderArtworkIconForFile(
         decoderArtworkHintForName(effectiveDecoderName)
             ?: file?.name?.let { resolveDecoderArtworkHintForFileName(it, decoderExtensionArtworkHints) }
     return when (resolvedHint) {
-        DecoderArtworkHint.TrackedFile -> ImageVector.vectorResource(R.drawable.ic_placeholder_tracker_chip)
-        DecoderArtworkHint.GameFile -> ImageVector.vectorResource(R.drawable.ic_placeholder_gamepad)
-        null -> {
-            if (isLikelyVideoExtension(extension)) {
-                Icons.Default.Videocam
-            } else {
-                Icons.Default.MusicNote
-            }
-        }
+        DecoderArtworkHint.TrackedFile -> R.drawable.ic_placeholder_tracker_chip
+        DecoderArtworkHint.GameFile -> R.drawable.ic_placeholder_gamepad
+        null -> R.drawable.ic_placeholder_music_note
     }
 }
 

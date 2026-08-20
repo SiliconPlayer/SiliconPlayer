@@ -58,6 +58,7 @@ import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.graphics.toPixelMap
 import androidx.compose.ui.graphics.vector.ImageVector
+import com.flopster101.siliconplayer.placeholderArtworkDrawableResIdForFile
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalContext
@@ -2507,7 +2508,15 @@ internal fun AlbumArtPlaceholder(
             shape = RoundedCornerShape(artworkCornerRadiusDp.coerceIn(0, 48).dp)
         ) {
             Box(modifier = Modifier.fillMaxSize()) {
-            if (useScopeArtworkBackground) {
+            val isGlBackendActive = when (visualizationMode) {
+                VisualizationMode.Off -> false
+                VisualizationMode.Bars -> barRenderBackend != VisualizationRenderBackend.Compose
+                VisualizationMode.Oscilloscope -> visualizationOscRenderBackend != VisualizationRenderBackend.Compose
+                VisualizationMode.VuMeters -> vuRenderBackend != VisualizationRenderBackend.Compose
+                VisualizationMode.ChannelScope -> channelScopeState.renderBackend != VisualizationRenderBackend.Compose
+            }
+
+            if (useScopeArtworkBackground && !isGlBackendActive) {
                 AlbumArtSurfaceContent(
                     trackKey = currentTrackKey,
                     artwork = effectiveArtwork,
@@ -2515,14 +2524,14 @@ internal fun AlbumArtPlaceholder(
                     crossfadeEnabled = !useResolvedCurrentSwipeAsset,
                     modifier = Modifier.fillMaxSize()
                 )
-            } else {
+            } else if (!useScopeArtworkBackground && !isGlBackendActive) {
                 Box(
                     modifier = Modifier
                         .fillMaxSize()
                         .background(scopeBackgroundColor)
                 )
             }
-            if (visualizationContrastBrush != null && (!basicVisualizationMode || basicVisualizationAlpha > 0f)) {
+            if (visualizationContrastBrush != null && !isGlBackendActive && (!basicVisualizationMode || basicVisualizationAlpha > 0f)) {
                 Box(
                     modifier = Modifier
                         .matchParentSize()
@@ -2554,6 +2563,7 @@ internal fun AlbumArtPlaceholder(
                     barColorModeNoArtwork = barColorModeNoArtwork,
                     barColorModeWithArtwork = barColorModeWithArtwork,
                     barCustomColorArgb = barCustomColorArgb,
+                    barContrastBackdropEnabled = barContrastBackdropEnabled,
                     oscStereo = oscStereo,
                     oscRenderBackend = visualizationOscRenderBackend,
                     artwork = artwork,
@@ -2561,6 +2571,7 @@ internal fun AlbumArtPlaceholder(
                     oscGridWidthDp = oscGridWidthDp,
                     oscVerticalGridEnabled = oscVerticalGridEnabled,
                     oscCenterLineEnabled = oscCenterLineEnabled,
+                    oscContrastBackdropEnabled = oscContrastBackdropEnabled,
                     oscLineColorModeNoArtwork = oscLineColorModeNoArtwork,
                     oscGridColorModeNoArtwork = oscGridColorModeNoArtwork,
                     oscLineColorModeWithArtwork = oscLineColorModeWithArtwork,
@@ -2570,6 +2581,7 @@ internal fun AlbumArtPlaceholder(
                     vuAnchor = vuAnchor,
                     vuUseThemeColor = vuUseThemeColor,
                     vuRenderBackend = vuRenderBackend,
+                    vuContrastBackdropEnabled = vuContrastBackdropEnabled,
                     vuColorModeNoArtwork = vuColorModeNoArtwork,
                     vuColorModeWithArtwork = vuColorModeWithArtwork,
                     vuCustomColorArgb = vuCustomColorArgb,
@@ -2585,6 +2597,7 @@ internal fun AlbumArtPlaceholder(
                     channelScopeGridWidthDp = channelScopeState.gridWidthDp,
                     channelScopeVerticalGridEnabled = channelScopeState.verticalGridEnabled,
                     channelScopeCenterLineEnabled = channelScopeState.centerLineEnabled,
+                    channelScopeContrastBackdropEnabled = channelScopePrefs.contrastBackdropEnabled,
                     channelScopeLayout = channelScopeState.layout,
                     channelScopeLineColorModeNoArtwork = channelScopeState.lineColorModeNoArtwork,
                     channelScopeGridColorModeNoArtwork = channelScopeState.gridColorModeNoArtwork,
@@ -2616,6 +2629,9 @@ internal fun AlbumArtPlaceholder(
                     channelScopeTextVuColorMode = channelScopeState.textVuColorMode,
                     channelScopeTextVuCustomColorArgb = channelScopeState.textVuCustomColorArgb,
                     channelScopeCornerRadiusDp = artworkCornerRadiusDp.coerceIn(0, 48),
+                    placeholderIcon = effectivePlaceholderIcon,
+                    placeholderIconResId = placeholderArtworkDrawableResIdForFile(file, decoderName),
+                    showArtworkBackground = channelScopePrefs.showArtworkBackground,
                     channelScopeOnFrameStats = { fps, frameMs ->
                         visDebugDrawFps = fps.coerceAtLeast(0)
                         visDebugDrawFrameMs = frameMs.coerceAtLeast(0)

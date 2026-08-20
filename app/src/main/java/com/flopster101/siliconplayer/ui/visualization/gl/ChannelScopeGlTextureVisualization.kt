@@ -42,6 +42,7 @@ fun ChannelScopeGlTextureVisualization(
     triggerIndices: IntArray,
     layoutStrategy: com.flopster101.siliconplayer.VisualizationChannelScopeLayout,
     outerCornerRadiusPx: Float = 0f,
+    backgroundFrame: GlArtworkBackgroundFrame? = null,
     textFrame: GlChannelScopeTextFrame? = null,
     onFrameStats: ((fps: Int, frameMs: Int) -> Unit)? = null,
     modifier: Modifier = Modifier
@@ -71,6 +72,7 @@ fun ChannelScopeGlTextureVisualization(
                     gridColorArgb = gridColor.toArgb(),
                     lineWidthPx = lineWidthPx.coerceAtLeast(1f),
                     gridWidthPx = gridWidthPx.coerceAtLeast(0.5f),
+                    backgroundFrame = backgroundFrame,
                     textFrame = textFrame
                 )
             )
@@ -111,6 +113,7 @@ internal data class ChannelScopeGlTextureFrame(
     val gridColorArgb: Int,
     val lineWidthPx: Float,
     val gridWidthPx: Float,
+    val backgroundFrame: GlArtworkBackgroundFrame? = null,
     val textFrame: GlChannelScopeTextFrame? = null
 )
 
@@ -373,6 +376,7 @@ private class ChannelScopeGlCoreRenderer(private val context: Context) {
     private var gridVertexCount: Int = 0
     private val waveformBuilder = TextureFloatLineBuilder(16_384)
     private val gridBuilder = TextureFloatLineBuilder(4_096)
+    private val bgRenderer = GlArtworkBackgroundRenderer(context)
     private val textRenderer = GlChannelScopeTextRenderer(context)
     private var rendererReady: Boolean = false
     private var frameStatsCallback: ((fps: Int, frameMs: Int) -> Unit)? = null
@@ -394,6 +398,7 @@ private class ChannelScopeGlCoreRenderer(private val context: Context) {
             GLES20.glDisable(GLES20.GL_CULL_FACE)
             GLES20.glEnable(GLES20.GL_BLEND)
             GLES20.glBlendFunc(GLES20.GL_SRC_ALPHA, GLES20.GL_ONE_MINUS_SRC_ALPHA)
+            bgRenderer.onSurfaceCreated()
             textRenderer.onSurfaceCreated()
             true
         }.getOrElse { false }
@@ -426,9 +431,18 @@ private class ChannelScopeGlCoreRenderer(private val context: Context) {
             lastHudPublishNs = nowNs
         }
 
-        GLES20.glClearColor(0f, 0f, 0f, 0f)
-        GLES20.glClear(GLES20.GL_COLOR_BUFFER_BIT)
-        if (!rendererReady || program == 0 || frame == null) return
+        if (!rendererReady || program == 0 || frame == null) {
+            GLES20.glClearColor(0f, 0f, 0f, 0f)
+            GLES20.glClear(GLES20.GL_COLOR_BUFFER_BIT)
+            return
+        }
+
+        if (frame.backgroundFrame != null) {
+            bgRenderer.draw(frame.backgroundFrame, surfaceWidth.toFloat(), surfaceHeight.toFloat())
+        } else {
+            GLES20.glClearColor(0f, 0f, 0f, 0f)
+            GLES20.glClear(GLES20.GL_COLOR_BUFFER_BIT)
+        }
         if (frame.channelHistories.isEmpty()) return
 
         buildGeometry(frame)

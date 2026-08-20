@@ -39,6 +39,7 @@ fun OscilloscopeGlTextureVisualization(
     gridWidthPx: Float,
     showVerticalGrid: Boolean,
     showCenterLine: Boolean,
+    backgroundFrame: GlArtworkBackgroundFrame? = null,
     onFrameStats: ((fps: Int, frameMs: Int) -> Unit)? = null,
     modifier: Modifier = Modifier
 ) {
@@ -66,7 +67,8 @@ fun OscilloscopeGlTextureVisualization(
                     lineWidthPx = lineWidthPx.coerceAtLeast(1f),
                     gridWidthPx = gridWidthPx.coerceAtLeast(0.5f),
                     showVerticalGrid = showVerticalGrid,
-                    showCenterLine = showCenterLine
+                    showCenterLine = showCenterLine,
+                    backgroundFrame = backgroundFrame
                 )
             )
         }
@@ -105,7 +107,8 @@ private data class OscilloscopeGlTextureFrame(
     val lineWidthPx: Float,
     val gridWidthPx: Float,
     val showVerticalGrid: Boolean,
-    val showCenterLine: Boolean
+    val showCenterLine: Boolean,
+    val backgroundFrame: GlArtworkBackgroundFrame? = null
 )
 
 private class OscilloscopeGlTextureView(context: Context) : TextureView(context), TextureView.SurfaceTextureListener {
@@ -162,6 +165,7 @@ private class OscilloscopeGlTextureView(context: Context) : TextureView(context)
             outputSurface = surface,
             initialWidth = width.coerceAtLeast(1),
             initialHeight = height.coerceAtLeast(1),
+            context = context,
             onFrameStats = { fps, frameMs ->
                 post { onFrameStats?.invoke(fps, frameMs) }
             }
@@ -188,6 +192,7 @@ private class OscilloscopeTextureRenderThread(
     private val outputSurface: Surface,
     initialWidth: Int,
     initialHeight: Int,
+    private val context: Context,
     private val onFrameStats: (fps: Int, frameMs: Int) -> Unit
 ) : Thread("OscilloscopeGlTextureRenderThread") {
     private val lock = Object()
@@ -202,7 +207,7 @@ private class OscilloscopeTextureRenderThread(
     private var eglDisplay: EGLDisplay = EGL14.EGL_NO_DISPLAY
     private var eglContext: EGLContext = EGL14.EGL_NO_CONTEXT
     private var eglSurface: EGLSurface = EGL14.EGL_NO_SURFACE
-    private val renderer = OscilloscopeGlCoreRenderer()
+    private val renderer = OscilloscopeGlCoreRenderer(context)
     private data class LoopState(
         val frame: OscilloscopeGlTextureFrame?,
         val frameSequence: Long,
@@ -352,12 +357,13 @@ private class OscilloscopeTextureRenderThread(
     }
 }
 
-private class OscilloscopeGlCoreRenderer {
+private class OscilloscopeGlCoreRenderer(private val context: Context) {
     private var program = 0
     private var positionHandle = -1
     private var colorHandle = -1
     private var surfaceWidth = 1
     private var surfaceHeight = 1
+    private val bgRenderer = GlArtworkBackgroundRenderer(context)
     private var lineBuffer: FloatBuffer? = null
     private val gridBuilder = OscFloatLineBuilder(192)
     private val waveBuilder = OscFloatLineBuilder(8_192)
@@ -375,6 +381,7 @@ private class OscilloscopeGlCoreRenderer {
         GLES20.glDisable(GLES20.GL_CULL_FACE)
         GLES20.glEnable(GLES20.GL_BLEND)
         GLES20.glBlendFunc(GLES20.GL_SRC_ALPHA, GLES20.GL_ONE_MINUS_SRC_ALPHA)
+        bgRenderer.onSurfaceCreated()
     }
 
     fun onSurfaceChanged(width: Int, height: Int) {
@@ -388,8 +395,12 @@ private class OscilloscopeGlCoreRenderer {
         val height = surfaceHeight.toFloat()
         if (width <= 1f || height <= 1f) return
 
-        GLES20.glClearColor(0f, 0f, 0f, 0f)
-        GLES20.glClear(GLES20.GL_COLOR_BUFFER_BIT)
+        if (frame.backgroundFrame != null) {
+            bgRenderer.draw(frame.backgroundFrame, width, height)
+        } else {
+            GLES20.glClearColor(0f, 0f, 0f, 0f)
+            GLES20.glClear(GLES20.GL_COLOR_BUFFER_BIT)
+        }
         GLES20.glUseProgram(program)
 
         val left = if (frame.waveformLeft.isNotEmpty()) frame.waveformLeft else FloatArray(256)

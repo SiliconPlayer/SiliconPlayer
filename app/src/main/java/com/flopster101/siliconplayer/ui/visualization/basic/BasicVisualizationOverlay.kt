@@ -18,6 +18,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.graphics.ImageBitmap
+import androidx.compose.ui.graphics.asAndroidBitmap
 import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.graphics.Shadow
@@ -33,6 +34,8 @@ import com.flopster101.siliconplayer.VisualizationChannelScopeTextFont
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.MusicNote
 import com.flopster101.siliconplayer.VisualizationMode
 import com.flopster101.siliconplayer.VisualizationNoteNameFormat
 import com.flopster101.siliconplayer.VisualizationOscColorMode
@@ -76,6 +79,7 @@ fun BasicVisualizationOverlay(
     barColorModeNoArtwork: VisualizationOscColorMode,
     barColorModeWithArtwork: VisualizationOscColorMode,
     barCustomColorArgb: Int,
+    barContrastBackdropEnabled: Boolean = true,
     oscStereo: Boolean,
     oscRenderBackend: VisualizationRenderBackend,
     artwork: ImageBitmap?,
@@ -83,6 +87,7 @@ fun BasicVisualizationOverlay(
     oscGridWidthDp: Int,
     oscVerticalGridEnabled: Boolean,
     oscCenterLineEnabled: Boolean,
+    oscContrastBackdropEnabled: Boolean = true,
     oscLineColorModeNoArtwork: VisualizationOscColorMode,
     oscGridColorModeNoArtwork: VisualizationOscColorMode,
     oscLineColorModeWithArtwork: VisualizationOscColorMode,
@@ -92,6 +97,7 @@ fun BasicVisualizationOverlay(
     vuAnchor: VisualizationVuAnchor,
     vuUseThemeColor: Boolean,
     vuRenderBackend: VisualizationRenderBackend,
+    vuContrastBackdropEnabled: Boolean = true,
     vuColorModeNoArtwork: VisualizationOscColorMode,
     vuColorModeWithArtwork: VisualizationOscColorMode,
     vuCustomColorArgb: Int,
@@ -107,6 +113,7 @@ fun BasicVisualizationOverlay(
     channelScopeGridWidthDp: Int,
     channelScopeVerticalGridEnabled: Boolean,
     channelScopeCenterLineEnabled: Boolean,
+    channelScopeContrastBackdropEnabled: Boolean = true,
     channelScopeLayout: VisualizationChannelScopeLayout,
     channelScopeLineColorModeNoArtwork: VisualizationOscColorMode,
     channelScopeGridColorModeNoArtwork: VisualizationOscColorMode,
@@ -138,6 +145,9 @@ fun BasicVisualizationOverlay(
     channelScopeTextVuColorMode: VisualizationChannelScopeTextColorMode,
     channelScopeTextVuCustomColorArgb: Int,
     channelScopeCornerRadiusDp: Int = 0,
+    placeholderIcon: androidx.compose.ui.graphics.vector.ImageVector = androidx.compose.material.icons.Icons.Default.MusicNote,
+    placeholderIconResId: Int = R.drawable.ic_placeholder_music_note,
+    showArtworkBackground: Boolean = true,
     channelScopeOnFrameStats: ((fps: Int, frameMs: Int) -> Unit)? = null,
     modifier: Modifier = Modifier
 ) {
@@ -234,12 +244,49 @@ fun BasicVisualizationOverlay(
         customColor = channelScopeVuCustomColor
     )
     val barBackgroundColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.82f)
+    val density = LocalDensity.current.density
+    val primaryColor = MaterialTheme.colorScheme.primary
+    val surfaceVariantColor = MaterialTheme.colorScheme.surfaceVariant
+
+    val glBackgroundFrame = remember(
+        artwork,
+        placeholderIconResId,
+        primaryColor,
+        surfaceVariantColor,
+        channelScopeBackgroundColorArgb,
+        showArtworkBackground,
+        density
+    ) {
+        com.flopster101.siliconplayer.ui.visualization.gl.GlArtworkBackgroundFrame(
+            artworkBitmap = artwork?.asAndroidBitmap(),
+            placeholderIconResId = placeholderIconResId,
+            primaryColorArgb = primaryColor.toArgb(),
+            surfaceVariantColorArgb = surfaceVariantColor.toArgb(),
+            backgroundColorArgb = channelScopeBackgroundColorArgb,
+            showArtworkBackground = showArtworkBackground,
+            density = density
+        )
+    }
 
     when (mode) {
         VisualizationMode.Bars -> {
             Box(modifier = modifier) {
                 when (barRenderBackend) {
-                    VisualizationRenderBackend.OpenGlTexture -> {
+                    VisualizationRenderBackend.OpenGlTexture, VisualizationRenderBackend.OpenGlSurface -> {
+                        val barContrastMode = if (barContrastBackdropEnabled) {
+                            com.flopster101.siliconplayer.ui.visualization.gl.GlContrastBackdropMode.Bars
+                        } else {
+                            com.flopster101.siliconplayer.ui.visualization.gl.GlContrastBackdropMode.None
+                        }
+                        val barBgFrame = if (barOverlayArtwork) {
+                            glBackgroundFrame.copy(contrastBackdropMode = barContrastMode)
+                        } else {
+                            glBackgroundFrame.copy(
+                                showArtworkBackground = false,
+                                backgroundColorArgb = barBackgroundColor.toArgb(),
+                                contrastBackdropMode = com.flopster101.siliconplayer.ui.visualization.gl.GlContrastBackdropMode.None
+                            )
+                        }
                         BarsGlTextureVisualization(
                             bars = bars,
                             barCount = barCount,
@@ -249,6 +296,7 @@ fun BasicVisualizationOverlay(
                             sampleRateHz = barSampleRateHz,
                             barColor = barColor,
                             backgroundColor = barBackgroundColor,
+                            backgroundFrame = barBgFrame,
                             onFrameStats = channelScopeOnFrameStats,
                             modifier = Modifier.fillMaxSize()
                         )
@@ -280,7 +328,14 @@ fun BasicVisualizationOverlay(
 
         VisualizationMode.Oscilloscope -> {
             when (oscRenderBackend) {
-                VisualizationRenderBackend.OpenGlTexture -> {
+                VisualizationRenderBackend.OpenGlTexture, VisualizationRenderBackend.OpenGlSurface -> {
+                    val oscContrastMode = if (!oscContrastBackdropEnabled) {
+                        com.flopster101.siliconplayer.ui.visualization.gl.GlContrastBackdropMode.None
+                    } else if (oscStereo && channelCount > 1) {
+                        com.flopster101.siliconplayer.ui.visualization.gl.GlContrastBackdropMode.OscilloscopeStereo
+                    } else {
+                        com.flopster101.siliconplayer.ui.visualization.gl.GlContrastBackdropMode.OscilloscopeMono
+                    }
                     OscilloscopeGlTextureVisualization(
                         waveformLeft = waveformLeft,
                         waveformRight = waveformRight,
@@ -292,6 +347,7 @@ fun BasicVisualizationOverlay(
                         gridWidthPx = oscGridWidthDp.toFloat(),
                         showVerticalGrid = oscVerticalGridEnabled,
                         showCenterLine = oscCenterLineEnabled,
+                        backgroundFrame = glBackgroundFrame.copy(contrastBackdropMode = oscContrastMode),
                         onFrameStats = channelScopeOnFrameStats,
                         modifier = modifier
                     )
@@ -316,7 +372,14 @@ fun BasicVisualizationOverlay(
 
         VisualizationMode.VuMeters -> {
             when (vuRenderBackend) {
-                VisualizationRenderBackend.OpenGlTexture -> {
+                VisualizationRenderBackend.OpenGlTexture, VisualizationRenderBackend.OpenGlSurface -> {
+                    val vuContrastMode = if (!vuContrastBackdropEnabled) {
+                        com.flopster101.siliconplayer.ui.visualization.gl.GlContrastBackdropMode.None
+                    } else if (vuAnchor == VisualizationVuAnchor.Top) {
+                        com.flopster101.siliconplayer.ui.visualization.gl.GlContrastBackdropMode.VuMetersTop
+                    } else {
+                        com.flopster101.siliconplayer.ui.visualization.gl.GlContrastBackdropMode.VuMetersBottom
+                    }
                     VuMetersGlTextureVisualization(
                         vuLevels = vuLevels,
                         channelCount = channelCount,
@@ -324,6 +387,7 @@ fun BasicVisualizationOverlay(
                         vuColor = vuColor,
                         vuLabelColor = vuLabelColor,
                         vuBackgroundColor = vuBackgroundColor,
+                        backgroundFrame = glBackgroundFrame.copy(contrastBackdropMode = vuContrastMode),
                         onFrameStats = channelScopeOnFrameStats,
                         modifier = modifier
                     )
@@ -346,8 +410,8 @@ fun BasicVisualizationOverlay(
             Box(modifier = modifier.clip(channelScopeCornerRadiusShape)) {
                 val isGlBackend = channelScopeRenderBackend == VisualizationRenderBackend.OpenGlTexture ||
                         channelScopeRenderBackend == VisualizationRenderBackend.OpenGlSurface
+
                 val glTextFrame = if (isGlBackend && channelScopeTextEnabled && channelScopeHistories.isNotEmpty()) {
-                    val density = LocalDensity.current.density
                     val paddingPx = with(LocalDensity.current) { channelScopeTextPaddingDp.dp.toPx() }
                     com.flopster101.siliconplayer.ui.visualization.gl.GlChannelScopeTextFrame(
                         channelCount = channelScopeHistories.size,
@@ -383,6 +447,13 @@ fun BasicVisualizationOverlay(
                     )
                 } else null
 
+                val channelScopeContrastMode = if (channelScopeContrastBackdropEnabled) {
+                    com.flopster101.siliconplayer.ui.visualization.gl.GlContrastBackdropMode.ChannelScope
+                } else {
+                    com.flopster101.siliconplayer.ui.visualization.gl.GlContrastBackdropMode.None
+                }
+                val channelScopeBgFrame = glBackgroundFrame.copy(contrastBackdropMode = channelScopeContrastMode)
+
                 when (channelScopeRenderBackend) {
                     VisualizationRenderBackend.Compose -> {
                         ChannelScopeVisualization(
@@ -413,6 +484,7 @@ fun BasicVisualizationOverlay(
                             triggerIndices = channelScopeTriggerIndices,
                             layoutStrategy = channelScopeLayout,
                             outerCornerRadiusPx = channelScopeCornerRadiusPx,
+                            backgroundFrame = channelScopeBgFrame,
                             textFrame = glTextFrame,
                             onFrameStats = channelScopeOnFrameStats,
                             modifier = Modifier.fillMaxSize()
@@ -432,6 +504,7 @@ fun BasicVisualizationOverlay(
                             triggerIndices = channelScopeTriggerIndices,
                             layoutStrategy = channelScopeLayout,
                             outerCornerRadiusPx = channelScopeCornerRadiusPx,
+                            backgroundFrame = channelScopeBgFrame,
                             textFrame = glTextFrame,
                             onFrameStats = channelScopeOnFrameStats,
                             modifier = Modifier.fillMaxSize()

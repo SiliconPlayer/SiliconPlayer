@@ -49,6 +49,7 @@ fun VuMetersGlTextureVisualization(
     vuColor: Color,
     vuLabelColor: Color,
     vuBackgroundColor: Color,
+    backgroundFrame: GlArtworkBackgroundFrame? = null,
     onFrameStats: ((fps: Int, frameMs: Int) -> Unit)? = null,
     modifier: Modifier = Modifier
 ) {
@@ -89,7 +90,8 @@ fun VuMetersGlTextureVisualization(
                         rowGapPx = rowGapPx,
                         rowHeightPx = rowHeightPx,
                         labelWidthPx = labelWidthPx,
-                        labelGapPx = labelGapPx
+                        labelGapPx = labelGapPx,
+                        backgroundFrame = backgroundFrame
                     )
                 )
             }
@@ -163,7 +165,8 @@ private data class VuMetersGlTextureFrame(
     val rowGapPx: Float,
     val rowHeightPx: Float,
     val labelWidthPx: Float,
-    val labelGapPx: Float
+    val labelGapPx: Float,
+    val backgroundFrame: GlArtworkBackgroundFrame? = null
 )
 
 private class VuMetersGlTextureView(context: Context) : TextureView(context), TextureView.SurfaceTextureListener {
@@ -218,6 +221,7 @@ private class VuMetersGlTextureView(context: Context) : TextureView(context), Te
             outputSurface = surface,
             initialWidth = width.coerceAtLeast(1),
             initialHeight = height.coerceAtLeast(1),
+            context = context,
             onFrameStats = { fps, frameMs -> post { onFrameStats?.invoke(fps, frameMs) } }
         )
         renderThread = thread
@@ -237,6 +241,7 @@ private class VuMetersTextureRenderThread(
     private val outputSurface: Surface,
     initialWidth: Int,
     initialHeight: Int,
+    private val context: Context,
     private val onFrameStats: (fps: Int, frameMs: Int) -> Unit
 ) : Thread("VuMetersGlTextureRenderThread") {
     private val lock = Object()
@@ -251,7 +256,7 @@ private class VuMetersTextureRenderThread(
     private var eglDisplay: EGLDisplay = EGL14.EGL_NO_DISPLAY
     private var eglContext: EGLContext = EGL14.EGL_NO_CONTEXT
     private var eglSurface: EGLSurface = EGL14.EGL_NO_SURFACE
-    private val renderer = VuMetersGlCoreRenderer()
+    private val renderer = VuMetersGlCoreRenderer(context)
     private data class LoopState(
         val frame: VuMetersGlTextureFrame?,
         val frameSequence: Long,
@@ -381,12 +386,13 @@ private class VuMetersTextureRenderThread(
     }
 }
 
-private class VuMetersGlCoreRenderer {
+private class VuMetersGlCoreRenderer(private val context: Context) {
     private var program = 0
     private var positionHandle = -1
     private var colorHandle = -1
     private var surfaceWidth = 1
     private var surfaceHeight = 1
+    private val bgRenderer = GlArtworkBackgroundRenderer(context)
     private var onFrameStats: ((fps: Int, frameMs: Int) -> Unit)? = null
     private var frameCount = 0
     private var frameWindowStartNs = 0L
@@ -401,6 +407,7 @@ private class VuMetersGlCoreRenderer {
         GLES20.glDisable(GLES20.GL_CULL_FACE)
         GLES20.glEnable(GLES20.GL_BLEND)
         GLES20.glBlendFunc(GLES20.GL_SRC_ALPHA, GLES20.GL_ONE_MINUS_SRC_ALPHA)
+        bgRenderer.onSurfaceCreated()
     }
 
     fun onSurfaceChanged(width: Int, height: Int) {
@@ -413,9 +420,14 @@ private class VuMetersGlCoreRenderer {
         val width = surfaceWidth.toFloat()
         val height = surfaceHeight.toFloat()
         if (width <= 1f || height <= 1f) return
+
+        if (frame.backgroundFrame != null) {
+            bgRenderer.draw(frame.backgroundFrame, width, height)
+        } else {
+            GLES20.glClearColor(0f, 0f, 0f, 0f)
+            GLES20.glClear(GLES20.GL_COLOR_BUFFER_BIT)
+        }
         GLES20.glUseProgram(program)
-        GLES20.glClearColor(0f, 0f, 0f, 0f)
-        GLES20.glClear(GLES20.GL_COLOR_BUFFER_BIT)
 
         val rows = if (frame.channelCount > 1) 2 else 1
         val contentHeight = (rows * frame.rowHeightPx) + ((rows - 1).coerceAtLeast(0) * frame.rowGapPx)

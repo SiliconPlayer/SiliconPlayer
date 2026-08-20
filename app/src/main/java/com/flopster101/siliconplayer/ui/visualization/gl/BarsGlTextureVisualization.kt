@@ -41,6 +41,7 @@ fun BarsGlTextureVisualization(
     sampleRateHz: Int,
     barColor: Color,
     backgroundColor: Color,
+    backgroundFrame: GlArtworkBackgroundFrame? = null,
     onFrameStats: ((fps: Int, frameMs: Int) -> Unit)? = null,
     modifier: Modifier = Modifier
 ) {
@@ -69,7 +70,8 @@ fun BarsGlTextureVisualization(
                     backgroundColorArgb = backgroundColor.toArgb(),
                     barRoundnessPx = roundnessPx,
                     edgePadPx = edgePadPx,
-                    topHeadroomPx = topHeadroomPx
+                    topHeadroomPx = topHeadroomPx,
+                    backgroundFrame = backgroundFrame
                 )
             )
         }
@@ -107,7 +109,8 @@ private data class BarsGlTextureFrame(
     val backgroundColorArgb: Int,
     val barRoundnessPx: Float,
     val edgePadPx: Float,
-    val topHeadroomPx: Float
+    val topHeadroomPx: Float,
+    val backgroundFrame: GlArtworkBackgroundFrame? = null
 )
 
 private class BarsGlTextureView(context: Context) : TextureView(context), TextureView.SurfaceTextureListener {
@@ -162,6 +165,7 @@ private class BarsGlTextureView(context: Context) : TextureView(context), Textur
             outputSurface = surface,
             initialWidth = width.coerceAtLeast(1),
             initialHeight = height.coerceAtLeast(1),
+            context = context,
             onFrameStats = { fps, frameMs -> post { onFrameStats?.invoke(fps, frameMs) } }
         )
         renderThread = thread
@@ -181,6 +185,7 @@ private class BarsTextureRenderThread(
     private val outputSurface: Surface,
     initialWidth: Int,
     initialHeight: Int,
+    private val context: Context,
     private val onFrameStats: (fps: Int, frameMs: Int) -> Unit
 ) : Thread("BarsGlTextureRenderThread") {
     private val lock = Object()
@@ -195,7 +200,7 @@ private class BarsTextureRenderThread(
     private var eglDisplay: EGLDisplay = EGL14.EGL_NO_DISPLAY
     private var eglContext: EGLContext = EGL14.EGL_NO_CONTEXT
     private var eglSurface: EGLSurface = EGL14.EGL_NO_SURFACE
-    private val renderer = BarsGlCoreRenderer()
+    private val renderer = BarsGlCoreRenderer(context)
     private data class LoopState(
         val frame: BarsGlTextureFrame?,
         val frameSequence: Long,
@@ -329,12 +334,13 @@ private class BarsTextureRenderThread(
     }
 }
 
-private class BarsGlCoreRenderer {
+private class BarsGlCoreRenderer(private val context: Context) {
     private var program = 0
     private var positionHandle = -1
     private var colorHandle = -1
     private var surfaceWidth = 1
     private var surfaceHeight = 1
+    private val bgRenderer = GlArtworkBackgroundRenderer(context)
     private var onFrameStats: ((fps: Int, frameMs: Int) -> Unit)? = null
     private var frameCount = 0
     private var frameWindowStartNs = 0L
@@ -349,6 +355,7 @@ private class BarsGlCoreRenderer {
         GLES20.glDisable(GLES20.GL_CULL_FACE)
         GLES20.glEnable(GLES20.GL_BLEND)
         GLES20.glBlendFunc(GLES20.GL_SRC_ALPHA, GLES20.GL_ONE_MINUS_SRC_ALPHA)
+        bgRenderer.onSurfaceCreated()
     }
 
     fun onSurfaceChanged(width: Int, height: Int) {
@@ -362,14 +369,18 @@ private class BarsGlCoreRenderer {
         val height = surfaceHeight.toFloat()
         if (width <= 1f || height <= 1f) return
 
-        GLES20.glUseProgram(program)
-        GLES20.glClearColor(0f, 0f, 0f, 0f)
-        GLES20.glClear(GLES20.GL_COLOR_BUFFER_BIT)
-
-        if (!frame.barOverlayArtwork) {
-            val bgVertices = GlSimplePrimitives.rectToTrianglesNdc(0f, 0f, width, height, width, height)
-            GlSimplePrimitives.drawTriangles(bgVertices, frame.backgroundColorArgb, positionHandle, colorHandle)
+        if (frame.backgroundFrame != null) {
+            bgRenderer.draw(frame.backgroundFrame, width, height)
+        } else {
+            GLES20.glUseProgram(program)
+            GLES20.glClearColor(0f, 0f, 0f, 0f)
+            GLES20.glClear(GLES20.GL_COLOR_BUFFER_BIT)
+            if (!frame.barOverlayArtwork) {
+                val bgVertices = GlSimplePrimitives.rectToTrianglesNdc(0f, 0f, width, height, width, height)
+                GlSimplePrimitives.drawTriangles(bgVertices, frame.backgroundColorArgb, positionHandle, colorHandle)
+            }
         }
+        GLES20.glUseProgram(program)
 
         val source = if (frame.bars.isNotEmpty()) frame.bars else FloatArray(256)
         val mapping = resolveBarsFrequencyMapping(
