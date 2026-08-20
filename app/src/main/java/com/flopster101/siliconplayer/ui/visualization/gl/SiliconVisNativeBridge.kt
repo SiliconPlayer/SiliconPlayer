@@ -4,7 +4,7 @@ import java.nio.ByteBuffer
 
 object SiliconVisNativeBridge {
     init {
-        System.loadLibrary("siliconplayer")
+        System.loadLibrary("silicon_vis")
     }
 
     external fun nativeCreate(): Long

@@ -18,7 +18,13 @@ set(SILICON_VIS_SOURCES
     src/renderers/vu_meters_renderer.cpp
 )
 
-add_library(silicon_vis STATIC ${SILICON_VIS_SOURCES})
+if (ANDROID)
+    list(APPEND SILICON_VIS_SOURCES
+        ${CMAKE_CURRENT_SOURCE_DIR}/../../../app/src/main/cpp/SiliconVisJni.cpp
+    )
+endif()
+
+add_library(silicon_vis SHARED ${SILICON_VIS_SOURCES})
 
 target_include_directories(silicon_vis
     PUBLIC
@@ -38,6 +44,10 @@ if (ANDROID)
         -fvisibility=hidden
         -fvisibility-inlines-hidden
     )
+    target_link_options(silicon_vis PRIVATE
+        "-Wl,-z,max-page-size=16384"
+        "-Wl,-z,common-page-size=16384"
+    )
 else()
     # Desktop / Qt / Linux / Windows / macOS
     find_package(OpenGL REQUIRED)
@@ -47,3 +57,4 @@ else()
             m
     )
 endif()
+

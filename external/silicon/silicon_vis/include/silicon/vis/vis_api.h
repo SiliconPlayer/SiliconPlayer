@@ -2,6 +2,20 @@
 
 #include "vis_types.h"
 
+#if defined(_WIN32) || defined(__CYGWIN__)
+  #if defined(SILICON_VIS_BUILDING_DLL)
+    #define SILICON_VIS_API __declspec(dllexport)
+  #else
+    #define SILICON_VIS_API __declspec(dllimport)
+  #endif
+#else
+  #if defined(__GNUC__) && __GNUC__ >= 4
+    #define SILICON_VIS_API __attribute__((visibility("default")))
+  #else
+    #define SILICON_VIS_API
+  #endif
+#endif
+
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -9,28 +23,28 @@ extern "C" {
 typedef void* SiliconVisHandle;
 
 // Engine lifecycle
-SiliconVisHandle silicon_vis_create(void);
-void silicon_vis_destroy(SiliconVisHandle handle);
+SILICON_VIS_API SiliconVisHandle silicon_vis_create(void);
+SILICON_VIS_API void silicon_vis_destroy(SiliconVisHandle handle);
 
-bool silicon_vis_init_gl(SiliconVisHandle handle);
-void silicon_vis_resize(SiliconVisHandle handle, int32_t widthPx, int32_t heightPx, float density);
-void silicon_vis_release_gl(SiliconVisHandle handle);
+SILICON_VIS_API bool silicon_vis_init_gl(SiliconVisHandle handle);
+SILICON_VIS_API void silicon_vis_resize(SiliconVisHandle handle, int32_t widthPx, int32_t heightPx, float density);
+SILICON_VIS_API void silicon_vis_release_gl(SiliconVisHandle handle);
 
 // Mode selection
-void silicon_vis_set_mode(SiliconVisHandle handle, SiliconVisMode mode);
-SiliconVisMode silicon_vis_get_mode(SiliconVisHandle handle);
+SILICON_VIS_API void silicon_vis_set_mode(SiliconVisHandle handle, SiliconVisMode mode);
+SILICON_VIS_API SiliconVisMode silicon_vis_get_mode(SiliconVisHandle handle);
 
 // Background Artwork & Fallback
-void silicon_vis_set_artwork_pixels(SiliconVisHandle handle, const uint8_t* rgbaPixels, int32_t width, int32_t height);
-void silicon_vis_clear_artwork(SiliconVisHandle handle);
-void silicon_vis_set_icon_pixels(SiliconVisHandle handle, const uint8_t* rgbaPixels, int32_t width, int32_t height);
-void silicon_vis_clear_icon(SiliconVisHandle handle);
-void silicon_vis_set_artwork_theme(SiliconVisHandle handle, uint32_t primaryColorArgb, uint32_t surfaceColorArgb, int32_t placeholderIconType);
-void silicon_vis_set_contrast_mode(SiliconVisHandle handle, SiliconVisContrastMode contrastMode);
-void silicon_vis_set_show_artwork_background(SiliconVisHandle handle, bool show);
+SILICON_VIS_API void silicon_vis_set_artwork_pixels(SiliconVisHandle handle, const uint8_t* rgbaPixels, int32_t width, int32_t height);
+SILICON_VIS_API void silicon_vis_clear_artwork(SiliconVisHandle handle);
+SILICON_VIS_API void silicon_vis_set_icon_pixels(SiliconVisHandle handle, const uint8_t* rgbaPixels, int32_t width, int32_t height);
+SILICON_VIS_API void silicon_vis_clear_icon(SiliconVisHandle handle);
+SILICON_VIS_API void silicon_vis_set_artwork_theme(SiliconVisHandle handle, uint32_t primaryColorArgb, uint32_t surfaceColorArgb, int32_t placeholderIconType);
+SILICON_VIS_API void silicon_vis_set_contrast_mode(SiliconVisHandle handle, SiliconVisContrastMode contrastMode);
+SILICON_VIS_API void silicon_vis_set_show_artwork_background(SiliconVisHandle handle, bool show);
 
 // Font Atlas
-void silicon_vis_set_font_atlas(
+SILICON_VIS_API void silicon_vis_set_font_atlas(
     SiliconVisHandle handle,
     const uint8_t* rgbaPixels,
     int32_t width,
@@ -42,15 +56,15 @@ void silicon_vis_set_font_atlas(
 );
 
 // Audio Feeds
-void silicon_vis_push_pcm(SiliconVisHandle handle, const float* pcmInterleaved, int32_t frames, int32_t channels, int32_t sampleRate);
-void silicon_vis_push_fft(SiliconVisHandle handle, const float* magnitudes, int32_t binCount);
-void silicon_vis_set_vu_levels(SiliconVisHandle handle, float left, float right);
-void silicon_vis_push_channel_scope_history(SiliconVisHandle handle, int32_t channel, const float* history, int32_t sampleCount);
-void silicon_vis_push_channel_scope_all_histories(SiliconVisHandle handle, int32_t channelCount, int32_t samplesPerChannel, const float* flatData);
-void silicon_vis_set_channel_scope_text_states(SiliconVisHandle handle, const SiliconVisChannelTextState* states, int32_t channelCount);
+SILICON_VIS_API void silicon_vis_push_pcm(SiliconVisHandle handle, const float* pcmInterleaved, int32_t frames, int32_t channels, int32_t sampleRate);
+SILICON_VIS_API void silicon_vis_push_fft(SiliconVisHandle handle, const float* magnitudes, int32_t binCount);
+SILICON_VIS_API void silicon_vis_set_vu_levels(SiliconVisHandle handle, float left, float right);
+SILICON_VIS_API void silicon_vis_push_channel_scope_history(SiliconVisHandle handle, int32_t channel, const float* history, int32_t sampleCount);
+SILICON_VIS_API void silicon_vis_push_channel_scope_all_histories(SiliconVisHandle handle, int32_t channelCount, int32_t samplesPerChannel, const float* flatData);
+SILICON_VIS_API void silicon_vis_set_channel_scope_text_states(SiliconVisHandle handle, const SiliconVisChannelTextState* states, int32_t channelCount);
 
 // Options & Parameters
-void silicon_vis_set_channel_scope_options(
+SILICON_VIS_API void silicon_vis_set_channel_scope_options(
     SiliconVisHandle handle,
     SiliconVisChannelLayout layout,
     SiliconVisTextAnchor anchor,
@@ -68,7 +82,7 @@ void silicon_vis_set_channel_scope_options(
     bool hideWhenOverflow
 );
 
-void silicon_vis_set_oscilloscope_options(
+SILICON_VIS_API void silicon_vis_set_oscilloscope_options(
     SiliconVisHandle handle,
     bool stereo,
     uint32_t waveColorArgb,
@@ -79,7 +93,7 @@ void silicon_vis_set_oscilloscope_options(
     bool showGrid
 );
 
-void silicon_vis_set_bars_options(
+SILICON_VIS_API void silicon_vis_set_bars_options(
     SiliconVisHandle handle,
     int32_t barCount,
     uint32_t startColorArgb,
@@ -89,7 +103,7 @@ void silicon_vis_set_bars_options(
     uint32_t guideColorArgb
 );
 
-void silicon_vis_set_vu_meters_options(
+SILICON_VIS_API void silicon_vis_set_vu_meters_options(
     SiliconVisHandle handle,
     bool stereo,
     bool topPlacement,
@@ -99,7 +113,7 @@ void silicon_vis_set_vu_meters_options(
 );
 
 // Render frame (calls active visualizer + background inside current GL context)
-void silicon_vis_render(SiliconVisHandle handle);
+SILICON_VIS_API void silicon_vis_render(SiliconVisHandle handle);
 
 #ifdef __cplusplus
 }

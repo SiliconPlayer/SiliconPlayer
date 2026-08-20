@@ -35,7 +35,6 @@ add_library(
         decoders/DecoderRegistry.cpp
         decoders/SdlCompat.c
         decoders/CPConvStub.c
-        SiliconVisJni.cpp
 )
 
 target_compile_definitions(
@@ -206,7 +205,6 @@ include_directories(${CMAKE_SOURCE_DIR}/../../../../external/silicon/silicon_vis
     # Link libraries
     target_link_libraries(
             siliconplayer
-            silicon_vis
             ${log-lib}
             ${android-lib}
             ${opensles-lib}
