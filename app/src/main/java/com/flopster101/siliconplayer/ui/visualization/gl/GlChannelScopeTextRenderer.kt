@@ -193,12 +193,14 @@ internal class GlChannelScopeTextRenderer(private val context: Context) {
         }
     }
 
-    fun draw(surfaceWidth: Float, surfaceHeight: Float) {
-        val frame = currentFrame
-        if (frame != null && frame.vuEnabled && vuProgram != 0 && frame.channelHistories.isNotEmpty()) {
+    fun drawVu(surfaceWidth: Float, surfaceHeight: Float) {
+        val frame = currentFrame ?: return
+        if (frame.vuEnabled && vuProgram != 0 && frame.channelHistories.isNotEmpty()) {
             drawVuBars(surfaceWidth, surfaceHeight, frame)
         }
+    }
 
+    fun drawText(surfaceWidth: Float, surfaceHeight: Float) {
         val atlas = fontAtlas ?: return
         val buffer = textVertexBuffer ?: return
         if (vertexCount <= 0 || !textProgram.isReady) return
@@ -210,6 +212,11 @@ internal class GlChannelScopeTextRenderer(private val context: Context) {
             surfaceWidth = surfaceWidth,
             surfaceHeight = surfaceHeight
         )
+    }
+
+    fun draw(surfaceWidth: Float, surfaceHeight: Float) {
+        drawVu(surfaceWidth, surfaceHeight)
+        drawText(surfaceWidth, surfaceHeight)
     }
 
     private fun drawVuBars(

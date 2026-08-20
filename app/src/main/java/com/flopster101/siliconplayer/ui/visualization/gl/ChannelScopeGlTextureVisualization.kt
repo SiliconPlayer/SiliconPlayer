@@ -443,9 +443,12 @@ private class ChannelScopeGlCoreRenderer(private val context: Context) {
             GLES20.glClearColor(0f, 0f, 0f, 0f)
             GLES20.glClear(GLES20.GL_COLOR_BUFFER_BIT)
         }
-        if (frame.channelHistories.isEmpty()) return
-
         buildGeometry(frame)
+
+        frame.textFrame?.let { tf ->
+            textRenderer.buildGeometry(tf, surfaceWidth.toFloat(), surfaceHeight.toFloat())
+            textRenderer.drawVu(surfaceWidth.toFloat(), surfaceHeight.toFloat())
+        }
 
         GLES20.glUseProgram(program)
         GLES20.glUniform2f(resolutionHandle, surfaceWidth.toFloat(), surfaceHeight.toFloat())
@@ -462,9 +465,8 @@ private class ChannelScopeGlCoreRenderer(private val context: Context) {
             widthPx = frame.lineWidthPx
         )
 
-        frame.textFrame?.let { tf ->
-            textRenderer.buildGeometry(tf, surfaceWidth.toFloat(), surfaceHeight.toFloat())
-            textRenderer.draw(surfaceWidth.toFloat(), surfaceHeight.toFloat())
+        frame.textFrame?.let {
+            textRenderer.drawText(surfaceWidth.toFloat(), surfaceHeight.toFloat())
         }
     }
 

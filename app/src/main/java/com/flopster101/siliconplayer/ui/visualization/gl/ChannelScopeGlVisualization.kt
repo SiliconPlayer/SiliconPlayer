@@ -264,6 +264,11 @@ private class ChannelScopeGlRenderer(
 
         buildGeometry(data)
 
+        data.textFrame?.let { tf ->
+            textRenderer.buildGeometry(tf, surfaceWidth.toFloat(), surfaceHeight.toFloat())
+            textRenderer.drawVu(surfaceWidth.toFloat(), surfaceHeight.toFloat())
+        }
+
         GLES20.glUseProgram(program)
         GLES20.glUniform2f(resolutionHandle, surfaceWidth.toFloat(), surfaceHeight.toFloat())
         drawLines(
@@ -279,9 +284,8 @@ private class ChannelScopeGlRenderer(
             widthPx = data.lineWidthPx
         )
 
-        data.textFrame?.let { tf ->
-            textRenderer.buildGeometry(tf, surfaceWidth.toFloat(), surfaceHeight.toFloat())
-            textRenderer.draw(surfaceWidth.toFloat(), surfaceHeight.toFloat())
+        data.textFrame?.let {
+            textRenderer.drawText(surfaceWidth.toFloat(), surfaceHeight.toFloat())
         }
     }
 
