@@ -1,0 +1,185 @@
+#include "vu_meters_renderer.h"
+#include <cmath>
+#include <algorithm>
+
+namespace silicon::vis {
+
+VuMetersRenderer::VuMetersRenderer() = default;
+
+bool VuMetersRenderer::initGl() {
+    if (!flatRenderer_.init()) return false;
+    if (!fontAtlas_.init()) return false;
+    if (!textProgram_.init()) return false;
+    return true;
+}
+
+void VuMetersRenderer::releaseGl() {
+    flatRenderer_.release();
+    fontAtlas_.release();
+    textProgram_.release();
+}
+
+void VuMetersRenderer::resize(int32_t widthPx, int32_t heightPx, float density) {
+    widthPx_ = widthPx;
+    heightPx_ = heightPx;
+    density_ = std::max(1.0f, density);
+}
+
+void VuMetersRenderer::setVuLevels(float left, float right) {
+    leftPeak_ = std::clamp(left, 0.0f, 1.0f);
+    rightPeak_ = std::clamp(right, 0.0f, 1.0f);
+}
+
+void VuMetersRenderer::pushPcm(const float* pcmInterleaved, int32_t frames, int32_t channels, int32_t sampleRate) {
+    if (!pcmInterleaved || frames <= 0) return;
+
+    float maxL = 0.0f;
+    float maxR = 0.0f;
+
+    if (channels >= 2) {
+        for (int i = 0; i < frames; ++i) {
+            float l = std::abs(pcmInterleaved[i * 2]);
+            float r = std::abs(pcmInterleaved[i * 2 + 1]);
+            if (l > maxL) maxL = l;
+            if (r > maxR) maxR = r;
+        }
+    } else {
+        for (int i = 0; i < frames; ++i) {
+            float m = std::abs(pcmInterleaved[i]);
+            if (m > maxL) maxL = m;
+        }
+        maxR = maxL;
+    }
+
+    // Smooth peak decay
+    leftPeak_ = (maxL > leftPeak_) ? maxL : (leftPeak_ * 0.90f + maxL * 0.10f);
+    rightPeak_ = (maxR > rightPeak_) ? maxR : (rightPeak_ * 0.90f + maxR * 0.10f);
+}
+
+void VuMetersRenderer::setOptions(
+    bool stereo,
+    bool topPlacement,
+    uint32_t fillColorArgb,
+    uint32_t trackColorArgb,
+    uint32_t labelColorArgb
+) {
+    stereo_ = stereo;
+    topPlacement_ = topPlacement;
+    fillColorArgb_ = fillColorArgb;
+    trackColorArgb_ = trackColorArgb;
+    labelColorArgb_ = labelColorArgb;
+}
+
+static float computeVuDbLevel(float raw) {
+    float db = 20.0f * std::log10(std::max(raw, 0.0001f));
+    float dbFloor = -58.0f;
+    float norm = std::clamp((db - dbFloor) / -dbFloor, 0.0f, 1.0f);
+    return std::clamp(std::pow(norm, 0.62f), 0.0f, 1.0f);
+}
+
+void VuMetersRenderer::buildGeometry() {
+    trackVertices_.clear();
+    fillVertices_.clear();
+
+    if (widthPx_ <= 0 || heightPx_ <= 0) return;
+
+    float w = static_cast<float>(widthPx_);
+    float h = static_cast<float>(heightPx_);
+
+    int rows = stereo_ ? 2 : 1;
+    float rowHeightPx = 10.0f * density_;
+    float rowGapPx = 6.0f * density_;
+    float horizontalPadPx = 16.0f * density_;
+    float verticalPadPx = 16.0f * density_;
+    float labelWidthPx = 36.0f * density_;
+    float labelGapPx = 8.0f * density_;
+
+    float contentHeight = (rows * rowHeightPx) + ((rows - 1) * rowGapPx);
+    float topY = topPlacement_ ? verticalPadPx : (h - verticalPadPx - contentHeight);
+    float trackX = horizontalPadPx + labelWidthPx + labelGapPx;
+    float trackWidth = std::max(1.0f, w - trackX - horizontalPadPx);
+    float trackRadius = rowHeightPx * 0.5f;
+
+    for (int idx = 0; idx < rows; ++idx) {
+        float y = topY + (idx * (rowHeightPx + rowGapPx));
+        float raw = (idx == 0) ? leftPeak_ : rightPeak_;
+        float value = computeVuDbLevel(raw);
+
+        // Track
+        std::vector<float> rrect;
+        gl::GlPrimitives::generateRoundedRectTriangles(trackX, y, trackWidth, rowHeightPx, trackRadius, 4, rrect);
+        trackVertices_.insert(trackVertices_.end(), rrect.begin(), rrect.end());
+
+        // Fill
+        float fillW = trackWidth * value;
+        if (fillW > 1.0f) {
+            gl::GlPrimitives::generateRoundedRectTriangles(trackX, y, fillW, rowHeightPx, trackRadius, 4, rrect);
+            fillVertices_.insert(fillVertices_.end(), rrect.begin(), rrect.end());
+        }
+    }
+}
+
+void VuMetersRenderer::drawLabels() {
+    if (widthPx_ <= 0 || heightPx_ <= 0) return;
+    float h = static_cast<float>(heightPx_);
+
+    int rows = stereo_ ? 2 : 1;
+    float rowHeightPx = 10.0f * density_;
+    float rowGapPx = 6.0f * density_;
+    float horizontalPadPx = 16.0f * density_;
+    float verticalPadPx = 16.0f * density_;
+
+    float contentHeight = (rows * rowHeightPx) + ((rows - 1) * rowGapPx);
+    float topY = topPlacement_ ? verticalPadPx : (h - verticalPadPx - contentHeight);
+
+    float scale = (11.0f * density_) / fontAtlas_.getBaseFontSizePx();
+    float textHeight = fontAtlas_.getLineHeightPx() * scale;
+
+    textBatcher_.clear();
+    gl::Color4f c = gl::argbToColor4f(labelColorArgb_);
+
+    for (int idx = 0; idx < rows; ++idx) {
+        float y = topY + (idx * (rowHeightPx + rowGapPx));
+        float textY = y + (rowHeightPx - textHeight) * 0.5f;
+        std::string label = (rows > 1) ? ((idx == 0) ? "Left" : "Right") : "Mono";
+        textBatcher_.addText(fontAtlas_, label, horizontalPadPx, textY, scale, c.r, c.g, c.b, c.a, true);
+    }
+
+    if (textBatcher_.getVertexCount() > 0) {
+        textProgram_.draw(
+            textBatcher_.getBufferData(),
+            static_cast<int>(textBatcher_.getVertexCount()),
+            fontAtlas_,
+            static_cast<float>(widthPx_),
+            static_cast<float>(heightPx_)
+        );
+    }
+}
+
+void VuMetersRenderer::render() {
+    buildGeometry();
+
+    if (!trackVertices_.empty()) {
+        flatRenderer_.drawTriangles(
+            trackVertices_.data(),
+            static_cast<int>(trackVertices_.size() / 2),
+            trackColorArgb_,
+            static_cast<float>(widthPx_),
+            static_cast<float>(heightPx_)
+        );
+    }
+
+    if (!fillVertices_.empty()) {
+        flatRenderer_.drawTriangles(
+            fillVertices_.data(),
+            static_cast<int>(fillVertices_.size() / 2),
+            fillColorArgb_,
+            static_cast<float>(widthPx_),
+            static_cast<float>(heightPx_)
+        );
+    }
+
+    drawLabels();
+}
+
+} // namespace silicon::vis

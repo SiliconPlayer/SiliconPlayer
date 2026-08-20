@@ -248,23 +248,28 @@ fun BasicVisualizationOverlay(
     val primaryColor = MaterialTheme.colorScheme.primary
     val surfaceVariantColor = MaterialTheme.colorScheme.surfaceVariant
 
-    val glBackgroundFrame = remember(
-        artwork,
-        placeholderIconResId,
+    val placeholderIconType = when (placeholderIconResId) {
+        R.drawable.ic_placeholder_tracker_chip -> 2
+        R.drawable.ic_placeholder_gamepad -> 3
+        else -> 1
+    }
+
+    val baseNativeFrame = remember(
         primaryColor,
         surfaceVariantColor,
-        channelScopeBackgroundColorArgb,
-        showArtworkBackground,
+        placeholderIconType,
+        placeholderIconResId,
+        artwork,
         density
     ) {
-        com.flopster101.siliconplayer.ui.visualization.gl.GlArtworkBackgroundFrame(
-            artworkBitmap = artwork?.asAndroidBitmap(),
-            placeholderIconResId = placeholderIconResId,
+        com.flopster101.siliconplayer.ui.visualization.gl.SiliconNativeGlFrame(
+            mode = 0,
             primaryColorArgb = primaryColor.toArgb(),
-            surfaceVariantColorArgb = surfaceVariantColor.toArgb(),
-            backgroundColorArgb = channelScopeBackgroundColorArgb,
-            showArtworkBackground = showArtworkBackground,
-            density = density
+            surfaceColorArgb = surfaceVariantColor.toArgb(),
+            placeholderIconType = placeholderIconType,
+            placeholderIconResId = placeholderIconResId,
+            artworkBitmap = artwork?.asAndroidBitmap(),
+            showArtworkBackground = true
         )
     }
 
@@ -273,30 +278,20 @@ fun BasicVisualizationOverlay(
             Box(modifier = modifier) {
                 when (barRenderBackend) {
                     VisualizationRenderBackend.OpenGlTexture, VisualizationRenderBackend.OpenGlSurface -> {
-                        val barContrastMode = if (barContrastBackdropEnabled) {
-                            com.flopster101.siliconplayer.ui.visualization.gl.GlContrastBackdropMode.Bars
-                        } else {
-                            com.flopster101.siliconplayer.ui.visualization.gl.GlContrastBackdropMode.None
-                        }
-                        val barBgFrame = if (barOverlayArtwork) {
-                            glBackgroundFrame.copy(contrastBackdropMode = barContrastMode)
-                        } else {
-                            glBackgroundFrame.copy(
-                                showArtworkBackground = false,
-                                backgroundColorArgb = barBackgroundColor.toArgb(),
-                                contrastBackdropMode = com.flopster101.siliconplayer.ui.visualization.gl.GlContrastBackdropMode.None
-                            )
-                        }
-                        BarsGlTextureVisualization(
-                            bars = bars,
+                        val barContrastMode = if (barContrastBackdropEnabled) 1 else 0
+                        val nativeFrame = baseNativeFrame.copy(
+                            mode = 1,
+                            fft = bars,
                             barCount = barCount,
-                            barRoundnessDp = barRoundnessDp,
-                            barOverlayArtwork = barOverlayArtwork,
-                            barFrequencyGridEnabled = barFrequencyGridEnabled,
-                            sampleRateHz = barSampleRateHz,
-                            barColor = barColor,
-                            backgroundColor = barBackgroundColor,
-                            backgroundFrame = barBgFrame,
+                            barStartColorArgb = barColor.toArgb(),
+                            barEndColorArgb = barColor.toArgb(),
+                            barCornerRadiusPx = barRoundnessDp.toFloat(),
+                            barShowFrequencyGuide = barFrequencyGridEnabled,
+                            contrastMode = barContrastMode,
+                            showArtworkBackground = barOverlayArtwork
+                        )
+                        com.flopster101.siliconplayer.ui.visualization.gl.SiliconNativeGlTextureVisualization(
+                            frame = nativeFrame,
                             onFrameStats = channelScopeOnFrameStats,
                             modifier = Modifier.fillMaxSize()
                         )
@@ -329,25 +324,32 @@ fun BasicVisualizationOverlay(
         VisualizationMode.Oscilloscope -> {
             when (oscRenderBackend) {
                 VisualizationRenderBackend.OpenGlTexture, VisualizationRenderBackend.OpenGlSurface -> {
+                    val isStereo = oscStereo && channelCount > 1
                     val oscContrastMode = if (!oscContrastBackdropEnabled) {
-                        com.flopster101.siliconplayer.ui.visualization.gl.GlContrastBackdropMode.None
-                    } else if (oscStereo && channelCount > 1) {
-                        com.flopster101.siliconplayer.ui.visualization.gl.GlContrastBackdropMode.OscilloscopeStereo
+                        0
+                    } else if (isStereo) {
+                        3
                     } else {
-                        com.flopster101.siliconplayer.ui.visualization.gl.GlContrastBackdropMode.OscilloscopeMono
+                        2
                     }
-                    OscilloscopeGlTextureVisualization(
-                        waveformLeft = waveformLeft,
-                        waveformRight = waveformRight,
-                        channelCount = channelCount,
-                        oscStereo = oscStereo,
-                        lineColor = oscColor,
-                        gridColor = oscGridColor,
-                        lineWidthPx = oscLineWidthDp.toFloat(),
-                        gridWidthPx = oscGridWidthDp.toFloat(),
-                        showVerticalGrid = oscVerticalGridEnabled,
-                        showCenterLine = oscCenterLineEnabled,
-                        backgroundFrame = glBackgroundFrame.copy(contrastBackdropMode = oscContrastMode),
+                    val nativeFrame = baseNativeFrame.copy(
+                        mode = 2,
+                        pcm = waveformLeft,
+                        pcmFrames = waveformLeft.size,
+                        pcmChannels = if (isStereo) 2 else 1,
+                        pcmSampleRate = 48000,
+                        oscStereo = isStereo,
+                        oscWaveColorArgb = oscColor.toArgb(),
+                        oscLineWidthPx = oscLineWidthDp.toFloat(),
+                        oscGridColorArgb = oscGridColor.toArgb(),
+                        oscGridWidthPx = oscGridWidthDp.toFloat(),
+                        oscShowCenterLine = oscCenterLineEnabled,
+                        oscShowGrid = oscVerticalGridEnabled,
+                        contrastMode = oscContrastMode,
+                        showArtworkBackground = true
+                    )
+                    com.flopster101.siliconplayer.ui.visualization.gl.SiliconNativeGlTextureVisualization(
+                        frame = nativeFrame,
                         onFrameStats = channelScopeOnFrameStats,
                         modifier = modifier
                     )
@@ -373,21 +375,31 @@ fun BasicVisualizationOverlay(
         VisualizationMode.VuMeters -> {
             when (vuRenderBackend) {
                 VisualizationRenderBackend.OpenGlTexture, VisualizationRenderBackend.OpenGlSurface -> {
+                    val isTop = vuAnchor == VisualizationVuAnchor.Top
                     val vuContrastMode = if (!vuContrastBackdropEnabled) {
-                        com.flopster101.siliconplayer.ui.visualization.gl.GlContrastBackdropMode.None
-                    } else if (vuAnchor == VisualizationVuAnchor.Top) {
-                        com.flopster101.siliconplayer.ui.visualization.gl.GlContrastBackdropMode.VuMetersTop
+                        0
+                    } else if (isTop) {
+                        4
                     } else {
-                        com.flopster101.siliconplayer.ui.visualization.gl.GlContrastBackdropMode.VuMetersBottom
+                        5
                     }
-                    VuMetersGlTextureVisualization(
-                        vuLevels = vuLevels,
-                        channelCount = channelCount,
-                        vuAnchor = vuAnchor,
-                        vuColor = vuColor,
-                        vuLabelColor = vuLabelColor,
-                        vuBackgroundColor = vuBackgroundColor,
-                        backgroundFrame = glBackgroundFrame.copy(contrastBackdropMode = vuContrastMode),
+                    val nativeFrame = baseNativeFrame.copy(
+                        mode = 3,
+                        vuLevels = floatArrayOf(vuLevels.getOrElse(0) { 0f }, vuLevels.getOrElse(1) { 0f }),
+                        pcm = waveformLeft,
+                        pcmFrames = waveformLeft.size,
+                        pcmChannels = if (channelCount > 1) 2 else 1,
+                        pcmSampleRate = 48000,
+                        vuStereo = channelCount > 1,
+                        vuTopPlacement = isTop,
+                        vuFillColorArgb = vuColor.toArgb(),
+                        vuTrackColorArgb = vuBackgroundColor.toArgb(),
+                        vuLabelColorArgb = vuLabelColor.toArgb(),
+                        contrastMode = vuContrastMode,
+                        showArtworkBackground = true
+                    )
+                    com.flopster101.siliconplayer.ui.visualization.gl.SiliconNativeGlTextureVisualization(
+                        frame = nativeFrame,
                         onFrameStats = channelScopeOnFrameStats,
                         modifier = modifier
                     )
@@ -411,56 +423,22 @@ fun BasicVisualizationOverlay(
                 val isGlBackend = channelScopeRenderBackend == VisualizationRenderBackend.OpenGlTexture ||
                         channelScopeRenderBackend == VisualizationRenderBackend.OpenGlSurface
 
-                val glTextFrame = if (isGlBackend && (channelScopeTextEnabled || channelScopeTextVuEnabled) && channelScopeHistories.isNotEmpty()) {
-                    val paddingPx = with(LocalDensity.current) { channelScopeTextPaddingDp.dp.toPx() }
-                    val vuStripHeightPx = with(LocalDensity.current) { 2.dp.toPx() }
-                    com.flopster101.siliconplayer.ui.visualization.gl.GlChannelScopeTextFrame(
-                        channelCount = channelScopeHistories.size,
-                        channelTextStates = channelScopeTextStates,
-                        instrumentNamesByIndex = channelScopeInstrumentNamesByIndex,
-                        sampleNamesByIndex = channelScopeSampleNamesByIndex,
-                        chipNamesByChannelIndex = channelScopeChipNamesByChannelIndex,
-                        layoutStrategy = channelScopeLayout,
-                        anchor = channelScopeTextAnchor,
-                        paddingPx = paddingPx,
-                        textSizeSp = channelScopeTextSizeSp,
-                        density = density,
-                        hideWhenOverflow = channelScopeTextHideWhenOverflow,
-                        textShadowEnabled = channelScopeTextShadowEnabled,
-                        textFont = channelScopeTextFont,
-                        noteFormat = channelScopeTextNoteFormat,
-                        showChannel = channelScopeTextEnabled && channelScopeTextShowChannel,
-                        showNote = channelScopeTextEnabled && channelScopeTextShowNote,
-                        showVolume = channelScopeTextEnabled && channelScopeTextShowVolume,
-                        showEffectPrimary = channelScopeTextEnabled && channelScopeTextShowEffectPrimary,
-                        showEffectSecondary = channelScopeTextEnabled && channelScopeTextShowEffectSecondary,
-                        showChip = channelScopeTextEnabled && channelScopeTextShowChip,
-                        showInstrument = channelScopeTextEnabled && channelScopeTextShowInstrument,
-                        showSample = channelScopeTextEnabled && channelScopeTextShowSample,
-                        palette = com.flopster101.siliconplayer.ui.visualization.gl.GlChannelScopeTextPalette(
-                            channelArgb = channelScopeTextPalette.channel.toArgb(),
-                            noteArgb = channelScopeTextPalette.note.toArgb(),
-                            volumeArgb = channelScopeTextPalette.volume.toArgb(),
-                            effectArgb = channelScopeTextPalette.effect.toArgb(),
-                            instrumentOrSampleArgb = channelScopeTextPalette.instrumentOrSample.toArgb(),
-                            separatorArgb = channelScopeTextPalette.separator.toArgb()
-                        ),
-                        channelHistories = channelScopeHistories,
-                        vuEnabled = channelScopeTextVuEnabled,
-                        vuAnchor = channelScopeTextVuAnchor,
-                        vuColorArgb = channelScopeVuColor.toArgb(),
-                        vuTrackColorArgb = deriveVuTrackColor(channelScopeVuColor).toArgb(),
-                        vuInsetPx = channelScopeGridWidthDp.toFloat().coerceAtLeast(1f),
-                        vuStripHeightPx = vuStripHeightPx
-                    )
-                } else null
+                val channelScopeContrastMode = if (channelScopeContrastBackdropEnabled) 6 else 0
+                val paddingPx = with(LocalDensity.current) { channelScopeTextPaddingDp.dp.toPx() }
 
-                val channelScopeContrastMode = if (channelScopeContrastBackdropEnabled) {
-                    com.flopster101.siliconplayer.ui.visualization.gl.GlContrastBackdropMode.ChannelScope
-                } else {
-                    com.flopster101.siliconplayer.ui.visualization.gl.GlContrastBackdropMode.None
+                val layoutInt = when (channelScopeLayout) {
+                    VisualizationChannelScopeLayout.BalancedTwoColumn -> 2
+                    VisualizationChannelScopeLayout.ColumnFirst -> 0
                 }
-                val channelScopeBgFrame = glBackgroundFrame.copy(contrastBackdropMode = channelScopeContrastMode)
+                val anchorInt = when (channelScopeTextAnchor) {
+                    VisualizationChannelScopeTextAnchor.TopLeft -> 0
+                    VisualizationChannelScopeTextAnchor.TopCenter -> 1
+                    VisualizationChannelScopeTextAnchor.TopRight -> 2
+                    VisualizationChannelScopeTextAnchor.BottomLeft -> 3
+                    VisualizationChannelScopeTextAnchor.BottomCenter -> 4
+                    VisualizationChannelScopeTextAnchor.BottomRight -> 5
+                }
+                val vuAnchorInt = if (channelScopeTextVuAnchor == VisualizationVuAnchor.Top) 0 else 1
 
                 when (channelScopeRenderBackend) {
                     VisualizationRenderBackend.Compose -> {
@@ -479,41 +457,67 @@ fun BasicVisualizationOverlay(
                             modifier = Modifier.fillMaxSize()
                         )
                     }
-                    VisualizationRenderBackend.OpenGlTexture -> {
-                        ChannelScopeGlTextureVisualization(
+                    VisualizationRenderBackend.OpenGlTexture, VisualizationRenderBackend.OpenGlSurface -> {
+                        val chCount = channelScopeHistories.size
+                        val samplesPerCh = if (chCount > 0) channelScopeHistories[0].size else 0
+                        val flatBuffer = if (chCount > 0 && samplesPerCh > 0) {
+                            FloatArray(chCount * samplesPerCh).also { flat ->
+                                for (ch in 0 until chCount) {
+                                    val src = channelScopeHistories[ch]
+                                    System.arraycopy(src, 0, flat, ch * samplesPerCh, samplesPerCh.coerceAtMost(src.size))
+                                }
+                            }
+                        } else null
+
+                        val nativeFrame = baseNativeFrame.copy(
+                            mode = 4,
                             channelHistories = channelScopeHistories,
-                            lineColor = channelScopeLineColor,
-                            gridColor = channelScopeGridColor,
-                            lineWidthPx = channelScopeLineWidthDp.toFloat(),
+                            channelScopeFlatData = flatBuffer,
+                            channelScopeSamplesPerChannel = samplesPerCh,
+                            channelTextStates = channelScopeTextStates,
+                            instrumentNamesByIndex = channelScopeInstrumentNamesByIndex,
+                            sampleNamesByIndex = channelScopeSampleNamesByIndex,
+                            chipNamesByChannelIndex = channelScopeChipNamesByChannelIndex,
+                            channelLayout = layoutInt,
+                            textAnchor = anchorInt,
+                            vuAnchor = vuAnchorInt,
+                            channelLayoutStrategy = channelScopeLayout,
+                            channelTextAnchor = channelScopeTextAnchor,
+                            channelVuAnchor = channelScopeTextVuAnchor,
+                            channelScopeTextEnabled = channelScopeTextEnabled,
+                            showChannel = channelScopeTextShowChannel,
+                            showNote = channelScopeTextShowNote,
+                            showVolume = channelScopeTextShowVolume,
+                            showEffectPrimary = channelScopeTextShowEffectPrimary,
+                            showEffectSecondary = channelScopeTextShowEffectSecondary,
+                            showChip = channelScopeTextShowChip,
+                            showInstrument = channelScopeTextShowInstrument,
+                            showSample = channelScopeTextShowSample,
+                            vuEnabled = channelScopeTextVuEnabled,
+                            textSizeSp = channelScopeTextSizeSp,
+                            textFont = channelScopeTextFont,
+                            noteFormat = channelScopeTextNoteFormat,
+                            paddingPx = paddingPx,
+                            gridColorArgb = channelScopeGridColor.toArgb(),
                             gridWidthPx = channelScopeGridWidthDp.toFloat(),
-                            showVerticalGrid = channelScopeVerticalGridEnabled,
-                            showCenterLine = channelScopeCenterLineEnabled,
-                            triggerModeNative = channelScopeTriggerModeNative,
-                            triggerIndices = channelScopeTriggerIndices,
-                            layoutStrategy = channelScopeLayout,
-                            outerCornerRadiusPx = channelScopeCornerRadiusPx,
-                            backgroundFrame = channelScopeBgFrame,
-                            textFrame = glTextFrame,
-                            onFrameStats = channelScopeOnFrameStats,
-                            modifier = Modifier.fillMaxSize()
+                            lineColorArgb = channelScopeLineColor.toArgb(),
+                            lineWidthPx = channelScopeLineWidthDp.toFloat(),
+                            vuColorArgb = channelScopeVuColor.toArgb(),
+                            textPalette = com.flopster101.siliconplayer.ui.visualization.gl.GlChannelScopeTextPalette(
+                                channelArgb = channelScopeTextPalette.channel.toArgb(),
+                                noteArgb = channelScopeTextPalette.note.toArgb(),
+                                volumeArgb = channelScopeTextPalette.volume.toArgb(),
+                                effectArgb = channelScopeTextPalette.effect.toArgb(),
+                                instrumentOrSampleArgb = channelScopeTextPalette.instrumentOrSample.toArgb(),
+                                separatorArgb = channelScopeTextPalette.separator.toArgb()
+                            ),
+                            shadowEnabled = channelScopeTextShadowEnabled,
+                            hideWhenOverflow = channelScopeTextHideWhenOverflow,
+                            contrastMode = channelScopeContrastMode,
+                            showArtworkBackground = showArtworkBackground
                         )
-                    }
-                    VisualizationRenderBackend.OpenGlSurface -> {
-                        ChannelScopeGlVisualization(
-                            channelHistories = channelScopeHistories,
-                            lineColor = channelScopeLineColor,
-                            gridColor = channelScopeGridColor,
-                            backgroundColor = Color(channelScopeBackgroundColorArgb),
-                            lineWidthPx = channelScopeLineWidthDp.toFloat(),
-                            gridWidthPx = channelScopeGridWidthDp.toFloat(),
-                            showVerticalGrid = channelScopeVerticalGridEnabled,
-                            showCenterLine = channelScopeCenterLineEnabled,
-                            triggerModeNative = channelScopeTriggerModeNative,
-                            triggerIndices = channelScopeTriggerIndices,
-                            layoutStrategy = channelScopeLayout,
-                            outerCornerRadiusPx = channelScopeCornerRadiusPx,
-                            backgroundFrame = channelScopeBgFrame,
-                            textFrame = glTextFrame,
+                        com.flopster101.siliconplayer.ui.visualization.gl.SiliconNativeGlTextureVisualization(
+                            frame = nativeFrame,
                             onFrameStats = channelScopeOnFrameStats,
                             modifier = Modifier.fillMaxSize()
                         )
@@ -535,14 +539,14 @@ fun BasicVisualizationOverlay(
                         textShadowEnabled = channelScopeTextShadowEnabled,
                         textFont = channelScopeTextFont,
                         noteFormat = channelScopeTextNoteFormat,
-                        showChannel = !isGlBackend && channelScopeTextEnabled && channelScopeTextShowChannel,
-                        showNote = !isGlBackend && channelScopeTextEnabled && channelScopeTextShowNote,
-                        showVolume = !isGlBackend && channelScopeTextEnabled && channelScopeTextShowVolume,
-                        showEffectPrimary = !isGlBackend && channelScopeTextEnabled && channelScopeTextShowEffectPrimary,
-                        showEffectSecondary = !isGlBackend && channelScopeTextEnabled && channelScopeTextShowEffectSecondary,
-                        showChip = !isGlBackend && channelScopeTextEnabled && channelScopeTextShowChip,
-                        showInstrument = !isGlBackend && channelScopeTextEnabled && channelScopeTextShowInstrument,
-                        showSample = !isGlBackend && channelScopeTextEnabled && channelScopeTextShowSample,
+                        showChannel = channelScopeTextEnabled && channelScopeTextShowChannel,
+                        showNote = channelScopeTextEnabled && channelScopeTextShowNote,
+                        showVolume = channelScopeTextEnabled && channelScopeTextShowVolume,
+                        showEffectPrimary = channelScopeTextEnabled && channelScopeTextShowEffectPrimary,
+                        showEffectSecondary = channelScopeTextEnabled && channelScopeTextShowEffectSecondary,
+                        showChip = channelScopeTextEnabled && channelScopeTextShowChip,
+                        showInstrument = channelScopeTextEnabled && channelScopeTextShowInstrument,
+                        showSample = channelScopeTextEnabled && channelScopeTextShowSample,
                         vuEnabled = channelScopeTextVuEnabled,
                         vuAnchor = channelScopeTextVuAnchor,
                         vuColor = channelScopeVuColor,

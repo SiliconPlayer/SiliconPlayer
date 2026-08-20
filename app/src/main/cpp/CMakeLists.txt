@@ -35,6 +35,7 @@ add_library(
         decoders/DecoderRegistry.cpp
         decoders/SdlCompat.c
         decoders/CPConvStub.c
+        SiliconVisJni.cpp
 )
 
 target_compile_definitions(
@@ -77,6 +78,10 @@ include_directories(${CMAKE_SOURCE_DIR}/../../../../external/furnace/extern/fmt/
 include_directories(${CMAKE_SOURCE_DIR}/../../../../external/furnace/extern/blip_buf)
 # Furnace SFWrapper type declarations require bundled libsndfile public headers.
 include_directories(${CMAKE_SOURCE_DIR}/../../../../external/furnace/extern/libsndfile-modified/include)
+
+# Expose silicon_vis multiplatform visualizer headers.
+add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/../../../../external/silicon/silicon_vis ${CMAKE_CURRENT_BINARY_DIR}/silicon_vis)
+include_directories(${CMAKE_SOURCE_DIR}/../../../../external/silicon/silicon_vis/include)
 
     # Find Android libraries
     find_library(log-lib log)
@@ -201,6 +206,7 @@ include_directories(${CMAKE_SOURCE_DIR}/../../../../external/furnace/extern/libs
     # Link libraries
     target_link_libraries(
             siliconplayer
+            silicon_vis
             ${log-lib}
             ${android-lib}
             ${opensles-lib}

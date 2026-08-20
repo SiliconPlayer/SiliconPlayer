@@ -364,7 +364,7 @@ internal class GlChannelScopeTextRenderer(private val context: Context) {
         if (cellLeft + padding >= maxRight) return
 
         val paddingX = padding
-        val paddingTop = (padding * 0.42f).coerceAtLeast(1f)
+        val paddingTop = padding
         val paddingBottom = padding
 
         val originY = when (anchor) {

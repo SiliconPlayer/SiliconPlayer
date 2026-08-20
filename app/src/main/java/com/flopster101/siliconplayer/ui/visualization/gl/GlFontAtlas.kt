@@ -32,12 +32,115 @@ internal class GlFontAtlas(
         val ascentPx: Float
     )
 
+    data class AtlasUploadData(
+        val pixelBuffer: ByteBuffer,
+        val width: Int,
+        val height: Int,
+        val baseFontSizePx: Float,
+        val lineHeightPx: Float,
+        val glyphBuffer: ByteBuffer,
+        val glyphCount: Int
+    )
+
     private var textureId: Int = 0
     private val asciiGlyphs = arrayOfNulls<Glyph>(128)
     private val extendedGlyphs = HashMap<Char, Glyph>()
     private var fallbackGlyph: Glyph? = null
     var lineHeightPx: Float = baseFontSizePx * 1.2f
         private set
+
+    fun createAtlasUploadData(): AtlasUploadData {
+        val paint = Paint(Paint.ANTI_ALIAS_FLAG or Paint.SUBPIXEL_TEXT_FLAG).apply {
+            this.typeface = this@GlFontAtlas.typeface
+            this.textSize = baseFontSizePx
+            this.color = 0xFFFFFFFF.toInt()
+        }
+
+        val fontMetrics = paint.fontMetrics
+        val fontAscent = -fontMetrics.ascent
+        val fontDescent = fontMetrics.descent
+        val measuredLineHeight = fontAscent + fontDescent
+
+        val chars = ArrayList<Char>(160)
+        for (c in 32..126) chars.add(c.toChar())
+        val extraChars = charArrayOf(
+            '▲', '▼', '◄', '►', '■', '□', '▪', '▫',
+            '│', '─', '┌', '┐', '└', '┘', '├', '┤', '┬', '┴', '┼',
+            '°', '±', '·', '•', '…', '♯', '♭', '?'
+        )
+        for (c in extraChars) chars.add(c)
+
+        val padding = 2
+        var maxAdvance = paint.measureText("W")
+        for (c in chars) {
+            val adv = paint.measureText(c.toString())
+            if (adv > maxAdvance) maxAdvance = adv
+        }
+        val cellW = ceil(maxAdvance + (padding * 2)).toInt()
+        val cellH = ceil(measuredLineHeight + (padding * 2)).toInt()
+        val cols = 16
+        val rows = ceil(chars.size.toDouble() / cols.toDouble()).toInt()
+        val atlasW = 512
+        val atlasH = max(256, (rows * cellH + 31) / 32 * 32)
+
+        val bitmap = Bitmap.createBitmap(atlasW, atlasH, Bitmap.Config.ARGB_8888)
+        val canvas = Canvas(bitmap)
+        val rect = Rect()
+
+        val glyphByteBuffer = ByteBuffer.allocateDirect(chars.size * 36).order(ByteOrder.nativeOrder())
+
+        var col = 0
+        var row = 0
+        for (ch in chars) {
+            val str = ch.toString()
+            paint.getTextBounds(str, 0, str.length, rect)
+            val advance = paint.measureText(str).coerceAtLeast(1f)
+
+            val x = col * cellW + padding
+            val y = row * cellH + padding
+            val drawY = y + fontAscent
+
+            canvas.drawText(str, x.toFloat(), drawY, paint)
+
+            val u0 = x.toFloat() / atlasW.toFloat()
+            val v0 = y.toFloat() / atlasH.toFloat()
+            val u1 = (x + advance).toFloat() / atlasW.toFloat()
+            val v1 = (y + measuredLineHeight).toFloat() / atlasH.toFloat()
+
+            // struct Glyph: codepoint(int), u0, v0, u1, v1, widthPx, heightPx, advanceX, ascentPx
+            glyphByteBuffer.putInt(ch.code)
+            glyphByteBuffer.putFloat(u0)
+            glyphByteBuffer.putFloat(v0)
+            glyphByteBuffer.putFloat(u1)
+            glyphByteBuffer.putFloat(v1)
+            glyphByteBuffer.putFloat(advance)
+            glyphByteBuffer.putFloat(measuredLineHeight)
+            glyphByteBuffer.putFloat(advance)
+            glyphByteBuffer.putFloat(fontAscent)
+
+            col++
+            if (col >= cols) {
+                col = 0
+                row++
+            }
+        }
+        glyphByteBuffer.flip()
+
+        val pixelBuffer = ByteBuffer.allocateDirect(atlasW * atlasH * 4).order(ByteOrder.nativeOrder())
+        bitmap.copyPixelsToBuffer(pixelBuffer)
+        pixelBuffer.flip()
+        bitmap.recycle()
+
+        return AtlasUploadData(
+            pixelBuffer = pixelBuffer,
+            width = atlasW,
+            height = atlasH,
+            baseFontSizePx = baseFontSizePx,
+            lineHeightPx = measuredLineHeight,
+            glyphBuffer = glyphByteBuffer,
+            glyphCount = chars.size
+        )
+    }
 
     fun initGl() {
         if (textureId != 0) return
