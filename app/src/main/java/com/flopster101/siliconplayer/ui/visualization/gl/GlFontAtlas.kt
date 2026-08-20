@@ -61,7 +61,7 @@ internal class GlFontAtlas(
         val extraChars = charArrayOf(
             '▲', '▼', '◄', '►', '■', '□', '▪', '▫',
             '│', '─', '┌', '┐', '└', '┘', '├', '┤', '┬', '┴', '┼',
-            '°', '±', '·', '…', '♯', '♭'
+            '°', '±', '·', '•', '…', '♯', '♭'
         )
         for (c in extraChars) {
             chars.add(c)
@@ -109,14 +109,10 @@ internal class GlFontAtlas(
                 ascentPx = fontAscent
             )
 
-            if (ch.code in 0..127) {
+            if (ch.code < 128) {
                 asciiGlyphs[ch.code] = glyph
             } else {
                 extendedGlyphs[ch] = glyph
-            }
-
-            if (ch == '?') {
-                fallbackGlyph = glyph
             }
 
             col++
@@ -126,9 +122,7 @@ internal class GlFontAtlas(
             }
         }
 
-        if (fallbackGlyph == null) {
-            fallbackGlyph = asciiGlyphs[' '.code]
-        }
+        fallbackGlyph = asciiGlyphs['?'.code] ?: Glyph('?', 0f, 0f, 1f, 1f, cellW.toFloat(), cellH.toFloat(), cellW.toFloat(), fontAscent)
 
         val textures = IntArray(1)
         GLES20.glGenTextures(1, textures, 0)
@@ -145,7 +139,7 @@ internal class GlFontAtlas(
 
     fun getGlyph(ch: Char): Glyph? {
         val code = ch.code
-        if (code in 0..127) {
+        if (code < 128) {
             return asciiGlyphs[code] ?: fallbackGlyph
         }
         return extendedGlyphs[ch] ?: fallbackGlyph
@@ -154,10 +148,8 @@ internal class GlFontAtlas(
     fun measureTextWidth(text: String, scale: Float): Float {
         var width = 0f
         for (i in 0 until text.length) {
-            val glyph = getGlyph(text[i])
-            if (glyph != null) {
-                width += glyph.advanceX * scale
-            }
+            val glyph = getGlyph(text[i]) ?: continue
+            width += glyph.advanceX * scale
         }
         return width
     }
@@ -172,6 +164,9 @@ internal class GlFontAtlas(
             GLES20.glDeleteTextures(1, intArrayOf(textureId), 0)
             textureId = 0
         }
+        for (i in asciiGlyphs.indices) asciiGlyphs[i] = null
+        extendedGlyphs.clear()
+        fallbackGlyph = null
     }
 }
 
@@ -206,8 +201,10 @@ internal class GlTextBatchBuilder(initialQuadCapacity: Int = 512) {
         shadowG: Float = 0f,
         shadowB: Float = 0f,
         shadowA: Float = 0.75f,
-        shadowOffsetPx: Float = 1.5f
+        shadowOffsetPx: Float = 1.5f,
+        maxWidthPx: Float = Float.MAX_VALUE
     ): Float {
+        if (maxWidthPx <= 0f) return 0f
         var cursorX = startX
         if (shadow && a > 0f) {
             var sX = startX + shadowOffsetPx
@@ -215,16 +212,20 @@ internal class GlTextBatchBuilder(initialQuadCapacity: Int = 512) {
             for (i in 0 until text.length) {
                 val ch = text[i]
                 val glyph = atlas.getGlyph(ch) ?: continue
+                val glyphW = glyph.advanceX * scale
+                if (sX + glyphW > startX + maxWidthPx + 0.5f) break
                 addGlyphQuad(glyph, sX, sY, scale, shadowR, shadowG, shadowB, a * shadowA)
-                sX += glyph.advanceX * scale
+                sX += glyphW
             }
         }
 
         for (i in 0 until text.length) {
             val ch = text[i]
             val glyph = atlas.getGlyph(ch) ?: continue
+            val glyphW = glyph.advanceX * scale
+            if (cursorX + glyphW > startX + maxWidthPx + 0.5f) break
             addGlyphQuad(glyph, cursorX, startY, scale, r, g, b, a)
-            cursorX += glyph.advanceX * scale
+            cursorX += glyphW
         }
         return cursorX - startX
     }

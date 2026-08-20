@@ -133,10 +133,50 @@ internal class GlChannelScopeTextRenderer(private val context: Context) {
         val cellHeight = surfaceHeight / safeRows.toFloat()
 
         val density = frame.density.coerceAtLeast(1f)
+        val cellWidthDp = cellWidth / density
+        val paddingDp = (frame.paddingPx / density).coerceAtLeast(2f)
         val selectedTextSizeSp = frame.textSizeSp.coerceIn(6, 22)
-        val selectedTextSizePx = selectedTextSizeSp.toFloat() * density
-        val scale = selectedTextSizePx / atlas.baseFontSizePx
+        val minimumAutoTextSizeSp = (selectedTextSizeSp - 6).coerceAtLeast(6)
+        val effectSlotCount = listOf(frame.showEffectPrimary, frame.showEffectSecondary).count { it }
+        val effectiveTextSizeSp = computeAutoChannelScopeTextSizeSp(
+            selectedTextSizeSp = selectedTextSizeSp,
+            minimumTextSizeSp = minimumAutoTextSizeSp,
+            cellWidthDp = cellWidthDp,
+            paddingDp = paddingDp,
+            showChannel = frame.showChannel,
+            showNote = frame.showNote,
+            showVolume = frame.showVolume,
+            effectSlotCount = effectSlotCount,
+            showChip = frame.showChip,
+            showInstrument = frame.showInstrument,
+            showSample = frame.showSample
+        )
+
+        val canRenderAtEffectiveSize = estimateChannelScopeTextWidthDp(
+            sp = effectiveTextSizeSp,
+            paddingDp = paddingDp,
+            showChannel = frame.showChannel,
+            showNote = frame.showNote,
+            showVolume = frame.showVolume,
+            effectSlotCount = effectSlotCount,
+            showChip = frame.showChip,
+            showInstrument = frame.showInstrument,
+            showSample = frame.showSample
+        ) <= cellWidthDp
+
+        if (frame.hideWhenOverflow && !canRenderAtEffectiveSize) {
+            vertexCount = 0
+            return
+        }
+
+        val effectiveTextSizePx = effectiveTextSizeSp.toFloat() * density
+        val scale = effectiveTextSizePx / atlas.baseFontSizePx
         val lineHeightPx = atlas.lineHeightPx * scale
+        val slotScale = effectiveTextSizeSp.toFloat() / 8f
+        val noteSlotWidth = 24f * slotScale * density
+        val volumeSlotWidth = 30f * slotScale * density
+        val effectSlotWidth = 20f * slotScale * density
+        val itemSpacing = 2f * density
         val padding = frame.paddingPx.coerceAtLeast(2f)
 
         batchBuilder.clear()
@@ -180,6 +220,10 @@ internal class GlChannelScopeTextRenderer(private val context: Context) {
                     anchor = frame.anchor,
                     padding = padding,
                     scale = scale,
+                    noteSlotWidth = noteSlotWidth,
+                    volumeSlotWidth = volumeSlotWidth,
+                    effectSlotWidth = effectSlotWidth,
+                    itemSpacing = itemSpacing,
                     lineHeightPx = lineHeightPx,
                     palette = frame.palette,
                     shadow = frame.textShadowEnabled
@@ -308,78 +352,325 @@ internal class GlChannelScopeTextRenderer(private val context: Context) {
         anchor: VisualizationChannelScopeTextAnchor,
         padding: Float,
         scale: Float,
+        noteSlotWidth: Float,
+        volumeSlotWidth: Float,
+        effectSlotWidth: Float,
+        itemSpacing: Float,
         lineHeightPx: Float,
         palette: GlChannelScopeTextPalette,
         shadow: Boolean
     ) {
-        // Collect tokens in order: [channel, note, volume, effect1, effect2, chip/instrument]
-        val tokens = ArrayList<GlTextToken>(6)
-        fields.channel?.let { tokens.add(GlTextToken(it, palette.channelArgb)) }
-        fields.note?.let { tokens.add(GlTextToken(it, palette.noteArgb)) }
-        fields.volume?.let { tokens.add(GlTextToken(it, palette.volumeArgb)) }
-        for (eff in fields.effects) {
-            tokens.add(GlTextToken(eff, palette.effectArgb))
-        }
-        fields.chip?.let { tokens.add(GlTextToken(it, palette.channelArgb)) }
-        fields.instrumentOrSample?.let { tokens.add(GlTextToken(it, palette.instrumentOrSampleArgb)) }
+        val maxRight = cellRight - padding
+        if (cellLeft + padding >= maxRight) return
 
-        if (tokens.isEmpty()) return
-
-        val spaceWidth = atlas.measureTextWidth(" ", scale)
-        val totalWidth = tokens.sumOf { atlas.measureTextWidth(it.text, scale).toDouble() }.toFloat() +
-                (tokens.size - 1).coerceAtLeast(0) * spaceWidth
-
-        val cellW = cellRight - cellLeft
-        val cellH = cellBottom - cellTop
         val paddingX = padding
         val paddingTop = (padding * 0.42f).coerceAtLeast(1f)
         val paddingBottom = padding
 
-        val (originX, originY) = when (anchor) {
-            VisualizationChannelScopeTextAnchor.TopLeft -> {
-                (cellLeft + paddingX) to (cellTop + paddingTop)
-            }
-            VisualizationChannelScopeTextAnchor.TopCenter -> {
-                (cellLeft + (cellW - totalWidth) * 0.5f).coerceAtLeast(cellLeft + paddingX) to (cellTop + paddingTop)
-            }
-            VisualizationChannelScopeTextAnchor.TopRight -> {
-                (cellRight - totalWidth - paddingX).coerceAtLeast(cellLeft + paddingX) to (cellTop + paddingTop)
-            }
-            VisualizationChannelScopeTextAnchor.BottomLeft -> {
-                (cellLeft + paddingX) to (cellBottom - lineHeightPx - paddingBottom)
-            }
-            VisualizationChannelScopeTextAnchor.BottomCenter -> {
-                (cellLeft + (cellW - totalWidth) * 0.5f).coerceAtLeast(cellLeft + paddingX) to (cellBottom - lineHeightPx - paddingBottom)
-            }
-            VisualizationChannelScopeTextAnchor.BottomRight -> {
-                (cellRight - totalWidth - paddingX).coerceAtLeast(cellLeft + paddingX) to (cellBottom - lineHeightPx - paddingBottom)
-            }
+        val originY = when (anchor) {
+            VisualizationChannelScopeTextAnchor.TopLeft,
+            VisualizationChannelScopeTextAnchor.TopCenter,
+            VisualizationChannelScopeTextAnchor.TopRight -> cellTop + paddingTop
+            VisualizationChannelScopeTextAnchor.BottomLeft,
+            VisualizationChannelScopeTextAnchor.BottomCenter,
+            VisualizationChannelScopeTextAnchor.BottomRight -> cellBottom - lineHeightPx - paddingBottom
         }
 
-        var cursorX = originX
-        for (token in tokens) {
-            val a = ((token.colorArgb ushr 24) and 0xFF) / 255f
-            val r = ((token.colorArgb ushr 16) and 0xFF) / 255f
-            val g = ((token.colorArgb ushr 8) and 0xFF) / 255f
-            val b = (token.colorArgb and 0xFF) / 255f
+        var cursorX = cellLeft + paddingX
+        var hasPrevious = false
 
-            val adv = batchBuilder.addText(
+        fun drawSeparator() {
+            if (!hasPrevious || cursorX >= maxRight) return
+            val bullet = "•"
+            val sepWidth = atlas.measureTextWidth(bullet, scale)
+            if (cursorX + sepWidth + itemSpacing > maxRight) return
+            val a = ((palette.separatorArgb ushr 24) and 0xFF) / 255f
+            val r = ((palette.separatorArgb ushr 16) and 0xFF) / 255f
+            val g = ((palette.separatorArgb ushr 8) and 0xFF) / 255f
+            val b = (palette.separatorArgb and 0xFF) / 255f
+            batchBuilder.addText(
                 atlas = atlas,
-                text = token.text,
+                text = bullet,
                 startX = cursorX,
                 startY = originY,
                 scale = scale,
-                r = r,
-                g = g,
-                b = b,
-                a = a,
-                shadow = shadow
+                r = r, g = g, b = b, a = a,
+                shadow = shadow,
+                maxWidthPx = (maxRight - cursorX).coerceAtLeast(0f)
             )
-            cursorX += adv + spaceWidth
+            cursorX += sepWidth + itemSpacing
+        }
+
+        // 1. Channel
+        if (fields.channel != null) {
+            if (cursorX < maxRight) {
+                val a = ((palette.channelArgb ushr 24) and 0xFF) / 255f
+                val r = ((palette.channelArgb ushr 16) and 0xFF) / 255f
+                val g = ((palette.channelArgb ushr 8) and 0xFF) / 255f
+                val b = (palette.channelArgb and 0xFF) / 255f
+                val drawnWidth = batchBuilder.addText(
+                    atlas = atlas,
+                    text = fields.channel,
+                    startX = cursorX,
+                    startY = originY,
+                    scale = scale,
+                    r = r, g = g, b = b, a = a,
+                    shadow = shadow,
+                    maxWidthPx = (maxRight - cursorX).coerceAtLeast(0f)
+                )
+                cursorX += drawnWidth + itemSpacing
+                hasPrevious = true
+            }
+        }
+
+        // 2. Note (Centered in noteSlotWidth)
+        if (fields.note != null) {
+            drawSeparator()
+            if (cursorX + noteSlotWidth <= maxRight) {
+                val a = ((palette.noteArgb ushr 24) and 0xFF) / 255f
+                val r = ((palette.noteArgb ushr 16) and 0xFF) / 255f
+                val g = ((palette.noteArgb ushr 8) and 0xFF) / 255f
+                val b = (palette.noteArgb and 0xFF) / 255f
+                val textW = atlas.measureTextWidth(fields.note, scale)
+                val textX = cursorX + (noteSlotWidth - textW) * 0.5f
+                batchBuilder.addText(
+                    atlas = atlas,
+                    text = fields.note,
+                    startX = textX,
+                    startY = originY,
+                    scale = scale,
+                    r = r, g = g, b = b, a = a,
+                    shadow = shadow,
+                    maxWidthPx = (maxRight - textX).coerceAtLeast(0f)
+                )
+                cursorX += noteSlotWidth + itemSpacing
+                hasPrevious = true
+            }
+        }
+
+        // 3. Volume (Centered in volumeSlotWidth)
+        if (fields.volume != null) {
+            drawSeparator()
+            if (cursorX + volumeSlotWidth <= maxRight) {
+                val a = ((palette.volumeArgb ushr 24) and 0xFF) / 255f
+                val r = ((palette.volumeArgb ushr 16) and 0xFF) / 255f
+                val g = ((palette.volumeArgb ushr 8) and 0xFF) / 255f
+                val b = (palette.volumeArgb and 0xFF) / 255f
+                val textW = atlas.measureTextWidth(fields.volume, scale)
+                val textX = cursorX + (volumeSlotWidth - textW) * 0.5f
+                batchBuilder.addText(
+                    atlas = atlas,
+                    text = fields.volume,
+                    startX = textX,
+                    startY = originY,
+                    scale = scale,
+                    r = r, g = g, b = b, a = a,
+                    shadow = shadow,
+                    maxWidthPx = (maxRight - textX).coerceAtLeast(0f)
+                )
+                cursorX += volumeSlotWidth + itemSpacing
+                hasPrevious = true
+            }
+        }
+
+        // 4. Effects (Each centered in effectSlotWidth)
+        for (eff in fields.effects) {
+            drawSeparator()
+            if (cursorX + effectSlotWidth <= maxRight) {
+                val a = ((palette.effectArgb ushr 24) and 0xFF) / 255f
+                val r = ((palette.effectArgb ushr 16) and 0xFF) / 255f
+                val g = ((palette.effectArgb ushr 8) and 0xFF) / 255f
+                val b = (palette.effectArgb and 0xFF) / 255f
+                val textW = atlas.measureTextWidth(eff, scale)
+                val textX = cursorX + (effectSlotWidth - textW) * 0.5f
+                batchBuilder.addText(
+                    atlas = atlas,
+                    text = eff,
+                    startX = textX,
+                    startY = originY,
+                    scale = scale,
+                    r = r, g = g, b = b, a = a,
+                    shadow = shadow,
+                    maxWidthPx = (maxRight - textX).coerceAtLeast(0f)
+                )
+                cursorX += effectSlotWidth + itemSpacing
+                hasPrevious = true
+            }
+        }
+
+        // 5. Chip name (Ellipsized to remaining width)
+        if (fields.chip != null) {
+            drawSeparator()
+            val remainingW = maxRight - cursorX
+            if (remainingW > 8f * scale) {
+                val ellipsized = truncateWithEllipsis(fields.chip, atlas, scale, remainingW)
+                if (ellipsized != null) {
+                    val a = ((palette.channelArgb ushr 24) and 0xFF) / 255f
+                    val r = ((palette.channelArgb ushr 16) and 0xFF) / 255f
+                    val g = ((palette.channelArgb ushr 8) and 0xFF) / 255f
+                    val b = (palette.channelArgb and 0xFF) / 255f
+                    val drawnWidth = batchBuilder.addText(
+                        atlas = atlas,
+                        text = ellipsized,
+                        startX = cursorX,
+                        startY = originY,
+                        scale = scale,
+                        r = r, g = g, b = b, a = a,
+                        shadow = shadow,
+                        maxWidthPx = remainingW
+                    )
+                    cursorX += drawnWidth + itemSpacing
+                    hasPrevious = true
+                }
+            }
+        }
+
+        // 6. Instrument / Sample (Ellipsized to remaining width)
+        if (fields.instrumentOrSample != null) {
+            drawSeparator()
+            val remainingW = maxRight - cursorX
+            if (remainingW > 8f * scale) {
+                val ellipsized = truncateWithEllipsis(fields.instrumentOrSample, atlas, scale, remainingW)
+                if (ellipsized != null) {
+                    val a = ((palette.instrumentOrSampleArgb ushr 24) and 0xFF) / 255f
+                    val r = ((palette.instrumentOrSampleArgb ushr 16) and 0xFF) / 255f
+                    val g = ((palette.instrumentOrSampleArgb ushr 8) and 0xFF) / 255f
+                    val b = (palette.instrumentOrSampleArgb and 0xFF) / 255f
+                    batchBuilder.addText(
+                        atlas = atlas,
+                        text = ellipsized,
+                        startX = cursorX,
+                        startY = originY,
+                        scale = scale,
+                        r = r, g = g, b = b, a = a,
+                        shadow = shadow,
+                        maxWidthPx = remainingW
+                    )
+                }
+            }
         }
     }
 
-    private data class GlTextToken(val text: String, val colorArgb: Int)
+    private fun truncateWithEllipsis(
+        text: String,
+        atlas: GlFontAtlas,
+        scale: Float,
+        maxWidth: Float
+    ): String? {
+        if (maxWidth <= 0f) return null
+        val fullWidth = atlas.measureTextWidth(text, scale)
+        if (fullWidth <= maxWidth) return text
+        val ellipsis = "…"
+        val ellipsisWidth = atlas.measureTextWidth(ellipsis, scale)
+        if (ellipsisWidth > maxWidth) return null
+        val availableForChars = maxWidth - ellipsisWidth
+        var len = text.length - 1
+        while (len > 0) {
+            val sub = text.substring(0, len)
+            if (atlas.measureTextWidth(sub, scale) <= availableForChars) {
+                return sub + ellipsis
+            }
+            len--
+        }
+        return null
+    }
+
+    private fun computeAutoChannelScopeTextSizeSp(
+        selectedTextSizeSp: Int,
+        minimumTextSizeSp: Int,
+        cellWidthDp: Float,
+        paddingDp: Float,
+        showChannel: Boolean,
+        showNote: Boolean,
+        showVolume: Boolean,
+        effectSlotCount: Int,
+        showChip: Boolean,
+        showInstrument: Boolean,
+        showSample: Boolean
+    ): Int {
+        val selected = selectedTextSizeSp.coerceIn(6, 22)
+        val minimum = minimumTextSizeSp.coerceAtMost(selected).coerceAtLeast(6)
+        val availableWidth = cellWidthDp.coerceAtLeast(0f)
+        if (
+            estimateChannelScopeTextWidthDp(
+                sp = selected,
+                paddingDp = paddingDp,
+                showChannel = showChannel,
+                showNote = showNote,
+                showVolume = showVolume,
+                effectSlotCount = effectSlotCount,
+                showChip = showChip,
+                showInstrument = showInstrument,
+                showSample = showSample
+            ) <= availableWidth
+        ) {
+            return selected
+        }
+        var size = selected
+        while (
+            size > minimum &&
+            estimateChannelScopeTextWidthDp(
+                sp = size,
+                paddingDp = paddingDp,
+                showChannel = showChannel,
+                showNote = showNote,
+                showVolume = showVolume,
+                effectSlotCount = effectSlotCount,
+                showChip = showChip,
+                showInstrument = showInstrument,
+                showSample = showSample
+            ) > availableWidth
+        ) {
+            size--
+        }
+        return size
+    }
+
+    private fun estimateChannelScopeTextWidthDp(
+        sp: Int,
+        paddingDp: Float,
+        showChannel: Boolean,
+        showNote: Boolean,
+        showVolume: Boolean,
+        effectSlotCount: Int,
+        showChip: Boolean,
+        showInstrument: Boolean,
+        showSample: Boolean
+    ): Float {
+        val scale = sp.toFloat() / 8f
+        var fieldCount = 0
+        var width = 0f
+        if (showChannel) {
+            width += 26f * scale
+            fieldCount++
+        }
+        if (showNote) {
+            width += 24f * scale
+            fieldCount++
+        }
+        if (showVolume) {
+            width += 30f * scale
+            fieldCount++
+        }
+        repeat(effectSlotCount.coerceAtLeast(0)) {
+            width += 20f * scale
+            fieldCount++
+        }
+        if (showChip) {
+            width += 60f * scale
+            fieldCount++
+        }
+        if (showInstrument || showSample) {
+            width += if (showInstrument && showSample) 48f * scale else 28f * scale
+            fieldCount++
+        }
+        val separators = (fieldCount - 1).coerceAtLeast(0)
+        width += separators * (8f * scale)
+        width += separators * 3f
+        width += paddingDp * 2f
+        width += 4f
+        return width
+    }
 
     private data class GlChannelTextFields(
         val channel: String?,
