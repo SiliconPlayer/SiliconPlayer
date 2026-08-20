@@ -2503,7 +2503,7 @@ internal fun AlbumArtPlaceholder(
         ElevatedCard(
             modifier = Modifier.matchParentSize(),
             colors = CardDefaults.elevatedCardColors(
-                containerColor = MaterialTheme.colorScheme.surfaceVariant
+                containerColor = scopeBackgroundColor
             ),
             shape = RoundedCornerShape(artworkCornerRadiusDp.coerceIn(0, 48).dp)
         ) {
