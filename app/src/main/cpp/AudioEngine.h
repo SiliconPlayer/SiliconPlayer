@@ -279,7 +279,7 @@ private:
     // Serializes stop/setUrl/start so a follow-up setUrl/start cannot
     // race the detached stopEngine thread and have its prefill cleared.
     std::mutex lifecycleMutex;
-    int streamSampleRate = 48000;
+    int streamSampleRate = 0;
     int streamChannelCount = 2;
     bool streamStartupPrerollPending = true;
     std::atomic<bool> fastTrackSwitchStartupHint { false }; // one-shot hint from UI track switching

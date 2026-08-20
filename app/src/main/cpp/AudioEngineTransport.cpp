@@ -83,7 +83,7 @@ bool AudioEngine::start() {
             if (decoder) {
                 const int desiredRate = resolveOutputSampleRateForCore(decoder->getName());
                 decoder->setOutputSampleRate(desiredRate);
-                decoderRenderSampleRate = decoder->getSampleRate();
+                decoderRenderSampleRate = decoder->getRenderSampleRate();
                 resetResamplerStateLocked();
                 const double durationNow = decoder->getDuration();
                 const bool loopPointRepeatMode = repeatMode.load() == 2;
@@ -332,7 +332,7 @@ void AudioEngine::setUrl(const char* url) {
             return;
         }
         std::lock_guard<std::mutex> lock(decoderMutex);
-        decoderRenderSampleRate = newDecoder->getSampleRate();
+        decoderRenderSampleRate = newDecoder->getRenderSampleRate();
         newDecoder->setRepeatMode(repeatMode.load());
         if (!optionsForDecoder.empty()) {
             for (const auto& [name, value] : optionsForDecoder) {
@@ -438,7 +438,7 @@ double AudioEngine::runAsyncSeekLocked(double targetSeconds) {
 
     decoder->seek(0.0);
     const int channels = std::max(1, decoder->getChannelCount());
-    int decoderRate = decoderRenderSampleRate > 0 ? decoderRenderSampleRate : decoder->getSampleRate();
+    int decoderRate = decoderRenderSampleRate > 0 ? decoderRenderSampleRate : decoder->getRenderSampleRate();
     if (decoderRate <= 0) {
         decoderRate = 48000;
     }

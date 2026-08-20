@@ -254,7 +254,7 @@ std::vector<float> AudioEngine::getChannelScopeSamples(int samplesPerChannel) {
         std::lock_guard<std::mutex> lock(decoderMutex);
         if (!decoder) return {};
         state = decoder->getChannelScopeSharedState();
-        decoderSampleRate = decoderRenderSampleRate > 0 ? decoderRenderSampleRate : decoder->getSampleRate();
+        decoderSampleRate = decoderRenderSampleRate > 0 ? decoderRenderSampleRate : decoder->getRenderSampleRate();
     }
     if (!state) return {};
     const int outputSampleRate = streamSampleRate > 0 ? streamSampleRate : decoderSampleRate;

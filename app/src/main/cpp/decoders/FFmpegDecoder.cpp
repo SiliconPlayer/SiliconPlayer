@@ -372,6 +372,9 @@ bool FFmpegDecoder::openLocked(const char* path) {
     if (sourceChannelCount <= 0) {
         sourceChannelCount = outputChannelCount;
     }
+    if (outputSampleRate <= 0) {
+        outputSampleRate = sourceSampleRate > 0 ? sourceSampleRate : 48000;
+    }
     sourceBitDepth = codecParams->bits_per_raw_sample;
     if (sourceBitDepth <= 0) {
         sourceBitDepth = codecParams->bits_per_coded_sample;
@@ -1169,7 +1172,11 @@ double FFmpegDecoder::getDuration() {
 }
 
 int FFmpegDecoder::getSampleRate() {
-    return outputSampleRate;
+    return sourceSampleRate > 0 ? sourceSampleRate : (outputSampleRate > 0 ? outputSampleRate : 48000);
+}
+
+int FFmpegDecoder::getRenderSampleRate() {
+    return outputSampleRate > 0 ? outputSampleRate : (sourceSampleRate > 0 ? sourceSampleRate : 48000);
 }
 
 int FFmpegDecoder::getBitDepth() {
@@ -1286,14 +1293,17 @@ std::string FFmpegDecoder::getComment() {
 }
 
 void FFmpegDecoder::setOutputSampleRate(int sampleRate) {
-    if (sampleRate <= 0) return;
+    if (sampleRate <= 0) {
+        sampleRate = sourceSampleRate > 0 ? sourceSampleRate : 0;
+    }
     std::lock_guard<std::mutex> lock(decodeMutex);
     if (outputSampleRate == sampleRate) return;
+    const int effectiveNewRate = sampleRate > 0 ? sampleRate : (sourceSampleRate > 0 ? sourceSampleRate : 48000);
     // Preserve timeline continuity when render sample rate changes.
     // totalFramesOutput is tracked in units of outputSampleRate.
     if (outputSampleRate > 0 && totalFramesOutput > 0) {
         const double seconds = static_cast<double>(totalFramesOutput) / outputSampleRate;
-        totalFramesOutput = static_cast<int64_t>(seconds * sampleRate);
+        totalFramesOutput = static_cast<int64_t>(seconds * effectiveNewRate);
     } else {
         totalFramesOutput = 0;
     }

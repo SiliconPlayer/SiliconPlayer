@@ -27,6 +27,7 @@ public:
     void seek(double seconds) override;
     double getDuration() override;
     int getSampleRate() override;
+    int getRenderSampleRate() override;
     int getBitDepth() override;
     std::string getBitDepthLabel() override;
     int getDisplayChannelCount() override;
@@ -78,7 +79,7 @@ private:
     AVPacket* packet = nullptr;
 
     double duration = 0.0;
-    int outputSampleRate = 48000;
+    int outputSampleRate = 0;
     int sourceSampleRate = 0;
     int sourceBitDepth = 0;
     int sourceChannelCount = 0;

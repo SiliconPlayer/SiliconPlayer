@@ -146,7 +146,7 @@ bool AudioEngine::createMiniaudioStream() {
     ma_device_config deviceConfig = ma_device_config_init(ma_device_type_playback);
     deviceConfig.playback.format = ma_format_f32;
     deviceConfig.playback.channels = 2;
-    deviceConfig.sampleRate = streamSampleRate > 0 ? static_cast<ma_uint32>(streamSampleRate) : 0;
+    deviceConfig.sampleRate = 0;
     deviceConfig.dataCallback = miniaudioDataCallback;
     deviceConfig.stopCallback = miniaudioStopCallback;
     deviceConfig.pUserData = this;
@@ -289,7 +289,7 @@ void AudioEngine::reconfigureStream(bool resumePlayback) {
         if (decoder) {
             const int desiredRate = resolveOutputSampleRateForCore(decoder->getName());
             decoder->setOutputSampleRate(desiredRate);
-            decoderRenderSampleRate = decoder->getSampleRate();
+            decoderRenderSampleRate = decoder->getRenderSampleRate();
             resetResamplerStateLocked(true);
         }
     }
@@ -360,7 +360,7 @@ void AudioEngine::recoverStreamIfNeeded() {
         if (decoder) {
             const int desiredRate = resolveOutputSampleRateForCore(decoder->getName());
             decoder->setOutputSampleRate(desiredRate);
-            decoderRenderSampleRate = decoder->getSampleRate();
+            decoderRenderSampleRate = decoder->getRenderSampleRate();
             resetResamplerStateLocked(true);
         }
     }

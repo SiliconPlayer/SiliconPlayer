@@ -6,6 +6,9 @@ int AudioEngine::resolveOutputSampleRateForCore(const std::string& coreName) con
     if (it != coreOutputSampleRateHz.end() && it->second > 0) {
         return it->second;
     }
+    if (coreName == "FFmpeg") {
+        return 0;
+    }
     return (streamSampleRate > 0) ? streamSampleRate : 48000;
 }
 
@@ -22,7 +25,7 @@ void AudioEngine::setCoreOutputSampleRate(const std::string& coreName, int sampl
         if (supportsLiveRateChange) {
             const int desiredRate = resolveOutputSampleRateForCore(coreName);
             decoder->setOutputSampleRate(desiredRate);
-            decoderRenderSampleRate = decoder->getSampleRate();
+            decoderRenderSampleRate = decoder->getRenderSampleRate();
             resetResamplerStateLocked();
         }
     }

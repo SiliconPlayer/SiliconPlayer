@@ -41,6 +41,7 @@ public:
     virtual void seek(double seconds) = 0;
     virtual double getDuration() = 0;
     virtual int getSampleRate() = 0;
+    virtual int getRenderSampleRate() { return getSampleRate(); }
     virtual int getBitDepth() { return 0; }
     virtual std::string getBitDepthLabel() { return "Unknown"; }
     virtual int getDisplayChannelCount() { return getChannelCount(); }
