@@ -2306,6 +2306,7 @@ build_furnace() {
         return 0
     fi
 
+    rm -rf "$BUILD_DIR"
     mkdir -p "$BUILD_DIR" "$INSTALL_DIR/lib" "$INSTALL_DIR/include/furnace"
 
     # API 21 bionic does not provide fortify checked stdio/write symbols used
