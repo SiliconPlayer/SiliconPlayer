@@ -10,6 +10,8 @@ import com.flopster101.siliconplayer.VisualizationChannelScopeTextFont
 import com.flopster101.siliconplayer.VisualizationNoteNameFormat
 import com.flopster101.siliconplayer.NativeBridge
 import com.flopster101.siliconplayer.ui.visualization.channel.ChannelScopeChannelTextState
+import android.opengl.GLES20
+import com.flopster101.siliconplayer.VisualizationVuAnchor
 import java.nio.FloatBuffer
 import kotlin.math.ceil
 import kotlin.math.max
@@ -53,11 +55,18 @@ data class GlChannelScopeTextFrame(
     val showChip: Boolean,
     val showInstrument: Boolean,
     val showSample: Boolean,
-    val palette: GlChannelScopeTextPalette
+    val palette: GlChannelScopeTextPalette,
+    val channelHistories: List<FloatArray> = emptyList(),
+    val vuEnabled: Boolean = false,
+    val vuAnchor: VisualizationVuAnchor = VisualizationVuAnchor.Bottom,
+    val vuColorArgb: Int = 0,
+    val vuTrackColorArgb: Int = 0,
+    val vuInsetPx: Float = 1f,
+    val vuStripHeightPx: Float = 2f
 )
 
 /**
- * High-performance batched OpenGL text renderer for Channel Scope view.
+ * High-performance batched OpenGL text and mini VU meter renderer for Channel Scope view.
  */
 internal class GlChannelScopeTextRenderer(private val context: Context) {
     private var fontAtlas: GlFontAtlas? = null
@@ -66,9 +75,16 @@ internal class GlChannelScopeTextRenderer(private val context: Context) {
     private val batchBuilder = GlTextBatchBuilder(1024)
     private var textVertexBuffer: FloatBuffer? = null
     private var vertexCount: Int = 0
+    private var vuProgram = 0
+    private var vuPositionLoc = -1
+    private var vuColorLoc = -1
+    private var currentFrame: GlChannelScopeTextFrame? = null
 
     fun onSurfaceCreated() {
         textProgram.init()
+        vuProgram = GlSimplePrimitives.createProgram()
+        vuPositionLoc = GLES20.glGetAttribLocation(vuProgram, "aPosition")
+        vuColorLoc = GLES20.glGetUniformLocation(vuProgram, "uColor")
     }
 
     fun release() {
@@ -78,6 +94,11 @@ internal class GlChannelScopeTextRenderer(private val context: Context) {
         currentFont = null
         textVertexBuffer = null
         vertexCount = 0
+        currentFrame = null
+        if (vuProgram != 0) {
+            GLES20.glDeleteProgram(vuProgram)
+            vuProgram = 0
+        }
     }
 
     private fun ensureAtlas(font: VisualizationChannelScopeTextFont) {
@@ -95,6 +116,7 @@ internal class GlChannelScopeTextRenderer(private val context: Context) {
         surfaceWidth: Float,
         surfaceHeight: Float
     ) {
+        currentFrame = frame
         val channels = frame.channelCount
         if (channels <= 0 || surfaceWidth <= 0f || surfaceHeight <= 0f) {
             vertexCount = 0
@@ -172,6 +194,11 @@ internal class GlChannelScopeTextRenderer(private val context: Context) {
     }
 
     fun draw(surfaceWidth: Float, surfaceHeight: Float) {
+        val frame = currentFrame
+        if (frame != null && frame.vuEnabled && vuProgram != 0 && frame.channelHistories.isNotEmpty()) {
+            drawVuBars(surfaceWidth, surfaceHeight, frame)
+        }
+
         val atlas = fontAtlas ?: return
         val buffer = textVertexBuffer ?: return
         if (vertexCount <= 0 || !textProgram.isReady) return
@@ -183,6 +210,85 @@ internal class GlChannelScopeTextRenderer(private val context: Context) {
             surfaceWidth = surfaceWidth,
             surfaceHeight = surfaceHeight
         )
+    }
+
+    private fun drawVuBars(
+        surfaceWidth: Float,
+        surfaceHeight: Float,
+        frame: GlChannelScopeTextFrame
+    ) {
+        val channels = frame.channelCount
+        if (channels <= 0 || surfaceWidth <= 0f || surfaceHeight <= 0f) return
+        val (columns, rows) = resolveChannelGrid(channels, frame.layoutStrategy)
+        val safeCols = columns.coerceAtLeast(1)
+        val safeRows = rows.coerceAtLeast(1)
+        val cellWidth = surfaceWidth / safeCols.toFloat()
+        val cellHeight = surfaceHeight / safeRows.toFloat()
+        val inset = frame.vuInsetPx.coerceAtLeast(1f)
+        val h = frame.vuStripHeightPx.coerceAtLeast(1f)
+
+        GLES20.glUseProgram(vuProgram)
+        GLES20.glEnable(GLES20.GL_BLEND)
+        GLES20.glBlendFunc(GLES20.GL_SRC_ALPHA, GLES20.GL_ONE_MINUS_SRC_ALPHA)
+
+        for (col in 0 until safeCols) {
+            for (row in 0 until safeRows) {
+                val channel = (col * safeRows) + row
+                if (channel >= channels) continue
+
+                val cellLeft = col * cellWidth
+                val cellTop = row * cellHeight
+                val cellBottom = cellTop + cellHeight
+
+                val usableWidth = (cellWidth - (inset * 2f)).coerceAtLeast(0f)
+                val trackX = cellLeft + inset
+                val trackY = if (frame.vuAnchor == VisualizationVuAnchor.Top) {
+                    cellTop + inset
+                } else {
+                    (cellBottom - h - inset).coerceAtLeast(cellTop)
+                }
+
+                // 1. Draw track
+                val trackVertices = GlSimplePrimitives.rectToTrianglesNdc(
+                    x = trackX,
+                    y = trackY,
+                    w = usableWidth,
+                    h = h,
+                    surfaceWidth = surfaceWidth,
+                    surfaceHeight = surfaceHeight
+                )
+                GlSimplePrimitives.drawTriangles(trackVertices, frame.vuTrackColorArgb, vuPositionLoc, vuColorLoc)
+
+                // 2. Draw level fill
+                val history = frame.channelHistories.getOrNull(channel)
+                val vuLevel = if (history != null) computeChannelScopeVuLevel(history) else 0f
+                val fillWidth = (usableWidth * vuLevel).coerceAtLeast(0f)
+                if (fillWidth > 0f) {
+                    val fillVertices = GlSimplePrimitives.rectToTrianglesNdc(
+                        x = trackX,
+                        y = trackY,
+                        w = fillWidth,
+                        h = h,
+                        surfaceWidth = surfaceWidth,
+                        surfaceHeight = surfaceHeight
+                    )
+                    GlSimplePrimitives.drawTriangles(fillVertices, frame.vuColorArgb, vuPositionLoc, vuColorLoc)
+                }
+            }
+        }
+    }
+
+    private fun computeChannelScopeVuLevel(history: FloatArray): Float {
+        if (history.isEmpty()) return 0f
+        var peak = 0f
+        var i = 0
+        val step = max(1, history.size / 64)
+        while (i < history.size) {
+            val sample = kotlin.math.abs(history[i])
+            if (sample > peak) peak = sample
+            i += step
+        }
+        return peak.coerceIn(0f, 1f)
     }
 
     private fun renderChannelCellText(

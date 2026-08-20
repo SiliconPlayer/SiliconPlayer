@@ -10,24 +10,14 @@ import android.opengl.EGLSurface
 import android.opengl.GLES20
 import android.view.Surface
 import android.view.TextureView
+import android.graphics.Typeface
+import java.nio.FloatBuffer
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.width
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Text
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.toArgb
@@ -62,75 +52,34 @@ fun VuMetersGlTextureVisualization(
     val labelWidthPx = with(density) { 44.dp.toPx() }
     val labelGapPx = with(density) { 4.dp.toPx() }
     var glView by remember { mutableStateOf<VuMetersGlTextureView?>(null) }
-    val showStereo = channelCount > 1
-    val rows = if (showStereo) 2 else 1
-    val overlayAlignment = when (vuAnchor) {
-        VisualizationVuAnchor.Top -> androidx.compose.ui.Alignment.TopCenter
-        VisualizationVuAnchor.Center -> androidx.compose.ui.Alignment.Center
-        VisualizationVuAnchor.Bottom -> androidx.compose.ui.Alignment.BottomCenter
-    }
 
-    Box(modifier = modifier.fillMaxSize()) {
-        AndroidView(
-            modifier = Modifier.fillMaxSize(),
-            factory = { context ->
-                VuMetersGlTextureView(context).also { glView = it }
-            },
-            update = { view ->
-                view.onFrameStats = onFrameStats
-                view.updateFrame(
-                    VuMetersGlTextureFrame(
-                        vuLevels = vuLevels,
-                        channelCount = channelCount,
-                        anchor = vuAnchor,
-                        vuColorArgb = vuColor.toArgb(),
-                        trackColorArgb = vuBackgroundColor.toArgb(),
-                        horizontalPadPx = horizontalPadPx,
-                        verticalPadPx = verticalPadPx,
-                        rowGapPx = rowGapPx,
-                        rowHeightPx = rowHeightPx,
-                        labelWidthPx = labelWidthPx,
-                        labelGapPx = labelGapPx,
-                        backgroundFrame = backgroundFrame
-                    )
+    AndroidView(
+        modifier = modifier,
+        factory = { context ->
+            VuMetersGlTextureView(context).also { glView = it }
+        },
+        update = { view ->
+            view.onFrameStats = onFrameStats
+            view.updateFrame(
+                VuMetersGlTextureFrame(
+                    vuLevels = vuLevels,
+                    channelCount = channelCount,
+                    anchor = vuAnchor,
+                    vuColorArgb = vuColor.toArgb(),
+                    labelColorArgb = vuLabelColor.toArgb(),
+                    trackColorArgb = vuBackgroundColor.toArgb(),
+                    horizontalPadPx = horizontalPadPx,
+                    verticalPadPx = verticalPadPx,
+                    rowGapPx = rowGapPx,
+                    rowHeightPx = rowHeightPx,
+                    labelWidthPx = labelWidthPx,
+                    labelGapPx = labelGapPx,
+                    density = density.density,
+                    backgroundFrame = backgroundFrame
                 )
-            }
-        )
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(horizontal = 16.dp, vertical = 12.dp),
-            contentAlignment = overlayAlignment
-        ) {
-            Column(
-                modifier = Modifier.fillMaxWidth(),
-                verticalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                repeat(rows) { idx ->
-                    val label = when {
-                        showStereo && idx == 0 -> "Left"
-                        showStereo && idx == 1 -> "Right"
-                        else -> "Mono"
-                    }
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(14.dp),
-                        verticalAlignment = androidx.compose.ui.Alignment.CenterVertically
-                    ) {
-                        Text(
-                            text = label,
-                            style = MaterialTheme.typography.labelMedium,
-                            color = vuLabelColor,
-                            modifier = Modifier.width(44.dp)
-                        )
-                        Spacer(modifier = Modifier.width(4.dp))
-                        Spacer(modifier = Modifier.fillMaxWidth())
-                    }
-                }
-            }
+            )
         }
-    }
+    )
 
     DisposableEffect(lifecycleOwner, glView) {
         val view = glView
@@ -159,6 +108,7 @@ private data class VuMetersGlTextureFrame(
     val channelCount: Int,
     val anchor: VisualizationVuAnchor,
     val vuColorArgb: Int,
+    val labelColorArgb: Int,
     val trackColorArgb: Int,
     val horizontalPadPx: Float,
     val verticalPadPx: Float,
@@ -166,6 +116,7 @@ private data class VuMetersGlTextureFrame(
     val rowHeightPx: Float,
     val labelWidthPx: Float,
     val labelGapPx: Float,
+    val density: Float,
     val backgroundFrame: GlArtworkBackgroundFrame? = null
 )
 
@@ -393,6 +344,10 @@ private class VuMetersGlCoreRenderer(private val context: Context) {
     private var surfaceWidth = 1
     private var surfaceHeight = 1
     private val bgRenderer = GlArtworkBackgroundRenderer(context)
+    private val fontAtlas = GlFontAtlas(typeface = Typeface.DEFAULT_BOLD, baseFontSizePx = 32f)
+    private val textProgram = GlTextProgram()
+    private val textBatch = GlTextBatchBuilder(256)
+    private var textVertexBuffer: FloatBuffer? = null
     private var onFrameStats: ((fps: Int, frameMs: Int) -> Unit)? = null
     private var frameCount = 0
     private var frameWindowStartNs = 0L
@@ -408,6 +363,8 @@ private class VuMetersGlCoreRenderer(private val context: Context) {
         GLES20.glEnable(GLES20.GL_BLEND)
         GLES20.glBlendFunc(GLES20.GL_SRC_ALPHA, GLES20.GL_ONE_MINUS_SRC_ALPHA)
         bgRenderer.onSurfaceCreated()
+        textProgram.init()
+        fontAtlas.initGl()
     }
 
     fun onSurfaceChanged(width: Int, height: Int) {
@@ -471,6 +428,47 @@ private class VuMetersGlCoreRenderer(private val context: Context) {
             )
             GlSimplePrimitives.drawTriangles(fillVertices, frame.vuColorArgb, positionHandle, colorHandle)
         }
+
+        // Draw OpenGL text labels ("Left" / "Right" / "Mono")
+        textBatch.clear()
+        val textScale = (11f * frame.density) / 32f
+        val textHeight = fontAtlas.lineHeightPx * textScale
+        val labelA = ((frame.labelColorArgb ushr 24) and 0xFF) / 255f
+        val labelR = ((frame.labelColorArgb ushr 16) and 0xFF) / 255f
+        val labelG = ((frame.labelColorArgb ushr 8) and 0xFF) / 255f
+        val labelB = (frame.labelColorArgb and 0xFF) / 255f
+        for (idx in 0 until rows) {
+            val y = topY + (idx * (frame.rowHeightPx + frame.rowGapPx))
+            val textY = y + (frame.rowHeightPx - textHeight) * 0.5f
+            val label = if (rows > 1) {
+                if (idx == 0) "Left" else "Right"
+            } else {
+                "Mono"
+            }
+            textBatch.addText(
+                atlas = fontAtlas,
+                text = label,
+                startX = frame.horizontalPadPx,
+                startY = textY,
+                scale = textScale,
+                r = labelR,
+                g = labelG,
+                b = labelB,
+                a = labelA
+            )
+        }
+        val vCount = textBatch.count
+        if (vCount > 0) {
+            textVertexBuffer = textBatch.uploadToBuffer(textVertexBuffer)
+            textProgram.draw(
+                buffer = textVertexBuffer!!,
+                vertexCount = vCount,
+                atlas = fontAtlas,
+                surfaceWidth = width,
+                surfaceHeight = height
+            )
+        }
+
         reportFrameStats()
     }
 

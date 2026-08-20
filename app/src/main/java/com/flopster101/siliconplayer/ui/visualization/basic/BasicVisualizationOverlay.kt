@@ -411,8 +411,9 @@ fun BasicVisualizationOverlay(
                 val isGlBackend = channelScopeRenderBackend == VisualizationRenderBackend.OpenGlTexture ||
                         channelScopeRenderBackend == VisualizationRenderBackend.OpenGlSurface
 
-                val glTextFrame = if (isGlBackend && channelScopeTextEnabled && channelScopeHistories.isNotEmpty()) {
+                val glTextFrame = if (isGlBackend && (channelScopeTextEnabled || channelScopeTextVuEnabled) && channelScopeHistories.isNotEmpty()) {
                     val paddingPx = with(LocalDensity.current) { channelScopeTextPaddingDp.dp.toPx() }
+                    val vuStripHeightPx = with(LocalDensity.current) { 2.dp.toPx() }
                     com.flopster101.siliconplayer.ui.visualization.gl.GlChannelScopeTextFrame(
                         channelCount = channelScopeHistories.size,
                         channelTextStates = channelScopeTextStates,
@@ -428,14 +429,14 @@ fun BasicVisualizationOverlay(
                         textShadowEnabled = channelScopeTextShadowEnabled,
                         textFont = channelScopeTextFont,
                         noteFormat = channelScopeTextNoteFormat,
-                        showChannel = channelScopeTextShowChannel,
-                        showNote = channelScopeTextShowNote,
-                        showVolume = channelScopeTextShowVolume,
-                        showEffectPrimary = channelScopeTextShowEffectPrimary,
-                        showEffectSecondary = channelScopeTextShowEffectSecondary,
-                        showChip = channelScopeTextShowChip,
-                        showInstrument = channelScopeTextShowInstrument,
-                        showSample = channelScopeTextShowSample,
+                        showChannel = channelScopeTextEnabled && channelScopeTextShowChannel,
+                        showNote = channelScopeTextEnabled && channelScopeTextShowNote,
+                        showVolume = channelScopeTextEnabled && channelScopeTextShowVolume,
+                        showEffectPrimary = channelScopeTextEnabled && channelScopeTextShowEffectPrimary,
+                        showEffectSecondary = channelScopeTextEnabled && channelScopeTextShowEffectSecondary,
+                        showChip = channelScopeTextEnabled && channelScopeTextShowChip,
+                        showInstrument = channelScopeTextEnabled && channelScopeTextShowInstrument,
+                        showSample = channelScopeTextEnabled && channelScopeTextShowSample,
                         palette = com.flopster101.siliconplayer.ui.visualization.gl.GlChannelScopeTextPalette(
                             channelArgb = channelScopeTextPalette.channel.toArgb(),
                             noteArgb = channelScopeTextPalette.note.toArgb(),
@@ -443,7 +444,14 @@ fun BasicVisualizationOverlay(
                             effectArgb = channelScopeTextPalette.effect.toArgb(),
                             instrumentOrSampleArgb = channelScopeTextPalette.instrumentOrSample.toArgb(),
                             separatorArgb = channelScopeTextPalette.separator.toArgb()
-                        )
+                        ),
+                        channelHistories = channelScopeHistories,
+                        vuEnabled = channelScopeTextVuEnabled,
+                        vuAnchor = channelScopeTextVuAnchor,
+                        vuColorArgb = channelScopeVuColor.toArgb(),
+                        vuTrackColorArgb = deriveVuTrackColor(channelScopeVuColor).toArgb(),
+                        vuInsetPx = channelScopeGridWidthDp.toFloat().coerceAtLeast(1f),
+                        vuStripHeightPx = vuStripHeightPx
                     )
                 } else null
 
@@ -511,11 +519,7 @@ fun BasicVisualizationOverlay(
                         )
                     }
                 }
-                val needComposeOverlay = if (isGlBackend) {
-                    channelScopeTextVuEnabled && channelScopeHistories.isNotEmpty()
-                } else {
-                    (channelScopeTextEnabled || channelScopeTextVuEnabled) && channelScopeHistories.isNotEmpty()
-                }
+                val needComposeOverlay = !isGlBackend && (channelScopeTextEnabled || channelScopeTextVuEnabled) && channelScopeHistories.isNotEmpty()
                 if (needComposeOverlay) {
                     ChannelScopeTextOverlay(
                         channelHistories = channelScopeHistories,
