@@ -957,6 +957,14 @@ Java_com_flopster101_siliconplayer_MainActivity_getTrackSampleRate(JNIEnv* env, 
     return static_cast<jint>(audioEngine->getSampleRate());
 }
 
+extern "C" JNIEXPORT jboolean JNICALL
+Java_com_flopster101_siliconplayer_MainActivity_hasNativeSampleRate(JNIEnv*, jobject) {
+    if (audioEngine == nullptr) {
+        return JNI_FALSE;
+    }
+    return audioEngine->hasNativeSampleRate() ? JNI_TRUE : JNI_FALSE;
+}
+
 extern "C" JNIEXPORT jint JNICALL
 Java_com_flopster101_siliconplayer_MainActivity_getTrackChannelCount(JNIEnv* env, jobject) {
     if (audioEngine == nullptr) {
@@ -2125,6 +2133,11 @@ Java_com_flopster101_siliconplayer_NativeBridge_getTrackComment(JNIEnv* env, job
 extern "C" JNIEXPORT jint JNICALL
 Java_com_flopster101_siliconplayer_NativeBridge_getTrackSampleRate(JNIEnv* env, jobject thiz) {
     return Java_com_flopster101_siliconplayer_MainActivity_getTrackSampleRate(env, thiz);
+}
+
+extern "C" JNIEXPORT jboolean JNICALL
+Java_com_flopster101_siliconplayer_NativeBridge_hasNativeSampleRate(JNIEnv* env, jobject thiz) {
+    return Java_com_flopster101_siliconplayer_MainActivity_hasNativeSampleRate(env, thiz);
 }
 
 extern "C" JNIEXPORT jint JNICALL

@@ -2022,8 +2022,13 @@ private fun TrackInfoDetailsDialog(
         playlistTrackCount == 1 -> "1 track"
         else -> "$playlistTrackCount tracks"
     }
+    val trackRateLabel = if (liveMetadata.hasNativeSampleRate) {
+        formatSampleRateForDetails(sampleRateHz)
+    } else {
+        "N/A"
+    }
     val sampleRateChain =
-        "${formatSampleRateForDetails(sampleRateHz)} -> " +
+        "$trackRateLabel -> " +
             "${formatSampleRateForDetails(liveMetadata.renderRateHz)} -> " +
             formatSampleRateForDetails(liveMetadata.outputRateHz)
     val pathOrUrlLabel = pathOrUrl?.ifBlank { "Unavailable" } ?: "Unavailable"

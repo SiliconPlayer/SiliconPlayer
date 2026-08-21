@@ -28,6 +28,7 @@ public:
     double getDuration() override;
     int getSampleRate() override;
     int getRenderSampleRate() override;
+    bool hasNativeSampleRate() const override { return true; }
     int getBitDepth() override;
     std::string getBitDepthLabel() override;
     int getDisplayChannelCount() override;

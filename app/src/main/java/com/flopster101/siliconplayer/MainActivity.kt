@@ -427,6 +427,7 @@ class MainActivity : ComponentActivity() {
     external fun getTrackTitle(): String
     external fun getTrackArtist(): String
     external fun getTrackSampleRate(): Int
+    external fun hasNativeSampleRate(): Boolean
     external fun getTrackChannelCount(): Int
     external fun getTrackBitDepth(): Int
     external fun getTrackBitDepthLabel(): String

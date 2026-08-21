@@ -406,6 +406,7 @@ internal suspend fun restorePlayerStateFromSessionAndNativeAction(
                 artist = resumeCheckpoint.artist,
                 album = "",
                 sampleRateHz = 0,
+                hasNativeSampleRate = false,
                 channelCount = 0,
                 bitDepthLabel = "Unknown",
                 subtuneCount = 0,

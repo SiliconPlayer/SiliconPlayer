@@ -42,6 +42,7 @@ public:
     virtual double getDuration() = 0;
     virtual int getSampleRate() = 0;
     virtual int getRenderSampleRate() { return getSampleRate(); }
+    virtual bool hasNativeSampleRate() const { return false; }
     virtual int getBitDepth() { return 0; }
     virtual std::string getBitDepthLabel() { return "Unknown"; }
     virtual int getDisplayChannelCount() { return getChannelCount(); }

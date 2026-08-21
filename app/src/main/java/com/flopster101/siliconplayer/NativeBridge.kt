@@ -96,6 +96,7 @@ object NativeBridge {
     external fun getTrackCopyright(): String
     external fun getTrackComment(): String
     external fun getTrackSampleRate(): Int
+    external fun hasNativeSampleRate(): Boolean
     external fun getTrackChannelCount(): Int
     external fun getTrackBitDepth(): Int
     external fun getTrackBitDepthLabel(): String

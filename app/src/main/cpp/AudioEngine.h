@@ -60,6 +60,7 @@ public:
     std::string getCopyright();
     std::string getComment();
     int getSampleRate();
+    bool hasNativeSampleRate();
     int getDisplayChannelCount();
     int getChannelCount();
     int getBitDepth();

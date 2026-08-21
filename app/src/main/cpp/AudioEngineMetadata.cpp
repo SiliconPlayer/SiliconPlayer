@@ -88,6 +88,14 @@ int AudioEngine::getSampleRate() {
     return decoder->getSampleRate();
 }
 
+bool AudioEngine::hasNativeSampleRate() {
+    std::lock_guard<std::mutex> lock(decoderMutex);
+    if (!decoder) {
+        return false;
+    }
+    return decoder->hasNativeSampleRate();
+}
+
 int AudioEngine::getDisplayChannelCount() {
     std::lock_guard<std::mutex> lock(decoderMutex);
     if (!decoder) {
