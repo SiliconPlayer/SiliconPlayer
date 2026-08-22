@@ -56,6 +56,7 @@ import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.SkipPrevious
 import androidx.compose.material.icons.filled.SkipNext
 import androidx.compose.material.icons.filled.Stop
+import androidx.compose.material.icons.rounded.Stop
 import androidx.compose.material.icons.filled.Timer
 import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material3.*
@@ -1026,14 +1027,10 @@ internal fun PlayerScreen(
                         .coerceIn(0f, 1f)
                     val horizontalPadding = lerpDp(10.dp, 16.dp, landscapeLayoutScale)
                     val verticalPadding = lerpDp(6.dp, 12.dp, landscapeLayoutScale)
-                    val paneGap = lerpDp(12.dp, 20.dp, landscapeLayoutScale)
-                    val artPaneWeight = lerpFloat(0.36f, 0.48f, landscapeLayoutScale)
+                    val paneGap = lerpDp(16.dp, 32.dp, landscapeLayoutScale)
+                    val artPaneWeight = lerpFloat(0.38f, 0.48f, landscapeLayoutScale)
                     val rightPaneWeight = 1f - artPaneWeight
-                    val transportRowWidth = playerTransportRowWidth(maxWidth, landscapeLayoutScale)
                     val actionStripScale = (landscapeLayoutScale * 0.78f).coerceIn(0.44f, 0.76f)
-                    val metadataSpacer = lerpDp(6.dp, 12.dp, landscapeLayoutScale)
-                    val timelineSpacer = lerpDp(4.dp, 10.dp, landscapeLayoutScale)
-                    val actionStripSpacer = lerpDp(6.dp, 12.dp, landscapeLayoutScale)
                     val landscapeTitleScaleBoost = lerpFloat(2.0f, 4f, landscapeLayoutScale)
                     val landscapeSupportingScaleBoost = lerpFloat(1f, 2.2f, landscapeLayoutScale)
                     val landscapePaneHeight = (maxHeight - verticalPadding * 2f).coerceAtLeast(120.dp)
@@ -1041,10 +1038,6 @@ internal fun PlayerScreen(
                     val landscapeArtPaneWidth = (landscapeContentWidth * artPaneWeight).coerceAtLeast(120.dp)
                     val landscapeArtMaxByHeight = landscapePaneHeight * lerpFloat(0.90f, 0.95f, landscapeLayoutScale)
                     val landscapeArtSize = minOf(landscapeArtPaneWidth, landscapeArtMaxByHeight).coerceAtLeast(120.dp)
-                    val actionStripBottomPadding = (
-                        ((landscapePaneHeight - landscapeArtSize) / 2f) +
-                            lerpDp(0.dp, 2.dp, landscapeLayoutScale)
-                        ).coerceAtLeast(0.dp)
                     Row(
                         modifier = Modifier
                             .fillMaxSize()
@@ -1116,116 +1109,70 @@ internal fun PlayerScreen(
                             )
                         }
 
-                        BoxWithConstraints(
+                        Box(
                             modifier = Modifier
                                 .weight(rightPaneWeight)
-                                .fillMaxHeight()
+                                .fillMaxHeight(),
+                            contentAlignment = Alignment.Center
                         ) {
-                            val rightPaneMaxWidth = maxWidth
-                            val rightPaneContentWidth = minOf(rightPaneMaxWidth, transportRowWidth + 8.dp)
-                            var actionStripHeightPx by remember { mutableIntStateOf(0) }
-                            val actionStripHeightDp = with(density) { actionStripHeightPx.toDp() }
-                            val centerLandscapeContent =
-                                landscapeLayoutScale >= 0.76f || maxHeight >= 420.dp
-                            val showLandscapeFilename = landscapeLayoutScale >= 0.74f
-                            var centeredLandscapeContentHeightPx by remember { mutableIntStateOf(0) }
-                            val centeredLandscapeContentHeightDp = with(density) {
-                                centeredLandscapeContentHeightPx.toDp()
-                            }
-                            val centeredLandscapeReservedBottom = actionStripHeightDp + actionStripSpacer + actionStripBottomPadding
-                            val centerLandscapeContentOffset = if (
-                                centerLandscapeContent &&
-                                    centeredLandscapeContentHeightPx > 0
-                            ) {
-                                val naturalBottomGap = (
-                                    (maxHeight - centeredLandscapeContentHeightDp) / 2f
-                                ).coerceAtLeast(0.dp)
-                                val minimumBottomGap = centeredLandscapeReservedBottom +
-                                    lerpDp(8.dp, 16.dp, landscapeLayoutScale)
-                                (naturalBottomGap - minimumBottomGap).coerceAtMost(0.dp)
-                            } else {
-                                0.dp
-                            }
-
                             Column(
                                 modifier = Modifier
-                                    .align(if (centerLandscapeContent) Alignment.Center else Alignment.TopCenter)
-                                    .fillMaxWidth(if (centerLandscapeContent) 0.98f else 1f)
-                                    .onSizeChanged {
-                                        if (centerLandscapeContent) {
-                                            centeredLandscapeContentHeightPx = it.height
+                                    .fillMaxWidth()
+                                    .padding(horizontal = lerpDp(24.dp, 48.dp, landscapeLayoutScale))
+                                    .height(landscapeArtSize)
+                                    .padding(vertical = 8.dp),
+                                verticalArrangement = Arrangement.SpaceBetween,
+                                horizontalAlignment = Alignment.CenterHorizontally
+                            ) {
+                                PortraitTrackMetadataBlock(
+                                    title = displayTitle,
+                                    artist = displayArtist,
+                                    album = "",
+                                    showLoadingPlaceholder = showMetadataLoadingPlaceholder,
+                                    filename = displayFilename,
+                                    filenameDisplayMode = filenameDisplayMode,
+                                    decoderName = decoderName,
+                                    filenameOnlyWhenTitleMissing = filenameOnlyWhenTitleMissing,
+                                    currentSubtuneIndex = titleCurrentSubtuneIndex,
+                                    subtuneCount = titleSubtuneCount,
+                                    subtuneTitleClickable = subtuneTitleClickable,
+                                    onOpenSubtuneSelector = onOpenSubtuneSelector,
+                                    layoutScale = landscapeLayoutScale,
+                                    titleScaleBoost = landscapeTitleScaleBoost,
+                                    supportingScaleBoost = landscapeSupportingScaleBoost,
+                                    fullTechLine = trackTechnicalInfo.fullLine,
+                                    fallbackTechLine = trackTechnicalInfo.fallbackLine,
+                                    modifier = Modifier.fillMaxWidth()
+                                )
+
+                                TimelineSection(
+                                    sliderPosition = if (isSeeking) sliderPosition else positionSeconds,
+                                    elapsedPositionSeconds = if (isSeeking) sliderPosition else positionSeconds,
+                                    durationSeconds = durationSeconds,
+                                    showRemainingTime = showRemainingTime,
+                                    canSeek = canSeek,
+                                    hasReliableDuration = hasReliableDuration,
+                                    seekInProgress = seekInProgress,
+                                    focusRequester = primaryContentFocusRequester,
+                                    upFocusRequester = topArrowFocusRequester,
+                                    layoutScale = landscapeLayoutScale,
+                                    onToggleDurationDisplayMode = {
+                                        showRemainingTime = !showRemainingTime
+                                    },
+                                    onSeekInteractionChanged = { isTimelineTouchActive = it },
+                                    onSliderValueChange = { value ->
+                                        isSeeking = true
+                                        val sliderMax = durationSeconds.coerceAtLeast(0.0)
+                                        sliderPosition = value.toDouble().coerceIn(0.0, sliderMax)
+                                    },
+                                    onSliderValueChangeFinished = {
+                                        isSeeking = false
+                                        if (canSeek && durationSeconds > 0.0) {
+                                            onSeek(sliderPosition)
                                         }
                                     }
-                                    .offset(y = centerLandscapeContentOffset)
-                                    .padding(
-                                        bottom = if (centerLandscapeContent) 0.dp
-                                        else actionStripHeightDp + actionStripSpacer + actionStripBottomPadding
-                                    ),
-                                verticalArrangement = if (centerLandscapeContent) Arrangement.Center else Arrangement.Top,
-                                horizontalAlignment = if (centerLandscapeContent) Alignment.CenterHorizontally else Alignment.Start
-                            ) {
-                                Box(
-                                    modifier = Modifier
-                                        .align(Alignment.CenterHorizontally)
-                                        .width(rightPaneContentWidth)
-                                ) {
-                                    PortraitTrackMetadataBlock(
-                                        title = displayTitle,
-                                        artist = displayArtist,
-                                        album = "",
-                                        showLoadingPlaceholder = showMetadataLoadingPlaceholder,
-                                        filename = displayFilename,
-                                        filenameDisplayMode = filenameDisplayMode,
-                                        decoderName = decoderName,
-                                        filenameOnlyWhenTitleMissing = filenameOnlyWhenTitleMissing,
-                                        currentSubtuneIndex = titleCurrentSubtuneIndex,
-                                        subtuneCount = titleSubtuneCount,
-                                        subtuneTitleClickable = subtuneTitleClickable,
-                                        onOpenSubtuneSelector = onOpenSubtuneSelector,
-                                        layoutScale = landscapeLayoutScale,
-                                        titleScaleBoost = landscapeTitleScaleBoost,
-                                        supportingScaleBoost = landscapeSupportingScaleBoost,
-                                        fullTechLine = trackTechnicalInfo.fullLine,
-                                        fallbackTechLine = trackTechnicalInfo.fallbackLine,
-                                        modifier = Modifier.fillMaxWidth()
-                                    )
-                                }
-                                Spacer(modifier = Modifier.height(metadataSpacer))
-                                Box(
-                                    modifier = Modifier
-                                        .align(Alignment.CenterHorizontally)
-                                        .width(rightPaneContentWidth),
-                                    contentAlignment = Alignment.Center
-                                ) {
-                                    TimelineSection(
-                                        sliderPosition = if (isSeeking) sliderPosition else positionSeconds,
-                                        elapsedPositionSeconds = if (isSeeking) sliderPosition else positionSeconds,
-                                        durationSeconds = durationSeconds,
-                                        showRemainingTime = showRemainingTime,
-                                        canSeek = canSeek,
-                                        hasReliableDuration = hasReliableDuration,
-                                        seekInProgress = seekInProgress,
-                                        focusRequester = primaryContentFocusRequester,
-                                        upFocusRequester = topArrowFocusRequester,
-                                        layoutScale = landscapeLayoutScale,
-                                        onToggleDurationDisplayMode = {
-                                            showRemainingTime = !showRemainingTime
-                                        },
-                                        onSeekInteractionChanged = { isTimelineTouchActive = it },
-                                        onSliderValueChange = { value ->
-                                            isSeeking = true
-                                            val sliderMax = durationSeconds.coerceAtLeast(0.0)
-                                            sliderPosition = value.toDouble().coerceIn(0.0, sliderMax)
-                                        },
-                                        onSliderValueChangeFinished = {
-                                            isSeeking = false
-                                            if (canSeek && durationSeconds > 0.0) {
-                                                onSeek(sliderPosition)
-                                            }
-                                        }
-                                    )
-                                }
-                                Spacer(modifier = Modifier.height(timelineSpacer))
+                                )
+
                                 TransportControls(
                                     hasTrack = hasTrack,
                                     isPlaying = isPlaying,
@@ -1260,41 +1207,36 @@ internal fun PlayerScreen(
                                     canOpenSubtuneSelector = canOpenSubtuneSelector,
                                     onStopAndClear = onStopAndClear,
                                     onCycleRepeatMode = onCycleRepeatMode,
-                                    edgeAlignedWidth = rightPaneContentWidth,
-                                    separateEdgeButtons = true,
                                     layoutScale = landscapeLayoutScale,
                                     transportAnchorFocusRequester = transportAnchorFocusRequester,
                                     actionStripFirstFocusRequester = actionStripFirstFocusRequester
                                 )
+
+                                FutureActionStrip(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    isVisualizerActive = visualizationMode != VisualizationMode.Off,
+                                    onCycleVisualizationMode = onCycleVisualizationMode,
+                                    onOpenVisualizationPicker = { showVisualizationPickerDialog = true },
+                                    isTrackFavorited = isTrackFavorited,
+                                    onToggleFavoriteTrack = onToggleFavoriteTrack,
+                                    canToggleFavoriteTrack = pathOrUrl != null,
+                                    canOpenPlaylistSelector = canOpenPlaylistSelector,
+                                    onOpenPlaylistSelector = onOpenPlaylistSelector,
+                                    onOpenAudioEffects = onOpenAudioEffects,
+                                    onOpenChannelControls = { showChannelControlDialog = true },
+                                    compactLayout = false,
+                                    layoutScale = actionStripScale,
+                                    actionStripFirstFocusRequester = actionStripFirstFocusRequester,
+                                    transportAnchorFocusRequester = transportAnchorFocusRequester
+                                )
                             }
-                            FutureActionStrip(
-                                modifier = Modifier
-                                    .align(Alignment.BottomCenter)
-                                    .width(transportRowWidth)
-                                    .onSizeChanged { actionStripHeightPx = it.height }
-                                    .padding(bottom = actionStripBottomPadding),
-                                isVisualizerActive = visualizationMode != VisualizationMode.Off,
-                                onCycleVisualizationMode = onCycleVisualizationMode,
-                                onOpenVisualizationPicker = { showVisualizationPickerDialog = true },
-                                isTrackFavorited = isTrackFavorited,
-                                onToggleFavoriteTrack = onToggleFavoriteTrack,
-                                canToggleFavoriteTrack = pathOrUrl != null,
-                                canOpenPlaylistSelector = canOpenPlaylistSelector,
-                                onOpenPlaylistSelector = onOpenPlaylistSelector,
-                                onOpenAudioEffects = onOpenAudioEffects,
-                                onOpenChannelControls = { showChannelControlDialog = true },
-                                compactLayout = true,
-                                layoutScale = actionStripScale,
-                                actionStripFirstFocusRequester = actionStripFirstFocusRequester,
-                                transportAnchorFocusRequester = transportAnchorFocusRequester
-                            )
                         }
                     }
                 }
             } else {
                 BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
-                    val portraitWidthScale = normalizedScale(maxWidth, compactDp = 320.dp, roomyDp = 500.dp)
-                    val portraitHeightScale = normalizedScale(maxHeight, compactDp = 560.dp, roomyDp = 900.dp)
+                    val portraitWidthScale = normalizedScale(maxWidth, compactDp = 320.dp, roomyDp = 840.dp)
+                    val portraitHeightScale = normalizedScale(maxHeight, compactDp = 560.dp, roomyDp = 1100.dp)
                     val shortPortraitHeightScale = normalizedScale(maxHeight, compactDp = 520.dp, roomyDp = 760.dp)
                     val portraitAspectRatio = if (maxWidth > 0.dp) {
                         (maxHeight.value / maxWidth.value).coerceAtLeast(1f)
@@ -1325,15 +1267,15 @@ internal fun PlayerScreen(
                     val verticalPadding = lerpDp(8.dp, 12.dp, portraitLayoutScale)
                     val artWidthFraction = if (shortPortraitLayout) {
                         (
-                            lerpFloat(0.61f, 0.74f, shortPortraitHeightScale) *
+                            lerpFloat(0.70f, 0.88f, shortPortraitHeightScale) *
                                 lerpFloat(0.98f, 1.04f, portraitWidthScale)
-                            ).coerceIn(0.60f, 0.76f)
+                            ).coerceIn(0.60f, 0.90f)
                     } else {
                         (
-                            lerpFloat(0.56f, 0.90f, portraitLayoutScale) *
+                            lerpFloat(0.72f, 0.94f, portraitLayoutScale) *
                                 lerpFloat(0.95f, 1.08f, portraitWidthScale) *
                                 lerpFloat(0.98f, 1.05f, portraitHeightScale)
-                            ).coerceIn(0.54f, 0.94f)
+                            ).coerceIn(0.65f, 0.96f)
                     }
                     val artworkToInfoGap = if (shortPortraitLayout) {
                         lerpDp(6.dp, 10.dp, shortPortraitHeightScale)
@@ -1358,17 +1300,17 @@ internal fun PlayerScreen(
                     }
                     val portraitArtworkHeightWeight = if (shortPortraitLayout) {
                         (
-                            lerpFloat(0.52f, 0.58f, shortPortraitHeightScale) +
+                            lerpFloat(0.50f, 0.58f, shortPortraitHeightScale) +
                                 lerpFloat(0.02f, 0f, portraitWidthScale)
                                 - 0.03f
-                            ).coerceIn(0.48f, 0.56f)
+                            ).coerceIn(0.48f, 0.58f)
                     } else {
                         (
-                            lerpFloat(0.52f, 0.62f, portraitLayoutScale) +
+                            lerpFloat(0.52f, 0.64f, portraitLayoutScale) +
                                 lerpFloat(0.07f, 0f, shortPortraitHeightScale) +
                                 (if (compactPortraitLayout) 0.015f else 0f) -
                                 0.03f
-                            ).coerceIn(0.49f, 0.63f)
+                            ).coerceIn(0.50f, 0.66f)
                     }
                     Box(
                         modifier = Modifier
@@ -1402,24 +1344,24 @@ internal fun PlayerScreen(
                             lerpDp(4.dp, 10.dp, portraitSectionSpacingScale)
                         }
                         val metadataSpacer = portraitSectionGap
-                        val timelineSpacer = portraitSectionGap
+                        val timelineSpacer = portraitSectionGap + 10.dp
                         val portraitArtworkTargetHeight = (
                             contentAvailableHeight * portraitArtworkHeightWeight
                         ).coerceAtLeast(minArtworkSize)
-                        val portraitContentMaxWidth = lerpDp(300.dp, 440.dp, portraitWidthScale)
-                        val portraitContentSideInset = if (shortPortraitLayout) 68.dp else 72.dp
+                        val portraitContentMaxWidth = lerpDp(310.dp, 700.dp, portraitWidthScale)
+                        val portraitContentSideInset = lerpDp(68.dp, 88.dp, portraitWidthScale)
                         val portraitContentWidth = minOf(
-                            (this@BoxWithConstraints.maxWidth - portraitContentSideInset).coerceAtLeast(252.dp),
+                            (this@BoxWithConstraints.maxWidth - portraitContentSideInset).coerceAtLeast(250.dp),
                             portraitContentMaxWidth
                         )
                         val portraitArtworkWidth = if (shortPortraitLayout) {
                             minOf(
                                 (this@BoxWithConstraints.maxWidth - 44.dp).coerceAtLeast(minArtworkSize),
-                                lerpDp(264.dp, 380.dp, portraitWidthScale)
+                                lerpDp(264.dp, 600.dp, portraitWidthScale)
                             )
                         } else {
                             minOf(
-                                (this@BoxWithConstraints.maxWidth - 56.dp).coerceAtLeast(minArtworkSize),
+                                (this@BoxWithConstraints.maxWidth - 48.dp).coerceAtLeast(minArtworkSize),
                                 portraitContentMaxWidth
                             )
                         }
@@ -1514,20 +1456,15 @@ internal fun PlayerScreen(
                                 modifier = Modifier
                                     .fillMaxWidth()
                                     .weight(1f, fill = true),
-                                contentAlignment = Alignment.TopCenter
+                                contentAlignment = Alignment.Center
                             ) {
                                 Column(
                                     modifier = Modifier
-                                        .fillMaxWidth()
-                                        .fillMaxHeight(),
+                                        .width(portraitContentWidth)
+                                        .wrapContentHeight(),
                                     horizontalAlignment = Alignment.CenterHorizontally,
-                                    verticalArrangement = Arrangement.Top
+                                    verticalArrangement = Arrangement.Center
                                 ) {
-                                    Spacer(
-                                        modifier = Modifier
-                                            .fillMaxWidth()
-                                            .weight(1f)
-                                    )
                                     PortraitTrackMetadataBlock(
                                         title = displayTitle,
                                         artist = displayArtist,
@@ -1544,19 +1481,13 @@ internal fun PlayerScreen(
                                         layoutScale = portraitLayoutScale,
                                         fullTechLine = trackTechnicalInfo.fullLine,
                                         fallbackTechLine = trackTechnicalInfo.fallbackLine,
-                                        modifier = Modifier.width(portraitContentWidth)
+                                        modifier = Modifier.fillMaxWidth()
                                     )
-                                    if (balancedPortraitSpacing) {
-                                        Spacer(
-                                            modifier = Modifier
-                                                .fillMaxWidth()
-                                                .weight(1f)
-                                        )
-                                    } else {
-                                        Spacer(modifier = Modifier.height(metadataSpacer))
-                                    }
+
+                                    Spacer(modifier = Modifier.height(lerpDp(8.dp, 16.dp, portraitSectionSpacingScale)))
+
                                     Box(
-                                        modifier = Modifier.width(portraitContentWidth),
+                                        modifier = Modifier.fillMaxWidth(),
                                         contentAlignment = Alignment.Center
                                     ) {
                                         TimelineSection(
@@ -1587,15 +1518,9 @@ internal fun PlayerScreen(
                                             }
                                         )
                                     }
-                                    if (balancedPortraitSpacing) {
-                                        Spacer(
-                                            modifier = Modifier
-                                                .fillMaxWidth()
-                                                .weight(1f)
-                                        )
-                                    } else {
-                                        Spacer(modifier = Modifier.height(timelineSpacer))
-                                    }
+
+                                    Spacer(modifier = Modifier.height(lerpDp(12.dp, 24.dp, portraitSectionSpacingScale)))
+
                                     TransportControls(
                                         hasTrack = hasTrack,
                                         isPlaying = isPlaying,
@@ -1635,11 +1560,6 @@ internal fun PlayerScreen(
                                         layoutScale = portraitTransportScale,
                                         transportAnchorFocusRequester = transportAnchorFocusRequester,
                                         actionStripFirstFocusRequester = actionStripFirstFocusRequester
-                                    )
-                                    Spacer(
-                                        modifier = Modifier
-                                            .fillMaxWidth()
-                                            .weight(1f)
                                     )
                                 }
                             }
@@ -1966,15 +1886,12 @@ private fun normalizedScale(valueDp: Dp, compactDp: Dp, roomyDp: Dp): Float {
 
 private fun playerTransportRowWidth(maxWidth: Dp, layoutScale: Float): Dp {
     val tabletWidthScale = normalizedScale(maxWidth, compactDp = 560.dp, roomyDp = 980.dp)
-    val heightBias = lerpFloat(0.90f, 1f, layoutScale)
-    val sideButtonMax = lerpDp(62.dp, 82.dp, tabletWidthScale)
-    val playButtonMax = lerpDp(92.dp, 124.dp, tabletWidthScale)
-    val sideButtonSize =
-        scaledDp(maxWidth, lerpFloat(0.132f, 0.148f, layoutScale) * heightBias).coerceIn(42.dp, sideButtonMax)
-    val playButtonSize = scaledDp(sideButtonSize, 1.52f).coerceIn(64.dp, playButtonMax)
-    val occupiedWidth = (sideButtonSize.value * 4f + playButtonSize.value).dp
+    val auxiliaryButtonSize = lerpDp(48.dp, 52.dp, tabletWidthScale)
+    val sideButtonSize = lerpDp(50.dp, 58.dp, tabletWidthScale)
+    val playButtonSize = lerpDp(80.dp, 92.dp, tabletWidthScale)
+    val occupiedWidth = (auxiliaryButtonSize.value * 2f + sideButtonSize.value * 2f + playButtonSize.value).dp
     val minGap = 6.dp
-    val maxGap = lerpDp(8.dp, 14.dp, tabletWidthScale)
+    val maxGap = lerpDp(8.dp, 16.dp, tabletWidthScale)
     val minWidth = occupiedWidth + minGap * 4f
     val maxComfortWidth = occupiedWidth + maxGap * 4f
     val preferredWidth = maxWidth * lerpFloat(0.94f, 1.0f, layoutScale)
@@ -3220,59 +3137,24 @@ private fun TransportControls(
     BoxWithConstraints(modifier = Modifier.fillMaxWidth()) {
         val transportClusterWidth = maxClusterWidth?.let { minOf(maxWidth, it) }
             ?: playerTransportRowWidth(maxWidth, layoutScale)
-        val edgeAlignedTransport = separateEdgeButtons && maxClusterWidth == null && edgeAlignedWidth != null
-        val transportLayoutWidth = if (edgeAlignedTransport) {
-            minOf(maxWidth, edgeAlignedWidth ?: transportClusterWidth)
-        } else {
-            transportClusterWidth
-        }
         val portraitTransportSizing = maxClusterWidth != null
         val compactPortraitTransport = portraitTransportSizing && compactPortraitMode
-        val transportSizingWidth = if (portraitTransportSizing) transportClusterWidth else maxWidth
-        val tabletWidthScale = normalizedScale(
-            if (portraitTransportSizing) transportClusterWidth else maxWidth,
-            compactDp = 560.dp,
-            roomyDp = 980.dp
-        )
-        val effectiveButtonScale = if (portraitTransportSizing) {
-            layoutScale.coerceAtLeast(0.90f)
-        } else {
-            layoutScale
-        }
-        val heightBias = if (portraitTransportSizing) 1f else lerpFloat(0.90f, 1f, layoutScale)
-        val sideButtonMax = lerpDp(56.dp, 76.dp, tabletWidthScale)
-        val playButtonMax = lerpDp(92.dp, 124.dp, tabletWidthScale)
-        val subtuneButtonMax = lerpDp(60.dp, 80.dp, tabletWidthScale)
-        val sideButtonMin = if (portraitTransportSizing) 52.dp else 48.dp
-        val auxiliaryButtonMin = 40.dp
-        val auxiliaryButtonMax = lerpDp(44.dp, 56.dp, tabletWidthScale)
-        val playButtonMin = when {
-            compactPortraitTransport -> 72.dp
-            portraitTransportSizing -> 76.dp
-            else -> 64.dp
-        }
-        val sideButtonSize =
-            scaledDp(transportSizingWidth, lerpFloat(0.138f, 0.152f, effectiveButtonScale) * heightBias)
-                .coerceIn(sideButtonMin, sideButtonMax)
-        val auxiliaryButtonSize =
-            scaledDp(sideButtonSize, 0.78f).coerceIn(auxiliaryButtonMin, auxiliaryButtonMax)
-        val playButtonSize = if (portraitTransportSizing) {
-            scaledDp(sideButtonSize, 1.42f).coerceIn(playButtonMin, playButtonMax)
-        } else {
-            scaledDp(sideButtonSize, 1.36f).coerceIn(playButtonMin, playButtonMax)
-        }
+        val availableWidth = maxClusterWidth?.let { minOf(maxWidth, it) } ?: maxWidth
+        val widthScale = normalizedScale(availableWidth, compactDp = 300.dp, roomyDp = 560.dp).coerceIn(0f, 1f)
+        val playButtonSize = lerpDp(72.dp, 104.dp, widthScale)
+        val playIconSize = lerpDp(34.dp, 48.dp, widthScale)
+        val playIndicatorSize = lerpDp(28.dp, 40.dp, widthScale)
+        val sideButtonSize = lerpDp(48.dp, 64.dp, widthScale)
+        val sideTransportIconSize = lerpDp(24.dp, 30.dp, widthScale)
+        val auxiliaryButtonSize = lerpDp(44.dp, 54.dp, widthScale)
+        val auxiliaryIconSize = lerpDp(22.dp, 28.dp, widthScale)
+        val stopIconSize = lerpDp(20.dp, 25.dp, widthScale)
+        val subtuneButtonMax = lerpDp(54.dp, 76.dp, widthScale)
         val subtuneButtonSize = scaledDp(sideButtonSize, 1.03f).coerceIn(44.dp, subtuneButtonMax)
-        val occupiedWidth = (auxiliaryButtonSize.value * 2f + sideButtonSize.value * 2f + playButtonSize.value).dp
-        val rawRowGap = ((transportClusterWidth - occupiedWidth).coerceAtLeast(0.dp) / 4f)
-        val rowGap = if (maxClusterWidth != null) {
-            rawRowGap.coerceAtLeast(6.dp)
-        } else {
-            rawRowGap.coerceIn(6.dp, lerpDp(10.dp, 16.dp, tabletWidthScale))
-        }
-        val auxiliaryIconSize = scaledDp(auxiliaryButtonSize, 0.58f)
-            .coerceIn(22.dp, lerpDp(24.dp, 28.dp, tabletWidthScale))
-        val sideTransportIconSize = scaledDp(sideButtonSize, 0.52f)
-            .coerceIn(26.dp, lerpDp(28.dp, 34.dp, tabletWidthScale))
+        val occupiedButtonsWidth = (auxiliaryButtonSize.value * 2f + sideButtonSize.value * 2f + playButtonSize.value).dp
+        val maxAvailableGap = ((availableWidth - occupiedButtonsWidth).coerceAtLeast(0.dp) / 4f)
+        val preferredGap = lerpDp(8.dp, 24.dp, widthScale)
+        val rowGap = preferredGap.coerceAtMost(maxAvailableGap).coerceAtLeast(4.dp)
         val repeatIconSize = auxiliaryIconSize
         val effectiveRepeatIconSize = repeatIconSize
         val repeatBadgeCenterOffsetX = scaledDp(auxiliaryButtonSize, 0.22f)
@@ -3283,13 +3165,11 @@ private fun TransportControls(
         val loadingSpacer = if (compactPortraitTransport) {
             scaledDp(sideButtonSize, 0.10f).coerceIn(3.dp, 8.dp)
         } else {
-            scaledDp(sideButtonSize, 0.14f).coerceIn(4.dp, lerpDp(8.dp, 12.dp, tabletWidthScale))
+            scaledDp(sideButtonSize, 0.14f).coerceIn(4.dp, lerpDp(8.dp, 12.dp, widthScale))
         }
         val subtuneRowTopSpacer = (
             scaledDp(sideButtonSize, 0.1f) + lerpDp(0.dp, 8.dp, layoutScale)
-        ).coerceIn(3.dp, lerpDp(14.dp, 24.dp, tabletWidthScale))
-        val playIndicatorSize = scaledDp(playButtonSize, 0.34f).coerceIn(24.dp, lerpDp(30.dp, 38.dp, tabletWidthScale))
-        val playIconSize = scaledDp(playButtonSize, 0.42f).coerceIn(30.dp, lerpDp(40.dp, 50.dp, tabletWidthScale))
+        ).coerceIn(3.dp, lerpDp(14.dp, 24.dp, widthScale))
 
         Column(
             modifier = Modifier
@@ -3300,11 +3180,11 @@ private fun TransportControls(
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
             Box(
-                modifier = Modifier.width(transportLayoutWidth),
+                modifier = Modifier.fillMaxWidth(),
                 contentAlignment = Alignment.Center
             ) {
                 Row(
-                    modifier = Modifier.fillMaxWidth(),
+                    modifier = Modifier.wrapContentWidth(),
                     horizontalArrangement = Arrangement.Center,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
@@ -3335,20 +3215,17 @@ private fun TransportControls(
                         .playerFocusHalo()
                         .focusable(),
                     colors = IconButtonDefaults.iconButtonColors(
+                        containerColor = Color.Transparent,
                         contentColor = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 ) {
                     Icon(
-                        imageVector = Icons.Default.Stop,
+                        imageVector = Icons.Rounded.Stop,
                         contentDescription = "Stop",
-                        modifier = Modifier.size(auxiliaryIconSize)
+                        modifier = Modifier.size(stopIconSize)
                     )
                 }
-                if (edgeAlignedTransport) {
-                    Spacer(modifier = Modifier.weight(1f))
-                } else {
-                    Spacer(modifier = Modifier.width(rowGap))
-                }
+                Spacer(modifier = Modifier.width(rowGap))
                 Box(
                     modifier = Modifier.size(sideButtonSize),
                     contentAlignment = Alignment.Center
@@ -3576,11 +3453,7 @@ private fun TransportControls(
                         }
                     }
                 }
-                if (edgeAlignedTransport) {
-                    Spacer(modifier = Modifier.weight(1f))
-                } else {
-                    Spacer(modifier = Modifier.width(rowGap))
-                }
+                Spacer(modifier = Modifier.width(rowGap))
 
                 IconButton(
                     onClick = onCycleRepeatMode,
@@ -3610,6 +3483,7 @@ private fun TransportControls(
                         .playerFocusHalo(enabled = canCycleRepeatMode && !controlsBusy)
                         .focusable(enabled = canCycleRepeatMode && !controlsBusy),
                     colors = IconButtonDefaults.iconButtonColors(
+                        containerColor = Color.Transparent,
                         contentColor = if (repeatMode != RepeatMode.None) {
                             MaterialTheme.colorScheme.primary
                         } else {
@@ -3789,13 +3663,13 @@ private fun FutureActionStrip(
 
     BoxWithConstraints(modifier = modifier) {
         val stripMaxWidth = maxWidth
-        val tabletWidthScale = normalizedScale(stripMaxWidth, compactDp = 560.dp, roomyDp = 980.dp)
+        val tabletWidthScale = normalizedScale(stripMaxWidth, compactDp = 340.dp, roomyDp = 560.dp)
         val compactShortLayout = compactLayout && layoutScale < 0.7f
-        val iconButtonMax = lerpDp(44.dp, 52.dp, tabletWidthScale)
+        val iconButtonMax = lerpDp(48.dp, 56.dp, tabletWidthScale)
         val iconButtonMin = if (compactShortLayout) 36.dp else 40.dp
-        val iconButtonSize = 40.dp.coerceIn(iconButtonMin, iconButtonMax)
-        val modeIconSize = scaledDp(iconButtonSize, 0.58f).coerceIn(20.dp, lerpDp(24.dp, 28.dp, tabletWidthScale))
-        val genericIconSize = scaledDp(iconButtonSize, 0.58f).coerceIn(20.dp, lerpDp(24.dp, 28.dp, tabletWidthScale))
+        val iconButtonSize = lerpDp(40.dp, 52.dp, tabletWidthScale).coerceIn(iconButtonMin, iconButtonMax)
+        val modeIconSize = scaledDp(iconButtonSize, 0.58f).coerceIn(20.dp, lerpDp(24.dp, 30.dp, tabletWidthScale))
+        val genericIconSize = scaledDp(iconButtonSize, 0.58f).coerceIn(20.dp, lerpDp(24.dp, 30.dp, tabletWidthScale))
 
         Row(
             modifier = Modifier.fillMaxWidth(),
