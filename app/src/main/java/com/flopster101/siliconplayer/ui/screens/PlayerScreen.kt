@@ -825,21 +825,28 @@ internal fun PlayerScreen(
             else -> null
         }
     }
+    val extensionLabel = remember(file) {
+        file?.name?.let(::inferredPrimaryExtensionForName)?.uppercase() ?: ""
+    }
     val trackTechnicalInfo = remember(
         formatLabel,
+        extensionLabel,
         trackBitrateOrSize,
         sampleRateHz,
         channelCount,
         bitDepthLabel,
-        decoderName
+        decoderName,
+        hasTrack
     ) {
         buildTrackTechnicalInfo(
             formatLabel = formatLabel,
+            extensionLabel = extensionLabel,
             bitrateOrSize = trackBitrateOrSize,
             sampleRateHz = sampleRateHz,
             channelCount = channelCount,
             bitDepthLabel = bitDepthLabel,
-            decoderName = decoderName
+            decoderName = decoderName,
+            hasTrack = hasTrack
         )
     }
     LaunchedEffect(visualizationMode) {
@@ -1177,8 +1184,8 @@ internal fun PlayerScreen(
                                         layoutScale = landscapeLayoutScale,
                                         titleScaleBoost = landscapeTitleScaleBoost,
                                         supportingScaleBoost = landscapeSupportingScaleBoost,
-                                        formatLine = trackTechnicalInfo.formatLine,
-                                        techSpecsLine = trackTechnicalInfo.techSpecsLine,
+                                        fullTechLine = trackTechnicalInfo.fullLine,
+                                        fallbackTechLine = trackTechnicalInfo.fallbackLine,
                                         modifier = Modifier.fillMaxWidth()
                                     )
                                 }
@@ -1541,8 +1548,8 @@ internal fun PlayerScreen(
                                         subtuneTitleClickable = subtuneTitleClickable,
                                         onOpenSubtuneSelector = onOpenSubtuneSelector,
                                         layoutScale = portraitLayoutScale,
-                                        formatLine = trackTechnicalInfo.formatLine,
-                                        techSpecsLine = trackTechnicalInfo.techSpecsLine,
+                                        fullTechLine = trackTechnicalInfo.fullLine,
+                                        fallbackTechLine = trackTechnicalInfo.fallbackLine,
                                         modifier = Modifier.width(portraitContentWidth)
                                     )
                                     if (balancedPortraitSpacing) {
@@ -2633,8 +2640,8 @@ private fun PortraitTrackMetadataBlock(
     layoutScale: Float = 1f,
     titleScaleBoost: Float = 0f,
     supportingScaleBoost: Float = 0f,
-    formatLine: String? = null,
-    techSpecsLine: String? = null,
+    fullTechLine: String? = null,
+    fallbackTechLine: String? = null,
     modifier: Modifier = Modifier
 ) {
     val effectiveTitleScale = layoutScale.coerceIn(0f, 1f)
@@ -2827,7 +2834,7 @@ private fun PortraitTrackMetadataBlock(
                         }
                     }
                     AnimatedVisibility(
-                        visible = !formatLine.isNullOrBlank(),
+                        visible = !fullTechLine.isNullOrBlank(),
                         enter = fadeIn(animationSpec = tween(durationMillis = 180)) + expandVertically(
                             animationSpec = tween(durationMillis = 220),
                             expandFrom = Alignment.Top
@@ -2839,39 +2846,48 @@ private fun PortraitTrackMetadataBlock(
                     ) {
                         Column {
                             Spacer(modifier = Modifier.height(lerpDp(3.dp, 7.dp, layoutScale)))
-                            AnimatedContent(
-                                targetState = formatLine.orEmpty(),
-                                transitionSpec = {
-                                    fadeIn(animationSpec = tween(durationMillis = 180, delayMillis = 20)) togetherWith
-                                        fadeOut(animationSpec = tween(durationMillis = 110))
-                                },
-                                label = "portraitTrackFormatLineSwap"
-                            ) { animatedFormatLine ->
-                                Text(
-                                    text = animatedFormatLine,
-                                    style = technicalSummaryTextStyle,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.9f),
-                                    maxLines = 1,
-                                    overflow = TextOverflow.Ellipsis,
-                                    textAlign = TextAlign.Start,
-                                    modifier = Modifier.fillMaxWidth()
-                                )
-                            }
-                            if (!techSpecsLine.isNullOrBlank()) {
-                                Spacer(modifier = Modifier.height(lerpDp(1.dp, 2.dp, layoutScale)))
+                            BoxWithConstraints(modifier = Modifier.fillMaxWidth()) {
+                                val textMeasurer = rememberTextMeasurer()
+                                val density = LocalDensity.current
+                                val maxWidthPx = with(density) { maxWidth.roundToPx().coerceAtLeast(1) }
+                                val fullText = fullTechLine.orEmpty()
+                                val fallbackText = fallbackTechLine.orEmpty()
+
+                                val textToDisplay = remember(fullText, fallbackText, technicalSummaryTextStyle, maxWidthPx) {
+                                    if (fullText.isBlank()) {
+                                        ""
+                                    } else if (fallbackText.isBlank() || fullText == fallbackText) {
+                                        fullText
+                                    } else {
+                                        val measured = textMeasurer.measure(
+                                            text = AnnotatedString(fullText),
+                                            style = technicalSummaryTextStyle,
+                                            maxLines = 1,
+                                            softWrap = false,
+                                            overflow = TextOverflow.Clip
+                                        )
+                                        if (measured.size.width > maxWidthPx) {
+                                            fallbackText
+                                        } else {
+                                            fullText
+                                        }
+                                    }
+                                }
+
                                 AnimatedContent(
-                                    targetState = techSpecsLine,
+                                    targetState = textToDisplay,
                                     transitionSpec = {
                                         fadeIn(animationSpec = tween(durationMillis = 180, delayMillis = 20)) togetherWith
                                             fadeOut(animationSpec = tween(durationMillis = 110))
                                     },
-                                    label = "portraitTrackTechSpecsLineSwap"
-                                ) { animatedTechSpecsLine ->
+                                    label = "portraitTrackTechInfoSwap"
+                                ) { animatedLine ->
                                     Text(
-                                        text = animatedTechSpecsLine,
+                                        text = animatedLine,
                                         style = technicalSummaryTextStyle,
                                         color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.9f),
                                         maxLines = 1,
+                                        softWrap = false,
                                         overflow = TextOverflow.Ellipsis,
                                         textAlign = TextAlign.Start,
                                         modifier = Modifier.fillMaxWidth()
@@ -4648,18 +4664,24 @@ private fun formatBitrate(bitrateInBitsPerSecond: Long, isVBR: Boolean): String 
 }
 
 private data class TrackTechnicalInfo(
-    val formatLine: String,
-    val techSpecsLine: String
+    val fullLine: String,
+    val fallbackLine: String
 )
 
 private fun buildTrackTechnicalInfo(
     formatLabel: String,
+    extensionLabel: String,
     bitrateOrSize: String?,
     sampleRateHz: Int,
     channelCount: Int,
     bitDepthLabel: String,
-    decoderName: String?
+    decoderName: String?,
+    hasTrack: Boolean
 ): TrackTechnicalInfo {
+    if (!hasTrack) {
+        return TrackTechnicalInfo(fullLine = "", fallbackLine = "")
+    }
+
     val bitrateLabel = bitrateOrSize?.ifBlank { "--" } ?: "--"
     val sampleRateLabel = if (sampleRateHz > 0) {
         formatSampleRateForDetails(sampleRateHz)
@@ -4674,16 +4696,23 @@ private fun buildTrackTechnicalInfo(
         showBitDepth -> depthDisplay
         else -> "-- ch"
     }
-    
-    val techSpecs = listOfNotNull(
+
+    val specsList = listOf(
         bitrateLabel,
         sampleRateLabel,
         channelsAndDepth
-    ).joinToString(" • ")
-    
+    )
+
+    val validFormat = formatLabel.takeIf { it.isNotBlank() && it != "EMPTY" && it != "UNKNOWN" }
+    val validExt = extensionLabel.takeIf { it.isNotBlank() && it != "EMPTY" && it != "UNKNOWN" }
+        ?: validFormat
+
+    val fullSpecs = (listOfNotNull(validFormat ?: validExt) + specsList).joinToString(" • ")
+    val fallbackSpecs = (listOfNotNull(validExt ?: validFormat) + specsList).joinToString(" • ")
+
     return TrackTechnicalInfo(
-        formatLine = formatLabel,
-        techSpecsLine = techSpecs
+        fullLine = fullSpecs,
+        fallbackLine = fallbackSpecs
     )
 }
 
