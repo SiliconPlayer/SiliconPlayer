@@ -20,7 +20,9 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
 import androidx.compose.material3.ElevatedCard
 import androidx.compose.material3.Icon
@@ -111,10 +113,15 @@ internal fun StoragePermissionRequiredScreen(onRequestPermission: () -> Unit) {
     val isTvDevice = remember(context) {
         context.packageManager.hasSystemFeature(PackageManager.FEATURE_LEANBACK)
     }
+    val isWatchDevice = remember(context) {
+        context.packageManager.hasSystemFeature(PackageManager.FEATURE_WATCH)
+    }
     val showsSettingsFlow = isTvDevice && Build.VERSION.SDK_INT >= 30
     val permissionBodyText = if (showsSettingsFlow) {
         "Grant file access so Silicon Player can scan and play your audio library. " +
             "On some Android TV versions, this opens App settings instead of a popup."
+    } else if (isWatchDevice) {
+        "Grant storage access to scan and play audio files."
     } else {
         "Grant file access so Silicon Player can scan and play your audio library."
     }
@@ -129,17 +136,27 @@ internal fun StoragePermissionRequiredScreen(onRequestPermission: () -> Unit) {
         modifier = Modifier.fillMaxSize()
     ) {
         val isLandscape = maxWidth > maxHeight
+        val isCompactScreen = isWatchDevice || maxWidth < 320.dp || maxHeight < 340.dp
         val cardMaxWidth = if (isLandscape) {
             (maxWidth * 0.62f).coerceIn(380.dp, 680.dp)
         } else {
             maxWidth
         }
-        val outerHorizontalPadding = if (isLandscape) 32.dp else 20.dp
+        val outerHorizontalPadding = when {
+            isWatchDevice -> 12.dp
+            isLandscape -> 32.dp
+            else -> 20.dp
+        }
+        val outerVerticalPadding = when {
+            isWatchDevice -> 16.dp
+            else -> 24.dp
+        }
+        val scrollState = rememberScrollState()
 
         Box(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(horizontal = outerHorizontalPadding, vertical = 24.dp),
+                .padding(horizontal = outerHorizontalPadding, vertical = outerVerticalPadding),
             contentAlignment = Alignment.Center
         ) {
             ElevatedCard(
@@ -152,12 +169,18 @@ internal fun StoragePermissionRequiredScreen(onRequestPermission: () -> Unit) {
                 Column(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(horizontal = 20.dp, vertical = 24.dp),
+                        .verticalScroll(scrollState)
+                        .padding(
+                            horizontal = if (isCompactScreen) 14.dp else 20.dp,
+                            vertical = if (isCompactScreen) 16.dp else 24.dp
+                        ),
                     horizontalAlignment = Alignment.CenterHorizontally
                 ) {
+                    val iconContainerSize = if (isCompactScreen) 48.dp else 84.dp
+                    val iconSize = if (isCompactScreen) 26.dp else 42.dp
                     Box(
                         modifier = Modifier
-                            .size(84.dp)
+                            .size(iconContainerSize)
                             .background(
                                 color = MaterialTheme.colorScheme.primaryContainer,
                                 shape = CircleShape
@@ -167,25 +190,25 @@ internal fun StoragePermissionRequiredScreen(onRequestPermission: () -> Unit) {
                         Icon(
                             imageVector = Icons.Default.Info,
                             contentDescription = null,
-                            modifier = Modifier.size(42.dp),
+                            modifier = Modifier.size(iconSize),
                             tint = MaterialTheme.colorScheme.onPrimaryContainer
                         )
                     }
-                    Spacer(modifier = Modifier.height(18.dp))
+                    Spacer(modifier = Modifier.height(if (isCompactScreen) 8.dp else 18.dp))
                     Text(
                         text = "Storage access required",
-                        style = MaterialTheme.typography.titleLarge,
+                        style = if (isCompactScreen) MaterialTheme.typography.titleMedium else MaterialTheme.typography.titleLarge,
                         textAlign = TextAlign.Center
                     )
-                    Spacer(modifier = Modifier.height(8.dp))
+                    Spacer(modifier = Modifier.height(if (isCompactScreen) 4.dp else 8.dp))
                     Text(
                         text = permissionBodyText,
-                        style = MaterialTheme.typography.bodyMedium,
+                        style = if (isCompactScreen) MaterialTheme.typography.bodySmall else MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         textAlign = TextAlign.Center
                     )
                     if (permissionHintText != null) {
-                        Spacer(modifier = Modifier.height(8.dp))
+                        Spacer(modifier = Modifier.height(6.dp))
                         Text(
                             text = permissionHintText,
                             style = MaterialTheme.typography.bodySmall,
@@ -193,12 +216,15 @@ internal fun StoragePermissionRequiredScreen(onRequestPermission: () -> Unit) {
                             textAlign = TextAlign.Center
                         )
                     }
-                    Spacer(modifier = Modifier.height(20.dp))
+                    Spacer(modifier = Modifier.height(if (isCompactScreen) 12.dp else 20.dp))
                     Button(
                         onClick = onRequestPermission,
                         modifier = Modifier.fillMaxWidth()
                     ) {
-                        Text(permissionButtonLabel)
+                        Text(
+                            text = permissionButtonLabel,
+                            style = if (isCompactScreen) MaterialTheme.typography.labelLarge else MaterialTheme.typography.bodyMedium
+                        )
                     }
                 }
             }
