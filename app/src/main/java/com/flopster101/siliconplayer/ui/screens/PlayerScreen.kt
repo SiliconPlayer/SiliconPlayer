@@ -3170,40 +3170,46 @@ private fun TransportControls(
             layoutScale
         }
         val heightBias = if (portraitTransportSizing) 1f else lerpFloat(0.90f, 1f, layoutScale)
-        val sideButtonMax = lerpDp(62.dp, 82.dp, tabletWidthScale)
+        val sideButtonMax = lerpDp(56.dp, 76.dp, tabletWidthScale)
         val playButtonMax = lerpDp(92.dp, 124.dp, tabletWidthScale)
         val subtuneButtonMax = lerpDp(60.dp, 80.dp, tabletWidthScale)
-        val sideButtonMin = if (portraitTransportSizing) 42.dp else 42.dp
+        val sideButtonMin = if (portraitTransportSizing) 52.dp else 48.dp
+        val auxiliaryButtonMin = 40.dp
+        val auxiliaryButtonMax = lerpDp(44.dp, 56.dp, tabletWidthScale)
         val playButtonMin = when {
-            compactPortraitTransport -> 74.dp
-            portraitTransportSizing -> 80.dp
+            compactPortraitTransport -> 72.dp
+            portraitTransportSizing -> 76.dp
             else -> 64.dp
         }
         val sideButtonSize =
-            scaledDp(transportSizingWidth, lerpFloat(0.132f, 0.148f, effectiveButtonScale) * heightBias)
+            scaledDp(transportSizingWidth, lerpFloat(0.138f, 0.152f, effectiveButtonScale) * heightBias)
                 .coerceIn(sideButtonMin, sideButtonMax)
+        val auxiliaryButtonSize =
+            scaledDp(sideButtonSize, 0.78f).coerceIn(auxiliaryButtonMin, auxiliaryButtonMax)
         val playButtonSize = if (portraitTransportSizing) {
-            scaledDp(sideButtonSize, 1.65f).coerceIn(playButtonMin, playButtonMax)
+            scaledDp(sideButtonSize, 1.42f).coerceIn(playButtonMin, playButtonMax)
         } else {
-            scaledDp(sideButtonSize, 1.52f).coerceIn(playButtonMin, playButtonMax)
+            scaledDp(sideButtonSize, 1.36f).coerceIn(playButtonMin, playButtonMax)
         }
         val subtuneButtonSize = scaledDp(sideButtonSize, 1.03f).coerceIn(44.dp, subtuneButtonMax)
-        val occupiedWidth = (sideButtonSize.value * 4f + playButtonSize.value).dp
+        val occupiedWidth = (auxiliaryButtonSize.value * 2f + sideButtonSize.value * 2f + playButtonSize.value).dp
         val rawRowGap = ((transportClusterWidth - occupiedWidth).coerceAtLeast(0.dp) / 4f)
         val rowGap = if (maxClusterWidth != null) {
             rawRowGap.coerceAtLeast(6.dp)
         } else {
             rawRowGap.coerceIn(6.dp, lerpDp(10.dp, 16.dp, tabletWidthScale))
         }
-        val sideTransportIconSize = scaledDp(sideButtonSize, 0.56f)
-            .coerceIn(24.dp, lerpDp(28.dp, 34.dp, tabletWidthScale))
-        val repeatIconSize = scaledDp(sideButtonSize, 0.52f).coerceIn(22.dp, lerpDp(26.dp, 32.dp, tabletWidthScale))
-        val effectiveRepeatIconSize = if (compactPortraitTransport) sideTransportIconSize else repeatIconSize
-        val repeatBadgeCenterOffsetX = scaledDp(sideButtonSize, 0.20f)
-        val repeatBadgeCenterOffsetY = scaledDp(sideButtonSize, -0.17f)
-        val repeatBadgeHorizontalPadding = scaledDp(sideButtonSize, 0.08f).coerceIn(3.dp, 6.dp)
-        val repeatBadgeVerticalPadding = scaledDp(sideButtonSize, 0.03f).coerceIn(1.dp, 2.dp)
-        val repeatBadgeTextSize = (sideButtonSize.value * 0.16f).coerceIn(8f, 10.5f).sp
+        val auxiliaryIconSize = scaledDp(auxiliaryButtonSize, 0.58f)
+            .coerceIn(22.dp, lerpDp(24.dp, 28.dp, tabletWidthScale))
+        val sideTransportIconSize = scaledDp(sideButtonSize, 0.52f)
+            .coerceIn(26.dp, lerpDp(28.dp, 34.dp, tabletWidthScale))
+        val repeatIconSize = auxiliaryIconSize
+        val effectiveRepeatIconSize = repeatIconSize
+        val repeatBadgeCenterOffsetX = scaledDp(auxiliaryButtonSize, 0.22f)
+        val repeatBadgeCenterOffsetY = scaledDp(auxiliaryButtonSize, -0.20f)
+        val repeatBadgeHorizontalPadding = scaledDp(auxiliaryButtonSize, 0.08f).coerceIn(3.dp, 5.dp)
+        val repeatBadgeVerticalPadding = scaledDp(auxiliaryButtonSize, 0.03f).coerceIn(1.dp, 2.dp)
+        val repeatBadgeTextSize = (auxiliaryButtonSize.value * 0.18f).coerceIn(8f, 10f).sp
         val loadingSpacer = if (compactPortraitTransport) {
             scaledDp(sideButtonSize, 0.10f).coerceIn(3.dp, 8.dp)
         } else {
@@ -3232,11 +3238,11 @@ private fun TransportControls(
                     horizontalArrangement = Arrangement.Center,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                FilledTonalIconButton(
+                IconButton(
                     onClick = onStopAndClear,
                     modifier = Modifier
                         .focusRequester(stopFocusRequester)
-                        .size(sideButtonSize)
+                        .size(auxiliaryButtonSize)
                         .focusProperties {
                             left = firstAvailableRequester(
                                 canFocusRepeatMode to repeatModeFocusRequester,
@@ -3258,15 +3264,14 @@ private fun TransportControls(
                         }
                         .playerFocusHalo()
                         .focusable(),
-                    shape = CircleShape,
-                    colors = IconButtonDefaults.filledTonalIconButtonColors(
-                        containerColor = MaterialTheme.colorScheme.surfaceVariant
+                    colors = IconButtonDefaults.iconButtonColors(
+                        contentColor = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 ) {
                     Icon(
                         imageVector = Icons.Default.Stop,
                         contentDescription = "Stop",
-                        modifier = Modifier.size(sideTransportIconSize)
+                        modifier = Modifier.size(auxiliaryIconSize)
                     )
                 }
                 if (edgeAlignedTransport) {
@@ -3314,7 +3319,8 @@ private fun TransportControls(
                             .focusable(enabled = previousTransportEnabled),
                         shape = CircleShape,
                         colors = IconButtonDefaults.filledTonalIconButtonColors(
-                            containerColor = MaterialTheme.colorScheme.surfaceVariant
+                            containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
+                            contentColor = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     ) {
                         Icon(
@@ -3375,13 +3381,14 @@ private fun TransportControls(
                         .focusable(enabled = (hasTrack || canResumeStoppedTrack) && !controlsBusy),
                     shape = CircleShape,
                     colors = IconButtonDefaults.filledIconButtonColors(
-                        containerColor = MaterialTheme.colorScheme.primaryContainer,
-                        contentColor = MaterialTheme.colorScheme.onPrimaryContainer
+                        containerColor = MaterialTheme.colorScheme.primary,
+                        contentColor = MaterialTheme.colorScheme.onPrimary
                     )
                 ) {
                     if (showLoadingIndicator) {
                         CircularProgressIndicator(
                             modifier = Modifier.size(playIndicatorSize),
+                            color = MaterialTheme.colorScheme.onPrimary,
                             strokeWidth = 3.dp
                         )
                     } else {
@@ -3441,7 +3448,8 @@ private fun TransportControls(
                             .focusable(enabled = nextTransportEnabled),
                         shape = CircleShape,
                         colors = IconButtonDefaults.filledTonalIconButtonColors(
-                            containerColor = MaterialTheme.colorScheme.surfaceVariant
+                            containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
+                            contentColor = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     ) {
                         Icon(
@@ -3504,12 +3512,12 @@ private fun TransportControls(
                     Spacer(modifier = Modifier.width(rowGap))
                 }
 
-                FilledTonalIconButton(
+                IconButton(
                     onClick = onCycleRepeatMode,
                     enabled = canCycleRepeatMode && !controlsBusy,
                     modifier = Modifier
                         .focusRequester(repeatModeFocusRequester)
-                        .size(sideButtonSize)
+                        .size(auxiliaryButtonSize)
                         .focusProperties {
                             left = firstAvailableRequester(
                                 canFocusNextTrack to nextTrackFocusRequester,
@@ -3531,14 +3539,11 @@ private fun TransportControls(
                         }
                         .playerFocusHalo(enabled = canCycleRepeatMode && !controlsBusy)
                         .focusable(enabled = canCycleRepeatMode && !controlsBusy),
-                    shape = CircleShape,
-                    colors = IconButtonDefaults.filledTonalIconButtonColors(
-                        containerColor = if (compactPortraitTransport) {
-                            MaterialTheme.colorScheme.surfaceVariant
-                        } else if (repeatMode != RepeatMode.None) {
-                            MaterialTheme.colorScheme.secondaryContainer
+                    colors = IconButtonDefaults.iconButtonColors(
+                        contentColor = if (repeatMode != RepeatMode.None) {
+                            MaterialTheme.colorScheme.primary
                         } else {
-                            MaterialTheme.colorScheme.surfaceVariant
+                            MaterialTheme.colorScheme.onSurfaceVariant
                         }
                     )
                 ) {
@@ -3565,8 +3570,8 @@ private fun TransportControls(
                         )
                         if (!compactPortraitTransport && (modeBadgeText.isNotEmpty() || modeBadgeIcon != null)) {
                             Surface(
-                                color = MaterialTheme.colorScheme.primaryContainer,
-                                contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
+                                color = MaterialTheme.colorScheme.primary,
+                                contentColor = MaterialTheme.colorScheme.onPrimary,
                                 shape = RoundedCornerShape(percent = 50),
                                 modifier = Modifier
                                     .align(Alignment.Center)
