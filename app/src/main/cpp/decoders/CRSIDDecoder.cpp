@@ -522,6 +522,11 @@ int CRSIDDecoder::getChannelCount() {
     return kCrsidOutputChannels;
 }
 
+int CRSIDDecoder::getDisplayChannelCount() {
+    std::lock_guard<std::mutex> lock(decodeMutex);
+    return !toggleChannelNames.empty() ? static_cast<int>(toggleChannelNames.size()) : kCrsidOutputChannels;
+}
+
 int CRSIDDecoder::getSubtuneCount() const {
     std::lock_guard<std::mutex> lock(decodeMutex);
     return subtuneCount;

@@ -471,7 +471,8 @@ std::string KlystrackDecoder::getBitDepthLabel() {
 }
 
 int KlystrackDecoder::getDisplayChannelCount() {
-    return getChannelCount();
+    std::lock_guard<std::mutex> lock(decodeMutex);
+    return trackCount > 0 ? trackCount : channels;
 }
 
 int KlystrackDecoder::getChannelCount() {

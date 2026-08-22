@@ -877,7 +877,7 @@ std::string UadeDecoder::getBitDepthLabel() {
 }
 
 int UadeDecoder::getDisplayChannelCount() {
-    return channels;
+    return kUadeScopeChannelCount;
 }
 
 int UadeDecoder::getChannelCount() {

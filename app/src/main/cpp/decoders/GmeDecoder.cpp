@@ -1259,7 +1259,8 @@ std::string GmeDecoder::getBitDepthLabel() {
 }
 
 int GmeDecoder::getDisplayChannelCount() {
-    return channels;
+    std::lock_guard<std::mutex> lock(decodeMutex);
+    return voiceCount > 0 ? voiceCount : channels;
 }
 
 int GmeDecoder::getChannelCount() {

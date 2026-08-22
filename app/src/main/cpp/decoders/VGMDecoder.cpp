@@ -415,7 +415,8 @@ std::string VGMDecoder::getBitDepthLabel() {
 }
 
 int VGMDecoder::getDisplayChannelCount() {
-    return channels;
+    std::lock_guard<std::mutex> lock(decodeMutex);
+    return !toggleChipEntries.empty() ? static_cast<int>(toggleChipEntries.size()) : channels;
 }
 
 int VGMDecoder::getChannelCount() {

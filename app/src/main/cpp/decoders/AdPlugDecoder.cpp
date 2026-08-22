@@ -479,7 +479,13 @@ std::string AdPlugDecoder::getBitDepthLabel() {
 }
 
 int AdPlugDecoder::getDisplayChannelCount() {
-    return channels;
+    std::lock_guard<std::mutex> lock(decodeMutex);
+    auto* trackingOpl = dynamic_cast<TrackingOplProxy*>(opl.get());
+    if (trackingOpl) {
+        const int voiceCount = trackingOpl->getVoiceCount();
+        if (voiceCount > 0) return voiceCount;
+    }
+    return !toggleChannelNames.empty() ? static_cast<int>(toggleChannelNames.size()) : channels;
 }
 
 int AdPlugDecoder::getChannelCount() {

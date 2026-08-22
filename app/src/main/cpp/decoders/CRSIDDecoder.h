@@ -25,6 +25,7 @@ public:
     int getBitDepth() override;
     std::string getBitDepthLabel() override;
     int getChannelCount() override;
+    int getDisplayChannelCount() override;
     int getSubtuneCount() const override;
     int getCurrentSubtuneIndex() const override;
     bool selectSubtune(int index) override;

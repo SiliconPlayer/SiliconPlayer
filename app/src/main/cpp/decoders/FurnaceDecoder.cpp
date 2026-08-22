@@ -676,7 +676,12 @@ std::string FurnaceDecoder::getBitDepthLabel() {
 }
 
 int FurnaceDecoder::getDisplayChannelCount() {
-    return getChannelCount();
+    std::lock_guard<std::mutex> lock(decodeMutex);
+    if (engine) {
+        const int count = engine->getTotalChannelCount();
+        if (count > 0) return count;
+    }
+    return channels;
 }
 
 int FurnaceDecoder::getChannelCount() {
