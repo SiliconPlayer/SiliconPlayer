@@ -1030,9 +1030,6 @@ internal fun PlayerScreen(
                     val artPaneWeight = lerpFloat(0.36f, 0.48f, landscapeLayoutScale)
                     val rightPaneWeight = 1f - artPaneWeight
                     val transportRowWidth = playerTransportRowWidth(maxWidth, landscapeLayoutScale)
-                    val actionStripWidthFraction = (
-                        lerpFloat(0.52f, 0.68f, landscapeLayoutScale)
-                    ).coerceAtMost(0.78f)
                     val actionStripScale = (landscapeLayoutScale * 0.78f).coerceIn(0.44f, 0.76f)
                     val metadataSpacer = lerpDp(6.dp, 12.dp, landscapeLayoutScale)
                     val timelineSpacer = lerpDp(4.dp, 10.dp, landscapeLayoutScale)
@@ -1273,9 +1270,10 @@ internal fun PlayerScreen(
                             FutureActionStrip(
                                 modifier = Modifier
                                     .align(Alignment.BottomCenter)
-                                    .fillMaxWidth(actionStripWidthFraction)
+                                    .width(transportRowWidth)
                                     .onSizeChanged { actionStripHeightPx = it.height }
                                     .padding(bottom = actionStripBottomPadding),
+                                isVisualizerActive = visualizationMode != VisualizationMode.Off,
                                 onCycleVisualizationMode = onCycleVisualizationMode,
                                 onOpenVisualizationPicker = { showVisualizationPickerDialog = true },
                                 isTrackFavorited = isTrackFavorited,
@@ -1350,11 +1348,6 @@ internal fun PlayerScreen(
                         lerpDp(3.dp, 8.dp, shortPortraitHeightScale)
                     } else {
                         lerpDp(4.dp, 10.dp, shortPortraitHeightScale)
-                    }
-                    val actionStripWidth = if (shortPortraitLayout) {
-                        lerpFloat(0.80f, 0.88f, shortPortraitHeightScale).coerceAtMost(0.92f)
-                    } else {
-                        lerpFloat(0.70f, 0.82f, portraitLayoutScale).coerceAtMost(0.90f)
                     }
                     val actionStripBottomPadding = if (shortPortraitLayout) {
                         lerpDp(2.dp, 6.dp, shortPortraitHeightScale)
@@ -1655,10 +1648,11 @@ internal fun PlayerScreen(
                         FutureActionStrip(
                             modifier = Modifier
                                 .align(Alignment.BottomCenter)
-                                .fillMaxWidth(actionStripWidth)
+                                .width(portraitContentWidth)
                                 .onSizeChanged { actionStripHeightPx = it.height }
                                 .navigationBarsPadding()
                                 .padding(bottom = actionStripBottomPadding),
+                            isVisualizerActive = visualizationMode != VisualizationMode.Off,
                             onCycleVisualizationMode = onCycleVisualizationMode,
                             onOpenVisualizationPicker = { showVisualizationPickerDialog = true },
                             isTrackFavorited = isTrackFavorited,
@@ -3742,6 +3736,7 @@ private fun remoteLoadProgressLabel(remoteLoadUiState: RemoteLoadUiState?): Stri
 @OptIn(ExperimentalFoundationApi::class)
 private fun FutureActionStrip(
     modifier: Modifier = Modifier,
+    isVisualizerActive: Boolean,
     onCycleVisualizationMode: () -> Unit,
     onOpenVisualizationPicker: () -> Unit,
     isTrackFavorited: Boolean,
@@ -3791,225 +3786,180 @@ private fun FutureActionStrip(
         val neighborIndex = (currentIndex + step + enabledNodes.size) % enabledNodes.size
         return enabledNodes[neighborIndex].requester
     }
+
     BoxWithConstraints(modifier = modifier) {
         val stripMaxWidth = maxWidth
-        val compactSizingWidth = if (compactLayout) {
-            stripMaxWidth * (4.5f / 5f)
-        } else {
-            stripMaxWidth
-        }
-        val tabletWidthScale = normalizedScale(compactSizingWidth, compactDp = 560.dp, roomyDp = 980.dp)
+        val tabletWidthScale = normalizedScale(stripMaxWidth, compactDp = 560.dp, roomyDp = 980.dp)
         val compactShortLayout = compactLayout && layoutScale < 0.7f
-        val widthBias = lerpFloat(0.94f, 1.06f, layoutScale)
-        val iconButtonMax = lerpDp(52.dp, 70.dp, tabletWidthScale)
-        val iconButtonMin = if (compactShortLayout) 32.dp else 36.dp
-        val iconButtonSize =
-            scaledDp(compactSizingWidth, lerpFloat(0.122f, 0.146f, layoutScale) * widthBias).coerceIn(iconButtonMin, iconButtonMax)
-        val stripHorizontalPadding = if (compactLayout) {
-            val minPadding = if (compactShortLayout) 6.dp else 7.dp
-            val maxPadding = if (compactShortLayout) lerpDp(9.dp, 13.dp, tabletWidthScale) else lerpDp(10.dp, 14.dp, tabletWidthScale)
-            scaledDp(iconButtonSize, lerpFloat(0.07f, 0.10f, layoutScale))
-                .coerceIn(minPadding, maxPadding)
-        } else {
-            scaledDp(iconButtonSize, lerpFloat(0.04f, 0.10f, layoutScale))
-                .coerceIn(0.dp, lerpDp(6.dp, 12.dp, tabletWidthScale))
-        }
-        val stripVerticalPadding = if (compactLayout) {
-            val minPadding = if (compactShortLayout) 5.dp else 6.dp
-            val maxPadding = if (compactShortLayout) lerpDp(7.dp, 11.dp, tabletWidthScale) else lerpDp(10.dp, 14.dp, tabletWidthScale)
-            scaledDp(iconButtonSize, lerpFloat(0.14f, 0.22f, layoutScale))
-                .coerceIn(minPadding, maxPadding)
-        } else {
-            scaledDp(iconButtonSize, lerpFloat(0.08f, 0.16f, layoutScale))
-                .coerceIn(3.dp, lerpDp(7.dp, 11.dp, tabletWidthScale))
-        }
-        val modeIconSize = scaledDp(iconButtonSize, 0.66f).coerceIn(22.dp, lerpDp(26.dp, 32.dp, tabletWidthScale))
-        val genericIconSize = scaledDp(iconButtonSize, 0.68f).coerceIn(22.dp, lerpDp(27.dp, 33.dp, tabletWidthScale))
-        val compactItemSpacing = scaledDp(iconButtonSize, lerpFloat(0.16f, 0.24f, layoutScale))
-            .coerceIn(
-                if (compactShortLayout) 8.dp else 10.dp,
-                if (compactShortLayout) lerpDp(12.dp, 18.dp, tabletWidthScale) else lerpDp(14.dp, 20.dp, tabletWidthScale)
-            )
-        Box(
+        val iconButtonMax = lerpDp(44.dp, 52.dp, tabletWidthScale)
+        val iconButtonMin = if (compactShortLayout) 36.dp else 40.dp
+        val iconButtonSize = 40.dp.coerceIn(iconButtonMin, iconButtonMax)
+        val modeIconSize = scaledDp(iconButtonSize, 0.58f).coerceIn(20.dp, lerpDp(24.dp, 28.dp, tabletWidthScale))
+        val genericIconSize = scaledDp(iconButtonSize, 0.58f).coerceIn(20.dp, lerpDp(24.dp, 28.dp, tabletWidthScale))
+
+        Row(
             modifier = Modifier.fillMaxWidth(),
-            contentAlignment = Alignment.Center
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
         ) {
-            Surface(
-                modifier = if (compactLayout) {
-                    Modifier.widthIn(max = stripMaxWidth)
-                } else {
-                    Modifier.fillMaxWidth()
-                },
-                color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f),
-                shape = MaterialTheme.shapes.extraLarge
-            ) {
-                Box(
-                    modifier = if (compactLayout) {
-                        Modifier
-                            .wrapContentWidth()
-                            .padding(horizontal = stripHorizontalPadding, vertical = stripVerticalPadding)
-                    } else {
-                        Modifier
-                            .fillMaxWidth()
-                            .padding(horizontal = stripHorizontalPadding, vertical = stripVerticalPadding)
-                    },
-                    contentAlignment = Alignment.Center
-                ) {
-                    Row(
-                        modifier = if (compactLayout) {
-                            Modifier.wrapContentWidth()
-                        } else {
-                            Modifier.fillMaxWidth()
-                        },
-                        horizontalArrangement = if (compactLayout) {
-                            Arrangement.spacedBy(compactItemSpacing, Alignment.CenterHorizontally)
-                        } else {
-                            Arrangement.SpaceEvenly
-                        },
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        // 1. Visualizer
-                        Box(
-                            modifier = Modifier
-                                .size(iconButtonSize)
-                                .focusRequester(visualizationModeFocusRequester)
-                                .focusProperties {
-                                    neighboringActionRequester("visualization", -1)?.let { left = it }
-                                    neighboringActionRequester("visualization", 1)?.let { right = it }
-                                    if (transportAnchorFocusRequester != null) {
-                                        up = transportAnchorFocusRequester
-                                    }
-                                }
-                                .clip(CircleShape)
-                                .playerFocusHalo(shape = CircleShape)
-                                .focusable()
-                                .tvKeyLongPress(onOpenVisualizationPicker)
-                                .combinedClickable(
-                                    onClick = onCycleVisualizationMode,
-                                    onLongClick = onOpenVisualizationPicker
-                                ),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Icon(
-                                imageVector = Icons.Default.GraphicEq,
-                                contentDescription = "Visualization mode",
-                                modifier = Modifier.size(modeIconSize)
-                            )
-                        }
+            // 1. Visualizer (MD3 FilledTonalIconToggleButton Pattern)
+            val visualizerBgColor = if (isVisualizerActive) {
+                MaterialTheme.colorScheme.secondaryContainer
+            } else {
+                Color.Transparent
+            }
+            val visualizerIconTint = if (isVisualizerActive) {
+                MaterialTheme.colorScheme.onSecondaryContainer
+            } else {
+                MaterialTheme.colorScheme.onSurfaceVariant
+            }
 
-                        // 2. Playlist / Subtunes
-                        IconButton(
-                            onClick = onOpenPlaylistSelector,
-                            enabled = canOpenPlaylistSelector,
-                            modifier = Modifier
-                                .size(iconButtonSize)
-                                .focusRequester(playlistSelectorFocusRequester)
-                                .focusProperties {
-                                    neighboringActionRequester("playlist", -1)?.let { left = it }
-                                    neighboringActionRequester("playlist", 1)?.let { right = it }
-                                    if (transportAnchorFocusRequester != null) {
-                                        up = transportAnchorFocusRequester
-                                    }
-                                }
-                                .playerFocusHalo(enabled = canOpenPlaylistSelector, shape = CircleShape)
-                                .focusable(enabled = canOpenPlaylistSelector)
-                        ) {
-                            Icon(
-                                imageVector = Icons.AutoMirrored.Filled.List,
-                                contentDescription = "Open current playlist",
-                                modifier = Modifier.size(genericIconSize),
-                                tint = if (canOpenPlaylistSelector) {
-                                    LocalContentColor.current
-                                } else {
-                                    MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.55f)
-                                }
-                            )
-                        }
-
-                        // 3. Favorite
-                        IconButton(
-                            onClick = onToggleFavoriteTrack,
-                            enabled = canToggleFavoriteTrack,
-                            modifier = Modifier
-                                .size(iconButtonSize)
-                                .focusRequester(favoriteTrackFocusRequester)
-                                .focusProperties {
-                                    neighboringActionRequester("favorite", -1)?.let { left = it }
-                                    neighboringActionRequester("favorite", 1)?.let { right = it }
-                                    if (transportAnchorFocusRequester != null) {
-                                        up = transportAnchorFocusRequester
-                                    }
-                                }
-                                .playerFocusHalo(enabled = canToggleFavoriteTrack, shape = CircleShape)
-                                .focusable(enabled = canToggleFavoriteTrack)
-                        ) {
-                            Icon(
-                                painter = painterResource(
-                                    id = if (isTrackFavorited) {
-                                        R.drawable.ic_star_filled
-                                    } else {
-                                        R.drawable.ic_star_outline
-                                    }
-                                ),
-                                contentDescription = if (isTrackFavorited) {
-                                    "Remove from favorites"
-                                } else {
-                                    "Add to favorites"
-                                },
-                                tint = LocalContentColor.current,
-                                modifier = Modifier.size(genericIconSize)
-                            )
-                        }
-
-                        // 4. DSP / EQ Controls
-                        IconButton(
-                            onClick = onOpenAudioEffects,
-                            enabled = true,
-                            modifier = Modifier
-                                .size(iconButtonSize)
-                                .focusRequester(audioEffectsFocusRequester)
-                                .focusProperties {
-                                    neighboringActionRequester("effects", -1)?.let { left = it }
-                                    neighboringActionRequester("effects", 1)?.let { right = it }
-                                    if (transportAnchorFocusRequester != null) {
-                                        up = transportAnchorFocusRequester
-                                    }
-                                }
-                                .playerFocusHalo(shape = CircleShape)
-                                .focusable()
-                        ) {
-                            Icon(
-                                imageVector = Icons.Default.Tune,
-                                contentDescription = "Audio effects",
-                                modifier = Modifier.size(genericIconSize)
-                            )
-                        }
-
-                        // 5. Channel Controls
-                        IconButton(
-                            onClick = onOpenChannelControls,
-                            enabled = true,
-                            modifier = Modifier
-                                .size(iconButtonSize)
-                                .focusRequester(channelControlsFocusRequester)
-                                .focusProperties {
-                                    neighboringActionRequester("channels", -1)?.let { left = it }
-                                    neighboringActionRequester("channels", 1)?.let { right = it }
-                                    if (transportAnchorFocusRequester != null) {
-                                        up = transportAnchorFocusRequester
-                                    }
-                                }
-                                .playerFocusHalo(shape = CircleShape)
-                                .focusable()
-                        ) {
-                            Icon(
-                                painter = painterResource(id = R.drawable.ic_airwave),
-                                contentDescription = "Channel controls",
-                                modifier = Modifier.size(genericIconSize)
-                            )
+            Box(
+                modifier = Modifier
+                    .size(iconButtonSize)
+                    .focusRequester(visualizationModeFocusRequester)
+                    .focusProperties {
+                        neighboringActionRequester("visualization", -1)?.let { left = it }
+                        neighboringActionRequester("visualization", 1)?.let { right = it }
+                        if (transportAnchorFocusRequester != null) {
+                            up = transportAnchorFocusRequester
                         }
                     }
-                }
+                    .clip(CircleShape)
+                    .background(visualizerBgColor, CircleShape)
+                    .playerFocusHalo(shape = CircleShape)
+                    .focusable()
+                    .tvKeyLongPress(onOpenVisualizationPicker)
+                    .combinedClickable(
+                        onClick = onCycleVisualizationMode,
+                        onLongClick = onOpenVisualizationPicker
+                    ),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(
+                    imageVector = Icons.Default.GraphicEq,
+                    contentDescription = "Visualization mode",
+                    modifier = Modifier.size(modeIconSize),
+                    tint = visualizerIconTint
+                )
+            }
+
+            // 2. Playlist / Subtunes
+            IconButton(
+                onClick = onOpenPlaylistSelector,
+                enabled = canOpenPlaylistSelector,
+                modifier = Modifier
+                    .size(iconButtonSize)
+                    .focusRequester(playlistSelectorFocusRequester)
+                    .focusProperties {
+                        neighboringActionRequester("playlist", -1)?.let { left = it }
+                        neighboringActionRequester("playlist", 1)?.let { right = it }
+                        if (transportAnchorFocusRequester != null) {
+                            up = transportAnchorFocusRequester
+                        }
+                    }
+                    .playerFocusHalo(enabled = canOpenPlaylistSelector, shape = CircleShape)
+                    .focusable(enabled = canOpenPlaylistSelector)
+            ) {
+                Icon(
+                    imageVector = Icons.AutoMirrored.Filled.List,
+                    contentDescription = "Open current playlist",
+                    modifier = Modifier.size(genericIconSize),
+                    tint = if (canOpenPlaylistSelector) {
+                        MaterialTheme.colorScheme.onSurfaceVariant
+                    } else {
+                        MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.38f)
+                    }
+                )
+            }
+
+            // 3. Favorite
+            IconButton(
+                onClick = onToggleFavoriteTrack,
+                enabled = canToggleFavoriteTrack,
+                modifier = Modifier
+                    .size(iconButtonSize)
+                    .focusRequester(favoriteTrackFocusRequester)
+                    .focusProperties {
+                        neighboringActionRequester("favorite", -1)?.let { left = it }
+                        neighboringActionRequester("favorite", 1)?.let { right = it }
+                        if (transportAnchorFocusRequester != null) {
+                            up = transportAnchorFocusRequester
+                        }
+                    }
+                    .playerFocusHalo(enabled = canToggleFavoriteTrack, shape = CircleShape)
+                    .focusable(enabled = canToggleFavoriteTrack)
+            ) {
+                Icon(
+                    painter = painterResource(
+                        id = if (isTrackFavorited) {
+                            R.drawable.ic_star_filled
+                        } else {
+                            R.drawable.ic_star_outline
+                        }
+                    ),
+                    contentDescription = if (isTrackFavorited) {
+                        "Remove from favorites"
+                    } else {
+                        "Add to favorites"
+                    },
+                    tint = if (isTrackFavorited) {
+                        MaterialTheme.colorScheme.primary
+                    } else {
+                        MaterialTheme.colorScheme.onSurfaceVariant
+                    },
+                    modifier = Modifier.size(genericIconSize)
+                )
+            }
+
+            // 4. DSP / EQ Controls
+            IconButton(
+                onClick = onOpenAudioEffects,
+                enabled = true,
+                modifier = Modifier
+                    .size(iconButtonSize)
+                    .focusRequester(audioEffectsFocusRequester)
+                    .focusProperties {
+                        neighboringActionRequester("effects", -1)?.let { left = it }
+                        neighboringActionRequester("effects", 1)?.let { right = it }
+                        if (transportAnchorFocusRequester != null) {
+                            up = transportAnchorFocusRequester
+                        }
+                    }
+                    .playerFocusHalo(shape = CircleShape)
+                    .focusable()
+            ) {
+                Icon(
+                    imageVector = Icons.Default.Tune,
+                    contentDescription = "Audio effects",
+                    modifier = Modifier.size(genericIconSize),
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+
+            // 5. Channel Controls
+            IconButton(
+                onClick = onOpenChannelControls,
+                enabled = true,
+                modifier = Modifier
+                    .size(iconButtonSize)
+                    .focusRequester(channelControlsFocusRequester)
+                    .focusProperties {
+                        neighboringActionRequester("channels", -1)?.let { left = it }
+                        neighboringActionRequester("channels", 1)?.let { right = it }
+                        if (transportAnchorFocusRequester != null) {
+                            up = transportAnchorFocusRequester
+                        }
+                    }
+                    .playerFocusHalo(shape = CircleShape)
+                    .focusable()
+            ) {
+                Icon(
+                    painter = painterResource(id = R.drawable.ic_airwave),
+                    contentDescription = "Channel controls",
+                    modifier = Modifier.size(genericIconSize),
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant
+                )
             }
         }
     }
