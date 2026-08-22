@@ -29,16 +29,23 @@ import androidx.compose.foundation.Image
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.gestures.detectVerticalDragGestures
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsPressedAsState
+import androidx.compose.foundation.pager.VerticalPager
+import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.drawscope.Stroke
+import android.content.pm.PackageManager
 import androidx.compose.foundation.focusable
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.List
 import androidx.compose.material.icons.filled.AudioFile
 import androidx.compose.material.icons.filled.Equalizer
@@ -53,8 +60,12 @@ import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.MusicNote
 import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material.icons.filled.Repeat
+import androidx.compose.material.icons.filled.RepeatOne
 import androidx.compose.material.icons.filled.SkipPrevious
 import androidx.compose.material.icons.filled.SkipNext
+import androidx.compose.material.icons.filled.Star
+import androidx.compose.material.icons.filled.StarBorder
 import androidx.compose.material.icons.filled.Stop
 import androidx.compose.material.icons.rounded.Stop
 import androidx.compose.material.icons.filled.Timer
@@ -986,30 +997,36 @@ internal fun PlayerScreen(
             )
     ) {
         CompositionLocalProvider(LocalPlayerMarqueeClockState provides playerMarqueeClockState) {
+            val isWatchDevice = remember(context) {
+                context.packageManager.hasSystemFeature(PackageManager.FEATURE_WATCH)
+            }
+
             Scaffold(
                 topBar = {
-                    PlayerTopBar(
-                        isLandscape = isLandscape,
-                        isTabletLike = isTabletLike,
-                        compactPortraitHeader = shortPortraitDevice,
-                        onBack = onBack,
-                        enableCollapseGesture = enableCollapseGesture,
-                        focusRequester = topArrowFocusRequester,
-                        downFocusRequester = if (canSeek && durationSeconds > 0.0) {
-                            primaryContentFocusRequester
-                        } else {
-                            transportAnchorFocusRequester
-                        },
-                        canOpenCoreSettings = canOpenCoreSettings,
-                        onOpenCoreSettings = onOpenCoreSettings,
-                        onOpenTrackInfo = { showTrackInfoDialog = true }
-                    )
+                    if (!isWatchDevice) {
+                        PlayerTopBar(
+                            isLandscape = isLandscape,
+                            isTabletLike = isTabletLike,
+                            compactPortraitHeader = shortPortraitDevice,
+                            onBack = onBack,
+                            enableCollapseGesture = enableCollapseGesture,
+                            focusRequester = topArrowFocusRequester,
+                            downFocusRequester = if (canSeek && durationSeconds > 0.0) {
+                                primaryContentFocusRequester
+                            } else {
+                                transportAnchorFocusRequester
+                            },
+                            canOpenCoreSettings = canOpenCoreSettings,
+                            onOpenCoreSettings = onOpenCoreSettings,
+                            onOpenTrackInfo = { showTrackInfoDialog = true }
+                        )
+                    }
                 }
             ) { innerPadding ->
                 Box(
                     modifier = Modifier
                         .fillMaxSize()
-                        .padding(innerPadding)
+                        .padding(if (isWatchDevice) PaddingValues(0.dp) else innerPadding)
                         .background(
                             brush = Brush.verticalGradient(
                                 listOf(
@@ -1019,7 +1036,70 @@ internal fun PlayerScreen(
                             )
                         )
                 ) {
-            if (isLandscape) {
+            if (isWatchDevice) {
+                WearPlayerContent(
+                    file = file,
+                    displayTitle = displayTitle,
+                    displayArtist = displayArtist,
+                    decoderName = decoderName,
+                    titleCurrentSubtuneIndex = titleCurrentSubtuneIndex,
+                    titleSubtuneCount = titleSubtuneCount,
+                    subtuneTitleClickable = subtuneTitleClickable,
+                    onOpenSubtuneSelector = onOpenSubtuneSelector,
+                    trackTechnicalInfo = trackTechnicalInfo,
+                    isPlaying = isPlaying,
+                    repeatMode = repeatMode,
+                    playbackStartInProgress = playbackStartInProgress,
+                    seekInProgress = seekInProgress,
+                    positionSeconds = positionSeconds,
+                    durationSeconds = durationSeconds,
+                    showRemainingTime = showRemainingTime,
+                    canSeek = canSeek,
+                    hasReliableDuration = hasReliableDuration,
+                    onToggleDurationDisplayMode = {
+                        showRemainingTime = !showRemainingTime
+                    },
+                    onSeek = onSeek,
+                    onPlay = onPlay,
+                    onPause = onPause,
+                    onPreviousTrack = onPreviousTrack,
+                    onForcePreviousTrack = onForcePreviousTrack,
+                    onNextTrack = onNextTrack,
+                    onPreviousSubtune = onPreviousSubtune,
+                    onNextSubtune = onNextSubtune,
+                    canPreviousTrack = canPreviousTrack,
+                    canNextTrack = canNextTrack,
+                    canPreviousSubtune = canPreviousSubtune,
+                    canNextSubtune = canNextSubtune,
+                    canCycleRepeatMode = canCycleRepeatMode,
+                    onCycleRepeatMode = onCycleRepeatMode,
+                    onStopAndClear = onStopAndClear,
+                    artwork = artwork,
+                    artworkSwipePreviewState = artworkSwipePreviewState,
+                    noArtworkIcon = noArtworkIcon,
+                    visualizationMode = visualizationMode,
+                    visualizationModeBadgeText = visualizationModeBadgeText,
+                    visualizationPrefsState = visualizationPrefsState,
+                    visualizationBarSmoothingPercent = visualizationBarSmoothingPercent,
+                    visualizationVuSmoothingPercent = visualizationVuSmoothingPercent,
+                    visualizationBarCount = visualizationBarCount,
+                    visualizationBarRoundnessDp = visualizationBarRoundnessDp,
+                    visualizationBarOverlayArtwork = visualizationBarOverlayArtwork,
+                    visualizationBarUseThemeColor = visualizationBarUseThemeColor,
+                    visualizationOscStereo = visualizationOscStereo,
+                    visualizationVuAnchor = visualizationVuAnchor,
+                    visualizationVuUseThemeColor = visualizationVuUseThemeColor,
+                    channelScopePrefs = channelScopePrefs,
+                    artworkCornerRadiusDp = artworkCornerRadiusDp,
+                    onCycleVisualizationMode = onCycleVisualizationMode,
+                    isTrackFavorited = isTrackFavorited,
+                    onToggleFavoriteTrack = onToggleFavoriteTrack,
+                    canToggleFavoriteTrack = pathOrUrl != null,
+                    onOpenAudioEffects = onOpenAudioEffects,
+                    onBack = onBack,
+                    onOpenTrackInfo = { showTrackInfoDialog = true }
+                )
+            } else if (isLandscape) {
                 BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
                     val landscapeWidthScale = normalizedScale(maxWidth, compactDp = 640.dp, roomyDp = 1280.dp)
                     val landscapeHeightScale = normalizedScale(maxHeight, compactDp = 320.dp, roomyDp = 720.dp)
@@ -4599,5 +4679,659 @@ internal fun formatFileSize(bytes: Long): String {
         String.format(java.util.Locale.US, "%.0f %s", size, units[unitIndex])
     } else {
         String.format(java.util.Locale.US, "%.1f %s", size, units[unitIndex])
+    }
+}
+
+@OptIn(ExperimentalFoundationApi::class)
+@Composable
+private fun WearPlayerContent(
+    file: java.io.File?,
+    displayTitle: String,
+    displayArtist: String,
+    decoderName: String?,
+    titleCurrentSubtuneIndex: Int,
+    titleSubtuneCount: Int,
+    subtuneTitleClickable: Boolean,
+    onOpenSubtuneSelector: () -> Unit,
+    trackTechnicalInfo: TrackTechnicalInfo,
+    isPlaying: Boolean,
+    repeatMode: RepeatMode,
+    playbackStartInProgress: Boolean,
+    seekInProgress: Boolean,
+    positionSeconds: Double,
+    durationSeconds: Double,
+    showRemainingTime: Boolean,
+    canSeek: Boolean,
+    hasReliableDuration: Boolean,
+    onToggleDurationDisplayMode: () -> Unit,
+    onSeek: (Double) -> Unit,
+    onPlay: () -> Unit,
+    onPause: () -> Unit,
+    onPreviousTrack: () -> Unit,
+    onForcePreviousTrack: () -> Unit,
+    onNextTrack: () -> Unit,
+    onPreviousSubtune: () -> Unit,
+    onNextSubtune: () -> Unit,
+    canPreviousTrack: Boolean,
+    canNextTrack: Boolean,
+    canPreviousSubtune: Boolean,
+    canNextSubtune: Boolean,
+    canCycleRepeatMode: Boolean,
+    onCycleRepeatMode: () -> Unit,
+    onStopAndClear: () -> Unit,
+    artwork: ImageBitmap?,
+    artworkSwipePreviewState: ArtworkSwipePreviewState,
+    noArtworkIcon: ImageVector,
+    visualizationMode: VisualizationMode,
+    visualizationModeBadgeText: String,
+    visualizationPrefsState: PlayerVisualizationPreferenceState,
+    visualizationBarSmoothingPercent: Int,
+    visualizationVuSmoothingPercent: Int,
+    visualizationBarCount: Int,
+    visualizationBarRoundnessDp: Int,
+    visualizationBarOverlayArtwork: Boolean,
+    visualizationBarUseThemeColor: Boolean,
+    visualizationOscStereo: Boolean,
+    visualizationVuAnchor: VisualizationVuAnchor,
+    visualizationVuUseThemeColor: Boolean,
+    channelScopePrefs: ChannelScopePrefs,
+    artworkCornerRadiusDp: Int,
+    onCycleVisualizationMode: () -> Unit,
+    isTrackFavorited: Boolean,
+    onToggleFavoriteTrack: () -> Unit,
+    canToggleFavoriteTrack: Boolean,
+    onOpenAudioEffects: () -> Unit,
+    onBack: () -> Unit,
+    onOpenTrackInfo: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val configuration = LocalConfiguration.current
+    val isRound = configuration.isScreenRound
+    val pagerState = rememberPagerState(pageCount = { 2 })
+    var isSeeking by remember { mutableStateOf(false) }
+    var sliderPosition by remember { mutableDoubleStateOf(0.0) }
+    var isTimelineTouchActive by remember { mutableStateOf(false) }
+
+    val rawProgress = if (durationSeconds > 0.0) {
+        (positionSeconds / durationSeconds).toFloat().coerceIn(0f, 1f)
+    } else {
+        0f
+    }
+    val seekProgressFraction = if (durationSeconds > 0.0) {
+        (sliderPosition / durationSeconds).toFloat().coerceIn(0f, 1f)
+    } else {
+        0f
+    }
+
+    BoxWithConstraints(modifier = modifier.fillMaxSize()) {
+        val pageHeight = maxHeight
+        val pageWidth = maxWidth
+        val isVerySmallScreen = pageHeight < 190.dp
+
+        // Insets based on circular vs non-circular screen
+        val topBezelInset = if (isRound) 16.dp else 4.dp
+        val bottomBezelInset = if (isRound) 16.dp else 4.dp
+        val topHeaderHorizontalInset = if (isRound) 46.dp else 10.dp
+        val contentHorizontalInset = if (isRound) 24.dp else 8.dp
+        val timelineHorizontalInset = if (isRound) 44.dp else 10.dp
+        val actionsHorizontalInset = if (isRound) 38.dp else 10.dp
+
+        VerticalPager(
+            state = pagerState,
+            modifier = Modifier.fillMaxSize()
+        ) { page ->
+            if (page == 0) {
+                // ==================== PAGE 0: NOW PLAYING DECK ====================
+                Box(
+                    modifier = Modifier.fillMaxSize(),
+                    contentAlignment = Alignment.Center
+                ) {
+                    // Circular Edge Progress indicator along the outer bezel (Standard MD3, no separate thumb)
+                    if (isRound) {
+                        CircularEdgeProgressBar(
+                            progress = rawProgress,
+                            isSeeking = isSeeking,
+                            seekProgress = seekProgressFraction,
+                            canSeek = canSeek && durationSeconds > 0.0,
+                            onSeekStarted = { isSeeking = true },
+                            onSeekProgressChanged = { frac ->
+                                isSeeking = true
+                                sliderPosition = frac.toDouble() * durationSeconds.coerceAtLeast(0.0)
+                            },
+                            onSeekFinished = {
+                                isSeeking = false
+                                if (canSeek && durationSeconds > 0.0) {
+                                    onSeek(sliderPosition)
+                                }
+                            }
+                        )
+                    }
+
+                    Column(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .padding(
+                                top = topBezelInset,
+                                bottom = bottomBezelInset,
+                                start = 4.dp,
+                                end = 4.dp
+                            ),
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.SpaceEvenly
+                    ) {
+                        // Top Header Row (Back arrow + Info button)
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = topHeaderHorizontalInset),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            IconButton(
+                                onClick = onBack,
+                                modifier = Modifier.size(26.dp)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                                    contentDescription = "Back",
+                                    modifier = Modifier.size(16.dp),
+                                    tint = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                            IconButton(
+                                onClick = onOpenTrackInfo,
+                                modifier = Modifier.size(26.dp)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.Info,
+                                    contentDescription = "Track Info",
+                                    modifier = Modifier.size(16.dp),
+                                    tint = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                        }
+
+                        // Track Title & Artist Block
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = contentHorizontalInset),
+                            horizontalAlignment = Alignment.CenterHorizontally
+                        ) {
+                            PlayerMarqueeText(
+                                text = displayTitle,
+                                style = if (isVerySmallScreen) {
+                                    MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold)
+                                } else {
+                                    MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold)
+                                },
+                                textAlign = TextAlign.Center
+                            )
+                            if (displayArtist.isNotBlank()) {
+                                Spacer(modifier = Modifier.height(1.dp))
+                                PlayerMarqueeText(
+                                    text = displayArtist,
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    textAlign = TextAlign.Center
+                                )
+                            }
+                        }
+
+                        // Transport Row (Prev, Play/Pause, Next)
+                        Column(
+                            horizontalAlignment = Alignment.CenterHorizontally
+                        ) {
+                            val prevNextSize = if (isVerySmallScreen) 36.dp else 40.dp
+                            val playSize = if (isVerySmallScreen) 46.dp else 52.dp
+                            val prevNextIconSize = if (isVerySmallScreen) 18.dp else 20.dp
+                            val playIconSize = if (isVerySmallScreen) 24.dp else 28.dp
+
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.Center,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                FilledTonalIconButton(
+                                    onClick = onPreviousTrack,
+                                    enabled = canPreviousTrack,
+                                    modifier = Modifier.size(prevNextSize),
+                                    colors = IconButtonDefaults.filledTonalIconButtonColors(
+                                        containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
+                                        contentColor = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.SkipPrevious,
+                                        contentDescription = "Previous",
+                                        modifier = Modifier.size(prevNextIconSize)
+                                    )
+                                }
+
+                                Spacer(modifier = Modifier.width(8.dp))
+
+                                Surface(
+                                    onClick = {
+                                        if (isPlaying) onPause() else onPlay()
+                                    },
+                                    modifier = Modifier.size(playSize),
+                                    shape = CircleShape,
+                                    color = MaterialTheme.colorScheme.primaryContainer,
+                                    contentColor = MaterialTheme.colorScheme.onPrimaryContainer
+                                ) {
+                                    Box(
+                                        modifier = Modifier.fillMaxSize(),
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        if (playbackStartInProgress) {
+                                            CircularProgressIndicator(
+                                                modifier = Modifier.size(20.dp),
+                                                color = MaterialTheme.colorScheme.onPrimaryContainer,
+                                                strokeWidth = 2.dp
+                                            )
+                                        } else {
+                                            Icon(
+                                                imageVector = if (isPlaying) Icons.Default.Pause else Icons.Default.PlayArrow,
+                                                contentDescription = if (isPlaying) "Pause" else "Play",
+                                                modifier = Modifier.size(playIconSize)
+                                            )
+                                        }
+                                    }
+                                }
+
+                                Spacer(modifier = Modifier.width(8.dp))
+
+                                FilledTonalIconButton(
+                                    onClick = onNextTrack,
+                                    enabled = canNextTrack,
+                                    modifier = Modifier.size(prevNextSize),
+                                    colors = IconButtonDefaults.filledTonalIconButtonColors(
+                                        containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
+                                        contentColor = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.SkipNext,
+                                        contentDescription = "Next",
+                                        modifier = Modifier.size(prevNextIconSize)
+                                    )
+                                }
+                            }
+
+                            // Optional subtune stepper if multi-subtune track
+                            if (titleSubtuneCount > 1) {
+                                Spacer(modifier = Modifier.height(2.dp))
+                                Row(
+                                    modifier = Modifier.wrapContentWidth(),
+                                    horizontalArrangement = Arrangement.Center,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    IconButton(
+                                        onClick = onPreviousSubtune,
+                                        enabled = canPreviousSubtune,
+                                        modifier = Modifier.size(22.dp)
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.Default.SkipPrevious,
+                                            contentDescription = "Prev Subtune",
+                                            modifier = Modifier.size(12.dp)
+                                        )
+                                    }
+                                    Text(
+                                        text = "${titleCurrentSubtuneIndex + 1}/$titleSubtuneCount",
+                                        style = MaterialTheme.typography.labelSmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        modifier = Modifier
+                                            .clickable(enabled = subtuneTitleClickable) { onOpenSubtuneSelector() }
+                                            .padding(horizontal = 4.dp)
+                                    )
+                                    IconButton(
+                                        onClick = onNextSubtune,
+                                        enabled = canNextSubtune,
+                                        modifier = Modifier.size(22.dp)
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.Default.SkipNext,
+                                            contentDescription = "Next Subtune",
+                                            modifier = Modifier.size(12.dp)
+                                        )
+                                    }
+                                }
+                            }
+                        }
+
+                        // On Circular Displays: Show clean centered timestamp
+                        // On Rectangular Displays: Show standard TimelineSection
+                        if (isRound) {
+                            val currentPos = if (isSeeking) sliderPosition else positionSeconds
+                            val timeString = if (seekInProgress || isSeeking) {
+                                "Seeking ${formatTime(currentPos)}"
+                            } else if (showRemainingTime) {
+                                val rem = (durationSeconds - currentPos).coerceAtLeast(0.0)
+                                val remStr = formatTime(rem)
+                                if (hasReliableDuration) "-$remStr" else "-$remStr?"
+                            } else {
+                                val curStr = formatTime(currentPos)
+                                val durStr = if (durationSeconds > 0.0) {
+                                    if (hasReliableDuration) formatTime(durationSeconds) else "${formatTime(durationSeconds)}?"
+                                } else {
+                                    "-:--"
+                                }
+                                "$curStr / $durStr"
+                            }
+
+                            Text(
+                                text = timeString,
+                                style = MaterialTheme.typography.labelMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier
+                                    .clip(RoundedCornerShape(8.dp))
+                                    .clickable { onToggleDurationDisplayMode() }
+                                    .padding(horizontal = 8.dp, vertical = 2.dp)
+                            )
+                        } else {
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(horizontal = timelineHorizontalInset)
+                            ) {
+                                TimelineSection(
+                                    sliderPosition = if (isSeeking) sliderPosition else positionSeconds,
+                                    elapsedPositionSeconds = if (isSeeking) sliderPosition else positionSeconds,
+                                    durationSeconds = durationSeconds,
+                                    showRemainingTime = showRemainingTime,
+                                    canSeek = canSeek,
+                                    hasReliableDuration = hasReliableDuration,
+                                    seekInProgress = seekInProgress,
+                                    layoutScale = 0f,
+                                    onToggleDurationDisplayMode = onToggleDurationDisplayMode,
+                                    onSeekInteractionChanged = { isTimelineTouchActive = it },
+                                    onSliderValueChange = { value ->
+                                        isSeeking = true
+                                        val sliderMax = durationSeconds.coerceAtLeast(0.0)
+                                        sliderPosition = value.toDouble().coerceIn(0.0, sliderMax)
+                                    },
+                                    onSliderValueChangeFinished = {
+                                        isSeeking = false
+                                        if (canSeek && durationSeconds > 0.0) {
+                                            onSeek(sliderPosition)
+                                        }
+                                    }
+                                )
+                            }
+                        }
+                    }
+                }
+            } else {
+                // ==================== PAGE 1: ARTWORK & SECONDARY CONTROLS ====================
+                Column(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(
+                            top = topBezelInset,
+                            bottom = bottomBezelInset,
+                            start = 2.dp,
+                            end = 2.dp
+                        ),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.SpaceEvenly
+                ) {
+                    // Album Art / Visualizer Thumbnail
+                    val artSize = minOf(
+                        pageWidth * if (isRound) 0.48f else 0.58f,
+                        pageHeight * 0.42f,
+                        104.dp
+                    )
+
+                    Box(
+                        modifier = Modifier
+                            .size(artSize)
+                            .clip(RoundedCornerShape(artworkCornerRadiusDp.dp))
+                            .clickable { onCycleVisualizationMode() },
+                        contentAlignment = Alignment.Center
+                    ) {
+                        AlbumArtPlaceholder(
+                            file = file,
+                            isPlaying = isPlaying && !seekInProgress,
+                            decoderName = decoderName,
+                            sampleRateHz = 0,
+                            artwork = artwork,
+                            artworkSwipePreviewState = artworkSwipePreviewState,
+                            placeholderIcon = noArtworkIcon,
+                            visualizationModeBadgeText = visualizationModeBadgeText,
+                            showVisualizationModeBadge = false,
+                            visualizationMode = visualizationMode,
+                            visualizationShowDebugInfo = false,
+                            visualizationOscWindowMs = visualizationPrefsState.oscWindowMs,
+                            visualizationOscTriggerModeNative = visualizationPrefsState.oscTriggerModeNative,
+                            visualizationOscFpsMode = visualizationPrefsState.oscFpsMode,
+                            visualizationBarFpsMode = visualizationPrefsState.barFpsMode,
+                            visualizationVuFpsMode = visualizationPrefsState.vuFpsMode,
+                            visualizationOscRenderBackend = visualizationPrefsState.oscRenderBackend,
+                            visualizationBarSmoothingPercent = visualizationBarSmoothingPercent,
+                            visualizationVuSmoothingPercent = visualizationVuSmoothingPercent,
+                            barCount = visualizationBarCount,
+                            barRoundnessDp = visualizationBarRoundnessDp,
+                            barOverlayArtwork = visualizationBarOverlayArtwork,
+                            barUseThemeColor = visualizationBarUseThemeColor,
+                            barFrequencyGridEnabled = visualizationPrefsState.barFrequencyGridEnabled,
+                            barRenderBackend = visualizationPrefsState.barRuntimeRenderBackend,
+                            barColorModeNoArtwork = visualizationPrefsState.barColorModeNoArtwork,
+                            barColorModeWithArtwork = visualizationPrefsState.barColorModeWithArtwork,
+                            barCustomColorArgb = visualizationPrefsState.barCustomColorArgb,
+                            oscStereo = visualizationOscStereo,
+                            oscLineWidthDp = visualizationPrefsState.oscLineWidthDp,
+                            oscGridWidthDp = visualizationPrefsState.oscGridWidthDp,
+                            oscVerticalGridEnabled = visualizationPrefsState.oscVerticalGridEnabled,
+                            oscCenterLineEnabled = visualizationPrefsState.oscCenterLineEnabled,
+                            oscLineColorModeNoArtwork = visualizationPrefsState.oscLineColorModeNoArtwork,
+                            oscGridColorModeNoArtwork = visualizationPrefsState.oscGridColorModeNoArtwork,
+                            oscLineColorModeWithArtwork = visualizationPrefsState.oscLineColorModeWithArtwork,
+                            oscGridColorModeWithArtwork = visualizationPrefsState.oscGridColorModeWithArtwork,
+                            oscCustomLineColorArgb = visualizationPrefsState.oscCustomLineColorArgb,
+                            oscCustomGridColorArgb = visualizationPrefsState.oscCustomGridColorArgb,
+                            oscContrastBackdropEnabled = visualizationPrefsState.oscContrastBackdropEnabled,
+                            vuAnchor = visualizationVuAnchor,
+                            vuUseThemeColor = visualizationVuUseThemeColor,
+                            vuRenderBackend = visualizationPrefsState.vuRuntimeRenderBackend,
+                            vuColorModeNoArtwork = visualizationPrefsState.vuColorModeNoArtwork,
+                            vuColorModeWithArtwork = visualizationPrefsState.vuColorModeWithArtwork,
+                            vuCustomColorArgb = visualizationPrefsState.vuCustomColorArgb,
+                            vuContrastBackdropEnabled = visualizationPrefsState.vuContrastBackdropEnabled,
+                            barContrastBackdropEnabled = visualizationPrefsState.barContrastBackdropEnabled,
+                            channelScopePrefs = channelScopePrefs,
+                            artworkCornerRadiusDp = artworkCornerRadiusDp,
+                            onSwipePreviousTrack = onForcePreviousTrack,
+                            onSwipeNextTrack = onNextTrack,
+                            modifier = Modifier.size(artSize)
+                        )
+                    }
+
+                    // Technical Info Line (format, channels, samplerate)
+                    if (trackTechnicalInfo.fallbackLine.isNotBlank()) {
+                        Text(
+                            text = trackTechnicalInfo.fallbackLine,
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.outline,
+                            maxLines = 1,
+                            textAlign = TextAlign.Center,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = if (isRound) 32.dp else 8.dp)
+                        )
+                    }
+
+                    // Secondary Actions Row (Stop, Repeat, Favorite, Effects)
+                    val actionBtnSize = if (isVerySmallScreen) 30.dp else 34.dp
+                    val actionIconSize = if (isVerySmallScreen) 16.dp else 18.dp
+
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = actionsHorizontalInset),
+                        horizontalArrangement = Arrangement.SpaceEvenly,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        IconButton(
+                            onClick = onStopAndClear,
+                            modifier = Modifier.size(actionBtnSize)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Rounded.Stop,
+                                contentDescription = "Stop",
+                                modifier = Modifier.size(actionIconSize),
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+
+                        IconButton(
+                            onClick = onCycleRepeatMode,
+                            enabled = canCycleRepeatMode,
+                            modifier = Modifier.size(actionBtnSize)
+                        ) {
+                            Icon(
+                                imageVector = when (repeatMode) {
+                                    RepeatMode.Track, RepeatMode.Subtune, RepeatMode.LoopPoint -> Icons.Default.RepeatOne
+                                    else -> Icons.Default.Repeat
+                                },
+                                contentDescription = "Repeat",
+                                modifier = Modifier.size(actionIconSize),
+                                tint = if (repeatMode != RepeatMode.None) {
+                                    MaterialTheme.colorScheme.primary
+                                } else {
+                                    MaterialTheme.colorScheme.onSurfaceVariant
+                                }
+                            )
+                        }
+
+                        IconButton(
+                            onClick = onToggleFavoriteTrack,
+                            enabled = canToggleFavoriteTrack,
+                            modifier = Modifier.size(actionBtnSize)
+                        ) {
+                            Icon(
+                                imageVector = if (isTrackFavorited) Icons.Default.Star else Icons.Default.StarBorder,
+                                contentDescription = "Favorite",
+                                modifier = Modifier.size(actionIconSize),
+                                tint = if (isTrackFavorited) {
+                                    MaterialTheme.colorScheme.primary
+                                } else {
+                                    MaterialTheme.colorScheme.onSurfaceVariant
+                                }
+                            )
+                        }
+
+                        IconButton(
+                            onClick = onOpenAudioEffects,
+                            modifier = Modifier.size(actionBtnSize)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Tune,
+                                contentDescription = "Audio Effects",
+                                modifier = Modifier.size(actionIconSize),
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun CircularEdgeProgressBar(
+    progress: Float,
+    isSeeking: Boolean,
+    seekProgress: Float,
+    canSeek: Boolean,
+    onSeekStarted: () -> Unit,
+    onSeekProgressChanged: (Float) -> Unit,
+    onSeekFinished: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val primaryColor = MaterialTheme.colorScheme.primary
+    val trackColor = MaterialTheme.colorScheme.surfaceContainerHighest.copy(alpha = 0.45f)
+    val density = LocalDensity.current
+    val strokeWidthPx = with(density) { 4.5.dp.toPx() }
+
+    val displayProgress = if (isSeeking) seekProgress else progress.coerceIn(0f, 1f)
+
+    Canvas(
+        modifier = modifier
+            .fillMaxSize()
+            .pointerInput(canSeek) {
+                if (!canSeek) return@pointerInput
+                val center = Offset(size.width / 2f, size.height / 2f)
+                val radius = minOf(size.width, size.height) / 2f
+                val touchInnerRadius = radius - 36.dp.toPx()
+
+                detectDragGestures(
+                    onDragStart = { offset ->
+                        val dist = (offset - center).getDistance()
+                        if (dist >= touchInnerRadius) {
+                            onSeekStarted()
+                            val angleDeg = Math.toDegrees(
+                                kotlin.math.atan2(
+                                    (offset.y - center.y).toDouble(),
+                                    (offset.x - center.x).toDouble()
+                                )
+                            ).toFloat()
+                            val fraction = ((angleDeg + 90f).mod(360f) / 360f).coerceIn(0f, 1f)
+                            onSeekProgressChanged(fraction)
+                        }
+                    },
+                    onDrag = { change, _ ->
+                        change.consume()
+                        val offset = change.position
+                        val angleDeg = Math.toDegrees(
+                            kotlin.math.atan2(
+                                (offset.y - center.y).toDouble(),
+                                (offset.x - center.x).toDouble()
+                            )
+                        ).toFloat()
+                        val fraction = ((angleDeg + 90f).mod(360f) / 360f).coerceIn(0f, 1f)
+                        onSeekProgressChanged(fraction)
+                    },
+                    onDragEnd = {
+                        onSeekFinished()
+                    },
+                    onDragCancel = {
+                        onSeekFinished()
+                    }
+                )
+            }
+    ) {
+        val diameter = minOf(size.width, size.height) - strokeWidthPx - 6.dp.toPx()
+        val arcSize = Size(diameter, diameter)
+        val topLeft = Offset(
+            (size.width - diameter) / 2f,
+            (size.height - diameter) / 2f
+        )
+
+        // 1. Subtle Outer Track
+        drawArc(
+            color = trackColor,
+            startAngle = 0f,
+            sweepAngle = 360f,
+            useCenter = false,
+            topLeft = topLeft,
+            size = arcSize,
+            style = Stroke(width = strokeWidthPx)
+        )
+
+        // 2. Active Progress Arc with MD3 standard rounded pill cap (no separate thumb)
+        val sweep = displayProgress * 360f
+        if (sweep > 0.5f) {
+            drawArc(
+                color = primaryColor,
+                startAngle = -90f,
+                sweepAngle = sweep,
+                useCenter = false,
+                topLeft = topLeft,
+                size = arcSize,
+                style = Stroke(width = strokeWidthPx, cap = StrokeCap.Round)
+            )
+        }
     }
 }
