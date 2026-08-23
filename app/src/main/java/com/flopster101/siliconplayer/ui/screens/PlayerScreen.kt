@@ -49,7 +49,6 @@ import androidx.compose.ui.graphics.drawscope.Stroke
 import android.content.pm.PackageManager
 import androidx.compose.foundation.focusable
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.List
 import androidx.compose.material.icons.filled.AudioFile
 import androidx.compose.material.icons.filled.Equalizer
@@ -4954,25 +4953,13 @@ private fun WearPlayerContent(
                         horizontalAlignment = Alignment.CenterHorizontally,
                         verticalArrangement = Arrangement.SpaceEvenly
                     ) {
-                        // Top Header Row (Back arrow + Info button)
-                        Row(
+                        // Top Header Row (Track Info button)
+                        Box(
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .padding(horizontal = topHeaderHorizontalInset),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
+                            contentAlignment = Alignment.Center
                         ) {
-                            IconButton(
-                                onClick = onBack,
-                                modifier = Modifier.size(26.dp)
-                            ) {
-                                Icon(
-                                    imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                                    contentDescription = "Back",
-                                    modifier = Modifier.size(16.dp),
-                                    tint = MaterialTheme.colorScheme.onSurfaceVariant
-                                )
-                            }
                             IconButton(
                                 onClick = onOpenTrackInfo,
                                 modifier = Modifier.size(26.dp)
