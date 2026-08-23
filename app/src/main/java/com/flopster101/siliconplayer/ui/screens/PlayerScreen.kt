@@ -141,6 +141,8 @@ import com.flopster101.siliconplayer.VisualizationOscColorMode
 import com.flopster101.siliconplayer.VisualizationOscFpsMode
 import com.flopster101.siliconplayer.VisualizationRenderBackend
 import com.flopster101.siliconplayer.VisualizationVuAnchor
+import com.flopster101.siliconplayer.WatchDialogContainer
+import com.flopster101.siliconplayer.isWatchDevice
 import com.flopster101.siliconplayer.adaptiveDialogModifier
 import com.flopster101.siliconplayer.adaptiveDialogProperties
 import com.flopster101.siliconplayer.decodePercentEncodedForDisplay
@@ -2112,9 +2114,10 @@ private fun TrackInfoDetailsDialog(
             "${formatSampleRateForDetails(liveMetadata.renderRateHz)} -> " +
             formatSampleRateForDetails(liveMetadata.outputRateHz)
     val pathOrUrlLabel = pathOrUrl?.ifBlank { "Unavailable" } ?: "Unavailable"
-    LaunchedEffect(isDialogVisible) {
-        if (isDialogVisible) {
-            detailsFocusRequester.requestFocus()
+    val isWatch = isWatchDevice()
+    LaunchedEffect(isDialogVisible, isWatch) {
+        if (isDialogVisible && !isWatch) {
+            runCatching { detailsFocusRequester.requestFocus() }
         }
     }
     val copyAllText = buildString {
@@ -2155,136 +2158,223 @@ private fun TrackInfoDetailsDialog(
         )
     }
 
-    AlertDialog(
-        modifier = adaptiveDialogModifier(),
-        properties = adaptiveDialogProperties(),
-        onDismissRequest = onDismiss,
-        title = { Text("Track and decoder info") },
-        text = {
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .heightIn(max = 460.dp)
+    if (isWatchDevice()) {
+        WatchDialogContainer(
+            title = "Track and decoder info",
+            onDismissRequest = onDismiss
+        ) {
+            Column(
+                modifier = Modifier.fillMaxWidth(),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .onSizeChanged { detailsViewportHeightPx = it.height }
-                        .dialogScrollableContentNavigation(
-                            scrollState = detailsScrollState,
-                            focusRequester = detailsFocusRequester,
-                            viewportHeightPx = detailsViewportHeightPx,
-                            actionFocusRequester = closeButtonFocusRequester
-                        )
-                        .padding(end = 10.dp)
-                        .verticalScroll(detailsScrollState),
-                    verticalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    SelectionContainer {
-                        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                            TrackInfoDetailsRow("Filename", filename)
-                            TrackInfoDetailsRow("Title", title)
-                            TrackInfoDetailsRow("Artist", artist)
-                            if (liveMetadata.composer.isNotBlank()) {
-                                TrackInfoDetailsRow("Composer", liveMetadata.composer)
-                            }
-                            if (liveMetadata.genre.isNotBlank()) {
-                                TrackInfoDetailsRow("Genre", liveMetadata.genre)
-                            }
-                            if (liveMetadata.album.isNotBlank()) {
-                                TrackInfoDetailsRow("Album", liveMetadata.album)
-                            }
-                            if (liveMetadata.year.isNotBlank()) {
-                                TrackInfoDetailsRow("Year", liveMetadata.year)
-                            }
-                            if (liveMetadata.date.isNotBlank()) {
-                                TrackInfoDetailsRow("Date", liveMetadata.date)
-                            }
-                            if (liveMetadata.copyrightText.isNotBlank()) {
-                                TrackInfoDetailsRow("Copyright", liveMetadata.copyrightText)
-                            }
-                            if (liveMetadata.comment.isNotBlank()) {
-                                TrackInfoDetailsRow("Comment", liveMetadata.comment)
-                            }
-                            TrackInfoDetailsRow("Format", extension)
-                            TrackInfoDetailsRow("Decoder", decoderLabel)
-                            playbackSourceLabel?.takeIf { it.isNotBlank() }?.let {
-                                TrackInfoDetailsRow("Playback source", it)
-                            }
-                            TrackInfoDetailsRow(
-                                "File size",
-                                if (fileSizeBytes > 0L) formatFileSize(fileSizeBytes) else "Unavailable"
-                            )
-                            TrackInfoDetailsRow("Sample rate chain", sampleRateChain)
-                            TrackInfoDetailsRow("Bitrate", bitrateLabel)
-                            TrackInfoDetailsRow("Length", lengthLabel)
-                            TrackInfoDetailsRow("Audio channels", channelsLabel)
-                            TrackInfoDetailsRow("Bit depth", depthLabel)
-                            TrackInfoDetailsRow("Audio backend", audioBackendLabel)
-                            TrackInfoDetailsRow("Path / URL", pathOrUrlLabel)
-                            playlistTitle?.takeIf { it.isNotBlank() }?.let {
-                                TrackInfoDetailsRow("Playlist", it)
-                            }
-                            playlistFormatLabel?.takeIf { it.isNotBlank() }?.let {
-                                TrackInfoDetailsRow("Playlist format", it)
-                            }
-                            playlistCountLabel?.let {
-                                TrackInfoDetailsRow("Playlist tracks", it)
-                            }
-                            playlistPathOrUrl?.takeIf { it.isNotBlank() }?.let {
-                                TrackInfoDetailsRow("Playlist path / URL", it)
-                            }
-                            TrackInfoCoreSections(
-                                decoderName = decoderName,
-                                sampleRateHz = sampleRateHz,
-                                metadata = liveMetadata
-                            )
-                        }
-                    }
+                TrackInfoDetailsRow("Filename", filename)
+                TrackInfoDetailsRow("Title", title)
+                TrackInfoDetailsRow("Artist", artist)
+                if (liveMetadata.composer.isNotBlank()) {
+                    TrackInfoDetailsRow("Composer", liveMetadata.composer)
                 }
-                if (detailsScrollState.maxValue > 0 && detailsViewportHeightPx > 0) {
-                    TrackInfoDetailsScrollbar(
-                        scrollState = detailsScrollState,
-                        viewportHeightPx = detailsViewportHeightPx,
-                        modifier = Modifier
-                            .align(Alignment.CenterEnd)
-                            .fillMaxHeight()
-                            .width(6.dp)
-                            .graphicsLayer(alpha = detailsScrollbarAlpha)
-                    )
+                if (liveMetadata.genre.isNotBlank()) {
+                    TrackInfoDetailsRow("Genre", liveMetadata.genre)
                 }
+                if (liveMetadata.album.isNotBlank()) {
+                    TrackInfoDetailsRow("Album", liveMetadata.album)
+                }
+                if (liveMetadata.year.isNotBlank()) {
+                    TrackInfoDetailsRow("Year", liveMetadata.year)
+                }
+                if (liveMetadata.date.isNotBlank()) {
+                    TrackInfoDetailsRow("Date", liveMetadata.date)
+                }
+                if (liveMetadata.copyrightText.isNotBlank()) {
+                    TrackInfoDetailsRow("Copyright", liveMetadata.copyrightText)
+                }
+                if (liveMetadata.comment.isNotBlank()) {
+                    TrackInfoDetailsRow("Comment", liveMetadata.comment)
+                }
+                TrackInfoDetailsRow("Format", extension)
+                TrackInfoDetailsRow("Decoder", decoderLabel)
+                playbackSourceLabel?.takeIf { it.isNotBlank() }?.let {
+                    TrackInfoDetailsRow("Playback source", it)
+                }
+                TrackInfoDetailsRow(
+                    "File size",
+                    if (fileSizeBytes > 0L) formatFileSize(fileSizeBytes) else "Unavailable"
+                )
+                TrackInfoDetailsRow("Sample rate chain", sampleRateChain)
+                TrackInfoDetailsRow("Bitrate", bitrateLabel)
+                TrackInfoDetailsRow("Length", lengthLabel)
+                TrackInfoDetailsRow("Audio channels", channelsLabel)
+                TrackInfoDetailsRow("Bit depth", depthLabel)
+                TrackInfoDetailsRow("Audio backend", audioBackendLabel)
+                TrackInfoDetailsRow("Path / URL", pathOrUrlLabel)
+                playlistTitle?.takeIf { it.isNotBlank() }?.let {
+                    TrackInfoDetailsRow("Playlist", it)
+                }
+                playlistFormatLabel?.takeIf { it.isNotBlank() }?.let {
+                    TrackInfoDetailsRow("Playlist format", it)
+                }
+                playlistCountLabel?.let {
+                    TrackInfoDetailsRow("Playlist tracks", it)
+                }
+                playlistPathOrUrl?.takeIf { it.isNotBlank() }?.let {
+                    TrackInfoDetailsRow("Playlist path / URL", it)
+                }
+                TrackInfoCoreSections(
+                    decoderName = decoderName,
+                    sampleRateHz = sampleRateHz,
+                    metadata = liveMetadata
+                )
             }
-        },
-        confirmButton = {
-            TextButton(
-                modifier = Modifier
-                    .focusRequester(copyButtonFocusRequester)
-                    .focusProperties {
-                        up = detailsFocusRequester
-                        left = closeButtonFocusRequester
-                    },
+            Spacer(modifier = Modifier.height(4.dp))
+            Button(
                 onClick = {
                     clipboardManager.setText(AnnotatedString(copyAllText.trim()))
                     Toast.makeText(context, "Copied track and decoder info", Toast.LENGTH_SHORT).show()
-                }
+                },
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(14.dp)
             ) {
                 Text("Copy all")
             }
-        },
-        dismissButton = {
             TextButton(
-                modifier = Modifier
-                    .focusRequester(closeButtonFocusRequester)
-                    .focusProperties {
-                        up = detailsFocusRequester
-                        right = copyButtonFocusRequester
-                    },
-                onClick = onDismiss
+                onClick = onDismiss,
+                modifier = Modifier.fillMaxWidth()
             ) {
                 Text("Close")
             }
         }
-    )
+    } else {
+        AlertDialog(
+            modifier = adaptiveDialogModifier(),
+            properties = adaptiveDialogProperties(),
+            onDismissRequest = onDismiss,
+            title = { Text("Track and decoder info") },
+            text = {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .heightIn(max = 460.dp)
+                ) {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .onSizeChanged { detailsViewportHeightPx = it.height }
+                            .dialogScrollableContentNavigation(
+                                scrollState = detailsScrollState,
+                                focusRequester = detailsFocusRequester,
+                                viewportHeightPx = detailsViewportHeightPx,
+                                actionFocusRequester = closeButtonFocusRequester
+                            )
+                            .padding(end = 10.dp)
+                            .verticalScroll(detailsScrollState),
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        SelectionContainer {
+                            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                                TrackInfoDetailsRow("Filename", filename)
+                                TrackInfoDetailsRow("Title", title)
+                                TrackInfoDetailsRow("Artist", artist)
+                                if (liveMetadata.composer.isNotBlank()) {
+                                    TrackInfoDetailsRow("Composer", liveMetadata.composer)
+                                }
+                                if (liveMetadata.genre.isNotBlank()) {
+                                    TrackInfoDetailsRow("Genre", liveMetadata.genre)
+                                }
+                                if (liveMetadata.album.isNotBlank()) {
+                                    TrackInfoDetailsRow("Album", liveMetadata.album)
+                                }
+                                if (liveMetadata.year.isNotBlank()) {
+                                    TrackInfoDetailsRow("Year", liveMetadata.year)
+                                }
+                                if (liveMetadata.date.isNotBlank()) {
+                                    TrackInfoDetailsRow("Date", liveMetadata.date)
+                                }
+                                if (liveMetadata.copyrightText.isNotBlank()) {
+                                    TrackInfoDetailsRow("Copyright", liveMetadata.copyrightText)
+                                }
+                                if (liveMetadata.comment.isNotBlank()) {
+                                    TrackInfoDetailsRow("Comment", liveMetadata.comment)
+                                }
+                                TrackInfoDetailsRow("Format", extension)
+                                TrackInfoDetailsRow("Decoder", decoderLabel)
+                                playbackSourceLabel?.takeIf { it.isNotBlank() }?.let {
+                                    TrackInfoDetailsRow("Playback source", it)
+                                }
+                                TrackInfoDetailsRow(
+                                    "File size",
+                                    if (fileSizeBytes > 0L) formatFileSize(fileSizeBytes) else "Unavailable"
+                                )
+                                TrackInfoDetailsRow("Sample rate chain", sampleRateChain)
+                                TrackInfoDetailsRow("Bitrate", bitrateLabel)
+                                TrackInfoDetailsRow("Length", lengthLabel)
+                                TrackInfoDetailsRow("Audio channels", channelsLabel)
+                                TrackInfoDetailsRow("Bit depth", depthLabel)
+                                TrackInfoDetailsRow("Audio backend", audioBackendLabel)
+                                TrackInfoDetailsRow("Path / URL", pathOrUrlLabel)
+                                playlistTitle?.takeIf { it.isNotBlank() }?.let {
+                                    TrackInfoDetailsRow("Playlist", it)
+                                }
+                                playlistFormatLabel?.takeIf { it.isNotBlank() }?.let {
+                                    TrackInfoDetailsRow("Playlist format", it)
+                                }
+                                playlistCountLabel?.let {
+                                    TrackInfoDetailsRow("Playlist tracks", it)
+                                }
+                                playlistPathOrUrl?.takeIf { it.isNotBlank() }?.let {
+                                    TrackInfoDetailsRow("Playlist path / URL", it)
+                                }
+                                TrackInfoCoreSections(
+                                    decoderName = decoderName,
+                                    sampleRateHz = sampleRateHz,
+                                    metadata = liveMetadata
+                                )
+                            }
+                        }
+                    }
+                    if (detailsScrollState.maxValue > 0 && detailsViewportHeightPx > 0) {
+                        TrackInfoDetailsScrollbar(
+                            scrollState = detailsScrollState,
+                            viewportHeightPx = detailsViewportHeightPx,
+                            modifier = Modifier
+                                .align(Alignment.CenterEnd)
+                                .fillMaxHeight()
+                                .width(6.dp)
+                                .graphicsLayer(alpha = detailsScrollbarAlpha)
+                        )
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(
+                    modifier = Modifier
+                        .focusRequester(copyButtonFocusRequester)
+                        .focusProperties {
+                            up = detailsFocusRequester
+                            left = closeButtonFocusRequester
+                        },
+                    onClick = {
+                        clipboardManager.setText(AnnotatedString(copyAllText.trim()))
+                        Toast.makeText(context, "Copied track and decoder info", Toast.LENGTH_SHORT).show()
+                    }
+                ) {
+                    Text("Copy all")
+                }
+            },
+            dismissButton = {
+                TextButton(
+                    modifier = Modifier
+                        .focusRequester(closeButtonFocusRequester)
+                        .focusProperties {
+                            up = detailsFocusRequester
+                            right = copyButtonFocusRequester
+                        },
+                    onClick = onDismiss
+                ) {
+                    Text("Close")
+                }
+            }
+        )
+    }
 }
 
 @Composable
@@ -4000,30 +4090,72 @@ private fun ChannelControlDialog(
         }
     }
 
-    AlertDialog(
-        modifier = adaptiveDialogModifier(),
-        properties = adaptiveDialogProperties(),
-        onDismissRequest = onDismiss,
-        title = { Text("Channel controls") },
-        text = {
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth(),
-                verticalArrangement = Arrangement.spacedBy(12.dp)
-            ) {
+    val contentText: @Composable () -> Unit = {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth(),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            Text(
+                text = "Master channels",
+                style = MaterialTheme.typography.titleSmall
+            )
+            ChannelControlGrid(
+                items = masterChannels,
+                onToggleMute = { item ->
+                    clearMasterSoloFlags()
+                    NativeBridge.setMasterChannelMute(
+                        item.channelIndex,
+                        !item.muted
+                    )
+                    masterChannels = masterChannels.map { existing ->
+                        if (existing.channelIndex == item.channelIndex) {
+                            existing.copy(muted = !existing.muted)
+                        } else {
+                            existing
+                        }
+                    }
+                },
+                onSoloHold = { item ->
+                    clearMasterSoloFlags()
+                    val activeCount = masterChannels.count { !it.muted }
+                    val isOnlyActive = !item.muted && activeCount == 1
+                    if (isOnlyActive) {
+                        masterChannels.forEach { channel ->
+                            NativeBridge.setMasterChannelMute(channel.channelIndex, false)
+                        }
+                        masterChannels = masterChannels.map { it.copy(muted = false) }
+                    } else {
+                        masterChannels.forEach { channel ->
+                            NativeBridge.setMasterChannelMute(
+                                channel.channelIndex,
+                                channel.channelIndex != item.channelIndex
+                            )
+                        }
+                        masterChannels = masterChannels.map { channel ->
+                            channel.copy(muted = channel.channelIndex != item.channelIndex)
+                        }
+                    }
+                }
+            )
+            if (decoderChannels.isNotEmpty()) {
+                HorizontalDivider()
                 Text(
-                    text = "Master channels",
+                    text = "Core channels",
                     style = MaterialTheme.typography.titleSmall
                 )
                 ChannelControlGrid(
-                    items = masterChannels,
+                    items = decoderChannels,
+                    showScrollbar = true,
                     onToggleMute = { item ->
-                        clearMasterSoloFlags()
-                        NativeBridge.setMasterChannelMute(
+                        if (!item.available) {
+                            return@ChannelControlGrid
+                        }
+                        NativeBridge.setDecoderToggleChannelMuted(
                             item.channelIndex,
                             !item.muted
                         )
-                        masterChannels = masterChannels.map { existing ->
+                        decoderChannels = decoderChannels.map { existing ->
                             if (existing.channelIndex == item.channelIndex) {
                                 existing.copy(muted = !existing.muted)
                             } else {
@@ -4032,130 +4164,107 @@ private fun ChannelControlDialog(
                         }
                     },
                     onSoloHold = { item ->
-                        clearMasterSoloFlags()
-                        val activeCount = masterChannels.count { !it.muted }
+                        if (!item.available) {
+                            return@ChannelControlGrid
+                        }
+                        val availableChannels = decoderChannels.filter { it.available }
+                        val activeCount = availableChannels.count { !it.muted }
                         val isOnlyActive = !item.muted && activeCount == 1
                         if (isOnlyActive) {
-                            masterChannels.forEach { channel ->
-                                NativeBridge.setMasterChannelMute(channel.channelIndex, false)
+                            availableChannels.forEach { channel ->
+                                NativeBridge.setDecoderToggleChannelMuted(
+                                    channel.channelIndex,
+                                    false
+                                )
                             }
-                            masterChannels = masterChannels.map { it.copy(muted = false) }
+                            decoderChannels = decoderChannels.map { channel ->
+                                if (channel.available) {
+                                    channel.copy(muted = false)
+                                } else {
+                                    channel
+                                }
+                            }
                         } else {
-                            masterChannels.forEach { channel ->
-                                NativeBridge.setMasterChannelMute(
+                            availableChannels.forEach { channel ->
+                                NativeBridge.setDecoderToggleChannelMuted(
                                     channel.channelIndex,
                                     channel.channelIndex != item.channelIndex
                                 )
                             }
-                            masterChannels = masterChannels.map { channel ->
-                                channel.copy(muted = channel.channelIndex != item.channelIndex)
+                            decoderChannels = decoderChannels.map { channel ->
+                                if (channel.available) {
+                                    channel.copy(muted = channel.channelIndex != item.channelIndex)
+                                } else {
+                                    channel
+                                }
                             }
                         }
                     }
                 )
-                if (decoderChannels.isNotEmpty()) {
-                    HorizontalDivider()
-                    Text(
-                        text = "Core channels",
-                        style = MaterialTheme.typography.titleSmall
-                    )
-                    ChannelControlGrid(
-                        items = decoderChannels,
-                        showScrollbar = true,
-                        onToggleMute = { item ->
-                            if (!item.available) {
-                                return@ChannelControlGrid
-                            }
-                            NativeBridge.setDecoderToggleChannelMuted(
-                                item.channelIndex,
-                                !item.muted
-                            )
-                            decoderChannels = decoderChannels.map { existing ->
-                                if (existing.channelIndex == item.channelIndex) {
-                                    existing.copy(muted = !existing.muted)
-                                } else {
-                                    existing
-                                }
-                            }
-                        },
-                        onSoloHold = { item ->
-                            if (!item.available) {
-                                return@ChannelControlGrid
-                            }
-                            val availableChannels = decoderChannels.filter { it.available }
-                            val activeCount = availableChannels.count { !it.muted }
-                            val isOnlyActive = !item.muted && activeCount == 1
-                            if (isOnlyActive) {
-                                availableChannels.forEach { channel ->
-                                    NativeBridge.setDecoderToggleChannelMuted(
-                                        channel.channelIndex,
-                                        false
-                                    )
-                                }
-                                decoderChannels = decoderChannels.map { channel ->
-                                    if (channel.available) {
-                                        channel.copy(muted = false)
-                                    } else {
-                                        channel
-                                    }
-                                }
-                            } else {
-                                availableChannels.forEach { channel ->
-                                    NativeBridge.setDecoderToggleChannelMuted(
-                                        channel.channelIndex,
-                                        channel.channelIndex != item.channelIndex
-                                    )
-                                }
-                                decoderChannels = decoderChannels.map { channel ->
-                                    if (channel.available) {
-                                        channel.copy(muted = channel.channelIndex != item.channelIndex)
-                                    } else {
-                                        channel
-                                    }
-                                }
-                            }
-                        }
-                    )
-                }
-                HorizontalDivider()
-                Text(
-                    text = "Tap: mute/unmute. Long press: solo this channel (mutes others).",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-                Text(
-                    text = "Unavailable channels are greyed out and update while this dialog is open.",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-                Text(
-                    text = "Core-specific channel groups will be added per decoder.",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-                TextButton(
-                    onClick = {
-                        clearMasterSoloFlags()
-                        masterChannels.forEach { channel ->
-                            NativeBridge.setMasterChannelMute(channel.channelIndex, false)
-                        }
-                        masterChannels = masterChannels.map { it.copy(muted = false) }
-                        NativeBridge.clearDecoderToggleChannelMutes()
-                        decoderChannels = decoderChannels.map { it.copy(muted = false) }
-                    },
-                    modifier = Modifier.align(Alignment.Start),
-                    contentPadding = PaddingValues(0.dp)
-                ) {
-                    Text("Unmute all")
-                }
             }
-        },
-        confirmButton = {
-            TextButton(onClick = onDismiss) {
+            HorizontalDivider()
+            Text(
+                text = "Tap: mute/unmute. Long press: solo this channel (mutes others).",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            Text(
+                text = "Unavailable channels are greyed out and update while this dialog is open.",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            Text(
+                text = "Core-specific channel groups will be added per decoder.",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            TextButton(
+                onClick = {
+                    clearMasterSoloFlags()
+                    masterChannels.forEach { channel ->
+                        NativeBridge.setMasterChannelMute(channel.channelIndex, false)
+                    }
+                    masterChannels = masterChannels.map { it.copy(muted = false) }
+                    NativeBridge.clearDecoderToggleChannelMutes()
+                    decoderChannels = decoderChannels.map { it.copy(muted = false) }
+                },
+                modifier = Modifier.align(Alignment.Start),
+                contentPadding = PaddingValues(0.dp)
+            ) {
+                Text("Unmute all")
+            }
+        }
+    }
+
+    if (isWatchDevice()) {
+        WatchDialogContainer(
+            title = "Channel controls",
+            onDismissRequest = onDismiss
+        ) {
+            contentText()
+            Spacer(modifier = Modifier.height(4.dp))
+            Button(
+                onClick = onDismiss,
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(14.dp)
+            ) {
                 Text("Close")
             }
         }
-    )
+    } else {
+        AlertDialog(
+            modifier = adaptiveDialogModifier(),
+            properties = adaptiveDialogProperties(),
+            onDismissRequest = onDismiss,
+            title = { Text("Channel controls") },
+            text = contentText,
+            confirmButton = {
+                TextButton(onClick = onDismiss) {
+                    Text("Close")
+                }
+            }
+        )
+    }
 }
 
 @Composable

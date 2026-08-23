@@ -53,6 +53,9 @@ import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import androidx.compose.material3.Button
+import androidx.compose.material3.FilledTonalButton
+import androidx.compose.ui.text.style.TextAlign
 import java.util.Locale
 import kotlin.math.roundToInt
 
@@ -82,12 +85,11 @@ internal fun SettingsTextInputDialog(
     dismissLabel: String = "Cancel"
 ) {
     var input by remember(initialValue) { mutableStateOf(initialValue) }
-    AlertDialog(
-        modifier = adaptiveDialogModifier(),
-        properties = adaptiveDialogProperties(),
-        onDismissRequest = onDismiss,
-        title = { Text(title) },
-        text = {
+    if (isWatchDevice()) {
+        WatchDialogContainer(
+            title = title,
+            onDismissRequest = onDismiss
+        ) {
             OutlinedTextField(
                 value = input,
                 onValueChange = { value -> input = sanitizer(value) },
@@ -98,24 +100,64 @@ internal fun SettingsTextInputDialog(
                 keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(
                     keyboardType = keyboardType
                 ),
-                shape = MaterialTheme.shapes.extraLarge
+                shape = RoundedCornerShape(14.dp),
+                modifier = Modifier.fillMaxWidth()
             )
-        },
-        dismissButton = {
-            TextButton(onClick = onDismiss) {
-                Text(dismissLabel)
-            }
-        },
-        confirmButton = {
-            TextButton(onClick = {
-                if (onConfirm(input)) {
-                    onDismiss()
-                }
-            }) {
+            Spacer(modifier = Modifier.height(4.dp))
+            Button(
+                onClick = {
+                    if (onConfirm(input)) {
+                        onDismiss()
+                    }
+                },
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(14.dp)
+            ) {
                 Text(confirmLabel)
             }
+            TextButton(
+                onClick = onDismiss,
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Text(dismissLabel)
+            }
         }
-    )
+    } else {
+        AlertDialog(
+            modifier = adaptiveDialogModifier(),
+            properties = adaptiveDialogProperties(),
+            onDismissRequest = onDismiss,
+            title = { Text(title) },
+            text = {
+                OutlinedTextField(
+                    value = input,
+                    onValueChange = { value -> input = sanitizer(value) },
+                    singleLine = true,
+                    label = { Text(fieldLabel) },
+                    placeholder = placeholder?.let { { Text(it) } },
+                    supportingText = supportingText?.let { { Text(it) } },
+                    keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(
+                        keyboardType = keyboardType
+                    ),
+                    shape = MaterialTheme.shapes.extraLarge
+                )
+            },
+            dismissButton = {
+                TextButton(onClick = onDismiss) {
+                    Text(dismissLabel)
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    if (onConfirm(input)) {
+                        onDismiss()
+                    }
+                }) {
+                    Text(confirmLabel)
+                }
+            }
+        )
+    }
 }
 
 @Composable
@@ -130,41 +172,85 @@ internal fun SettingsPriorityPickerDialog(
     val safeMax = maxValue.coerceAtLeast(0)
     var value by remember(currentValue, safeMax) { mutableIntStateOf(currentValue.coerceIn(0, safeMax)) }
 
-    AlertDialog(
-        modifier = adaptiveDialogModifier(),
-        properties = adaptiveDialogProperties(),
-        onDismissRequest = onDismiss,
-        title = { Text(title) },
-        text = {
-            Column {
-                Text(text = description, style = MaterialTheme.typography.bodySmall)
-                Spacer(modifier = Modifier.height(16.dp))
-                Text(text = "Priority: $value", style = MaterialTheme.typography.titleMedium)
-                if (safeMax > 0) {
-                    Spacer(modifier = Modifier.height(8.dp))
-                    Slider(
-                        value = value.toFloat(),
-                        onValueChange = { value = it.roundToInt().coerceIn(0, safeMax) },
-                        valueRange = 0f..safeMax.toFloat(),
-                        steps = (safeMax - 1).coerceAtLeast(0)
-                    )
-                }
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween
-                ) {
-                    Text("0 (Highest)", style = MaterialTheme.typography.labelSmall)
-                    Text("$safeMax (Lowest)", style = MaterialTheme.typography.labelSmall)
-                }
+    if (isWatchDevice()) {
+        WatchDialogContainer(
+            title = title,
+            onDismissRequest = onDismiss
+        ) {
+            Text(text = description, style = MaterialTheme.typography.bodySmall, textAlign = TextAlign.Center)
+            Spacer(modifier = Modifier.height(4.dp))
+            Text(text = "Priority: $value", style = MaterialTheme.typography.titleMedium)
+            if (safeMax > 0) {
+                Spacer(modifier = Modifier.height(4.dp))
+                Slider(
+                    value = value.toFloat(),
+                    onValueChange = { value = it.roundToInt().coerceIn(0, safeMax) },
+                    valueRange = 0f..safeMax.toFloat(),
+                    steps = (safeMax - 1).coerceAtLeast(0)
+                )
             }
-        },
-        dismissButton = {
-            TextButton(onClick = onDismiss) { Text("Cancel") }
-        },
-        confirmButton = {
-            TextButton(onClick = { onConfirm(value) }) { Text("Apply") }
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Text("0 (Highest)", style = MaterialTheme.typography.labelSmall)
+                Text("$safeMax (Lowest)", style = MaterialTheme.typography.labelSmall)
+            }
+            Spacer(modifier = Modifier.height(4.dp))
+            Button(
+                onClick = {
+                    onConfirm(value)
+                    onDismiss()
+                },
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(14.dp)
+            ) {
+                Text("Apply")
+            }
+            TextButton(
+                onClick = onDismiss,
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Text("Cancel")
+            }
         }
-    )
+    } else {
+        AlertDialog(
+            modifier = adaptiveDialogModifier(),
+            properties = adaptiveDialogProperties(),
+            onDismissRequest = onDismiss,
+            title = { Text(title) },
+            text = {
+                Column {
+                    Text(text = description, style = MaterialTheme.typography.bodySmall)
+                    Spacer(modifier = Modifier.height(16.dp))
+                    Text(text = "Priority: $value", style = MaterialTheme.typography.titleMedium)
+                    if (safeMax > 0) {
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Slider(
+                            value = value.toFloat(),
+                            onValueChange = { value = it.roundToInt().coerceIn(0, safeMax) },
+                            valueRange = 0f..safeMax.toFloat(),
+                            steps = (safeMax - 1).coerceAtLeast(0)
+                        )
+                    }
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Text("0 (Highest)", style = MaterialTheme.typography.labelSmall)
+                        Text("$safeMax (Lowest)", style = MaterialTheme.typography.labelSmall)
+                    }
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = onDismiss) { Text("Cancel") }
+            },
+            confirmButton = {
+                TextButton(onClick = { onConfirm(value) }) { Text("Apply") }
+            }
+        )
+    }
 }
 
 @Composable
@@ -207,116 +293,179 @@ internal fun SettingsSearchableMultiSelectDialog(
         null
     }
 
-    AlertDialog(
-        modifier = adaptiveDialogModifier(),
-        properties = adaptiveDialogProperties(),
-        onDismissRequest = onDismiss,
-        title = { Text(title) },
-        text = {
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .heightIn(max = 500.dp)
+    if (isWatchDevice()) {
+        WatchDialogContainer(
+            title = title,
+            onDismissRequest = onDismiss
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(6.dp)
             ) {
-                OutlinedTextField(
-                    value = searchQuery,
-                    onValueChange = { searchQuery = it },
-                    modifier = Modifier.fillMaxWidth(),
-                    placeholder = { Text(searchPlaceholder) },
-                    leadingIcon = {
-                        Icon(imageVector = Icons.Default.Search, contentDescription = "Search")
-                    },
-                    trailingIcon = {
-                        if (searchQuery.isNotEmpty()) {
-                            IconButton(onClick = { searchQuery = "" }) {
-                                Icon(imageVector = Icons.Default.Close, contentDescription = "Clear search")
-                            }
-                        }
-                    },
-                    singleLine = true,
-                    shape = RoundedCornerShape(28.dp)
-                )
-                Spacer(modifier = Modifier.height(8.dp))
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween
+                OutlinedButton(
+                    onClick = { pendingSelected = options.map { it.value }.toSet() },
+                    modifier = Modifier.weight(1f),
+                    shape = RoundedCornerShape(12.dp)
                 ) {
-                    TextButton(onClick = { pendingSelected = options.map { it.value }.toSet() }) {
-                        Text("Select All")
-                    }
-                    TextButton(onClick = { pendingSelected = emptySet() }) {
-                        Text("Deselect All")
-                    }
+                    Text("All", style = MaterialTheme.typography.labelMedium)
                 }
-                Spacer(modifier = Modifier.height(8.dp))
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .heightIn(max = 300.dp)
-                        .onSizeChanged { listViewportHeightPx = it.height.toFloat() }
+                OutlinedButton(
+                    onClick = { pendingSelected = emptySet() },
+                    modifier = Modifier.weight(1f),
+                    shape = RoundedCornerShape(12.dp)
                 ) {
-                    LazyColumn(
-                        state = listState,
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(end = 10.dp)
-                            .heightIn(max = 300.dp)
-                    ) {
-                        items(items = filtered, key = { it.value }) { option ->
-                            val checked = pendingSelected.contains(option.value)
-                            Row(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .clickable {
-                                        pendingSelected = if (checked) pendingSelected - option.value else pendingSelected + option.value
-                                    }
-                                    .padding(vertical = 2.dp),
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Checkbox(
-                                    checked = checked,
-                                    onCheckedChange = { enabled ->
-                                        pendingSelected = if (enabled) pendingSelected + option.value else pendingSelected - option.value
-                                    }
-                                )
-                                Spacer(modifier = Modifier.width(8.dp))
-                                Text(option.label)
-                            }
-                        }
-                    }
-                    if (hasScrollableResults && listViewportHeightPx > 0f) {
-                        val estimatedContentPx = (averageItemSizePx * filtered.size.toFloat())
-                            .coerceAtLeast(listViewportHeightPx)
-                        val thumbFraction = (listViewportHeightPx / estimatedContentPx).coerceIn(0.08f, 1f)
-                        val absoluteScrollPx = (
-                            (listState.firstVisibleItemIndex.toFloat() * averageItemSizePx) +
-                                listState.firstVisibleItemScrollOffset.toFloat()
-                            ).coerceAtLeast(0f)
-                        val maxScrollPx = (estimatedContentPx - listViewportHeightPx).coerceAtLeast(1f)
-                        val offsetFraction = (absoluteScrollPx / maxScrollPx).coerceIn(0f, 1f)
-                        VerticalScrollbarTrack(
-                            thumbFraction = thumbFraction,
-                            offsetFraction = offsetFraction,
-                            modifier = Modifier
-                                .align(Alignment.CenterEnd)
-                                .width(10.dp)
-                                .fillMaxHeight(),
-                            onDragFractionChanged = listDragToFraction
-                        )
-                    }
+                    Text("None", style = MaterialTheme.typography.labelMedium)
                 }
             }
-        },
-        dismissButton = {
-            TextButton(onClick = onDismiss) { Text("Cancel") }
-        },
-        confirmButton = {
-            TextButton(onClick = {
-                onConfirm(pendingSelected)
-                onDismiss()
-            }) { Text("Apply") }
+            filtered.forEach { option ->
+                val checked = pendingSelected.contains(option.value)
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(12.dp))
+                        .clickable {
+                            pendingSelected = if (checked) pendingSelected - option.value else pendingSelected + option.value
+                        }
+                        .padding(vertical = 4.dp, horizontal = 4.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Checkbox(
+                        checked = checked,
+                        onCheckedChange = { enabled ->
+                            pendingSelected = if (enabled) pendingSelected + option.value else pendingSelected - option.value
+                        }
+                    )
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Text(option.label, style = MaterialTheme.typography.bodyMedium)
+                }
+            }
+            Spacer(modifier = Modifier.height(4.dp))
+            Button(
+                onClick = {
+                    onConfirm(pendingSelected)
+                    onDismiss()
+                },
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(14.dp)
+            ) {
+                Text("Apply")
+            }
+            TextButton(onClick = onDismiss, modifier = Modifier.fillMaxWidth()) {
+                Text("Cancel")
+            }
         }
-    )
+    } else {
+        AlertDialog(
+            modifier = adaptiveDialogModifier(),
+            properties = adaptiveDialogProperties(),
+            onDismissRequest = onDismiss,
+            title = { Text(title) },
+            text = {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .heightIn(max = 500.dp)
+                ) {
+                    OutlinedTextField(
+                        value = searchQuery,
+                        onValueChange = { searchQuery = it },
+                        modifier = Modifier.fillMaxWidth(),
+                        placeholder = { Text(searchPlaceholder) },
+                        leadingIcon = {
+                            Icon(imageVector = Icons.Default.Search, contentDescription = "Search")
+                        },
+                        trailingIcon = {
+                            if (searchQuery.isNotEmpty()) {
+                                IconButton(onClick = { searchQuery = "" }) {
+                                    Icon(imageVector = Icons.Default.Close, contentDescription = "Clear search")
+                                }
+                            }
+                        },
+                        singleLine = true,
+                        shape = RoundedCornerShape(28.dp)
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        TextButton(onClick = { pendingSelected = options.map { it.value }.toSet() }) {
+                            Text("Select All")
+                        }
+                        TextButton(onClick = { pendingSelected = emptySet() }) {
+                            Text("Deselect All")
+                        }
+                    }
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .heightIn(max = 300.dp)
+                            .onSizeChanged { listViewportHeightPx = it.height.toFloat() }
+                    ) {
+                        LazyColumn(
+                            state = listState,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(end = 10.dp)
+                                .heightIn(max = 300.dp)
+                        ) {
+                            items(items = filtered, key = { it.value }) { option ->
+                                val checked = pendingSelected.contains(option.value)
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .clickable {
+                                            pendingSelected = if (checked) pendingSelected - option.value else pendingSelected + option.value
+                                        }
+                                        .padding(vertical = 2.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Checkbox(
+                                        checked = checked,
+                                        onCheckedChange = { enabled ->
+                                            pendingSelected = if (enabled) pendingSelected + option.value else pendingSelected - option.value
+                                        }
+                                    )
+                                    Spacer(modifier = Modifier.width(8.dp))
+                                    Text(option.label)
+                                }
+                            }
+                        }
+                        if (hasScrollableResults && listViewportHeightPx > 0f) {
+                            val estimatedContentPx = (averageItemSizePx * filtered.size.toFloat())
+                                .coerceAtLeast(listViewportHeightPx)
+                            val thumbFraction = (listViewportHeightPx / estimatedContentPx).coerceIn(0.08f, 1f)
+                            val absoluteScrollPx = (
+                                (listState.firstVisibleItemIndex.toFloat() * averageItemSizePx) +
+                                    listState.firstVisibleItemScrollOffset.toFloat()
+                                ).coerceAtLeast(0f)
+                            val maxScrollPx = (estimatedContentPx - listViewportHeightPx).coerceAtLeast(1f)
+                            val offsetFraction = (absoluteScrollPx / maxScrollPx).coerceIn(0f, 1f)
+                            VerticalScrollbarTrack(
+                                thumbFraction = thumbFraction,
+                                offsetFraction = offsetFraction,
+                                modifier = Modifier
+                                    .align(Alignment.CenterEnd)
+                                    .width(10.dp)
+                                    .fillMaxHeight(),
+                                onDragFractionChanged = listDragToFraction
+                            )
+                        }
+                    }
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = onDismiss) { Text("Cancel") }
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    onConfirm(pendingSelected)
+                    onDismiss()
+                }) { Text("Apply") }
+            }
+        )
+    }
 }
 
 @Composable
@@ -448,32 +597,134 @@ internal fun <T> SettingsGroupedToggleDialog(
         }
     }
 
-    AlertDialog(
-        modifier = adaptiveDialogModifier(),
-        properties = adaptiveDialogProperties(),
-        onDismissRequest = onDismiss,
-        title = { Text(title) },
-        text = {
-            if (compactRows) {
-                CompositionLocalProvider(
-                    androidx.compose.material3.LocalMinimumInteractiveComponentEnforcement provides false
+    if (isWatchDevice()) {
+        WatchDialogContainer(
+            title = title,
+            onDismissRequest = onDismiss
+        ) {
+            if (selectAllValues != null) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(6.dp)
                 ) {
+                    OutlinedButton(
+                        onClick = { pendingSelected = selectAllValues },
+                        modifier = Modifier.weight(1f),
+                        shape = RoundedCornerShape(12.dp)
+                    ) {
+                        Text("All", style = MaterialTheme.typography.labelMedium)
+                    }
+                    OutlinedButton(
+                        onClick = { pendingSelected = emptySet() },
+                        modifier = Modifier.weight(1f),
+                        shape = RoundedCornerShape(12.dp)
+                    ) {
+                        Text("None", style = MaterialTheme.typography.labelMedium)
+                    }
+                }
+            }
+            if (!topDescription.isNullOrBlank()) {
+                Text(
+                    text = topDescription,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    textAlign = TextAlign.Center
+                )
+            }
+            val orderedGroupLabels = buildList {
+                addAll(groupedOptions.keys)
+                emptyGroupLabels.forEach { group ->
+                    if (!contains(group)) add(group)
+                }
+            }
+            orderedGroupLabels.forEach { groupLabel ->
+                Column(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalArrangement = Arrangement.spacedBy(4.dp)
+                ) {
+                    Text(
+                        text = groupLabel,
+                        style = MaterialTheme.typography.labelLarge,
+                        color = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.padding(top = 4.dp)
+                    )
+                    val groupItems = groupedOptions[groupLabel].orEmpty()
+                    if (groupItems.isEmpty()) {
+                        Text(
+                            text = "No options yet.",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    } else {
+                        groupItems.forEach { option ->
+                            val optionValue = option.value
+                            val checked = pendingSelected.contains(optionValue)
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clip(RoundedCornerShape(12.dp))
+                                    .clickable {
+                                        pendingSelected = if (checked) pendingSelected - optionValue else pendingSelected + optionValue
+                                    }
+                                    .padding(vertical = 4.dp, horizontal = 4.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Checkbox(
+                                    checked = checked,
+                                    onCheckedChange = { isChecked ->
+                                        pendingSelected = if (isChecked) pendingSelected + optionValue else pendingSelected - optionValue
+                                    }
+                                )
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Text(option.label, style = MaterialTheme.typography.bodyMedium)
+                            }
+                        }
+                    }
+                }
+            }
+            Spacer(modifier = Modifier.height(4.dp))
+            Button(
+                onClick = {
+                    onApply(pendingSelected)
+                    onDismiss()
+                },
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(14.dp)
+            ) {
+                Text("Apply")
+            }
+            TextButton(onClick = onDismiss, modifier = Modifier.fillMaxWidth()) {
+                Text("Cancel")
+            }
+        }
+    } else {
+        AlertDialog(
+            modifier = adaptiveDialogModifier(),
+            properties = adaptiveDialogProperties(),
+            onDismissRequest = onDismiss,
+            title = { Text(title) },
+            text = {
+                if (compactRows) {
+                    CompositionLocalProvider(
+                        androidx.compose.material3.LocalMinimumInteractiveComponentEnforcement provides false
+                    ) {
+                        dialogContent()
+                    }
+                } else {
                     dialogContent()
                 }
-            } else {
-                dialogContent()
+            },
+            dismissButton = {
+                TextButton(onClick = onDismiss) { Text("Cancel") }
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    onApply(pendingSelected)
+                    onDismiss()
+                }) { Text("Apply") }
             }
-        },
-        dismissButton = {
-            TextButton(onClick = onDismiss) { Text("Cancel") }
-        },
-        confirmButton = {
-            TextButton(onClick = {
-                onApply(pendingSelected)
-                onDismiss()
-            }) { Text("Apply") }
-        }
-    )
+        )
+    }
 }
 
 @Composable
@@ -492,92 +743,181 @@ internal fun CacheSizeLimitDialog(
             String.format(Locale.US, "%.2f", initialBytes / unit.bytesPerUnit)
         )
     }
-    AlertDialog(
-        modifier = adaptiveDialogModifier(),
-        properties = adaptiveDialogProperties(),
-        onDismissRequest = onDismiss,
-        title = { Text("Cache size limit") },
-        text = {
-            Column {
-                OutlinedTextField(
-                    value = input,
-                    onValueChange = { input = it },
-                    singleLine = true,
-                    label = { Text("Max size (${unit.label})") },
-                    placeholder = { Text("1.00") }
-                )
-                Spacer(modifier = Modifier.height(10.dp))
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(12.dp)
-                ) {
-                    CacheSizeUnit.values().forEach { candidate ->
-                        Row(
-                            modifier = Modifier
-                                .clip(RoundedCornerShape(10.dp))
-                                .clickable {
-                                    if (candidate != unit) {
-                                        val parsed = input.trim().replace(',', '.').toDoubleOrNull()
-                                        val currentBytes = if (parsed != null && parsed > 0.0) {
-                                            parsed * unit.bytesPerUnit
-                                        } else {
-                                            initialBytes.toDouble()
-                                        }
-                                        unit = candidate
-                                        input = String.format(
-                                            Locale.US,
-                                            "%.2f",
-                                            currentBytes / candidate.bytesPerUnit
-                                        )
+    if (isWatchDevice()) {
+        WatchDialogContainer(
+            title = "Cache size limit",
+            onDismissRequest = onDismiss
+        ) {
+            OutlinedTextField(
+                value = input,
+                onValueChange = { input = it },
+                singleLine = true,
+                label = { Text("Max size (${unit.label})") },
+                placeholder = { Text("1.00") },
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(14.dp)
+            )
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                CacheSizeUnit.values().forEach { candidate ->
+                    Row(
+                        modifier = Modifier
+                            .weight(1f)
+                            .clip(RoundedCornerShape(10.dp))
+                            .clickable {
+                                if (candidate != unit) {
+                                    val parsed = input.trim().replace(',', '.').toDoubleOrNull()
+                                    val currentBytes = if (parsed != null && parsed > 0.0) {
+                                        parsed * unit.bytesPerUnit
+                                    } else {
+                                        initialBytes.toDouble()
                                     }
+                                    unit = candidate
+                                    input = String.format(
+                                        Locale.US,
+                                        "%.2f",
+                                        currentBytes / candidate.bytesPerUnit
+                                    )
                                 }
-                                .padding(horizontal = 4.dp, vertical = 2.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            RadioButton(
-                                selected = unit == candidate,
-                                onClick = {
-                                    if (candidate != unit) {
-                                        val parsed = input.trim().replace(',', '.').toDoubleOrNull()
-                                        val currentBytes = if (parsed != null && parsed > 0.0) {
-                                            parsed * unit.bytesPerUnit
-                                        } else {
-                                            initialBytes.toDouble()
-                                        }
-                                        unit = candidate
-                                        input = String.format(
-                                            Locale.US,
-                                            "%.2f",
-                                            currentBytes / candidate.bytesPerUnit
-                                        )
+                            }
+                            .padding(horizontal = 4.dp, vertical = 2.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        RadioButton(
+                            selected = unit == candidate,
+                            onClick = {
+                                if (candidate != unit) {
+                                    val parsed = input.trim().replace(',', '.').toDoubleOrNull()
+                                    val currentBytes = if (parsed != null && parsed > 0.0) {
+                                        parsed * unit.bytesPerUnit
+                                    } else {
+                                        initialBytes.toDouble()
                                     }
+                                    unit = candidate
+                                    input = String.format(
+                                        Locale.US,
+                                        "%.2f",
+                                        currentBytes / candidate.bytesPerUnit
+                                    )
                                 }
-                            )
-                            Text(
-                                text = candidate.label,
-                                style = MaterialTheme.typography.bodyMedium
-                            )
-                        }
+                            }
+                        )
+                        Text(
+                            text = candidate.label,
+                            style = MaterialTheme.typography.bodyMedium
+                        )
                     }
                 }
             }
-        },
-        dismissButton = {
-            TextButton(onClick = onDismiss) { Text("Cancel") }
-        },
-        confirmButton = {
-            TextButton(onClick = {
-                val parsed = input.trim().replace(',', '.').toDoubleOrNull()
-                if (parsed != null && parsed > 0.0) {
-                    val bytes = (parsed * unit.bytesPerUnit).toLong().coerceAtLeast(1L)
-                    onConfirmBytes(bytes)
-                    onDismiss()
-                }
-            }) {
+            Spacer(modifier = Modifier.height(4.dp))
+            Button(
+                onClick = {
+                    val parsed = input.trim().replace(',', '.').toDoubleOrNull()
+                    if (parsed != null && parsed > 0.0) {
+                        val bytes = (parsed * unit.bytesPerUnit).toLong().coerceAtLeast(1L)
+                        onConfirmBytes(bytes)
+                        onDismiss()
+                    }
+                },
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(14.dp)
+            ) {
                 Text("Save")
             }
+            TextButton(onClick = onDismiss, modifier = Modifier.fillMaxWidth()) {
+                Text("Cancel")
+            }
         }
-    )
+    } else {
+        AlertDialog(
+            modifier = adaptiveDialogModifier(),
+            properties = adaptiveDialogProperties(),
+            onDismissRequest = onDismiss,
+            title = { Text("Cache size limit") },
+            text = {
+                Column {
+                    OutlinedTextField(
+                        value = input,
+                        onValueChange = { input = it },
+                        singleLine = true,
+                        label = { Text("Max size (${unit.label})") },
+                        placeholder = { Text("1.00") }
+                    )
+                    Spacer(modifier = Modifier.height(10.dp))
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        CacheSizeUnit.values().forEach { candidate ->
+                            Row(
+                                modifier = Modifier
+                                    .clip(RoundedCornerShape(10.dp))
+                                    .clickable {
+                                        if (candidate != unit) {
+                                            val parsed = input.trim().replace(',', '.').toDoubleOrNull()
+                                            val currentBytes = if (parsed != null && parsed > 0.0) {
+                                                parsed * unit.bytesPerUnit
+                                            } else {
+                                                initialBytes.toDouble()
+                                            }
+                                            unit = candidate
+                                            input = String.format(
+                                                Locale.US,
+                                                "%.2f",
+                                                currentBytes / candidate.bytesPerUnit
+                                            )
+                                        }
+                                    }
+                                    .padding(horizontal = 4.dp, vertical = 2.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                RadioButton(
+                                    selected = unit == candidate,
+                                    onClick = {
+                                        if (candidate != unit) {
+                                            val parsed = input.trim().replace(',', '.').toDoubleOrNull()
+                                            val currentBytes = if (parsed != null && parsed > 0.0) {
+                                                parsed * unit.bytesPerUnit
+                                            } else {
+                                                initialBytes.toDouble()
+                                            }
+                                            unit = candidate
+                                            input = String.format(
+                                                Locale.US,
+                                                "%.2f",
+                                                currentBytes / candidate.bytesPerUnit
+                                            )
+                                        }
+                                    }
+                                )
+                                Text(
+                                    text = candidate.label,
+                                    style = MaterialTheme.typography.bodyMedium
+                                )
+                            }
+                        }
+                    }
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = onDismiss) { Text("Cancel") }
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    val parsed = input.trim().replace(',', '.').toDoubleOrNull()
+                    if (parsed != null && parsed > 0.0) {
+                        val bytes = (parsed * unit.bytesPerUnit).toLong().coerceAtLeast(1L)
+                        onConfirmBytes(bytes)
+                        onDismiss()
+                    }
+                }) {
+                    Text("Save")
+                }
+            }
+        )
+    }
 }
 
 @Composable
@@ -623,77 +963,153 @@ internal fun SteppedIntSliderDialog(
         return snapped.coerceIn(min, max)
     }
 
-    AlertDialog(
-        modifier = adaptiveDialogModifier(),
-        properties = adaptiveDialogProperties(),
-        onDismissRequest = onDismiss,
-        title = { Text(title) },
-        text = {
-            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                Text(
-                    text = valueLabelFormatter?.invoke(value)
-                        ?: if (unitLabel == "%") "$value$unitLabel" else "$value $unitLabel",
-                    style = MaterialTheme.typography.titleMedium
+    if (isWatchDevice()) {
+        WatchDialogContainer(
+            title = title,
+            onDismissRequest = onDismiss
+        ) {
+            Text(
+                text = valueLabelFormatter?.invoke(value)
+                    ?: if (unitLabel == "%") "$value$unitLabel" else "$value $unitLabel",
+                style = MaterialTheme.typography.titleMedium,
+                textAlign = TextAlign.Center
+            )
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(6.dp)
+            ) {
+                if (showNudgeButtons) {
+                    OutlinedButton(
+                        onClick = { value = normalize(value - safeNudgeStep) },
+                        enabled = value > min,
+                        modifier = Modifier.width(48.dp),
+                        shape = RoundedCornerShape(12.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Remove,
+                            contentDescription = "Decrease"
+                        )
+                    }
+                }
+                Slider(
+                    value = value.toFloat(),
+                    onValueChange = { raw ->
+                        value = normalize(raw.roundToInt())
+                    },
+                    valueRange = min.toFloat()..max.toFloat(),
+                    steps = (stepCount - 1).coerceAtLeast(0),
+                    modifier = Modifier.weight(1f)
                 )
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    if (showNudgeButtons) {
-                        OutlinedButton(
-                            onClick = { value = normalize(value - safeNudgeStep) },
-                            enabled = value > min,
-                            modifier = Modifier.width(56.dp)
-                        ) {
-                            Icon(
-                                imageVector = Icons.Default.Remove,
-                                contentDescription = "Decrease"
-                            )
-                        }
-                    }
-                    Slider(
-                        value = value.toFloat(),
-                        onValueChange = { raw ->
-                            value = normalize(raw.roundToInt())
-                        },
-                        valueRange = min.toFloat()..max.toFloat(),
-                        steps = (stepCount - 1).coerceAtLeast(0),
-                        modifier = Modifier.weight(1f)
-                    )
-                    if (showNudgeButtons) {
-                        OutlinedButton(
-                            onClick = { value = normalize(value + safeNudgeStep) },
-                            enabled = value < max,
-                            modifier = Modifier.width(56.dp)
-                        ) {
-                            Icon(
-                                imageVector = Icons.Default.Add,
-                                contentDescription = "Increase"
-                            )
-                        }
+                if (showNudgeButtons) {
+                    OutlinedButton(
+                        onClick = { value = normalize(value + safeNudgeStep) },
+                        enabled = value < max,
+                        modifier = Modifier.width(48.dp),
+                        shape = RoundedCornerShape(12.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Add,
+                            contentDescription = "Increase"
+                        )
                     }
                 }
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween
-                ) {
-                    Text("$min", style = MaterialTheme.typography.labelSmall)
-                    Text("$max", style = MaterialTheme.typography.labelSmall)
-                }
             }
-        },
-        dismissButton = {
-            TextButton(onClick = onDismiss) {
-                Text("Cancel")
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Text("$min", style = MaterialTheme.typography.labelSmall)
+                Text("$max", style = MaterialTheme.typography.labelSmall)
             }
-        },
-        confirmButton = {
-            TextButton(onClick = { onConfirm(value) }) {
+            Spacer(modifier = Modifier.height(4.dp))
+            Button(
+                onClick = {
+                    onConfirm(value)
+                    onDismiss()
+                },
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(14.dp)
+            ) {
                 Text(confirmLabel)
             }
+            TextButton(onClick = onDismiss, modifier = Modifier.fillMaxWidth()) {
+                Text("Cancel")
+            }
         }
-    )
+    } else {
+        AlertDialog(
+            modifier = adaptiveDialogModifier(),
+            properties = adaptiveDialogProperties(),
+            onDismissRequest = onDismiss,
+            title = { Text(title) },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Text(
+                        text = valueLabelFormatter?.invoke(value)
+                            ?: if (unitLabel == "%") "$value$unitLabel" else "$value $unitLabel",
+                        style = MaterialTheme.typography.titleMedium
+                    )
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        if (showNudgeButtons) {
+                            OutlinedButton(
+                                onClick = { value = normalize(value - safeNudgeStep) },
+                                enabled = value > min,
+                                modifier = Modifier.width(56.dp)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.Remove,
+                                    contentDescription = "Decrease"
+                                )
+                            }
+                        }
+                        Slider(
+                            value = value.toFloat(),
+                            onValueChange = { raw ->
+                                value = normalize(raw.roundToInt())
+                            },
+                            valueRange = min.toFloat()..max.toFloat(),
+                            steps = (stepCount - 1).coerceAtLeast(0),
+                            modifier = Modifier.weight(1f)
+                        )
+                        if (showNudgeButtons) {
+                            OutlinedButton(
+                                onClick = { value = normalize(value + safeNudgeStep) },
+                                enabled = value < max,
+                                modifier = Modifier.width(56.dp)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.Add,
+                                    contentDescription = "Increase"
+                                )
+                            }
+                        }
+                    }
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Text("$min", style = MaterialTheme.typography.labelSmall)
+                        Text("$max", style = MaterialTheme.typography.labelSmall)
+                    }
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = onDismiss) {
+                    Text("Cancel")
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = { onConfirm(value) }) {
+                    Text(confirmLabel)
+                }
+            }
+        )
+    }
 }
 
 @Composable
@@ -715,93 +1131,183 @@ internal fun SettingsSwitchSliderDialog(
         mutableIntStateOf(currentValue.coerceIn(valueRange.first, valueRange.last))
     }
     val safeNudgeStep = nudgeStep.coerceAtLeast(1)
-    AlertDialog(
-        modifier = adaptiveDialogModifier(),
-        properties = adaptiveDialogProperties(),
-        onDismissRequest = onDismiss,
-        title = { Text(title) },
-        text = {
-            Column(modifier = Modifier.fillMaxWidth()) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text(
-                        text = switchLabel,
-                        style = MaterialTheme.typography.bodyLarge,
-                        modifier = Modifier.weight(1f)
-                    )
-                    Switch(
-                        checked = checked,
-                        onCheckedChange = { enabled ->
-                            checked = enabled
-                        }
-                    )
-                }
-                Spacer(modifier = Modifier.height(8.dp))
+    if (isWatchDevice()) {
+        WatchDialogContainer(
+            title = title,
+            onDismissRequest = onDismiss
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
                 Text(
-                    text = currentValueLabel(checked, sliderValue),
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                    text = switchLabel,
+                    style = MaterialTheme.typography.bodyLarge,
+                    modifier = Modifier.weight(1f)
                 )
-                Spacer(modifier = Modifier.height(6.dp))
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    if (showNudgeButtons) {
-                        OutlinedButton(
-                            onClick = {
-                                sliderValue = (sliderValue - safeNudgeStep).coerceIn(valueRange.first, valueRange.last)
-                            },
-                            enabled = !checked && sliderValue > valueRange.first,
-                            modifier = Modifier.width(56.dp)
-                        ) {
-                            Icon(
-                                imageVector = Icons.Default.Remove,
-                                contentDescription = "Decrease"
-                            )
-                        }
+                Switch(
+                    checked = checked,
+                    onCheckedChange = { enabled ->
+                        checked = enabled
                     }
-                    Slider(
-                        value = sliderValue.toFloat(),
-                        onValueChange = { raw ->
-                            sliderValue = raw.roundToInt().coerceIn(valueRange.first, valueRange.last)
+                )
+            }
+            Text(
+                text = currentValueLabel(checked, sliderValue),
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                textAlign = TextAlign.Center
+            )
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(6.dp)
+            ) {
+                if (showNudgeButtons) {
+                    OutlinedButton(
+                        onClick = {
+                            sliderValue = (sliderValue - safeNudgeStep).coerceIn(valueRange.first, valueRange.last)
                         },
-                        valueRange = valueRange.first.toFloat()..valueRange.last.toFloat(),
-                        steps = (valueRange.last - valueRange.first - 1).coerceAtLeast(0),
-                        enabled = !checked,
-                        modifier = Modifier.weight(1f)
-                    )
-                    if (showNudgeButtons) {
-                        OutlinedButton(
-                            onClick = {
-                                sliderValue = (sliderValue + safeNudgeStep).coerceIn(valueRange.first, valueRange.last)
-                            },
-                            enabled = !checked && sliderValue < valueRange.last,
-                            modifier = Modifier.width(56.dp)
-                        ) {
-                            Icon(
-                                imageVector = Icons.Default.Add,
-                                contentDescription = "Increase"
-                            )
-                        }
+                        enabled = !checked && sliderValue > valueRange.first,
+                        modifier = Modifier.width(48.dp),
+                        shape = RoundedCornerShape(12.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Remove,
+                            contentDescription = "Decrease"
+                        )
+                    }
+                }
+                Slider(
+                    value = sliderValue.toFloat(),
+                    onValueChange = { raw ->
+                        sliderValue = raw.roundToInt().coerceIn(valueRange.first, valueRange.last)
+                    },
+                    valueRange = valueRange.first.toFloat()..valueRange.last.toFloat(),
+                    steps = (valueRange.last - valueRange.first - 1).coerceAtLeast(0),
+                    enabled = !checked,
+                    modifier = Modifier.weight(1f)
+                )
+                if (showNudgeButtons) {
+                    OutlinedButton(
+                        onClick = {
+                            sliderValue = (sliderValue + safeNudgeStep).coerceIn(valueRange.first, valueRange.last)
+                        },
+                        enabled = !checked && sliderValue < valueRange.last,
+                        modifier = Modifier.width(48.dp),
+                        shape = RoundedCornerShape(12.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Add,
+                            contentDescription = "Increase"
+                        )
                     }
                 }
             }
-        },
-        dismissButton = {
-            TextButton(onClick = onDismiss) {
-                Text("Cancel")
-            }
-        },
-        confirmButton = {
-            TextButton(onClick = { onConfirm(checked, sliderValue) }) {
+            Spacer(modifier = Modifier.height(4.dp))
+            Button(
+                onClick = {
+                    onConfirm(checked, sliderValue)
+                    onDismiss()
+                },
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(14.dp)
+            ) {
                 Text(confirmLabel)
             }
+            TextButton(onClick = onDismiss, modifier = Modifier.fillMaxWidth()) {
+                Text("Cancel")
+            }
         }
-    )
+    } else {
+        AlertDialog(
+            modifier = adaptiveDialogModifier(),
+            properties = adaptiveDialogProperties(),
+            onDismissRequest = onDismiss,
+            title = { Text(title) },
+            text = {
+                Column(modifier = Modifier.fillMaxWidth()) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = switchLabel,
+                            style = MaterialTheme.typography.bodyLarge,
+                            modifier = Modifier.weight(1f)
+                        )
+                        Switch(
+                            checked = checked,
+                            onCheckedChange = { enabled ->
+                                checked = enabled
+                            }
+                        )
+                    }
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Text(
+                        text = currentValueLabel(checked, sliderValue),
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Spacer(modifier = Modifier.height(6.dp))
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        if (showNudgeButtons) {
+                            OutlinedButton(
+                                onClick = {
+                                    sliderValue = (sliderValue - safeNudgeStep).coerceIn(valueRange.first, valueRange.last)
+                                },
+                                enabled = !checked && sliderValue > valueRange.first,
+                                modifier = Modifier.width(56.dp)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.Remove,
+                                    contentDescription = "Decrease"
+                                )
+                            }
+                        }
+                        Slider(
+                            value = sliderValue.toFloat(),
+                            onValueChange = { raw ->
+                                sliderValue = raw.roundToInt().coerceIn(valueRange.first, valueRange.last)
+                            },
+                            valueRange = valueRange.first.toFloat()..valueRange.last.toFloat(),
+                            steps = (valueRange.last - valueRange.first - 1).coerceAtLeast(0),
+                            enabled = !checked,
+                            modifier = Modifier.weight(1f)
+                        )
+                        if (showNudgeButtons) {
+                            OutlinedButton(
+                                onClick = {
+                                    sliderValue = (sliderValue + safeNudgeStep).coerceIn(valueRange.first, valueRange.last)
+                                },
+                                enabled = !checked && sliderValue < valueRange.last,
+                                modifier = Modifier.width(56.dp)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.Add,
+                                    contentDescription = "Increase"
+                                )
+                            }
+                        }
+                    }
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = onDismiss) {
+                    Text("Cancel")
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = { onConfirm(checked, sliderValue) }) {
+                    Text(confirmLabel)
+                }
+            }
+        )
+    }
 }
 
 @Composable
@@ -841,51 +1347,99 @@ internal fun VisualizationRgbColorPickerDialog(
     val previewColor = Color(asArgbInt(red, green, blue))
     val hex = String.format(Locale.US, "#%02X%02X%02X", red, green, blue)
 
-    AlertDialog(
-        modifier = adaptiveDialogModifier(),
-        properties = adaptiveDialogProperties(),
-        onDismissRequest = onDismiss,
-        title = { Text(title) },
-        text = {
-            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(36.dp)
-                        .clip(MaterialTheme.shapes.medium)
-                        .background(previewColor)
-                )
-                Text(text = hex, style = MaterialTheme.typography.titleMedium)
-
-                Text("Red: $red", style = MaterialTheme.typography.bodySmall)
-                Slider(
-                    value = red.toFloat(),
-                    onValueChange = { red = it.roundToInt().coerceIn(0, 255) },
-                    valueRange = 0f..255f
-                )
-                Text("Green: $green", style = MaterialTheme.typography.bodySmall)
-                Slider(
-                    value = green.toFloat(),
-                    onValueChange = { green = it.roundToInt().coerceIn(0, 255) },
-                    valueRange = 0f..255f
-                )
-                Text("Blue: $blue", style = MaterialTheme.typography.bodySmall)
-                Slider(
-                    value = blue.toFloat(),
-                    onValueChange = { blue = it.roundToInt().coerceIn(0, 255) },
-                    valueRange = 0f..255f
-                )
-            }
-        },
-        dismissButton = {
-            TextButton(onClick = onDismiss) {
-                Text("Cancel")
-            }
-        },
-        confirmButton = {
-            TextButton(onClick = { onConfirm(asArgbInt(red, green, blue)) }) {
+    if (isWatchDevice()) {
+        WatchDialogContainer(
+            title = title,
+            onDismissRequest = onDismiss
+        ) {
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(32.dp)
+                    .clip(RoundedCornerShape(10.dp))
+                    .background(previewColor)
+            )
+            Text(text = hex, style = MaterialTheme.typography.titleMedium, textAlign = TextAlign.Center)
+            Text("Red: $red", style = MaterialTheme.typography.bodySmall)
+            Slider(
+                value = red.toFloat(),
+                onValueChange = { red = it.roundToInt().coerceIn(0, 255) },
+                valueRange = 0f..255f
+            )
+            Text("Green: $green", style = MaterialTheme.typography.bodySmall)
+            Slider(
+                value = green.toFloat(),
+                onValueChange = { green = it.roundToInt().coerceIn(0, 255) },
+                valueRange = 0f..255f
+            )
+            Text("Blue: $blue", style = MaterialTheme.typography.bodySmall)
+            Slider(
+                value = blue.toFloat(),
+                onValueChange = { blue = it.roundToInt().coerceIn(0, 255) },
+                valueRange = 0f..255f
+            )
+            Spacer(modifier = Modifier.height(4.dp))
+            Button(
+                onClick = {
+                    onConfirm(asArgbInt(red, green, blue))
+                    onDismiss()
+                },
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(14.dp)
+            ) {
                 Text("Save")
             }
+            TextButton(onClick = onDismiss, modifier = Modifier.fillMaxWidth()) {
+                Text("Cancel")
+            }
         }
-    )
+    } else {
+        AlertDialog(
+            modifier = adaptiveDialogModifier(),
+            properties = adaptiveDialogProperties(),
+            onDismissRequest = onDismiss,
+            title = { Text(title) },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(36.dp)
+                            .clip(MaterialTheme.shapes.medium)
+                            .background(previewColor)
+                    )
+                    Text(text = hex, style = MaterialTheme.typography.titleMedium)
+
+                    Text("Red: $red", style = MaterialTheme.typography.bodySmall)
+                    Slider(
+                        value = red.toFloat(),
+                        onValueChange = { red = it.roundToInt().coerceIn(0, 255) },
+                        valueRange = 0f..255f
+                    )
+                    Text("Green: $green", style = MaterialTheme.typography.bodySmall)
+                    Slider(
+                        value = green.toFloat(),
+                        onValueChange = { green = it.roundToInt().coerceIn(0, 255) },
+                        valueRange = 0f..255f
+                    )
+                    Text("Blue: $blue", style = MaterialTheme.typography.bodySmall)
+                    Slider(
+                        value = blue.toFloat(),
+                        onValueChange = { blue = it.roundToInt().coerceIn(0, 255) },
+                        valueRange = 0f..255f
+                    )
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = onDismiss) {
+                    Text("Cancel")
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = { onConfirm(asArgbInt(red, green, blue)) }) {
+                    Text("Save")
+                }
+            }
+        )
+    }
 }

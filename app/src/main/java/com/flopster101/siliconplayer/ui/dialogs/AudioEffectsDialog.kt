@@ -29,6 +29,9 @@ import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.text.style.TextAlign
+import com.flopster101.siliconplayer.WatchDialogContainer
+import com.flopster101.siliconplayer.isWatchDevice
 import com.flopster101.siliconplayer.adaptiveDialogModifier
 import com.flopster101.siliconplayer.adaptiveDialogProperties
 import com.flopster101.siliconplayer.rememberDialogScrollbarAlpha
@@ -132,104 +135,201 @@ fun AudioEffectsDialog(
         }
     }
 
-    AlertDialog(
-        modifier = adaptiveDialogModifier(),
-        properties = adaptiveDialogProperties(),
-        onDismissRequest = onDismiss,
-        title = { Text("Audio effects") },
-        text = {
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .heightIn(max = 460.dp)
+    if (isWatchDevice()) {
+        WatchDialogContainer(
+            title = "Audio effects",
+            onDismissRequest = onDismiss
+        ) {
+            TabRow(selectedTabIndex = selectedTabIndex) {
+                tabTitles.forEachIndexed { index, title ->
+                    Tab(
+                        selected = selectedTabIndex == index,
+                        onClick = { selectedTabIndex = index },
+                        text = { Text(title) }
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.height(8.dp))
+
+            when (selectedTabIndex) {
+                0 -> VolumeTabContent(
+                    masterVolumeDb = masterVolumeDb,
+                    pluginVolumeDb = pluginVolumeDb,
+                    songVolumeDb = songVolumeDb,
+                    ignoreCoreVolumeForSong = ignoreCoreVolumeForSong,
+                    forceMono = forceMono,
+                    hasActiveCore = hasActiveCore,
+                    hasActiveSong = hasActiveSong,
+                    currentCoreName = currentCoreName,
+                    onMasterVolumeChange = onMasterVolumeChange,
+                    onPluginVolumeChange = onPluginVolumeChange,
+                    onSongVolumeChange = onSongVolumeChange,
+                    onIgnoreCoreVolumeForSongChange = onIgnoreCoreVolumeForSongChange,
+                    onForceMonoChange = onForceMonoChange
+                )
+                else -> DspTabContent(
+                    currentCoreName = currentCoreName,
+                    hasActiveCore = hasActiveCore,
+                    dspBassEnabled = dspBassEnabled,
+                    dspBassDepth = dspBassDepth,
+                    dspBassRange = dspBassRange,
+                    dspSurroundEnabled = dspSurroundEnabled,
+                    dspSurroundDepth = dspSurroundDepth,
+                    dspSurroundDelayMs = dspSurroundDelayMs,
+                    dspReverbEnabled = dspReverbEnabled,
+                    dspReverbDepth = dspReverbDepth,
+                    dspReverbPreset = dspReverbPreset,
+                    dspBitCrushEnabled = dspBitCrushEnabled,
+                    dspBitCrushBits = dspBitCrushBits,
+                    dspNamespaceSelection = dspNamespaceSelection,
+                    dspIgnoreGlobalForCurrentCore = dspIgnoreGlobalForCurrentCore,
+                    onDspBassEnabledChange = onDspBassEnabledChange,
+                    onDspBassDepthChange = onDspBassDepthChange,
+                    onDspBassRangeChange = onDspBassRangeChange,
+                    onDspSurroundEnabledChange = onDspSurroundEnabledChange,
+                    onDspSurroundDepthChange = onDspSurroundDepthChange,
+                    onDspSurroundDelayMsChange = onDspSurroundDelayMsChange,
+                    onDspReverbEnabledChange = onDspReverbEnabledChange,
+                    onDspReverbDepthChange = onDspReverbDepthChange,
+                    onDspReverbPresetChange = onDspReverbPresetChange,
+                    onDspBitCrushEnabledChange = onDspBitCrushEnabledChange,
+                    onDspBitCrushBitsChange = onDspBitCrushBitsChange,
+                    onDspNamespaceSelectionChange = onDspNamespaceSelectionChange,
+                    onDspIgnoreGlobalForCurrentCoreChange = onDspIgnoreGlobalForCurrentCoreChange
+                )
+            }
+
+            Spacer(modifier = Modifier.height(4.dp))
+            Button(
+                onClick = onConfirm,
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(14.dp)
             ) {
-                TabRow(selectedTabIndex = selectedTabIndex) {
-                    tabTitles.forEachIndexed { index, title ->
-                        Tab(
-                            selected = selectedTabIndex == index,
-                            onClick = { selectedTabIndex = index },
-                            text = { Text(title) }
+                Text("OK")
+            }
+            FilledTonalButton(
+                onClick = {
+                    pendingResetTarget = if (selectedTabIndex == 0) {
+                        "volume"
+                    } else if (dspNamespaceSelection == "core") {
+                        "dsp_core"
+                    } else {
+                        "dsp_global"
+                    }
+                },
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(14.dp)
+            ) {
+                Text("Reset")
+            }
+            TextButton(
+                onClick = onDismiss,
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Text("Cancel")
+            }
+        }
+    } else {
+        AlertDialog(
+            modifier = adaptiveDialogModifier(),
+            properties = adaptiveDialogProperties(),
+            onDismissRequest = onDismiss,
+            title = { Text("Audio effects") },
+            text = {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .heightIn(max = 460.dp)
+                ) {
+                    TabRow(selectedTabIndex = selectedTabIndex) {
+                        tabTitles.forEachIndexed { index, title ->
+                            Tab(
+                                selected = selectedTabIndex == index,
+                                onClick = { selectedTabIndex = index },
+                                text = { Text(title) }
+                            )
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(12.dp))
+
+                    when (selectedTabIndex) {
+                        0 -> VolumeTabContent(
+                            masterVolumeDb = masterVolumeDb,
+                            pluginVolumeDb = pluginVolumeDb,
+                            songVolumeDb = songVolumeDb,
+                            ignoreCoreVolumeForSong = ignoreCoreVolumeForSong,
+                            forceMono = forceMono,
+                            hasActiveCore = hasActiveCore,
+                            hasActiveSong = hasActiveSong,
+                            currentCoreName = currentCoreName,
+                            onMasterVolumeChange = onMasterVolumeChange,
+                            onPluginVolumeChange = onPluginVolumeChange,
+                            onSongVolumeChange = onSongVolumeChange,
+                            onIgnoreCoreVolumeForSongChange = onIgnoreCoreVolumeForSongChange,
+                            onForceMonoChange = onForceMonoChange
+                        )
+                        else -> DspTabContent(
+                            currentCoreName = currentCoreName,
+                            hasActiveCore = hasActiveCore,
+                            dspBassEnabled = dspBassEnabled,
+                            dspBassDepth = dspBassDepth,
+                            dspBassRange = dspBassRange,
+                            dspSurroundEnabled = dspSurroundEnabled,
+                            dspSurroundDepth = dspSurroundDepth,
+                            dspSurroundDelayMs = dspSurroundDelayMs,
+                            dspReverbEnabled = dspReverbEnabled,
+                            dspReverbDepth = dspReverbDepth,
+                            dspReverbPreset = dspReverbPreset,
+                            dspBitCrushEnabled = dspBitCrushEnabled,
+                            dspBitCrushBits = dspBitCrushBits,
+                            dspNamespaceSelection = dspNamespaceSelection,
+                            dspIgnoreGlobalForCurrentCore = dspIgnoreGlobalForCurrentCore,
+                            onDspBassEnabledChange = onDspBassEnabledChange,
+                            onDspBassDepthChange = onDspBassDepthChange,
+                            onDspBassRangeChange = onDspBassRangeChange,
+                            onDspSurroundEnabledChange = onDspSurroundEnabledChange,
+                            onDspSurroundDepthChange = onDspSurroundDepthChange,
+                            onDspSurroundDelayMsChange = onDspSurroundDelayMsChange,
+                            onDspReverbEnabledChange = onDspReverbEnabledChange,
+                            onDspReverbDepthChange = onDspReverbDepthChange,
+                            onDspReverbPresetChange = onDspReverbPresetChange,
+                            onDspBitCrushEnabledChange = onDspBitCrushEnabledChange,
+                            onDspBitCrushBitsChange = onDspBitCrushBitsChange,
+                            onDspNamespaceSelectionChange = onDspNamespaceSelectionChange,
+                            onDspIgnoreGlobalForCurrentCoreChange = onDspIgnoreGlobalForCurrentCoreChange
                         )
                     }
                 }
-
-                Spacer(modifier = Modifier.height(12.dp))
-
-                when (selectedTabIndex) {
-                    0 -> VolumeTabContent(
-                        masterVolumeDb = masterVolumeDb,
-                        pluginVolumeDb = pluginVolumeDb,
-                        songVolumeDb = songVolumeDb,
-                        ignoreCoreVolumeForSong = ignoreCoreVolumeForSong,
-                        forceMono = forceMono,
-                        hasActiveCore = hasActiveCore,
-                        hasActiveSong = hasActiveSong,
-                        currentCoreName = currentCoreName,
-                        onMasterVolumeChange = onMasterVolumeChange,
-                        onPluginVolumeChange = onPluginVolumeChange,
-                        onSongVolumeChange = onSongVolumeChange,
-                        onIgnoreCoreVolumeForSongChange = onIgnoreCoreVolumeForSongChange,
-                        onForceMonoChange = onForceMonoChange
-                    )
-                    else -> DspTabContent(
-                        currentCoreName = currentCoreName,
-                        hasActiveCore = hasActiveCore,
-                        dspBassEnabled = dspBassEnabled,
-                        dspBassDepth = dspBassDepth,
-                        dspBassRange = dspBassRange,
-                        dspSurroundEnabled = dspSurroundEnabled,
-                        dspSurroundDepth = dspSurroundDepth,
-                        dspSurroundDelayMs = dspSurroundDelayMs,
-                        dspReverbEnabled = dspReverbEnabled,
-                        dspReverbDepth = dspReverbDepth,
-                        dspReverbPreset = dspReverbPreset,
-                        dspBitCrushEnabled = dspBitCrushEnabled,
-                        dspBitCrushBits = dspBitCrushBits,
-                        dspNamespaceSelection = dspNamespaceSelection,
-                        dspIgnoreGlobalForCurrentCore = dspIgnoreGlobalForCurrentCore,
-                        onDspBassEnabledChange = onDspBassEnabledChange,
-                        onDspBassDepthChange = onDspBassDepthChange,
-                        onDspBassRangeChange = onDspBassRangeChange,
-                        onDspSurroundEnabledChange = onDspSurroundEnabledChange,
-                        onDspSurroundDepthChange = onDspSurroundDepthChange,
-                        onDspSurroundDelayMsChange = onDspSurroundDelayMsChange,
-                        onDspReverbEnabledChange = onDspReverbEnabledChange,
-                        onDspReverbDepthChange = onDspReverbDepthChange,
-                        onDspReverbPresetChange = onDspReverbPresetChange,
-                        onDspBitCrushEnabledChange = onDspBitCrushEnabledChange,
-                        onDspBitCrushBitsChange = onDspBitCrushBitsChange,
-                        onDspNamespaceSelectionChange = onDspNamespaceSelectionChange,
-                        onDspIgnoreGlobalForCurrentCoreChange = onDspIgnoreGlobalForCurrentCoreChange
-                    )
+            },
+            confirmButton = {
+                TextButton(onClick = onConfirm) {
+                    Text("OK")
                 }
-            }
-        },
-        confirmButton = {
-            TextButton(onClick = onConfirm) {
-                Text("OK")
-            }
-        },
-        dismissButton = {
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                TextButton(
-                    onClick = {
-                        pendingResetTarget = if (selectedTabIndex == 0) {
-                            "volume"
-                        } else if (dspNamespaceSelection == "core") {
-                            "dsp_core"
-                        } else {
-                            "dsp_global"
+            },
+            dismissButton = {
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    TextButton(
+                        onClick = {
+                            pendingResetTarget = if (selectedTabIndex == 0) {
+                                "volume"
+                            } else if (dspNamespaceSelection == "core") {
+                                "dsp_core"
+                            } else {
+                                "dsp_global"
+                            }
                         }
+                    ) {
+                        Text("Reset")
                     }
-                ) {
-                    Text("Reset")
-                }
-                TextButton(onClick = onDismiss) {
-                    Text("Cancel")
+                    TextButton(onClick = onDismiss) {
+                        Text("Cancel")
+                    }
                 }
             }
-        }
-    )
+        )
+    }
 
     if (pendingResetTarget != null) {
         val resetLabel = when (pendingResetTarget) {
@@ -237,19 +337,18 @@ fun AudioEffectsDialog(
             "dsp_core" -> "DSP parameters for the current core"
             else -> "Global DSP parameters"
         }
-        AlertDialog(
-            modifier = adaptiveDialogModifier(),
-            properties = adaptiveDialogProperties(),
-            onDismissRequest = { pendingResetTarget = null },
-            title = { Text("Confirm reset") },
-            text = { Text("Reset $resetLabel? This only affects the current section.") },
-            dismissButton = {
-                TextButton(onClick = { pendingResetTarget = null }) {
-                    Text("Cancel")
-                }
-            },
-            confirmButton = {
-                TextButton(
+        if (isWatchDevice()) {
+            WatchDialogContainer(
+                title = "Confirm reset",
+                onDismissRequest = { pendingResetTarget = null }
+            ) {
+                Text(
+                    text = "Reset $resetLabel? This only affects the current section.",
+                    style = MaterialTheme.typography.bodyMedium,
+                    textAlign = TextAlign.Center
+                )
+                Spacer(modifier = Modifier.height(4.dp))
+                Button(
                     onClick = {
                         when (pendingResetTarget) {
                             "volume" -> onResetVolumeTab()
@@ -257,12 +356,47 @@ fun AudioEffectsDialog(
                             else -> onResetDspScope("global")
                         }
                         pendingResetTarget = null
-                    }
+                    },
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(14.dp)
                 ) {
                     Text("Reset")
                 }
+                TextButton(
+                    onClick = { pendingResetTarget = null },
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text("Cancel")
+                }
             }
-        )
+        } else {
+            AlertDialog(
+                modifier = adaptiveDialogModifier(),
+                properties = adaptiveDialogProperties(),
+                onDismissRequest = { pendingResetTarget = null },
+                title = { Text("Confirm reset") },
+                text = { Text("Reset $resetLabel? This only affects the current section.") },
+                dismissButton = {
+                    TextButton(onClick = { pendingResetTarget = null }) {
+                        Text("Cancel")
+                    }
+                },
+                confirmButton = {
+                    TextButton(
+                        onClick = {
+                            when (pendingResetTarget) {
+                                "volume" -> onResetVolumeTab()
+                                "dsp_core" -> onResetDspScope("core")
+                                else -> onResetDspScope("global")
+                            }
+                            pendingResetTarget = null
+                        }
+                    ) {
+                        Text("Reset")
+                    }
+                }
+            )
+        }
     }
 }
 

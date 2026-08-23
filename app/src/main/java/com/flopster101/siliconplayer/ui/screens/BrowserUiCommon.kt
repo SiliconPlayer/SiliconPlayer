@@ -563,10 +563,13 @@ internal fun BrowserInfoDialog(
         scrollState = contentScrollState,
         label = "browserInfoDialogScrollbarAlpha"
     )
-    LaunchedEffect(Unit) {
-        contentFocusRequester.requestFocus()
+    val isWatch = isWatchDevice()
+    LaunchedEffect(isWatch) {
+        if (!isWatch) {
+            runCatching { contentFocusRequester.requestFocus() }
+        }
     }
-    if (isWatchDevice()) {
+    if (isWatch) {
         WatchDialogContainer(
             title = title,
             onDismissRequest = onDismiss
@@ -675,10 +678,13 @@ internal fun BrowserTextPreviewDialog(
         scrollState = contentScrollState,
         label = "browserTextPreviewScrollbarAlpha"
     )
-    LaunchedEffect(Unit) {
-        contentFocusRequester.requestFocus()
+    val isWatch = isWatchDevice()
+    LaunchedEffect(isWatch) {
+        if (!isWatch) {
+            runCatching { contentFocusRequester.requestFocus() }
+        }
     }
-    if (isWatchDevice()) {
+    if (isWatch) {
         WatchDialogContainer(
             title = decodePercentEncodedForDisplay(fileName) ?: fileName,
             onDismissRequest = onDismiss

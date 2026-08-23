@@ -15,16 +15,24 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Check
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Button
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.FilledTonalButton
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
@@ -39,6 +47,8 @@ import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.dp
 import com.flopster101.siliconplayer.VisualizationMode
+import com.flopster101.siliconplayer.WatchDialogContainer
+import com.flopster101.siliconplayer.isWatchDevice
 import com.flopster101.siliconplayer.adaptiveDialogModifier
 import com.flopster101.siliconplayer.adaptiveDialogProperties
 import com.flopster101.siliconplayer.rememberDialogScrollbarAlpha
@@ -83,81 +93,160 @@ internal fun VisualizationModePickerDialog(
     )
     val dragToFraction = rememberScrollStateScrollbarDragHandler(optionScrollState)
 
-    AlertDialog(
-        modifier = adaptiveDialogModifier(),
-        properties = adaptiveDialogProperties(),
-        onDismissRequest = onDismiss,
-        title = { Text("Visualization mode") },
-        text = {
-            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                Text(
-                    text = "Available visualizations depend on the current core and song.",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-                Box(
+    if (isWatchDevice()) {
+        WatchDialogContainer(
+            title = "Visualization mode",
+            onDismissRequest = onDismiss
+        ) {
+            Text(
+                text = "Basic",
+                style = MaterialTheme.typography.labelLarge,
+                color = MaterialTheme.colorScheme.primary
+            )
+            basicModes.forEach { mode ->
+                val isSelected = mode == selectedMode
+                Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .heightIn(max = listMaxHeight)
-                        .onSizeChanged { optionViewportHeightPx = it.height.toFloat() }
+                        .clip(RoundedCornerShape(14.dp))
+                        .background(
+                            if (isSelected) MaterialTheme.colorScheme.primaryContainer
+                            else MaterialTheme.colorScheme.surfaceContainerHigh
+                        )
+                        .clickable {
+                            onSelectMode(mode)
+                            onDismiss()
+                        }
+                        .padding(horizontal = 12.dp, vertical = 10.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
-                    CompositionLocalProvider(
-                        androidx.compose.material3.LocalMinimumInteractiveComponentEnforcement provides false
-                    ) {
-                        Column(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(end = 10.dp)
-                                .verticalScroll(optionScrollState),
-                            verticalArrangement = Arrangement.spacedBy(2.dp)
-                        ) {
-                            Text(
-                                text = "Basic",
-                                style = MaterialTheme.typography.labelMedium,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                modifier = Modifier.padding(top = 2.dp, bottom = 1.dp)
+                    if (isSelected) {
+                        Icon(
+                            imageVector = Icons.Default.Check,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.onPrimaryContainer,
+                            modifier = Modifier.size(18.dp)
+                        )
+                    }
+                    Text(
+                        text = mode.label,
+                        style = MaterialTheme.typography.bodyMedium,
+                        fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
+                        color = if (isSelected) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurface,
+                        modifier = Modifier.weight(1f)
+                    )
+                }
+            }
+            if (advancedModes.isNotEmpty()) {
+                Spacer(modifier = Modifier.height(4.dp))
+                Text(
+                    text = "Advanced",
+                    style = MaterialTheme.typography.labelLarge,
+                    color = MaterialTheme.colorScheme.primary
+                )
+                advancedModes.forEach { mode ->
+                    val isSelected = mode == selectedMode
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(14.dp))
+                            .background(
+                                if (isSelected) MaterialTheme.colorScheme.primaryContainer
+                                else MaterialTheme.colorScheme.surfaceContainerHigh
                             )
-                            basicModes.forEach { mode ->
-                                Row(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .clickable {
-                                            onSelectMode(mode)
-                                            onDismiss()
-                                        }
-                                        .padding(vertical = 2.dp),
-                                    verticalAlignment = Alignment.CenterVertically
-                                ) {
-                                    RadioButton(
-                                        selected = mode == selectedMode,
-                                        onClick = {
-                                            onSelectMode(mode)
-                                            onDismiss()
-                                        }
-                                    )
-                                    Spacer(modifier = Modifier.width(8.dp))
-                                    Text(
-                                        text = mode.label,
-                                        style = MaterialTheme.typography.bodyMedium
-                                    )
-                                }
+                            .clickable {
+                                onSelectMode(mode)
+                                onDismiss()
                             }
-                            Spacer(modifier = Modifier.height(4.dp))
-                            Text(
-                                text = "Advanced",
-                                style = MaterialTheme.typography.labelMedium,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                modifier = Modifier.padding(bottom = 1.dp)
+                            .padding(horizontal = 12.dp, vertical = 10.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        if (isSelected) {
+                            Icon(
+                                imageVector = Icons.Default.Check,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.onPrimaryContainer,
+                                modifier = Modifier.size(18.dp)
                             )
-                            if (advancedModes.isEmpty()) {
+                        }
+                        Text(
+                            text = mode.label,
+                            style = MaterialTheme.typography.bodyMedium,
+                            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
+                            color = if (isSelected) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurface,
+                            modifier = Modifier.weight(1f)
+                        )
+                    }
+                }
+            }
+            Spacer(modifier = Modifier.height(4.dp))
+            if (selectedMode != VisualizationMode.Off) {
+                FilledTonalButton(
+                    onClick = {
+                        onDismiss()
+                        onOpenSelectedVisualizationSettings()
+                    },
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(14.dp)
+                ) {
+                    Text("Selected settings")
+                }
+            }
+            FilledTonalButton(
+                onClick = {
+                    onDismiss()
+                    onOpenVisualizationSettings()
+                },
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(14.dp)
+            ) {
+                Text("Settings")
+            }
+            TextButton(
+                onClick = onDismiss,
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Text("Close")
+            }
+        }
+    } else {
+        AlertDialog(
+            modifier = adaptiveDialogModifier(),
+            properties = adaptiveDialogProperties(),
+            onDismissRequest = onDismiss,
+            title = { Text("Visualization mode") },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    Text(
+                        text = "Available visualizations depend on the current core and song.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .heightIn(max = listMaxHeight)
+                            .onSizeChanged { optionViewportHeightPx = it.height.toFloat() }
+                    ) {
+                        CompositionLocalProvider(
+                            androidx.compose.material3.LocalMinimumInteractiveComponentEnforcement provides false
+                        ) {
+                            Column(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(end = 10.dp)
+                                    .verticalScroll(optionScrollState),
+                                verticalArrangement = Arrangement.spacedBy(2.dp)
+                            ) {
                                 Text(
-                                    text = "No advanced visualizations available for this core.",
-                                    style = MaterialTheme.typography.bodySmall,
+                                    text = "Basic",
+                                    style = MaterialTheme.typography.labelMedium,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                    modifier = Modifier.padding(vertical = 2.dp)
+                                    modifier = Modifier.padding(top = 2.dp, bottom = 1.dp)
                                 )
-                            } else {
-                                advancedModes.forEach { mode ->
+                                basicModes.forEach { mode ->
                                     Row(
                                         modifier = Modifier
                                             .fillMaxWidth()
@@ -182,48 +271,89 @@ internal fun VisualizationModePickerDialog(
                                         )
                                     }
                                 }
+                                Spacer(modifier = Modifier.height(4.dp))
+                                Text(
+                                    text = "Advanced",
+                                    style = MaterialTheme.typography.labelMedium,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    modifier = Modifier.padding(bottom = 1.dp)
+                                )
+                                if (advancedModes.isEmpty()) {
+                                    Text(
+                                        text = "No advanced visualizations available for this core.",
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        modifier = Modifier.padding(vertical = 2.dp)
+                                    )
+                                } else {
+                                    advancedModes.forEach { mode ->
+                                        Row(
+                                            modifier = Modifier
+                                                .fillMaxWidth()
+                                                .clickable {
+                                                    onSelectMode(mode)
+                                                    onDismiss()
+                                                }
+                                                .padding(vertical = 2.dp),
+                                            verticalAlignment = Alignment.CenterVertically
+                                        ) {
+                                            RadioButton(
+                                                selected = mode == selectedMode,
+                                                onClick = {
+                                                    onSelectMode(mode)
+                                                    onDismiss()
+                                                }
+                                            )
+                                            Spacer(modifier = Modifier.width(8.dp))
+                                            Text(
+                                                text = mode.label,
+                                                style = MaterialTheme.typography.bodyMedium
+                                            )
+                                        }
+                                    }
+                                }
                             }
                         }
-                    }
-                    if (optionScrollState.maxValue > 0 && optionViewportHeightPx > 0f) {
-                        VerticalScrollbarTrack(
-                            thumbFraction = scrollbarThumbFraction,
-                            offsetFraction = scrollbarOffsetFraction,
-                            modifier = Modifier
-                                .align(Alignment.CenterEnd)
-                                .width(4.dp)
-                                .fillMaxHeight()
-                                .graphicsLayer(alpha = scrollbarAlpha),
-                            trackColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.12f),
-                            thumbColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.42f),
-                            onDragFractionChanged = dragToFraction
-                        )
+                        if (optionScrollState.maxValue > 0 && optionViewportHeightPx > 0f) {
+                            VerticalScrollbarTrack(
+                                thumbFraction = scrollbarThumbFraction,
+                                offsetFraction = scrollbarOffsetFraction,
+                                modifier = Modifier
+                                    .align(Alignment.CenterEnd)
+                                    .width(4.dp)
+                                    .fillMaxHeight()
+                                    .graphicsLayer(alpha = scrollbarAlpha),
+                                trackColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.12f),
+                                thumbColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.42f),
+                                onDragFractionChanged = dragToFraction
+                            )
+                        }
                     }
                 }
-            }
-        },
-        dismissButton = {
-            TextButton(onClick = onDismiss) {
-                Text("Close")
-            }
-        },
-        confirmButton = {
-            Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                if (selectedMode != VisualizationMode.Off) {
+            },
+            dismissButton = {
+                TextButton(onClick = onDismiss) {
+                    Text("Close")
+                }
+            },
+            confirmButton = {
+                Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                    if (selectedMode != VisualizationMode.Off) {
+                        TextButton(onClick = {
+                            onDismiss()
+                            onOpenSelectedVisualizationSettings()
+                        }) {
+                            Text("Selected settings")
+                        }
+                    }
                     TextButton(onClick = {
                         onDismiss()
-                        onOpenSelectedVisualizationSettings()
+                        onOpenVisualizationSettings()
                     }) {
-                        Text("Selected settings")
+                        Text("Settings")
                     }
                 }
-                TextButton(onClick = {
-                    onDismiss()
-                    onOpenVisualizationSettings()
-                }) {
-                    Text("Settings")
-                }
             }
-        }
-    )
+        )
+    }
 }

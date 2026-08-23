@@ -19,10 +19,13 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Button
+import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
@@ -43,38 +46,110 @@ internal fun AboutEntityDialog(
     entity: AboutEntity,
     onDismiss: () -> Unit
 ) {
-    AlertDialog(
-        modifier = adaptiveDialogModifier(),
-        properties = adaptiveDialogProperties(),
-        onDismissRequest = onDismiss,
-        title = {
-            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+    if (isWatchDevice()) {
+        val context = LocalContext.current
+        val versionLabel = remember(entity.id) { AboutCatalog.resolveVersion(entity.id) }
+        WatchDialogContainer(
+            title = entity.name,
+            onDismissRequest = onDismiss
+        ) {
+            Surface(
+                shape = RoundedCornerShape(10.dp),
+                color = MaterialTheme.colorScheme.primaryContainer
+            ) {
                 Text(
-                    text = entity.name,
-                    style = MaterialTheme.typography.headlineSmall
+                    text = if (entity.kind == AboutEntityKind.Core) "Core" else "Library",
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.onPrimaryContainer,
+                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp)
                 )
-                Surface(
-                    shape = RoundedCornerShape(10.dp),
-                    color = MaterialTheme.colorScheme.primaryContainer
-                ) {
-                    Text(
-                        text = if (entity.kind == AboutEntityKind.Core) "Core" else "Library",
-                        style = MaterialTheme.typography.labelMedium,
-                        color = MaterialTheme.colorScheme.onPrimaryContainer,
-                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp)
-                    )
+            }
+            Spacer(modifier = Modifier.height(4.dp))
+            Text(
+                text = entity.description,
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurface,
+                textAlign = TextAlign.Center
+            )
+            AboutEntityInfoLine(
+                label = "Author",
+                value = entity.author
+            )
+            AboutEntityInfoLine(
+                label = "License",
+                value = entity.license
+            )
+            if (!versionLabel.isNullOrBlank()) {
+                AboutEntityInfoLine(
+                    label = "Version",
+                    value = versionLabel
+                )
+            }
+            if (entity.links.isNotEmpty()) {
+                Text(
+                    text = "Upstream links",
+                    style = MaterialTheme.typography.titleSmall,
+                    color = MaterialTheme.colorScheme.onSurface
+                )
+                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    entity.links.forEach { link ->
+                        FilledTonalButton(
+                            onClick = {
+                                runCatching {
+                                    context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(link.url)))
+                                }
+                            },
+                            modifier = Modifier.fillMaxWidth(),
+                            shape = RoundedCornerShape(12.dp)
+                        ) {
+                            Text(link.label.ifBlank { link.url })
+                        }
+                    }
                 }
             }
-        },
-        text = {
-            AboutEntityDialogContent(entity = entity)
-        },
-        confirmButton = {
-            TextButton(onClick = onDismiss) {
+            Spacer(modifier = Modifier.height(4.dp))
+            Button(
+                onClick = onDismiss,
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(14.dp)
+            ) {
                 Text("Close")
             }
         }
-    )
+    } else {
+        AlertDialog(
+            modifier = adaptiveDialogModifier(),
+            properties = adaptiveDialogProperties(),
+            onDismissRequest = onDismiss,
+            title = {
+                Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    Text(
+                        text = entity.name,
+                        style = MaterialTheme.typography.headlineSmall
+                    )
+                    Surface(
+                        shape = RoundedCornerShape(10.dp),
+                        color = MaterialTheme.colorScheme.primaryContainer
+                    ) {
+                        Text(
+                            text = if (entity.kind == AboutEntityKind.Core) "Core" else "Library",
+                            style = MaterialTheme.typography.labelMedium,
+                            color = MaterialTheme.colorScheme.onPrimaryContainer,
+                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp)
+                        )
+                    }
+                }
+            },
+            text = {
+                AboutEntityDialogContent(entity = entity)
+            },
+            confirmButton = {
+                TextButton(onClick = onDismiss) {
+                    Text("Close")
+                }
+            }
+        )
+    }
 }
 
 @Composable

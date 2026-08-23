@@ -14,9 +14,11 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Button
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
@@ -51,87 +53,145 @@ internal fun CoreCapabilitiesDialog(
         label = "coreCapabilitiesScrollbarAlpha"
     )
 
-    AlertDialog(
-        modifier = adaptiveDialogModifier(),
-        properties = adaptiveDialogProperties(),
-        onDismissRequest = onDismiss,
-        title = { Text("Core capabilities") },
-        text = {
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .heightIn(max = maxHeight)
-                    .onSizeChanged { viewportHeightPx = it.height }
-            ) {
-                Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .verticalScroll(scrollState)
-                ) {
+    if (isWatchDevice()) {
+        WatchDialogContainer(
+            title = "Core capabilities",
+            onDismissRequest = onDismiss
+        ) {
+            Text(
+                text = if (isLiveSnapshot) {
+                    "Showing a runtime capability snapshot for this core (it is currently active)."
+                } else {
+                    "Showing reported baseline capabilities for this core."
+                },
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                textAlign = TextAlign.Center
+            )
+            Spacer(modifier = Modifier.height(4.dp))
+            sections.forEachIndexed { sectionIndex, section ->
+                if (sectionIndex > 0) {
+                    Spacer(modifier = Modifier.height(8.dp))
+                }
+                Text(
+                    text = section.title,
+                    style = MaterialTheme.typography.titleSmall,
+                    color = MaterialTheme.colorScheme.primary
+                )
+                Spacer(modifier = Modifier.height(4.dp))
+                section.items.forEach { item ->
+                    val line = buildAnnotatedString {
+                        withStyle(
+                            style = androidx.compose.ui.text.SpanStyle(
+                                color = MaterialTheme.colorScheme.primary,
+                                fontWeight = FontWeight.Bold
+                            )
+                        ) {
+                            append(item.id.replace("_", "_\u200B"))
+                        }
+                        append(": ")
+                        append(item.description)
+                    }
                     Text(
-                        text = if (isLiveSnapshot) {
-                            "Showing a runtime capability snapshot for this core (it is currently active)."
-                        } else {
-                            "Showing reported baseline capabilities for this core."
-                        },
+                        text = line,
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
-                    Spacer(modifier = Modifier.height(10.dp))
-                    sections.forEachIndexed { sectionIndex, section ->
-                        if (sectionIndex > 0) {
-                            Spacer(modifier = Modifier.height(12.dp))
-                        }
-                        Text(
-                            text = section.title,
-                            style = MaterialTheme.typography.titleSmall,
-                            color = MaterialTheme.colorScheme.onSurface
-                        )
-                        Spacer(modifier = Modifier.height(6.dp))
-                        section.items.forEach { item ->
-                            val line = buildAnnotatedString {
-                                withStyle(
-                                    style = androidx.compose.ui.text.SpanStyle(
-                                        color = MaterialTheme.colorScheme.primary,
-                                        fontWeight = FontWeight.Bold
-                                    )
-                                ) {
-                                    append(item.id.replace("_", "_\u200B"))
-                                }
-                                append(": ")
-                                append(item.description)
-                            }
-                            Text(
-                                text = line,
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                            Spacer(modifier = Modifier.height(4.dp))
-                        }
-                    }
-                }
-
-                if (viewportHeightPx > 0 && scrollState.maxValue > 0) {
-                    val viewportHeightDp = with(density) { viewportHeightPx.toDp() }
-                    CoreCapabilitiesScrollbar(
-                        scrollState = scrollState,
-                        viewportHeightPx = viewportHeightPx,
-                        modifier = Modifier
-                            .align(Alignment.TopEnd)
-                            .width(4.dp)
-                            .height(viewportHeightDp)
-                            .offset(x = (-2).dp)
-                            .graphicsLayer(alpha = scrollbarAlpha)
-                    )
+                    Spacer(modifier = Modifier.height(2.dp))
                 }
             }
-        },
-        confirmButton = {
-            TextButton(onClick = onDismiss) {
+            Spacer(modifier = Modifier.height(6.dp))
+            Button(
+                onClick = onDismiss,
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(14.dp)
+            ) {
                 Text("Close")
             }
         }
-    )
+    } else {
+        AlertDialog(
+            modifier = adaptiveDialogModifier(),
+            properties = adaptiveDialogProperties(),
+            onDismissRequest = onDismiss,
+            title = { Text("Core capabilities") },
+            text = {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .heightIn(max = maxHeight)
+                        .onSizeChanged { viewportHeightPx = it.height }
+                ) {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .verticalScroll(scrollState)
+                    ) {
+                        Text(
+                            text = if (isLiveSnapshot) {
+                                "Showing a runtime capability snapshot for this core (it is currently active)."
+                            } else {
+                                "Showing reported baseline capabilities for this core."
+                            },
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        Spacer(modifier = Modifier.height(10.dp))
+                        sections.forEachIndexed { sectionIndex, section ->
+                            if (sectionIndex > 0) {
+                                Spacer(modifier = Modifier.height(12.dp))
+                            }
+                            Text(
+                                text = section.title,
+                                style = MaterialTheme.typography.titleSmall,
+                                color = MaterialTheme.colorScheme.onSurface
+                            )
+                            Spacer(modifier = Modifier.height(6.dp))
+                            section.items.forEach { item ->
+                                val line = buildAnnotatedString {
+                                    withStyle(
+                                        style = androidx.compose.ui.text.SpanStyle(
+                                            color = MaterialTheme.colorScheme.primary,
+                                            fontWeight = FontWeight.Bold
+                                        )
+                                    ) {
+                                        append(item.id.replace("_", "_\u200B"))
+                                    }
+                                    append(": ")
+                                    append(item.description)
+                                }
+                                Text(
+                                    text = line,
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                                Spacer(modifier = Modifier.height(4.dp))
+                            }
+                        }
+                    }
+
+                    if (viewportHeightPx > 0 && scrollState.maxValue > 0) {
+                        val viewportHeightDp = with(density) { viewportHeightPx.toDp() }
+                        CoreCapabilitiesScrollbar(
+                            scrollState = scrollState,
+                            viewportHeightPx = viewportHeightPx,
+                            modifier = Modifier
+                                .align(Alignment.TopEnd)
+                                .width(4.dp)
+                                .height(viewportHeightDp)
+                                .offset(x = (-2).dp)
+                                .graphicsLayer(alpha = scrollbarAlpha)
+                        )
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = onDismiss) {
+                    Text("Close")
+                }
+            }
+        )
+    }
 }
 
 @Composable

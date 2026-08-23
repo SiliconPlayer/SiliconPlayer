@@ -52,6 +52,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.foundation.Image
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Button
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -1154,46 +1155,84 @@ internal fun HomeScreen(
         }
     }
     pendingPinRecentEntry?.let { (entry, isFolder) ->
-        AlertDialog(
-            onDismissRequest = {
-                pendingPinRecentEntry = null
-                pendingPinEvictionCandidate = null
-            },
-            title = { Text("Pin limit reached") },
-            text = {
+        val eviction = pendingPinEvictionCandidate
+        val message = buildString {
+            append("You can pin up to $PINNED_HOME_ENTRIES_LIMIT entries. ")
+            if (eviction != null) {
+                append("The oldest pinned ")
+                append(if (eviction.isFolder) "folder" else "file")
+                append(" will be removed to make space.")
+            } else {
+                append("The oldest pinned entry will be removed to make space.")
+            }
+        }
+        if (isWatchDevice()) {
+            WatchDialogContainer(
+                title = "Pin limit reached",
+                onDismissRequest = {
+                    pendingPinRecentEntry = null
+                    pendingPinEvictionCandidate = null
+                }
+            ) {
                 Text(
-                    text = buildString {
-                        append("You can pin up to $PINNED_HOME_ENTRIES_LIMIT entries. ")
-                        val eviction = pendingPinEvictionCandidate
-                        if (eviction != null) {
-                            append("The oldest pinned ")
-                            append(if (eviction.isFolder) "folder" else "file")
-                            append(" will be removed to make space.")
-                        } else {
-                            append("The oldest pinned entry will be removed to make space.")
-                        }
-                    },
-                    style = MaterialTheme.typography.bodyMedium
+                    text = message,
+                    style = MaterialTheme.typography.bodyMedium,
+                    textAlign = TextAlign.Center
                 )
-            },
-            confirmButton = {
-                androidx.compose.material3.TextButton(
+                Spacer(modifier = Modifier.height(4.dp))
+                Button(
                     onClick = {
                         if (isFolder) onPinRecentFolder(entry) else onPinRecentFile(entry)
                         pendingPinRecentEntry = null
                         pendingPinEvictionCandidate = null
-                    }
-                ) { Text("Continue") }
-            },
-            dismissButton = {
-                androidx.compose.material3.TextButton(
+                    },
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(14.dp)
+                ) {
+                    Text("Continue")
+                }
+                TextButton(
                     onClick = {
                         pendingPinRecentEntry = null
                         pendingPinEvictionCandidate = null
-                    }
-                ) { Text("Cancel") }
+                    },
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text("Cancel")
+                }
             }
-        )
+        } else {
+            AlertDialog(
+                onDismissRequest = {
+                    pendingPinRecentEntry = null
+                    pendingPinEvictionCandidate = null
+                },
+                title = { Text("Pin limit reached") },
+                text = {
+                    Text(
+                        text = message,
+                        style = MaterialTheme.typography.bodyMedium
+                    )
+                },
+                confirmButton = {
+                    androidx.compose.material3.TextButton(
+                        onClick = {
+                            if (isFolder) onPinRecentFolder(entry) else onPinRecentFile(entry)
+                            pendingPinRecentEntry = null
+                            pendingPinEvictionCandidate = null
+                        }
+                    ) { Text("Continue") }
+                },
+                dismissButton = {
+                    androidx.compose.material3.TextButton(
+                        onClick = {
+                            pendingPinRecentEntry = null
+                            pendingPinEvictionCandidate = null
+                        }
+                    ) { Text("Cancel") }
+                }
+            )
+        }
     }
     pendingBulkClearTarget?.let { target ->
         val (title, message) = when (target) {
@@ -1210,45 +1249,71 @@ internal fun HomeScreen(
                     "This will remove all entries from the Recently played section."
             }
         }
-        AlertDialog(
-            onDismissRequest = { pendingBulkClearTarget = null },
-            title = { Text(title) },
-            text = {
+        val onConfirmClear = {
+            when (target) {
+                HomeBulkClearTarget.Pinned -> {
+                    onClearPinnedEntries()
+                }
+                HomeBulkClearTarget.RecentFolders -> {
+                    onClearRecentFolders()
+                }
+                HomeBulkClearTarget.RecentPlayed -> {
+                    onClearRecentPlayed()
+                    activePlayedPromoteKey = null
+                    requestedPlayedPromoteKey = null
+                }
+            }
+            folderActionTargetEntry = null
+            fileActionTargetEntry = null
+            pinnedFolderActionTarget = null
+            pinnedFileActionTarget = null
+            pendingBulkClearTarget = null
+        }
+        if (isWatchDevice()) {
+            WatchDialogContainer(
+                title = title,
+                onDismissRequest = { pendingBulkClearTarget = null }
+            ) {
                 Text(
                     text = message,
-                    style = MaterialTheme.typography.bodyMedium
+                    style = MaterialTheme.typography.bodyMedium,
+                    textAlign = TextAlign.Center
                 )
-            },
-            confirmButton = {
+                Spacer(modifier = Modifier.height(4.dp))
+                Button(
+                    onClick = onConfirmClear,
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(14.dp)
+                ) {
+                    Text("Clear all")
+                }
                 TextButton(
-                    onClick = {
-                        when (target) {
-                            HomeBulkClearTarget.Pinned -> {
-                                onClearPinnedEntries()
-                            }
-                            HomeBulkClearTarget.RecentFolders -> {
-                                onClearRecentFolders()
-                            }
-                            HomeBulkClearTarget.RecentPlayed -> {
-                                onClearRecentPlayed()
-                                activePlayedPromoteKey = null
-                                requestedPlayedPromoteKey = null
-                            }
-                        }
-                        folderActionTargetEntry = null
-                        fileActionTargetEntry = null
-                        pinnedFolderActionTarget = null
-                        pinnedFileActionTarget = null
-                        pendingBulkClearTarget = null
-                    }
-                ) { Text("Clear all") }
-            },
-            dismissButton = {
-                TextButton(
-                    onClick = { pendingBulkClearTarget = null }
-                ) { Text("Cancel") }
+                    onClick = { pendingBulkClearTarget = null },
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text("Cancel")
+                }
             }
-        )
+        } else {
+            AlertDialog(
+                onDismissRequest = { pendingBulkClearTarget = null },
+                title = { Text(title) },
+                text = {
+                    Text(
+                        text = message,
+                        style = MaterialTheme.typography.bodyMedium
+                    )
+                },
+                confirmButton = {
+                    TextButton(onClick = onConfirmClear) { Text("Clear all") }
+                },
+                dismissButton = {
+                    TextButton(
+                        onClick = { pendingBulkClearTarget = null }
+                    ) { Text("Cancel") }
+                }
+            )
+        }
     }
 
 }
