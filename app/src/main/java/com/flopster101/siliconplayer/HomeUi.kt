@@ -151,10 +151,11 @@ internal fun buildRecentTrackDisplay(
     artist: String,
     fallback: String
 ): RecentTrackDisplay {
+    val cleanedArtist = formatDisplayArtist(artist)
     return when {
-        title.isNotBlank() && artist.isNotBlank() -> {
+        title.isNotBlank() && cleanedArtist.isNotBlank() -> {
             RecentTrackDisplay(
-                primaryText = "$artist - $title",
+                primaryText = "$cleanedArtist - $title",
                 includeFilenameInSubtitle = true
             )
         }

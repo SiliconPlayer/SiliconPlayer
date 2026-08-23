@@ -314,7 +314,7 @@ internal fun BoxScope.MiniPlayerOverlayHost(
                 selectedFile?.name?.let(::inferredDisplayTitleForName)
                     ?: "No track loaded"
             }
-            val displayArtist = metadataArtist.ifBlank {
+            val displayArtist = formatDisplayArtist(metadataArtist).ifBlank {
                 if (selectedFile != null) "Unknown Artist" else "Unknown"
             }
             if (isWatch) {

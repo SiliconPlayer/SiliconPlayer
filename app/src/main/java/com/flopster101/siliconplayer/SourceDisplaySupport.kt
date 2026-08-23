@@ -98,3 +98,14 @@ private fun sourceLeafNameForArchiveLogicalPath(path: String): String? {
         }
     }
 }
+
+internal fun formatDisplayArtist(rawArtist: String?): String {
+    val trimmed = rawArtist?.trim().orEmpty()
+    if (trimmed.isBlank() || !trimmed.contains(';')) return trimmed
+    return trimmed
+        .split(';')
+        .map { it.trim() }
+        .filter { it.isNotEmpty() }
+        .joinToString(", ")
+}
+

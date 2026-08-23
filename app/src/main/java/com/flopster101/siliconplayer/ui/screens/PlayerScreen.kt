@@ -5,6 +5,7 @@ import android.content.Context
 import android.content.SharedPreferences
 import android.widget.Toast
 import com.flopster101.siliconplayer.NativeBridge
+import com.flopster101.siliconplayer.formatDisplayArtist
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.Crossfade
@@ -796,7 +797,10 @@ internal fun PlayerScreen(
             else -> inferredDisplayTitleForName(file.name)
         }
     }
-    val displayArtist = artist.ifBlank { if (hasTrack) "Unknown Artist" else "Unknown" }
+    val displayArtist = remember(artist, hasTrack) {
+        val parsed = formatDisplayArtist(artist)
+        parsed.ifBlank { if (hasTrack) "Unknown Artist" else "Unknown" }
+    }
     val displayAlbum = album.ifBlank { if (hasTrack) "Unknown Album" else "" }
     val displayFilename = file?.let { toDisplayFilename(it) }.orEmpty()
     val fileSizeBytes = file?.length() ?: 0L
@@ -2813,19 +2817,20 @@ private fun PortraitTrackMetadataBlock(
     val supportingFontBoost = supportingScaleBoost.coerceAtLeast(0f).sp
     val supportingLineBoost = (supportingScaleBoost.coerceAtLeast(0f) * 1.33f).sp
     val titleTextStyle = MaterialTheme.typography.headlineSmall.copy(
-        fontSize = (lerpSp(18.sp, 28.sp, effectiveTitleScale).value + titleFontBoost.value).sp,
-        lineHeight = (lerpSp(22.sp, 34.sp, effectiveTitleScale).value + titleLineBoost.value).sp
+        fontSize = (lerpSp(20.sp, 28.sp, effectiveTitleScale).value + titleFontBoost.value).sp,
+        lineHeight = (lerpSp(25.sp, 34.sp, effectiveTitleScale).value + titleLineBoost.value).sp,
+        fontWeight = FontWeight.SemiBold
     )
-    val artistTextStyle = titleTextStyle.copy(
-        fontSize = (lerpSp(11.5.sp, 15.5.sp, effectiveSupportingScale).value + supportingFontBoost.value).sp,
-        lineHeight = (lerpSp(13.sp, 17.sp, effectiveSupportingScale).value + supportingLineBoost.value).sp,
+    val artistTextStyle = MaterialTheme.typography.titleMedium.copy(
+        fontSize = (lerpSp(12.5.sp, 16.sp, effectiveSupportingScale).value + supportingFontBoost.value).sp,
+        lineHeight = (lerpSp(15.sp, 20.sp, effectiveSupportingScale).value + supportingLineBoost.value).sp,
         fontWeight = FontWeight.Medium
     )
     val filenameTextStyle = MaterialTheme.typography.bodySmall.copy(
         fontSize = (lerpSp(11.sp, 14.sp, effectiveSupportingScale).value + supportingFontBoost.value).sp,
         lineHeight = (lerpSp(14.sp, 18.sp, effectiveSupportingScale).value + supportingLineBoost.value).sp
     )
-    val technicalSummaryTextStyle = MaterialTheme.typography.bodySmall.copy(
+    val technicalSummaryTextStyle = MaterialTheme.typography.labelMedium.copy(
         fontSize = (lerpSp(10.5.sp, 13.sp, effectiveSupportingScale).value + supportingFontBoost.value).sp,
         lineHeight = (lerpSp(13.sp, 17.sp, effectiveSupportingScale).value + supportingLineBoost.value).sp
     )
@@ -2943,8 +2948,9 @@ private fun PortraitTrackMetadataBlock(
                         centered = false
                     )
                     Spacer(modifier = Modifier.height(lerpDp(2.dp, 5.dp, layoutScale)))
+                    val formattedArtist = remember(artist) { formatDisplayArtist(artist) }
                     AnimatedContent(
-                        targetState = if (album.isNotBlank()) "$artist • $album" else artist,
+                        targetState = if (album.isNotBlank()) "$formattedArtist • $album" else formattedArtist,
                         transitionSpec = {
                             fadeIn(animationSpec = tween(durationMillis = 180, delayMillis = 25)) togetherWith
                                 fadeOut(animationSpec = tween(durationMillis = 110))
@@ -3047,7 +3053,7 @@ private fun PortraitTrackMetadataBlock(
                                     Text(
                                         text = animatedLine,
                                         style = technicalSummaryTextStyle,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.9f),
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
                                         maxLines = 1,
                                         softWrap = false,
                                         overflow = TextOverflow.Ellipsis,
@@ -3082,11 +3088,13 @@ private fun TrackMetadataBlock(
 ) {
     val titleTextStyle = MaterialTheme.typography.headlineSmall.copy(
         fontSize = lerpSp(20.sp, 30.sp, layoutScale),
-        lineHeight = lerpSp(26.sp, 36.sp, layoutScale)
+        lineHeight = lerpSp(26.sp, 36.sp, layoutScale),
+        fontWeight = FontWeight.SemiBold
     )
     val artistTextStyle = MaterialTheme.typography.titleMedium.copy(
         fontSize = lerpSp(13.sp, 18.sp, layoutScale),
-        lineHeight = lerpSp(17.sp, 24.sp, layoutScale)
+        lineHeight = lerpSp(17.sp, 24.sp, layoutScale),
+        fontWeight = FontWeight.Medium
     )
     val titleArtistSpacer = lerpDp(3.dp, 8.dp, layoutScale)
     val artistFilenameSpacer = lerpDp(1.dp, 6.dp, layoutScale)
@@ -3173,8 +3181,9 @@ private fun TrackMetadataBlock(
             centered = centerSupportingMetadata
         )
         Spacer(modifier = Modifier.height(titleArtistSpacer))
+        val formattedArtist = remember(artist) { formatDisplayArtist(artist) }
         AnimatedContent(
-            targetState = artist,
+            targetState = formattedArtist,
             transitionSpec = {
                 fadeIn(animationSpec = tween(durationMillis = 180, delayMillis = 30)) togetherWith
                     fadeOut(animationSpec = tween(durationMillis = 110))
