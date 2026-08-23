@@ -1054,6 +1054,7 @@ private fun AppNavigationBackHandlers(
     settingsLaunchedFromPlayer: Boolean,
     showUrlOrPathDialog: Boolean,
     showMiniPlayerFocusHighlight: Boolean,
+    pressBackTwiceToExit: Boolean,
     onRestoreMiniPlayerFocusOnCollapseChanged: (Boolean) -> Unit,
     onPlayerExpandedChanged: (Boolean) -> Unit,
     onCollapseDragInProgressChanged: (Boolean) -> Unit,
@@ -1093,7 +1094,8 @@ private fun AppNavigationBackHandlers(
         context = context,
         currentView = currentView,
         isPlayerExpanded = isPlayerExpanded,
-        showUrlOrPathDialog = showUrlOrPathDialog
+        showUrlOrPathDialog = showUrlOrPathDialog,
+        pressBackTwiceToExit = pressBackTwiceToExit
     )
 }
 
@@ -1309,13 +1311,15 @@ private fun HomeExitBackHandler(
     context: Context,
     currentView: MainView,
     isPlayerExpanded: Boolean,
-    showUrlOrPathDialog: Boolean
+    showUrlOrPathDialog: Boolean,
+    pressBackTwiceToExit: Boolean
 ) {
     val hostActivity = context as? Activity
     var lastHomeBackPressedAtMs by remember { mutableLongStateOf(0L) }
 
     BackHandler(
-        enabled = currentView == MainView.Home &&
+        enabled = pressBackTwiceToExit &&
+            currentView == MainView.Home &&
             !isPlayerExpanded &&
             !showUrlOrPathDialog
     ) {
@@ -1465,6 +1469,14 @@ private fun AppNavigation(
         mutableIntStateOf(
             prefs.getInt(AppPreferenceKeys.RECENT_PLAYED_FILES_LIMIT, RECENT_FILES_LIMIT_DEFAULT)
                 .coerceIn(1, RECENTS_LIMIT_MAX)
+        )
+    }
+    var pressBackTwiceToExit by remember {
+        mutableStateOf(
+            prefs.getBoolean(
+                AppPreferenceKeys.PRESS_BACK_TWICE_TO_EXIT,
+                AppDefaults.Home.pressBackTwiceToExit
+            )
         )
     }
     var recentFolders by remember {
@@ -3006,6 +3018,7 @@ onStopEngine = { NativeBridge.releaseCurrentDecoder() }, onMetadataAlbumChanged 
         playlistWrapNavigation = playlistWrapNavigation,
         previousRestartsAfterThreshold = previousRestartsAfterThreshold,
         fadePauseResume = fadePauseResume,
+        pressBackTwiceToExit = pressBackTwiceToExit,
         rememberBrowserLocation = rememberBrowserLocation,
         showParentDirectoryEntry = showParentDirectoryEntry,
         showFileIconChipBackground = showFileIconChipBackground,
@@ -3223,6 +3236,7 @@ onStopEngine = { NativeBridge.releaseCurrentDecoder() }, onMetadataAlbumChanged 
         settingsLaunchedFromPlayer = settingsLaunchedFromPlayer,
         showUrlOrPathDialog = settingsStates.showUrlOrPathDialog.value,
         showMiniPlayerFocusHighlight = showMiniPlayerFocusHighlight,
+        pressBackTwiceToExit = pressBackTwiceToExit,
         onRestoreMiniPlayerFocusOnCollapseChanged = { restoreMiniPlayerFocusOnCollapse = it },
         onPlayerExpandedChanged = { isPlayerExpanded = it },
         onCollapseDragInProgressChanged = { playerTransition.collapseDragInProgress = it },
@@ -3705,6 +3719,7 @@ onStopEngine = { NativeBridge.releaseCurrentDecoder() }, onMetadataAlbumChanged 
                                     browserNameSortMode = browserNameSortMode,
                                     recentFoldersLimit = recentFoldersLimit,
                                     recentFilesLimit = recentFilesLimit,
+                                    pressBackTwiceToExit = pressBackTwiceToExit,
                                     keepScreenOn = keepScreenOn,
                                     playerArtworkCornerRadiusDp = playerArtworkCornerRadiusDp,
                                     filenameDisplayMode = filenameDisplayMode,
@@ -3868,6 +3883,7 @@ onStopEngine = { NativeBridge.releaseCurrentDecoder() }, onMetadataAlbumChanged 
                                     onBrowserNameSortModeChanged = { browserNameSortMode = it },
                                     onRecentFoldersLimitChanged = { recentFoldersLimit = it.coerceIn(1, RECENTS_LIMIT_MAX) },
                                     onRecentFilesLimitChanged = { recentFilesLimit = it.coerceIn(1, RECENTS_LIMIT_MAX) },
+                                    onPressBackTwiceToExitChanged = { pressBackTwiceToExit = it },
                                     onUrlCacheClearOnLaunchChanged = { enabled ->
                             updateUrlCacheClearOnLaunchAction(
                                 prefs = prefs,

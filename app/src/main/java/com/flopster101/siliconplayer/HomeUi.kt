@@ -50,9 +50,11 @@ import androidx.compose.material3.ElevatedCard
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import android.widget.Toast
 import androidx.compose.foundation.Image
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
+import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -228,6 +230,14 @@ internal fun HomeScreen(
             onPlayPinnedFile = onPlayPinnedFile,
             onOpenRecentFolder = onOpenRecentFolder,
             onPlayRecentFile = onPlayRecentFile,
+            onPinRecentFolder = onPinRecentFolder,
+            onPinRecentFile = onPinRecentFile,
+            onPinnedFolderAction = onPinnedFolderAction,
+            onPinnedFileAction = onPinnedFileAction,
+            onRecentFolderAction = onRecentFolderAction,
+            onRecentFileAction = onRecentFileAction,
+            canShareRecentFile = canShareRecentFile,
+            canSharePinnedFile = canSharePinnedFile,
             onOpenSettings = onOpenSettings ?: {},
             onOpenUrlOrPath = onOpenUrlOrPath ?: {}
         )
@@ -1777,6 +1787,7 @@ private fun androidx.compose.ui.text.AnnotatedString.Builder.appendBoldSourceTyp
     append(suffix)
 }
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 internal fun WearHomeScreen(
     pinnedHomeEntries: List<HomePinnedEntry>,
@@ -1790,12 +1801,50 @@ internal fun WearHomeScreen(
     onPlayPinnedFile: (HomePinnedEntry) -> Unit,
     onOpenRecentFolder: (RecentPathEntry) -> Unit,
     onPlayRecentFile: (RecentPathEntry) -> Unit,
+    onPinRecentFolder: (RecentPathEntry) -> Unit = {},
+    onPinRecentFile: (RecentPathEntry) -> Unit = {},
+    onPinnedFolderAction: (HomePinnedEntry, FolderEntryAction) -> Unit = { _, _ -> },
+    onPinnedFileAction: (HomePinnedEntry, SourceEntryAction) -> Unit = { _, _ -> },
+    onRecentFolderAction: (RecentPathEntry, FolderEntryAction) -> Unit = { _, _ -> },
+    onRecentFileAction: (RecentPathEntry, SourceEntryAction) -> Unit = { _, _ -> },
+    canShareRecentFile: (RecentPathEntry) -> Boolean = { false },
+    canSharePinnedFile: (HomePinnedEntry) -> Boolean = { false },
     onOpenPlayerSurface: () -> Unit = {},
     onOpenSettings: () -> Unit = {},
     onOpenUrlOrPath: () -> Unit = {}
 ) {
     val configuration = LocalConfiguration.current
     val isRound = configuration.isScreenRound
+    val context = LocalContext.current
+    var selectedPinnedEntryForActions by remember { mutableStateOf<HomePinnedEntry?>(null) }
+    var selectedRecentFolderForActions by remember { mutableStateOf<RecentPathEntry?>(null) }
+    var selectedRecentFileForActions by remember { mutableStateOf<RecentPathEntry?>(null) }
+    var pendingPinConfirmation by remember { mutableStateOf<Pair<RecentPathEntry, Boolean>?>(null) }
+    var pendingPinEvictionCandidate by remember { mutableStateOf<HomePinnedEntry?>(null) }
+
+    fun requestPinRecentEntry(entry: RecentPathEntry, isFolder: Boolean) {
+        val preview = previewPinnedHomeEntryInsertion(
+            current = pinnedHomeEntries,
+            candidate = HomePinnedEntry(
+                path = entry.path,
+                isFolder = isFolder,
+                locationId = entry.locationId,
+                title = entry.title,
+                artist = entry.artist,
+                decoderName = entry.decoderName,
+                sourceNodeId = entry.sourceNodeId,
+                artworkThumbnailCacheKey = entry.artworkThumbnailCacheKey
+            ),
+            maxItems = PINNED_HOME_ENTRIES_LIMIT
+        )
+        if (preview.requiresConfirmation) {
+            pendingPinConfirmation = entry to isFolder
+            pendingPinEvictionCandidate = preview.evictionCandidate
+        } else {
+            if (isFolder) onPinRecentFolder(entry) else onPinRecentFile(entry)
+            Toast.makeText(context, if (isFolder) "Pinned folder to home" else "Pinned file to home", Toast.LENGTH_SHORT).show()
+        }
+    }
 
     Column(
         modifier = Modifier
@@ -1864,6 +1913,9 @@ internal fun WearHomeScreen(
                     isFolder = pinned.isFolder,
                     onClick = {
                         if (pinned.isFolder) onOpenPinnedFolder(pinned) else onPlayPinnedFile(pinned)
+                    },
+                    onLongClick = {
+                        selectedPinnedEntryForActions = pinned
                     }
                 )
             }
@@ -1883,7 +1935,10 @@ internal fun WearHomeScreen(
                     title = recent.title?.takeIf { it.isNotBlank() } ?: recent.path.substringAfterLast('/'),
                     subtitle = recent.artist,
                     isFolder = false,
-                    onClick = { onPlayRecentFile(recent) }
+                    onClick = { onPlayRecentFile(recent) },
+                    onLongClick = {
+                        selectedRecentFileForActions = recent
+                    }
                 )
             }
         }
@@ -1902,7 +1957,10 @@ internal fun WearHomeScreen(
                     title = folder.path.substringAfterLast('/').ifBlank { folder.path },
                     subtitle = null,
                     isFolder = true,
-                    onClick = { onOpenRecentFolder(folder) }
+                    onClick = { onOpenRecentFolder(folder) },
+                    onLongClick = {
+                        selectedRecentFolderForActions = folder
+                    }
                 )
             }
         }
@@ -1970,6 +2028,294 @@ internal fun WearHomeScreen(
             }
         }
     }
+
+    // Modal: Pinned Entry Context Actions
+    selectedPinnedEntryForActions?.let { pinned ->
+        val itemTitle = pinned.title?.takeIf { it.isNotBlank() } ?: pinned.path.substringAfterLast('/').ifBlank { pinned.path }
+        WatchDialogContainer(
+            title = itemTitle,
+            onDismissRequest = { selectedPinnedEntryForActions = null }
+        ) {
+            if (!pinned.artist.isNullOrBlank()) {
+                Text(
+                    text = pinned.artist,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    textAlign = TextAlign.Center,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(bottom = 4.dp)
+                )
+            }
+            Button(
+                onClick = {
+                    selectedPinnedEntryForActions = null
+                    if (pinned.isFolder) {
+                        onPinnedFolderAction(pinned, FolderEntryAction.OpenInBrowser)
+                    } else {
+                        onPinnedFileAction(pinned, SourceEntryAction.OpenInBrowser)
+                    }
+                },
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(14.dp)
+            ) {
+                Text("Open location")
+            }
+
+            FilledTonalButton(
+                onClick = {
+                    selectedPinnedEntryForActions = null
+                    if (pinned.isFolder) {
+                        onPinnedFolderAction(pinned, FolderEntryAction.DeleteFromRecents)
+                    } else {
+                        onPinnedFileAction(pinned, SourceEntryAction.DeleteFromRecents)
+                    }
+                },
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(14.dp)
+            ) {
+                Text(if (pinned.isFolder) "Unpin folder" else "Unpin file")
+            }
+
+            if (!pinned.isFolder && canSharePinnedFile(pinned)) {
+                FilledTonalButton(
+                    onClick = {
+                        selectedPinnedEntryForActions = null
+                        onPinnedFileAction(pinned, SourceEntryAction.ShareFile)
+                    },
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(14.dp)
+                ) {
+                    Text("Share file")
+                }
+            }
+
+            FilledTonalButton(
+                onClick = {
+                    selectedPinnedEntryForActions = null
+                    if (pinned.isFolder) {
+                        onPinnedFolderAction(pinned, FolderEntryAction.CopyPath)
+                    } else {
+                        onPinnedFileAction(pinned, SourceEntryAction.CopySource)
+                    }
+                },
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(14.dp)
+            ) {
+                Text(if (pinned.isFolder) "Copy path" else "Copy URL/path")
+            }
+
+            Spacer(modifier = Modifier.height(4.dp))
+            TextButton(
+                onClick = { selectedPinnedEntryForActions = null },
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Text("Cancel")
+            }
+        }
+    }
+
+    // Modal: Recent Folder Context Actions
+    selectedRecentFolderForActions?.let { folder ->
+        val folderTitle = folder.path.substringAfterLast('/').ifBlank { folder.path }
+        WatchDialogContainer(
+            title = folderTitle,
+            onDismissRequest = { selectedRecentFolderForActions = null }
+        ) {
+            Button(
+                onClick = {
+                    selectedRecentFolderForActions = null
+                    onRecentFolderAction(folder, FolderEntryAction.OpenInBrowser)
+                },
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(14.dp)
+            ) {
+                Text("Open location")
+            }
+
+            FilledTonalButton(
+                onClick = {
+                    selectedRecentFolderForActions = null
+                    requestPinRecentEntry(folder, true)
+                },
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(14.dp)
+            ) {
+                Text("Pin folder to home")
+            }
+
+            FilledTonalButton(
+                onClick = {
+                    selectedRecentFolderForActions = null
+                    onRecentFolderAction(folder, FolderEntryAction.DeleteFromRecents)
+                },
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(14.dp)
+            ) {
+                Text("Delete from recents")
+            }
+
+            FilledTonalButton(
+                onClick = {
+                    selectedRecentFolderForActions = null
+                    onRecentFolderAction(folder, FolderEntryAction.CopyPath)
+                },
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(14.dp)
+            ) {
+                Text("Copy path")
+            }
+
+            Spacer(modifier = Modifier.height(4.dp))
+            TextButton(
+                onClick = { selectedRecentFolderForActions = null },
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Text("Cancel")
+            }
+        }
+    }
+
+    // Modal: Recent Track Context Actions
+    selectedRecentFileForActions?.let { file ->
+        val fileTitle = file.title?.takeIf { it.isNotBlank() } ?: file.path.substringAfterLast('/').ifBlank { file.path }
+        WatchDialogContainer(
+            title = fileTitle,
+            onDismissRequest = { selectedRecentFileForActions = null }
+        ) {
+            if (!file.artist.isNullOrBlank()) {
+                Text(
+                    text = file.artist,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    textAlign = TextAlign.Center,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(bottom = 4.dp)
+                )
+            }
+            Button(
+                onClick = {
+                    selectedRecentFileForActions = null
+                    onRecentFileAction(file, SourceEntryAction.OpenInBrowser)
+                },
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(14.dp)
+            ) {
+                Text("Open location")
+            }
+
+            FilledTonalButton(
+                onClick = {
+                    selectedRecentFileForActions = null
+                    requestPinRecentEntry(file, false)
+                },
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(14.dp)
+            ) {
+                Text("Pin file to home")
+            }
+
+            FilledTonalButton(
+                onClick = {
+                    selectedRecentFileForActions = null
+                    onRecentFileAction(file, SourceEntryAction.DeleteFromRecents)
+                },
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(14.dp)
+            ) {
+                Text("Delete from recents")
+            }
+
+            if (canShareRecentFile(file)) {
+                FilledTonalButton(
+                    onClick = {
+                        selectedRecentFileForActions = null
+                        onRecentFileAction(file, SourceEntryAction.ShareFile)
+                    },
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(14.dp)
+                ) {
+                    Text("Share file")
+                }
+            }
+
+            FilledTonalButton(
+                onClick = {
+                    selectedRecentFileForActions = null
+                    onRecentFileAction(file, SourceEntryAction.CopySource)
+                },
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(14.dp)
+            ) {
+                Text("Copy URL/path")
+            }
+
+            Spacer(modifier = Modifier.height(4.dp))
+            TextButton(
+                onClick = { selectedRecentFileForActions = null },
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Text("Cancel")
+            }
+        }
+    }
+
+    // Modal: Pin limit reached confirmation
+    pendingPinConfirmation?.let { (entry, isFolder) ->
+        val evictionCandidate = pendingPinEvictionCandidate
+        val messageText = buildString {
+            append("You can pin up to $PINNED_HOME_ENTRIES_LIMIT entries. ")
+            if (evictionCandidate != null) {
+                append("The oldest pinned ")
+                append(if (evictionCandidate.isFolder) "folder" else "file")
+                append(" will be removed to make space.")
+            } else {
+                append("The oldest pinned entry will be removed to make space.")
+            }
+        }
+        val onContinue = {
+            if (isFolder) onPinRecentFolder(entry) else onPinRecentFile(entry)
+            pendingPinConfirmation = null
+            pendingPinEvictionCandidate = null
+            Toast.makeText(context, if (isFolder) "Pinned folder to home" else "Pinned file to home", Toast.LENGTH_SHORT).show()
+        }
+        val onCancel = {
+            pendingPinConfirmation = null
+            pendingPinEvictionCandidate = null
+        }
+
+        WatchDialogContainer(
+            title = "Pin limit reached",
+            onDismissRequest = onCancel
+        ) {
+            Text(
+                text = messageText,
+                style = MaterialTheme.typography.bodyMedium,
+                textAlign = TextAlign.Center,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(bottom = 8.dp)
+            )
+            Button(
+                onClick = onContinue,
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(14.dp)
+            ) {
+                Text("Continue")
+            }
+            TextButton(
+                onClick = onCancel,
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Text("Cancel")
+            }
+        }
+    }
 }
 
 @Composable
@@ -2012,18 +2358,24 @@ private fun WearHomeMenuCard(
     }
 }
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun WearHomeItemRow(
     title: String,
     subtitle: String?,
     isFolder: Boolean,
-    onClick: () -> Unit
+    onClick: () -> Unit,
+    onLongClick: (() -> Unit)? = null
 ) {
     Surface(
-        onClick = onClick,
         modifier = Modifier
             .fillMaxWidth()
-            .height(42.dp),
+            .height(42.dp)
+            .clip(RoundedCornerShape(21.dp))
+            .combinedClickable(
+                onClick = onClick,
+                onLongClick = onLongClick
+            ),
         shape = RoundedCornerShape(21.dp),
         color = MaterialTheme.colorScheme.surfaceContainerHigh,
         contentColor = MaterialTheme.colorScheme.onSurface

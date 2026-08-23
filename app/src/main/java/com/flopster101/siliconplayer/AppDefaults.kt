@@ -1,6 +1,10 @@
 package com.flopster101.siliconplayer
 
 object AppDefaults {
+    object Home {
+        const val pressBackTwiceToExit = false
+    }
+
     object Browser {
         val nameSortMode = BrowserNameSortMode.Natural
         const val showParentDirectoryEntry = true

@@ -27,6 +27,7 @@ internal fun AppNavigationTrackPreferenceEffects(
     playlistWrapNavigation: Boolean,
     previousRestartsAfterThreshold: Boolean,
     fadePauseResume: Boolean,
+    pressBackTwiceToExit: Boolean,
     rememberBrowserLocation: Boolean,
     showParentDirectoryEntry: Boolean,
     showFileIconChipBackground: Boolean,
@@ -133,6 +134,12 @@ internal fun AppNavigationTrackPreferenceEffects(
             .putBoolean(AppPreferenceKeys.FADE_PAUSE_RESUME, fadePauseResume)
             .apply()
         PlaybackService.refreshSettings(context)
+    }
+
+    LaunchedEffect(pressBackTwiceToExit) {
+        prefs.edit()
+            .putBoolean(AppPreferenceKeys.PRESS_BACK_TWICE_TO_EXIT, pressBackTwiceToExit)
+            .apply()
     }
 
     LaunchedEffect(rememberBrowserLocation) {

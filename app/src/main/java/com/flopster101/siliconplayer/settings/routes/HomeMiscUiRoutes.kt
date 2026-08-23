@@ -21,12 +21,14 @@ import androidx.compose.ui.unit.dp
 
 internal data class HomeRouteState(
     val recentFoldersLimit: Int,
-    val recentFilesLimit: Int
+    val recentFilesLimit: Int,
+    val pressBackTwiceToExit: Boolean
 )
 
 internal data class HomeRouteActions(
     val onRecentFoldersLimitChanged: (Int) -> Unit,
-    val onRecentFilesLimitChanged: (Int) -> Unit
+    val onRecentFilesLimitChanged: (Int) -> Unit,
+    val onPressBackTwiceToExitChanged: (Boolean) -> Unit
 )
 
 internal data class FileBrowserRouteState(
@@ -85,6 +87,15 @@ internal fun HomeRouteContent(
         description = "${state.recentFilesLimit} files",
         icon = Icons.Default.MusicNote,
         onClick = { showFileLimitDialog = true }
+    )
+
+    SettingsRowSpacer()
+    SettingsSectionLabel("Navigation")
+    PlayerSettingToggleCard(
+        title = "Press back twice to exit",
+        description = "Require pressing back twice quickly on the Home screen to exit the app.",
+        checked = state.pressBackTwiceToExit,
+        onCheckedChange = actions.onPressBackTwiceToExitChanged
     )
 
     if (showFolderLimitDialog) {

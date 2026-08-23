@@ -55,6 +55,7 @@ internal object AppPreferenceKeys {
     const val PLAYLIST_LIBRARY_JSON = "playlist_library_json"
     const val RECENT_FOLDERS_LIMIT = "recent_folders_limit"
     const val RECENT_PLAYED_FILES_LIMIT = "recent_played_files_limit"
+    const val PRESS_BACK_TWICE_TO_EXIT = "press_back_twice_to_exit"
     const val KEEP_SCREEN_ON = "keep_screen_on"
     const val PLAYER_ARTWORK_CORNER_RADIUS_DP = "player_artwork_corner_radius_dp"
     const val AUDIO_FOCUS_INTERRUPT = "audio_focus_interrupt"
