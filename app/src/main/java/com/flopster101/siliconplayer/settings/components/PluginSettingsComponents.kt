@@ -1,5 +1,6 @@
 package com.flopster101.siliconplayer
 
+import android.content.pm.PackageManager
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.LinearOutSlowInEasing
 import androidx.compose.animation.core.animateFloatAsState
@@ -42,6 +43,8 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.zIndex
@@ -90,6 +93,9 @@ internal fun PluginListItemCard(
     )
     val displayOffsetY = animatedDragOffsetY + if (isDragging) 0f else rowNudgeAnim.value
 
+    val context = LocalContext.current
+    val isWatch = remember(context) { context.packageManager.hasSystemFeature(PackageManager.FEATURE_WATCH) }
+
     Surface(
         modifier = Modifier
             .fillMaxWidth()
@@ -112,41 +118,50 @@ internal fun PluginListItemCard(
             modifier = Modifier
                 .fillMaxWidth()
                 .onSizeChanged { onMeasuredHeight(it.height.toFloat()) }
-                .padding(horizontal = 16.dp, vertical = 13.dp),
+                .padding(
+                    horizontal = if (isWatch) 10.dp else 16.dp,
+                    vertical = if (isWatch) 8.dp else 13.dp
+                ),
             verticalAlignment = Alignment.CenterVertically
         ) {
             Column(modifier = Modifier.weight(1f)) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Text(
                         text = pluginName,
-                        style = MaterialTheme.typography.titleMedium
+                        style = if (isWatch) MaterialTheme.typography.titleSmall else MaterialTheme.typography.titleMedium,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.weight(1f, fill = false)
                     )
-                    Spacer(modifier = Modifier.width(8.dp))
+                    Spacer(modifier = Modifier.width(if (isWatch) 6.dp else 8.dp))
                     Surface(
                         color = MaterialTheme.colorScheme.primaryContainer,
                         shape = RoundedCornerShape(4.dp)
                     ) {
                         Text(
-                            text = "Priority: $priority",
+                            text = if (isWatch) "$priority" else "Priority: $priority",
                             style = MaterialTheme.typography.labelSmall,
-                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                            modifier = Modifier.padding(horizontal = if (isWatch) 6.dp else 6.dp, vertical = 2.dp)
                         )
                     }
                 }
-                Spacer(modifier = Modifier.height(4.dp))
+                Spacer(modifier = Modifier.height(if (isWatch) 2.dp else 4.dp))
                 val extensionCount = remember(pluginName) {
                     NativeBridge.getDecoderEnabledExtensions(pluginName).size
                 }
                 Text(
-                    text = "$extensionCount extensions enabled",
+                    text = if (isWatch) "$extensionCount extensions" else "$extensionCount extensions enabled",
                     style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
                 )
             }
+            Spacer(modifier = Modifier.width(if (isWatch) 6.dp else 10.dp))
             Box(
                 modifier = Modifier
-                    .width(PluginRowTrailingSlotWidth)
-                    .height(PluginRowTrailingSlotHeight),
+                    .width(if (isWatch) 46.dp else PluginRowTrailingSlotWidth)
+                    .height(if (isWatch) 40.dp else PluginRowTrailingSlotHeight),
                 contentAlignment = Alignment.CenterEnd
             ) {
                 if (editMode) {
@@ -155,7 +170,7 @@ internal fun PluginListItemCard(
                         contentDescription = "Drag to reorder",
                         tint = MaterialTheme.colorScheme.onSurfaceVariant,
                         modifier = Modifier
-                            .size(28.dp)
+                            .size(if (isWatch) 22.dp else 28.dp)
                             .let { base ->
                                 if (enableInteractions) {
                                     base.pointerInput(pluginName, editMode) {

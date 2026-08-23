@@ -1,5 +1,6 @@
 package com.flopster101.siliconplayer
 
+import android.content.pm.PackageManager
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.core.FastOutLinearInEasing
 import androidx.compose.animation.core.FastOutSlowInEasing
@@ -19,7 +20,10 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 
@@ -36,6 +40,11 @@ internal fun SettingsRouteContentHost(
     onRequestClearAllSettings: () -> Unit,
     onRequestClearPluginSettings: () -> Unit
 ) {
+    val context = LocalContext.current
+    val isWatch = remember(context) { context.packageManager.hasSystemFeature(PackageManager.FEATURE_WATCH) }
+    val isRound = LocalConfiguration.current.isScreenRound
+    val extraBottomPadding = if (isWatch) (if (isRound) 56.dp else 24.dp) else 0.dp
+
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -75,14 +84,18 @@ internal fun SettingsRouteContentHost(
             label = "settingsRouteTransition",
             modifier = Modifier
                 .fillMaxSize()
-                .padding(start = 16.dp, end = 16.dp)
+                .padding(start = if (isWatch) 0.dp else 16.dp, end = if (isWatch) 0.dp else 16.dp)
         ) { currentRoute ->
             Column(
                 modifier = Modifier
                     .fillMaxSize()
                     .verticalScroll(state = rememberScrollState())
+                    .padding(
+                        start = if (isWatch) (if (isRound) 14.dp else 8.dp) else 0.dp,
+                        end = if (isWatch) (if (isRound) 14.dp else 8.dp) else 0.dp
+                    )
             ) {
-                Spacer(modifier = Modifier.height(8.dp))
+                Spacer(modifier = Modifier.height(if (isWatch) 4.dp else 8.dp))
 
                 SettingsRowsHost {
                     when (currentRoute) {
@@ -463,8 +476,9 @@ internal fun SettingsRouteContentHost(
                     }
                 }
 
-                if (bottomContentPadding > 0.dp) {
-                    Spacer(modifier = Modifier.height(bottomContentPadding))
+                val totalBottom = bottomContentPadding + extraBottomPadding
+                if (totalBottom > 0.dp) {
+                    Spacer(modifier = Modifier.height(totalBottom))
                 }
             }
         }

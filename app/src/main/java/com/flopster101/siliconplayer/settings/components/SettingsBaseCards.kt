@@ -1,5 +1,6 @@
 package com.flopster101.siliconplayer
 
+import android.content.pm.PackageManager
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -8,6 +9,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -28,6 +30,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.compose.foundation.shape.RoundedCornerShape
 
@@ -85,6 +88,9 @@ internal fun SettingsRowContainer(
     enabled: Boolean = true,
     content: @Composable RowScope.() -> Unit
 ) {
+    val context = LocalContext.current
+    val isWatch = remember(context) { context.packageManager.hasSystemFeature(PackageManager.FEATURE_WATCH) }
+    val outerCorner = if (isWatch) 16.dp else SettingsOuterCorner
     val sequencer = LocalSettingsRowSequencer.current
     val rowRole = remember { mutableStateOf(SettingsRowRole.Standalone) }
     DisposableEffect(sequencer) {
@@ -92,10 +98,10 @@ internal fun SettingsRowContainer(
         onDispose { }
     }
     val shape = when (rowRole.value) {
-        SettingsRowRole.Standalone -> RoundedCornerShape(SettingsOuterCorner)
+        SettingsRowRole.Standalone -> RoundedCornerShape(outerCorner)
         SettingsRowRole.Top -> RoundedCornerShape(
-            topStart = SettingsOuterCorner,
-            topEnd = SettingsOuterCorner,
+            topStart = outerCorner,
+            topEnd = outerCorner,
             bottomStart = SettingsInnerCorner,
             bottomEnd = SettingsInnerCorner
         )
@@ -103,8 +109,8 @@ internal fun SettingsRowContainer(
         SettingsRowRole.Bottom -> RoundedCornerShape(
             topStart = SettingsInnerCorner,
             topEnd = SettingsInnerCorner,
-            bottomStart = SettingsOuterCorner,
-            bottomEnd = SettingsOuterCorner
+            bottomStart = outerCorner,
+            bottomEnd = outerCorner
         )
     }
     Surface(
@@ -120,7 +126,10 @@ internal fun SettingsRowContainer(
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 16.dp, vertical = 13.dp),
+                .padding(
+                    horizontal = if (isWatch) 12.dp else 16.dp,
+                    vertical = if (isWatch) 9.dp else 13.dp
+                ),
             verticalAlignment = Alignment.CenterVertically,
             content = content
         )
@@ -139,6 +148,8 @@ internal fun SettingsRowSpacer() {
 
 @Composable
 internal fun SettingsSectionLabel(text: String) {
+    val context = LocalContext.current
+    val isWatch = remember(context) { context.packageManager.hasSystemFeature(PackageManager.FEATURE_WATCH) }
     val sequencer = LocalSettingsRowSequencer.current
     DisposableEffect(sequencer, text) {
         sequencer?.onSectionBoundary()
@@ -146,7 +157,7 @@ internal fun SettingsSectionLabel(text: String) {
     }
     Text(
         text = text,
-        style = MaterialTheme.typography.labelLarge,
+        style = if (isWatch) MaterialTheme.typography.labelMedium else MaterialTheme.typography.labelLarge,
         color = MaterialTheme.colorScheme.onSurfaceVariant,
         modifier = Modifier.padding(start = SettingsSectionLabelStartInset)
     )
@@ -170,24 +181,29 @@ internal fun SettingsItemCard(
     icon: ImageVector,
     onClick: () -> Unit
 ) {
+    val context = LocalContext.current
+    val isWatch = remember(context) { context.packageManager.hasSystemFeature(PackageManager.FEATURE_WATCH) }
     SettingsRowContainer(onClick = onClick) {
         Icon(
             imageVector = icon,
             contentDescription = null,
-            tint = MaterialTheme.colorScheme.onSurfaceVariant
+            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = if (isWatch) Modifier.size(20.dp) else Modifier.size(24.dp)
         )
-        Spacer(modifier = Modifier.width(12.dp))
+        Spacer(modifier = Modifier.width(if (isWatch) 8.dp else 12.dp))
         Column(modifier = Modifier.weight(1f)) {
             Text(
                 text = title,
-                style = MaterialTheme.typography.titleMedium
+                style = if (isWatch) MaterialTheme.typography.titleSmall else MaterialTheme.typography.titleMedium
             )
-            Spacer(modifier = Modifier.height(2.dp))
-            Text(
-                text = description,
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
+            if (description.isNotBlank()) {
+                Spacer(modifier = Modifier.height(2.dp))
+                Text(
+                    text = description,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
         }
     }
 }
@@ -200,6 +216,8 @@ internal fun SettingsValuePickerCard(
     onClick: () -> Unit,
     enabled: Boolean = true
 ) {
+    val context = LocalContext.current
+    val isWatch = remember(context) { context.packageManager.hasSystemFeature(PackageManager.FEATURE_WATCH) }
     val contentAlpha = if (enabled) 1f else 0.38f
     SettingsRowContainer(
         onClick = onClick,
@@ -208,20 +226,22 @@ internal fun SettingsValuePickerCard(
         Column(modifier = Modifier.weight(1f)) {
             Text(
                 text = title,
-                style = MaterialTheme.typography.titleMedium,
+                style = if (isWatch) MaterialTheme.typography.titleSmall else MaterialTheme.typography.titleMedium,
                 color = MaterialTheme.colorScheme.onSurface.copy(alpha = contentAlpha)
             )
-            Spacer(modifier = Modifier.height(2.dp))
-            Text(
-                text = description,
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = contentAlpha)
-            )
+            if (description.isNotBlank()) {
+                Spacer(modifier = Modifier.height(2.dp))
+                Text(
+                    text = description,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = contentAlpha)
+                )
+            }
         }
-        Spacer(modifier = Modifier.width(12.dp))
+        Spacer(modifier = Modifier.width(if (isWatch) 8.dp else 12.dp))
         Text(
             text = value,
-            style = MaterialTheme.typography.titleMedium,
+            style = if (isWatch) MaterialTheme.typography.titleSmall else MaterialTheme.typography.titleMedium,
             color = MaterialTheme.colorScheme.onSurface.copy(alpha = contentAlpha)
         )
     }
@@ -235,6 +255,8 @@ internal fun PlayerSettingToggleCard(
     onCheckedChange: (Boolean) -> Unit,
     enabled: Boolean = true
 ) {
+    val context = LocalContext.current
+    val isWatch = remember(context) { context.packageManager.hasSystemFeature(PackageManager.FEATURE_WATCH) }
     var localChecked by remember(title) { mutableStateOf(checked) }
     LaunchedEffect(checked) {
         localChecked = checked
@@ -252,17 +274,19 @@ internal fun PlayerSettingToggleCard(
         Column(modifier = Modifier.weight(1f)) {
             Text(
                 text = title,
-                style = MaterialTheme.typography.titleMedium,
+                style = if (isWatch) MaterialTheme.typography.titleSmall else MaterialTheme.typography.titleMedium,
                 color = if (enabled) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.38f)
             )
-            Spacer(modifier = Modifier.height(2.dp))
-            Text(
-                text = description,
-                style = MaterialTheme.typography.bodySmall,
-                color = if (enabled) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.38f)
-            )
+            if (description.isNotBlank()) {
+                Spacer(modifier = Modifier.height(2.dp))
+                Text(
+                    text = description,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = if (enabled) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.38f)
+                )
+            }
         }
-        Spacer(modifier = Modifier.width(12.dp))
+        Spacer(modifier = Modifier.width(if (isWatch) 8.dp else 12.dp))
         Switch(
             checked = localChecked,
             onCheckedChange = { newValue ->
