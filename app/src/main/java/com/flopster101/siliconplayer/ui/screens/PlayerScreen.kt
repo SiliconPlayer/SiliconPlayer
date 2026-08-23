@@ -1109,6 +1109,7 @@ internal fun PlayerScreen(
                     onToggleFavoriteTrack = onToggleFavoriteTrack,
                     canToggleFavoriteTrack = pathOrUrl != null,
                     onOpenAudioEffects = onOpenAudioEffects,
+                    onOpenChannelControls = { showChannelControlDialog = true },
                     onBack = onBack,
                     onOpenTrackInfo = { showTrackInfoDialog = true }
                 )
@@ -4849,6 +4850,7 @@ private fun WearPlayerContent(
     onToggleFavoriteTrack: () -> Unit,
     canToggleFavoriteTrack: Boolean,
     onOpenAudioEffects: () -> Unit,
+    onOpenChannelControls: () -> Unit,
     onBack: () -> Unit,
     onOpenTrackInfo: () -> Unit,
     modifier: Modifier = Modifier
@@ -4859,6 +4861,7 @@ private fun WearPlayerContent(
     var isSeeking by remember { mutableStateOf(false) }
     var sliderPosition by remember { mutableDoubleStateOf(0.0) }
     var isTimelineTouchActive by remember { mutableStateOf(false) }
+    var showMoreMenuDialog by remember { mutableStateOf(false) }
 
     val modes = remember(availableVisualizationModes) {
         if (availableVisualizationModes.isNotEmpty()) {
@@ -5368,17 +5371,78 @@ private fun WearPlayerContent(
                         }
 
                         IconButton(
-                            onClick = onOpenAudioEffects,
+                            onClick = { showMoreMenuDialog = true },
                             modifier = Modifier.size(actionBtnSize)
                         ) {
                             Icon(
-                                imageVector = Icons.Default.Tune,
-                                contentDescription = "Audio Effects",
+                                imageVector = Icons.Default.MoreVert,
+                                contentDescription = "More options",
                                 modifier = Modifier.size(actionIconSize),
                                 tint = MaterialTheme.colorScheme.onSurfaceVariant
                             )
                         }
                     }
+                }
+            }
+        }
+
+        if (showMoreMenuDialog) {
+            WatchDialogContainer(
+                title = "More options",
+                onDismissRequest = { showMoreMenuDialog = false }
+            ) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(14.dp))
+                        .background(MaterialTheme.colorScheme.surfaceContainerHigh)
+                        .clickable {
+                            showMoreMenuDialog = false
+                            onOpenAudioEffects()
+                        }
+                        .padding(horizontal = 12.dp, vertical = 10.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Tune,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.size(18.dp)
+                    )
+                    Text(
+                        text = "Audio Effects",
+                        style = MaterialTheme.typography.bodyMedium,
+                        fontWeight = FontWeight.Medium,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                }
+
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(14.dp))
+                        .background(MaterialTheme.colorScheme.surfaceContainerHigh)
+                        .clickable {
+                            showMoreMenuDialog = false
+                            onOpenChannelControls()
+                        }
+                        .padding(horizontal = 12.dp, vertical = 10.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    Icon(
+                        painter = painterResource(id = R.drawable.ic_airwave),
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.size(18.dp)
+                    )
+                    Text(
+                        text = "Channel Controls",
+                        style = MaterialTheme.typography.bodyMedium,
+                        fontWeight = FontWeight.Medium,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
                 }
             }
         }
