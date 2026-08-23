@@ -4460,12 +4460,12 @@ private fun TimelineSection(
             "-:--"
         }
     }
-    val sliderHeight = lerpDp(30.dp, 44.dp, layoutScale)
-    val timeTextStyle = if (layoutScale < 0.35f) {
+    val sliderHeight = lerpDp(36.dp, 48.dp, layoutScale)
+    val timeTextStyle = (if (layoutScale < 0.35f) {
         MaterialTheme.typography.labelSmall
     } else {
         MaterialTheme.typography.labelMedium
-    }
+    }).copy(fontFeatureSettings = "tnum")
     Column(modifier = Modifier.fillMaxWidth()) {
         LineageStyleSeekBar(
             value = normalizedValue,
@@ -4533,8 +4533,9 @@ private fun LineageStyleSeekBar(
     val colorScheme = MaterialTheme.colorScheme
     val density = LocalDensity.current
     val trackHeightPx = with(density) { lerpDp(8.dp, 10.dp, layoutScale).toPx() }
-    val thumbWidthPx = with(density) { lerpDp(6.dp, 7.dp, layoutScale).toPx() }
-    val thumbHeightPx = with(density) { lerpDp(24.dp, 34.dp, layoutScale).toPx() }
+    val thumbWidthPx = with(density) { lerpDp(4.dp, 5.dp, layoutScale).toPx() }
+    val thumbHeightPx = with(density) { lerpDp(28.dp, 36.dp, layoutScale).toPx() }
+    val cutoutGapPx = with(density) { lerpDp(2.5.dp, 3.dp, layoutScale).toPx() }
     val thumbGrabRadiusPx = with(density) { lerpDp(18.dp, 22.dp, layoutScale).toPx() }
     val tapLaneHalfHeightPx = with(density) { lerpDp(18.dp, 24.dp, layoutScale).toPx() }
     var barWidthPx by remember { mutableFloatStateOf(0f) }
@@ -4658,28 +4659,44 @@ private fun LineageStyleSeekBar(
         val trackStartX = thumbWidthPx / 2f
         val trackEndX = (size.width - thumbWidthPx / 2f).coerceAtLeast(trackStartX)
         val trackWidth = (trackEndX - trackStartX).coerceAtLeast(0f)
-        val activeWidth = trackWidth * ratio
+        val thumbX = (trackStartX + trackWidth * ratio).coerceIn(trackStartX, trackEndX)
+        val thumbHalfWidth = thumbWidthPx / 2f
+        val thumbLeft = (thumbX - thumbHalfWidth).coerceIn(0f, size.width - thumbWidthPx)
+        val thumbRight = thumbLeft + thumbWidthPx
 
-        drawRoundRect(
-            color = inactiveColor,
-            topLeft = Offset(trackStartX, top),
-            size = Size(trackWidth, trackHeightPx),
-            cornerRadius = trackCorner
-        )
+        // Active track (left of thumb) with cutout gap
+        val activeStart = trackStartX
+        val activeEnd = (thumbLeft - cutoutGapPx).coerceAtLeast(activeStart)
+        val activeWidth = (activeEnd - activeStart).coerceAtLeast(0f)
         if (activeWidth > 0f) {
             drawRoundRect(
                 color = activeColor,
-                topLeft = Offset(trackStartX, top),
+                topLeft = Offset(activeStart, top),
                 size = Size(activeWidth, trackHeightPx),
                 cornerRadius = trackCorner
             )
         }
-        if (seekInProgress) {
-            val bandWidth = trackWidth * 0.18f
-            val travel = trackWidth + bandWidth
+
+        // Inactive track (right of thumb) with cutout gap
+        val inactiveStart = (thumbRight + cutoutGapPx).coerceAtMost(trackEndX)
+        val inactiveEnd = trackEndX
+        val inactiveWidth = (inactiveEnd - inactiveStart).coerceAtLeast(0f)
+        if (inactiveWidth > 0f) {
+            drawRoundRect(
+                color = inactiveColor,
+                topLeft = Offset(inactiveStart, top),
+                size = Size(inactiveWidth, trackHeightPx),
+                cornerRadius = trackCorner
+            )
+        }
+
+        // Seeking animation (within active track)
+        if (seekInProgress && activeWidth > 0f) {
+            val bandWidth = activeWidth * 0.35f
+            val travel = activeWidth + bandWidth
             val bandLeft = (seekFlowPhase * travel) - bandWidth
-            val drawLeft = (trackStartX + bandLeft).coerceAtLeast(trackStartX)
-            val drawRight = (trackStartX + bandLeft + bandWidth).coerceAtMost(trackEndX)
+            val drawLeft = (activeStart + bandLeft).coerceAtLeast(activeStart)
+            val drawRight = (activeStart + bandLeft + bandWidth).coerceAtMost(activeEnd)
             if (drawRight > drawLeft) {
                 drawRoundRect(
                     color = activeColor.copy(alpha = 0.36f),
@@ -4690,7 +4707,6 @@ private fun LineageStyleSeekBar(
             }
         }
 
-        val thumbX = (trackStartX + activeWidth).coerceIn(trackStartX, trackEndX)
         if (thumbHovered || thumbPressed || draggingThumb) {
             drawCircle(
                 color = activeColor.copy(alpha = 0.22f),
@@ -4698,7 +4714,6 @@ private fun LineageStyleSeekBar(
                 center = Offset(thumbX, centerY)
             )
         }
-        val thumbLeft = (thumbX - thumbWidthPx / 2f).coerceIn(0f, size.width - thumbWidthPx)
         val thumbTop = centerY - thumbHeightPx / 2f
         drawRoundRect(
             color = activeColor,
@@ -5153,7 +5168,7 @@ private fun WearPlayerContent(
 
                             Text(
                                 text = timeString,
-                                style = MaterialTheme.typography.labelMedium,
+                                style = MaterialTheme.typography.labelMedium.copy(fontFeatureSettings = "tnum"),
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                                 modifier = Modifier
                                     .clip(RoundedCornerShape(8.dp))

@@ -422,7 +422,7 @@ internal fun MiniPlayerBar(
                         } else {
                             "$formatLabel • $positionLabel / $durationLabel"
                         },
-                        style = MaterialTheme.typography.labelSmall,
+                        style = MaterialTheme.typography.labelSmall.copy(fontFeatureSettings = "tnum"),
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
