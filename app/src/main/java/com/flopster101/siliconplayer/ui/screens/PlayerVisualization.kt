@@ -17,6 +17,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxScope
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
@@ -130,7 +131,7 @@ private fun AlbumArtVisual(
             )
         }
     } else {
-        Box(
+        BoxWithConstraints(
             modifier = modifier.background(
                 brush = Brush.radialGradient(
                     colors = listOf(
@@ -141,9 +142,18 @@ private fun AlbumArtVisual(
             ),
             contentAlignment = Alignment.Center
         ) {
+            val minDim = minOf(maxWidth, maxHeight)
+            val circleRadius = if (minDim > 0.dp) {
+                minOf(60.dp, minDim * 0.35f)
+            } else {
+                36.dp
+            }
+            val circleDiameter = circleRadius * 2
+            val iconSize = minOf(72.dp, circleRadius * 1.25f)
+
             Box(
                 modifier = Modifier
-                    .size(120.dp)
+                    .size(circleDiameter)
                     .clip(CircleShape)
                     .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.14f)),
                 contentAlignment = Alignment.Center
@@ -152,7 +162,7 @@ private fun AlbumArtVisual(
                     imageVector = placeholderIcon,
                     contentDescription = "No album artwork",
                     tint = MaterialTheme.colorScheme.primary,
-                    modifier = Modifier.size(72.dp)
+                    modifier = Modifier.size(iconSize)
                 )
             }
         }

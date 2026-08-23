@@ -15,6 +15,7 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.animation.shrinkVertically
 import androidx.compose.animation.togetherWith
 import androidx.compose.animation.core.LinearOutSlowInEasing
+import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.animateFloat
@@ -22,6 +23,8 @@ import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.Canvas
@@ -30,6 +33,7 @@ import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.gestures.detectDragGestures
+import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.gestures.detectVerticalDragGestures
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsPressedAsState
@@ -1091,6 +1095,8 @@ internal fun PlayerScreen(
                     visualizationVuUseThemeColor = visualizationVuUseThemeColor,
                     channelScopePrefs = channelScopePrefs,
                     artworkCornerRadiusDp = artworkCornerRadiusDp,
+                    availableVisualizationModes = availableVisualizationModes,
+                    onSelectVisualizationMode = onSelectVisualizationMode,
                     onCycleVisualizationMode = onCycleVisualizationMode,
                     isTrackFavorited = isTrackFavorited,
                     onToggleFavoriteTrack = onToggleFavoriteTrack,
@@ -4736,6 +4742,8 @@ private fun WearPlayerContent(
     visualizationVuUseThemeColor: Boolean,
     channelScopePrefs: ChannelScopePrefs,
     artworkCornerRadiusDp: Int,
+    availableVisualizationModes: List<VisualizationMode> = emptyList(),
+    onSelectVisualizationMode: (VisualizationMode) -> Unit = {},
     onCycleVisualizationMode: () -> Unit,
     isTrackFavorited: Boolean,
     onToggleFavoriteTrack: () -> Unit,
@@ -4751,6 +4759,24 @@ private fun WearPlayerContent(
     var isSeeking by remember { mutableStateOf(false) }
     var sliderPosition by remember { mutableDoubleStateOf(0.0) }
     var isTimelineTouchActive by remember { mutableStateOf(false) }
+
+    val modes = remember(availableVisualizationModes) {
+        if (availableVisualizationModes.isNotEmpty()) {
+            availableVisualizationModes
+        } else {
+            VisualizationMode.entries.toList()
+        }
+    }
+    val onSwipeNextVisualization = {
+        val currentIndex = modes.indexOf(visualizationMode)
+        val nextIndex = if (currentIndex == -1) 0 else (currentIndex + 1) % modes.size
+        onSelectVisualizationMode(modes[nextIndex])
+    }
+    val onSwipePreviousVisualization = {
+        val currentIndex = modes.indexOf(visualizationMode)
+        val prevIndex = if (currentIndex <= 0) modes.size - 1 else currentIndex - 1
+        onSelectVisualizationMode(modes[prevIndex])
+    }
 
     val rawProgress = if (durationSeconds > 0.0) {
         (positionSeconds / durationSeconds).toFloat().coerceIn(0f, 1f)
@@ -5083,11 +5109,38 @@ private fun WearPlayerContent(
                         104.dp
                     )
 
+                    var visSwipeDeltaX by remember { mutableFloatStateOf(0f) }
+
                     Box(
                         modifier = Modifier
                             .size(artSize)
                             .clip(RoundedCornerShape(artworkCornerRadiusDp.dp))
-                            .clickable { onCycleVisualizationMode() },
+                            .pointerInput(modes, visualizationMode) {
+                                detectHorizontalDragGestures(
+                                    onDragStart = { visSwipeDeltaX = 0f },
+                                    onHorizontalDrag = { change, dragAmount ->
+                                        change.consume()
+                                        visSwipeDeltaX += dragAmount
+                                    },
+                                    onDragEnd = {
+                                        val threshold = 22.dp.toPx()
+                                        if (visSwipeDeltaX < -threshold) {
+                                            onSwipeNextVisualization()
+                                        } else if (visSwipeDeltaX > threshold) {
+                                            onSwipePreviousVisualization()
+                                        }
+                                    },
+                                    onDragCancel = {
+                                        visSwipeDeltaX = 0f
+                                    }
+                                )
+                            }
+                            .clickable(
+                                interactionSource = remember { MutableInteractionSource() },
+                                indication = null
+                            ) {
+                                if (isPlaying) onPause() else onPlay()
+                            },
                         contentAlignment = Alignment.Center
                     ) {
                         AlbumArtPlaceholder(
@@ -5096,7 +5149,7 @@ private fun WearPlayerContent(
                             decoderName = decoderName,
                             sampleRateHz = 0,
                             artwork = artwork,
-                            artworkSwipePreviewState = artworkSwipePreviewState,
+                            artworkSwipePreviewState = ArtworkSwipePreviewState(),
                             placeholderIcon = noArtworkIcon,
                             visualizationModeBadgeText = visualizationModeBadgeText,
                             showVisualizationModeBadge = false,
@@ -5141,9 +5194,14 @@ private fun WearPlayerContent(
                             barContrastBackdropEnabled = visualizationPrefsState.barContrastBackdropEnabled,
                             channelScopePrefs = channelScopePrefs,
                             artworkCornerRadiusDp = artworkCornerRadiusDp,
-                            onSwipePreviousTrack = onForcePreviousTrack,
-                            onSwipeNextTrack = onNextTrack,
+                            onSwipePreviousTrack = {},
+                            onSwipeNextTrack = {},
                             modifier = Modifier.size(artSize)
+                        )
+
+                        PlayPauseOverlayBadge(
+                            isPlaying = isPlaying && !playbackStartInProgress,
+                            hasActiveTrack = file != null
                         )
                     }
 
@@ -5235,6 +5293,86 @@ private fun WearPlayerContent(
                     }
                 }
             }
+        }
+    }
+}
+
+@Composable
+private fun PlayPauseOverlayBadge(
+    isPlaying: Boolean,
+    hasActiveTrack: Boolean,
+    modifier: Modifier = Modifier
+) {
+    if (!hasActiveTrack) return
+
+    var isVisible by remember(hasActiveTrack) { mutableStateOf(false) }
+    var hasPlayedAtLeastOnce by remember(hasActiveTrack) { mutableStateOf(isPlaying) }
+    var displayedIcon by remember { mutableStateOf(if (isPlaying) Icons.Default.PlayArrow else Icons.Default.Pause) }
+    val overlayAlpha = remember { Animatable(0f) }
+    val overlayScale = remember { Animatable(1f) }
+
+    LaunchedEffect(isPlaying, hasActiveTrack) {
+        if (!hasActiveTrack) {
+            isVisible = false
+            overlayAlpha.snapTo(0f)
+            return@LaunchedEffect
+        }
+        if (isPlaying) {
+            hasPlayedAtLeastOnce = true
+            displayedIcon = Icons.Default.PlayArrow
+            if (isVisible) {
+                overlayScale.snapTo(1f)
+                overlayAlpha.snapTo(1f)
+                delay(300L)
+                launch {
+                    overlayScale.animateTo(1.25f, animationSpec = tween(380, easing = FastOutSlowInEasing))
+                }
+                overlayAlpha.animateTo(0f, animationSpec = tween(380, easing = LinearEasing))
+                isVisible = false
+            }
+        } else {
+            if (hasPlayedAtLeastOnce) {
+                displayedIcon = Icons.Default.Pause
+                isVisible = true
+                overlayScale.snapTo(0.85f)
+                overlayAlpha.snapTo(0f)
+                launch {
+                    overlayScale.animateTo(1f, animationSpec = tween(200, easing = FastOutSlowInEasing))
+                }
+                launch {
+                    overlayAlpha.animateTo(1f, animationSpec = tween(200))
+                }
+            }
+        }
+    }
+
+    if (isVisible || overlayAlpha.value > 0.01f) {
+        Box(
+            modifier = modifier
+                .graphicsLayer {
+                    alpha = overlayAlpha.value
+                    scaleX = overlayScale.value
+                    scaleY = overlayScale.value
+                }
+                .wrapContentSize(),
+            contentAlignment = Alignment.Center
+        ) {
+            // Subtle drop shadow for contrast against light artwork/visualizers
+            Icon(
+                imageVector = displayedIcon,
+                contentDescription = null,
+                modifier = Modifier
+                    .offset(x = 0.75.dp, y = 1.dp)
+                    .size(24.dp),
+                tint = Color.Black.copy(alpha = 0.50f)
+            )
+            // Main clean white icon
+            Icon(
+                imageVector = displayedIcon,
+                contentDescription = if (displayedIcon == Icons.Default.Pause) "Paused" else "Playing",
+                modifier = Modifier.size(24.dp),
+                tint = Color.White
+            )
         }
     }
 }
