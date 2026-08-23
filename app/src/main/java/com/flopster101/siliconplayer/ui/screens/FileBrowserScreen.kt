@@ -58,13 +58,17 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.listSaver
 import androidx.compose.runtime.saveable.rememberSaveable
+import android.content.pm.PackageManager
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.foundation.focusable
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.draw.alpha
@@ -75,6 +79,7 @@ import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
@@ -309,15 +314,21 @@ internal fun FileBrowserScreen(
     var pendingDeleteFilePaths by remember { mutableStateOf<List<String>>(emptyList()) }
     var pendingPinConfirmation by remember { mutableStateOf<Pair<RecentPathEntry, Boolean>?>(null) }
     var pendingPinEvictionCandidate by remember { mutableStateOf<HomePinnedEntry?>(null) }
+    var watchActionTargetItem by remember { mutableStateOf<FileItem?>(null) }
     val folderSummaryCache = remember { mutableStateMapOf<String, String>() }
     val activityManager = remember(context) {
         context.getSystemService(Context.ACTIVITY_SERVICE) as? ActivityManager
     }
     val isTvDevice = remember(context) {
-        context.packageManager.hasSystemFeature(android.content.pm.PackageManager.FEATURE_LEANBACK)
+        context.packageManager.hasSystemFeature(PackageManager.FEATURE_LEANBACK)
     }
-    val isConstrainedBrowserDevice = remember(activityManager, isTvDevice) {
+    val isWatch = remember(context) {
+        context.packageManager.hasSystemFeature(PackageManager.FEATURE_WATCH)
+    }
+    val isRound = LocalConfiguration.current.isScreenRound
+    val isConstrainedBrowserDevice = remember(activityManager, isTvDevice, isWatch) {
         isTvDevice ||
+            isWatch ||
             (activityManager?.isLowRamDevice == true) ||
             Runtime.getRuntime().availableProcessors().coerceAtLeast(1) <= 4
     }
@@ -1147,117 +1158,95 @@ internal fun FileBrowserScreen(
 
     Scaffold(
         topBar = {
-            Column {
-                if (showPrimaryTopBar) {
-                    TopAppBar(
-                        title = {
-                            Text(
-                                text = "Silicon Player",
-                                fontWeight = FontWeight.Bold
-                            )
-                        },
-                        actions = {
-                            onExitBrowser?.let { exitBrowser ->
-                                IconButton(onClick = exitBrowser) {
-                                    Icon(
-                                        imageVector = Icons.Default.Home,
-                                        contentDescription = "Go to app home"
-                                    )
-                                }
-                            }
-                            onOpenSettings?.let { openSettings ->
-                                IconButton(onClick = openSettings) {
-                                    Icon(
-                                        imageVector = Icons.Default.Settings,
-                                        contentDescription = "Open settings"
-                                    )
-                                }
-                            }
-                        }
-                    )
-                }
-                Surface(color = MaterialTheme.colorScheme.surfaceContainerLow) {
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(58.dp)
-                            .padding(horizontal = 8.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Column(
-                            modifier = Modifier
-                                .weight(1f)
-                                .combinedClickable(
-                                    onClick = {
-                                        if (showLocalStorageSelector) {
-                                            selectorExpanded = true
-                                        }
-                                    },
-                                    onLongClick = {
-                                        if (resolveCurrentFolderPathForActions() != null) {
-                                            currentFolderMenuExpanded = true
-                                        }
+            if (!isWatch) {
+                Column {
+                    if (showPrimaryTopBar) {
+                        TopAppBar(
+                            title = {
+                                Text(
+                                    text = "Silicon Player",
+                                    fontWeight = FontWeight.Bold
+                                )
+                            },
+                            actions = {
+                                onExitBrowser?.let { exitBrowser ->
+                                    IconButton(onClick = exitBrowser) {
+                                        Icon(
+                                            imageVector = Icons.Default.Home,
+                                            contentDescription = "Go to app home"
+                                        )
                                     }
-                                )
-                                .padding(horizontal = 2.dp)
+                                }
+                                onOpenSettings?.let { openSettings ->
+                                    IconButton(onClick = openSettings) {
+                                        Icon(
+                                            imageVector = Icons.Default.Settings,
+                                            contentDescription = "Open settings"
+                                        )
+                                    }
+                                }
+                            }
+                        )
+                    }
+                    Surface(color = MaterialTheme.colorScheme.surfaceContainerLow) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(58.dp)
+                                .padding(horizontal = 8.dp),
+                            verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Box {
-                                BrowserToolbarSelectorLabel(
-                                    expanded = selectorExpanded,
-                                    onClick = {
-                                        if (showLocalStorageSelector) {
-                                            selectorExpanded = true
-                                        }
-                                    },
-                                    onLongClick = {
-                                        if (resolveCurrentFolderPathForActions() != null) {
-                                            currentFolderMenuExpanded = true
-                                        }
-                                    },
-                                    modifier = Modifier.padding(start = 6.dp),
-                                    enabled = showLocalStorageSelector,
-                                    focusRequester = selectorButtonFocusRequester
-                                )
-                                DropdownMenu(
-                                    expanded = selectorExpanded,
-                                    onDismissRequest = { selectorExpanded = false }
-                                ) {
-                                    if (showLocalStorageSelector) {
-                                        Text(
-                                            text = "Storage locations",
-                                            style = MaterialTheme.typography.labelSmall,
-                                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                            modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
-                                        )
-                                        DropdownMenuItem(
-                                            text = {
-                                                Column {
-                                                    Text("Home")
-                                                    Text(
-                                                        "Storage locations",
-                                                        style = MaterialTheme.typography.labelSmall,
-                                                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                                                    )
-                                                }
-                                            },
-                                            leadingIcon = {
-                                                Icon(
-                                                    imageVector = Icons.Default.Home,
-                                                    contentDescription = null
-                                                )
-                                            },
-                                            onClick = {
-                                                selectorExpanded = false
-                                                openBrowserHome()
+                            Column(
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .combinedClickable(
+                                        onClick = {
+                                            if (showLocalStorageSelector) {
+                                                selectorExpanded = true
                                             }
-                                        )
-                                        storageLocations.forEach { location ->
+                                        },
+                                        onLongClick = {
+                                            if (resolveCurrentFolderPathForActions() != null) {
+                                                currentFolderMenuExpanded = true
+                                            }
+                                        }
+                                    )
+                                    .padding(horizontal = 2.dp)
+                            ) {
+                                Box {
+                                    BrowserToolbarSelectorLabel(
+                                        expanded = selectorExpanded,
+                                        onClick = {
+                                            if (showLocalStorageSelector) {
+                                                selectorExpanded = true
+                                            }
+                                        },
+                                        onLongClick = {
+                                            if (resolveCurrentFolderPathForActions() != null) {
+                                                currentFolderMenuExpanded = true
+                                            }
+                                        },
+                                        modifier = Modifier.padding(start = 6.dp),
+                                        enabled = showLocalStorageSelector,
+                                        focusRequester = selectorButtonFocusRequester
+                                    )
+                                    DropdownMenu(
+                                        expanded = selectorExpanded,
+                                        onDismissRequest = { selectorExpanded = false }
+                                    ) {
+                                        if (showLocalStorageSelector) {
+                                            Text(
+                                                text = "Storage locations",
+                                                style = MaterialTheme.typography.labelSmall,
+                                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                                modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
+                                            )
                                             DropdownMenuItem(
                                                 text = {
                                                     Column {
-                                                        Text(location.typeLabel)
+                                                        Text("Home")
                                                         Text(
-                                                            location.name,
+                                                            "Storage locations",
                                                             style = MaterialTheme.typography.labelSmall,
                                                             color = MaterialTheme.colorScheme.onSurfaceVariant
                                                         )
@@ -1265,259 +1254,283 @@ internal fun FileBrowserScreen(
                                                 },
                                                 leadingIcon = {
                                                     Icon(
-                                                        imageVector = iconForStorageKind(location.kind, context),
+                                                        imageVector = Icons.Default.Home,
                                                         contentDescription = null
                                                     )
                                                 },
                                                 onClick = {
                                                     selectorExpanded = false
-                                                    openLocation(location)
+                                                    openBrowserHome()
                                                 }
                                             )
-                                        }
-                                        HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
-                                        Text(
-                                            text = "Directory tree",
-                                            style = MaterialTheme.typography.labelSmall,
-                                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                            modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
-                                        )
-                                        DropdownMenuItem(
-                                            text = { Text("Coming soon") },
-                                            enabled = false,
-                                            onClick = {}
-                                        )
-                                    } else {
-                                        val contextLabel = archiveToolbarContext
-                                        Text(
-                                            text = "Archive source",
-                                            style = MaterialTheme.typography.labelSmall,
-                                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                            modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
-                                        )
-                                        DropdownMenuItem(
-                                            text = {
-                                                Column {
-                                                    Text(contextLabel?.sourceTypeLabel ?: "Archive")
-                                                    Text(
-                                                        contextLabel?.sourceLabel ?: "Remote source",
-                                                        style = MaterialTheme.typography.labelSmall,
-                                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                            storageLocations.forEach { location ->
+                                                DropdownMenuItem(
+                                                    text = {
+                                                        Column {
+                                                            Text(location.typeLabel)
+                                                            Text(
+                                                                location.name,
+                                                                style = MaterialTheme.typography.labelSmall,
+                                                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                                                            )
+                                                        }
+                                                    },
+                                                    leadingIcon = {
+                                                        Icon(
+                                                            imageVector = iconForStorageKind(location.kind, context),
+                                                            contentDescription = null
+                                                        )
+                                                    },
+                                                    onClick = {
+                                                        selectorExpanded = false
+                                                        openLocation(location)
+                                                    }
+                                                )
+                                            }
+                                            HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
+                                            Text(
+                                                text = "Directory tree",
+                                                style = MaterialTheme.typography.labelSmall,
+                                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                                modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
+                                            )
+                                            DropdownMenuItem(
+                                                text = { Text("Coming soon") },
+                                                enabled = false,
+                                                onClick = {}
+                                            )
+                                        } else {
+                                            val contextLabel = archiveToolbarContext
+                                            Text(
+                                                text = "Archive source",
+                                                style = MaterialTheme.typography.labelSmall,
+                                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                                modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
+                                            )
+                                            DropdownMenuItem(
+                                                text = {
+                                                    Column {
+                                                        Text(contextLabel?.sourceTypeLabel ?: "Archive")
+                                                        Text(
+                                                            contextLabel?.sourceLabel ?: "Remote source",
+                                                            style = MaterialTheme.typography.labelSmall,
+                                                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                                                        )
+                                                    }
+                                                },
+                                                leadingIcon = {
+                                                    Icon(
+                                                        imageVector = contextLabel?.sourceIcon ?: Icons.Default.Folder,
+                                                        contentDescription = null
                                                     )
-                                                }
-                                            },
+                                                },
+                                                enabled = false,
+                                                onClick = {}
+                                            )
+                                        }
+                                    }
+                                    DropdownMenu(
+                                        expanded = currentFolderMenuExpanded,
+                                        onDismissRequest = { currentFolderMenuExpanded = false }
+                                    ) {
+                                        DropdownMenuItem(
+                                            text = { Text("Pin folder to home") },
                                             leadingIcon = {
                                                 Icon(
-                                                    imageVector = contextLabel?.sourceIcon ?: Icons.Default.Folder,
+                                                    imageVector = Icons.Default.Home,
                                                     contentDescription = null
                                                 )
                                             },
-                                            enabled = false,
-                                            onClick = {}
+                                            onClick = {
+                                                val folderPath = resolveCurrentFolderPathForActions()
+                                                if (folderPath == null) {
+                                                    currentFolderMenuExpanded = false
+                                                    return@DropdownMenuItem
+                                                }
+                                                val recentEntry = RecentPathEntry(
+                                                    path = folderPath,
+                                                    locationId = selectedLocationId,
+                                                    title = folderTitleForDisplay(folderPath)
+                                                )
+                                                val preview = previewPinnedHomeEntryInsertion(
+                                                    current = pinnedHomeEntries,
+                                                    candidate = HomePinnedEntry(
+                                                        path = recentEntry.path,
+                                                        isFolder = true,
+                                                        locationId = recentEntry.locationId,
+                                                        title = recentEntry.title
+                                                    ),
+                                                    maxItems = PINNED_HOME_ENTRIES_LIMIT
+                                                )
+                                                if (preview.requiresConfirmation) {
+                                                    pendingPinEvictionCandidate = preview.evictionCandidate
+                                                    pendingPinConfirmation = recentEntry to true
+                                                } else {
+                                                    onPinHomeEntry(recentEntry, true)
+                                                    Toast.makeText(
+                                                        context,
+                                                        "Pinned folder to home",
+                                                        Toast.LENGTH_SHORT
+                                                    ).show()
+                                                }
+                                                currentFolderMenuExpanded = false
+                                            }
+                                        )
+                                        DropdownMenuItem(
+                                            text = { Text("Copy path") },
+                                            leadingIcon = {
+                                                Icon(
+                                                    imageVector = Icons.Default.ContentCopy,
+                                                    contentDescription = null
+                                                )
+                                            },
+                                            onClick = {
+                                                val folderPath = resolveCurrentFolderPathForActions()
+                                                if (folderPath != null) {
+                                                    val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+                                                    clipboard.setPrimaryClip(ClipData.newPlainText("Path", folderPath))
+                                                    Toast.makeText(context, "Copied path", Toast.LENGTH_SHORT).show()
+                                                }
+                                                currentFolderMenuExpanded = false
+                                            }
+                                        )
+                                        DropdownMenuItem(
+                                            text = { Text("Info") },
+                                            leadingIcon = {
+                                                Icon(
+                                                    imageVector = Icons.Default.Info,
+                                                    contentDescription = null
+                                                )
+                                            },
+                                            onClick = {
+                                                showCurrentFolderInfoDialog()
+                                                currentFolderMenuExpanded = false
+                                            }
                                         )
                                     }
                                 }
-                                DropdownMenu(
-                                    expanded = currentFolderMenuExpanded,
-                                    onDismissRequest = { currentFolderMenuExpanded = false }
-                                ) {
-                                    DropdownMenuItem(
-                                        text = { Text("Pin folder to home") },
-                                        leadingIcon = {
-                                            Icon(
-                                                imageVector = Icons.Default.Home,
-                                                contentDescription = null
-                                            )
-                                        },
-                                        onClick = {
-                                            val folderPath = resolveCurrentFolderPathForActions()
-                                            if (folderPath == null) {
-                                                currentFolderMenuExpanded = false
-                                                return@DropdownMenuItem
-                                            }
-                                            val recentEntry = RecentPathEntry(
-                                                path = folderPath,
-                                                locationId = selectedLocationId,
-                                                title = folderTitleForDisplay(folderPath)
-                                            )
-                                            val preview = previewPinnedHomeEntryInsertion(
-                                                current = pinnedHomeEntries,
-                                                candidate = HomePinnedEntry(
-                                                    path = recentEntry.path,
-                                                    isFolder = true,
-                                                    locationId = recentEntry.locationId,
-                                                    title = recentEntry.title
-                                                ),
-                                                maxItems = PINNED_HOME_ENTRIES_LIMIT
-                                            )
-                                            if (preview.requiresConfirmation) {
-                                                pendingPinEvictionCandidate = preview.evictionCandidate
-                                                pendingPinConfirmation = recentEntry to true
-                                            } else {
-                                                onPinHomeEntry(recentEntry, true)
-                                                Toast.makeText(
-                                                    context,
-                                                    "Pinned folder to home",
-                                                    Toast.LENGTH_SHORT
-                                                ).show()
-                                            }
-                                            currentFolderMenuExpanded = false
-                                        }
-                                    )
-                                    DropdownMenuItem(
-                                        text = { Text("Copy path") },
-                                        leadingIcon = {
-                                            Icon(
-                                                imageVector = Icons.Default.ContentCopy,
-                                                contentDescription = null
-                                            )
-                                        },
-                                        onClick = {
-                                            val folderPath = resolveCurrentFolderPathForActions()
-                                            if (folderPath != null) {
-                                                val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
-                                                clipboard.setPrimaryClip(ClipData.newPlainText("Path", folderPath))
-                                                Toast.makeText(context, "Copied path", Toast.LENGTH_SHORT).show()
-                                            }
-                                            currentFolderMenuExpanded = false
-                                        }
-                                    )
-                                    DropdownMenuItem(
-                                        text = { Text("Info") },
-                                        leadingIcon = {
-                                            Icon(
-                                                imageVector = Icons.Default.Info,
-                                                contentDescription = null
-                                            )
-                                        },
-                                        onClick = {
-                                            showCurrentFolderInfoDialog()
-                                            currentFolderMenuExpanded = false
-                                        }
-                                    )
-                                }
+                                BrowserToolbarPathRow(
+                                    icon = subtitleIcon,
+                                    subtitle = subtitle,
+                                    iconPainterResId = subtitleIconPainterResId,
+                                    contentStartPadding = 12.dp
+                                )
                             }
-                            BrowserToolbarPathRow(
-                                icon = subtitleIcon,
-                                subtitle = subtitle,
-                                iconPainterResId = subtitleIconPainterResId,
-                                contentStartPadding = 12.dp
-                            )
-                        }
-                        if (selectedLocationId != null) {
-                            BrowserSelectionToolbarControls(
-                                visible = browserSelectionController.isSelectionMode,
-                                canSelectAny = filteredFileList.isNotEmpty(),
-                                onSelectAll = {
-                                    browserSelectionController.selectAll(
-                                        filteredFileList.map { item -> item.file.absolutePath }
-                                    )
-                                },
-                                onDeselectAll = { browserSelectionController.deselectAll() },
-                                actionItems = listOf(
-                                    BrowserSelectionActionItem(
-                                        label = "Play",
-                                        icon = Icons.Default.PlayArrow,
-                                        enabled = selectedRegularFileItems().size == 1,
-                                        onClick = {
-                                            val selectedItem = selectedRegularFileItems().singleOrNull()
-                                            if (selectedItem != null) {
-                                                browserSelectionController.exitSelectionMode()
-                                                openFileItem(selectedItem)
+                            if (selectedLocationId != null) {
+                                BrowserSelectionToolbarControls(
+                                    visible = browserSelectionController.isSelectionMode,
+                                    canSelectAny = filteredFileList.isNotEmpty(),
+                                    onSelectAll = {
+                                        browserSelectionController.selectAll(
+                                            filteredFileList.map { item -> item.file.absolutePath }
+                                        )
+                                    },
+                                    onDeselectAll = { browserSelectionController.deselectAll() },
+                                    actionItems = listOf(
+                                        BrowserSelectionActionItem(
+                                            label = "Play",
+                                            icon = Icons.Default.PlayArrow,
+                                            enabled = selectedRegularFileItems().size == 1,
+                                            onClick = {
+                                                val selectedItem = selectedRegularFileItems().singleOrNull()
+                                                if (selectedItem != null) {
+                                                    browserSelectionController.exitSelectionMode()
+                                                    openFileItem(selectedItem)
+                                                }
                                             }
-                                        }
-                                    ),
-                                    BrowserSelectionActionItem(
-                                        label = if (selectedRegularFileItems().size == 1) {
-                                            "Save file"
-                                        } else {
-                                            "Save files"
-                                        },
-                                        icon = Icons.Default.Save,
-                                        enabled = selectedRegularFileItems().isNotEmpty(),
-                                        onClick = {
-                                            val exportItems = selectedRegularFileItems().map { item ->
-                                                ExportFileItem(
-                                                    sourceFile = item.file,
-                                                    displayNameOverride = item.file.name
-                                                )
-                                            }
-                                            if (exportItems.isNotEmpty()) {
-                                                pendingExportFiles = exportItems
-                                                exportDirectoryLauncher.launch(null)
-                                            }
-                                        }
-                                    ),
-                                    BrowserSelectionActionItem(
-                                        label = selectedAnyItems().singleOrNull()?.let { item ->
-                                            if (item.isDirectory) "Pin folder to home" else "Pin file to home"
-                                        } ?: "Pin to home",
-                                        icon = Icons.Default.Home,
-                                        enabled = selectedAnyItems().size == 1,
-                                        onClick = {
-                                            val selectedItem = selectedAnyItems().singleOrNull() ?: return@BrowserSelectionActionItem
-                                            val recentEntry = RecentPathEntry(
-                                                path = selectedItem.file.absolutePath,
-                                                locationId = selectedLocationId,
-                                                title = if (selectedItem.isDirectory) selectedItem.name else null
-                                            )
-                                            val isFolder = selectedItem.isDirectory
-                                            val preview = previewPinnedHomeEntryInsertion(
-                                                current = pinnedHomeEntries,
-                                                candidate = HomePinnedEntry(
-                                                    path = recentEntry.path,
-                                                    isFolder = isFolder,
-                                                    locationId = recentEntry.locationId,
-                                                    title = recentEntry.title
-                                                ),
-                                                maxItems = PINNED_HOME_ENTRIES_LIMIT
-                                            )
-                                            if (preview.requiresConfirmation) {
-                                                pendingPinEvictionCandidate = preview.evictionCandidate
-                                                pendingPinConfirmation = recentEntry to isFolder
+                                        ),
+                                        BrowserSelectionActionItem(
+                                            label = if (selectedRegularFileItems().size == 1) {
+                                                "Save file"
                                             } else {
-                                                onPinHomeEntry(recentEntry, isFolder)
-                                                Toast.makeText(context, if (isFolder) "Pinned folder to home" else "Pinned file to home", Toast.LENGTH_SHORT).show()
+                                                "Save files"
+                                            },
+                                            icon = Icons.Default.Save,
+                                            enabled = selectedRegularFileItems().isNotEmpty(),
+                                            onClick = {
+                                                val exportItems = selectedRegularFileItems().map { item ->
+                                                    ExportFileItem(
+                                                        sourceFile = item.file,
+                                                        displayNameOverride = item.file.name
+                                                    )
+                                                }
+                                                if (exportItems.isNotEmpty()) {
+                                                    pendingExportFiles = exportItems
+                                                    exportDirectoryLauncher.launch(null)
+                                                }
                                             }
-                                        }
+                                        ),
+                                        BrowserSelectionActionItem(
+                                            label = selectedAnyItems().singleOrNull()?.let { item ->
+                                                if (item.isDirectory) "Pin folder to home" else "Pin file to home"
+                                            } ?: "Pin to home",
+                                            icon = Icons.Default.Home,
+                                            enabled = selectedAnyItems().size == 1,
+                                            onClick = {
+                                                val selectedItem = selectedAnyItems().singleOrNull() ?: return@BrowserSelectionActionItem
+                                                val recentEntry = RecentPathEntry(
+                                                    path = selectedItem.file.absolutePath,
+                                                    locationId = selectedLocationId,
+                                                    title = if (selectedItem.isDirectory) selectedItem.name else null
+                                                )
+                                                val isFolder = selectedItem.isDirectory
+                                                val preview = previewPinnedHomeEntryInsertion(
+                                                    current = pinnedHomeEntries,
+                                                    candidate = HomePinnedEntry(
+                                                        path = recentEntry.path,
+                                                        isFolder = isFolder,
+                                                        locationId = recentEntry.locationId,
+                                                        title = recentEntry.title
+                                                    ),
+                                                    maxItems = PINNED_HOME_ENTRIES_LIMIT
+                                                )
+                                                if (preview.requiresConfirmation) {
+                                                    pendingPinEvictionCandidate = preview.evictionCandidate
+                                                    pendingPinConfirmation = recentEntry to isFolder
+                                                } else {
+                                                    onPinHomeEntry(recentEntry, isFolder)
+                                                    Toast.makeText(context, if (isFolder) "Pinned folder to home" else "Pinned file to home", Toast.LENGTH_SHORT).show()
+                                                }
+                                            }
+                                        ),
+                                        BrowserSelectionActionItem(
+                                            label = "Delete",
+                                            icon = Icons.Default.Delete,
+                                            enabled = selectedRegularFileItems().isNotEmpty(),
+                                            onClick = {
+                                                pendingDeleteFilePaths = selectedRegularFileItems()
+                                                    .map { it.file.absolutePath }
+                                            }
+                                        ),
+                                        BrowserSelectionActionItem(
+                                            label = "Info",
+                                            icon = Icons.Default.Info,
+                                            enabled = browserSelectionController.selectedKeys.isNotEmpty(),
+                                            onClick = { showSelectionInfoDialog() }
+                                        )
                                     ),
-                                    BrowserSelectionActionItem(
-                                        label = "Delete",
-                                        icon = Icons.Default.Delete,
-                                        enabled = selectedRegularFileItems().isNotEmpty(),
-                                        onClick = {
-                                            pendingDeleteFilePaths = selectedRegularFileItems()
-                                                .map { it.file.absolutePath }
+                                    onCancel = { browserSelectionController.exitSelectionMode() }
+                                )
+                                BrowserToolbarSearchButton(
+                                    onClick = {
+                                        if (browserSearchController.isVisible) {
+                                            browserSearchController.hide()
+                                        } else {
+                                            browserSearchController.show()
                                         }
-                                    ),
-                                    BrowserSelectionActionItem(
-                                        label = "Info",
-                                        icon = Icons.Default.Info,
-                                        enabled = browserSelectionController.selectedKeys.isNotEmpty(),
-                                        onClick = { showSelectionInfoDialog() }
-                                    )
-                                ),
-                                onCancel = { browserSelectionController.exitSelectionMode() }
-                            )
-                            BrowserToolbarSearchButton(
-                                onClick = {
-                                    if (browserSearchController.isVisible) {
-                                        browserSearchController.hide()
-                                    } else {
-                                        browserSearchController.show()
                                     }
-                                }
-                            )
+                                )
+                            }
                         }
                     }
+                    BrowserSearchToolbarRow(
+                        visible = currentDirectory != null && browserSearchController.isVisible,
+                        queryInput = browserSearchController.input,
+                        onQueryInputChanged = browserSearchController::onInputChange,
+                        onClose = browserSearchController::hide
+                    )
+                    HorizontalDivider()
                 }
-                BrowserSearchToolbarRow(
-                    visible = currentDirectory != null && browserSearchController.isVisible,
-                    queryInput = browserSearchController.input,
-                    onQueryInputChanged = browserSearchController::onInputChange,
-                    onClose = browserSearchController::hide
-                )
-                HorizontalDivider()
             }
         }
     ) { paddingValues ->
@@ -1584,36 +1597,87 @@ internal fun FileBrowserScreen(
                     LazyColumn(
                         modifier = Modifier.fillMaxSize(),
                         contentPadding = PaddingValues(
-                            start = 16.dp,
-                            end = 16.dp,
-                            top = 16.dp,
-                            bottom = bottomContentPadding + 16.dp
+                            start = if (isRound) 14.dp else 12.dp,
+                            end = if (isRound) 14.dp else 12.dp,
+                            top = if (isWatch) (if (isRound) 24.dp else 12.dp) else 16.dp,
+                            bottom = bottomContentPadding + if (isRound) 56.dp else 16.dp
                         ),
-                        verticalArrangement = Arrangement.spacedBy(10.dp)
+                        verticalArrangement = Arrangement.spacedBy(if (isWatch) 8.dp else 10.dp)
                     ) {
-                        item {
+                        item(key = "storage_locations_header") {
                             Text(
-                                text = "Storage locations",
-                                style = MaterialTheme.typography.titleMedium
+                                text = "Storage Locations",
+                                style = if (isWatch) MaterialTheme.typography.titleMedium else MaterialTheme.typography.titleMedium,
+                                fontWeight = if (isWatch) FontWeight.Bold else FontWeight.SemiBold,
+                                textAlign = if (isWatch) TextAlign.Center else TextAlign.Start,
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(
+                                        start = if (isWatch) 0.dp else 4.dp,
+                                        bottom = if (isWatch) 4.dp else 0.dp
+                                    )
                             )
+                        }
+                        onExitBrowser?.let { exitBrowser ->
+                            item(key = "storage_app_home") {
+                                ElevatedCard(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    shape = if (isWatch) RoundedCornerShape(16.dp) else CardDefaults.elevatedShape,
+                                    onClick = exitBrowser
+                                ) {
+                                    Row(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .padding(
+                                                vertical = if (isWatch) 8.dp else 12.dp,
+                                                horizontal = if (isWatch) 12.dp else 16.dp
+                                            ),
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.Default.Home,
+                                            contentDescription = null,
+                                            tint = MaterialTheme.colorScheme.primary,
+                                            modifier = Modifier.size(if (isWatch) 20.dp else 24.dp)
+                                        )
+                                        Spacer(modifier = Modifier.width(if (isWatch) 10.dp else 16.dp))
+                                        Column(modifier = Modifier.weight(1f)) {
+                                            Text(
+                                                text = "Home screen",
+                                                style = MaterialTheme.typography.titleSmall
+                                            )
+                                            Text(
+                                                text = "Return to player home",
+                                                style = MaterialTheme.typography.bodySmall,
+                                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                                            )
+                                        }
+                                    }
+                                }
+                            }
                         }
                         items(storageLocations) { location ->
                             ElevatedCard(
                                 modifier = Modifier.fillMaxWidth(),
+                                shape = if (isWatch) RoundedCornerShape(16.dp) else CardDefaults.elevatedShape,
                                 onClick = { openLocation(location) }
                             ) {
                                 Row(
                                     modifier = Modifier
                                         .fillMaxWidth()
-                                        .padding(vertical = 12.dp, horizontal = 16.dp),
+                                        .padding(
+                                            vertical = if (isWatch) 8.dp else 12.dp,
+                                            horizontal = if (isWatch) 12.dp else 16.dp
+                                        ),
                                     verticalAlignment = Alignment.CenterVertically
                                 ) {
                                     Icon(
                                         imageVector = iconForStorageKind(location.kind, context),
                                         contentDescription = null,
-                                        tint = MaterialTheme.colorScheme.primary
+                                        tint = MaterialTheme.colorScheme.primary,
+                                        modifier = Modifier.size(if (isWatch) 20.dp else 24.dp)
                                     )
-                                    Spacer(modifier = Modifier.width(16.dp))
+                                    Spacer(modifier = Modifier.width(if (isWatch) 10.dp else 16.dp))
                                     Column(modifier = Modifier.weight(1f)) {
                                         Text(
                                             text = location.typeLabel,
@@ -1641,8 +1705,51 @@ internal fun FileBrowserScreen(
                     LazyColumn(
                         modifier = Modifier.fillMaxSize(),
                         state = directoryListState,
-                        contentPadding = PaddingValues(bottom = bottomContentPadding)
+                        contentPadding = PaddingValues(
+                            start = if (isWatch) (if (isRound) 12.dp else 8.dp) else (if (isRound) 10.dp else 0.dp),
+                            end = if (isWatch) (if (isRound) 12.dp else 8.dp) else (if (isRound) 10.dp else 0.dp),
+                            top = if (isWatch) (if (isRound) 24.dp else 12.dp) else (if (isRound) 6.dp else 0.dp),
+                            bottom = bottomContentPadding + if (isRound) 56.dp else 0.dp
+                        ),
+                        verticalArrangement = if (isWatch) Arrangement.spacedBy(4.dp) else Arrangement.Top
                     ) {
+                        if (isWatch) {
+                            item(key = "watch_directory_header") {
+                                Column(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(bottom = 6.dp)
+                                        .combinedClickable(
+                                            onClick = {
+                                                if (showLocalStorageSelector) {
+                                                    selectorExpanded = true
+                                                }
+                                            },
+                                            onLongClick = {
+                                                if (resolveCurrentFolderPathForActions() != null) {
+                                                    currentFolderMenuExpanded = true
+                                                }
+                                            }
+                                        ),
+                                    horizontalAlignment = Alignment.CenterHorizontally
+                                ) {
+                                    Text(
+                                        text = currentDirectory?.name ?: selectedLocation?.name ?: "Files",
+                                        style = MaterialTheme.typography.titleMedium,
+                                        fontWeight = FontWeight.Bold,
+                                        textAlign = TextAlign.Center,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis
+                                    )
+                                    val itemCount = filteredFileList.size
+                                    Text(
+                                        text = "$itemCount ${if (itemCount == 1) "item" else "items"}",
+                                        style = MaterialTheme.typography.labelSmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                }
+                            }
+                        }
                         if (showParentDirectoryEntry) {
                             val parentEntryKey = "parent:${browserContentState.currentDirectoryPath}"
                             item(key = parentEntryKey) {
@@ -1659,6 +1766,7 @@ internal fun FileBrowserScreen(
                                     }
                                     ParentDirectoryItemRow(
                                         onClick = { navigateUpWithinLocation() },
+                                        isWatch = isWatch,
                                         rightFocusRequester = selectorButtonFocusRequester,
                                         rowFocusRequester = rowFocusRequester,
                                         onFocused = { browserFocusedEntryKey = parentEntryKey }
@@ -1718,18 +1826,22 @@ internal fun FileBrowserScreen(
                                         rowFocusRequester = rowFocusRequester,
                                         onFocused = { browserFocusedEntryKey = entryKey },
                                         onLongClick = {
-                                            if (browserSelectionController.isSelectionMode) {
-                                                val didSelectRange =
-                                                    browserSelectionController.selectedKeys.size == 1 &&
-                                                        browserSelectionController.selectRangeTo(
-                                                            key = entryKey,
-                                                            orderedKeys = filteredFileList.map { it.file.absolutePath }
-                                                        )
-                                                if (!didSelectRange) {
-                                                    browserSelectionController.toggleSelection(entryKey)
-                                                }
+                                            if (isWatch) {
+                                                watchActionTargetItem = item
                                             } else {
-                                                browserSelectionController.enterSelectionWith(entryKey)
+                                                if (browserSelectionController.isSelectionMode) {
+                                                    val didSelectRange =
+                                                        browserSelectionController.selectedKeys.size == 1 &&
+                                                            browserSelectionController.selectRangeTo(
+                                                                key = entryKey,
+                                                                orderedKeys = filteredFileList.map { it.file.absolutePath }
+                                                            )
+                                                    if (!didSelectRange) {
+                                                        browserSelectionController.toggleSelection(entryKey)
+                                                    }
+                                                } else {
+                                                    browserSelectionController.enterSelectionWith(entryKey)
+                                                }
                                             }
                                         },
                                         onClick = {
@@ -1761,14 +1873,463 @@ internal fun FileBrowserScreen(
                     modifier = Modifier
                         .align(Alignment.CenterEnd)
                         .padding(
-                            top = 8.dp,
-                            end = 2.dp,
-                            bottom = bottomContentPadding + 8.dp
-                    )
+                            top = if (isRound) 24.dp else 8.dp,
+                            end = if (isRound) 6.dp else 2.dp,
+                            bottom = bottomContentPadding + if (isRound) 40.dp else 8.dp
+                        )
                         .fillMaxHeight()
-                        .width(24.dp)
+                        .width(if (isWatch) 16.dp else 24.dp)
                         .graphicsLayer(alpha = if (directoryScrollbarHeld) 1f else directoryScrollbarAlpha)
                 )
+            }
+        }
+    }
+
+    if (isWatch && selectorExpanded) {
+        Dialog(
+            onDismissRequest = { selectorExpanded = false },
+            properties = DialogProperties(usePlatformDefaultWidth = false)
+        ) {
+            Surface(
+                modifier = Modifier.fillMaxSize(),
+                color = MaterialTheme.colorScheme.background
+            ) {
+                LazyColumn(
+                    modifier = Modifier.fillMaxSize(),
+                    contentPadding = PaddingValues(
+                        start = if (isRound) 14.dp else 10.dp,
+                        end = if (isRound) 14.dp else 10.dp,
+                        top = if (isRound) 24.dp else 12.dp,
+                        bottom = if (isRound) 28.dp else 12.dp
+                    ),
+                    verticalArrangement = Arrangement.spacedBy(6.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    item(key = "watch_selector_title") {
+                        Text(
+                            text = "Storage Locations",
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.Bold,
+                            textAlign = TextAlign.Center,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(bottom = 6.dp)
+                        )
+                    }
+                    onExitBrowser?.let { exitBrowser ->
+                        item(key = "watch_selector_app_home") {
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clip(RoundedCornerShape(14.dp))
+                                    .background(MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.5f))
+                                    .clickable {
+                                        selectorExpanded = false
+                                        exitBrowser()
+                                    }
+                                    .padding(horizontal = 12.dp, vertical = 8.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.Home,
+                                    contentDescription = null,
+                                    tint = MaterialTheme.colorScheme.onPrimaryContainer,
+                                    modifier = Modifier.size(20.dp)
+                                )
+                                Spacer(modifier = Modifier.width(10.dp))
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text(
+                                        text = "Home screen",
+                                        style = MaterialTheme.typography.titleSmall,
+                                        color = MaterialTheme.colorScheme.onPrimaryContainer
+                                    )
+                                    Text(
+                                        text = "Return to player home",
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                }
+                            }
+                        }
+                    }
+                    item(key = "watch_selector_home") {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clip(RoundedCornerShape(14.dp))
+                                .background(MaterialTheme.colorScheme.surfaceContainerLow)
+                                .clickable {
+                                    selectorExpanded = false
+                                    openBrowserHome()
+                                }
+                                .padding(horizontal = 12.dp, vertical = 8.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Storage,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.primary,
+                                modifier = Modifier.size(20.dp)
+                            )
+                            Spacer(modifier = Modifier.width(10.dp))
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(
+                                    text = "Storage locations",
+                                    style = MaterialTheme.typography.titleSmall
+                                )
+                                Text(
+                                    text = "Top-level folders",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                        }
+                    }
+                    items(
+                        items = storageLocations,
+                        key = { it.id }
+                    ) { location ->
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clip(RoundedCornerShape(14.dp))
+                                .background(MaterialTheme.colorScheme.surfaceContainerLow)
+                                .clickable {
+                                    selectorExpanded = false
+                                    openLocation(location)
+                                }
+                                .padding(horizontal = 12.dp, vertical = 8.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Icon(
+                                imageVector = iconForStorageKind(location.kind, context),
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.primary,
+                                modifier = Modifier.size(20.dp)
+                            )
+                            Spacer(modifier = Modifier.width(10.dp))
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(
+                                    text = location.typeLabel,
+                                    style = MaterialTheme.typography.titleSmall,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
+                                )
+                                Text(
+                                    text = location.name,
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    if (isWatch && currentFolderMenuExpanded) {
+        Dialog(
+            onDismissRequest = { currentFolderMenuExpanded = false },
+            properties = DialogProperties(usePlatformDefaultWidth = false)
+        ) {
+            Surface(
+                modifier = Modifier.fillMaxSize(),
+                color = MaterialTheme.colorScheme.background
+            ) {
+                LazyColumn(
+                    modifier = Modifier.fillMaxSize(),
+                    contentPadding = PaddingValues(
+                        start = if (isRound) 14.dp else 10.dp,
+                        end = if (isRound) 14.dp else 10.dp,
+                        top = if (isRound) 24.dp else 12.dp,
+                        bottom = if (isRound) 28.dp else 12.dp
+                    ),
+                    verticalArrangement = Arrangement.spacedBy(6.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    item(key = "watch_folder_options_title") {
+                        Text(
+                            text = currentDirectory?.name ?: "Folder Options",
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.Bold,
+                            textAlign = TextAlign.Center,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(bottom = 6.dp)
+                        )
+                    }
+                    item(key = "watch_pin_folder") {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clip(RoundedCornerShape(14.dp))
+                                .background(MaterialTheme.colorScheme.surfaceContainerLow)
+                                .clickable {
+                                    val folderPath = resolveCurrentFolderPathForActions()
+                                    if (folderPath != null) {
+                                        val recentEntry = RecentPathEntry(
+                                            path = folderPath,
+                                            locationId = selectedLocationId,
+                                            title = folderTitleForDisplay(folderPath)
+                                        )
+                                        val preview = previewPinnedHomeEntryInsertion(
+                                            current = pinnedHomeEntries,
+                                            candidate = HomePinnedEntry(
+                                                path = recentEntry.path,
+                                                isFolder = true,
+                                                locationId = recentEntry.locationId,
+                                                title = recentEntry.title
+                                            ),
+                                            maxItems = PINNED_HOME_ENTRIES_LIMIT
+                                        )
+                                        if (preview.requiresConfirmation) {
+                                            pendingPinEvictionCandidate = preview.evictionCandidate
+                                            pendingPinConfirmation = recentEntry to true
+                                        } else {
+                                            onPinHomeEntry(recentEntry, true)
+                                            Toast.makeText(
+                                                context,
+                                                "Pinned folder to home",
+                                                Toast.LENGTH_SHORT
+                                            ).show()
+                                        }
+                                    }
+                                    currentFolderMenuExpanded = false
+                                }
+                                .padding(horizontal = 12.dp, vertical = 10.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Home,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.primary,
+                                modifier = Modifier.size(20.dp)
+                            )
+                            Spacer(modifier = Modifier.width(10.dp))
+                            Text(
+                                text = "Pin folder to home",
+                                style = MaterialTheme.typography.titleSmall
+                            )
+                        }
+                    }
+                    item(key = "watch_folder_info") {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clip(RoundedCornerShape(14.dp))
+                                .background(MaterialTheme.colorScheme.surfaceContainerLow)
+                                .clickable {
+                                    showCurrentFolderInfoDialog()
+                                    currentFolderMenuExpanded = false
+                                }
+                                .padding(horizontal = 12.dp, vertical = 10.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Info,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.primary,
+                                modifier = Modifier.size(20.dp)
+                            )
+                            Spacer(modifier = Modifier.width(10.dp))
+                            Text(
+                                text = "Info",
+                                style = MaterialTheme.typography.titleSmall
+                            )
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    watchActionTargetItem?.let { targetItem ->
+        val isFolder = targetItem.isDirectory
+        Dialog(
+            onDismissRequest = { watchActionTargetItem = null },
+            properties = DialogProperties(usePlatformDefaultWidth = false)
+        ) {
+            Surface(
+                modifier = Modifier.fillMaxSize(),
+                color = MaterialTheme.colorScheme.background
+            ) {
+                LazyColumn(
+                    modifier = Modifier.fillMaxSize(),
+                    contentPadding = PaddingValues(
+                        start = if (isRound) 14.dp else 10.dp,
+                        end = if (isRound) 14.dp else 10.dp,
+                        top = if (isRound) 24.dp else 12.dp,
+                        bottom = if (isRound) 28.dp else 12.dp
+                    ),
+                    verticalArrangement = Arrangement.spacedBy(6.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    item(key = "target_title") {
+                        Text(
+                            text = targetItem.name,
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.Bold,
+                            textAlign = TextAlign.Center,
+                            maxLines = 2,
+                            overflow = TextOverflow.Ellipsis,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(bottom = 6.dp)
+                        )
+                    }
+                    if (!isFolder) {
+                        item(key = "action_play") {
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clip(RoundedCornerShape(14.dp))
+                                    .background(MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.7f))
+                                    .clickable {
+                                        watchActionTargetItem = null
+                                        openFileItem(targetItem)
+                                    }
+                                    .padding(horizontal = 12.dp, vertical = 10.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.PlayArrow,
+                                    contentDescription = null,
+                                    tint = MaterialTheme.colorScheme.onPrimaryContainer,
+                                    modifier = Modifier.size(20.dp)
+                                )
+                                Spacer(modifier = Modifier.width(10.dp))
+                                Text(
+                                    text = "Play",
+                                    style = MaterialTheme.typography.titleSmall,
+                                    color = MaterialTheme.colorScheme.onPrimaryContainer
+                                )
+                            }
+                        }
+                    }
+                    item(key = "action_pin") {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clip(RoundedCornerShape(14.dp))
+                                .background(MaterialTheme.colorScheme.surfaceContainerLow)
+                                .clickable {
+                                    val recentEntry = RecentPathEntry(
+                                        path = targetItem.file.absolutePath,
+                                        locationId = selectedLocationId,
+                                        title = if (isFolder) targetItem.name else null
+                                    )
+                                    val preview = previewPinnedHomeEntryInsertion(
+                                        current = pinnedHomeEntries,
+                                        candidate = HomePinnedEntry(
+                                            path = recentEntry.path,
+                                            isFolder = isFolder,
+                                            locationId = recentEntry.locationId,
+                                            title = recentEntry.title
+                                        ),
+                                        maxItems = PINNED_HOME_ENTRIES_LIMIT
+                                    )
+                                    if (preview.requiresConfirmation) {
+                                        pendingPinEvictionCandidate = preview.evictionCandidate
+                                        pendingPinConfirmation = recentEntry to isFolder
+                                    } else {
+                                        onPinHomeEntry(recentEntry, isFolder)
+                                        Toast.makeText(
+                                            context,
+                                            if (isFolder) "Pinned folder to home" else "Pinned file to home",
+                                            Toast.LENGTH_SHORT
+                                        ).show()
+                                    }
+                                    watchActionTargetItem = null
+                                }
+                                .padding(horizontal = 12.dp, vertical = 10.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Home,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.primary,
+                                modifier = Modifier.size(20.dp)
+                            )
+                            Spacer(modifier = Modifier.width(10.dp))
+                            Text(
+                                text = if (isFolder) "Pin folder to home" else "Pin file to home",
+                                style = MaterialTheme.typography.titleSmall
+                            )
+                        }
+                    }
+                    item(key = "action_info") {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clip(RoundedCornerShape(14.dp))
+                                .background(MaterialTheme.colorScheme.surfaceContainerLow)
+                                .clickable {
+                                    browserInfoFields = buildBrowserInfoFields(
+                                        entries = listOf(
+                                            BrowserInfoEntry(
+                                                name = targetItem.name,
+                                                isDirectory = targetItem.isDirectory,
+                                                sizeBytes = if (targetItem.isDirectory) null else targetItem.size
+                                            )
+                                        ),
+                                        path = targetItem.file.absolutePath,
+                                        storageOrHostLabel = "Storage",
+                                        storageOrHost = selectedLocation?.let { location ->
+                                            "${location.typeLabel} (${location.name})"
+                                        } ?: "Unknown"
+                                    )
+                                    showBrowserInfoDialog = true
+                                    watchActionTargetItem = null
+                                }
+                                .padding(horizontal = 12.dp, vertical = 10.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Info,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.primary,
+                                modifier = Modifier.size(20.dp)
+                            )
+                            Spacer(modifier = Modifier.width(10.dp))
+                            Text(
+                                text = "Info",
+                                style = MaterialTheme.typography.titleSmall
+                            )
+                        }
+                    }
+                    if (!targetItem.file.name.isEmpty()) {
+                        item(key = "action_delete") {
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clip(RoundedCornerShape(14.dp))
+                                    .background(MaterialTheme.colorScheme.surfaceContainerLow)
+                                    .clickable {
+                                        pendingDeleteFilePaths = listOf(targetItem.file.absolutePath)
+                                        watchActionTargetItem = null
+                                    }
+                                    .padding(horizontal = 12.dp, vertical = 10.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.Delete,
+                                    contentDescription = null,
+                                    tint = MaterialTheme.colorScheme.error,
+                                    modifier = Modifier.size(20.dp)
+                                )
+                                Spacer(modifier = Modifier.width(10.dp))
+                                Text(
+                                    text = "Delete",
+                                    style = MaterialTheme.typography.titleSmall,
+                                    color = MaterialTheme.colorScheme.error
+                                )
+                            }
+                        }
+                    }
+                }
             }
         }
     }
@@ -1899,13 +2460,22 @@ internal fun FileBrowserScreen(
 @Composable
 private fun ParentDirectoryItemRow(
     onClick: () -> Unit,
+    isWatch: Boolean = false,
     rightFocusRequester: FocusRequester? = null,
     rowFocusRequester: FocusRequester? = null,
     onFocused: (() -> Unit)? = null
 ) {
+    val iconBoxSize = if (isWatch) 32.dp else FILE_ICON_BOX_SIZE
+    val iconGlyphSize = if (isWatch) 16.dp else FILE_ICON_GLYPH_SIZE
+    val chipCorner = if (isWatch) 8.dp else 11.dp
     Row(
         modifier = Modifier
             .fillMaxWidth()
+            .clip(RoundedCornerShape(if (isWatch) 14.dp else 0.dp))
+            .background(
+                if (isWatch) MaterialTheme.colorScheme.surfaceContainerLow
+                else MaterialTheme.colorScheme.surface.copy(alpha = 0f)
+            )
             .focusProperties {
                 if (rightFocusRequester != null) {
                     right = rightFocusRequester
@@ -1915,11 +2485,14 @@ private fun ParentDirectoryItemRow(
             .onFocusChanged { state -> if (state.isFocused) onFocused?.invoke() }
             .clickable(onClick = onClick)
             .focusable()
-            .padding(horizontal = 16.dp, vertical = 10.dp),
+            .padding(
+                horizontal = if (isWatch) 10.dp else 16.dp,
+                vertical = if (isWatch) 7.dp else 10.dp
+            ),
         verticalAlignment = Alignment.CenterVertically
     ) {
         Box(
-            modifier = Modifier.size(FILE_ICON_BOX_SIZE),
+            modifier = Modifier.size(iconBoxSize),
             contentAlignment = Alignment.Center
         ) {
             Box(
@@ -1927,7 +2500,7 @@ private fun ParentDirectoryItemRow(
                     .fillMaxSize()
                     .background(
                         color = MaterialTheme.colorScheme.primaryContainer,
-                        shape = RoundedCornerShape(11.dp)
+                        shape = RoundedCornerShape(chipCorner)
                     ),
                 contentAlignment = Alignment.Center
             ) {
@@ -1935,15 +2508,15 @@ private fun ParentDirectoryItemRow(
                     imageVector = Icons.Default.Folder,
                     contentDescription = "Parent directory",
                     tint = MaterialTheme.colorScheme.onPrimaryContainer,
-                    modifier = Modifier.size(FILE_ICON_GLYPH_SIZE)
+                    modifier = Modifier.size(iconGlyphSize)
                 )
             }
         }
-        Spacer(modifier = Modifier.width(16.dp))
+        Spacer(modifier = Modifier.width(if (isWatch) 10.dp else 16.dp))
         Column(modifier = Modifier.weight(1f)) {
             Text(
                 text = "..",
-                style = MaterialTheme.typography.bodyLarge,
+                style = if (isWatch) MaterialTheme.typography.titleSmall else MaterialTheme.typography.bodyLarge,
                 maxLines = 1
             )
             Text(
@@ -2357,16 +2930,23 @@ fun FileItemRow(
     onToggleFavorite: () -> Unit = {}
 ) {
     val context = LocalContext.current
+    val isWatch = remember(context) {
+        context.packageManager.hasSystemFeature(PackageManager.FEATURE_WATCH)
+    }
+    val iconBoxSize = if (isWatch) 32.dp else FILE_ICON_BOX_SIZE
+    val iconGlyphSize = if (isWatch) 16.dp else FILE_ICON_GLYPH_SIZE
+    val chipCorner = if (isWatch) 8.dp else 11.dp
     // Cache per-row derived values that depend only on the FileItem identity.
     // Without these `remember`s, every row recomposition (e.g. when scroll
     // start/stop flips allowThumbnailPreviewLoads) re-ran filename parsing,
     // MimeTypeMap lookups and shape allocation across every visible row.
-    val selectionShape = remember(hasSelectedAbove, hasSelectedBelow) {
+    val selectionShape = remember(hasSelectedAbove, hasSelectedBelow, isWatch) {
+        val cornerRadius = if (isWatch) 14.dp else 18.dp
         RoundedCornerShape(
-            topStart = if (hasSelectedAbove) 0.dp else 18.dp,
-            topEnd = if (hasSelectedAbove) 0.dp else 18.dp,
-            bottomStart = if (hasSelectedBelow) 0.dp else 18.dp,
-            bottomEnd = if (hasSelectedBelow) 0.dp else 18.dp
+            topStart = if (hasSelectedAbove && !isWatch) 0.dp else cornerRadius,
+            topEnd = if (hasSelectedAbove && !isWatch) 0.dp else cornerRadius,
+            bottomStart = if (hasSelectedBelow && !isWatch) 0.dp else cornerRadius,
+            bottomEnd = if (hasSelectedBelow && !isWatch) 0.dp else cornerRadius
         )
     }
     val isVideoFile = remember(item.file.absolutePath, item.isDirectory) {
@@ -2466,8 +3046,10 @@ fun FileItemRow(
             .fillMaxWidth()
             .clip(selectionShape)
             .background(
-                if (isSelected) {
+                if (isSelected || (isWatch && (isPlaying || isPlayingPlaylist))) {
                     MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.6f)
+                } else if (isWatch) {
+                    MaterialTheme.colorScheme.surfaceContainerLow
                 } else {
                     MaterialTheme.colorScheme.surface.copy(alpha = 0f)
                 }
@@ -2485,11 +3067,14 @@ fun FileItemRow(
                 onLongClick = onLongClick
             )
             .focusable()
-            .padding(horizontal = 16.dp, vertical = 10.dp),
+            .padding(
+                horizontal = if (isWatch) 10.dp else 16.dp,
+                vertical = if (isWatch) 7.dp else 10.dp
+            ),
         verticalAlignment = Alignment.CenterVertically
     ) {
         val showIconChipBackground = item.isDirectory || showFileIconChipBackground
-        val chipShape = RoundedCornerShape(11.dp)
+        val chipShape = RoundedCornerShape(chipCorner)
         val chipContainerColor = if (item.isDirectory) {
             MaterialTheme.colorScheme.primaryContainer
         } else {
@@ -2506,7 +3091,7 @@ fun FileItemRow(
             MaterialTheme.colorScheme.primary
         }
         Box(
-            modifier = Modifier.size(FILE_ICON_BOX_SIZE),
+            modifier = Modifier.size(iconBoxSize),
             contentAlignment = Alignment.Center
         ) {
             val previewBitmap = thumbnailPreview
@@ -2533,14 +3118,14 @@ fun FileItemRow(
                                 painter = painterResource(id = R.drawable.ic_folder_zip),
                                 contentDescription = "ZIP archive",
                                 tint = iconTint,
-                                modifier = Modifier.size(FILE_ICON_GLYPH_SIZE)
+                                modifier = Modifier.size(iconGlyphSize)
                             )
                         } else {
                             Icon(
                                 imageVector = Icons.Default.Folder,
                                 contentDescription = "Directory",
                                 tint = iconTint,
-                                modifier = Modifier.size(FILE_ICON_GLYPH_SIZE)
+                                modifier = Modifier.size(iconGlyphSize)
                             )
                         }
                     } else {
@@ -2558,49 +3143,49 @@ fun FileItemRow(
                                 imageVector = Icons.Default.VideoFile,
                                 contentDescription = contentDescription,
                                 tint = iconTint,
-                                modifier = Modifier.size(FILE_ICON_GLYPH_SIZE)
+                                modifier = Modifier.size(iconGlyphSize)
                             )
                         } else if (decoderArtworkHint == DecoderArtworkHint.TrackedFile) {
                             Icon(
                                 painter = painterResource(id = R.drawable.ic_file_tracked),
                                 contentDescription = contentDescription,
                                 tint = iconTint,
-                                modifier = Modifier.size(FILE_ICON_GLYPH_SIZE)
+                                modifier = Modifier.size(iconGlyphSize)
                             )
                         } else if (decoderArtworkHint == DecoderArtworkHint.GameFile) {
                             Icon(
                                 painter = painterResource(id = R.drawable.ic_file_game),
                                 contentDescription = contentDescription,
                                 tint = iconTint,
-                                modifier = Modifier.size(FILE_ICON_GLYPH_SIZE)
+                                modifier = Modifier.size(iconGlyphSize)
                             )
                         } else if (previewKind == FilePreviewKind.Text) {
                             Icon(
                                 imageVector = Icons.Default.Description,
                                 contentDescription = contentDescription,
                                 tint = iconTint,
-                                modifier = Modifier.size(FILE_ICON_GLYPH_SIZE)
+                                modifier = Modifier.size(iconGlyphSize)
                             )
                         } else if (previewKind == FilePreviewKind.Image) {
                             Icon(
                                 imageVector = Icons.Default.Photo,
                                 contentDescription = contentDescription,
                                 tint = iconTint,
-                                modifier = Modifier.size(FILE_ICON_GLYPH_SIZE)
+                                modifier = Modifier.size(iconGlyphSize)
                             )
                         } else if (item.kind == FileItem.Kind.UnsupportedFile) {
                             Icon(
                                 painter = painterResource(id = R.drawable.ic_file_unsupported),
                                 contentDescription = contentDescription,
                                 tint = iconTint,
-                                modifier = Modifier.size(FILE_ICON_GLYPH_SIZE)
+                                modifier = Modifier.size(iconGlyphSize)
                             )
                         } else {
                             Icon(
                                 imageVector = Icons.Default.AudioFile,
                                 contentDescription = contentDescription,
                                 tint = iconTint,
-                                modifier = Modifier.size(FILE_ICON_GLYPH_SIZE)
+                                modifier = Modifier.size(iconGlyphSize)
                             )
                         }
                     }
@@ -2627,11 +3212,11 @@ fun FileItemRow(
                 }
             }
         }
-        Spacer(modifier = Modifier.width(16.dp))
+        Spacer(modifier = Modifier.width(if (isWatch) 10.dp else 16.dp))
         Column(modifier = Modifier.weight(1f)) {
             Text(
                 text = item.name,
-                style = MaterialTheme.typography.bodyLarge,
+                style = if (isWatch) MaterialTheme.typography.titleSmall else MaterialTheme.typography.bodyLarge,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis
             )
