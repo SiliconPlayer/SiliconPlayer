@@ -647,8 +647,6 @@ internal fun formatTimeForMini(seconds: Double): String {
 
 @Composable
 internal fun WearMiniPlayerPill(
-    title: String,
-    artist: String,
     artwork: ImageBitmap?,
     noArtworkIcon: ImageVector,
     isPlaying: Boolean,
@@ -659,7 +657,6 @@ internal fun WearMiniPlayerPill(
     Surface(
         onClick = onExpand,
         modifier = modifier
-            .fillMaxWidth()
             .height(34.dp),
         shape = CircleShape,
         color = MaterialTheme.colorScheme.secondaryContainer,
@@ -669,14 +666,14 @@ internal fun WearMiniPlayerPill(
     ) {
         Row(
             modifier = Modifier
-                .fillMaxSize()
-                .padding(horizontal = 4.dp),
-            verticalAlignment = Alignment.CenterVertically
+                .padding(horizontal = 4.dp, vertical = 4.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(6.dp)
         ) {
             // Mini Album Artwork or Icon
             Surface(
                 modifier = Modifier
-                    .size(24.dp)
+                    .size(26.dp)
                     .clip(CircleShape),
                 shape = CircleShape,
                 color = MaterialTheme.colorScheme.surface.copy(alpha = 0.4f)
@@ -697,32 +694,17 @@ internal fun WearMiniPlayerPill(
                             imageVector = noArtworkIcon,
                             contentDescription = null,
                             tint = MaterialTheme.colorScheme.primary,
-                            modifier = Modifier.size(13.dp)
+                            modifier = Modifier.size(14.dp)
                         )
                     }
                 }
             }
 
-            Spacer(modifier = Modifier.width(5.dp))
-
-            // Track Info
-            Text(
-                text = title,
-                style = MaterialTheme.typography.labelSmall.copy(fontSize = 11.sp),
-                fontWeight = FontWeight.SemiBold,
-                color = MaterialTheme.colorScheme.onSecondaryContainer,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-                modifier = Modifier.weight(1f)
-            )
-
-            Spacer(modifier = Modifier.width(3.dp))
-
             // Play / Pause Action Button
             Surface(
                 onClick = onPlayPause,
                 modifier = Modifier
-                    .size(24.dp)
+                    .size(26.dp)
                     .clip(CircleShape),
                 shape = CircleShape,
                 color = MaterialTheme.colorScheme.primary,
@@ -735,7 +717,7 @@ internal fun WearMiniPlayerPill(
                     Icon(
                         imageVector = if (isPlaying) Icons.Default.Pause else Icons.Default.PlayArrow,
                         contentDescription = if (isPlaying) "Pause" else "Play",
-                        modifier = Modifier.size(14.dp)
+                        modifier = Modifier.size(15.dp)
                     )
                 }
             }

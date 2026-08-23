@@ -159,8 +159,8 @@ internal fun BoxScope.MiniPlayerOverlayHost(
         modifier = Modifier
             .align(Alignment.BottomCenter)
             .padding(
-                horizontal = if (isWatch) (if (isRound) 40.dp else 12.dp) else 14.dp,
-                vertical = if (isWatch) (if (isRound) 24.dp else 8.dp) else 6.dp
+                horizontal = if (isWatch) (if (isRound) 8.dp else 6.dp) else 14.dp,
+                vertical = if (isWatch) (if (isRound) 8.dp else 4.dp) else 6.dp
             )
     ) {
         val previousButtonFocusRequester = remember { FocusRequester() }
@@ -319,8 +319,6 @@ internal fun BoxScope.MiniPlayerOverlayHost(
             }
             if (isWatch) {
                 WearMiniPlayerPill(
-                    title = displayTitle,
-                    artist = displayArtist,
                     artwork = artworkBitmap,
                     noArtworkIcon = placeholderArtworkIconForFile(selectedFile, decoderName),
                     isPlaying = isPlaying,

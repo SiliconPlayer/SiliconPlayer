@@ -68,11 +68,13 @@ internal fun WatchDialogContainer(
                         style = MaterialTheme.typography.titleMedium,
                         fontWeight = FontWeight.Bold,
                         textAlign = TextAlign.Center,
-                        maxLines = 2,
+                        maxLines = 3,
                         overflow = TextOverflow.Ellipsis,
                         modifier = Modifier
-                            .fillMaxWidth()
                             .padding(bottom = 4.dp)
+                            .then(
+                                if (isRound) Modifier.widthIn(max = 120.dp) else Modifier.fillMaxWidth().padding(horizontal = 4.dp)
+                            )
                     )
                 }
                 content()
