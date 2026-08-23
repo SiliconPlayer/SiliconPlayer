@@ -1027,7 +1027,9 @@ internal fun PlayerScreen(
                             },
                             canOpenCoreSettings = canOpenCoreSettings,
                             onOpenCoreSettings = onOpenCoreSettings,
-                            onOpenTrackInfo = { showTrackInfoDialog = true }
+                            onOpenTrackInfo = { showTrackInfoDialog = true },
+                            onOpenAudioEffects = onOpenAudioEffects,
+                            onOpenChannelControls = { showChannelControlDialog = true }
                         )
                     }
                 }
@@ -1313,8 +1315,6 @@ internal fun PlayerScreen(
                                     canToggleFavoriteTrack = pathOrUrl != null,
                                     canOpenPlaylistSelector = canOpenPlaylistSelector,
                                     onOpenPlaylistSelector = onOpenPlaylistSelector,
-                                    onOpenAudioEffects = onOpenAudioEffects,
-                                    onOpenChannelControls = { showChannelControlDialog = true },
                                     compactLayout = false,
                                     layoutScale = actionStripScale,
                                     actionStripFirstFocusRequester = actionStripFirstFocusRequester,
@@ -1671,8 +1671,6 @@ internal fun PlayerScreen(
                             canToggleFavoriteTrack = pathOrUrl != null,
                             canOpenPlaylistSelector = canOpenPlaylistSelector,
                             onOpenPlaylistSelector = onOpenPlaylistSelector,
-                            onOpenAudioEffects = onOpenAudioEffects,
-                            onOpenChannelControls = { showChannelControlDialog = true },
                             compactLayout = true,
                             layoutScale = if (shortPortraitLayout) {
                                 (shortPortraitHeightScale * 0.72f).coerceIn(0.40f, 0.62f)
@@ -1813,7 +1811,9 @@ private fun PlayerTopBar(
     downFocusRequester: FocusRequester? = null,
     canOpenCoreSettings: Boolean,
     onOpenCoreSettings: () -> Unit,
-    onOpenTrackInfo: () -> Unit
+    onOpenTrackInfo: () -> Unit,
+    onOpenAudioEffects: () -> Unit,
+    onOpenChannelControls: () -> Unit
 ) {
     var showMoreMenu by remember { mutableStateOf(false) }
     val moreOptionsFocusRequester = remember { FocusRequester() }
@@ -1932,6 +1932,32 @@ private fun PlayerTopBar(
                 expanded = showMoreMenu,
                 onDismissRequest = { showMoreMenu = false }
             ) {
+                DropdownMenuItem(
+                    text = { Text("Audio Effects") },
+                    leadingIcon = {
+                        Icon(
+                            imageVector = Icons.Default.Tune,
+                            contentDescription = null
+                        )
+                    },
+                    onClick = {
+                        showMoreMenu = false
+                        onOpenAudioEffects()
+                    }
+                )
+                DropdownMenuItem(
+                    text = { Text("Channel Controls") },
+                    leadingIcon = {
+                        Icon(
+                            painter = painterResource(id = R.drawable.ic_airwave),
+                            contentDescription = null
+                        )
+                    },
+                    onClick = {
+                        showMoreMenu = false
+                        onOpenChannelControls()
+                    }
+                )
                 DropdownMenuItem(
                     text = { Text("Track & Decoder Info") },
                     leadingIcon = {
@@ -3802,8 +3828,6 @@ private fun FutureActionStrip(
     canToggleFavoriteTrack: Boolean,
     canOpenPlaylistSelector: Boolean,
     onOpenPlaylistSelector: () -> Unit,
-    onOpenAudioEffects: () -> Unit,
-    onOpenChannelControls: () -> Unit,
     compactLayout: Boolean = false,
     layoutScale: Float = 1f,
     actionStripFirstFocusRequester: FocusRequester? = null,
@@ -3812,13 +3836,9 @@ private fun FutureActionStrip(
     val visualizationModeFocusRequester = actionStripFirstFocusRequester ?: remember { FocusRequester() }
     val playlistSelectorFocusRequester = remember { FocusRequester() }
     val favoriteTrackFocusRequester = remember { FocusRequester() }
-    val audioEffectsFocusRequester = remember { FocusRequester() }
-    val channelControlsFocusRequester = remember { FocusRequester() }
     val canFocusVisualizationMode = true
     val canFocusFavoriteTrack = canToggleFavoriteTrack
     val canFocusPlaylistSelector = canOpenPlaylistSelector
-    val canFocusAudioEffects = true
-    val canFocusChannelControls = true
 
     data class ActionFocusNode(
         val key: String,
@@ -3829,9 +3849,7 @@ private fun FutureActionStrip(
     val actionFocusNodes = listOf(
         ActionFocusNode("visualization", canFocusVisualizationMode, visualizationModeFocusRequester),
         ActionFocusNode("playlist", canFocusPlaylistSelector, playlistSelectorFocusRequester),
-        ActionFocusNode("favorite", canFocusFavoriteTrack, favoriteTrackFocusRequester),
-        ActionFocusNode("effects", canFocusAudioEffects, audioEffectsFocusRequester),
-        ActionFocusNode("channels", canFocusChannelControls, channelControlsFocusRequester)
+        ActionFocusNode("favorite", canFocusFavoriteTrack, favoriteTrackFocusRequester)
     )
 
     fun neighboringActionRequester(key: String, step: Int): FocusRequester? {
@@ -3967,56 +3985,6 @@ private fun FutureActionStrip(
                         MaterialTheme.colorScheme.onSurfaceVariant
                     },
                     modifier = Modifier.size(genericIconSize)
-                )
-            }
-
-            // 4. DSP / EQ Controls
-            IconButton(
-                onClick = onOpenAudioEffects,
-                enabled = true,
-                modifier = Modifier
-                    .size(iconButtonSize)
-                    .focusRequester(audioEffectsFocusRequester)
-                    .focusProperties {
-                        neighboringActionRequester("effects", -1)?.let { left = it }
-                        neighboringActionRequester("effects", 1)?.let { right = it }
-                        if (transportAnchorFocusRequester != null) {
-                            up = transportAnchorFocusRequester
-                        }
-                    }
-                    .playerFocusHalo(shape = CircleShape)
-                    .focusable()
-            ) {
-                Icon(
-                    imageVector = Icons.Default.Tune,
-                    contentDescription = "Audio effects",
-                    modifier = Modifier.size(genericIconSize),
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            }
-
-            // 5. Channel Controls
-            IconButton(
-                onClick = onOpenChannelControls,
-                enabled = true,
-                modifier = Modifier
-                    .size(iconButtonSize)
-                    .focusRequester(channelControlsFocusRequester)
-                    .focusProperties {
-                        neighboringActionRequester("channels", -1)?.let { left = it }
-                        neighboringActionRequester("channels", 1)?.let { right = it }
-                        if (transportAnchorFocusRequester != null) {
-                            up = transportAnchorFocusRequester
-                        }
-                    }
-                    .playerFocusHalo(shape = CircleShape)
-                    .focusable()
-            ) {
-                Icon(
-                    painter = painterResource(id = R.drawable.ic_airwave),
-                    contentDescription = "Channel controls",
-                    modifier = Modifier.size(genericIconSize),
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
         }
