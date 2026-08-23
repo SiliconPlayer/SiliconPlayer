@@ -994,7 +994,7 @@ internal fun clearAllSettingsAction(
     onRecentPlayedFilesChanged(emptyList())
     onKeepScreenOnChanged(AppDefaults.Player.keepScreenOn)
     onPlayerArtworkCornerRadiusDpChanged(AppDefaults.Player.artworkCornerRadiusDp)
-    onFilenameDisplayModeChanged(FilenameDisplayMode.Always)
+    onFilenameDisplayModeChanged(AppDefaults.Player.filenameDisplayMode)
     onFilenameOnlyWhenTitleMissingChanged(false)
     onUnknownTrackDurationSecondsChanged(GmeDefaults.unknownDurationSeconds)
     onAdPlugCoreSampleRateHzChanged(AdPlugDefaults.coreSampleRateHz)

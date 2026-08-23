@@ -166,7 +166,7 @@ enum class FilenameDisplayMode(val storageValue: String, val label: String) {
 
     companion object {
         fun fromStorage(value: String?): FilenameDisplayMode {
-            return entries.firstOrNull { it.storageValue == value } ?: Always
+            return entries.firstOrNull { it.storageValue == value } ?: TrackerOnly
         }
     }
 }

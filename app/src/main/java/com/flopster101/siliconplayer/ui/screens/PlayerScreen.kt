@@ -703,7 +703,7 @@ internal fun PlayerScreen(
     isTrackFavorited: Boolean = false,
     onToggleFavoriteTrack: () -> Unit = {},
     onOpenAudioEffects: () -> Unit,
-    filenameDisplayMode: com.flopster101.siliconplayer.FilenameDisplayMode = com.flopster101.siliconplayer.FilenameDisplayMode.Always,
+    filenameDisplayMode: com.flopster101.siliconplayer.FilenameDisplayMode = com.flopster101.siliconplayer.AppDefaults.Player.filenameDisplayMode,
     filenameOnlyWhenTitleMissing: Boolean = false,
     externalTrackInfoDialogRequestToken: Int = 0,
     onCollapseDragProgressChanged: (Boolean) -> Unit = {}

@@ -1685,7 +1685,10 @@ private fun AppNavigation(
     var filenameDisplayMode by remember {
         mutableStateOf(
             FilenameDisplayMode.fromStorage(
-                prefs.getString(AppPreferenceKeys.FILENAME_DISPLAY_MODE, FilenameDisplayMode.Always.storageValue)
+                prefs.getString(
+                    AppPreferenceKeys.FILENAME_DISPLAY_MODE,
+                    AppDefaults.Player.filenameDisplayMode.storageValue
+                )
             )
         )
     }

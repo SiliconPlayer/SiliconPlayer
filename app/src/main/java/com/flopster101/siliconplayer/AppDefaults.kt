@@ -16,6 +16,7 @@ object AppDefaults {
     }
 
     object Player {
+        val filenameDisplayMode = FilenameDisplayMode.TrackerOnly
         const val keepScreenOn = false
         const val fadePauseResume = true
         const val preloadNextCachedRemoteTrack = true
