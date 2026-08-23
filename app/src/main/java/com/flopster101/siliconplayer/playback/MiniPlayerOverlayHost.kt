@@ -45,6 +45,9 @@ import androidx.compose.ui.input.key.KeyEventType
 import androidx.compose.ui.input.key.key
 import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.input.key.type
+import android.content.pm.PackageManager
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.dp
 import java.io.File
@@ -126,6 +129,9 @@ internal fun BoxScope.MiniPlayerOverlayHost(
     currentSubtuneIndex: Int,
     subtuneCount: Int
 ) {
+    val context = LocalContext.current
+    val isWatch = remember(context) { context.packageManager.hasSystemFeature(PackageManager.FEATURE_WATCH) }
+    val isRound = LocalConfiguration.current.isScreenRound
     var dragExpandCommitInProgress by remember { mutableStateOf(false) }
     LaunchedEffect(isPlayerExpanded, miniExpandPreviewProgress) {
         if (!isPlayerExpanded && miniExpandPreviewProgress <= 0f) {
@@ -152,7 +158,10 @@ internal fun BoxScope.MiniPlayerOverlayHost(
         },
         modifier = Modifier
             .align(Alignment.BottomCenter)
-            .padding(horizontal = 14.dp, vertical = 6.dp)
+            .padding(
+                horizontal = if (isWatch) (if (isRound) 40.dp else 12.dp) else 14.dp,
+                vertical = if (isWatch) (if (isRound) 24.dp else 8.dp) else 6.dp
+            )
     ) {
         val previousButtonFocusRequester = remember { FocusRequester() }
         val stopButtonFocusRequester = remember { FocusRequester() }
@@ -301,65 +310,85 @@ internal fun BoxScope.MiniPlayerOverlayHost(
         }
         val miniPlayerContent: @Composable () -> Unit = {
             val sanitizedTitle = sanitizeRemoteCachedMetadataTitle(metadataTitle, selectedFile)
-            MiniPlayerBar(
-                file = selectedFile,
-                title = sanitizedTitle.ifBlank {
-                    selectedFile?.name?.let(::inferredDisplayTitleForName)
-                        ?: "No track loaded"
-                },
-                artist = metadataArtist.ifBlank {
-                    if (selectedFile != null) "Unknown Artist" else "Unknown"
-                },
-                metadataTitleResolved = sanitizedTitle.isNotBlank(),
-                artwork = artworkBitmap,
-                noArtworkIcon = placeholderArtworkIconForFile(selectedFile, decoderName),
-                artworkCornerRadiusDp = playerArtworkCornerRadiusDp,
-                isPlaying = isPlaying,
-                playbackStartInProgress = playbackStartInProgress,
-                seekInProgress = seekUiBusy,
-                canResumeStoppedTrack = canResumeStoppedTrack,
-                positionSeconds = miniPlayerDisplayPositionSeconds,
-                durationSeconds = durationSeconds,
-                hasReliableDuration = hasReliableDuration(playbackCapabilitiesFlags),
-                previousRestartsAfterThreshold = previousRestartsAfterThreshold,
-                canPreviousTrack = canPreviousTrack,
-                canNextTrack = canNextTrack,
-                canPreviousSubtune = canPreviousSubtune,
-                canNextSubtune = canNextSubtune,
-                currentSubtuneIndex = currentSubtuneIndex,
-                subtuneCount = subtuneCount,
-                onExpand = {
-                    onMiniPlayerExpandRequested()
-                    onCollapseFromSwipeChanged(false)
-                    onExpandFromMiniDragChanged(miniExpandPreviewProgress > 0f)
-                    onMiniExpandPreviewProgressChanged(0f)
-                    onPlayerExpandedChanged(true)
-                },
-                onExpandDragProgress = onMiniExpandPreviewProgressChanged,
-                onExpandDragCommit = {
-                    if (dragExpandCommitInProgress) {
-                        return@MiniPlayerBar
-                    }
-                    dragExpandCommitInProgress = true
-                    onMiniPlayerExpandRequested()
-                    onExpandFromMiniDragChanged(true)
-                    onCollapseFromSwipeChanged(false)
-                    onPlayerExpandedChanged(true)
-                    onMiniExpandPreviewProgressChanged(0f)
-                },
-                onPreviousTrack = { onPreviousTrack(); Unit },
-                onForcePreviousTrack = { onForcePreviousTrack(); Unit },
-                onNextTrack = { onNextTrack(); Unit },
-                onPreviousSubtune = onPreviousSubtune,
-                onNextSubtune = onNextSubtune,
-                onPlayPause = onPlayPause,
-                onStopAndClear = onStopAndClear,
-                miniContainerFocusRequester = miniPlayerFocusRequester,
-                previousButtonFocusRequester = previousButtonFocusRequester,
-                stopButtonFocusRequester = stopButtonFocusRequester,
-                playPauseButtonFocusRequester = playPauseButtonFocusRequester,
-                nextButtonFocusRequester = nextButtonFocusRequester
-            )
+            val displayTitle = sanitizedTitle.ifBlank {
+                selectedFile?.name?.let(::inferredDisplayTitleForName)
+                    ?: "No track loaded"
+            }
+            val displayArtist = metadataArtist.ifBlank {
+                if (selectedFile != null) "Unknown Artist" else "Unknown"
+            }
+            if (isWatch) {
+                WearMiniPlayerPill(
+                    title = displayTitle,
+                    artist = displayArtist,
+                    artwork = artworkBitmap,
+                    noArtworkIcon = placeholderArtworkIconForFile(selectedFile, decoderName),
+                    isPlaying = isPlaying,
+                    onExpand = {
+                        onMiniPlayerExpandRequested()
+                        onCollapseFromSwipeChanged(false)
+                        onExpandFromMiniDragChanged(miniExpandPreviewProgress > 0f)
+                        onMiniExpandPreviewProgressChanged(0f)
+                        onPlayerExpandedChanged(true)
+                    },
+                    onPlayPause = onPlayPause
+                )
+            } else {
+                MiniPlayerBar(
+                    file = selectedFile,
+                    title = displayTitle,
+                    artist = displayArtist,
+                    metadataTitleResolved = sanitizedTitle.isNotBlank(),
+                    artwork = artworkBitmap,
+                    noArtworkIcon = placeholderArtworkIconForFile(selectedFile, decoderName),
+                    artworkCornerRadiusDp = playerArtworkCornerRadiusDp,
+                    isPlaying = isPlaying,
+                    playbackStartInProgress = playbackStartInProgress,
+                    seekInProgress = seekUiBusy,
+                    canResumeStoppedTrack = canResumeStoppedTrack,
+                    positionSeconds = miniPlayerDisplayPositionSeconds,
+                    durationSeconds = durationSeconds,
+                    hasReliableDuration = hasReliableDuration(playbackCapabilitiesFlags),
+                    previousRestartsAfterThreshold = previousRestartsAfterThreshold,
+                    canPreviousTrack = canPreviousTrack,
+                    canNextTrack = canNextTrack,
+                    canPreviousSubtune = canPreviousSubtune,
+                    canNextSubtune = canNextSubtune,
+                    currentSubtuneIndex = currentSubtuneIndex,
+                    subtuneCount = subtuneCount,
+                    onExpand = {
+                        onMiniPlayerExpandRequested()
+                        onCollapseFromSwipeChanged(false)
+                        onExpandFromMiniDragChanged(miniExpandPreviewProgress > 0f)
+                        onMiniExpandPreviewProgressChanged(0f)
+                        onPlayerExpandedChanged(true)
+                    },
+                    onExpandDragProgress = onMiniExpandPreviewProgressChanged,
+                    onExpandDragCommit = {
+                        if (dragExpandCommitInProgress) {
+                            return@MiniPlayerBar
+                        }
+                        dragExpandCommitInProgress = true
+                        onMiniPlayerExpandRequested()
+                        onExpandFromMiniDragChanged(true)
+                        onCollapseFromSwipeChanged(false)
+                        onPlayerExpandedChanged(true)
+                        onMiniExpandPreviewProgressChanged(0f)
+                    },
+                    onPreviousTrack = { onPreviousTrack(); Unit },
+                    onForcePreviousTrack = { onForcePreviousTrack(); Unit },
+                    onNextTrack = { onNextTrack(); Unit },
+                    onPreviousSubtune = onPreviousSubtune,
+                    onNextSubtune = onNextSubtune,
+                    onPlayPause = onPlayPause,
+                    onStopAndClear = onStopAndClear,
+                    miniContainerFocusRequester = miniPlayerFocusRequester,
+                    previousButtonFocusRequester = previousButtonFocusRequester,
+                    stopButtonFocusRequester = stopButtonFocusRequester,
+                    playPauseButtonFocusRequester = playPauseButtonFocusRequester,
+                    nextButtonFocusRequester = nextButtonFocusRequester
+                )
+            }
         }
 
         if (isPlaying) {
