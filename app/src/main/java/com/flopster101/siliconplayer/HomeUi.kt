@@ -28,8 +28,14 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.background
+import android.content.pm.PackageManager
+import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.unit.sp
+import androidx.compose.material.icons.filled.Link
+import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Folder
 import androidx.compose.material.icons.filled.LibraryMusic
@@ -200,9 +206,32 @@ internal fun HomeScreen(
     onClearRecentFolders: () -> Unit,
     onClearRecentPlayed: () -> Unit,
     canShareRecentFile: (RecentPathEntry) -> Boolean,
-    canSharePinnedFile: (HomePinnedEntry) -> Boolean
+    canSharePinnedFile: (HomePinnedEntry) -> Boolean,
+    onOpenPlayerSurface: () -> Unit = {},
+    onOpenSettings: (() -> Unit)? = null,
+    onOpenUrlOrPath: (() -> Unit)? = null
 ) {
     val context = LocalContext.current
+    val isWatch = remember(context) { context.packageManager.hasSystemFeature(PackageManager.FEATURE_WATCH) }
+    if (isWatch) {
+        WearHomeScreen(
+            pinnedHomeEntries = pinnedHomeEntries,
+            recentFolders = recentFolders,
+            recentPlayedFiles = recentPlayedFiles,
+            bottomContentPadding = bottomContentPadding,
+            onOpenPlayerSurface = onOpenPlayerSurface,
+            onOpenLibrary = onOpenLibrary,
+            onOpenPlaylists = onOpenPlaylists,
+            onOpenNetwork = onOpenNetwork,
+            onOpenPinnedFolder = onOpenPinnedFolder,
+            onPlayPinnedFile = onPlayPinnedFile,
+            onOpenRecentFolder = onOpenRecentFolder,
+            onPlayRecentFile = onPlayRecentFile,
+            onOpenSettings = onOpenSettings ?: {},
+            onOpenUrlOrPath = onOpenUrlOrPath ?: {}
+        )
+        return
+    }
     var folderActionTargetEntry by remember { mutableStateOf<RecentPathEntry?>(null) }
     var fileActionTargetEntry by remember { mutableStateOf<RecentPathEntry?>(null) }
     var requestedPlayedPromoteKey by remember { mutableStateOf<String?>(null) }
@@ -1681,4 +1710,293 @@ private fun androidx.compose.ui.text.AnnotatedString.Builder.appendBoldSourceTyp
         append(token)
     }
     append(suffix)
+}
+
+@Composable
+internal fun WearHomeScreen(
+    pinnedHomeEntries: List<HomePinnedEntry>,
+    recentFolders: List<RecentPathEntry>,
+    recentPlayedFiles: List<RecentPathEntry>,
+    bottomContentPadding: Dp = 0.dp,
+    onOpenLibrary: () -> Unit,
+    onOpenPlaylists: () -> Unit,
+    onOpenNetwork: () -> Unit,
+    onOpenPinnedFolder: (HomePinnedEntry) -> Unit,
+    onPlayPinnedFile: (HomePinnedEntry) -> Unit,
+    onOpenRecentFolder: (RecentPathEntry) -> Unit,
+    onPlayRecentFile: (RecentPathEntry) -> Unit,
+    onOpenPlayerSurface: () -> Unit = {},
+    onOpenSettings: () -> Unit = {},
+    onOpenUrlOrPath: () -> Unit = {}
+) {
+    val configuration = LocalConfiguration.current
+    val isRound = configuration.isScreenRound
+
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .verticalScroll(rememberScrollState())
+            .padding(
+                top = if (isRound) 24.dp else 12.dp,
+                bottom = if (isRound) 48.dp else 24.dp + bottomContentPadding,
+                start = if (isRound) 14.dp else 8.dp,
+                end = if (isRound) 14.dp else 8.dp
+            ),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
+        // App Title Header
+        Text(
+            text = "Silicon Player",
+            style = MaterialTheme.typography.titleMedium,
+            fontWeight = FontWeight.Bold,
+            color = MaterialTheme.colorScheme.onSurface,
+            textAlign = TextAlign.Center,
+            modifier = Modifier
+                .clip(RoundedCornerShape(999.dp))
+                .clickable(onClick = onOpenPlayerSurface)
+                .padding(horizontal = 8.dp, vertical = 2.dp)
+        )
+
+        // Main Navigation Cards
+        WearHomeMenuCard(
+            title = "Files",
+            icon = Icons.Default.Folder,
+            containerColor = MaterialTheme.colorScheme.primaryContainer,
+            contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
+            onClick = onOpenLibrary
+        )
+
+        WearHomeMenuCard(
+            title = "Playlists",
+            icon = Icons.Default.LibraryMusic,
+            containerColor = MaterialTheme.colorScheme.secondaryContainer,
+            contentColor = MaterialTheme.colorScheme.onSecondaryContainer,
+            onClick = onOpenPlaylists
+        )
+
+        WearHomeMenuCard(
+            title = "Network Sources",
+            icon = Icons.Default.Public,
+            containerColor = MaterialTheme.colorScheme.tertiaryContainer,
+            contentColor = MaterialTheme.colorScheme.onTertiaryContainer,
+            onClick = onOpenNetwork
+        )
+
+        // Pinned Items Section (if any)
+        if (pinnedHomeEntries.isNotEmpty()) {
+            Spacer(modifier = Modifier.height(2.dp))
+            Text(
+                text = "Pinned",
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.primary,
+                fontWeight = FontWeight.SemiBold
+            )
+            pinnedHomeEntries.take(4).forEach { pinned ->
+                WearHomeItemRow(
+                    title = pinned.title?.takeIf { it.isNotBlank() } ?: pinned.path.substringAfterLast('/'),
+                    subtitle = pinned.artist,
+                    isFolder = pinned.isFolder,
+                    onClick = {
+                        if (pinned.isFolder) onOpenPinnedFolder(pinned) else onPlayPinnedFile(pinned)
+                    }
+                )
+            }
+        }
+
+        // Recent Tracks Section (if any)
+        if (recentPlayedFiles.isNotEmpty()) {
+            Spacer(modifier = Modifier.height(2.dp))
+            Text(
+                text = "Recent Tracks",
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.primary,
+                fontWeight = FontWeight.SemiBold
+            )
+            recentPlayedFiles.take(5).forEach { recent ->
+                WearHomeItemRow(
+                    title = recent.title?.takeIf { it.isNotBlank() } ?: recent.path.substringAfterLast('/'),
+                    subtitle = recent.artist,
+                    isFolder = false,
+                    onClick = { onPlayRecentFile(recent) }
+                )
+            }
+        }
+
+        // Recent Folders Section (if any)
+        if (recentFolders.isNotEmpty()) {
+            Spacer(modifier = Modifier.height(2.dp))
+            Text(
+                text = "Recent Folders",
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.primary,
+                fontWeight = FontWeight.SemiBold
+            )
+            recentFolders.take(3).forEach { folder ->
+                WearHomeItemRow(
+                    title = folder.path.substringAfterLast('/').ifBlank { folder.path },
+                    subtitle = null,
+                    isFolder = true,
+                    onClick = { onOpenRecentFolder(folder) }
+                )
+            }
+        }
+
+        // Actions Row (Settings & Open URL)
+        Spacer(modifier = Modifier.height(2.dp))
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            Surface(
+                onClick = onOpenUrlOrPath,
+                modifier = Modifier
+                    .weight(1f)
+                    .height(40.dp),
+                shape = RoundedCornerShape(20.dp),
+                color = MaterialTheme.colorScheme.surfaceContainerHigh,
+                contentColor = MaterialTheme.colorScheme.onSurface
+            ) {
+                Row(
+                    modifier = Modifier.fillMaxSize(),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.Center
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Link,
+                        contentDescription = "Open URL",
+                        modifier = Modifier.size(16.dp)
+                    )
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Text(
+                        text = "URL",
+                        style = MaterialTheme.typography.labelMedium,
+                        fontWeight = FontWeight.Medium
+                    )
+                }
+            }
+
+            Surface(
+                onClick = onOpenSettings,
+                modifier = Modifier
+                    .weight(1f)
+                    .height(40.dp),
+                shape = RoundedCornerShape(20.dp),
+                color = MaterialTheme.colorScheme.surfaceContainerHigh,
+                contentColor = MaterialTheme.colorScheme.onSurface
+            ) {
+                Row(
+                    modifier = Modifier.fillMaxSize(),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.Center
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Settings,
+                        contentDescription = "Settings",
+                        modifier = Modifier.size(16.dp)
+                    )
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Text(
+                        text = "Settings",
+                        style = MaterialTheme.typography.labelMedium,
+                        fontWeight = FontWeight.Medium
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun WearHomeMenuCard(
+    title: String,
+    icon: ImageVector,
+    containerColor: androidx.compose.ui.graphics.Color,
+    contentColor: androidx.compose.ui.graphics.Color,
+    onClick: () -> Unit
+) {
+    Surface(
+        onClick = onClick,
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(46.dp),
+        shape = RoundedCornerShape(23.dp),
+        color = containerColor,
+        contentColor = contentColor
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(horizontal = 14.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(10.dp)
+        ) {
+            Icon(
+                imageVector = icon,
+                contentDescription = null,
+                modifier = Modifier.size(20.dp)
+            )
+            Text(
+                text = title,
+                style = MaterialTheme.typography.labelLarge,
+                fontWeight = FontWeight.SemiBold,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+        }
+    }
+}
+
+@Composable
+private fun WearHomeItemRow(
+    title: String,
+    subtitle: String?,
+    isFolder: Boolean,
+    onClick: () -> Unit
+) {
+    Surface(
+        onClick = onClick,
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(42.dp),
+        shape = RoundedCornerShape(21.dp),
+        color = MaterialTheme.colorScheme.surfaceContainerHigh,
+        contentColor = MaterialTheme.colorScheme.onSurface
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(horizontal = 12.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            Icon(
+                imageVector = if (isFolder) Icons.Default.Folder else Icons.Default.MusicNote,
+                contentDescription = null,
+                modifier = Modifier.size(16.dp),
+                tint = MaterialTheme.colorScheme.primary
+            )
+            Column(
+                modifier = Modifier.weight(1f),
+                verticalArrangement = Arrangement.Center
+            ) {
+                Text(
+                    text = title,
+                    style = MaterialTheme.typography.labelMedium,
+                    fontWeight = FontWeight.Medium,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+                if (!subtitle.isNullOrBlank()) {
+                    Text(
+                        text = subtitle,
+                        style = MaterialTheme.typography.bodySmall.copy(fontSize = 10.sp),
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
+            }
+        }
+    }
 }

@@ -42,10 +42,16 @@ internal fun AppNavigationHomeContentSection(
     onOpenBrowser: (BrowserOpenRequest) -> Unit,
     onPlaylistFileSelected: (File, String?) -> Unit,
     onOpenPlaylists: () -> Unit,
-    onCurrentViewChanged: (MainView) -> Unit
+    onCurrentViewChanged: (MainView) -> Unit,
+    onOpenPlayerSurface: () -> Unit = {},
+    onOpenSettings: (() -> Unit)? = null,
+    onOpenUrlOrPath: (() -> Unit)? = null
 ) {
     AppNavigationHomeRouteSection(
         mainPadding = mainPadding,
+        onOpenPlayerSurface = onOpenPlayerSurface,
+        onOpenSettings = onOpenSettings,
+        onOpenUrlOrPath = onOpenUrlOrPath,
         currentTrackPath = currentTrackPath,
         currentTrackTitle = metadataTitle,
         currentTrackArtist = metadataArtist,
@@ -729,7 +735,10 @@ internal fun AppNavigationMainContentHost(
                 onOpenBrowser = onOpenBrowser,
                 onPlaylistFileSelected = onPlaylistFileSelected,
                 onOpenPlaylists = { onCurrentViewChanged(MainView.Playlists) },
-                onCurrentViewChanged = onCurrentViewChanged
+                onCurrentViewChanged = onCurrentViewChanged,
+                onOpenPlayerSurface = onOpenPlayerSurface,
+                onOpenSettings = onSettingsRequested,
+                onOpenUrlOrPath = onOpenUrlOrPathDialog
             )
         },
         playlistsContent = { mainPadding ->

@@ -54,7 +54,10 @@ internal fun AppNavigationHomeRouteSection(
     onClearRecentFolders: () -> Unit,
     onClearRecentPlayed: () -> Unit,
     canShareRecentFile: (RecentPathEntry) -> Boolean,
-    canSharePinnedFile: (HomePinnedEntry) -> Boolean
+    canSharePinnedFile: (HomePinnedEntry) -> Boolean,
+    onOpenPlayerSurface: () -> Unit = {},
+    onOpenSettings: (() -> Unit)? = null,
+    onOpenUrlOrPath: (() -> Unit)? = null
 ) {
     MainHomeRouteHost(
         mainPadding = mainPadding,
@@ -85,7 +88,10 @@ internal fun AppNavigationHomeRouteSection(
         onClearRecentFolders = onClearRecentFolders,
         onClearRecentPlayed = onClearRecentPlayed,
         canShareRecentFile = canShareRecentFile,
-        canSharePinnedFile = canSharePinnedFile
+        canSharePinnedFile = canSharePinnedFile,
+        onOpenPlayerSurface = onOpenPlayerSurface,
+        onOpenSettings = onOpenSettings,
+        onOpenUrlOrPath = onOpenUrlOrPath
     )
 }
 

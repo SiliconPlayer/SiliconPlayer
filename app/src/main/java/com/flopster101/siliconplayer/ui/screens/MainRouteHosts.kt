@@ -47,7 +47,10 @@ internal fun MainHomeRouteHost(
     onClearRecentFolders: () -> Unit,
     onClearRecentPlayed: () -> Unit,
     canShareRecentFile: (RecentPathEntry) -> Boolean,
-    canSharePinnedFile: (HomePinnedEntry) -> Boolean
+    canSharePinnedFile: (HomePinnedEntry) -> Boolean,
+    onOpenPlayerSurface: () -> Unit = {},
+    onOpenSettings: (() -> Unit)? = null,
+    onOpenUrlOrPath: (() -> Unit)? = null
 ) {
     Box(modifier = Modifier.padding(mainPadding)) {
         HomeScreen(
@@ -78,7 +81,10 @@ internal fun MainHomeRouteHost(
             onClearRecentFolders = onClearRecentFolders,
             onClearRecentPlayed = onClearRecentPlayed,
             canShareRecentFile = canShareRecentFile,
-            canSharePinnedFile = canSharePinnedFile
+            canSharePinnedFile = canSharePinnedFile,
+            onOpenPlayerSurface = onOpenPlayerSurface,
+            onOpenSettings = onOpenSettings,
+            onOpenUrlOrPath = onOpenUrlOrPath
         )
     }
 }
