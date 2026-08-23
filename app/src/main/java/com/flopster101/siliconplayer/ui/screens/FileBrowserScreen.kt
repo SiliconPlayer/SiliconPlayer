@@ -92,6 +92,7 @@ import com.flopster101.siliconplayer.AppPreferenceKeys
 import com.flopster101.siliconplayer.BrowserLaunchState
 import com.flopster101.siliconplayer.BrowserLocationModel
 import com.flopster101.siliconplayer.R
+import com.flopster101.siliconplayer.WatchDialogContainer
 import com.flopster101.siliconplayer.rememberDialogLazyListScrollbarAlpha
 import com.flopster101.siliconplayer.resolveDecoderArtworkHintForFileName
 import com.flopster101.siliconplayer.resolveBrowserLocationModel
@@ -2361,99 +2362,155 @@ internal fun FileBrowserScreen(
     }
 
     if (pendingDeleteFilePaths.isNotEmpty()) {
-        AlertDialog(
-            onDismissRequest = { pendingDeleteFilePaths = emptyList() },
-            title = { Text("Delete files") },
-            text = {
+        val performDelete = {
+            val pathsToDelete = pendingDeleteFilePaths
+            pendingDeleteFilePaths = emptyList()
+            coroutineScope.launch {
+                val deletedCount = withContext(Dispatchers.IO) {
+                    pathsToDelete.count { path ->
+                        runCatching {
+                            File(path).takeIf { it.exists() && it.isFile }?.delete() == true
+                        }.getOrDefault(false)
+                    }
+                }
+                Toast.makeText(
+                    context,
+                    "Deleted $deletedCount file(s)" +
+                        if (deletedCount < pathsToDelete.size) {
+                            " (${pathsToDelete.size - deletedCount} failed)"
+                        } else {
+                            ""
+                        },
+                    Toast.LENGTH_SHORT
+                ).show()
+                browserSelectionController.exitSelectionMode()
+                currentDirectory?.let { loadDirectoryAsync(it) }
+            }
+        }
+
+        if (isWatch) {
+            WatchDialogContainer(
+                title = "Delete files",
+                onDismissRequest = { pendingDeleteFilePaths = emptyList() }
+            ) {
                 Text(
                     text = "Delete ${pendingDeleteFilePaths.size} selected file(s)?",
-                    style = MaterialTheme.typography.bodyMedium
+                    style = MaterialTheme.typography.bodyMedium,
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(bottom = 8.dp)
                 )
-            },
-            confirmButton = {
-                TextButton(
-                    onClick = {
-                        val pathsToDelete = pendingDeleteFilePaths
-                        pendingDeleteFilePaths = emptyList()
-                        coroutineScope.launch {
-                            val deletedCount = withContext(Dispatchers.IO) {
-                                pathsToDelete.count { path ->
-                                    runCatching {
-                                        File(path).takeIf { it.exists() && it.isFile }?.delete() == true
-                                    }.getOrDefault(false)
-                                }
-                            }
-                            Toast.makeText(
-                                context,
-                                "Deleted $deletedCount file(s)" +
-                                    if (deletedCount < pathsToDelete.size) {
-                                        " (${pathsToDelete.size - deletedCount} failed)"
-                                    } else {
-                                        ""
-                                    },
-                                Toast.LENGTH_SHORT
-                            ).show()
-                            browserSelectionController.exitSelectionMode()
-                            currentDirectory?.let { loadDirectoryAsync(it) }
-                        }
-                    }
+                Button(
+                    onClick = { performDelete() },
+                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error),
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(14.dp)
                 ) {
                     Text("Delete")
                 }
-            },
-            dismissButton = {
-                TextButton(onClick = { pendingDeleteFilePaths = emptyList() }) {
+                TextButton(
+                    onClick = { pendingDeleteFilePaths = emptyList() },
+                    modifier = Modifier.fillMaxWidth()
+                ) {
                     Text("Cancel")
                 }
             }
-        )
+        } else {
+            AlertDialog(
+                onDismissRequest = { pendingDeleteFilePaths = emptyList() },
+                title = { Text("Delete files") },
+                text = {
+                    Text(
+                        text = "Delete ${pendingDeleteFilePaths.size} selected file(s)?",
+                        style = MaterialTheme.typography.bodyMedium
+                    )
+                },
+                confirmButton = {
+                    TextButton(onClick = { performDelete() }) {
+                        Text("Delete")
+                    }
+                },
+                dismissButton = {
+                    TextButton(onClick = { pendingDeleteFilePaths = emptyList() }) {
+                        Text("Cancel")
+                    }
+                }
+            )
+        }
     }
     pendingPinConfirmation?.let { (entry, isFolder) ->
         val evictionCandidate = pendingPinEvictionCandidate
-        AlertDialog(
-            onDismissRequest = {
-                pendingPinConfirmation = null
-                pendingPinEvictionCandidate = null
-            },
-            title = { Text("Pin limit reached") },
-            text = {
+        val messageText = buildString {
+            append("You can pin up to $PINNED_HOME_ENTRIES_LIMIT entries. ")
+            if (evictionCandidate != null) {
+                append("The oldest pinned ")
+                append(if (evictionCandidate.isFolder) "folder" else "file")
+                append(" will be removed to make space.")
+            } else {
+                append("The oldest pinned entry will be removed to make space.")
+            }
+        }
+        val onContinue = {
+            onPinHomeEntry(entry, isFolder)
+            pendingPinConfirmation = null
+            pendingPinEvictionCandidate = null
+            Toast.makeText(context, if (isFolder) "Pinned folder to home" else "Pinned file to home", Toast.LENGTH_SHORT).show()
+        }
+        val onCancel = {
+            pendingPinConfirmation = null
+            pendingPinEvictionCandidate = null
+        }
+
+        if (isWatch) {
+            WatchDialogContainer(
+                title = "Pin limit reached",
+                onDismissRequest = onCancel
+            ) {
                 Text(
-                    text = buildString {
-                        append("You can pin up to $PINNED_HOME_ENTRIES_LIMIT entries. ")
-                        if (evictionCandidate != null) {
-                            append("The oldest pinned ")
-                            append(if (evictionCandidate.isFolder) "folder" else "file")
-                            append(" will be removed to make space.")
-                        } else {
-                            append("The oldest pinned entry will be removed to make space.")
-                        }
-                    },
-                    style = MaterialTheme.typography.bodyMedium
+                    text = messageText,
+                    style = MaterialTheme.typography.bodyMedium,
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(bottom = 8.dp)
                 )
-            },
-            confirmButton = {
-                TextButton(
-                    onClick = {
-                        onPinHomeEntry(entry, isFolder)
-                        pendingPinConfirmation = null
-                        pendingPinEvictionCandidate = null
-                        Toast.makeText(context, if (isFolder) "Pinned folder to home" else "Pinned file to home", Toast.LENGTH_SHORT).show()
-                    }
+                Button(
+                    onClick = onContinue,
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(14.dp)
                 ) {
                     Text("Continue")
                 }
-            },
-            dismissButton = {
                 TextButton(
-                    onClick = {
-                        pendingPinConfirmation = null
-                        pendingPinEvictionCandidate = null
-                    }
+                    onClick = onCancel,
+                    modifier = Modifier.fillMaxWidth()
                 ) {
                     Text("Cancel")
                 }
             }
-        )
+        } else {
+            AlertDialog(
+                onDismissRequest = onCancel,
+                title = { Text("Pin limit reached") },
+                text = {
+                    Text(
+                        text = messageText,
+                        style = MaterialTheme.typography.bodyMedium
+                    )
+                },
+                confirmButton = {
+                    TextButton(onClick = onContinue) {
+                        Text("Continue")
+                    }
+                },
+                dismissButton = {
+                    TextButton(onClick = onCancel) {
+                        Text("Cancel")
+                    }
+                }
+            )
+        }
     }
 }
 

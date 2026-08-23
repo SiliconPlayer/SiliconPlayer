@@ -27,6 +27,13 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import android.content.pm.PackageManager
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
+import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -57,9 +64,12 @@ import androidx.compose.material.icons.filled.SelectAll
 import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material.icons.filled.VisibilityOff
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
+import com.flopster101.siliconplayer.WatchDialogContainer
 import androidx.compose.material3.ElevatedCard
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FabPosition
@@ -256,6 +266,9 @@ internal fun NetworkBrowserScreen(
     var newHttpPasswordVisible by remember { mutableStateOf(false) }
     var newHttpTreatAsRoot by remember { mutableStateOf(true) }
     val context = LocalContext.current
+    val isWatch = remember(context) { context.packageManager.hasSystemFeature(PackageManager.FEATURE_WATCH) }
+    val isRound = isWatch && (LocalConfiguration.current.isScreenRound || LocalConfiguration.current.screenWidthDp == LocalConfiguration.current.screenHeightDp)
+    var watchActionTargetNode by remember { mutableStateOf<NetworkNode?>(null) }
     val uiScope = rememberCoroutineScope()
     val refreshTimeoutJobs = remember { LinkedHashMap<String, Job>() }
     val refreshSettledSources = remember { LinkedHashSet<String>() }
@@ -1281,260 +1294,264 @@ internal fun NetworkBrowserScreen(
             .fillMaxSize()
             .nestedScroll(networkScrollBehavior.nestedScrollConnection),
         topBar = {
-            LargeTopAppBar(
-                title = { Text("Network sources") },
-                navigationIcon = {
-                    IconButton(
-                        onClick = {
-                            if (currentFolderId != null) {
-                                navigateUpOneFolder()
-                            } else {
-                                onExitNetwork()
+            if (!isWatch) {
+                LargeTopAppBar(
+                    title = { Text("Network sources") },
+                    navigationIcon = {
+                        IconButton(
+                            onClick = {
+                                if (currentFolderId != null) {
+                                    navigateUpOneFolder()
+                                } else {
+                                    onExitNetwork()
+                                }
+                            }
+                        ) {
+                            Icon(
+                                imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                                contentDescription = if (currentFolderId != null) {
+                                    "Go to parent folder"
+                                } else {
+                                    "Go back"
+                                }
+                            )
+                        }
+                    },
+                    actions = {
+                        if (isSelectionMode) {
+                            Box {
+                                IconButton(
+                                    onClick = { showSelectionActionsMenu = true }
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.MoreVert,
+                                        contentDescription = "Selection actions"
+                                    )
+                                }
+                                DropdownMenu(
+                                    expanded = showSelectionActionsMenu,
+                                    onDismissRequest = { showSelectionActionsMenu = false }
+                                ) {
+                                    DropdownMenuItem(
+                                        text = { Text("Info") },
+                                        leadingIcon = {
+                                            Icon(
+                                                imageVector = Icons.Default.Visibility,
+                                                contentDescription = null
+                                            )
+                                        },
+                                        enabled = selectedNodeIds.isNotEmpty(),
+                                        onClick = { requestInfo(selectedNodeIds) }
+                                    )
+                                    DropdownMenuItem(
+                                        text = { Text("Copy") },
+                                        leadingIcon = {
+                                            Icon(
+                                                imageVector = Icons.Default.ContentCopy,
+                                                contentDescription = null
+                                            )
+                                        },
+                                        enabled = selectedNodeIds.isNotEmpty(),
+                                        onClick = {
+                                            beginClipboardMode(NetworkClipboardMode.Copy, selectedNodeIds)
+                                        }
+                                    )
+                                    DropdownMenuItem(
+                                        text = { Text("Move") },
+                                        leadingIcon = {
+                                            Icon(
+                                                imageVector = Icons.AutoMirrored.Filled.DriveFileMove,
+                                                contentDescription = null
+                                            )
+                                        },
+                                        enabled = selectedNodeIds.isNotEmpty(),
+                                        onClick = {
+                                            beginClipboardMode(NetworkClipboardMode.Move, selectedNodeIds)
+                                        }
+                                    )
+                                    DropdownMenuItem(
+                                        text = { Text("Delete") },
+                                        leadingIcon = {
+                                            Icon(
+                                                imageVector = Icons.Default.Delete,
+                                                contentDescription = null
+                                            )
+                                        },
+                                        enabled = selectedNodeIds.isNotEmpty(),
+                                        onClick = { beginDeleteConfirmation(selectedNodeIds) }
+                                    )
+                                    DropdownMenuItem(
+                                        text = { Text("Refresh") },
+                                        leadingIcon = {
+                                            Icon(
+                                                imageVector = Icons.Default.Refresh,
+                                                contentDescription = null
+                                            )
+                                        },
+                                        enabled = selectedNodeIds.isNotEmpty(),
+                                        onClick = { requestRefresh(selectedNodeIds) }
+                                    )
+                                }
+                            }
+                            Box {
+                                IconButton(
+                                    onClick = { showSelectionToggleMenu = true }
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.SelectAll,
+                                        contentDescription = "Selection toggles"
+                                    )
+                                }
+                                DropdownMenu(
+                                    expanded = showSelectionToggleMenu,
+                                    onDismissRequest = { showSelectionToggleMenu = false }
+                                ) {
+                                    DropdownMenuItem(
+                                        text = { Text("Select all") },
+                                        onClick = {
+                                            selectedNodeIds = currentEntries.mapTo(LinkedHashSet()) { it.id }
+                                            showSelectionToggleMenu = false
+                                        }
+                                    )
+                                    DropdownMenuItem(
+                                        text = { Text("Deselect all") },
+                                        onClick = {
+                                            selectedNodeIds = emptySet()
+                                            showSelectionToggleMenu = false
+                                        }
+                                    )
+                                }
                             }
                         }
+
+                        clipboardState?.let { activeClipboard ->
+                            IconButton(
+                                onClick = { applyPasteFromClipboard() }
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.ContentPaste,
+                                    contentDescription = "Paste ${activeClipboard.mode.name.lowercase(Locale.ROOT)}"
+                                )
+                            }
+                        }
+
+                        if (isSelectionMode || clipboardState != null) {
+                            val cancelLabel = when {
+                                isSelectionMode -> "Cancel selection mode"
+                                clipboardState != null -> "Cancel ${clipboardState?.mode?.name?.lowercase(Locale.ROOT)} mode"
+                                else -> "Cancel"
+                            }
+                            IconButton(
+                                onClick = {
+                                    if (isSelectionMode) {
+                                        selectedNodeIds = emptySet()
+                                        selectionModeEnabled = false
+                                        showSelectionActionsMenu = false
+                                        showSelectionToggleMenu = false
+                                    }
+                                    clipboardState = null
+                                }
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.Close,
+                                    contentDescription = cancelLabel
+                                )
+                            }
+                        }
+                    },
+                    scrollBehavior = networkScrollBehavior
+                )
+            }
+        },
+        floatingActionButton = {
+            if (!isWatch) {
+                Box {
+                    FloatingActionButton(
+                        onClick = { showAddMenu = true }
                     ) {
                         Icon(
-                            imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                            contentDescription = if (currentFolderId != null) {
-                                "Go to parent folder"
-                            } else {
-                                "Go back"
+                            imageVector = Icons.Default.Add,
+                            contentDescription = "Add folder or source"
+                        )
+                    }
+                    DropdownMenu(
+                        expanded = showAddMenu,
+                        onDismissRequest = { showAddMenu = false },
+                        offset = DpOffset(x = 0.dp, y = (-8).dp)
+                    ) {
+                        DropdownMenuItem(
+                            text = { Text("Folder") },
+                            leadingIcon = {
+                                Icon(
+                                    imageVector = Icons.Default.CreateNewFolder,
+                                    contentDescription = null
+                                )
+                            },
+                            onClick = {
+                                showAddMenu = false
+                                editingFolderNodeId = null
+                                newFolderName = ""
+                                showCreateFolderDialog = true
+                            }
+                        )
+                        DropdownMenuItem(
+                            text = { Text("Remote source") },
+                            leadingIcon = {
+                                Icon(
+                                    imageVector = Icons.Default.Link,
+                                    contentDescription = null
+                                )
+                            },
+                            onClick = {
+                                showAddMenu = false
+                                editingSourceNodeId = null
+                                newSourceName = ""
+                                newSourcePath = ""
+                                showAddSourceDialog = true
+                            }
+                        )
+                        DropdownMenuItem(
+                            text = { Text("SMB share") },
+                            leadingIcon = {
+                                Icon(
+                                    imageVector = NetworkIcons.SmbShare,
+                                    contentDescription = null
+                                )
+                            },
+                            onClick = {
+                                showAddMenu = false
+                                editingSmbNodeId = null
+                                newSmbSourceName = ""
+                                newSmbHost = ""
+                                newSmbShare = ""
+                                newSmbPath = ""
+                                newSmbUsername = ""
+                                newSmbPassword = ""
+                                newSmbPasswordVisible = false
+                                showAddSmbSourceDialog = true
+                            }
+                        )
+                        DropdownMenuItem(
+                            text = { Text("HTTP/HTTPS server") },
+                            leadingIcon = {
+                                Icon(
+                                    imageVector = NetworkIcons.WorldCode,
+                                    contentDescription = null
+                                )
+                            },
+                            onClick = {
+                                showAddMenu = false
+                                editingHttpNodeId = null
+                                newHttpSourceName = ""
+                                newHttpUrl = ""
+                                newHttpUsername = ""
+                                newHttpPassword = ""
+                                newHttpPasswordVisible = false
+                                newHttpTreatAsRoot = true
+                                showAddHttpSourceDialog = true
                             }
                         )
                     }
-                },
-                actions = {
-                    if (isSelectionMode) {
-                        Box {
-                            IconButton(
-                                onClick = { showSelectionActionsMenu = true }
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Default.MoreVert,
-                                    contentDescription = "Selection actions"
-                                )
-                            }
-                            DropdownMenu(
-                                expanded = showSelectionActionsMenu,
-                                onDismissRequest = { showSelectionActionsMenu = false }
-                            ) {
-                                DropdownMenuItem(
-                                    text = { Text("Info") },
-                                    leadingIcon = {
-                                        Icon(
-                                            imageVector = Icons.Default.Visibility,
-                                            contentDescription = null
-                                        )
-                                    },
-                                    enabled = selectedNodeIds.isNotEmpty(),
-                                    onClick = { requestInfo(selectedNodeIds) }
-                                )
-                                DropdownMenuItem(
-                                    text = { Text("Copy") },
-                                    leadingIcon = {
-                                        Icon(
-                                            imageVector = Icons.Default.ContentCopy,
-                                            contentDescription = null
-                                        )
-                                    },
-                                    enabled = selectedNodeIds.isNotEmpty(),
-                                    onClick = {
-                                        beginClipboardMode(NetworkClipboardMode.Copy, selectedNodeIds)
-                                    }
-                                )
-                                DropdownMenuItem(
-                                    text = { Text("Move") },
-                                    leadingIcon = {
-                                        Icon(
-                                            imageVector = Icons.AutoMirrored.Filled.DriveFileMove,
-                                            contentDescription = null
-                                        )
-                                    },
-                                    enabled = selectedNodeIds.isNotEmpty(),
-                                    onClick = {
-                                        beginClipboardMode(NetworkClipboardMode.Move, selectedNodeIds)
-                                    }
-                                )
-                                DropdownMenuItem(
-                                    text = { Text("Delete") },
-                                    leadingIcon = {
-                                        Icon(
-                                            imageVector = Icons.Default.Delete,
-                                            contentDescription = null
-                                        )
-                                    },
-                                    enabled = selectedNodeIds.isNotEmpty(),
-                                    onClick = { beginDeleteConfirmation(selectedNodeIds) }
-                                )
-                                DropdownMenuItem(
-                                    text = { Text("Refresh") },
-                                    leadingIcon = {
-                                        Icon(
-                                            imageVector = Icons.Default.Refresh,
-                                            contentDescription = null
-                                        )
-                                    },
-                                    enabled = selectedNodeIds.isNotEmpty(),
-                                    onClick = { requestRefresh(selectedNodeIds) }
-                                )
-                            }
-                        }
-                        Box {
-                            IconButton(
-                                onClick = { showSelectionToggleMenu = true }
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Default.SelectAll,
-                                    contentDescription = "Selection toggles"
-                                )
-                            }
-                            DropdownMenu(
-                                expanded = showSelectionToggleMenu,
-                                onDismissRequest = { showSelectionToggleMenu = false }
-                            ) {
-                                DropdownMenuItem(
-                                    text = { Text("Select all") },
-                                    onClick = {
-                                        selectedNodeIds = currentEntries.mapTo(LinkedHashSet()) { it.id }
-                                        showSelectionToggleMenu = false
-                                    }
-                                )
-                                DropdownMenuItem(
-                                    text = { Text("Deselect all") },
-                                    onClick = {
-                                        selectedNodeIds = emptySet()
-                                        showSelectionToggleMenu = false
-                                    }
-                                )
-                            }
-                        }
-                    }
-
-                    clipboardState?.let { activeClipboard ->
-                        IconButton(
-                            onClick = { applyPasteFromClipboard() }
-                        ) {
-                            Icon(
-                                imageVector = Icons.Default.ContentPaste,
-                                contentDescription = "Paste ${activeClipboard.mode.name.lowercase(Locale.ROOT)}"
-                            )
-                        }
-                    }
-
-                    if (isSelectionMode || clipboardState != null) {
-                        val cancelLabel = when {
-                            isSelectionMode -> "Cancel selection mode"
-                            clipboardState != null -> "Cancel ${clipboardState?.mode?.name?.lowercase(Locale.ROOT)} mode"
-                            else -> "Cancel"
-                        }
-                        IconButton(
-                            onClick = {
-                                if (isSelectionMode) {
-                                    selectedNodeIds = emptySet()
-                                    selectionModeEnabled = false
-                                    showSelectionActionsMenu = false
-                                    showSelectionToggleMenu = false
-                                }
-                                clipboardState = null
-                            }
-                        ) {
-                            Icon(
-                                imageVector = Icons.Default.Close,
-                                contentDescription = cancelLabel
-                            )
-                        }
-                    }
-                },
-                scrollBehavior = networkScrollBehavior
-            )
-        },
-        floatingActionButton = {
-            Box {
-                FloatingActionButton(
-                    onClick = { showAddMenu = true }
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.Add,
-                        contentDescription = "Add folder or source"
-                    )
-                }
-                DropdownMenu(
-                    expanded = showAddMenu,
-                    onDismissRequest = { showAddMenu = false },
-                    offset = DpOffset(x = 0.dp, y = (-8).dp)
-                ) {
-                    DropdownMenuItem(
-                        text = { Text("Folder") },
-                        leadingIcon = {
-                            Icon(
-                                imageVector = Icons.Default.CreateNewFolder,
-                                contentDescription = null
-                            )
-                        },
-                        onClick = {
-                            showAddMenu = false
-                            editingFolderNodeId = null
-                            newFolderName = ""
-                            showCreateFolderDialog = true
-                        }
-                    )
-                    DropdownMenuItem(
-                        text = { Text("Remote source") },
-                        leadingIcon = {
-                            Icon(
-                                imageVector = Icons.Default.Link,
-                                contentDescription = null
-                            )
-                        },
-                        onClick = {
-                            showAddMenu = false
-                            editingSourceNodeId = null
-                            newSourceName = ""
-                            newSourcePath = ""
-                            showAddSourceDialog = true
-                        }
-                    )
-                    DropdownMenuItem(
-                        text = { Text("SMB share") },
-                        leadingIcon = {
-                            Icon(
-                                imageVector = NetworkIcons.SmbShare,
-                                contentDescription = null
-                            )
-                        },
-                        onClick = {
-                            showAddMenu = false
-                            editingSmbNodeId = null
-                            newSmbSourceName = ""
-                            newSmbHost = ""
-                            newSmbShare = ""
-                            newSmbPath = ""
-                            newSmbUsername = ""
-                            newSmbPassword = ""
-                            newSmbPasswordVisible = false
-                            showAddSmbSourceDialog = true
-                        }
-                    )
-                    DropdownMenuItem(
-                        text = { Text("HTTP/HTTPS server") },
-                        leadingIcon = {
-                            Icon(
-                                imageVector = NetworkIcons.WorldCode,
-                                contentDescription = null
-                            )
-                        },
-                        onClick = {
-                            showAddMenu = false
-                            editingHttpNodeId = null
-                            newHttpSourceName = ""
-                            newHttpUrl = ""
-                            newHttpUsername = ""
-                            newHttpPassword = ""
-                            newHttpPasswordVisible = false
-                            newHttpTreatAsRoot = true
-                            showAddHttpSourceDialog = true
-                        }
-                    )
                 }
             }
         },
@@ -1544,11 +1561,164 @@ internal fun NetworkBrowserScreen(
             modifier = Modifier
                 .fillMaxSize()
                 .verticalScroll(rememberScrollState())
-                .padding(contentPadding)
-                .padding(vertical = 14.dp)
-                .padding(bottom = bottomContentPadding + 88.dp),
-            verticalArrangement = Arrangement.spacedBy(10.dp)
+                .padding(if (isWatch) PaddingValues(0.dp) else contentPadding)
+                .padding(
+                    start = if (isWatch) (if (isRound) 14.dp else 10.dp) else 0.dp,
+                    end = if (isWatch) (if (isRound) 14.dp else 10.dp) else 0.dp,
+                    top = if (isWatch) (if (isRound) 24.dp else 12.dp) else 14.dp,
+                    bottom = if (isWatch) (bottomContentPadding + if (isRound) 56.dp else 16.dp) else (bottomContentPadding + 88.dp)
+                ),
+            verticalArrangement = Arrangement.spacedBy(if (isWatch) 4.dp else 10.dp)
         ) {
+            if (isWatch) {
+                val headerTitle = if (currentFolderId == null) {
+                    "Network Sources"
+                } else {
+                    nodesById[currentFolderId]?.title ?: "Network Folder"
+                }
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(bottom = 4.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    Text(
+                        text = headerTitle,
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold,
+                        textAlign = TextAlign.Center,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                    val itemCount = currentEntries.size
+                    Text(
+                        text = "$itemCount ${if (itemCount == 1) "item" else "items"}",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+
+                if (currentFolderId != null) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(14.dp))
+                            .background(MaterialTheme.colorScheme.surfaceContainerLow)
+                            .clickable { navigateUpOneFolder() }
+                            .padding(horizontal = 10.dp, vertical = 8.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .size(32.dp)
+                                .background(
+                                    color = MaterialTheme.colorScheme.primaryContainer,
+                                    shape = RoundedCornerShape(8.dp)
+                                ),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(
+                                imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                                contentDescription = "Go up",
+                                tint = MaterialTheme.colorScheme.onPrimaryContainer,
+                                modifier = Modifier.size(16.dp)
+                            )
+                        }
+                        Spacer(modifier = Modifier.width(10.dp))
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = "..",
+                                style = MaterialTheme.typography.titleSmall,
+                                fontWeight = FontWeight.Bold
+                            )
+                            Text(
+                                text = "Parent folder",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    }
+                } else {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(14.dp))
+                            .background(MaterialTheme.colorScheme.surfaceContainerLow)
+                            .clickable { onExitNetwork() }
+                            .padding(horizontal = 10.dp, vertical = 8.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .size(32.dp)
+                                .background(
+                                    color = MaterialTheme.colorScheme.primaryContainer,
+                                    shape = RoundedCornerShape(8.dp)
+                                ),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Home,
+                                contentDescription = "Home screen",
+                                tint = MaterialTheme.colorScheme.onPrimaryContainer,
+                                modifier = Modifier.size(16.dp)
+                            )
+                        }
+                        Spacer(modifier = Modifier.width(10.dp))
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = "Home screen",
+                                style = MaterialTheme.typography.titleSmall
+                            )
+                            Text(
+                                text = "Return to player home",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    }
+                }
+
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(14.dp))
+                        .background(MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.5f))
+                        .clickable { showAddMenu = true }
+                        .padding(horizontal = 10.dp, vertical = 8.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .size(32.dp)
+                            .background(
+                                color = MaterialTheme.colorScheme.primary,
+                                shape = RoundedCornerShape(8.dp)
+                            ),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Add,
+                            contentDescription = "Add source",
+                            tint = MaterialTheme.colorScheme.onPrimary,
+                            modifier = Modifier.size(18.dp)
+                        )
+                    }
+                    Spacer(modifier = Modifier.width(10.dp))
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = "Add source or folder",
+                            style = MaterialTheme.typography.titleSmall,
+                            color = MaterialTheme.colorScheme.onPrimaryContainer
+                        )
+                        Text(
+                            text = "Folder, SMB, HTTP, stream",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                }
+            }
             AnimatedContent(
                 targetState = statusMessage,
                 transitionSpec = {
@@ -1703,15 +1873,21 @@ internal fun NetworkBrowserScreen(
                                     } else {
                                         false
                                     }
-                                    val selectionShape = RoundedCornerShape(
-                                        topStart = if (hasSelectedAbove) 0.dp else 18.dp,
-                                        topEnd = if (hasSelectedAbove) 0.dp else 18.dp,
-                                        bottomStart = if (hasSelectedBelow) 0.dp else 18.dp,
-                                        bottomEnd = if (hasSelectedBelow) 0.dp else 18.dp
-                                    )
+                                    val selectionShape = if (isWatch) {
+                                        RoundedCornerShape(14.dp)
+                                    } else {
+                                        RoundedCornerShape(
+                                            topStart = if (hasSelectedAbove) 0.dp else 18.dp,
+                                            topEnd = if (hasSelectedAbove) 0.dp else 18.dp,
+                                            bottomStart = if (hasSelectedBelow) 0.dp else 18.dp,
+                                            bottomEnd = if (hasSelectedBelow) 0.dp else 18.dp
+                                        )
+                                    }
                                     val rowContainerColor by animateColorAsState(
                                         targetValue = if (isSelected) {
                                             MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.65f)
+                                        } else if (isWatch) {
+                                            MaterialTheme.colorScheme.surfaceContainerLow
                                         } else {
                                             MaterialTheme.colorScheme.surface.copy(alpha = 0f)
                                         },
@@ -1731,7 +1907,7 @@ internal fun NetworkBrowserScreen(
                                                 .clip(selectionShape)
                                                 .background(rowContainerColor)
                                                 .focusProperties {
-                                                    if (!isSelectionMode) {
+                                                    if (!isSelectionMode && !isWatch) {
                                                         right = menuFocusRequester
                                                     }
                                                     previousRowFocusRequester?.let { up = it }
@@ -1739,11 +1915,15 @@ internal fun NetworkBrowserScreen(
                                                 }
                                                 .focusRequester(rowFocusRequester)
                                                 .tvKeyLongPress {
-                                                    expandedEntryMenuNodeId = null
-                                                    showSelectionActionsMenu = false
-                                                    clipboardState = null
-                                                    selectionModeEnabled = true
-                                                    selectedNodeIds = selectedNodeIds + entry.id
+                                                    if (isWatch) {
+                                                        watchActionTargetNode = entry
+                                                    } else {
+                                                        expandedEntryMenuNodeId = null
+                                                        showSelectionActionsMenu = false
+                                                        clipboardState = null
+                                                        selectionModeEnabled = true
+                                                        selectedNodeIds = selectedNodeIds + entry.id
+                                                    }
                                                 }
                                                 .combinedClickable(
                                                     onClick = {
@@ -1775,19 +1955,26 @@ internal fun NetworkBrowserScreen(
                                                         }
                                                     },
                                                     onLongClick = {
-                                                        expandedEntryMenuNodeId = null
-                                                        showSelectionActionsMenu = false
-                                                        clipboardState = null
-                                                        selectionModeEnabled = true
-                                                        selectedNodeIds = selectedNodeIds + entry.id
+                                                        if (isWatch) {
+                                                            watchActionTargetNode = entry
+                                                        } else {
+                                                            expandedEntryMenuNodeId = null
+                                                            showSelectionActionsMenu = false
+                                                            clipboardState = null
+                                                            selectionModeEnabled = true
+                                                            selectedNodeIds = selectedNodeIds + entry.id
+                                                        }
                                                     }
                                                 )
                                                 .focusable()
-                                                .padding(horizontal = 16.dp, vertical = 10.dp),
+                                                .padding(
+                                                    horizontal = if (isWatch) 10.dp else 16.dp,
+                                                    vertical = if (isWatch) 7.dp else 10.dp
+                                                ),
                                             verticalAlignment = Alignment.CenterVertically
                                         ) {
                                             val isFolder = entry.type == NetworkNodeType.Folder
-                                            val chipShape = RoundedCornerShape(11.dp)
+                                            val chipShape = RoundedCornerShape(if (isWatch) 8.dp else 11.dp)
                                             val chipContainerColor = if (isFolder || isSmbFolderLikeSource || isHttpFolderLikeSource) {
                                                 MaterialTheme.colorScheme.primaryContainer
                                             } else {
@@ -1816,7 +2003,7 @@ internal fun NetworkBrowserScreen(
 
                                             Box(
                                                 modifier = Modifier
-                                                    .size(NETWORK_ICON_BOX_SIZE)
+                                                    .size(if (isWatch) 32.dp else NETWORK_ICON_BOX_SIZE)
                                                     .background(
                                                         color = chipContainerColor,
                                                         shape = chipShape
@@ -1827,11 +2014,11 @@ internal fun NetworkBrowserScreen(
                                                     imageVector = leadingIcon,
                                                     contentDescription = null,
                                                     tint = chipContentColor,
-                                                    modifier = Modifier.size(NETWORK_ICON_GLYPH_SIZE)
+                                                    modifier = Modifier.size(if (isWatch) 16.dp else NETWORK_ICON_GLYPH_SIZE)
                                                 )
                                             }
 
-                                            Spacer(modifier = Modifier.width(16.dp))
+                                            Spacer(modifier = Modifier.width(if (isWatch) 10.dp else 16.dp))
 
                                             Column(modifier = Modifier.weight(1f)) {
                                                 val isRemoteSource = entry.type == NetworkNodeType.RemoteSource
@@ -1944,7 +2131,7 @@ internal fun NetworkBrowserScreen(
                                                 }
                                             }
 
-                                            if (!isSelectionMode) {
+                                            if (!isSelectionMode && !isWatch) {
                                                 Box {
                                                     IconButton(
                                                         onClick = { expandedEntryMenuNodeId = entry.id },
@@ -2071,13 +2258,363 @@ internal fun NetworkBrowserScreen(
                                                         )
                                                     }
                                                 }
-                                            } else {
+                                            } else if (!isWatch) {
                                                 Spacer(modifier = Modifier.size(48.dp))
                                             }
                                         }
                                     }
                                 }
                             }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    if (isWatch && showAddMenu) {
+        Dialog(
+            onDismissRequest = { showAddMenu = false },
+            properties = DialogProperties(usePlatformDefaultWidth = false)
+        ) {
+            Surface(
+                modifier = Modifier.fillMaxSize(),
+                color = MaterialTheme.colorScheme.background
+            ) {
+                LazyColumn(
+                    modifier = Modifier.fillMaxSize(),
+                    contentPadding = PaddingValues(
+                        start = if (isRound) 14.dp else 10.dp,
+                        end = if (isRound) 14.dp else 10.dp,
+                        top = if (isRound) 24.dp else 12.dp,
+                        bottom = if (isRound) 28.dp else 12.dp
+                    ),
+                    verticalArrangement = Arrangement.spacedBy(6.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    item(key = "add_title") {
+                        Text(
+                            text = "Add Network Source",
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.Bold,
+                            textAlign = TextAlign.Center,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(bottom = 6.dp)
+                        )
+                    }
+                    item(key = "add_folder") {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clip(RoundedCornerShape(14.dp))
+                                .background(MaterialTheme.colorScheme.surfaceContainerLow)
+                                .clickable {
+                                    showAddMenu = false
+                                    editingFolderNodeId = null
+                                    newFolderName = ""
+                                    showCreateFolderDialog = true
+                                }
+                                .padding(horizontal = 12.dp, vertical = 8.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.CreateNewFolder,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.primary,
+                                modifier = Modifier.size(20.dp)
+                            )
+                            Spacer(modifier = Modifier.width(10.dp))
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(
+                                    text = "Folder",
+                                    style = MaterialTheme.typography.titleSmall
+                                )
+                                Text(
+                                    text = "Group and organize sources",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                        }
+                    }
+                    item(key = "add_smb") {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clip(RoundedCornerShape(14.dp))
+                                .background(MaterialTheme.colorScheme.surfaceContainerLow)
+                                .clickable {
+                                    showAddMenu = false
+                                    editingSmbNodeId = null
+                                    newSmbSourceName = ""
+                                    newSmbHost = ""
+                                    newSmbShare = ""
+                                    newSmbPath = ""
+                                    newSmbUsername = ""
+                                    newSmbPassword = ""
+                                    newSmbPasswordVisible = false
+                                    showAddSmbSourceDialog = true
+                                }
+                                .padding(horizontal = 12.dp, vertical = 8.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Icon(
+                                imageVector = NetworkIcons.SmbShare,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.primary,
+                                modifier = Modifier.size(20.dp)
+                            )
+                            Spacer(modifier = Modifier.width(10.dp))
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(
+                                    text = "SMB Share",
+                                    style = MaterialTheme.typography.titleSmall
+                                )
+                                Text(
+                                    text = "Windows / Samba share or NAS",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                        }
+                    }
+                    item(key = "add_http") {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clip(RoundedCornerShape(14.dp))
+                                .background(MaterialTheme.colorScheme.surfaceContainerLow)
+                                .clickable {
+                                    showAddMenu = false
+                                    editingHttpNodeId = null
+                                    newHttpSourceName = ""
+                                    newHttpUrl = ""
+                                    newHttpUsername = ""
+                                    newHttpPassword = ""
+                                    newHttpPasswordVisible = false
+                                    newHttpTreatAsRoot = true
+                                    showAddHttpSourceDialog = true
+                                }
+                                .padding(horizontal = 12.dp, vertical = 8.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Icon(
+                                imageVector = NetworkIcons.WorldCode,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.primary,
+                                modifier = Modifier.size(20.dp)
+                            )
+                            Spacer(modifier = Modifier.width(10.dp))
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(
+                                    text = "HTTP / HTTPS Server",
+                                    style = MaterialTheme.typography.titleSmall
+                                )
+                                Text(
+                                    text = "Web directory or audio stream",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                        }
+                    }
+                    item(key = "add_remote") {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clip(RoundedCornerShape(14.dp))
+                                .background(MaterialTheme.colorScheme.surfaceContainerLow)
+                                .clickable {
+                                    showAddMenu = false
+                                    editingSourceNodeId = null
+                                    newSourceName = ""
+                                    newSourcePath = ""
+                                    showAddSourceDialog = true
+                                }
+                                .padding(horizontal = 12.dp, vertical = 8.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Link,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.primary,
+                                modifier = Modifier.size(20.dp)
+                            )
+                            Spacer(modifier = Modifier.width(10.dp))
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(
+                                    text = "Remote URL",
+                                    style = MaterialTheme.typography.titleSmall
+                                )
+                                Text(
+                                    text = "Direct streaming URL",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    watchActionTargetNode?.let { targetNode ->
+        val isFolder = targetNode.type == NetworkNodeType.Folder
+        val isSmb = isSmbFolderLikeSource(targetNode, resolveNetworkNodeSourceId(targetNode).orEmpty())
+        val isHttp = isHttpFolderLikeSource(targetNode, resolveNetworkNodeSourceId(targetNode).orEmpty())
+        val isFolderLike = isFolder || isSmb || isHttp
+        Dialog(
+            onDismissRequest = { watchActionTargetNode = null },
+            properties = DialogProperties(usePlatformDefaultWidth = false)
+        ) {
+            Surface(
+                modifier = Modifier.fillMaxSize(),
+                color = MaterialTheme.colorScheme.background
+            ) {
+                LazyColumn(
+                    modifier = Modifier.fillMaxSize(),
+                    contentPadding = PaddingValues(
+                        start = if (isRound) 14.dp else 10.dp,
+                        end = if (isRound) 14.dp else 10.dp,
+                        top = if (isRound) 24.dp else 12.dp,
+                        bottom = if (isRound) 28.dp else 12.dp
+                    ),
+                    verticalArrangement = Arrangement.spacedBy(6.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    item(key = "node_title") {
+                        Text(
+                            text = resolveNetworkNodeDisplayTitle(targetNode),
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.Bold,
+                            textAlign = TextAlign.Center,
+                            maxLines = 2,
+                            overflow = TextOverflow.Ellipsis,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(bottom = 6.dp)
+                        )
+                    }
+                    item(key = "action_edit") {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clip(RoundedCornerShape(14.dp))
+                                .background(MaterialTheme.colorScheme.surfaceContainerLow)
+                                .clickable {
+                                    watchActionTargetNode = null
+                                    beginEntryEdit(targetNode)
+                                }
+                                .padding(horizontal = 12.dp, vertical = 8.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Edit,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.primary,
+                                modifier = Modifier.size(20.dp)
+                            )
+                            Spacer(modifier = Modifier.width(10.dp))
+                            Text("Edit", style = MaterialTheme.typography.titleSmall)
+                        }
+                    }
+                    item(key = "action_info") {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clip(RoundedCornerShape(14.dp))
+                                .background(MaterialTheme.colorScheme.surfaceContainerLow)
+                                .clickable {
+                                    watchActionTargetNode = null
+                                    beginInfoDialog(targetNode)
+                                }
+                                .padding(horizontal = 12.dp, vertical = 8.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Visibility,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.primary,
+                                modifier = Modifier.size(20.dp)
+                            )
+                            Spacer(modifier = Modifier.width(10.dp))
+                            Text("Info", style = MaterialTheme.typography.titleSmall)
+                        }
+                    }
+                    if (targetNode.type == NetworkNodeType.RemoteSource) {
+                        item(key = "action_pin") {
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clip(RoundedCornerShape(14.dp))
+                                    .background(MaterialTheme.colorScheme.surfaceContainerLow)
+                                    .clickable {
+                                        watchActionTargetNode = null
+                                        requestPin(targetNode)
+                                    }
+                                    .padding(horizontal = 12.dp, vertical = 8.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.Home,
+                                    contentDescription = null,
+                                    tint = MaterialTheme.colorScheme.primary,
+                                    modifier = Modifier.size(20.dp)
+                                )
+                                Spacer(modifier = Modifier.width(10.dp))
+                                Text(
+                                    if (isFolderLike) "Pin folder to home" else "Pin file to home",
+                                    style = MaterialTheme.typography.titleSmall
+                                )
+                            }
+                        }
+                    }
+                    item(key = "action_refresh") {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clip(RoundedCornerShape(14.dp))
+                                .background(MaterialTheme.colorScheme.surfaceContainerLow)
+                                .clickable {
+                                    watchActionTargetNode = null
+                                    requestRefresh(targetNode)
+                                }
+                                .padding(horizontal = 12.dp, vertical = 8.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Refresh,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.primary,
+                                modifier = Modifier.size(20.dp)
+                            )
+                            Spacer(modifier = Modifier.width(10.dp))
+                            Text("Refresh", style = MaterialTheme.typography.titleSmall)
+                        }
+                    }
+                    item(key = "action_delete") {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clip(RoundedCornerShape(14.dp))
+                                .background(MaterialTheme.colorScheme.surfaceContainerLow)
+                                .clickable {
+                                    watchActionTargetNode = null
+                                    beginDeleteConfirmation(targetNode)
+                                }
+                                .padding(horizontal = 12.dp, vertical = 8.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Delete,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.error,
+                                modifier = Modifier.size(20.dp)
+                            )
+                            Spacer(modifier = Modifier.width(10.dp))
+                            Text("Delete", style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.error)
                         }
                     }
                 }
@@ -2247,153 +2784,251 @@ internal fun NetworkBrowserScreen(
 
     if (deleteNodePendingIds.isNotEmpty()) {
         val deleteRootIds = normalizeSelectionRootIds(nodes, deleteNodePendingIds)
-        AlertDialog(
-            onDismissRequest = { deleteNodeIdsPendingConfirmation = null },
-            title = {
+        val titleText = if (deleteRootIds.size == 1) "Delete entry" else "Delete entries"
+        val messageText = if (deleteRootIds.size == 1 && deleteNodePending != null) {
+            "Delete \"${deleteNodePending.title}\" and all of its contents?"
+        } else {
+            "Delete ${deleteRootIds.size} selected entries and their contents?"
+        }
+        val performDelete = {
+            val idsToDelete = deleteRootIds
+                .flatMapTo(LinkedHashSet()) { rootId ->
+                    collectNodeSubtreeIds(nodes, rootId)
+                }
+            val updated = nodes.filterNot { idsToDelete.contains(it.id) }
+            onNodesChanged(updated)
+            if (clipboardState?.nodeIds.orEmpty().intersect(idsToDelete).isNotEmpty()) {
+                clipboardState = null
+            }
+            selectedNodeIds = selectedNodeIds - idsToDelete
+            deleteNodeIdsPendingConfirmation = null
+        }
+
+        if (isWatch) {
+            WatchDialogContainer(
+                title = titleText,
+                onDismissRequest = { deleteNodeIdsPendingConfirmation = null }
+            ) {
                 Text(
-                    if (deleteRootIds.size == 1) {
-                        "Delete entry"
-                    } else {
-                        "Delete entries"
-                    }
+                    text = messageText,
+                    style = MaterialTheme.typography.bodyMedium,
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(bottom = 8.dp)
                 )
-            },
-            text = {
-                Text(
-                    text = if (deleteRootIds.size == 1 && deleteNodePending != null) {
-                        "Delete \"${deleteNodePending.title}\" and all of its contents?"
-                    } else {
-                        "Delete ${deleteRootIds.size} selected entries and their contents?"
-                    },
-                    style = MaterialTheme.typography.bodyMedium
-                )
-            },
-            confirmButton = {
-                TextButton(
-                    onClick = {
-                        val idsToDelete = deleteRootIds
-                            .flatMapTo(LinkedHashSet()) { rootId ->
-                                collectNodeSubtreeIds(nodes, rootId)
-                            }
-                        val updated = nodes.filterNot { idsToDelete.contains(it.id) }
-                        onNodesChanged(updated)
-                        if (clipboardState?.nodeIds.orEmpty().intersect(idsToDelete).isNotEmpty()) {
-                            clipboardState = null
-                        }
-                        selectedNodeIds = selectedNodeIds - idsToDelete
-                        deleteNodeIdsPendingConfirmation = null
-                    }
+                Button(
+                    onClick = performDelete,
+                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error),
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(14.dp)
                 ) {
                     Text("Delete")
                 }
-            },
-            dismissButton = {
-                TextButton(onClick = { deleteNodeIdsPendingConfirmation = null }) {
+                TextButton(
+                    onClick = { deleteNodeIdsPendingConfirmation = null },
+                    modifier = Modifier.fillMaxWidth()
+                ) {
                     Text("Cancel")
                 }
             }
-        )
+        } else {
+            AlertDialog(
+                onDismissRequest = { deleteNodeIdsPendingConfirmation = null },
+                title = { Text(titleText) },
+                text = { Text(text = messageText, style = MaterialTheme.typography.bodyMedium) },
+                confirmButton = {
+                    TextButton(onClick = performDelete) {
+                        Text("Delete")
+                    }
+                },
+                dismissButton = {
+                    TextButton(onClick = { deleteNodeIdsPendingConfirmation = null }) {
+                        Text("Cancel")
+                    }
+                }
+            )
+        }
     }
 
     if (refreshNodeConfirmationIds.isNotEmpty()) {
         val refreshableFileCount = remember(nodes, refreshNodeConfirmationIds) {
             collectRefreshableRemoteSourceNodeIds(nodes, refreshNodeConfirmationIds).size
         }
-        AlertDialog(
-            onDismissRequest = { refreshNodeIdsPendingConfirmation = null },
-            title = { Text("Refresh files") },
-            text = {
+        val performRefresh = {
+            val pendingRootIds = refreshNodeConfirmationIds
+            refreshNodeIdsPendingConfirmation = null
+            startBatchRefresh(pendingRootIds)
+        }
+
+        if (isWatch) {
+            WatchDialogContainer(
+                title = "Refresh files",
+                onDismissRequest = { refreshNodeIdsPendingConfirmation = null }
+            ) {
                 Text(
                     text = "Refresh $refreshableFileCount ${
                         if (refreshableFileCount == 1) "file" else "files"
                     }?",
-                    style = MaterialTheme.typography.bodyMedium
+                    style = MaterialTheme.typography.bodyMedium,
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(bottom = 8.dp)
                 )
-            },
-            confirmButton = {
-                TextButton(
-                    onClick = {
-                        val pendingRootIds = refreshNodeConfirmationIds
-                        refreshNodeIdsPendingConfirmation = null
-                        startBatchRefresh(pendingRootIds)
-                    }
+                Button(
+                    onClick = performRefresh,
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(14.dp)
                 ) {
                     Text("Refresh")
                 }
-            },
-            dismissButton = {
-                TextButton(onClick = { refreshNodeIdsPendingConfirmation = null }) {
+                TextButton(
+                    onClick = { refreshNodeIdsPendingConfirmation = null },
+                    modifier = Modifier.fillMaxWidth()
+                ) {
                     Text("Cancel")
                 }
             }
-        )
+        } else {
+            AlertDialog(
+                onDismissRequest = { refreshNodeIdsPendingConfirmation = null },
+                title = { Text("Refresh files") },
+                text = {
+                    Text(
+                        text = "Refresh $refreshableFileCount ${
+                            if (refreshableFileCount == 1) "file" else "files"
+                        }?",
+                        style = MaterialTheme.typography.bodyMedium
+                    )
+                },
+                confirmButton = {
+                    TextButton(onClick = performRefresh) {
+                        Text("Refresh")
+                    }
+                },
+                dismissButton = {
+                    TextButton(onClick = { refreshNodeIdsPendingConfirmation = null }) {
+                        Text("Cancel")
+                    }
+                }
+            )
+        }
     }
 
     if (refreshNodePendingIds.isNotEmpty() && !refreshPopupHidden) {
         val refreshTotalCount = refreshNodePendingIds.size
         val refreshCompletedCount = refreshCompletedNodeIds.size.coerceIn(0, refreshTotalCount)
-        AlertDialog(
-            onDismissRequest = { refreshPopupHidden = true },
-            title = { Text("Refresh") },
-            text = {
+        if (isWatch) {
+            WatchDialogContainer(
+                title = "Refresh",
+                onDismissRequest = { refreshPopupHidden = true }
+            ) {
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+                    horizontalArrangement = Arrangement.spacedBy(12.dp),
+                    modifier = Modifier.padding(vertical = 8.dp)
                 ) {
                     CircularProgressIndicator(modifier = Modifier.size(20.dp))
                     Text("Refreshing $refreshCompletedCount/$refreshTotalCount files...")
                 }
-            },
-            confirmButton = {},
-            dismissButton = {
-                TextButton(onClick = { refreshPopupHidden = true }) {
+                TextButton(
+                    onClick = { refreshPopupHidden = true },
+                    modifier = Modifier.fillMaxWidth()
+                ) {
                     Text("Hide")
                 }
             }
-        )
+        } else {
+            AlertDialog(
+                onDismissRequest = { refreshPopupHidden = true },
+                title = { Text("Refresh") },
+                text = {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        CircularProgressIndicator(modifier = Modifier.size(20.dp))
+                        Text("Refreshing $refreshCompletedCount/$refreshTotalCount files...")
+                    }
+                },
+                confirmButton = {},
+                dismissButton = {
+                    TextButton(onClick = { refreshPopupHidden = true }) {
+                        Text("Hide")
+                    }
+                }
+            )
+        }
     }
 
     pendingPinConfirmation?.let { (entry, isFolder) ->
-        AlertDialog(
-            onDismissRequest = {
-                pendingPinConfirmation = null
-                pendingPinEvictionCandidate = null
-            },
-            title = { Text("Pin limit reached") },
-            text = {
-                Text(
-                    text = buildString {
-                        append("You can pin up to $PINNED_HOME_ENTRIES_LIMIT entries. ")
-                        val eviction = pendingPinEvictionCandidate
-                        if (eviction != null) {
-                            append("The oldest pinned ")
-                            append(if (eviction.isFolder) "folder" else "file")
-                            append(" will be removed to make space.")
-                        } else {
-                            append("The oldest pinned entry will be removed to make space.")
-                        }
-                    },
-                    style = MaterialTheme.typography.bodyMedium
-                )
-            },
-            confirmButton = {
-                TextButton(
-                    onClick = {
-                        onPinHomeEntry(entry, isFolder)
-                        pendingPinConfirmation = null
-                        pendingPinEvictionCandidate = null
-                    }
-                ) { Text("Continue") }
-            },
-            dismissButton = {
-                TextButton(
-                    onClick = {
-                        pendingPinConfirmation = null
-                        pendingPinEvictionCandidate = null
-                    }
-                ) { Text("Cancel") }
+        val evictionCandidate = pendingPinEvictionCandidate
+        val messageText = buildString {
+            append("You can pin up to $PINNED_HOME_ENTRIES_LIMIT entries. ")
+            if (evictionCandidate != null) {
+                append("The oldest pinned ")
+                append(if (evictionCandidate.isFolder) "folder" else "file")
+                append(" will be removed to make space.")
+            } else {
+                append("The oldest pinned entry will be removed to make space.")
             }
-        )
+        }
+        val onContinue = {
+            onPinHomeEntry(entry, isFolder)
+            pendingPinConfirmation = null
+            pendingPinEvictionCandidate = null
+        }
+        val onCancel = {
+            pendingPinConfirmation = null
+            pendingPinEvictionCandidate = null
+        }
+
+        if (isWatch) {
+            WatchDialogContainer(
+                title = "Pin limit reached",
+                onDismissRequest = onCancel
+            ) {
+                Text(
+                    text = messageText,
+                    style = MaterialTheme.typography.bodyMedium,
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(bottom = 8.dp)
+                )
+                Button(
+                    onClick = onContinue,
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(14.dp)
+                ) {
+                    Text("Continue")
+                }
+                TextButton(
+                    onClick = onCancel,
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text("Cancel")
+                }
+            }
+        } else {
+            AlertDialog(
+                onDismissRequest = onCancel,
+                title = { Text("Pin limit reached") },
+                text = {
+                    Text(
+                        text = messageText,
+                        style = MaterialTheme.typography.bodyMedium
+                    )
+                },
+                confirmButton = {
+                    TextButton(onClick = onContinue) { Text("Continue") }
+                },
+                dismissButton = {
+                    TextButton(onClick = onCancel) { Text("Cancel") }
+                }
+            )
+        }
     }
 
     if (infoDialogNodeId != null) {
@@ -2403,113 +3038,231 @@ internal fun NetworkBrowserScreen(
                 dismissInfoDialog()
             }
         } else {
-            AlertDialog(
-                onDismissRequest = { dismissInfoDialog() },
-                title = { Text("Info") },
-                text = {
-                    Column(
+            if (isWatch) {
+                WatchDialogContainer(
+                    title = "Info",
+                    onDismissRequest = { dismissInfoDialog() }
+                ) {
+                    Text(
+                        text = resolveNetworkNodeDisplayTitle(infoEntry),
+                        style = MaterialTheme.typography.titleSmall,
+                        fontWeight = FontWeight.Bold,
+                        textAlign = TextAlign.Center,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    infoCurrentFields.forEach { field ->
+                        Text(
+                            text = buildAnnotatedString {
+                                withStyle(style = SpanStyle(fontWeight = FontWeight.SemiBold)) {
+                                    append("${field.label}: ")
+                                }
+                                append(field.value)
+                            },
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                    Spacer(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .verticalScroll(rememberScrollState()),
-                        verticalArrangement = Arrangement.spacedBy(10.dp)
-                    ) {
-                        Text(
-                            text = resolveNetworkNodeDisplayTitle(infoEntry),
-                            style = MaterialTheme.typography.titleSmall
-                        )
-                        infoCurrentFields.forEach { field ->
+                            .height(1.dp)
+                            .background(MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.45f))
+                    )
+                    Text(
+                        text = "Remote",
+                        style = MaterialTheme.typography.titleSmall,
+                        fontWeight = FontWeight.Bold
+                    )
+                    when {
+                        infoRemoteFetchInProgress -> {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                CircularProgressIndicator(
+                                    modifier = Modifier.size(16.dp),
+                                    strokeWidth = 2.dp
+                                )
+                                Text(
+                                    text = "Fetching additional info...",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.primary
+                                )
+                            }
+                        }
+
+                        infoRemoteError != null -> {
                             Text(
-                                text = buildAnnotatedString {
-                                    withStyle(style = SpanStyle(fontWeight = FontWeight.SemiBold)) {
-                                        append("${field.label}: ")
-                                    }
-                                    append(field.value)
-                                },
+                                text = infoRemoteError.orEmpty(),
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.error
+                            )
+                        }
+
+                        infoRemoteFields.isEmpty() -> {
+                            Text(
+                                text = "No additional remote info available.",
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
                         }
-                        Spacer(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .height(1.dp)
-                                .background(MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.45f))
-                        )
-                        Text(
-                            text = "Remote",
-                            style = MaterialTheme.typography.titleSmall
-                        )
-                        when {
-                            infoRemoteFetchInProgress -> {
-                                Row(
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                                ) {
-                                    CircularProgressIndicator(
-                                        modifier = Modifier.size(16.dp),
-                                        strokeWidth = 2.dp
-                                    )
-                                    Text(
-                                        text = "Fetching additional info...",
-                                        style = MaterialTheme.typography.bodySmall,
-                                        color = MaterialTheme.colorScheme.primary
-                                    )
-                                }
-                            }
 
-                            infoRemoteError != null -> {
+                        else -> {
+                            infoRemoteFields.forEach { field ->
                                 Text(
-                                    text = infoRemoteError.orEmpty(),
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.error
-                                )
-                            }
-
-                            infoRemoteFields.isEmpty() -> {
-                                Text(
-                                    text = "No additional remote info available.",
+                                    text = buildAnnotatedString {
+                                        withStyle(style = SpanStyle(fontWeight = FontWeight.SemiBold)) {
+                                            append("${field.label}: ")
+                                        }
+                                        append(field.value)
+                                    },
                                     style = MaterialTheme.typography.bodySmall,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant
                                 )
                             }
+                        }
+                    }
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Button(
+                        onClick = { dismissInfoDialog() },
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(14.dp)
+                    ) {
+                        Text("Close")
+                    }
+                }
+            } else {
+                AlertDialog(
+                    onDismissRequest = { dismissInfoDialog() },
+                    title = { Text("Info") },
+                    text = {
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .verticalScroll(rememberScrollState()),
+                            verticalArrangement = Arrangement.spacedBy(10.dp)
+                        ) {
+                            Text(
+                                text = resolveNetworkNodeDisplayTitle(infoEntry),
+                                style = MaterialTheme.typography.titleSmall
+                            )
+                            infoCurrentFields.forEach { field ->
+                                Text(
+                                    text = buildAnnotatedString {
+                                        withStyle(style = SpanStyle(fontWeight = FontWeight.SemiBold)) {
+                                            append("${field.label}: ")
+                                        }
+                                        append(field.value)
+                                    },
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                            Spacer(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .height(1.dp)
+                                    .background(MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.45f))
+                            )
+                            Text(
+                                text = "Remote",
+                                style = MaterialTheme.typography.titleSmall
+                            )
+                            when {
+                                infoRemoteFetchInProgress -> {
+                                    Row(
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                    ) {
+                                        CircularProgressIndicator(
+                                            modifier = Modifier.size(16.dp),
+                                            strokeWidth = 2.dp
+                                        )
+                                        Text(
+                                            text = "Fetching additional info...",
+                                            style = MaterialTheme.typography.bodySmall,
+                                            color = MaterialTheme.colorScheme.primary
+                                        )
+                                    }
+                                }
 
-                            else -> {
-                                infoRemoteFields.forEach { field ->
+                                infoRemoteError != null -> {
                                     Text(
-                                        text = buildAnnotatedString {
-                                            withStyle(style = SpanStyle(fontWeight = FontWeight.SemiBold)) {
-                                                append("${field.label}: ")
-                                            }
-                                            append(field.value)
-                                        },
+                                        text = infoRemoteError.orEmpty(),
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.error
+                                    )
+                                }
+
+                                infoRemoteFields.isEmpty() -> {
+                                    Text(
+                                        text = "No additional remote info available.",
                                         style = MaterialTheme.typography.bodySmall,
                                         color = MaterialTheme.colorScheme.onSurfaceVariant
                                     )
                                 }
+
+                                else -> {
+                                    infoRemoteFields.forEach { field ->
+                                        Text(
+                                            text = buildAnnotatedString {
+                                                withStyle(style = SpanStyle(fontWeight = FontWeight.SemiBold)) {
+                                                    append("${field.label}: ")
+                                                }
+                                                append(field.value)
+                                            },
+                                            style = MaterialTheme.typography.bodySmall,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                                        )
+                                    }
+                                }
                             }
                         }
+                    },
+                    confirmButton = {
+                        TextButton(onClick = { dismissInfoDialog() }) {
+                            Text("Close")
+                        }
                     }
-                },
-                confirmButton = {
-                    TextButton(onClick = { dismissInfoDialog() }) {
-                        Text("Close")
-                    }
-                }
-            )
+                )
+            }
         }
     }
 
     blockedOperationMessage?.let { message ->
-        AlertDialog(
-            onDismissRequest = { blockedOperationMessage = null },
-            title = { Text("Cannot complete action") },
-            text = { Text(message) },
-            confirmButton = {
-                TextButton(onClick = { blockedOperationMessage = null }) {
+        if (isWatch) {
+            WatchDialogContainer(
+                title = "Cannot complete action",
+                onDismissRequest = { blockedOperationMessage = null }
+            ) {
+                Text(
+                    text = message,
+                    style = MaterialTheme.typography.bodyMedium,
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(bottom = 8.dp)
+                )
+                Button(
+                    onClick = { blockedOperationMessage = null },
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(14.dp)
+                ) {
                     Text("OK")
                 }
             }
-        )
+        } else {
+            AlertDialog(
+                onDismissRequest = { blockedOperationMessage = null },
+                title = { Text("Cannot complete action") },
+                text = { Text(message) },
+                confirmButton = {
+                    TextButton(onClick = { blockedOperationMessage = null }) {
+                        Text("OK")
+                    }
+                }
+            )
+        }
     }
 }
 

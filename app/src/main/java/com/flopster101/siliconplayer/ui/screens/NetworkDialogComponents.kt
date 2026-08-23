@@ -52,6 +52,14 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.material3.Button
+import androidx.compose.material3.FilledTonalButton
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
+import com.flopster101.siliconplayer.isWatchDevice
+import com.flopster101.siliconplayer.WatchDialogContainer
 import com.flopster101.siliconplayer.adaptiveDialogModifier
 import com.flopster101.siliconplayer.adaptiveDialogProperties
 import com.flopster101.siliconplayer.rememberDialogScrollbarAlpha
@@ -65,11 +73,48 @@ internal fun NetworkCreateFolderDialog(
     onDismiss: () -> Unit,
     onConfirm: () -> Unit
 ) {
+    val isWatch = isWatchDevice()
+    val titleText = if (isEditing) "Edit folder" else "Create folder"
+    val confirmText = if (isEditing) "Save" else "Create"
+
+    if (isWatch) {
+        WatchDialogContainer(
+            title = titleText,
+            onDismissRequest = onDismiss
+        ) {
+            OutlinedTextField(
+                value = folderName,
+                onValueChange = onFolderNameChange,
+                modifier = Modifier.fillMaxWidth(),
+                singleLine = true,
+                label = { RequiredFieldLabel("Folder name") },
+                shape = RoundedCornerShape(14.dp),
+                colors = networkDialogTextFieldColors()
+            )
+            Spacer(modifier = Modifier.height(4.dp))
+            Button(
+                enabled = folderName.trim().isNotEmpty(),
+                onClick = onConfirm,
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(14.dp)
+            ) {
+                Text(confirmText)
+            }
+            TextButton(
+                onClick = onDismiss,
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Text("Cancel")
+            }
+        }
+        return
+    }
+
     AlertDialog(
         modifier = adaptiveDialogModifier(),
         properties = adaptiveDialogProperties(),
         onDismissRequest = onDismiss,
-        title = { Text(if (isEditing) "Edit folder" else "Create folder") },
+        title = { Text(titleText) },
         text = {
             NetworkDialogScrollableContent {
                 OutlinedTextField(
@@ -88,7 +133,7 @@ internal fun NetworkCreateFolderDialog(
                 enabled = folderName.trim().isNotEmpty(),
                 onClick = onConfirm
             ) {
-                Text(if (isEditing) "Save" else "Create")
+                Text(confirmText)
             }
         },
         dismissButton = {
@@ -109,11 +154,57 @@ internal fun NetworkRemoteSourceDialog(
     onDismiss: () -> Unit,
     onConfirm: () -> Unit
 ) {
+    val isWatch = isWatchDevice()
+    val titleText = if (isEditing) "Edit remote source" else "Add remote source"
+    val confirmText = if (isEditing) "Save" else "Add"
+
+    if (isWatch) {
+        WatchDialogContainer(
+            title = titleText,
+            onDismissRequest = onDismiss
+        ) {
+            OutlinedTextField(
+                value = sourceName,
+                onValueChange = onSourceNameChange,
+                modifier = Modifier.fillMaxWidth(),
+                singleLine = true,
+                label = { Text("Name (optional)") },
+                shape = RoundedCornerShape(14.dp),
+                colors = networkDialogTextFieldColors()
+            )
+            OutlinedTextField(
+                value = sourcePath,
+                onValueChange = onSourcePathChange,
+                modifier = Modifier.fillMaxWidth(),
+                singleLine = true,
+                label = { RequiredFieldLabel("URL or path") },
+                shape = RoundedCornerShape(14.dp),
+                colors = networkDialogTextFieldColors()
+            )
+            Spacer(modifier = Modifier.height(4.dp))
+            Button(
+                enabled = sourcePath.trim().isNotEmpty(),
+                onClick = onConfirm,
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(14.dp)
+            ) {
+                Text(confirmText)
+            }
+            TextButton(
+                onClick = onDismiss,
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Text("Cancel")
+            }
+        }
+        return
+    }
+
     AlertDialog(
         modifier = adaptiveDialogModifier(),
         properties = adaptiveDialogProperties(),
         onDismissRequest = onDismiss,
-        title = { Text(if (isEditing) "Edit remote source" else "Add remote source") },
+        title = { Text(titleText) },
         text = {
             NetworkDialogScrollableContent {
                 OutlinedTextField(
@@ -141,7 +232,7 @@ internal fun NetworkRemoteSourceDialog(
                 enabled = sourcePath.trim().isNotEmpty(),
                 onClick = onConfirm
             ) {
-                Text(if (isEditing) "Save" else "Add")
+                Text(confirmText)
             }
         },
         dismissButton = {
@@ -173,11 +264,121 @@ internal fun NetworkSmbSourceDialog(
     onDismiss: () -> Unit,
     onConfirm: () -> Unit
 ) {
+    val isWatch = isWatchDevice()
+    val titleText = if (isEditing) "Edit SMB share" else "Add SMB share"
+    val confirmText = if (isEditing) "Save" else "Add"
+
+    if (isWatch) {
+        WatchDialogContainer(
+            title = titleText,
+            onDismissRequest = onDismiss
+        ) {
+            OutlinedTextField(
+                value = sourceName,
+                onValueChange = onSourceNameChange,
+                modifier = Modifier.fillMaxWidth(),
+                singleLine = true,
+                label = { Text("Name (optional)") },
+                shape = RoundedCornerShape(14.dp),
+                colors = networkDialogTextFieldColors()
+            )
+            OutlinedTextField(
+                value = host,
+                onValueChange = onHostChange,
+                modifier = Modifier.fillMaxWidth(),
+                singleLine = true,
+                label = { RequiredFieldLabel("Host") },
+                shape = RoundedCornerShape(14.dp),
+                colors = networkDialogTextFieldColors()
+            )
+            OutlinedTextField(
+                value = share,
+                onValueChange = onShareChange,
+                modifier = Modifier.fillMaxWidth(),
+                singleLine = true,
+                label = { Text("Share (optional)") },
+                shape = RoundedCornerShape(14.dp),
+                colors = networkDialogTextFieldColors()
+            )
+            OutlinedTextField(
+                value = path,
+                onValueChange = onPathChange,
+                modifier = Modifier.fillMaxWidth(),
+                singleLine = true,
+                label = { Text("Path inside share (optional)") },
+                shape = RoundedCornerShape(14.dp),
+                colors = networkDialogTextFieldColors()
+            )
+            OutlinedTextField(
+                value = username,
+                onValueChange = onUsernameChange,
+                modifier = Modifier.fillMaxWidth(),
+                singleLine = true,
+                label = { Text("Username (optional)") },
+                shape = RoundedCornerShape(14.dp),
+                colors = networkDialogTextFieldColors()
+            )
+            OutlinedTextField(
+                value = password,
+                onValueChange = onPasswordChange,
+                modifier = Modifier.fillMaxWidth(),
+                singleLine = true,
+                label = { Text("Password (optional)") },
+                visualTransformation = if (passwordVisible) {
+                    VisualTransformation.None
+                } else {
+                    PasswordVisualTransformation()
+                },
+                trailingIcon = {
+                    IconButton(onClick = { onPasswordVisibleChange(!passwordVisible) }) {
+                        Icon(
+                            imageVector = if (passwordVisible) {
+                                Icons.Default.VisibilityOff
+                            } else {
+                                Icons.Default.Visibility
+                            },
+                            contentDescription = if (passwordVisible) {
+                                "Hide password"
+                            } else {
+                                "Show password"
+                            }
+                        )
+                    }
+                },
+                shape = RoundedCornerShape(14.dp),
+                colors = networkDialogTextFieldColors()
+            )
+            Spacer(modifier = Modifier.height(4.dp))
+            Button(
+                enabled = host.trim().isNotEmpty(),
+                onClick = onConfirm,
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(14.dp)
+            ) {
+                Text(confirmText)
+            }
+            FilledTonalButton(
+                onClick = onScanHosts,
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(14.dp)
+            ) {
+                Text("Scan local network")
+            }
+            TextButton(
+                onClick = onDismiss,
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Text("Cancel")
+            }
+        }
+        return
+    }
+
     AlertDialog(
         modifier = adaptiveDialogModifier(),
         properties = adaptiveDialogProperties(),
         onDismissRequest = onDismiss,
-        title = { Text(if (isEditing) "Edit SMB share" else "Add SMB share") },
+        title = { Text(titleText) },
         text = {
             NetworkDialogScrollableContent {
                 OutlinedTextField(
@@ -262,7 +463,7 @@ internal fun NetworkSmbSourceDialog(
                 enabled = host.trim().isNotEmpty(),
                 onClick = onConfirm
             ) {
-                Text(if (isEditing) "Save" else "Add")
+                Text(confirmText)
             }
         },
         dismissButton = {
@@ -295,6 +496,83 @@ internal fun NetworkHostScanDialog(
     onDismiss: () -> Unit,
     onSelect: (NetworkHostScanEntry) -> Unit
 ) {
+    val isWatch = isWatchDevice()
+    if (isWatch) {
+        WatchDialogContainer(
+            title = title,
+            onDismissRequest = onDismiss
+        ) {
+            if (isLoading && entries.isEmpty()) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(vertical = 8.dp),
+                    horizontalArrangement = Arrangement.Center
+                ) {
+                    CircularProgressIndicator(modifier = Modifier.size(22.dp), strokeWidth = 2.2.dp)
+                }
+            }
+            errorMessage?.takeIf { it.isNotBlank() }?.let { message ->
+                Text(
+                    text = message,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.error,
+                    textAlign = TextAlign.Center
+                )
+            }
+            if (!isLoading && entries.isEmpty() && errorMessage.isNullOrBlank()) {
+                Text(
+                    text = "No hosts found on local network.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    textAlign = TextAlign.Center
+                )
+            }
+            entries.forEach { entry ->
+                Surface(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(14.dp))
+                        .clickable { onSelect(entry) },
+                    shape = RoundedCornerShape(14.dp),
+                    color = MaterialTheme.colorScheme.surfaceContainerLow
+                ) {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 12.dp, vertical = 10.dp),
+                        verticalArrangement = Arrangement.spacedBy(2.dp)
+                    ) {
+                        Text(
+                            text = entry.title,
+                            style = MaterialTheme.typography.titleSmall
+                        )
+                        Text(
+                            text = entry.subtitle,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                }
+            }
+            Spacer(modifier = Modifier.height(4.dp))
+            Button(
+                onClick = onRefresh,
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(14.dp)
+            ) {
+                Text("Refresh")
+            }
+            TextButton(
+                onClick = onDismiss,
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Text("Cancel")
+            }
+        }
+        return
+    }
+
     AlertDialog(
         modifier = adaptiveDialogModifier(),
         properties = adaptiveDialogProperties(),
@@ -387,11 +665,124 @@ internal fun NetworkHttpSourceDialog(
     onDismiss: () -> Unit,
     onConfirm: () -> Unit
 ) {
+    val isWatch = isWatchDevice()
+    val titleText = if (isEditing) "Edit HTTP/HTTPS server" else "Add HTTP/HTTPS server"
+    val confirmText = if (isEditing) "Save" else "Add"
+
+    if (isWatch) {
+        WatchDialogContainer(
+            title = titleText,
+            onDismissRequest = onDismiss
+        ) {
+            OutlinedTextField(
+                value = sourceName,
+                onValueChange = onSourceNameChange,
+                modifier = Modifier.fillMaxWidth(),
+                singleLine = true,
+                label = { Text("Name (optional)") },
+                shape = RoundedCornerShape(14.dp),
+                colors = networkDialogTextFieldColors()
+            )
+            OutlinedTextField(
+                value = url,
+                onValueChange = onUrlChange,
+                modifier = Modifier.fillMaxWidth(),
+                singleLine = true,
+                label = { RequiredFieldLabel("Server URL") },
+                shape = RoundedCornerShape(14.dp),
+                colors = networkDialogTextFieldColors()
+            )
+            OutlinedTextField(
+                value = username,
+                onValueChange = onUsernameChange,
+                modifier = Modifier.fillMaxWidth(),
+                singleLine = true,
+                label = { Text("Username (optional)") },
+                shape = RoundedCornerShape(14.dp),
+                colors = networkDialogTextFieldColors()
+            )
+            OutlinedTextField(
+                value = password,
+                onValueChange = onPasswordChange,
+                modifier = Modifier.fillMaxWidth(),
+                singleLine = true,
+                label = { Text("Password (optional)") },
+                visualTransformation = if (passwordVisible) {
+                    VisualTransformation.None
+                } else {
+                    PasswordVisualTransformation()
+                },
+                trailingIcon = {
+                    IconButton(onClick = { onPasswordVisibleChange(!passwordVisible) }) {
+                        Icon(
+                            imageVector = if (passwordVisible) {
+                                Icons.Default.VisibilityOff
+                            } else {
+                                Icons.Default.Visibility
+                            },
+                            contentDescription = if (passwordVisible) {
+                                "Hide password"
+                            } else {
+                                "Show password"
+                            }
+                        )
+                    }
+                },
+                shape = RoundedCornerShape(14.dp),
+                colors = networkDialogTextFieldColors()
+            )
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(14.dp))
+                    .background(MaterialTheme.colorScheme.surfaceContainerLow)
+                    .clickable { onTreatAsRootChange(!treatAsRoot) }
+                    .padding(horizontal = 10.dp, vertical = 6.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Checkbox(
+                    checked = treatAsRoot,
+                    onCheckedChange = { checked -> onTreatAsRootChange(checked) }
+                )
+                Spacer(modifier = Modifier.width(6.dp))
+                Text(
+                    text = "Treat URL directory as browser root",
+                    style = MaterialTheme.typography.bodySmall
+                )
+            }
+            if (showUrlError) {
+                Text(
+                    text = "Enter a valid http:// or https:// URL.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.error,
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier.fillMaxWidth()
+                )
+            }
+            Spacer(modifier = Modifier.height(4.dp))
+            Button(
+                enabled = isUrlValid,
+                onClick = onConfirm,
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(14.dp)
+            ) {
+                Text(confirmText)
+            }
+            TextButton(
+                onClick = onDismiss,
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Text("Cancel")
+            }
+        }
+        return
+    }
+
     AlertDialog(
         modifier = adaptiveDialogModifier(),
         properties = adaptiveDialogProperties(),
         onDismissRequest = onDismiss,
-        title = { Text(if (isEditing) "Edit HTTP/HTTPS server" else "Add HTTP/HTTPS server") },
+        title = { Text(titleText) },
         text = {
             NetworkDialogScrollableContent {
                 OutlinedTextField(
@@ -480,7 +871,7 @@ internal fun NetworkHttpSourceDialog(
                 enabled = isUrlValid,
                 onClick = onConfirm
             ) {
-                Text(if (isEditing) "Save" else "Add")
+                Text(confirmText)
             }
         },
         dismissButton = {

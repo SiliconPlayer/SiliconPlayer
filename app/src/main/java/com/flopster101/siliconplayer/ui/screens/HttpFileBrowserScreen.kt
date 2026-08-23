@@ -1,11 +1,17 @@
 package com.flopster101.siliconplayer.ui.screens
 
+import android.content.pm.PackageManager
 import android.net.Uri
 import android.widget.Toast
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedContent
+import androidx.compose.material3.AlertDialog
+import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -44,6 +50,7 @@ import androidx.compose.material.icons.filled.VideoFile
 import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material.icons.filled.VisibilityOff
 import androidx.compose.material.icons.filled.WarningAmber
+import androidx.compose.material3.Button
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
@@ -58,6 +65,7 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import com.flopster101.siliconplayer.WatchDialogContainer
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -174,6 +182,8 @@ internal fun HttpFileBrowserScreen(
     onPinHomeEntry: (RecentPathEntry, Boolean) -> Unit = { _, _ -> }
 ) {
     val context = LocalContext.current
+    val isWatch = remember(context) { context.packageManager.hasSystemFeature(PackageManager.FEATURE_WATCH) }
+    val isRound = isWatch && (LocalConfiguration.current.isScreenRound || LocalConfiguration.current.screenWidthDp == LocalConfiguration.current.screenHeightDp)
     val browserPrefs = remember(context) {
         context.getSharedPreferences(AppPreferenceKeys.PREFS_NAME, android.content.Context.MODE_PRIVATE)
     }
@@ -267,6 +277,7 @@ internal fun HttpFileBrowserScreen(
     var previewLoadJob by remember(screenSessionKey) { mutableStateOf<Job?>(null) }
     var pendingPinConfirmation by remember(screenSessionKey) { mutableStateOf<Pair<RecentPathEntry, Boolean>?>(null) }
     var pendingPinEvictionCandidate by remember(screenSessionKey) { mutableStateOf<HomePinnedEntry?>(null) }
+    var watchActionTargetEntry by remember(screenSessionKey) { mutableStateOf<HttpBrowserEntry?>(null) }
 
     fun updatePlayableRemoteSources(entriesForNavigation: List<HttpBrowserEntry>) {
         RemotePlayableSourceIdsHolder.current = entriesForNavigation
@@ -1092,11 +1103,45 @@ internal fun HttpFileBrowserScreen(
             } else {
                 nonEntriesListState
             },
-            contentPadding = PaddingValues(bottom = bottomContentPadding)
+            contentPadding = PaddingValues(
+                start = if (isWatch) (if (isRound) 14.dp else 10.dp) else 0.dp,
+                end = if (isWatch) (if (isRound) 14.dp else 10.dp) else 0.dp,
+                top = if (isWatch) (if (isRound) 24.dp else 12.dp) else 0.dp,
+                bottom = bottomContentPadding + if (isWatch && isRound) 56.dp else 0.dp
+            ),
+            verticalArrangement = Arrangement.spacedBy(if (isWatch) 4.dp else 0.dp)
         ) {
+            if (isWatch) {
+                item("watch_http_header") {
+                    val headerTitle = state.path.trimEnd('/').substringAfterLast('/').ifBlank { currentSpec.host }
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(bottom = 4.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+                        Text(
+                            text = headerTitle,
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.Bold,
+                            textAlign = TextAlign.Center,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                        val count = stateFilteredEntries.size
+                        Text(
+                            text = if (state.pane == HttpBrowserPane.Entries) "$count ${if (count == 1) "item" else "items"}" else "$protocolLabel Directory",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                }
+            }
+
             if (stateCanNavigateUp && state.pane != HttpBrowserPane.Loading) {
                 item("parent") {
                     HttpParentDirectoryRow(
+                        isWatch = isWatch,
                         onClick = {
                             if (!isLoading) {
                                 navigateUpWithinBrowser()
@@ -1218,21 +1263,26 @@ internal fun HttpFileBrowserScreen(
                             isSelected = browserSelectionController.selectedKeys.contains(entrySelectionKey),
                             hasSelectedAbove = hasSelectedAbove,
                             hasSelectedBelow = hasSelectedBelow,
+                            isWatch = isWatch,
                             onLongClick = {
-                                if (browserSelectionController.isSelectionMode) {
-                                    val didSelectRange =
-                                        browserSelectionController.selectedKeys.size == 1 &&
-                                            browserSelectionController.selectRangeTo(
-                                                key = entrySelectionKey,
-                                                orderedKeys = stateFilteredEntries.map { stateEntry ->
-                                                    entrySelectionKeyFor(stateEntry)
-                                                }
-                                            )
-                                    if (!didSelectRange) {
-                                        browserSelectionController.toggleSelection(entrySelectionKey)
-                                    }
+                                if (isWatch) {
+                                    watchActionTargetEntry = entry
                                 } else {
-                                    browserSelectionController.enterSelectionWith(entrySelectionKey)
+                                    if (browserSelectionController.isSelectionMode) {
+                                        val didSelectRange =
+                                            browserSelectionController.selectedKeys.size == 1 &&
+                                                browserSelectionController.selectRangeTo(
+                                                    key = entrySelectionKey,
+                                                    orderedKeys = stateFilteredEntries.map { stateEntry ->
+                                                        entrySelectionKeyFor(stateEntry)
+                                                    }
+                                                )
+                                        if (!didSelectRange) {
+                                            browserSelectionController.toggleSelection(entrySelectionKey)
+                                        }
+                                    } else {
+                                        browserSelectionController.enterSelectionWith(entrySelectionKey)
+                                    }
                                 }
                             },
                             onClick = {
@@ -1294,164 +1344,166 @@ internal fun HttpFileBrowserScreen(
 
     Scaffold(
         topBar = {
-            Column {
-                Surface(color = MaterialTheme.colorScheme.surfaceContainerLow) {
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(58.dp)
-                            .padding(horizontal = 8.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Column(
+            if (!isWatch) {
+                Column {
+                    Surface(color = MaterialTheme.colorScheme.surfaceContainerLow) {
+                        Row(
                             modifier = Modifier
-                                .weight(1f)
-                                .clickable { selectorExpanded = true }
-                                .padding(horizontal = 2.dp)
+                                .fillMaxWidth()
+                                .height(58.dp)
+                                .padding(horizontal = 8.dp),
+                            verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Box {
-                                BrowserToolbarSelectorLabel(
-                                    expanded = selectorExpanded,
-                                    onClick = { selectorExpanded = true }
-                                )
-                                DropdownMenu(
-                                    expanded = selectorExpanded,
-                                    onDismissRequest = { selectorExpanded = false }
-                                ) {
-                                    Text(
-                                        text = "Storage locations",
-                                        style = MaterialTheme.typography.labelSmall,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
+                            Column(
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .clickable { selectorExpanded = true }
+                                    .padding(horizontal = 2.dp)
+                            ) {
+                                Box {
+                                    BrowserToolbarSelectorLabel(
+                                        expanded = selectorExpanded,
+                                        onClick = { selectorExpanded = true }
                                     )
-                                    DropdownMenuItem(
-                                        text = {
-                                            Column {
-                                                Text(
-                                                    text = if (browserSpec().scheme.equals("https", ignoreCase = true)) {
-                                                        "HTTPS server"
-                                                    } else {
-                                                        "HTTP server"
-                                                    }
+                                    DropdownMenu(
+                                        expanded = selectorExpanded,
+                                        onDismissRequest = { selectorExpanded = false }
+                                    ) {
+                                        Text(
+                                            text = "Storage locations",
+                                            style = MaterialTheme.typography.labelSmall,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                            modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
+                                        )
+                                        DropdownMenuItem(
+                                            text = {
+                                                Column {
+                                                    Text(
+                                                        text = if (browserSpec().scheme.equals("https", ignoreCase = true)) {
+                                                            "HTTPS server"
+                                                        } else {
+                                                            "HTTP server"
+                                                        }
+                                                    )
+                                                    Text(
+                                                        text = browserSpec().host,
+                                                        style = MaterialTheme.typography.labelSmall,
+                                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                                    )
+                                                }
+                                            },
+                                            leadingIcon = {
+                                                Icon(
+                                                    imageVector = NetworkIcons.WorldCode,
+                                                    contentDescription = null
                                                 )
-                                                Text(
-                                                    text = browserSpec().host,
-                                                    style = MaterialTheme.typography.labelSmall,
-                                                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                                                )
-                                            }
-                                        },
-                                        leadingIcon = {
-                                            Icon(
-                                                imageVector = NetworkIcons.WorldCode,
-                                                contentDescription = null
-                                            )
-                                        },
-                                        enabled = false,
-                                        onClick = {}
-                                    )
-                                    HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
-                                    Text(
-                                        text = "Directory tree",
-                                        style = MaterialTheme.typography.labelSmall,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
-                                    )
-                                    DropdownMenuItem(
-                                        text = { Text("Coming soon") },
-                                        enabled = false,
-                                        onClick = {}
-                                    )
+                                            },
+                                            enabled = false,
+                                            onClick = {}
+                                        )
+                                        HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
+                                        Text(
+                                            text = "Directory tree",
+                                            style = MaterialTheme.typography.labelSmall,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                            modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
+                                        )
+                                        DropdownMenuItem(
+                                            text = { Text("Coming soon") },
+                                            enabled = false,
+                                            onClick = {}
+                                        )
+                                    }
                                 }
+                                BrowserToolbarPathRow(
+                                    icon = NetworkIcons.WorldCode,
+                                    subtitle = subtitle
+                                )
                             }
-                            BrowserToolbarPathRow(
-                                icon = NetworkIcons.WorldCode,
-                                subtitle = subtitle
+                            BrowserSelectionToolbarControls(
+                                visible = browserSelectionController.isSelectionMode,
+                                canSelectAny = filteredEntries.isNotEmpty(),
+                                onSelectAll = {
+                                    browserSelectionController.selectAll(filteredEntries.map(entrySelectionKeyFor))
+                                },
+                                onDeselectAll = { browserSelectionController.deselectAll() },
+                                actionItems = listOf(
+                                    BrowserSelectionActionItem(
+                                        label = "Play",
+                                        icon = Icons.Default.PlayArrow,
+                                        enabled = selectedPlayableFileTargets().size == 1,
+                                        onClick = {
+                                            val target = selectedPlayableFileTargets().singleOrNull()
+                                            if (target != null) {
+                                                browserSelectionController.exitSelectionMode()
+                                                onOpenRemoteSource(target.openInput)
+                                            }
+                                        }
+                                    ),
+                                    BrowserSelectionActionItem(
+                                        label = "Play as cached",
+                                        icon = Icons.Default.Save,
+                                        enabled = selectedPlayableFileTargets().size == 1,
+                                        onClick = {
+                                            val target = selectedPlayableFileTargets().singleOrNull()
+                                            if (target != null) {
+                                                browserSelectionController.exitSelectionMode()
+                                                onOpenRemoteSourceAsCached(target.openInput)
+                                            }
+                                        }
+                                    ),
+                                    BrowserSelectionActionItem(
+                                        label = if (selectedDownloadFileTargets().size == 1) {
+                                            "Download file"
+                                        } else {
+                                            "Download files"
+                                        },
+                                        icon = Icons.Default.Link,
+                                        enabled = selectedDownloadFileTargets().isNotEmpty(),
+                                        onClick = {
+                                            val targets = selectedDownloadFileTargets()
+                                            if (targets.isNotEmpty()) {
+                                                pendingExportTargets = targets
+                                                exportDirectoryLauncher.launch(null)
+                                            }
+                                        }
+                                    ),
+                                    BrowserSelectionActionItem(
+                                        label = selectedAnyEntries().singleOrNull()?.let { entry ->
+                                            if (entry.isDirectory) "Pin folder to home" else "Pin file to home"
+                                        } ?: "Pin to home",
+                                        icon = Icons.Default.Home,
+                                        enabled = selectedAnyEntries().size == 1,
+                                        onClick = { requestPinSelectedEntry() }
+                                    ),
+                                    BrowserSelectionActionItem(
+                                        label = "Info",
+                                        icon = Icons.Default.Info,
+                                        enabled = browserSelectionController.selectedKeys.isNotEmpty(),
+                                        onClick = { showSelectionInfoDialog() }
+                                    )
+                                ),
+                                onCancel = { browserSelectionController.exitSelectionMode() }
+                            )
+                            BrowserToolbarSearchButton(
+                                onClick = {
+                                    if (browserSearchController.isVisible) {
+                                        browserSearchController.hide()
+                                    } else {
+                                        browserSearchController.show()
+                                    }
+                                }
                             )
                         }
-                        BrowserSelectionToolbarControls(
-                            visible = browserSelectionController.isSelectionMode,
-                            canSelectAny = filteredEntries.isNotEmpty(),
-                            onSelectAll = {
-                                browserSelectionController.selectAll(filteredEntries.map(entrySelectionKeyFor))
-                            },
-                            onDeselectAll = { browserSelectionController.deselectAll() },
-                            actionItems = listOf(
-                                BrowserSelectionActionItem(
-                                    label = "Play",
-                                    icon = Icons.Default.PlayArrow,
-                                    enabled = selectedPlayableFileTargets().size == 1,
-                                    onClick = {
-                                        val target = selectedPlayableFileTargets().singleOrNull()
-                                        if (target != null) {
-                                            browserSelectionController.exitSelectionMode()
-                                            onOpenRemoteSource(target.openInput)
-                                        }
-                                    }
-                                ),
-                                BrowserSelectionActionItem(
-                                    label = "Play as cached",
-                                    icon = Icons.Default.Save,
-                                    enabled = selectedPlayableFileTargets().size == 1,
-                                    onClick = {
-                                        val target = selectedPlayableFileTargets().singleOrNull()
-                                        if (target != null) {
-                                            browserSelectionController.exitSelectionMode()
-                                            onOpenRemoteSourceAsCached(target.openInput)
-                                        }
-                                    }
-                                ),
-                                BrowserSelectionActionItem(
-                                    label = if (selectedDownloadFileTargets().size == 1) {
-                                        "Download file"
-                                    } else {
-                                        "Download files"
-                                    },
-                                    icon = Icons.Default.Link,
-                                    enabled = selectedDownloadFileTargets().isNotEmpty(),
-                                    onClick = {
-                                        val targets = selectedDownloadFileTargets()
-                                        if (targets.isNotEmpty()) {
-                                            pendingExportTargets = targets
-                                            exportDirectoryLauncher.launch(null)
-                                        }
-                                    }
-                                ),
-                                BrowserSelectionActionItem(
-                                    label = selectedAnyEntries().singleOrNull()?.let { entry ->
-                                        if (entry.isDirectory) "Pin folder to home" else "Pin file to home"
-                                    } ?: "Pin to home",
-                                    icon = Icons.Default.Home,
-                                    enabled = selectedAnyEntries().size == 1,
-                                    onClick = { requestPinSelectedEntry() }
-                                ),
-                                BrowserSelectionActionItem(
-                                    label = "Info",
-                                    icon = Icons.Default.Info,
-                                    enabled = browserSelectionController.selectedKeys.isNotEmpty(),
-                                    onClick = { showSelectionInfoDialog() }
-                                )
-                            ),
-                            onCancel = { browserSelectionController.exitSelectionMode() }
-                        )
-                        BrowserToolbarSearchButton(
-                            onClick = {
-                                if (browserSearchController.isVisible) {
-                                    browserSearchController.hide()
-                                } else {
-                                    browserSearchController.show()
-                                }
-                            }
-                        )
                     }
+                    BrowserSearchToolbarRow(
+                        visible = browserSearchController.isVisible,
+                        queryInput = browserSearchController.input,
+                        onQueryInputChanged = browserSearchController::onInputChange,
+                        onClose = browserSearchController::hide
+                    )
+                    HorizontalDivider()
                 }
-                BrowserSearchToolbarRow(
-                    visible = browserSearchController.isVisible,
-                    queryInput = browserSearchController.input,
-                    onQueryInputChanged = browserSearchController::onInputChange,
-                    onClose = browserSearchController::hide
-                )
-                HorizontalDivider()
             }
         }
     ) { paddingValues ->
@@ -1481,14 +1533,16 @@ internal fun HttpFileBrowserScreen(
                     renderBrowserContent(state)
                 }
             }
-            PullRefreshIndicator(
-                refreshing = isPullRefreshing,
-                state = pullRefreshState,
-                modifier = Modifier.align(Alignment.TopCenter),
-                backgroundColor = MaterialTheme.colorScheme.surfaceContainerHigh,
-                contentColor = MaterialTheme.colorScheme.primary
-            )
-            if (browserContentState.pane == HttpBrowserPane.Entries) {
+            if (!isWatch) {
+                PullRefreshIndicator(
+                    refreshing = isPullRefreshing,
+                    state = pullRefreshState,
+                    modifier = Modifier.align(Alignment.TopCenter),
+                    backgroundColor = MaterialTheme.colorScheme.surfaceContainerHigh,
+                    contentColor = MaterialTheme.colorScheme.primary
+                )
+            }
+            if (!isWatch && browserContentState.pane == HttpBrowserPane.Entries) {
                 BrowserLazyListScrollbar(
                     listState = entriesListState,
                     onDragActiveChanged = { isActive -> directoryScrollbarHeld = isActive },
@@ -1507,147 +1561,427 @@ internal fun HttpFileBrowserScreen(
         }
     }
 
-    if (authDialogVisible) {
-        androidx.compose.material3.AlertDialog(
-            modifier = adaptiveDialogModifier(),
-            properties = adaptiveDialogProperties(),
-            onDismissRequest = {
-                authDialogVisible = false
-                authDialogPasswordVisible = false
-            },
-            title = { Text("HTTP authentication required") },
-            text = {
-                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                    authDialogErrorMessage?.let { message ->
+    watchActionTargetEntry?.let { entry ->
+        val isDir = entry.isDirectory
+        val isAudio = !isDir && (fileMatchesSupportedExtensions(File(entry.name), supportedExtensions) || isSupportedPlaylistFileName(entry.name))
+
+        Dialog(
+            onDismissRequest = { watchActionTargetEntry = null },
+            properties = DialogProperties(usePlatformDefaultWidth = false)
+        ) {
+            Surface(
+                modifier = Modifier.fillMaxSize(),
+                color = MaterialTheme.colorScheme.background
+            ) {
+                LazyColumn(
+                    modifier = Modifier.fillMaxSize(),
+                    contentPadding = PaddingValues(
+                        start = if (isRound) 14.dp else 10.dp,
+                        end = if (isRound) 14.dp else 10.dp,
+                        top = if (isRound) 24.dp else 12.dp,
+                        bottom = if (isRound) 28.dp else 12.dp
+                    ),
+                    verticalArrangement = Arrangement.spacedBy(6.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    item(key = "entry_title") {
+                        Text(
+                            text = entry.name,
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.Bold,
+                            textAlign = TextAlign.Center,
+                            maxLines = 2,
+                            overflow = TextOverflow.Ellipsis,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(bottom = 6.dp)
+                        )
+                    }
+                    if (isAudio) {
+                        item(key = "action_play") {
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clip(RoundedCornerShape(14.dp))
+                                    .background(MaterialTheme.colorScheme.surfaceContainerLow)
+                                    .clickable {
+                                        watchActionTargetEntry = null
+                                        onOpenRemoteSource(
+                                            appendHttpDisplayNameFragment(
+                                                sourceUrl = entry.requestUrl,
+                                                displayName = entry.name
+                                            )
+                                        )
+                                    }
+                                    .padding(horizontal = 12.dp, vertical = 8.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.PlayArrow,
+                                    contentDescription = null,
+                                    tint = MaterialTheme.colorScheme.primary,
+                                    modifier = Modifier.size(20.dp)
+                                )
+                                Spacer(modifier = Modifier.width(10.dp))
+                                Text("Play", style = MaterialTheme.typography.titleSmall)
+                            }
+                        }
+                    }
+                    item(key = "action_pin") {
                         Row(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .clip(RoundedCornerShape(12.dp))
-                                .background(MaterialTheme.colorScheme.errorContainer)
-                                .padding(horizontal = 12.dp, vertical = 10.dp),
-                            horizontalArrangement = Arrangement.spacedBy(10.dp),
+                                .clip(RoundedCornerShape(14.dp))
+                                .background(MaterialTheme.colorScheme.surfaceContainerLow)
+                                .clickable {
+                                    watchActionTargetEntry = null
+                                    val isFolder = entry.isDirectory
+                                    val recentEntry = RecentPathEntry(
+                                        path = entry.sourceId,
+                                        locationId = null,
+                                        title = entry.name.takeIf { isFolder },
+                                        sourceNodeId = sourceNodeId
+                                    )
+                                    val preview = previewPinnedHomeEntryInsertion(
+                                        current = pinnedHomeEntries,
+                                        candidate = HomePinnedEntry(
+                                            path = recentEntry.path,
+                                            isFolder = isFolder,
+                                            locationId = recentEntry.locationId,
+                                            title = recentEntry.title,
+                                            sourceNodeId = recentEntry.sourceNodeId
+                                        ),
+                                        maxItems = PINNED_HOME_ENTRIES_LIMIT
+                                    )
+                                    if (preview.requiresConfirmation) {
+                                        pendingPinEvictionCandidate = preview.evictionCandidate
+                                        pendingPinConfirmation = recentEntry to isFolder
+                                    } else {
+                                        onPinHomeEntry(recentEntry, isFolder)
+                                        Toast.makeText(
+                                            context,
+                                            if (isFolder) "Pinned folder to home" else "Pinned file to home",
+                                            Toast.LENGTH_SHORT
+                                        ).show()
+                                    }
+                                }
+                                .padding(horizontal = 12.dp, vertical = 8.dp),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             Icon(
-                                imageVector = Icons.Default.WarningAmber,
+                                imageVector = Icons.Default.Home,
                                 contentDescription = null,
-                                tint = MaterialTheme.colorScheme.error,
+                                tint = MaterialTheme.colorScheme.primary,
                                 modifier = Modifier.size(20.dp)
                             )
+                            Spacer(modifier = Modifier.width(10.dp))
                             Text(
-                                text = message,
-                                style = MaterialTheme.typography.bodyMedium,
-                                color = MaterialTheme.colorScheme.error,
-                                modifier = Modifier.weight(1f)
+                                if (isDir) "Pin folder to home" else "Pin file to home",
+                                style = MaterialTheme.typography.titleSmall
                             )
                         }
                     }
-                    OutlinedTextField(
-                        value = authDialogUsername,
-                        onValueChange = { authDialogUsername = it },
-                        singleLine = true,
-                        label = { Text("Username") },
-                        modifier = Modifier.fillMaxWidth(),
-                        shape = MaterialTheme.shapes.extraLarge,
-                        colors = remoteAuthDialogTextFieldColors()
-                    )
-                    OutlinedTextField(
-                        value = authDialogPassword,
-                        onValueChange = { authDialogPassword = it },
-                        singleLine = true,
-                        label = { Text("Password") },
-                        visualTransformation = if (authDialogPasswordVisible) {
-                            VisualTransformation.None
-                        } else {
-                            PasswordVisualTransformation()
-                        },
-                        trailingIcon = {
-                            IconButton(onClick = { authDialogPasswordVisible = !authDialogPasswordVisible }) {
-                                Icon(
-                                    imageVector = if (authDialogPasswordVisible) {
-                                        Icons.Default.VisibilityOff
-                                    } else {
-                                        Icons.Default.Visibility
-                                    },
-                                    contentDescription = if (authDialogPasswordVisible) {
-                                        "Hide password"
-                                    } else {
-                                        "Show password"
-                                    }
-                                )
-                            }
-                        },
-                        modifier = Modifier.fillMaxWidth(),
-                        shape = MaterialTheme.shapes.extraLarge,
-                        colors = remoteAuthDialogTextFieldColors()
-                    )
-                    if (allowCredentialRemember) {
+                    item(key = "action_info") {
                         Row(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .clickable { authRememberPassword = !authRememberPassword },
+                                .clip(RoundedCornerShape(14.dp))
+                                .background(MaterialTheme.colorScheme.surfaceContainerLow)
+                                .clickable {
+                                    watchActionTargetEntry = null
+                                    val infoEntries = listOf(
+                                        BrowserInfoEntry(
+                                            name = entry.name,
+                                            isDirectory = entry.isDirectory,
+                                            sizeBytes = null
+                                        )
+                                    )
+                                    val pathLabel = appendHttpDisplayNameFragment(
+                                        sourceUrl = entry.requestUrl,
+                                        displayName = entry.name
+                                    )
+                                    browserInfoFields = buildBrowserInfoFields(
+                                        entries = infoEntries,
+                                        path = pathLabel,
+                                        storageOrHostLabel = "Host",
+                                        storageOrHost = currentSpec.host
+                                    )
+                                    showBrowserInfoDialog = true
+                                }
+                                .padding(horizontal = 12.dp, vertical = 8.dp),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Checkbox(
-                                checked = authRememberPassword,
-                                onCheckedChange = { checked -> authRememberPassword = checked }
+                            Icon(
+                                imageVector = Icons.Default.Visibility,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.primary,
+                                modifier = Modifier.size(20.dp)
                             )
-                            Text(
-                                text = "Remember password",
-                                style = MaterialTheme.typography.bodyMedium
-                            )
+                            Spacer(modifier = Modifier.width(10.dp))
+                            Text("Info", style = MaterialTheme.typography.titleSmall)
                         }
                     }
                 }
-            },
-            confirmButton = {
-                val hasCredentials = authDialogUsername.trim().isNotEmpty() || authDialogPassword.trim().isNotEmpty()
-                TextButton(
-                    enabled = hasCredentials,
-                    onClick = {
-                        val normalizedUsername = authDialogUsername.trim().ifBlank { null }
-                        val normalizedPassword = authDialogPassword.trim().ifBlank { null }
-                        sessionUsername = normalizedUsername
-                        sessionPassword = normalizedPassword
-                        if (authRememberPassword) {
-                            ManualSmbAuthCoordinator.rememberCredentials(
-                                currentSpec.copy(
-                                    username = normalizedUsername,
-                                    password = normalizedPassword
-                                ),
-                                normalizedUsername,
-                                normalizedPassword
-                            )
-                            onRememberHttpCredentials(
-                                sourceNodeId,
-                                currentDirectorySourceId(),
-                                normalizedUsername,
-                                normalizedPassword
-                            )
-                        }
-                        authDialogVisible = false
-                        authDialogPasswordVisible = false
-                        loadCurrentDirectory(
-                            cancelState = HttpLoadingCancelState(
-                                previousSpec = currentSpec,
-                                previousEntries = entries,
-                                previousErrorMessage = errorMessage
-                            )
+            }
+        }
+    }
+
+    if (authDialogVisible) {
+        val hasCredentials = authDialogUsername.trim().isNotEmpty() || authDialogPassword.trim().isNotEmpty()
+        val onAuthConfirm = {
+            val normalizedUsername = authDialogUsername.trim().ifBlank { null }
+            val normalizedPassword = authDialogPassword.trim().ifBlank { null }
+            sessionUsername = normalizedUsername
+            sessionPassword = normalizedPassword
+            if (authRememberPassword) {
+                ManualSmbAuthCoordinator.rememberCredentials(
+                    currentSpec.copy(
+                        username = normalizedUsername,
+                        password = normalizedPassword
+                    ),
+                    normalizedUsername,
+                    normalizedPassword
+                )
+                onRememberHttpCredentials(
+                    sourceNodeId,
+                    currentDirectorySourceId(),
+                    normalizedUsername,
+                    normalizedPassword
+                )
+            }
+            authDialogVisible = false
+            authDialogPasswordVisible = false
+            loadCurrentDirectory(
+                cancelState = HttpLoadingCancelState(
+                    previousSpec = currentSpec,
+                    previousEntries = entries,
+                    previousErrorMessage = errorMessage
+                )
+            )
+        }
+
+        if (isWatch) {
+            WatchDialogContainer(
+                title = "Authentication required",
+                onDismissRequest = {
+                    authDialogVisible = false
+                    authDialogPasswordVisible = false
+                }
+            ) {
+                authDialogErrorMessage?.let { message ->
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(12.dp))
+                            .background(MaterialTheme.colorScheme.errorContainer)
+                            .padding(horizontal = 12.dp, vertical = 10.dp),
+                        horizontalArrangement = Arrangement.spacedBy(10.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.WarningAmber,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.error,
+                            modifier = Modifier.size(20.dp)
+                        )
+                        Text(
+                            text = message,
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.error,
+                            modifier = Modifier.weight(1f)
                         )
                     }
+                }
+                OutlinedTextField(
+                    value = authDialogUsername,
+                    onValueChange = { authDialogUsername = it },
+                    singleLine = true,
+                    label = { Text("Username") },
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(14.dp),
+                    colors = remoteAuthDialogTextFieldColors()
+                )
+                OutlinedTextField(
+                    value = authDialogPassword,
+                    onValueChange = { authDialogPassword = it },
+                    singleLine = true,
+                    label = { Text("Password") },
+                    visualTransformation = if (authDialogPasswordVisible) {
+                        VisualTransformation.None
+                    } else {
+                        PasswordVisualTransformation()
+                    },
+                    trailingIcon = {
+                        IconButton(onClick = { authDialogPasswordVisible = !authDialogPasswordVisible }) {
+                            Icon(
+                                imageVector = if (authDialogPasswordVisible) {
+                                    Icons.Default.VisibilityOff
+                                } else {
+                                    Icons.Default.Visibility
+                                },
+                                contentDescription = if (authDialogPasswordVisible) {
+                                    "Hide password"
+                                } else {
+                                    "Show password"
+                                }
+                            )
+                        }
+                    },
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(14.dp),
+                    colors = remoteAuthDialogTextFieldColors()
+                )
+                if (allowCredentialRemember) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(14.dp))
+                            .background(MaterialTheme.colorScheme.surfaceContainerLow)
+                            .clickable { authRememberPassword = !authRememberPassword }
+                            .padding(horizontal = 10.dp, vertical = 6.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Checkbox(
+                            checked = authRememberPassword,
+                            onCheckedChange = { checked -> authRememberPassword = checked }
+                        )
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text(
+                            text = "Remember password",
+                            style = MaterialTheme.typography.bodySmall
+                        )
+                    }
+                }
+                Spacer(modifier = Modifier.height(4.dp))
+                Button(
+                    enabled = hasCredentials,
+                    onClick = onAuthConfirm,
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(14.dp)
                 ) {
                     Text("Continue")
                 }
-            },
-            dismissButton = {
-                TextButton(onClick = {
-                    authDialogVisible = false
-                    authDialogPasswordVisible = false
-                }) {
+                TextButton(
+                    onClick = {
+                        authDialogVisible = false
+                        authDialogPasswordVisible = false
+                    },
+                    modifier = Modifier.fillMaxWidth()
+                ) {
                     Text("Cancel")
                 }
             }
-        )
+        } else {
+            androidx.compose.material3.AlertDialog(
+                modifier = adaptiveDialogModifier(),
+                properties = adaptiveDialogProperties(),
+                onDismissRequest = {
+                    authDialogVisible = false
+                    authDialogPasswordVisible = false
+                },
+                title = { Text("HTTP authentication required") },
+                text = {
+                    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                        authDialogErrorMessage?.let { message ->
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clip(RoundedCornerShape(12.dp))
+                                    .background(MaterialTheme.colorScheme.errorContainer)
+                                    .padding(horizontal = 12.dp, vertical = 10.dp),
+                                horizontalArrangement = Arrangement.spacedBy(10.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.WarningAmber,
+                                    contentDescription = null,
+                                    tint = MaterialTheme.colorScheme.error,
+                                    modifier = Modifier.size(20.dp)
+                                )
+                                Text(
+                                    text = message,
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    color = MaterialTheme.colorScheme.error,
+                                    modifier = Modifier.weight(1f)
+                                )
+                            }
+                        }
+                        OutlinedTextField(
+                            value = authDialogUsername,
+                            onValueChange = { authDialogUsername = it },
+                            singleLine = true,
+                            label = { Text("Username") },
+                            modifier = Modifier.fillMaxWidth(),
+                            shape = MaterialTheme.shapes.extraLarge,
+                            colors = remoteAuthDialogTextFieldColors()
+                        )
+                        OutlinedTextField(
+                            value = authDialogPassword,
+                            onValueChange = { authDialogPassword = it },
+                            singleLine = true,
+                            label = { Text("Password") },
+                            visualTransformation = if (authDialogPasswordVisible) {
+                                VisualTransformation.None
+                            } else {
+                                PasswordVisualTransformation()
+                            },
+                            trailingIcon = {
+                                IconButton(onClick = { authDialogPasswordVisible = !authDialogPasswordVisible }) {
+                                    Icon(
+                                        imageVector = if (authDialogPasswordVisible) {
+                                            Icons.Default.VisibilityOff
+                                        } else {
+                                            Icons.Default.Visibility
+                                        },
+                                        contentDescription = if (authDialogPasswordVisible) {
+                                            "Hide password"
+                                        } else {
+                                            "Show password"
+                                        }
+                                    )
+                                }
+                            },
+                            modifier = Modifier.fillMaxWidth(),
+                            shape = MaterialTheme.shapes.extraLarge,
+                            colors = remoteAuthDialogTextFieldColors()
+                        )
+                        if (allowCredentialRemember) {
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clickable { authRememberPassword = !authRememberPassword },
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Checkbox(
+                                    checked = authRememberPassword,
+                                    onCheckedChange = { checked -> authRememberPassword = checked }
+                                )
+                                Text(
+                                    text = "Remember password",
+                                    style = MaterialTheme.typography.bodyMedium
+                                )
+                            }
+                        }
+                    }
+                },
+                confirmButton = {
+                    TextButton(
+                        enabled = hasCredentials,
+                        onClick = onAuthConfirm
+                    ) {
+                        Text("Continue")
+                    }
+                },
+                dismissButton = {
+                    TextButton(onClick = {
+                        authDialogVisible = false
+                        authDialogPasswordVisible = false
+                    }) {
+                        Text("Cancel")
+                    }
+                }
+            )
+        }
     }
 
     if (showBrowserInfoDialog) {
@@ -1756,17 +2090,22 @@ private fun remoteAuthDialogTextFieldColors() = OutlinedTextFieldDefaults.colors
 
 @Composable
 private fun HttpParentDirectoryRow(
+    isWatch: Boolean = false,
     onClick: () -> Unit
 ) {
+    val rowShape = if (isWatch) RoundedCornerShape(14.dp) else RoundedCornerShape(0.dp)
+    val rowBackground = if (isWatch) MaterialTheme.colorScheme.surfaceContainerLow else MaterialTheme.colorScheme.surface.copy(alpha = 0f)
     Row(
         modifier = Modifier
             .fillMaxWidth()
+            .clip(rowShape)
+            .background(rowBackground)
             .clickable(onClick = onClick)
-            .padding(horizontal = 16.dp, vertical = 10.dp),
+            .padding(horizontal = if (isWatch) 10.dp else 16.dp, vertical = if (isWatch) 6.dp else 10.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
         Box(
-            modifier = Modifier.size(HTTP_ICON_BOX_SIZE),
+            modifier = Modifier.size(if (isWatch) 32.dp else HTTP_ICON_BOX_SIZE),
             contentAlignment = Alignment.Center
         ) {
             Box(
@@ -1774,7 +2113,7 @@ private fun HttpParentDirectoryRow(
                     .fillMaxSize()
                     .background(
                         color = MaterialTheme.colorScheme.primaryContainer,
-                        shape = RoundedCornerShape(11.dp)
+                        shape = RoundedCornerShape(if (isWatch) 14.dp else 11.dp)
                     ),
                 contentAlignment = Alignment.Center
             ) {
@@ -1782,15 +2121,15 @@ private fun HttpParentDirectoryRow(
                     imageVector = Icons.Default.Folder,
                     contentDescription = "Parent directory",
                     tint = MaterialTheme.colorScheme.onPrimaryContainer,
-                    modifier = Modifier.size(HTTP_ICON_GLYPH_SIZE)
+                    modifier = Modifier.size(if (isWatch) 16.dp else HTTP_ICON_GLYPH_SIZE)
                 )
             }
         }
-        Spacer(modifier = Modifier.width(16.dp))
+        Spacer(modifier = Modifier.width(if (isWatch) 10.dp else 16.dp))
         Column(modifier = Modifier.weight(1f)) {
             Text(
                 text = "..",
-                style = MaterialTheme.typography.bodyLarge,
+                style = if (isWatch) MaterialTheme.typography.titleSmall else MaterialTheme.typography.bodyLarge,
                 maxLines = 1
             )
             Text(
@@ -1813,6 +2152,7 @@ private fun HttpEntryRow(
     isSelected: Boolean,
     hasSelectedAbove: Boolean = false,
     hasSelectedBelow: Boolean = false,
+    isWatch: Boolean = false,
     onLongClick: (() -> Unit)? = null,
     onClick: () -> Unit
 ) {
@@ -1822,29 +2162,32 @@ private fun HttpEntryRow(
         supportedExtensions = supportedExtensions,
         decoderExtensionArtworkHints = decoderExtensionArtworkHints
     )
-    val selectionShape = RoundedCornerShape(
-        topStart = if (hasSelectedAbove) 0.dp else 18.dp,
-        topEnd = if (hasSelectedAbove) 0.dp else 18.dp,
-        bottomStart = if (hasSelectedBelow) 0.dp else 18.dp,
-        bottomEnd = if (hasSelectedBelow) 0.dp else 18.dp
-    )
+    val selectionShape = if (isWatch) {
+        RoundedCornerShape(14.dp)
+    } else {
+        RoundedCornerShape(
+            topStart = if (hasSelectedAbove) 0.dp else 18.dp,
+            topEnd = if (hasSelectedAbove) 0.dp else 18.dp,
+            bottomStart = if (hasSelectedBelow) 0.dp else 18.dp,
+            bottomEnd = if (hasSelectedBelow) 0.dp else 18.dp
+        )
+    }
+    val rowBackground = if (isWatch) {
+        if (isSelected) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceContainerLow
+    } else {
+        if (isSelected) MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.6f) else MaterialTheme.colorScheme.surface.copy(alpha = 0f)
+    }
     Row(
         modifier = Modifier
             .fillMaxWidth()
             .clip(selectionShape)
-            .background(
-                if (isSelected) {
-                    MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.6f)
-                } else {
-                    MaterialTheme.colorScheme.surface.copy(alpha = 0f)
-                }
-            )
+            .background(rowBackground)
             .tvKeyLongPress(onLongClick)
             .combinedClickable(
                 onClick = onClick,
                 onLongClick = onLongClick
             )
-            .padding(horizontal = 16.dp, vertical = 10.dp),
+            .padding(horizontal = if (isWatch) 10.dp else 16.dp, vertical = if (isWatch) 6.dp else 10.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
         val chipContainerColor = if (entry.isDirectory) {
@@ -1859,24 +2202,24 @@ private fun HttpEntryRow(
         }
         Box(
             modifier = Modifier
-                .size(HTTP_ICON_BOX_SIZE)
+                .size(if (isWatch) 32.dp else HTTP_ICON_BOX_SIZE)
                 .background(
                     color = chipContainerColor,
-                    shape = RoundedCornerShape(11.dp)
+                    shape = RoundedCornerShape(if (isWatch) 14.dp else 11.dp)
                 ),
             contentAlignment = Alignment.Center
         ) {
             BrowserRemoteEntryIcon(
                 visualKind = visualKind,
                 tint = chipContentColor,
-                modifier = Modifier.size(HTTP_ICON_GLYPH_SIZE)
+                modifier = Modifier.size(if (isWatch) 16.dp else HTTP_ICON_GLYPH_SIZE)
             )
         }
-        Spacer(modifier = Modifier.width(16.dp))
+        Spacer(modifier = Modifier.width(if (isWatch) 10.dp else 16.dp))
         Column(modifier = Modifier.weight(1f)) {
             Text(
                 text = entry.name,
-                style = MaterialTheme.typography.bodyLarge,
+                style = if (isWatch) MaterialTheme.typography.titleSmall else MaterialTheme.typography.bodyLarge,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis
             )

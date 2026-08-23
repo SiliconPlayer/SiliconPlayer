@@ -67,11 +67,13 @@ import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.SelectAll
 import androidx.compose.material.icons.filled.VideoFile
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Button
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ElevatedCard
+import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
@@ -80,6 +82,8 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import com.flopster101.siliconplayer.isWatchDevice
+import com.flopster101.siliconplayer.WatchDialogContainer
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.derivedStateOf
@@ -562,68 +566,96 @@ internal fun BrowserInfoDialog(
     LaunchedEffect(Unit) {
         contentFocusRequester.requestFocus()
     }
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text(title) },
-        text = {
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .heightIn(max = 320.dp)
-                    .onSizeChanged { contentViewportHeightPx = it.height }
-            ) {
-                SelectionContainer {
-                    Column(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .dialogScrollableContentNavigation(
-                                scrollState = contentScrollState,
-                                focusRequester = contentFocusRequester,
-                                viewportHeightPx = contentViewportHeightPx,
-                                actionFocusRequester = closeButtonFocusRequester
-                            )
-                            .verticalScroll(contentScrollState)
-                            .padding(end = 10.dp),
-                        verticalArrangement = Arrangement.spacedBy(10.dp)
-                    ) {
-                        fields.forEach { field ->
-                            Text(
-                                text = buildAnnotatedString {
-                                    withStyle(style = SpanStyle(fontWeight = FontWeight.SemiBold)) {
-                                        append("${field.label}: ")
-                                    }
-                                    append(field.value)
-                                },
-                                style = MaterialTheme.typography.bodyMedium,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
+    if (isWatchDevice()) {
+        WatchDialogContainer(
+            title = title,
+            onDismissRequest = onDismiss
+        ) {
+            fields.forEach { field ->
+                Text(
+                    text = buildAnnotatedString {
+                        withStyle(style = SpanStyle(fontWeight = FontWeight.SemiBold)) {
+                            append("${field.label}: ")
                         }
-                    }
-                }
-                BrowserScrollStateScrollbar(
-                    scrollState = contentScrollState,
-                    modifier = Modifier
-                        .align(Alignment.CenterEnd)
-                        .padding(end = 2.dp)
-                        .fillMaxHeight()
-                        .width(4.dp)
-                        .alpha(scrollbarAlpha)
+                        append(field.value)
+                    },
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
-        },
-        confirmButton = {
-            TextButton(
-                modifier = Modifier
-                    .focusRequester(closeButtonFocusRequester)
-                    .focusProperties {
-                        up = contentFocusRequester
-                    },
-                onClick = onDismiss
+            Spacer(modifier = Modifier.height(8.dp))
+            Button(
+                onClick = onDismiss,
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(14.dp)
             ) {
                 Text("Close")
             }
         }
-    )
+    } else {
+        AlertDialog(
+            onDismissRequest = onDismiss,
+            title = { Text(title) },
+            text = {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .heightIn(max = 320.dp)
+                        .onSizeChanged { contentViewportHeightPx = it.height }
+                ) {
+                    SelectionContainer {
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .dialogScrollableContentNavigation(
+                                    scrollState = contentScrollState,
+                                    focusRequester = contentFocusRequester,
+                                    viewportHeightPx = contentViewportHeightPx,
+                                    actionFocusRequester = closeButtonFocusRequester
+                                )
+                                .verticalScroll(contentScrollState)
+                                .padding(end = 10.dp),
+                            verticalArrangement = Arrangement.spacedBy(10.dp)
+                        ) {
+                            fields.forEach { field ->
+                                Text(
+                                    text = buildAnnotatedString {
+                                        withStyle(style = SpanStyle(fontWeight = FontWeight.SemiBold)) {
+                                            append("${field.label}: ")
+                                        }
+                                        append(field.value)
+                                    },
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                        }
+                    }
+                    BrowserScrollStateScrollbar(
+                        scrollState = contentScrollState,
+                        modifier = Modifier
+                            .align(Alignment.CenterEnd)
+                            .padding(end = 2.dp)
+                            .fillMaxHeight()
+                            .width(4.dp)
+                            .alpha(scrollbarAlpha)
+                    )
+                }
+            },
+            confirmButton = {
+                TextButton(
+                    modifier = Modifier
+                        .focusRequester(closeButtonFocusRequester)
+                        .focusProperties {
+                            up = contentFocusRequester
+                        },
+                    onClick = onDismiss
+                ) {
+                    Text("Close")
+                }
+            }
+        )
+    }
 }
 
 @Composable
@@ -646,82 +678,123 @@ internal fun BrowserTextPreviewDialog(
     LaunchedEffect(Unit) {
         contentFocusRequester.requestFocus()
     }
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text(text = decodePercentEncodedForDisplay(fileName) ?: fileName) },
-        text = {
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .heightIn(max = 360.dp)
-                    .onSizeChanged { contentViewportHeightPx = it.height }
+    if (isWatchDevice()) {
+        WatchDialogContainer(
+            title = decodePercentEncodedForDisplay(fileName) ?: fileName,
+            onDismissRequest = onDismiss
+        ) {
+            Surface(
+                modifier = Modifier.fillMaxWidth(),
+                color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.42f),
+                shape = RoundedCornerShape(12.dp)
             ) {
-                Surface(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .dialogScrollableContentNavigation(
-                            scrollState = contentScrollState,
-                            focusRequester = contentFocusRequester,
-                            viewportHeightPx = contentViewportHeightPx,
-                            actionFocusRequester = closeButtonFocusRequester
-                        )
-                        .verticalScroll(contentScrollState)
-                        .padding(end = 10.dp),
-                    color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.42f),
-                    shape = RoundedCornerShape(12.dp)
-                ) {
-                    SelectionContainer {
-                        Text(
-                            text = textContent,
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(horizontal = 12.dp, vertical = 10.dp),
-                            style = MaterialTheme.typography.bodySmall,
-                            fontFamily = FontFamily.Monospace,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
+                SelectionContainer {
+                    Text(
+                        text = textContent,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 10.dp, vertical = 8.dp),
+                        style = MaterialTheme.typography.bodySmall,
+                        fontFamily = FontFamily.Monospace,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
                 }
-                BrowserScrollStateScrollbar(
-                    scrollState = contentScrollState,
-                    modifier = Modifier
-                        .align(Alignment.CenterEnd)
-                        .padding(end = 2.dp)
-                        .fillMaxHeight()
-                        .width(4.dp)
-                        .alpha(scrollbarAlpha)
-                )
             }
-        },
-        confirmButton = {
-            TextButton(
-                modifier = Modifier
-                    .focusRequester(copyButtonFocusRequester)
-                    .focusProperties {
-                        up = contentFocusRequester
-                        left = closeButtonFocusRequester
-                    },
+            Spacer(modifier = Modifier.height(4.dp))
+            FilledTonalButton(
                 onClick = {
                     clipboardManager.setText(AnnotatedString(textContent))
-                }
+                },
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(14.dp)
             ) {
                 Text("Copy all")
             }
-        },
-        dismissButton = {
             TextButton(
-                modifier = Modifier
-                    .focusRequester(closeButtonFocusRequester)
-                    .focusProperties {
-                        up = contentFocusRequester
-                        right = copyButtonFocusRequester
-                    },
-                onClick = onDismiss
+                onClick = onDismiss,
+                modifier = Modifier.fillMaxWidth()
             ) {
                 Text("Close")
             }
         }
-    )
+    } else {
+        AlertDialog(
+            onDismissRequest = onDismiss,
+            title = { Text(text = decodePercentEncodedForDisplay(fileName) ?: fileName) },
+            text = {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .heightIn(max = 360.dp)
+                        .onSizeChanged { contentViewportHeightPx = it.height }
+                ) {
+                    Surface(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .dialogScrollableContentNavigation(
+                                scrollState = contentScrollState,
+                                focusRequester = contentFocusRequester,
+                                viewportHeightPx = contentViewportHeightPx,
+                                actionFocusRequester = closeButtonFocusRequester
+                            )
+                            .verticalScroll(contentScrollState)
+                            .padding(end = 10.dp),
+                        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.42f),
+                        shape = RoundedCornerShape(12.dp)
+                    ) {
+                        SelectionContainer {
+                            Text(
+                                text = textContent,
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(horizontal = 12.dp, vertical = 10.dp),
+                                style = MaterialTheme.typography.bodySmall,
+                                fontFamily = FontFamily.Monospace,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    }
+                    BrowserScrollStateScrollbar(
+                        scrollState = contentScrollState,
+                        modifier = Modifier
+                            .align(Alignment.CenterEnd)
+                            .padding(end = 2.dp)
+                            .fillMaxHeight()
+                            .width(4.dp)
+                            .alpha(scrollbarAlpha)
+                    )
+                }
+            },
+            confirmButton = {
+                TextButton(
+                    modifier = Modifier
+                        .focusRequester(copyButtonFocusRequester)
+                        .focusProperties {
+                            up = contentFocusRequester
+                            left = closeButtonFocusRequester
+                        },
+                    onClick = {
+                        clipboardManager.setText(AnnotatedString(textContent))
+                    }
+                ) {
+                    Text("Copy all")
+                }
+            },
+            dismissButton = {
+                TextButton(
+                    modifier = Modifier
+                        .focusRequester(closeButtonFocusRequester)
+                        .focusProperties {
+                            up = contentFocusRequester
+                            right = copyButtonFocusRequester
+                        },
+                    onClick = onDismiss
+                ) {
+                    Text("Close")
+                }
+            }
+        )
+    }
 }
 
 @Composable
@@ -751,15 +824,15 @@ internal fun BrowserImagePreviewDialog(
         val height = bitmap.height.toFloat()
         if (width <= 0f || height <= 0f) 1f else (width / height).coerceIn(0.4f, 2.5f)
     }
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text(text = decodePercentEncodedForDisplay(fileName) ?: fileName) },
-        text = {
+    if (isWatchDevice()) {
+        WatchDialogContainer(
+            title = decodePercentEncodedForDisplay(fileName) ?: fileName,
+            onDismissRequest = onDismiss
+        ) {
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
                     .aspectRatio(imageAspectRatio)
-                    .heightIn(min = 180.dp, max = 420.dp)
                     .clip(RoundedCornerShape(12.dp))
                     .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.42f)),
                 contentAlignment = Alignment.Center
@@ -771,7 +844,7 @@ internal fun BrowserImagePreviewDialog(
                     imageBitmap == null -> {
                         Text(
                             text = "Unable to load image preview.",
-                            style = MaterialTheme.typography.bodyMedium,
+                            style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     }
@@ -803,13 +876,76 @@ internal fun BrowserImagePreviewDialog(
                     }
                 }
             }
-        },
-        confirmButton = {
-            TextButton(onClick = onDismiss) {
+            Spacer(modifier = Modifier.height(8.dp))
+            Button(
+                onClick = onDismiss,
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(14.dp)
+            ) {
                 Text("Close")
             }
         }
-    )
+    } else {
+        AlertDialog(
+            onDismissRequest = onDismiss,
+            title = { Text(text = decodePercentEncodedForDisplay(fileName) ?: fileName) },
+            text = {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .aspectRatio(imageAspectRatio)
+                        .heightIn(min = 180.dp, max = 420.dp)
+                        .clip(RoundedCornerShape(12.dp))
+                        .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.42f)),
+                    contentAlignment = Alignment.Center
+                ) {
+                    when {
+                        !isLoaded -> {
+                            CircularProgressIndicator()
+                        }
+                        imageBitmap == null -> {
+                            Text(
+                                text = "Unable to load image preview.",
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                        else -> {
+                            Image(
+                                bitmap = imageBitmap ?: return@Box,
+                                contentDescription = null,
+                                modifier = Modifier
+                                    .fillMaxSize()
+                                    .clipToBounds()
+                                    .pointerInput(imageFile.absolutePath) {
+                                        detectTransformGestures { _, pan, zoom, _ ->
+                                            val nextScale = (scale * zoom).coerceIn(1f, 5f)
+                                            scale = nextScale
+                                            offset = if (nextScale <= 1.01f) {
+                                                Offset.Zero
+                                            } else {
+                                                offset + pan
+                                            }
+                                        }
+                                    }
+                                    .graphicsLayer(
+                                        scaleX = scale,
+                                        scaleY = scale,
+                                        translationX = offset.x,
+                                        translationY = offset.y
+                                    )
+                            )
+                        }
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = onDismiss) {
+                    Text("Close")
+                }
+            }
+        )
+    }
 }
 
 @Composable
@@ -843,61 +979,123 @@ private fun BrowserScrollStateScrollbar(
 internal fun BrowserExportConflictDialog(
     state: BrowserExportConflictDialogState
 ) {
-    AlertDialog(
-        onDismissRequest = {},
-        title = { Text("File already exists") },
-        text = {
-            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                Text(
-                    text = "\"${state.fileName}\" already exists in the destination folder.",
-                    style = MaterialTheme.typography.bodyMedium
+    if (isWatchDevice()) {
+        WatchDialogContainer(
+            title = "File exists",
+            onDismissRequest = {}
+        ) {
+            Text(
+                text = "\"${state.fileName}\" already exists in destination.",
+                style = MaterialTheme.typography.bodyMedium,
+                textAlign = TextAlign.Center,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(bottom = 8.dp)
+            )
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(14.dp))
+                    .background(MaterialTheme.colorScheme.surfaceContainerLow)
+                    .clickable { state.onApplyToAllChange(!state.applyToAll) }
+                    .padding(horizontal = 10.dp, vertical = 6.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Checkbox(
+                    checked = state.applyToAll,
+                    onCheckedChange = state.onApplyToAllChange
                 )
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clickable { state.onApplyToAllChange(!state.applyToAll) },
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Checkbox(
-                        checked = state.applyToAll,
-                        onCheckedChange = state.onApplyToAllChange
-                    )
-                    Spacer(modifier = Modifier.width(6.dp))
-                    Text(
-                        text = "Apply to all",
-                        style = MaterialTheme.typography.bodyMedium
-                    )
-                }
+                Spacer(modifier = Modifier.width(6.dp))
+                Text(
+                    text = "Apply to all",
+                    style = MaterialTheme.typography.bodySmall
+                )
             }
-        },
-        confirmButton = {
-            TextButton(
+            Spacer(modifier = Modifier.height(4.dp))
+            Button(
                 onClick = {
                     state.onResolve(ExportConflictAction.Overwrite, state.applyToAll)
-                }
+                },
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(14.dp)
             ) {
                 Text("Overwrite")
             }
-        },
-        dismissButton = {
-            Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                TextButton(
-                    onClick = {
-                        state.onResolve(ExportConflictAction.Skip, state.applyToAll)
-                    }
-                ) {
-                    Text("Skip")
-                }
-                TextButton(
-                    onClick = {
-                        state.onResolve(ExportConflictAction.Cancel, state.applyToAll)
-                    }
-                ) {
-                    Text("Cancel")
-                }
+            FilledTonalButton(
+                onClick = {
+                    state.onResolve(ExportConflictAction.Skip, state.applyToAll)
+                },
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(14.dp)
+            ) {
+                Text("Skip")
+            }
+            TextButton(
+                onClick = {
+                    state.onResolve(ExportConflictAction.Cancel, state.applyToAll)
+                },
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Text("Cancel")
             }
         }
-    )
+    } else {
+        AlertDialog(
+            onDismissRequest = {},
+            title = { Text("File already exists") },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Text(
+                        text = "\"${state.fileName}\" already exists in the destination folder.",
+                        style = MaterialTheme.typography.bodyMedium
+                    )
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable { state.onApplyToAllChange(!state.applyToAll) },
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Checkbox(
+                            checked = state.applyToAll,
+                            onCheckedChange = state.onApplyToAllChange
+                        )
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text(
+                            text = "Apply to all",
+                            style = MaterialTheme.typography.bodyMedium
+                        )
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        state.onResolve(ExportConflictAction.Overwrite, state.applyToAll)
+                    }
+                ) {
+                    Text("Overwrite")
+                }
+            },
+            dismissButton = {
+                Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                    TextButton(
+                        onClick = {
+                            state.onResolve(ExportConflictAction.Skip, state.applyToAll)
+                        }
+                    ) {
+                        Text("Skip")
+                    }
+                    TextButton(
+                        onClick = {
+                            state.onResolve(ExportConflictAction.Cancel, state.applyToAll)
+                        }
+                    ) {
+                        Text("Cancel")
+                    }
+                }
+            }
+        )
+    }
 }
 
 @Composable
@@ -905,69 +1103,150 @@ internal fun BrowserRemoteExportProgressDialog(
     state: BrowserRemoteExportProgressState,
     onCancel: () -> Unit
 ) {
-    AlertDialog(
-        onDismissRequest = {},
-        title = { Text("Downloading files") },
-        text = {
-            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                Text(
-                    text = "File ${state.currentIndex} of ${state.totalCount}",
-                    style = MaterialTheme.typography.bodyMedium
+    if (isWatchDevice()) {
+        WatchDialogContainer(
+            title = "Downloading",
+            onDismissRequest = {}
+        ) {
+            Text(
+                text = "File ${state.currentIndex} of ${state.totalCount}",
+                style = MaterialTheme.typography.bodyMedium,
+                textAlign = TextAlign.Center,
+                modifier = Modifier.fillMaxWidth()
+            )
+            Text(
+                text = decodePercentEncodedForDisplay(state.currentFileName) ?: state.currentFileName,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                textAlign = TextAlign.Center,
+                modifier = Modifier.fillMaxWidth()
+            )
+            val loadState = state.loadState
+            val phaseText = when (loadState?.phase) {
+                RemoteLoadPhase.Connecting -> "Connecting..."
+                RemoteLoadPhase.Downloading -> "Downloading..."
+                RemoteLoadPhase.Opening -> "Preparing..."
+                null -> "Preparing..."
+            }
+            Text(
+                text = phaseText,
+                style = MaterialTheme.typography.bodySmall,
+                textAlign = TextAlign.Center,
+                modifier = Modifier.fillMaxWidth()
+            )
+            if (loadState == null || loadState.indeterminate) {
+                LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
+            } else {
+                val progress = (loadState.percent ?: 0).coerceIn(0, 100) / 100f
+                LinearProgressIndicator(
+                    progress = { progress },
+                    modifier = Modifier.fillMaxWidth()
                 )
+            }
+            loadState?.let { progressState ->
+                val downloadedLabel = formatByteCount(progressState.downloadedBytes)
+                val sizeLabel = progressState.totalBytes?.let { total ->
+                    "$downloadedLabel / ${formatByteCount(total)}"
+                } ?: downloadedLabel
                 Text(
-                    text = decodePercentEncodedForDisplay(state.currentFileName) ?: state.currentFileName,
+                    text = sizeLabel,
                     style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier.fillMaxWidth()
                 )
-                val loadState = state.loadState
-                val phaseText = when (loadState?.phase) {
-                    RemoteLoadPhase.Connecting -> "Connecting..."
-                    RemoteLoadPhase.Downloading -> "Downloading..."
-                    RemoteLoadPhase.Opening -> "Preparing..."
-                    null -> "Preparing..."
-                }
-                Text(phaseText)
-                if (loadState == null || loadState.indeterminate) {
-                    LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
-                } else {
-                    val progress = (loadState.percent ?: 0).coerceIn(0, 100) / 100f
-                    LinearProgressIndicator(
-                        progress = { progress },
+                progressState.percent?.let { percent ->
+                    Text(
+                        text = "$percent%",
+                        style = MaterialTheme.typography.bodySmall,
+                        textAlign = TextAlign.Center,
                         modifier = Modifier.fillMaxWidth()
                     )
                 }
-                loadState?.let { progressState ->
-                    val downloadedLabel = formatByteCount(progressState.downloadedBytes)
-                    val sizeLabel = progressState.totalBytes?.let { total ->
-                        "$downloadedLabel / ${formatByteCount(total)}"
-                    } ?: downloadedLabel
+                progressState.bytesPerSecond?.takeIf { it > 0L }?.let { speed ->
                     Text(
-                        text = sizeLabel,
-                        style = MaterialTheme.typography.bodyMedium
+                        text = "${formatByteCount(speed)}/s",
+                        style = MaterialTheme.typography.bodySmall,
+                        textAlign = TextAlign.Center,
+                        modifier = Modifier.fillMaxWidth()
                     )
-                    progressState.percent?.let { percent ->
-                        Text(
-                            text = "$percent%",
-                            style = MaterialTheme.typography.bodyMedium
-                        )
-                    }
-                    progressState.bytesPerSecond?.takeIf { it > 0L }?.let { speed ->
-                        Text(
-                            text = "${formatByteCount(speed)}/s",
-                            style = MaterialTheme.typography.bodyMedium
-                        )
-                    }
                 }
             }
-        },
-        confirmButton = {
-            TextButton(onClick = onCancel) {
+            Spacer(modifier = Modifier.height(4.dp))
+            Button(
+                onClick = onCancel,
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(14.dp)
+            ) {
                 Text("Cancel")
             }
         }
-    )
+    } else {
+        AlertDialog(
+            onDismissRequest = {},
+            title = { Text("Downloading files") },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Text(
+                        text = "File ${state.currentIndex} of ${state.totalCount}",
+                        style = MaterialTheme.typography.bodyMedium
+                    )
+                    Text(
+                        text = decodePercentEncodedForDisplay(state.currentFileName) ?: state.currentFileName,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                    val loadState = state.loadState
+                    val phaseText = when (loadState?.phase) {
+                        RemoteLoadPhase.Connecting -> "Connecting..."
+                        RemoteLoadPhase.Downloading -> "Downloading..."
+                        RemoteLoadPhase.Opening -> "Preparing..."
+                        null -> "Preparing..."
+                    }
+                    Text(phaseText)
+                    if (loadState == null || loadState.indeterminate) {
+                        LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
+                    } else {
+                        val progress = (loadState.percent ?: 0).coerceIn(0, 100) / 100f
+                        LinearProgressIndicator(
+                            progress = { progress },
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                    }
+                    loadState?.let { progressState ->
+                        val downloadedLabel = formatByteCount(progressState.downloadedBytes)
+                        val sizeLabel = progressState.totalBytes?.let { total ->
+                            "$downloadedLabel / ${formatByteCount(total)}"
+                        } ?: downloadedLabel
+                        Text(
+                            text = sizeLabel,
+                            style = MaterialTheme.typography.bodyMedium
+                        )
+                        progressState.percent?.let { percent ->
+                            Text(
+                                text = "$percent%",
+                                style = MaterialTheme.typography.bodyMedium
+                            )
+                        }
+                        progressState.bytesPerSecond?.takeIf { it > 0L }?.let { speed ->
+                            Text(
+                                text = "${formatByteCount(speed)}/s",
+                                style = MaterialTheme.typography.bodyMedium
+                            )
+                        }
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = onCancel) {
+                    Text("Cancel")
+                }
+            }
+        )
+    }
 }
 
 @Composable
