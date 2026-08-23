@@ -1973,12 +1973,12 @@ private fun normalizedScale(valueDp: Dp, compactDp: Dp, roomyDp: Dp): Float {
 
 private fun playerTransportRowWidth(maxWidth: Dp, layoutScale: Float): Dp {
     val tabletWidthScale = normalizedScale(maxWidth, compactDp = 560.dp, roomyDp = 980.dp)
-    val auxiliaryButtonSize = lerpDp(48.dp, 52.dp, tabletWidthScale)
-    val sideButtonSize = lerpDp(50.dp, 58.dp, tabletWidthScale)
-    val playButtonSize = lerpDp(80.dp, 92.dp, tabletWidthScale)
+    val auxiliaryButtonSize = lerpDp(48.dp, 58.dp, tabletWidthScale)
+    val sideButtonSize = lerpDp(54.dp, 68.dp, tabletWidthScale)
+    val playButtonSize = lerpDp(82.dp, 108.dp, tabletWidthScale)
     val occupiedWidth = (auxiliaryButtonSize.value * 2f + sideButtonSize.value * 2f + playButtonSize.value).dp
-    val minGap = 6.dp
-    val maxGap = lerpDp(8.dp, 16.dp, tabletWidthScale)
+    val minGap = 8.dp
+    val maxGap = lerpDp(12.dp, 24.dp, tabletWidthScale)
     val minWidth = occupiedWidth + minGap * 4f
     val maxComfortWidth = occupiedWidth + maxGap * 4f
     val preferredWidth = maxWidth * lerpFloat(0.94f, 1.0f, layoutScale)
@@ -3315,20 +3315,20 @@ private fun TransportControls(
         val portraitTransportSizing = maxClusterWidth != null
         val compactPortraitTransport = portraitTransportSizing && compactPortraitMode
         val availableWidth = maxClusterWidth?.let { minOf(maxWidth, it) } ?: maxWidth
-        val widthScale = normalizedScale(availableWidth, compactDp = 300.dp, roomyDp = 560.dp).coerceIn(0f, 1f)
-        val playButtonSize = lerpDp(72.dp, 104.dp, widthScale)
-        val playIconSize = lerpDp(34.dp, 48.dp, widthScale)
-        val playIndicatorSize = lerpDp(28.dp, 40.dp, widthScale)
-        val sideButtonSize = lerpDp(48.dp, 64.dp, widthScale)
-        val sideTransportIconSize = lerpDp(24.dp, 30.dp, widthScale)
-        val auxiliaryButtonSize = lerpDp(44.dp, 54.dp, widthScale)
-        val auxiliaryIconSize = lerpDp(22.dp, 28.dp, widthScale)
-        val stopIconSize = lerpDp(20.dp, 25.dp, widthScale)
-        val subtuneButtonMax = lerpDp(54.dp, 76.dp, widthScale)
-        val subtuneButtonSize = scaledDp(sideButtonSize, 1.03f).coerceIn(44.dp, subtuneButtonMax)
+        val widthScale = normalizedScale(availableWidth, compactDp = 280.dp, roomyDp = 560.dp).coerceIn(0f, 1f)
+        val playButtonSize = lerpDp(78.dp, 108.dp, widthScale)
+        val playIconSize = lerpDp(38.dp, 52.dp, widthScale)
+        val playIndicatorSize = lerpDp(32.dp, 44.dp, widthScale)
+        val sideButtonSize = lerpDp(52.dp, 68.dp, widthScale)
+        val sideTransportIconSize = lerpDp(26.dp, 34.dp, widthScale)
+        val auxiliaryButtonSize = lerpDp(46.dp, 58.dp, widthScale)
+        val auxiliaryIconSize = lerpDp(24.dp, 30.dp, widthScale)
+        val stopIconSize = lerpDp(22.dp, 28.dp, widthScale)
+        val subtuneButtonMax = lerpDp(58.dp, 80.dp, widthScale)
+        val subtuneButtonSize = scaledDp(sideButtonSize, 1.03f).coerceIn(48.dp, subtuneButtonMax)
         val occupiedButtonsWidth = (auxiliaryButtonSize.value * 2f + sideButtonSize.value * 2f + playButtonSize.value).dp
         val maxAvailableGap = ((availableWidth - occupiedButtonsWidth).coerceAtLeast(0.dp) / 4f)
-        val preferredGap = lerpDp(8.dp, 24.dp, widthScale)
+        val preferredGap = lerpDp(10.dp, 28.dp, widthScale)
         val rowGap = preferredGap.coerceAtMost(maxAvailableGap).coerceAtLeast(4.dp)
         val repeatIconSize = auxiliaryIconSize
         val effectiveRepeatIconSize = repeatIconSize
