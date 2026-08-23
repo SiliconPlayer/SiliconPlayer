@@ -388,7 +388,7 @@ internal fun HomeScreen(
             HomeQuickActionSpec(
                 itemKey = "home_intro_network_button",
                 order = 2,
-                title = "Network sources",
+                title = "Network",
                 icon = Icons.Default.Public,
                 containerColor = MaterialTheme.colorScheme.tertiaryContainer,
                 onClick = onOpenNetwork
@@ -1841,7 +1841,7 @@ internal fun WearHomeScreen(
         )
 
         WearHomeMenuCard(
-            title = "Network Sources",
+            title = "Network",
             icon = Icons.Default.Public,
             containerColor = MaterialTheme.colorScheme.tertiaryContainer,
             contentColor = MaterialTheme.colorScheme.onTertiaryContainer,

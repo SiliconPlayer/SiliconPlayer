@@ -1296,7 +1296,7 @@ internal fun NetworkBrowserScreen(
         topBar = {
             if (!isWatch) {
                 LargeTopAppBar(
-                    title = { Text("Network sources") },
+                    title = { Text("Network") },
                     navigationIcon = {
                         IconButton(
                             onClick = {
@@ -1572,7 +1572,7 @@ internal fun NetworkBrowserScreen(
         ) {
             if (isWatch) {
                 val headerTitle = if (currentFolderId == null) {
-                    "Network Sources"
+                    "Network"
                 } else {
                     nodesById[currentFolderId]?.title ?: "Network Folder"
                 }
