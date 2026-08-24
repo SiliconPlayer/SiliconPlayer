@@ -118,6 +118,42 @@ data class SiliconNativeGlFrame(
     val vuLabelColorArgb: Int = 0xFFCCCCCC.toInt()
 )
 
+data class SiliconNativeGlDynamicData(
+    val pcm: FloatArray? = null,
+    val pcmFrames: Int = 0,
+    val pcmChannels: Int = 0,
+    val pcmSampleRate: Int = 0,
+    val fft: FloatArray? = null,
+    val vuLevels: FloatArray = floatArrayOf(0f, 0f),
+    val channelHistories: List<FloatArray> = emptyList(),
+    val channelScopeFlatData: FloatArray? = null,
+    val channelScopeSamplesPerChannel: Int = 0,
+    val channelTextStates: List<ChannelScopeChannelTextState> = emptyList()
+)
+
+interface SiliconNativeGlDataConsumer {
+    fun pushDynamicData(data: SiliconNativeGlDynamicData)
+}
+
+object SiliconNativeGlDataSink {
+    @Volatile
+    private var activeConsumer: SiliconNativeGlDataConsumer? = null
+
+    fun register(consumer: SiliconNativeGlDataConsumer) {
+        activeConsumer = consumer
+    }
+
+    fun unregister(consumer: SiliconNativeGlDataConsumer) {
+        if (activeConsumer === consumer) {
+            activeConsumer = null
+        }
+    }
+
+    fun pushDynamicData(data: SiliconNativeGlDynamicData) {
+        activeConsumer?.pushDynamicData(data)
+    }
+}
+
 @Composable
 fun SiliconNativeGlTextureVisualization(
     frame: SiliconNativeGlFrame,
@@ -163,7 +199,7 @@ fun SiliconNativeGlTextureVisualization(
 private class SiliconNativeGlTextureView(
     context: Context,
     private val density: Float
-) : TextureView(context), TextureView.SurfaceTextureListener {
+) : TextureView(context), TextureView.SurfaceTextureListener, SiliconNativeGlDataConsumer {
     private var renderThread: SiliconNativeTextureRenderThread? = null
     private var latestFrame: SiliconNativeGlFrame? = null
     private var lifecyclePaused: Boolean = false
@@ -171,7 +207,12 @@ private class SiliconNativeGlTextureView(
 
     init {
         surfaceTextureListener = this
-        isOpaque = false
+        isOpaque = true
+        SiliconNativeGlDataSink.register(this)
+    }
+
+    override fun pushDynamicData(data: SiliconNativeGlDynamicData) {
+        renderThread?.setDynamicData(data)
     }
 
     fun updateFrame(frame: SiliconNativeGlFrame) {
@@ -189,6 +230,7 @@ private class SiliconNativeGlTextureView(
     }
 
     fun shutdown() {
+        SiliconNativeGlDataSink.unregister(this)
         stopRenderThread()
     }
 
@@ -212,6 +254,7 @@ private class SiliconNativeGlTextureView(
     private fun startRenderThread(surfaceTexture: SurfaceTexture?, width: Int, height: Int) {
         if (surfaceTexture == null) return
         stopRenderThread()
+        SiliconNativeGlDataSink.register(this)
         val surface = Surface(surfaceTexture)
         val thread = SiliconNativeTextureRenderThread(
             context = context,
@@ -235,6 +278,11 @@ private class SiliconNativeGlTextureView(
         runCatching { thread.join(350L) }
     }
 
+    override fun onAttachedToWindow() {
+        super.onAttachedToWindow()
+        SiliconNativeGlDataSink.register(this)
+    }
+
     override fun onDetachedFromWindow() {
         shutdown()
         super.onDetachedFromWindow()
@@ -252,6 +300,7 @@ private class SiliconNativeTextureRenderThread(
     private val lock = Object()
     private var running = true
     private var frameData: SiliconNativeGlFrame? = null
+    private var dynamicData: SiliconNativeGlDynamicData? = null
     private var frameSequence: Long = 0L
     private var renderedFrameSequence: Long = -1L
     private var surfaceWidth = initialWidth
@@ -278,8 +327,25 @@ private class SiliconNativeTextureRenderThread(
     private var artworkDirectBuffer: ByteBuffer? = null
     private val textRenderer = GlChannelScopeTextRenderer(context)
 
+    fun setDynamicData(data: SiliconNativeGlDynamicData) {
+        synchronized(lock) {
+            dynamicData = data
+            frameSequence += 1L
+            lock.notifyAll()
+        }
+    }
+
+    fun setFrameData(frame: SiliconNativeGlFrame) {
+        synchronized(lock) {
+            frameData = frame
+            frameSequence += 1L
+            lock.notifyAll()
+        }
+    }
+
     private data class LoopState(
         val frame: SiliconNativeGlFrame?,
+        val dynamicData: SiliconNativeGlDynamicData?,
         val frameSequence: Long,
         val width: Int,
         val height: Int,
@@ -306,15 +372,16 @@ private class SiliconNativeTextureRenderThread(
                     while (
                         running &&
                         !surfaceSizeChanged &&
-                        (frameData == null || frameSequence == renderedFrameSequence)
+                        (frameData == null || (dynamicData == null && frameData == null) || frameSequence == renderedFrameSequence)
                     ) {
                         lock.wait()
                     }
                     if (!running) {
-                        LoopState(null, frameSequence, 0, 0, false, true)
+                        LoopState(null, null, frameSequence, 0, 0, false, true)
                     } else {
                         LoopState(
                             frame = frameData,
+                            dynamicData = dynamicData,
                             frameSequence = frameSequence,
                             width = surfaceWidth,
                             height = surfaceHeight,
@@ -420,30 +487,41 @@ private class SiliconNativeTextureRenderThread(
                     }
 
                     // 2. Push audio / channels / VU levels
-                    frame.pcm?.let {
-                        SiliconVisNativeBridge.nativePushPcm(visHandle, it, frame.pcmFrames, frame.pcmChannels, frame.pcmSampleRate)
+                    val d = state.dynamicData
+                    val pcm = d?.pcm ?: frame.pcm
+                    val pcmFrames = if (d != null && d.pcm != null) d.pcmFrames else frame.pcmFrames
+                    val pcmChannels = if (d != null && d.pcm != null) d.pcmChannels else frame.pcmChannels
+                    val pcmSampleRate = if (d != null && d.pcm != null) d.pcmSampleRate else frame.pcmSampleRate
+                    val fft = d?.fft ?: frame.fft
+                    val vuLevels = d?.vuLevels ?: frame.vuLevels
+                    val flatData = d?.channelScopeFlatData ?: frame.channelScopeFlatData
+                    val flatSamples = if (d != null && d.channelScopeFlatData != null) d.channelScopeSamplesPerChannel else frame.channelScopeSamplesPerChannel
+                    val channelHistories = if (d != null && d.channelHistories.isNotEmpty()) d.channelHistories else frame.channelHistories
+                    val channelTextStates = if (d != null && d.channelTextStates.isNotEmpty()) d.channelTextStates else frame.channelTextStates
+
+                    pcm?.let {
+                        SiliconVisNativeBridge.nativePushPcm(visHandle, it, pcmFrames, pcmChannels, pcmSampleRate)
                     }
-                    frame.fft?.let {
+                    fft?.let {
                         SiliconVisNativeBridge.nativePushFft(visHandle, it, it.size)
                     }
                     SiliconVisNativeBridge.nativeSetVuLevels(
                         visHandle,
-                        frame.vuLevels.getOrElse(0) { 0f },
-                        frame.vuLevels.getOrElse(1) { 0f }
+                        vuLevels.getOrElse(0) { 0f },
+                        vuLevels.getOrElse(1) { 0f }
                     )
 
-                    val flatData = frame.channelScopeFlatData
-                    if (flatData != null && frame.channelScopeSamplesPerChannel > 0) {
-                        val channels = flatData.size / frame.channelScopeSamplesPerChannel
+                    if (flatData != null && flatSamples > 0) {
+                        val channels = flatData.size / flatSamples
                         SiliconVisNativeBridge.nativePushChannelScopeAllHistories(
                             visHandle,
                             channels,
-                            frame.channelScopeSamplesPerChannel,
+                            flatSamples,
                             flatData
                         )
-                    } else if (frame.channelHistories.isNotEmpty()) {
-                        for (i in frame.channelHistories.indices) {
-                            val hist = frame.channelHistories[i]
+                    } else if (channelHistories.isNotEmpty()) {
+                        for (i in channelHistories.indices) {
+                            val hist = channelHistories[i]
                             SiliconVisNativeBridge.nativePushChannelScopeHistory(visHandle, i, hist, hist.size)
                         }
                     }
@@ -514,10 +592,10 @@ private class SiliconNativeTextureRenderThread(
                     SiliconVisNativeBridge.nativeRender(visHandle)
 
                     // 4b. Draw GL Channel Scope text directly in OpenGL ES (100% GLES, zero Compose overlays!)
-                    if (frame.mode == 4 && frame.channelScopeTextEnabled && frame.channelHistories.isNotEmpty()) {
+                    if (frame.mode == 4 && frame.channelScopeTextEnabled && channelHistories.isNotEmpty()) {
                         val textFrame = GlChannelScopeTextFrame(
-                            channelCount = frame.channelHistories.size,
-                            channelTextStates = frame.channelTextStates,
+                            channelCount = channelHistories.size,
+                            channelTextStates = channelTextStates,
                             instrumentNamesByIndex = frame.instrumentNamesByIndex,
                             sampleNamesByIndex = frame.sampleNamesByIndex,
                             chipNamesByChannelIndex = frame.chipNamesByChannelIndex,
@@ -539,7 +617,7 @@ private class SiliconNativeTextureRenderThread(
                             showInstrument = frame.showInstrument,
                             showSample = frame.showSample,
                             palette = frame.textPalette,
-                            channelHistories = frame.channelHistories,
+                            channelHistories = channelHistories,
                             vuEnabled = false
                         )
                         textRenderer.buildGeometry(textFrame, state.width.toFloat(), state.height.toFloat())
@@ -577,14 +655,6 @@ private class SiliconNativeTextureRenderThread(
             }
             releaseEgl()
             outputSurface.release()
-        }
-    }
-
-    fun setFrameData(frame: SiliconNativeGlFrame) {
-        synchronized(lock) {
-            frameData = frame
-            frameSequence += 1L
-            lock.notifyAll()
         }
     }
 
