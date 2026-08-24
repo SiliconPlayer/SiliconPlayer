@@ -77,6 +77,8 @@ import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.material3.MenuDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
@@ -1741,12 +1743,28 @@ internal fun BrowserSelectionToolbarControls(
             ) {
                 actionItems.forEach { actionItem ->
                     DropdownMenuItem(
-                        text = { Text(actionItem.label) },
-                        leadingIcon = {
-                            actionItem.icon?.let {
-                                Icon(imageVector = it, contentDescription = null)
+                        text = {
+                            Text(
+                                text = actionItem.label,
+                                style = MaterialTheme.typography.bodyLarge
+                            )
+                        },
+                        leadingIcon = actionItem.icon?.let { iconVector ->
+                            {
+                                Icon(
+                                    imageVector = iconVector,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(22.dp)
+                                )
                             }
                         },
+                        contentPadding = PaddingValues(start = 14.dp, end = 18.dp),
+                        colors = MenuDefaults.itemColors(
+                            textColor = MaterialTheme.colorScheme.onSurface,
+                            leadingIconColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                            disabledTextColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.38f),
+                            disabledLeadingIconColor = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.38f)
+                        ),
                         enabled = actionItem.enabled,
                         onClick = {
                             showSelectionActionsMenu = false
@@ -1756,8 +1774,24 @@ internal fun BrowserSelectionToolbarControls(
                 }
                 if (actionItems.isEmpty()) {
                     DropdownMenuItem(
-                        text = { Text("Info") },
-                        leadingIcon = { Icon(Icons.Default.Info, contentDescription = null) },
+                        text = {
+                            Text(
+                                text = "Info",
+                                style = MaterialTheme.typography.bodyLarge
+                            )
+                        },
+                        leadingIcon = {
+                            Icon(
+                                imageVector = Icons.Default.Info,
+                                contentDescription = null,
+                                modifier = Modifier.size(22.dp)
+                            )
+                        },
+                        contentPadding = PaddingValues(start = 14.dp, end = 18.dp),
+                        colors = MenuDefaults.itemColors(
+                            textColor = MaterialTheme.colorScheme.onSurface,
+                            leadingIconColor = MaterialTheme.colorScheme.onSurfaceVariant
+                        ),
                         enabled = false,
                         onClick = {}
                     )
@@ -1781,7 +1815,26 @@ internal fun BrowserSelectionToolbarControls(
                 onDismissRequest = { showSelectionToggleMenu = false }
             ) {
                 DropdownMenuItem(
-                    text = { Text("Select all") },
+                    text = {
+                        Text(
+                            text = "Select all",
+                            style = MaterialTheme.typography.bodyLarge
+                        )
+                    },
+                    leadingIcon = {
+                        Icon(
+                            imageVector = Icons.Default.SelectAll,
+                            contentDescription = null,
+                            modifier = Modifier.size(22.dp)
+                        )
+                    },
+                    contentPadding = PaddingValues(start = 14.dp, end = 18.dp),
+                    colors = MenuDefaults.itemColors(
+                        textColor = MaterialTheme.colorScheme.onSurface,
+                        leadingIconColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                        disabledTextColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.38f),
+                        disabledLeadingIconColor = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.38f)
+                    ),
                     enabled = canSelectAny,
                     onClick = {
                         showSelectionToggleMenu = false
@@ -1789,7 +1842,24 @@ internal fun BrowserSelectionToolbarControls(
                     }
                 )
                 DropdownMenuItem(
-                    text = { Text("Deselect all") },
+                    text = {
+                        Text(
+                            text = "Deselect all",
+                            style = MaterialTheme.typography.bodyLarge
+                        )
+                    },
+                    leadingIcon = {
+                        Icon(
+                            imageVector = Icons.Default.Close,
+                            contentDescription = null,
+                            modifier = Modifier.size(22.dp)
+                        )
+                    },
+                    contentPadding = PaddingValues(start = 14.dp, end = 18.dp),
+                    colors = MenuDefaults.itemColors(
+                        textColor = MaterialTheme.colorScheme.onSurface,
+                        leadingIconColor = MaterialTheme.colorScheme.onSurfaceVariant
+                    ),
                     onClick = {
                         showSelectionToggleMenu = false
                         onDeselectAll()

@@ -78,6 +78,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LargeTopAppBar
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.MenuDefaults
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -1333,61 +1334,126 @@ internal fun NetworkBrowserScreen(
                                     onDismissRequest = { showSelectionActionsMenu = false }
                                 ) {
                                     DropdownMenuItem(
-                                        text = { Text("Info") },
+                                        text = {
+                                            Text(
+                                                text = "Info",
+                                                style = MaterialTheme.typography.bodyLarge
+                                            )
+                                        },
                                         leadingIcon = {
                                             Icon(
                                                 imageVector = Icons.Default.Visibility,
-                                                contentDescription = null
+                                                contentDescription = null,
+                                                modifier = Modifier.size(22.dp)
                                             )
                                         },
+                                        contentPadding = PaddingValues(start = 14.dp, end = 18.dp),
+                                        colors = MenuDefaults.itemColors(
+                                            textColor = MaterialTheme.colorScheme.onSurface,
+                                            leadingIconColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                                            disabledTextColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.38f),
+                                            disabledLeadingIconColor = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.38f)
+                                        ),
                                         enabled = selectedNodeIds.isNotEmpty(),
                                         onClick = { requestInfo(selectedNodeIds) }
                                     )
                                     DropdownMenuItem(
-                                        text = { Text("Copy") },
+                                        text = {
+                                            Text(
+                                                text = "Copy",
+                                                style = MaterialTheme.typography.bodyLarge
+                                            )
+                                        },
                                         leadingIcon = {
                                             Icon(
                                                 imageVector = Icons.Default.ContentCopy,
-                                                contentDescription = null
+                                                contentDescription = null,
+                                                modifier = Modifier.size(22.dp)
                                             )
                                         },
+                                        contentPadding = PaddingValues(start = 14.dp, end = 18.dp),
+                                        colors = MenuDefaults.itemColors(
+                                            textColor = MaterialTheme.colorScheme.onSurface,
+                                            leadingIconColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                                            disabledTextColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.38f),
+                                            disabledLeadingIconColor = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.38f)
+                                        ),
                                         enabled = selectedNodeIds.isNotEmpty(),
                                         onClick = {
                                             beginClipboardMode(NetworkClipboardMode.Copy, selectedNodeIds)
                                         }
                                     )
                                     DropdownMenuItem(
-                                        text = { Text("Move") },
+                                        text = {
+                                            Text(
+                                                text = "Move",
+                                                style = MaterialTheme.typography.bodyLarge
+                                            )
+                                        },
                                         leadingIcon = {
                                             Icon(
                                                 imageVector = Icons.AutoMirrored.Filled.DriveFileMove,
-                                                contentDescription = null
+                                                contentDescription = null,
+                                                modifier = Modifier.size(22.dp)
                                             )
                                         },
+                                        contentPadding = PaddingValues(start = 14.dp, end = 18.dp),
+                                        colors = MenuDefaults.itemColors(
+                                            textColor = MaterialTheme.colorScheme.onSurface,
+                                            leadingIconColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                                            disabledTextColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.38f),
+                                            disabledLeadingIconColor = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.38f)
+                                        ),
                                         enabled = selectedNodeIds.isNotEmpty(),
                                         onClick = {
                                             beginClipboardMode(NetworkClipboardMode.Move, selectedNodeIds)
                                         }
                                     )
                                     DropdownMenuItem(
-                                        text = { Text("Delete") },
+                                        text = {
+                                            Text(
+                                                text = "Delete",
+                                                style = MaterialTheme.typography.bodyLarge
+                                            )
+                                        },
                                         leadingIcon = {
                                             Icon(
                                                 imageVector = Icons.Default.Delete,
-                                                contentDescription = null
+                                                contentDescription = null,
+                                                modifier = Modifier.size(22.dp)
                                             )
                                         },
+                                        contentPadding = PaddingValues(start = 14.dp, end = 18.dp),
+                                        colors = MenuDefaults.itemColors(
+                                            textColor = MaterialTheme.colorScheme.onSurface,
+                                            leadingIconColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                                            disabledTextColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.38f),
+                                            disabledLeadingIconColor = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.38f)
+                                        ),
                                         enabled = selectedNodeIds.isNotEmpty(),
                                         onClick = { beginDeleteConfirmation(selectedNodeIds) }
                                     )
                                     DropdownMenuItem(
-                                        text = { Text("Refresh") },
+                                        text = {
+                                            Text(
+                                                text = "Refresh",
+                                                style = MaterialTheme.typography.bodyLarge
+                                            )
+                                        },
                                         leadingIcon = {
                                             Icon(
                                                 imageVector = Icons.Default.Refresh,
-                                                contentDescription = null
+                                                contentDescription = null,
+                                                modifier = Modifier.size(22.dp)
                                             )
                                         },
+                                        contentPadding = PaddingValues(start = 14.dp, end = 18.dp),
+                                        colors = MenuDefaults.itemColors(
+                                            textColor = MaterialTheme.colorScheme.onSurface,
+                                            leadingIconColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                                            disabledTextColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.38f),
+                                            disabledLeadingIconColor = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.38f)
+                                        ),
                                         enabled = selectedNodeIds.isNotEmpty(),
                                         onClick = { requestRefresh(selectedNodeIds) }
                                     )
@@ -1407,14 +1473,48 @@ internal fun NetworkBrowserScreen(
                                     onDismissRequest = { showSelectionToggleMenu = false }
                                 ) {
                                     DropdownMenuItem(
-                                        text = { Text("Select all") },
+                                        text = {
+                                            Text(
+                                                text = "Select all",
+                                                style = MaterialTheme.typography.bodyLarge
+                                            )
+                                        },
+                                        leadingIcon = {
+                                            Icon(
+                                                imageVector = Icons.Default.SelectAll,
+                                                contentDescription = null,
+                                                modifier = Modifier.size(22.dp)
+                                            )
+                                        },
+                                        contentPadding = PaddingValues(start = 14.dp, end = 18.dp),
+                                        colors = MenuDefaults.itemColors(
+                                            textColor = MaterialTheme.colorScheme.onSurface,
+                                            leadingIconColor = MaterialTheme.colorScheme.onSurfaceVariant
+                                        ),
                                         onClick = {
                                             selectedNodeIds = currentEntries.mapTo(LinkedHashSet()) { it.id }
                                             showSelectionToggleMenu = false
                                         }
                                     )
                                     DropdownMenuItem(
-                                        text = { Text("Deselect all") },
+                                        text = {
+                                            Text(
+                                                text = "Deselect all",
+                                                style = MaterialTheme.typography.bodyLarge
+                                            )
+                                        },
+                                        leadingIcon = {
+                                            Icon(
+                                                imageVector = Icons.Default.Close,
+                                                contentDescription = null,
+                                                modifier = Modifier.size(22.dp)
+                                            )
+                                        },
+                                        contentPadding = PaddingValues(start = 14.dp, end = 18.dp),
+                                        colors = MenuDefaults.itemColors(
+                                            textColor = MaterialTheme.colorScheme.onSurface,
+                                            leadingIconColor = MaterialTheme.colorScheme.onSurfaceVariant
+                                        ),
                                         onClick = {
                                             selectedNodeIds = emptySet()
                                             showSelectionToggleMenu = false
@@ -1480,13 +1580,24 @@ internal fun NetworkBrowserScreen(
                         offset = DpOffset(x = 0.dp, y = (-8).dp)
                     ) {
                         DropdownMenuItem(
-                            text = { Text("Folder") },
+                            text = {
+                                Text(
+                                    text = "Folder",
+                                    style = MaterialTheme.typography.bodyLarge
+                                )
+                            },
                             leadingIcon = {
                                 Icon(
                                     imageVector = Icons.Default.CreateNewFolder,
-                                    contentDescription = null
+                                    contentDescription = null,
+                                    modifier = Modifier.size(22.dp)
                                 )
                             },
+                            contentPadding = PaddingValues(start = 14.dp, end = 18.dp),
+                            colors = MenuDefaults.itemColors(
+                                textColor = MaterialTheme.colorScheme.onSurface,
+                                leadingIconColor = MaterialTheme.colorScheme.onSurfaceVariant
+                            ),
                             onClick = {
                                 showAddMenu = false
                                 editingFolderNodeId = null
@@ -1495,13 +1606,24 @@ internal fun NetworkBrowserScreen(
                             }
                         )
                         DropdownMenuItem(
-                            text = { Text("Remote source") },
+                            text = {
+                                Text(
+                                    text = "Remote source",
+                                    style = MaterialTheme.typography.bodyLarge
+                                )
+                            },
                             leadingIcon = {
                                 Icon(
                                     imageVector = Icons.Default.Link,
-                                    contentDescription = null
+                                    contentDescription = null,
+                                    modifier = Modifier.size(22.dp)
                                 )
                             },
+                            contentPadding = PaddingValues(start = 14.dp, end = 18.dp),
+                            colors = MenuDefaults.itemColors(
+                                textColor = MaterialTheme.colorScheme.onSurface,
+                                leadingIconColor = MaterialTheme.colorScheme.onSurfaceVariant
+                            ),
                             onClick = {
                                 showAddMenu = false
                                 editingSourceNodeId = null
@@ -1511,13 +1633,24 @@ internal fun NetworkBrowserScreen(
                             }
                         )
                         DropdownMenuItem(
-                            text = { Text("SMB share") },
+                            text = {
+                                Text(
+                                    text = "SMB share",
+                                    style = MaterialTheme.typography.bodyLarge
+                                )
+                            },
                             leadingIcon = {
                                 Icon(
                                     imageVector = NetworkIcons.SmbShare,
-                                    contentDescription = null
+                                    contentDescription = null,
+                                    modifier = Modifier.size(22.dp)
                                 )
                             },
+                            contentPadding = PaddingValues(start = 14.dp, end = 18.dp),
+                            colors = MenuDefaults.itemColors(
+                                textColor = MaterialTheme.colorScheme.onSurface,
+                                leadingIconColor = MaterialTheme.colorScheme.onSurfaceVariant
+                            ),
                             onClick = {
                                 showAddMenu = false
                                 editingSmbNodeId = null
@@ -1532,13 +1665,24 @@ internal fun NetworkBrowserScreen(
                             }
                         )
                         DropdownMenuItem(
-                            text = { Text("HTTP/HTTPS server") },
+                            text = {
+                                Text(
+                                    text = "HTTP/HTTPS server",
+                                    style = MaterialTheme.typography.bodyLarge
+                                )
+                            },
                             leadingIcon = {
                                 Icon(
                                     imageVector = NetworkIcons.WorldCode,
-                                    contentDescription = null
+                                    contentDescription = null,
+                                    modifier = Modifier.size(22.dp)
                                 )
                             },
+                            contentPadding = PaddingValues(start = 14.dp, end = 18.dp),
+                            colors = MenuDefaults.itemColors(
+                                textColor = MaterialTheme.colorScheme.onSurface,
+                                leadingIconColor = MaterialTheme.colorScheme.onSurfaceVariant
+                            ),
                             onClick = {
                                 showAddMenu = false
                                 editingHttpNodeId = null
@@ -2129,45 +2273,89 @@ internal fun NetworkBrowserScreen(
                                                         onDismissRequest = { expandedEntryMenuNodeId = null }
                                                     ) {
                                                         DropdownMenuItem(
-                                                            text = { Text("Edit") },
+                                                            text = {
+                                                                Text(
+                                                                    text = "Edit",
+                                                                    style = MaterialTheme.typography.bodyLarge
+                                                                )
+                                                            },
                                                             leadingIcon = {
                                                                 Icon(
                                                                     imageVector = Icons.Default.Edit,
-                                                                    contentDescription = null
+                                                                    contentDescription = null,
+                                                                    modifier = Modifier.size(22.dp)
                                                                 )
                                                             },
+                                                            contentPadding = PaddingValues(start = 14.dp, end = 18.dp),
+                                                            colors = MenuDefaults.itemColors(
+                                                                textColor = MaterialTheme.colorScheme.onSurface,
+                                                                leadingIconColor = MaterialTheme.colorScheme.onSurfaceVariant
+                                                            ),
                                                             onClick = { beginEntryEdit(entry) }
                                                         )
                                                         DropdownMenuItem(
-                                                            text = { Text("Info") },
+                                                            text = {
+                                                                Text(
+                                                                    text = "Info",
+                                                                    style = MaterialTheme.typography.bodyLarge
+                                                                )
+                                                            },
                                                             leadingIcon = {
                                                                 Icon(
                                                                     imageVector = Icons.Default.Visibility,
-                                                                    contentDescription = null
+                                                                    contentDescription = null,
+                                                                    modifier = Modifier.size(22.dp)
                                                                 )
                                                             },
+                                                            contentPadding = PaddingValues(start = 14.dp, end = 18.dp),
+                                                            colors = MenuDefaults.itemColors(
+                                                                textColor = MaterialTheme.colorScheme.onSurface,
+                                                                leadingIconColor = MaterialTheme.colorScheme.onSurfaceVariant
+                                                            ),
                                                             onClick = { beginInfoDialog(entry) }
                                                         )
                                                         DropdownMenuItem(
-                                                            text = { Text("Copy") },
+                                                            text = {
+                                                                Text(
+                                                                    text = "Copy",
+                                                                    style = MaterialTheme.typography.bodyLarge
+                                                                )
+                                                            },
                                                             leadingIcon = {
                                                                 Icon(
                                                                     imageVector = Icons.Default.ContentCopy,
-                                                                    contentDescription = null
+                                                                    contentDescription = null,
+                                                                    modifier = Modifier.size(22.dp)
                                                                 )
                                                             },
+                                                            contentPadding = PaddingValues(start = 14.dp, end = 18.dp),
+                                                            colors = MenuDefaults.itemColors(
+                                                                textColor = MaterialTheme.colorScheme.onSurface,
+                                                                leadingIconColor = MaterialTheme.colorScheme.onSurfaceVariant
+                                                            ),
                                                             onClick = {
                                                                 beginClipboardMode(NetworkClipboardMode.Copy, setOf(entry.id))
                                                             }
                                                         )
                                                         DropdownMenuItem(
-                                                            text = { Text("Move") },
+                                                            text = {
+                                                                Text(
+                                                                    text = "Move",
+                                                                    style = MaterialTheme.typography.bodyLarge
+                                                                )
+                                                            },
                                                             leadingIcon = {
                                                                 Icon(
                                                                     imageVector = Icons.AutoMirrored.Filled.DriveFileMove,
-                                                                    contentDescription = null
+                                                                    contentDescription = null,
+                                                                    modifier = Modifier.size(22.dp)
                                                                 )
                                                             },
+                                                            contentPadding = PaddingValues(start = 14.dp, end = 18.dp),
+                                                            colors = MenuDefaults.itemColors(
+                                                                textColor = MaterialTheme.colorScheme.onSurface,
+                                                                leadingIconColor = MaterialTheme.colorScheme.onSurfaceVariant
+                                                            ),
                                                             onClick = {
                                                                 beginClipboardMode(NetworkClipboardMode.Move, setOf(entry.id))
                                                             }
@@ -2175,7 +2363,7 @@ internal fun NetworkBrowserScreen(
                                                         DropdownMenuItem(
                                                             text = {
                                                                 Text(
-                                                                    if (
+                                                                    text = if (
                                                                         entry.type == NetworkNodeType.RemoteSource &&
                                                                         (
                                                                             isSmbFolderLikeSource(entry, resolveNetworkNodeSourceId(entry).orEmpty()) ||
@@ -2185,36 +2373,67 @@ internal fun NetworkBrowserScreen(
                                                                         "Pin folder to home"
                                                                     } else {
                                                                         "Pin file to home"
-                                                                    }
+                                                                    },
+                                                                    style = MaterialTheme.typography.bodyLarge
                                                                 )
                                                             },
                                                             leadingIcon = {
                                                                 Icon(
                                                                     imageVector = Icons.Default.Home,
-                                                                    contentDescription = null
+                                                                    contentDescription = null,
+                                                                    modifier = Modifier.size(22.dp)
                                                                 )
                                                             },
+                                                            contentPadding = PaddingValues(start = 14.dp, end = 18.dp),
+                                                            colors = MenuDefaults.itemColors(
+                                                                textColor = MaterialTheme.colorScheme.onSurface,
+                                                                leadingIconColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                                                                disabledTextColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.38f),
+                                                                disabledLeadingIconColor = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.38f)
+                                                            ),
                                                             enabled = entry.type == NetworkNodeType.RemoteSource,
                                                             onClick = { requestPin(entry) }
                                                         )
                                                         DropdownMenuItem(
-                                                            text = { Text("Delete") },
+                                                            text = {
+                                                                Text(
+                                                                    text = "Delete",
+                                                                    style = MaterialTheme.typography.bodyLarge
+                                                                )
+                                                            },
                                                             leadingIcon = {
                                                                 Icon(
                                                                     imageVector = Icons.Default.Delete,
-                                                                    contentDescription = null
+                                                                    contentDescription = null,
+                                                                    modifier = Modifier.size(22.dp)
                                                                 )
                                                             },
+                                                            contentPadding = PaddingValues(start = 14.dp, end = 18.dp),
+                                                            colors = MenuDefaults.itemColors(
+                                                                textColor = MaterialTheme.colorScheme.onSurface,
+                                                                leadingIconColor = MaterialTheme.colorScheme.onSurfaceVariant
+                                                            ),
                                                             onClick = { beginDeleteConfirmation(entry) }
                                                         )
                                                         DropdownMenuItem(
-                                                            text = { Text("Refresh") },
+                                                            text = {
+                                                                Text(
+                                                                    text = "Refresh",
+                                                                    style = MaterialTheme.typography.bodyLarge
+                                                                )
+                                                            },
                                                             leadingIcon = {
                                                                 Icon(
                                                                     imageVector = Icons.Default.Refresh,
-                                                                    contentDescription = null
+                                                                    contentDescription = null,
+                                                                    modifier = Modifier.size(22.dp)
                                                                 )
                                                             },
+                                                            contentPadding = PaddingValues(start = 14.dp, end = 18.dp),
+                                                            colors = MenuDefaults.itemColors(
+                                                                textColor = MaterialTheme.colorScheme.onSurface,
+                                                                leadingIconColor = MaterialTheme.colorScheme.onSurfaceVariant
+                                                            ),
                                                             onClick = { requestRefresh(entry) }
                                                         )
                                                     }

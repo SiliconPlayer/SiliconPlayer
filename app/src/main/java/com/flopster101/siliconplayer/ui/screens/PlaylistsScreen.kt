@@ -59,6 +59,7 @@ import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.ArrowDownward
 import androidx.compose.material.icons.filled.ArrowUpward
 import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.DragIndicator
 import androidx.compose.material.icons.filled.Edit
@@ -69,6 +70,7 @@ import androidx.compose.material.icons.filled.LibraryMusic
 import androidx.compose.material.icons.filled.MoreHoriz
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material.icons.filled.Share
 import androidx.compose.material.icons.filled.Shuffle
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.filled.SwapVert
@@ -84,6 +86,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LargeTopAppBar
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.MenuDefaults
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Tab
@@ -1974,7 +1977,26 @@ private fun PlaylistHeroCard(
                     onDismissRequest = { menuExpanded = false }
                 ) {
                     DropdownMenuItem(
-                        text = { Text("Delete playlist") },
+                        text = {
+                            Text(
+                                text = "Delete playlist",
+                                style = MaterialTheme.typography.bodyLarge
+                            )
+                        },
+                        leadingIcon = {
+                            Icon(
+                                imageVector = Icons.Default.Delete,
+                                contentDescription = null,
+                                modifier = Modifier.size(22.dp)
+                            )
+                        },
+                        contentPadding = PaddingValues(start = 14.dp, end = 18.dp),
+                        colors = MenuDefaults.itemColors(
+                            textColor = MaterialTheme.colorScheme.onSurface,
+                            leadingIconColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                            disabledTextColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.38f),
+                            disabledLeadingIconColor = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.38f)
+                        ),
                         enabled = canDeletePlaylist,
                         onClick = {
                             menuExpanded = false
@@ -1983,7 +2005,24 @@ private fun PlaylistHeroCard(
                     )
                     if (showDeleteAllEntriesAction) {
                         DropdownMenuItem(
-                            text = { Text("Delete all entries") },
+                            text = {
+                                Text(
+                                    text = "Delete all entries",
+                                    style = MaterialTheme.typography.bodyLarge
+                                )
+                            },
+                            leadingIcon = {
+                                Icon(
+                                    imageVector = Icons.Default.Delete,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(22.dp)
+                                )
+                            },
+                            contentPadding = PaddingValues(start = 14.dp, end = 18.dp),
+                            colors = MenuDefaults.itemColors(
+                                textColor = MaterialTheme.colorScheme.onSurface,
+                                leadingIconColor = MaterialTheme.colorScheme.onSurfaceVariant
+                            ),
                             onClick = {
                                 menuExpanded = false
                                 onDeleteAllEntries()
@@ -2044,15 +2083,26 @@ private fun PlaylistHeroCard(
                 ) {
                     PlaylistEntrySortMode.entries.forEach { mode ->
                         DropdownMenuItem(
-                            text = { Text(mode.label) },
-                            leadingIcon = {
-                                if (mode == selectedSortMode) {
+                            text = {
+                                Text(
+                                    text = mode.label,
+                                    style = MaterialTheme.typography.bodyLarge
+                                )
+                            },
+                            leadingIcon = if (mode == selectedSortMode) {
+                                {
                                     Icon(
                                         imageVector = Icons.Default.Check,
-                                        contentDescription = null
+                                        contentDescription = null,
+                                        modifier = Modifier.size(22.dp)
                                     )
                                 }
-                            },
+                            } else null,
+                            contentPadding = PaddingValues(start = 14.dp, end = 18.dp),
+                            colors = MenuDefaults.itemColors(
+                                textColor = MaterialTheme.colorScheme.onSurface,
+                                leadingIconColor = MaterialTheme.colorScheme.primary
+                            ),
                             onClick = {
                                 sortMenuExpanded = false
                                 onSortModeSelected(mode)
@@ -2717,7 +2767,24 @@ private fun PlaylistTrackRow(
                         onDismissRequest = { menuExpanded = false }
                     ) {
                         DropdownMenuItem(
-                            text = { Text("Play") },
+                            text = {
+                                Text(
+                                    text = "Play",
+                                    style = MaterialTheme.typography.bodyLarge
+                                )
+                            },
+                            leadingIcon = {
+                                Icon(
+                                    imageVector = Icons.Default.PlayArrow,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(22.dp)
+                                )
+                            },
+                            contentPadding = PaddingValues(start = 14.dp, end = 18.dp),
+                            colors = MenuDefaults.itemColors(
+                                textColor = MaterialTheme.colorScheme.onSurface,
+                                leadingIconColor = MaterialTheme.colorScheme.onSurfaceVariant
+                            ),
                             onClick = {
                                 menuExpanded = false
                                 onPlay()
@@ -2725,7 +2792,24 @@ private fun PlaylistTrackRow(
                         )
                         if (showPlayAsCachedAction && isRemoteSource) {
                             DropdownMenuItem(
-                                text = { Text("Play as cached") },
+                                text = {
+                                    Text(
+                                        text = "Play as cached",
+                                        style = MaterialTheme.typography.bodyLarge
+                                    )
+                                },
+                                leadingIcon = {
+                                    Icon(
+                                        imageVector = Icons.Default.PlayArrow,
+                                        contentDescription = null,
+                                        modifier = Modifier.size(22.dp)
+                                    )
+                                },
+                                contentPadding = PaddingValues(start = 14.dp, end = 18.dp),
+                                colors = MenuDefaults.itemColors(
+                                    textColor = MaterialTheme.colorScheme.onSurface,
+                                    leadingIconColor = MaterialTheme.colorScheme.onSurfaceVariant
+                                ),
                                 onClick = {
                                     menuExpanded = false
                                     onPlayAsCached()
@@ -2734,7 +2818,24 @@ private fun PlaylistTrackRow(
                         }
                         if (canDelete) {
                             DropdownMenuItem(
-                                text = { Text("Delete") },
+                                text = {
+                                    Text(
+                                        text = "Delete",
+                                        style = MaterialTheme.typography.bodyLarge
+                                    )
+                                },
+                                leadingIcon = {
+                                    Icon(
+                                        imageVector = Icons.Default.Delete,
+                                        contentDescription = null,
+                                        modifier = Modifier.size(22.dp)
+                                    )
+                                },
+                                contentPadding = PaddingValues(start = 14.dp, end = 18.dp),
+                                colors = MenuDefaults.itemColors(
+                                    textColor = MaterialTheme.colorScheme.onSurface,
+                                    leadingIconColor = MaterialTheme.colorScheme.onSurfaceVariant
+                                ),
                                 onClick = {
                                     menuExpanded = false
                                     onDelete()
@@ -2743,7 +2844,24 @@ private fun PlaylistTrackRow(
                         }
                         if (showLocationAction && canOpenLocalLocation) {
                             DropdownMenuItem(
-                                text = { Text("Open location") },
+                                text = {
+                                    Text(
+                                        text = "Open location",
+                                        style = MaterialTheme.typography.bodyLarge
+                                    )
+                                },
+                                leadingIcon = {
+                                    Icon(
+                                        imageVector = Icons.Default.FolderOpen,
+                                        contentDescription = null,
+                                        modifier = Modifier.size(22.dp)
+                                    )
+                                },
+                                contentPadding = PaddingValues(start = 14.dp, end = 18.dp),
+                                colors = MenuDefaults.itemColors(
+                                    textColor = MaterialTheme.colorScheme.onSurface,
+                                    leadingIconColor = MaterialTheme.colorScheme.onSurfaceVariant
+                                ),
                                 onClick = {
                                     menuExpanded = false
                                     onOpenLocation()
@@ -2752,7 +2870,24 @@ private fun PlaylistTrackRow(
                         }
                         if (showCopySourceAction && isRemoteSource) {
                             DropdownMenuItem(
-                                text = { Text("Copy URL") },
+                                text = {
+                                    Text(
+                                        text = "Copy URL",
+                                        style = MaterialTheme.typography.bodyLarge
+                                    )
+                                },
+                                leadingIcon = {
+                                    Icon(
+                                        imageVector = Icons.Default.ContentCopy,
+                                        contentDescription = null,
+                                        modifier = Modifier.size(22.dp)
+                                    )
+                                },
+                                contentPadding = PaddingValues(start = 14.dp, end = 18.dp),
+                                colors = MenuDefaults.itemColors(
+                                    textColor = MaterialTheme.colorScheme.onSurface,
+                                    leadingIconColor = MaterialTheme.colorScheme.onSurfaceVariant
+                                ),
                                 onClick = {
                                     menuExpanded = false
                                     onCopySource()
@@ -2760,7 +2895,24 @@ private fun PlaylistTrackRow(
                             )
                         } else if (showShareAction && canOpenLocalLocation) {
                             DropdownMenuItem(
-                                text = { Text("Share") },
+                                text = {
+                                    Text(
+                                        text = "Share",
+                                        style = MaterialTheme.typography.bodyLarge
+                                    )
+                                },
+                                leadingIcon = {
+                                    Icon(
+                                        imageVector = Icons.Default.Share,
+                                        contentDescription = null,
+                                        modifier = Modifier.size(22.dp)
+                                    )
+                                },
+                                contentPadding = PaddingValues(start = 14.dp, end = 18.dp),
+                                colors = MenuDefaults.itemColors(
+                                    textColor = MaterialTheme.colorScheme.onSurface,
+                                    leadingIconColor = MaterialTheme.colorScheme.onSurfaceVariant
+                                ),
                                 onClick = {
                                     menuExpanded = false
                                     onShare()
@@ -2769,7 +2921,24 @@ private fun PlaylistTrackRow(
                         }
                         if (showInfoAction) {
                             DropdownMenuItem(
-                                text = { Text("Info") },
+                                text = {
+                                    Text(
+                                        text = "Info",
+                                        style = MaterialTheme.typography.bodyLarge
+                                    )
+                                },
+                                leadingIcon = {
+                                    Icon(
+                                        imageVector = Icons.Default.Info,
+                                        contentDescription = null,
+                                        modifier = Modifier.size(22.dp)
+                                    )
+                                },
+                                contentPadding = PaddingValues(start = 14.dp, end = 18.dp),
+                                colors = MenuDefaults.itemColors(
+                                    textColor = MaterialTheme.colorScheme.onSurface,
+                                    leadingIconColor = MaterialTheme.colorScheme.onSurfaceVariant
+                                ),
                                 onClick = {
                                     menuExpanded = false
                                     onOpenInfo()
@@ -2777,7 +2946,26 @@ private fun PlaylistTrackRow(
                             )
                         }
                         DropdownMenuItem(
-                            text = { Text("Move up") },
+                            text = {
+                                Text(
+                                    text = "Move up",
+                                    style = MaterialTheme.typography.bodyLarge
+                                )
+                            },
+                            leadingIcon = {
+                                Icon(
+                                    imageVector = Icons.Default.ArrowUpward,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(22.dp)
+                                )
+                            },
+                            contentPadding = PaddingValues(start = 14.dp, end = 18.dp),
+                            colors = MenuDefaults.itemColors(
+                                textColor = MaterialTheme.colorScheme.onSurface,
+                                leadingIconColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                                disabledTextColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.38f),
+                                disabledLeadingIconColor = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.38f)
+                            ),
                             enabled = canReorder && canMoveUp,
                             onClick = {
                                 menuExpanded = false
@@ -2785,7 +2973,26 @@ private fun PlaylistTrackRow(
                             }
                         )
                         DropdownMenuItem(
-                            text = { Text("Move down") },
+                            text = {
+                                Text(
+                                    text = "Move down",
+                                    style = MaterialTheme.typography.bodyLarge
+                                )
+                            },
+                            leadingIcon = {
+                                Icon(
+                                    imageVector = Icons.Default.ArrowDownward,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(22.dp)
+                                )
+                            },
+                            contentPadding = PaddingValues(start = 14.dp, end = 18.dp),
+                            colors = MenuDefaults.itemColors(
+                                textColor = MaterialTheme.colorScheme.onSurface,
+                                leadingIconColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                                disabledTextColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.38f),
+                                disabledLeadingIconColor = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.38f)
+                            ),
                             enabled = canReorder && canMoveDown,
                             onClick = {
                                 menuExpanded = false

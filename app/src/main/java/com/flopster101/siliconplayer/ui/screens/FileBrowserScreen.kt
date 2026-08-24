@@ -1335,13 +1335,24 @@ internal fun FileBrowserScreen(
                                         onDismissRequest = { currentFolderMenuExpanded = false }
                                     ) {
                                         DropdownMenuItem(
-                                            text = { Text("Pin folder to home") },
+                                            text = {
+                                                Text(
+                                                    text = "Pin folder to home",
+                                                    style = MaterialTheme.typography.bodyLarge
+                                                )
+                                            },
                                             leadingIcon = {
                                                 Icon(
                                                     imageVector = Icons.Default.Home,
-                                                    contentDescription = null
+                                                    contentDescription = null,
+                                                    modifier = Modifier.size(22.dp)
                                                 )
                                             },
+                                            contentPadding = PaddingValues(start = 14.dp, end = 18.dp),
+                                            colors = MenuDefaults.itemColors(
+                                                textColor = MaterialTheme.colorScheme.onSurface,
+                                                leadingIconColor = MaterialTheme.colorScheme.onSurfaceVariant
+                                            ),
                                             onClick = {
                                                 val folderPath = resolveCurrentFolderPathForActions()
                                                 if (folderPath == null) {
@@ -1378,13 +1389,24 @@ internal fun FileBrowserScreen(
                                             }
                                         )
                                         DropdownMenuItem(
-                                            text = { Text("Copy path") },
+                                            text = {
+                                                Text(
+                                                    text = "Copy path",
+                                                    style = MaterialTheme.typography.bodyLarge
+                                                )
+                                            },
                                             leadingIcon = {
                                                 Icon(
                                                     imageVector = Icons.Default.ContentCopy,
-                                                    contentDescription = null
+                                                    contentDescription = null,
+                                                    modifier = Modifier.size(22.dp)
                                                 )
                                             },
+                                            contentPadding = PaddingValues(start = 14.dp, end = 18.dp),
+                                            colors = MenuDefaults.itemColors(
+                                                textColor = MaterialTheme.colorScheme.onSurface,
+                                                leadingIconColor = MaterialTheme.colorScheme.onSurfaceVariant
+                                            ),
                                             onClick = {
                                                 val folderPath = resolveCurrentFolderPathForActions()
                                                 if (folderPath != null) {
@@ -1396,13 +1418,24 @@ internal fun FileBrowserScreen(
                                             }
                                         )
                                         DropdownMenuItem(
-                                            text = { Text("Info") },
+                                            text = {
+                                                Text(
+                                                    text = "Info",
+                                                    style = MaterialTheme.typography.bodyLarge
+                                                )
+                                            },
                                             leadingIcon = {
                                                 Icon(
                                                     imageVector = Icons.Default.Info,
-                                                    contentDescription = null
+                                                    contentDescription = null,
+                                                    modifier = Modifier.size(22.dp)
                                                 )
                                             },
+                                            contentPadding = PaddingValues(start = 14.dp, end = 18.dp),
+                                            colors = MenuDefaults.itemColors(
+                                                textColor = MaterialTheme.colorScheme.onSurface,
+                                                leadingIconColor = MaterialTheme.colorScheme.onSurfaceVariant
+                                            ),
                                             onClick = {
                                                 showCurrentFolderInfoDialog()
                                                 currentFolderMenuExpanded = false
