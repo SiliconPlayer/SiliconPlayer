@@ -83,6 +83,13 @@ internal fun VisualizationModePickerDialog(
     onSelectMode: (VisualizationMode) -> Unit,
     onOpenSelectedVisualizationSettings: () -> Unit,
     onOpenVisualizationSettings: () -> Unit,
+    globalInputGain: Int = com.flopster101.siliconplayer.AppDefaults.Visualization.ChannelScope.gainPercent,
+    onGlobalInputGainChange: (Int) -> Unit = {},
+    trackInputGain: Int = 100,
+    onTrackInputGainChange: (Int) -> Unit = {},
+    showChannelLabels: Boolean = true,
+    onShowChannelLabelsChange: (Boolean) -> Unit = {},
+    onResetChannelScopeDefaults: () -> Unit = {},
     onDismiss: () -> Unit
 ) {
     if (isWatchDevice()) {
@@ -325,7 +332,14 @@ internal fun VisualizationModePickerDialog(
                         if (isChannelScope) {
                             isOptionsExpanded = !isOptionsExpanded
                         }
-                    }
+                    },
+                    globalInputGain = globalInputGain,
+                    onGlobalInputGainChange = onGlobalInputGainChange,
+                    trackInputGain = trackInputGain,
+                    onTrackInputGainChange = onTrackInputGainChange,
+                    showChannelLabels = showChannelLabels,
+                    onShowChannelLabelsChange = onShowChannelLabelsChange,
+                    onResetDefaults = onResetChannelScopeDefaults
                 )
 
                 // 4. Primary action button: Configure this visualizer (placed outside and below the dropdown)
@@ -449,12 +463,15 @@ private fun DynamicPerTrackOptionsDropdown(
     activeMode: VisualizationMode,
     isEnabled: Boolean,
     isExpanded: Boolean,
-    onToggleExpand: () -> Unit
+    onToggleExpand: () -> Unit,
+    globalInputGain: Int,
+    onGlobalInputGainChange: (Int) -> Unit,
+    trackInputGain: Int,
+    onTrackInputGainChange: (Int) -> Unit,
+    showChannelLabels: Boolean,
+    onShowChannelLabelsChange: (Boolean) -> Unit,
+    onResetDefaults: () -> Unit
 ) {
-    var globalInputGain by remember(activeMode) { mutableIntStateOf(100) }
-    var trackInputGain by remember(activeMode) { mutableIntStateOf(100) }
-    var showChannelLabels by remember(activeMode) { mutableStateOf(true) }
-
     val arrowRotation by animateFloatAsState(
         targetValue = if (isExpanded) 180f else 0f,
         animationSpec = tween(200),
@@ -531,11 +548,7 @@ private fun DynamicPerTrackOptionsDropdown(
                         horizontalArrangement = Arrangement.End
                     ) {
                         TextButton(
-                            onClick = {
-                                globalInputGain = 100
-                                trackInputGain = 100
-                                showChannelLabels = true
-                            },
+                            onClick = onResetDefaults,
                             contentPadding = PaddingValues(horizontal = 8.dp, vertical = 2.dp)
                         ) {
                             Icon(
@@ -551,24 +564,24 @@ private fun DynamicPerTrackOptionsDropdown(
                         }
                     }
 
-                    // 1. Global input gain (not yet functional)
+                    // 1. Global input gain
                     ConfigSteppedSlider(
                         title = "Global input gain",
                         value = globalInputGain,
-                        range = 25..300,
+                        range = com.flopster101.siliconplayer.AppDefaults.Visualization.ChannelScope.gainRangePercent,
                         step = 25,
                         unitLabel = "%",
-                        onValueChange = { globalInputGain = it }
+                        onValueChange = onGlobalInputGainChange
                     )
 
                     // 2. Track input gain (stored per track)
                     ConfigSteppedSlider(
                         title = "Track input gain",
                         value = trackInputGain,
-                        range = 25..300,
+                        range = com.flopster101.siliconplayer.AppDefaults.Visualization.ChannelScope.gainRangePercent,
                         step = 25,
                         unitLabel = "%",
-                        onValueChange = { trackInputGain = it }
+                        onValueChange = onTrackInputGainChange
                     )
 
                     // 3. Show channel labels (mirror of full settings toggle)
@@ -576,7 +589,7 @@ private fun DynamicPerTrackOptionsDropdown(
                         title = "Show channel labels",
                         subtitle = "Display track index, notes, and instruments",
                         checked = showChannelLabels,
-                        onCheckedChange = { showChannelLabels = it }
+                        onCheckedChange = onShowChannelLabelsChange
                     )
                 }
             }
@@ -632,10 +645,12 @@ private fun ConfigSteppedSlider(
             }
 
             Slider(
-                value = value.toFloat(),
-                onValueChange = { onValueChange(it.toInt()) },
+                value = value.toFloat().coerceIn(range.first.toFloat(), range.last.toFloat()),
+                onValueChange = { floatVal ->
+                    val rounded = (Math.round(floatVal / 5.0) * 5).toInt().coerceIn(range)
+                    onValueChange(rounded)
+                },
                 valueRange = range.first.toFloat()..range.last.toFloat(),
-                steps = ((range.last - range.first) / step).coerceAtLeast(1) - 1,
                 modifier = Modifier.weight(1f),
                 colors = SliderDefaults.colors(
                     thumbColor = MaterialTheme.colorScheme.primary,

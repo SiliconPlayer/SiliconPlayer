@@ -1082,7 +1082,10 @@ internal fun VisualizationAdvancedChannelScopeRouteContent() {
                                 currentValue = scopeGainPercent,
                                 onDismiss = { showGainDialog = false },
                                 onConfirm = { value ->
-                                    val clamped = value.coerceIn(25, 600)
+                                    val clamped = value.coerceIn(
+                                        AppDefaults.Visualization.ChannelScope.gainRangePercent.first,
+                                        AppDefaults.Visualization.ChannelScope.gainRangePercent.last
+                                    )
                                     scopeGainPercent = clamped
                                     prefs.edit().putInt(scopeGainPercentKey, clamped).apply()
                                     showGainDialog = false

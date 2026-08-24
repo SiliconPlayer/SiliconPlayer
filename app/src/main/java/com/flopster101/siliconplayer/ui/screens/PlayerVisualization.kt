@@ -1027,7 +1027,7 @@ private fun normalizeChannelScopeChannel(
     gainPercent: Int
 ): FloatArray {
     val centered = FloatArray(points)
-    val fixedGain = (gainPercent.coerceIn(25, 600).toFloat() / 100f)
+    val fixedGain = (gainPercent.coerceIn(1, 10000).toFloat() / 100f)
     if (!dcRemovalEnabled) {
         for (i in 0 until points) {
             val sample = flatScopes[start + i].coerceIn(-1f, 1f)

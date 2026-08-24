@@ -753,6 +753,19 @@ internal fun PlayerScreen(
         defaultVuRenderBackend = visualizationVuRenderBackend
     )
     val channelScopePrefs = rememberChannelScopePrefs(prefs)
+    val trackGainPrefs = remember {
+        context.getSharedPreferences("silicon_player_channel_scope_track_gains", Context.MODE_PRIVATE)
+    }
+    val currentTrackKey = file?.absolutePath ?: playlistPathOrUrl.orEmpty()
+    var trackInputGain by remember(currentTrackKey) {
+        mutableIntStateOf(
+            if (currentTrackKey.isNotEmpty()) trackGainPrefs.getInt(currentTrackKey, 100) else 100
+        )
+    }
+    val effectiveChannelScopeGainPercent = ((channelScopePrefs.gainPercent * trackInputGain) / 100).coerceIn(1, 10000)
+    val effectiveChannelScopePrefs = remember(channelScopePrefs, effectiveChannelScopeGainPercent) {
+        channelScopePrefs.copy(gainPercent = effectiveChannelScopeGainPercent)
+    }
     val configuration = LocalConfiguration.current
     val density = LocalDensity.current
     val isLandscape = configuration.screenWidthDp > configuration.screenHeightDp
@@ -1122,7 +1135,7 @@ internal fun PlayerScreen(
                     visualizationOscStereo = visualizationOscStereo,
                     visualizationVuAnchor = visualizationVuAnchor,
                     visualizationVuUseThemeColor = visualizationVuUseThemeColor,
-                    channelScopePrefs = channelScopePrefs,
+                    channelScopePrefs = effectiveChannelScopePrefs,
                     artworkCornerRadiusDp = artworkCornerRadiusDp,
                     availableVisualizationModes = availableVisualizationModes,
                     onSelectVisualizationMode = onSelectVisualizationMode,
@@ -1216,7 +1229,7 @@ internal fun PlayerScreen(
                                 vuCustomColorArgb = visualizationPrefsState.vuCustomColorArgb,
                                 vuContrastBackdropEnabled = visualizationPrefsState.vuContrastBackdropEnabled,
                                 barContrastBackdropEnabled = visualizationPrefsState.barContrastBackdropEnabled,
-                                channelScopePrefs = channelScopePrefs,
+                                channelScopePrefs = effectiveChannelScopePrefs,
                                 artworkCornerRadiusDp = artworkCornerRadiusDp,
                                 onSwipePreviousTrack = onForcePreviousTrack,
                                 onSwipeNextTrack = onNextTrack,
@@ -1560,7 +1573,7 @@ internal fun PlayerScreen(
                                         vuCustomColorArgb = visualizationPrefsState.vuCustomColorArgb,
                                         vuContrastBackdropEnabled = visualizationPrefsState.vuContrastBackdropEnabled,
                                         barContrastBackdropEnabled = visualizationPrefsState.barContrastBackdropEnabled,
-                                        channelScopePrefs = channelScopePrefs,
+                                        channelScopePrefs = effectiveChannelScopePrefs,
                                         artworkCornerRadiusDp = artworkCornerRadiusDp,
                                         onSwipePreviousTrack = onForcePreviousTrack,
                                         onSwipeNextTrack = onNextTrack,
@@ -1742,6 +1755,39 @@ internal fun PlayerScreen(
             onSelectMode = onSelectVisualizationMode,
             onOpenSelectedVisualizationSettings = onOpenSelectedVisualizationSettings,
             onOpenVisualizationSettings = onOpenVisualizationSettings,
+            globalInputGain = channelScopePrefs.gainPercent,
+            onGlobalInputGainChange = { newGain ->
+                prefs.edit().putInt("visualization_channel_scope_gain_percent", newGain).apply()
+            },
+            trackInputGain = trackInputGain,
+            onTrackInputGainChange = { newTrackGain ->
+                trackInputGain = newTrackGain
+                if (currentTrackKey.isNotEmpty()) {
+                    if (newTrackGain == 100) {
+                        trackGainPrefs.edit().remove(currentTrackKey).apply()
+                    } else {
+                        trackGainPrefs.edit().putInt(currentTrackKey, newTrackGain).apply()
+                    }
+                }
+            },
+            showChannelLabels = channelScopePrefs.textEnabled,
+            onShowChannelLabelsChange = { enabled ->
+                prefs.edit().putBoolean("visualization_channel_scope_text_enabled", enabled).apply()
+            },
+            onResetChannelScopeDefaults = {
+                prefs.edit()
+                    .putInt(
+                        "visualization_channel_scope_gain_percent",
+                        com.flopster101.siliconplayer.AppDefaults.Visualization.ChannelScope.gainPercent
+                    )
+                    .putBoolean(
+                        "visualization_channel_scope_text_enabled",
+                        com.flopster101.siliconplayer.AppDefaults.Visualization.ChannelScope.textEnabled
+                    )
+                    .apply()
+                trackGainPrefs.edit().clear().apply()
+                trackInputGain = 100
+            },
             onDismiss = { showVisualizationPickerDialog = false }
         )
     }

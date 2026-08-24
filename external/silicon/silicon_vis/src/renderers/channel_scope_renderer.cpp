@@ -67,7 +67,7 @@ void ChannelScopeRenderer::setOptions(
     shadowEnabled_ = shadowEnabled;
     hideWhenOverflow_ = hideWhenOverflow;
     windowMs_ = std::clamp(windowMs, 5, 100);
-    gainPercent_ = std::clamp(gainPercent, 10, 500);
+    gainPercent_ = std::clamp(gainPercent, 1, 10000);
     dcRemovalEnabled_ = dcRemovalEnabled;
     triggerMode_ = triggerMode;
 }
