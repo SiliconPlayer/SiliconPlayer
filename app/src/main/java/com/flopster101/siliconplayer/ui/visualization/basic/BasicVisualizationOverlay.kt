@@ -281,6 +281,7 @@ fun BasicVisualizationOverlay(
                         val barContrastMode = if (barContrastBackdropEnabled) 1 else 0
                         val nativeFrame = baseNativeFrame.copy(
                             mode = 1,
+                            surfaceColorArgb = if (barOverlayArtwork) surfaceVariantColor.toArgb() else barBackgroundColor.toArgb(),
                             fft = bars,
                             barCount = barCount,
                             barStartColorArgb = barColor.toArgb(),
@@ -471,6 +472,7 @@ fun BasicVisualizationOverlay(
 
                         val nativeFrame = baseNativeFrame.copy(
                             mode = 4,
+                            surfaceColorArgb = channelScopeBackgroundColorArgb,
                             channelHistories = channelScopeHistories,
                             channelScopeFlatData = flatBuffer,
                             channelScopeSamplesPerChannel = samplesPerCh,

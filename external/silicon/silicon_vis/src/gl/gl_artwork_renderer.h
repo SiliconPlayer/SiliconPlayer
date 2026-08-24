@@ -26,6 +26,7 @@ public:
     void draw(float surfaceWidth, float surfaceHeight, float density);
 
 private:
+    void drawSolidBackground(uint32_t colorArgb);
     void drawArtworkOrFallback(float surfaceWidth, float surfaceHeight, float density);
     void drawContrastBackdrop(float surfaceWidth, float surfaceHeight);
 

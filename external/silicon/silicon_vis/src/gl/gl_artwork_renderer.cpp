@@ -248,17 +248,26 @@ void GlArtworkRenderer::ensureIconTexture() {
     }
 }
 
+void GlArtworkRenderer::drawSolidBackground(uint32_t colorArgb) {
+    Color4f c = argbToColor4f(colorArgb);
+    glClearColor(c.r, c.g, c.b, 1.0f);
+    glClear(GL_COLOR_BUFFER_BIT);
+}
+
 void GlArtworkRenderer::draw(float surfaceWidth, float surfaceHeight, float density) {
-    if (showArtworkBackground_) {
-        ensureArtworkTexture();
-        ensureIconTexture();
-        drawArtworkOrFallback(surfaceWidth, surfaceHeight, density);
+    if (!showArtworkBackground_) {
+        drawSolidBackground(surfaceColorArgb_);
+        return;
     }
+    ensureArtworkTexture();
+    ensureIconTexture();
+    drawArtworkOrFallback(surfaceWidth, surfaceHeight, density);
     drawContrastBackdrop(surfaceWidth, surfaceHeight);
 }
 
 void GlArtworkRenderer::drawArtworkOrFallback(float surfaceWidth, float surfaceHeight, float density) {
     if (artworkTextureId_ != 0 && artworkWidth_ > 0 && artworkHeight_ > 0) {
+        drawSolidBackground(surfaceColorArgb_);
         // Draw real artwork textured quad (Aspect Fill / Fit)
         glEnable(GL_BLEND);
         glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
