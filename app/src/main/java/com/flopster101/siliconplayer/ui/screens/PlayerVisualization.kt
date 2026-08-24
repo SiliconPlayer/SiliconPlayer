@@ -1002,7 +1002,7 @@ private fun createVisualizationUpdateDispatcher(): ExecutorCoroutineDispatcher {
         Thread(
             {
                 runCatching {
-                    Process.setThreadPriority(Process.THREAD_PRIORITY_DISPLAY)
+                    Process.setThreadPriority(Process.THREAD_PRIORITY_URGENT_DISPLAY)
                 }
                 runnable.run()
             },
