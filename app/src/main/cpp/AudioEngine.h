@@ -14,10 +14,11 @@
 #include <chrono>
 #include "decoders/AudioDecoder.h"
 #include "effects/openmpt_dsp/OpenMptDspEffects.h"
+#include "silicon/vis/IVisualizationAudioProvider.h"
 
 struct SwrContext;
 
-class AudioEngine {
+class AudioEngine : public silicon::vis::IVisualizationAudioProvider {
 public:
     AudioEngine();
     ~AudioEngine();
@@ -62,7 +63,7 @@ public:
     int getSampleRate();
     bool hasNativeSampleRate();
     int getDisplayChannelCount();
-    int getChannelCount();
+    int getChannelCount() override;
     int getBitDepth();
     std::string getBitDepthLabel();
     std::string getCurrentDecoderName();
@@ -252,6 +253,26 @@ public:
     std::vector<float> getVisualizationBars() const;
     std::vector<float> getVisualizationVuLevels() const;
     int getVisualizationChannelCount() const;
+
+    // IVisualizationAudioProvider implementation
+    void getWaveformScope(int channelIndex, int windowMs, int triggerMode, std::vector<float>& out) override {
+        out = getVisualizationWaveformScope(channelIndex, windowMs, triggerMode);
+    }
+    void getFftBars(std::vector<float>& out) override {
+        out = getVisualizationBars();
+    }
+    void getVuLevels(float& left, float& right) override {
+        std::vector<float> vu = getVisualizationVuLevels();
+        left = vu.size() > 0 ? vu[0] : 0.0f;
+        right = vu.size() > 1 ? vu[1] : left;
+    }
+    void getChannelScopeHistories(int samplesPerChannel, int presentationDelayFrames, std::vector<float>& flatOut, int& channelCount) override {
+        flatOut = getChannelScopeSamples(samplesPerChannel);
+        channelCount = samplesPerChannel > 0 ? static_cast<int>(flatOut.size() / samplesPerChannel) : 0;
+    }
+    void getChannelScopeTextStates(int maxChannels, std::vector<int32_t>& flatOut) override {
+        flatOut = getChannelScopeTextState(maxChannels);
+    }
     float getMasterGain() const;
     float getPluginGain() const;
     float getSongGain() const;

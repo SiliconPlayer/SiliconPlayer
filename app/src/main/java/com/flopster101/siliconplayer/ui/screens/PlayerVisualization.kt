@@ -3,6 +3,7 @@ package com.flopster101.siliconplayer.ui.screens
 import com.flopster101.siliconplayer.VisualizationPerformanceMode
 import com.flopster101.siliconplayer.resolveEffectiveVisualizationPerformanceMode
 import android.content.Context
+import android.os.Build
 import android.os.Process
 import android.hardware.display.DisplayManager
 import androidx.compose.animation.Crossfade
@@ -990,12 +991,13 @@ private fun sleepUntilTickNs(targetTickNs: Long) {
     while (true) {
         val remainingNs = targetTickNs - System.nanoTime()
         if (remainingNs <= 0L) return
-        if (remainingNs >= 2_000_000L) {
-            LockSupport.parkNanos(remainingNs - 1_500_000L)
-        } else if (remainingNs >= 100_000L) {
-            Thread.yield()
+        if (remainingNs >= 500_000L) {
+            LockSupport.parkNanos(remainingNs - 250_000L)
+        } else if (remainingNs >= 50_000L) {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                Thread.onSpinWait()
+            }
         }
-        // Sub-100us spin-wait ensures microsecond-accurate VSYNC alignment without timer oversleep
     }
 }
 
@@ -1082,7 +1084,7 @@ private fun buildChannelScopeHistories(
     return histories
 }
 
-private fun parseChannelScopeTextStates(
+internal fun parseChannelScopeTextStates(
     flat: IntArray
 ): List<ChannelScopeChannelTextState> {
     val stride = NativeBridge.CHANNEL_SCOPE_TEXT_STATE_STRIDE
@@ -2106,11 +2108,19 @@ internal fun AlbumArtPlaceholder(
             var localChannelScopeLastTextPollNs = 0L
             var localBarsSmoothed = FloatArray(0)
             var localVuSmoothed = FloatArray(0)
+            var localChannelScopeFlatBuffer = FloatArray(0)
             var localChannelScopeTextRawCache = IntArray(0)
             var localChannelScopeTextStates = emptyList<ChannelScopeChannelTextState>()
             val localChannelScopeTriggerStates = mutableListOf<ChannelScopeTriggerState>()
             while (true) {
                 coroutineContext.ensureActive()
+                if (isGlBackendActive) {
+                    val nowNs = System.nanoTime()
+                    nextFrameTickNs = nowNs + 100_000_000L
+                    lastPollIntervalNs = 100_000_000L
+                    sleepUntilTickNs(nextFrameTickNs)
+                    continue
+                }
                 if (visualizationMode == VisualizationMode.ChannelScope && !isPlaying) {
                     val nowNs = System.nanoTime()
                     nextFrameTickNs = nowNs + 90_000_000L
@@ -2158,14 +2168,12 @@ internal fun AlbumArtPlaceholder(
                             localBarsSmoothed
                         } else {
                             val smoothing = (visualizationBarSmoothingPercent.coerceIn(0, 95) / 100f)
-                            val mixed = FloatArray(rawBars.size)
                             for (i in rawBars.indices) {
                                 val target = rawBars[i].coerceIn(0f, 1f)
                                 val current = localBarsSmoothed[i].coerceIn(0f, 1f)
-                                mixed[i] = (current * smoothing) + (target * (1f - smoothing))
+                                localBarsSmoothed[i] = (current * smoothing) + (target * (1f - smoothing))
                             }
-                            localBarsSmoothed = mixed
-                            mixed
+                            localBarsSmoothed
                         }
                     }
                 }
@@ -2177,14 +2185,12 @@ internal fun AlbumArtPlaceholder(
                             localVuSmoothed
                         } else {
                             val smoothing = (visualizationVuSmoothingPercent.coerceIn(0, 95) / 100f)
-                            val mixed = FloatArray(rawVu.size)
                             for (i in rawVu.indices) {
                                 val target = rawVu[i].coerceIn(0f, 1f)
                                 val current = localVuSmoothed[i].coerceIn(0f, 1f)
-                                mixed[i] = (current * smoothing) + (target * (1f - smoothing))
+                                localVuSmoothed[i] = (current * smoothing) + (target * (1f - smoothing))
                             }
-                            localVuSmoothed = mixed
-                            mixed
+                            localVuSmoothed
                         }
                     }
                 }
@@ -2200,12 +2206,15 @@ internal fun AlbumArtPlaceholder(
                 val chCount = chHistories?.size ?: 0
                 val samplesPerCh = if (chCount > 0) chHistories!![0].size else 0
                 val flatBuffer = if (chCount > 0 && samplesPerCh > 0) {
-                    FloatArray(chCount * samplesPerCh).also { flat ->
-                        for (ch in 0 until chCount) {
-                            val src = chHistories!![ch]
-                            System.arraycopy(src, 0, flat, ch * samplesPerCh, samplesPerCh.coerceAtMost(src.size))
-                        }
+                    val neededSize = chCount * samplesPerCh
+                    if (localChannelScopeFlatBuffer.size != neededSize) {
+                        localChannelScopeFlatBuffer = FloatArray(neededSize)
                     }
+                    for (ch in 0 until chCount) {
+                        val src = chHistories!![ch]
+                        System.arraycopy(src, 0, localChannelScopeFlatBuffer, ch * samplesPerCh, samplesPerCh.coerceAtMost(src.size))
+                    }
+                    localChannelScopeFlatBuffer
                 } else null
 
                 com.flopster101.siliconplayer.ui.visualization.gl.SiliconNativeGlDataSink.pushDynamicData(
@@ -2641,12 +2650,15 @@ internal fun AlbumArtPlaceholder(
                     barFrequencyGridEnabled = barFrequencyGridEnabled,
                     barSampleRateHz = sampleRateHz,
                     barRenderBackend = barRenderBackend,
+                    barSmoothingPercent = visualizationBarSmoothingPercent,
                     barColorModeNoArtwork = barColorModeNoArtwork,
                     barColorModeWithArtwork = barColorModeWithArtwork,
                     barCustomColorArgb = barCustomColorArgb,
                     barContrastBackdropEnabled = barContrastBackdropEnabled,
                     oscStereo = oscStereo,
                     oscRenderBackend = visualizationOscRenderBackend,
+                    oscWindowMs = visualizationOscWindowMs,
+                    oscTriggerMode = visualizationOscTriggerModeNative,
                     artwork = artwork,
                     oscLineWidthDp = oscLineWidthDp,
                     oscGridWidthDp = oscGridWidthDp,
@@ -2662,6 +2674,7 @@ internal fun AlbumArtPlaceholder(
                     vuAnchor = vuAnchor,
                     vuUseThemeColor = vuUseThemeColor,
                     vuRenderBackend = vuRenderBackend,
+                    vuSmoothingPercent = visualizationVuSmoothingPercent,
                     vuContrastBackdropEnabled = vuContrastBackdropEnabled,
                     vuColorModeNoArtwork = vuColorModeNoArtwork,
                     vuColorModeWithArtwork = vuColorModeWithArtwork,
@@ -2671,44 +2684,72 @@ internal fun AlbumArtPlaceholder(
                     channelScopeInstrumentNamesByIndex = channelScopeState.instrumentNamesByIndex,
                     channelScopeSampleNamesByIndex = channelScopeState.sampleNamesByIndex,
                     channelScopeChipNamesByChannelIndex = channelScopeState.chipNamesByChannelIndex,
-                    channelScopeTriggerModeNative = channelScopeState.triggerModeNative,
+                    channelScopeTriggerModeNative = channelScopePrefs.triggerModeNative,
                     channelScopeTriggerIndices = channelScopeState.triggerIndices,
-                    channelScopeRenderBackend = channelScopeState.renderBackend,
-                    channelScopeLineWidthDp = channelScopeState.lineWidthDp,
-                    channelScopeGridWidthDp = channelScopeState.gridWidthDp,
-                    channelScopeVerticalGridEnabled = channelScopeState.verticalGridEnabled,
-                    channelScopeCenterLineEnabled = channelScopeState.centerLineEnabled,
+                    channelScopeWindowMs = channelScopePrefs.windowMs,
+                    channelScopeGainPercent = channelScopePrefs.gainPercent,
+                    channelScopeDcRemovalEnabled = channelScopePrefs.dcRemovalEnabled,
+                    channelScopeRenderBackend = channelScopePrefs.renderBackend,
+                    channelScopeLineWidthDp = channelScopePrefs.lineWidthDp,
+                    channelScopeGridWidthDp = channelScopePrefs.gridWidthDp,
+                    channelScopeVerticalGridEnabled = channelScopePrefs.verticalGridEnabled,
+                    channelScopeCenterLineEnabled = channelScopePrefs.centerLineEnabled,
                     channelScopeContrastBackdropEnabled = channelScopePrefs.contrastBackdropEnabled,
-                    channelScopeLayout = channelScopeState.layout,
-                    channelScopeLineColorModeNoArtwork = channelScopeState.lineColorModeNoArtwork,
-                    channelScopeGridColorModeNoArtwork = channelScopeState.gridColorModeNoArtwork,
-                    channelScopeLineColorModeWithArtwork = channelScopeState.lineColorModeWithArtwork,
-                    channelScopeGridColorModeWithArtwork = channelScopeState.gridColorModeWithArtwork,
-                    channelScopeCustomLineColorArgb = channelScopeState.customLineColorArgb,
-                    channelScopeCustomGridColorArgb = channelScopeState.customGridColorArgb,
+                    channelScopeLayout = channelScopePrefs.layout,
+                    channelScopeLineColorModeNoArtwork = channelScopePrefs.lineColorModeNoArtwork,
+                    channelScopeGridColorModeNoArtwork = channelScopePrefs.gridColorModeNoArtwork,
+                    channelScopeLineColorModeWithArtwork = channelScopePrefs.lineColorModeWithArtwork,
+                    channelScopeGridColorModeWithArtwork = channelScopePrefs.gridColorModeWithArtwork,
+                    channelScopeCustomLineColorArgb = channelScopePrefs.customLineColorArgb,
+                    channelScopeCustomGridColorArgb = channelScopePrefs.customGridColorArgb,
                     channelScopeBackgroundColorArgb = scopeBackgroundColor.toArgb(),
-                    channelScopeTextEnabled = channelScopeState.textEnabled,
-                    channelScopeTextAnchor = channelScopeState.textAnchor,
-                    channelScopeTextPaddingDp = channelScopeState.textPaddingDp,
-                    channelScopeTextSizeSp = channelScopeState.textSizeSp,
-                    channelScopeTextHideWhenOverflow = channelScopeState.textHideWhenOverflow,
-                    channelScopeTextShadowEnabled = channelScopeState.textShadowEnabled,
-                    channelScopeTextFont = channelScopeState.textFont,
-                    channelScopeTextColorMode = channelScopeState.textColorMode,
-                    channelScopeCustomTextColorArgb = channelScopeState.customTextColorArgb,
-                    channelScopeTextNoteFormat = channelScopeState.textNoteFormat,
-                    channelScopeTextShowChannel = channelScopeState.textShowChannel,
-                    channelScopeTextShowNote = channelScopeState.textShowNote,
-                    channelScopeTextShowVolume = channelScopeState.textShowVolume,
-                    channelScopeTextShowEffectPrimary = channelScopeState.textShowEffectPrimary,
-                    channelScopeTextShowEffectSecondary = channelScopeState.textShowEffectSecondary,
-                    channelScopeTextShowChip = channelScopeState.textShowChip,
-                    channelScopeTextShowInstrument = channelScopeState.textShowInstrument,
-                    channelScopeTextShowSample = channelScopeState.textShowSample,
-                    channelScopeTextVuEnabled = channelScopeState.textVuEnabled,
-                    channelScopeTextVuAnchor = channelScopeState.textVuAnchor,
-                    channelScopeTextVuColorMode = channelScopeState.textVuColorMode,
-                    channelScopeTextVuCustomColorArgb = channelScopeState.textVuCustomColorArgb,
+                    channelScopeTextEnabled = channelScopePrefs.textEnabled,
+                    channelScopeTextAnchor = channelScopePrefs.textAnchor,
+                    channelScopeTextPaddingDp = channelScopePrefs.textPaddingDp,
+                    channelScopeTextSizeSp = channelScopePrefs.textSizeSp,
+                    channelScopeTextHideWhenOverflow = channelScopePrefs.textHideWhenOverflow,
+                    channelScopeTextShadowEnabled = channelScopePrefs.textShadowEnabled,
+                    channelScopeTextFont = channelScopePrefs.textFont,
+                    channelScopeTextColorMode = channelScopePrefs.textColorMode,
+                    channelScopeCustomTextColorArgb = channelScopePrefs.customTextColorArgb,
+                    channelScopeTextNoteFormat = channelScopePrefs.textNoteFormat,
+                    channelScopeTextShowChannel = channelScopePrefs.textShowChannel,
+                    channelScopeTextShowNote = channelScopePrefs.textShowNote &&
+                        supportsChannelScopeNoteText(decoderName),
+                    channelScopeTextShowVolume = isChannelScopeVisibleElementEnabled(
+                        selectedStorageKeys = channelScopePrefs.textVisibleElementSelection,
+                        decoderName = decoderName,
+                        elementId = ChannelScopeVisibleElementId.Volume
+                    ),
+                    channelScopeTextShowEffectPrimary = isChannelScopeVisibleElementEnabled(
+                        selectedStorageKeys = channelScopePrefs.textVisibleElementSelection,
+                        decoderName = decoderName,
+                        elementId = ChannelScopeVisibleElementId.EffectPrimary
+                    ),
+                    channelScopeTextShowEffectSecondary = isChannelScopeVisibleElementEnabled(
+                        selectedStorageKeys = channelScopePrefs.textVisibleElementSelection,
+                        decoderName = decoderName,
+                        elementId = ChannelScopeVisibleElementId.EffectSecondary
+                    ),
+                    channelScopeTextShowChip = isChannelScopeVisibleElementEnabled(
+                        selectedStorageKeys = channelScopePrefs.textVisibleElementSelection,
+                        decoderName = decoderName,
+                        elementId = ChannelScopeVisibleElementId.Chip
+                    ),
+                    channelScopeTextShowInstrument = isChannelScopeVisibleElementEnabled(
+                        selectedStorageKeys = channelScopePrefs.textVisibleElementSelection,
+                        decoderName = decoderName,
+                        elementId = ChannelScopeVisibleElementId.Instrument
+                    ),
+                    channelScopeTextShowSample = isChannelScopeVisibleElementEnabled(
+                        selectedStorageKeys = channelScopePrefs.textVisibleElementSelection,
+                        decoderName = decoderName,
+                        elementId = ChannelScopeVisibleElementId.Sample
+                    ),
+                    channelScopeTextVuEnabled = channelScopePrefs.textVuEnabled,
+                    channelScopeTextVuAnchor = channelScopePrefs.textVuAnchor,
+                    channelScopeTextVuColorMode = channelScopePrefs.textVuColorMode,
+                    channelScopeTextVuCustomColorArgb = channelScopePrefs.textVuCustomColorArgb,
                     channelScopeCornerRadiusDp = artworkCornerRadiusDp.coerceIn(0, 48),
                     placeholderIcon = effectivePlaceholderIcon,
                     placeholderIconResId = placeholderArtworkDrawableResIdForFile(file, decoderName),

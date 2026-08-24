@@ -66,12 +66,18 @@ object SiliconVisNativeBridge {
         instArgb: Int,
         sepArgb: Int,
         shadowEnabled: Boolean,
-        hideWhenOverflow: Boolean
+        hideWhenOverflow: Boolean,
+        windowMs: Int,
+        gainPercent: Int,
+        dcRemovalEnabled: Boolean,
+        triggerMode: Int
     )
 
     external fun nativeSetOscilloscopeOptions(
         handle: Long,
         stereo: Boolean,
+        windowMs: Int,
+        triggerMode: Int,
         waveColorArgb: Int,
         lineWidthPx: Float,
         gridColorArgb: Int,
@@ -83,6 +89,7 @@ object SiliconVisNativeBridge {
     external fun nativeSetBarsOptions(
         handle: Long,
         barCount: Int,
+        smoothing: Float,
         startColorArgb: Int,
         endColorArgb: Int,
         cornerRadiusPx: Float,
@@ -94,6 +101,7 @@ object SiliconVisNativeBridge {
         handle: Long,
         stereo: Boolean,
         topPlacement: Boolean,
+        smoothing: Float,
         fillColorArgb: Int,
         trackColorArgb: Int,
         labelColorArgb: Int

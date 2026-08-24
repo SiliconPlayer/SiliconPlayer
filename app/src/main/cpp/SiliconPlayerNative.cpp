@@ -5,14 +5,19 @@
 #include "AudioEngine.h"
 #include "ChannelScopeTrigger.h"
 #include "decoders/DecoderRegistry.h"
+#include "silicon/vis/vis_api.h"
 #include <algorithm>
 #include <vector>
 #include <string_view>
 #include <thread>
-
 #include <mutex>
 static AudioEngine *audioEngine = nullptr;
 static std::mutex engineMutex;
+
+AudioEngine* getGlobalAudioEngine() {
+    std::lock_guard<std::mutex> lock(engineMutex);
+    return audioEngine;
+}
 static ChannelScopeTrigger channelScopeTrigger;
 static jstring toJString(JNIEnv* env, std::string_view value);
 static JavaVM* gJavaVm = nullptr;
@@ -2293,6 +2298,15 @@ Java_com_flopster101_siliconplayer_NativeBridge_getVisualizationChannelCount(JNI
         return 2;
     }
     return static_cast<jint>(audioEngine->getVisualizationChannelCount());
+}
+
+extern "C" JNIEXPORT void JNICALL
+Java_com_flopster101_siliconplayer_NativeBridge_attachAudioEngineToVisualizer(
+        JNIEnv*, jobject, jlong visHandle) {
+    if (!visHandle) return;
+    std::lock_guard<std::mutex> lock(engineMutex);
+    if (!audioEngine) return;
+    silicon_vis_set_audio_provider(reinterpret_cast<SiliconVisHandle>(visHandle), audioEngine);
 }
 
 extern "C" JNIEXPORT void JNICALL

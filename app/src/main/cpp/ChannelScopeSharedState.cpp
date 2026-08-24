@@ -22,23 +22,16 @@ std::vector<float> ChannelScopeSharedState::getProcessedSamples(
         int samplesPerChannel,
         int presentationDelayFrames
 ) {
-    std::vector<float> localRaw;
-    std::vector<float> localVu;
-    int localChannels = 0;
-    uint64_t localSerial = 0;
-    {
-        std::lock_guard<std::mutex> lock(mutex);
-        if (snapshotChannels <= 0 || snapshotRaw.empty()) {
-            return {};
-        }
-        localChannels = snapshotChannels;
-        localSerial = snapshotSerial;
-        localRaw = snapshotRaw;
-        localVu = snapshotVu;
+    std::lock_guard<std::mutex> lock(mutex);
+    if (snapshotChannels <= 0 || snapshotRaw.empty()) {
+        return {};
     }
+    const int totalChannels = snapshotChannels;
+    const uint64_t localSerial = snapshotSerial;
+    const auto& localRaw = snapshotRaw;
+    const auto& localVu = snapshotVu;
 
     const int clampedSamples = std::clamp(samplesPerChannel, 16, kMaxSamples);
-    const int totalChannels = localChannels;
     const int fullSamplesPerChannel = kMaxSamples;
     const size_t processedFullSize = static_cast<size_t>(totalChannels * fullSamplesPerChannel);
     const size_t flattenedSize = static_cast<size_t>(totalChannels * clampedSamples);
@@ -65,12 +58,15 @@ std::vector<float> ChannelScopeSharedState::getProcessedSamples(
             const size_t channelOffset = static_cast<size_t>(channel) * fullSamplesPerChannel;
             float* rawDestination = raw.data() + channelOffset;
             const size_t snapshotOffset = static_cast<size_t>(channel) * kMaxSamples;
-            const int copyLen = fullSamplesPerChannel;
-            std::copy(
-                    localRaw.data() + snapshotOffset,
-                    localRaw.data() + snapshotOffset + copyLen,
-                    rawDestination
-            );
+            if (snapshotOffset < localRaw.size()) {
+                const size_t available = localRaw.size() - snapshotOffset;
+                const size_t copyCount = std::min<size_t>(available, static_cast<size_t>(fullSamplesPerChannel));
+                std::copy(
+                        localRaw.data() + snapshotOffset,
+                        localRaw.data() + snapshotOffset + copyCount,
+                        rawDestination
+                );
+            }
 
             const float* previous = prevSnapshot.data() + channelOffset;
             bool sameAsPrevious = true;

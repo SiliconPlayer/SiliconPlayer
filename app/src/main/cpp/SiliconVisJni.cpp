@@ -312,7 +312,11 @@ Java_com_flopster101_siliconplayer_ui_visualization_gl_SiliconVisNativeBridge_na
     jint instArgb,
     jint sepArgb,
     jboolean shadowEnabled,
-    jboolean hideWhenOverflow
+    jboolean hideWhenOverflow,
+    jint windowMs,
+    jint gainPercent,
+    jboolean dcRemovalEnabled,
+    jint triggerMode
 ) {
     if (!handle) return;
     SiliconVisTextPalette pal;
@@ -338,7 +342,11 @@ Java_com_flopster101_siliconplayer_ui_visualization_gl_SiliconVisNativeBridge_na
         static_cast<uint32_t>(vuColorArgb),
         &pal,
         shadowEnabled,
-        hideWhenOverflow
+        hideWhenOverflow,
+        windowMs,
+        gainPercent,
+        dcRemovalEnabled,
+        triggerMode
     );
 }
 
@@ -348,6 +356,8 @@ Java_com_flopster101_siliconplayer_ui_visualization_gl_SiliconVisNativeBridge_na
     jobject /* thiz */,
     jlong handle,
     jboolean stereo,
+    jint windowMs,
+    jint triggerMode,
     jint waveColorArgb,
     jfloat lineWidthPx,
     jint gridColorArgb,
@@ -359,6 +369,8 @@ Java_com_flopster101_siliconplayer_ui_visualization_gl_SiliconVisNativeBridge_na
     silicon_vis_set_oscilloscope_options(
         reinterpret_cast<SiliconVisHandle>(handle),
         stereo,
+        windowMs,
+        triggerMode,
         static_cast<uint32_t>(waveColorArgb),
         lineWidthPx,
         static_cast<uint32_t>(gridColorArgb),
@@ -374,6 +386,7 @@ Java_com_flopster101_siliconplayer_ui_visualization_gl_SiliconVisNativeBridge_na
     jobject /* thiz */,
     jlong handle,
     jint barCount,
+    jfloat smoothing,
     jint startColorArgb,
     jint endColorArgb,
     jfloat cornerRadiusPx,
@@ -384,6 +397,7 @@ Java_com_flopster101_siliconplayer_ui_visualization_gl_SiliconVisNativeBridge_na
     silicon_vis_set_bars_options(
         reinterpret_cast<SiliconVisHandle>(handle),
         barCount,
+        smoothing,
         static_cast<uint32_t>(startColorArgb),
         static_cast<uint32_t>(endColorArgb),
         cornerRadiusPx,
@@ -399,6 +413,7 @@ Java_com_flopster101_siliconplayer_ui_visualization_gl_SiliconVisNativeBridge_na
     jlong handle,
     jboolean stereo,
     jboolean topPlacement,
+    jfloat smoothing,
     jint fillColorArgb,
     jint trackColorArgb,
     jint labelColorArgb
@@ -408,6 +423,7 @@ Java_com_flopster101_siliconplayer_ui_visualization_gl_SiliconVisNativeBridge_na
         reinterpret_cast<SiliconVisHandle>(handle),
         stereo,
         topPlacement,
+        smoothing,
         static_cast<uint32_t>(fillColorArgb),
         static_cast<uint32_t>(trackColorArgb),
         static_cast<uint32_t>(labelColorArgb)

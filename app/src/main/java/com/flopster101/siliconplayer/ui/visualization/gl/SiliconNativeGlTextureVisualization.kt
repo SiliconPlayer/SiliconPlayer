@@ -95,8 +95,14 @@ data class SiliconNativeGlFrame(
     ),
     val shadowEnabled: Boolean = true,
     val hideWhenOverflow: Boolean = false,
+    val channelScopeWindowMs: Int = 30,
+    val channelScopeGainPercent: Int = 100,
+    val channelScopeDcRemovalEnabled: Boolean = true,
+    val channelScopeTriggerMode: Int = 0,
     // Oscilloscope options
     val oscStereo: Boolean = false,
+    val oscWindowMs: Int = 30,
+    val oscTriggerMode: Int = 0,
     val oscWaveColorArgb: Int = 0xFF80D8FF.toInt(),
     val oscLineWidthPx: Float = 2f,
     val oscGridColorArgb: Int = 0x40FFFFFF,
@@ -105,6 +111,7 @@ data class SiliconNativeGlFrame(
     val oscShowGrid: Boolean = true,
     // Bars options
     val barCount: Int = 32,
+    val barSmoothingPercent: Int = 50,
     val barStartColorArgb: Int = 0xFF80D8FF.toInt(),
     val barEndColorArgb: Int = 0xFF40C4FF.toInt(),
     val barCornerRadiusPx: Float = 4f,
@@ -113,6 +120,7 @@ data class SiliconNativeGlFrame(
     // VU meters options
     val vuStereo: Boolean = true,
     val vuTopPlacement: Boolean = false,
+    val vuSmoothingPercent: Int = 50,
     val vuFillColorArgb: Int = 0xFF76FF03.toInt(),
     val vuTrackColorArgb: Int = 0x40FFFFFF,
     val vuLabelColorArgb: Int = 0xFFCCCCCC.toInt()
@@ -362,19 +370,20 @@ private class SiliconNativeTextureRenderThread(
 
         visHandle = SiliconVisNativeBridge.nativeCreate()
         if (visHandle != 0L) {
+            com.flopster101.siliconplayer.NativeBridge.attachAudioEngineToVisualizer(visHandle)
             SiliconVisNativeBridge.nativeInitGl(visHandle)
             SiliconVisNativeBridge.nativeResize(visHandle, surfaceWidth, surfaceHeight, density)
         }
 
         try {
+            var nextFrameTimeNs = System.nanoTime()
+            var localChannelCount = 0
+            var localChannelTextStates = emptyList<com.flopster101.siliconplayer.ui.visualization.channel.ChannelScopeChannelTextState>()
+            var localLastTextPollNs = 0L
             while (true) {
                 val state = synchronized(lock) {
-                    while (
-                        running &&
-                        !surfaceSizeChanged &&
-                        (frameData == null || (dynamicData == null && frameData == null) || frameSequence == renderedFrameSequence)
-                    ) {
-                        lock.wait()
+                    while (running && frameData == null && !surfaceSizeChanged) {
+                        lock.wait(50)
                     }
                     if (!running) {
                         LoopState(null, null, frameSequence, 0, 0, false, true)
@@ -436,23 +445,29 @@ private class SiliconNativeTextureRenderThread(
                     if (art !== lastArtworkBitmap) {
                         lastArtworkBitmap = art
                         if (art != null && !art.isRecycled) {
-                            val safeArt = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O &&
-                                art.config == Bitmap.Config.HARDWARE
-                            ) {
-                                art.copy(Bitmap.Config.ARGB_8888, false)
-                            } else {
-                                art
-                            } ?: art
-                            val size = safeArt.width * safeArt.height * 4
-                            var buf = artworkDirectBuffer
-                            if (buf == null || buf.capacity() < size) {
-                                buf = ByteBuffer.allocateDirect(size).order(ByteOrder.nativeOrder())
-                                artworkDirectBuffer = buf
+                            runCatching {
+                                val safeArt = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O &&
+                                    art.config == Bitmap.Config.HARDWARE
+                                ) {
+                                    art.copy(Bitmap.Config.ARGB_8888, false)
+                                } else {
+                                    art
+                                } ?: art
+                                if (!safeArt.isRecycled) {
+                                    val size = safeArt.width * safeArt.height * 4
+                                    var buf = artworkDirectBuffer
+                                    if (buf == null || buf.capacity() < size) {
+                                        buf = ByteBuffer.allocateDirect(size).order(ByteOrder.nativeOrder())
+                                        artworkDirectBuffer = buf
+                                    }
+                                    buf.clear()
+                                    safeArt.copyPixelsToBuffer(buf)
+                                    buf.flip()
+                                    SiliconVisNativeBridge.nativeSetArtworkPixels(visHandle, buf, safeArt.width, safeArt.height)
+                                }
+                            }.onFailure {
+                                SiliconVisNativeBridge.nativeClearArtwork(visHandle)
                             }
-                            buf.clear()
-                            safeArt.copyPixelsToBuffer(buf)
-                            buf.flip()
-                            SiliconVisNativeBridge.nativeSetArtworkPixels(visHandle, buf, safeArt.width, safeArt.height)
                         } else {
                             SiliconVisNativeBridge.nativeClearArtwork(visHandle)
                         }
@@ -549,13 +564,19 @@ private class SiliconNativeTextureRenderThread(
                                 instArgb = frame.textPalette.instrumentOrSampleArgb,
                                 sepArgb = frame.textPalette.separatorArgb,
                                 shadowEnabled = frame.shadowEnabled,
-                                hideWhenOverflow = frame.hideWhenOverflow
+                                hideWhenOverflow = frame.hideWhenOverflow,
+                                windowMs = frame.channelScopeWindowMs,
+                                gainPercent = frame.channelScopeGainPercent,
+                                dcRemovalEnabled = frame.channelScopeDcRemovalEnabled,
+                                triggerMode = frame.channelScopeTriggerMode
                             )
                         }
                         2 -> { // Oscilloscope
                             SiliconVisNativeBridge.nativeSetOscilloscopeOptions(
                                 handle = visHandle,
                                 stereo = frame.oscStereo,
+                                windowMs = frame.oscWindowMs,
+                                triggerMode = frame.oscTriggerMode,
                                 waveColorArgb = frame.oscWaveColorArgb,
                                 lineWidthPx = frame.oscLineWidthPx,
                                 gridColorArgb = frame.oscGridColorArgb,
@@ -568,6 +589,7 @@ private class SiliconNativeTextureRenderThread(
                             SiliconVisNativeBridge.nativeSetBarsOptions(
                                 handle = visHandle,
                                 barCount = frame.barCount,
+                                smoothing = frame.barSmoothingPercent / 100f,
                                 startColorArgb = frame.barStartColorArgb,
                                 endColorArgb = frame.barEndColorArgb,
                                 cornerRadiusPx = frame.barCornerRadiusPx,
@@ -580,6 +602,7 @@ private class SiliconNativeTextureRenderThread(
                                 handle = visHandle,
                                 stereo = frame.vuStereo,
                                 topPlacement = frame.vuTopPlacement,
+                                smoothing = frame.vuSmoothingPercent / 100f,
                                 fillColorArgb = frame.vuFillColorArgb,
                                 trackColorArgb = frame.vuTrackColorArgb,
                                 labelColorArgb = frame.vuLabelColorArgb
@@ -592,36 +615,47 @@ private class SiliconNativeTextureRenderThread(
                     SiliconVisNativeBridge.nativeRender(visHandle)
 
                     // 4b. Draw GL Channel Scope text directly in OpenGL ES (100% GLES, zero Compose overlays!)
-                    if (frame.mode == 4 && frame.channelScopeTextEnabled && channelHistories.isNotEmpty()) {
-                        val textFrame = GlChannelScopeTextFrame(
-                            channelCount = channelHistories.size,
-                            channelTextStates = channelTextStates,
-                            instrumentNamesByIndex = frame.instrumentNamesByIndex,
-                            sampleNamesByIndex = frame.sampleNamesByIndex,
-                            chipNamesByChannelIndex = frame.chipNamesByChannelIndex,
-                            layoutStrategy = frame.channelLayoutStrategy,
-                            anchor = frame.channelTextAnchor,
-                            paddingPx = frame.paddingPx,
-                            textSizeSp = frame.textSizeSp,
-                            density = density,
-                            hideWhenOverflow = frame.hideWhenOverflow,
-                            textShadowEnabled = frame.shadowEnabled,
-                            textFont = frame.textFont,
-                            noteFormat = frame.noteFormat,
-                            showChannel = frame.showChannel,
-                            showNote = frame.showNote,
-                            showVolume = frame.showVolume,
-                            showEffectPrimary = frame.showEffectPrimary,
-                            showEffectSecondary = frame.showEffectSecondary,
-                            showChip = frame.showChip,
-                            showInstrument = frame.showInstrument,
-                            showSample = frame.showSample,
-                            palette = frame.textPalette,
-                            channelHistories = channelHistories,
-                            vuEnabled = false
-                        )
-                        textRenderer.buildGeometry(textFrame, state.width.toFloat(), state.height.toFloat())
-                        textRenderer.drawText(state.width.toFloat(), state.height.toFloat())
+                    if (frame.mode == 4 && frame.channelScopeTextEnabled) {
+                        val textNowNs = System.nanoTime()
+                        if (textNowNs - localLastTextPollNs >= 100_000_000L || localChannelCount <= 0) {
+                            localLastTextPollNs = textNowNs
+                            val rawText = com.flopster101.siliconplayer.NativeBridge.getChannelScopeTextState(64)
+                            if (rawText.isNotEmpty()) {
+                                localChannelTextStates = com.flopster101.siliconplayer.ui.screens.parseChannelScopeTextStates(rawText)
+                                localChannelCount = localChannelTextStates.size
+                            }
+                        }
+                        if (localChannelCount > 0) {
+                            val textFrame = GlChannelScopeTextFrame(
+                                channelCount = localChannelCount,
+                                channelTextStates = localChannelTextStates,
+                                instrumentNamesByIndex = frame.instrumentNamesByIndex,
+                                sampleNamesByIndex = frame.sampleNamesByIndex,
+                                chipNamesByChannelIndex = frame.chipNamesByChannelIndex,
+                                layoutStrategy = frame.channelLayoutStrategy,
+                                anchor = frame.channelTextAnchor,
+                                paddingPx = frame.paddingPx,
+                                textSizeSp = frame.textSizeSp,
+                                density = density,
+                                hideWhenOverflow = frame.hideWhenOverflow,
+                                textShadowEnabled = frame.shadowEnabled,
+                                textFont = frame.textFont,
+                                noteFormat = frame.noteFormat,
+                                showChannel = frame.showChannel,
+                                showNote = frame.showNote,
+                                showVolume = frame.showVolume,
+                                showEffectPrimary = frame.showEffectPrimary,
+                                showEffectSecondary = frame.showEffectSecondary,
+                                showChip = frame.showChip,
+                                showInstrument = frame.showInstrument,
+                                showSample = frame.showSample,
+                                palette = frame.textPalette,
+                                channelHistories = emptyList(),
+                                vuEnabled = false
+                            )
+                            textRenderer.buildGeometry(textFrame, state.width.toFloat(), state.height.toFloat())
+                            textRenderer.drawText(state.width.toFloat(), state.height.toFloat())
+                        }
                     }
 
                     val drawEndNs = System.nanoTime()
@@ -643,8 +677,13 @@ private class SiliconNativeTextureRenderThread(
                     lastHudPublishNs = nowNs
                 }
 
-                synchronized(lock) {
-                    renderedFrameSequence = state.frameSequence
+                // Smooth frame pacing (60 FPS)
+                val targetIntervalNs = 16_666_666L
+                val frameEndNs = System.nanoTime()
+                nextFrameTimeNs = maxOf(nextFrameTimeNs + targetIntervalNs, frameEndNs)
+                val sleepNs = nextFrameTimeNs - frameEndNs
+                if (sleepNs > 500_000L) {
+                    java.util.concurrent.locks.LockSupport.parkNanos(sleepNs)
                 }
             }
         } finally {

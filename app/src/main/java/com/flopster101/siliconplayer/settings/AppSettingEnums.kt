@@ -204,9 +204,9 @@ enum class EffectiveVisualizationPerformanceMode(
     val label: String,
     val threadPriority: Int
 ) {
-    HighPerformance("High performance", android.os.Process.THREAD_PRIORITY_URGENT_DISPLAY),
-    Balanced("Balanced", android.os.Process.THREAD_PRIORITY_DISPLAY),
-    PowerSaving("Power saving", android.os.Process.THREAD_PRIORITY_BACKGROUND)
+    HighPerformance("High performance", android.os.Process.THREAD_PRIORITY_AUDIO),
+    Balanced("Balanced", android.os.Process.THREAD_PRIORITY_URGENT_DISPLAY),
+    PowerSaving("Power saving", android.os.Process.THREAD_PRIORITY_DISPLAY)
 }
 
 data class CpuArchitectureInfo(
@@ -231,6 +231,31 @@ object CpuHardwareDetector {
                 summary = "Legacy Android platform (API < 28)"
             )
         }
+
+        // 1. Check known constrained SoC boards / hardware tags
+        val hardwareTags = listOf(
+            Build.HARDWARE,
+            Build.BOARD,
+            Build.DEVICE,
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) Build.SOC_MODEL else ""
+        ).filter { it.isNotBlank() }
+
+        val constrainedSoCKeywords = listOf(
+            "sm6125", "trinket", "ginkgo", "willow", "sdm660", "sdm636", "sdm632",
+            "msm8953", "msm8937", "msm8917", "universal7884", "universal7885", "universal7904",
+            "mt6768", "mt6765", "mt6762", "mt6761", "mt6769", "sc9863a"
+        )
+        for (tag in hardwareTags) {
+            val lower = tag.lowercase()
+            if (constrainedSoCKeywords.any { lower.contains(it) }) {
+                return CpuArchitectureInfo(
+                    isLegacyOrConstrained = true,
+                    summary = "Constrained SoC detected ($tag)"
+                )
+            }
+        }
+
+        // 2. Try parsing /proc/cpuinfo for legacy ARM parts
         try {
             val cpuInfoFile = java.io.File("/proc/cpuinfo")
             if (cpuInfoFile.exists() && cpuInfoFile.canRead()) {
@@ -274,6 +299,27 @@ object CpuHardwareDetector {
         } catch (_: Throwable) {
             // Fallback
         }
+
+        // 3. Inspect max CPU clock speed across sysfs
+        try {
+            var maxFreqKhz = 0L
+            for (cpuIdx in 0 until cores) {
+                val freqFile = java.io.File("/sys/devices/system/cpu/cpu$cpuIdx/cpufreq/cpuinfo_max_freq")
+                if (freqFile.exists() && freqFile.canRead()) {
+                    val freq = freqFile.readText().trim().toLongOrNull() ?: 0L
+                    if (freq > maxFreqKhz) maxFreqKhz = freq
+                }
+            }
+            if (maxFreqKhz in 1..2_250_000L) {
+                return CpuArchitectureInfo(
+                    isLegacyOrConstrained = true,
+                    summary = "Constrained CPU (max clock ≤ ${(maxFreqKhz / 1000)} MHz)"
+                )
+            }
+        } catch (_: Throwable) {
+            // Fallback
+        }
+
         return CpuArchitectureInfo(
             isLegacyOrConstrained = false,
             summary = "Standard multi-core CPU ($cores cores)"

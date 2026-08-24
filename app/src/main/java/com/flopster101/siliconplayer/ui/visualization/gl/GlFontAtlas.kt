@@ -459,6 +459,7 @@ internal class GlTextProgram {
         atlas.bindTexture(GLES20.GL_TEXTURE0)
 
         val stride = 8 * 4 // 8 floats * 4 bytes
+        GLES20.glBindBuffer(GLES20.GL_ARRAY_BUFFER, 0)
         buffer.position(0)
         GLES20.glEnableVertexAttribArray(positionLoc)
         GLES20.glVertexAttribPointer(positionLoc, 2, GLES20.GL_FLOAT, false, stride, buffer)
