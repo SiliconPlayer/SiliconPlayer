@@ -371,6 +371,10 @@ private:
     int visualizationFramesSinceAnalysis = 0;
     int visualizationLastCallbackFrames = 0;
     int64_t visualizationLastCallbackNs = 0;
+    int64_t visualizationLastBarsAnalysisNs = 0;
+    double visualizationBarsAnalysisDurationNs = 16666666.0;
+    int visualizationLastVuCallbackFrames = 0;
+    int64_t visualizationLastVuCallbackNs = 0;
     mutable std::atomic<int64_t> visualizationLastRequestNs { 0 };
     mutable std::atomic<uint32_t> visualizationRequestedFeatures { 0 };
 

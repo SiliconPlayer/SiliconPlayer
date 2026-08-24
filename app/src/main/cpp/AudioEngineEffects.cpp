@@ -729,6 +729,7 @@ void AudioEngine::updateVisualizationDataFromOutputCallback(
     std::array<float, 4096> monoHistorySnapshot {};
     int monoWriteIndexSnapshot = 0;
     int sampleRateSnapshot = 48000;
+    int analysisHopFramesSnapshot = 800;
     const int64_t callbackNowNs = std::chrono::duration_cast<std::chrono::nanoseconds>(
             std::chrono::steady_clock::now().time_since_epoch()
     ).count();
@@ -764,6 +765,8 @@ void AudioEngine::updateVisualizationDataFromOutputCallback(
         if (needsVu) {
             visualizationVuLevelsPrev = visualizationVuLevels;
             visualizationVuLevels = vu;
+            visualizationLastVuCallbackFrames = numFrames;
+            visualizationLastVuCallbackNs = callbackNowNs;
         }
         if (needsChannelCount) {
             visualizationChannelCount.store(safeChannels);
@@ -779,6 +782,7 @@ void AudioEngine::updateVisualizationDataFromOutputCallback(
                 visualizationFramesSinceAnalysis %= analysisHopFrames;
                 monoHistorySnapshot = visualizationMonoHistory;
                 monoWriteIndexSnapshot = visualizationMonoWriteIndex;
+                analysisHopFramesSnapshot = analysisHopFrames;
                 shouldAnalyzeSpectrum = true;
             }
         }
@@ -795,6 +799,9 @@ void AudioEngine::updateVisualizationDataFromOutputCallback(
     std::lock_guard<std::mutex> visLock(visualizationMutex);
     visualizationBarsPrev = visualizationBars;
     visualizationBars = bars;
+    visualizationLastBarsAnalysisNs = callbackNowNs;
+    visualizationBarsAnalysisDurationNs =
+            (static_cast<double>(analysisHopFramesSnapshot) * 1.0e9) / static_cast<double>(sampleRateSnapshot);
 }
 
 void AudioEngine::updateVisualizationDataLocked(const float* buffer, int numFrames, int channels) {
@@ -1089,18 +1096,14 @@ std::vector<float> AudioEngine::getVisualizationWaveformScope(
 std::vector<float> AudioEngine::getVisualizationBars() const {
     markVisualizationRequested(kVisualizationFeatureBars);
     std::lock_guard<std::mutex> lock(visualizationMutex);
-    const int callbackFrames = std::max(visualizationLastCallbackFrames, 1);
-    const int sampleRate = std::max(streamSampleRate, 8000);
-    const int64_t callbackNs = visualizationLastCallbackNs;
     const int64_t nowNs = std::chrono::duration_cast<std::chrono::nanoseconds>(
             std::chrono::steady_clock::now().time_since_epoch()
     ).count();
-    const int64_t elapsedNs = std::max<int64_t>(0, nowNs - callbackNs);
-    const double callbackDurationNs =
-            (static_cast<double>(callbackFrames) * 1.0e9) / static_cast<double>(sampleRate);
+    const int64_t elapsedNs = std::max<int64_t>(0, nowNs - visualizationLastBarsAnalysisNs);
+    const double durationNs = visualizationBarsAnalysisDurationNs;
     const float alpha = static_cast<float>(
             std::clamp(
-                    callbackDurationNs > 0.0 ? (static_cast<double>(elapsedNs) / callbackDurationNs) : 1.0,
+                    durationNs > 0.0 ? (static_cast<double>(elapsedNs) / durationNs) : 1.0,
                     0.0,
                     1.0
             )
@@ -1117,9 +1120,9 @@ std::vector<float> AudioEngine::getVisualizationBars() const {
 std::vector<float> AudioEngine::getVisualizationVuLevels() const {
     markVisualizationRequested(kVisualizationFeatureVu);
     std::lock_guard<std::mutex> lock(visualizationMutex);
-    const int callbackFrames = std::max(visualizationLastCallbackFrames, 1);
+    const int callbackFrames = std::max(visualizationLastVuCallbackFrames, 1);
     const int sampleRate = std::max(streamSampleRate, 8000);
-    const int64_t callbackNs = visualizationLastCallbackNs;
+    const int64_t callbackNs = visualizationLastVuCallbackNs;
     const int64_t nowNs = std::chrono::duration_cast<std::chrono::nanoseconds>(
             std::chrono::steady_clock::now().time_since_epoch()
     ).count();
