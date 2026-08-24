@@ -817,6 +817,7 @@ internal fun clearAllSettingsAction(
     onRecentPlayedFilesChanged: (List<RecentPathEntry>) -> Unit,
     onKeepScreenOnChanged: (Boolean) -> Unit,
     onPlayerArtworkCornerRadiusDpChanged: (Int) -> Unit,
+    onShowAudioOutputRouteChipChanged: (Boolean) -> Unit,
     onFilenameDisplayModeChanged: (FilenameDisplayMode) -> Unit,
     onFilenameOnlyWhenTitleMissingChanged: (Boolean) -> Unit,
     onUnknownTrackDurationSecondsChanged: (Int) -> Unit,
@@ -994,6 +995,7 @@ internal fun clearAllSettingsAction(
     onRecentPlayedFilesChanged(emptyList())
     onKeepScreenOnChanged(AppDefaults.Player.keepScreenOn)
     onPlayerArtworkCornerRadiusDpChanged(AppDefaults.Player.artworkCornerRadiusDp)
+    onShowAudioOutputRouteChipChanged(AppDefaults.Player.showAudioOutputRouteChip)
     onFilenameDisplayModeChanged(AppDefaults.Player.filenameDisplayMode)
     onFilenameOnlyWhenTitleMissingChanged(false)
     onUnknownTrackDurationSecondsChanged(GmeDefaults.unknownDurationSeconds)

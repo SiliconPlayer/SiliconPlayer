@@ -83,6 +83,7 @@ internal data class PlayerRouteState(
     val persistRepeatMode: Boolean,
     val keepScreenOn: Boolean,
     val playerArtworkCornerRadiusDp: Int,
+    val showAudioOutputRouteChip: Boolean,
     val filenameDisplayMode: FilenameDisplayMode,
     val filenameOnlyWhenTitleMissing: Boolean
 )
@@ -103,6 +104,7 @@ internal data class PlayerRouteActions(
     val onPersistRepeatModeChanged: (Boolean) -> Unit,
     val onKeepScreenOnChanged: (Boolean) -> Unit,
     val onPlayerArtworkCornerRadiusDpChanged: (Int) -> Unit,
+    val onShowAudioOutputRouteChipChanged: (Boolean) -> Unit,
     val onFilenameDisplayModeChanged: (FilenameDisplayMode) -> Unit,
     val onFilenameOnlyWhenTitleMissingChanged: (Boolean) -> Unit
 )
@@ -386,6 +388,13 @@ internal fun PlayerRouteContent(
         checked = filenameOnlyWhenTitleMissing,
         onCheckedChange = onFilenameOnlyWhenTitleMissingChanged,
         enabled = filenameDisplayMode != FilenameDisplayMode.Never
+    )
+    SettingsRowSpacer()
+    PlayerSettingToggleCard(
+        title = "Show audio output route",
+        description = "Display active output route chip in the player header.",
+        checked = state.showAudioOutputRouteChip,
+        onCheckedChange = actions.onShowAudioOutputRouteChipChanged
     )
 }
 

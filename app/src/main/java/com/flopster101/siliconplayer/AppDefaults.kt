@@ -21,6 +21,7 @@ object AppDefaults {
         const val fadePauseResume = true
         const val preloadNextCachedRemoteTrack = true
         const val artworkCornerRadiusDp = 16
+        const val showAudioOutputRouteChip = true
         const val endFadeApplyToAllTracks = false
         const val endFadeDurationMs = 10_000
         val endFadeCurve = EndFadeCurve.Linear

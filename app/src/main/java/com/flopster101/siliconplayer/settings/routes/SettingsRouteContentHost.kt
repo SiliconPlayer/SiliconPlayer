@@ -303,6 +303,7 @@ internal fun SettingsRouteContentHost(
                                 persistRepeatMode = state.persistRepeatMode,
                                 keepScreenOn = state.keepScreenOn,
                                 playerArtworkCornerRadiusDp = state.playerArtworkCornerRadiusDp,
+                                showAudioOutputRouteChip = state.showAudioOutputRouteChip,
                                 filenameDisplayMode = state.filenameDisplayMode,
                                 filenameOnlyWhenTitleMissing = state.filenameOnlyWhenTitleMissing
                             ),
@@ -322,6 +323,7 @@ internal fun SettingsRouteContentHost(
                                 onPersistRepeatModeChanged = actions.onPersistRepeatModeChanged,
                                 onKeepScreenOnChanged = actions.onKeepScreenOnChanged,
                                 onPlayerArtworkCornerRadiusDpChanged = actions.onPlayerArtworkCornerRadiusDpChanged,
+                                onShowAudioOutputRouteChipChanged = actions.onShowAudioOutputRouteChipChanged,
                                 onFilenameDisplayModeChanged = actions.onFilenameDisplayModeChanged,
                                 onFilenameOnlyWhenTitleMissingChanged = actions.onFilenameOnlyWhenTitleMissingChanged
                             )

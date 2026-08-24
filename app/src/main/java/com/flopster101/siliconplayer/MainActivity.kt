@@ -1222,6 +1222,7 @@ private fun clearAllSettingsAndUiState(
     onRecentPlayedFilesChanged: (List<RecentPathEntry>) -> Unit,
     onKeepScreenOnChanged: (Boolean) -> Unit,
     onPlayerArtworkCornerRadiusDpChanged: (Int) -> Unit,
+    onShowAudioOutputRouteChipChanged: (Boolean) -> Unit,
     onFilenameDisplayModeChanged: (FilenameDisplayMode) -> Unit,
     onFilenameOnlyWhenTitleMissingChanged: (Boolean) -> Unit,
     onUnknownTrackDurationSecondsChanged: (Int) -> Unit,
@@ -1277,6 +1278,7 @@ private fun clearAllSettingsAndUiState(
         onRecentPlayedFilesChanged = onRecentPlayedFilesChanged,
         onKeepScreenOnChanged = onKeepScreenOnChanged,
         onPlayerArtworkCornerRadiusDpChanged = onPlayerArtworkCornerRadiusDpChanged,
+        onShowAudioOutputRouteChipChanged = onShowAudioOutputRouteChipChanged,
         onFilenameDisplayModeChanged = onFilenameDisplayModeChanged,
         onFilenameOnlyWhenTitleMissingChanged = onFilenameOnlyWhenTitleMissingChanged,
         onUnknownTrackDurationSecondsChanged = onUnknownTrackDurationSecondsChanged,
@@ -1675,6 +1677,14 @@ private fun AppNavigation(
     var audioFocusInterrupt by remember {
         mutableStateOf(
             prefs.getBoolean(AppPreferenceKeys.AUDIO_FOCUS_INTERRUPT, true)
+        )
+    }
+    var showAudioOutputRouteChip by remember {
+        mutableStateOf(
+            prefs.getBoolean(
+                AppPreferenceKeys.PLAYER_SHOW_AUDIO_OUTPUT_CHIP,
+                AppDefaults.Player.showAudioOutputRouteChip
+            )
         )
     }
     var audioDucking by remember {
@@ -3444,6 +3454,7 @@ onStopEngine = { NativeBridge.releaseCurrentDecoder() }, onMetadataAlbumChanged 
             visualizationVuRenderBackend = visualizationVuRenderBackend,
             visualizationShowDebugInfo = visualizationShowDebugInfo,
             playerArtworkCornerRadiusDp = playerArtworkCornerRadiusDp,
+            showAudioOutputRouteChip = showAudioOutputRouteChip,
             filenameDisplayMode = filenameDisplayMode,
             filenameOnlyWhenTitleMissing = filenameOnlyWhenTitleMissing,
             externalTrackInfoDialogRequestToken = externalTrackInfoDialogRequestToken,
@@ -3718,13 +3729,14 @@ onStopEngine = { NativeBridge.releaseCurrentDecoder() }, onMetadataAlbumChanged 
                                     rememberBrowserLocation = rememberBrowserLocation,
                                     showParentDirectoryEntry = showParentDirectoryEntry,
                                     showFileIconChipBackground = showFileIconChipBackground,
-                                    sortArchivesBeforeFiles = sortArchivesBeforeFiles,
+                            sortArchivesBeforeFiles = sortArchivesBeforeFiles,
                                     browserNameSortMode = browserNameSortMode,
                                     recentFoldersLimit = recentFoldersLimit,
                                     recentFilesLimit = recentFilesLimit,
                                     pressBackTwiceToExit = pressBackTwiceToExit,
                                     keepScreenOn = keepScreenOn,
                                     playerArtworkCornerRadiusDp = playerArtworkCornerRadiusDp,
+                                    showAudioOutputRouteChip = showAudioOutputRouteChip,
                                     filenameDisplayMode = filenameDisplayMode,
                                     filenameOnlyWhenTitleMissing = filenameOnlyWhenTitleMissing,
                                     unknownTrackDurationSeconds = unknownTrackDurationSeconds,
@@ -3997,6 +4009,10 @@ onStopEngine = { NativeBridge.releaseCurrentDecoder() }, onMetadataAlbumChanged 
                                     onPlayerArtworkCornerRadiusDpChanged = { value ->
                             playerArtworkCornerRadiusDp = value.coerceIn(0, 48)
                         },
+                                    onShowAudioOutputRouteChipChanged = { enabled ->
+                            showAudioOutputRouteChip = enabled
+                            prefs.edit().putBoolean(AppPreferenceKeys.PLAYER_SHOW_AUDIO_OUTPUT_CHIP, enabled).apply()
+                        },
                                     onFilenameDisplayModeChanged = { mode ->
                             filenameDisplayMode = mode
                             prefs.edit().putString(AppPreferenceKeys.FILENAME_DISPLAY_MODE, mode.storageValue).apply()
@@ -4135,6 +4151,7 @@ onStopEngine = { NativeBridge.releaseCurrentDecoder() }, onMetadataAlbumChanged 
                                 onRecentPlayedFilesChanged = { recentPlayedFiles = it },
                                 onKeepScreenOnChanged = { keepScreenOn = it },
                                 onPlayerArtworkCornerRadiusDpChanged = { playerArtworkCornerRadiusDp = it },
+                                onShowAudioOutputRouteChipChanged = { showAudioOutputRouteChip = it },
                                 onFilenameDisplayModeChanged = { filenameDisplayMode = it },
                                 onFilenameOnlyWhenTitleMissingChanged = { filenameOnlyWhenTitleMissing = it },
                                 onUnknownTrackDurationSecondsChanged = { unknownTrackDurationSeconds = it },

@@ -51,6 +51,7 @@ import android.content.pm.PackageManager
 import androidx.compose.foundation.focusable
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.List
+import androidx.compose.material.icons.automirrored.filled.VolumeUp
 import androidx.compose.material.icons.filled.AudioFile
 import androidx.compose.material.icons.filled.Equalizer
 import androidx.compose.material.icons.filled.GraphicEq
@@ -72,6 +73,21 @@ import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.filled.StarBorder
 import androidx.compose.material.icons.filled.Stop
 import androidx.compose.material.icons.rounded.Stop
+import android.bluetooth.BluetoothDevice
+import android.content.BroadcastReceiver
+import android.content.Intent
+import android.content.IntentFilter
+import android.media.AudioDeviceCallback
+import android.media.AudioDeviceInfo
+import android.media.AudioManager
+import android.os.Build
+import android.os.Handler
+import android.os.Looper
+import android.provider.Settings
+import androidx.core.content.ContextCompat
+import androidx.compose.material.icons.filled.Bluetooth
+import androidx.compose.material.icons.filled.Headphones
+import androidx.compose.material.icons.filled.Usb
 import androidx.compose.material.icons.filled.Timer
 import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material3.*
@@ -159,6 +175,7 @@ import com.flopster101.siliconplayer.shouldRestartCurrentTrackOnPrevious
 import com.flopster101.siliconplayer.stripRemoteCacheHashPrefix
 import com.flopster101.siliconplayer.tvKeyLongPress
 import com.flopster101.siliconplayer.ui.dialogs.dialogScrollableContentNavigation
+import com.flopster101.siliconplayer.ui.dialogs.AudioOutputDeviceDialog
 import com.flopster101.siliconplayer.ui.dialogs.VisualizationModePickerDialog
 import com.flopster101.siliconplayer.ui.visualization.basic.BasicVisualizationOverlay
 import java.io.File
@@ -704,6 +721,7 @@ internal fun PlayerScreen(
     isTrackFavorited: Boolean = false,
     onToggleFavoriteTrack: () -> Unit = {},
     onOpenAudioEffects: () -> Unit,
+    showAudioOutputRouteChip: Boolean = com.flopster101.siliconplayer.AppDefaults.Player.showAudioOutputRouteChip,
     filenameDisplayMode: com.flopster101.siliconplayer.FilenameDisplayMode = com.flopster101.siliconplayer.AppDefaults.Player.filenameDisplayMode,
     filenameOnlyWhenTitleMissing: Boolean = false,
     externalTrackInfoDialogRequestToken: Int = 0,
@@ -1029,7 +1047,8 @@ internal fun PlayerScreen(
                             onOpenCoreSettings = onOpenCoreSettings,
                             onOpenTrackInfo = { showTrackInfoDialog = true },
                             onOpenAudioEffects = onOpenAudioEffects,
-                            onOpenChannelControls = { showChannelControlDialog = true }
+                            onOpenChannelControls = { showChannelControlDialog = true },
+                            showAudioOutputRouteChip = showAudioOutputRouteChip
                         )
                     }
                 }
@@ -1814,9 +1833,13 @@ private fun PlayerTopBar(
     onOpenCoreSettings: () -> Unit,
     onOpenTrackInfo: () -> Unit,
     onOpenAudioEffects: () -> Unit,
-    onOpenChannelControls: () -> Unit
+    onOpenChannelControls: () -> Unit,
+    showAudioOutputRouteChip: Boolean = true
 ) {
+    val context = LocalContext.current
+    val outputRouteInfo = rememberAudioOutputRouteInfo()
     var showMoreMenu by remember { mutableStateOf(false) }
+    val routePillFocusRequester = remember { FocusRequester() }
     val moreOptionsFocusRequester = remember { FocusRequester() }
 
     val compactLandscapeHeader = isLandscape && !isTabletLike
@@ -1865,7 +1888,7 @@ private fun PlayerTopBar(
                 .padding(start = horizontalInset, top = statusBarTopInset + topInset)
                 .size(navButtonSize)
                 .focusProperties {
-                    right = moreOptionsFocusRequester
+                    right = if (showAudioOutputRouteChip) routePillFocusRequester else moreOptionsFocusRequester
                     if (downFocusRequester != null) {
                         down = downFocusRequester
                     }
@@ -1892,47 +1915,69 @@ private fun PlayerTopBar(
             )
         }
 
-        Box(
+        Row(
             modifier = Modifier
                 .align(Alignment.TopEnd)
-                .padding(end = horizontalInset, top = statusBarTopInset + topInset)
+                .padding(end = horizontalInset, top = statusBarTopInset + topInset),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
         ) {
-            Box(
-                modifier = Modifier
-                    .size(navButtonSize)
-                    .focusRequester(moreOptionsFocusRequester)
-                    .focusProperties {
-                        if (focusRequester != null) {
-                            left = focusRequester
-                        }
-                        if (downFocusRequester != null) {
-                            down = downFocusRequester
-                        }
-                    }
-                    .clip(CircleShape)
-                    .playerFocusHighlight(
-                        shape = CircleShape,
-                        activeAlpha = 0.14f
-                    )
-                    .clickable(
-                        interactionSource = remember { MutableInteractionSource() },
-                        indication = null,
-                        onClick = { showMoreMenu = true }
-                    )
-                    .focusable(),
-                contentAlignment = Alignment.Center
-            ) {
-                Icon(
-                    imageVector = Icons.Default.MoreVert,
-                    contentDescription = "More options",
-                    modifier = Modifier.size(navIconSize)
+            if (showAudioOutputRouteChip) {
+                AudioOutputRoutePill(
+                    routeInfo = outputRouteInfo,
+                    onClick = { openAudioOutputSwitcher(context) },
+                    compactLayout = compactLandscapeHeader || compactPortraitHeader,
+                    maxPillWidth = when {
+                        compactLandscapeHeader -> 160.dp
+                        compactPortraitHeader -> 180.dp
+                        else -> 210.dp
+                    },
+                    focusRequester = routePillFocusRequester,
+                    leftFocusRequester = focusRequester,
+                    rightFocusRequester = moreOptionsFocusRequester,
+                    downFocusRequester = downFocusRequester
                 )
             }
 
-            DropdownMenu(
-                expanded = showMoreMenu,
-                onDismissRequest = { showMoreMenu = false }
-            ) {
+            Box {
+                Box(
+                    modifier = Modifier
+                        .size(navButtonSize)
+                        .focusRequester(moreOptionsFocusRequester)
+                        .focusProperties {
+                            if (showAudioOutputRouteChip) {
+                                left = routePillFocusRequester
+                            } else if (focusRequester != null) {
+                                left = focusRequester
+                            }
+                            if (downFocusRequester != null) {
+                                down = downFocusRequester
+                            }
+                        }
+                        .clip(CircleShape)
+                        .playerFocusHighlight(
+                            shape = CircleShape,
+                            activeAlpha = 0.14f
+                        )
+                        .clickable(
+                            interactionSource = remember { MutableInteractionSource() },
+                            indication = null,
+                            onClick = { showMoreMenu = true }
+                        )
+                        .focusable(),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.MoreVert,
+                        contentDescription = "More options",
+                        modifier = Modifier.size(navIconSize)
+                    )
+                }
+
+                DropdownMenu(
+                    expanded = showMoreMenu,
+                    onDismissRequest = { showMoreMenu = false }
+                ) {
                 DropdownMenuItem(
                     text = { Text("Audio Effects") },
                     leadingIcon = {
@@ -1987,6 +2032,236 @@ private fun PlayerTopBar(
                     }
                 )
             }
+        }
+    }
+}
+}
+
+internal enum class AudioOutputRouteType {
+    Speaker,
+    Headphones,
+    Usb,
+    Bluetooth
+}
+
+internal data class AudioOutputRouteInfo(
+    val type: AudioOutputRouteType,
+    val name: String
+)
+
+@Composable
+private fun rememberAudioOutputRouteInfo(): AudioOutputRouteInfo {
+    val context = LocalContext.current
+    var routeInfo by remember { mutableStateOf(resolveCurrentAudioOutputRoute(context)) }
+
+    DisposableEffect(context) {
+        val audioManager = context.getSystemService(Context.AUDIO_SERVICE) as? AudioManager
+        val callback = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+            object : AudioDeviceCallback() {
+                override fun onAudioDevicesAdded(addedDevices: Array<out AudioDeviceInfo>?) {
+                    routeInfo = resolveCurrentAudioOutputRoute(context)
+                }
+
+                override fun onAudioDevicesRemoved(removedDevices: Array<out AudioDeviceInfo>?) {
+                    routeInfo = resolveCurrentAudioOutputRoute(context)
+                }
+            }
+        } else {
+            null
+        }
+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M && callback != null) {
+            audioManager?.registerAudioDeviceCallback(callback, Handler(Looper.getMainLooper()))
+        }
+
+        val receiver = object : BroadcastReceiver() {
+            override fun onReceive(ctx: Context?, intent: Intent?) {
+                routeInfo = resolveCurrentAudioOutputRoute(context)
+            }
+        }
+        val filter = IntentFilter().apply {
+            addAction(AudioManager.ACTION_AUDIO_BECOMING_NOISY)
+            addAction(Intent.ACTION_HEADSET_PLUG)
+            addAction(BluetoothDevice.ACTION_ACL_CONNECTED)
+            addAction(BluetoothDevice.ACTION_ACL_DISCONNECTED)
+        }
+        val registered = runCatching {
+            ContextCompat.registerReceiver(
+                context,
+                receiver,
+                filter,
+                ContextCompat.RECEIVER_NOT_EXPORTED
+            )
+            true
+        }.getOrElse {
+            runCatching {
+                context.registerReceiver(receiver, filter)
+                true
+            }.getOrDefault(false)
+        }
+
+        onDispose {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M && callback != null) {
+                audioManager?.unregisterAudioDeviceCallback(callback)
+            }
+            if (registered) {
+                runCatching { context.unregisterReceiver(receiver) }
+            }
+        }
+    }
+
+    return routeInfo
+}
+
+internal fun resolveCurrentAudioOutputRoute(context: Context): AudioOutputRouteInfo {
+    val audioManager = context.getSystemService(Context.AUDIO_SERVICE) as? AudioManager
+        ?: return AudioOutputRouteInfo(AudioOutputRouteType.Speaker, "Speaker")
+
+    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+        val devices = audioManager.getDevices(AudioManager.GET_DEVICES_OUTPUTS)
+
+        // 1. Bluetooth devices (A2DP, BLE Headset, BLE Speaker, SCO, Hearing Aid)
+        val bluetoothDevice = devices.firstOrNull { device ->
+            device.type == AudioDeviceInfo.TYPE_BLUETOOTH_A2DP ||
+            device.type == AudioDeviceInfo.TYPE_BLUETOOTH_SCO ||
+            (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S && device.type == AudioDeviceInfo.TYPE_BLE_HEADSET) ||
+            (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S && device.type == AudioDeviceInfo.TYPE_BLE_SPEAKER) ||
+            (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S && device.type == AudioDeviceInfo.TYPE_BLE_BROADCAST) ||
+            (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P && device.type == AudioDeviceInfo.TYPE_HEARING_AID)
+        }
+        if (bluetoothDevice != null) {
+            val name = bluetoothDevice.productName?.toString()?.trim()
+            val displayName = if (!name.isNullOrBlank()) name else "Bluetooth"
+            return AudioOutputRouteInfo(AudioOutputRouteType.Bluetooth, displayName)
+        }
+
+        // 2. USB Headset / USB Audio Device
+        val usbDevice = devices.firstOrNull { device ->
+            device.type == AudioDeviceInfo.TYPE_USB_HEADSET ||
+            device.type == AudioDeviceInfo.TYPE_USB_DEVICE ||
+            device.type == AudioDeviceInfo.TYPE_USB_ACCESSORY
+        }
+        if (usbDevice != null) {
+            return AudioOutputRouteInfo(AudioOutputRouteType.Usb, "USB Audio")
+        }
+
+        // 3. 3.5mm Wired Headset / Headphones / Line Out / HDMI
+        val wiredDevice = devices.firstOrNull { device ->
+            device.type == AudioDeviceInfo.TYPE_WIRED_HEADPHONES ||
+            device.type == AudioDeviceInfo.TYPE_WIRED_HEADSET ||
+            device.type == AudioDeviceInfo.TYPE_LINE_DIGITAL ||
+            device.type == AudioDeviceInfo.TYPE_LINE_ANALOG ||
+            device.type == AudioDeviceInfo.TYPE_AUX_LINE ||
+            device.type == AudioDeviceInfo.TYPE_HDMI ||
+            device.type == AudioDeviceInfo.TYPE_HDMI_ARC
+        }
+        if (wiredDevice != null) {
+            return AudioOutputRouteInfo(AudioOutputRouteType.Headphones, "Wired Headset")
+        }
+
+        // 4. Built-in Speaker
+        return AudioOutputRouteInfo(AudioOutputRouteType.Speaker, "Speaker")
+    } else {
+        @Suppress("DEPRECATION")
+        return when {
+            audioManager.isBluetoothA2dpOn || audioManager.isBluetoothScoOn ->
+                AudioOutputRouteInfo(AudioOutputRouteType.Bluetooth, "Bluetooth")
+            audioManager.isWiredHeadsetOn ->
+                AudioOutputRouteInfo(AudioOutputRouteType.Headphones, "Wired Headset")
+            else ->
+                AudioOutputRouteInfo(AudioOutputRouteType.Speaker, "Speaker")
+        }
+    }
+}
+
+internal fun openAudioOutputSwitcher(context: Context) {
+    runCatching {
+        val panelIntent = Intent("com.android.settings.panel.action.MEDIA_OUTPUT").apply {
+            putExtra("com.android.settings.panel.extra.PACKAGE_NAME", context.packageName)
+            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        }
+        context.startActivity(panelIntent)
+    }.onFailure {
+        runCatching {
+            val btIntent = Intent(Settings.ACTION_BLUETOOTH_SETTINGS).apply {
+                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            }
+            context.startActivity(btIntent)
+        }.onFailure {
+            runCatching {
+                val soundIntent = Intent(Settings.ACTION_SOUND_SETTINGS).apply {
+                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                }
+                context.startActivity(soundIntent)
+            }
+        }
+    }
+}
+
+@Composable
+private fun AudioOutputRoutePill(
+    routeInfo: AudioOutputRouteInfo,
+    onClick: () -> Unit,
+    compactLayout: Boolean,
+    maxPillWidth: Dp,
+    focusRequester: FocusRequester? = null,
+    leftFocusRequester: FocusRequester? = null,
+    rightFocusRequester: FocusRequester? = null,
+    downFocusRequester: FocusRequester? = null,
+    modifier: Modifier = Modifier
+) {
+    val pillHeight = if (compactLayout) 26.dp else 28.dp
+    val iconSize = if (compactLayout) 14.dp else 15.dp
+
+    Surface(
+        onClick = onClick,
+        modifier = modifier
+            .then(
+                if (focusRequester != null) {
+                    Modifier.focusRequester(focusRequester)
+                } else {
+                    Modifier
+                }
+            )
+            .height(pillHeight)
+            .widthIn(max = maxPillWidth)
+            .focusProperties {
+                if (leftFocusRequester != null) left = leftFocusRequester
+                if (rightFocusRequester != null) right = rightFocusRequester
+                if (downFocusRequester != null) down = downFocusRequester
+            }
+            .playerFocusHighlight(
+                shape = CircleShape,
+                activeAlpha = 0.14f
+            )
+            .focusable(),
+        shape = CircleShape,
+        color = MaterialTheme.colorScheme.surfaceContainerHigh,
+        contentColor = MaterialTheme.colorScheme.onSurfaceVariant
+    ) {
+        Row(
+            modifier = Modifier.padding(horizontal = 9.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(5.dp)
+        ) {
+            Icon(
+                imageVector = when (routeInfo.type) {
+                    AudioOutputRouteType.Bluetooth -> Icons.Default.Bluetooth
+                    AudioOutputRouteType.Headphones -> Icons.Default.Headphones
+                    AudioOutputRouteType.Usb -> Icons.Default.Usb
+                    AudioOutputRouteType.Speaker -> Icons.AutoMirrored.Filled.VolumeUp
+                },
+                contentDescription = null,
+                modifier = Modifier.size(iconSize),
+                tint = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            Text(
+                text = routeInfo.name,
+                style = MaterialTheme.typography.labelMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
         }
     }
 }
