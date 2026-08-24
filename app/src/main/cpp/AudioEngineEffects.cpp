@@ -25,16 +25,26 @@ namespace {
     float computeVisualizationTiltCompensation(float freqNorm) {
         const float clamped = std::clamp(freqNorm, 0.0f, 1.0f);
         const float shaped = std::pow(clamped, 0.85f);
-        // Attenuate low-end dominance while preserving high-band detail.
         return 0.24f + (1.76f * shaped);
     }
 
-    void fftInPlace(std::array<float, kVisualizationFftSize>& real,
-                    std::array<float, kVisualizationFftSize>& imag) {
-        static bool bitReverseInitialized = false;
-        static std::array<int, kVisualizationFftSize> bitReverse {};
-        if (!bitReverseInitialized) {
+    struct VisualizationLookupTables {
+        std::array<float, kVisualizationFftSize> hannWindow {};
+        std::array<int, kVisualizationFftSize> bitReverse {};
+        std::vector<std::vector<std::pair<float, float>>> twiddles;
+
+        int cachedSampleRate = 0;
+        struct BandInfo {
+            int startBin;
+            int endBin;
+            float invCount;
+            float weight;
+        };
+        std::array<BandInfo, kVisualizationSpectrumBins> bands {};
+
+        VisualizationLookupTables() {
             constexpr int kBitCount = 11; // log2(2048)
+            const float invSizeMinusOne = 1.0f / static_cast<float>(kVisualizationFftSize - 1);
             for (int i = 0; i < kVisualizationFftSize; ++i) {
                 int x = i;
                 int reversed = 0;
@@ -43,29 +53,82 @@ namespace {
                     x >>= 1;
                 }
                 bitReverse[i] = reversed;
+
+                const float phase = static_cast<float>(i) * invSizeMinusOne;
+                hannWindow[i] = 0.5f - (0.5f * std::cos(2.0f * static_cast<float>(M_PI) * phase));
             }
-            bitReverseInitialized = true;
+
+            for (int len = 2; len <= kVisualizationFftSize; len <<= 1) {
+                const int halfLen = len >> 1;
+                std::vector<std::pair<float, float>> stageTwiddles(halfLen);
+                for (int j = 0; j < halfLen; ++j) {
+                    const float angle = -2.0f * static_cast<float>(M_PI) * static_cast<float>(j) / static_cast<float>(len);
+                    stageTwiddles[j] = { std::cos(angle), std::sin(angle) };
+                }
+                twiddles.push_back(std::move(stageTwiddles));
+            }
         }
 
+        void updateBandsForSampleRate(int sampleRateHz) {
+            if (sampleRateHz == cachedSampleRate && cachedSampleRate > 0) {
+                return;
+            }
+            cachedSampleRate = sampleRateHz;
+            const int fftHalf = kVisualizationFftSize / 2;
+            const float sampleRateF = static_cast<float>(std::max(sampleRateHz, 1));
+            const int minBin = computeVisualizationMinBin(sampleRateHz);
+            const int maxBin = fftHalf - 1;
+            const float minFrequencyHz =
+                    (static_cast<float>(minBin) * sampleRateF) / static_cast<float>(kVisualizationFftSize);
+            const float maxFrequencyHz =
+                    (static_cast<float>(maxBin) * sampleRateF) / static_cast<float>(kVisualizationFftSize);
+            const float frequencyRatio = std::max(maxFrequencyHz / std::max(minFrequencyHz, 1.0f), 1.001f);
+
+            for (int band = 0; band < kVisualizationSpectrumBins; ++band) {
+                const float t0 = static_cast<float>(band) / static_cast<float>(kVisualizationSpectrumBins);
+                const float t1 = static_cast<float>(band + 1) / static_cast<float>(kVisualizationSpectrumBins);
+                const float startFrequencyHz = minFrequencyHz * std::pow(frequencyRatio, t0);
+                const float endFrequencyHz = minFrequencyHz * std::pow(frequencyRatio, t1);
+                const int startBin = static_cast<int>(std::floor(
+                        (startFrequencyHz / sampleRateF) * static_cast<float>(kVisualizationFftSize)));
+                const int endBin = static_cast<int>(std::ceil(
+                        (endFrequencyHz / sampleRateF) * static_cast<float>(kVisualizationFftSize))) - 1;
+                const int clampedStart = std::clamp(startBin, minBin, maxBin);
+                const int clampedEnd = std::clamp(std::max(endBin, clampedStart), clampedStart, maxBin);
+                const int count = clampedEnd - clampedStart + 1;
+                const float tiltCompensation = computeVisualizationTiltCompensation(t0);
+                bands[band] = {
+                    clampedStart,
+                    clampedEnd,
+                    1.0f / static_cast<float>(std::max(count, 1)),
+                    (68.0f * tiltCompensation) / static_cast<float>(kVisualizationFftSize)
+                };
+            }
+        }
+    };
+
+    static VisualizationLookupTables gVisTables;
+
+    void fftInPlace(std::array<float, kVisualizationFftSize>& real,
+                    std::array<float, kVisualizationFftSize>& imag) {
         for (int i = 0; i < kVisualizationFftSize; ++i) {
-            const int j = bitReverse[i];
+            const int j = gVisTables.bitReverse[i];
             if (j > i) {
                 std::swap(real[i], real[j]);
                 std::swap(imag[i], imag[j]);
             }
         }
 
-        for (int len = 2; len <= kVisualizationFftSize; len <<= 1) {
+        size_t stageIdx = 0;
+        for (int len = 2; len <= kVisualizationFftSize; len <<= 1, ++stageIdx) {
             const int halfLen = len >> 1;
-            const float theta = -2.0f * static_cast<float>(M_PI) / static_cast<float>(len);
-            const float phaseStepReal = std::cos(theta);
-            const float phaseStepImag = std::sin(theta);
+            const auto& stageTwiddles = gVisTables.twiddles[stageIdx];
             for (int i = 0; i < kVisualizationFftSize; i += len) {
-                float twiddleReal = 1.0f;
-                float twiddleImag = 0.0f;
                 for (int j = 0; j < halfLen; ++j) {
                     const int even = i + j;
                     const int odd = even + halfLen;
+                    const float twiddleReal = stageTwiddles[j].first;
+                    const float twiddleImag = stageTwiddles[j].second;
                     const float oddReal = real[odd];
                     const float oddImag = imag[odd];
                     const float tReal = (twiddleReal * oddReal) - (twiddleImag * oddImag);
@@ -77,95 +140,47 @@ namespace {
                     imag[odd] = evenImag - tImag;
                     real[even] = evenReal + tReal;
                     imag[even] = evenImag + tImag;
-
-                    const float nextTwiddleReal =
-                            (twiddleReal * phaseStepReal) - (twiddleImag * phaseStepImag);
-                    const float nextTwiddleImag =
-                            (twiddleReal * phaseStepImag) + (twiddleImag * phaseStepReal);
-                    twiddleReal = nextTwiddleReal;
-                    twiddleImag = nextTwiddleImag;
                 }
             }
         }
     }
 
-    std::array<float, kVisualizationSpectrumBins> buildVisualizationBarsFromMonoHistory(
-            const std::array<float, 4096>& monoHistory,
-            int monoWriteIndex,
-            int sampleRateHz
+    void computeSingleFftBinnedBars(
+            const float* pcm,
+            int sampleRate,
+            std::array<float, kVisualizationSpectrumBins>& outBars
     ) {
-        std::array<float, kVisualizationSpectrumBins> bars {};
+        gVisTables.updateBandsForSampleRate(sampleRate);
+
         std::array<float, kVisualizationFftSize> fftReal {};
         std::array<float, kVisualizationFftSize> fftImag {};
-        constexpr int kMonoHistorySize = 4096;
-        const int safeWriteIndex =
-                ((monoWriteIndex % kMonoHistorySize) + kMonoHistorySize) % kMonoHistorySize;
-        for (int n = 0; n < kVisualizationFftSize; ++n) {
-            const int historyIndex =
-                    (safeWriteIndex - kVisualizationFftSize + n + kMonoHistorySize) % kMonoHistorySize;
-            fftReal[n] = monoHistory[historyIndex];
-        }
 
-        // Remove DC and apply Hann window before FFT.
-        double mean = 0.0;
-        for (float sample : fftReal) {
-            mean += sample;
-        }
-        mean /= static_cast<double>(kVisualizationFftSize);
-        const float invSizeMinusOne = 1.0f / static_cast<float>(kVisualizationFftSize - 1);
+        // Fast DC removal and precomputed Hann window
+        float sum = 0.0f;
         for (int n = 0; n < kVisualizationFftSize; ++n) {
-            const float centered = fftReal[n] - static_cast<float>(mean);
-            const float phase = static_cast<float>(n) * invSizeMinusOne;
-            const float hann = 0.5f - (0.5f * std::cos(2.0f * static_cast<float>(M_PI) * phase));
-            fftReal[n] = centered * hann;
+            sum += pcm[n];
+        }
+        const float mean = sum * (1.0f / static_cast<float>(kVisualizationFftSize));
+        for (int n = 0; n < kVisualizationFftSize; ++n) {
+            fftReal[n] = (pcm[n] - mean) * gVisTables.hannWindow[n];
             fftImag[n] = 0.0f;
         }
 
         fftInPlace(fftReal, fftImag);
 
-        const int fftHalf = kVisualizationFftSize / 2;
-        const float sampleRate = static_cast<float>(std::max(sampleRateHz, 1));
-        const int minBin = computeVisualizationMinBin(sampleRateHz);
-        const int maxBin = fftHalf - 1;
-        const float minFrequencyHz =
-                (static_cast<float>(minBin) * sampleRate) / static_cast<float>(kVisualizationFftSize);
-        const float maxFrequencyHz =
-                (static_cast<float>(maxBin) * sampleRate) / static_cast<float>(kVisualizationFftSize);
-        const float frequencyRatio = std::max(maxFrequencyHz / std::max(minFrequencyHz, 1.0f), 1.001f);
         for (int band = 0; band < kVisualizationSpectrumBins; ++band) {
-            const float t0 = static_cast<float>(band) / static_cast<float>(kVisualizationSpectrumBins);
-            const float t1 = static_cast<float>(band + 1) / static_cast<float>(kVisualizationSpectrumBins);
-            const float startFrequencyHz = minFrequencyHz * std::pow(frequencyRatio, t0);
-            const float endFrequencyHz = minFrequencyHz * std::pow(frequencyRatio, t1);
-            const int startBin = static_cast<int>(std::floor(
-                    (startFrequencyHz / sampleRate) * static_cast<float>(kVisualizationFftSize)));
-            const int endBin = static_cast<int>(std::ceil(
-                    (endFrequencyHz / sampleRate) * static_cast<float>(kVisualizationFftSize))) - 1;
-            const int clampedStart = std::clamp(startBin, minBin, maxBin);
-            const int clampedEnd = std::clamp(std::max(endBin, clampedStart), clampedStart, maxBin);
-
-            double powerSum = 0.0;
-            int count = 0;
-            for (int bin = clampedStart; bin <= clampedEnd; ++bin) {
-                const double re = fftReal[bin];
-                const double im = fftImag[bin];
+            const auto& b = gVisTables.bands[band];
+            float powerSum = 0.0f;
+            for (int bin = b.startBin; bin <= b.endBin; ++bin) {
+                const float re = fftReal[bin];
+                const float im = fftImag[bin];
                 powerSum += (re * re) + (im * im);
-                count += 1;
             }
-            if (count <= 0) {
-                bars[band] = 0.0f;
-                continue;
-            }
-
-            const double avgPower = powerSum / static_cast<double>(count);
-            const double magnitude = std::sqrt(avgPower) / static_cast<double>(kVisualizationFftSize);
-            const float freqNorm = t0;
-            const float tiltCompensation = computeVisualizationTiltCompensation(freqNorm);
-            const double weighted = magnitude * static_cast<double>(68.0f * tiltCompensation);
-            // Soft knee prevents early saturation while preserving detail.
-            bars[band] = static_cast<float>(std::clamp(weighted / (1.0 + weighted), 0.0, 1.0));
+            const float magnitude = std::sqrt(powerSum * b.invCount);
+            const float weighted = magnitude * b.weight;
+            const float barValue = std::clamp(weighted / (1.0f + weighted), 0.0f, 1.0f);
+            outBars[band] = std::max(outBars[band], barValue);
         }
-        return bars;
     }
 }
 
@@ -694,6 +709,7 @@ void AudioEngine::updateVisualizationDataFromOutputCallback(
         return;
     }
 
+    const int safeChannels = std::clamp(channels, 1, 2);
     std::array<float, 256> waveL {};
     std::array<float, 256> waveR {};
     double sumSqL = 0.0;
@@ -723,198 +739,48 @@ void AudioEngine::updateVisualizationDataFromOutputCallback(
         const double invFrames = 1.0 / static_cast<double>(numFrames);
         vu[0] = static_cast<float>(std::clamp(std::sqrt(sumSqL * invFrames), 0.0, 1.0));
         vu[1] = static_cast<float>(std::clamp(std::sqrt(sumSqR * invFrames), 0.0, 1.0));
-    }
-
-    bool shouldAnalyzeSpectrum = false;
-    std::array<float, 4096> monoHistorySnapshot {};
-    int monoWriteIndexSnapshot = 0;
-    int sampleRateSnapshot = 48000;
-    int analysisHopFramesSnapshot = 800;
+    }    constexpr int kHistoryMask = 16384 - 1;
     const int64_t callbackNowNs = std::chrono::duration_cast<std::chrono::nanoseconds>(
             std::chrono::steady_clock::now().time_since_epoch()
     ).count();
-    {
-        std::lock_guard<std::mutex> visLock(visualizationMutex);
-        const int historySize = static_cast<int>(visualizationScopeHistoryLeft.size());
-        if (historySize <= 0) {
-            return;
-        }
-        const int safeChannels = std::clamp(channels, 1, 2);
-        if (needsWaveform || needsBars) {
-            for (int frame = 0; frame < numFrames; ++frame) {
-                const int base = frame * safeChannels;
-                const float left = buffer[base];
-                const float right = safeChannels > 1 ? buffer[base + 1] : left;
-                const float mono = 0.5f * (left + right);
-                if (needsWaveform) {
-                    visualizationScopeHistoryLeft[visualizationScopeWriteIndex] = std::clamp(left, -1.0f, 1.0f);
-                    visualizationScopeHistoryRight[visualizationScopeWriteIndex] = std::clamp(right, -1.0f, 1.0f);
-                    visualizationScopeWriteIndex = (visualizationScopeWriteIndex + 1) % historySize;
-                }
-                if (needsBars) {
-                    visualizationMonoHistory[visualizationMonoWriteIndex] = std::clamp(mono, -1.0f, 1.0f);
-                    visualizationMonoWriteIndex =
-                            (visualizationMonoWriteIndex + 1) % static_cast<int>(visualizationMonoHistory.size());
-                }
-            }
-        }
-        if (needsWaveform) {
-            visualizationWaveformLeft = waveL;
-            visualizationWaveformRight = waveR;
-        }
-        if (needsVu) {
-            visualizationVuLevelsPrev = visualizationVuLevels;
-            visualizationVuLevels = vu;
-            visualizationLastVuCallbackFrames = numFrames;
-            visualizationLastVuCallbackNs = callbackNowNs;
-        }
-        if (needsChannelCount) {
-            visualizationChannelCount.store(safeChannels);
-        }
-        visualizationLastCallbackFrames = numFrames;
-        visualizationLastCallbackNs = callbackNowNs;
-
-        if (needsBars) {
-            sampleRateSnapshot = std::max(streamSampleRate, 8000);
-            const int analysisHopFrames = std::clamp(sampleRateSnapshot / 60, 128, 4096);
-            visualizationFramesSinceAnalysis += numFrames;
-            if (visualizationFramesSinceAnalysis >= analysisHopFrames) {
-                visualizationFramesSinceAnalysis %= analysisHopFrames;
-                monoHistorySnapshot = visualizationMonoHistory;
-                monoWriteIndexSnapshot = visualizationMonoWriteIndex;
-                analysisHopFramesSnapshot = analysisHopFrames;
-                shouldAnalyzeSpectrum = true;
-            }
-        }
-    }
-    if (!shouldAnalyzeSpectrum) {
-        return;
-    }
-
-    const auto bars = buildVisualizationBarsFromMonoHistory(
-            monoHistorySnapshot,
-            monoWriteIndexSnapshot,
-            sampleRateSnapshot
-    );
-    std::lock_guard<std::mutex> visLock(visualizationMutex);
-    visualizationBarsPrev = visualizationBars;
-    visualizationBars = bars;
-    visualizationLastBarsAnalysisNs = callbackNowNs;
-    visualizationBarsAnalysisDurationNs =
-            (static_cast<double>(analysisHopFramesSnapshot) * 1.0e9) / static_cast<double>(sampleRateSnapshot);
-}
-
-void AudioEngine::updateVisualizationDataLocked(const float* buffer, int numFrames, int channels) {
-    if (!buffer || numFrames <= 0 || channels <= 0) {
-        return;
-    }
-
-    std::array<float, 256> waveL {};
-    std::array<float, 256> waveR {};
-    std::array<float, 256> bars {};
-    std::array<float, 2> vu {};
-
-    for (int n = 0; n < kVisualizationWaveformSize; ++n) {
-        const int srcFrame = (n * numFrames) / kVisualizationWaveformSize;
-        const int frameIndex = std::min(srcFrame, numFrames - 1);
-        const int base = frameIndex * channels;
-        const float left = buffer[base];
-        const float right = channels > 1 ? buffer[base + 1] : left;
-        waveL[n] = std::clamp(left, -1.0f, 1.0f);
-        waveR[n] = std::clamp(right, -1.0f, 1.0f);
-    }
-
-    double sumSqL = 0.0;
-    double sumSqR = 0.0;
-    for (int frame = 0; frame < numFrames; ++frame) {
-        const int base = frame * channels;
-        const float left = buffer[base];
-        const float right = channels > 1 ? buffer[base + 1] : left;
-        const float mono = 0.5f * (left + right);
-        visualizationMonoHistory[visualizationMonoWriteIndex] = mono;
-        visualizationMonoWriteIndex = (visualizationMonoWriteIndex + 1) % static_cast<int>(visualizationMonoHistory.size());
-        sumSqL += static_cast<double>(left) * left;
-        sumSqR += static_cast<double>(right) * right;
-    }
-    const double invFrames = 1.0 / static_cast<double>(numFrames);
-    vu[0] = static_cast<float>(std::clamp(std::sqrt(sumSqL * invFrames), 0.0, 1.0));
-    vu[1] = static_cast<float>(std::clamp(std::sqrt(sumSqR * invFrames), 0.0, 1.0));
-
-    std::array<float, kVisualizationFftSize> fftReal {};
-    std::array<float, kVisualizationFftSize> fftImag {};
-    const int historySize = static_cast<int>(visualizationMonoHistory.size());
-    for (int n = 0; n < kVisualizationFftSize; ++n) {
-        const int historyIndex =
-                (visualizationMonoWriteIndex - kVisualizationFftSize + n + historySize) % historySize;
-        fftReal[n] = visualizationMonoHistory[historyIndex];
-    }
-
-    // Remove DC and apply Hann window before FFT.
-    double mean = 0.0;
-    for (float sample : fftReal) {
-        mean += sample;
-    }
-    mean /= static_cast<double>(kVisualizationFftSize);
-    const float invSizeMinusOne = 1.0f / static_cast<float>(kVisualizationFftSize - 1);
-    for (int n = 0; n < kVisualizationFftSize; ++n) {
-        const float centered = fftReal[n] - static_cast<float>(mean);
-        const float phase = static_cast<float>(n) * invSizeMinusOne;
-        const float hann = 0.5f - (0.5f * std::cos(2.0f * static_cast<float>(M_PI) * phase));
-        fftReal[n] = centered * hann;
-        fftImag[n] = 0.0f;
-    }
-
-    fftInPlace(fftReal, fftImag);
-
-    const int fftHalf = kVisualizationFftSize / 2;
-    const float sampleRate = static_cast<float>(std::max(streamSampleRate, 1));
-    const int minBin = computeVisualizationMinBin(streamSampleRate);
-    const int maxBin = fftHalf - 1;
-    const float minFrequencyHz =
-            (static_cast<float>(minBin) * sampleRate) / static_cast<float>(kVisualizationFftSize);
-    const float maxFrequencyHz =
-            (static_cast<float>(maxBin) * sampleRate) / static_cast<float>(kVisualizationFftSize);
-    const float frequencyRatio = std::max(maxFrequencyHz / std::max(minFrequencyHz, 1.0f), 1.001f);
-    for (int band = 0; band < kVisualizationSpectrumBins; ++band) {
-        const float t0 = static_cast<float>(band) / static_cast<float>(kVisualizationSpectrumBins);
-        const float t1 = static_cast<float>(band + 1) / static_cast<float>(kVisualizationSpectrumBins);
-        const float startFrequencyHz = minFrequencyHz * std::pow(frequencyRatio, t0);
-        const float endFrequencyHz = minFrequencyHz * std::pow(frequencyRatio, t1);
-        const int startBin = static_cast<int>(std::floor(
-                (startFrequencyHz / sampleRate) * static_cast<float>(kVisualizationFftSize)));
-        const int endBin = static_cast<int>(std::ceil(
-                (endFrequencyHz / sampleRate) * static_cast<float>(kVisualizationFftSize))) - 1;
-        const int clampedStart = std::clamp(startBin, minBin, maxBin);
-        const int clampedEnd = std::clamp(std::max(endBin, clampedStart), clampedStart, maxBin);
-
-        double powerSum = 0.0;
-        int count = 0;
-        for (int bin = clampedStart; bin <= clampedEnd; ++bin) {
-            const double re = fftReal[bin];
-            const double im = fftImag[bin];
-            powerSum += (re * re) + (im * im);
-            count += 1;
-        }
-        if (count <= 0) {
-            bars[band] = 0.0f;
-            continue;
-        }
-
-        const double avgPower = powerSum / static_cast<double>(count);
-        const double magnitude = std::sqrt(avgPower) / static_cast<double>(kVisualizationFftSize);
-        const float freqNorm = t0;
-        const float tiltCompensation = computeVisualizationTiltCompensation(freqNorm);
-        const double weighted = magnitude * static_cast<double>(68.0f * tiltCompensation);
-        // Soft knee prevents early saturation while preserving detail.
-        bars[band] = static_cast<float>(std::clamp(weighted / (1.0 + weighted), 0.0, 1.0));
-    }
 
     std::lock_guard<std::mutex> visLock(visualizationMutex);
-    visualizationWaveformLeft = waveL;
-    visualizationWaveformRight = waveR;
-    visualizationBars = bars;
-    visualizationVuLevels = vu;
-    visualizationChannelCount.store(std::clamp(channels, 1, 2));
+    if (needsWaveform || needsVu) {
+        int wIndex = visualizationScopeWriteIndex;
+        for (int frame = 0; frame < numFrames; ++frame) {
+            const int base = frame * safeChannels;
+            const float left = buffer[base];
+            const float right = safeChannels > 1 ? buffer[base + 1] : left;
+            visualizationScopeHistoryLeft[wIndex] = std::clamp(left, -1.0f, 1.0f);
+            visualizationScopeHistoryRight[wIndex] = std::clamp(right, -1.0f, 1.0f);
+            wIndex = (wIndex + 1) & kHistoryMask;
+        }
+        visualizationScopeWriteIndex = wIndex;
+    }
+    if (needsBars) {
+        int mIndex = visualizationMonoWriteIndex;
+        for (int frame = 0; frame < numFrames; ++frame) {
+            const int base = frame * safeChannels;
+            const float left = buffer[base];
+            const float right = safeChannels > 1 ? buffer[base + 1] : left;
+            const float mono = 0.5f * (left + right);
+            visualizationMonoHistory[mIndex] = std::clamp(mono, -1.0f, 1.0f);
+            mIndex = (mIndex + 1) & kHistoryMask;
+        }
+        visualizationMonoWriteIndex = mIndex;
+    }
+    if (needsWaveform) {
+        visualizationWaveformLeft = waveL;
+        visualizationWaveformRight = waveR;
+    }
+    if (needsVu) {
+        visualizationVuLevels = vu;
+    }
+    if (needsChannelCount) {
+        visualizationChannelCount.store(safeChannels, std::memory_order_relaxed);
+    }
+    visualizationLastCallbackFrames = numFrames;
+    visualizationLastCallbackNs = callbackNowNs;
 }
 
 void AudioEngine::markVisualizationRequested(uint32_t features) const {
@@ -952,141 +818,96 @@ std::vector<float> AudioEngine::getVisualizationWaveformScope(
         int triggerMode
 ) const {
     markVisualizationRequested(kVisualizationFeatureWaveform);
-    std::lock_guard<std::mutex> lock(visualizationMutex);
     constexpr int kOutputSize = 1024;
-    const auto& history = channelIndex == 1 ? visualizationScopeHistoryRight : visualizationScopeHistoryLeft;
-    const int historySize = static_cast<int>(history.size());
-    if (historySize <= 0) {
-        return std::vector<float>(kOutputSize, 0.0f);
+    const int sampleRate = std::max(streamSampleRate, 8000);
+    const int clampedWindowMs = std::clamp(windowMs, 5, 100);
+    int windowFrames = (sampleRate * clampedWindowMs) / 1000;
+    windowFrames = std::clamp(windowFrames, 128, 4096);
+    const int extractFrames = windowFrames * 2 + 4;
+
+    std::vector<float> localWindow(extractFrames, 0.0f);
+    {
+        std::lock_guard<std::mutex> lock(visualizationMutex);
+        const int callbackFrames = std::max(visualizationLastCallbackFrames, 1);
+        const int64_t callbackNs = visualizationLastCallbackNs;
+        const int64_t nowNs = std::chrono::duration_cast<std::chrono::nanoseconds>(
+                std::chrono::steady_clock::now().time_since_epoch()
+        ).count();
+        const int64_t elapsedNs = std::max<int64_t>(0, nowNs - callbackNs);
+        const double elapsedFrames = (static_cast<double>(elapsedNs) * static_cast<double>(sampleRate)) / 1.0e9;
+        const int playOffset = std::clamp(
+                static_cast<int>(std::floor(elapsedFrames)),
+                0,
+                callbackFrames
+        );
+
+        const auto& history = channelIndex == 1 ? visualizationScopeHistoryRight : visualizationScopeHistoryLeft;
+        constexpr int kHistoryMask = 16384 - 1;
+        const int callbackStart = (visualizationScopeWriteIndex - callbackFrames + 16384) & kHistoryMask;
+        const int currentPlayHead = (callbackStart + playOffset) & kHistoryMask;
+        const int rawStart = (currentPlayHead - extractFrames + 16384) & kHistoryMask;
+        for (int i = 0; i < extractFrames; ++i) {
+            localWindow[i] = history[(rawStart + i) & kHistoryMask];
+        }
     }
 
-    const int sampleRate = std::max(streamSampleRate, 8000);
-    const int clampedWindowMs = std::clamp(windowMs, 5, 200);
-    int windowFrames = (sampleRate * clampedWindowMs) / 1000;
-    // Allow smaller windows than output size; linear interpolation below will
-    // upsample without collapsing to blocky nearest-neighbor segments.
-    windowFrames = std::clamp(windowFrames, 128, historySize - 1);
-
-    const int writeIndex = visualizationScopeWriteIndex;
-    const int callbackFrames = std::max(visualizationLastCallbackFrames, 1);
-    const int64_t callbackNs = visualizationLastCallbackNs;
-    const int64_t nowNs = std::chrono::duration_cast<std::chrono::nanoseconds>(
-            std::chrono::steady_clock::now().time_since_epoch()
-    ).count();
-    const int64_t elapsedNs = std::max<int64_t>(0, nowNs - callbackNs);
-    const double elapsedFrames = std::clamp(
-            (static_cast<double>(elapsedNs) * static_cast<double>(sampleRate)) / 1.0e9,
-            0.0,
-            static_cast<double>(callbackFrames)
-    );
-    // Render with one-callback latency, then advance smoothly through the most recent
-    // callback block as wall time progresses. This avoids callback-rate stair-stepping.
-    const double virtualWriteExact =
-            static_cast<double>(writeIndex - callbackFrames) + elapsedFrames;
-    const int virtualWriteFloor = static_cast<int>(std::floor(virtualWriteExact));
-    const float virtualWriteFrac =
-            static_cast<float>(virtualWriteExact - static_cast<double>(virtualWriteFloor));
-    int startIndex = (virtualWriteFloor - windowFrames + historySize) % historySize;
-
+    int startOffset = windowFrames;
     if (triggerMode == 1 || triggerMode == 2) {
         const bool rising = triggerMode == 1;
-        const int preTrigger = windowFrames / 2;
-        const int anchorOffset = preTrigger;
-        const int prevTrigger = (channelIndex == 1)
-                                ? visualizationScopePrevTriggerIndex[1]
-                                : visualizationScopePrevTriggerIndex[0];
-        auto circularDistance = [historySize](int a, int b) -> int {
-            const int raw = std::abs(a - b);
-            return std::min(raw, historySize - raw);
-        };
+        const int searchLen = windowFrames;
+        const int anchorOffset = searchLen / 2;
+        const float invSearchLen = 1.0f / static_cast<float>(searchLen);
 
-        int bestTriggerIndex = -1;
+        int bestTriggerOffset = -1;
         float bestScore = -1.0e9f;
-        for (int offset = 2; offset < windowFrames - 2; ++offset) {
-            const int prevIndex = (startIndex + offset - 1) % historySize;
-            const int currIndex = (startIndex + offset) % historySize;
-            const float prev = history[prevIndex];
-            const float curr = history[currIndex];
+        for (int offset = 2; offset < searchLen - 2; ++offset) {
+            const float prev = localWindow[offset - 1];
+            const float curr = localWindow[offset];
             const bool crossed = rising ? (prev < 0.0f && curr >= 0.0f) : (prev > 0.0f && curr <= 0.0f);
-            if (!crossed) {
-                continue;
-            }
+            if (!crossed) continue;
 
-            const int leftIndex = (currIndex - 2 + historySize) % historySize;
-            const int rightIndex = (currIndex + 1) % historySize;
-            const float left = history[leftIndex];
-            const float right = history[rightIndex];
+            const float left = localWindow[offset - 2];
+            const float right = localWindow[offset + 1];
             const float slope = std::abs(curr - prev);
             const float edgeEnergy = 0.5f * (std::abs(curr) + std::abs(prev));
             const float curvature = std::abs((right - curr) - (curr - left));
-            const float anchorPenalty =
-                    static_cast<float>(std::abs(offset - anchorOffset)) / static_cast<float>(windowFrames);
-            const float continuityPenalty = (prevTrigger >= 0)
-                                            ? static_cast<float>(circularDistance(currIndex, prevTrigger)) /
-                                              static_cast<float>(historySize)
-                                            : 0.0f;
+            const float anchorPenalty = static_cast<float>(std::abs(offset - anchorOffset)) * invSearchLen;
 
-            const float score =
-                    (slope * 2.8f) +
-                    (edgeEnergy * 0.9f) +
-                    (curvature * 0.35f) -
-                    (anchorPenalty * 1.6f) -
-                    (continuityPenalty * 1.1f);
+            const float score = (slope * 2.8f) + (edgeEnergy * 0.9f) + (curvature * 0.35f) - (anchorPenalty * 1.6f);
             if (score > bestScore) {
                 bestScore = score;
-                bestTriggerIndex = currIndex;
+                bestTriggerOffset = offset;
             }
         }
 
-        if (bestTriggerIndex < 0) {
-            // Fallback: pick a near-zero sample close to center for stable idle behavior.
+        if (bestTriggerOffset < 0) {
             float bestAbs = std::numeric_limits<float>::max();
-            int bestOffset = anchorOffset;
-            for (int offset = 0; offset < windowFrames; ++offset) {
-                const int idx = (startIndex + offset) % historySize;
-                const float sample = std::abs(history[idx]);
-                const float anchorPenalty =
-                        static_cast<float>(std::abs(offset - anchorOffset)) / static_cast<float>(windowFrames);
-                const float continuityPenalty = (prevTrigger >= 0)
-                                                ? static_cast<float>(circularDistance(idx, prevTrigger)) /
-                                                  static_cast<float>(historySize)
-                                                : 0.0f;
-                const float ranking = sample + (anchorPenalty * 0.10f) + (continuityPenalty * 0.08f);
+            for (int offset = 0; offset < searchLen; ++offset) {
+                const float sample = std::abs(localWindow[offset]);
+                const float anchorPenalty = static_cast<float>(std::abs(offset - anchorOffset)) * invSearchLen;
+                const float ranking = sample + (anchorPenalty * 0.10f);
                 if (ranking < bestAbs) {
                     bestAbs = ranking;
-                    bestOffset = offset;
-                    bestTriggerIndex = idx;
+                    bestTriggerOffset = offset;
                 }
             }
-            (void)bestOffset;
         }
 
-        if (bestTriggerIndex >= 0) {
-            if (channelIndex == 1) {
-                visualizationScopePrevTriggerIndex[1] = bestTriggerIndex;
-            } else {
-                visualizationScopePrevTriggerIndex[0] = bestTriggerIndex;
-            }
-            startIndex = (bestTriggerIndex - preTrigger + historySize) % historySize;
-        }
-    } else {
-        if (channelIndex == 1) {
-            visualizationScopePrevTriggerIndex[1] = -1;
-        } else {
-            visualizationScopePrevTriggerIndex[0] = -1;
+        if (bestTriggerOffset >= 0) {
+            startOffset = bestTriggerOffset;
         }
     }
 
     std::vector<float> output(kOutputSize, 0.0f);
     const double scale = static_cast<double>(windowFrames - 1) / static_cast<double>(kOutputSize - 1);
     for (int i = 0; i < kOutputSize; ++i) {
-        const double frameOffset = static_cast<double>(i) * scale + static_cast<double>(virtualWriteFrac);
+        const double frameOffset = static_cast<double>(i) * scale;
         const int frameFloor = static_cast<int>(std::floor(frameOffset));
         const float frac = static_cast<float>(frameOffset - static_cast<double>(frameFloor));
-        const int idx0 = (startIndex + frameFloor) % historySize;
-        const int idx1 = (idx0 + 1) % historySize;
-        const float sample0 = history[idx0];
-        const float sample1 = history[idx1];
+        const int idx0 = std::min(startOffset + frameFloor, extractFrames - 2);
+        const int idx1 = idx0 + 1;
+        const float sample0 = localWindow[idx0];
+        const float sample1 = localWindow[idx1];
         const float sample = sample0 + ((sample1 - sample0) * frac);
         output[i] = std::clamp(sample, -1.0f, 1.0f);
     }
@@ -1095,54 +916,83 @@ std::vector<float> AudioEngine::getVisualizationWaveformScope(
 
 std::vector<float> AudioEngine::getVisualizationBars() const {
     markVisualizationRequested(kVisualizationFeatureBars);
-    std::lock_guard<std::mutex> lock(visualizationMutex);
-    const int64_t nowNs = std::chrono::duration_cast<std::chrono::nanoseconds>(
-            std::chrono::steady_clock::now().time_since_epoch()
-    ).count();
-    const int64_t elapsedNs = std::max<int64_t>(0, nowNs - visualizationLastBarsAnalysisNs);
-    const double durationNs = visualizationBarsAnalysisDurationNs;
-    const float alpha = static_cast<float>(
-            std::clamp(
-                    durationNs > 0.0 ? (static_cast<double>(elapsedNs) / durationNs) : 1.0,
-                    0.0,
-                    1.0
-            )
-    );
-    std::vector<float> out(visualizationBars.size(), 0.0f);
-    for (size_t i = 0; i < visualizationBars.size(); ++i) {
-        const float prev = visualizationBarsPrev[i];
-        const float curr = visualizationBars[i];
-        out[i] = std::clamp(prev + ((curr - prev) * alpha), 0.0f, 1.0f);
+    std::array<float, kVisualizationFftSize> localMono {};
+    int sampleRate = 48000;
+    {
+        std::lock_guard<std::mutex> lock(visualizationMutex);
+        sampleRate = std::max(streamSampleRate, 8000);
+        const int callbackFrames = std::max(visualizationLastCallbackFrames, 1);
+        const int64_t callbackNs = visualizationLastCallbackNs;
+        const int64_t nowNs = std::chrono::duration_cast<std::chrono::nanoseconds>(
+                std::chrono::steady_clock::now().time_since_epoch()
+        ).count();
+        const int64_t elapsedNs = std::max<int64_t>(0, nowNs - callbackNs);
+        const double elapsedFrames = (static_cast<double>(elapsedNs) * static_cast<double>(sampleRate)) / 1.0e9;
+        const int playOffset = std::clamp(
+                static_cast<int>(std::floor(elapsedFrames)),
+                0,
+                callbackFrames
+        );
+
+        constexpr int kHistoryMask = 16384 - 1;
+        const int callbackStart = (visualizationMonoWriteIndex - callbackFrames + 16384) & kHistoryMask;
+        const int currentPlayHead = (callbackStart + playOffset) & kHistoryMask;
+        const int startIdx = (currentPlayHead - kVisualizationFftSize + 16384) & kHistoryMask;
+        for (int i = 0; i < kVisualizationFftSize; ++i) {
+            localMono[i] = visualizationMonoHistory[(startIdx + i) & kHistoryMask];
+        }
     }
-    return out;
+
+    std::array<float, kVisualizationSpectrumBins> bars {};
+    computeSingleFftBinnedBars(localMono.data(), sampleRate, bars);
+
+    return std::vector<float>(bars.begin(), bars.end());
 }
 
 std::vector<float> AudioEngine::getVisualizationVuLevels() const {
     markVisualizationRequested(kVisualizationFeatureVu);
-    std::lock_guard<std::mutex> lock(visualizationMutex);
-    const int callbackFrames = std::max(visualizationLastVuCallbackFrames, 1);
-    const int sampleRate = std::max(streamSampleRate, 8000);
-    const int64_t callbackNs = visualizationLastVuCallbackNs;
-    const int64_t nowNs = std::chrono::duration_cast<std::chrono::nanoseconds>(
-            std::chrono::steady_clock::now().time_since_epoch()
-    ).count();
-    const int64_t elapsedNs = std::max<int64_t>(0, nowNs - callbackNs);
-    const double callbackDurationNs =
-            (static_cast<double>(callbackFrames) * 1.0e9) / static_cast<double>(sampleRate);
-    const float alpha = static_cast<float>(
-            std::clamp(
-                    callbackDurationNs > 0.0 ? (static_cast<double>(elapsedNs) / callbackDurationNs) : 1.0,
-                    0.0,
-                    1.0
-            )
-    );
-    std::vector<float> out(visualizationVuLevels.size(), 0.0f);
-    for (size_t i = 0; i < visualizationVuLevels.size(); ++i) {
-        const float prev = visualizationVuLevelsPrev[i];
-        const float curr = visualizationVuLevels[i];
-        out[i] = std::clamp(prev + ((curr - prev) * alpha), 0.0f, 1.0f);
+    std::array<float, 512> localL {};
+    std::array<float, 512> localR {};
+    int sampleRate = 48000;
+    {
+        std::lock_guard<std::mutex> lock(visualizationMutex);
+        sampleRate = std::max(streamSampleRate, 8000);
+        const int callbackFrames = std::max(visualizationLastCallbackFrames, 1);
+        const int64_t callbackNs = visualizationLastCallbackNs;
+        const int64_t nowNs = std::chrono::duration_cast<std::chrono::nanoseconds>(
+                std::chrono::steady_clock::now().time_since_epoch()
+        ).count();
+        const int64_t elapsedNs = std::max<int64_t>(0, nowNs - callbackNs);
+        const double elapsedFrames = (static_cast<double>(elapsedNs) * static_cast<double>(sampleRate)) / 1.0e9;
+        const int playOffset = std::clamp(
+                static_cast<int>(std::floor(elapsedFrames)),
+                0,
+                callbackFrames
+        );
+
+        constexpr int kHistoryMask = 16384 - 1;
+        constexpr int kVuWindowSize = 512;
+        const int callbackStart = (visualizationScopeWriteIndex - callbackFrames + 16384) & kHistoryMask;
+        const int currentPlayHead = (callbackStart + playOffset) & kHistoryMask;
+        const int startIdx = (currentPlayHead - kVuWindowSize + 16384) & kHistoryMask;
+        for (int i = 0; i < kVuWindowSize; ++i) {
+            const int idx = (startIdx + i) & kHistoryMask;
+            localL[i] = visualizationScopeHistoryLeft[idx];
+            localR[i] = visualizationScopeHistoryRight[idx];
+        }
     }
-    return out;
+
+    float sumSqL = 0.0f;
+    float sumSqR = 0.0f;
+    for (int i = 0; i < 512; ++i) {
+        sumSqL += localL[i] * localL[i];
+        sumSqR += localR[i] * localR[i];
+    }
+    constexpr float invSize = 1.0f / 512.0f;
+    const float rmsL = std::clamp(std::sqrt(sumSqL * invSize), 0.0f, 1.0f);
+    const float rmsR = std::clamp(std::sqrt(sumSqR * invSize), 0.0f, 1.0f);
+
+    return { rmsL, rmsR };
 }
 
 int AudioEngine::getVisualizationChannelCount() const {

@@ -723,11 +723,6 @@ void AudioEngine::renderWorkerLoop() {
 
         bool reachedEnd = false;
         int channels = 2;
-        uint32_t requestedVisualizationFeatures = 0u;
-        const bool visualizationActive = shouldUpdateVisualization(&requestedVisualizationFeatures);
-        const bool visualizeFromRenderWorker = visualizationActive;
-        const bool basicVisualizationActive =
-                (requestedVisualizationFeatures & ~kVisualizationFeatureChannelScope) != 0u;
         int chunkFrames = baseChunkFrames;
         const int deficitFrames = std::max(0, effectiveTarget - bufferedFramesBeforeFill);
         if (recoveryBoostActive || backgroundHeadroomActive ||
@@ -740,10 +735,6 @@ void AudioEngine::renderWorkerLoop() {
                     baseChunkFrames,
                     backgroundHeadroomActive ? 8192 : 4096
             );
-        }
-        // Force small decode chunks so each wake-up captures many vis frames.
-        if (basicVisualizationActive && !recoveryBoostActive && !backgroundHeadroomActive) {
-            chunkFrames = std::min(chunkFrames, std::max(64, baseChunkFrames / 4));
         }
         {
             std::lock_guard<std::mutex> lock(decoderMutex);
@@ -884,26 +875,6 @@ void AudioEngine::renderWorkerLoop() {
         }
 
         appendRenderQueue(localBuffer.data(), chunkFrames, channels);
-
-        if (visualizeFromRenderWorker) {
-            updateVisualizationDataFromOutputCallback(
-                    localBuffer.data(),
-                    chunkFrames,
-                    channels,
-                    requestedVisualizationFeatures
-            );
-        }
-
-        // Only apply a tiny pacing delay while visualization demand is active.
-        // In background playback, intentional sleeps here just slow underrun
-        // recovery down and can stretch short crackles into audible bursts.
-        if (visualizationActive && !recoveryBoostActive) {
-            const int currentLevel = renderQueueFrames();
-            const int safetyThreshold = std::max(targetFrames / 4, 1024);
-            if (currentLevel > safetyThreshold && currentLevel < effectiveTarget) {
-                std::this_thread::sleep_for(std::chrono::milliseconds(2));
-            }
-        }
 
         if (!isPlaying.load() && renderTerminalStopPending.load()) {
             renderWorkerCv.notify_all();

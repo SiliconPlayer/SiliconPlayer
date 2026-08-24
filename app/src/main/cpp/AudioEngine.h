@@ -361,20 +361,12 @@ private:
     std::array<float, 16384> visualizationScopeHistoryRight {};
     int visualizationScopeWriteIndex = 0;
     mutable std::array<int, 2> visualizationScopePrevTriggerIndex { -1, -1 };
-    std::array<float, 256> visualizationBars {};
-    std::array<float, 256> visualizationBarsPrev {};
     std::array<float, 2> visualizationVuLevels {};
-    std::array<float, 2> visualizationVuLevelsPrev {};
     std::atomic<int> visualizationChannelCount { 2 };
-    std::array<float, 4096> visualizationMonoHistory {};
+    std::array<float, 16384> visualizationMonoHistory {};
     int visualizationMonoWriteIndex = 0;
-    int visualizationFramesSinceAnalysis = 0;
     int visualizationLastCallbackFrames = 0;
     int64_t visualizationLastCallbackNs = 0;
-    int64_t visualizationLastBarsAnalysisNs = 0;
-    double visualizationBarsAnalysisDurationNs = 16666666.0;
-    int visualizationLastVuCallbackFrames = 0;
-    int64_t visualizationLastVuCallbackNs = 0;
     mutable std::atomic<int64_t> visualizationLastRequestNs { 0 };
     mutable std::atomic<uint32_t> visualizationRequestedFeatures { 0 };
 
@@ -427,7 +419,6 @@ private:
     void applyLookaheadClipper(float* buffer, int numFrames, int channels, int sampleRate);
     void resetLookaheadClipperStateLocked();
     void updateVisualizationDataFromOutputCallback(const float* buffer, int numFrames, int channels, uint32_t requestedFeatures);
-    void updateVisualizationDataLocked(const float* buffer, int numFrames, int channels);
     void markVisualizationRequested(uint32_t features) const;
     bool shouldUpdateVisualization(uint32_t* outFeatures) const;
 

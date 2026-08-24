@@ -454,6 +454,16 @@ bool AudioEngine::renderOutputCallbackFrames(float* outputData, int32_t numFrame
         outputData[i] = std::clamp(outputData[i], -1.0f, 1.0f);
     }
 
+    uint32_t requestedFeatures = 0u;
+    if (shouldUpdateVisualization(&requestedFeatures)) {
+        updateVisualizationDataFromOutputCallback(
+                outputData,
+                numFrames,
+                2,
+                requestedFeatures
+        );
+    }
+
     if (pauseResumeFadeOutStopPending) {
         pauseResumeFadeOutStopPending = false;
         isPlaying.store(false);
