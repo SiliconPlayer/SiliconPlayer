@@ -283,6 +283,7 @@ void GlArtworkRenderer::drawArtworkOrFallback(float surfaceWidth, float surfaceH
         float quad[24];
         GlPrimitives::generateTexturedQuad(0.0f, 0.0f, surfaceWidth, surfaceHeight, 0.0f, 0.0f, 1.0f, 1.0f, quad);
 
+        glBindBuffer(GL_ARRAY_BUFFER, 0);
         glEnableVertexAttribArray(texPosLoc_);
         glVertexAttribPointer(texPosLoc_, 2, GL_FLOAT, GL_FALSE, 4 * sizeof(float), quad);
 
@@ -324,6 +325,7 @@ void GlArtworkRenderer::drawArtworkOrFallback(float surfaceWidth, float surfaceH
             0.0f, surfaceHeight
         };
 
+        glBindBuffer(GL_ARRAY_BUFFER, 0);
         glEnableVertexAttribArray(bgPosLoc_);
         glVertexAttribPointer(bgPosLoc_, 2, GL_FLOAT, GL_FALSE, 0, fullQuad);
         glDrawArrays(GL_TRIANGLES, 0, 6);
@@ -346,6 +348,7 @@ void GlArtworkRenderer::drawArtworkOrFallback(float surfaceWidth, float surfaceH
             float iconQuad[24];
             GlPrimitives::generateTexturedQuad(iconX, iconY, iconSizePx, iconSizePx, 0.0f, 0.0f, 1.0f, 1.0f, iconQuad);
 
+            glBindBuffer(GL_ARRAY_BUFFER, 0);
             glEnableVertexAttribArray(texPosLoc_);
             glVertexAttribPointer(texPosLoc_, 2, GL_FLOAT, GL_FALSE, 4 * sizeof(float), iconQuad);
 
@@ -375,6 +378,7 @@ void GlArtworkRenderer::drawContrastBackdrop(float surfaceWidth, float surfaceHe
     float quad[24];
     GlPrimitives::generateTexturedQuad(0.0f, 0.0f, surfaceWidth, surfaceHeight, 0.0f, 0.0f, 1.0f, 1.0f, quad);
 
+    glBindBuffer(GL_ARRAY_BUFFER, 0);
     glEnableVertexAttribArray(contrastPosLoc_);
     glVertexAttribPointer(contrastPosLoc_, 2, GL_FLOAT, GL_FALSE, 4 * sizeof(float), quad);
 

@@ -166,6 +166,54 @@ IVisualizerRenderer* SiliconVisPipeline::getActiveRenderer() {
 void SiliconVisPipeline::render() {
     if (!glInitialized_ || widthPx_ <= 0 || heightPx_ <= 0) return;
 
+    if (audioProvider_) {
+        switch (currentMode_) {
+            case SILICON_VIS_MODE_OSCILLOSCOPE: {
+                const int windowMs = oscilloscope_.getWindowMs();
+                const int triggerMode = oscilloscope_.getTriggerMode();
+                audioProvider_->getWaveformScope(0, windowMs, triggerMode, nativeWaveformL_);
+                if (oscilloscope_.isStereo()) {
+                    audioProvider_->getWaveformScope(1, windowMs, triggerMode, nativeWaveformR_);
+                    oscilloscope_.setWaveforms(
+                        nativeWaveformL_.data(), static_cast<int32_t>(nativeWaveformL_.size()),
+                        nativeWaveformR_.data(), static_cast<int32_t>(nativeWaveformR_.size())
+                    );
+                } else {
+                    oscilloscope_.setWaveforms(
+                        nativeWaveformL_.data(), static_cast<int32_t>(nativeWaveformL_.size()),
+                        nullptr, 0
+                    );
+                }
+                break;
+            }
+            case SILICON_VIS_MODE_BARS: {
+                audioProvider_->getFftBars(nativeFftBars_);
+                bars_.pushFft(nativeFftBars_.data(), static_cast<int32_t>(nativeFftBars_.size()));
+                break;
+            }
+            case SILICON_VIS_MODE_VU_METERS: {
+                float left = 0.0f, right = 0.0f;
+                audioProvider_->getVuLevels(left, right);
+                vuMeters_.setVuLevels(left, right);
+                break;
+            }
+            case SILICON_VIS_MODE_CHANNEL_SCOPE: {
+                int chCount = 0;
+                const int windowMs = channelScope_.getWindowMs();
+                int displaySamples = (48000 * windowMs) / 1000;
+                displaySamples = std::clamp(displaySamples, 64, 2048);
+                const int fetchSamples = displaySamples * 2;
+                audioProvider_->getChannelScopeHistories(fetchSamples, 0, nativeFlatScope_, chCount);
+                if (chCount > 0 && !nativeFlatScope_.empty()) {
+                    channelScope_.setAllChannelHistories(chCount, fetchSamples, nativeFlatScope_.data(), displaySamples);
+                }
+                break;
+            }
+            default:
+                break;
+        }
+    }
+
     glViewport(0, 0, widthPx_, heightPx_);
 
     // 1. Render Artwork / Radial Fallback & Contrast Backdrop

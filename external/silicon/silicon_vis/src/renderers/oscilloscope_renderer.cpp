@@ -42,8 +42,21 @@ void OscilloscopeRenderer::pushPcm(const float* pcmInterleaved, int32_t frames, 
     }
 }
 
+void OscilloscopeRenderer::setWaveforms(const float* left, int32_t leftCount, const float* right, int32_t rightCount) {
+    if (left && leftCount > 0) {
+        pcmLeft_.assign(left, left + leftCount);
+    }
+    if (right && rightCount > 0) {
+        pcmRight_.assign(right, right + rightCount);
+    } else if (left && leftCount > 0) {
+        pcmRight_ = pcmLeft_;
+    }
+}
+
 void OscilloscopeRenderer::setOptions(
     bool stereo,
+    int32_t windowMs,
+    int32_t triggerMode,
     uint32_t waveColorArgb,
     float lineWidthPx,
     uint32_t gridColorArgb,
@@ -52,6 +65,8 @@ void OscilloscopeRenderer::setOptions(
     bool showGrid
 ) {
     stereo_ = stereo;
+    windowMs_ = std::clamp(windowMs, 5, 100);
+    triggerMode_ = triggerMode;
     waveColorArgb_ = waveColorArgb;
     lineWidthPx_ = lineWidthPx;
     gridColorArgb_ = gridColorArgb;

@@ -46,7 +46,11 @@ void ChannelScopeRenderer::setOptions(
     uint32_t vuColorArgb,
     const SiliconVisTextPalette* palette,
     bool shadowEnabled,
-    bool hideWhenOverflow
+    bool hideWhenOverflow,
+    int32_t windowMs,
+    int32_t gainPercent,
+    bool dcRemovalEnabled,
+    int32_t triggerMode
 ) {
     layout_ = layout;
     anchor_ = anchor;
@@ -62,6 +66,10 @@ void ChannelScopeRenderer::setOptions(
     if (palette) palette_ = *palette;
     shadowEnabled_ = shadowEnabled;
     hideWhenOverflow_ = hideWhenOverflow;
+    windowMs_ = std::clamp(windowMs, 5, 100);
+    gainPercent_ = std::clamp(gainPercent, 10, 500);
+    dcRemovalEnabled_ = dcRemovalEnabled;
+    triggerMode_ = triggerMode;
 }
 
 void ChannelScopeRenderer::setChannelHistory(int32_t channel, const float* history, int32_t sampleCount) {
@@ -72,17 +80,93 @@ void ChannelScopeRenderer::setChannelHistory(int32_t channel, const float* histo
     channelHistories_[channel].assign(history, history + sampleCount);
 }
 
-void ChannelScopeRenderer::setAllChannelHistories(int32_t channelCount, int32_t samplesPerChannel, const float* flatData) {
-    if (channelCount <= 0 || samplesPerChannel <= 0 || !flatData) {
+void ChannelScopeRenderer::setAllChannelHistories(
+    int32_t channelCount,
+    int32_t totalSamplesPerChannel,
+    const float* flatData,
+    int32_t displaySamplesPerChannel
+) {
+    if (channelCount <= 0 || totalSamplesPerChannel <= 0 || !flatData) {
         channelHistories_.clear();
         return;
     }
     if (static_cast<int32_t>(channelHistories_.size()) != channelCount) {
         channelHistories_.resize(channelCount);
     }
+    if (displaySamplesPerChannel <= 0 || displaySamplesPerChannel > totalSamplesPerChannel) {
+        displaySamplesPerChannel = totalSamplesPerChannel;
+    }
+
+    const float gain = static_cast<float>(gainPercent_) / 100.0f;
+    const int displayHalf = displaySamplesPerChannel / 2;
+    const bool rising = (triggerMode_ == 1);
+
     for (int32_t ch = 0; ch < channelCount; ++ch) {
-        const float* src = flatData + (ch * samplesPerChannel);
-        channelHistories_[ch].assign(src, src + samplesPerChannel);
+        auto& hist = channelHistories_[ch];
+        hist.resize(displaySamplesPerChannel);
+        const float* src = flatData + (ch * totalSamplesPerChannel);
+
+        if (triggerMode_ == 0 || totalSamplesPerChannel <= displaySamplesPerChannel) {
+            int start = (totalSamplesPerChannel - displaySamplesPerChannel) / 2;
+            if (dcRemovalEnabled_) {
+                float sum = 0.0f;
+                for (int i = 0; i < displaySamplesPerChannel; ++i) sum += src[start + i];
+                const float dc = sum / static_cast<float>(displaySamplesPerChannel);
+                for (int i = 0; i < displaySamplesPerChannel; ++i) {
+                    hist[i] = (src[start + i] - dc) * gain;
+                }
+            } else if (gainPercent_ != 100) {
+                for (int i = 0; i < displaySamplesPerChannel; ++i) {
+                    hist[i] = src[start + i] * gain;
+                }
+            } else {
+                std::copy(src + start, src + start + displaySamplesPerChannel, hist.begin());
+            }
+            continue;
+        }
+
+        // Trigger mode (1 = rising, 2 = falling): search outward from center
+        int bestIdx = totalSamplesPerChannel / 2;
+        float absMax = 0.0f;
+        for (int i = 0; i < totalSamplesPerChannel; ++i) {
+            float a = std::abs(src[i]);
+            if (a > absMax) absMax = a;
+        }
+
+        if (absMax >= 0.005f) {
+            int lo = totalSamplesPerChannel / 4;
+            int hi = (3 * totalSamplesPerChannel) / 4;
+            int bestDist = totalSamplesPerChannel;
+            int center = totalSamplesPerChannel / 2;
+
+            for (int i = lo + 1; i < hi; ++i) {
+                bool crossed = rising ? (src[i - 1] <= 0.0f && src[i] > 0.0f)
+                                      : (src[i - 1] >= 0.0f && src[i] < 0.0f);
+                if (crossed) {
+                    int dist = std::abs(i - center);
+                    if (dist < bestDist) {
+                        bestDist = dist;
+                        bestIdx = i;
+                    }
+                }
+            }
+        }
+
+        int start = std::clamp(bestIdx - displayHalf, 0, totalSamplesPerChannel - displaySamplesPerChannel);
+        if (dcRemovalEnabled_) {
+            float sum = 0.0f;
+            for (int i = 0; i < displaySamplesPerChannel; ++i) sum += src[start + i];
+            const float dc = sum / static_cast<float>(displaySamplesPerChannel);
+            for (int i = 0; i < displaySamplesPerChannel; ++i) {
+                hist[i] = (src[start + i] - dc) * gain;
+            }
+        } else if (gainPercent_ != 100) {
+            for (int i = 0; i < displaySamplesPerChannel; ++i) {
+                hist[i] = src[start + i] * gain;
+            }
+        } else {
+            std::copy(src + start, src + start + displaySamplesPerChannel, hist.begin());
+        }
     }
 }
 

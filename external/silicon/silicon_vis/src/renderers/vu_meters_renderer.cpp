@@ -26,8 +26,15 @@ void VuMetersRenderer::resize(int32_t widthPx, int32_t heightPx, float density) 
 }
 
 void VuMetersRenderer::setVuLevels(float left, float right) {
-    leftPeak_ = std::clamp(left, 0.0f, 1.0f);
-    rightPeak_ = std::clamp(right, 0.0f, 1.0f);
+    const float l = std::clamp(left, 0.0f, 1.0f);
+    const float r = std::clamp(right, 0.0f, 1.0f);
+    if (smoothing_ > 0.0f) {
+        leftPeak_ = (leftPeak_ * smoothing_) + (l * (1.0f - smoothing_));
+        rightPeak_ = (rightPeak_ * smoothing_) + (r * (1.0f - smoothing_));
+    } else {
+        leftPeak_ = l;
+        rightPeak_ = r;
+    }
 }
 
 void VuMetersRenderer::pushPcm(const float* pcmInterleaved, int32_t frames, int32_t channels, int32_t sampleRate) {
@@ -59,12 +66,14 @@ void VuMetersRenderer::pushPcm(const float* pcmInterleaved, int32_t frames, int3
 void VuMetersRenderer::setOptions(
     bool stereo,
     bool topPlacement,
+    float smoothing,
     uint32_t fillColorArgb,
     uint32_t trackColorArgb,
     uint32_t labelColorArgb
 ) {
     stereo_ = stereo;
     topPlacement_ = topPlacement;
+    smoothing_ = std::clamp(smoothing, 0.0f, 0.98f);
     fillColorArgb_ = fillColorArgb;
     trackColorArgb_ = trackColorArgb;
     labelColorArgb_ = labelColorArgb;

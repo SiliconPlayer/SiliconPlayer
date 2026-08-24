@@ -23,6 +23,7 @@ public:
 
     void setOptions(
         int32_t barCount,
+        float smoothing,
         uint32_t startColorArgb,
         uint32_t endColorArgb,
         float cornerRadiusPx,
@@ -38,6 +39,7 @@ private:
     float density_ = 1.0f;
 
     int32_t barCount_ = 32;
+    float smoothing_ = 0.5f;
     uint32_t startColorArgb_ = 0xFF80D8FF;
     uint32_t endColorArgb_ = 0xFF40C4FF;
     float cornerRadiusPx_ = 4.0f;

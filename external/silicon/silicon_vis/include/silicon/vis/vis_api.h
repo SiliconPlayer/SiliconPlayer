@@ -29,6 +29,7 @@ SILICON_VIS_API void silicon_vis_destroy(SiliconVisHandle handle);
 SILICON_VIS_API bool silicon_vis_init_gl(SiliconVisHandle handle);
 SILICON_VIS_API void silicon_vis_resize(SiliconVisHandle handle, int32_t widthPx, int32_t heightPx, float density);
 SILICON_VIS_API void silicon_vis_release_gl(SiliconVisHandle handle);
+SILICON_VIS_API void silicon_vis_set_audio_provider(SiliconVisHandle handle, void* audioProvider);
 
 // Mode selection
 SILICON_VIS_API void silicon_vis_set_mode(SiliconVisHandle handle, SiliconVisMode mode);
@@ -79,12 +80,18 @@ SILICON_VIS_API void silicon_vis_set_channel_scope_options(
     uint32_t vuColorArgb,
     const SiliconVisTextPalette* palette,
     bool shadowEnabled,
-    bool hideWhenOverflow
+    bool hideWhenOverflow,
+    int32_t windowMs,
+    int32_t gainPercent,
+    bool dcRemovalEnabled,
+    int32_t triggerMode
 );
 
 SILICON_VIS_API void silicon_vis_set_oscilloscope_options(
     SiliconVisHandle handle,
     bool stereo,
+    int32_t windowMs,
+    int32_t triggerMode,
     uint32_t waveColorArgb,
     float lineWidthPx,
     uint32_t gridColorArgb,
@@ -96,6 +103,7 @@ SILICON_VIS_API void silicon_vis_set_oscilloscope_options(
 SILICON_VIS_API void silicon_vis_set_bars_options(
     SiliconVisHandle handle,
     int32_t barCount,
+    float smoothing,
     uint32_t startColorArgb,
     uint32_t endColorArgb,
     float cornerRadiusPx,
@@ -107,6 +115,7 @@ SILICON_VIS_API void silicon_vis_set_vu_meters_options(
     SiliconVisHandle handle,
     bool stereo,
     bool topPlacement,
+    float smoothing,
     uint32_t fillColorArgb,
     uint32_t trackColorArgb,
     uint32_t labelColorArgb

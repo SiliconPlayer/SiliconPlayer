@@ -20,9 +20,12 @@ public:
     void releaseGl() override;
 
     void pushPcm(const float* pcmInterleaved, int32_t frames, int32_t channels, int32_t sampleRate) override;
+    void setWaveforms(const float* left, int32_t leftCount, const float* right, int32_t rightCount);
 
     void setOptions(
         bool stereo,
+        int32_t windowMs,
+        int32_t triggerMode,
         uint32_t waveColorArgb,
         float lineWidthPx,
         uint32_t gridColorArgb,
@@ -30,6 +33,10 @@ public:
         bool showCenterLine,
         bool showGrid
     );
+
+    bool isStereo() const { return stereo_; }
+    int32_t getWindowMs() const { return windowMs_; }
+    int32_t getTriggerMode() const { return triggerMode_; }
 
 private:
     void buildGeometry();
@@ -39,6 +46,8 @@ private:
     float density_ = 1.0f;
 
     bool stereo_ = false;
+    int32_t windowMs_ = 30;
+    int32_t triggerMode_ = 0;
     uint32_t waveColorArgb_ = 0xFF80D8FF;
     float lineWidthPx_ = 2.0f;
     uint32_t gridColorArgb_ = 0x40FFFFFF;

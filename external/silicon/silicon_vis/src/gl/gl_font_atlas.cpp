@@ -363,6 +363,8 @@ void GlTextProgram::draw(
 
     const int stride = 8 * sizeof(float);
 
+    glBindBuffer(GL_ARRAY_BUFFER, 0);
+
     glEnableVertexAttribArray(posLoc_);
     glVertexAttribPointer(posLoc_, 2, GL_FLOAT, GL_FALSE, stride, vertexData);
 

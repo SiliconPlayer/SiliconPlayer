@@ -34,6 +34,12 @@ void silicon_vis_release_gl(SiliconVisHandle handle) {
     pipeline->releaseGl();
 }
 
+void silicon_vis_set_audio_provider(SiliconVisHandle handle, void* audioProvider) {
+    if (!handle) return;
+    auto* pipeline = static_cast<SiliconVisPipeline*>(handle);
+    pipeline->setAudioProvider(static_cast<silicon::vis::IVisualizationAudioProvider*>(audioProvider));
+}
+
 void silicon_vis_set_mode(SiliconVisHandle handle, SiliconVisMode mode) {
     if (!handle) return;
     auto* pipeline = static_cast<SiliconVisPipeline*>(handle);
@@ -162,20 +168,27 @@ void silicon_vis_set_channel_scope_options(
     uint32_t vuColorArgb,
     const SiliconVisTextPalette* palette,
     bool shadowEnabled,
-    bool hideWhenOverflow
+    bool hideWhenOverflow,
+    int32_t windowMs,
+    int32_t gainPercent,
+    bool dcRemovalEnabled,
+    int32_t triggerMode
 ) {
     if (!handle) return;
     auto* pipeline = static_cast<SiliconVisPipeline*>(handle);
     pipeline->getChannelScopeRenderer().setOptions(
         layout, anchor, vuAnchor, vuEnabled, textSizeSp, paddingPx,
         gridColorArgb, gridWidthPx, lineColorArgb, lineWidthPx,
-        vuColorArgb, palette, shadowEnabled, hideWhenOverflow
+        vuColorArgb, palette, shadowEnabled, hideWhenOverflow,
+        windowMs, gainPercent, dcRemovalEnabled, triggerMode
     );
 }
 
 void silicon_vis_set_oscilloscope_options(
     SiliconVisHandle handle,
     bool stereo,
+    int32_t windowMs,
+    int32_t triggerMode,
     uint32_t waveColorArgb,
     float lineWidthPx,
     uint32_t gridColorArgb,
@@ -186,7 +199,7 @@ void silicon_vis_set_oscilloscope_options(
     if (!handle) return;
     auto* pipeline = static_cast<SiliconVisPipeline*>(handle);
     pipeline->getOscilloscopeRenderer().setOptions(
-        stereo, waveColorArgb, lineWidthPx, gridColorArgb, gridWidthPx,
+        stereo, windowMs, triggerMode, waveColorArgb, lineWidthPx, gridColorArgb, gridWidthPx,
         showCenterLine, showGrid
     );
 }
@@ -194,6 +207,7 @@ void silicon_vis_set_oscilloscope_options(
 void silicon_vis_set_bars_options(
     SiliconVisHandle handle,
     int32_t barCount,
+    float smoothing,
     uint32_t startColorArgb,
     uint32_t endColorArgb,
     float cornerRadiusPx,
@@ -203,7 +217,7 @@ void silicon_vis_set_bars_options(
     if (!handle) return;
     auto* pipeline = static_cast<SiliconVisPipeline*>(handle);
     pipeline->getBarsRenderer().setOptions(
-        barCount, startColorArgb, endColorArgb, cornerRadiusPx,
+        barCount, smoothing, startColorArgb, endColorArgb, cornerRadiusPx,
         showFrequencyGuide, guideColorArgb
     );
 }
@@ -212,6 +226,7 @@ void silicon_vis_set_vu_meters_options(
     SiliconVisHandle handle,
     bool stereo,
     bool topPlacement,
+    float smoothing,
     uint32_t fillColorArgb,
     uint32_t trackColorArgb,
     uint32_t labelColorArgb
@@ -219,7 +234,7 @@ void silicon_vis_set_vu_meters_options(
     if (!handle) return;
     auto* pipeline = static_cast<SiliconVisPipeline*>(handle);
     pipeline->getVuMetersRenderer().setOptions(
-        stereo, topPlacement, fillColorArgb, trackColorArgb, labelColorArgb
+        stereo, topPlacement, smoothing, fillColorArgb, trackColorArgb, labelColorArgb
     );
 }
 

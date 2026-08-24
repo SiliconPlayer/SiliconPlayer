@@ -210,12 +210,13 @@ void GlFlatColorRenderer::drawTriangles(
     const float* positions2D, int vertexCount,
     uint32_t colorArgb, float surfaceW, float surfaceH
 ) {
-    if (!program_.isReady() || vertexCount <= 0) return;
+    if (!program_.isReady() || vertexCount <= 0 || !positions2D) return;
     Color4f c = argbToColor4f(colorArgb);
     if (c.a <= 0.0f) return;
 
     glEnable(GL_BLEND);
     glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+    glBindBuffer(GL_ARRAY_BUFFER, 0);
 
     program_.use();
     glUniform2f(resLoc_, surfaceW, surfaceH);
@@ -232,13 +233,14 @@ void GlFlatColorRenderer::drawLines(
     uint32_t colorArgb, float lineWidth,
     float surfaceW, float surfaceH
 ) {
-    if (!program_.isReady() || vertexCount <= 0) return;
+    if (!program_.isReady() || vertexCount <= 0 || !positions2D) return;
     Color4f c = argbToColor4f(colorArgb);
     if (c.a <= 0.0f) return;
 
     glEnable(GL_BLEND);
     glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
     glLineWidth(std::max(1.0f, lineWidth));
+    glBindBuffer(GL_ARRAY_BUFFER, 0);
 
     program_.use();
     glUniform2f(resLoc_, surfaceW, surfaceH);

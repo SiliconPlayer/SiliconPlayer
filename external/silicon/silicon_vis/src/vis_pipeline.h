@@ -2,6 +2,7 @@
 
 #include "silicon/vis/vis_types.h"
 #include "silicon/vis/IVisualizerRenderer.h"
+#include "silicon/vis/IVisualizationAudioProvider.h"
 #include "gl/gl_artwork_renderer.h"
 #include "renderers/channel_scope_renderer.h"
 #include "renderers/oscilloscope_renderer.h"
@@ -9,6 +10,7 @@
 #include "renderers/vu_meters_renderer.h"
 #include <memory>
 #include <unordered_map>
+#include <vector>
 
 namespace silicon::vis {
 
@@ -20,6 +22,9 @@ public:
     bool initGl();
     void resize(int32_t widthPx, int32_t heightPx, float density);
     void releaseGl();
+
+    void setAudioProvider(IVisualizationAudioProvider* provider) { audioProvider_ = provider; }
+    IVisualizationAudioProvider* getAudioProvider() const { return audioProvider_; }
 
     void setMode(SiliconVisMode mode);
     SiliconVisMode getMode() const { return currentMode_; }
@@ -71,6 +76,13 @@ private:
     bool glInitialized_ = false;
 
     SiliconVisMode currentMode_ = SILICON_VIS_MODE_NONE;
+    IVisualizationAudioProvider* audioProvider_ = nullptr;
+
+    std::vector<float> nativeWaveformL_;
+    std::vector<float> nativeWaveformR_;
+    std::vector<float> nativeFftBars_;
+    std::vector<float> nativeFlatScope_;
+    std::vector<int32_t> nativeTextStates_;
 
     gl::GlArtworkRenderer artworkRenderer_;
     ChannelScopeRenderer channelScope_;

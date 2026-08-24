@@ -40,12 +40,17 @@ void BarsRenderer::pushFft(const float* magnitudes, int32_t binCount) {
             sum += magnitudes[k];
         }
         float avg = sum / static_cast<float>(highIdx - lowIdx);
-        smoothedMagnitudes_[i] = avg;
+        if (smoothing_ > 0.0f) {
+            smoothedMagnitudes_[i] = (smoothedMagnitudes_[i] * smoothing_) + (avg * (1.0f - smoothing_));
+        } else {
+            smoothedMagnitudes_[i] = avg;
+        }
     }
 }
 
 void BarsRenderer::setOptions(
     int32_t barCount,
+    float smoothing,
     uint32_t startColorArgb,
     uint32_t endColorArgb,
     float cornerRadiusPx,
@@ -53,6 +58,7 @@ void BarsRenderer::setOptions(
     uint32_t guideColorArgb
 ) {
     barCount_ = std::clamp(barCount, 8, 128);
+    smoothing_ = std::clamp(smoothing, 0.0f, 0.98f);
     startColorArgb_ = startColorArgb;
     endColorArgb_ = endColorArgb;
     cornerRadiusPx_ = cornerRadiusPx;

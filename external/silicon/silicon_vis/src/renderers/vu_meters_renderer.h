@@ -26,6 +26,7 @@ public:
     void setOptions(
         bool stereo,
         bool topPlacement,
+        float smoothing,
         uint32_t fillColorArgb,
         uint32_t trackColorArgb,
         uint32_t labelColorArgb
@@ -43,6 +44,7 @@ private:
 
     bool stereo_ = true;
     bool topPlacement_ = false;
+    float smoothing_ = 0.5f;
     uint32_t fillColorArgb_ = 0xFF76FF03;
     uint32_t trackColorArgb_ = 0x40FFFFFF;
     uint32_t labelColorArgb_ = 0xFFCCCCCC;

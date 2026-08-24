@@ -35,11 +35,20 @@ public:
         uint32_t vuColorArgb,
         const SiliconVisTextPalette* palette,
         bool shadowEnabled,
-        bool hideWhenOverflow
+        bool hideWhenOverflow,
+        int32_t windowMs = 30,
+        int32_t gainPercent = 100,
+        bool dcRemovalEnabled = true,
+        int32_t triggerMode = 0
     );
 
+    int32_t getWindowMs() const { return windowMs_; }
+    int32_t getGainPercent() const { return gainPercent_; }
+    bool isDcRemovalEnabled() const { return dcRemovalEnabled_; }
+    int32_t getTriggerMode() const { return triggerMode_; }
+
     void setChannelHistory(int32_t channel, const float* history, int32_t sampleCount);
-    void setAllChannelHistories(int32_t channelCount, int32_t samplesPerChannel, const float* flatData);
+    void setAllChannelHistories(int32_t channelCount, int32_t samplesPerChannel, const float* flatData, int32_t displaySamplesPerChannel = 0);
     void setTextStates(const SiliconVisChannelTextState* states, int32_t count);
 
     gl::GlFontAtlas& getFontAtlas() { return fontAtlas_; }
@@ -73,6 +82,10 @@ private:
     SiliconVisTextPalette palette_{};
     bool shadowEnabled_ = true;
     bool hideWhenOverflow_ = false;
+    int32_t windowMs_ = 30;
+    int32_t gainPercent_ = 100;
+    bool dcRemovalEnabled_ = true;
+    int32_t triggerMode_ = 0;
 
     std::vector<std::vector<float>> channelHistories_;
     std::vector<SiliconVisChannelTextState> textStates_;
