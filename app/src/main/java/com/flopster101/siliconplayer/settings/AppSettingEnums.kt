@@ -182,3 +182,118 @@ enum class EndFadeCurve(val storageValue: String, val label: String, val nativeV
         }
     }
 }
+
+enum class VisualizationPerformanceMode(
+    val storageValue: String,
+    val label: String,
+    val description: String
+) {
+    Auto("auto", "Auto (Recommended)", "Automatically selects the best performance profile based on device CPU capabilities."),
+    HighPerformance("high_performance", "High performance", "Elevates thread priority to maintain high FPS on constrained devices."),
+    Balanced("balanced", "Balanced", "Standard UI display priority with good balance between performance and battery life."),
+    PowerSaving("power_saving", "Power saving", "Lowers thread priority to maximize battery life.");
+
+    companion object {
+        fun fromStorage(value: String?): VisualizationPerformanceMode {
+            return entries.firstOrNull { it.storageValue == value } ?: Auto
+        }
+    }
+}
+
+enum class EffectiveVisualizationPerformanceMode(
+    val label: String,
+    val threadPriority: Int
+) {
+    HighPerformance("High performance", android.os.Process.THREAD_PRIORITY_URGENT_DISPLAY),
+    Balanced("Balanced", android.os.Process.THREAD_PRIORITY_DISPLAY),
+    PowerSaving("Power saving", android.os.Process.THREAD_PRIORITY_BACKGROUND)
+}
+
+data class CpuArchitectureInfo(
+    val isLegacyOrConstrained: Boolean,
+    val summary: String
+)
+
+object CpuHardwareDetector {
+    val info: CpuArchitectureInfo by lazy { detectCpuArchitecture() }
+
+    private fun detectCpuArchitecture(): CpuArchitectureInfo {
+        val cores = Runtime.getRuntime().availableProcessors().coerceAtLeast(1)
+        if (cores <= 4) {
+            return CpuArchitectureInfo(
+                isLegacyOrConstrained = true,
+                summary = "Constrained CPU (≤4 cores)"
+            )
+        }
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.P) {
+            return CpuArchitectureInfo(
+                isLegacyOrConstrained = true,
+                summary = "Legacy Android platform (API < 28)"
+            )
+        }
+        try {
+            val cpuInfoFile = java.io.File("/proc/cpuinfo")
+            if (cpuInfoFile.exists() && cpuInfoFile.canRead()) {
+                val text = cpuInfoFile.readText()
+                val cpuParts = Regex("""CPU\s+part\s*:\s*(0x[0-9a-fA-F]+|\d+)""")
+                    .findAll(text)
+                    .mapNotNull { match ->
+                        val raw = match.groupValues[1]
+                        if (raw.startsWith("0x", ignoreCase = true)) {
+                            raw.substring(2).toIntOrNull(16)
+                        } else {
+                            raw.toIntOrNull()
+                        }
+                    }
+                    .toSet()
+
+                // Known legacy / in-order or weak LITTLE cores:
+                // 0xd03 = Cortex-A53
+                // 0xd04 = Cortex-A35
+                // 0xd07 = Cortex-A57
+                // 0x801, 0x803, 0x205 = Kryo 260 / 280 Silver (A53-derived)
+                // 0xc07, 0xc08, 0xc09, 0xc0f = ARMv7 (A7, A8, A9, A15)
+                val legacyParts = setOf(
+                    0xd03, 0xd04, 0xd07,
+                    0x801, 0x803, 0x205,
+                    0xc07, 0xc08, 0xc09, 0xc0f
+                )
+                if (cpuParts.isNotEmpty()) {
+                    if (cpuParts.any { it in legacyParts }) {
+                        return CpuArchitectureInfo(
+                            isLegacyOrConstrained = true,
+                            summary = "Cortex-A53 / legacy cores detected"
+                        )
+                    }
+                    return CpuArchitectureInfo(
+                        isLegacyOrConstrained = false,
+                        summary = "Modern CPU architecture (Cortex-A55+)"
+                    )
+                }
+            }
+        } catch (_: Throwable) {
+            // Fallback
+        }
+        return CpuArchitectureInfo(
+            isLegacyOrConstrained = false,
+            summary = "Standard multi-core CPU ($cores cores)"
+        )
+    }
+}
+
+fun resolveEffectiveVisualizationPerformanceMode(
+    preference: VisualizationPerformanceMode
+): EffectiveVisualizationPerformanceMode {
+    return when (preference) {
+        VisualizationPerformanceMode.HighPerformance -> EffectiveVisualizationPerformanceMode.HighPerformance
+        VisualizationPerformanceMode.Balanced -> EffectiveVisualizationPerformanceMode.Balanced
+        VisualizationPerformanceMode.PowerSaving -> EffectiveVisualizationPerformanceMode.PowerSaving
+        VisualizationPerformanceMode.Auto -> {
+            if (CpuHardwareDetector.info.isLegacyOrConstrained) {
+                EffectiveVisualizationPerformanceMode.HighPerformance
+            } else {
+                EffectiveVisualizationPerformanceMode.Balanced
+            }
+        }
+    }
+}

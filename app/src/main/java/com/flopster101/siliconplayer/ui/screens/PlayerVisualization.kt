@@ -1,5 +1,7 @@
 package com.flopster101.siliconplayer.ui.screens
 
+import com.flopster101.siliconplayer.VisualizationPerformanceMode
+import com.flopster101.siliconplayer.resolveEffectiveVisualizationPerformanceMode
 import android.content.Context
 import android.os.Process
 import android.hardware.display.DisplayManager
@@ -997,12 +999,15 @@ private fun sleepUntilTickNs(targetTickNs: Long) {
     }
 }
 
-private fun createVisualizationUpdateDispatcher(): ExecutorCoroutineDispatcher {
+private fun createVisualizationUpdateDispatcher(
+    performanceMode: VisualizationPerformanceMode = VisualizationPerformanceMode.Auto
+): ExecutorCoroutineDispatcher {
+    val effectiveMode = resolveEffectiveVisualizationPerformanceMode(performanceMode)
     val executor = Executors.newSingleThreadExecutor { runnable ->
         Thread(
             {
                 runCatching {
-                    Process.setThreadPriority(Process.THREAD_PRIORITY_URGENT_DISPLAY)
+                    Process.setThreadPriority(effectiveMode.threadPriority)
                 }
                 runnable.run()
             },
@@ -1815,6 +1820,7 @@ internal fun AlbumArtPlaceholder(
     visualizationModeBadgeText: String,
     showVisualizationModeBadge: Boolean,
     visualizationMode: VisualizationMode,
+    visualizationPerformanceMode: VisualizationPerformanceMode = AppDefaults.Visualization.performanceMode,
     visualizationShowDebugInfo: Boolean,
     visualizationOscWindowMs: Int,
     visualizationOscTriggerModeNative: Int,
@@ -1948,7 +1954,9 @@ internal fun AlbumArtPlaceholder(
     }
     val backendTransitionBlackAlpha = remember { Animatable(0f) }
     val context = LocalContext.current
-    val visualizationUpdateDispatcher = remember { createVisualizationUpdateDispatcher() }
+    val visualizationUpdateDispatcher = remember(visualizationPerformanceMode) {
+        createVisualizationUpdateDispatcher(visualizationPerformanceMode)
+    }
 
     DisposableEffect(visualizationUpdateDispatcher) {
         onDispose {

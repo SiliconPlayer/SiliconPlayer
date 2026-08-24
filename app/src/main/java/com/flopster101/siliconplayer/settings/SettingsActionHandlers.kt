@@ -826,6 +826,7 @@ internal fun clearAllSettingsAction(
     onEndFadeCurveChanged: (EndFadeCurve) -> Unit,
     onVisualizationModeChanged: (VisualizationMode) -> Unit,
     onEnabledVisualizationModesChanged: (Set<VisualizationMode>) -> Unit,
+    onVisualizationPerformanceModeChanged: (VisualizationPerformanceMode) -> Unit,
     onVisualizationShowDebugInfoChanged: (Boolean) -> Unit,
     onVisualizationBarCountChanged: (Int) -> Unit,
     onVisualizationBarSmoothingPercentChanged: (Int) -> Unit,
@@ -1031,6 +1032,7 @@ internal fun clearAllSettingsAction(
     onEndFadeCurveChanged(AppDefaults.Player.endFadeCurve)
     onVisualizationModeChanged(VisualizationMode.Off)
     onEnabledVisualizationModesChanged(selectableVisualizationModes.toSet())
+    onVisualizationPerformanceModeChanged(AppDefaults.Visualization.performanceMode)
     onVisualizationShowDebugInfoChanged(AppDefaults.Visualization.showDebugInfo)
 
     resetVisualizationBarsSettingsAction(

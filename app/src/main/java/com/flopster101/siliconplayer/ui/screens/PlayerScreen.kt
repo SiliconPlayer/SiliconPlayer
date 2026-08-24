@@ -1,5 +1,6 @@
 package com.flopster101.siliconplayer.ui.screens
 
+import com.flopster101.siliconplayer.VisualizationPerformanceMode
 import com.flopster101.siliconplayer.VerticalScrollbarTrack
 import android.content.Context
 import android.content.SharedPreferences
@@ -716,6 +717,7 @@ internal fun PlayerScreen(
     visualizationVuUseThemeColor: Boolean,
     visualizationVuSmoothingPercent: Int,
     visualizationVuRenderBackend: VisualizationRenderBackend,
+    visualizationPerformanceMode: VisualizationPerformanceMode = com.flopster101.siliconplayer.AppDefaults.Visualization.performanceMode,
     visualizationShowDebugInfo: Boolean = false,
     artworkCornerRadiusDp: Int = 3,
     isTrackFavorited: Boolean = false,
@@ -1116,6 +1118,7 @@ internal fun PlayerScreen(
                     visualizationBarRoundnessDp = visualizationBarRoundnessDp,
                     visualizationBarOverlayArtwork = visualizationBarOverlayArtwork,
                     visualizationBarUseThemeColor = visualizationBarUseThemeColor,
+                    visualizationPerformanceMode = visualizationPerformanceMode,
                     visualizationOscStereo = visualizationOscStereo,
                     visualizationVuAnchor = visualizationVuAnchor,
                     visualizationVuUseThemeColor = visualizationVuUseThemeColor,
@@ -1174,6 +1177,7 @@ internal fun PlayerScreen(
                                 visualizationModeBadgeText = visualizationModeBadgeText,
                                 showVisualizationModeBadge = showVisualizationModeBadge,
                                 visualizationMode = visualizationMode,
+                                visualizationPerformanceMode = visualizationPerformanceMode,
                                 visualizationShowDebugInfo = visualizationShowDebugInfo,
                                 visualizationOscWindowMs = visualizationPrefsState.oscWindowMs,
                                 visualizationOscTriggerModeNative = visualizationPrefsState.oscTriggerModeNative,
@@ -1517,6 +1521,7 @@ internal fun PlayerScreen(
                                         visualizationModeBadgeText = visualizationModeBadgeText,
                                         showVisualizationModeBadge = showVisualizationModeBadge,
                                         visualizationMode = visualizationMode,
+                                        visualizationPerformanceMode = visualizationPerformanceMode,
                                         visualizationShowDebugInfo = visualizationShowDebugInfo,
                                         visualizationOscWindowMs = visualizationPrefsState.oscWindowMs,
                                         visualizationOscTriggerModeNative = visualizationPrefsState.oscTriggerModeNative,
@@ -5113,6 +5118,7 @@ private fun WearPlayerContent(
     visualizationBarRoundnessDp: Int,
     visualizationBarOverlayArtwork: Boolean,
     visualizationBarUseThemeColor: Boolean,
+    visualizationPerformanceMode: VisualizationPerformanceMode = com.flopster101.siliconplayer.AppDefaults.Visualization.performanceMode,
     visualizationOscStereo: Boolean,
     visualizationVuAnchor: VisualizationVuAnchor,
     visualizationVuUseThemeColor: Boolean,
@@ -5520,6 +5526,7 @@ private fun WearPlayerContent(
                             visualizationModeBadgeText = visualizationModeBadgeText,
                             showVisualizationModeBadge = false,
                             visualizationMode = visualizationMode,
+                            visualizationPerformanceMode = visualizationPerformanceMode,
                             visualizationShowDebugInfo = false,
                             visualizationOscWindowMs = visualizationPrefsState.oscWindowMs,
                             visualizationOscTriggerModeNative = visualizationPrefsState.oscTriggerModeNative,

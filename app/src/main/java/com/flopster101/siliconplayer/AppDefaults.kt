@@ -47,6 +47,7 @@ object AppDefaults {
     }
 
     object Visualization {
+        val performanceMode = VisualizationPerformanceMode.Auto
         const val showDebugInfo = false
 
         object Bars {

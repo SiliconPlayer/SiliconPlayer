@@ -1231,6 +1231,7 @@ private fun clearAllSettingsAndUiState(
     onEndFadeCurveChanged: (EndFadeCurve) -> Unit,
     onVisualizationModeChanged: (VisualizationMode) -> Unit,
     onEnabledVisualizationModesChanged: (Set<VisualizationMode>) -> Unit,
+    onVisualizationPerformanceModeChanged: (VisualizationPerformanceMode) -> Unit,
     onVisualizationShowDebugInfoChanged: (Boolean) -> Unit,
     onVisualizationBarCountChanged: (Int) -> Unit,
     onVisualizationBarSmoothingPercentChanged: (Int) -> Unit,
@@ -1287,6 +1288,7 @@ private fun clearAllSettingsAndUiState(
         onEndFadeCurveChanged = onEndFadeCurveChanged,
         onVisualizationModeChanged = onVisualizationModeChanged,
         onEnabledVisualizationModesChanged = onEnabledVisualizationModesChanged,
+        onVisualizationPerformanceModeChanged = onVisualizationPerformanceModeChanged,
         onVisualizationShowDebugInfoChanged = onVisualizationShowDebugInfoChanged,
         onVisualizationBarCountChanged = onVisualizationBarCountChanged,
         onVisualizationBarSmoothingPercentChanged = onVisualizationBarSmoothingPercentChanged,
@@ -1737,6 +1739,16 @@ private fun AppNavigation(
                 prefs.getString(
                     AppPreferenceKeys.END_FADE_CURVE,
                     AppDefaults.Player.endFadeCurve.storageValue
+                )
+            )
+        )
+    }
+    var visualizationPerformanceMode by remember {
+        mutableStateOf(
+            VisualizationPerformanceMode.fromStorage(
+                prefs.getString(
+                    AppPreferenceKeys.VISUALIZATION_PERFORMANCE_MODE,
+                    AppDefaults.Visualization.performanceMode.storageValue
                 )
             )
         )
@@ -3452,6 +3464,7 @@ onStopEngine = { NativeBridge.releaseCurrentDecoder() }, onMetadataAlbumChanged 
             visualizationVuUseThemeColor = visualizationVuUseThemeColor,
             visualizationVuSmoothingPercent = visualizationVuSmoothingPercent,
             visualizationVuRenderBackend = visualizationVuRenderBackend,
+            visualizationPerformanceMode = visualizationPerformanceMode,
             visualizationShowDebugInfo = visualizationShowDebugInfo,
             playerArtworkCornerRadiusDp = playerArtworkCornerRadiusDp,
             showAudioOutputRouteChip = showAudioOutputRouteChip,
@@ -3738,13 +3751,14 @@ onStopEngine = { NativeBridge.releaseCurrentDecoder() }, onMetadataAlbumChanged 
                                     playerArtworkCornerRadiusDp = playerArtworkCornerRadiusDp,
                                     showAudioOutputRouteChip = showAudioOutputRouteChip,
                                     filenameDisplayMode = filenameDisplayMode,
-                                    filenameOnlyWhenTitleMissing = filenameOnlyWhenTitleMissing,
+filenameOnlyWhenTitleMissing = filenameOnlyWhenTitleMissing,
                                     unknownTrackDurationSeconds = unknownTrackDurationSeconds,
                                     endFadeApplyToAllTracks = endFadeApplyToAllTracks,
                                     endFadeDurationMs = endFadeDurationMs,
                                     endFadeCurve = endFadeCurve,
                                     visualizationMode = visualizationMode,
                                     enabledVisualizationModes = enabledVisualizationModes,
+                                    visualizationPerformanceMode = visualizationPerformanceMode,
                                     visualizationShowDebugInfo = visualizationShowDebugInfo,
                                     visualizationBarCount = visualizationBarCount,
                                     visualizationBarSmoothingPercent = visualizationBarSmoothingPercent,
@@ -4039,6 +4053,10 @@ onStopEngine = { NativeBridge.releaseCurrentDecoder() }, onMetadataAlbumChanged 
                                     onEnabledVisualizationModesChanged = { modes ->
                             setEnabledVisualizationModes(modes)
                         },
+                                    onVisualizationPerformanceModeChanged = { mode ->
+                                        visualizationPerformanceMode = mode
+                                        prefs.edit().putString(AppPreferenceKeys.VISUALIZATION_PERFORMANCE_MODE, mode.storageValue).apply()
+                                    },
                                     onVisualizationShowDebugInfoChanged = { enabled ->
                             visualizationShowDebugInfo = enabled
                         },
@@ -4160,6 +4178,7 @@ onStopEngine = { NativeBridge.releaseCurrentDecoder() }, onMetadataAlbumChanged 
                                 onEndFadeCurveChanged = { endFadeCurve = it },
                                 onVisualizationModeChanged = { setVisualizationMode(it) },
                                 onEnabledVisualizationModesChanged = { setEnabledVisualizationModes(it) },
+                                onVisualizationPerformanceModeChanged = { visualizationPerformanceMode = it },
                                 onVisualizationShowDebugInfoChanged = { visualizationShowDebugInfo = it },
                                 onVisualizationBarCountChanged = { visualizationBarCount = it },
                                 onVisualizationBarSmoothingPercentChanged = { visualizationBarSmoothingPercent = it },

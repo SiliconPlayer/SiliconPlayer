@@ -112,12 +112,14 @@ internal data class PlayerRouteActions(
 internal data class VisualizationRouteState(
     val visualizationMode: VisualizationMode,
     val enabledVisualizationModes: Set<VisualizationMode>,
+    val visualizationPerformanceMode: VisualizationPerformanceMode,
     val visualizationShowDebugInfo: Boolean
 )
 
 internal data class VisualizationRouteActions(
     val onVisualizationModeChanged: (VisualizationMode) -> Unit,
     val onEnabledVisualizationModesChanged: (Set<VisualizationMode>) -> Unit,
+    val onVisualizationPerformanceModeChanged: (VisualizationPerformanceMode) -> Unit,
     val onVisualizationShowDebugInfoChanged: (Boolean) -> Unit,
     val onOpenVisualizationBasic: () -> Unit,
     val onOpenVisualizationAdvanced: () -> Unit
@@ -407,6 +409,8 @@ internal fun VisualizationRouteContent(
     val onVisualizationModeChanged = actions.onVisualizationModeChanged
     val enabledVisualizationModes = state.enabledVisualizationModes
     val onEnabledVisualizationModesChanged = actions.onEnabledVisualizationModesChanged
+    val visualizationPerformanceMode = state.visualizationPerformanceMode
+    val onVisualizationPerformanceModeChanged = actions.onVisualizationPerformanceModeChanged
     val visualizationShowDebugInfo = state.visualizationShowDebugInfo
     val onVisualizationShowDebugInfoChanged = actions.onVisualizationShowDebugInfoChanged
     val onOpenVisualizationBasic = actions.onOpenVisualizationBasic
@@ -414,9 +418,22 @@ internal fun VisualizationRouteContent(
 
     var showModeDialog by remember { mutableStateOf(false) }
     var showEnabledDialog by remember { mutableStateOf(false) }
+    var showPerformanceDialog by remember { mutableStateOf(false) }
     val basicPages = remember { basicVisualizationSettingsPages() }
     val advancedPages = remember { advancedVisualizationSettingsPages() }
     val allPages = remember { basicPages + advancedPages }
+
+    val effectivePerformanceMode = remember(visualizationPerformanceMode) {
+        resolveEffectiveVisualizationPerformanceMode(visualizationPerformanceMode)
+    }
+    val performanceDescription = remember(visualizationPerformanceMode, effectivePerformanceMode) {
+        when (visualizationPerformanceMode) {
+            VisualizationPerformanceMode.Auto -> "Auto (${effectivePerformanceMode.label}) • ${CpuHardwareDetector.info.summary}"
+            VisualizationPerformanceMode.HighPerformance -> "High performance • Elevated thread priority"
+            VisualizationPerformanceMode.Balanced -> "Balanced • Standard display priority"
+            VisualizationPerformanceMode.PowerSaving -> "Power saving • Lower thread priority"
+        }
+    }
 
     SettingsSectionLabel("General")
     SettingsItemCard(
@@ -431,6 +448,13 @@ internal fun VisualizationRouteContent(
         description = "${enabledVisualizationModes.size}/${allPages.size} modes enabled",
         icon = Icons.Default.Tune,
         onClick = { showEnabledDialog = true }
+    )
+    SettingsRowSpacer()
+    SettingsItemCard(
+        title = "Visualization performance mode",
+        description = performanceDescription,
+        icon = Icons.Default.GraphicEq,
+        onClick = { showPerformanceDialog = true }
     )
     SettingsRowSpacer()
     PlayerSettingToggleCard(
@@ -459,6 +483,23 @@ internal fun VisualizationRouteContent(
         icon = Icons.Default.Tune,
         onClick = onOpenVisualizationAdvanced
     )
+
+    if (showPerformanceDialog) {
+        SettingsSingleChoiceDialog(
+            title = "Visualization performance mode",
+            selectedValue = visualizationPerformanceMode,
+            options = VisualizationPerformanceMode.entries.map { mode ->
+                ChoiceDialogOption(
+                    value = mode,
+                    label = mode.label
+                )
+            },
+            description = "Controls thread priority and scheduling for visualization rendering.",
+            onSelected = onVisualizationPerformanceModeChanged,
+            onDismiss = { showPerformanceDialog = false },
+            showCancelButton = false
+        )
+    }
 
     if (showModeDialog) {
         val availableModes = listOf(VisualizationMode.Off) + allPages
