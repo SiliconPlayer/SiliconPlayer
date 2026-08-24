@@ -988,13 +988,12 @@ private fun sleepUntilTickNs(targetTickNs: Long) {
     while (true) {
         val remainingNs = targetTickNs - System.nanoTime()
         if (remainingNs <= 0L) return
-        val parkNs = when {
-            remainingNs >= 4_000_000L -> remainingNs - 1_000_000L
-            remainingNs >= 1_000_000L -> remainingNs - 200_000L
-            remainingNs >= 200_000L -> remainingNs - 50_000L
-            else -> remainingNs
-        }.coerceAtLeast(1_000L)
-        LockSupport.parkNanos(parkNs)
+        if (remainingNs >= 2_000_000L) {
+            LockSupport.parkNanos(remainingNs - 1_500_000L)
+        } else if (remainingNs >= 100_000L) {
+            Thread.yield()
+        }
+        // Sub-100us spin-wait ensures microsecond-accurate VSYNC alignment without timer oversleep
     }
 }
 
@@ -2329,12 +2328,15 @@ internal fun AlbumArtPlaceholder(
                 if (pollIntervalNs != lastPollIntervalNs || nextFrameTickNs == 0L) {
                     nextFrameTickNs = nowNs + pollIntervalNs
                     lastPollIntervalNs = pollIntervalNs
-                }
-                if (nextFrameTickNs <= nowNs) {
-                    nextFrameTickNs = nowNs + pollIntervalNs
                 } else {
-                    sleepUntilTickNs(nextFrameTickNs)
                     nextFrameTickNs += pollIntervalNs
+                    // If fallen behind by more than 2 frames, resync to avoid spiral
+                    if (nowNs - nextFrameTickNs > pollIntervalNs * 2) {
+                        nextFrameTickNs = nowNs + pollIntervalNs
+                    }
+                }
+                if (nextFrameTickNs > nowNs) {
+                    sleepUntilTickNs(nextFrameTickNs)
                 }
             }
         }
