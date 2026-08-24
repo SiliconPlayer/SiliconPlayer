@@ -54,6 +54,13 @@ public:
         float radius, int cornerSegments,
         std::vector<float>& outVertices
     );
+
+    // Appends rounded rect geometry directly to an existing vertex buffer
+    static int appendRoundedRectTriangles(
+        float x, float y, float w, float h,
+        float radius, int cornerSegments,
+        std::vector<float>& outVertices
+    );
 };
 
 class GlFlatColorRenderer {

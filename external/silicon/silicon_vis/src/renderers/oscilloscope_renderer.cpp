@@ -69,6 +69,10 @@ void OscilloscopeRenderer::buildGeometry() {
     float w = static_cast<float>(widthPx_);
     float h = static_cast<float>(heightPx_);
 
+    gridLines_.reserve(24);
+    if (!pcmLeft_.empty()) waveLinesLeft_.reserve(pcmLeft_.size() * 4);
+    if (!pcmRight_.empty()) waveLinesRight_.reserve(pcmRight_.size() * 4);
+
     // 1. Grid & Centerline
     if (showGrid_) {
         // Vertical grid lines

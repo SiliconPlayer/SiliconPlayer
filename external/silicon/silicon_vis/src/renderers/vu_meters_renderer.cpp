@@ -106,15 +106,12 @@ void VuMetersRenderer::buildGeometry() {
         float value = computeVuDbLevel(raw);
 
         // Track
-        std::vector<float> rrect;
-        gl::GlPrimitives::generateRoundedRectTriangles(trackX, y, trackWidth, rowHeightPx, trackRadius, 4, rrect);
-        trackVertices_.insert(trackVertices_.end(), rrect.begin(), rrect.end());
+        gl::GlPrimitives::appendRoundedRectTriangles(trackX, y, trackWidth, rowHeightPx, trackRadius, 3, trackVertices_);
 
         // Fill
         float fillW = trackWidth * value;
         if (fillW > 1.0f) {
-            gl::GlPrimitives::generateRoundedRectTriangles(trackX, y, fillW, rowHeightPx, trackRadius, 4, rrect);
-            fillVertices_.insert(fillVertices_.end(), rrect.begin(), rrect.end());
+            gl::GlPrimitives::appendRoundedRectTriangles(trackX, y, fillW, rowHeightPx, trackRadius, 3, fillVertices_);
         }
     }
 }

@@ -28,10 +28,9 @@ void BarsRenderer::pushFft(const float* magnitudes, int32_t binCount) {
         smoothedMagnitudes_.resize(barCount_, 0.0f);
     }
 
-    // Logarithmic FFT binning and smoothing
     for (int i = 0; i < barCount_; ++i) {
-        float lowFraction = std::pow(static_cast<float>(i) / static_cast<float>(barCount_), 2.0f);
-        float highFraction = std::pow(static_cast<float>(i + 1) / static_cast<float>(barCount_), 2.0f);
+        float lowFraction = static_cast<float>(i) / static_cast<float>(barCount_);
+        float highFraction = static_cast<float>(i + 1) / static_cast<float>(barCount_);
 
         int lowIdx = std::clamp(static_cast<int>(lowFraction * binCount), 0, binCount - 1);
         int highIdx = std::clamp(static_cast<int>(highFraction * binCount), lowIdx + 1, binCount);
@@ -41,13 +40,7 @@ void BarsRenderer::pushFft(const float* magnitudes, int32_t binCount) {
             sum += magnitudes[k];
         }
         float avg = sum / static_cast<float>(highIdx - lowIdx);
-
-        // Smooth decay
-        if (avg > smoothedMagnitudes_[i]) {
-            smoothedMagnitudes_[i] = avg;
-        } else {
-            smoothedMagnitudes_[i] = smoothedMagnitudes_[i] * 0.85f + avg * 0.15f;
-        }
+        smoothedMagnitudes_[i] = avg;
     }
 }
 
@@ -78,6 +71,8 @@ void BarsRenderer::buildGeometry() {
     float gapPx = (w / static_cast<float>(barCount_)) * 0.18f;
     float barW = std::max(1.0f, (w - (gapPx * static_cast<float>(barCount_ - 1))) / static_cast<float>(barCount_));
 
+    barVertices_.reserve(barCount_ * 96);
+
     for (int i = 0; i < barCount_; ++i) {
         float mag = (i < static_cast<int>(smoothedMagnitudes_.size())) ? smoothedMagnitudes_[i] : 0.0f;
         float barH = std::max(2.0f, std::min(h, mag * h));
@@ -85,13 +80,11 @@ void BarsRenderer::buildGeometry() {
         float y = h - barH;
         float r = std::min(cornerRadiusPx_, std::min(barW * 0.45f, barH * 0.5f));
 
-        std::vector<float> rrect;
-        gl::GlPrimitives::generateRoundedRectTriangles(x, y, barW, barH, r, 4, rrect);
-        barVertices_.insert(barVertices_.end(), rrect.begin(), rrect.end());
+        gl::GlPrimitives::appendRoundedRectTriangles(x, y, barW, barH, r, 3, barVertices_);
     }
 
     if (showFrequencyGuide_) {
-        // Ticks at 100Hz, 1kHz, 10kHz fractional positions
+        guideLines_.reserve(12);
         float fractions[3] = { 0.15f, 0.50f, 0.85f };
         for (float f : fractions) {
             float x = w * f;

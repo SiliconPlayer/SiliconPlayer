@@ -133,6 +133,64 @@ int GlPrimitives::generateRoundedRectTriangles(
     return static_cast<int>(outVertices.size() / 2);
 }
 
+int GlPrimitives::appendRoundedRectTriangles(
+    float x, float y, float w, float h,
+    float radius, int cornerSegments,
+    std::vector<float>& outVertices
+) {
+    radius = std::min(radius, std::min(w, h) * 0.5f);
+    if (radius <= 0.5f || cornerSegments < 2) {
+        float x1 = x + w;
+        float y1 = y + h;
+        outVertices.push_back(x);  outVertices.push_back(y);
+        outVertices.push_back(x1); outVertices.push_back(y);
+        outVertices.push_back(x);  outVertices.push_back(y1);
+        outVertices.push_back(x1); outVertices.push_back(y);
+        outVertices.push_back(x1); outVertices.push_back(y1);
+        outVertices.push_back(x);  outVertices.push_back(y1);
+        return 6;
+    }
+
+    float cx = x + w * 0.5f;
+    float cy = y + h * 0.5f;
+
+    constexpr int kMaxPerimeterPoints = 32;
+    float perimeterX[kMaxPerimeterPoints];
+    float perimeterY[kMaxPerimeterPoints];
+    int pointCount = 0;
+
+    int segs = std::clamp(cornerSegments, 2, 6);
+    float pi = 3.14159265358979323846f;
+
+    auto addArc = [&](float arcCx, float arcCy, float startAngle, float endAngle) {
+        for (int i = 0; i <= segs; ++i) {
+            if (pointCount >= kMaxPerimeterPoints) break;
+            float t = static_cast<float>(i) / static_cast<float>(segs);
+            float angle = startAngle + t * (endAngle - startAngle);
+            perimeterX[pointCount] = arcCx + std::cos(angle) * radius;
+            perimeterY[pointCount] = arcCy + std::sin(angle) * radius;
+            pointCount++;
+        }
+    };
+
+    addArc(x + w - radius, y + radius, -pi * 0.5f, 0.0f);
+    addArc(x + w - radius, y + h - radius, 0.0f, pi * 0.5f);
+    addArc(x + radius, y + h - radius, pi * 0.5f, pi);
+    addArc(x + radius, y + radius, pi, pi * 1.5f);
+
+    for (int i = 0; i < pointCount; ++i) {
+        int next = (i + 1) % pointCount;
+        outVertices.push_back(cx);
+        outVertices.push_back(cy);
+        outVertices.push_back(perimeterX[i]);
+        outVertices.push_back(perimeterY[i]);
+        outVertices.push_back(perimeterX[next]);
+        outVertices.push_back(perimeterY[next]);
+    }
+
+    return pointCount * 3;
+}
+
 bool GlFlatColorRenderer::init() {
     if (program_.isReady()) return true;
     if (!program_.compileAndLink(FLAT_VERTEX_SHADER, FLAT_FRAGMENT_SHADER)) {
