@@ -1885,10 +1885,17 @@ internal fun AlbumArtPlaceholder(
     } else {
         placeholderIcon
     }
+    var hasStartedPlaybackForTrack by remember(file?.absolutePath) { mutableStateOf(false) }
+    LaunchedEffect(isPlaying) {
+        if (isPlaying) {
+            hasStartedPlaybackForTrack = true
+        }
+    }
+
     if (
         visualizationMode == VisualizationMode.Off ||
             file == null ||
-            (!isPlaying && visualizationMode != VisualizationMode.ChannelScope)
+            !hasStartedPlaybackForTrack
     ) {
         SwipeableArtworkContainer(
             currentTrackKey = currentTrackKey,
@@ -2754,6 +2761,7 @@ internal fun AlbumArtPlaceholder(
                     placeholderIcon = effectivePlaceholderIcon,
                     placeholderIconResId = placeholderArtworkDrawableResIdForFile(file, decoderName),
                     showArtworkBackground = channelScopePrefs.showArtworkBackground,
+                    isPlaying = isPlaying,
                     channelScopeOnFrameStats = { fps, frameMs ->
                         visDebugDrawFps = fps.coerceAtLeast(0)
                         visDebugDrawFrameMs = frameMs.coerceAtLeast(0)

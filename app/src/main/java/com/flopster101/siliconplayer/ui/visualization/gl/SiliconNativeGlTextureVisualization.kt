@@ -39,6 +39,7 @@ import java.nio.ByteOrder
 
 data class SiliconNativeGlFrame(
     val mode: Int, // 1=Bars, 2=Osc, 3=VU, 4=ChannelScope
+    val isPlaying: Boolean = true,
     val pcm: FloatArray? = null,
     val pcmFrames: Int = 0,
     val pcmChannels: Int = 0,
@@ -380,10 +381,12 @@ private class SiliconNativeTextureRenderThread(
             var localChannelCount = 0
             var localChannelTextStates = emptyList<com.flopster101.siliconplayer.ui.visualization.channel.ChannelScopeChannelTextState>()
             var localLastTextPollNs = 0L
+            var pausedFrameRendered = false
+
             while (true) {
                 val state = synchronized(lock) {
-                    while (running && frameData == null && !surfaceSizeChanged) {
-                        lock.wait(50)
+                    while (running && (frameData == null || (!frameData!!.isPlaying && pausedFrameRendered)) && !surfaceSizeChanged) {
+                        lock.wait(100)
                     }
                     if (!running) {
                         LoopState(null, null, frameSequence, 0, 0, false, true)
@@ -403,6 +406,15 @@ private class SiliconNativeTextureRenderThread(
                 }
                 if (state.shouldStop) break
                 val frame = state.frame ?: continue
+
+                if (!frame.isPlaying) {
+                    if (pausedFrameRendered && !state.surfaceSizeChanged) {
+                        continue
+                    }
+                    pausedFrameRendered = true
+                } else {
+                    pausedFrameRendered = false
+                }
 
                 if (visHandle != 0L) {
                     if (state.surfaceSizeChanged) {

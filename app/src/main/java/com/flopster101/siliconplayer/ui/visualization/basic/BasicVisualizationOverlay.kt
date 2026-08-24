@@ -155,6 +155,7 @@ fun BasicVisualizationOverlay(
     placeholderIcon: androidx.compose.ui.graphics.vector.ImageVector = androidx.compose.material.icons.Icons.Default.MusicNote,
     placeholderIconResId: Int = R.drawable.ic_placeholder_music_note,
     showArtworkBackground: Boolean = true,
+    isPlaying: Boolean = true,
     channelScopeOnFrameStats: ((fps: Int, frameMs: Int) -> Unit)? = null,
     modifier: Modifier = Modifier
 ) {
@@ -262,6 +263,7 @@ fun BasicVisualizationOverlay(
     }
 
     val baseNativeFrame = remember(
+        isPlaying,
         primaryColor,
         surfaceVariantColor,
         placeholderIconType,
@@ -271,6 +273,7 @@ fun BasicVisualizationOverlay(
     ) {
         com.flopster101.siliconplayer.ui.visualization.gl.SiliconNativeGlFrame(
             mode = 0,
+            isPlaying = isPlaying,
             primaryColorArgb = primaryColor.toArgb(),
             surfaceColorArgb = surfaceVariantColor.toArgb(),
             placeholderIconType = placeholderIconType,
