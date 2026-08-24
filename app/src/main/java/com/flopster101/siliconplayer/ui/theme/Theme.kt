@@ -14,6 +14,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalView
+import androidx.compose.ui.unit.dp
 import androidx.core.view.WindowCompat
 
 private const val LEGACY_SYSTEM_BAR_DARK = 0xFF202020.toInt()
@@ -120,9 +121,18 @@ fun SiliconPlayerTheme(
         }
     }
 
+val SiliconPlayerShapes = androidx.compose.material3.Shapes(
+    extraSmall = androidx.compose.foundation.shape.RoundedCornerShape(16.dp),
+    small = androidx.compose.foundation.shape.RoundedCornerShape(16.dp),
+    medium = androidx.compose.foundation.shape.RoundedCornerShape(20.dp),
+    large = androidx.compose.foundation.shape.RoundedCornerShape(24.dp),
+    extraLarge = androidx.compose.foundation.shape.RoundedCornerShape(28.dp)
+)
+
     MaterialTheme(
         colorScheme = colorScheme,
         typography = Typography,
+        shapes = SiliconPlayerShapes,
         content = content
     )
 }
