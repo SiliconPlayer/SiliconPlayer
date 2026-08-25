@@ -14,9 +14,12 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.clickable
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.ExpandLess
 import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material.icons.filled.Info
+import androidx.compose.material.icons.filled.Memory
+import androidx.compose.material.icons.filled.Public
 import androidx.compose.material.icons.filled.Remove
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -29,6 +32,7 @@ import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import com.flopster101.siliconplayer.WatchDialogContainer
 import com.flopster101.siliconplayer.isWatchDevice
@@ -231,104 +235,240 @@ fun AudioEffectsDialog(
             }
         }
     } else {
-        AlertDialog(
-            modifier = adaptiveDialogModifier(),
-            properties = adaptiveDialogProperties(),
-            onDismissRequest = onDismiss,
-            title = { Text("Audio effects") },
-            text = {
-                Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .heightIn(max = 460.dp)
+        var dspOptionsExpanded by rememberSaveable { mutableStateOf(false) }
+
+        FloatingActionDialog(
+            title = "Audio effects",
+            onDismiss = onDismiss,
+            confirmText = "Done",
+            confirmIcon = Icons.Default.Check,
+            onConfirm = onConfirm
+        ) {
+            // Volume section
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
                 ) {
-                    TabRow(selectedTabIndex = selectedTabIndex) {
-                        tabTitles.forEachIndexed { index, title ->
-                            Tab(
-                                selected = selectedTabIndex == index,
-                                onClick = { selectedTabIndex = index },
-                                text = { Text(title) }
-                            )
-                        }
-                    }
-
-                    Spacer(modifier = Modifier.height(12.dp))
-
-                    when (selectedTabIndex) {
-                        0 -> VolumeTabContent(
-                            masterVolumeDb = masterVolumeDb,
-                            pluginVolumeDb = pluginVolumeDb,
-                            songVolumeDb = songVolumeDb,
-                            ignoreCoreVolumeForSong = ignoreCoreVolumeForSong,
-                            forceMono = forceMono,
-                            hasActiveCore = hasActiveCore,
-                            hasActiveSong = hasActiveSong,
-                            currentCoreName = currentCoreName,
-                            onMasterVolumeChange = onMasterVolumeChange,
-                            onPluginVolumeChange = onPluginVolumeChange,
-                            onSongVolumeChange = onSongVolumeChange,
-                            onIgnoreCoreVolumeForSongChange = onIgnoreCoreVolumeForSongChange,
-                            onForceMonoChange = onForceMonoChange
-                        )
-                        else -> DspTabContent(
-                            currentCoreName = currentCoreName,
-                            hasActiveCore = hasActiveCore,
-                            dspBassEnabled = dspBassEnabled,
-                            dspBassDepth = dspBassDepth,
-                            dspBassRange = dspBassRange,
-                            dspSurroundEnabled = dspSurroundEnabled,
-                            dspSurroundDepth = dspSurroundDepth,
-                            dspSurroundDelayMs = dspSurroundDelayMs,
-                            dspReverbEnabled = dspReverbEnabled,
-                            dspReverbDepth = dspReverbDepth,
-                            dspReverbPreset = dspReverbPreset,
-                            dspBitCrushEnabled = dspBitCrushEnabled,
-                            dspBitCrushBits = dspBitCrushBits,
-                            dspNamespaceSelection = dspNamespaceSelection,
-                            dspIgnoreGlobalForCurrentCore = dspIgnoreGlobalForCurrentCore,
-                            onDspBassEnabledChange = onDspBassEnabledChange,
-                            onDspBassDepthChange = onDspBassDepthChange,
-                            onDspBassRangeChange = onDspBassRangeChange,
-                            onDspSurroundEnabledChange = onDspSurroundEnabledChange,
-                            onDspSurroundDepthChange = onDspSurroundDepthChange,
-                            onDspSurroundDelayMsChange = onDspSurroundDelayMsChange,
-                            onDspReverbEnabledChange = onDspReverbEnabledChange,
-                            onDspReverbDepthChange = onDspReverbDepthChange,
-                            onDspReverbPresetChange = onDspReverbPresetChange,
-                            onDspBitCrushEnabledChange = onDspBitCrushEnabledChange,
-                            onDspBitCrushBitsChange = onDspBitCrushBitsChange,
-                            onDspNamespaceSelectionChange = onDspNamespaceSelectionChange,
-                            onDspIgnoreGlobalForCurrentCoreChange = onDspIgnoreGlobalForCurrentCoreChange
-                        )
-                    }
+                    DialogSectionLabel(text = "Volume")
+                    DialogResetButton(
+                        text = "Reset defaults",
+                        onClick = { pendingResetTarget = "volume" }
+                    )
                 }
-            },
-            confirmButton = {
-                TextButton(onClick = onConfirm) {
-                    Text("OK")
-                }
-            },
-            dismissButton = {
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    TextButton(
+
+                EffectsVolumeSliderRow(
+                    title = "Master volume",
+                    valueDb = masterVolumeDb,
+                    enabled = true,
+                    onValueChange = onMasterVolumeChange
+                )
+                EffectsVolumeSliderRow(
+                    title = "Core volume",
+                    valueDb = pluginVolumeDb,
+                    enabled = hasActiveCore,
+                    onValueChange = onPluginVolumeChange
+                )
+                EffectsVolumeSliderRow(
+                    title = "Song volume",
+                    valueDb = songVolumeDb,
+                    enabled = hasActiveSong,
+                    onValueChange = onSongVolumeChange
+                )
+
+                DialogToggleRow(
+                    title = "Ignore core volume for this song",
+                    checked = ignoreCoreVolumeForSong,
+                    enabled = hasActiveSong,
+                    onCheckedChange = onIgnoreCoreVolumeForSongChange
+                )
+                DialogToggleRow(
+                    title = "Force mono",
+                    checked = forceMono,
+                    onCheckedChange = onForceMonoChange
+                )
+
+                Text(
+                    text = "Core: ${currentCoreName ?: "(none)"}",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(horizontal = 4.dp)
+                )
+            }
+
+            // DSP section
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    DialogSectionLabel(text = "DSP")
+                    DialogResetButton(
+                        text = "Reset defaults",
                         onClick = {
-                            pendingResetTarget = if (selectedTabIndex == 0) {
-                                "volume"
-                            } else if (dspNamespaceSelection == "core") {
+                            pendingResetTarget = if (dspNamespaceSelection == "core") {
                                 "dsp_core"
                             } else {
                                 "dsp_global"
                             }
                         }
-                    ) {
-                        Text("Reset")
-                    }
-                    TextButton(onClick = onDismiss) {
-                        Text("Cancel")
-                    }
+                    )
                 }
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    DialogSelectableCard(
+                        label = "Global",
+                        icon = Icons.Default.Public,
+                        isSelected = dspNamespaceSelection != "core",
+                        isEnabled = true,
+                        subtitle = null,
+                        onClick = { onDspNamespaceSelectionChange("global") },
+                        modifier = Modifier.weight(1f)
+                    )
+                    DialogSelectableCard(
+                        label = "Current core",
+                        icon = Icons.Default.Memory,
+                        isSelected = dspNamespaceSelection == "core",
+                        isEnabled = hasActiveCore,
+                        subtitle = null,
+                        onClick = {
+                            if (hasActiveCore) onDspNamespaceSelectionChange("core")
+                        },
+                        modifier = Modifier.weight(1f)
+                    )
+                }
+
+                DialogCollapsibleCard(
+                    title = "OpenMPT DSP effects",
+                    subtitle = if (dspOptionsExpanded) "Tap to collapse" else "Bass, surround, reverb, bit crush",
+                    isEnabled = true,
+                    isExpanded = dspOptionsExpanded,
+                    onToggleExpand = { dspOptionsExpanded = !dspOptionsExpanded }
+                ) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(10.dp))
+                            .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f))
+                            .padding(horizontal = 10.dp, vertical = 7.dp),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Info,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.size(16.dp)
+                        )
+                        Text(
+                            text = "DSP attribution: About -> Libraries -> OpenMPT DSP effects.",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+
+                    DialogToggleRow(
+                        title = "Bass Expansion",
+                        checked = dspBassEnabled,
+                        onCheckedChange = onDspBassEnabledChange
+                    )
+                    DialogIntSliderRow(
+                        title = "Bass Depth",
+                        value = dspBassDepth,
+                        valueRange = 0..4,
+                        enabled = dspBassEnabled,
+                        onValueChange = onDspBassDepthChange
+                    )
+                    DialogIntSliderRow(
+                        title = "Bass Range",
+                        value = dspBassRange,
+                        valueRange = 0..4,
+                        enabled = dspBassEnabled,
+                        onValueChange = onDspBassRangeChange
+                    )
+
+                    HorizontalDivider()
+
+                    DialogToggleRow(
+                        title = "Surround",
+                        checked = dspSurroundEnabled,
+                        onCheckedChange = onDspSurroundEnabledChange
+                    )
+                    DialogIntSliderRow(
+                        title = "Surround Depth",
+                        value = dspSurroundDepth,
+                        valueRange = 1..16,
+                        enabled = dspSurroundEnabled,
+                        onValueChange = onDspSurroundDepthChange
+                    )
+                    DialogIntSliderRow(
+                        title = "Surround Delay",
+                        value = dspSurroundDelayMs,
+                        valueRange = 5..45,
+                        step = 5,
+                        unitLabel = " ms",
+                        enabled = dspSurroundEnabled,
+                        onValueChange = onDspSurroundDelayMsChange
+                    )
+
+                    HorizontalDivider()
+
+                    DialogToggleRow(
+                        title = "Reverb",
+                        checked = dspReverbEnabled,
+                        onCheckedChange = onDspReverbEnabledChange
+                    )
+                    DialogIntSliderRow(
+                        title = "Reverb Depth",
+                        value = dspReverbDepth,
+                        valueRange = 1..16,
+                        enabled = dspReverbEnabled,
+                        onValueChange = onDspReverbDepthChange
+                    )
+                    DspReverbPresetDropdownRow(
+                        label = "Reverb Preset",
+                        value = dspReverbPreset,
+                        onValueChange = onDspReverbPresetChange,
+                        enabled = dspReverbEnabled
+                    )
+
+                    HorizontalDivider()
+
+                    DialogToggleRow(
+                        title = "Bit Crush",
+                        checked = dspBitCrushEnabled,
+                        onCheckedChange = onDspBitCrushEnabledChange
+                    )
+                    DialogIntSliderRow(
+                        title = "Bit Crush Bits",
+                        value = dspBitCrushBits,
+                        valueRange = 1..24,
+                        enabled = dspBitCrushEnabled,
+                        onValueChange = onDspBitCrushBitsChange
+                    )
+                }
+
+                if (hasActiveCore) {
+                    DialogToggleRow(
+                        title = "Ignore global settings for this core",
+                        checked = dspIgnoreGlobalForCurrentCore,
+                        onCheckedChange = onDspIgnoreGlobalForCurrentCoreChange
+                    )
+                }
+
+                Text(
+                    text = "Core: ${currentCoreName ?: "(none)"}",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(horizontal = 4.dp)
+                )
             }
-        )
+        }
     }
 
     if (pendingResetTarget != null) {
@@ -396,6 +536,81 @@ fun AudioEffectsDialog(
                     }
                 }
             )
+        }
+    }
+}
+
+@Composable
+private fun EffectsVolumeSliderRow(
+    title: String,
+    valueDb: Float,
+    enabled: Boolean,
+    onValueChange: (Float) -> Unit
+) {
+    val contentAlpha = if (enabled) 1f else 0.38f
+    Column(modifier = Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween
+        ) {
+            Text(
+                text = title,
+                style = MaterialTheme.typography.bodySmall,
+                fontWeight = FontWeight.Medium,
+                color = MaterialTheme.colorScheme.onSurface.copy(alpha = contentAlpha)
+            )
+            Text(
+                text = if (valueDb == 0f) "0.0 dB" else String.format("%.1f dB", valueDb),
+                style = MaterialTheme.typography.labelMedium,
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.primary.copy(alpha = contentAlpha)
+            )
+        }
+
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            OutlinedIconButton(
+                onClick = { onValueChange((valueDb - 1f).coerceIn(-20f, 20f)) },
+                enabled = enabled && valueDb > -20f,
+                modifier = Modifier.size(32.dp),
+                shape = RoundedCornerShape(8.dp)
+            ) {
+                Icon(
+                    imageVector = Icons.Default.Remove,
+                    contentDescription = "Decrease $title",
+                    modifier = Modifier.size(16.dp)
+                )
+            }
+
+            Slider(
+                value = valueDb,
+                onValueChange = { onValueChange(Math.round(it).coerceIn(-20, 20).toFloat()) },
+                valueRange = -20f..20f,
+                enabled = enabled,
+                modifier = Modifier.weight(1f),
+                colors = SliderDefaults.colors(
+                    thumbColor = MaterialTheme.colorScheme.primary,
+                    activeTrackColor = MaterialTheme.colorScheme.primary,
+                    inactiveTrackColor = MaterialTheme.colorScheme.surfaceContainerHighest
+                )
+            )
+
+            OutlinedIconButton(
+                onClick = { onValueChange((valueDb + 1f).coerceIn(-20f, 20f)) },
+                enabled = enabled && valueDb < 20f,
+                modifier = Modifier.size(32.dp),
+                shape = RoundedCornerShape(8.dp)
+            ) {
+                Icon(
+                    imageVector = Icons.Default.Add,
+                    contentDescription = "Increase $title",
+                    modifier = Modifier.size(16.dp)
+                )
+            }
         }
     }
 }
@@ -798,7 +1013,8 @@ private fun DspReverbPresetDropdownRow(
     ) {
         Text(
             text = label,
-            style = MaterialTheme.typography.labelMedium,
+            style = MaterialTheme.typography.bodySmall,
+            fontWeight = FontWeight.Medium,
             color = MaterialTheme.colorScheme.onSurface.copy(alpha = contentAlpha)
         )
 

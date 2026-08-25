@@ -54,6 +54,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.List
 import androidx.compose.material.icons.automirrored.filled.VolumeUp
 import androidx.compose.material.icons.filled.AudioFile
+import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Equalizer
 import androidx.compose.material.icons.filled.GraphicEq
 import androidx.compose.material.icons.filled.Info
@@ -97,6 +98,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.composed
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.draw.drawWithContent
@@ -177,6 +179,9 @@ import com.flopster101.siliconplayer.stripRemoteCacheHashPrefix
 import com.flopster101.siliconplayer.tvKeyLongPress
 import com.flopster101.siliconplayer.ui.dialogs.dialogScrollableContentNavigation
 import com.flopster101.siliconplayer.ui.dialogs.AudioOutputDeviceDialog
+import com.flopster101.siliconplayer.ui.dialogs.DialogResetButton
+import com.flopster101.siliconplayer.ui.dialogs.DialogSectionLabel
+import com.flopster101.siliconplayer.ui.dialogs.FloatingActionDialog
 import com.flopster101.siliconplayer.ui.dialogs.VisualizationModePickerDialog
 import com.flopster101.siliconplayer.ui.visualization.basic.BasicVisualizationOverlay
 import java.io.File
@@ -4451,6 +4456,97 @@ private fun ChannelControlDialog(
         }
     }
 
+    val toggleMasterMute: (ChannelControlItem) -> Unit = { item ->
+        clearMasterSoloFlags()
+        NativeBridge.setMasterChannelMute(item.channelIndex, !item.muted)
+        masterChannels = masterChannels.map { existing ->
+            if (existing.channelIndex == item.channelIndex) {
+                existing.copy(muted = !existing.muted)
+            } else {
+                existing
+            }
+        }
+    }
+
+    val soloMasterChannel: (ChannelControlItem) -> Unit = { item ->
+        clearMasterSoloFlags()
+        val activeCount = masterChannels.count { !it.muted }
+        val isOnlyActive = !item.muted && activeCount == 1
+        if (isOnlyActive) {
+            masterChannels.forEach { channel ->
+                NativeBridge.setMasterChannelMute(channel.channelIndex, false)
+            }
+            masterChannels = masterChannels.map { it.copy(muted = false) }
+        } else {
+            masterChannels.forEach { channel ->
+                NativeBridge.setMasterChannelMute(
+                    channel.channelIndex,
+                    channel.channelIndex != item.channelIndex
+                )
+            }
+            masterChannels = masterChannels.map { channel ->
+                channel.copy(muted = channel.channelIndex != item.channelIndex)
+            }
+        }
+    }
+
+    val toggleDecoderMute: (ChannelControlItem) -> Unit = { item ->
+        if (item.available) {
+            NativeBridge.setDecoderToggleChannelMuted(item.channelIndex, !item.muted)
+            decoderChannels = decoderChannels.map { existing ->
+                if (existing.channelIndex == item.channelIndex) {
+                    existing.copy(muted = !existing.muted)
+                } else {
+                    existing
+                }
+            }
+        }
+    }
+
+    val soloDecoderChannel: (ChannelControlItem) -> Unit = { item ->
+        if (item.available) {
+            val availableChannels = decoderChannels.filter { it.available }
+            val activeCount = availableChannels.count { !it.muted }
+            val isOnlyActive = !item.muted && activeCount == 1
+            if (isOnlyActive) {
+                availableChannels.forEach { channel ->
+                    NativeBridge.setDecoderToggleChannelMuted(channel.channelIndex, false)
+                }
+                decoderChannels = decoderChannels.map { channel ->
+                    if (channel.available) {
+                        channel.copy(muted = false)
+                    } else {
+                        channel
+                    }
+                }
+            } else {
+                availableChannels.forEach { channel ->
+                    NativeBridge.setDecoderToggleChannelMuted(
+                        channel.channelIndex,
+                        channel.channelIndex != item.channelIndex
+                    )
+                }
+                decoderChannels = decoderChannels.map { channel ->
+                    if (channel.available) {
+                        channel.copy(muted = channel.channelIndex != item.channelIndex)
+                    } else {
+                        channel
+                    }
+                }
+            }
+        }
+    }
+
+    val unmuteAllChannels: () -> Unit = {
+        clearMasterSoloFlags()
+        masterChannels.forEach { channel ->
+            NativeBridge.setMasterChannelMute(channel.channelIndex, false)
+        }
+        masterChannels = masterChannels.map { it.copy(muted = false) }
+        NativeBridge.clearDecoderToggleChannelMutes()
+        decoderChannels = decoderChannels.map { it.copy(muted = false) }
+    }
+
     val contentText: @Composable () -> Unit = {
         Column(
             modifier = Modifier
@@ -4463,41 +4559,8 @@ private fun ChannelControlDialog(
             )
             ChannelControlGrid(
                 items = masterChannels,
-                onToggleMute = { item ->
-                    clearMasterSoloFlags()
-                    NativeBridge.setMasterChannelMute(
-                        item.channelIndex,
-                        !item.muted
-                    )
-                    masterChannels = masterChannels.map { existing ->
-                        if (existing.channelIndex == item.channelIndex) {
-                            existing.copy(muted = !existing.muted)
-                        } else {
-                            existing
-                        }
-                    }
-                },
-                onSoloHold = { item ->
-                    clearMasterSoloFlags()
-                    val activeCount = masterChannels.count { !it.muted }
-                    val isOnlyActive = !item.muted && activeCount == 1
-                    if (isOnlyActive) {
-                        masterChannels.forEach { channel ->
-                            NativeBridge.setMasterChannelMute(channel.channelIndex, false)
-                        }
-                        masterChannels = masterChannels.map { it.copy(muted = false) }
-                    } else {
-                        masterChannels.forEach { channel ->
-                            NativeBridge.setMasterChannelMute(
-                                channel.channelIndex,
-                                channel.channelIndex != item.channelIndex
-                            )
-                        }
-                        masterChannels = masterChannels.map { channel ->
-                            channel.copy(muted = channel.channelIndex != item.channelIndex)
-                        }
-                    }
-                }
+                onToggleMute = toggleMasterMute,
+                onSoloHold = soloMasterChannel
             )
             if (decoderChannels.isNotEmpty()) {
                 HorizontalDivider()
@@ -4508,59 +4571,8 @@ private fun ChannelControlDialog(
                 ChannelControlGrid(
                     items = decoderChannels,
                     showScrollbar = true,
-                    onToggleMute = { item ->
-                        if (!item.available) {
-                            return@ChannelControlGrid
-                        }
-                        NativeBridge.setDecoderToggleChannelMuted(
-                            item.channelIndex,
-                            !item.muted
-                        )
-                        decoderChannels = decoderChannels.map { existing ->
-                            if (existing.channelIndex == item.channelIndex) {
-                                existing.copy(muted = !existing.muted)
-                            } else {
-                                existing
-                            }
-                        }
-                    },
-                    onSoloHold = { item ->
-                        if (!item.available) {
-                            return@ChannelControlGrid
-                        }
-                        val availableChannels = decoderChannels.filter { it.available }
-                        val activeCount = availableChannels.count { !it.muted }
-                        val isOnlyActive = !item.muted && activeCount == 1
-                        if (isOnlyActive) {
-                            availableChannels.forEach { channel ->
-                                NativeBridge.setDecoderToggleChannelMuted(
-                                    channel.channelIndex,
-                                    false
-                                )
-                            }
-                            decoderChannels = decoderChannels.map { channel ->
-                                if (channel.available) {
-                                    channel.copy(muted = false)
-                                } else {
-                                    channel
-                                }
-                            }
-                        } else {
-                            availableChannels.forEach { channel ->
-                                NativeBridge.setDecoderToggleChannelMuted(
-                                    channel.channelIndex,
-                                    channel.channelIndex != item.channelIndex
-                                )
-                            }
-                            decoderChannels = decoderChannels.map { channel ->
-                                if (channel.available) {
-                                    channel.copy(muted = channel.channelIndex != item.channelIndex)
-                                } else {
-                                    channel
-                                }
-                            }
-                        }
-                    }
+                    onToggleMute = toggleDecoderMute,
+                    onSoloHold = soloDecoderChannel
                 )
             }
             HorizontalDivider()
@@ -4580,15 +4592,7 @@ private fun ChannelControlDialog(
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
             TextButton(
-                onClick = {
-                    clearMasterSoloFlags()
-                    masterChannels.forEach { channel ->
-                        NativeBridge.setMasterChannelMute(channel.channelIndex, false)
-                    }
-                    masterChannels = masterChannels.map { it.copy(muted = false) }
-                    NativeBridge.clearDecoderToggleChannelMutes()
-                    decoderChannels = decoderChannels.map { it.copy(muted = false) }
-                },
+                onClick = unmuteAllChannels,
                 modifier = Modifier.align(Alignment.Start),
                 contentPadding = PaddingValues(0.dp)
             ) {
@@ -4613,18 +4617,53 @@ private fun ChannelControlDialog(
             }
         }
     } else {
-        AlertDialog(
-            modifier = adaptiveDialogModifier(),
-            properties = adaptiveDialogProperties(),
-            onDismissRequest = onDismiss,
-            title = { Text("Channel controls") },
-            text = contentText,
-            confirmButton = {
-                TextButton(onClick = onDismiss) {
-                    Text("Close")
+        FloatingActionDialog(
+            title = "Channel controls",
+            onDismiss = onDismiss,
+            confirmText = "Done",
+            confirmIcon = Icons.Default.Check,
+            onConfirm = onDismiss
+        ) {
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                DialogSectionLabel(text = "Master channels")
+                ChannelControlGrid(
+                    items = masterChannels,
+                    pickerStyle = true,
+                    onToggleMute = toggleMasterMute,
+                    onSoloHold = soloMasterChannel
+                )
+            }
+            if (decoderChannels.isNotEmpty()) {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    DialogSectionLabel(text = "Core channels")
+                    ChannelControlGrid(
+                        items = decoderChannels,
+                        showScrollbar = true,
+                        pickerStyle = true,
+                        onToggleMute = toggleDecoderMute,
+                        onSoloHold = soloDecoderChannel
+                    )
                 }
             }
-        )
+            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                DialogResetButton(text = "Unmute all", onClick = unmuteAllChannels)
+                Text(
+                    text = "Tap: mute/unmute. Long press: solo this channel (mutes others).",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Text(
+                    text = "Unavailable channels are greyed out and update while this dialog is open.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Text(
+                    text = "Core-specific channel groups will be added per decoder.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+        }
     }
 }
 
@@ -4633,6 +4672,7 @@ private fun ChannelControlDialog(
 private fun ChannelControlGrid(
     items: List<ChannelControlItem>,
     showScrollbar: Boolean = false,
+    pickerStyle: Boolean = false,
     onToggleMute: (ChannelControlItem) -> Unit,
     onSoloHold: (ChannelControlItem) -> Unit
 ) {
@@ -4671,27 +4711,45 @@ private fun ChannelControlGrid(
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     rowItems.forEach { item ->
+                        val isActive = item.available && !item.muted
                         val backgroundColor = when {
-                            !item.available -> MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
-                            item.muted -> MaterialTheme.colorScheme.surfaceVariant
-                            else -> MaterialTheme.colorScheme.primary
+                            !pickerStyle && !item.available -> MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
+                            !pickerStyle && item.muted -> MaterialTheme.colorScheme.surfaceVariant
+                            !pickerStyle -> MaterialTheme.colorScheme.primary
+                            isActive -> MaterialTheme.colorScheme.primaryContainer
+                            else -> MaterialTheme.colorScheme.surfaceContainerHigh
                         }
                         val contentColor = when {
-                            !item.available -> MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
-                            item.muted -> MaterialTheme.colorScheme.onSurfaceVariant
-                            else -> MaterialTheme.colorScheme.onPrimary
+                            !pickerStyle && !item.available -> MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
+                            !pickerStyle && item.muted -> MaterialTheme.colorScheme.onSurfaceVariant
+                            !pickerStyle -> MaterialTheme.colorScheme.onPrimary
+                            isActive -> MaterialTheme.colorScheme.onPrimaryContainer
+                            else -> MaterialTheme.colorScheme.onSurfaceVariant
+                        }
+                        val tileShape = if (pickerStyle) RoundedCornerShape(16.dp) else MaterialTheme.shapes.large
+                        val tileModifier = if (pickerStyle) {
+                            Modifier
+                                .alpha(if (item.available) 1f else 0.45f)
+                                .border(
+                                    width = if (isActive) 1.5.dp else 0.dp,
+                                    color = if (isActive) MaterialTheme.colorScheme.primary else Color.Transparent,
+                                    shape = tileShape
+                                )
+                        } else {
+                            Modifier
                         }
                         Surface(
                             modifier = Modifier
                                 .weight(1f)
-                                .clip(MaterialTheme.shapes.large)
+                                .clip(tileShape)
+                                .then(tileModifier)
                                 .tvKeyLongPress(if (item.available) { { onSoloHold(item) } } else null)
                                 .combinedClickable(
                                     enabled = item.available,
                                     onClick = { onToggleMute(item) },
                                     onLongClick = { onSoloHold(item) }
                                 ),
-                            shape = MaterialTheme.shapes.large,
+                            shape = tileShape,
                             color = backgroundColor
                         ) {
                             Box(
@@ -4702,7 +4760,12 @@ private fun ChannelControlGrid(
                             ) {
                                 CompositionLocalProvider(
                                     LocalTextStyle provides MaterialTheme.typography.labelLarge.copy(
-                                        color = contentColor
+                                        color = contentColor,
+                                        fontWeight = when {
+                                            pickerStyle && isActive -> FontWeight.Bold
+                                            pickerStyle -> FontWeight.Medium
+                                            else -> null
+                                        }
                                     )
                                 ) {
                                     AutoSizeChipLabel(item.name)
