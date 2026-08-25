@@ -1,8 +1,13 @@
 #include "AudioEngine.h"
 #include "ChannelScopeSharedState.h"
 
+#include <android/log.h>
 #include <algorithm>
+#include <atomic>
 #include <cmath>
+
+#define LOG_TAG "AudioEngine"
+#define LOGD(...) __android_log_print(ANDROID_LOG_DEBUG, LOG_TAG, __VA_ARGS__)
 
 bool AudioEngine::consumeNaturalEndEvent() {
     return naturalEndPending.exchange(false);
@@ -253,6 +258,12 @@ std::vector<float> AudioEngine::getOpenMptChannelVuLevels() {
 }
 
 std::vector<float> AudioEngine::getChannelScopeSamples(int samplesPerChannel) {
+    std::vector<float> flat;
+    getChannelScopeSamples(samplesPerChannel, flat);
+    return flat;
+}
+
+void AudioEngine::getChannelScopeSamples(int samplesPerChannel, std::vector<float>& outFlat) {
     // Declare vis demand so the render worker bumps the snapshot serial
     // frequently and keeps `visualizationLastCallbackNs` fresh.
     markVisualizationRequested(kVisualizationFeatureChannelScope);
@@ -260,12 +271,67 @@ std::vector<float> AudioEngine::getChannelScopeSamples(int samplesPerChannel) {
     int decoderSampleRate = 0;
     {
         std::lock_guard<std::mutex> lock(decoderMutex);
-        if (!decoder) return {};
+        if (!decoder) {
+            outFlat.clear();
+            return;
+        }
         state = decoder->getChannelScopeSharedState();
         decoderSampleRate = decoderRenderSampleRate > 0 ? decoderRenderSampleRate : decoder->getRenderSampleRate();
     }
-    if (!state) return {};
+    if (!state) {
+        outFlat.clear();
+        return;
+    }
     const int outputSampleRate = streamSampleRate > 0 ? streamSampleRate : decoderSampleRate;
+    const double presentationDelayDecoderFrames =
+            scopePresentationDelayDecoderFrames(decoderSampleRate, outputSampleRate, samplesPerChannel);
+    state->getProcessedSamples(
+            samplesPerChannel,
+            static_cast<int>(std::ceil(std::max(0.0, presentationDelayDecoderFrames))),
+            outFlat
+    );
+}
+
+bool AudioEngine::tryGetChannelScopeSamples(int samplesPerChannel, std::vector<float>& outFlat) {
+    // Declare vis demand so the render worker bumps the snapshot serial
+    // frequently and keeps `visualizationLastCallbackNs` fresh.
+    markVisualizationRequested(kVisualizationFeatureChannelScope);
+    std::shared_ptr<ChannelScopeSharedState> state;
+    int decoderSampleRate = 0;
+    {
+        std::unique_lock<std::mutex> lock(decoderMutex, std::try_to_lock);
+        // Decoder busy (long seek, heavy metadata read): leave the previous
+        // window in place so the renderer redraws it instead of stalling.
+        if (!lock.owns_lock()) {
+            return false;
+        }
+        if (!decoder) {
+            outFlat.clear();
+            return true;
+        }
+        state = decoder->getChannelScopeSharedState();
+        decoderSampleRate = decoderRenderSampleRate > 0 ? decoderRenderSampleRate : decoder->getRenderSampleRate();
+    }
+    if (!state) {
+        outFlat.clear();
+        return true;
+    }
+    const int outputSampleRate = streamSampleRate > 0 ? streamSampleRate : decoderSampleRate;
+    const double presentationDelayDecoderFrames =
+            scopePresentationDelayDecoderFrames(decoderSampleRate, outputSampleRate, samplesPerChannel);
+    state->getProcessedSamples(
+            samplesPerChannel,
+            static_cast<int>(std::ceil(std::max(0.0, presentationDelayDecoderFrames))),
+            outFlat
+    );
+    return true;
+}
+
+double AudioEngine::scopePresentationDelayDecoderFrames(
+        int decoderSampleRate,
+        int outputSampleRate,
+        int samplesPerChannel
+) const {
     int callbackFrames = 0;
     int64_t callbackNs = 0;
     {
@@ -290,15 +356,27 @@ std::vector<float> AudioEngine::getChannelScopeSamples(int samplesPerChannel) {
         const int64_t elapsedNs = std::max<int64_t>(0, nowNs - callbackNs);
         const double elapsedFrames =
                 (static_cast<double>(elapsedNs) * static_cast<double>(outputSampleRate)) / 1.0e9;
-        const double bufferedAheadFrames =
-                static_cast<double>(callbackFrames) +
-                static_cast<double>(backendBufferedFrames);
-        presentationDelayOutputFrames += std::max(0.0, bufferedAheadFrames - elapsedFrames);
+        // Bound the base once per callback, then decay uncapped: per-poll
+        // caps flatten the term on large-period transports and pin the window.
+        const int64_t previousCompCbNs = visScopeCompBaseCbNs.load(std::memory_order_relaxed);
+        if (callbackNs != previousCompCbNs) {
+            const double base = static_cast<double>(callbackFrames) +
+                    static_cast<double>(backendBufferedFrames);
+            visScopeCompBase.store(
+                    std::min(base, static_cast<double>(ChannelScopeSharedState::kBufferedAheadEstimateCapFrames)),
+                    std::memory_order_relaxed);
+            visScopeCompBaseCbNs.store(callbackNs, std::memory_order_relaxed);
+        }
+        presentationDelayOutputFrames += std::max(
+                0.0,
+                visScopeCompBase.load(std::memory_order_relaxed) - elapsedFrames);
     } else {
         // No callback timestamp yet (cold start). Fall back to the static
         // backend buffer size so we still report a sane delay on the first
         // poll.
-        presentationDelayOutputFrames += static_cast<double>(backendBufferedFrames);
+        presentationDelayOutputFrames += static_cast<double>(std::min(
+                backendBufferedFrames,
+                ChannelScopeSharedState::kBufferedAheadEstimateCapFrames));
     }
     double presentationDelayDecoderFrames = presentationDelayOutputFrames;
     if (decoderSampleRate > 0 && outputSampleRate > 0 && decoderSampleRate != outputSampleRate) {
@@ -306,15 +384,41 @@ std::vector<float> AudioEngine::getChannelScopeSamples(int samplesPerChannel) {
                 presentationDelayOutputFrames *
                 (static_cast<double>(decoderSampleRate) / static_cast<double>(outputSampleRate));
     }
-    return state->getProcessedSamples(
-            samplesPerChannel,
-            static_cast<int>(std::ceil(std::max(0.0, presentationDelayDecoderFrames)))
-    );
+    // Keep the estimate within the history's service range; overshoot leads
+    // the trace instead of freezing it at the newest edge.
+    const double maxUsableDelayFrames = static_cast<double>(
+            std::max(0, ChannelScopeSharedState::kMaxSamples - samplesPerChannel -
+                    ChannelScopeSharedState::kMinSliderHeadroomFrames));
+    const double finalDelay = std::min(presentationDelayDecoderFrames, maxUsableDelayFrames);
+
+    static std::atomic<int64_t> lastEstimateLogNs { 0 };
+    const int64_t nowNs = std::chrono::duration_cast<std::chrono::nanoseconds>(
+            std::chrono::steady_clock::now().time_since_epoch()
+    ).count();
+    int64_t previousLogNs = lastEstimateLogNs.load(std::memory_order_relaxed);
+    if (nowNs - previousLogNs > 2000000000LL) {
+        if (lastEstimateLogNs.compare_exchange_strong(previousLogNs, nowNs, std::memory_order_relaxed)) {
+            LOGD(
+                    "Scope delay estimate: %.0f frames (queue=%d backend=%d cbFrames=%d fetch=%d decRate=%d outRate=%d)",
+                    presentationDelayDecoderFrames,
+                    renderQueueFrames(),
+                    miniaudioBufferFrames,
+                    callbackFrames,
+                    samplesPerChannel,
+                    decoderSampleRate,
+                    outputSampleRate
+            );
+        }
+    }
+    return finalDelay;
 }
 
 std::vector<int32_t> AudioEngine::getChannelScopeTextState(int maxChannels) {
-    std::lock_guard<std::mutex> lock(decoderMutex);
-    if (!decoder) return {};
+    // Non-blocking: text is cosmetic and polled at low rate; returning empty
+    // on contention lets callers keep their previous states instead of
+    // stalling behind long decoder operations.
+    std::unique_lock<std::mutex> lock(decoderMutex, std::try_to_lock);
+    if (!lock.owns_lock() || !decoder) return {};
     return decoder->getChannelScopeTextState(maxChannels);
 }
 

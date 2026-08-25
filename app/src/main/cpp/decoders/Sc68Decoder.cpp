@@ -745,13 +745,7 @@ void Sc68Decoder::publishScopeSnapshotLocked() {
         vu[static_cast<size_t>(channel)] = std::clamp(peak, 0.0f, 1.0f);
     }
 
-    {
-        std::lock_guard<std::mutex> scopeLock(channelScopeState->mutex);
-        channelScopeState->snapshotRaw = std::move(raw);
-        channelScopeState->snapshotVu = std::move(vu);
-        channelScopeState->snapshotChannels = scopeRingChannels;
-        channelScopeState->snapshotSerial = ++channelScopeSourceSerial;
-    }
+    channelScopeState->publish(raw, vu, scopeRingChannels, ++channelScopeSourceSerial);
 }
 
 void Sc68Decoder::updateScopeTextStateLocked(const sc68_scope_snapshot_t& snapshot) {

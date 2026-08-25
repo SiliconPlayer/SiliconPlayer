@@ -79,6 +79,9 @@ internal class GlChannelScopeTextRenderer(private val context: Context) {
     private var vuPositionLoc = -1
     private var vuColorLoc = -1
     private var currentFrame: GlChannelScopeTextFrame? = null
+    private var lastBuiltFrame: GlChannelScopeTextFrame? = null
+    private var lastBuildWidth = 0f
+    private var lastBuildHeight = 0f
 
     fun onSurfaceCreated() {
         textProgram.init()
@@ -95,6 +98,9 @@ internal class GlChannelScopeTextRenderer(private val context: Context) {
         textVertexBuffer = null
         vertexCount = 0
         currentFrame = null
+        lastBuiltFrame = null
+        lastBuildWidth = 0f
+        lastBuildHeight = 0f
         if (vuProgram != 0) {
             GLES20.glDeleteProgram(vuProgram)
             vuProgram = 0
@@ -117,9 +123,20 @@ internal class GlChannelScopeTextRenderer(private val context: Context) {
         surfaceHeight: Float
     ) {
         currentFrame = frame
+        // Text states refresh at ~10 Hz; skip the per-frame string rebuild
+        // when nothing visible changed.
+        if (frame == lastBuiltFrame &&
+            surfaceWidth == lastBuildWidth &&
+            surfaceHeight == lastBuildHeight
+        ) {
+            return
+        }
         val channels = frame.channelCount
         if (channels <= 0 || surfaceWidth <= 0f || surfaceHeight <= 0f) {
             vertexCount = 0
+            lastBuiltFrame = frame
+            lastBuildWidth = surfaceWidth
+            lastBuildHeight = surfaceHeight
             return
         }
 
@@ -166,6 +183,9 @@ internal class GlChannelScopeTextRenderer(private val context: Context) {
 
         if (frame.hideWhenOverflow && !canRenderAtEffectiveSize) {
             vertexCount = 0
+            lastBuiltFrame = frame
+            lastBuildWidth = surfaceWidth
+            lastBuildHeight = surfaceHeight
             return
         }
 
@@ -235,6 +255,9 @@ internal class GlChannelScopeTextRenderer(private val context: Context) {
         if (vertexCount > 0) {
             textVertexBuffer = batchBuilder.uploadToBuffer(textVertexBuffer)
         }
+        lastBuiltFrame = frame
+        lastBuildWidth = surfaceWidth
+        lastBuildHeight = surfaceHeight
     }
 
     fun drawVu(surfaceWidth: Float, surfaceHeight: Float) {

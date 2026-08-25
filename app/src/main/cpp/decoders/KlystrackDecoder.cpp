@@ -288,13 +288,7 @@ void KlystrackDecoder::captureChannelScopeSnapshotLocked() {
         vu[static_cast<size_t>(i)] = std::clamp(rawVu[i] / 128.0f, 0.0f, 1.0f);
     }
 
-    {
-        std::lock_guard<std::mutex> scopeLock(channelScopeState->mutex);
-        channelScopeState->snapshotRaw = std::move(raw);
-        channelScopeState->snapshotVu = std::move(vu);
-        channelScopeState->snapshotChannels = capturedChannels;
-        channelScopeState->snapshotSerial = ++channelScopeSourceSerial;
-    }
+    channelScopeState->publish(raw, vu, capturedChannels, ++channelScopeSourceSerial);
 }
 
 std::vector<int32_t> KlystrackDecoder::getChannelScopeTextState(int maxChannels) {

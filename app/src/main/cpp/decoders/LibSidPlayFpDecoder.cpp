@@ -643,11 +643,7 @@ void LibSidPlayFpDecoder::publishScopeSnapshotLocked() {
         vu[static_cast<size_t>(channel)] = std::clamp(peak, 0.0f, 1.0f);
     }
 
-    std::lock_guard<std::mutex> scopeLock(channelScopeState->mutex);
-    channelScopeState->snapshotRaw = std::move(raw);
-    channelScopeState->snapshotVu = std::move(vu);
-    channelScopeState->snapshotChannels = scopeRingChannels;
-    channelScopeState->snapshotSerial = ++channelScopeSourceSerial;
+    channelScopeState->publish(raw, vu, scopeRingChannels, ++channelScopeSourceSerial);
 }
 
 void LibSidPlayFpDecoder::applyToggleChannelMutesToScopeShadowLocked(

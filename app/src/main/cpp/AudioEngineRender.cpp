@@ -24,6 +24,11 @@ extern "C" {
 #define LOGE(...) __android_log_print(ANDROID_LOG_ERROR, LOG_TAG, __VA_ARGS__)
 
 namespace {
+    // Queue ceiling while the scope is consuming: keeps buffered-ahead inside
+    // the slider's depth, with room for the compensation to span one BT-sized
+    // callback interval (~12k frames on some transports).
+    constexpr int kScopeVisibleMaxQueueTargetFrames = 8192;
+
     pid_t currentThreadId() {
 #ifdef SYS_gettid
         return static_cast<pid_t>(syscall(SYS_gettid));
@@ -698,7 +703,12 @@ void AudioEngine::renderWorkerLoop() {
         const int visualizationHeadroom =
                 (visualizationDemand && !recoveryBoostActive && !backgroundHeadroomActive)
                 ? std::max(baseChunkFrames * 8, 2048) : 0;
-        const int effectiveTarget = targetFrames + visualizationHeadroom;
+        int effectiveTarget = targetFrames + visualizationHeadroom;
+        // Boost/headroom inflate buffered-ahead past the slider depth; cap
+        // only while the scope is actually being watched.
+        if (visualizationDemand) {
+            effectiveTarget = std::min(effectiveTarget, kScopeVisibleMaxQueueTargetFrames);
+        }
         {
             std::unique_lock<std::mutex> lock(renderQueueMutex);
             renderWorkerCv.wait(lock, [this, effectiveTarget]() {
@@ -736,6 +746,9 @@ void AudioEngine::renderWorkerLoop() {
                     backgroundHeadroomActive ? 8192 : 4096
             );
         }
+        const int64_t fillStartNs = std::chrono::duration_cast<std::chrono::nanoseconds>(
+                std::chrono::steady_clock::now().time_since_epoch()
+        ).count();
         {
             std::lock_guard<std::mutex> lock(decoderMutex);
             if (!decoder || !isPlaying.load()) {
@@ -746,7 +759,14 @@ void AudioEngine::renderWorkerLoop() {
             localBuffer.resize(static_cast<size_t>(chunkFrames) * static_cast<size_t>(channels));
 
             const int outputSampleRate = streamSampleRate > 0 ? streamSampleRate : 48000;
+            const int64_t decodeStartNs = std::chrono::duration_cast<std::chrono::nanoseconds>(
+                    std::chrono::steady_clock::now().time_since_epoch()
+            ).count();
             renderResampledLocked(localBuffer.data(), chunkFrames, channels, outputSampleRate, reachedEnd);
+            const int64_t decodeEndNs = std::chrono::duration_cast<std::chrono::nanoseconds>(
+                    std::chrono::steady_clock::now().time_since_epoch()
+            ).count();
+            lastFillDecodeNs.store(decodeEndNs - decodeStartNs, std::memory_order_relaxed);
 
             const double callbackDeltaSeconds = (outputSampleRate > 0)
                     ? static_cast<double>(chunkFrames) / outputSampleRate
@@ -875,6 +895,26 @@ void AudioEngine::renderWorkerLoop() {
         }
 
         appendRenderQueue(localBuffer.data(), chunkFrames, channels);
+
+        {
+            const int64_t fillEndNs = std::chrono::duration_cast<std::chrono::nanoseconds>(
+                    std::chrono::steady_clock::now().time_since_epoch()
+            ).count();
+            const int64_t fillMs = (fillEndNs - fillStartNs) / 1000000L;
+            if (fillMs > 30) {
+                const int64_t decodeMs = lastFillDecodeNs.load(std::memory_order_relaxed) / 1000000L;
+                LOGD(
+                        "Render fill slow: %lld ms (decode=%lld) deficit=%d chunk=%d target=%d buffered=%d ch=%d",
+                        static_cast<long long>(fillMs),
+                        static_cast<long long>(decodeMs),
+                        deficitFrames,
+                        chunkFrames,
+                        effectiveTarget,
+                        renderQueueFrames(),
+                        channels
+                );
+            }
+        }
 
         if (!isPlaying.load() && renderTerminalStopPending.load()) {
             renderWorkerCv.notify_all();

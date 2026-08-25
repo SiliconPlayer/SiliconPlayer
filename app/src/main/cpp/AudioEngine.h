@@ -86,6 +86,12 @@ public:
     std::string getOpenMptSampleNames();
     std::vector<float> getOpenMptChannelVuLevels();
     std::vector<float> getChannelScopeSamples(int samplesPerChannel);
+    void getChannelScopeSamples(int samplesPerChannel, std::vector<float>& outFlat);
+    bool tryGetChannelScopeSamples(int samplesPerChannel, std::vector<float>& outFlat);
+    double scopePresentationDelayDecoderFrames(
+            int decoderSampleRate,
+            int outputSampleRate,
+            int samplesPerChannel) const;
     std::vector<int32_t> getChannelScopeTextState(int maxChannels);
     std::vector<std::string> getDecoderToggleChannelNames();
     std::vector<uint8_t> getDecoderToggleChannelAvailability();
@@ -267,7 +273,9 @@ public:
         right = vu.size() > 1 ? vu[1] : left;
     }
     void getChannelScopeHistories(int samplesPerChannel, int presentationDelayFrames, std::vector<float>& flatOut, int& channelCount) override {
-        flatOut = getChannelScopeSamples(samplesPerChannel);
+        // Non-blocking: on decoder contention the previous window stays in
+        // place and is redrawn, instead of stalling the render thread.
+        tryGetChannelScopeSamples(samplesPerChannel, flatOut);
         channelCount = samplesPerChannel > 0 ? static_cast<int>(flatOut.size() / samplesPerChannel) : 0;
     }
     void getChannelScopeTextStates(int maxChannels, std::vector<int32_t>& flatOut) override {
@@ -388,6 +396,10 @@ private:
     int visualizationMonoWriteIndex = 0;
     int visualizationLastCallbackFrames = 0;
     int64_t visualizationLastCallbackNs = 0;
+    // Scope compensation ratchet: base bounded per callback, decays uncapped
+    // across the interval so the window slides on large-period transports.
+    mutable std::atomic<double> visScopeCompBase { 0.0 };
+    mutable std::atomic<int64_t> visScopeCompBaseCbNs { 0 };
     mutable std::atomic<int64_t> visualizationLastRequestNs { 0 };
     mutable std::atomic<uint32_t> visualizationRequestedFeatures { 0 };
 
@@ -480,6 +492,7 @@ private:
     std::atomic<int> renderWorkerTargetFrames { 16384 };
     std::atomic<bool> backgroundPlaybackMode { false };
     std::atomic<int64_t> renderQueueRecoveryBoostUntilNs { 0 };
+    std::atomic<int64_t> lastFillDecodeNs { 0 };
     std::atomic<uint64_t> renderQueueUnderrunCount { 0 };
     std::atomic<uint64_t> renderQueueUnderrunFrames { 0 };
     std::atomic<uint64_t> renderQueueCallbackCount { 0 };

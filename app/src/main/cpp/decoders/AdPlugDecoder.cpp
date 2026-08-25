@@ -971,9 +971,5 @@ void AdPlugDecoder::captureScopeSnapshotLocked(int numFrames) {
     }
 
     static uint64_t channelScopeSourceSerial = 0;
-    std::lock_guard<std::mutex> channelScopeLock(channelScopeState->mutex);
-    channelScopeState->snapshotRaw = std::move(raw);
-    channelScopeState->snapshotVu = std::move(vu);
-    channelScopeState->snapshotChannels = scopeRingChannels;
-    channelScopeState->snapshotSerial = ++channelScopeSourceSerial;
+    channelScopeState->publish(raw, vu, scopeRingChannels, ++channelScopeSourceSerial);
 }

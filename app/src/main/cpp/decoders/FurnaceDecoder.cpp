@@ -2,6 +2,7 @@
 
 #include <algorithm>
 #include <cctype>
+#include <chrono>
 #include <cmath>
 #include <cstdlib>
 #include <cstring>
@@ -609,7 +610,12 @@ int FurnaceDecoder::read(float* buffer, int numFrames) {
         }
     }
 
-    if (numFrames > 0) {
+    if (numFrames > 0 &&
+        (!channelScopeState ||
+         channelScopeState->tryBeginCapture(
+                 std::chrono::duration_cast<std::chrono::nanoseconds>(
+                         std::chrono::steady_clock::now().time_since_epoch()
+                 ).count()))) {
         captureChannelScopeSnapshotLocked();
     }
 
@@ -966,13 +972,7 @@ void FurnaceDecoder::captureChannelScopeSnapshotLocked() {
         vu[static_cast<size_t>(channel)] = std::clamp(peak, 0.0f, 1.0f);
     }
 
-    {
-        std::lock_guard<std::mutex> scopeLock(channelScopeState->mutex);
-        channelScopeState->snapshotRaw = std::move(raw);
-        channelScopeState->snapshotVu = std::move(vu);
-        channelScopeState->snapshotChannels = totalChannels;
-        channelScopeState->snapshotSerial = ++channelScopeSourceSerial;
-    }
+    channelScopeState->publish(raw, vu, totalChannels, ++channelScopeSourceSerial, true);
 }
 
 std::string FurnaceDecoder::getFormatNameInfo() {

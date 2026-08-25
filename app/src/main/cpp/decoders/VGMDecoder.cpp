@@ -921,8 +921,7 @@ std::vector<int32_t> VGMDecoder::getChannelScopeTextState(int maxChannels) {
 
     std::vector<float> vu;
     if (channelScopeState) {
-        std::lock_guard<std::mutex> scopeLock(channelScopeState->mutex);
-        vu = channelScopeState->snapshotVu;
+        vu = channelScopeState->publishedVu();
     }
 
     std::vector<int32_t> flat(static_cast<size_t>(channels * kChannelScopeTextStride), -1);
@@ -952,6 +951,15 @@ std::vector<int32_t> VGMDecoder::getChannelScopeTextState(int maxChannels) {
 
 void VGMDecoder::captureScopeSnapshotLocked(VGMPlayer* vgmPlayer) {
     if (!channelScopeState || !vgmPlayer) {
+        return;
+    }
+
+    // Gate before gathering: per-device scope copies scale with channel
+    // count and are too heavy to run at full read rate.
+    const int64_t scopeGateNowNs = std::chrono::duration_cast<std::chrono::nanoseconds>(
+            std::chrono::steady_clock::now().time_since_epoch()
+    ).count();
+    if (!channelScopeState->tryBeginCapture(scopeGateNowNs)) {
         return;
     }
 
@@ -1045,11 +1053,5 @@ void VGMDecoder::captureScopeSnapshotLocked(VGMPlayer* vgmPlayer) {
         vu[static_cast<size_t>(channel)] = std::clamp(peak, 0.0f, 1.0f);
     }
 
-    {
-        std::lock_guard<std::mutex> scopeLock(channelScopeState->mutex);
-        channelScopeState->snapshotRaw = std::move(raw);
-        channelScopeState->snapshotVu = std::move(vu);
-        channelScopeState->snapshotChannels = numChannels;
-        channelScopeState->snapshotSerial = ++channelScopeSourceSerial;
-    }
+    channelScopeState->publish(raw, vu, numChannels, ++channelScopeSourceSerial);
 }

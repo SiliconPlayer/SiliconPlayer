@@ -324,13 +324,7 @@ void HivelyTrackerDecoder::captureChannelScopeSnapshotLocked() {
         vu[static_cast<size_t>(channel)] = std::clamp(peak, 0.0f, 1.0f);
     }
 
-    {
-        std::lock_guard<std::mutex> scopeLock(channelScopeState->mutex);
-        channelScopeState->snapshotRaw = std::move(raw);
-        channelScopeState->snapshotVu = std::move(vu);
-        channelScopeState->snapshotChannels = capturedChannels;
-        channelScopeState->snapshotSerial = ++channelScopeSourceSerial;
-    }
+    channelScopeState->publish(raw, vu, capturedChannels, ++channelScopeSourceSerial);
 }
 
 bool HivelyTrackerDecoder::resetToSubtuneStartLocked() {

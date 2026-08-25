@@ -654,13 +654,7 @@ void UadeDecoder::publishScopeSnapshotLocked() {
         vu[static_cast<size_t>(channel)] = std::clamp(peak, 0.0f, 1.0f);
     }
 
-    {
-        std::lock_guard<std::mutex> channelScopeLock(channelScopeState->mutex);
-        channelScopeState->snapshotRaw = std::move(raw);
-        channelScopeState->snapshotVu = std::move(vu);
-        channelScopeState->snapshotChannels = kUadeScopeChannelCount;
-        channelScopeState->snapshotSerial = ++channelScopeSourceSerial;
-    }
+    channelScopeState->publish(raw, vu, kUadeScopeChannelCount, ++channelScopeSourceSerial);
 }
 
 std::vector<int32_t> UadeDecoder::getChannelScopeTextState(int maxChannels) {

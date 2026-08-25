@@ -286,21 +286,7 @@ void LibOpenMPTDecoder::captureChannelScopeSnapshotLocked() {
                 std::clamp(module->get_current_channel_vu_mono(ch), 0.0f, 1.0f);
     }
 
-    {
-        std::lock_guard<std::mutex> scopeLock(channelScopeState->mutex);
-        if (channelScopeState->snapshotRaw.size() != flatSize) {
-            channelScopeState->snapshotRaw.resize(flatSize);
-        }
-        std::copy(scratchRaw.begin(), scratchRaw.begin() + static_cast<ptrdiff_t>(flatSize),
-                  channelScopeState->snapshotRaw.begin());
-        if (channelScopeState->snapshotVu.size() != static_cast<size_t>(totalChannels)) {
-            channelScopeState->snapshotVu.resize(static_cast<size_t>(totalChannels));
-        }
-        std::copy(scratchVu.begin(), scratchVu.begin() + totalChannels,
-                  channelScopeState->snapshotVu.begin());
-        channelScopeState->snapshotChannels = totalChannels;
-        channelScopeState->snapshotSerial = channelScopeSourceSerial;
-    }
+    channelScopeState->publish(scratchRaw, scratchVu, totalChannels, channelScopeSourceSerial, true);
 }
 
 int LibOpenMPTDecoder::read(float* buffer, int numFrames) {
@@ -309,12 +295,15 @@ int LibOpenMPTDecoder::read(float* buffer, int numFrames) {
 
     size_t count = module->read_interleaved_stereo(renderSampleRate, numFrames, buffer);
     if (count > 0) {
-        channelScopeSourceSerial++;
         channelScopeLastReadFrames = static_cast<int>(count);
         channelScopeLastReadNs = std::chrono::duration_cast<std::chrono::nanoseconds>(
                 std::chrono::steady_clock::now().time_since_epoch()
         ).count();
-        captureChannelScopeSnapshotLocked();
+        if (!channelScopeState ||
+            channelScopeState->tryBeginCapture(channelScopeLastReadNs)) {
+            channelScopeSourceSerial++;
+            captureChannelScopeSnapshotLocked();
+        }
     }
 
     return static_cast<int>(count);

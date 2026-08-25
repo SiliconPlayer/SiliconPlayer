@@ -9,6 +9,8 @@ import android.opengl.EGLConfig
 import android.opengl.EGLContext
 import android.opengl.EGLDisplay
 import android.opengl.EGLSurface
+import android.os.Looper
+import android.view.Choreographer
 import android.view.Surface
 import android.view.TextureView
 import androidx.compose.runtime.Composable
@@ -307,6 +309,8 @@ private class SiliconNativeTextureRenderThread(
     private val onFrameStats: (fps: Int, frameMs: Int) -> Unit
 ) : Thread("SiliconNativeTextureRenderThread") {
     private val lock = Object()
+
+    @Volatile
     private var running = true
     private var frameData: SiliconNativeGlFrame? = null
     private var dynamicData: SiliconNativeGlDynamicData? = null
@@ -336,11 +340,17 @@ private class SiliconNativeTextureRenderThread(
     private var artworkDirectBuffer: ByteBuffer? = null
     private val textRenderer = GlChannelScopeTextRenderer(context)
 
+    // Per-tick render state (render thread only).
+    private var localChannelCount = 0
+    private var localChannelTextStates = emptyList<com.flopster101.siliconplayer.ui.visualization.channel.ChannelScopeChannelTextState>()
+    private var localLastTextPollNs = 0L
+    private var pausedFrameRendered = false
+    private var lastTickNs = 0L
+
     fun setDynamicData(data: SiliconNativeGlDynamicData) {
         synchronized(lock) {
             dynamicData = data
             frameSequence += 1L
-            lock.notifyAll()
         }
     }
 
@@ -348,7 +358,6 @@ private class SiliconNativeTextureRenderThread(
         synchronized(lock) {
             frameData = frame
             frameSequence += 1L
-            lock.notifyAll()
         }
     }
 
@@ -358,11 +367,43 @@ private class SiliconNativeTextureRenderThread(
         val frameSequence: Long,
         val width: Int,
         val height: Int,
-        val surfaceSizeChanged: Boolean,
-        val shouldStop: Boolean
+        val surfaceSizeChanged: Boolean
     )
 
+    // SurfaceTexture BufferQueues run in async mode: eglSwapBuffers never
+    // blocks, so frames must be scheduled against display vsync via
+    // Choreographer rather than relying on swap backpressure or sleeps.
+    private val frameCallback = object : Choreographer.FrameCallback {
+        override fun doFrame(frameTimeNanos: Long) {
+            if (!running) {
+                Looper.myLooper()?.quitSafely()
+                return
+            }
+            val nowNs = System.nanoTime()
+            val gapMs = (nowNs - lastTickNs) / 1_000_000L
+            if (lastTickNs != 0L && gapMs > 250L) {
+                android.util.Log.i(
+                    "SiliconVis",
+                    "Vis render stall: ${gapMs} ms since previous frame"
+                )
+            }
+            lastTickNs = nowNs
+            try {
+                renderTick()
+            } finally {
+                if (running) {
+                    Choreographer.getInstance().postFrameCallback(this)
+                } else {
+                    Looper.myLooper()?.quitSafely()
+                }
+            }
+        }
+    }
+
     override fun run() {
+        Looper.prepare()
+        // Visualizer work must not be relegated to background-priority cores.
+        android.os.Process.setThreadPriority(android.os.Process.THREAD_PRIORITY_URGENT_DISPLAY)
         if (!initEgl()) {
             releaseEgl()
             outputSurface.release()
@@ -377,44 +418,42 @@ private class SiliconNativeTextureRenderThread(
         }
 
         try {
-            var nextFrameTimeNs = System.nanoTime()
-            var localChannelCount = 0
-            var localChannelTextStates = emptyList<com.flopster101.siliconplayer.ui.visualization.channel.ChannelScopeChannelTextState>()
-            var localLastTextPollNs = 0L
-            var pausedFrameRendered = false
+            Choreographer.getInstance().postFrameCallback(frameCallback)
+            Looper.loop()
+        } finally {
+            if (visHandle != 0L) {
+                SiliconVisNativeBridge.nativeReleaseGl(visHandle)
+                SiliconVisNativeBridge.nativeDestroy(visHandle)
+                visHandle = 0L
+            }
+            releaseEgl()
+            outputSurface.release()
+        }
+    }
 
-            while (true) {
-                val state = synchronized(lock) {
-                    while (running && (frameData == null || (!frameData!!.isPlaying && pausedFrameRendered)) && !surfaceSizeChanged) {
-                        lock.wait(100)
-                    }
-                    if (!running) {
-                        LoopState(null, null, frameSequence, 0, 0, false, true)
-                    } else {
-                        LoopState(
-                            frame = frameData,
-                            dynamicData = dynamicData,
-                            frameSequence = frameSequence,
-                            width = surfaceWidth,
-                            height = surfaceHeight,
-                            surfaceSizeChanged = surfaceSizeChanged,
-                            shouldStop = false
-                        ).also {
-                            surfaceSizeChanged = false
-                        }
-                    }
-                }
-                if (state.shouldStop) break
-                val frame = state.frame ?: continue
+    private fun renderTick() {
+        val state = synchronized(lock) {
+            LoopState(
+                frame = frameData,
+                dynamicData = dynamicData,
+                frameSequence = frameSequence,
+                width = surfaceWidth,
+                height = surfaceHeight,
+                surfaceSizeChanged = surfaceSizeChanged
+            ).also {
+                surfaceSizeChanged = false
+            }
+        }
+        val frame = state.frame ?: return
 
-                if (!frame.isPlaying) {
-                    if (pausedFrameRendered && !state.surfaceSizeChanged) {
-                        continue
-                    }
-                    pausedFrameRendered = true
-                } else {
-                    pausedFrameRendered = false
-                }
+        if (!frame.isPlaying) {
+            if (pausedFrameRendered && !state.surfaceSizeChanged) {
+                return
+            }
+            pausedFrameRendered = true
+        } else {
+            pausedFrameRendered = false
+        }
 
                 if (visHandle != 0L) {
                     if (state.surfaceSizeChanged) {
@@ -688,25 +727,6 @@ private class SiliconNativeTextureRenderThread(
                     onFrameStats.invoke(latestDrawFps, latestFrameMs)
                     lastHudPublishNs = nowNs
                 }
-
-                // Smooth frame pacing (60 FPS)
-                val targetIntervalNs = 16_666_666L
-                val frameEndNs = System.nanoTime()
-                nextFrameTimeNs = maxOf(nextFrameTimeNs + targetIntervalNs, frameEndNs)
-                val sleepNs = nextFrameTimeNs - frameEndNs
-                if (sleepNs > 500_000L) {
-                    java.util.concurrent.locks.LockSupport.parkNanos(sleepNs)
-                }
-            }
-        } finally {
-            if (visHandle != 0L) {
-                SiliconVisNativeBridge.nativeReleaseGl(visHandle)
-                SiliconVisNativeBridge.nativeDestroy(visHandle)
-                visHandle = 0L
-            }
-            releaseEgl()
-            outputSurface.release()
-        }
     }
 
     fun setSurfaceSize(width: Int, height: Int) {
@@ -714,15 +734,11 @@ private class SiliconNativeTextureRenderThread(
             surfaceWidth = width.coerceAtLeast(1)
             surfaceHeight = height.coerceAtLeast(1)
             surfaceSizeChanged = true
-            lock.notifyAll()
         }
     }
 
     fun requestStop() {
-        synchronized(lock) {
-            running = false
-            lock.notifyAll()
-        }
+        running = false
     }
 
     private fun initEgl(): Boolean {
