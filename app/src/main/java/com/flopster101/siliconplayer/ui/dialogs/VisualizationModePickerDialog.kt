@@ -303,7 +303,7 @@ internal fun VisualizationModePickerDialog(
                             icon = Icons.Default.MonitorHeart,
                             isSelected = selectedMode == VisualizationMode.ChannelScope,
                             isEnabled = isChannelScopeAvailable,
-                            subtitle = if (isChannelScopeAvailable) "Tracker modules" else "Requires tracker/MIDI module",
+                            subtitle = if (isChannelScopeAvailable) "Tracker modules" else "Requires compatible decoder",
                             onClick = {
                                 if (isChannelScopeAvailable) {
                                     onSelectMode(VisualizationMode.ChannelScope)
