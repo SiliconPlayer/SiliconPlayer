@@ -2391,12 +2391,73 @@ build_furnace() {
 }
 
 # -----------------------------------------------------------------------------
+# Function: Build projectM
+# -----------------------------------------------------------------------------
+build_projectm() {
+    local ABI=$1
+    local PROJECT_PATH="$ABSOLUTE_PATH/projectm"
+    local INSTALL_DIR="$ABSOLUTE_PATH/../app/src/main/cpp/prebuilt/$ABI"
+    local BUILD_DIR="$PROJECT_PATH/build_android_${ABI}"
+
+    if [ ! -d "$PROJECT_PATH" ]; then
+        echo "projectm source not found at $PROJECT_PATH (skipping)."
+        return 0
+    fi
+
+    if [ -f "$INSTALL_DIR/lib/libprojectM-4.so" ] && [ -f "$INSTALL_DIR/lib/.libprojectm_build_stamp" ]; then
+        echo "projectm already built for $ABI -> skipping"
+        return 0
+    fi
+
+    echo "Building projectm for $ABI..."
+    rm -rf "$BUILD_DIR"
+    mkdir -p "$BUILD_DIR" "$INSTALL_DIR/lib"
+
+    cmake -Wno-dev -Wno-deprecated \
+        -S "$PROJECT_PATH" \
+        -B "$BUILD_DIR" \
+        -DCMAKE_TOOLCHAIN_FILE="$ANDROID_NDK_HOME/build/cmake/android.toolchain.cmake" \
+        -DANDROID_ABI="$ABI" \
+        -DANDROID_PLATFORM="android-$ANDROID_API" \
+        -DCMAKE_BUILD_TYPE=Release \
+        -DCMAKE_C_FLAGS="$DEP_OPT_FLAGS" \
+        -DCMAKE_CXX_FLAGS="$DEP_OPT_FLAGS" \
+        -DCMAKE_C_FLAGS_RELEASE="$DEP_OPT_FLAGS -DNDEBUG" \
+        -DCMAKE_CXX_FLAGS_RELEASE="$DEP_OPT_FLAGS -DNDEBUG" \
+        -DBUILD_SHARED_LIBS=ON \
+        -DENABLE_GLES=ON \
+        -DENABLE_SYSTEM_GLM=OFF \
+        -DENABLE_SYSTEM_PROJECTM_EVAL=OFF \
+        -DENABLE_PLAYLIST=OFF \
+        -DENABLE_DEBUG_POSTFIX=OFF \
+        -DENABLE_BOOST_FILESYSTEM=OFF \
+        -DBUILD_TESTING=OFF \
+        -DBUILD_DOCS=OFF \
+        -DCMAKE_INSTALL_PREFIX="$INSTALL_DIR"
+
+    cmake --build "$BUILD_DIR" -j"$NPROC"
+    cmake --install "$BUILD_DIR"
+
+    if [ ! -f "$INSTALL_DIR/lib/libprojectM-4.so" ]; then
+        local BUILT_LIB
+        BUILT_LIB="$(find "$BUILD_DIR" -type f -name "libprojectM-4.so" | head -n 1)"
+        if [ -z "$BUILT_LIB" ] || [ ! -f "$BUILT_LIB" ]; then
+            echo "Error: projectm shared library not found after build."
+            return 1
+        fi
+        cp "$BUILT_LIB" "$INSTALL_DIR/lib/libprojectM-4.so"
+    fi
+
+    touch "$INSTALL_DIR/lib/.libprojectm_build_stamp"
+}
+
+# -----------------------------------------------------------------------------
 # Argument Parsing
 # -----------------------------------------------------------------------------
 usage() {
     echo "Usage: $0 <abi|all> <lib|all[,lib2,...]> [clean]"
     echo "  ABI: all, all_legacy, arm64-v8a, armeabi-v7a, x86_64 (x86 supported explicitly or via all_legacy)"
-    echo "  LIB: all, libsoxr, openssl, ffmpeg, libopenmpt, libvgm, libgme, libresid, libresidfp, libsidplayfp, crsid, lazyusf2, psflib, vio2sf, fluidsynth, sc68, libbinio, adplug, libzakalwe, bencodetools, vasm, uade, hivelytracker, klystrack, furnace"
+    echo "  LIB: all, libsoxr, openssl, ffmpeg, libopenmpt, libvgm, libgme, libresid, libresidfp, libsidplayfp, crsid, lazyusf2, psflib, vio2sf, fluidsynth, sc68, libbinio, adplug, libzakalwe, bencodetools, vasm, uade, hivelytracker, klystrack, furnace, projectm"
     echo "  clean (optional): force rebuild (bypass already-built skip checks)"
     echo "  Aliases: sox/soxr, gme, resid/residfp, sid/sidplayfp, crsid/cRSID/libcrsid, usf/lazyusf, psf, 2sf/twosf, fluid/libfluidsynth, libsc68, binio, libadplug, zakalwe, bencode, assembler/vasm, libuade, hvl/hively, kly/kt, fur"
 }
@@ -2496,6 +2557,9 @@ normalize_lib_name() {
         fur|furnace|libfurnace)
             echo "furnace"
             ;;
+        projectm|projectM|libprojectm|libprojectM)
+            echo "projectm"
+            ;;
         *)
             echo "$lib"
             ;;
@@ -2537,7 +2601,7 @@ is_valid_abi() {
 is_valid_lib() {
     local lib="$1"
     case "$lib" in
-        all|libsoxr|openssl|ffmpeg|libopenmpt|libvgm|libgme|libresid|libresidfp|libsidplayfp|crsid|lazyusf2|psflib|vio2sf|fluidsynth|sc68|libbinio|adplug|libzakalwe|bencodetools|vasm|uade|hivelytracker|klystrack|furnace)
+        all|libsoxr|openssl|ffmpeg|libopenmpt|libvgm|libgme|libresid|libresidfp|libsidplayfp|crsid|lazyusf2|psflib|vio2sf|fluidsynth|sc68|libbinio|adplug|libzakalwe|bencodetools|vasm|uade|hivelytracker|klystrack|furnace|projectm)
             return 0
             ;;
         *)
@@ -2582,7 +2646,7 @@ clean_target_artifacts() {
 
     # Resolve lib list
     if [ "$TARGET_LIB" = "all" ]; then
-        lib_list=(libsoxr openssl ffmpeg libopenmpt libvgm libgme libresid libresidfp libsidplayfp crsid lazyusf2 psflib vio2sf fluidsynth sc68 libbinio adplug libzakalwe bencodetools vasm uade hivelytracker klystrack furnace)
+            lib_list=(libsoxr openssl ffmpeg libopenmpt libvgm libgme libresid libresidfp libsidplayfp crsid lazyusf2 psflib vio2sf fluidsynth sc68 libbinio adplug libzakalwe bencodetools vasm uade hivelytracker klystrack furnace projectm)
     else
         IFS=',' read -r -a requested <<< "$TARGET_LIB"
         for raw in "${requested[@]}"; do
@@ -2622,6 +2686,7 @@ clean_target_artifacts() {
             hivelytracker)  PROJ="$ABSOLUTE_PATH/hivelytracker"; CMAKE=1 ;;
             klystrack)      PROJ="$ABSOLUTE_PATH/klystrack"; CMAKE=1 ;;
             furnace)        PROJ="$ABSOLUTE_PATH/furnace"; CMAKE=1 ;;
+            projectm)       PROJ="$ABSOLUTE_PATH/projectm"; CMAKE=1 ;;
         esac
 
         # Clean CMake build_android_* directories
@@ -2703,6 +2768,7 @@ clean_target_artifacts() {
                 hivelytracker) rm -f "$inst/lib/libhivelytracker.so" 2>/dev/null || true; rm -rf "$inst/include/hivelytracker" 2>/dev/null || true ;;
                 klystrack) rm -f "$inst/lib/libklystrack.so" 2>/dev/null || true; rm -rf "$inst/include/klystrack" 2>/dev/null || true ;;
                 furnace)   rm -f "$inst/lib/libfurnace.so" 2>/dev/null || true; rm -rf "$inst/include/furnace" 2>/dev/null || true ;;
+                projectm)  rm -f "$inst/lib/libprojectM-4.so" "$inst/lib/libprojectM-4.so."* "$inst/lib/.libprojectm_build_stamp" 2>/dev/null || true; rm -rf "$inst/include/projectM-4" 2>/dev/null || true ;;
             esac
         done
     done
@@ -2892,6 +2958,10 @@ for ABI in "${ABIS[@]}"; do
 
     if target_has_lib "furnace"; then
         build_furnace "$ABI"
+    fi
+
+    if target_has_lib "projectm"; then
+        build_projectm "$ABI"
     fi
 done
 
