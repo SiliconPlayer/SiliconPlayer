@@ -92,3 +92,4 @@
 [submodule "external/projectm"]
 	path = external/projectm
 	url = https://github.com/projectM-visualizer/projectm
+	ignore = dirty
