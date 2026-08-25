@@ -227,6 +227,26 @@ void ChannelScopeRenderer::buildGeometry() {
     float cellW = static_cast<float>(widthPx_) / static_cast<float>(cols);
     float cellH = static_cast<float>(heightPx_) / static_cast<float>(rows);
 
+    // Sub-pixel segments flood the rasterizer on narrow cells; decimate to
+    // roughly one segment per pixel.
+    int waveStride = 1;
+    size_t histSize = 0;
+    if (!channelHistories_.empty()) {
+        histSize = channelHistories_.front().size();
+        if (histSize >= 2) {
+            const float stepX = cellW / static_cast<float>(histSize - 1);
+            if (stepX > 0.0f && stepX < 1.0f) {
+                waveStride = std::max(1, static_cast<int>(1.0f / stepX));
+            }
+        }
+    }
+    const size_t segmentsPerChannel = histSize >= 2
+            ? ((histSize - 2) / waveStride) + 1
+            : 0;
+    waveformVertices_.reserve(channels * segmentsPerChannel * 4);
+    gridVertices_.reserve(static_cast<size_t>(cols + rows) * 4);
+    vuTrackVertices_.reserve(static_cast<size_t>(channels) * 12);
+
     // 1. Grid vertical & horizontal separator lines
     for (int c = 1; c < cols; ++c) {
         float x = c * cellW;
@@ -260,11 +280,12 @@ void ChannelScopeRenderer::buildGeometry() {
                 float stepX = cellW / static_cast<float>(hist.size() - 1);
                 float maxAmp = cellH * 0.42f;
 
-                for (size_t i = 0; i < hist.size() - 1; ++i) {
+                for (size_t i = 0; i + 1 < hist.size(); i += waveStride) {
+                    size_t j = std::min(i + static_cast<size_t>(waveStride), hist.size() - 1);
                     float x0 = cellLeft + i * stepX;
                     float y0 = centerY - (hist[i] * maxAmp);
-                    float x1 = cellLeft + (i + 1) * stepX;
-                    float y1 = centerY - (hist[i + 1] * maxAmp);
+                    float x1 = cellLeft + j * stepX;
+                    float y1 = centerY - (hist[j] * maxAmp);
 
                     waveformVertices_.push_back(x0); waveformVertices_.push_back(y0);
                     waveformVertices_.push_back(x1); waveformVertices_.push_back(y1);
