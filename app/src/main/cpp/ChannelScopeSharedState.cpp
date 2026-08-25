@@ -25,11 +25,14 @@ void ChannelScopeSharedState::clear() {
     lastChannels = 0;
     consumedSerial = 0;
     processedValid = false;
+    lastWindowStart = 0;
+    lastWindowEnd = 0;
 }
 
-bool ChannelScopeSharedState::tryBeginCapture(int64_t nowNs) {
+bool ChannelScopeSharedState::tryBeginCapture(int64_t nowNs, int channelCountHint) {
     std::lock_guard<std::mutex> lock(publishMutex);
-    if (lastCaptureNs != 0 && nowNs - lastCaptureNs < kMinCaptureIntervalNs) {
+    if (lastCaptureNs != 0 &&
+        nowNs - lastCaptureNs < captureIntervalNsForChannels(channelCountHint)) {
         return false;
     }
     lastCaptureNs = nowNs;
@@ -49,7 +52,8 @@ void ChannelScopeSharedState::publish(
     std::lock_guard<std::mutex> lock(publishMutex);
     // Backstop gate so decoders without an explicit pre-gather check still
     // publish at the shared cadence.
-    if (!bypassGate && lastCaptureNs != 0 && nowNs - lastCaptureNs < kMinCaptureIntervalNs) {
+    if (!bypassGate &&
+        nowNs - lastCaptureNs < captureIntervalNsForChannels(channels)) {
         return;
     }
     lastCaptureNs = nowNs;
@@ -118,10 +122,22 @@ void ChannelScopeSharedState::getProcessedSamples(
     const int maxPresentationDelay = std::max(0, kMaxSamples - clampedSamples);
     const int clampedDelay = std::clamp(presentationDelayFrames, 0, maxPresentationDelay);
     const int windowStart = maxPresentationDelay - clampedDelay;
-    const int spanStart = std::max(0, windowStart - kProcessSlackFrames);
-    const int spanLength = kMaxSamples - spanStart;
+    const int windowEnd = std::min(kMaxSamples, windowStart + clampedSamples);
+    // Process the union of this window and the previous one: every served
+    // sample gets fresh stats while the pass stays proportional to the
+    // visible window instead of the full history depth.
+    int spanStart = windowStart;
+    int spanEnd = windowEnd;
+    if (processedValid) {
+        spanStart = std::min(spanStart, lastWindowStart);
+        spanEnd = std::max(spanEnd, lastWindowEnd);
+    }
+    spanStart = std::clamp(spanStart, 0, kMaxSamples);
+    spanEnd = std::clamp(spanEnd, spanStart, kMaxSamples);
+    const int spanLength = spanEnd - spanStart;
 
-    if (snapshotSerialValue != consumedSerial || !processedValid) {
+    if (snapshotSerialValue != consumedSerial || !processedValid ||
+        windowStart != lastWindowStart || windowEnd != lastWindowEnd) {
         for (int channel = 0; channel < totalChannels; ++channel) {
             const size_t channelOffset = static_cast<size_t>(channel) * kMaxSamples;
             const float* source = localRaw.data() + channelOffset + spanStart;
@@ -186,6 +202,8 @@ void ChannelScopeSharedState::getProcessedSamples(
         }
         processedValid = true;
         consumedSerial = snapshotSerialValue;
+        lastWindowStart = spanStart;
+        lastWindowEnd = spanEnd;
     }
 
     outFlat.resize(flattenedSize);

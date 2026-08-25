@@ -300,7 +300,7 @@ int LibOpenMPTDecoder::read(float* buffer, int numFrames) {
                 std::chrono::steady_clock::now().time_since_epoch()
         ).count();
         if (!channelScopeState ||
-            channelScopeState->tryBeginCapture(channelScopeLastReadNs)) {
+            channelScopeState->tryBeginCapture(channelScopeLastReadNs, moduleChannels)) {
             channelScopeSourceSerial++;
             captureChannelScopeSnapshotLocked();
         }

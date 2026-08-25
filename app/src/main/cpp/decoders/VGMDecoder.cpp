@@ -956,10 +956,11 @@ void VGMDecoder::captureScopeSnapshotLocked(VGMPlayer* vgmPlayer) {
 
     // Gate before gathering: per-device scope copies scale with channel
     // count and are too heavy to run at full read rate.
+    const int numChannels = std::min(static_cast<int>(toggleChipEntries.size()), 64);
     const int64_t scopeGateNowNs = std::chrono::duration_cast<std::chrono::nanoseconds>(
             std::chrono::steady_clock::now().time_since_epoch()
     ).count();
-    if (!channelScopeState->tryBeginCapture(scopeGateNowNs)) {
+    if (!channelScopeState->tryBeginCapture(scopeGateNowNs, numChannels)) {
         return;
     }
 
@@ -974,7 +975,6 @@ void VGMDecoder::captureScopeSnapshotLocked(VGMPlayer* vgmPlayer) {
         return;
     }
 
-    const int numChannels = std::min(static_cast<int>(toggleChipEntries.size()), 64);
     const int maxSamples = ChannelScopeSharedState::kMaxSamples;
     const size_t ringSize = static_cast<size_t>(numChannels) * maxSamples;
     if (scopeRingChannels != numChannels || scopeRingRaw.size() != ringSize) {
