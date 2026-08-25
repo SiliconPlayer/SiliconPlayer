@@ -89,3 +89,6 @@
 [submodule "external/miniaudio"]
 	path = external/miniaudio
 	url = https://github.com/mackron/miniaudio
+[submodule "external/projectm"]
+	path = external/projectm
+	url = https://github.com/projectM-visualizer/projectm
