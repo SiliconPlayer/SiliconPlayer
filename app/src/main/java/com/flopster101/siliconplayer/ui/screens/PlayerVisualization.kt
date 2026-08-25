@@ -2785,6 +2785,25 @@ internal fun AlbumArtPlaceholder(
                 )
             }
             if (visualizationShowDebugInfo && visualizationMode != VisualizationMode.Off) {
+                // Update/source metrics come from the Compose poller, which
+                // idles while a GL backend renders; draw metrics come from
+                // the GL thread and are N/A under Compose.
+                val pollerActive = activeRenderBackend == VisualizationRenderBackend.Compose
+                val updateLine = if (pollerActive) {
+                    "${visDebugUpdateFps} fps  (${visDebugUpdateFrameMs} ms)"
+                } else {
+                    "N/A"
+                }
+                val sourceUniqueLine = if (pollerActive) {
+                    "${visDebugSourceUniqueFps} fps  (${visDebugSourceUniqueFrameMs} ms)"
+                } else {
+                    "N/A"
+                }
+                val sourceDuplicatesLine = if (pollerActive) {
+                    "${visDebugSourceDuplicatePercent}%"
+                } else {
+                    "N/A"
+                }
                 val drawLine = if (activeRenderBackend != VisualizationRenderBackend.Compose) {
                     "${visDebugDrawFps} fps  (${visDebugDrawFrameMs} ms)"
                 } else {
@@ -2800,9 +2819,9 @@ internal fun AlbumArtPlaceholder(
                     Text(
                         text = "Mode: ${visualizationMode.label}\n" +
                             "Backend: ${activeRenderBackend.label}\n" +
-                            "Update: ${visDebugUpdateFps} fps  (${visDebugUpdateFrameMs} ms)\n" +
-                            "Source unique: ${visDebugSourceUniqueFps} fps  (${visDebugSourceUniqueFrameMs} ms)\n" +
-                            "Source duplicates: ${visDebugSourceDuplicatePercent}%\n" +
+                            "Update: $updateLine\n" +
+                            "Source unique: $sourceUniqueLine\n" +
+                            "Source duplicates: $sourceDuplicatesLine\n" +
                             "Draw: $drawLine",
                         color = Color.White.copy(alpha = 0.78f),
                         style = MaterialTheme.typography.labelSmall,
