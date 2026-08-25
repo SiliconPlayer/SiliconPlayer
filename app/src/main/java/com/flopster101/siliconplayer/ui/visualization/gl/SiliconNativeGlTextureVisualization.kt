@@ -62,6 +62,7 @@ data class SiliconNativeGlFrame(
     val surfaceColorArgb: Int = 0xFF121212.toInt(),
     val placeholderIconType: Int = 1,
     val contrastMode: Int = 0,
+    val contrastScrimColorArgb: Int = 0xFF000000.toInt(),
     // Channel scope options
     val channelLayout: Int = 0,
     val textAnchor: Int = 0,
@@ -469,6 +470,7 @@ private class SiliconNativeTextureRenderThread(
                         frame.placeholderIconType
                     )
                     SiliconVisNativeBridge.nativeSetContrastMode(visHandle, frame.contrastMode)
+                    SiliconVisNativeBridge.nativeSetContrastScrim(visHandle, frame.contrastScrimColorArgb)
                     SiliconVisNativeBridge.nativeSetShowArtworkBackground(visHandle, frame.showArtworkBackground)
 
                     // 1a. Font atlas (update when requested font or mode changes)

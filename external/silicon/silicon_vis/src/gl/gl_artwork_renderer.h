@@ -21,6 +21,7 @@ public:
     void clearIcon();
     void setTheme(uint32_t primaryColorArgb, uint32_t surfaceColorArgb, int32_t placeholderIconType);
     void setContrastMode(SiliconVisContrastMode mode);
+    void setContrastScrim(uint32_t argb) { contrastScrimArgb_ = argb; }
     void setShowArtworkBackground(bool show) { showArtworkBackground_ = show; }
 
     void draw(float surfaceWidth, float surfaceHeight, float density);
@@ -51,6 +52,7 @@ private:
     GlProgram contrastProgram_;
     GLint contrastResLoc_ = -1;
     GLint contrastModeLoc_ = -1;
+    GLint contrastScrimColorLoc_ = -1;
     GLint contrastPosLoc_ = -1;
     GLint contrastCoordLoc_ = -1;
 
@@ -70,6 +72,7 @@ private:
     uint32_t surfaceColorArgb_ = 0xFF121212;
     int32_t placeholderIconType_ = 1;
     SiliconVisContrastMode contrastMode_ = SILICON_VIS_CONTRAST_NONE;
+    uint32_t contrastScrimArgb_ = 0xFF000000;
     bool showArtworkBackground_ = true;
 };
 

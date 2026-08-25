@@ -22,6 +22,7 @@ object SiliconVisNativeBridge {
     external fun nativeClearIcon(handle: Long)
     external fun nativeSetArtworkTheme(handle: Long, primaryArgb: Int, surfaceArgb: Int, iconType: Int)
     external fun nativeSetContrastMode(handle: Long, contrastMode: Int)
+    external fun nativeSetContrastScrim(handle: Long, argb: Int)
     external fun nativeSetShowArtworkBackground(handle: Long, show: Boolean)
 
     external fun nativeSetFontAtlas(

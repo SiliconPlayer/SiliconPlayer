@@ -42,6 +42,7 @@ SILICON_VIS_API void silicon_vis_set_icon_pixels(SiliconVisHandle handle, const 
 SILICON_VIS_API void silicon_vis_clear_icon(SiliconVisHandle handle);
 SILICON_VIS_API void silicon_vis_set_artwork_theme(SiliconVisHandle handle, uint32_t primaryColorArgb, uint32_t surfaceColorArgb, int32_t placeholderIconType);
 SILICON_VIS_API void silicon_vis_set_contrast_mode(SiliconVisHandle handle, SiliconVisContrastMode contrastMode);
+SILICON_VIS_API void silicon_vis_set_contrast_scrim(SiliconVisHandle handle, uint32_t argb);
 SILICON_VIS_API void silicon_vis_set_show_artwork_background(SiliconVisHandle handle, bool show);
 
 // Font Atlas

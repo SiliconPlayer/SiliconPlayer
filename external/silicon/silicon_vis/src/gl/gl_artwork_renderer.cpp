@@ -91,6 +91,7 @@ static const char* CONTRAST_FRAGMENT_SHADER = R"(
     varying vec2 vTexCoord;
     uniform vec2 uResolution;
     uniform int uMode;
+    uniform vec4 uScrimColor;
 
     void main() {
         float alpha = 0.0;
@@ -117,7 +118,7 @@ static const char* CONTRAST_FRAGMENT_SHADER = R"(
             alpha = 0.28;
         }
 
-        gl_FragColor = vec4(0.0, 0.0, 0.0, alpha);
+        gl_FragColor = vec4(uScrimColor.rgb, uScrimColor.a * alpha);
     }
 )";
 
@@ -140,6 +141,7 @@ bool GlArtworkRenderer::init() {
     if (!contrastProgram_.compileAndLink(CONTRAST_VERTEX_SHADER, CONTRAST_FRAGMENT_SHADER)) return false;
     contrastResLoc_ = contrastProgram_.getUniformLoc("uResolution");
     contrastModeLoc_ = contrastProgram_.getUniformLoc("uMode");
+    contrastScrimColorLoc_ = contrastProgram_.getUniformLoc("uScrimColor");
     contrastPosLoc_ = contrastProgram_.getAttribLoc("aPosition");
     contrastCoordLoc_ = contrastProgram_.getAttribLoc("aTexCoord");
 
@@ -374,6 +376,8 @@ void GlArtworkRenderer::drawContrastBackdrop(float surfaceWidth, float surfaceHe
     contrastProgram_.use();
     glUniform2f(contrastResLoc_, surfaceWidth, surfaceHeight);
     glUniform1i(contrastModeLoc_, modeInt);
+    Color4f scrim = argbToColor4f(contrastScrimArgb_);
+    glUniform4f(contrastScrimColorLoc_, scrim.r, scrim.g, scrim.b, scrim.a);
 
     float quad[24];
     GlPrimitives::generateTexturedQuad(0.0f, 0.0f, surfaceWidth, surfaceHeight, 0.0f, 0.0f, 1.0f, 1.0f, quad);

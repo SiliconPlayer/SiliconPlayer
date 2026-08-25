@@ -131,6 +131,20 @@ Java_com_flopster101_siliconplayer_ui_visualization_gl_SiliconVisNativeBridge_na
 }
 
 JNIEXPORT void JNICALL
+Java_com_flopster101_siliconplayer_ui_visualization_gl_SiliconVisNativeBridge_nativeSetContrastScrim(
+    JNIEnv* env,
+    jobject /* thiz */,
+    jlong handle,
+    jint argb
+) {
+    if (!handle) return;
+    silicon_vis_set_contrast_scrim(
+        reinterpret_cast<SiliconVisHandle>(handle),
+        static_cast<uint32_t>(argb)
+    );
+}
+
+JNIEXPORT void JNICALL
 Java_com_flopster101_siliconplayer_ui_visualization_gl_SiliconVisNativeBridge_nativeSetShowArtworkBackground(
     JNIEnv* env,
     jobject /* thiz */,

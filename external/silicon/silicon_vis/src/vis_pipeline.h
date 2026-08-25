@@ -38,6 +38,7 @@ public:
     void clearIcon();
     void setArtworkTheme(uint32_t primaryColorArgb, uint32_t surfaceColorArgb, int32_t placeholderIconType);
     void setContrastMode(SiliconVisContrastMode contrastMode);
+    void setContrastScrim(uint32_t argb) { artworkRenderer_.setContrastScrim(argb); }
     void setShowArtworkBackground(bool show) { artworkRenderer_.setShowArtworkBackground(show); }
 
     // Font Atlas

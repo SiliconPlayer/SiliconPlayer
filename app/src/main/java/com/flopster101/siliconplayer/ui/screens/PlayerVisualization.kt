@@ -2486,6 +2486,7 @@ internal fun AlbumArtPlaceholder(
         visualizationRenderBackendForMode(visualizationMode)
     }
     val themePrimaryColor = MaterialTheme.colorScheme.primary
+    val themeSurfaceIsLight = MaterialTheme.colorScheme.surface.luminance() > 0.5f
     val useScopeArtworkBackground =
         visualizationMode != VisualizationMode.ChannelScope ||
             (
@@ -2495,6 +2496,7 @@ internal fun AlbumArtPlaceholder(
     val scopeBackgroundColor = remember(
         artwork,
         themePrimaryColor,
+        themeSurfaceIsLight,
         channelScopePrefs.backgroundMode,
         channelScopePrefs.customBackgroundColorArgb
     ) {
@@ -2503,10 +2505,16 @@ internal fun AlbumArtPlaceholder(
             VisualizationChannelScopeBackgroundMode.AutoDarkAccent -> {
                 val accent = extractArtworkAccentColor(artwork)
                     ?: themePrimaryColor.copy(alpha = 1f)
-                // Keep it dark for scope contrast, but avoid collapsing to plain black.
-                val darkTint = lerp(accent, Color.Black, 0.62f)
-                val floor = Color(0xFF101418)
-                lerp(floor, darkTint, 0.70f).copy(alpha = 1f)
+                if (themeSurfaceIsLight) {
+                    val lightTint = lerp(accent, Color.White, 0.62f)
+                    val ceiling = Color(0xFFF4F6F8)
+                    lerp(ceiling, lightTint, 0.70f).copy(alpha = 1f)
+                } else {
+                    // Keep it dark for scope contrast, but avoid collapsing to plain black.
+                    val darkTint = lerp(accent, Color.Black, 0.62f)
+                    val floor = Color(0xFF101418)
+                    lerp(floor, darkTint, 0.70f).copy(alpha = 1f)
+                }
             }
         }
     }
@@ -2521,15 +2529,16 @@ internal fun AlbumArtPlaceholder(
         animationSpec = tween(durationMillis = 220),
         label = "basicVisualizationVisibility"
     )
-    val visualizationContrastBrush = remember(visualizationMode, oscStereoActive) {
+    val visualizationContrastBrush = remember(visualizationMode, oscStereoActive, themeSurfaceIsLight) {
+        val scrim = if (themeSurfaceIsLight) Color.White else Color.Black
         when (visualizationMode) {
             VisualizationMode.Bars -> if (barContrastBackdropEnabled) {
-                // Subtle bottom-up darkening improves bar readability on busy artwork.
+                // Subtle bottom-up scrim improves bar readability on busy artwork.
                 Brush.verticalGradient(
                     colorStops = arrayOf(
-                        0.00f to Color.Black.copy(alpha = 0.10f),
-                        0.45f to Color.Black.copy(alpha = 0.28f),
-                        1.00f to Color.Black.copy(alpha = 0.55f)
+                        0.00f to scrim.copy(alpha = 0.10f),
+                        0.45f to scrim.copy(alpha = 0.28f),
+                        1.00f to scrim.copy(alpha = 0.55f)
                     )
                 )
             } else null
@@ -2539,17 +2548,17 @@ internal fun AlbumArtPlaceholder(
                 Brush.verticalGradient(
                     colorStops = if (oscStereoActive) {
                         arrayOf(
-                            0.00f to Color.Black.copy(alpha = 0.08f),
-                            0.25f to Color.Black.copy(alpha = 0.42f),
-                            0.50f to Color.Black.copy(alpha = 0.10f),
-                            0.75f to Color.Black.copy(alpha = 0.42f),
-                            1.00f to Color.Black.copy(alpha = 0.08f)
+                            0.00f to scrim.copy(alpha = 0.08f),
+                            0.25f to scrim.copy(alpha = 0.42f),
+                            0.50f to scrim.copy(alpha = 0.10f),
+                            0.75f to scrim.copy(alpha = 0.42f),
+                            1.00f to scrim.copy(alpha = 0.08f)
                         )
                     } else {
                         arrayOf(
-                            0.00f to Color.Black.copy(alpha = 0.08f),
-                            0.50f to Color.Black.copy(alpha = 0.42f),
-                            1.00f to Color.Black.copy(alpha = 0.08f)
+                            0.00f to scrim.copy(alpha = 0.08f),
+                            0.50f to scrim.copy(alpha = 0.42f),
+                            1.00f to scrim.copy(alpha = 0.08f)
                         )
                     }
                 )
@@ -2559,28 +2568,28 @@ internal fun AlbumArtPlaceholder(
                 if (vuTopAnchor) {
                     Brush.verticalGradient(
                         colorStops = arrayOf(
-                            0.00f to Color.Black.copy(alpha = 0.48f),
-                            0.42f to Color.Black.copy(alpha = 0.24f),
-                            1.00f to Color.Black.copy(alpha = 0.08f)
+                            0.00f to scrim.copy(alpha = 0.48f),
+                            0.42f to scrim.copy(alpha = 0.24f),
+                            1.00f to scrim.copy(alpha = 0.08f)
                         )
                     )
                 } else {
                     Brush.verticalGradient(
                         colorStops = arrayOf(
-                            0.00f to Color.Black.copy(alpha = 0.08f),
-                            0.58f to Color.Black.copy(alpha = 0.24f),
-                            1.00f to Color.Black.copy(alpha = 0.48f)
+                            0.00f to scrim.copy(alpha = 0.08f),
+                            0.58f to scrim.copy(alpha = 0.24f),
+                            1.00f to scrim.copy(alpha = 0.48f)
                         )
                     )
                 }
             } else null
             VisualizationMode.ChannelScope -> if (channelScopePrefs.contrastBackdropEnabled) {
-                // Slightly stronger dim at center, tapering softly toward sides.
+                // Slightly stronger scrim at center, tapering softly toward sides.
                 Brush.horizontalGradient(
                     colorStops = arrayOf(
-                        0.00f to Color.Black.copy(alpha = 0.22f),
-                        0.50f to Color.Black.copy(alpha = 0.30f),
-                        1.00f to Color.Black.copy(alpha = 0.22f)
+                        0.00f to scrim.copy(alpha = 0.22f),
+                        0.50f to scrim.copy(alpha = 0.30f),
+                        1.00f to scrim.copy(alpha = 0.22f)
                     )
                 )
             } else null

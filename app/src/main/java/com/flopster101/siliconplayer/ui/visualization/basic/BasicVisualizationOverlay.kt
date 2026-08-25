@@ -255,6 +255,11 @@ fun BasicVisualizationOverlay(
     val density = LocalDensity.current.density
     val primaryColor = MaterialTheme.colorScheme.primary
     val surfaceVariantColor = MaterialTheme.colorScheme.surfaceVariant
+    val contrastScrimColor = if (MaterialTheme.colorScheme.surface.luminance() > 0.5f) {
+        Color.White
+    } else {
+        Color.Black
+    }
 
     val placeholderIconType = when (placeholderIconResId) {
         R.drawable.ic_placeholder_tracker_chip -> 2
@@ -266,6 +271,7 @@ fun BasicVisualizationOverlay(
         isPlaying,
         primaryColor,
         surfaceVariantColor,
+        contrastScrimColor,
         placeholderIconType,
         placeholderIconResId,
         artwork,
@@ -276,6 +282,7 @@ fun BasicVisualizationOverlay(
             isPlaying = isPlaying,
             primaryColorArgb = primaryColor.toArgb(),
             surfaceColorArgb = surfaceVariantColor.toArgb(),
+            contrastScrimColorArgb = contrastScrimColor.toArgb(),
             placeholderIconType = placeholderIconType,
             placeholderIconResId = placeholderIconResId,
             artworkBitmap = artwork?.asAndroidBitmap(),
@@ -299,6 +306,7 @@ fun BasicVisualizationOverlay(
                             barEndColorArgb = barColor.toArgb(),
                             barCornerRadiusPx = barRoundnessDp.toFloat(),
                             barShowFrequencyGuide = barFrequencyGridEnabled,
+                            barGuideColorArgb = barColor.copy(alpha = 0.25f).toArgb(),
                             contrastMode = barContrastMode,
                             showArtworkBackground = barOverlayArtwork
                         )

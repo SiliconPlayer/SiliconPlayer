@@ -88,6 +88,12 @@ void silicon_vis_set_contrast_mode(SiliconVisHandle handle, SiliconVisContrastMo
     pipeline->setContrastMode(contrastMode);
 }
 
+void silicon_vis_set_contrast_scrim(SiliconVisHandle handle, uint32_t argb) {
+    if (!handle) return;
+    auto* pipeline = static_cast<SiliconVisPipeline*>(handle);
+    pipeline->setContrastScrim(argb);
+}
+
 void silicon_vis_set_show_artwork_background(SiliconVisHandle handle, bool show) {
     if (!handle) return;
     auto* pipeline = static_cast<SiliconVisPipeline*>(handle);
