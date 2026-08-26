@@ -36,14 +36,62 @@ Java_com_flopster101_siliconplayer_ui_visualization_gl_SiliconVisNativeBridge_na
 }
 
 JNIEXPORT void JNICALL
+Java_com_flopster101_siliconplayer_ui_visualization_gl_SiliconVisNativeBridge_nativeDetachProjectM(
+    JNIEnv* env,
+    jobject /* thiz */,
+    jlong handle
+) {
+    if (!handle || s_projectMRegisteredHandle != handle) return;
+    s_projectMPlugin = nullptr;
+    s_projectMRegisteredHandle = 0;
+}
+
+JNIEXPORT void JNICALL
 Java_com_flopster101_siliconplayer_ui_visualization_gl_SiliconVisNativeBridge_nativeProjectMNextPreset(
     JNIEnv* env,
     jobject /* thiz */,
-    jlong handle,
     jboolean smoothTransition
 ) {
-    if (!handle || !s_projectMPlugin || s_projectMRegisteredHandle != handle) return;
+    if (!s_projectMPlugin || !s_projectMRegisteredHandle) return;
     s_projectMPlugin->nextPreset(smoothTransition == JNI_TRUE);
+}
+
+JNIEXPORT void JNICALL
+Java_com_flopster101_siliconplayer_ui_visualization_gl_SiliconVisNativeBridge_nativeProjectMPreviousPreset(
+    JNIEnv* env,
+    jobject /* thiz */,
+    jboolean smoothTransition
+) {
+    if (!s_projectMPlugin || !s_projectMRegisteredHandle) return;
+    s_projectMPlugin->previousPreset(smoothTransition == JNI_TRUE);
+}
+
+JNIEXPORT void JNICALL
+Java_com_flopster101_siliconplayer_ui_visualization_gl_SiliconVisNativeBridge_nativeProjectMSetPresetLocked(
+    JNIEnv* env,
+    jobject /* thiz */,
+    jboolean locked
+) {
+    if (!s_projectMPlugin || !s_projectMRegisteredHandle) return;
+    s_projectMPlugin->setPresetLocked(locked == JNI_TRUE);
+}
+
+JNIEXPORT jboolean JNICALL
+Java_com_flopster101_siliconplayer_ui_visualization_gl_SiliconVisNativeBridge_nativeProjectMIsPresetLocked(
+    JNIEnv* env,
+    jobject /* thiz */
+) {
+    if (!s_projectMPlugin || !s_projectMRegisteredHandle) return JNI_FALSE;
+    return s_projectMPlugin->isPresetLocked() ? JNI_TRUE : JNI_FALSE;
+}
+
+JNIEXPORT jstring JNICALL
+Java_com_flopster101_siliconplayer_ui_visualization_gl_SiliconVisNativeBridge_nativeProjectMGetPresetName(
+    JNIEnv* env,
+    jobject /* thiz */
+) {
+    if (!s_projectMPlugin || !s_projectMRegisteredHandle) return nullptr;
+    return env->NewStringUTF(s_projectMPlugin->currentPresetName().c_str());
 }
 
 JNIEXPORT jlong JNICALL

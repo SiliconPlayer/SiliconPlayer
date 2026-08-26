@@ -18,12 +18,15 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.Equalizer
+import androidx.compose.material.icons.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.MonitorHeart
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material.icons.filled.VisibilityOff
 import androidx.compose.material.icons.filled.GraphicEq
 import androidx.compose.material3.BottomSheetDefaults
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.Icon
@@ -34,15 +37,12 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.flopster101.siliconplayer.VisualizationMode
 import com.flopster101.siliconplayer.WatchDialogContainer
 import com.flopster101.siliconplayer.isWatchDevice
@@ -55,13 +55,7 @@ internal fun VisualizationModePickerDialog(
     onSelectMode: (VisualizationMode) -> Unit,
     onOpenSelectedVisualizationSettings: () -> Unit,
     onOpenVisualizationSettings: () -> Unit,
-    globalInputGain: Int = com.flopster101.siliconplayer.AppDefaults.Visualization.ChannelScope.gainPercent,
-    onGlobalInputGainChange: (Int) -> Unit = {},
-    trackInputGain: Int = 100,
-    onTrackInputGainChange: (Int) -> Unit = {},
-    showChannelLabels: Boolean = true,
-    onShowChannelLabelsChange: (Boolean) -> Unit = {},
-    onResetChannelScopeDefaults: () -> Unit = {},
+    onOpenOptions: () -> Unit,
     onDismiss: () -> Unit
 ) {
     if (isWatchDevice()) {
@@ -175,8 +169,7 @@ internal fun VisualizationModePickerDialog(
         return
     }
 
-    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
-    var isOptionsExpanded by remember(selectedMode) { mutableStateOf(false) }
+    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = false)
 
     ModalBottomSheet(
         onDismissRequest = onDismiss,
@@ -310,69 +303,52 @@ internal fun VisualizationModePickerDialog(
                     }
                 }
 
-                // 3. MD3-style Collapsible Dropdown for Options
-                // Only Channel scope has configurable options currently
-                val isChannelScope = selectedMode == VisualizationMode.ChannelScope
-                val optionsTitle = when (selectedMode) {
-                    VisualizationMode.ChannelScope -> "Channel scope options"
-                    VisualizationMode.Off -> "Visualizer options"
-                    else -> "${selectedMode.label} options"
+                val hasQuickOptions = when (selectedMode) {
+                    VisualizationMode.ChannelScope -> availableModes.contains(VisualizationMode.ChannelScope)
+                    VisualizationMode.ProjectM -> true
+                    else -> false
                 }
+                if (hasQuickOptions) {
+                    Card(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(20.dp))
+                            .clickable(onClick = onOpenOptions),
+                        shape = RoundedCornerShape(20.dp),
+                        colors = CardDefaults.cardColors(
+                            containerColor = MaterialTheme.colorScheme.surfaceContainerLow
+                        )
+                    ) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 16.dp, vertical = 14.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(
+                                    text = "Options",
+                                    style = MaterialTheme.typography.titleSmall,
+                                    fontWeight = FontWeight.SemiBold,
+                                    color = MaterialTheme.colorScheme.onSurface
+                                )
+                                Text(
+                                    text = "Quick adjustments with a live preview",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    fontSize = 11.sp
+                                )
+                            }
 
-                DialogCollapsibleCard(
-                    title = optionsTitle,
-                    subtitle = when {
-                        !isChannelScope && selectedMode == VisualizationMode.Off -> "No options for disabled visualizer"
-                        !isChannelScope -> "No options for this visualizer"
-                        isOptionsExpanded -> "Tap to collapse per-song overrides"
-                        else -> "Per-song overrides and adjustments"
-                    },
-                    isEnabled = isChannelScope,
-                    isExpanded = isOptionsExpanded && isChannelScope,
-                    onToggleExpand = {
-                        if (isChannelScope) {
-                            isOptionsExpanded = !isOptionsExpanded
+                            Icon(
+                                imageVector = Icons.Default.KeyboardArrowRight,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.size(22.dp)
+                            )
                         }
                     }
-                ) {
-                    // Reset to defaults action
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.End
-                    ) {
-                        DialogResetButton(text = "Reset defaults", onClick = onResetChannelScopeDefaults)
-                    }
-
-                    // 1. Global input gain
-                    DialogIntSliderRow(
-                        title = "Global input gain",
-                        value = globalInputGain,
-                        valueRange = com.flopster101.siliconplayer.AppDefaults.Visualization.ChannelScope.gainRangePercent,
-                        step = 25,
-                        dragSnap = 5,
-                        unitLabel = "%",
-                        onValueChange = onGlobalInputGainChange
-                    )
-
-                    // 2. Track input gain (stored per track)
-                    DialogIntSliderRow(
-                        title = "Track input gain",
-                        value = trackInputGain,
-                        valueRange = com.flopster101.siliconplayer.AppDefaults.Visualization.ChannelScope.gainRangePercent,
-                        step = 25,
-                        dragSnap = 5,
-                        unitLabel = "%",
-                        onValueChange = onTrackInputGainChange
-                    )
-
-                    // 3. Show channel labels (mirror of full settings toggle)
-                    DialogToggleRow(
-                        title = "Show channel labels",
-                        subtitle = "Display track index, notes, and instruments",
-                        checked = showChannelLabels,
-                        onCheckedChange = onShowChannelLabelsChange
-                    )
                 }
 
                 // 4. Primary action button: Configure this visualizer (placed outside and below the dropdown)

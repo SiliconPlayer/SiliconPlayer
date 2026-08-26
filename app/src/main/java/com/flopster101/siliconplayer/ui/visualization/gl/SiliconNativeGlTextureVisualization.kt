@@ -451,6 +451,7 @@ private class SiliconNativeTextureRenderThread(
             Looper.loop()
         } finally {
             if (visHandle != 0L) {
+                SiliconVisNativeBridge.nativeDetachProjectM(visHandle)
                 SiliconVisNativeBridge.nativeReleaseGl(visHandle)
                 SiliconVisNativeBridge.nativeDestroy(visHandle)
                 visHandle = 0L

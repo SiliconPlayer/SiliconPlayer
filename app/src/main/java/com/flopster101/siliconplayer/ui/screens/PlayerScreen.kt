@@ -183,6 +183,7 @@ import com.flopster101.siliconplayer.ui.dialogs.DialogResetButton
 import com.flopster101.siliconplayer.ui.dialogs.DialogSectionLabel
 import com.flopster101.siliconplayer.ui.dialogs.FloatingActionDialog
 import com.flopster101.siliconplayer.ui.dialogs.VisualizationModePickerDialog
+import com.flopster101.siliconplayer.ui.dialogs.VisualizationOptionsSheet
 import com.flopster101.siliconplayer.ui.visualization.basic.BasicVisualizationOverlay
 import java.io.File
 import kotlin.math.roundToInt
@@ -744,6 +745,7 @@ internal fun PlayerScreen(
     var collapseAnimatingOut by remember { mutableStateOf(false) }
     var showTrackInfoDialog by remember { mutableStateOf(false) }
     var showVisualizationPickerDialog by remember { mutableStateOf(false) }
+    var showVisualizationOptionsSheet by remember { mutableStateOf(false) }
     var showChannelControlDialog by remember { mutableStateOf(false) }
     var showVisualizationModeBadge by remember { mutableStateOf(false) }
     var visualizationModeBadgeText by remember { mutableStateOf(visualizationMode.label) }
@@ -1760,6 +1762,16 @@ internal fun PlayerScreen(
             onSelectMode = onSelectVisualizationMode,
             onOpenSelectedVisualizationSettings = onOpenSelectedVisualizationSettings,
             onOpenVisualizationSettings = onOpenVisualizationSettings,
+            onOpenOptions = {
+                showVisualizationPickerDialog = false
+                showVisualizationOptionsSheet = true
+            },
+            onDismiss = { showVisualizationPickerDialog = false }
+        )
+    }
+    if (showVisualizationOptionsSheet) {
+        VisualizationOptionsSheet(
+            mode = visualizationMode,
             globalInputGain = channelScopePrefs.gainPercent,
             onGlobalInputGainChange = { newGain ->
                 prefs.edit().putInt("visualization_channel_scope_gain_percent", newGain).apply()
@@ -1793,7 +1805,10 @@ internal fun PlayerScreen(
                 trackGainPrefs.edit().clear().apply()
                 trackInputGain = 100
             },
-            onDismiss = { showVisualizationPickerDialog = false }
+            onDismiss = {
+                showVisualizationOptionsSheet = false
+                showVisualizationPickerDialog = true
+            }
         )
     }
     if (showChannelControlDialog) {

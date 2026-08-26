@@ -1,7 +1,6 @@
 #include "ProjectMVisualizer.h"
 
 #include <algorithm>
-#include <cstdlib>
 #include <dirent.h>
 
 namespace {
@@ -97,20 +96,48 @@ void ProjectMVisualizer::nextPreset(bool smoothTransition) {
         loadIdlePreset();
         return;
     }
-    const size_t next = presetFiles_.empty() ? 0 : (presetIndex_ + 1) % presetFiles_.size();
-    loadPresetAt(next, smoothTransition);
+    loadPresetAt((presetIndex_ + 1) % presetFiles_.size(), smoothTransition);
+}
+
+void ProjectMVisualizer::previousPreset(bool smoothTransition) {
+    if (presetFiles_.empty()) {
+        loadIdlePreset();
+        return;
+    }
+    loadPresetAt((presetIndex_ + presetFiles_.size() - 1) % presetFiles_.size(), smoothTransition);
+}
+
+void ProjectMVisualizer::setPresetLocked(bool locked) {
+    if (instance_) {
+        projectm_set_preset_locked(instance_, locked);
+    }
+}
+
+bool ProjectMVisualizer::isPresetLocked() const {
+    return instance_ ? projectm_get_preset_locked(instance_) : false;
 }
 
 void ProjectMVisualizer::loadPresetAt(size_t index, bool smoothTransition) {
     if (!instance_ || presetFiles_.empty()) return;
     presetIndex_ = index % presetFiles_.size();
-    projectm_load_preset_file(instance_, presetFiles_[presetIndex_].c_str(), smoothTransition);
+    const std::string& path = presetFiles_[presetIndex_];
+    projectm_load_preset_file(instance_, path.c_str(), smoothTransition);
+
+    std::string name = path;
+    const size_t slash = name.find_last_of('/');
+    if (slash != std::string::npos) name = name.substr(slash + 1);
+    if (name.size() > 5 && name.compare(name.size() - 5, 5, ".milk") == 0) {
+        name.erase(name.size() - 5);
+    }
+    std::replace(name.begin(), name.end(), '_', ' ');
+    currentPresetName_ = name;
     presetStartedAt_ = std::chrono::steady_clock::now();
 }
 
 void ProjectMVisualizer::loadIdlePreset() {
     if (!instance_) return;
     projectm_load_preset_file(instance_, "idle://", false);
+    currentPresetName_ = "Idle";
     presetStartedAt_ = std::chrono::steady_clock::now();
 }
 

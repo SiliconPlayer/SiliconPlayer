@@ -27,6 +27,10 @@ public:
 
     void setPresetDirectory(const std::string& dir);
     void nextPreset(bool smoothTransition);
+    void previousPreset(bool smoothTransition);
+    void setPresetLocked(bool locked);
+    bool isPresetLocked() const;
+    const std::string& currentPresetName() const { return currentPresetName_; }
 
 private:
     void loadPresetAt(size_t index, bool smoothTransition);
@@ -39,6 +43,7 @@ private:
     std::string presetDir_;
     std::vector<std::string> presetFiles_;
     size_t presetIndex_ = 0;
+    std::string currentPresetName_;
     double presetDurationSeconds_ = 25.0;
     std::chrono::steady_clock::time_point presetStartedAt_{};
     int32_t widthPx_ = 0;
