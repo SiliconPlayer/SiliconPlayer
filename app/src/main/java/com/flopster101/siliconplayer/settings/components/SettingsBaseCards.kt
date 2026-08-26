@@ -165,16 +165,6 @@ internal fun SettingsSectionLabel(text: String) {
 }
 
 @Composable
-internal fun SettingsSectionSubtitle(text: String) {
-    Text(
-        text = text,
-        style = MaterialTheme.typography.bodySmall,
-        color = MaterialTheme.colorScheme.onSurfaceVariant,
-        modifier = Modifier.padding(start = SettingsSectionLabelStartInset)
-    )
-}
-
-@Composable
 internal fun SettingsItemCard(
     title: String,
     description: String,

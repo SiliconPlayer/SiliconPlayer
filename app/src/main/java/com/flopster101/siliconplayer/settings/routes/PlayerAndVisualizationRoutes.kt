@@ -473,7 +473,6 @@ internal fun VisualizationRouteContent(
     )
     Spacer(modifier = Modifier.height(16.dp))
     SettingsSectionLabel("Basic visualizations")
-    SettingsSectionSubtitle("These visualizations work on all cores.")
     SettingsRowSpacer()
     SettingsItemCard(
         title = "Basic visualization settings",
@@ -483,7 +482,6 @@ internal fun VisualizationRouteContent(
     )
     Spacer(modifier = Modifier.height(16.dp))
     SettingsSectionLabel("Advanced visualizations")
-    SettingsSectionSubtitle("These visualizations are core-specific.")
     SettingsRowSpacer()
     SettingsItemCard(
         title = "Advanced visualization settings",
@@ -567,7 +565,6 @@ internal fun VisualizationBasicRouteContent(
 
     val basicPages = remember { basicVisualizationSettingsPages() }
     SettingsSectionLabel("Basic visualizations")
-    SettingsSectionSubtitle("These visualizations work on all cores.")
     SettingsRowSpacer()
     basicPages.forEachIndexed { index, page ->
         SettingsItemCard(
@@ -598,7 +595,6 @@ internal fun VisualizationAdvancedRouteContent(
 
     val advancedPages = remember { advancedVisualizationSettingsPages() }
     SettingsSectionLabel("Advanced visualizations")
-    SettingsSectionSubtitle("These visualizations are tied to specific decoder cores.")
     SettingsRowSpacer()
     advancedPages.forEachIndexed { index, page ->
         SettingsItemCard(

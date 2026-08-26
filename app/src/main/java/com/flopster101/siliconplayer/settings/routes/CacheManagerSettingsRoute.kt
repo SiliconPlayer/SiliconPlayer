@@ -76,7 +76,8 @@ internal fun CacheManagerSettingsRouteContent(
     Text(
         text = "${cachedSourceFiles.size} files • ${formatCacheByteCount(totalBytes)}",
         style = MaterialTheme.typography.bodyMedium,
-        color = MaterialTheme.colorScheme.onSurfaceVariant
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+        modifier = Modifier.padding(start = 8.dp)
     )
     SettingsRowSpacer()
     Row(
@@ -148,7 +149,8 @@ internal fun CacheManagerSettingsRouteContent(
     Text(
         text = "Tap files to select. Back clears selection first.",
         style = MaterialTheme.typography.bodySmall,
-        color = MaterialTheme.colorScheme.onSurfaceVariant
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+        modifier = Modifier.padding(start = 8.dp)
     )
     Spacer(modifier = Modifier.height(12.dp))
 
@@ -156,7 +158,8 @@ internal fun CacheManagerSettingsRouteContent(
         Text(
             text = "No cached files.",
             style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.padding(start = 8.dp)
         )
     } else {
         SettingsSectionLabel("Files")
