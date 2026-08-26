@@ -130,14 +130,6 @@ internal fun VisualizationOptionsSheet(
                     .padding(horizontal = 20.dp, vertical = 8.dp),
                 verticalArrangement = Arrangement.spacedBy(16.dp)
             ) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.End
-                ) {
-                    DialogResetButton(text = "Reset defaults", onClick = onResetDefaults)
-                }
-
                 when (mode) {
                     VisualizationMode.ChannelScope -> ChannelScopeOptionsContent(
                         globalInputGain = globalInputGain,
@@ -153,6 +145,14 @@ internal fun VisualizationOptionsSheet(
                         setLabels = presetSetLabels
                     )
                     else -> Unit
+                }
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.End
+                ) {
+                    DialogResetButton(text = "Reset defaults", onClick = onResetDefaults)
                 }
 
                 Spacer(modifier = Modifier.height(12.dp))
