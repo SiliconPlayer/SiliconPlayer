@@ -4,8 +4,11 @@
 #include "silicon/vis/IVisualizationAudioProvider.h"
 #include "projectM-4/projectM.h"
 
+#include <atomic>
 #include <chrono>
+#include <mutex>
 #include <string>
+#include <utility>
 #include <vector>
 
 /**
@@ -30,12 +33,14 @@ public:
     void previousPreset(bool smoothTransition);
     void setPresetLocked(bool locked);
     bool isPresetLocked() const;
-    const std::string& currentPresetName() const { return currentPresetName_; }
+    std::string currentPresetName() const;
 
 private:
+    enum class PresetCommand { Next, Previous };
     void loadPresetAt(size_t index, bool smoothTransition);
     void loadIdlePreset();
     void feedAudio();
+    void drainCommands();
 
     silicon::vis::IVisualizationAudioProvider* audioProvider_;
     projectm_handle instance_ = nullptr;
@@ -45,6 +50,11 @@ private:
     size_t presetIndex_ = 0;
     std::string currentPresetName_;
     double presetDurationSeconds_ = 25.0;
+    std::atomic<bool> presetLocked_ { false };
+
+    mutable std::mutex commandMutex_;
+    std::vector<std::pair<PresetCommand, bool>> pendingPresetCommands_;
+    std::pair<bool, bool> pendingLockCommand_ = {false, false};
     std::chrono::steady_clock::time_point presetStartedAt_{};
     int32_t widthPx_ = 0;
     int32_t heightPx_ = 0;

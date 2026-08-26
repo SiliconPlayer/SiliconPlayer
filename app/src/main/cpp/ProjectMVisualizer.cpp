@@ -47,11 +47,12 @@ void ProjectMVisualizer::resize(int32_t widthPx, int32_t heightPx, float /*densi
 void ProjectMVisualizer::render() {
     if (!instance_ && !initGl()) return;
 
+    drainCommands();
     feedAudio();
 
     const auto now = std::chrono::steady_clock::now();
     const double elapsed = std::chrono::duration<double>(now - presetStartedAt_).count();
-    if (!presetFiles_.empty() && elapsed >= presetDurationSeconds_) {
+    if (!presetLocked_ && !presetFiles_.empty() && elapsed >= presetDurationSeconds_) {
         nextPreset(true);
     }
 
@@ -92,29 +93,55 @@ void ProjectMVisualizer::setPresetDirectory(const std::string& dir) {
 }
 
 void ProjectMVisualizer::nextPreset(bool smoothTransition) {
-    if (presetFiles_.empty()) {
-        loadIdlePreset();
-        return;
-    }
-    loadPresetAt((presetIndex_ + 1) % presetFiles_.size(), smoothTransition);
+    std::lock_guard<std::mutex> lock(commandMutex_);
+    pendingPresetCommands_.emplace_back(PresetCommand::Next, smoothTransition);
 }
 
 void ProjectMVisualizer::previousPreset(bool smoothTransition) {
-    if (presetFiles_.empty()) {
-        loadIdlePreset();
-        return;
-    }
-    loadPresetAt((presetIndex_ + presetFiles_.size() - 1) % presetFiles_.size(), smoothTransition);
+    std::lock_guard<std::mutex> lock(commandMutex_);
+    pendingPresetCommands_.emplace_back(PresetCommand::Previous, smoothTransition);
 }
 
 void ProjectMVisualizer::setPresetLocked(bool locked) {
-    if (instance_) {
-        projectm_set_preset_locked(instance_, locked);
-    }
+    presetLocked_.store(locked, std::memory_order_relaxed);
+    std::lock_guard<std::mutex> lock(commandMutex_);
+    pendingLockCommand_ = {true, locked};
 }
 
 bool ProjectMVisualizer::isPresetLocked() const {
-    return instance_ ? projectm_get_preset_locked(instance_) : false;
+    return presetLocked_.load(std::memory_order_relaxed);
+}
+
+std::string ProjectMVisualizer::currentPresetName() const {
+    std::lock_guard<std::mutex> lock(commandMutex_);
+    return currentPresetName_;
+}
+
+void ProjectMVisualizer::drainCommands() {
+    std::vector<std::pair<PresetCommand, bool>> commands;
+    std::pair<bool, bool> lockCommand = {false, false};
+    {
+        std::lock_guard<std::mutex> lock(commandMutex_);
+        commands.swap(pendingPresetCommands_);
+        lockCommand = pendingLockCommand_;
+        pendingLockCommand_.first = false;
+    }
+
+    if (lockCommand.first && instance_) {
+        projectm_set_preset_locked(instance_, lockCommand.second);
+    }
+
+    for (const auto& [command, smooth] : commands) {
+        if (presetFiles_.empty()) {
+            loadIdlePreset();
+            continue;
+        }
+        if (command == PresetCommand::Next) {
+            loadPresetAt((presetIndex_ + 1) % presetFiles_.size(), smooth);
+        } else {
+            loadPresetAt((presetIndex_ + presetFiles_.size() - 1) % presetFiles_.size(), smooth);
+        }
+    }
 }
 
 void ProjectMVisualizer::loadPresetAt(size_t index, bool smoothTransition) {
@@ -130,14 +157,20 @@ void ProjectMVisualizer::loadPresetAt(size_t index, bool smoothTransition) {
         name.erase(name.size() - 5);
     }
     std::replace(name.begin(), name.end(), '_', ' ');
-    currentPresetName_ = name;
+    {
+        std::lock_guard<std::mutex> lock(commandMutex_);
+        currentPresetName_ = name;
+    }
     presetStartedAt_ = std::chrono::steady_clock::now();
 }
 
 void ProjectMVisualizer::loadIdlePreset() {
     if (!instance_) return;
     projectm_load_preset_file(instance_, "idle://", false);
-    currentPresetName_ = "Idle";
+    {
+        std::lock_guard<std::mutex> lock(commandMutex_);
+        currentPresetName_ = "Idle";
+    }
     presetStartedAt_ = std::chrono::steady_clock::now();
 }
 
