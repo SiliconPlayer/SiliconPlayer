@@ -17,7 +17,6 @@ internal fun buildSettingsNavigationCoordinator(
     lastUsedCoreName: String?,
     setSettingsRoute: (SettingsRoute) -> Unit,
     setSettingsRouteHistory: (List<SettingsRoute>) -> Unit,
-    setSettingsLaunchedFromPlayer: (Boolean) -> Unit,
     setSettingsReturnView: (MainView) -> Unit,
     setCurrentView: (MainView) -> Unit,
     setSelectedPluginName: (String) -> Unit,
@@ -44,9 +43,6 @@ internal fun buildSettingsNavigationCoordinator(
             setSettingsRouteHistory(settingsRouteHistory.dropLast(1))
             setSettingsRoute(previousRoute)
             true
-        } else if (settingsRoute != SettingsRoute.Root) {
-            setSettingsRoute(SettingsRoute.Root)
-            true
         } else {
             false
         }
@@ -54,7 +50,6 @@ internal fun buildSettingsNavigationCoordinator(
 
     val exitSettingsToReturnView: () -> Unit = {
         val target = settingsReturnView.takeUnless { it == MainView.Settings } ?: MainView.Home
-        setSettingsLaunchedFromPlayer(false)
         setSettingsRouteHistory(emptyList())
         setSettingsRoute(SettingsRoute.Root)
         setCurrentView(target)
@@ -63,7 +58,6 @@ internal fun buildSettingsNavigationCoordinator(
     val openCurrentCoreSettings: () -> Unit = {
         pluginNameForCoreName(lastUsedCoreName)?.let { pluginName ->
             setSettingsReturnView(resolvedSettingsReturnView)
-            setSettingsLaunchedFromPlayer(true)
             setSelectedPluginName(pluginName)
             openSettingsRoute(SettingsRoute.PluginDetail, true)
             setCurrentView(MainView.Settings)
@@ -73,7 +67,6 @@ internal fun buildSettingsNavigationCoordinator(
 
     val openVisualizationSettings: () -> Unit = {
         setSettingsReturnView(resolvedSettingsReturnView)
-        setSettingsLaunchedFromPlayer(true)
         openSettingsRoute(SettingsRoute.Visualization, true)
         setCurrentView(MainView.Settings)
         setPlayerExpanded(false)
@@ -81,7 +74,6 @@ internal fun buildSettingsNavigationCoordinator(
 
     val openVisualizationBarsSettings: () -> Unit = {
         setSettingsReturnView(resolvedSettingsReturnView)
-        setSettingsLaunchedFromPlayer(true)
         openSettingsRoute(SettingsRoute.VisualizationBasicBars, true)
         setCurrentView(MainView.Settings)
         setPlayerExpanded(false)
@@ -89,7 +81,6 @@ internal fun buildSettingsNavigationCoordinator(
 
     val openVisualizationOscilloscopeSettings: () -> Unit = {
         setSettingsReturnView(resolvedSettingsReturnView)
-        setSettingsLaunchedFromPlayer(true)
         openSettingsRoute(SettingsRoute.VisualizationBasicOscilloscope, true)
         setCurrentView(MainView.Settings)
         setPlayerExpanded(false)
@@ -97,7 +88,6 @@ internal fun buildSettingsNavigationCoordinator(
 
     val openVisualizationVuMetersSettings: () -> Unit = {
         setSettingsReturnView(resolvedSettingsReturnView)
-        setSettingsLaunchedFromPlayer(true)
         openSettingsRoute(SettingsRoute.VisualizationBasicVuMeters, true)
         setCurrentView(MainView.Settings)
         setPlayerExpanded(false)
@@ -105,8 +95,14 @@ internal fun buildSettingsNavigationCoordinator(
 
     val openVisualizationChannelScopeSettings: () -> Unit = {
         setSettingsReturnView(resolvedSettingsReturnView)
-        setSettingsLaunchedFromPlayer(true)
         openSettingsRoute(SettingsRoute.VisualizationAdvancedChannelScope, true)
+        setCurrentView(MainView.Settings)
+        setPlayerExpanded(false)
+    }
+
+    val openVisualizationProjectMSettings: () -> Unit = {
+        setSettingsReturnView(resolvedSettingsReturnView)
+        openSettingsRoute(SettingsRoute.VisualizationAdvancedProjectM, true)
         setCurrentView(MainView.Settings)
         setPlayerExpanded(false)
     }
@@ -117,7 +113,7 @@ internal fun buildSettingsNavigationCoordinator(
             VisualizationMode.Oscilloscope -> openVisualizationOscilloscopeSettings()
             VisualizationMode.VuMeters -> openVisualizationVuMetersSettings()
             VisualizationMode.ChannelScope -> openVisualizationChannelScopeSettings()
-            VisualizationMode.ProjectM -> Unit
+            VisualizationMode.ProjectM -> openVisualizationProjectMSettings()
             VisualizationMode.Off -> Unit
         }
     }

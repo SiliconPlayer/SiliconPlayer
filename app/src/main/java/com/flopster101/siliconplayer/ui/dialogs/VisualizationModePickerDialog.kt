@@ -361,8 +361,7 @@ internal fun VisualizationModePickerDialog(
                             onOpenVisualizationSettings()
                         }
                     },
-                    enabled = selectedMode != VisualizationMode.Off &&
-                        selectedMode != VisualizationMode.ProjectM,
+                    enabled = selectedMode != VisualizationMode.Off,
                     modifier = Modifier.fillMaxWidth(),
                     shape = RoundedCornerShape(14.dp)
                 ) {

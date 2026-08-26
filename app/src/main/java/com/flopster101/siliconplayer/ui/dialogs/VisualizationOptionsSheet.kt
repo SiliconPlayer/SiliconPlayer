@@ -44,13 +44,23 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.flopster101.siliconplayer.VisualizationMode
+import com.flopster101.siliconplayer.ui.visualization.gl.ProjectMPresetSets
 import com.flopster101.siliconplayer.ui.visualization.gl.SiliconVisNativeBridge
 import kotlinx.coroutines.delay
 
-private fun presetDisplayName(relativePath: String): String {
-    val name = relativePath.substringAfterLast('/')
+private fun presetKeyRelativePath(key: String): String {
+    return ProjectMPresetSets.splitKey(key).second
+}
+
+private fun presetDisplayName(key: String): String {
+    val name = presetKeyRelativePath(key).substringAfterLast('/')
     val withoutExt = if (name.endsWith(".milk")) name.removeSuffix(".milk") else name
     return withoutExt.replace('_', ' ')
+}
+
+private sealed class PresetListRow {
+    data class Header(val label: String) : PresetListRow()
+    data class Item(val key: String) : PresetListRow()
 }
 
 /**
@@ -68,6 +78,7 @@ internal fun VisualizationOptionsSheet(
     onShowChannelLabelsChange: (Boolean) -> Unit,
     savedProjectMPreset: String?,
     onProjectMPresetSelected: (String) -> Unit,
+    presetSetLabels: Map<String, String>,
     onResetDefaults: () -> Unit,
     onDismiss: () -> Unit
 ) {
@@ -125,7 +136,8 @@ internal fun VisualizationOptionsSheet(
                     )
                     VisualizationMode.ProjectM -> ProjectMOptionsContent(
                         savedPreset = savedProjectMPreset,
-                        onPresetSelected = onProjectMPresetSelected
+                        onPresetSelected = onProjectMPresetSelected,
+                        setLabels = presetSetLabels
                     )
                     else -> Unit
                 }
@@ -176,17 +188,18 @@ private fun ChannelScopeOptionsContent(
 @Composable
 private fun ProjectMOptionsContent(
     savedPreset: String?,
-    onPresetSelected: (String) -> Unit
+    onPresetSelected: (String) -> Unit,
+    setLabels: Map<String, String>
 ) {
     var presetName by remember { mutableStateOf<String?>(null) }
-    var currentPresetPath by remember { mutableStateOf<String?>(null) }
+    var currentPresetKey by remember { mutableStateOf<String?>(null) }
     var locked by remember { mutableStateOf(false) }
     var showPresetList by remember { mutableStateOf(false) }
 
     LaunchedEffect(Unit) {
         while (true) {
             presetName = SiliconVisNativeBridge.nativeProjectMGetPresetName()
-            currentPresetPath = SiliconVisNativeBridge.nativeProjectMGetCurrentPresetPath()
+            currentPresetKey = SiliconVisNativeBridge.nativeProjectMGetCurrentPresetKey()
             locked = SiliconVisNativeBridge.nativeProjectMIsPresetLocked()
             delay(500)
         }
@@ -273,8 +286,25 @@ private fun ProjectMOptionsContent(
     }
 
     if (showPresetList) {
-        val presetPaths = remember(showPresetList) {
-            SiliconVisNativeBridge.nativeProjectMGetPresetPaths()?.toList().orEmpty()
+        val presetKeys = remember(showPresetList) {
+            SiliconVisNativeBridge.nativeProjectMGetPresetKeys()?.toList().orEmpty()
+        }
+        val presetSetIds = remember(showPresetList) {
+            SiliconVisNativeBridge.nativeProjectMGetPresetSetIds()?.toList().orEmpty()
+        }
+        // Group contiguous rows by set; keys are sorted by setId then relativePath.
+        val groupedItems = remember(presetKeys, presetSetIds) {
+            val rows = mutableListOf<PresetListRow>()
+            var lastSet: String? = null
+            for (i in presetKeys.indices) {
+                val setId = presetSetIds.getOrElse(i) { ProjectMPresetSets.splitKey(presetKeys[i]).first }
+                if (setId != lastSet) {
+                    rows.add(PresetListRow.Header(setLabels[setId] ?: setId))
+                    lastSet = setId
+                }
+                rows.add(PresetListRow.Item(presetKeys[i]))
+            }
+            rows
         }
         AlertDialog(
             onDismissRequest = { showPresetList = false },
@@ -286,30 +316,49 @@ private fun ProjectMOptionsContent(
                         .heightIn(max = 420.dp),
                     verticalArrangement = Arrangement.spacedBy(2.dp)
                 ) {
-                    items(presetPaths.size) { index ->
-                        val path = presetPaths[index]
-                        val isCurrent = path == currentPresetPath
-                        Text(
-                            text = presetDisplayName(path),
-                            style = MaterialTheme.typography.bodyMedium,
-                            fontWeight = if (isCurrent) FontWeight.Bold else FontWeight.Normal,
-                            color = if (isCurrent) {
-                                MaterialTheme.colorScheme.primary
-                            } else {
-                                MaterialTheme.colorScheme.onSurface
-                            },
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis,
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .clip(RoundedCornerShape(10.dp))
-                                .clickable {
-                                    SiliconVisNativeBridge.nativeProjectMLoadPreset(path, true)
-                                    onPresetSelected(path)
-                                    showPresetList = false
+                    groupedItems.forEach { row ->
+                        when (row) {
+                            is PresetListRow.Header -> {
+                                item {
+                                    Text(
+                                        text = row.label,
+                                        style = MaterialTheme.typography.labelSmall,
+                                        fontWeight = FontWeight.SemiBold,
+                                        color = MaterialTheme.colorScheme.primary,
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .padding(horizontal = 10.dp, vertical = 6.dp)
+                                    )
                                 }
-                                .padding(horizontal = 10.dp, vertical = 10.dp)
-                        )
+                            }
+                            is PresetListRow.Item -> {
+                                val key = row.key
+                                val isCurrent = key == currentPresetKey
+                                item {
+                                    Text(
+                                        text = presetDisplayName(key),
+                                        style = MaterialTheme.typography.bodyMedium,
+                                        fontWeight = if (isCurrent) FontWeight.Bold else FontWeight.Normal,
+                                        color = if (isCurrent) {
+                                            MaterialTheme.colorScheme.primary
+                                        } else {
+                                            MaterialTheme.colorScheme.onSurface
+                                        },
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis,
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .clip(RoundedCornerShape(10.dp))
+                                            .clickable {
+                                                SiliconVisNativeBridge.nativeProjectMLoadPreset(key, true)
+                                                onPresetSelected(key)
+                                                showPresetList = false
+                                            }
+                                            .padding(horizontal = 10.dp, vertical = 10.dp)
+                                    )
+                                }
+                            }
+                        }
                     }
                 }
             },

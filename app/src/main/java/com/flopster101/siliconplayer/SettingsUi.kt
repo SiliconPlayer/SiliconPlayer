@@ -45,7 +45,8 @@ internal fun SettingsScreen(
         onResetVisualizationBarsSettings = actions.onResetVisualizationBarsSettings,
         onResetVisualizationOscilloscopeSettings = actions.onResetVisualizationOscilloscopeSettings,
         onResetVisualizationVuSettings = actions.onResetVisualizationVuSettings,
-        onResetVisualizationChannelScopeSettings = actions.onResetVisualizationChannelScopeSettings
+        onResetVisualizationChannelScopeSettings = actions.onResetVisualizationChannelScopeSettings,
+        onResetVisualizationProjectMSettings = actions.onResetVisualizationProjectMSettings
     ) { paddingValues ->
         SettingsRouteContentHost(
             route = route,

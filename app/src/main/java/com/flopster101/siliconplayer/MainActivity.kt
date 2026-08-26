@@ -1051,7 +1051,6 @@ private fun AppNavigationBackHandlers(
     currentView: MainView,
     isPlayerExpanded: Boolean,
     isPlayerSurfaceVisible: Boolean,
-    settingsLaunchedFromPlayer: Boolean,
     showUrlOrPathDialog: Boolean,
     showMiniPlayerFocusHighlight: Boolean,
     pressBackTwiceToExit: Boolean,
@@ -1067,7 +1066,6 @@ private fun AppNavigationBackHandlers(
         handleAppNavigationBackAction(
             isPlayerExpanded = isPlayerExpanded,
             currentView = currentView,
-            settingsLaunchedFromPlayer = settingsLaunchedFromPlayer,
             onPlayerExpandedChanged = { expanded ->
                 if (
                     isPlayerExpanded &&
@@ -1387,7 +1385,6 @@ private fun AppNavigation(
     var settingsRoute by remember { mutableStateOf(SettingsRoute.Root) }
     var settingsRouteHistory by remember { mutableStateOf<List<SettingsRoute>>(emptyList()) }
     var selectedPluginName by remember { mutableStateOf<String?>(null) }
-    var settingsLaunchedFromPlayer by remember { mutableStateOf(false) }
     var settingsReturnView by remember { mutableStateOf(MainView.Home) }
     var selectedFile by remember { mutableStateOf<File?>(null) }
     var lastStoppedFile by remember { mutableStateOf<File?>(null) }
@@ -3194,7 +3191,6 @@ onStopEngine = { NativeBridge.releaseCurrentDecoder() }, onMetadataAlbumChanged 
         lastUsedCoreName = lastUsedCoreName,
         setSettingsRoute = { settingsRoute = it },
         setSettingsRouteHistory = { settingsRouteHistory = it },
-        setSettingsLaunchedFromPlayer = { settingsLaunchedFromPlayer = it },
         setSettingsReturnView = { settingsReturnView = it },
         setCurrentView = { currentView = it },
         setSelectedPluginName = { selectedPluginName = it },
@@ -3258,7 +3254,6 @@ onStopEngine = { NativeBridge.releaseCurrentDecoder() }, onMetadataAlbumChanged 
         currentView = currentView,
         isPlayerExpanded = isPlayerExpanded,
         isPlayerSurfaceVisible = isPlayerSurfaceVisible,
-        settingsLaunchedFromPlayer = settingsLaunchedFromPlayer,
         showUrlOrPathDialog = settingsStates.showUrlOrPathDialog.value,
         showMiniPlayerFocusHighlight = showMiniPlayerFocusHighlight,
         pressBackTwiceToExit = pressBackTwiceToExit,
@@ -3778,10 +3773,6 @@ filenameOnlyWhenTitleMissing = filenameOnlyWhenTitleMissing,
                                 ),
                                 actions = SettingsScreenActions(
                                     onBack = {
-                            if (settingsLaunchedFromPlayer) {
-                                exitSettingsToReturnView()
-                                return@SettingsScreenActions
-                            }
                             if (!popSettingsRoute()) {
                                 exitSettingsToReturnView()
                             }
@@ -3843,6 +3834,12 @@ filenameOnlyWhenTitleMissing = filenameOnlyWhenTitleMissing,
                                     onOpenVisualizationAdvanced = { openSettingsRoute(SettingsRoute.VisualizationAdvanced, false) },
                                     onOpenVisualizationAdvancedChannelScope = {
                             openSettingsRoute(SettingsRoute.VisualizationAdvancedChannelScope, false)
+                        },
+                                    onOpenVisualizationAdvancedProjectM = {
+                            openSettingsRoute(SettingsRoute.VisualizationAdvancedProjectM, false)
+                        },
+                                    onOpenVisualizationProjectMPacks = {
+                            openSettingsRoute(SettingsRoute.VisualizationAdvancedProjectMPacks, false)
                         },
                                     onOpenMisc = { openSettingsRoute(SettingsRoute.Misc, false) },
                                     onOpenUrlCache = { openSettingsRoute(SettingsRoute.UrlCache, false) },
@@ -4125,6 +4122,9 @@ filenameOnlyWhenTitleMissing = filenameOnlyWhenTitleMissing,
                                 defaultScopeTextSizeSp = defaultScopeTextSizeSp
                             )
                         },
+                                    onResetVisualizationProjectMSettings = {
+                            resetVisualizationProjectMSettingsAction(prefs = prefs)
+                        },
                                     onClearRecentHistory = {
                             clearRecentHistoryAction(
                                 context = context,
@@ -4306,7 +4306,6 @@ filenameOnlyWhenTitleMissing = filenameOnlyWhenTitleMissing,
                         onOpenPlayerSurface = openPlayerSurfaceAction,
                         onHomeRequested = { currentView = MainView.Home },
                         onSettingsRequested = {
-                            settingsLaunchedFromPlayer = false
                             settingsReturnView =
                                 (if (currentView == MainView.Settings) settingsReturnView else currentView)
                                     .takeUnless { it == MainView.Settings }

@@ -8,6 +8,7 @@ import com.flopster101.siliconplayer.data.ARCHIVE_CACHE_MAX_BYTES_DEFAULT
 import com.flopster101.siliconplayer.data.ARCHIVE_CACHE_MAX_MOUNTS_DEFAULT
 import com.flopster101.siliconplayer.data.clearArchiveMountCache
 import com.flopster101.siliconplayer.data.enforceArchiveMountCacheLimits
+import com.flopster101.siliconplayer.ui.visualization.gl.ProjectMPresetSets
 import java.io.File
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -692,6 +693,19 @@ internal fun resetVisualizationChannelScopeSettingsAction(
         .putInt(
             AppPreferenceKeys.VISUALIZATION_CHANNEL_SCOPE_TEXT_VU_CUSTOM_COLOR_ARGB,
             AppDefaults.Visualization.ChannelScope.textVuCustomColorArgb
+        )
+        .apply()
+}
+
+internal fun resetVisualizationProjectMSettingsAction(
+    prefs: SharedPreferences
+) {
+    prefs.edit()
+        .remove(AppPreferenceKeys.VISUALIZATION_PROJECTM_PRESET)
+        .remove(AppPreferenceKeys.VISUALIZATION_PROJECTM_USER_PRESET_PATHS)
+        .putStringSet(
+            AppPreferenceKeys.VISUALIZATION_PROJECTM_ENABLED_SET_IDS,
+            setOf(ProjectMPresetSets.INTERNAL_TEST_ID)
         )
         .apply()
 }

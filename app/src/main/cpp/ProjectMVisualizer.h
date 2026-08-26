@@ -8,14 +8,24 @@
 #include <chrono>
 #include <mutex>
 #include <string>
+#include <utility>
 #include <vector>
 
 /**
  * silicon_vis plugin renderer driving a libprojectM instance; preset rotation
  * is managed here since libprojectM core has no playlist support.
+ *
+ * Presets come from a set of directories ("preset sets"). Each preset is
+ * identified by a key "<setId>\x1F<relativePath>" so same-named files in
+ * different sets never collide. The set id and relative path together select
+ * the source directory and the file within it.
  */
 class ProjectMVisualizer : public silicon::vis::IVisualizerRenderer {
 public:
+    // Separator between set id and relative path in a preset key. Not a valid
+    // path character, so keys are unambiguous.
+    static constexpr char kKeySeparator = '\x1F';
+
     explicit ProjectMVisualizer(silicon::vis::IVisualizationAudioProvider* audioProvider);
     ~ProjectMVisualizer() override = default;
 
@@ -27,38 +37,52 @@ public:
     void render() override;
     void releaseGl() override;
 
-    void setPresetDirectory(const std::string& dir);
-    void setStartPreset(const std::string& relativePath);
+    // Ordered {setId, dir} pairs describing the enabled preset sets. Replacing
+    // the set list rescans each directory and resets the current selection.
+    void setPresetSets(const std::vector<std::pair<std::string, std::string>>& sets);
+    void setStartPreset(const std::string& presetKey);
     void nextPreset(bool smoothTransition);
     void previousPreset(bool smoothTransition);
-    void loadPresetRelative(const std::string& relativePath, bool smoothTransition);
+    void loadPresetKey(const std::string& presetKey, bool smoothTransition);
     void setPresetLocked(bool locked);
     bool isPresetLocked() const;
     std::string currentPresetName() const;
-    std::string currentPresetRelative() const;
-    const std::vector<std::string>& presetFiles() const { return presetFiles_; }
+    std::string currentPresetKey() const;
+    const std::vector<std::string>& presetKeys() const { return presetKeys_; }
+    const std::vector<std::string>& presetSetIds() const { return presetSetIds_; }
 
 private:
+    struct PresetEntry {
+        std::string setId;
+        std::string relativePath;
+    };
+
     struct PresetCommand {
         enum class Type { Next, Previous, Load };
         Type type;
         bool smooth;
-        std::string path;
+        std::string key;
     };
+
+    void scanPresetSets();
     void loadPresetAt(size_t index, bool smoothTransition);
     void loadIdlePreset();
     void feedAudio();
     void drainCommands();
-    void scanPresetDirectory();
+    std::string dirForSet(const std::string& setId) const;
+    static std::string makeKey(const std::string& setId, const std::string& relativePath);
+    std::string displayNameFor(const std::string& relativePath) const;
 
     silicon::vis::IVisualizationAudioProvider* audioProvider_;
     projectm_handle instance_ = nullptr;
     unsigned int maxPcmFeedFrames_ = 2048;
-    std::string presetDir_;
-    std::string startPresetRelative_;
-    std::vector<std::string> presetFiles_;
+    std::vector<std::pair<std::string, std::string>> sets_;
+    std::vector<PresetEntry> presets_;
+    std::vector<std::string> presetKeys_;
+    std::vector<std::string> presetSetIds_;
     size_t presetIndex_ = 0;
-    std::string currentPresetRelative_;
+    std::string startPresetKey_;
+    std::string currentPresetKey_;
     std::string currentPresetName_;
     double presetDurationSeconds_ = 25.0;
     std::atomic<bool> presetLocked_ { false };

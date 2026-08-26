@@ -64,6 +64,12 @@ private fun advancedVisualizationSettingsPages(): List<VisualizationSettingsPage
         mode = VisualizationMode.ChannelScope,
         title = "Channel scope",
         description = "Per-channel scope-style visualization for supported cores."
+    ),
+    VisualizationSettingsPageItem(
+        route = SettingsRoute.VisualizationAdvancedProjectM,
+        mode = VisualizationMode.ProjectM,
+        title = "projectM presets",
+        description = "MilkDrop preset sets and user preset folders."
     )
 )
 
@@ -132,7 +138,8 @@ internal data class VisualizationBasicRouteActions(
 )
 
 internal data class VisualizationAdvancedRouteActions(
-    val onOpenVisualizationAdvancedChannelScope: () -> Unit
+    val onOpenVisualizationAdvancedChannelScope: () -> Unit,
+    val onOpenVisualizationAdvancedProjectM: () -> Unit
 )
 
 @Composable
@@ -422,8 +429,7 @@ internal fun VisualizationRouteContent(
     val basicPages = remember { basicVisualizationSettingsPages() }
     val advancedPages = remember { advancedVisualizationSettingsPages() }
     val allPages = remember { basicPages + advancedPages }
-    // projectM has no settings page yet but must still be toggleable.
-    val toggleableModes = remember(allPages) { allPages.map { it.mode } + VisualizationMode.ProjectM }
+    val toggleableModes = remember(allPages) { allPages.map { it.mode } }
 
     val effectivePerformanceMode = remember(visualizationPerformanceMode) {
         resolveEffectiveVisualizationPerformanceMode(visualizationPerformanceMode)
@@ -541,13 +547,6 @@ internal fun VisualizationRouteContent(
                         )
                     )
                 }
-                add(
-                    SettingsGroupedToggleOption(
-                        groupLabel = VisualizationTier.Advanced.label,
-                        value = VisualizationMode.ProjectM,
-                        label = VisualizationMode.ProjectM.label
-                    )
-                )
             },
             selectedValues = enabledVisualizationModes,
             onDismiss = { showEnabledDialog = false },
@@ -595,6 +594,7 @@ internal fun VisualizationAdvancedRouteContent(
     actions: VisualizationAdvancedRouteActions
 ) {
     val onOpenVisualizationAdvancedChannelScope = actions.onOpenVisualizationAdvancedChannelScope
+    val onOpenVisualizationAdvancedProjectM = actions.onOpenVisualizationAdvancedProjectM
 
     val advancedPages = remember { advancedVisualizationSettingsPages() }
     SettingsSectionLabel("Advanced visualizations")
@@ -608,6 +608,7 @@ internal fun VisualizationAdvancedRouteContent(
             onClick = {
                 when (page.route) {
                     SettingsRoute.VisualizationAdvancedChannelScope -> onOpenVisualizationAdvancedChannelScope()
+                    SettingsRoute.VisualizationAdvancedProjectM -> onOpenVisualizationAdvancedProjectM()
                     else -> Unit
                 }
             }

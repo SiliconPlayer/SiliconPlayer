@@ -10,7 +10,8 @@ bool hasMilkExtension(const std::string& name) {
     return name.size() > 5 && name.compare(name.size() - 5, 5, ".milk") == 0;
 }
 
-void scanPresetsRecursive(const std::string& dir, const std::string& prefix, std::vector<std::string>& out) {
+void scanPresetsRecursive(const std::string& dir, const std::string& prefix,
+                          std::vector<std::string>& out) {
     DIR* dp = opendir(dir.c_str());
     if (!dp) return;
     while (dirent* entry = readdir(dp)) {
@@ -36,6 +37,28 @@ ProjectMVisualizer::ProjectMVisualizer(silicon::vis::IVisualizationAudioProvider
     presetStartedAt_ = std::chrono::steady_clock::now();
 }
 
+std::string ProjectMVisualizer::makeKey(const std::string& setId, const std::string& relativePath) {
+    return setId + kKeySeparator + relativePath;
+}
+
+std::string ProjectMVisualizer::dirForSet(const std::string& setId) const {
+    for (const auto& set : sets_) {
+        if (set.first == setId) return set.second;
+    }
+    return {};
+}
+
+std::string ProjectMVisualizer::displayNameFor(const std::string& relativePath) const {
+    std::string name = relativePath;
+    const size_t slash = name.find_last_of('/');
+    if (slash != std::string::npos) name = name.substr(slash + 1);
+    if (name.size() > 5 && name.compare(name.size() - 5, 5, ".milk") == 0) {
+        name.erase(name.size() - 5);
+    }
+    std::replace(name.begin(), name.end(), '_', ' ');
+    return name;
+}
+
 bool ProjectMVisualizer::initGl() {
     if (instance_) return true;
     instance_ = projectm_create();
@@ -48,12 +71,12 @@ bool ProjectMVisualizer::initGl() {
         projectm_set_window_size(instance_, static_cast<size_t>(widthPx_), static_cast<size_t>(heightPx_));
     }
 
-    if (!presetFiles_.empty()) {
+    if (!presets_.empty()) {
         size_t startIndex = 0;
-        if (!startPresetRelative_.empty()) {
-            const auto found = std::find(presetFiles_.begin(), presetFiles_.end(), startPresetRelative_);
-            if (found != presetFiles_.end()) {
-                startIndex = static_cast<size_t>(found - presetFiles_.begin());
+        if (!startPresetKey_.empty()) {
+            const auto found = std::find(presetKeys_.begin(), presetKeys_.end(), startPresetKey_);
+            if (found != presetKeys_.end()) {
+                startIndex = static_cast<size_t>(found - presetKeys_.begin());
             }
         }
         loadPresetAt(startIndex, false);
@@ -71,8 +94,49 @@ void ProjectMVisualizer::resize(int32_t widthPx, int32_t heightPx, float /*densi
     }
 }
 
-void ProjectMVisualizer::setStartPreset(const std::string& relativePath) {
-    startPresetRelative_ = relativePath;
+void ProjectMVisualizer::setPresetSets(const std::vector<std::pair<std::string, std::string>>& sets) {
+    sets_ = sets;
+    scanPresetSets();
+
+    if (instance_) {
+        if (!presets_.empty()) {
+            loadPresetAt(0, true);
+        } else {
+            loadIdlePreset();
+        }
+    }
+}
+
+void ProjectMVisualizer::setStartPreset(const std::string& presetKey) {
+    startPresetKey_ = presetKey;
+}
+
+void ProjectMVisualizer::scanPresetSets() {
+    presets_.clear();
+    presetKeys_.clear();
+    presetSetIds_.clear();
+    presetIndex_ = 0;
+    if (sets_.empty()) return;
+
+    for (const auto& set : sets_) {
+        std::vector<std::string> relativePaths;
+        scanPresetsRecursive(set.second, "", relativePaths);
+        for (const auto& relative : relativePaths) {
+            presets_.push_back({set.first, relative});
+        }
+    }
+
+    std::sort(presets_.begin(), presets_.end(),
+              [](const PresetEntry& a, const PresetEntry& b) {
+                  if (a.setId != b.setId) return a.setId < b.setId;
+                  return a.relativePath < b.relativePath;
+              });
+    presetKeys_.reserve(presets_.size());
+    presetSetIds_.reserve(presets_.size());
+    for (const auto& entry : presets_) {
+        presetKeys_.push_back(makeKey(entry.setId, entry.relativePath));
+        presetSetIds_.push_back(entry.setId);
+    }
 }
 
 void ProjectMVisualizer::render() {
@@ -83,7 +147,7 @@ void ProjectMVisualizer::render() {
 
     const auto now = std::chrono::steady_clock::now();
     const double elapsed = std::chrono::duration<double>(now - presetStartedAt_).count();
-    if (!presetLocked_ && !presetFiles_.empty() && elapsed >= presetDurationSeconds_) {
+    if (!presetLocked_ && !presets_.empty() && elapsed >= presetDurationSeconds_) {
         nextPreset(true);
     }
 
@@ -97,30 +161,9 @@ void ProjectMVisualizer::releaseGl() {
     }
 }
 
-void ProjectMVisualizer::setPresetDirectory(const std::string& dir) {
-    presetDir_ = dir;
-    scanPresetDirectory();
-
-    if (instance_) {
-        if (!presetFiles_.empty()) {
-            loadPresetAt(0, true);
-        } else {
-            loadIdlePreset();
-        }
-    }
-}
-
-void ProjectMVisualizer::scanPresetDirectory() {
-    presetFiles_.clear();
-    presetIndex_ = 0;
-    if (presetDir_.empty()) return;
-    scanPresetsRecursive(presetDir_, "", presetFiles_);
-    std::sort(presetFiles_.begin(), presetFiles_.end());
-}
-
-void ProjectMVisualizer::loadPresetRelative(const std::string& relativePath, bool smoothTransition) {
+void ProjectMVisualizer::loadPresetKey(const std::string& presetKey, bool smoothTransition) {
     std::lock_guard<std::mutex> lock(commandMutex_);
-    pendingCommands_.push_back({PresetCommand::Type::Load, smoothTransition, relativePath});
+    pendingCommands_.push_back({PresetCommand::Type::Load, smoothTransition, presetKey});
 }
 
 void ProjectMVisualizer::nextPreset(bool smoothTransition) {
@@ -148,9 +191,9 @@ std::string ProjectMVisualizer::currentPresetName() const {
     return currentPresetName_;
 }
 
-std::string ProjectMVisualizer::currentPresetRelative() const {
+std::string ProjectMVisualizer::currentPresetKey() const {
     std::lock_guard<std::mutex> lock(commandMutex_);
-    return currentPresetRelative_;
+    return currentPresetKey_;
 }
 
 void ProjectMVisualizer::drainCommands() {
@@ -169,42 +212,36 @@ void ProjectMVisualizer::drainCommands() {
 
     for (const auto& command : commands) {
         if (command.type == PresetCommand::Type::Load) {
-            const auto found = std::find(presetFiles_.begin(), presetFiles_.end(), command.path);
-            if (found != presetFiles_.end()) {
-                loadPresetAt(static_cast<size_t>(found - presetFiles_.begin()), command.smooth);
+            const auto found = std::find(presetKeys_.begin(), presetKeys_.end(), command.key);
+            if (found != presetKeys_.end()) {
+                loadPresetAt(static_cast<size_t>(found - presetKeys_.begin()), command.smooth);
             }
             continue;
         }
-        if (presetFiles_.empty()) {
+        if (presets_.empty()) {
             loadIdlePreset();
             continue;
         }
         if (command.type == PresetCommand::Type::Next) {
-            loadPresetAt((presetIndex_ + 1) % presetFiles_.size(), command.smooth);
+            loadPresetAt((presetIndex_ + 1) % presets_.size(), command.smooth);
         } else {
-            loadPresetAt((presetIndex_ + presetFiles_.size() - 1) % presetFiles_.size(), command.smooth);
+            loadPresetAt((presetIndex_ + presets_.size() - 1) % presets_.size(), command.smooth);
         }
     }
 }
 
 void ProjectMVisualizer::loadPresetAt(size_t index, bool smoothTransition) {
-    if (!instance_ || presetFiles_.empty()) return;
-    presetIndex_ = index % presetFiles_.size();
-    const std::string relative = presetFiles_[presetIndex_];
-    const std::string fullPath = presetDir_.empty() ? relative : presetDir_ + "/" + relative;
+    if (!instance_ || presets_.empty()) return;
+    presetIndex_ = index % presets_.size();
+    const PresetEntry& entry = presets_[presetIndex_];
+    const std::string setDir = dirForSet(entry.setId);
+    const std::string fullPath = setDir.empty() ? entry.relativePath : setDir + "/" + entry.relativePath;
     projectm_load_preset_file(instance_, fullPath.c_str(), smoothTransition);
 
-    std::string name = relative;
-    const size_t slash = name.find_last_of('/');
-    if (slash != std::string::npos) name = name.substr(slash + 1);
-    if (name.size() > 5 && name.compare(name.size() - 5, 5, ".milk") == 0) {
-        name.erase(name.size() - 5);
-    }
-    std::replace(name.begin(), name.end(), '_', ' ');
     {
         std::lock_guard<std::mutex> lock(commandMutex_);
-        currentPresetName_ = name;
-        currentPresetRelative_ = relative;
+        currentPresetName_ = displayNameFor(entry.relativePath);
+        currentPresetKey_ = makeKey(entry.setId, entry.relativePath);
     }
     presetStartedAt_ = std::chrono::steady_clock::now();
 }
@@ -215,7 +252,7 @@ void ProjectMVisualizer::loadIdlePreset() {
     {
         std::lock_guard<std::mutex> lock(commandMutex_);
         currentPresetName_ = "Idle";
-        currentPresetRelative_.clear();
+        currentPresetKey_.clear();
     }
     presetStartedAt_ = std::chrono::steady_clock::now();
 }

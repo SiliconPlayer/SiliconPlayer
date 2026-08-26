@@ -25,14 +25,12 @@ internal fun hidePlayerSurfaceAction(
 internal fun handleAppNavigationBackAction(
     isPlayerExpanded: Boolean,
     currentView: MainView,
-    settingsLaunchedFromPlayer: Boolean,
     onPlayerExpandedChanged: (Boolean) -> Unit,
     popSettingsRoute: () -> Boolean,
     exitSettingsToReturnView: () -> Unit
 ) {
     when {
         isPlayerExpanded -> onPlayerExpandedChanged(false)
-        currentView == MainView.Settings && settingsLaunchedFromPlayer -> exitSettingsToReturnView()
         currentView == MainView.Settings && popSettingsRoute() -> Unit
         currentView == MainView.Settings -> exitSettingsToReturnView()
     }

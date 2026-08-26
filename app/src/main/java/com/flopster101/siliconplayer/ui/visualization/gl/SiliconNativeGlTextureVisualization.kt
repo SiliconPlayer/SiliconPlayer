@@ -36,35 +36,8 @@ import com.flopster101.siliconplayer.VisualizationChannelScopeTextFont
 import com.flopster101.siliconplayer.VisualizationNoteNameFormat
 import com.flopster101.siliconplayer.VisualizationVuAnchor
 import com.flopster101.siliconplayer.ui.visualization.channel.ChannelScopeChannelTextState
-import java.io.File
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
-
-private const val PROJECTM_PRESET_ASSET_DIR = "projectm"
-
-private fun ensureProjectMPresetsExtracted(context: Context): String? {
-    return try {
-        val outDir = File(context.filesDir, "projectm_presets")
-        val assetNames = context.assets.list(PROJECTM_PRESET_ASSET_DIR).orEmpty()
-            .filter { it.endsWith(".milk") }
-        if (assetNames.isEmpty()) {
-            return if (outDir.isDirectory) outDir.absolutePath else null
-        }
-        if (!outDir.isDirectory) outDir.mkdirs()
-        assetNames.forEach { name ->
-            val outFile = File(outDir, name)
-            if (!outFile.isFile || outFile.length() == 0L) {
-                context.assets.open("$PROJECTM_PRESET_ASSET_DIR/$name").use { input ->
-                    outFile.outputStream().use { output -> input.copyTo(output) }
-                }
-            }
-        }
-        outDir.absolutePath
-    } catch (t: Throwable) {
-        android.util.Log.w("SiliconVis", "projectM preset extraction failed", t)
-        null
-    }
-}
 
 data class SiliconNativeGlFrame(
     val mode: Int, // 1=Bars, 2=Osc, 3=VU, 4=ChannelScope, 100=projectM plugin
@@ -503,12 +476,17 @@ private class SiliconNativeTextureRenderThread(
                     SiliconVisNativeBridge.nativeSetShowArtworkBackground(visHandle, frame.showArtworkBackground)
 
                     if (frame.mode == 100 && !projectMAttached) {
-                        ensureProjectMPresetsExtracted(context.applicationContext)?.let { presetDir ->
-                            val savedPreset = context.applicationContext.getSharedPreferences(
-                                "silicon_player_settings",
-                                android.content.Context.MODE_PRIVATE
-                            ).getString("visualization_projectm_preset", null)
-                            SiliconVisNativeBridge.nativeAttachProjectM(visHandle, presetDir, savedPreset)
+                        val appContext = context.applicationContext
+                        val prefs = appContext.getSharedPreferences(
+                            "silicon_player_settings",
+                            android.content.Context.MODE_PRIVATE
+                        )
+                        val enabledSets = ProjectMPresetSets.enabledSets(appContext, prefs)
+                        if (enabledSets.isNotEmpty()) {
+                            val setIds = enabledSets.map { it.id }.toTypedArray()
+                            val setDirs = enabledSets.map { it.dir }.toTypedArray()
+                            val savedPreset = prefs.getString("visualization_projectm_preset", null)
+                            SiliconVisNativeBridge.nativeAttachProjectM(visHandle, setIds, setDirs, savedPreset)
                             projectMAttached = true
                         }
                     }

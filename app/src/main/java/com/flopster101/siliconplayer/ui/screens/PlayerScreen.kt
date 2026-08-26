@@ -156,6 +156,7 @@ import com.flopster101.siliconplayer.R
 import com.flopster101.siliconplayer.RepeatMode
 import com.flopster101.siliconplayer.AppPreferenceKeys
 import com.flopster101.siliconplayer.VisualizationMode
+import com.flopster101.siliconplayer.ui.visualization.gl.ProjectMPresetSets
 import com.flopster101.siliconplayer.VisualizationChannelScopeLayout
 import com.flopster101.siliconplayer.VisualizationOscColorMode
 import com.flopster101.siliconplayer.VisualizationOscFpsMode
@@ -1796,11 +1797,15 @@ internal fun PlayerScreen(
                 prefs.edit().putBoolean("visualization_channel_scope_text_enabled", enabled).apply()
             },
             savedProjectMPreset = savedProjectMPreset,
-            onProjectMPresetSelected = { relativePath ->
+            onProjectMPresetSelected = { presetKey ->
                 prefs.edit()
-                    .putString(AppPreferenceKeys.VISUALIZATION_PROJECTM_PRESET, relativePath)
+                    .putString(AppPreferenceKeys.VISUALIZATION_PROJECTM_PRESET, presetKey)
                     .apply()
-                savedProjectMPreset = relativePath
+                savedProjectMPreset = presetKey
+            },
+            presetSetLabels = remember(context, prefs) {
+                ProjectMPresetSets.enabledSets(context, prefs)
+                    .associate { it.id to it.label }
             },
             onResetDefaults = {
                 when (visualizationMode) {

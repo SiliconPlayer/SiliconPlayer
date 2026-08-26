@@ -362,7 +362,8 @@ internal fun SettingsRouteContentHost(
                     SettingsRoute.VisualizationAdvanced -> {
                         VisualizationAdvancedRouteContent(
                             actions = VisualizationAdvancedRouteActions(
-                                onOpenVisualizationAdvancedChannelScope = actions.onOpenVisualizationAdvancedChannelScope
+                                onOpenVisualizationAdvancedChannelScope = actions.onOpenVisualizationAdvancedChannelScope,
+                                onOpenVisualizationAdvancedProjectM = actions.onOpenVisualizationAdvancedProjectM
                             )
                         )
                     }
@@ -414,6 +415,16 @@ internal fun SettingsRouteContentHost(
 
                     SettingsRoute.VisualizationAdvancedChannelScope -> {
                         VisualizationAdvancedChannelScopeRouteContent()
+                    }
+
+                    SettingsRoute.VisualizationAdvancedProjectM -> {
+                        VisualizationAdvancedProjectMRouteContent(
+                            onOpenPresetPacks = actions.onOpenVisualizationProjectMPacks
+                        )
+                    }
+
+                    SettingsRoute.VisualizationAdvancedProjectMPacks -> {
+                        VisualizationProjectMSetsRouteContent()
                     }
 
                     SettingsRoute.Misc -> {
@@ -514,6 +525,8 @@ internal fun settingsSecondaryTitle(route: SettingsRoute, selectedPluginName: St
         SettingsRoute.VisualizationBasicVuMeters -> "VU meters settings"
         SettingsRoute.VisualizationAdvanced -> "Advanced visualizations"
         SettingsRoute.VisualizationAdvancedChannelScope -> "Channel scope settings"
+        SettingsRoute.VisualizationAdvancedProjectM -> "projectM settings"
+        SettingsRoute.VisualizationAdvancedProjectMPacks -> "Preset packs"
         SettingsRoute.Misc -> "Misc settings"
         SettingsRoute.Ui -> "UI settings"
         SettingsRoute.About -> "About"

@@ -100,6 +100,8 @@ internal object AppPreferenceKeys {
     const val VISUALIZATION_ENABLED_MODES = "visualization_enabled_modes"
     const val VISUALIZATION_ENABLED_MODES_PROJECTM_MIGRATED = "visualization_enabled_modes_projectm_migrated"
     const val VISUALIZATION_PROJECTM_PRESET = "visualization_projectm_preset"
+    const val VISUALIZATION_PROJECTM_USER_PRESET_PATHS = "visualization_projectm_user_preset_paths"
+    const val VISUALIZATION_PROJECTM_ENABLED_SET_IDS = "visualization_projectm_enabled_set_ids"
     const val VISUALIZATION_PERFORMANCE_MODE = "visualization_performance_mode"
     const val VISUALIZATION_SHOW_DEBUG_INFO = "visualization_show_debug_info"
     const val VISUALIZATION_BAR_COUNT = "visualization_bar_count"

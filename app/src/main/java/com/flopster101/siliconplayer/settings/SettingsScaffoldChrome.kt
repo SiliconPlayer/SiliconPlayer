@@ -64,6 +64,7 @@ internal fun SettingsScaffoldShell(
     onResetVisualizationOscilloscopeSettings: () -> Unit,
     onResetVisualizationVuSettings: () -> Unit,
     onResetVisualizationChannelScopeSettings: () -> Unit,
+    onResetVisualizationProjectMSettings: () -> Unit,
     content: @Composable (PaddingValues) -> Unit
 ) {
     val context = LocalContext.current
@@ -170,7 +171,8 @@ internal fun SettingsScaffoldShell(
             route == SettingsRoute.VisualizationBasicBars ||
             route == SettingsRoute.VisualizationBasicOscilloscope ||
             route == SettingsRoute.VisualizationBasicVuMeters ||
-            route == SettingsRoute.VisualizationAdvancedChannelScope
+            route == SettingsRoute.VisualizationAdvancedChannelScope ||
+            route == SettingsRoute.VisualizationAdvancedProjectM
         ) {
             IconButton(
                 onClick = {
@@ -179,6 +181,7 @@ internal fun SettingsScaffoldShell(
                         SettingsRoute.VisualizationBasicOscilloscope -> onResetVisualizationOscilloscopeSettings()
                         SettingsRoute.VisualizationBasicVuMeters -> onResetVisualizationVuSettings()
                         SettingsRoute.VisualizationAdvancedChannelScope -> onResetVisualizationChannelScopeSettings()
+                        SettingsRoute.VisualizationAdvancedProjectM -> onResetVisualizationProjectMSettings()
                         else -> Unit
                     }
                 },
