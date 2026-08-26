@@ -104,6 +104,49 @@ Java_com_flopster101_siliconplayer_ui_visualization_gl_SiliconVisNativeBridge_na
     return env->NewStringUTF(s_projectMPlugin->currentPresetName().c_str());
 }
 
+JNIEXPORT jobjectArray JNICALL
+Java_com_flopster101_siliconplayer_ui_visualization_gl_SiliconVisNativeBridge_nativeProjectMGetPresetPaths(
+    JNIEnv* env,
+    jobject /* thiz */
+) {
+    if (!s_projectMPlugin || !s_projectMRegisteredHandle) return nullptr;
+    const auto& presets = s_projectMPlugin->presetFiles();
+    jclass stringClass = env->FindClass("java/lang/String");
+    jobjectArray result = env->NewObjectArray(static_cast<jsize>(presets.size()), stringClass, nullptr);
+    for (jsize i = 0; i < static_cast<jsize>(presets.size()); ++i) {
+        jstring value = env->NewStringUTF(presets[static_cast<size_t>(i)].c_str());
+        env->SetObjectArrayElement(result, i, value);
+        env->DeleteLocalRef(value);
+    }
+    env->DeleteLocalRef(stringClass);
+    return result;
+}
+
+JNIEXPORT jstring JNICALL
+Java_com_flopster101_siliconplayer_ui_visualization_gl_SiliconVisNativeBridge_nativeProjectMGetCurrentPresetPath(
+    JNIEnv* env,
+    jobject /* thiz */
+) {
+    if (!s_projectMPlugin || !s_projectMRegisteredHandle) return nullptr;
+    std::string current = s_projectMPlugin->currentPresetRelative();
+    if (current.empty()) return nullptr;
+    return env->NewStringUTF(current.c_str());
+}
+
+JNIEXPORT void JNICALL
+Java_com_flopster101_siliconplayer_ui_visualization_gl_SiliconVisNativeBridge_nativeProjectMLoadPreset(
+    JNIEnv* env,
+    jobject /* thiz */,
+    jstring relativePath,
+    jboolean smoothTransition
+) {
+    if (!s_projectMPlugin || !s_projectMRegisteredHandle || !relativePath) return;
+    const char* path = env->GetStringUTFChars(relativePath, nullptr);
+    if (!path) return;
+    s_projectMPlugin->loadPresetRelative(path, smoothTransition == JNI_TRUE);
+    env->ReleaseStringUTFChars(relativePath, path);
+}
+
 JNIEXPORT jlong JNICALL
 Java_com_flopster101_siliconplayer_ui_visualization_gl_SiliconVisNativeBridge_nativeCreate(
     JNIEnv* env,

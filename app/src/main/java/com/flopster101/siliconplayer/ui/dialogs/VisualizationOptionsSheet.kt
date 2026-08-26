@@ -1,21 +1,25 @@
 package com.flopster101.siliconplayer.ui.dialogs
 
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.SkipNext
 import androidx.compose.material.icons.filled.SkipPrevious
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.BottomSheetDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -25,6 +29,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedIconButton
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -62,6 +67,7 @@ internal fun VisualizationOptionsSheet(
     showChannelLabels: Boolean,
     onShowChannelLabelsChange: (Boolean) -> Unit,
     savedProjectMPreset: String?,
+    onProjectMPresetSelected: (String) -> Unit,
     onResetDefaults: () -> Unit,
     onDismiss: () -> Unit
 ) {
@@ -117,7 +123,10 @@ internal fun VisualizationOptionsSheet(
                         showChannelLabels = showChannelLabels,
                         onShowChannelLabelsChange = onShowChannelLabelsChange
                     )
-                    VisualizationMode.ProjectM -> ProjectMOptionsContent(savedPreset = savedProjectMPreset)
+                    VisualizationMode.ProjectM -> ProjectMOptionsContent(
+                        savedPreset = savedProjectMPreset,
+                        onPresetSelected = onProjectMPresetSelected
+                    )
                     else -> Unit
                 }
 
@@ -165,13 +174,19 @@ private fun ChannelScopeOptionsContent(
 }
 
 @Composable
-private fun ProjectMOptionsContent(savedPreset: String?) {
+private fun ProjectMOptionsContent(
+    savedPreset: String?,
+    onPresetSelected: (String) -> Unit
+) {
     var presetName by remember { mutableStateOf<String?>(null) }
+    var currentPresetPath by remember { mutableStateOf<String?>(null) }
     var locked by remember { mutableStateOf(false) }
+    var showPresetList by remember { mutableStateOf(false) }
 
     LaunchedEffect(Unit) {
         while (true) {
             presetName = SiliconVisNativeBridge.nativeProjectMGetPresetName()
+            currentPresetPath = SiliconVisNativeBridge.nativeProjectMGetCurrentPresetPath()
             locked = SiliconVisNativeBridge.nativeProjectMIsPresetLocked()
             delay(500)
         }
@@ -223,7 +238,11 @@ private fun ProjectMOptionsContent(savedPreset: String?) {
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                     textAlign = androidx.compose.ui.text.style.TextAlign.Center,
-                    modifier = Modifier.weight(1f)
+                    modifier = Modifier
+                        .weight(1f)
+                        .clip(RoundedCornerShape(10.dp))
+                        .clickable { showPresetList = true }
+                        .padding(horizontal = 6.dp, vertical = 8.dp)
                 )
 
                 OutlinedIconButton(
@@ -249,6 +268,56 @@ private fun ProjectMOptionsContent(savedPreset: String?) {
             onCheckedChange = { enabled ->
                 SiliconVisNativeBridge.nativeProjectMSetPresetLocked(enabled)
                 locked = enabled
+            }
+        )
+    }
+
+    if (showPresetList) {
+        val presetPaths = remember(showPresetList) {
+            SiliconVisNativeBridge.nativeProjectMGetPresetPaths()?.toList().orEmpty()
+        }
+        AlertDialog(
+            onDismissRequest = { showPresetList = false },
+            title = { Text("Choose a preset") },
+            text = {
+                LazyColumn(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .heightIn(max = 420.dp),
+                    verticalArrangement = Arrangement.spacedBy(2.dp)
+                ) {
+                    items(presetPaths.size) { index ->
+                        val path = presetPaths[index]
+                        val isCurrent = path == currentPresetPath
+                        Text(
+                            text = presetDisplayName(path),
+                            style = MaterialTheme.typography.bodyMedium,
+                            fontWeight = if (isCurrent) FontWeight.Bold else FontWeight.Normal,
+                            color = if (isCurrent) {
+                                MaterialTheme.colorScheme.primary
+                            } else {
+                                MaterialTheme.colorScheme.onSurface
+                            },
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clip(RoundedCornerShape(10.dp))
+                                .clickable {
+                                    SiliconVisNativeBridge.nativeProjectMLoadPreset(path, true)
+                                    onPresetSelected(path)
+                                    showPresetList = false
+                                }
+                                .padding(horizontal = 10.dp, vertical = 10.dp)
+                        )
+                    }
+                }
+            },
+            confirmButton = {},
+            dismissButton = {
+                TextButton(onClick = { showPresetList = false }) {
+                    Text("Close")
+                }
             }
         )
     }

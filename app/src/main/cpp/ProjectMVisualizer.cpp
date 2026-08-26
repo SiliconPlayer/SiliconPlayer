@@ -2,11 +2,31 @@
 
 #include <algorithm>
 #include <dirent.h>
+#include <sys/stat.h>
 
 namespace {
 
 bool hasMilkExtension(const std::string& name) {
     return name.size() > 5 && name.compare(name.size() - 5, 5, ".milk") == 0;
+}
+
+void scanPresetsRecursive(const std::string& dir, const std::string& prefix, std::vector<std::string>& out) {
+    DIR* dp = opendir(dir.c_str());
+    if (!dp) return;
+    while (dirent* entry = readdir(dp)) {
+        std::string name = entry->d_name;
+        if (name == "." || name == "..") continue;
+        std::string relative = prefix.empty() ? name : prefix + "/" + name;
+        std::string full = dir + "/" + name;
+        struct stat st {};
+        if (stat(full.c_str(), &st) != 0) continue;
+        if (S_ISDIR(st.st_mode)) {
+            scanPresetsRecursive(full, relative, out);
+        } else if (hasMilkExtension(name)) {
+            out.push_back(relative);
+        }
+    }
+    closedir(dp);
 }
 
 } // namespace
@@ -79,20 +99,7 @@ void ProjectMVisualizer::releaseGl() {
 
 void ProjectMVisualizer::setPresetDirectory(const std::string& dir) {
     presetDir_ = dir;
-    presetFiles_.clear();
-    presetIndex_ = 0;
-    if (dir.empty()) return;
-
-    DIR* dp = opendir(dir.c_str());
-    if (!dp) return;
-    while (dirent* entry = readdir(dp)) {
-        std::string name = entry->d_name;
-        if (hasMilkExtension(name)) {
-            presetFiles_.push_back(dir + "/" + name);
-        }
-    }
-    closedir(dp);
-    std::sort(presetFiles_.begin(), presetFiles_.end());
+    scanPresetDirectory();
 
     if (instance_) {
         if (!presetFiles_.empty()) {
@@ -103,14 +110,27 @@ void ProjectMVisualizer::setPresetDirectory(const std::string& dir) {
     }
 }
 
+void ProjectMVisualizer::scanPresetDirectory() {
+    presetFiles_.clear();
+    presetIndex_ = 0;
+    if (presetDir_.empty()) return;
+    scanPresetsRecursive(presetDir_, "", presetFiles_);
+    std::sort(presetFiles_.begin(), presetFiles_.end());
+}
+
+void ProjectMVisualizer::loadPresetRelative(const std::string& relativePath, bool smoothTransition) {
+    std::lock_guard<std::mutex> lock(commandMutex_);
+    pendingCommands_.push_back({PresetCommand::Type::Load, smoothTransition, relativePath});
+}
+
 void ProjectMVisualizer::nextPreset(bool smoothTransition) {
     std::lock_guard<std::mutex> lock(commandMutex_);
-    pendingPresetCommands_.emplace_back(PresetCommand::Next, smoothTransition);
+    pendingCommands_.push_back({PresetCommand::Type::Next, smoothTransition, ""});
 }
 
 void ProjectMVisualizer::previousPreset(bool smoothTransition) {
     std::lock_guard<std::mutex> lock(commandMutex_);
-    pendingPresetCommands_.emplace_back(PresetCommand::Previous, smoothTransition);
+    pendingCommands_.push_back({PresetCommand::Type::Previous, smoothTransition, ""});
 }
 
 void ProjectMVisualizer::setPresetLocked(bool locked) {
@@ -128,12 +148,17 @@ std::string ProjectMVisualizer::currentPresetName() const {
     return currentPresetName_;
 }
 
+std::string ProjectMVisualizer::currentPresetRelative() const {
+    std::lock_guard<std::mutex> lock(commandMutex_);
+    return currentPresetRelative_;
+}
+
 void ProjectMVisualizer::drainCommands() {
-    std::vector<std::pair<PresetCommand, bool>> commands;
+    std::vector<PresetCommand> commands;
     std::pair<bool, bool> lockCommand = {false, false};
     {
         std::lock_guard<std::mutex> lock(commandMutex_);
-        commands.swap(pendingPresetCommands_);
+        commands.swap(pendingCommands_);
         lockCommand = pendingLockCommand_;
         pendingLockCommand_.first = false;
     }
@@ -142,15 +167,22 @@ void ProjectMVisualizer::drainCommands() {
         projectm_set_preset_locked(instance_, lockCommand.second);
     }
 
-    for (const auto& [command, smooth] : commands) {
+    for (const auto& command : commands) {
+        if (command.type == PresetCommand::Type::Load) {
+            const auto found = std::find(presetFiles_.begin(), presetFiles_.end(), command.path);
+            if (found != presetFiles_.end()) {
+                loadPresetAt(static_cast<size_t>(found - presetFiles_.begin()), command.smooth);
+            }
+            continue;
+        }
         if (presetFiles_.empty()) {
             loadIdlePreset();
             continue;
         }
-        if (command == PresetCommand::Next) {
-            loadPresetAt((presetIndex_ + 1) % presetFiles_.size(), smooth);
+        if (command.type == PresetCommand::Type::Next) {
+            loadPresetAt((presetIndex_ + 1) % presetFiles_.size(), command.smooth);
         } else {
-            loadPresetAt((presetIndex_ + presetFiles_.size() - 1) % presetFiles_.size(), smooth);
+            loadPresetAt((presetIndex_ + presetFiles_.size() - 1) % presetFiles_.size(), command.smooth);
         }
     }
 }
@@ -158,10 +190,11 @@ void ProjectMVisualizer::drainCommands() {
 void ProjectMVisualizer::loadPresetAt(size_t index, bool smoothTransition) {
     if (!instance_ || presetFiles_.empty()) return;
     presetIndex_ = index % presetFiles_.size();
-    const std::string& path = presetFiles_[presetIndex_];
-    projectm_load_preset_file(instance_, path.c_str(), smoothTransition);
+    const std::string relative = presetFiles_[presetIndex_];
+    const std::string fullPath = presetDir_.empty() ? relative : presetDir_ + "/" + relative;
+    projectm_load_preset_file(instance_, fullPath.c_str(), smoothTransition);
 
-    std::string name = path;
+    std::string name = relative;
     const size_t slash = name.find_last_of('/');
     if (slash != std::string::npos) name = name.substr(slash + 1);
     if (name.size() > 5 && name.compare(name.size() - 5, 5, ".milk") == 0) {
@@ -171,6 +204,7 @@ void ProjectMVisualizer::loadPresetAt(size_t index, bool smoothTransition) {
     {
         std::lock_guard<std::mutex> lock(commandMutex_);
         currentPresetName_ = name;
+        currentPresetRelative_ = relative;
     }
     presetStartedAt_ = std::chrono::steady_clock::now();
 }
@@ -181,6 +215,7 @@ void ProjectMVisualizer::loadIdlePreset() {
     {
         std::lock_guard<std::mutex> lock(commandMutex_);
         currentPresetName_ = "Idle";
+        currentPresetRelative_.clear();
     }
     presetStartedAt_ = std::chrono::steady_clock::now();
 }

@@ -31,6 +31,9 @@ object SiliconVisNativeBridge {
     external fun nativeProjectMSetPresetLocked(locked: Boolean)
     external fun nativeProjectMIsPresetLocked(): Boolean
     external fun nativeProjectMGetPresetName(): String?
+    external fun nativeProjectMGetPresetPaths(): Array<String>?
+    external fun nativeProjectMGetCurrentPresetPath(): String?
+    external fun nativeProjectMLoadPreset(relativePath: String, smoothTransition: Boolean)
 
     external fun nativeSetFontAtlas(
         handle: Long,

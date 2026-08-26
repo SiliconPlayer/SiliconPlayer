@@ -8,7 +8,6 @@
 #include <chrono>
 #include <mutex>
 #include <string>
-#include <utility>
 #include <vector>
 
 /**
@@ -32,16 +31,25 @@ public:
     void setStartPreset(const std::string& relativePath);
     void nextPreset(bool smoothTransition);
     void previousPreset(bool smoothTransition);
+    void loadPresetRelative(const std::string& relativePath, bool smoothTransition);
     void setPresetLocked(bool locked);
     bool isPresetLocked() const;
     std::string currentPresetName() const;
+    std::string currentPresetRelative() const;
+    const std::vector<std::string>& presetFiles() const { return presetFiles_; }
 
 private:
-    enum class PresetCommand { Next, Previous };
+    struct PresetCommand {
+        enum class Type { Next, Previous, Load };
+        Type type;
+        bool smooth;
+        std::string path;
+    };
     void loadPresetAt(size_t index, bool smoothTransition);
     void loadIdlePreset();
     void feedAudio();
     void drainCommands();
+    void scanPresetDirectory();
 
     silicon::vis::IVisualizationAudioProvider* audioProvider_;
     projectm_handle instance_ = nullptr;
@@ -50,12 +58,13 @@ private:
     std::string startPresetRelative_;
     std::vector<std::string> presetFiles_;
     size_t presetIndex_ = 0;
+    std::string currentPresetRelative_;
     std::string currentPresetName_;
     double presetDurationSeconds_ = 25.0;
     std::atomic<bool> presetLocked_ { false };
 
     mutable std::mutex commandMutex_;
-    std::vector<std::pair<PresetCommand, bool>> pendingPresetCommands_;
+    std::vector<PresetCommand> pendingCommands_;
     std::pair<bool, bool> pendingLockCommand_ = {false, false};
     std::chrono::steady_clock::time_point presetStartedAt_{};
     int32_t widthPx_ = 0;

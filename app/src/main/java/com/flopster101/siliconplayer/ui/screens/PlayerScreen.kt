@@ -1796,6 +1796,12 @@ internal fun PlayerScreen(
                 prefs.edit().putBoolean("visualization_channel_scope_text_enabled", enabled).apply()
             },
             savedProjectMPreset = savedProjectMPreset,
+            onProjectMPresetSelected = { relativePath ->
+                prefs.edit()
+                    .putString(AppPreferenceKeys.VISUALIZATION_PROJECTM_PRESET, relativePath)
+                    .apply()
+                savedProjectMPreset = relativePath
+            },
             onResetDefaults = {
                 when (visualizationMode) {
                     VisualizationMode.ChannelScope -> {
