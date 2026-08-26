@@ -117,6 +117,7 @@ internal fun buildSettingsNavigationCoordinator(
             VisualizationMode.Oscilloscope -> openVisualizationOscilloscopeSettings()
             VisualizationMode.VuMeters -> openVisualizationVuMetersSettings()
             VisualizationMode.ChannelScope -> openVisualizationChannelScopeSettings()
+            VisualizationMode.ProjectM -> Unit
             VisualizationMode.Off -> Unit
         }
     }

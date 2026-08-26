@@ -251,3 +251,19 @@ void silicon_vis_render(SiliconVisHandle handle) {
 }
 
 } // extern "C"
+
+namespace silicon::vis {
+
+void silicon_vis_register_plugin_renderer(SiliconVisHandle handle, IVisualizerRenderer* renderer) {
+    if (!handle || !renderer) return;
+    auto* pipeline = static_cast<SiliconVisPipeline*>(handle);
+    pipeline->registerPluginRenderer(VisualizerRendererPtr(renderer));
+}
+
+IVisualizationAudioProvider* silicon_vis_get_audio_provider(SiliconVisHandle handle) {
+    if (!handle) return nullptr;
+    auto* pipeline = static_cast<SiliconVisPipeline*>(handle);
+    return pipeline->getAudioProvider();
+}
+
+} // namespace silicon::vis

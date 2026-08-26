@@ -21,6 +21,7 @@ set(SILICON_VIS_SOURCES
 if (ANDROID)
     list(APPEND SILICON_VIS_SOURCES
         ${CMAKE_CURRENT_SOURCE_DIR}/../../../app/src/main/cpp/SiliconVisJni.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/../../../app/src/main/cpp/ProjectMVisualizer.cpp
     )
 endif()
 
@@ -34,11 +35,16 @@ target_include_directories(silicon_vis
 )
 
 if (ANDROID)
+    add_library(libprojectM-4 SHARED IMPORTED)
+    set_target_properties(libprojectM-4 PROPERTIES IMPORTED_LOCATION
+        ${CMAKE_CURRENT_SOURCE_DIR}/../../../app/src/main/cpp/prebuilt/${ANDROID_ABI}/lib/libprojectM-4.so)
+
     target_link_libraries(silicon_vis
         PUBLIC
             GLESv2
             log
             m
+            libprojectM-4
     )
     target_compile_options(silicon_vis PRIVATE
         -fvisibility=hidden

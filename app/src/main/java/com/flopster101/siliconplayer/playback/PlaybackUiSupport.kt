@@ -66,7 +66,8 @@ internal val selectableVisualizationModes: List<VisualizationMode> = listOf(
     VisualizationMode.Bars,
     VisualizationMode.Oscilloscope,
     VisualizationMode.VuMeters,
-    VisualizationMode.ChannelScope
+    VisualizationMode.ChannelScope,
+    VisualizationMode.ProjectM
 )
 
 private val visualizationModeStorageAliases: Map<String, VisualizationMode> = buildMap {

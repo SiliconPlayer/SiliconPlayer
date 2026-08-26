@@ -360,6 +360,7 @@ extensions.configure<com.android.build.api.dsl.ApplicationExtension>("android") 
     sourceSets {
         getByName("main") {
             assets.directories.add("build/generated/uadeRuntimeAssets/main")
+            assets.directories.add("build/generated/projectmPresetsAssets/main")
             jniLibs.directories.add("build/generated/prebuiltNativeLibs/main")
             java.directories.add("build/generated/source/aboutVersions/main")
         }
@@ -621,7 +622,34 @@ val syncPrebuiltNativeLibs = tasks.register("syncPrebuiltNativeLibs") {
     }
 }
 
+val syncProjectMPresetAssets = tasks.register("syncProjectMPresetAssets") {
+    group = "build setup"
+    description = "Sync projectM MilkDrop preset files into generated assets."
+
+    doLast {
+        val destinationRoot = layout.buildDirectory
+            .dir("generated/projectmPresetsAssets/main/projectm")
+            .get()
+            .asFile
+        delete(destinationRoot)
+        mkdir(destinationRoot)
+
+        val sourcePresetDir = rootProject.file("external/projectm/presets/tests")
+        if (!sourcePresetDir.isDirectory) {
+            logger.lifecycle("projectM presets missing (expected external/projectm/presets/tests)")
+        } else {
+            copy {
+                from(sourcePresetDir) {
+                    include("*.milk")
+                }
+                into(destinationRoot)
+            }
+        }
+    }
+}
+
 tasks.named("preBuild").configure {
     dependsOn(syncUadeRuntimeAssets)
+    dependsOn(syncProjectMPresetAssets)
     dependsOn(syncPrebuiltNativeLibs)
 }

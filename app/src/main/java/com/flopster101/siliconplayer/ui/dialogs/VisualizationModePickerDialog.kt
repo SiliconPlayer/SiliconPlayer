@@ -16,6 +16,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.Equalizer
 import androidx.compose.material.icons.filled.MonitorHeart
 import androidx.compose.material.icons.filled.Settings
@@ -127,6 +128,31 @@ internal fun VisualizationModePickerDialog(
                         modifier = Modifier.weight(1f)
                     )
                 }
+            }
+            val isSelected = selectedMode == VisualizationMode.ProjectM
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(14.dp))
+                    .background(
+                        if (isSelected) MaterialTheme.colorScheme.primaryContainer
+                        else MaterialTheme.colorScheme.surfaceContainerHigh
+                    )
+                    .clickable {
+                        onSelectMode(VisualizationMode.ProjectM)
+                        onDismiss()
+                    }
+                    .padding(horizontal = 12.dp, vertical = 10.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                Text(
+                    text = VisualizationMode.ProjectM.label,
+                    style = MaterialTheme.typography.bodyMedium,
+                    fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
+                    color = if (isSelected) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurface,
+                    modifier = Modifier.weight(1f)
+                )
             }
             Spacer(modifier = Modifier.height(6.dp))
             FilledTonalButton(
@@ -250,6 +276,7 @@ internal fun VisualizationModePickerDialog(
                     DialogSectionLabel(text = "Advanced")
 
                     val isChannelScopeAvailable = availableModes.contains(VisualizationMode.ChannelScope)
+                    val isProjectMAvailable = availableModes.contains(VisualizationMode.ProjectM)
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.spacedBy(10.dp)
@@ -265,7 +292,20 @@ internal fun VisualizationModePickerDialog(
                                     onSelectMode(VisualizationMode.ChannelScope)
                                 }
                             },
-                            modifier = Modifier.fillMaxWidth()
+                            modifier = Modifier.weight(1f)
+                        )
+                        DialogSelectableCard(
+                            label = "projectM",
+                            icon = Icons.Default.AutoAwesome,
+                            isSelected = selectedMode == VisualizationMode.ProjectM,
+                            isEnabled = isProjectMAvailable,
+                            subtitle = "MilkDrop presets",
+                            onClick = {
+                                if (isProjectMAvailable) {
+                                    onSelectMode(VisualizationMode.ProjectM)
+                                }
+                            },
+                            modifier = Modifier.weight(1f)
                         )
                     }
                 }
@@ -345,7 +385,8 @@ internal fun VisualizationModePickerDialog(
                             onOpenVisualizationSettings()
                         }
                     },
-                    enabled = selectedMode != VisualizationMode.Off,
+                    enabled = selectedMode != VisualizationMode.Off &&
+                        selectedMode != VisualizationMode.ProjectM,
                     modifier = Modifier.fillMaxWidth(),
                     shape = RoundedCornerShape(14.dp)
                 ) {

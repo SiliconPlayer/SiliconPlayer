@@ -586,6 +586,20 @@ fun BasicVisualizationOverlay(
             }
         }
 
+        VisualizationMode.ProjectM -> {
+            // GL-only; projectM draws its own fullscreen background.
+            val nativeFrame = baseNativeFrame.copy(
+                mode = 100,
+                contrastMode = 0,
+                showArtworkBackground = false
+            )
+            com.flopster101.siliconplayer.ui.visualization.gl.SiliconNativeGlTextureVisualization(
+                frame = nativeFrame,
+                onFrameStats = channelScopeOnFrameStats,
+                modifier = modifier
+            )
+        }
+
         VisualizationMode.Off -> Unit
     }
 }

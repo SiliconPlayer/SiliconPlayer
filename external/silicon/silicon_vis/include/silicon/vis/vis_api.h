@@ -2,6 +2,10 @@
 
 #include "vis_types.h"
 
+#ifdef __cplusplus
+namespace silicon::vis { class IVisualizerRenderer; }
+#endif
+
 #if defined(_WIN32) || defined(__CYGWIN__)
   #if defined(SILICON_VIS_BUILDING_DLL)
     #define SILICON_VIS_API __declspec(dllexport)
@@ -126,5 +130,14 @@ SILICON_VIS_API void silicon_vis_set_vu_meters_options(
 SILICON_VIS_API void silicon_vis_render(SiliconVisHandle handle);
 
 #ifdef __cplusplus
+} // extern "C"
+
+namespace silicon::vis {
+class IVisualizationAudioProvider;
+// Registers a plugin renderer; the pipeline takes ownership and keys it by
+// renderer->getMode(). Custom modes start at SILICON_VIS_MODE_CUSTOM_PLUGIN.
+SILICON_VIS_API void silicon_vis_register_plugin_renderer(SiliconVisHandle handle, IVisualizerRenderer* renderer);
+// Returns the audio provider attached via silicon_vis_set_audio_provider, or null.
+SILICON_VIS_API IVisualizationAudioProvider* silicon_vis_get_audio_provider(SiliconVisHandle handle);
 }
 #endif

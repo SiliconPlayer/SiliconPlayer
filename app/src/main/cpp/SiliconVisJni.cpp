@@ -1,9 +1,50 @@
 #include <jni.h>
 #include "silicon/vis/vis_api.h"
+#include "ProjectMVisualizer.h"
 #include <vector>
 #include <cstring>
 
 extern "C" {
+
+// The plugin is owned by the pipeline of the handle it was registered with.
+// A newer registration on a different handle implies the old pipeline died.
+static ProjectMVisualizer* s_projectMPlugin = nullptr;
+static jlong s_projectMRegisteredHandle = 0;
+
+JNIEXPORT void JNICALL
+Java_com_flopster101_siliconplayer_ui_visualization_gl_SiliconVisNativeBridge_nativeAttachProjectM(
+    JNIEnv* env,
+    jobject /* thiz */,
+    jlong handle,
+    jstring presetDir
+) {
+    if (!handle || !presetDir) return;
+    const char* dir = env->GetStringUTFChars(presetDir, nullptr);
+    if (!dir) return;
+
+    if (s_projectMPlugin && s_projectMRegisteredHandle == handle) {
+        s_projectMPlugin->setPresetDirectory(dir);
+    } else {
+        auto* visHandle = reinterpret_cast<SiliconVisHandle>(handle);
+        s_projectMPlugin = new ProjectMVisualizer(silicon::vis::silicon_vis_get_audio_provider(visHandle));
+        s_projectMPlugin->setPresetDirectory(dir);
+        silicon_vis_register_plugin_renderer(visHandle, s_projectMPlugin);
+        s_projectMRegisteredHandle = handle;
+    }
+
+    env->ReleaseStringUTFChars(presetDir, dir);
+}
+
+JNIEXPORT void JNICALL
+Java_com_flopster101_siliconplayer_ui_visualization_gl_SiliconVisNativeBridge_nativeProjectMNextPreset(
+    JNIEnv* env,
+    jobject /* thiz */,
+    jlong handle,
+    jboolean smoothTransition
+) {
+    if (!handle || !s_projectMPlugin || s_projectMRegisteredHandle != handle) return;
+    s_projectMPlugin->nextPreset(smoothTransition == JNI_TRUE);
+}
 
 JNIEXPORT jlong JNICALL
 Java_com_flopster101_siliconplayer_ui_visualization_gl_SiliconVisNativeBridge_nativeCreate(

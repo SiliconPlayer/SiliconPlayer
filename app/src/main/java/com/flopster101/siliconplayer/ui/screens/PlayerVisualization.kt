@@ -30,6 +30,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Equalizer
 import androidx.compose.material.icons.filled.GraphicEq
+import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.MonitorHeart
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ElevatedCard
@@ -229,6 +230,7 @@ private fun VisualizationModeBadge(
                     VisualizationMode.Oscilloscope -> Icons.Default.MonitorHeart
                     VisualizationMode.VuMeters -> Icons.Default.Equalizer
                     VisualizationMode.ChannelScope -> Icons.Default.MonitorHeart
+                    VisualizationMode.ProjectM -> Icons.Default.AutoAwesome
                 },
                 contentDescription = null,
                 tint = badgeContentColor,
@@ -615,6 +617,7 @@ private fun snapshotSourceSignature(
             hash = mixSignature(hash, sampledIntArraySignature(snapshot.channelScopeTextRaw, maxSamples = 32))
             hash
         }
+        VisualizationMode.ProjectM -> null
     }
 }
 
@@ -983,6 +986,7 @@ private fun readVisualizationSnapshot(
                 )
             }
         }
+        VisualizationMode.ProjectM -> VisualizationSnapshot()
         VisualizationMode.Off -> VisualizationSnapshot()
     }
 }
@@ -2089,6 +2093,7 @@ internal fun AlbumArtPlaceholder(
         VisualizationMode.Oscilloscope -> visualizationOscRenderBackend != VisualizationRenderBackend.Compose
         VisualizationMode.VuMeters -> vuRenderBackend != VisualizationRenderBackend.Compose
         VisualizationMode.ChannelScope -> channelScopePrefs.renderBackend != VisualizationRenderBackend.Compose
+        VisualizationMode.ProjectM -> true
     }
     val emptyFloatArray = remember { FloatArray(0) }
     val emptyHistories = remember { emptyList<FloatArray>() }
@@ -2620,6 +2625,7 @@ internal fun AlbumArtPlaceholder(
                 VisualizationMode.Oscilloscope -> visualizationOscRenderBackend != VisualizationRenderBackend.Compose
                 VisualizationMode.VuMeters -> vuRenderBackend != VisualizationRenderBackend.Compose
                 VisualizationMode.ChannelScope -> channelScopeState.renderBackend != VisualizationRenderBackend.Compose
+                VisualizationMode.ProjectM -> true
             }
 
             if (useScopeArtworkBackground && !isGlBackendActive) {

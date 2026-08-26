@@ -422,6 +422,8 @@ internal fun VisualizationRouteContent(
     val basicPages = remember { basicVisualizationSettingsPages() }
     val advancedPages = remember { advancedVisualizationSettingsPages() }
     val allPages = remember { basicPages + advancedPages }
+    // projectM has no settings page yet but must still be toggleable.
+    val toggleableModes = remember(allPages) { allPages.map { it.mode } + VisualizationMode.ProjectM }
 
     val effectivePerformanceMode = remember(visualizationPerformanceMode) {
         resolveEffectiveVisualizationPerformanceMode(visualizationPerformanceMode)
@@ -445,7 +447,7 @@ internal fun VisualizationRouteContent(
     SettingsRowSpacer()
     SettingsItemCard(
         title = "Enabled visualizations",
-        description = "${enabledVisualizationModes.size}/${allPages.size} modes enabled",
+        description = "${enabledVisualizationModes.size}/${toggleableModes.size} modes enabled",
         icon = Icons.Default.Tune,
         onClick = { showEnabledDialog = true }
     )
@@ -502,8 +504,7 @@ internal fun VisualizationRouteContent(
     }
 
     if (showModeDialog) {
-        val availableModes = listOf(VisualizationMode.Off) + allPages
-            .map { it.mode }
+        val availableModes = listOf(VisualizationMode.Off) + toggleableModes
             .filter { enabledVisualizationModes.contains(it) }
         SettingsSingleChoiceDialog(
             title = "Visualization mode",
@@ -540,6 +541,13 @@ internal fun VisualizationRouteContent(
                         )
                     )
                 }
+                add(
+                    SettingsGroupedToggleOption(
+                        groupLabel = VisualizationTier.Advanced.label,
+                        value = VisualizationMode.ProjectM,
+                        label = VisualizationMode.ProjectM.label
+                    )
+                )
             },
             selectedValues = enabledVisualizationModes,
             onDismiss = { showEnabledDialog = false },

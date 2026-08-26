@@ -60,11 +60,23 @@ internal fun rememberVisualizationSelectionState(
         )
     }
     var enabledModes by remember {
-        mutableStateOf(
-            parseEnabledVisualizationModes(
-                prefs.getString(AppPreferenceKeys.VISUALIZATION_ENABLED_MODES, null)
-            )
+        val parsed = parseEnabledVisualizationModes(
+            prefs.getString(AppPreferenceKeys.VISUALIZATION_ENABLED_MODES, null)
         )
+        // One-time migration: enable newly added modes for existing installs.
+        val migrated = if (prefs.getBoolean(
+                AppPreferenceKeys.VISUALIZATION_ENABLED_MODES_PROJECTM_MIGRATED,
+                false
+            )
+        ) {
+            parsed
+        } else {
+            prefs.edit()
+                .putBoolean(AppPreferenceKeys.VISUALIZATION_ENABLED_MODES_PROJECTM_MIGRATED, true)
+                .apply()
+            parsed + VisualizationMode.ProjectM
+        }
+        mutableStateOf(migrated)
     }
 
     LaunchedEffect(currentMode) {

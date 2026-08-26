@@ -8,7 +8,8 @@ enum class VisualizationMode(
     Bars("bars", "Bars"),
     Oscilloscope("oscilloscope", "Oscilloscope"),
     VuMeters("vu_meters", "VU meters"),
-    ChannelScope("channel_scope", "Channel scope");
+    ChannelScope("channel_scope", "Channel scope"),
+    ProjectM("projectm", "projectM");
 
     companion object {
         fun fromStorage(value: String?): VisualizationMode {
@@ -27,7 +28,8 @@ val VisualizationMode.category: VisualizationModeCategory?
         VisualizationMode.Bars,
         VisualizationMode.Oscilloscope,
         VisualizationMode.VuMeters -> VisualizationModeCategory.Basic
-        VisualizationMode.ChannelScope -> VisualizationModeCategory.Advanced
+        VisualizationMode.ChannelScope,
+        VisualizationMode.ProjectM -> VisualizationModeCategory.Advanced
         VisualizationMode.Off -> null
     }
 
@@ -64,6 +66,7 @@ fun visualizationRenderBackendForMode(mode: VisualizationMode): VisualizationRen
         VisualizationMode.Oscilloscope -> VisualizationRenderBackend.OpenGlTexture
         VisualizationMode.VuMeters -> VisualizationRenderBackend.OpenGlTexture
         VisualizationMode.ChannelScope -> VisualizationRenderBackend.OpenGlTexture
+        VisualizationMode.ProjectM -> VisualizationRenderBackend.OpenGlTexture
         VisualizationMode.Off -> VisualizationRenderBackend.Compose
     }
 }
