@@ -43,6 +43,9 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import android.content.Context
+import androidx.compose.ui.platform.LocalContext
+import com.flopster101.siliconplayer.AppPreferenceKeys
 import com.flopster101.siliconplayer.VisualizationMode
 import com.flopster101.siliconplayer.ui.visualization.gl.ProjectMPresetSets
 import com.flopster101.siliconplayer.ui.visualization.gl.SiliconVisNativeBridge
@@ -191,6 +194,9 @@ private fun ProjectMOptionsContent(
     onPresetSelected: (String) -> Unit,
     setLabels: Map<String, String>
 ) {
+    val context = LocalContext.current
+    val prefs = remember(context) { context.getSharedPreferences("silicon_player_settings", Context.MODE_PRIVATE) }
+    var randomStart by remember { mutableStateOf(prefs.getBoolean(AppPreferenceKeys.VISUALIZATION_PROJECTM_RANDOM_START, true)) }
     var presetName by remember { mutableStateOf<String?>(null) }
     var currentPresetKey by remember { mutableStateOf<String?>(null) }
     var locked by remember { mutableStateOf(false) }
@@ -281,6 +287,15 @@ private fun ProjectMOptionsContent(
             onCheckedChange = { enabled ->
                 SiliconVisNativeBridge.nativeProjectMSetPresetLocked(enabled)
                 locked = enabled
+            }
+        )
+        DialogToggleRow(
+            title = "Random preset on start",
+            subtitle = "Start with a random preset each time",
+            checked = randomStart,
+            onCheckedChange = { enabled ->
+                randomStart = enabled
+                prefs.edit().putBoolean(AppPreferenceKeys.VISUALIZATION_PROJECTM_RANDOM_START, enabled).apply()
             }
         )
     }

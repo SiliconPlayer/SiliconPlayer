@@ -1,6 +1,7 @@
 package com.flopster101.siliconplayer.ui.visualization.gl
 
 import android.content.Context
+import com.flopster101.siliconplayer.AppPreferenceKeys
 import android.graphics.Bitmap
 import android.graphics.SurfaceTexture
 import android.graphics.Typeface
@@ -526,18 +527,23 @@ private class SiliconNativeTextureRenderThread(
                         if (enabledSets.isNotEmpty()) {
                             val setIds = enabledSets.map { it.id }.toTypedArray()
                             val setDirs = enabledSets.map { it.dir }.toTypedArray()
-                            val savedPreset = prefs.getString("visualization_projectm_preset", null)
+                            val randomStart = prefs.getBoolean(AppPreferenceKeys.VISUALIZATION_PROJECTM_RANDOM_START, true)
                             val (presetKeys, _) = try {
                                 ProjectMPresetSets.indexedPresetKeys(appContext, prefs)
                             } catch (_: Throwable) {
                                 emptyList<String>() to emptyList()
                             }
+                            val savedPreset = prefs.getString("visualization_projectm_preset", null)
+                            val startPreset = if (randomStart && presetKeys.isNotEmpty()) {
+                                try { SiliconVisNativeBridge.nativeClearProjectMLastPreset() } catch (_: Throwable) {}
+                                presetKeys.random()
+                            } else savedPreset
                             if (presetKeys.isNotEmpty()) {
                                 SiliconVisNativeBridge.nativeAttachProjectMWithKeys(
-                                    visHandle, setIds, setDirs, presetKeys.toTypedArray(), savedPreset
+                                    visHandle, setIds, setDirs, presetKeys.toTypedArray(), startPreset
                                 )
                             } else {
-                                SiliconVisNativeBridge.nativeAttachProjectM(visHandle, setIds, setDirs, savedPreset)
+                                SiliconVisNativeBridge.nativeAttachProjectM(visHandle, setIds, setDirs, startPreset)
                             }
                             projectMAttached = true
                         }
