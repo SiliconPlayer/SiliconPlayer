@@ -812,6 +812,27 @@ bool AudioEngine::shouldUpdateVisualization(uint32_t* outFeatures) const {
     return features != 0u;
 }
 
+bool AudioEngine::getNewPcmMono(int32_t maxFrames, std::vector<float>& out) {
+    markVisualizationRequested(kVisualizationFeatureWaveform);
+    out.clear();
+    if (maxFrames <= 0) return true;
+
+    std::lock_guard<std::mutex> lock(visualizationMutex);
+    constexpr int kHistoryMask = 16384 - 1;
+    const int available = (visualizationScopeWriteIndex - visualizationPcmFeedReadIndex + 16384) & kHistoryMask;
+    if (available <= 0) return true;
+
+    const int readFrames = std::min(available, static_cast<int>(maxFrames));
+    visualizationPcmFeedReadIndex = (visualizationScopeWriteIndex - readFrames + 16384) & kHistoryMask;
+    out.resize(static_cast<size_t>(readFrames));
+    for (int i = 0; i < readFrames; ++i) {
+        const int idx = (visualizationPcmFeedReadIndex + i) & kHistoryMask;
+        out[static_cast<size_t>(i)] = 0.5f * (visualizationScopeHistoryLeft[idx] + visualizationScopeHistoryRight[idx]);
+    }
+    visualizationPcmFeedReadIndex = (visualizationPcmFeedReadIndex + readFrames) & kHistoryMask;
+    return true;
+}
+
 std::vector<float> AudioEngine::getVisualizationWaveformScope(
         int channelIndex,
         int windowMs,

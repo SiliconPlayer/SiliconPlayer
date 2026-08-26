@@ -11,6 +11,11 @@ public:
     virtual ~IVisualizationAudioProvider() = default;
 
     virtual void getWaveformScope(int channelIndex, int windowMs, int triggerMode, std::vector<float>& out) = 0;
+    virtual bool getNewPcmMono(int32_t maxFrames, std::vector<float>& out) {
+        (void)maxFrames;
+        (void)out;
+        return false;
+    }
     virtual void getFftBars(std::vector<float>& out) = 0;
     virtual void getVuLevels(float& left, float& right) = 0;
     virtual int getChannelCount() = 0;

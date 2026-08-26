@@ -35,6 +35,7 @@ private:
 
     silicon::vis::IVisualizationAudioProvider* audioProvider_;
     projectm_handle instance_ = nullptr;
+    unsigned int maxPcmFeedFrames_ = 2048;
     std::string presetDir_;
     std::vector<std::string> presetFiles_;
     size_t presetIndex_ = 0;

@@ -22,6 +22,7 @@ bool ProjectMVisualizer::initGl() {
     instance_ = projectm_create();
     if (!instance_) return false;
 
+    maxPcmFeedFrames_ = projectm_pcm_get_max_samples();
     projectm_set_preset_duration(instance_, presetDurationSeconds_);
     projectm_set_preset_locked(instance_, false);
     if (widthPx_ > 0 && heightPx_ > 0) {
@@ -114,7 +115,20 @@ void ProjectMVisualizer::loadIdlePreset() {
 }
 
 void ProjectMVisualizer::feedAudio() {
-    if (!audioProvider_) return;
+    if (!audioProvider_ || !instance_) return;
+
+    if (audioProvider_->getNewPcmMono(static_cast<int32_t>(maxPcmFeedFrames_), audioBuffer_)) {
+        if (!audioBuffer_.empty()) {
+            projectm_pcm_add_float(
+                instance_,
+                audioBuffer_.data(),
+                static_cast<unsigned int>(audioBuffer_.size()),
+                PROJECTM_MONO
+            );
+        }
+        return;
+    }
+
     audioProvider_->getWaveformScope(0, 34, 0, audioBuffer_);
     if (!audioBuffer_.empty()) {
         projectm_pcm_add_float(

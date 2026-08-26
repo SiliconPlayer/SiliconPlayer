@@ -264,6 +264,7 @@ public:
     void getWaveformScope(int channelIndex, int windowMs, int triggerMode, std::vector<float>& out) override {
         out = getVisualizationWaveformScope(channelIndex, windowMs, triggerMode);
     }
+    bool getNewPcmMono(int32_t maxFrames, std::vector<float>& out) override;
     void getFftBars(std::vector<float>& out) override {
         out = getVisualizationBars();
     }
@@ -389,6 +390,7 @@ private:
     std::array<float, 16384> visualizationScopeHistoryLeft {};
     std::array<float, 16384> visualizationScopeHistoryRight {};
     int visualizationScopeWriteIndex = 0;
+    int visualizationPcmFeedReadIndex = 0;
     mutable std::array<int, 2> visualizationScopePrevTriggerIndex { -1, -1 };
     std::array<float, 2> visualizationVuLevels {};
     std::atomic<int> visualizationChannelCount { 2 };
