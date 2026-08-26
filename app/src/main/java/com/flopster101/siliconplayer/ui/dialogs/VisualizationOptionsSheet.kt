@@ -1,5 +1,7 @@
 package com.flopster101.siliconplayer.ui.dialogs
 
+import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -13,10 +15,13 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.SkipNext
 import androidx.compose.material.icons.filled.SkipPrevious
 import androidx.compose.material3.AlertDialog
@@ -24,10 +29,15 @@ import androidx.compose.material3.BottomSheetDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material.icons.filled.ExpandLess
+import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedIconButton
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberModalBottomSheetState
@@ -62,7 +72,7 @@ private fun presetDisplayName(key: String): String {
 }
 
 private sealed class PresetListRow {
-    data class Header(val label: String) : PresetListRow()
+    data class Header(val setId: String, val label: String) : PresetListRow()
     data class Item(val key: String) : PresetListRow()
 }
 
@@ -188,6 +198,7 @@ private fun ChannelScopeOptionsContent(
     }
 }
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun ProjectMOptionsContent(
     savedPreset: String?,
@@ -307,70 +318,162 @@ private fun ProjectMOptionsContent(
         val presetSetIds = remember(showPresetList) {
             SiliconVisNativeBridge.nativeProjectMGetPresetSetIds()?.toList().orEmpty()
         }
-        // Group contiguous rows by set; keys are sorted by setId then relativePath.
-        val groupedItems = remember(presetKeys, presetSetIds) {
+        var searchQuery by remember { mutableStateOf("") }
+        var debouncedQuery by remember { mutableStateOf("") }
+        androidx.compose.runtime.LaunchedEffect(searchQuery) {
+            kotlinx.coroutines.delay(300)
+            debouncedQuery = searchQuery
+        }
+        val filteredIndices = remember(presetKeys, debouncedQuery) {
+            if (debouncedQuery.isBlank()) presetKeys.indices.toList()
+            else presetKeys.indices.filter { i ->
+                val key = presetKeys[i]
+                val display = presetDisplayName(key)
+                val rel = presetKeyRelativePath(key)
+                display.contains(debouncedQuery, ignoreCase = true) || rel.contains(debouncedQuery, ignoreCase = true)
+            }
+        }
+        val groupedItems = remember(filteredIndices, presetKeys, presetSetIds, setLabels) {
             val rows = mutableListOf<PresetListRow>()
             var lastSet: String? = null
-            for (i in presetKeys.indices) {
+            for (i in filteredIndices) {
                 val setId = presetSetIds.getOrElse(i) { ProjectMPresetSets.splitKey(presetKeys[i]).first }
                 if (setId != lastSet) {
-                    rows.add(PresetListRow.Header(setLabels[setId] ?: setId))
+                    rows.add(PresetListRow.Header(setId, setLabels[setId] ?: setId))
                     lastSet = setId
                 }
                 rows.add(PresetListRow.Item(presetKeys[i]))
             }
             rows
         }
+        val currentSetId = remember(currentPresetKey) {
+            currentPresetKey?.let { ProjectMPresetSets.splitKey(it).first }
+        }
+        var collapsedSets by remember(presetKeys, currentSetId) {
+            val allIds = presetSetIds.distinct()
+            mutableStateOf(allIds.filter { it != currentSetId }.toSet())
+        }
+        val displayedRows = remember(groupedItems, collapsedSets, debouncedQuery) {
+            if (debouncedQuery.isNotBlank()) groupedItems
+            else {
+                val out = mutableListOf<PresetListRow>()
+                var isCollapsed = false
+                for (row in groupedItems) {
+                    when (row) {
+                        is PresetListRow.Header -> {
+                            isCollapsed = collapsedSets.contains(row.setId)
+                            out.add(row)
+                        }
+                        is PresetListRow.Item -> if (!isCollapsed) out.add(row)
+                    }
+                }
+                out
+            }
+        }
+        val listState = rememberLazyListState()
+        val currentDisplayedIndex = remember(displayedRows, currentPresetKey) {
+            displayedRows.indexOfFirst { it is PresetListRow.Item && it.key == currentPresetKey }
+        }
+        androidx.compose.runtime.LaunchedEffect(currentDisplayedIndex) {
+            if (currentDisplayedIndex >= 0) listState.scrollToItem(currentDisplayedIndex)
+        }
         AlertDialog(
             onDismissRequest = { showPresetList = false },
             title = { Text("Choose a preset") },
             text = {
-                LazyColumn(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .heightIn(max = 420.dp),
-                    verticalArrangement = Arrangement.spacedBy(2.dp)
-                ) {
-                    groupedItems.forEach { row ->
-                        when (row) {
-                            is PresetListRow.Header -> {
-                                item {
-                                    Text(
-                                        text = row.label,
-                                        style = MaterialTheme.typography.labelSmall,
-                                        fontWeight = FontWeight.SemiBold,
-                                        color = MaterialTheme.colorScheme.primary,
-                                        modifier = Modifier
-                                            .fillMaxWidth()
-                                            .padding(horizontal = 10.dp, vertical = 6.dp)
-                                    )
+                Column(modifier = Modifier.fillMaxWidth()) {
+                    OutlinedTextField(
+                        value = searchQuery,
+                        onValueChange = { searchQuery = it },
+                        modifier = Modifier.fillMaxWidth(),
+                        placeholder = { Text("Search presets") },
+                        leadingIcon = { Icon(imageVector = Icons.Default.Search, contentDescription = null) },
+                        trailingIcon = {
+                            if (searchQuery.isNotEmpty()) {
+                                IconButton(onClick = { searchQuery = "" }) {
+                                    Icon(imageVector = Icons.Default.Close, contentDescription = "Clear")
                                 }
                             }
-                            is PresetListRow.Item -> {
-                                val key = row.key
-                                val isCurrent = key == currentPresetKey
-                                item {
-                                    Text(
-                                        text = presetDisplayName(key),
-                                        style = MaterialTheme.typography.bodyMedium,
-                                        fontWeight = if (isCurrent) FontWeight.Bold else FontWeight.Normal,
-                                        color = if (isCurrent) {
-                                            MaterialTheme.colorScheme.primary
-                                        } else {
-                                            MaterialTheme.colorScheme.onSurface
-                                        },
-                                        maxLines = 1,
-                                        overflow = TextOverflow.Ellipsis,
-                                        modifier = Modifier
-                                            .fillMaxWidth()
-                                            .clip(RoundedCornerShape(10.dp))
-                                            .clickable {
-                                                SiliconVisNativeBridge.nativeProjectMLoadPreset(key, true)
-                                                onPresetSelected(key)
-                                                showPresetList = false
+                        },
+                        singleLine = true,
+                        shape = RoundedCornerShape(28.dp)
+                    )
+                    Spacer(modifier = Modifier.height(12.dp))
+                    Text(
+                        text = if (debouncedQuery.isBlank()) "${presetKeys.size} presets" else "${filteredIndices.size} of ${presetKeys.size} presets",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(start = 8.dp)
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+                    LazyColumn(
+                        state = listState,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .heightIn(max = 420.dp),
+                        verticalArrangement = Arrangement.spacedBy(2.dp)
+                    ) {
+                        displayedRows.forEachIndexed { index, row ->
+                            when (row) {
+                                is PresetListRow.Header -> {
+                                    val isCollapsed = debouncedQuery.isBlank() && collapsedSets.contains(row.setId)
+                                    stickyHeader {
+                                        Surface(
+                                            shape = RoundedCornerShape(12.dp),
+                                            color = MaterialTheme.colorScheme.surfaceContainerHighest,
+                                            tonalElevation = 2.dp,
+                                            modifier = Modifier
+                                                .fillMaxWidth()
+                                                .padding(vertical = 2.dp)
+                                        ) {
+                                            Row(
+                                                modifier = Modifier
+                                                    .clickable {
+                                                        collapsedSets = if (isCollapsed) collapsedSets - row.setId else collapsedSets + row.setId
+                                                    }
+                                                    .padding(horizontal = 12.dp, vertical = 10.dp),
+                                                verticalAlignment = Alignment.CenterVertically,
+                                                horizontalArrangement = Arrangement.SpaceBetween
+                                            ) {
+                                                Text(
+                                                    text = row.label,
+                                                    style = MaterialTheme.typography.titleSmall,
+                                                    fontWeight = FontWeight.SemiBold,
+                                                    color = MaterialTheme.colorScheme.onSurface,
+                                                    modifier = Modifier.weight(1f)
+                                                )
+                                                Icon(
+                                                    imageVector = if (isCollapsed) Icons.Default.ExpandMore else Icons.Default.ExpandLess,
+                                                    contentDescription = if (isCollapsed) "Expand" else "Collapse",
+                                                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                                    modifier = Modifier.size(20.dp)
+                                                )
                                             }
-                                            .padding(horizontal = 10.dp, vertical = 10.dp)
-                                    )
+                                        }
+                                    }
+                                }
+                                is PresetListRow.Item -> {
+                                    val key = row.key
+                                    val isCurrent = key == currentPresetKey
+                                    item(key = key) {
+                                        Text(
+                                            text = presetDisplayName(key),
+                                            style = MaterialTheme.typography.bodyMedium,
+                                            fontWeight = if (isCurrent) FontWeight.Bold else FontWeight.Normal,
+                                            color = if (isCurrent) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface,
+                                            maxLines = 1,
+                                            overflow = TextOverflow.Ellipsis,
+                                            modifier = Modifier
+                                                .fillMaxWidth()
+                                                .clip(RoundedCornerShape(10.dp))
+                                                .clickable {
+                                                    SiliconVisNativeBridge.nativeProjectMLoadPreset(key, true)
+                                                    onPresetSelected(key)
+                                                    showPresetList = false
+                                                }
+                                                .padding(horizontal = 10.dp, vertical = 10.dp)
+                                        )
+                                    }
                                 }
                             }
                         }
