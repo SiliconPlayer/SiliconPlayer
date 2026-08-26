@@ -26,6 +26,7 @@ object SiliconVisNativeBridge {
     external fun nativeSetShowArtworkBackground(handle: Long, show: Boolean)
     external fun nativeAttachProjectM(handle: Long, presetDir: String, startPreset: String?)
     external fun nativeDetachProjectM(handle: Long)
+    external fun nativeClearProjectMLastPreset()
     external fun nativeProjectMNextPreset(smoothTransition: Boolean)
     external fun nativeProjectMPreviousPreset(smoothTransition: Boolean)
     external fun nativeProjectMSetPresetLocked(locked: Boolean)

@@ -2017,12 +2017,15 @@ Java_com_flopster101_siliconplayer_NativeBridge_stopEngineWithPauseResumeFade(JN
     audioEngine->stopWithPauseResumeFade(100, 16.0f);
 }
 
+extern "C" void silicon_vis_projectm_clear_last_preset();
+
 extern "C" JNIEXPORT void JNICALL
 Java_com_flopster101_siliconplayer_NativeBridge_releaseCurrentDecoder(JNIEnv*, jobject) {
     if (audioEngine == nullptr) {
         return;
     }
     audioEngine->releaseCurrentDecoder();
+    silicon_vis_projectm_clear_last_preset();
 }
 
 extern "C" JNIEXPORT jboolean JNICALL

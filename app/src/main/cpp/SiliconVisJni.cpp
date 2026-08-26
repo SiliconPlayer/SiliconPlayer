@@ -10,6 +10,8 @@ extern "C" {
 // A newer registration on a different handle implies the old pipeline died.
 static ProjectMVisualizer* s_projectMPlugin = nullptr;
 static jlong s_projectMRegisteredHandle = 0;
+// Last active preset across surface teardowns; cleared on decoder release.
+static std::string s_projectMLastPreset;
 
 JNIEXPORT void JNICALL
 Java_com_flopster101_siliconplayer_ui_visualization_gl_SiliconVisNativeBridge_nativeAttachProjectM(
@@ -29,14 +31,18 @@ Java_com_flopster101_siliconplayer_ui_visualization_gl_SiliconVisNativeBridge_na
         return;
     }
 
+    const char* effectiveStart = !s_projectMLastPreset.empty()
+        ? s_projectMLastPreset.c_str()
+        : (start ? start : "");
+
     if (s_projectMPlugin && s_projectMRegisteredHandle == handle) {
         s_projectMPlugin->setPresetDirectory(dir);
-        s_projectMPlugin->setStartPreset(start ? start : "");
+        s_projectMPlugin->setStartPreset(effectiveStart);
     } else {
         auto* visHandle = reinterpret_cast<SiliconVisHandle>(handle);
         s_projectMPlugin = new ProjectMVisualizer(silicon::vis::silicon_vis_get_audio_provider(visHandle));
         s_projectMPlugin->setPresetDirectory(dir);
-        s_projectMPlugin->setStartPreset(start ? start : "");
+        s_projectMPlugin->setStartPreset(effectiveStart);
         silicon_vis_register_plugin_renderer(visHandle, s_projectMPlugin);
         s_projectMRegisteredHandle = handle;
     }
@@ -52,8 +58,19 @@ Java_com_flopster101_siliconplayer_ui_visualization_gl_SiliconVisNativeBridge_na
     jlong handle
 ) {
     if (!handle || s_projectMRegisteredHandle != handle) return;
+    if (s_projectMPlugin) {
+        s_projectMLastPreset = s_projectMPlugin->currentPresetRelative();
+    }
     s_projectMPlugin = nullptr;
     s_projectMRegisteredHandle = 0;
+}
+
+JNIEXPORT void JNICALL
+Java_com_flopster101_siliconplayer_ui_visualization_gl_SiliconVisNativeBridge_nativeClearProjectMLastPreset(
+    JNIEnv* env,
+    jobject /* thiz */
+) {
+    s_projectMLastPreset.clear();
 }
 
 JNIEXPORT void JNICALL
@@ -597,3 +614,7 @@ Java_com_flopster101_siliconplayer_ui_visualization_gl_SiliconVisNativeBridge_na
 }
 
 } // extern "C"
+
+extern "C" __attribute__((visibility("default"))) void silicon_vis_projectm_clear_last_preset() {
+    s_projectMLastPreset.clear();
+}
