@@ -107,6 +107,41 @@ void ProjectMVisualizer::setPresetSets(const std::vector<std::pair<std::string, 
     }
 }
 
+void ProjectMVisualizer::setPresetKeys(const std::vector<std::pair<std::string, std::string>>& sets,
+                                       const std::vector<std::string>& presetKeys) {
+    if (sets_ == sets && presetKeys_ == presetKeys) return;
+    sets_ = sets;
+    presets_.clear();
+    presetKeys_.clear();
+    presetSetIds_.clear();
+    presetIndex_ = 0;
+    for (const auto& key : presetKeys) {
+        size_t sep = key.find(kKeySeparator);
+        if (sep == std::string::npos) continue;
+        std::string setId = key.substr(0, sep);
+        std::string rel = key.substr(sep + 1);
+        bool known = false;
+        for (const auto& s : sets_) if (s.first == setId) { known = true; break; }
+        if (!known) continue;
+        presets_.push_back({setId, rel});
+    }
+    std::sort(presets_.begin(), presets_.end(),
+              [](const PresetEntry& a, const PresetEntry& b) {
+                  if (a.setId != b.setId) return a.setId < b.setId;
+                  return a.relativePath < b.relativePath;
+              });
+    presetKeys_.reserve(presets_.size());
+    presetSetIds_.reserve(presets_.size());
+    for (const auto& e : presets_) {
+        presetKeys_.push_back(makeKey(e.setId, e.relativePath));
+        presetSetIds_.push_back(e.setId);
+    }
+    if (instance_) {
+        if (!presets_.empty()) loadPresetAt(0, true);
+        else loadIdlePreset();
+    }
+}
+
 void ProjectMVisualizer::setStartPreset(const std::string& presetKey) {
     startPresetKey_ = presetKey;
 }

@@ -5,6 +5,8 @@ import android.content.SharedPreferences
 import com.flopster101.siliconplayer.AppPreferenceKeys
 import java.io.File
 import java.util.UUID
+import org.json.JSONArray
+import org.json.JSONObject
 
 /**
  * A named collection of MilkDrop presets rooted at a single directory. The id is
@@ -127,6 +129,150 @@ object ProjectMPresetSets {
         prefs.edit().putStringSet(AppPreferenceKeys.VISUALIZATION_PROJECTM_ENABLED_SET_IDS, enabled).apply()
     }
 
+    private const val INDEX_FILE_NAME = "projectm_index.json"
+    private const val INDEX_VERSION = 1
+
+    private data class IndexEntry(val dir: String, val dirMtime: Long, val presets: List<String>)
+
+    private fun indexFile(context: Context): File = File(context.filesDir, INDEX_FILE_NAME)
+
+    private fun dirMtime(dir: String): Long = try { File(dir).lastModified() } catch (_: Throwable) { 0L }
+
+    @Volatile private var memoryCache: MutableMap<String, IndexEntry>? = null
+    private val cacheLock = Any()
+
+    private fun cachedIndex(context: Context): MutableMap<String, IndexEntry> {
+        synchronized(cacheLock) {
+            memoryCache?.let { return it }
+            val loaded = loadIndex(context)
+            memoryCache = loaded
+            return loaded
+        }
+    }
+
+    private fun saveCachedIndex(context: Context, map: Map<String, IndexEntry>) {
+        synchronized(cacheLock) {
+            memoryCache = map.toMutableMap()
+            saveIndex(context, map)
+        }
+    }
+
+    fun preloadIndex(context: Context) {
+        try { cachedIndex(context) } catch (_: Throwable) {}
+    }
+
+    private fun scanRelativeMilk(root: File): List<String> {
+        if (!root.isDirectory) return emptyList()
+        val out = mutableListOf<String>()
+        val stack = ArrayDeque<Pair<File, String>>()
+        stack.add(root to "")
+        while (stack.isNotEmpty()) {
+            val (dir, prefix) = stack.removeLast()
+            val children = dir.listFiles() ?: continue
+            for (child in children) {
+                val rel = if (prefix.isEmpty()) child.name else "$prefix/${child.name}"
+                if (child.isDirectory) {
+                    stack.add(child to rel)
+                } else if (child.isFile && child.name.endsWith(".milk", ignoreCase = true)) {
+                    out.add(rel)
+                }
+            }
+        }
+        out.sort()
+        return out
+    }
+
+    private fun loadIndex(context: Context): MutableMap<String, IndexEntry> {
+        val out = mutableMapOf<String, IndexEntry>()
+        try {
+            val f = indexFile(context)
+            if (!f.isFile) return out
+            val obj = JSONObject(f.readText())
+            if (obj.optInt("version", 0) != INDEX_VERSION) return out
+            val sets = obj.optJSONObject("sets") ?: return out
+            val keys = sets.keys()
+            while (keys.hasNext()) {
+                val id = keys.next()
+                val e = sets.optJSONObject(id) ?: continue
+                val dir = e.optString("dir", "")
+                val mtime = e.optLong("dirMtime", 0L)
+                val arr = e.optJSONArray("presets") ?: JSONArray()
+                val presets = mutableListOf<String>()
+                for (i in 0 until arr.length()) presets.add(arr.optString(i))
+                out[id] = IndexEntry(dir, mtime, presets)
+            }
+        } catch (_: Throwable) { }
+        return out
+    }
+
+    private fun saveIndex(context: Context, map: Map<String, IndexEntry>) {
+        try {
+            val obj = JSONObject()
+            obj.put("version", INDEX_VERSION)
+            val sets = JSONObject()
+            for ((id, e) in map) {
+                val o = JSONObject()
+                o.put("dir", e.dir)
+                o.put("dirMtime", e.dirMtime)
+                val arr = JSONArray()
+                for (p in e.presets) arr.put(p)
+                o.put("presets", arr)
+                sets.put(id, o)
+            }
+            obj.put("sets", sets)
+            indexFile(context).writeText(obj.toString())
+        } catch (_: Throwable) { }
+    }
+
+    fun indexedPresetsForSet(context: Context, set: ProjectMPresetSet): List<String> {
+        val map = cachedIndex(context)
+        val cached = map[set.id]
+        if (cached != null && cached.dir == set.dir) return cached.presets
+        val scanned = scanRelativeMilk(File(set.dir))
+        map[set.id] = IndexEntry(set.dir, dirMtime(set.dir), scanned)
+        saveCachedIndex(context, map)
+        return scanned
+    }
+
+    fun indexedPresetKeys(context: Context, prefs: SharedPreferences): Pair<List<String>, List<String>> {
+        val sets = enabledSets(context, prefs).sortedBy { it.id }
+        if (sets.isEmpty()) return emptyList<String>() to emptyList()
+        val map = cachedIndex(context)
+        var dirty = false
+        val allKeys = ArrayList<String>(4096)
+        val allSetIds = ArrayList<String>(4096)
+        for (set in sets) {
+            val cached = map[set.id]
+            val presets = if (cached != null && cached.dir == set.dir) cached.presets else {
+                val scanned = scanRelativeMilk(File(set.dir))
+                map[set.id] = IndexEntry(set.dir, dirMtime(set.dir), scanned)
+                dirty = true
+                scanned
+            }
+            for (rel in presets) {
+                allKeys.add("${set.id}$KEY_SEPARATOR$rel")
+                allSetIds.add(set.id)
+            }
+        }
+        if (dirty) saveCachedIndex(context, map)
+        return allKeys to allSetIds
+    }
+
+    fun reindex(context: Context, prefs: SharedPreferences): Int {
+        val sets = enabledSets(context, prefs)
+        val map = cachedIndex(context)
+        var total = 0
+        for (set in sets) {
+            val scanned = scanRelativeMilk(File(set.dir))
+            map[set.id] = IndexEntry(set.dir, dirMtime(set.dir), scanned)
+            total += scanned.size
+        }
+        val validIds = allSets(context, prefs).map { it.id }.toSet()
+        val pruned = map.filterKeys { it in validIds }
+        saveCachedIndex(context, pruned)
+        return total
+    }
+
     /** Splits a preset key into its (setId, relativePath) pair. */
     fun splitKey(key: String): Pair<String, String> {
         val idx = key.indexOf(KEY_SEPARATOR)
@@ -157,6 +303,10 @@ object ProjectMPresetSets {
             }
         }
         return count
+    }
+
+    fun presetCountForIndexed(context: Context, set: ProjectMPresetSet): Int {
+        return try { indexedPresetsForSet(context, set).size } catch (_: Throwable) { presetCountFor(set) }
     }
 
     private fun userLabelFor(path: String): String {

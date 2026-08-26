@@ -39,6 +39,43 @@ import com.flopster101.siliconplayer.ui.visualization.channel.ChannelScopeChanne
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
 
+private object VisualizerWarmCache {
+    @Volatile private var cachedHandle: Long = 0L
+    @Volatile private var cachedAt = 0L
+    private const val DECAY_MS = 30_000L
+    private val handler = android.os.Handler(android.os.Looper.getMainLooper())
+    private val decayRunnable = Runnable {
+        synchronized(this) {
+            if (cachedHandle != 0L && android.os.SystemClock.elapsedRealtime() - cachedAt >= DECAY_MS) {
+                try { SiliconVisNativeBridge.nativeDestroy(cachedHandle) } catch (_: Throwable) {}
+                cachedHandle = 0L
+            }
+        }
+    }
+    fun take(): Long = synchronized(this) {
+        if (cachedHandle != 0L) {
+            val now = android.os.SystemClock.elapsedRealtime()
+            if (now - cachedAt < DECAY_MS) {
+                handler.removeCallbacks(decayRunnable)
+                val h = cachedHandle
+                cachedHandle = 0L
+                return h
+            } else {
+                try { SiliconVisNativeBridge.nativeDestroy(cachedHandle) } catch (_: Throwable) {}
+                cachedHandle = 0L
+            }
+        }
+        0L
+    }
+    fun put(handle: Long) = synchronized(this) {
+        if (cachedHandle != 0L) try { SiliconVisNativeBridge.nativeDestroy(cachedHandle) } catch (_: Throwable) {}
+        cachedHandle = handle
+        cachedAt = android.os.SystemClock.elapsedRealtime()
+        handler.removeCallbacks(decayRunnable)
+        handler.postDelayed(decayRunnable, DECAY_MS)
+    }
+}
+
 data class SiliconNativeGlFrame(
     val mode: Int, // 1=Bars, 2=Osc, 3=VU, 4=ChannelScope, 100=projectM plugin
     val isPlaying: Boolean = true,
@@ -412,9 +449,14 @@ private class SiliconNativeTextureRenderThread(
             return
         }
 
-        visHandle = SiliconVisNativeBridge.nativeCreate()
+        visHandle = VisualizerWarmCache.take()
+        if (visHandle == 0L) {
+            visHandle = SiliconVisNativeBridge.nativeCreate()
+            if (visHandle != 0L) {
+                com.flopster101.siliconplayer.NativeBridge.attachAudioEngineToVisualizer(visHandle)
+            }
+        }
         if (visHandle != 0L) {
-            com.flopster101.siliconplayer.NativeBridge.attachAudioEngineToVisualizer(visHandle)
             SiliconVisNativeBridge.nativeInitGl(visHandle)
             SiliconVisNativeBridge.nativeResize(visHandle, surfaceWidth, surfaceHeight, density)
         }
@@ -424,9 +466,8 @@ private class SiliconNativeTextureRenderThread(
             Looper.loop()
         } finally {
             if (visHandle != 0L) {
-                SiliconVisNativeBridge.nativeDetachProjectM(visHandle)
                 SiliconVisNativeBridge.nativeReleaseGl(visHandle)
-                SiliconVisNativeBridge.nativeDestroy(visHandle)
+                VisualizerWarmCache.put(visHandle)
                 visHandle = 0L
             }
             releaseEgl()
@@ -486,7 +527,18 @@ private class SiliconNativeTextureRenderThread(
                             val setIds = enabledSets.map { it.id }.toTypedArray()
                             val setDirs = enabledSets.map { it.dir }.toTypedArray()
                             val savedPreset = prefs.getString("visualization_projectm_preset", null)
-                            SiliconVisNativeBridge.nativeAttachProjectM(visHandle, setIds, setDirs, savedPreset)
+                            val (presetKeys, _) = try {
+                                ProjectMPresetSets.indexedPresetKeys(appContext, prefs)
+                            } catch (_: Throwable) {
+                                emptyList<String>() to emptyList()
+                            }
+                            if (presetKeys.isNotEmpty()) {
+                                SiliconVisNativeBridge.nativeAttachProjectMWithKeys(
+                                    visHandle, setIds, setDirs, presetKeys.toTypedArray(), savedPreset
+                                )
+                            } else {
+                                SiliconVisNativeBridge.nativeAttachProjectM(visHandle, setIds, setDirs, savedPreset)
+                            }
                             projectMAttached = true
                         }
                     }

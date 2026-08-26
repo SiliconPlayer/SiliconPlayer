@@ -1361,6 +1361,12 @@ private fun AppNavigation(
         VolumeDatabase.getInstance(context)
     }
 
+    androidx.compose.runtime.LaunchedEffect(Unit) {
+        kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+            try { com.flopster101.siliconplayer.ui.visualization.gl.ProjectMPresetSets.preloadIndex(context) } catch (_: Throwable) {}
+        }
+    }
+
     // Audio effects state
     var masterVolumeDb by remember { mutableFloatStateOf(0f) }
     var pluginVolumeDb by remember { mutableFloatStateOf(0f) }

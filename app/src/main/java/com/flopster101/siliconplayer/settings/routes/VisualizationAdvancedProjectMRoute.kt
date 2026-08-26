@@ -36,7 +36,21 @@ internal fun VisualizationAdvancedProjectMRouteContent(
         indexing = true
         scope.launch {
             val total = withContext(Dispatchers.Default) {
-                enabledSets.sumOf { ProjectMPresetSets.presetCountFor(it) }
+                enabledSets.sumOf { ProjectMPresetSets.presetCountForIndexed(context, it) }
+            }
+            presetCount = total
+            indexing = false
+        }
+    }
+
+    fun reindex() {
+        indexing = true
+        scope.launch {
+            withContext(Dispatchers.Default) {
+                try { ProjectMPresetSets.reindex(context, prefs) } catch (_: Throwable) { }
+            }
+            val total = withContext(Dispatchers.Default) {
+                enabledSets.sumOf { ProjectMPresetSets.presetCountForIndexed(context, it) }
             }
             presetCount = total
             indexing = false
@@ -66,7 +80,7 @@ internal fun VisualizationAdvancedProjectMRouteContent(
             title = "Re-index presets",
             description = reindexDescription,
             icon = Icons.Default.Refresh,
-            onClick = { scanCounts() }
+            onClick = { reindex() }
         )
     }
 }

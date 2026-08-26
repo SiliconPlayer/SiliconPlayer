@@ -40,6 +40,8 @@ public:
     // Ordered {setId, dir} pairs describing the enabled preset sets. Replacing
     // the set list rescans each directory and resets the current selection.
     void setPresetSets(const std::vector<std::pair<std::string, std::string>>& sets);
+    void setPresetKeys(const std::vector<std::pair<std::string, std::string>>& sets,
+                       const std::vector<std::string>& presetKeys);
     void setStartPreset(const std::string& presetKey);
     void nextPreset(bool smoothTransition);
     void previousPreset(bool smoothTransition);

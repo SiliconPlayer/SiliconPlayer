@@ -25,6 +25,7 @@ object SiliconVisNativeBridge {
     external fun nativeSetContrastScrim(handle: Long, argb: Int)
     external fun nativeSetShowArtworkBackground(handle: Long, show: Boolean)
     external fun nativeAttachProjectM(handle: Long, setIds: Array<String>, setDirs: Array<String>, startPresetKey: String?)
+    external fun nativeAttachProjectMWithKeys(handle: Long, setIds: Array<String>, setDirs: Array<String>, presetKeys: Array<String>, startPresetKey: String?)
     external fun nativeDetachProjectM(handle: Long)
     external fun nativeClearProjectMLastPreset()
     external fun nativeProjectMNextPreset(smoothTransition: Boolean)

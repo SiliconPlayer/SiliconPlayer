@@ -72,6 +72,71 @@ Java_com_flopster101_siliconplayer_ui_visualization_gl_SiliconVisNativeBridge_na
 }
 
 JNIEXPORT void JNICALL
+Java_com_flopster101_siliconplayer_ui_visualization_gl_SiliconVisNativeBridge_nativeAttachProjectMWithKeys(
+    JNIEnv* env,
+    jobject /* thiz */,
+    jlong handle,
+    jobjectArray setIds,
+    jobjectArray setDirs,
+    jobjectArray presetKeys,
+    jstring startPresetKey
+) {
+    if (!handle) return;
+    jsize setCount = setIds ? env->GetArrayLength(setIds) : 0;
+    if (setDirs && env->GetArrayLength(setDirs) != setCount) return;
+    std::vector<std::pair<std::string, std::string>> sets;
+    sets.reserve(static_cast<size_t>(setCount));
+    for (jsize i = 0; i < setCount; ++i) {
+        auto idObj = static_cast<jstring>(env->GetObjectArrayElement(setIds, i));
+        auto dirObj = static_cast<jstring>(env->GetObjectArrayElement(setDirs, i));
+        if (!idObj || !dirObj) {
+            if (idObj) env->DeleteLocalRef(idObj);
+            if (dirObj) env->DeleteLocalRef(dirObj);
+            continue;
+        }
+        const char* idC = env->GetStringUTFChars(idObj, nullptr);
+        const char* dirC = env->GetStringUTFChars(dirObj, nullptr);
+        if (idC && dirC) sets.emplace_back(idC, dirC);
+        if (idC) env->ReleaseStringUTFChars(idObj, idC);
+        if (dirC) env->ReleaseStringUTFChars(dirObj, dirC);
+        env->DeleteLocalRef(idObj);
+        env->DeleteLocalRef(dirObj);
+    }
+    std::vector<std::string> keys;
+    if (presetKeys) {
+        jsize kc = env->GetArrayLength(presetKeys);
+        keys.reserve(static_cast<size_t>(kc));
+        for (jsize i = 0; i < kc; ++i) {
+            auto kObj = static_cast<jstring>(env->GetObjectArrayElement(presetKeys, i));
+            if (!kObj) continue;
+            const char* kcStr = env->GetStringUTFChars(kObj, nullptr);
+            if (kcStr) keys.emplace_back(kcStr);
+            if (kcStr) env->ReleaseStringUTFChars(kObj, kcStr);
+            env->DeleteLocalRef(kObj);
+        }
+    }
+    std::string startKey;
+    if (startPresetKey) {
+        const char* keyC = env->GetStringUTFChars(startPresetKey, nullptr);
+        if (keyC) { startKey = keyC; env->ReleaseStringUTFChars(startPresetKey, keyC); }
+    }
+    const std::string& effectiveStart = !s_projectMLastPreset.empty() ? s_projectMLastPreset : startKey;
+    if (s_projectMPlugin && s_projectMRegisteredHandle == handle) {
+        if (!keys.empty()) s_projectMPlugin->setPresetKeys(sets, keys);
+        else s_projectMPlugin->setPresetSets(sets);
+        s_projectMPlugin->setStartPreset(effectiveStart);
+    } else {
+        auto* visHandle = reinterpret_cast<SiliconVisHandle>(handle);
+        s_projectMPlugin = new ProjectMVisualizer(silicon::vis::silicon_vis_get_audio_provider(visHandle));
+        if (!keys.empty()) s_projectMPlugin->setPresetKeys(sets, keys);
+        else s_projectMPlugin->setPresetSets(sets);
+        s_projectMPlugin->setStartPreset(effectiveStart);
+        silicon_vis_register_plugin_renderer(visHandle, s_projectMPlugin);
+        s_projectMRegisteredHandle = handle;
+    }
+}
+
+JNIEXPORT void JNICALL
 Java_com_flopster101_siliconplayer_ui_visualization_gl_SiliconVisNativeBridge_nativeDetachProjectM(
     JNIEnv* env,
     jobject /* thiz */,
