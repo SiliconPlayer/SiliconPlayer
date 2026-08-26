@@ -7,7 +7,10 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.width
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.AutoAwesome
+import androidx.compose.material.icons.filled.Equalizer
 import androidx.compose.material.icons.filled.GraphicEq
+import androidx.compose.material.icons.filled.MonitorHeart
 import androidx.compose.material.icons.filled.MoreHoriz
 import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material3.MaterialTheme
@@ -68,8 +71,8 @@ private fun advancedVisualizationSettingsPages(): List<VisualizationSettingsPage
     VisualizationSettingsPageItem(
         route = SettingsRoute.VisualizationAdvancedProjectM,
         mode = VisualizationMode.ProjectM,
-        title = "projectM presets",
-        description = "MilkDrop preset sets and user preset folders."
+        title = "projectM",
+        description = "MilkDrop preset packs and projectM settings."
     )
 )
 
@@ -567,10 +570,16 @@ internal fun VisualizationBasicRouteContent(
     SettingsSectionLabel("Basic visualizations")
     SettingsRowSpacer()
     basicPages.forEachIndexed { index, page ->
+        val icon = when (page.mode) {
+            VisualizationMode.Bars -> Icons.Default.GraphicEq
+            VisualizationMode.Oscilloscope -> Icons.Default.MonitorHeart
+            VisualizationMode.VuMeters -> Icons.Default.Equalizer
+            else -> Icons.Default.GraphicEq
+        }
         SettingsItemCard(
             title = page.title,
             description = page.description,
-            icon = Icons.Default.GraphicEq,
+            icon = icon,
             onClick = {
                 when (page.route) {
                     SettingsRoute.VisualizationBasicBars -> onOpenVisualizationBasicBars()
@@ -597,10 +606,15 @@ internal fun VisualizationAdvancedRouteContent(
     SettingsSectionLabel("Advanced visualizations")
     SettingsRowSpacer()
     advancedPages.forEachIndexed { index, page ->
+        val icon = when (page.mode) {
+            VisualizationMode.ChannelScope -> Icons.Default.MonitorHeart
+            VisualizationMode.ProjectM -> Icons.Default.AutoAwesome
+            else -> Icons.Default.Tune
+        }
         SettingsItemCard(
             title = page.title,
             description = page.description,
-            icon = Icons.Default.Tune,
+            icon = icon,
             onClick = {
                 when (page.route) {
                     SettingsRoute.VisualizationAdvancedChannelScope -> onOpenVisualizationAdvancedChannelScope()
