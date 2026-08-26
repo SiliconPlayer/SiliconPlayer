@@ -29,7 +29,14 @@ bool ProjectMVisualizer::initGl() {
     }
 
     if (!presetFiles_.empty()) {
-        loadPresetAt(0, false);
+        size_t startIndex = 0;
+        if (!startPresetRelative_.empty()) {
+            const auto found = std::find(presetFiles_.begin(), presetFiles_.end(), startPresetRelative_);
+            if (found != presetFiles_.end()) {
+                startIndex = static_cast<size_t>(found - presetFiles_.begin());
+            }
+        }
+        loadPresetAt(startIndex, false);
     } else {
         loadIdlePreset();
     }
@@ -42,6 +49,10 @@ void ProjectMVisualizer::resize(int32_t widthPx, int32_t heightPx, float /*densi
     if (instance_) {
         projectm_set_window_size(instance_, static_cast<size_t>(widthPx), static_cast<size_t>(heightPx));
     }
+}
+
+void ProjectMVisualizer::setStartPreset(const std::string& relativePath) {
+    startPresetRelative_ = relativePath;
 }
 
 void ProjectMVisualizer::render() {

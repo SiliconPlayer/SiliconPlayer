@@ -24,7 +24,7 @@ object SiliconVisNativeBridge {
     external fun nativeSetContrastMode(handle: Long, contrastMode: Int)
     external fun nativeSetContrastScrim(handle: Long, argb: Int)
     external fun nativeSetShowArtworkBackground(handle: Long, show: Boolean)
-    external fun nativeAttachProjectM(handle: Long, presetDir: String)
+    external fun nativeAttachProjectM(handle: Long, presetDir: String, startPreset: String?)
     external fun nativeDetachProjectM(handle: Long)
     external fun nativeProjectMNextPreset(smoothTransition: Boolean)
     external fun nativeProjectMPreviousPreset(smoothTransition: Boolean)

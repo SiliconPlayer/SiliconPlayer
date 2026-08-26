@@ -504,7 +504,11 @@ private class SiliconNativeTextureRenderThread(
 
                     if (frame.mode == 100 && !projectMAttached) {
                         ensureProjectMPresetsExtracted(context.applicationContext)?.let { presetDir ->
-                            SiliconVisNativeBridge.nativeAttachProjectM(visHandle, presetDir)
+                            val savedPreset = context.applicationContext.getSharedPreferences(
+                                "silicon_player_settings",
+                                android.content.Context.MODE_PRIVATE
+                            ).getString("visualization_projectm_preset", null)
+                            SiliconVisNativeBridge.nativeAttachProjectM(visHandle, presetDir, savedPreset)
                             projectMAttached = true
                         }
                     }

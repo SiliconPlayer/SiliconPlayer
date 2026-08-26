@@ -16,23 +16,33 @@ Java_com_flopster101_siliconplayer_ui_visualization_gl_SiliconVisNativeBridge_na
     JNIEnv* env,
     jobject /* thiz */,
     jlong handle,
-    jstring presetDir
+    jstring presetDir,
+    jstring startPreset
 ) {
     if (!handle || !presetDir) return;
     const char* dir = env->GetStringUTFChars(presetDir, nullptr);
     if (!dir) return;
 
+    const char* start = startPreset ? env->GetStringUTFChars(startPreset, nullptr) : nullptr;
+    if (startPreset && !start) {
+        env->ReleaseStringUTFChars(presetDir, dir);
+        return;
+    }
+
     if (s_projectMPlugin && s_projectMRegisteredHandle == handle) {
         s_projectMPlugin->setPresetDirectory(dir);
+        s_projectMPlugin->setStartPreset(start ? start : "");
     } else {
         auto* visHandle = reinterpret_cast<SiliconVisHandle>(handle);
         s_projectMPlugin = new ProjectMVisualizer(silicon::vis::silicon_vis_get_audio_provider(visHandle));
         s_projectMPlugin->setPresetDirectory(dir);
+        s_projectMPlugin->setStartPreset(start ? start : "");
         silicon_vis_register_plugin_renderer(visHandle, s_projectMPlugin);
         s_projectMRegisteredHandle = handle;
     }
 
     env->ReleaseStringUTFChars(presetDir, dir);
+    if (start) env->ReleaseStringUTFChars(startPreset, start);
 }
 
 JNIEXPORT void JNICALL

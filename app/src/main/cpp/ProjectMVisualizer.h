@@ -29,6 +29,7 @@ public:
     void releaseGl() override;
 
     void setPresetDirectory(const std::string& dir);
+    void setStartPreset(const std::string& relativePath);
     void nextPreset(bool smoothTransition);
     void previousPreset(bool smoothTransition);
     void setPresetLocked(bool locked);
@@ -46,6 +47,7 @@ private:
     projectm_handle instance_ = nullptr;
     unsigned int maxPcmFeedFrames_ = 2048;
     std::string presetDir_;
+    std::string startPresetRelative_;
     std::vector<std::string> presetFiles_;
     size_t presetIndex_ = 0;
     std::string currentPresetName_;

@@ -42,6 +42,12 @@ import com.flopster101.siliconplayer.VisualizationMode
 import com.flopster101.siliconplayer.ui.visualization.gl.SiliconVisNativeBridge
 import kotlinx.coroutines.delay
 
+private fun presetDisplayName(relativePath: String): String {
+    val name = relativePath.substringAfterLast('/')
+    val withoutExt = if (name.endsWith(".milk")) name.removeSuffix(".milk") else name
+    return withoutExt.replace('_', ' ')
+}
+
 /**
  * Content-height options sheet for the selected visualizer.
  */
@@ -55,7 +61,8 @@ internal fun VisualizationOptionsSheet(
     onTrackInputGainChange: (Int) -> Unit,
     showChannelLabels: Boolean,
     onShowChannelLabelsChange: (Boolean) -> Unit,
-    onResetChannelScopeDefaults: () -> Unit,
+    savedProjectMPreset: String?,
+    onResetDefaults: () -> Unit,
     onDismiss: () -> Unit
 ) {
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = false)
@@ -93,6 +100,14 @@ internal fun VisualizationOptionsSheet(
                     .padding(horizontal = 20.dp, vertical = 8.dp),
                 verticalArrangement = Arrangement.spacedBy(16.dp)
             ) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.End
+                ) {
+                    DialogResetButton(text = "Reset defaults", onClick = onResetDefaults)
+                }
+
                 when (mode) {
                     VisualizationMode.ChannelScope -> ChannelScopeOptionsContent(
                         globalInputGain = globalInputGain,
@@ -100,10 +115,9 @@ internal fun VisualizationOptionsSheet(
                         trackInputGain = trackInputGain,
                         onTrackInputGainChange = onTrackInputGainChange,
                         showChannelLabels = showChannelLabels,
-                        onShowChannelLabelsChange = onShowChannelLabelsChange,
-                        onResetChannelScopeDefaults = onResetChannelScopeDefaults
+                        onShowChannelLabelsChange = onShowChannelLabelsChange
                     )
-                    VisualizationMode.ProjectM -> ProjectMOptionsContent()
+                    VisualizationMode.ProjectM -> ProjectMOptionsContent(savedPreset = savedProjectMPreset)
                     else -> Unit
                 }
 
@@ -120,18 +134,9 @@ private fun ChannelScopeOptionsContent(
     trackInputGain: Int,
     onTrackInputGainChange: (Int) -> Unit,
     showChannelLabels: Boolean,
-    onShowChannelLabelsChange: (Boolean) -> Unit,
-    onResetChannelScopeDefaults: () -> Unit
+    onShowChannelLabelsChange: (Boolean) -> Unit
 ) {
     Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.End
-        ) {
-            DialogResetButton(text = "Reset defaults", onClick = onResetChannelScopeDefaults)
-        }
-
         DialogIntSliderRow(
             title = "Global input gain",
             value = globalInputGain,
@@ -160,7 +165,7 @@ private fun ChannelScopeOptionsContent(
 }
 
 @Composable
-private fun ProjectMOptionsContent() {
+private fun ProjectMOptionsContent(savedPreset: String?) {
     var presetName by remember { mutableStateOf<String?>(null) }
     var locked by remember { mutableStateOf(false) }
 
@@ -173,6 +178,13 @@ private fun ProjectMOptionsContent() {
     }
 
     Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
+        Text(
+            text = "Saved preset: " + (savedPreset?.let { presetDisplayName(it) } ?: "(none)"),
+            style = MaterialTheme.typography.labelSmall,
+            color = MaterialTheme.colorScheme.primary,
+            modifier = Modifier.padding(horizontal = 4.dp)
+        )
+
         Card(
             modifier = Modifier
                 .fillMaxWidth()

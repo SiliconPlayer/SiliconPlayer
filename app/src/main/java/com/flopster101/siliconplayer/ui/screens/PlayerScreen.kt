@@ -154,6 +154,7 @@ import com.flopster101.siliconplayer.inferredDisplayTitleForName
 import com.flopster101.siliconplayer.inferredPrimaryExtensionForName
 import com.flopster101.siliconplayer.R
 import com.flopster101.siliconplayer.RepeatMode
+import com.flopster101.siliconplayer.AppPreferenceKeys
 import com.flopster101.siliconplayer.VisualizationMode
 import com.flopster101.siliconplayer.VisualizationChannelScopeLayout
 import com.flopster101.siliconplayer.VisualizationOscColorMode
@@ -1770,6 +1771,9 @@ internal fun PlayerScreen(
         )
     }
     if (showVisualizationOptionsSheet) {
+        var savedProjectMPreset by remember {
+            mutableStateOf(prefs.getString(AppPreferenceKeys.VISUALIZATION_PROJECTM_PRESET, null))
+        }
         VisualizationOptionsSheet(
             mode = visualizationMode,
             globalInputGain = channelScopePrefs.gainPercent,
@@ -1791,19 +1795,29 @@ internal fun PlayerScreen(
             onShowChannelLabelsChange = { enabled ->
                 prefs.edit().putBoolean("visualization_channel_scope_text_enabled", enabled).apply()
             },
-            onResetChannelScopeDefaults = {
-                prefs.edit()
-                    .putInt(
-                        "visualization_channel_scope_gain_percent",
-                        com.flopster101.siliconplayer.AppDefaults.Visualization.ChannelScope.gainPercent
-                    )
-                    .putBoolean(
-                        "visualization_channel_scope_text_enabled",
-                        com.flopster101.siliconplayer.AppDefaults.Visualization.ChannelScope.textEnabled
-                    )
-                    .apply()
-                trackGainPrefs.edit().clear().apply()
-                trackInputGain = 100
+            savedProjectMPreset = savedProjectMPreset,
+            onResetDefaults = {
+                when (visualizationMode) {
+                    VisualizationMode.ChannelScope -> {
+                        prefs.edit()
+                            .putInt(
+                                "visualization_channel_scope_gain_percent",
+                                com.flopster101.siliconplayer.AppDefaults.Visualization.ChannelScope.gainPercent
+                            )
+                            .putBoolean(
+                                "visualization_channel_scope_text_enabled",
+                                com.flopster101.siliconplayer.AppDefaults.Visualization.ChannelScope.textEnabled
+                            )
+                            .apply()
+                        trackGainPrefs.edit().clear().apply()
+                        trackInputGain = 100
+                    }
+                    VisualizationMode.ProjectM -> {
+                        prefs.edit().remove(AppPreferenceKeys.VISUALIZATION_PROJECTM_PRESET).apply()
+                        savedProjectMPreset = null
+                    }
+                    else -> Unit
+                }
             },
             onDismiss = {
                 showVisualizationOptionsSheet = false
