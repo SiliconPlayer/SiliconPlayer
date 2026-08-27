@@ -62,9 +62,21 @@ object ProjectMPresetSets {
         )
     }
 
-    /** All known sets (internal + user). */
+    fun downloadedSets(context: Context): List<ProjectMPresetSet> =
+        ProjectMPresetDownloader.PACKS
+            .filter { it.id != "downloaded_textures" && ProjectMPresetDownloader.isDownloaded(context, it.id) }
+            .map { pack ->
+                ProjectMPresetSet(
+                    id = pack.id,
+                    label = pack.label,
+                    dir = ProjectMPresetDownloader.downloadedDir(context, pack.id).absolutePath,
+                    isInternal = false
+                )
+            }
+
+    /** All known sets (internal + downloaded + user). */
     fun allSets(context: Context, prefs: SharedPreferences): List<ProjectMPresetSet> =
-        internalSets(context) + userSets(prefs)
+        internalSets(context) + downloadedSets(context) + userSets(prefs)
 
     /** The enabled set ids. Defaults to the internal test set on first run. */
     fun enabledSetIds(prefs: SharedPreferences): Set<String> {

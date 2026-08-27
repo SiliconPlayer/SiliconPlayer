@@ -140,6 +140,7 @@ import android.webkit.MimeTypeMap
 import android.widget.Toast
 import androidx.core.content.FileProvider
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.launch
@@ -313,6 +314,16 @@ private fun rememberLocalArtworkSwipePreviewState(
             nextPlaceholderIcon = nextPlaceholderIcon
         )
     }
+}
+
+private fun formatBytes(bytes: Long): String {
+    if (bytes < 1024) return "$bytes B"
+    val kb = bytes / 1024.0
+    if (kb < 1024) return String.format(java.util.Locale.US, "%.1f KB", kb)
+    val mb = kb / 1024.0
+    if (mb < 1024) return String.format(java.util.Locale.US, "%.1f MB", mb)
+    val gb = mb / 1024.0
+    return String.format(java.util.Locale.US, "%.2f GB", gb)
 }
 
 class MainActivity : ComponentActivity() {
@@ -3200,6 +3211,20 @@ onStopEngine = { NativeBridge.releaseCurrentDecoder() }, onMetadataAlbumChanged 
         isPlayerSurfaceVisible = isPlayerSurfaceVisible
     )
     val visualizationMode = visualizationUiState.mode
+    var showProjectMPlaybackPrompt by remember { mutableStateOf(false) }
+    var playbackDownloadingId by remember { mutableStateOf<String?>(null) }
+    var playbackDownloadProgressBytes by remember { mutableStateOf(0L) }
+    var playbackDownloadTotalBytes by remember { mutableStateOf<Long?>(null) }
+    var playbackDownloadSpeedBps by remember { mutableStateOf<Long?>(null) }
+    var playbackDownloadJob by remember { mutableStateOf<Job?>(null) }
+    var showPlaybackDownloadProgress by remember { mutableStateOf(false) }
+    var playbackDownloadError by remember { mutableStateOf<String?>(null) }
+    LaunchedEffect(isPlaying, visualizationMode) {
+        val dismissed = prefs.getBoolean(com.flopster101.siliconplayer.ui.visualization.gl.ProjectMPresetDownloader.PREF_DOWNLOAD_PROMPT_DISMISSED, false)
+        if (!dismissed && isPlaying && visualizationMode == VisualizationMode.ProjectM && !com.flopster101.siliconplayer.ui.visualization.gl.ProjectMPresetDownloader.isAnyDownloaded(context)) {
+            showProjectMPlaybackPrompt = true
+        }
+    }
     val enabledVisualizationModes = visualizationUiState.enabledModes
     val availableVisualizationModes = visualizationUiState.availableModes
     val cycleVisualizationMode = visualizationUiState.onCycleMode
@@ -3225,6 +3250,116 @@ onStopEngine = { NativeBridge.releaseCurrentDecoder() }, onMetadataAlbumChanged 
     val openVisualizationSettings = settingsNavigationCoordinator.openVisualizationSettings
     val openSelectedVisualizationSettings: () -> Unit = {
         settingsNavigationCoordinator.openSelectedVisualizationSettings(visualizationMode)
+    }
+    if (showProjectMPlaybackPrompt) {
+        androidx.compose.material3.AlertDialog(
+            onDismissRequest = { showProjectMPlaybackPrompt = false },
+            title = { androidx.compose.material3.Text("Download MilkDrop presets?") },
+            text = { androidx.compose.material3.Text("projectM ships with 37 test presets.\n\nDownload the original MilkDrop collection + textures (~80 MB) from GitHub into internal storage?\n\nYou can download more packs in settings.") },
+            confirmButton = {
+                androidx.compose.material3.TextButton(onClick = {
+                    showProjectMPlaybackPrompt = false
+                    val pack = com.flopster101.siliconplayer.ui.visualization.gl.ProjectMPresetDownloader.PACKS.first { it.id == "downloaded_milkdrop_original" }
+                    playbackDownloadingId = pack.id
+                    playbackDownloadError = null
+                    playbackDownloadProgressBytes = 0L
+                    playbackDownloadTotalBytes = null
+                    playbackDownloadSpeedBps = null
+                    showPlaybackDownloadProgress = true
+                    var lastBytes = 0L
+                    var lastTime = System.currentTimeMillis()
+                    val job = kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.IO).launch {
+                        val tex = com.flopster101.siliconplayer.ui.visualization.gl.ProjectMPresetDownloader.PACKS.first { it.id == "downloaded_textures" }
+                        if (!com.flopster101.siliconplayer.ui.visualization.gl.ProjectMPresetDownloader.isDownloaded(context, tex.id)) {
+                            val rTex = com.flopster101.siliconplayer.ui.visualization.gl.ProjectMPresetDownloader.download(context, tex) { dl, tot ->
+                                playbackDownloadProgressBytes = dl
+                                playbackDownloadTotalBytes = tot
+                                val now = System.currentTimeMillis()
+                                val dt = now - lastTime
+                                if (dt >= 500) {
+                                    val dBytes = dl - lastBytes
+                                    playbackDownloadSpeedBps = if (dt > 0) (dBytes * 1000 / dt) else null
+                                    lastBytes = dl
+                                    lastTime = now
+                                }
+                            }
+                            if (rTex.isFailure && rTex.exceptionOrNull() !is kotlinx.coroutines.CancellationException) {
+                                kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main) {
+                                    playbackDownloadError = rTex.exceptionOrNull()?.message ?: "Texture download failed"
+                                    playbackDownloadingId = null
+                                    showPlaybackDownloadProgress = false
+                                }
+                                return@launch
+                            }
+                        }
+                        val res = com.flopster101.siliconplayer.ui.visualization.gl.ProjectMPresetDownloader.download(context, pack) { dl, tot ->
+                            playbackDownloadProgressBytes = dl
+                            playbackDownloadTotalBytes = tot
+                            val now = System.currentTimeMillis()
+                            val dt = now - lastTime
+                            if (dt >= 500) {
+                                val dBytes = dl - lastBytes
+                                playbackDownloadSpeedBps = if (dt > 0) (dBytes * 1000 / dt) else null
+                                lastBytes = dl
+                                lastTime = now
+                            }
+                        }
+                        kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main) {
+                            if (res.isSuccess) {
+                                com.flopster101.siliconplayer.ui.visualization.gl.ProjectMPresetDownloader.ensureTexturesForPack(context, pack.id)
+                                val prefs = context.getSharedPreferences("silicon_player_settings", Context.MODE_PRIVATE)
+                                com.flopster101.siliconplayer.ui.visualization.gl.ProjectMPresetSets.setEnabled(prefs, pack.id, true)
+                                try { com.flopster101.siliconplayer.ui.visualization.gl.ProjectMPresetSets.reindex(context, prefs) } catch (_: Throwable) {}
+                            } else if (res.exceptionOrNull() !is kotlinx.coroutines.CancellationException) {
+                                playbackDownloadError = res.exceptionOrNull()?.message ?: "Download failed"
+                            }
+                            playbackDownloadingId = null
+                            showPlaybackDownloadProgress = false
+                            playbackDownloadJob = null
+                        }
+                    }
+                    playbackDownloadJob = job
+                    job.invokeOnCompletion { playbackDownloadJob = null }
+                }) { androidx.compose.material3.Text("Download") }
+            },
+            dismissButton = {
+                androidx.compose.material3.TextButton(onClick = {
+                    prefs.edit().putBoolean(com.flopster101.siliconplayer.ui.visualization.gl.ProjectMPresetDownloader.PREF_DOWNLOAD_PROMPT_DISMISSED, true).apply()
+                    showProjectMPlaybackPrompt = false
+                }) { androidx.compose.material3.Text("Not now") }
+            }
+        )
+    }
+    if (showPlaybackDownloadProgress && playbackDownloadingId != null) {
+        val title = com.flopster101.siliconplayer.ui.visualization.gl.ProjectMPresetDownloader.PACKS.firstOrNull { it.id == playbackDownloadingId }?.label ?: "Downloading"
+        val progressFraction = if (playbackDownloadTotalBytes != null && playbackDownloadTotalBytes!! > 0) playbackDownloadProgressBytes.toFloat() / playbackDownloadTotalBytes!!.toFloat() else null
+        androidx.compose.material3.AlertDialog(
+            onDismissRequest = {},
+            title = { androidx.compose.material3.Text(title) },
+            text = {
+                androidx.compose.foundation.layout.Column(verticalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth()) {
+                    androidx.compose.material3.Text(text = if (playbackDownloadTotalBytes != null && playbackDownloadTotalBytes!! > 0) "Downloading…" else "Connecting…", modifier = Modifier.fillMaxWidth(), textAlign = androidx.compose.ui.text.style.TextAlign.Center)
+                    if (progressFraction != null) {
+                        androidx.compose.material3.LinearProgressIndicator(progress = { progressFraction }, modifier = Modifier.fillMaxWidth())
+                    } else {
+                        androidx.compose.material3.LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
+                    }
+                    val sizeLabel = playbackDownloadTotalBytes?.let { tot -> "${formatBytes(playbackDownloadProgressBytes)} / ${formatBytes(tot)}" } ?: formatBytes(playbackDownloadProgressBytes)
+                    androidx.compose.material3.Text(text = sizeLabel, style = androidx.compose.material3.MaterialTheme.typography.bodyMedium, modifier = Modifier.fillMaxWidth(), textAlign = androidx.compose.ui.text.style.TextAlign.Center)
+                    playbackDownloadTotalBytes?.let { tot -> if (tot > 0) androidx.compose.material3.Text(text = "${(playbackDownloadProgressBytes * 100 / tot).toInt()}%", style = androidx.compose.material3.MaterialTheme.typography.bodyMedium, modifier = Modifier.fillMaxWidth(), textAlign = androidx.compose.ui.text.style.TextAlign.Center) }
+                    playbackDownloadSpeedBps?.takeIf { it > 0 }?.let { speed -> androidx.compose.material3.Text(text = "${formatBytes(speed)}/s", style = androidx.compose.material3.MaterialTheme.typography.bodyMedium, modifier = Modifier.fillMaxWidth(), textAlign = androidx.compose.ui.text.style.TextAlign.Center) }
+                    playbackDownloadError?.let { err -> androidx.compose.material3.Text(text = err, color = androidx.compose.material3.MaterialTheme.colorScheme.error, style = androidx.compose.material3.MaterialTheme.typography.bodySmall, modifier = Modifier.fillMaxWidth(), textAlign = androidx.compose.ui.text.style.TextAlign.Center) }
+                }
+            },
+            confirmButton = {
+                androidx.compose.material3.TextButton(onClick = {
+                    playbackDownloadJob?.cancel()
+                    playbackDownloadJob = null
+                    playbackDownloadingId = null
+                    showPlaybackDownloadProgress = false
+                }) { androidx.compose.material3.Text("Cancel") }
+            }
+        )
     }
 
     AppNavigationUiEffects(
