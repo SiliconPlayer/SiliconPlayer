@@ -1006,9 +1006,10 @@ private fun sleepUntilTickNs(targetTickNs: Long) {
 }
 
 private fun createVisualizationUpdateDispatcher(
-    performanceMode: VisualizationPerformanceMode = VisualizationPerformanceMode.Auto
+    performanceMode: VisualizationPerformanceMode = VisualizationPerformanceMode.Auto,
+    isWatch: Boolean = false
 ): ExecutorCoroutineDispatcher {
-    val effectiveMode = resolveEffectiveVisualizationPerformanceMode(performanceMode)
+    val effectiveMode = resolveEffectiveVisualizationPerformanceMode(performanceMode, isWatch)
     val executor = Executors.newSingleThreadExecutor { runnable ->
         Thread(
             {
@@ -1967,8 +1968,9 @@ internal fun AlbumArtPlaceholder(
     }
     val backendTransitionBlackAlpha = remember { Animatable(0f) }
     val context = LocalContext.current
-    val visualizationUpdateDispatcher = remember(visualizationPerformanceMode) {
-        createVisualizationUpdateDispatcher(visualizationPerformanceMode)
+    val isWatch = remember(context) { context.packageManager.hasSystemFeature(android.content.pm.PackageManager.FEATURE_WATCH) }
+    val visualizationUpdateDispatcher = remember(visualizationPerformanceMode, isWatch) {
+        createVisualizationUpdateDispatcher(visualizationPerformanceMode, isWatch)
     }
 
     DisposableEffect(visualizationUpdateDispatcher) {

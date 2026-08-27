@@ -13,6 +13,8 @@ import androidx.compose.material.icons.filled.GraphicEq
 import androidx.compose.material.icons.filled.MonitorHeart
 import androidx.compose.material.icons.filled.MoreHoriz
 import androidx.compose.material.icons.filled.Tune
+import androidx.compose.runtime.remember
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -438,8 +440,10 @@ internal fun VisualizationRouteContent(
     val allPages = remember { basicPages + advancedPages }
     val toggleableModes = remember(allPages) { allPages.map { it.mode } }
 
-    val effectivePerformanceMode = remember(visualizationPerformanceMode) {
-        resolveEffectiveVisualizationPerformanceMode(visualizationPerformanceMode)
+    val context = LocalContext.current
+    val isWatch = remember(context) { context.packageManager.hasSystemFeature(android.content.pm.PackageManager.FEATURE_WATCH) }
+    val effectivePerformanceMode = remember(visualizationPerformanceMode, isWatch) {
+        resolveEffectiveVisualizationPerformanceMode(visualizationPerformanceMode, isWatch)
     }
     val performanceDescription = remember(visualizationPerformanceMode, effectivePerformanceMode) {
         when (visualizationPerformanceMode) {

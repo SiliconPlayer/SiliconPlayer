@@ -328,8 +328,10 @@ object CpuHardwareDetector {
 }
 
 fun resolveEffectiveVisualizationPerformanceMode(
-    preference: VisualizationPerformanceMode
+    preference: VisualizationPerformanceMode,
+    isWatch: Boolean = false
 ): EffectiveVisualizationPerformanceMode {
+    if (isWatch) return EffectiveVisualizationPerformanceMode.PowerSaving
     return when (preference) {
         VisualizationPerformanceMode.HighPerformance -> EffectiveVisualizationPerformanceMode.HighPerformance
         VisualizationPerformanceMode.Balanced -> EffectiveVisualizationPerformanceMode.Balanced
