@@ -197,6 +197,76 @@ Java_com_flopster101_siliconplayer_ui_visualization_gl_SiliconVisNativeBridge_na
     return s_projectMPlugin->isPresetLocked() ? JNI_TRUE : JNI_FALSE;
 }
 
+JNIEXPORT void JNICALL
+Java_com_flopster101_siliconplayer_ui_visualization_gl_SiliconVisNativeBridge_nativeProjectMSetPresetDuration(
+    JNIEnv* env,
+    jobject /* thiz */,
+    jdouble seconds
+) {
+    if (!s_projectMPlugin || !s_projectMRegisteredHandle) return;
+    s_projectMPlugin->setPresetDuration(seconds);
+}
+
+JNIEXPORT void JNICALL
+Java_com_flopster101_siliconplayer_ui_visualization_gl_SiliconVisNativeBridge_nativeProjectMSetHardCutEnabled(
+    JNIEnv* env,
+    jobject /* thiz */,
+    jboolean enabled
+) {
+    if (!s_projectMPlugin || !s_projectMRegisteredHandle) return;
+    s_projectMPlugin->setHardCutEnabled(enabled == JNI_TRUE);
+}
+
+JNIEXPORT void JNICALL
+Java_com_flopster101_siliconplayer_ui_visualization_gl_SiliconVisNativeBridge_nativeProjectMSetHardCutSensitivity(
+    JNIEnv* env,
+    jobject /* thiz */,
+    jfloat sensitivity
+) {
+    if (!s_projectMPlugin || !s_projectMRegisteredHandle) return;
+    s_projectMPlugin->setHardCutSensitivity(sensitivity);
+}
+
+JNIEXPORT void JNICALL
+Java_com_flopster101_siliconplayer_ui_visualization_gl_SiliconVisNativeBridge_nativeProjectMSetRotationRandom(
+    JNIEnv* env,
+    jobject /* thiz */,
+    jboolean random
+) {
+    if (!s_projectMPlugin || !s_projectMRegisteredHandle) return;
+    s_projectMPlugin->setRotationRandom(random == JNI_TRUE);
+}
+
+JNIEXPORT void JNICALL
+Java_com_flopster101_siliconplayer_ui_visualization_gl_SiliconVisNativeBridge_nativeProjectMSetMeshSize(
+    JNIEnv* env,
+    jobject /* thiz */,
+    jint size
+) {
+    if (!s_projectMPlugin || !s_projectMRegisteredHandle) return;
+    s_projectMPlugin->setMeshSize(size);
+}
+
+JNIEXPORT void JNICALL
+Java_com_flopster101_siliconplayer_ui_visualization_gl_SiliconVisNativeBridge_nativeProjectMSetAspectCorrection(
+    JNIEnv* env,
+    jobject /* thiz */,
+    jboolean enabled
+) {
+    if (!s_projectMPlugin || !s_projectMRegisteredHandle) return;
+    s_projectMPlugin->setAspectCorrection(enabled == JNI_TRUE);
+}
+
+JNIEXPORT void JNICALL
+Java_com_flopster101_siliconplayer_ui_visualization_gl_SiliconVisNativeBridge_nativeProjectMSetFps(
+    JNIEnv* env,
+    jobject /* thiz */,
+    jint fps
+) {
+    if (!s_projectMPlugin || !s_projectMRegisteredHandle) return;
+    s_projectMPlugin->setFps(fps);
+}
+
 JNIEXPORT jstring JNICALL
 Java_com_flopster101_siliconplayer_ui_visualization_gl_SiliconVisNativeBridge_nativeProjectMGetPresetName(
     JNIEnv* env,

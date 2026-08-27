@@ -41,6 +41,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberModalBottomSheetState
+import com.flopster101.siliconplayer.AppDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -208,6 +209,10 @@ private fun ProjectMOptionsContent(
     val context = LocalContext.current
     val prefs = remember(context) { context.getSharedPreferences("silicon_player_settings", Context.MODE_PRIVATE) }
     var randomStart by remember { mutableStateOf(prefs.getBoolean(AppPreferenceKeys.VISUALIZATION_PROJECTM_RANDOM_START, true)) }
+    var presetDuration by remember { mutableStateOf(prefs.getString(AppPreferenceKeys.VISUALIZATION_PROJECTM_PRESET_DURATION_SECONDS, AppDefaults.Visualization.ProjectM.presetDurationSeconds.toString())?.toDoubleOrNull() ?: AppDefaults.Visualization.ProjectM.presetDurationSeconds) }
+    var hardCutEnabled by remember { mutableStateOf(prefs.getBoolean(AppPreferenceKeys.VISUALIZATION_PROJECTM_HARD_CUT_ENABLED, AppDefaults.Visualization.ProjectM.hardCutEnabled)) }
+    var hardCutSensitivity by remember { mutableStateOf(prefs.getFloat(AppPreferenceKeys.VISUALIZATION_PROJECTM_HARD_CUT_SENSITIVITY, AppDefaults.Visualization.ProjectM.hardCutSensitivity)) }
+    var rotationRandom by remember { mutableStateOf(prefs.getBoolean(AppPreferenceKeys.VISUALIZATION_PROJECTM_ROTATION_RANDOM, AppDefaults.Visualization.ProjectM.rotationRandom)) }
     var presetName by remember { mutableStateOf<String?>(null) }
     var currentPresetKey by remember { mutableStateOf<String?>(null) }
     var locked by remember { mutableStateOf(false) }
@@ -309,6 +314,53 @@ private fun ProjectMOptionsContent(
                 prefs.edit().putBoolean(AppPreferenceKeys.VISUALIZATION_PROJECTM_RANDOM_START, enabled).apply()
             }
         )
+        DialogToggleRow(
+            title = "Random rotation",
+            subtitle = "Pick next preset randomly",
+            checked = rotationRandom,
+            onCheckedChange = { enabled ->
+                rotationRandom = enabled
+                prefs.edit().putBoolean(AppPreferenceKeys.VISUALIZATION_PROJECTM_ROTATION_RANDOM, enabled).apply()
+                try { SiliconVisNativeBridge.nativeProjectMSetRotationRandom(enabled) } catch (_: Throwable) {}
+            }
+        )
+        DialogIntSliderRow(
+            title = "Preset duration",
+            value = presetDuration.toInt(),
+            valueRange = 5..120,
+            step = 1,
+            unitLabel = "s",
+            onValueChange = { v ->
+                presetDuration = v.toDouble()
+                prefs.edit().putString(AppPreferenceKeys.VISUALIZATION_PROJECTM_PRESET_DURATION_SECONDS, v.toDouble().toString()).apply()
+                try { SiliconVisNativeBridge.nativeProjectMSetPresetDuration(v.toDouble()) } catch (_: Throwable) {}
+            }
+        )
+        DialogToggleRow(
+            title = "Hard cut",
+            subtitle = "Allow hard cuts on beat",
+            checked = hardCutEnabled,
+            onCheckedChange = { enabled ->
+                hardCutEnabled = enabled
+                prefs.edit().putBoolean(AppPreferenceKeys.VISUALIZATION_PROJECTM_HARD_CUT_ENABLED, enabled).apply()
+                try { SiliconVisNativeBridge.nativeProjectMSetHardCutEnabled(enabled) } catch (_: Throwable) {}
+            }
+        )
+        if (hardCutEnabled) {
+            DialogIntSliderRow(
+                title = "Hard cut sensitivity",
+                value = (hardCutSensitivity * 10).toInt(),
+                valueRange = 0..50,
+                step = 1,
+                unitLabel = "",
+                onValueChange = { v ->
+                    val f = v / 10.0f
+                    hardCutSensitivity = f
+                    prefs.edit().putFloat(AppPreferenceKeys.VISUALIZATION_PROJECTM_HARD_CUT_SENSITIVITY, f).apply()
+                    try { SiliconVisNativeBridge.nativeProjectMSetHardCutSensitivity(f) } catch (_: Throwable) {}
+                }
+            )
+        }
     }
 
     if (showPresetList) {

@@ -32,6 +32,13 @@ object SiliconVisNativeBridge {
     external fun nativeProjectMPreviousPreset(smoothTransition: Boolean)
     external fun nativeProjectMSetPresetLocked(locked: Boolean)
     external fun nativeProjectMIsPresetLocked(): Boolean
+    external fun nativeProjectMSetPresetDuration(seconds: Double)
+    external fun nativeProjectMSetHardCutEnabled(enabled: Boolean)
+    external fun nativeProjectMSetHardCutSensitivity(sensitivity: Float)
+    external fun nativeProjectMSetRotationRandom(random: Boolean)
+    external fun nativeProjectMSetMeshSize(size: Int)
+    external fun nativeProjectMSetAspectCorrection(enabled: Boolean)
+    external fun nativeProjectMSetFps(fps: Int)
     external fun nativeProjectMGetPresetName(): String?
     external fun nativeProjectMGetPresetKeys(): Array<String>?
     external fun nativeProjectMGetPresetSetIds(): Array<String>?

@@ -48,6 +48,13 @@ public:
     void loadPresetKey(const std::string& presetKey, bool smoothTransition);
     void setPresetLocked(bool locked);
     bool isPresetLocked() const;
+    void setPresetDuration(double seconds);
+    void setHardCutEnabled(bool enabled);
+    void setHardCutSensitivity(float sensitivity);
+    void setRotationRandom(bool random);
+    void setMeshSize(int size);
+    void setAspectCorrection(bool enabled);
+    void setFps(int fps);
     std::string currentPresetName() const;
     std::string currentPresetKey() const;
     const std::vector<std::string>& presetKeys() const { return presetKeys_; }
@@ -88,6 +95,12 @@ private:
     std::string currentPresetName_;
     double presetDurationSeconds_ = 25.0;
     std::atomic<bool> presetLocked_ { false };
+    bool hardCutEnabled_ = true;
+    float hardCutSensitivity_ = 1.0f;
+    bool rotationRandom_ = false;
+    int meshSize_ = 48;
+    bool aspectCorrection_ = true;
+    int fps_ = 35;
 
     mutable std::mutex commandMutex_;
     std::vector<PresetCommand> pendingCommands_;

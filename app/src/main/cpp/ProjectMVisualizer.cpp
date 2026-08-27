@@ -1,6 +1,7 @@
 #include "ProjectMVisualizer.h"
 
 #include <algorithm>
+#include <cstdlib>
 #include <dirent.h>
 #include <sys/stat.h>
 
@@ -67,6 +68,11 @@ bool ProjectMVisualizer::initGl() {
     maxPcmFeedFrames_ = projectm_pcm_get_max_samples();
     projectm_set_preset_duration(instance_, presetDurationSeconds_);
     projectm_set_preset_locked(instance_, false);
+    projectm_set_hard_cut_enabled(instance_, hardCutEnabled_);
+    projectm_set_hard_cut_sensitivity(instance_, hardCutSensitivity_);
+    projectm_set_mesh_size(instance_, static_cast<size_t>(meshSize_), static_cast<size_t>(meshSize_));
+    projectm_set_aspect_correction(instance_, aspectCorrection_);
+    projectm_set_fps(instance_, fps_);
     if (widthPx_ > 0 && heightPx_ > 0) {
         projectm_set_window_size(instance_, static_cast<size_t>(widthPx_), static_cast<size_t>(heightPx_));
     }
@@ -221,6 +227,40 @@ bool ProjectMVisualizer::isPresetLocked() const {
     return presetLocked_.load(std::memory_order_relaxed);
 }
 
+void ProjectMVisualizer::setPresetDuration(double seconds) {
+    presetDurationSeconds_ = seconds;
+    if (instance_) projectm_set_preset_duration(instance_, seconds);
+}
+
+void ProjectMVisualizer::setHardCutEnabled(bool enabled) {
+    hardCutEnabled_ = enabled;
+    if (instance_) projectm_set_hard_cut_enabled(instance_, enabled);
+}
+
+void ProjectMVisualizer::setHardCutSensitivity(float sensitivity) {
+    hardCutSensitivity_ = sensitivity;
+    if (instance_) projectm_set_hard_cut_sensitivity(instance_, sensitivity);
+}
+
+void ProjectMVisualizer::setRotationRandom(bool random) {
+    rotationRandom_ = random;
+}
+
+void ProjectMVisualizer::setMeshSize(int size) {
+    meshSize_ = size;
+    if (instance_) projectm_set_mesh_size(instance_, static_cast<size_t>(size), static_cast<size_t>(size));
+}
+
+void ProjectMVisualizer::setAspectCorrection(bool enabled) {
+    aspectCorrection_ = enabled;
+    if (instance_) projectm_set_aspect_correction(instance_, enabled);
+}
+
+void ProjectMVisualizer::setFps(int fps) {
+    fps_ = fps;
+    if (instance_) projectm_set_fps(instance_, fps);
+}
+
 std::string ProjectMVisualizer::currentPresetName() const {
     std::lock_guard<std::mutex> lock(commandMutex_);
     return currentPresetName_;
@@ -257,7 +297,11 @@ void ProjectMVisualizer::drainCommands() {
             loadIdlePreset();
             continue;
         }
-        if (command.type == PresetCommand::Type::Next) {
+        if (rotationRandom_ && presets_.size() > 1) {
+            size_t next = presetIndex_;
+            while (next == presetIndex_) next = static_cast<size_t>(rand()) % presets_.size();
+            loadPresetAt(next, command.smooth);
+        } else if (command.type == PresetCommand::Type::Next) {
             loadPresetAt((presetIndex_ + 1) % presets_.size(), command.smooth);
         } else {
             loadPresetAt((presetIndex_ + presets_.size() - 1) % presets_.size(), command.smooth);

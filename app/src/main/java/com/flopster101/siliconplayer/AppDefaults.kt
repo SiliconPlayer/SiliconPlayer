@@ -155,5 +155,15 @@ object AppDefaults {
             val textPaddingRangeDp = 0..24
             val textSizeRangeSp = 6..22
         }
+
+        object ProjectM {
+            const val presetDurationSeconds = 25.0
+            const val hardCutEnabled = true
+            const val hardCutSensitivity = 1.0f
+            const val rotationRandom = false
+            const val meshSize = 48
+            const val aspectCorrection = true
+            val fpsMode = VisualizationOscFpsMode.Default
+        }
     }
 }
