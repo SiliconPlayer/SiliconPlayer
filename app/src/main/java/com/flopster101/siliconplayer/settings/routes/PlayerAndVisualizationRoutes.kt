@@ -122,7 +122,8 @@ internal data class VisualizationRouteState(
     val visualizationMode: VisualizationMode,
     val enabledVisualizationModes: Set<VisualizationMode>,
     val visualizationPerformanceMode: VisualizationPerformanceMode,
-    val visualizationShowDebugInfo: Boolean
+    val visualizationShowDebugInfo: Boolean,
+    val visualizationKeepScreenOn: Boolean
 )
 
 internal data class VisualizationRouteActions(
@@ -130,6 +131,7 @@ internal data class VisualizationRouteActions(
     val onEnabledVisualizationModesChanged: (Set<VisualizationMode>) -> Unit,
     val onVisualizationPerformanceModeChanged: (VisualizationPerformanceMode) -> Unit,
     val onVisualizationShowDebugInfoChanged: (Boolean) -> Unit,
+    val onVisualizationKeepScreenOnChanged: (Boolean) -> Unit,
     val onOpenVisualizationBasic: () -> Unit,
     val onOpenVisualizationAdvanced: () -> Unit
 )
@@ -423,6 +425,8 @@ internal fun VisualizationRouteContent(
     val onVisualizationPerformanceModeChanged = actions.onVisualizationPerformanceModeChanged
     val visualizationShowDebugInfo = state.visualizationShowDebugInfo
     val onVisualizationShowDebugInfoChanged = actions.onVisualizationShowDebugInfoChanged
+    val visualizationKeepScreenOn = state.visualizationKeepScreenOn
+    val onVisualizationKeepScreenOnChanged = actions.onVisualizationKeepScreenOnChanged
     val onOpenVisualizationBasic = actions.onOpenVisualizationBasic
     val onOpenVisualizationAdvanced = actions.onOpenVisualizationAdvanced
 
@@ -473,6 +477,13 @@ internal fun VisualizationRouteContent(
         description = "Show renderer backend and frame timing/FPS overlay for visualizations.",
         checked = visualizationShowDebugInfo,
         onCheckedChange = onVisualizationShowDebugInfoChanged
+    )
+    SettingsRowSpacer()
+    PlayerSettingToggleCard(
+        title = "Keep screen on with visualization",
+        description = "Prevent screen from turning off while a visualization is visible and playing.",
+        checked = visualizationKeepScreenOn,
+        onCheckedChange = onVisualizationKeepScreenOnChanged
     )
     Spacer(modifier = Modifier.height(16.dp))
     SettingsSectionLabel("Basic visualizations")

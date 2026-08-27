@@ -13,6 +13,9 @@ internal fun AppNavigationUiEffects(
     context: Context,
     prefs: SharedPreferences,
     keepScreenOn: Boolean,
+    visualizationKeepScreenOn: Boolean,
+    visualizationMode: VisualizationMode,
+    isPlaying: Boolean,
     isPlayerExpanded: Boolean,
     playerArtworkCornerRadiusDp: Int,
     onPlayerArtworkCornerRadiusChanged: (Int) -> Unit,
@@ -20,9 +23,10 @@ internal fun AppNavigationUiEffects(
     onExpandFromMiniDragChanged: (Boolean) -> Unit,
     onCollapseFromSwipeChanged: (Boolean) -> Unit
 ) {
-    LaunchedEffect(keepScreenOn, isPlayerExpanded) {
+    LaunchedEffect(keepScreenOn, visualizationKeepScreenOn, visualizationMode, isPlaying, isPlayerExpanded) {
         val window = (context as? ComponentActivity)?.window ?: return@LaunchedEffect
-        if (keepScreenOn && isPlayerExpanded) {
+        val keepForVisualization = visualizationKeepScreenOn && visualizationMode != VisualizationMode.Off && isPlaying && isPlayerExpanded
+        if ((keepScreenOn && isPlayerExpanded) || keepForVisualization) {
             window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
         } else {
             window.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
@@ -32,6 +36,12 @@ internal fun AppNavigationUiEffects(
     LaunchedEffect(keepScreenOn) {
         prefs.edit()
             .putBoolean(AppPreferenceKeys.KEEP_SCREEN_ON, keepScreenOn)
+            .apply()
+    }
+
+    LaunchedEffect(visualizationKeepScreenOn) {
+        prefs.edit()
+            .putBoolean(AppPreferenceKeys.VISUALIZATION_KEEP_SCREEN_ON, visualizationKeepScreenOn)
             .apply()
     }
 

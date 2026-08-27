@@ -1231,6 +1231,7 @@ private fun clearAllSettingsAndUiState(
     onEnabledVisualizationModesChanged: (Set<VisualizationMode>) -> Unit,
     onVisualizationPerformanceModeChanged: (VisualizationPerformanceMode) -> Unit,
     onVisualizationShowDebugInfoChanged: (Boolean) -> Unit,
+    onVisualizationKeepScreenOnChanged: (Boolean) -> Unit,
     onVisualizationBarCountChanged: (Int) -> Unit,
     onVisualizationBarSmoothingPercentChanged: (Int) -> Unit,
     onVisualizationBarRoundnessDpChanged: (Int) -> Unit,
@@ -1288,6 +1289,7 @@ private fun clearAllSettingsAndUiState(
         onEnabledVisualizationModesChanged = onEnabledVisualizationModesChanged,
         onVisualizationPerformanceModeChanged = onVisualizationPerformanceModeChanged,
         onVisualizationShowDebugInfoChanged = onVisualizationShowDebugInfoChanged,
+        onVisualizationKeepScreenOnChanged = onVisualizationKeepScreenOnChanged,
         onVisualizationBarCountChanged = onVisualizationBarCountChanged,
         onVisualizationBarSmoothingPercentChanged = onVisualizationBarSmoothingPercentChanged,
         onVisualizationBarRoundnessDpChanged = onVisualizationBarRoundnessDpChanged,
@@ -1670,6 +1672,20 @@ private fun AppNavigation(
         mutableStateOf(
             prefs.getBoolean(AppPreferenceKeys.KEEP_SCREEN_ON, AppDefaults.Player.keepScreenOn)
         )
+    }
+    var visualizationKeepScreenOn by remember {
+        mutableStateOf(
+            prefs.getBoolean(AppPreferenceKeys.VISUALIZATION_KEEP_SCREEN_ON, AppDefaults.Visualization.keepScreenOn)
+        )
+    }
+    androidx.compose.runtime.DisposableEffect(prefs) {
+        val listener = android.content.SharedPreferences.OnSharedPreferenceChangeListener { _, key ->
+            if (key == AppPreferenceKeys.VISUALIZATION_KEEP_SCREEN_ON) {
+                visualizationKeepScreenOn = prefs.getBoolean(key, AppDefaults.Visualization.keepScreenOn)
+            }
+        }
+        prefs.registerOnSharedPreferenceChangeListener(listener)
+        onDispose { prefs.unregisterOnSharedPreferenceChangeListener(listener) }
     }
     var playerArtworkCornerRadiusDp by remember {
         mutableIntStateOf(
@@ -3215,6 +3231,9 @@ onStopEngine = { NativeBridge.releaseCurrentDecoder() }, onMetadataAlbumChanged 
         context = context,
         prefs = prefs,
         keepScreenOn = keepScreenOn,
+        visualizationKeepScreenOn = visualizationKeepScreenOn,
+        visualizationMode = visualizationMode,
+        isPlaying = isPlaying,
         isPlayerExpanded = isPlayerExpanded,
         playerArtworkCornerRadiusDp = playerArtworkCornerRadiusDp,
         onPlayerArtworkCornerRadiusChanged = { playerArtworkCornerRadiusDp = it },
@@ -3761,6 +3780,7 @@ filenameOnlyWhenTitleMissing = filenameOnlyWhenTitleMissing,
                                     enabledVisualizationModes = enabledVisualizationModes,
                                     visualizationPerformanceMode = visualizationPerformanceMode,
                                     visualizationShowDebugInfo = visualizationShowDebugInfo,
+                                    visualizationKeepScreenOn = visualizationKeepScreenOn,
                                     visualizationBarCount = visualizationBarCount,
                                     visualizationBarSmoothingPercent = visualizationBarSmoothingPercent,
                                     visualizationBarRoundnessDp = visualizationBarRoundnessDp,
@@ -4063,6 +4083,9 @@ filenameOnlyWhenTitleMissing = filenameOnlyWhenTitleMissing,
                                     onVisualizationShowDebugInfoChanged = { enabled ->
                             visualizationShowDebugInfo = enabled
                         },
+                                    onVisualizationKeepScreenOnChanged = { enabled ->
+                            visualizationKeepScreenOn = enabled
+                        },
                                     onVisualizationBarCountChanged = { value ->
                             visualizationBarCount = value
                         },
@@ -4186,6 +4209,7 @@ filenameOnlyWhenTitleMissing = filenameOnlyWhenTitleMissing,
                                 onEnabledVisualizationModesChanged = { setEnabledVisualizationModes(it) },
                                 onVisualizationPerformanceModeChanged = { visualizationPerformanceMode = it },
                                 onVisualizationShowDebugInfoChanged = { visualizationShowDebugInfo = it },
+                                onVisualizationKeepScreenOnChanged = { visualizationKeepScreenOn = it },
                                 onVisualizationBarCountChanged = { visualizationBarCount = it },
                                 onVisualizationBarSmoothingPercentChanged = { visualizationBarSmoothingPercent = it },
                                 onVisualizationBarRoundnessDpChanged = { visualizationBarRoundnessDp = it },

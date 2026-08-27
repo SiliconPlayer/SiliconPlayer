@@ -103,6 +103,7 @@ internal object AppPreferenceKeys {
     const val VISUALIZATION_PROJECTM_USER_PRESET_PATHS = "visualization_projectm_user_preset_paths"
     const val VISUALIZATION_PROJECTM_ENABLED_SET_IDS = "visualization_projectm_enabled_set_ids"
     const val VISUALIZATION_PROJECTM_RANDOM_START = "visualization_projectm_random_start"
+    const val VISUALIZATION_KEEP_SCREEN_ON = "visualization_keep_screen_on"
     const val VISUALIZATION_PERFORMANCE_MODE = "visualization_performance_mode"
     const val VISUALIZATION_SHOW_DEBUG_INFO = "visualization_show_debug_info"
     const val VISUALIZATION_BAR_COUNT = "visualization_bar_count"

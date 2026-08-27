@@ -842,6 +842,7 @@ internal fun clearAllSettingsAction(
     onEnabledVisualizationModesChanged: (Set<VisualizationMode>) -> Unit,
     onVisualizationPerformanceModeChanged: (VisualizationPerformanceMode) -> Unit,
     onVisualizationShowDebugInfoChanged: (Boolean) -> Unit,
+    onVisualizationKeepScreenOnChanged: (Boolean) -> Unit,
     onVisualizationBarCountChanged: (Int) -> Unit,
     onVisualizationBarSmoothingPercentChanged: (Int) -> Unit,
     onVisualizationBarRoundnessDpChanged: (Int) -> Unit,
@@ -1048,6 +1049,7 @@ internal fun clearAllSettingsAction(
     onEnabledVisualizationModesChanged(selectableVisualizationModes.toSet())
     onVisualizationPerformanceModeChanged(AppDefaults.Visualization.performanceMode)
     onVisualizationShowDebugInfoChanged(AppDefaults.Visualization.showDebugInfo)
+    onVisualizationKeepScreenOnChanged(AppDefaults.Visualization.keepScreenOn)
 
     resetVisualizationBarsSettingsAction(
         prefs = prefs,

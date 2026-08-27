@@ -15,6 +15,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
+import android.content.Context
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.Equalizer
@@ -28,6 +29,13 @@ import androidx.compose.material3.BottomSheetDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.platform.LocalContext
+import com.flopster101.siliconplayer.AppDefaults
+import com.flopster101.siliconplayer.AppPreferenceKeys
 import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -58,6 +66,9 @@ internal fun VisualizationModePickerDialog(
     onOpenOptions: () -> Unit,
     onDismiss: () -> Unit
 ) {
+    val context = LocalContext.current
+    val prefs = remember(context) { context.getSharedPreferences(AppPreferenceKeys.PREFS_NAME, Context.MODE_PRIVATE) }
+    var keepScreenOnState by remember { mutableStateOf(prefs.getBoolean(AppPreferenceKeys.VISUALIZATION_KEEP_SCREEN_ON, AppDefaults.Visualization.keepScreenOn)) }
     if (isWatchDevice()) {
         WatchDialogContainer(
             title = "Visualizer",
@@ -147,6 +158,34 @@ internal fun VisualizationModePickerDialog(
                     color = if (isSelected) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurface,
                     modifier = Modifier.weight(1f)
                 )
+            }
+            if (selectedMode != VisualizationMode.Off) {
+                Spacer(modifier = Modifier.height(6.dp))
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = "Keep screen on",
+                            style = MaterialTheme.typography.bodyMedium,
+                            fontWeight = FontWeight.SemiBold
+                        )
+                        Text(
+                            text = "Keep on while visualization is visible",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                    androidx.compose.material3.Switch(
+                        checked = keepScreenOnState,
+                        onCheckedChange = { enabled ->
+                            keepScreenOnState = enabled
+                            prefs.edit().putBoolean(AppPreferenceKeys.VISUALIZATION_KEEP_SCREEN_ON, enabled).apply()
+                        }
+                    )
+                }
             }
             Spacer(modifier = Modifier.height(6.dp))
             FilledTonalButton(
@@ -349,6 +388,17 @@ internal fun VisualizationModePickerDialog(
                             )
                         }
                     }
+                }
+                if (selectedMode != VisualizationMode.Off) {
+                    DialogToggleRow(
+                        title = "Keep screen on",
+                        subtitle = "Keep screen on while visualization is visible",
+                        checked = keepScreenOnState,
+                        onCheckedChange = { enabled ->
+                            keepScreenOnState = enabled
+                            prefs.edit().putBoolean(AppPreferenceKeys.VISUALIZATION_KEEP_SCREEN_ON, enabled).apply()
+                        }
+                    )
                 }
 
                 // 4. Primary action button: Configure this visualizer (placed outside and below the dropdown)

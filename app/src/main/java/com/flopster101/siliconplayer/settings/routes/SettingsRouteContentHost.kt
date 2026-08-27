@@ -336,13 +336,15 @@ internal fun SettingsRouteContentHost(
                                 visualizationMode = state.visualizationMode,
                                 enabledVisualizationModes = state.enabledVisualizationModes,
                                 visualizationPerformanceMode = state.visualizationPerformanceMode,
-                                visualizationShowDebugInfo = state.visualizationShowDebugInfo
+                                visualizationShowDebugInfo = state.visualizationShowDebugInfo,
+                                visualizationKeepScreenOn = state.visualizationKeepScreenOn
                             ),
                             actions = VisualizationRouteActions(
                                 onVisualizationModeChanged = actions.onVisualizationModeChanged,
                                 onEnabledVisualizationModesChanged = actions.onEnabledVisualizationModesChanged,
                                 onVisualizationPerformanceModeChanged = actions.onVisualizationPerformanceModeChanged,
                                 onVisualizationShowDebugInfoChanged = actions.onVisualizationShowDebugInfoChanged,
+                                onVisualizationKeepScreenOnChanged = actions.onVisualizationKeepScreenOnChanged,
                                 onOpenVisualizationBasic = actions.onOpenVisualizationBasic,
                                 onOpenVisualizationAdvanced = actions.onOpenVisualizationAdvanced
                             )

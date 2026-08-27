@@ -47,6 +47,7 @@ object AppDefaults {
     }
 
     object Visualization {
+        const val keepScreenOn = false
         val performanceMode = VisualizationPerformanceMode.Auto
         const val showDebugInfo = false
 
