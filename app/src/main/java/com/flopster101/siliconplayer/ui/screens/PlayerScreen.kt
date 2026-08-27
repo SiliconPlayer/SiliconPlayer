@@ -1843,6 +1843,10 @@ internal fun PlayerScreen(
         durationSeconds = durationSeconds,
         canSeek = canSeek && durationSeconds > 0.0,
         onSeek = onSeek,
+        repeatMode = repeatMode,
+        onStopAndClear = onStopAndClear,
+        onCycleRepeatMode = onCycleRepeatMode,
+        canCycleRepeatMode = canCycleRepeatMode,
         fullscreenModePref = fullscreenModePref,
         visualizationContent = {
             AlbumArtPlaceholder(

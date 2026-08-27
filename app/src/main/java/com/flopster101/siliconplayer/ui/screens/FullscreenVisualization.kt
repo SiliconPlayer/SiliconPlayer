@@ -20,20 +20,26 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.List
 import androidx.compose.material.icons.filled.Fullscreen
 import androidx.compose.material.icons.filled.FullscreenExit
+import androidx.compose.material.icons.filled.Loop
 import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.SkipNext
 import androidx.compose.material.icons.filled.SkipPrevious
+import androidx.compose.material.icons.rounded.Stop
 import androidx.compose.material3.FilledIconButton
 import androidx.compose.material3.FilledTonalIconButton
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.IconButtonDefaults
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
@@ -51,11 +57,14 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
+import com.flopster101.siliconplayer.RepeatMode
 import com.flopster101.siliconplayer.VisualizationFullscreenMode
 import com.flopster101.siliconplayer.resolveEffectiveVisualizationFullscreenMode
 import kotlinx.coroutines.delay
@@ -99,13 +108,31 @@ private fun FullscreenTransportControls(
     onNextTrack: () -> Unit,
     canPreviousTrack: Boolean,
     canNextTrack: Boolean,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    showExtras: Boolean = false,
+    repeatMode: RepeatMode = RepeatMode.None,
+    onStopAndClear: () -> Unit = {},
+    onCycleRepeatMode: () -> Unit = {},
+    canCycleRepeatMode: Boolean = false
 ) {
     Row(
         horizontalArrangement = Arrangement.spacedBy(12.dp, Alignment.CenterHorizontally),
         verticalAlignment = Alignment.CenterVertically,
         modifier = modifier
     ) {
+        if (showExtras) {
+            IconButton(
+                onClick = onStopAndClear,
+                modifier = Modifier.size(48.dp),
+                colors = IconButtonDefaults.iconButtonColors(
+                    contentColor = Color.White,
+                    disabledContentColor = Color.White.copy(alpha = 0.38f)
+                )
+            ) {
+                Icon(Icons.Rounded.Stop, contentDescription = "Stop", modifier = Modifier.size(24.dp))
+            }
+        }
+
         FilledTonalIconButton(
             onClick = onPreviousTrack,
             enabled = canPreviousTrack,
@@ -147,6 +174,63 @@ private fun FullscreenTransportControls(
             )
         ) {
             Icon(Icons.Default.SkipNext, contentDescription = "Next", modifier = Modifier.size(24.dp))
+        }
+
+        if (showExtras) {
+            val repeatActive = repeatMode != RepeatMode.None
+            val modeBadgeText = when (repeatMode) {
+                RepeatMode.Track -> "1"
+                RepeatMode.Subtune -> "ST"
+                RepeatMode.LoopPoint -> "LP"
+                else -> ""
+            }
+            val modeBadgeIcon = if (repeatMode == RepeatMode.Playlist) {
+                Icons.AutoMirrored.Filled.List
+            } else {
+                null
+            }
+            Box(
+                modifier = Modifier.size(48.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                IconButton(
+                    onClick = onCycleRepeatMode,
+                    enabled = canCycleRepeatMode,
+                    modifier = Modifier.size(48.dp),
+                    colors = IconButtonDefaults.iconButtonColors(
+                        contentColor = if (repeatActive) Color.White else Color.White.copy(alpha = 0.38f),
+                        disabledContentColor = Color.White.copy(alpha = 0.38f)
+                    )
+                ) {
+                    Icon(Icons.Default.Loop, contentDescription = "Repeat mode", modifier = Modifier.size(24.dp))
+                }
+                if (repeatActive && (modeBadgeText.isNotEmpty() || modeBadgeIcon != null)) {
+                    Surface(
+                        color = Color.White,
+                        contentColor = Color.Black,
+                        shape = RoundedCornerShape(percent = 50),
+                        modifier = Modifier
+                            .align(Alignment.Center)
+                            .offset(x = 8.dp, y = (-8).dp)
+                    ) {
+                        if (modeBadgeIcon != null) {
+                            Icon(
+                                imageVector = modeBadgeIcon,
+                                contentDescription = null,
+                                modifier = Modifier.padding(horizontal = 3.dp, vertical = 1.dp).size(12.dp)
+                            )
+                        } else {
+                            Text(
+                                text = modeBadgeText,
+                                fontSize = 9.sp,
+                                lineHeight = 9.sp,
+                                fontWeight = FontWeight.Bold,
+                                modifier = Modifier.padding(horizontal = 3.dp, vertical = 1.dp)
+                            )
+                        }
+                    }
+                }
+            }
         }
     }
 }
@@ -212,6 +296,10 @@ private fun FullscreenBottomControls(
     durationSeconds: Double,
     canSeek: Boolean,
     onSeek: (Double) -> Unit,
+    repeatMode: RepeatMode,
+    onStopAndClear: () -> Unit,
+    onCycleRepeatMode: () -> Unit,
+    canCycleRepeatMode: Boolean,
     effectiveMode: VisualizationFullscreenMode
 ) {
     val scrimModifier = Modifier
@@ -308,7 +396,12 @@ private fun FullscreenBottomControls(
                     onNextTrack = onNextTrack,
                     canPreviousTrack = canPreviousTrack,
                     canNextTrack = canNextTrack,
-                    modifier = Modifier.fillMaxWidth()
+                    modifier = Modifier.fillMaxWidth(),
+                    showExtras = true,
+                    repeatMode = repeatMode,
+                    onStopAndClear = onStopAndClear,
+                    onCycleRepeatMode = onCycleRepeatMode,
+                    canCycleRepeatMode = canCycleRepeatMode
                 )
             }
         }
@@ -333,6 +426,10 @@ internal fun FullscreenVisualizationOverlay(
     durationSeconds: Double,
     canSeek: Boolean = true,
     onSeek: (Double) -> Unit = {},
+    repeatMode: RepeatMode = RepeatMode.None,
+    onStopAndClear: () -> Unit = {},
+    onCycleRepeatMode: () -> Unit = {},
+    canCycleRepeatMode: Boolean = false,
     fullscreenModePref: VisualizationFullscreenMode,
     modifier: Modifier = Modifier
 ) {
@@ -465,6 +562,10 @@ internal fun FullscreenVisualizationOverlay(
                         durationSeconds = durationSeconds,
                         canSeek = canSeek,
                         onSeek = onSeek,
+                        repeatMode = repeatMode,
+                        onStopAndClear = onStopAndClear,
+                        onCycleRepeatMode = onCycleRepeatMode,
+                        canCycleRepeatMode = canCycleRepeatMode,
                         effectiveMode = effectiveMode
                     )
                 }
