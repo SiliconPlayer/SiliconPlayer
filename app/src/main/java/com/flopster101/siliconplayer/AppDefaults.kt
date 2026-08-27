@@ -164,6 +164,11 @@ object AppDefaults {
             const val meshSize = 48
             const val aspectCorrection = true
             val fpsMode = VisualizationOscFpsMode.Default
+
+            fun defaultMeshSize(context: android.content.Context): Int {
+                val isWatch = context.packageManager.hasSystemFeature(android.content.pm.PackageManager.FEATURE_WATCH)
+                return if (isWatch || CpuHardwareDetector.info.isLegacyOrConstrained) 32 else meshSize
+            }
         }
     }
 }

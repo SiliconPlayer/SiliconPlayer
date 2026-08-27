@@ -554,7 +554,7 @@ private class SiliconNativeTextureRenderThread(
                                 SiliconVisNativeBridge.nativeProjectMSetHardCutEnabled(prefs.getBoolean(AppPreferenceKeys.VISUALIZATION_PROJECTM_HARD_CUT_ENABLED, AppDefaults.Visualization.ProjectM.hardCutEnabled))
                                 SiliconVisNativeBridge.nativeProjectMSetHardCutSensitivity(prefs.getFloat(AppPreferenceKeys.VISUALIZATION_PROJECTM_HARD_CUT_SENSITIVITY, AppDefaults.Visualization.ProjectM.hardCutSensitivity))
                                 SiliconVisNativeBridge.nativeProjectMSetRotationRandom(prefs.getBoolean(AppPreferenceKeys.VISUALIZATION_PROJECTM_ROTATION_RANDOM, AppDefaults.Visualization.ProjectM.rotationRandom))
-                                SiliconVisNativeBridge.nativeProjectMSetMeshSize(prefs.getInt(AppPreferenceKeys.VISUALIZATION_PROJECTM_MESH_SIZE, AppDefaults.Visualization.ProjectM.meshSize))
+                                SiliconVisNativeBridge.nativeProjectMSetMeshSize(prefs.getInt(AppPreferenceKeys.VISUALIZATION_PROJECTM_MESH_SIZE, AppDefaults.Visualization.ProjectM.defaultMeshSize(appContext)))
                                 SiliconVisNativeBridge.nativeProjectMSetAspectCorrection(prefs.getBoolean(AppPreferenceKeys.VISUALIZATION_PROJECTM_ASPECT_CORRECTION, AppDefaults.Visualization.ProjectM.aspectCorrection))
                                 val fpsMode = VisualizationOscFpsMode.fromStorage(prefs.getString(AppPreferenceKeys.VISUALIZATION_PROJECTM_FPS_MODE, AppDefaults.Visualization.ProjectM.fpsMode.storageValue))
                                 val fps = when (fpsMode) {
