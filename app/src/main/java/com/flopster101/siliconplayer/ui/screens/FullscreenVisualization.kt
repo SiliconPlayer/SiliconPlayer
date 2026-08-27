@@ -353,20 +353,26 @@ internal fun FullscreenVisualizationOverlay(
         onExitFullscreen()
     }
 
-    DisposableEffect(isFullscreen) {
+    DisposableEffect(isFullscreen, context) {
         val window = (context as? Activity)?.window
         if (window != null) {
             if (isFullscreen) {
                 WindowCompat.setDecorFitsSystemWindows(window, false)
-                window.attributes.layoutInDisplayCutoutMode =
+                val attrs = window.attributes
+                attrs.layoutInDisplayCutoutMode =
                     WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_SHORT_EDGES
+                window.attributes = attrs
                 WindowCompat.getInsetsController(window, window.decorView)?.let { controller ->
                     controller.hide(WindowInsetsCompat.Type.systemBars())
                     controller.systemBarsBehavior =
                         WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
                 }
+                // Force insets re-dispatch so the layout expands into the
+                // cutout immediately instead of on an arbitrary relayout.
+                window.decorView.requestApplyInsets()
             } else {
                 WindowCompat.setDecorFitsSystemWindows(window, true)
+                window.decorView.requestApplyInsets()
                 WindowCompat.getInsetsController(window, window.decorView)?.show(
                     WindowInsetsCompat.Type.systemBars()
                 )
@@ -376,6 +382,7 @@ internal fun FullscreenVisualizationOverlay(
             val w = (context as? Activity)?.window
             if (w != null) {
                 WindowCompat.setDecorFitsSystemWindows(w, true)
+                w.decorView.requestApplyInsets()
                 WindowCompat.getInsetsController(w, w.decorView)?.show(
                     WindowInsetsCompat.Type.systemBars()
                 )
