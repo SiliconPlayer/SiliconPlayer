@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.Equalizer
+import androidx.compose.material.icons.filled.Fullscreen
 import androidx.compose.material.icons.filled.GraphicEq
 import androidx.compose.material.icons.filled.MonitorHeart
 import androidx.compose.material.icons.filled.MoreHoriz
@@ -432,15 +433,23 @@ internal fun VisualizationRouteContent(
     val onOpenVisualizationBasic = actions.onOpenVisualizationBasic
     val onOpenVisualizationAdvanced = actions.onOpenVisualizationAdvanced
 
+    val context = LocalContext.current
     var showModeDialog by remember { mutableStateOf(false) }
     var showEnabledDialog by remember { mutableStateOf(false) }
     var showPerformanceDialog by remember { mutableStateOf(false) }
+    var showFullscreenModeDialog by remember { mutableStateOf(false) }
+    val prefsFullscreen = remember(context) { context.getSharedPreferences(AppPreferenceKeys.PREFS_NAME, android.content.Context.MODE_PRIVATE) }
+    var fullscreenMode by remember {
+        mutableStateOf(
+            VisualizationFullscreenMode.fromStorage(
+                prefsFullscreen.getString(AppPreferenceKeys.VISUALIZATION_FULLSCREEN_MODE, null)
+            )
+        )
+    }
     val basicPages = remember { basicVisualizationSettingsPages() }
     val advancedPages = remember { advancedVisualizationSettingsPages() }
     val allPages = remember { basicPages + advancedPages }
     val toggleableModes = remember(allPages) { allPages.map { it.mode } }
-
-    val context = LocalContext.current
     val isWatch = remember(context) { context.packageManager.hasSystemFeature(android.content.pm.PackageManager.FEATURE_WATCH) }
     val effectivePerformanceMode = remember(visualizationPerformanceMode, isWatch) {
         resolveEffectiveVisualizationPerformanceMode(visualizationPerformanceMode, isWatch)
@@ -489,6 +498,15 @@ internal fun VisualizationRouteContent(
         checked = visualizationKeepScreenOn,
         onCheckedChange = onVisualizationKeepScreenOnChanged
     )
+    if (!isWatch) {
+        SettingsRowSpacer()
+        SettingsItemCard(
+            title = "Fullscreen mode",
+            description = fullscreenMode.label,
+            icon = Icons.Default.Fullscreen,
+            onClick = { showFullscreenModeDialog = true }
+        )
+    }
     Spacer(modifier = Modifier.height(16.dp))
     SettingsSectionLabel("Basic visualizations")
     SettingsRowSpacer()
@@ -508,6 +526,22 @@ internal fun VisualizationRouteContent(
         onClick = onOpenVisualizationAdvanced
     )
 
+    if (showFullscreenModeDialog) {
+        SettingsSingleChoiceDialog(
+            title = "Fullscreen mode",
+            selectedValue = fullscreenMode,
+            options = listOf(VisualizationFullscreenMode.Complete, VisualizationFullscreenMode.Compact).map { mode ->
+                ChoiceDialogOption(value = mode, label = mode.label)
+            },
+            description = "Complete shows full controls, Compact shows only transport and title.",
+            onSelected = { mode ->
+                fullscreenMode = mode
+                prefsFullscreen.edit().putString(AppPreferenceKeys.VISUALIZATION_FULLSCREEN_MODE, mode.storageValue).apply()
+            },
+            onDismiss = { showFullscreenModeDialog = false },
+            showCancelButton = false
+        )
+    }
     if (showPerformanceDialog) {
         SettingsSingleChoiceDialog(
             title = "Visualization performance mode",

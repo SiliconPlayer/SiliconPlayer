@@ -50,6 +50,7 @@ object AppDefaults {
         const val keepScreenOn = false
         val performanceMode = VisualizationPerformanceMode.Auto
         const val showDebugInfo = false
+        val fullscreenMode = VisualizationFullscreenMode.Complete
 
         object Bars {
             const val count = 40

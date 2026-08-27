@@ -327,6 +327,26 @@ object CpuHardwareDetector {
     }
 }
 
+enum class VisualizationFullscreenMode(val storageValue: String, val label: String) {
+    Complete("complete", "Complete"),
+    Compact("compact", "Compact"),
+    SuperCompact("super_compact", "Super compact");
+
+    companion object {
+        fun fromStorage(value: String?): VisualizationFullscreenMode {
+            return entries.firstOrNull { it.storageValue == value } ?: Complete
+        }
+    }
+}
+
+fun resolveEffectiveVisualizationFullscreenMode(
+    preference: VisualizationFullscreenMode,
+    isWatch: Boolean
+): VisualizationFullscreenMode {
+    if (isWatch) return VisualizationFullscreenMode.SuperCompact
+    return preference
+}
+
 fun resolveEffectiveVisualizationPerformanceMode(
     preference: VisualizationPerformanceMode,
     isWatch: Boolean = false

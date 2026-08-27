@@ -5,8 +5,10 @@ import com.flopster101.siliconplayer.VerticalScrollbarTrack
 import android.content.Context
 import android.content.SharedPreferences
 import android.widget.Toast
+import androidx.activity.compose.BackHandler
 import com.flopster101.siliconplayer.NativeBridge
 import com.flopster101.siliconplayer.formatDisplayArtist
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.Crossfade
@@ -155,6 +157,7 @@ import com.flopster101.siliconplayer.inferredPrimaryExtensionForName
 import com.flopster101.siliconplayer.R
 import com.flopster101.siliconplayer.RepeatMode
 import com.flopster101.siliconplayer.AppPreferenceKeys
+import com.flopster101.siliconplayer.VisualizationFullscreenMode
 import com.flopster101.siliconplayer.VisualizationMode
 import com.flopster101.siliconplayer.ui.visualization.gl.ProjectMPresetSets
 import com.flopster101.siliconplayer.VisualizationChannelScopeLayout
@@ -749,12 +752,32 @@ internal fun PlayerScreen(
     var showVisualizationPickerDialog by remember { mutableStateOf(false) }
     var showVisualizationOptionsSheet by remember { mutableStateOf(false) }
     var showChannelControlDialog by remember { mutableStateOf(false) }
+    val context = LocalContext.current
     var showVisualizationModeBadge by remember { mutableStateOf(false) }
     var visualizationModeBadgeText by remember { mutableStateOf(visualizationMode.label) }
     var lastVisualizationModeForBadge by remember { mutableStateOf<VisualizationMode?>(null) }
-    val context = LocalContext.current
+    var isVisualizationFullscreen by remember { mutableStateOf(false) }
+    var showFullscreenAffordance by remember { mutableStateOf(false) }
     val prefs = remember {
-        context.getSharedPreferences("silicon_player_settings", Context.MODE_PRIVATE)
+        context.getSharedPreferences(AppPreferenceKeys.PREFS_NAME, Context.MODE_PRIVATE)
+    }
+    var fullscreenModePref by remember {
+        mutableStateOf(
+            VisualizationFullscreenMode.fromStorage(
+                prefs.getString(AppPreferenceKeys.VISUALIZATION_FULLSCREEN_MODE, null)
+            )
+        )
+    }
+    DisposableEffect(prefs) {
+        val listener = SharedPreferences.OnSharedPreferenceChangeListener { _, key ->
+            if (key == AppPreferenceKeys.VISUALIZATION_FULLSCREEN_MODE) {
+                fullscreenModePref = VisualizationFullscreenMode.fromStorage(
+                    prefs.getString(key, null)
+                )
+            }
+        }
+        prefs.registerOnSharedPreferenceChangeListener(listener)
+        onDispose { prefs.unregisterOnSharedPreferenceChangeListener(listener) }
     }
     val visualizationPrefsState = rememberPlayerVisualizationPreferenceState(
         prefs = prefs,
@@ -1188,7 +1211,19 @@ internal fun PlayerScreen(
                                 .weight(artPaneWeight)
                                 .fillMaxHeight()
                         ) {
-                            AlbumArtPlaceholder(
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxSize()
+                                    .pointerInput(Unit) {
+                                        detectTapGestures(onTap = {
+                                            if (!isVisualizationFullscreen && visualizationMode != VisualizationMode.Off && file != null) {
+                                                showFullscreenAffordance = true
+                                            }
+                                        })
+                                    }
+                            ) {
+                                Box(modifier = Modifier.fillMaxSize()) {
+                                    AlbumArtPlaceholder(
                                 file = file,
                                 isPlaying = isPlaying && !seekInProgress,
                                 decoderName = decoderName,
@@ -1246,6 +1281,14 @@ internal fun PlayerScreen(
                                     .align(Alignment.Center)
                                     .size(landscapeArtSize)
                             )
+                                    Box(modifier = Modifier.align(Alignment.Center)) {
+                                        FullscreenToggleAffordance(
+                                            onToggle = { isVisualizationFullscreen = true },
+                                            show = showFullscreenAffordance
+                                        )
+                                    }
+                                }
+                            }
                         }
 
                         Box(
@@ -1532,7 +1575,18 @@ internal fun PlayerScreen(
                                     horizontalAlignment = Alignment.CenterHorizontally,
                                     verticalArrangement = Arrangement.Top
                                 ) {
-                                    AlbumArtPlaceholder(
+                                    Box(
+                                        modifier = Modifier
+                                            .size(artworkSize)
+                                            .pointerInput(Unit) {
+                                                detectTapGestures(onTap = {
+                                                    if (!isVisualizationFullscreen && visualizationMode != VisualizationMode.Off && file != null) {
+                                                        showFullscreenAffordance = true
+                                                    }
+                                                })
+                                            }
+                                    ) {
+                                        AlbumArtPlaceholder(
                                         file = file,
                                         isPlaying = isPlaying && !seekInProgress,
                                         decoderName = decoderName,
@@ -1586,8 +1640,15 @@ internal fun PlayerScreen(
                                         artworkCornerRadiusDp = artworkCornerRadiusDp,
                                         onSwipePreviousTrack = onForcePreviousTrack,
                                         onSwipeNextTrack = onNextTrack,
-                                        modifier = Modifier.size(artworkSize)
+                                        modifier = Modifier.fillMaxSize()
                                     )
+                                        Box(modifier = Modifier.align(Alignment.Center)) {
+                                            FullscreenToggleAffordance(
+                                                onToggle = { isVisualizationFullscreen = true },
+                                                show = showFullscreenAffordance
+                                            )
+                                        }
+                                    }
                                 }
                             }
                             Box(
@@ -1757,6 +1818,91 @@ internal fun PlayerScreen(
             onDismiss = { showTrackInfoDialog = false }
         )
     }
+    LaunchedEffect(showFullscreenAffordance) {
+        if (showFullscreenAffordance) {
+            kotlinx.coroutines.delay(2500)
+            showFullscreenAffordance = false
+        }
+    }
+    BackHandler(enabled = isVisualizationFullscreen) {
+        isVisualizationFullscreen = false
+    }
+    FullscreenVisualizationOverlay(
+        isFullscreen = isVisualizationFullscreen,
+        onExitFullscreen = { isVisualizationFullscreen = false },
+        displayTitle = displayTitle,
+        displayArtist = displayArtist,
+        isPlaying = isPlaying,
+        onPlay = onPlay,
+        onPause = onPause,
+        onPreviousTrack = onPreviousTrack,
+        onNextTrack = onNextTrack,
+        canPreviousTrack = canPreviousTrack,
+        canNextTrack = canNextTrack,
+        positionSeconds = positionSeconds,
+        durationSeconds = durationSeconds,
+        canSeek = canSeek && durationSeconds > 0.0,
+        onSeek = onSeek,
+        fullscreenModePref = fullscreenModePref,
+        visualizationContent = {
+            AlbumArtPlaceholder(
+                file = file,
+                isPlaying = isPlaying && !seekInProgress,
+                decoderName = decoderName,
+                sampleRateHz = sampleRateHz,
+                artwork = artwork,
+                artworkSwipePreviewState = artworkSwipePreviewState,
+                placeholderIcon = noArtworkIcon,
+                visualizationModeBadgeText = visualizationModeBadgeText,
+                showVisualizationModeBadge = false,
+                visualizationMode = visualizationMode,
+                visualizationPerformanceMode = visualizationPerformanceMode,
+                visualizationShowDebugInfo = visualizationShowDebugInfo,
+                visualizationOscWindowMs = visualizationPrefsState.oscWindowMs,
+                visualizationOscTriggerModeNative = visualizationPrefsState.oscTriggerModeNative,
+                visualizationOscFpsMode = visualizationPrefsState.oscFpsMode,
+                visualizationBarFpsMode = visualizationPrefsState.barFpsMode,
+                visualizationVuFpsMode = visualizationPrefsState.vuFpsMode,
+                visualizationOscRenderBackend = visualizationPrefsState.oscRenderBackend,
+                visualizationBarSmoothingPercent = visualizationBarSmoothingPercent,
+                visualizationVuSmoothingPercent = visualizationVuSmoothingPercent,
+                barCount = visualizationBarCount,
+                barRoundnessDp = visualizationBarRoundnessDp,
+                barOverlayArtwork = visualizationBarOverlayArtwork,
+                barUseThemeColor = visualizationBarUseThemeColor,
+                barFrequencyGridEnabled = visualizationPrefsState.barFrequencyGridEnabled,
+                barRenderBackend = visualizationPrefsState.barRuntimeRenderBackend,
+                barColorModeNoArtwork = visualizationPrefsState.barColorModeNoArtwork,
+                barColorModeWithArtwork = visualizationPrefsState.barColorModeWithArtwork,
+                barCustomColorArgb = visualizationPrefsState.barCustomColorArgb,
+                barContrastBackdropEnabled = visualizationPrefsState.barContrastBackdropEnabled,
+                oscStereo = visualizationOscStereo,
+                oscLineWidthDp = visualizationPrefsState.oscLineWidthDp,
+                oscGridWidthDp = visualizationPrefsState.oscGridWidthDp,
+                oscVerticalGridEnabled = visualizationPrefsState.oscVerticalGridEnabled,
+                oscCenterLineEnabled = visualizationPrefsState.oscCenterLineEnabled,
+                oscLineColorModeNoArtwork = visualizationPrefsState.oscLineColorModeNoArtwork,
+                oscGridColorModeNoArtwork = visualizationPrefsState.oscGridColorModeNoArtwork,
+                oscLineColorModeWithArtwork = visualizationPrefsState.oscLineColorModeWithArtwork,
+                oscGridColorModeWithArtwork = visualizationPrefsState.oscGridColorModeWithArtwork,
+                oscCustomLineColorArgb = visualizationPrefsState.oscCustomLineColorArgb,
+                oscCustomGridColorArgb = visualizationPrefsState.oscCustomGridColorArgb,
+                oscContrastBackdropEnabled = visualizationPrefsState.oscContrastBackdropEnabled,
+                vuAnchor = visualizationVuAnchor,
+                vuUseThemeColor = visualizationVuUseThemeColor,
+                vuRenderBackend = visualizationPrefsState.vuRuntimeRenderBackend,
+                vuColorModeNoArtwork = visualizationPrefsState.vuColorModeNoArtwork,
+                vuColorModeWithArtwork = visualizationPrefsState.vuColorModeWithArtwork,
+                vuCustomColorArgb = visualizationPrefsState.vuCustomColorArgb,
+                vuContrastBackdropEnabled = visualizationPrefsState.vuContrastBackdropEnabled,
+                channelScopePrefs = effectiveChannelScopePrefs,
+                artworkCornerRadiusDp = 0,
+                enableSwipe = false,
+                modifier = Modifier.fillMaxSize()
+            )
+        }
+    )
+
     if (showVisualizationPickerDialog) {
         VisualizationModePickerDialog(
             availableModes = availableVisualizationModes,
@@ -4975,17 +5121,24 @@ private fun TimelineSection(
 
 @Composable
 @OptIn(ExperimentalComposeUiApi::class)
-private fun LineageStyleSeekBar(
+internal fun LineageStyleSeekBar(
     value: Float,
     maxValue: Float,
     enabled: Boolean,
     seekInProgress: Boolean,
     layoutScale: Float = 1f,
+    activeColor: androidx.compose.ui.graphics.Color = MaterialTheme.colorScheme.primary,
+    inactiveColor: androidx.compose.ui.graphics.Color = MaterialTheme.colorScheme.surfaceVariant,
+    thumbColor: androidx.compose.ui.graphics.Color = MaterialTheme.colorScheme.primary,
+    forceMonochromeWhite: Boolean = false,
     onSeekInteractionChanged: (Boolean) -> Unit,
     onValueChange: (Float) -> Unit,
     onValueChangeFinished: () -> Unit,
     modifier: Modifier = Modifier
 ) {
+    val effectiveActiveColor = if (forceMonochromeWhite) androidx.compose.ui.graphics.Color.White else activeColor
+    val effectiveInactiveColor = if (forceMonochromeWhite) androidx.compose.ui.graphics.Color.White.copy(alpha = 0.30f) else inactiveColor
+    val effectiveThumbColor = if (forceMonochromeWhite) androidx.compose.ui.graphics.Color.White else thumbColor
     val colorScheme = MaterialTheme.colorScheme
     val density = LocalDensity.current
     val trackHeightPx = with(density) { lerpDp(8.dp, 10.dp, layoutScale).toPx() }
@@ -5126,7 +5279,7 @@ private fun LineageStyleSeekBar(
         val activeWidth = (activeEnd - activeStart).coerceAtLeast(0f)
         if (activeWidth > 0f) {
             drawRoundRect(
-                color = activeColor,
+                color = effectiveActiveColor,
                 topLeft = Offset(activeStart, top),
                 size = Size(activeWidth, trackHeightPx),
                 cornerRadius = trackCorner
@@ -5139,7 +5292,7 @@ private fun LineageStyleSeekBar(
         val inactiveWidth = (inactiveEnd - inactiveStart).coerceAtLeast(0f)
         if (inactiveWidth > 0f) {
             drawRoundRect(
-                color = inactiveColor,
+                color = effectiveInactiveColor,
                 topLeft = Offset(inactiveStart, top),
                 size = Size(inactiveWidth, trackHeightPx),
                 cornerRadius = trackCorner
@@ -5155,7 +5308,7 @@ private fun LineageStyleSeekBar(
             val drawRight = (activeStart + bandLeft + bandWidth).coerceAtMost(activeEnd)
             if (drawRight > drawLeft) {
                 drawRoundRect(
-                    color = activeColor.copy(alpha = 0.36f),
+                    color = effectiveActiveColor.copy(alpha = 0.36f),
                     topLeft = Offset(drawLeft, top),
                     size = Size(drawRight - drawLeft, trackHeightPx),
                     cornerRadius = trackCorner
@@ -5165,14 +5318,14 @@ private fun LineageStyleSeekBar(
 
         if (thumbHovered || thumbPressed || draggingThumb) {
             drawCircle(
-                color = activeColor.copy(alpha = 0.22f),
+                color = effectiveThumbColor.copy(alpha = 0.22f),
                 radius = with(density) { 14.dp.toPx() },
                 center = Offset(thumbX, centerY)
             )
         }
         val thumbTop = centerY - thumbHeightPx / 2f
         drawRoundRect(
-            color = activeColor,
+            color = effectiveThumbColor,
             topLeft = Offset(thumbLeft, thumbTop),
             size = Size(thumbWidthPx, thumbHeightPx),
             cornerRadius = CornerRadius(thumbWidthPx / 2f, thumbWidthPx / 2f)

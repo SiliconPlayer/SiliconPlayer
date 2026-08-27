@@ -329,6 +329,7 @@ private fun SwipeableArtworkContainer(
     swipePreviewState: ArtworkSwipePreviewState,
     artworkCornerRadiusDp: Int,
     visualizationMode: VisualizationMode,
+    enableSwipe: Boolean = true,
     modifier: Modifier = Modifier,
     onSwipePreviousTrack: () -> Unit,
     onSwipeNextTrack: () -> Unit,
@@ -336,7 +337,7 @@ private fun SwipeableArtworkContainer(
 ) {
     val canSwipePrevious = swipePreviewState.canSwipePrevious
     val canSwipeNext = swipePreviewState.canSwipeNext
-    val widthDependentGestureEnabled = canSwipePrevious || canSwipeNext
+    val widthDependentGestureEnabled = enableSwipe && (canSwipePrevious || canSwipeNext)
     val latestCurrentTrackKey by rememberUpdatedState(currentTrackKey)
     var containerWidthPx by remember { mutableIntStateOf(0) }
     var swipeOffsetPx by remember(currentTrackKey) { mutableFloatStateOf(0f) }
@@ -1868,6 +1869,7 @@ internal fun AlbumArtPlaceholder(
     vuContrastBackdropEnabled: Boolean,
     channelScopePrefs: ChannelScopePrefs,
     artworkCornerRadiusDp: Int = AppDefaults.Player.artworkCornerRadiusDp,
+    enableSwipe: Boolean = true,
     onSwipePreviousTrack: () -> Unit = {},
     onSwipeNextTrack: () -> Unit = {},
     modifier: Modifier = Modifier
@@ -1907,6 +1909,7 @@ internal fun AlbumArtPlaceholder(
             swipePreviewState = artworkSwipePreviewState,
             artworkCornerRadiusDp = artworkCornerRadiusDp,
             visualizationMode = visualizationMode,
+            enableSwipe = enableSwipe,
             modifier = modifier,
             onSwipePreviousTrack = onSwipePreviousTrack,
             onSwipeNextTrack = onSwipeNextTrack
@@ -2609,6 +2612,7 @@ internal fun AlbumArtPlaceholder(
         swipePreviewState = artworkSwipePreviewState,
         artworkCornerRadiusDp = artworkCornerRadiusDp,
         visualizationMode = visualizationMode,
+        enableSwipe = enableSwipe,
         modifier = modifier,
         onSwipePreviousTrack = onSwipePreviousTrack,
         onSwipeNextTrack = onSwipeNextTrack
