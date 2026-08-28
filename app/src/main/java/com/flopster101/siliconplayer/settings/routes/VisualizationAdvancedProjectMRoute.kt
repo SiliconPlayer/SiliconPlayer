@@ -77,10 +77,12 @@ internal fun VisualizationAdvancedProjectMRouteContent(
     var meshSize by remember { mutableStateOf(prefs.getInt(AppPreferenceKeys.VISUALIZATION_PROJECTM_MESH_SIZE, AppDefaults.Visualization.ProjectM.defaultMeshSize(context))) }
     var aspectCorrection by remember { mutableStateOf(prefs.getBoolean(AppPreferenceKeys.VISUALIZATION_PROJECTM_ASPECT_CORRECTION, AppDefaults.Visualization.ProjectM.aspectCorrection)) }
     var fpsMode by remember { mutableStateOf(VisualizationOscFpsMode.fromStorage(prefs.getString(AppPreferenceKeys.VISUALIZATION_PROJECTM_FPS_MODE, AppDefaults.Visualization.ProjectM.fpsMode.storageValue))) }
+    var renderResolution by remember { mutableStateOf(VisualizationProjectMResolutionMode.fromStorage(prefs.getString(AppPreferenceKeys.VISUALIZATION_PROJECTM_RENDER_RESOLUTION, AppDefaults.Visualization.ProjectM.renderResolution.storageValue))) }
     var showDurationDialog by remember { mutableStateOf(false) }
     var showSensitivityDialog by remember { mutableStateOf(false) }
     var showMeshDialog by remember { mutableStateOf(false) }
     var showFpsDialog by remember { mutableStateOf(false) }
+    var showRenderResolutionDialog by remember { mutableStateOf(false) }
     var showDownloadPrompt by remember { mutableStateOf(false) }
     var pendingDownloadPack by remember { mutableStateOf<ProjectMPack?>(null) }
     var pendingRemovePack by remember { mutableStateOf<ProjectMPack?>(null) }
@@ -380,6 +382,13 @@ internal fun VisualizationAdvancedProjectMRouteContent(
             value = fpsMode.label,
             onClick = { showFpsDialog = true }
         )
+        SettingsRowSpacer()
+        SettingsValuePickerCard(
+            title = "Render resolution",
+            description = "Maximum resolution projectM renders at. The scene is downscaled to an equivalent resolution preserving the device aspect ratio, then upsampled to fill the screen.",
+            value = renderResolution.label,
+            onClick = { showRenderResolutionDialog = true }
+        )
     }
     if (showDurationDialog) {
         SteppedIntSliderDialog(
@@ -446,6 +455,20 @@ internal fun VisualizationAdvancedProjectMRouteContent(
                 showFpsDialog = false
             },
             onDismiss = { showFpsDialog = false }
+        )
+    }
+    if (showRenderResolutionDialog) {
+        SettingsSingleChoiceDialog(
+            title = "Render resolution",
+            selectedValue = renderResolution,
+            options = VisualizationProjectMResolutionMode.entries.map { m -> ChoiceDialogOption(value = m, label = m.label) },
+            onSelected = { m ->
+                renderResolution = m
+                prefs.edit().putString(AppPreferenceKeys.VISUALIZATION_PROJECTM_RENDER_RESOLUTION, m.storageValue).apply()
+                try { com.flopster101.siliconplayer.ui.visualization.gl.SiliconVisNativeBridge.nativeProjectMSetMaxResolution(m.maxLongEdgePx) } catch (_: Throwable) {}
+                showRenderResolutionDialog = false
+            },
+            onDismiss = { showRenderResolutionDialog = false }
         )
     }
     pendingDownloadPack?.let { pack ->

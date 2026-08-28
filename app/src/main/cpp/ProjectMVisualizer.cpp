@@ -1,11 +1,38 @@
 #include "ProjectMVisualizer.h"
 
+#include "gl/gl_primitives.h"
+
 #include <algorithm>
 #include <cstdlib>
+#include <cmath>
 #include <dirent.h>
 #include <sys/stat.h>
 
 namespace {
+
+static const char* BLIT_VERTEX_SHADER = R"(
+    precision mediump float;
+    attribute vec2 aPosition;
+    attribute vec2 aTexCoord;
+    uniform vec2 uResolution;
+    varying vec2 vTexCoord;
+    void main() {
+        vTexCoord = aTexCoord;
+        vec2 zeroToOne = aPosition / uResolution;
+        vec2 zeroToTwo = zeroToOne * 2.0;
+        vec2 clipSpace = zeroToTwo - 1.0;
+        gl_Position = vec4(clipSpace.x, -clipSpace.y, 0.0, 1.0);
+    }
+)";
+
+static const char* BLIT_FRAGMENT_SHADER = R"(
+    precision mediump float;
+    varying vec2 vTexCoord;
+    uniform sampler2D uSampler;
+    void main() {
+        gl_FragColor = texture2D(uSampler, vTexCoord);
+    }
+)";
 
 bool hasMilkExtension(const std::string& name) {
     return name.size() > 5 && name.compare(name.size() - 5, 5, ".milk") == 0;
@@ -74,7 +101,8 @@ bool ProjectMVisualizer::initGl() {
     projectm_set_aspect_correction(instance_, aspectCorrection_);
     projectm_set_fps(instance_, fps_);
     if (widthPx_ > 0 && heightPx_ > 0) {
-        projectm_set_window_size(instance_, static_cast<size_t>(widthPx_), static_cast<size_t>(heightPx_));
+        recomputeRenderSize();
+        projectm_set_window_size(instance_, static_cast<size_t>(renderWidth_), static_cast<size_t>(renderHeight_));
     }
 
     if (!presets_.empty()) {
@@ -92,11 +120,183 @@ bool ProjectMVisualizer::initGl() {
     return true;
 }
 
+void ProjectMVisualizer::setMaxResolutionPx(int maxLongEdgePx) {
+    if (maxLongEdgePx < 0) maxLongEdgePx = 0;
+    if (maxResolutionLongEdge_ == maxLongEdgePx) return;
+    maxResolutionLongEdge_ = maxLongEdgePx;
+    // The cap is picked up on the GL thread: recomputeRenderSize() runs there and
+    // owns updating the projectM window size and the offscreen target.
+    renderSizeDirty_ = true;
+}
+
+void ProjectMVisualizer::recomputeRenderSize() {
+    renderSizeDirty_ = false;
+    if (widthPx_ <= 0 || heightPx_ <= 0) {
+        renderWidth_ = 0;
+        renderHeight_ = 0;
+        return;
+    }
+    if (maxResolutionLongEdge_ <= 0) {
+        // Native: render at the surface resolution.
+        renderWidth_ = widthPx_;
+        renderHeight_ = heightPx_;
+        return;
+    }
+    const float surfaceLong = static_cast<float>(std::max(widthPx_, heightPx_));
+    const int longEdge = std::min(static_cast<int>(surfaceLong), maxResolutionLongEdge_);
+    const float scale = surfaceLong > 0.0f ? static_cast<float>(longEdge) / surfaceLong : 1.0f;
+    int rw = static_cast<int>(std::lround(static_cast<float>(widthPx_) * scale));
+    int rh = static_cast<int>(std::lround(static_cast<float>(heightPx_) * scale));
+    renderWidth_ = std::clamp(rw, 1, widthPx_);
+    renderHeight_ = std::clamp(rh, 1, heightPx_);
+}
+
 void ProjectMVisualizer::resize(int32_t widthPx, int32_t heightPx, float /*density*/) {
     widthPx_ = widthPx;
     heightPx_ = heightPx;
+    recomputeRenderSize();
     if (instance_) {
-        projectm_set_window_size(instance_, static_cast<size_t>(widthPx), static_cast<size_t>(heightPx));
+        projectm_set_window_size(instance_, static_cast<size_t>(renderWidth_), static_cast<size_t>(renderHeight_));
+    }
+}
+
+void ProjectMVisualizer::ensureOffscreenTarget(int32_t w, int32_t h) {
+    if (offscreenInited_ && offscreenWidth_ == w && offscreenHeight_ == h) return;
+    releaseOffscreen();
+    if (w <= 0 || h <= 0) return;
+
+    glGenTextures(1, &offscreenTex_);
+    glBindTexture(GL_TEXTURE_2D, offscreenTex_);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, w, h, 0, GL_RGBA, GL_UNSIGNED_BYTE, nullptr);
+    glBindTexture(GL_TEXTURE_2D, 0);
+
+    glGenFramebuffers(1, &offscreenFbo_);
+    glBindFramebuffer(GL_FRAMEBUFFER, offscreenFbo_);
+    glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, offscreenTex_, 0);
+    const GLenum status = glCheckFramebufferStatus(GL_FRAMEBUFFER);
+    glBindFramebuffer(GL_FRAMEBUFFER, 0);
+    if (status != GL_FRAMEBUFFER_COMPLETE) {
+        releaseOffscreen();
+        return;
+    }
+
+    if (!blitProgram_.isReady()) {
+        if (!blitProgram_.compileAndLink(BLIT_VERTEX_SHADER, BLIT_FRAGMENT_SHADER)) {
+            releaseOffscreen();
+            return;
+        }
+        blitResLoc_ = blitProgram_.getUniformLoc("uResolution");
+        blitPosLoc_ = blitProgram_.getAttribLoc("aPosition");
+        blitCoordLoc_ = blitProgram_.getAttribLoc("aTexCoord");
+        blitSamplerLoc_ = blitProgram_.getUniformLoc("uSampler");
+    }
+
+    offscreenWidth_ = w;
+    offscreenHeight_ = h;
+    offscreenInited_ = true;
+}
+
+void ProjectMVisualizer::releaseOffscreen() {
+    if (offscreenFbo_ != 0) {
+        glDeleteFramebuffers(1, &offscreenFbo_);
+        offscreenFbo_ = 0;
+    }
+    if (offscreenTex_ != 0) {
+        glDeleteTextures(1, &offscreenTex_);
+        offscreenTex_ = 0;
+    }
+    offscreenWidth_ = 0;
+    offscreenHeight_ = 0;
+    offscreenInited_ = false;
+}
+
+void ProjectMVisualizer::blitOffscreenToSurface() {
+    if (!offscreenInited_ || offscreenTex_ == 0 || !blitProgram_.isReady()) return;
+    if (widthPx_ <= 0 || heightPx_ <= 0) return;
+
+    glDisable(GL_BLEND);
+    glDisable(GL_DEPTH_TEST);
+    glDisable(GL_CULL_FACE);
+
+    blitProgram_.use();
+    glUniform2f(blitResLoc_, static_cast<float>(widthPx_), static_cast<float>(heightPx_));
+    glUniform1i(blitSamplerLoc_, 0);
+
+    glActiveTexture(GL_TEXTURE0);
+    glBindTexture(GL_TEXTURE_2D, offscreenTex_);
+
+    float quad[24];
+    // projectM renders into this offscreen texture with the visual top at v=1
+    // (render-to-target convention), unlike bitmap textures, so V is flipped here
+    // to present the scene upright on the surface.
+    silicon::vis::gl::GlPrimitives::generateTexturedQuad(
+        0.0f, 0.0f, static_cast<float>(widthPx_), static_cast<float>(heightPx_),
+        0.0f, 1.0f, 1.0f, 0.0f, quad);
+
+    glBindBuffer(GL_ARRAY_BUFFER, 0);
+    glEnableVertexAttribArray(blitPosLoc_);
+    glVertexAttribPointer(blitPosLoc_, 2, GL_FLOAT, GL_FALSE, 4 * sizeof(float), quad);
+    glEnableVertexAttribArray(blitCoordLoc_);
+    glVertexAttribPointer(blitCoordLoc_, 2, GL_FLOAT, GL_FALSE, 4 * sizeof(float), &quad[2]);
+
+    glDrawArrays(GL_TRIANGLES, 0, 6);
+
+    glDisableVertexAttribArray(blitPosLoc_);
+    glDisableVertexAttribArray(blitCoordLoc_);
+    glBindTexture(GL_TEXTURE_2D, 0);
+}
+
+void ProjectMVisualizer::render() {
+    if (!instance_ && !initGl()) return;
+
+    if (renderSizeDirty_) {
+        recomputeRenderSize();
+        if (renderWidth_ > 0 && renderHeight_ > 0) {
+            projectm_set_window_size(instance_, static_cast<size_t>(renderWidth_), static_cast<size_t>(renderHeight_));
+        }
+    }
+
+    drainCommands();
+    feedAudio();
+
+    const auto now = std::chrono::steady_clock::now();
+    const double elapsed = std::chrono::duration<double>(now - presetStartedAt_).count();
+    if (!presetLocked_ && !presets_.empty() && elapsed >= presetDurationSeconds_) {
+        nextPreset(true);
+    }
+
+    const bool useOffscreen = renderWidth_ > 0 && renderHeight_ > 0 &&
+                              (renderWidth_ != widthPx_ || renderHeight_ != heightPx_);
+    if (useOffscreen) {
+        ensureOffscreenTarget(renderWidth_, renderHeight_);
+        if (offscreenInited_) {
+            // Render projectM into the offscreen target at the capped size.
+            glBindFramebuffer(GL_FRAMEBUFFER, offscreenFbo_);
+            glViewport(0, 0, renderWidth_, renderHeight_);
+            glClearColor(0.0f, 0.0f, 0.0f, 0.0f);
+            glClear(GL_COLOR_BUFFER_BIT);
+            projectm_opengl_render_frame_fbo(instance_, offscreenFbo_);
+
+            // Blit the capped texture scaled up to fill the full surface.
+            glBindFramebuffer(GL_FRAMEBUFFER, 0);
+            glViewport(0, 0, widthPx_, heightPx_);
+            blitOffscreenToSurface();
+            return;
+        }
+    }
+
+    projectm_opengl_render_frame(instance_);
+}
+
+void ProjectMVisualizer::releaseGl() {
+    releaseOffscreen();
+    if (instance_) {
+        projectm_destroy(instance_);
+        instance_ = nullptr;
     }
 }
 
@@ -177,28 +377,6 @@ void ProjectMVisualizer::scanPresetSets() {
     for (const auto& entry : presets_) {
         presetKeys_.push_back(makeKey(entry.setId, entry.relativePath));
         presetSetIds_.push_back(entry.setId);
-    }
-}
-
-void ProjectMVisualizer::render() {
-    if (!instance_ && !initGl()) return;
-
-    drainCommands();
-    feedAudio();
-
-    const auto now = std::chrono::steady_clock::now();
-    const double elapsed = std::chrono::duration<double>(now - presetStartedAt_).count();
-    if (!presetLocked_ && !presets_.empty() && elapsed >= presetDurationSeconds_) {
-        nextPreset(true);
-    }
-
-    projectm_opengl_render_frame(instance_);
-}
-
-void ProjectMVisualizer::releaseGl() {
-    if (instance_) {
-        projectm_destroy(instance_);
-        instance_ = nullptr;
     }
 }
 

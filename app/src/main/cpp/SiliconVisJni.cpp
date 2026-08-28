@@ -267,6 +267,16 @@ Java_com_flopster101_siliconplayer_ui_visualization_gl_SiliconVisNativeBridge_na
     s_projectMPlugin->setFps(fps);
 }
 
+JNIEXPORT void JNICALL
+Java_com_flopster101_siliconplayer_ui_visualization_gl_SiliconVisNativeBridge_nativeProjectMSetMaxResolution(
+    JNIEnv* env,
+    jobject /* thiz */,
+    jint maxLongEdgePx
+) {
+    if (!s_projectMPlugin || !s_projectMRegisteredHandle) return;
+    s_projectMPlugin->setMaxResolutionPx(maxLongEdgePx);
+}
+
 JNIEXPORT jstring JNICALL
 Java_com_flopster101_siliconplayer_ui_visualization_gl_SiliconVisNativeBridge_nativeProjectMGetPresetName(
     JNIEnv* env,

@@ -110,6 +110,7 @@ internal object AppPreferenceKeys {
     const val VISUALIZATION_PROJECTM_MESH_SIZE = "visualization_projectm_mesh_size"
     const val VISUALIZATION_PROJECTM_ASPECT_CORRECTION = "visualization_projectm_aspect_correction"
     const val VISUALIZATION_PROJECTM_FPS_MODE = "visualization_projectm_fps_mode"
+    const val VISUALIZATION_PROJECTM_RENDER_RESOLUTION = "visualization_projectm_render_resolution"
     const val VISUALIZATION_KEEP_SCREEN_ON = "visualization_keep_screen_on"
     const val VISUALIZATION_FULLSCREEN_MODE = "visualization_fullscreen_mode"
     const val VISUALIZATION_PERFORMANCE_MODE = "visualization_performance_mode"

@@ -39,6 +39,7 @@ object SiliconVisNativeBridge {
     external fun nativeProjectMSetMeshSize(size: Int)
     external fun nativeProjectMSetAspectCorrection(enabled: Boolean)
     external fun nativeProjectMSetFps(fps: Int)
+    external fun nativeProjectMSetMaxResolution(maxLongEdgePx: Int)
     external fun nativeProjectMGetPresetName(): String?
     external fun nativeProjectMGetPresetKeys(): Array<String>?
     external fun nativeProjectMGetPresetSetIds(): Array<String>?

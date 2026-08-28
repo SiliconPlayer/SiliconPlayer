@@ -4,6 +4,7 @@ import android.content.Context
 import com.flopster101.siliconplayer.AppDefaults
 import com.flopster101.siliconplayer.AppPreferenceKeys
 import com.flopster101.siliconplayer.VisualizationOscFpsMode
+import com.flopster101.siliconplayer.VisualizationProjectMResolutionMode
 import android.graphics.Bitmap
 import android.graphics.SurfaceTexture
 import android.graphics.Typeface
@@ -556,6 +557,9 @@ private class SiliconNativeTextureRenderThread(
                                 SiliconVisNativeBridge.nativeProjectMSetRotationRandom(prefs.getBoolean(AppPreferenceKeys.VISUALIZATION_PROJECTM_ROTATION_RANDOM, AppDefaults.Visualization.ProjectM.rotationRandom))
                                 SiliconVisNativeBridge.nativeProjectMSetMeshSize(prefs.getInt(AppPreferenceKeys.VISUALIZATION_PROJECTM_MESH_SIZE, AppDefaults.Visualization.ProjectM.defaultMeshSize(appContext)))
                                 SiliconVisNativeBridge.nativeProjectMSetAspectCorrection(prefs.getBoolean(AppPreferenceKeys.VISUALIZATION_PROJECTM_ASPECT_CORRECTION, AppDefaults.Visualization.ProjectM.aspectCorrection))
+                                SiliconVisNativeBridge.nativeProjectMSetMaxResolution(
+                                    VisualizationProjectMResolutionMode.fromStorage(prefs.getString(AppPreferenceKeys.VISUALIZATION_PROJECTM_RENDER_RESOLUTION, AppDefaults.Visualization.ProjectM.renderResolution.storageValue)).maxLongEdgePx
+                                )
                                 val fpsMode = VisualizationOscFpsMode.fromStorage(prefs.getString(AppPreferenceKeys.VISUALIZATION_PROJECTM_FPS_MODE, AppDefaults.Visualization.ProjectM.fpsMode.storageValue))
                                 val fps = when (fpsMode) {
                                     VisualizationOscFpsMode.Default -> 35

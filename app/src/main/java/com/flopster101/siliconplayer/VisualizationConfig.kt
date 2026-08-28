@@ -240,3 +240,22 @@ enum class VisualizationOscFpsMode(
         }
     }
 }
+
+enum class VisualizationProjectMResolutionMode(
+    val storageValue: String,
+    val label: String,
+    // Maximum of the rendered dimensions in pixels (long edge). 0 = native.
+    val maxLongEdgePx: Int
+) {
+    P360("360p", "360p", 640),
+    P480("480p", "480p", 854),
+    P720("720p", "720p", 1280),
+    P1080("1080p", "1080p", 1920),
+    Native("native", "Native screen", 0);
+
+    companion object {
+        fun fromStorage(value: String?): VisualizationProjectMResolutionMode {
+            return entries.firstOrNull { it.storageValue == value } ?: P720
+        }
+    }
+}

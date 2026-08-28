@@ -2,6 +2,7 @@
 
 #include "silicon/vis/IVisualizerRenderer.h"
 #include "silicon/vis/IVisualizationAudioProvider.h"
+#include "gl/gl_program.h"
 #include "projectM-4/projectM.h"
 
 #include <atomic>
@@ -55,6 +56,12 @@ public:
     void setMeshSize(int size);
     void setAspectCorrection(bool enabled);
     void setFps(int fps);
+    // Cap projectM's internal render resolution. maxLongEdgePx is the maximum
+    // of the render target's dimensions (0 = native screen resolution). When a
+    // cap is active the projectM scene renders into an offscreen texture at a
+    // capped resolution (preserving the device aspect ratio) and is then
+    // upsampled to fill the surface; scrim/overlays are unaffected.
+    void setMaxResolutionPx(int maxLongEdgePx);
     std::string currentPresetName() const;
     std::string currentPresetKey() const;
     const std::vector<std::string>& presetKeys() const { return presetKeys_; }
@@ -78,6 +85,10 @@ private:
     void loadIdlePreset();
     void feedAudio();
     void drainCommands();
+    void recomputeRenderSize();
+    void ensureOffscreenTarget(int32_t w, int32_t h);
+    void blitOffscreenToSurface();
+    void releaseOffscreen();
     std::string dirForSet(const std::string& setId) const;
     static std::string makeKey(const std::string& setId, const std::string& relativePath);
     std::string displayNameFor(const std::string& relativePath) const;
@@ -101,6 +112,24 @@ private:
     int meshSize_ = 48;
     bool aspectCorrection_ = true;
     int fps_ = 35;
+
+    // Render-resolution cap (max of render target dimensions; 0 = native).
+    int maxResolutionLongEdge_ = 0;
+    bool renderSizeDirty_ = false;
+    int32_t renderWidth_ = 0;
+    int32_t renderHeight_ = 0;
+
+    // Offscreen render target for capped-resolution projectM output.
+    bool offscreenInited_ = false;
+    GLuint offscreenFbo_ = 0;
+    GLuint offscreenTex_ = 0;
+    int32_t offscreenWidth_ = 0;
+    int32_t offscreenHeight_ = 0;
+    silicon::vis::gl::GlProgram blitProgram_;
+    GLint blitResLoc_ = -1;
+    GLint blitPosLoc_ = -1;
+    GLint blitCoordLoc_ = -1;
+    GLint blitSamplerLoc_ = -1;
 
     mutable std::mutex commandMutex_;
     std::vector<PresetCommand> pendingCommands_;
