@@ -161,7 +161,7 @@ object AppDefaults {
             const val presetDurationSeconds = 25.0
             const val hardCutEnabled = true
             const val hardCutSensitivity = 1.0f
-            const val rotationRandom = false
+            const val rotationRandom = true
             const val meshSize = 48
             const val aspectCorrection = true
             val fpsMode = VisualizationOscFpsMode.Default
