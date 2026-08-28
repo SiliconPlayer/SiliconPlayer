@@ -216,7 +216,7 @@ internal class GlArtworkBackgroundRenderer(private val context: Context) {
         surfaceWidth: Float,
         surfaceHeight: Float
     ) {
-        drawSolidBackground(frame.surfaceVariantColorArgb)
+        drawGradientBackground(frame, surfaceWidth, surfaceHeight, drawCircle = false)
 
         if (!isReady) return
 
@@ -246,10 +246,11 @@ internal class GlArtworkBackgroundRenderer(private val context: Context) {
         )
     }
 
-    private fun drawFallback(
+    private fun drawGradientBackground(
         frame: GlArtworkBackgroundFrame,
         surfaceWidth: Float,
-        surfaceHeight: Float
+        surfaceHeight: Float,
+        drawCircle: Boolean
     ) {
         if (!isReady) {
             drawSolidBackground(frame.surfaceVariantColorArgb)
@@ -278,12 +279,11 @@ internal class GlArtworkBackgroundRenderer(private val context: Context) {
         GLES20.glEnable(GLES20.GL_BLEND)
         GLES20.glBlendFunc(GLES20.GL_SRC_ALPHA, GLES20.GL_ONE_MINUS_SRC_ALPHA)
 
-        // 1. Draw radial gradient background + circle disc
         GLES20.glUseProgram(bgProgramId)
         GLES20.glUniform2f(bgResolutionLoc, surfaceWidth, surfaceHeight)
         GLES20.glUniform4f(bgCenterColorLoc, centerR, centerG, centerB, 1f)
         GLES20.glUniform4f(bgEdgeColorLoc, surfR, surfG, surfB, 1f)
-        GLES20.glUniform4f(bgCircleColorLoc, primR, primG, primB, 0.14f)
+        GLES20.glUniform4f(bgCircleColorLoc, primR, primG, primB, if (drawCircle) 0.14f else 0f)
         GLES20.glUniform1f(bgCircleRadiusLoc, circleRadiusPx)
 
         val fullQuad = getQuadBuffer(0f, 0f, surfaceWidth, surfaceHeight)
@@ -292,8 +292,21 @@ internal class GlArtworkBackgroundRenderer(private val context: Context) {
         GLES20.glVertexAttribPointer(bgPositionLoc, 2, GLES20.GL_FLOAT, false, 4 * 4, fullQuad)
         GLES20.glDrawArrays(GLES20.GL_TRIANGLES, 0, 6)
         GLES20.glDisableVertexAttribArray(bgPositionLoc)
+    }
 
-        // 2. Draw centered placeholder icon
+    private fun drawFallback(
+        frame: GlArtworkBackgroundFrame,
+        surfaceWidth: Float,
+        surfaceHeight: Float
+    ) {
+        drawGradientBackground(frame, surfaceWidth, surfaceHeight, drawCircle = true)
+
+        if (!isReady) return
+
+        val density = frame.density.coerceAtLeast(1f)
+        val circleRadiusPx = min(60f * density, min(surfaceWidth, surfaceHeight) * 0.35f)
+
+        // Draw centered placeholder icon
         if (frame.placeholderIconResId != 0) {
             ensureIconTexture(frame.placeholderIconResId, frame.primaryColorArgb)
             if (iconTextureId != 0) {

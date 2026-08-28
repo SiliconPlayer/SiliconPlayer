@@ -124,7 +124,14 @@ private fun AlbumArtVisual(
 ) {
     if (artwork != null) {
         Box(
-            modifier = modifier.background(MaterialTheme.colorScheme.surfaceVariant),
+            modifier = modifier.background(
+                brush = Brush.radialGradient(
+                    colors = listOf(
+                        MaterialTheme.colorScheme.primary.copy(alpha = 0.28f),
+                        MaterialTheme.colorScheme.surfaceVariant
+                    )
+                )
+            ),
             contentAlignment = Alignment.Center
         ) {
             Image(
