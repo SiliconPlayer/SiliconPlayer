@@ -757,6 +757,10 @@ internal fun PlayerScreen(
     var visualizationModeBadgeText by remember { mutableStateOf(visualizationMode.label) }
     var lastVisualizationModeForBadge by remember { mutableStateOf<VisualizationMode?>(null) }
     var isVisualizationFullscreen by remember { mutableStateOf(false) }
+    // Only one GL pipeline may render at a time. When fullscreen is active the
+    // player-body visualizer is put to Off so the fullscreen overlay owns the
+    // sole projectM/GL pipeline (its view unmounts and warms the handle cache).
+    val bodyVisualizationMode = if (isVisualizationFullscreen) VisualizationMode.Off else visualizationMode
     var showFullscreenAffordance by remember { mutableStateOf(false) }
     val prefs = remember {
         context.getSharedPreferences(AppPreferenceKeys.PREFS_NAME, Context.MODE_PRIVATE)
@@ -1154,6 +1158,7 @@ internal fun PlayerScreen(
                     artwork = artwork,
                     artworkSwipePreviewState = artworkSwipePreviewState,
                     noArtworkIcon = noArtworkIcon,
+                    isVisualizationFullscreen = isVisualizationFullscreen,
                     visualizationMode = visualizationMode,
                     visualizationModeBadgeText = visualizationModeBadgeText,
                     visualizationPrefsState = visualizationPrefsState,
@@ -1233,7 +1238,7 @@ internal fun PlayerScreen(
                                 placeholderIcon = noArtworkIcon,
                                 visualizationModeBadgeText = visualizationModeBadgeText,
                                 showVisualizationModeBadge = showVisualizationModeBadge,
-                                visualizationMode = visualizationMode,
+                                visualizationMode = bodyVisualizationMode,
                                 visualizationPerformanceMode = visualizationPerformanceMode,
                                 visualizationShowDebugInfo = visualizationShowDebugInfo,
                                 visualizationOscWindowMs = visualizationPrefsState.oscWindowMs,
@@ -1596,7 +1601,7 @@ internal fun PlayerScreen(
                                         placeholderIcon = noArtworkIcon,
                                         visualizationModeBadgeText = visualizationModeBadgeText,
                                         showVisualizationModeBadge = showVisualizationModeBadge,
-                                        visualizationMode = visualizationMode,
+                                        visualizationMode = bodyVisualizationMode,
                                         visualizationPerformanceMode = visualizationPerformanceMode,
                                         visualizationShowDebugInfo = visualizationShowDebugInfo,
                                         visualizationOscWindowMs = visualizationPrefsState.oscWindowMs,
@@ -5477,6 +5482,7 @@ private fun WearPlayerContent(
     artwork: ImageBitmap?,
     artworkSwipePreviewState: ArtworkSwipePreviewState,
     noArtworkIcon: ImageVector,
+    isVisualizationFullscreen: Boolean,
     visualizationMode: VisualizationMode,
     visualizationModeBadgeText: String,
     visualizationPrefsState: PlayerVisualizationPreferenceState,
@@ -5893,7 +5899,7 @@ private fun WearPlayerContent(
                             placeholderIcon = noArtworkIcon,
                             visualizationModeBadgeText = visualizationModeBadgeText,
                             showVisualizationModeBadge = false,
-                            visualizationMode = visualizationMode,
+                            visualizationMode = if (isVisualizationFullscreen) VisualizationMode.Off else visualizationMode,
                             visualizationPerformanceMode = visualizationPerformanceMode,
                             visualizationShowDebugInfo = false,
                             visualizationOscWindowMs = visualizationPrefsState.oscWindowMs,
