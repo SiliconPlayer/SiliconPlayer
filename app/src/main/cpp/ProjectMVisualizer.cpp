@@ -339,6 +339,11 @@ void ProjectMVisualizer::render() {
 
 void ProjectMVisualizer::releaseGl() {
     releaseOffscreen();
+    blitProgram_.release();
+    widthPx_ = 0;
+    heightPx_ = 0;
+    renderWidth_ = 0;
+    renderHeight_ = 0;
     if (instance_) {
         projectm_destroy(instance_);
         instance_ = nullptr;
