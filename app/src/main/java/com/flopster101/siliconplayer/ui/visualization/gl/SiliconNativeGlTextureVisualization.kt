@@ -390,6 +390,12 @@ private class SiliconNativeTextureRenderThread(
     private var lastTickNs = 0L
     private var projectMAttached = false
 
+    // projectM frame-rate throttle (render thread only). The Choreographer loop
+    // fires at vsync, so projectM must skip renders to honor the configured FPS;
+    // projectm_set_fps only feeds the ctx.fps uniform and never gates rendering.
+    private var projectMTargetFps = 0
+    private var lastProjectMRenderNs = 0L
+
     fun setDynamicData(data: SiliconNativeGlDynamicData) {
         synchronized(lock) {
             dynamicData = data
@@ -494,6 +500,18 @@ private class SiliconNativeTextureRenderThread(
         }
         val frame = state.frame ?: return
 
+        // Honor the configured projectM frame rate. The vsync-driven loop fires
+        // faster than the target, so drop renders (and the swap) until the target
+        // interval has elapsed. Paused frames and resizes always pass through.
+        if (frame.mode == 100 && frame.isPlaying && projectMTargetFps > 0 && !state.surfaceSizeChanged) {
+            val intervalNs = 1_000_000_000L / projectMTargetFps
+            val nowNs = System.nanoTime()
+            if (lastProjectMRenderNs != 0L && nowNs - lastProjectMRenderNs < intervalNs) {
+                return
+            }
+            lastProjectMRenderNs = nowNs
+        }
+
         if (!frame.isPlaying) {
             if (pausedFrameRendered && !state.surfaceSizeChanged) {
                 return
@@ -566,6 +584,7 @@ private class SiliconNativeTextureRenderThread(
                                     VisualizationOscFpsMode.Fps60 -> 60
                                     VisualizationOscFpsMode.NativeRefresh -> 0
                                 }
+                                projectMTargetFps = fps
                                 SiliconVisNativeBridge.nativeProjectMSetFps(fps)
                             } catch (_: Throwable) {}
                         }
