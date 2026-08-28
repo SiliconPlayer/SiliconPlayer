@@ -1847,6 +1847,10 @@ internal fun PlayerScreen(
         onStopAndClear = onStopAndClear,
         onCycleRepeatMode = onCycleRepeatMode,
         canCycleRepeatMode = canCycleRepeatMode,
+        visualizationMode = visualizationMode,
+        availableVisualizationModes = availableVisualizationModes,
+        onCycleVisualizationMode = onCycleVisualizationMode,
+        onSelectVisualizationMode = onSelectVisualizationMode,
         fullscreenModePref = fullscreenModePref,
         visualizationContent = {
             AlbumArtPlaceholder(

@@ -27,14 +27,21 @@ import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.KeyboardArrowLeft
+import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.automirrored.filled.List
+import androidx.compose.material.icons.filled.AutoAwesome
+import androidx.compose.material.icons.filled.Equalizer
 import androidx.compose.material.icons.filled.Fullscreen
 import androidx.compose.material.icons.filled.FullscreenExit
+import androidx.compose.material.icons.filled.GraphicEq
 import androidx.compose.material.icons.filled.Loop
+import androidx.compose.material.icons.filled.MonitorHeart
 import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.SkipNext
 import androidx.compose.material.icons.filled.SkipPrevious
+import androidx.compose.material.icons.filled.VisibilityOff
 import androidx.compose.material.icons.rounded.Stop
 import androidx.compose.material3.FilledIconButton
 import androidx.compose.material3.FilledTonalIconButton
@@ -55,6 +62,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
@@ -66,10 +74,22 @@ import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
 import com.flopster101.siliconplayer.RepeatMode
 import com.flopster101.siliconplayer.VisualizationFullscreenMode
+import com.flopster101.siliconplayer.VisualizationMode
 import com.flopster101.siliconplayer.resolveEffectiveVisualizationFullscreenMode
 import kotlinx.coroutines.delay
 
 private val FullscreenScrim = Color.Black.copy(alpha = 0.28f)
+
+private fun visualizationModeIcon(mode: VisualizationMode): ImageVector {
+    return when (mode) {
+        VisualizationMode.Off -> Icons.Default.VisibilityOff
+        VisualizationMode.Bars -> Icons.Default.GraphicEq
+        VisualizationMode.Oscilloscope -> Icons.Default.MonitorHeart
+        VisualizationMode.VuMeters -> Icons.Default.Equalizer
+        VisualizationMode.ChannelScope -> Icons.Default.MonitorHeart
+        VisualizationMode.ProjectM -> Icons.Default.AutoAwesome
+    }
+}
 
 @Composable
 internal fun FullscreenToggleAffordance(
@@ -229,6 +249,101 @@ private fun FullscreenTransportControls(
                             )
                         }
                     }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun FullscreenVisualizerSwitcher(
+    visualizationMode: VisualizationMode,
+    availableVisualizationModes: List<VisualizationMode>,
+    onCycleVisualizationMode: () -> Unit,
+    onSelectVisualizationMode: (VisualizationMode) -> Unit,
+    compact: Boolean,
+    modifier: Modifier = Modifier
+) {
+    val modes = remember(availableVisualizationModes) {
+        if (availableVisualizationModes.isNotEmpty()) {
+            availableVisualizationModes
+        } else {
+            VisualizationMode.entries.toList()
+        }
+    }
+    val currentIndex = modes.indexOf(visualizationMode)
+    val onPrev = {
+        val prevIndex = if (currentIndex <= 0) modes.size - 1 else currentIndex - 1
+        onSelectVisualizationMode(modes[prevIndex])
+    }
+    val onNext = {
+        val nextIndex = if (currentIndex == -1) 0 else (currentIndex + 1) % modes.size
+        onSelectVisualizationMode(modes[nextIndex])
+    }
+
+    if (compact) {
+        IconButton(
+            onClick = onCycleVisualizationMode,
+            modifier = modifier.size(40.dp),
+            colors = IconButtonDefaults.iconButtonColors(
+                contentColor = Color.White,
+                disabledContentColor = Color.White.copy(alpha = 0.38f)
+            )
+        ) {
+            Icon(
+                imageVector = visualizationModeIcon(visualizationMode),
+                contentDescription = "Visualization mode",
+                modifier = Modifier.size(22.dp)
+            )
+        }
+    } else {
+        Surface(
+            color = FullscreenScrim,
+            contentColor = Color.White,
+            shape = RoundedCornerShape(percent = 50),
+            modifier = modifier
+        ) {
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(2.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                IconButton(
+                    onClick = onPrev,
+                    modifier = Modifier.size(36.dp),
+                    colors = IconButtonDefaults.iconButtonColors(contentColor = Color.White)
+                ) {
+                    Icon(
+                        imageVector = Icons.AutoMirrored.Filled.KeyboardArrowLeft,
+                        contentDescription = "Previous visualization",
+                        modifier = Modifier.size(22.dp)
+                    )
+                }
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier.padding(horizontal = 2.dp)
+                ) {
+                    Icon(
+                        imageVector = visualizationModeIcon(visualizationMode),
+                        contentDescription = null,
+                        modifier = Modifier.size(18.dp)
+                    )
+                    Text(
+                        text = visualizationMode.label,
+                        color = Color.White,
+                        style = MaterialTheme.typography.labelMedium
+                    )
+                }
+                IconButton(
+                    onClick = onNext,
+                    modifier = Modifier.size(36.dp),
+                    colors = IconButtonDefaults.iconButtonColors(contentColor = Color.White)
+                ) {
+                    Icon(
+                        imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight,
+                        contentDescription = "Next visualization",
+                        modifier = Modifier.size(22.dp)
+                    )
                 }
             }
         }
@@ -430,6 +545,10 @@ internal fun FullscreenVisualizationOverlay(
     onStopAndClear: () -> Unit = {},
     onCycleRepeatMode: () -> Unit = {},
     canCycleRepeatMode: Boolean = false,
+    visualizationMode: VisualizationMode = VisualizationMode.Off,
+    availableVisualizationModes: List<VisualizationMode> = emptyList(),
+    onCycleVisualizationMode: () -> Unit = {},
+    onSelectVisualizationMode: (VisualizationMode) -> Unit = {},
     fullscreenModePref: VisualizationFullscreenMode,
     modifier: Modifier = Modifier
 ) {
@@ -548,26 +667,39 @@ internal fun FullscreenVisualizationOverlay(
                 }
                 VisualizationFullscreenMode.Compact,
                 VisualizationFullscreenMode.Complete -> {
-                    FullscreenBottomControls(
-                        displayTitle = displayTitle,
-                        displayArtist = displayArtist,
-                        isPlaying = isPlaying,
-                        onPlay = onPlay,
-                        onPause = onPause,
-                        onPreviousTrack = onPreviousTrack,
-                        onNextTrack = onNextTrack,
-                        canPreviousTrack = canPreviousTrack,
-                        canNextTrack = canNextTrack,
-                        positionSeconds = positionSeconds,
-                        durationSeconds = durationSeconds,
-                        canSeek = canSeek,
-                        onSeek = onSeek,
-                        repeatMode = repeatMode,
-                        onStopAndClear = onStopAndClear,
-                        onCycleRepeatMode = onCycleRepeatMode,
-                        canCycleRepeatMode = canCycleRepeatMode,
-                        effectiveMode = effectiveMode
-                    )
+                    Column(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+                        FullscreenVisualizerSwitcher(
+                            visualizationMode = visualizationMode,
+                            availableVisualizationModes = availableVisualizationModes,
+                            onCycleVisualizationMode = onCycleVisualizationMode,
+                            onSelectVisualizationMode = onSelectVisualizationMode,
+                            compact = effectiveMode == VisualizationFullscreenMode.Compact,
+                            modifier = Modifier.padding(bottom = 12.dp)
+                        )
+                        FullscreenBottomControls(
+                            displayTitle = displayTitle,
+                            displayArtist = displayArtist,
+                            isPlaying = isPlaying,
+                            onPlay = onPlay,
+                            onPause = onPause,
+                            onPreviousTrack = onPreviousTrack,
+                            onNextTrack = onNextTrack,
+                            canPreviousTrack = canPreviousTrack,
+                            canNextTrack = canNextTrack,
+                            positionSeconds = positionSeconds,
+                            durationSeconds = durationSeconds,
+                            canSeek = canSeek,
+                            onSeek = onSeek,
+                            repeatMode = repeatMode,
+                            onStopAndClear = onStopAndClear,
+                            onCycleRepeatMode = onCycleRepeatMode,
+                            canCycleRepeatMode = canCycleRepeatMode,
+                            effectiveMode = effectiveMode
+                        )
+                    }
                 }
             }
         }
