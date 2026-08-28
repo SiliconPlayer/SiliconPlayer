@@ -1,5 +1,7 @@
 package com.flopster101.siliconplayer.ui.visualization.advanced
 
+import com.flopster101.siliconplayer.ui.visualization.gl.resolveChannelGrid
+
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.Composable
@@ -141,27 +143,7 @@ private fun resolveGrid(
     channels: Int,
     strategy: VisualizationChannelScopeLayout
 ): Pair<Int, Int> {
-    if (channels <= 1) return 1 to 1
-    return when (strategy) {
-        VisualizationChannelScopeLayout.ColumnFirst -> {
-            // Grow columns with channel count, but keep growth gradual on medium-high channel counts.
-            // Examples with this curve: 4ch -> 1x4, 6ch -> 2x3, 24ch -> 4x6.
-            val targetRowsPerColumn = 7
-            val columns = if (channels <= 4) {
-                1
-            } else {
-                ceil(channels / targetRowsPerColumn.toDouble()).toInt().coerceAtLeast(2)
-            }
-            val rows = ceil(channels / columns.toDouble()).toInt().coerceAtLeast(1)
-            columns to rows
-        }
-        VisualizationChannelScopeLayout.BalancedTwoColumn -> {
-            // Balanced layout trends toward a square-ish grid as channels increase.
-            val columns = ceil(kotlin.math.sqrt(channels.toDouble())).toInt().coerceAtLeast(1)
-            val rows = ceil(channels / columns.toDouble()).toInt().coerceAtLeast(1)
-            columns to rows
-        }
-    }
+    return resolveChannelGrid(channels, strategy)
 }
 
 private fun findTriggerIndex(history: FloatArray?, triggerModeNative: Int): Int {

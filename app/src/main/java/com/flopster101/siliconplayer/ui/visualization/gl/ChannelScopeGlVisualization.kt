@@ -601,23 +601,5 @@ private fun resolveGrid(
     channels: Int,
     strategy: VisualizationChannelScopeLayout
 ): Pair<Int, Int> {
-    if (channels <= 1) return 1 to 1
-    return when (strategy) {
-        VisualizationChannelScopeLayout.ColumnFirst -> {
-            val targetRowsPerColumn = 7
-            val columns = if (channels <= 4) {
-                1
-            } else {
-                ceil(channels / targetRowsPerColumn.toDouble()).toInt().coerceAtLeast(2)
-            }
-            val rows = ceil(channels / columns.toDouble()).toInt().coerceAtLeast(1)
-            columns to rows
-        }
-
-        VisualizationChannelScopeLayout.BalancedTwoColumn -> {
-            val columns = ceil(kotlin.math.sqrt(channels.toDouble())).toInt().coerceAtLeast(1)
-            val rows = ceil(channels / columns.toDouble()).toInt().coerceAtLeast(1)
-            columns to rows
-        }
-    }
+    return resolveChannelGrid(channels, strategy)
 }

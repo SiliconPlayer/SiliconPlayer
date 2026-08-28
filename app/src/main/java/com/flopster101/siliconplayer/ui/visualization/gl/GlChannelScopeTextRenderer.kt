@@ -835,23 +835,6 @@ internal class GlChannelScopeTextRenderer(private val context: Context) {
         return (chipNamesByChannelIndex[preferredIndex] ?: chipNamesByChannelIndex[channel])?.takeIf { it.isNotBlank() }
     }
 
-    private fun resolveChannelGrid(channels: Int, strategy: VisualizationChannelScopeLayout): Pair<Int, Int> {
-        if (channels <= 1) return 1 to 1
-        return when (strategy) {
-            VisualizationChannelScopeLayout.ColumnFirst -> {
-                val targetRows = 7
-                val cols = if (channels <= 4) 1 else ceil(channels / targetRows.toDouble()).toInt().coerceAtLeast(2)
-                val rows = ceil(channels / cols.toDouble()).toInt().coerceAtLeast(1)
-                cols to rows
-            }
-            VisualizationChannelScopeLayout.BalancedTwoColumn -> {
-                val cols = ceil(kotlin.math.sqrt(channels.toDouble())).toInt().coerceAtLeast(1)
-                val rows = ceil(channels / cols.toDouble()).toInt().coerceAtLeast(1)
-                cols to rows
-            }
-        }
-    }
-
     private fun resolveTypeface(context: Context, font: VisualizationChannelScopeTextFont): Typeface {
         return when (font) {
             VisualizationChannelScopeTextFont.System -> Typeface.MONOSPACE
@@ -859,6 +842,27 @@ internal class GlChannelScopeTextRenderer(private val context: Context) {
             VisualizationChannelScopeTextFont.RaccoonMono -> ResourcesCompat.getFont(context, R.font.raccoon_serif_mono) ?: Typeface.MONOSPACE
             VisualizationChannelScopeTextFont.RetroCuteMono -> ResourcesCompat.getFont(context, R.font.retro_pixel_cute_mono) ?: Typeface.MONOSPACE
             VisualizationChannelScopeTextFont.RetroThick -> ResourcesCompat.getFont(context, R.font.retro_pixel_thick) ?: Typeface.MONOSPACE
+        }
+    }
+}
+
+internal fun resolveChannelGrid(channels: Int, strategy: VisualizationChannelScopeLayout): Pair<Int, Int> {
+    if (channels <= 1) return 1 to 1
+    return when (strategy) {
+        // ColumnFirst maps to the native AUTO layout; the grid must mirror it.
+        VisualizationChannelScopeLayout.ColumnFirst -> {
+            val cols = when {
+                channels <= 4 -> 1
+                channels <= 12 -> 2
+                channels <= 24 -> 3
+                else -> 4
+            }
+            val rows = ceil(channels / cols.toDouble()).toInt().coerceAtLeast(1)
+            cols to rows
+        }
+        VisualizationChannelScopeLayout.BalancedTwoColumn -> {
+            val rows = ceil(channels / 2.0).toInt().coerceAtLeast(1)
+            2 to rows
         }
     }
 }
