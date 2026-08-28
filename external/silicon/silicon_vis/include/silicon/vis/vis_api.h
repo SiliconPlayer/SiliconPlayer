@@ -119,7 +119,7 @@ SILICON_VIS_API void silicon_vis_set_bars_options(
 SILICON_VIS_API void silicon_vis_set_vu_meters_options(
     SiliconVisHandle handle,
     bool stereo,
-    bool topPlacement,
+    int anchor,
     float smoothing,
     uint32_t fillColorArgb,
     uint32_t trackColorArgb,

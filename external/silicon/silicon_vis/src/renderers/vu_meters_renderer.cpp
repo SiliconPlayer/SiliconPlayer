@@ -65,14 +65,14 @@ void VuMetersRenderer::pushPcm(const float* pcmInterleaved, int32_t frames, int3
 
 void VuMetersRenderer::setOptions(
     bool stereo,
-    bool topPlacement,
+    int anchor,
     float smoothing,
     uint32_t fillColorArgb,
     uint32_t trackColorArgb,
     uint32_t labelColorArgb
 ) {
     stereo_ = stereo;
-    topPlacement_ = topPlacement;
+    anchor_ = anchor;
     smoothing_ = std::clamp(smoothing, 0.0f, 0.98f);
     fillColorArgb_ = fillColorArgb;
     trackColorArgb_ = trackColorArgb;
@@ -96,15 +96,19 @@ void VuMetersRenderer::buildGeometry() {
     float h = static_cast<float>(heightPx_);
 
     int rows = stereo_ ? 2 : 1;
-    float rowHeightPx = 10.0f * density_;
-    float rowGapPx = 6.0f * density_;
-    float horizontalPadPx = 16.0f * density_;
-    float verticalPadPx = 16.0f * density_;
-    float labelWidthPx = 36.0f * density_;
-    float labelGapPx = 8.0f * density_;
+    // Meters keep presence on large screens by scaling with canvas width.
+    float uiScale = std::clamp(w / (420.0f * density_), 1.0f, 1.8f);
+    float rowHeightPx = 14.0f * density_ * uiScale;
+    float rowGapPx = 8.0f * density_ * uiScale;
+    float horizontalPadPx = 16.0f * density_ * uiScale;
+    float verticalPadPx = 12.0f * density_ * uiScale;
+    float labelWidthPx = 44.0f * density_ * uiScale;
+    float labelGapPx = 4.0f * density_ * uiScale;
 
     float contentHeight = (rows * rowHeightPx) + ((rows - 1) * rowGapPx);
-    float topY = topPlacement_ ? verticalPadPx : (h - verticalPadPx - contentHeight);
+    float topY = (anchor_ == 1)
+        ? std::max(verticalPadPx, (h - contentHeight) * 0.5f)
+        : (anchor_ == 0) ? verticalPadPx : (h - verticalPadPx - contentHeight);
     float trackX = horizontalPadPx + labelWidthPx + labelGapPx;
     float trackWidth = std::max(1.0f, w - trackX - horizontalPadPx);
     float trackRadius = rowHeightPx * 0.5f;
@@ -130,15 +134,18 @@ void VuMetersRenderer::drawLabels() {
     float h = static_cast<float>(heightPx_);
 
     int rows = stereo_ ? 2 : 1;
-    float rowHeightPx = 10.0f * density_;
-    float rowGapPx = 6.0f * density_;
-    float horizontalPadPx = 16.0f * density_;
-    float verticalPadPx = 16.0f * density_;
+    float uiScale = std::clamp(static_cast<float>(widthPx_) / (420.0f * density_), 1.0f, 1.8f);
+    float rowHeightPx = 14.0f * density_ * uiScale;
+    float rowGapPx = 8.0f * density_ * uiScale;
+    float horizontalPadPx = 16.0f * density_ * uiScale;
+    float verticalPadPx = 12.0f * density_ * uiScale;
 
     float contentHeight = (rows * rowHeightPx) + ((rows - 1) * rowGapPx);
-    float topY = topPlacement_ ? verticalPadPx : (h - verticalPadPx - contentHeight);
+    float topY = (anchor_ == 1)
+        ? std::max(verticalPadPx, (h - contentHeight) * 0.5f)
+        : (anchor_ == 0) ? verticalPadPx : (h - verticalPadPx - contentHeight);
 
-    float scale = (11.0f * density_) / fontAtlas_.getBaseFontSizePx();
+    float scale = (11.0f * density_ * uiScale) / fontAtlas_.getBaseFontSizePx();
     float textHeight = fontAtlas_.getLineHeightPx() * scale;
 
     textBatcher_.clear();

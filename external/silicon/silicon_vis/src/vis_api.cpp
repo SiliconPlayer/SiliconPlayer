@@ -231,7 +231,7 @@ void silicon_vis_set_bars_options(
 void silicon_vis_set_vu_meters_options(
     SiliconVisHandle handle,
     bool stereo,
-    bool topPlacement,
+    int anchor,
     float smoothing,
     uint32_t fillColorArgb,
     uint32_t trackColorArgb,
@@ -240,7 +240,7 @@ void silicon_vis_set_vu_meters_options(
     if (!handle) return;
     auto* pipeline = static_cast<SiliconVisPipeline*>(handle);
     pipeline->getVuMetersRenderer().setOptions(
-        stereo, topPlacement, smoothing, fillColorArgb, trackColorArgb, labelColorArgb
+        stereo, anchor, smoothing, fillColorArgb, trackColorArgb, labelColorArgb
     );
 }
 

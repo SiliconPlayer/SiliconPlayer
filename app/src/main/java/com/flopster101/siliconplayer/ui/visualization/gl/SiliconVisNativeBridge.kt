@@ -122,7 +122,7 @@ object SiliconVisNativeBridge {
     external fun nativeSetVuMetersOptions(
         handle: Long,
         stereo: Boolean,
-        topPlacement: Boolean,
+        anchor: Int,
         smoothing: Float,
         fillColorArgb: Int,
         trackColorArgb: Int,

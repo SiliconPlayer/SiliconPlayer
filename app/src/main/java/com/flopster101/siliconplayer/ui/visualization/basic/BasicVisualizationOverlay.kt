@@ -413,7 +413,11 @@ fun BasicVisualizationOverlay(
                         pcmChannels = if (channelCount > 1) 2 else 1,
                         pcmSampleRate = 48000,
                         vuStereo = channelCount > 1,
-                        vuTopPlacement = isTop,
+                        vuMetersAnchor = when (vuAnchor) {
+                            VisualizationVuAnchor.Top -> 0
+                            VisualizationVuAnchor.Center -> 1
+                            VisualizationVuAnchor.Bottom -> 2
+                        },
                         vuSmoothingPercent = vuSmoothingPercent,
                         vuFillColorArgb = vuColor.toArgb(),
                         vuTrackColorArgb = vuBackgroundColor.toArgb(),

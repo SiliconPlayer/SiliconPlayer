@@ -773,7 +773,7 @@ Java_com_flopster101_siliconplayer_ui_visualization_gl_SiliconVisNativeBridge_na
     jobject /* thiz */,
     jlong handle,
     jboolean stereo,
-    jboolean topPlacement,
+    jint anchor,
     jfloat smoothing,
     jint fillColorArgb,
     jint trackColorArgb,
@@ -783,7 +783,7 @@ Java_com_flopster101_siliconplayer_ui_visualization_gl_SiliconVisNativeBridge_na
     silicon_vis_set_vu_meters_options(
         reinterpret_cast<SiliconVisHandle>(handle),
         stereo,
-        topPlacement,
+        anchor,
         smoothing,
         static_cast<uint32_t>(fillColorArgb),
         static_cast<uint32_t>(trackColorArgb),

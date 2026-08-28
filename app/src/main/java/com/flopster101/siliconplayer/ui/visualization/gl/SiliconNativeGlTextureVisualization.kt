@@ -164,7 +164,7 @@ data class SiliconNativeGlFrame(
     val barGuideColorArgb: Int = 0x40FFFFFF,
     // VU meters options
     val vuStereo: Boolean = true,
-    val vuTopPlacement: Boolean = false,
+    val vuMetersAnchor: Int = 2, // 0=top, 1=center, 2=bottom
     val vuSmoothingPercent: Int = 50,
     val vuFillColorArgb: Int = 0xFF76FF03.toInt(),
     val vuTrackColorArgb: Int = 0x40FFFFFF,
@@ -771,7 +771,7 @@ private class SiliconNativeTextureRenderThread(
                             SiliconVisNativeBridge.nativeSetVuMetersOptions(
                                 handle = visHandle,
                                 stereo = frame.vuStereo,
-                                topPlacement = frame.vuTopPlacement,
+                                anchor = frame.vuMetersAnchor,
                                 smoothing = frame.vuSmoothingPercent / 100f,
                                 fillColorArgb = frame.vuFillColorArgb,
                                 trackColorArgb = frame.vuTrackColorArgb,
