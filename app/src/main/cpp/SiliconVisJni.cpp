@@ -396,6 +396,11 @@ Java_com_flopster101_siliconplayer_ui_visualization_gl_SiliconVisNativeBridge_na
     jlong handle
 ) {
     if (!handle) return;
+    // Keep the last live preset for the next attach.
+    if (s_projectMPlugin && s_projectMRegisteredHandle == handle) {
+        const std::string lastKey = s_projectMPlugin->currentPresetKey();
+        if (!lastKey.empty()) s_projectMLastPreset = lastKey;
+    }
     silicon_vis_release_gl(reinterpret_cast<SiliconVisHandle>(handle));
 }
 

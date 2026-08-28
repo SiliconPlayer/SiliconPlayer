@@ -109,8 +109,10 @@ bool ProjectMVisualizer::initGl() {
 
     if (!presets_.empty()) {
         size_t startIndex = 0;
-        if (!startPresetKey_.empty()) {
-            const auto found = std::find(presetKeys_.begin(), presetKeys_.end(), startPresetKey_);
+        // Warm-cache reuse keeps the last live preset; resume it.
+        const std::string resumeKey = !currentPresetKey_.empty() ? currentPresetKey_ : startPresetKey_;
+        if (!resumeKey.empty()) {
+            const auto found = std::find(presetKeys_.begin(), presetKeys_.end(), resumeKey);
             if (found != presetKeys_.end()) {
                 startIndex = static_cast<size_t>(found - presetKeys_.begin());
             }
