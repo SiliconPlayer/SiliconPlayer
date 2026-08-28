@@ -444,7 +444,7 @@ private fun FullscreenBottomControls(
                 verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 Text(
-                    text = if (displayArtist.isNotBlank()) "$displayTitle — $displayArtist" else displayTitle,
+                    text = if (displayArtist.isNotBlank()) "$displayArtist — $displayTitle" else displayTitle,
                     color = Color.White,
                     style = MaterialTheme.typography.titleSmall,
                     maxLines = 1,
@@ -481,7 +481,7 @@ private fun FullscreenBottomControls(
             ) {
                 if (isLandscape) {
                     Text(
-                        text = if (displayArtist.isNotBlank()) "$displayTitle — $displayArtist" else displayTitle,
+                        text = if (displayArtist.isNotBlank()) "$displayArtist — $displayTitle" else displayTitle,
                         color = Color.White,
                         style = MaterialTheme.typography.titleSmall,
                         maxLines = 1,
