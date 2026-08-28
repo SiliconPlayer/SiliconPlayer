@@ -111,7 +111,7 @@ private:
     bool rotationRandom_ = false;
     int meshSize_ = 48;
     bool aspectCorrection_ = true;
-    int fps_ = 35;
+    int fps_ = 30;
 
     // Render-resolution cap (max of render target dimensions; 0 = native).
     int maxResolutionLongEdge_ = 0;

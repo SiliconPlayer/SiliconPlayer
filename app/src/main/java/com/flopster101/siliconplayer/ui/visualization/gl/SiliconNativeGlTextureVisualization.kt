@@ -580,7 +580,7 @@ private class SiliconNativeTextureRenderThread(
                                 )
                                 val fpsMode = VisualizationOscFpsMode.fromStorage(prefs.getString(AppPreferenceKeys.VISUALIZATION_PROJECTM_FPS_MODE, AppDefaults.Visualization.ProjectM.fpsMode.storageValue))
                                 val fps = when (fpsMode) {
-                                    VisualizationOscFpsMode.Default -> 35
+                                    VisualizationOscFpsMode.Default -> 30
                                     VisualizationOscFpsMode.Fps60 -> 60
                                     VisualizationOscFpsMode.NativeRefresh -> 0
                                 }

@@ -447,7 +447,7 @@ internal fun VisualizationAdvancedProjectMRouteContent(
                 fpsMode = m
                 prefs.edit().putString(AppPreferenceKeys.VISUALIZATION_PROJECTM_FPS_MODE, m.storageValue).apply()
                 val fps = when (m) {
-                    VisualizationOscFpsMode.Default -> 35
+                    VisualizationOscFpsMode.Default -> 30
                     VisualizationOscFpsMode.Fps60 -> 60
                     VisualizationOscFpsMode.NativeRefresh -> 0
                 }
