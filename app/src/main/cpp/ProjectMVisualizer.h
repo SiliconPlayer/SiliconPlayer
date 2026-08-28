@@ -64,8 +64,8 @@ public:
     void setMaxResolutionPx(int maxLongEdgePx);
     std::string currentPresetName() const;
     std::string currentPresetKey() const;
-    const std::vector<std::string>& presetKeys() const { return presetKeys_; }
-    const std::vector<std::string>& presetSetIds() const { return presetSetIds_; }
+    std::vector<std::string> presetKeys() const;
+    std::vector<std::string> presetSetIds() const;
 
 private:
     struct PresetEntry {
@@ -80,6 +80,28 @@ private:
         std::string key;
     };
 
+    // projectM is not thread-safe; setters can be invoked from any thread.
+    // Values are staged here and applied on the GL thread by applyPendingSettings().
+    struct PendingSettings {
+        bool presetDurationDirty = false;
+        double presetDurationSeconds = 25.0;
+        bool hardCutEnabledDirty = false;
+        bool hardCutEnabled = true;
+        bool hardCutSensitivityDirty = false;
+        float hardCutSensitivity = 1.0f;
+        bool meshSizeDirty = false;
+        int meshSize = 48;
+        bool aspectCorrectionDirty = false;
+        bool aspectCorrection = true;
+        bool fpsDirty = false;
+        int fps = 30;
+        bool rotationRandomDirty = false;
+        bool rotationRandom = false;
+        bool maxResolutionDirty = false;
+        int maxResolutionLongEdge = 0;
+    };
+
+    void applyPendingSettings();
     void scanPresetSets();
     void loadPresetAt(size_t index, bool smoothTransition);
     void loadIdlePreset();
@@ -113,6 +135,11 @@ private:
     bool aspectCorrection_ = true;
     int fps_ = 30;
 
+    // projectM is not thread-safe: values set from any thread are staged here and
+    // applied on the GL thread in applyPendingSettings().
+    PendingSettings pendingSettings_;
+    std::atomic<bool> pendingSettingsDirty_ { false };
+
     // Render-resolution cap (max of render target dimensions; 0 = native).
     int maxResolutionLongEdge_ = 0;
     bool renderSizeDirty_ = false;
@@ -134,6 +161,8 @@ private:
     mutable std::mutex commandMutex_;
     std::vector<PresetCommand> pendingCommands_;
     std::pair<bool, bool> pendingLockCommand_ = {false, false};
+    // Guards preset-state vectors read by UI-thread getters during attach.
+    mutable std::mutex presetListMutex_;
     std::chrono::steady_clock::time_point presetStartedAt_{};
     int32_t widthPx_ = 0;
     int32_t heightPx_ = 0;

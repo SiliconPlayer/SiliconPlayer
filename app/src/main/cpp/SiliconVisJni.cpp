@@ -292,7 +292,7 @@ Java_com_flopster101_siliconplayer_ui_visualization_gl_SiliconVisNativeBridge_na
     jobject /* thiz */
 ) {
     if (!s_projectMPlugin || !s_projectMRegisteredHandle) return nullptr;
-    const auto& keys = s_projectMPlugin->presetKeys();
+    const auto keys = s_projectMPlugin->presetKeys();
     jclass stringClass = env->FindClass("java/lang/String");
     jobjectArray result = env->NewObjectArray(static_cast<jsize>(keys.size()), stringClass, nullptr);
     for (jsize i = 0; i < static_cast<jsize>(keys.size()); ++i) {
@@ -310,7 +310,7 @@ Java_com_flopster101_siliconplayer_ui_visualization_gl_SiliconVisNativeBridge_na
     jobject /* thiz */
 ) {
     if (!s_projectMPlugin || !s_projectMRegisteredHandle) return nullptr;
-    const auto& setIds = s_projectMPlugin->presetSetIds();
+    const auto setIds = s_projectMPlugin->presetSetIds();
     jclass stringClass = env->FindClass("java/lang/String");
     jobjectArray result = env->NewObjectArray(static_cast<jsize>(setIds.size()), stringClass, nullptr);
     for (jsize i = 0; i < static_cast<jsize>(setIds.size()); ++i) {

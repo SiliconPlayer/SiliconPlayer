@@ -93,6 +93,8 @@ bool ProjectMVisualizer::initGl() {
     if (!instance_) return false;
 
     maxPcmFeedFrames_ = projectm_pcm_get_max_samples();
+    // Apply settings staged from another thread before configuring the instance.
+    applyPendingSettings();
     projectm_set_preset_duration(instance_, presetDurationSeconds_);
     projectm_set_preset_locked(instance_, false);
     projectm_set_hard_cut_enabled(instance_, hardCutEnabled_);
@@ -122,11 +124,59 @@ bool ProjectMVisualizer::initGl() {
 
 void ProjectMVisualizer::setMaxResolutionPx(int maxLongEdgePx) {
     if (maxLongEdgePx < 0) maxLongEdgePx = 0;
-    if (maxResolutionLongEdge_ == maxLongEdgePx) return;
-    maxResolutionLongEdge_ = maxLongEdgePx;
-    // The cap is picked up on the GL thread: recomputeRenderSize() runs there and
-    // owns updating the projectM window size and the offscreen target.
-    renderSizeDirty_ = true;
+    std::lock_guard<std::mutex> lock(commandMutex_);
+    pendingSettings_.maxResolutionLongEdge = maxLongEdgePx;
+    pendingSettings_.maxResolutionDirty = true;
+    pendingSettingsDirty_.store(true, std::memory_order_relaxed);
+}
+
+void ProjectMVisualizer::applyPendingSettings() {
+    if (!pendingSettingsDirty_.exchange(false, std::memory_order_relaxed)) {
+        return;
+    }
+    PendingSettings pending;
+    {
+        std::lock_guard<std::mutex> lock(commandMutex_);
+        pending = pendingSettings_;
+        pendingSettings_ = PendingSettings{};
+    }
+    if (pending.presetDurationDirty) {
+        presetDurationSeconds_ = pending.presetDurationSeconds;
+        if (instance_) projectm_set_preset_duration(instance_, presetDurationSeconds_);
+    }
+    if (pending.hardCutEnabledDirty) {
+        hardCutEnabled_ = pending.hardCutEnabled;
+        if (instance_) projectm_set_hard_cut_enabled(instance_, hardCutEnabled_);
+    }
+    if (pending.hardCutSensitivityDirty) {
+        hardCutSensitivity_ = pending.hardCutSensitivity;
+        if (instance_) projectm_set_hard_cut_sensitivity(instance_, hardCutSensitivity_);
+    }
+    if (pending.meshSizeDirty) {
+        meshSize_ = pending.meshSize;
+        if (instance_) projectm_set_mesh_size(instance_, static_cast<size_t>(meshSize_), static_cast<size_t>(meshSize_));
+    }
+    if (pending.aspectCorrectionDirty) {
+        aspectCorrection_ = pending.aspectCorrection;
+        if (instance_) projectm_set_aspect_correction(instance_, aspectCorrection_);
+    }
+    if (pending.fpsDirty) {
+        fps_ = pending.fps;
+        if (instance_) projectm_set_fps(instance_, fps_);
+    }
+    if (pending.rotationRandomDirty) {
+        rotationRandom_ = pending.rotationRandom;
+    }
+    if (pending.maxResolutionDirty) {
+        maxResolutionLongEdge_ = pending.maxResolutionLongEdge;
+        renderSizeDirty_ = true;
+        if (instance_ && widthPx_ > 0 && heightPx_ > 0) {
+            recomputeRenderSize();
+            if (renderWidth_ > 0 && renderHeight_ > 0) {
+                projectm_set_window_size(instance_, static_cast<size_t>(renderWidth_), static_cast<size_t>(renderHeight_));
+            }
+        }
+    }
 }
 
 void ProjectMVisualizer::recomputeRenderSize() {
@@ -253,12 +303,7 @@ void ProjectMVisualizer::blitOffscreenToSurface() {
 void ProjectMVisualizer::render() {
     if (!instance_ && !initGl()) return;
 
-    if (renderSizeDirty_) {
-        recomputeRenderSize();
-        if (renderWidth_ > 0 && renderHeight_ > 0) {
-            projectm_set_window_size(instance_, static_cast<size_t>(renderWidth_), static_cast<size_t>(renderHeight_));
-        }
-    }
+    applyPendingSettings();
 
     drainCommands();
     feedAudio();
@@ -315,32 +360,35 @@ void ProjectMVisualizer::setPresetSets(const std::vector<std::pair<std::string, 
 
 void ProjectMVisualizer::setPresetKeys(const std::vector<std::pair<std::string, std::string>>& sets,
                                        const std::vector<std::string>& presetKeys) {
-    if (sets_ == sets && presetKeys_ == presetKeys) return;
-    sets_ = sets;
-    presets_.clear();
-    presetKeys_.clear();
-    presetSetIds_.clear();
-    presetIndex_ = 0;
-    for (const auto& key : presetKeys) {
-        size_t sep = key.find(kKeySeparator);
-        if (sep == std::string::npos) continue;
-        std::string setId = key.substr(0, sep);
-        std::string rel = key.substr(sep + 1);
-        bool known = false;
-        for (const auto& s : sets_) if (s.first == setId) { known = true; break; }
-        if (!known) continue;
-        presets_.push_back({setId, rel});
-    }
-    std::sort(presets_.begin(), presets_.end(),
-              [](const PresetEntry& a, const PresetEntry& b) {
-                  if (a.setId != b.setId) return a.setId < b.setId;
-                  return a.relativePath < b.relativePath;
-              });
-    presetKeys_.reserve(presets_.size());
-    presetSetIds_.reserve(presets_.size());
-    for (const auto& e : presets_) {
-        presetKeys_.push_back(makeKey(e.setId, e.relativePath));
-        presetSetIds_.push_back(e.setId);
+    {
+        std::lock_guard<std::mutex> lock(presetListMutex_);
+        if (sets_ == sets && presetKeys_ == presetKeys) return;
+        sets_ = sets;
+        presets_.clear();
+        presetKeys_.clear();
+        presetSetIds_.clear();
+        presetIndex_ = 0;
+        for (const auto& key : presetKeys) {
+            size_t sep = key.find(kKeySeparator);
+            if (sep == std::string::npos) continue;
+            std::string setId = key.substr(0, sep);
+            std::string rel = key.substr(sep + 1);
+            bool known = false;
+            for (const auto& s : sets_) if (s.first == setId) { known = true; break; }
+            if (!known) continue;
+            presets_.push_back({setId, rel});
+        }
+        std::sort(presets_.begin(), presets_.end(),
+                  [](const PresetEntry& a, const PresetEntry& b) {
+                      if (a.setId != b.setId) return a.setId < b.setId;
+                      return a.relativePath < b.relativePath;
+                  });
+        presetKeys_.reserve(presets_.size());
+        presetSetIds_.reserve(presets_.size());
+        for (const auto& e : presets_) {
+            presetKeys_.push_back(makeKey(e.setId, e.relativePath));
+            presetSetIds_.push_back(e.setId);
+        }
     }
     if (instance_) {
         if (!presets_.empty()) loadPresetAt(0, true);
@@ -353,30 +401,33 @@ void ProjectMVisualizer::setStartPreset(const std::string& presetKey) {
 }
 
 void ProjectMVisualizer::scanPresetSets() {
-    presets_.clear();
-    presetKeys_.clear();
-    presetSetIds_.clear();
-    presetIndex_ = 0;
-    if (sets_.empty()) return;
+    {
+        std::lock_guard<std::mutex> lock(presetListMutex_);
+        presets_.clear();
+        presetKeys_.clear();
+        presetSetIds_.clear();
+        presetIndex_ = 0;
+        if (sets_.empty()) return;
 
-    for (const auto& set : sets_) {
-        std::vector<std::string> relativePaths;
-        scanPresetsRecursive(set.second, "", relativePaths);
-        for (const auto& relative : relativePaths) {
-            presets_.push_back({set.first, relative});
+        for (const auto& set : sets_) {
+            std::vector<std::string> relativePaths;
+            scanPresetsRecursive(set.second, "", relativePaths);
+            for (const auto& relative : relativePaths) {
+                presets_.push_back({set.first, relative});
+            }
         }
-    }
 
-    std::sort(presets_.begin(), presets_.end(),
-              [](const PresetEntry& a, const PresetEntry& b) {
-                  if (a.setId != b.setId) return a.setId < b.setId;
-                  return a.relativePath < b.relativePath;
-              });
-    presetKeys_.reserve(presets_.size());
-    presetSetIds_.reserve(presets_.size());
-    for (const auto& entry : presets_) {
-        presetKeys_.push_back(makeKey(entry.setId, entry.relativePath));
-        presetSetIds_.push_back(entry.setId);
+        std::sort(presets_.begin(), presets_.end(),
+                  [](const PresetEntry& a, const PresetEntry& b) {
+                      if (a.setId != b.setId) return a.setId < b.setId;
+                      return a.relativePath < b.relativePath;
+                  });
+        presetKeys_.reserve(presets_.size());
+        presetSetIds_.reserve(presets_.size());
+        for (const auto& entry : presets_) {
+            presetKeys_.push_back(makeKey(entry.setId, entry.relativePath));
+            presetSetIds_.push_back(entry.setId);
+        }
     }
 }
 
@@ -406,37 +457,52 @@ bool ProjectMVisualizer::isPresetLocked() const {
 }
 
 void ProjectMVisualizer::setPresetDuration(double seconds) {
-    presetDurationSeconds_ = seconds;
-    if (instance_) projectm_set_preset_duration(instance_, seconds);
+    std::lock_guard<std::mutex> lock(commandMutex_);
+    pendingSettings_.presetDurationSeconds = seconds;
+    pendingSettings_.presetDurationDirty = true;
+    pendingSettingsDirty_.store(true, std::memory_order_relaxed);
 }
 
 void ProjectMVisualizer::setHardCutEnabled(bool enabled) {
-    hardCutEnabled_ = enabled;
-    if (instance_) projectm_set_hard_cut_enabled(instance_, enabled);
+    std::lock_guard<std::mutex> lock(commandMutex_);
+    pendingSettings_.hardCutEnabled = enabled;
+    pendingSettings_.hardCutEnabledDirty = true;
+    pendingSettingsDirty_.store(true, std::memory_order_relaxed);
 }
 
 void ProjectMVisualizer::setHardCutSensitivity(float sensitivity) {
-    hardCutSensitivity_ = sensitivity;
-    if (instance_) projectm_set_hard_cut_sensitivity(instance_, sensitivity);
+    std::lock_guard<std::mutex> lock(commandMutex_);
+    pendingSettings_.hardCutSensitivity = sensitivity;
+    pendingSettings_.hardCutSensitivityDirty = true;
+    pendingSettingsDirty_.store(true, std::memory_order_relaxed);
 }
 
 void ProjectMVisualizer::setRotationRandom(bool random) {
-    rotationRandom_ = random;
+    std::lock_guard<std::mutex> lock(commandMutex_);
+    pendingSettings_.rotationRandom = random;
+    pendingSettings_.rotationRandomDirty = true;
+    pendingSettingsDirty_.store(true, std::memory_order_relaxed);
 }
 
 void ProjectMVisualizer::setMeshSize(int size) {
-    meshSize_ = size;
-    if (instance_) projectm_set_mesh_size(instance_, static_cast<size_t>(size), static_cast<size_t>(size));
+    std::lock_guard<std::mutex> lock(commandMutex_);
+    pendingSettings_.meshSize = size;
+    pendingSettings_.meshSizeDirty = true;
+    pendingSettingsDirty_.store(true, std::memory_order_relaxed);
 }
 
 void ProjectMVisualizer::setAspectCorrection(bool enabled) {
-    aspectCorrection_ = enabled;
-    if (instance_) projectm_set_aspect_correction(instance_, enabled);
+    std::lock_guard<std::mutex> lock(commandMutex_);
+    pendingSettings_.aspectCorrection = enabled;
+    pendingSettings_.aspectCorrectionDirty = true;
+    pendingSettingsDirty_.store(true, std::memory_order_relaxed);
 }
 
 void ProjectMVisualizer::setFps(int fps) {
-    fps_ = fps;
-    if (instance_) projectm_set_fps(instance_, fps);
+    std::lock_guard<std::mutex> lock(commandMutex_);
+    pendingSettings_.fps = fps;
+    pendingSettings_.fpsDirty = true;
+    pendingSettingsDirty_.store(true, std::memory_order_relaxed);
 }
 
 std::string ProjectMVisualizer::currentPresetName() const {
@@ -447,6 +513,16 @@ std::string ProjectMVisualizer::currentPresetName() const {
 std::string ProjectMVisualizer::currentPresetKey() const {
     std::lock_guard<std::mutex> lock(commandMutex_);
     return currentPresetKey_;
+}
+
+std::vector<std::string> ProjectMVisualizer::presetKeys() const {
+    std::lock_guard<std::mutex> lock(presetListMutex_);
+    return presetKeys_;
+}
+
+std::vector<std::string> ProjectMVisualizer::presetSetIds() const {
+    std::lock_guard<std::mutex> lock(presetListMutex_);
+    return presetSetIds_;
 }
 
 void ProjectMVisualizer::drainCommands() {
