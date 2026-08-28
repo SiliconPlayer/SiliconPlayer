@@ -83,6 +83,7 @@ private object VisualizerWarmCache {
 data class SiliconNativeGlFrame(
     val mode: Int, // 1=Bars, 2=Osc, 3=VU, 4=ChannelScope, 100=projectM plugin
     val isPlaying: Boolean = true,
+    val trackKey: String? = null,
     val pcm: FloatArray? = null,
     val pcmFrames: Int = 0,
     val pcmChannels: Int = 0,
@@ -389,6 +390,8 @@ private class SiliconNativeTextureRenderThread(
     private var pausedFrameRendered = false
     private var lastTickNs = 0L
     private var projectMAttached = false
+    private var projectMSawStopped = false
+    private var projectMStoppedTrackEmpty = false
 
     // projectM frame-rate throttle (render thread only). The Choreographer loop
     // fires at vsync, so projectM must skip renders to honor the configured FPS;
@@ -500,6 +503,37 @@ private class SiliconNativeTextureRenderThread(
         }
         val frame = state.frame ?: return
 
+        // Restart after stop picks a new random preset when random-start is on.
+        // Runs before the paused early-return: pause->stop never renders a frame.
+        if (frame.mode == 100) {
+            if (!frame.isPlaying) {
+                projectMSawStopped = true
+                projectMStoppedTrackEmpty = frame.trackKey == null
+            } else if (projectMSawStopped && projectMAttached) {
+                projectMSawStopped = false
+                val wasStoppedEmpty = projectMStoppedTrackEmpty
+                projectMStoppedTrackEmpty = false
+                if (wasStoppedEmpty) {
+                    val appContext = context.applicationContext
+                    val prefs = appContext.getSharedPreferences(
+                        "silicon_player_settings",
+                        android.content.Context.MODE_PRIVATE
+                    )
+                    if (prefs.getBoolean(AppPreferenceKeys.VISUALIZATION_PROJECTM_RANDOM_START, true)) {
+                        val presetKeys = try {
+                            ProjectMPresetSets.indexedPresetKeys(appContext, prefs).first
+                        } catch (_: Throwable) {
+                            emptyList<String>()
+                        }
+                        if (presetKeys.isNotEmpty()) {
+                            try { SiliconVisNativeBridge.nativeClearProjectMLastPreset() } catch (_: Throwable) {}
+                            SiliconVisNativeBridge.nativeProjectMLoadPreset(presetKeys.random(), true)
+                        }
+                    }
+                }
+            }
+        }
+
         // Honor the configured projectM frame rate. The vsync-driven loop fires
         // faster than the target, so drop renders (and the swap) until the target
         // interval has elapsed. Paused frames and resizes always pass through.
@@ -567,6 +601,8 @@ private class SiliconNativeTextureRenderThread(
                                 SiliconVisNativeBridge.nativeAttachProjectM(visHandle, setIds, setDirs, startPreset)
                             }
                             projectMAttached = true
+                            projectMSawStopped = false
+                            projectMStoppedTrackEmpty = false
                             try {
                                 val duration = prefs.getString(AppPreferenceKeys.VISUALIZATION_PROJECTM_PRESET_DURATION_SECONDS, AppDefaults.Visualization.ProjectM.presetDurationSeconds.toString())?.toDoubleOrNull() ?: AppDefaults.Visualization.ProjectM.presetDurationSeconds
                                 SiliconVisNativeBridge.nativeProjectMSetPresetDuration(duration)

@@ -156,6 +156,7 @@ fun BasicVisualizationOverlay(
     placeholderIconResId: Int = R.drawable.ic_placeholder_music_note,
     showArtworkBackground: Boolean = true,
     isPlaying: Boolean = true,
+    trackKey: String? = null,
     channelScopeOnFrameStats: ((fps: Int, frameMs: Int) -> Unit)? = null,
     modifier: Modifier = Modifier
 ) {
@@ -269,6 +270,7 @@ fun BasicVisualizationOverlay(
 
     val baseNativeFrame = remember(
         isPlaying,
+        trackKey,
         primaryColor,
         surfaceVariantColor,
         contrastScrimColor,
@@ -280,6 +282,7 @@ fun BasicVisualizationOverlay(
         com.flopster101.siliconplayer.ui.visualization.gl.SiliconNativeGlFrame(
             mode = 0,
             isPlaying = isPlaying,
+            trackKey = trackKey,
             primaryColorArgb = primaryColor.toArgb(),
             surfaceColorArgb = surfaceVariantColor.toArgb(),
             contrastScrimColorArgb = contrastScrimColor.toArgb(),

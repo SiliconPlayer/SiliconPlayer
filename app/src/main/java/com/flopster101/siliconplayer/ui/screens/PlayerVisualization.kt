@@ -2774,6 +2774,7 @@ internal fun AlbumArtPlaceholder(
                     placeholderIconResId = placeholderArtworkDrawableResIdForFile(file, decoderName),
                     showArtworkBackground = channelScopePrefs.showArtworkBackground,
                     isPlaying = isPlaying,
+                    trackKey = currentTrackKey,
                     channelScopeOnFrameStats = { fps, frameMs ->
                         visDebugDrawFps = fps.coerceAtLeast(0)
                         visDebugDrawFrameMs = frameMs.coerceAtLeast(0)
