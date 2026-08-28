@@ -28,6 +28,7 @@ public:
 
 private:
     void drawSolidBackground(uint32_t colorArgb);
+    void drawGradientBackground(float surfaceWidth, float surfaceHeight, float density, bool drawCircle);
     void drawArtworkOrFallback(float surfaceWidth, float surfaceHeight, float density);
     void drawContrastBackdrop(float surfaceWidth, float surfaceHeight);
 

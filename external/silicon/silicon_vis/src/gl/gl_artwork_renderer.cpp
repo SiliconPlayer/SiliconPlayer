@@ -267,10 +267,46 @@ void GlArtworkRenderer::draw(float surfaceWidth, float surfaceHeight, float dens
     drawContrastBackdrop(surfaceWidth, surfaceHeight);
 }
 
+void GlArtworkRenderer::drawGradientBackground(float surfaceWidth, float surfaceHeight, float density, bool drawCircle) {
+    Color4f prim = argbToColor4f(primaryColorArgb_);
+    Color4f surf = argbToColor4f(surfaceColorArgb_);
+
+    float centerR = (surf.r * 0.72f) + (prim.r * 0.28f);
+    float centerG = (surf.g * 0.72f) + (prim.g * 0.28f);
+    float centerB = (surf.b * 0.72f) + (prim.b * 0.28f);
+
+    float circleRadiusPx = std::min(60.0f * std::max(1.0f, density), std::min(surfaceWidth, surfaceHeight) * 0.35f);
+
+    glEnable(GL_BLEND);
+    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+
+    bgProgram_.use();
+    glUniform2f(bgResLoc_, surfaceWidth, surfaceHeight);
+    glUniform4f(bgCenterColorLoc_, centerR, centerG, centerB, 1.0f);
+    glUniform4f(bgEdgeColorLoc_, surf.r, surf.g, surf.b, 1.0f);
+    glUniform4f(bgCircleColorLoc_, prim.r, prim.g, prim.b, drawCircle ? 0.14f : 0.0f);
+    glUniform1f(bgCircleRadiusLoc_, circleRadiusPx);
+
+    float fullQuad[12] = {
+        0.0f, 0.0f,
+        surfaceWidth, 0.0f,
+        0.0f, surfaceHeight,
+        surfaceWidth, 0.0f,
+        surfaceWidth, surfaceHeight,
+        0.0f, surfaceHeight
+    };
+
+    glBindBuffer(GL_ARRAY_BUFFER, 0);
+    glEnableVertexAttribArray(bgPosLoc_);
+    glVertexAttribPointer(bgPosLoc_, 2, GL_FLOAT, GL_FALSE, 0, fullQuad);
+    glDrawArrays(GL_TRIANGLES, 0, 6);
+    glDisableVertexAttribArray(bgPosLoc_);
+}
+
 void GlArtworkRenderer::drawArtworkOrFallback(float surfaceWidth, float surfaceHeight, float density) {
     if (artworkTextureId_ != 0 && artworkWidth_ > 0 && artworkHeight_ > 0) {
-        drawSolidBackground(surfaceColorArgb_);
-        // Draw real artwork textured quad (Aspect Fill / Fit)
+        drawGradientBackground(surfaceWidth, surfaceHeight, density, /*drawCircle=*/false);
+        // Draw real artwork textured quad (aspect fit, centered)
         glEnable(GL_BLEND);
         glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 
@@ -282,8 +318,16 @@ void GlArtworkRenderer::drawArtworkOrFallback(float surfaceWidth, float surfaceH
         glActiveTexture(GL_TEXTURE0);
         glBindTexture(GL_TEXTURE_2D, artworkTextureId_);
 
+        float imgW = static_cast<float>(artworkWidth_);
+        float imgH = static_cast<float>(artworkHeight_);
+        float scale = std::min(surfaceWidth / imgW, surfaceHeight / imgH);
+        float dstW = imgW * scale;
+        float dstH = imgH * scale;
+        float dstX = (surfaceWidth - dstW) * 0.5f;
+        float dstY = (surfaceHeight - dstH) * 0.5f;
+
         float quad[24];
-        GlPrimitives::generateTexturedQuad(0.0f, 0.0f, surfaceWidth, surfaceHeight, 0.0f, 0.0f, 1.0f, 1.0f, quad);
+        GlPrimitives::generateTexturedQuad(dstX, dstY, dstW, dstH, 0.0f, 0.0f, 1.0f, 1.0f, quad);
 
         glBindBuffer(GL_ARRAY_BUFFER, 0);
         glEnableVertexAttribArray(texPosLoc_);
@@ -298,42 +342,9 @@ void GlArtworkRenderer::drawArtworkOrFallback(float surfaceWidth, float surfaceH
         glDisableVertexAttribArray(texCoordLoc_);
         glBindTexture(GL_TEXTURE_2D, 0);
     } else {
-        // Draw radial gradient background + circle disc
-        Color4f prim = argbToColor4f(primaryColorArgb_);
-        Color4f surf = argbToColor4f(surfaceColorArgb_);
-
-        float centerR = (surf.r * 0.72f) + (prim.r * 0.28f);
-        float centerG = (surf.g * 0.72f) + (prim.g * 0.28f);
-        float centerB = (surf.b * 0.72f) + (prim.b * 0.28f);
-
-        float circleRadiusPx = std::min(60.0f * std::max(1.0f, density), std::min(surfaceWidth, surfaceHeight) * 0.35f);
-
-        glEnable(GL_BLEND);
-        glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-
-        bgProgram_.use();
-        glUniform2f(bgResLoc_, surfaceWidth, surfaceHeight);
-        glUniform4f(bgCenterColorLoc_, centerR, centerG, centerB, 1.0f);
-        glUniform4f(bgEdgeColorLoc_, surf.r, surf.g, surf.b, 1.0f);
-        glUniform4f(bgCircleColorLoc_, prim.r, prim.g, prim.b, 0.14f);
-        glUniform1f(bgCircleRadiusLoc_, circleRadiusPx);
-
-        float fullQuad[12] = {
-            0.0f, 0.0f,
-            surfaceWidth, 0.0f,
-            0.0f, surfaceHeight,
-            surfaceWidth, 0.0f,
-            surfaceWidth, surfaceHeight,
-            0.0f, surfaceHeight
-        };
-
-        glBindBuffer(GL_ARRAY_BUFFER, 0);
-        glEnableVertexAttribArray(bgPosLoc_);
-        glVertexAttribPointer(bgPosLoc_, 2, GL_FLOAT, GL_FALSE, 0, fullQuad);
-        glDrawArrays(GL_TRIANGLES, 0, 6);
-        glDisableVertexAttribArray(bgPosLoc_);
-
+        drawGradientBackground(surfaceWidth, surfaceHeight, density, /*drawCircle=*/true);
         // Draw centered placeholder icon inside the circle disc if available
+        float circleRadiusPx = std::min(60.0f * std::max(1.0f, density), std::min(surfaceWidth, surfaceHeight) * 0.35f);
         if (iconTextureId_ != 0 && iconWidth_ > 0 && iconHeight_ > 0) {
             float iconSizePx = std::min(72.0f * std::max(1.0f, density), circleRadiusPx * 1.25f);
             float iconX = (surfaceWidth - iconSizePx) * 0.5f;
