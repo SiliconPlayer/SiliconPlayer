@@ -131,7 +131,7 @@ internal fun BoxScope.MiniPlayerOverlayHost(
 ) {
     val context = LocalContext.current
     val isWatch = remember(context) { context.packageManager.hasSystemFeature(PackageManager.FEATURE_WATCH) }
-    val isRound = LocalConfiguration.current.isScreenRound
+    val isRound = LocalConfiguration.current.isRoundScreenCompat
     var dragExpandCommitInProgress by remember { mutableStateOf(false) }
     LaunchedEffect(isPlayerExpanded, miniExpandPreviewProgress) {
         if (!isPlayerExpanded && miniExpandPreviewProgress <= 0f) {

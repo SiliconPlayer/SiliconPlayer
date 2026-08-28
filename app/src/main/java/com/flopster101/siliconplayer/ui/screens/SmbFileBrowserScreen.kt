@@ -1,5 +1,6 @@
 package com.flopster101.siliconplayer.ui.screens
 
+import com.flopster101.siliconplayer.isRoundScreenCompat
 import android.content.pm.PackageManager
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -169,7 +170,7 @@ internal fun SmbFileBrowserScreen(
 ) {
     val context = LocalContext.current
     val isWatch = remember(context) { context.packageManager.hasSystemFeature(PackageManager.FEATURE_WATCH) }
-    val isRound = isWatch && (LocalConfiguration.current.isScreenRound || LocalConfiguration.current.screenWidthDp == LocalConfiguration.current.screenHeightDp)
+    val isRound = isWatch && (LocalConfiguration.current.isRoundScreenCompat || LocalConfiguration.current.screenWidthDp == LocalConfiguration.current.screenHeightDp)
     val browserPrefs = remember(context) {
         context.getSharedPreferences(AppPreferenceKeys.PREFS_NAME, android.content.Context.MODE_PRIVATE)
     }

@@ -1,5 +1,6 @@
 package com.flopster101.siliconplayer.ui.screens
 
+import com.flopster101.siliconplayer.isRoundScreenCompat
 import android.app.ActivityManager
 import android.content.ClipData
 import android.content.ClipboardManager
@@ -326,7 +327,7 @@ internal fun FileBrowserScreen(
     val isWatch = remember(context) {
         context.packageManager.hasSystemFeature(PackageManager.FEATURE_WATCH)
     }
-    val isRound = LocalConfiguration.current.isScreenRound
+    val isRound = LocalConfiguration.current.isRoundScreenCompat
     val isConstrainedBrowserDevice = remember(activityManager, isTvDevice, isWatch) {
         isTvDevice ||
             isWatch ||

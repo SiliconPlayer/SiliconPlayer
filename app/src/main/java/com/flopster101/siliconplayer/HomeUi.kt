@@ -2149,7 +2149,7 @@ internal fun WearHomeScreen(
     onOpenUrlOrPath: () -> Unit = {}
 ) {
     val configuration = LocalConfiguration.current
-    val isRound = configuration.isScreenRound
+    val isRound = configuration.isRoundScreenCompat
     val context = LocalContext.current
     var selectedPinnedEntryForActions by remember { mutableStateOf<HomePinnedEntry?>(null) }
     var selectedRecentFolderForActions by remember { mutableStateOf<RecentPathEntry?>(null) }

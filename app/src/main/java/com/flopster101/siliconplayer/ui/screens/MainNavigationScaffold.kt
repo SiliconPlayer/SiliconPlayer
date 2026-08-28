@@ -63,7 +63,7 @@ internal fun MainNavigationScaffold(
     val context = LocalContext.current
     val isWatch = remember(context) { context.packageManager.hasSystemFeature(PackageManager.FEATURE_WATCH) }
     val configuration = LocalConfiguration.current
-    val isRound = configuration.isScreenRound
+    val isRound = configuration.isRoundScreenCompat
 
     val isMainTopBarVisible =
         !isWatch &&

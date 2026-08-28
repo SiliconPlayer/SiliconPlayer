@@ -69,7 +69,7 @@ internal fun SettingsScaffoldShell(
 ) {
     val context = LocalContext.current
     val isWatch = remember(context) { context.packageManager.hasSystemFeature(PackageManager.FEATURE_WATCH) }
-    val isRound = LocalConfiguration.current.isScreenRound
+    val isRound = LocalConfiguration.current.isRoundScreenCompat
     val scrollBehavior = TopAppBarDefaults.exitUntilCollapsedScrollBehavior()
 
     val titleContent: @Composable () -> Unit = {

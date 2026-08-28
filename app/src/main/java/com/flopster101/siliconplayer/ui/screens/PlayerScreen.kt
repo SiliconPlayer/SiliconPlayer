@@ -1,5 +1,6 @@
 package com.flopster101.siliconplayer.ui.screens
 
+import com.flopster101.siliconplayer.isRoundScreenCompat
 import com.flopster101.siliconplayer.VisualizationPerformanceMode
 import com.flopster101.siliconplayer.VerticalScrollbarTrack
 import android.content.Context
@@ -5526,7 +5527,7 @@ private fun WearPlayerContent(
     modifier: Modifier = Modifier
 ) {
     val configuration = LocalConfiguration.current
-    val isRound = configuration.isScreenRound
+    val isRound = configuration.isRoundScreenCompat
     val pagerState = rememberPagerState(pageCount = { 2 })
     var isSeeking by remember { mutableStateOf(false) }
     var sliderPosition by remember { mutableDoubleStateOf(0.0) }

@@ -2,6 +2,7 @@ package com.flopster101.siliconplayer
 
 import android.content.pm.PackageManager
 import android.content.res.Configuration
+import android.os.Build
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
@@ -33,6 +34,9 @@ internal fun isWatchDevice(): Boolean {
     return remember(context) { context.packageManager.hasSystemFeature(PackageManager.FEATURE_WATCH) }
 }
 
+internal val Configuration.isRoundScreenCompat: Boolean
+    get() = Build.VERSION.SDK_INT >= Build.VERSION_CODES.M && isScreenRound()
+
 @Composable
 internal fun WatchDialogContainer(
     title: String? = null,
@@ -40,7 +44,7 @@ internal fun WatchDialogContainer(
     content: @Composable ColumnScope.() -> Unit
 ) {
     val configuration = LocalConfiguration.current
-    val isRound = configuration.isScreenRound || configuration.screenWidthDp == configuration.screenHeightDp
+    val isRound = configuration.isRoundScreenCompat || configuration.screenWidthDp == configuration.screenHeightDp
     Dialog(
         onDismissRequest = onDismissRequest,
         properties = DialogProperties(usePlatformDefaultWidth = false)
@@ -88,7 +92,7 @@ internal fun adaptiveDialogModifier(): Modifier {
     val context = LocalContext.current
     val isWatch = remember(context) { context.packageManager.hasSystemFeature(PackageManager.FEATURE_WATCH) }
     val configuration = LocalConfiguration.current
-    val isRound = configuration.isScreenRound
+    val isRound = configuration.isRoundScreenCompat
 
     if (isWatch) {
         return Modifier.fillMaxWidth(if (isRound) 0.94f else 0.96f)

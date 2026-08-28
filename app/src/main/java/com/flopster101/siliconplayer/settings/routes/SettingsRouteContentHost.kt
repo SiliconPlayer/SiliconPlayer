@@ -42,7 +42,7 @@ internal fun SettingsRouteContentHost(
 ) {
     val context = LocalContext.current
     val isWatch = remember(context) { context.packageManager.hasSystemFeature(PackageManager.FEATURE_WATCH) }
-    val isRound = LocalConfiguration.current.isScreenRound
+    val isRound = LocalConfiguration.current.isRoundScreenCompat
     val extraBottomPadding = if (isWatch) (if (isRound) 56.dp else 24.dp) else 0.dp
 
     Column(

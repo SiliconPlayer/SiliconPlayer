@@ -1,5 +1,6 @@
 package com.flopster101.siliconplayer.ui.screens
 
+import com.flopster101.siliconplayer.isRoundScreenCompat
 import android.net.Uri
 import android.graphics.BitmapFactory
 import androidx.activity.compose.BackHandler
@@ -422,7 +423,7 @@ internal fun PlaylistsScreen(
     val context = LocalContext.current
     val isWatch = remember(context) { context.packageManager.hasSystemFeature(PackageManager.FEATURE_WATCH) }
     val configuration = LocalConfiguration.current
-    val isRound = configuration.isScreenRound || configuration.screenWidthDp == configuration.screenHeightDp
+    val isRound = configuration.isRoundScreenCompat || configuration.screenWidthDp == configuration.screenHeightDp
 
     val scrollBehavior = TopAppBarDefaults.exitUntilCollapsedScrollBehavior()
     var destination by rememberSaveable { mutableStateOf(PlaylistsSurfaceDestination.Library) }

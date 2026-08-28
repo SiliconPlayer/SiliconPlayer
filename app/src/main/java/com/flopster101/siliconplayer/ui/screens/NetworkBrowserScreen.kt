@@ -1,5 +1,6 @@
 package com.flopster101.siliconplayer.ui.screens
 
+import com.flopster101.siliconplayer.isRoundScreenCompat
 import android.net.Uri
 import android.view.KeyEvent as AndroidKeyEvent
 import android.widget.Toast
@@ -268,7 +269,7 @@ internal fun NetworkBrowserScreen(
     var newHttpTreatAsRoot by remember { mutableStateOf(true) }
     val context = LocalContext.current
     val isWatch = remember(context) { context.packageManager.hasSystemFeature(PackageManager.FEATURE_WATCH) }
-    val isRound = isWatch && (LocalConfiguration.current.isScreenRound || LocalConfiguration.current.screenWidthDp == LocalConfiguration.current.screenHeightDp)
+    val isRound = isWatch && (LocalConfiguration.current.isRoundScreenCompat || LocalConfiguration.current.screenWidthDp == LocalConfiguration.current.screenHeightDp)
     var watchActionTargetNode by remember { mutableStateOf<NetworkNode?>(null) }
     val uiScope = rememberCoroutineScope()
     val refreshTimeoutJobs = remember { LinkedHashMap<String, Job>() }
