@@ -39,6 +39,7 @@
             android:exported="true"
             android:label="@string/app_name"
             android:launchMode="singleTop"
+            android:configChanges="orientation|screenSize|screenLayout|smallestScreenSize"
             android:theme="@style/Theme.SiliconPlayer">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
