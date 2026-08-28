@@ -92,7 +92,7 @@ bool ProjectMVisualizer::initGl() {
     instance_ = projectm_create();
     if (!instance_) return false;
 
-    maxPcmFeedFrames_ = projectm_pcm_get_max_samples();
+    maxPcmFeedFrames_ = 16384;
     // Apply settings staged from another thread before configuring the instance.
     applyPendingSettings();
     projectm_set_preset_duration(instance_, presetDurationSeconds_);

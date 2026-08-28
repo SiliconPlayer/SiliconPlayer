@@ -117,7 +117,8 @@ private:
 
     silicon::vis::IVisualizationAudioProvider* audioProvider_;
     projectm_handle instance_ = nullptr;
-    unsigned int maxPcmFeedFrames_ = 2048;
+    // Audio ring capacity; projectm_pcm_get_max_samples() is a render window, not an input cap.
+    unsigned int maxPcmFeedFrames_ = 16384;
     std::vector<std::pair<std::string, std::string>> sets_;
     std::vector<PresetEntry> presets_;
     std::vector<std::string> presetKeys_;
