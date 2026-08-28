@@ -160,6 +160,7 @@ import com.flopster101.siliconplayer.AppPreferenceKeys
 import com.flopster101.siliconplayer.VisualizationFullscreenMode
 import com.flopster101.siliconplayer.VisualizationMode
 import com.flopster101.siliconplayer.ui.visualization.gl.ProjectMPresetSets
+import com.flopster101.siliconplayer.ui.visualization.gl.SiliconVisNativeBridge
 import com.flopster101.siliconplayer.VisualizationChannelScopeLayout
 import com.flopster101.siliconplayer.VisualizationOscColorMode
 import com.flopster101.siliconplayer.VisualizationOscFpsMode
@@ -1856,6 +1857,20 @@ internal fun PlayerScreen(
         availableVisualizationModes = availableVisualizationModes,
         onCycleVisualizationMode = onCycleVisualizationMode,
         onSelectVisualizationMode = onSelectVisualizationMode,
+        onVisualizerAction = {
+            when (visualizationMode) {
+                VisualizationMode.ProjectM ->
+                    SiliconVisNativeBridge.nativeProjectMNextPreset(true)
+                VisualizationMode.ChannelScope ->
+                    prefs.edit()
+                        .putBoolean(
+                            "visualization_channel_scope_text_enabled",
+                            !channelScopePrefs.textEnabled
+                        )
+                        .apply()
+                else -> Unit
+            }
+        },
         fullscreenModePref = fullscreenModePref,
         visualizationContent = {
             AlbumArtPlaceholder(

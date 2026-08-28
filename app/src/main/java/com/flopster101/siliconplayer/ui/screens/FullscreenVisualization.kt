@@ -8,8 +8,10 @@ import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -60,6 +62,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
@@ -255,12 +258,14 @@ private fun FullscreenTransportControls(
     }
 }
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun FullscreenVisualizerSwitcher(
     visualizationMode: VisualizationMode,
     availableVisualizationModes: List<VisualizationMode>,
     onCycleVisualizationMode: () -> Unit,
     onSelectVisualizationMode: (VisualizationMode) -> Unit,
+    onVisualizerAction: () -> Unit,
     compact: Boolean,
     modifier: Modifier = Modifier
 ) {
@@ -282,18 +287,21 @@ private fun FullscreenVisualizerSwitcher(
     }
 
     if (compact) {
-        IconButton(
-            onClick = onCycleVisualizationMode,
-            modifier = modifier.size(40.dp),
-            colors = IconButtonDefaults.iconButtonColors(
-                contentColor = Color.White,
-                disabledContentColor = Color.White.copy(alpha = 0.38f)
-            )
+        Box(
+            modifier = modifier
+                .size(40.dp)
+                .clip(CircleShape)
+                .combinedClickable(
+                    onClick = onCycleVisualizationMode,
+                    onLongClick = onVisualizerAction
+                ),
+            contentAlignment = Alignment.Center
         ) {
             Icon(
                 imageVector = visualizationModeIcon(visualizationMode),
                 contentDescription = "Visualization mode",
-                modifier = Modifier.size(22.dp)
+                modifier = Modifier.size(22.dp),
+                tint = Color.White
             )
         }
     } else {
@@ -321,7 +329,10 @@ private fun FullscreenVisualizerSwitcher(
                 Row(
                     horizontalArrangement = Arrangement.spacedBy(6.dp),
                     verticalAlignment = Alignment.CenterVertically,
-                    modifier = Modifier.padding(horizontal = 2.dp)
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(percent = 50))
+                        .clickable(onClickLabel = "Visualizer action") { onVisualizerAction() }
+                        .padding(horizontal = 6.dp, vertical = 8.dp)
                 ) {
                     Icon(
                         imageVector = visualizationModeIcon(visualizationMode),
@@ -549,6 +560,7 @@ internal fun FullscreenVisualizationOverlay(
     availableVisualizationModes: List<VisualizationMode> = emptyList(),
     onCycleVisualizationMode: () -> Unit = {},
     onSelectVisualizationMode: (VisualizationMode) -> Unit = {},
+    onVisualizerAction: () -> Unit = {},
     fullscreenModePref: VisualizationFullscreenMode,
     modifier: Modifier = Modifier
 ) {
@@ -676,6 +688,7 @@ internal fun FullscreenVisualizationOverlay(
                             availableVisualizationModes = availableVisualizationModes,
                             onCycleVisualizationMode = onCycleVisualizationMode,
                             onSelectVisualizationMode = onSelectVisualizationMode,
+                            onVisualizerAction = onVisualizerAction,
                             compact = effectiveMode == VisualizationFullscreenMode.Compact,
                             modifier = Modifier.padding(bottom = 12.dp)
                         )
