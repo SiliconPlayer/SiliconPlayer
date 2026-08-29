@@ -142,9 +142,11 @@ import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
@@ -652,6 +654,27 @@ private fun playerMarqueeMotionFadeAlpha(
         (segmentDurationMs - elapsedMs).toFloat() / fadeOutMs.coerceAtLeast(1)
         ).coerceIn(0f, 1f)
     return minOf(fadeInProgress, fadeOutProgress)
+}
+
+private class PlayerLayoutConstraints(val maxWidth: Dp, val maxHeight: Dp)
+
+/**
+ * Layout box whose content reads the measured size instead of constraints.
+ * Avoids a measure-time subcomposition (BoxWithConstraints), which is a
+ * crash hazard for measure-driven recomposition on slow devices.
+ */
+@Composable
+private fun PlayerLayoutBox(
+    modifier: Modifier,
+    content: @Composable PlayerLayoutConstraints.() -> Unit
+) {
+    var deferredSize by remember { mutableStateOf(IntSize.Zero) }
+    val density = LocalDensity.current
+    Box(modifier.onSizeChangedDeferred { deferredSize = it }) {
+        with(density) {
+            content(PlayerLayoutConstraints(deferredSize.width.toDp(), deferredSize.height.toDp()))
+        }
+    }
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -1207,7 +1230,7 @@ internal fun PlayerScreen(
                     onOpenTrackInfo = { showTrackInfoDialog = true }
                 )
             } else if (isLandscape) {
-                BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
+                PlayerLayoutBox(modifier = Modifier.fillMaxSize()) {
                     val landscapeWidthScale = normalizedScale(maxWidth, compactDp = 640.dp, roomyDp = 1280.dp)
                     val landscapeHeightScale = normalizedScale(maxHeight, compactDp = 320.dp, roomyDp = 720.dp)
                     val landscapeLayoutScale = (landscapeHeightScale * 0.65f + landscapeWidthScale * 0.35f)
@@ -1232,7 +1255,7 @@ internal fun PlayerScreen(
                         horizontalArrangement = Arrangement.spacedBy(paneGap),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        BoxWithConstraints(
+                        Box(
                             modifier = Modifier
                                 .weight(artPaneWeight)
                                 .fillMaxHeight()
@@ -1440,7 +1463,7 @@ internal fun PlayerScreen(
                     }
                 }
             } else {
-                BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
+                PlayerLayoutBox(modifier = Modifier.fillMaxSize()) {
                     val portraitWidthScale = normalizedScale(maxWidth, compactDp = 320.dp, roomyDp = 840.dp)
                     val portraitHeightScale = normalizedScale(maxHeight, compactDp = 560.dp, roomyDp = 1100.dp)
                     val shortPortraitHeightScale = normalizedScale(maxHeight, compactDp = 520.dp, roomyDp = 760.dp)
@@ -1527,7 +1550,7 @@ internal fun PlayerScreen(
                         val actionStripHeightDp = with(density) { actionStripHeightPx.toDp() }
                         val minArtworkSize = lerpDp(128.dp, 240.dp, portraitLayoutScale)
                         val contentAvailableHeight = (
-                            this@BoxWithConstraints.maxHeight -
+                            maxHeight -
                                 actionStripHeightDp -
                                 actionStripSpacer -
                                 actionStripBottomPadding
@@ -1557,22 +1580,22 @@ internal fun PlayerScreen(
                         val portraitContentMaxWidth = lerpDp(310.dp, 700.dp, portraitWidthScale)
                         val portraitContentSideInset = lerpDp(68.dp, 88.dp, portraitWidthScale)
                         val portraitContentWidth = minOf(
-                            (this@BoxWithConstraints.maxWidth - portraitContentSideInset).coerceAtLeast(250.dp),
+                            (maxWidth - portraitContentSideInset).coerceAtLeast(250.dp),
                             portraitContentMaxWidth
                         )
                         val portraitArtworkWidth = if (shortPortraitLayout) {
                             minOf(
-                                (this@BoxWithConstraints.maxWidth - 44.dp).coerceAtLeast(minArtworkSize),
+                                (maxWidth - 44.dp).coerceAtLeast(minArtworkSize),
                                 lerpDp(264.dp, 600.dp, portraitWidthScale)
                             )
                         } else {
                             minOf(
-                                (this@BoxWithConstraints.maxWidth - 48.dp).coerceAtLeast(minArtworkSize),
+                                (maxWidth - 48.dp).coerceAtLeast(minArtworkSize),
                                 portraitContentMaxWidth
                             )
                         }
                         val maxArtworkByWidth = minOf(
-                            this@BoxWithConstraints.maxWidth * artWidthFraction,
+                            maxWidth * artWidthFraction,
                             portraitArtworkWidth
                         )
                         val maxArtworkByHeight = portraitArtworkTargetHeight.coerceAtLeast(minArtworkSize)

@@ -41,6 +41,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.setValue
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.withFrameNanos
 import androidx.compose.runtime.getValue
@@ -68,7 +69,9 @@ import com.flopster101.siliconplayer.placeholderArtworkDrawableResIdForFile
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
 import com.flopster101.siliconplayer.ArtworkSwipePreviewState
 import com.flopster101.siliconplayer.AppDefaults
@@ -143,18 +146,23 @@ private fun AlbumArtVisual(
             )
         }
     } else {
-        BoxWithConstraints(
-            modifier = modifier.background(
-                brush = Brush.radialGradient(
-                    colors = listOf(
-                        MaterialTheme.colorScheme.primary.copy(alpha = 0.28f),
-                        MaterialTheme.colorScheme.surfaceVariant
+        var placeholderSize by remember { mutableStateOf(IntSize.Zero) }
+        Box(
+            modifier = modifier
+                .onSizeChangedDeferred { placeholderSize = it }
+                .background(
+                    brush = Brush.radialGradient(
+                        colors = listOf(
+                            MaterialTheme.colorScheme.primary.copy(alpha = 0.28f),
+                            MaterialTheme.colorScheme.surfaceVariant
+                        )
                     )
-                )
-            ),
+                ),
             contentAlignment = Alignment.Center
         ) {
-            val minDim = minOf(maxWidth, maxHeight)
+            val minDim = with(LocalDensity.current) {
+                minOf(placeholderSize.width, placeholderSize.height).toDp()
+            }
             val circleRadius = if (minDim > 0.dp) {
                 minOf(60.dp, minDim * 0.35f)
             } else {
