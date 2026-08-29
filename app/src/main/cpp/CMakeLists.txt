@@ -193,12 +193,12 @@ include_directories(${CMAKE_SOURCE_DIR}/../../../../external/silicon/silicon_vis
     set_target_properties(libcRSID PROPERTIES IMPORTED_LOCATION "${PREBUILT_DIR}/lib/libcRSID.so")
 
     set(HAS_OPENSSL_PREBUILT FALSE)
-    if (EXISTS "${PREBUILT_DIR}/lib/libssl.so" AND EXISTS "${PREBUILT_DIR}/lib/libcrypto.so")
+    if (EXISTS "${PREBUILT_DIR}/lib/libsiliconplayer_ssl.so" AND EXISTS "${PREBUILT_DIR}/lib/libsiliconplayer_crypto.so")
         add_library(libssl SHARED IMPORTED)
-        set_target_properties(libssl PROPERTIES IMPORTED_LOCATION "${PREBUILT_DIR}/lib/libssl.so")
+        set_target_properties(libssl PROPERTIES IMPORTED_LOCATION "${PREBUILT_DIR}/lib/libsiliconplayer_ssl.so")
 
         add_library(libcrypto SHARED IMPORTED)
-        set_target_properties(libcrypto PROPERTIES IMPORTED_LOCATION "${PREBUILT_DIR}/lib/libcrypto.so")
+        set_target_properties(libcrypto PROPERTIES IMPORTED_LOCATION "${PREBUILT_DIR}/lib/libsiliconplayer_crypto.so")
         set(HAS_OPENSSL_PREBUILT TRUE)
     endif()
 

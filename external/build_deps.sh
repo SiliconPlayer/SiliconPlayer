@@ -2842,6 +2842,38 @@ ensure_libm_dt_needed() {
 }
 
 # -----------------------------------------------------------------------------
+# Function: Rename bundled OpenSSL libs (avoid system libcrypto clash)
+# -----------------------------------------------------------------------------
+# On Android 5.x Conscrypt loads the system libcrypto.so/libssl.so, and the
+# pre-M linker resolves DT_NEEDED entries by soname against already-loaded
+# libraries, so bundled OpenSSL libs clash with the system ones (missing
+# 1.1+ symbols like BIO_read_ex). Give them app-unique sonames.
+rename_bundled_openssl() {
+    command -v patchelf >/dev/null 2>&1 || return 0
+    local PREBUILT_BASE="$ABSOLUTE_PATH/../app/src/main/cpp/prebuilt"
+    local abi so
+    for abi in arm64-v8a armeabi-v7a x86_64 x86; do
+        [ -d "$PREBUILT_BASE/$abi/lib" ] || continue
+        if [ -f "$PREBUILT_BASE/$abi/lib/libcrypto.so" ]; then
+            patchelf --set-soname libsiliconplayer_crypto.so "$PREBUILT_BASE/$abi/lib/libcrypto.so"
+            mv "$PREBUILT_BASE/$abi/lib/libcrypto.so" "$PREBUILT_BASE/$abi/lib/libsiliconplayer_crypto.so"
+        fi
+        if [ -f "$PREBUILT_BASE/$abi/lib/libssl.so" ]; then
+            patchelf --set-soname libsiliconplayer_ssl.so "$PREBUILT_BASE/$abi/lib/libssl.so"
+            mv "$PREBUILT_BASE/$abi/lib/libssl.so" "$PREBUILT_BASE/$abi/lib/libsiliconplayer_ssl.so"
+        fi
+        for so in "$PREBUILT_BASE/$abi/lib"/*.so; do
+            if readelf -d "$so" 2>/dev/null | grep -q 'NEEDED.*\[libcrypto\.so\]'; then
+                patchelf --replace-needed libcrypto.so libsiliconplayer_crypto.so "$so"
+            fi
+            if readelf -d "$so" 2>/dev/null | grep -q 'NEEDED.*\[libssl\.so\]'; then
+                patchelf --replace-needed libssl.so libsiliconplayer_ssl.so "$so"
+            fi
+        done
+    done
+}
+
+# -----------------------------------------------------------------------------
 # Main Loop
 # -----------------------------------------------------------------------------
 processed_abis=0
@@ -2996,5 +3028,6 @@ if [ "$processed_abis" -eq 0 ]; then
 fi
 
 ensure_libm_dt_needed
+rename_bundled_openssl
 
 echo "Build complete!"
