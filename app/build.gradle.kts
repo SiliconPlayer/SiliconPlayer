@@ -261,7 +261,7 @@ val generateAboutVersions by tasks.registering {
 
 extensions.configure<com.android.build.api.dsl.ApplicationExtension>("android") {
     namespace = "com.flopster101.siliconplayer"
-    compileSdk = 34
+    compileSdk = 36
     buildToolsVersion = androidBuildToolsVersion
     ndkVersion = "29.0.14206865"
 
