@@ -1,5 +1,7 @@
 package com.flopster101.siliconplayer
 
+import com.flopster101.siliconplayer.onGloballyPositionedDeferred
+import com.flopster101.siliconplayer.onSizeChangedDeferred
 import android.widget.Toast
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.expandVertically
@@ -199,7 +201,7 @@ internal fun AudioPluginsRouteContent(
                     Box(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .onGloballyPositioned { coords ->
+                            .onGloballyPositionedDeferred { coords ->
                                 rowTopPx[pluginName] = coords.positionInParent().y
                             }
                     ) {

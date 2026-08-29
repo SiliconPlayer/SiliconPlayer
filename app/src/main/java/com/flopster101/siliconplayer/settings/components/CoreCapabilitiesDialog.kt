@@ -1,5 +1,7 @@
 package com.flopster101.siliconplayer
 
+import com.flopster101.siliconplayer.onGloballyPositionedDeferred
+import com.flopster101.siliconplayer.onSizeChangedDeferred
 import androidx.compose.foundation.ScrollState
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
@@ -120,7 +122,7 @@ internal fun CoreCapabilitiesDialog(
                     modifier = Modifier
                         .fillMaxWidth()
                         .heightIn(max = maxHeight)
-                        .onSizeChanged { viewportHeightPx = it.height }
+                        .onSizeChangedDeferred { viewportHeightPx = it.height }
                 ) {
                     Column(
                         modifier = Modifier

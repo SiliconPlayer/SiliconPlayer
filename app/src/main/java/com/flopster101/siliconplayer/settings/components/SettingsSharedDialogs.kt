@@ -1,5 +1,7 @@
 package com.flopster101.siliconplayer
 
+import com.flopster101.siliconplayer.onGloballyPositionedDeferred
+import com.flopster101.siliconplayer.onSizeChangedDeferred
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -212,7 +214,7 @@ internal fun SettingsActionListDialog(
                     modifier = Modifier
                         .fillMaxWidth()
                         .heightIn(max = 360.dp)
-                        .onSizeChanged { scrollViewportHeightPx = it.height.toFloat() }
+                        .onSizeChangedDeferred { scrollViewportHeightPx = it.height.toFloat() }
                 ) {
                     Column(
                         modifier = Modifier
@@ -357,7 +359,7 @@ internal fun <T> SettingsSingleChoiceDialog(
                         modifier = Modifier
                             .fillMaxWidth()
                             .heightIn(max = maxDialogListHeight)
-                            .onSizeChanged { scrollViewportHeightPx = it.height.toFloat() }
+                            .onSizeChangedDeferred { scrollViewportHeightPx = it.height.toFloat() }
                     ) {
                         Column(
                             modifier = Modifier

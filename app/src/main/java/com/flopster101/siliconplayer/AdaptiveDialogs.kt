@@ -3,6 +3,9 @@ package com.flopster101.siliconplayer
 import android.content.pm.PackageManager
 import android.content.res.Configuration
 import android.os.Build
+import androidx.compose.ui.layout.LayoutCoordinates
+import androidx.compose.ui.platform.LocalView
+import androidx.compose.ui.unit.IntSize
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
@@ -17,8 +20,10 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
+import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
@@ -36,6 +41,22 @@ internal fun isWatchDevice(): Boolean {
 
 internal val Configuration.isRoundScreenCompat: Boolean
     get() = Build.VERSION.SDK_INT >= Build.VERSION_CODES.M && isScreenRound()
+
+@Composable
+internal fun Modifier.onSizeChangedDeferred(onSizeChanged: (IntSize) -> Unit): Modifier {
+    val view = LocalView.current
+    return onSizeChanged { size ->
+        view.post { onSizeChanged(size) }
+    }
+}
+
+@Composable
+internal fun Modifier.onGloballyPositionedDeferred(onPositioned: (LayoutCoordinates) -> Unit): Modifier {
+    val view = LocalView.current
+    return onGloballyPositioned { coords ->
+        view.post { onPositioned(coords) }
+    }
+}
 
 @Composable
 internal fun WatchDialogContainer(

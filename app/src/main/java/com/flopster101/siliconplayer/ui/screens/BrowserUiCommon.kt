@@ -1,5 +1,7 @@
 package com.flopster101.siliconplayer.ui.screens
 
+import com.flopster101.siliconplayer.onGloballyPositionedDeferred
+import com.flopster101.siliconplayer.onSizeChangedDeferred
 import android.app.ActivityManager
 import android.content.Context
 import com.flopster101.siliconplayer.VerticalScrollbarTrack
@@ -606,7 +608,7 @@ internal fun BrowserInfoDialog(
                     modifier = Modifier
                         .fillMaxWidth()
                         .heightIn(max = 320.dp)
-                        .onSizeChanged { contentViewportHeightPx = it.height }
+                        .onSizeChangedDeferred { contentViewportHeightPx = it.height }
                 ) {
                     SelectionContainer {
                         Column(
@@ -734,7 +736,7 @@ internal fun BrowserTextPreviewDialog(
                     modifier = Modifier
                         .fillMaxWidth()
                         .heightIn(max = 360.dp)
-                        .onSizeChanged { contentViewportHeightPx = it.height }
+                        .onSizeChangedDeferred { contentViewportHeightPx = it.height }
                 ) {
                     Surface(
                         modifier = Modifier

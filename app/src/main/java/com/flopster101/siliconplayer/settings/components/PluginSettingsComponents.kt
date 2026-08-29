@@ -1,5 +1,7 @@
 package com.flopster101.siliconplayer
 
+import com.flopster101.siliconplayer.onGloballyPositionedDeferred
+import com.flopster101.siliconplayer.onSizeChangedDeferred
 import android.content.pm.PackageManager
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.LinearOutSlowInEasing
@@ -117,7 +119,7 @@ internal fun PluginListItemCard(
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .onSizeChanged { onMeasuredHeight(it.height.toFloat()) }
+                .onSizeChangedDeferred { onMeasuredHeight(it.height.toFloat()) }
                 .padding(
                     horizontal = if (isWatch) 10.dp else 16.dp,
                     vertical = if (isWatch) 8.dp else 13.dp

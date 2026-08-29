@@ -1,5 +1,7 @@
 package com.flopster101.siliconplayer.ui.dialogs
 
+import com.flopster101.siliconplayer.onGloballyPositionedDeferred
+import com.flopster101.siliconplayer.onSizeChangedDeferred
 import com.flopster101.siliconplayer.VerticalScrollbarTrack
 import com.flopster101.siliconplayer.rememberScrollStateScrollbarDragHandler
 import androidx.compose.animation.AnimatedVisibility
@@ -755,7 +757,7 @@ private fun DspTabContent(
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .onSizeChanged { viewportHeightPx = it.height.toFloat() },
+            .onSizeChangedDeferred { viewportHeightPx = it.height.toFloat() },
         verticalArrangement = Arrangement.spacedBy(6.dp)
     ) {
         Box(

@@ -98,7 +98,7 @@ internal fun VerticalScrollbarTrack(
     var measuredTrackHeightPx by remember { mutableFloatStateOf(1f) }
     BoxWithConstraints(
         modifier = modifier
-            .onSizeChanged { measuredTrackHeightPx = it.height.toFloat().coerceAtLeast(1f) }
+            .onSizeChangedDeferred { measuredTrackHeightPx = it.height.toFloat().coerceAtLeast(1f) }
             .pointerInteropFilter { event ->
                 val dragCallback = onDragFractionChanged ?: return@pointerInteropFilter false
 

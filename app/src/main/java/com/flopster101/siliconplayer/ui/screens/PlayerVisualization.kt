@@ -1,5 +1,7 @@
 package com.flopster101.siliconplayer.ui.screens
 
+import com.flopster101.siliconplayer.onGloballyPositionedDeferred
+import com.flopster101.siliconplayer.onSizeChangedDeferred
 import com.flopster101.siliconplayer.VisualizationPerformanceMode
 import com.flopster101.siliconplayer.resolveEffectiveVisualizationPerformanceMode
 import com.flopster101.siliconplayer.ui.visualization.gl.resolveChannelGrid
@@ -378,7 +380,7 @@ private fun SwipeableArtworkContainer(
     Box(
         modifier = modifier
             .clipToBounds()
-            .onSizeChanged { size ->
+            .onSizeChangedDeferred { size ->
                 containerWidthPx = size.width
             }
             .then(

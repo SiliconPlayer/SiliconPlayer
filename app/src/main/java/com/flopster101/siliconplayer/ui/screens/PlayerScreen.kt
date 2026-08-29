@@ -1,5 +1,7 @@
 package com.flopster101.siliconplayer.ui.screens
 
+import com.flopster101.siliconplayer.onGloballyPositionedDeferred
+import com.flopster101.siliconplayer.onSizeChangedDeferred
 import com.flopster101.siliconplayer.isRoundScreenCompat
 import com.flopster101.siliconplayer.VisualizationPerformanceMode
 import com.flopster101.siliconplayer.VerticalScrollbarTrack
@@ -1817,7 +1819,7 @@ internal fun PlayerScreen(
                             modifier = Modifier
                                 .align(Alignment.BottomCenter)
                                 .width(portraitContentWidth)
-                                .onSizeChanged { actionStripHeightPx = it.height }
+                                .onSizeChangedDeferred { actionStripHeightPx = it.height }
                                 .navigationBarsPadding()
                                 .padding(bottom = actionStripBottomPadding),
                             isVisualizerActive = visualizationMode != VisualizationMode.Off,
@@ -2934,7 +2936,7 @@ private fun TrackInfoDetailsDialog(
                     Column(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .onSizeChanged { detailsViewportHeightPx = it.height }
+                            .onSizeChangedDeferred { detailsViewportHeightPx = it.height }
                             .dialogScrollableContentNavigation(
                                 scrollState = detailsScrollState,
                                 focusRequester = detailsFocusRequester,
@@ -4954,7 +4956,7 @@ private fun ChannelControlGrid(
         modifier = Modifier
             .fillMaxWidth()
             .heightIn(max = 176.dp)
-            .onSizeChanged { gridViewportHeightPx = it.height }
+            .onSizeChangedDeferred { gridViewportHeightPx = it.height }
     ) {
         Column(
             modifier = Modifier
@@ -5325,7 +5327,7 @@ internal fun LineageStyleSeekBar(
                     else -> false
                 }
             }
-            .onSizeChanged { canvasSize ->
+            .onSizeChangedDeferred { canvasSize ->
                 barWidthPx = canvasSize.width.toFloat()
                 barHeightPx = canvasSize.height.toFloat()
             }

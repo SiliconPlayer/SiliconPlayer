@@ -1,5 +1,7 @@
 package com.flopster101.siliconplayer
 
+import com.flopster101.siliconplayer.onGloballyPositionedDeferred
+import com.flopster101.siliconplayer.onSizeChangedDeferred
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
@@ -401,7 +403,7 @@ internal fun SettingsSearchableMultiSelectDialog(
                         modifier = Modifier
                             .fillMaxWidth()
                             .heightIn(max = 300.dp)
-                            .onSizeChanged { listViewportHeightPx = it.height.toFloat() }
+                            .onSizeChangedDeferred { listViewportHeightPx = it.height.toFloat() }
                     ) {
                         LazyColumn(
                             state = listState,
@@ -494,7 +496,7 @@ internal fun <T> SettingsGroupedToggleDialog(
             modifier = Modifier
                 .fillMaxWidth()
                 .heightIn(max = 420.dp)
-                .onSizeChanged { scrollViewportHeightPx = it.height.toFloat() }
+                .onSizeChangedDeferred { scrollViewportHeightPx = it.height.toFloat() }
         ) {
             Column(
                 modifier = Modifier

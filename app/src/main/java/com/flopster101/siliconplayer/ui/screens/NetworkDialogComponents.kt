@@ -1,5 +1,7 @@
 package com.flopster101.siliconplayer.ui.screens
 
+import com.flopster101.siliconplayer.onGloballyPositionedDeferred
+import com.flopster101.siliconplayer.onSizeChangedDeferred
 import com.flopster101.siliconplayer.VerticalScrollbarTrack
 import com.flopster101.siliconplayer.rememberScrollStateScrollbarDragHandler
 import androidx.compose.foundation.ScrollState
@@ -910,7 +912,7 @@ private fun NetworkDialogScrollableContent(
         modifier = Modifier
             .fillMaxWidth()
             .heightIn(max = maxHeight)
-            .onSizeChanged { viewportHeightPx = it.height }
+            .onSizeChangedDeferred { viewportHeightPx = it.height }
     ) {
         Column(
             modifier = Modifier

@@ -1,5 +1,7 @@
 package com.flopster101.siliconplayer
 
+import com.flopster101.siliconplayer.onGloballyPositionedDeferred
+import com.flopster101.siliconplayer.onSizeChangedDeferred
 import android.content.Intent
 import android.net.Uri
 import androidx.compose.foundation.clickable
@@ -173,7 +175,7 @@ private fun AboutEntityDialogContent(
         modifier = Modifier
             .fillMaxWidth()
             .heightIn(max = maxHeight)
-            .onSizeChanged { viewportHeightPx = it.height }
+            .onSizeChangedDeferred { viewportHeightPx = it.height }
     ) {
         Column(
             modifier = Modifier
