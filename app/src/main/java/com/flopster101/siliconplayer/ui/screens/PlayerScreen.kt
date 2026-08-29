@@ -762,7 +762,26 @@ internal fun PlayerScreen(
     // Only one GL pipeline may render at a time. When fullscreen is active the
     // player-body visualizer is put to Off so the fullscreen overlay owns the
     // sole projectM/GL pipeline (its view unmounts and warms the handle cache).
-    val bodyVisualizationMode = if (isVisualizationFullscreen) VisualizationMode.Off else visualizationMode
+    // projectM tears down immediately to keep that exclusion strict; the other
+    // visualizers defer teardown by one frame so the dispose does not land in
+    // the same measure pass that mounts the fullscreen overlay.
+    var deferBodyVisOff by remember { mutableStateOf(false) }
+    LaunchedEffect(isVisualizationFullscreen, visualizationMode) {
+        if (isVisualizationFullscreen && visualizationMode != VisualizationMode.ProjectM) {
+            withFrameNanos { }
+            deferBodyVisOff = true
+        } else {
+            deferBodyVisOff = false
+        }
+    }
+    val bodyVisualizationMode =
+        if (isVisualizationFullscreen &&
+            (visualizationMode == VisualizationMode.ProjectM || deferBodyVisOff)
+        ) {
+            VisualizationMode.Off
+        } else {
+            visualizationMode
+        }
     var showFullscreenAffordance by remember { mutableStateOf(false) }
     val prefs = remember {
         context.getSharedPreferences(AppPreferenceKeys.PREFS_NAME, Context.MODE_PRIVATE)
