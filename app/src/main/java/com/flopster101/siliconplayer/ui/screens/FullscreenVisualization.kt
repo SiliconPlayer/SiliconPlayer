@@ -3,6 +3,7 @@ package com.flopster101.siliconplayer.ui.screens
 import android.app.Activity
 import android.content.pm.PackageManager
 import android.content.res.Configuration
+import android.os.Build
 import android.view.WindowManager
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedVisibility
@@ -586,10 +587,12 @@ internal fun FullscreenVisualizationOverlay(
         if (window != null) {
             if (isFullscreen) {
                 WindowCompat.setDecorFitsSystemWindows(window, false)
-                val attrs = window.attributes
-                attrs.layoutInDisplayCutoutMode =
-                    WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_SHORT_EDGES
-                window.attributes = attrs
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+                    val attrs = window.attributes
+                    attrs.layoutInDisplayCutoutMode =
+                        WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_SHORT_EDGES
+                    window.attributes = attrs
+                }
                 WindowCompat.getInsetsController(window, window.decorView)?.let { controller ->
                     controller.hide(WindowInsetsCompat.Type.systemBars())
                     controller.systemBarsBehavior =
