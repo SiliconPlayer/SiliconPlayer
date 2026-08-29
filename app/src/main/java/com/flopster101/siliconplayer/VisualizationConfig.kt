@@ -1,5 +1,8 @@
 package com.flopster101.siliconplayer
 
+import android.app.ActivityManager
+import android.content.Context
+
 enum class VisualizationMode(
     val storageValue: String,
     val label: String
@@ -259,3 +262,21 @@ enum class VisualizationProjectMResolutionMode(
         }
     }
 }
+
+/**
+ * projectM requires OpenGL ES 3.0. Availability is cached for the process
+ * lifetime using the app context installed by NativeBridge at startup.
+ */
+@Volatile
+private var cachedProjectMSupported: Boolean? = null
+
+fun supportsProjectM(context: Context): Boolean {
+    cachedProjectMSupported?.let { return it }
+    val activityManager =
+        context.applicationContext.getSystemService(Context.ACTIVITY_SERVICE) as ActivityManager
+    val supported = activityManager.deviceConfigurationInfo.reqGlEsVersion >= 0x30000
+    cachedProjectMSupported = supported
+    return supported
+}
+
+fun supportsProjectM(): Boolean = supportsProjectM(NativeBridge.requireAppContext())

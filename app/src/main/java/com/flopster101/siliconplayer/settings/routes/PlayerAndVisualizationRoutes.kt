@@ -5,6 +5,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AutoAwesome
@@ -447,7 +448,9 @@ internal fun VisualizationRouteContent(
         )
     }
     val basicPages = remember { basicVisualizationSettingsPages() }
+    val projectMSupported = remember { supportsProjectM() }
     val advancedPages = remember { advancedVisualizationSettingsPages() }
+        .filter { it.mode != VisualizationMode.ProjectM || projectMSupported }
     val allPages = remember { basicPages + advancedPages }
     val toggleableModes = remember(allPages) { allPages.map { it.mode } }
     val isWatch = remember(context) { context.packageManager.hasSystemFeature(android.content.pm.PackageManager.FEATURE_WATCH) }
@@ -477,6 +480,15 @@ internal fun VisualizationRouteContent(
         icon = Icons.Default.Tune,
         onClick = { showEnabledDialog = true }
     )
+    if (!projectMSupported) {
+        Text(
+            text = "projectM requires OpenGL ES 3.0, which this device doesn't support. " +
+                "It is unavailable.",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 4.dp)
+        )
+    }
     SettingsRowSpacer()
     SettingsItemCard(
         title = "Visualization performance mode",
@@ -560,8 +572,9 @@ internal fun VisualizationRouteContent(
     }
 
     if (showModeDialog) {
-        val availableModes = listOf(VisualizationMode.Off) + toggleableModes
-            .filter { enabledVisualizationModes.contains(it) }
+        val availableModes = (listOf(VisualizationMode.Off) + toggleableModes
+            .filter { enabledVisualizationModes.contains(it) })
+            .filter { it != VisualizationMode.ProjectM || projectMSupported }
         SettingsSingleChoiceDialog(
             title = "Visualization mode",
             selectedValue = visualizationMode,
@@ -652,6 +665,7 @@ internal fun VisualizationAdvancedRouteContent(
     val onOpenVisualizationAdvancedProjectM = actions.onOpenVisualizationAdvancedProjectM
 
     val advancedPages = remember { advancedVisualizationSettingsPages() }
+        .filter { it.mode != VisualizationMode.ProjectM || supportsProjectM() }
     SettingsSectionLabel("Advanced visualizations")
     SettingsRowSpacer()
     advancedPages.forEachIndexed { index, page ->
@@ -675,5 +689,14 @@ internal fun VisualizationAdvancedRouteContent(
         if (index < advancedPages.lastIndex) {
             SettingsRowSpacer()
         }
+    }
+    if (!supportsProjectM()) {
+        Text(
+            text = "projectM requires OpenGL ES 3.0, which this device doesn't support. " +
+                "It is unavailable.",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 4.dp)
+        )
     }
 }

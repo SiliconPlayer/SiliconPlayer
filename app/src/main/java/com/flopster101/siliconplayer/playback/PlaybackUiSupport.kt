@@ -112,6 +112,10 @@ internal fun isVisualizationModeSupported(
     return when (mode) {
         VisualizationMode.ChannelScope -> supportsChannelScopeVisualization(coreNameForUi)
 
+        // projectM's renderer needs an OpenGL ES 3.0 context; force the mode
+        // off with a settings disclaimer on GLES2-only devices.
+        VisualizationMode.ProjectM -> supportsProjectM()
+
         else -> true
     }
 }
