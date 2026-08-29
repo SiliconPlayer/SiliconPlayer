@@ -2817,6 +2817,31 @@ if target_has_lib "vasm"; then
 fi
 
 # -----------------------------------------------------------------------------
+# Function: Ensure prebuilt shared libs reference libm (Android 5.x compat)
+# -----------------------------------------------------------------------------
+# Since API 23 libm is merged into libc, so libs built without an explicit
+# libm dependency load fine on 6.0+ but fail dlopen relocation on 5.x.
+# Runs only if patchelf is available.
+ensure_libm_dt_needed() {
+    command -v patchelf >/dev/null 2>&1 || return 0
+    local PREBUILT_BASE="$ABSOLUTE_PATH/../app/src/main/cpp/prebuilt"
+    local MATH_RE='^(sin|cos|tan|sinf|cosf|tanf|asin|acos|atan|atan2|atan2f|sqrt|sqrtf|pow|powf|log|logf|log10|exp|expf|fmod|fmodf|floor|floorf|ceil|ceilf|round|roundf|hypot|hypotf|ldexp|frexp|copysign|fmax|fmin|fmaxf|fminf|trunc|truncf|acosf|asinf|log2|log2f|exp2|exp2f|cbrt|remainderf)$'
+    local abi so und hits
+    for abi in arm64-v8a armeabi-v7a x86_64 x86; do
+        [ -d "$PREBUILT_BASE/$abi/lib" ] || continue
+        for so in "$PREBUILT_BASE/$abi/lib"/*.so; do
+            grep -q 'NEEDED.*libm\.so' <(readelf -d "$so" 2>/dev/null) && continue
+            und=$(readelf --dyn-syms --wide "$so" 2>/dev/null | awk '$7=="UND"{print $8}' | cut -d@ -f1 | sort -u)
+            hits=$(echo "$und" | grep -cE "$MATH_RE")
+            if [ "$hits" -gt 0 ]; then
+                echo "patchelf: adding DT_NEEDED libm.so to $(basename "$so") ($abi)"
+                patchelf --add-needed libm.so "$so"
+            fi
+        done
+    done
+}
+
+# -----------------------------------------------------------------------------
 # Main Loop
 # -----------------------------------------------------------------------------
 processed_abis=0
@@ -2969,5 +2994,7 @@ if [ "$processed_abis" -eq 0 ]; then
     echo "Error: no ABI was processed for TARGET_ABI='$TARGET_ABI'."
     exit 1
 fi
+
+ensure_libm_dt_needed
 
 echo "Build complete!"
