@@ -1417,6 +1417,45 @@ internal fun PlayerScreen(
                                     supportingScaleBoost = landscapeSupportingScaleBoost,
                                     fullTechLine = trackTechnicalInfo.fullLine,
                                     fallbackTechLine = trackTechnicalInfo.fallbackLine,
+                                    showFavorite = pathOrUrl != null,
+                                    favoriteIndicator = {
+                                        Box(
+                                            modifier = Modifier
+                                                .size(32.dp)
+                                                .focusProperties {
+                                                    down = transportAnchorFocusRequester
+                                                }
+                                                .clip(CircleShape)
+                                                .playerFocusHalo(enabled = pathOrUrl != null, shape = CircleShape)
+                                                .focusable(enabled = pathOrUrl != null)
+                                                .clickable(
+                                                    enabled = pathOrUrl != null,
+                                                    onClick = onToggleFavoriteTrack
+                                                ),
+                                            contentAlignment = Alignment.Center
+                                        ) {
+                                            Icon(
+                                                painter = painterResource(
+                                                    id = if (isTrackFavorited) {
+                                                        R.drawable.ic_star_filled
+                                                    } else {
+                                                        R.drawable.ic_star_outline
+                                                    }
+                                                ),
+                                                contentDescription = if (isTrackFavorited) {
+                                                    "Remove from favorites"
+                                                } else {
+                                                    "Add to favorites"
+                                                },
+                                                tint = if (isTrackFavorited) {
+                                                    MaterialTheme.colorScheme.primary
+                                                } else {
+                                                    MaterialTheme.colorScheme.onSurfaceVariant
+                                                },
+                                                modifier = Modifier.size(20.dp)
+                                            )
+                                        }
+                                    },
                                     modifier = Modifier.fillMaxWidth()
                                 )
 
