@@ -1454,9 +1454,6 @@ internal fun PlayerScreen(
                                     isVisualizerActive = visualizationMode != VisualizationMode.Off,
                                     onCycleVisualizationMode = onCycleVisualizationMode,
                                     onOpenVisualizationPicker = { showVisualizationPickerDialog = true },
-                                    isTrackFavorited = isTrackFavorited,
-                                    onToggleFavoriteTrack = onToggleFavoriteTrack,
-                                    canToggleFavoriteTrack = pathOrUrl != null,
                                     compactLayout = false,
                                     layoutScale = actionStripScale,
                                     actionStripFirstFocusRequester = actionStripFirstFocusRequester,
@@ -1733,6 +1730,45 @@ internal fun PlayerScreen(
                                         layoutScale = portraitLayoutScale,
                                         fullTechLine = trackTechnicalInfo.fullLine,
                                         fallbackTechLine = trackTechnicalInfo.fallbackLine,
+                                        showFavorite = pathOrUrl != null,
+                                        favoriteIndicator = {
+                                            Box(
+                                                modifier = Modifier
+                                                    .size(32.dp)
+                                                    .focusProperties {
+                                                        down = transportAnchorFocusRequester
+                                                    }
+                                                    .clip(CircleShape)
+                                                    .playerFocusHalo(enabled = pathOrUrl != null, shape = CircleShape)
+                                                    .focusable(enabled = pathOrUrl != null)
+                                                    .clickable(
+                                                        enabled = pathOrUrl != null,
+                                                        onClick = onToggleFavoriteTrack
+                                                    ),
+                                                contentAlignment = Alignment.Center
+                                            ) {
+                                                Icon(
+                                                    painter = painterResource(
+                                                        id = if (isTrackFavorited) {
+                                                            R.drawable.ic_star_filled
+                                                        } else {
+                                                            R.drawable.ic_star_outline
+                                                        }
+                                                    ),
+                                                    contentDescription = if (isTrackFavorited) {
+                                                        "Remove from favorites"
+                                                    } else {
+                                                        "Add to favorites"
+                                                    },
+                                                    tint = if (isTrackFavorited) {
+                                                        MaterialTheme.colorScheme.primary
+                                                    } else {
+                                                        MaterialTheme.colorScheme.onSurfaceVariant
+                                                    },
+                                                    modifier = Modifier.size(20.dp)
+                                                )
+                                            }
+                                        },
                                         modifier = Modifier.fillMaxWidth()
                                     )
 
@@ -1827,9 +1863,6 @@ internal fun PlayerScreen(
                             isVisualizerActive = visualizationMode != VisualizationMode.Off,
                             onCycleVisualizationMode = onCycleVisualizationMode,
                             onOpenVisualizationPicker = { showVisualizationPickerDialog = true },
-                            isTrackFavorited = isTrackFavorited,
-                            onToggleFavoriteTrack = onToggleFavoriteTrack,
-                            canToggleFavoriteTrack = pathOrUrl != null,
                             compactLayout = true,
                             layoutScale = if (shortPortraitLayout) {
                                 (shortPortraitHeightScale * 0.72f).coerceIn(0.40f, 0.62f)
@@ -3402,6 +3435,8 @@ private fun PlayerTitleWithOptionalSubtuneBadge(
     onOpenSubtuneSelector: () -> Unit,
     textAlign: TextAlign,
     centered: Boolean,
+    showFavoriteIndicator: Boolean = false,
+    favoriteIndicator: @Composable () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     val badgeTextStyle = MaterialTheme.typography.bodySmall
@@ -3421,6 +3456,9 @@ private fun PlayerTitleWithOptionalSubtuneBadge(
             .heightIn(min = titleRowMinHeight),
         contentAlignment = if (centered) Alignment.Center else Alignment.CenterStart
     ) {
+        val showFavorite = showFavoriteIndicator && !centered
+        val favoriteWidth = if (showFavorite) 40.dp else 0.dp
+        val contentMaxWidth = maxWidth - favoriteWidth
         if (subtuneBadge == null) {
             AnimatedContent(
                 targetState = title,
@@ -3430,11 +3468,13 @@ private fun PlayerTitleWithOptionalSubtuneBadge(
                 },
                 label = if (centered) "centeredTrackTitleSwap" else "portraitTrackTitleSwap"
             ) { animatedTitle ->
-                PlayerMarqueeText(
-                    text = animatedTitle,
-                    style = titleTextStyle,
-                    textAlign = textAlign
-                )
+                Box(modifier = Modifier.width(contentMaxWidth)) {
+                    PlayerMarqueeText(
+                        text = animatedTitle,
+                        style = titleTextStyle,
+                        textAlign = textAlign
+                    )
+                }
             }
         } else {
             val textMeasurer = rememberTextMeasurer()
@@ -3449,7 +3489,7 @@ private fun PlayerTitleWithOptionalSubtuneBadge(
                     ).size.width.toDp() + badgeStartPadding + badgeSpacing + badgeEndPadding
                 }
             }
-            val titleMaxWidth = (maxWidth - badgeWidth).coerceAtLeast(48.dp)
+            val titleMaxWidth = (contentMaxWidth - badgeWidth).coerceAtLeast(48.dp)
             Row(
                 modifier = Modifier
                     .wrapContentWidth()
@@ -3500,6 +3540,16 @@ private fun PlayerTitleWithOptionalSubtuneBadge(
                 )
             }
         }
+        if (showFavorite) {
+            Box(
+                modifier = Modifier
+                    .align(Alignment.CenterEnd)
+                    .size(32.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                favoriteIndicator()
+            }
+        }
     }
 }
 
@@ -3523,6 +3573,8 @@ private fun PortraitTrackMetadataBlock(
     supportingScaleBoost: Float = 0f,
     fullTechLine: String? = null,
     fallbackTechLine: String? = null,
+    showFavorite: Boolean = false,
+    favoriteIndicator: @Composable () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     val effectiveTitleScale = layoutScale.coerceIn(0f, 1f)
@@ -3660,7 +3712,9 @@ private fun PortraitTrackMetadataBlock(
                         subtuneTitleFlashAlpha = subtuneTitleFlashAlpha.value,
                         onOpenSubtuneSelector = onOpenSubtuneSelector,
                         textAlign = TextAlign.Start,
-                        centered = false
+                        centered = false,
+                        showFavoriteIndicator = showFavorite,
+                        favoriteIndicator = favoriteIndicator
                     )
                     Spacer(modifier = Modifier.height(lerpDp(2.dp, 5.dp, layoutScale)))
                     val formattedArtist = remember(artist) { formatDisplayArtist(artist) }
@@ -4512,18 +4566,13 @@ private fun FutureActionStrip(
     isVisualizerActive: Boolean,
     onCycleVisualizationMode: () -> Unit,
     onOpenVisualizationPicker: () -> Unit,
-    isTrackFavorited: Boolean,
-    onToggleFavoriteTrack: () -> Unit,
-    canToggleFavoriteTrack: Boolean,
     compactLayout: Boolean = false,
     layoutScale: Float = 1f,
     actionStripFirstFocusRequester: FocusRequester? = null,
     transportAnchorFocusRequester: FocusRequester? = null
 ) {
     val visualizationModeFocusRequester = actionStripFirstFocusRequester ?: remember { FocusRequester() }
-    val favoriteTrackFocusRequester = remember { FocusRequester() }
     val canFocusVisualizationMode = true
-    val canFocusFavoriteTrack = canToggleFavoriteTrack
 
     data class ActionFocusNode(
         val key: String,
@@ -4532,8 +4581,7 @@ private fun FutureActionStrip(
     )
 
     val actionFocusNodes = listOf(
-        ActionFocusNode("visualization", canFocusVisualizationMode, visualizationModeFocusRequester),
-        ActionFocusNode("favorite", canFocusFavoriteTrack, favoriteTrackFocusRequester)
+        ActionFocusNode("visualization", canFocusVisualizationMode, visualizationModeFocusRequester)
     )
 
     fun neighboringActionRequester(key: String, step: Int): FocusRequester? {
@@ -4555,7 +4603,6 @@ private fun FutureActionStrip(
         val iconButtonMin = if (compactShortLayout) 36.dp else 40.dp
         val iconButtonSize = lerpDp(40.dp, 52.dp, tabletWidthScale).coerceIn(iconButtonMin, iconButtonMax)
         val modeIconSize = scaledDp(iconButtonSize, 0.58f).coerceIn(20.dp, lerpDp(24.dp, 30.dp, tabletWidthScale))
-        val genericIconSize = scaledDp(iconButtonSize, 0.58f).coerceIn(20.dp, lerpDp(24.dp, 30.dp, tabletWidthScale))
 
         Row(
             modifier = Modifier.fillMaxWidth(),
@@ -4604,45 +4651,6 @@ private fun FutureActionStrip(
                 )
             }
 
-
-            // 3. Favorite
-            IconButton(
-                onClick = onToggleFavoriteTrack,
-                enabled = canToggleFavoriteTrack,
-                modifier = Modifier
-                    .size(iconButtonSize)
-                    .focusRequester(favoriteTrackFocusRequester)
-                    .focusProperties {
-                        neighboringActionRequester("favorite", -1)?.let { left = it }
-                        neighboringActionRequester("favorite", 1)?.let { right = it }
-                        if (transportAnchorFocusRequester != null) {
-                            up = transportAnchorFocusRequester
-                        }
-                    }
-                    .playerFocusHalo(enabled = canToggleFavoriteTrack, shape = CircleShape)
-                    .focusable(enabled = canToggleFavoriteTrack)
-            ) {
-                Icon(
-                    painter = painterResource(
-                        id = if (isTrackFavorited) {
-                            R.drawable.ic_star_filled
-                        } else {
-                            R.drawable.ic_star_outline
-                        }
-                    ),
-                    contentDescription = if (isTrackFavorited) {
-                        "Remove from favorites"
-                    } else {
-                        "Add to favorites"
-                    },
-                    tint = if (isTrackFavorited) {
-                        MaterialTheme.colorScheme.primary
-                    } else {
-                        MaterialTheme.colorScheme.onSurfaceVariant
-                    },
-                    modifier = Modifier.size(genericIconSize)
-                )
-            }
         }
     }
 }
