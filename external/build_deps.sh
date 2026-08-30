@@ -2832,7 +2832,7 @@ ensure_libm_dt_needed() {
         for so in "$PREBUILT_BASE/$abi/lib"/*.so; do
             grep -q 'NEEDED.*libm\.so' <(readelf -d "$so" 2>/dev/null) && continue
             und=$(readelf --dyn-syms --wide "$so" 2>/dev/null | awk '$7=="UND"{print $8}' | cut -d@ -f1 | sort -u)
-            hits=$(echo "$und" | grep -cE "$MATH_RE")
+            hits=$(echo "$und" | grep -cE "$MATH_RE" || true)
             if [ "$hits" -gt 0 ]; then
                 echo "patchelf: adding DT_NEEDED libm.so to $(basename "$so") ($abi)"
                 patchelf --add-needed libm.so "$so"
