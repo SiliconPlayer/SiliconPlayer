@@ -127,8 +127,7 @@ internal fun VisualizationOptionsSheet(
                 Card(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .fillMaxHeight(0.5f)
-                        .heightIn(max = 560.dp)
+                        .fillMaxHeight(0.85f)
                         .padding(top = 48.dp)
                         .clickable(
                             interactionSource = remember { MutableInteractionSource() },
