@@ -665,7 +665,7 @@ internal fun VisualizationAdvancedRouteContent(
     val onOpenVisualizationAdvancedProjectM = actions.onOpenVisualizationAdvancedProjectM
 
     val advancedPages = remember { advancedVisualizationSettingsPages() }
-        .filter { it.mode != VisualizationMode.ProjectM || supportsProjectM() }
+    val projectMSupported = supportsProjectM()
     SettingsSectionLabel("Advanced visualizations")
     SettingsRowSpacer()
     advancedPages.forEachIndexed { index, page ->
@@ -674,29 +674,30 @@ internal fun VisualizationAdvancedRouteContent(
             VisualizationMode.ProjectM -> Icons.Default.AutoAwesome
             else -> Icons.Default.Tune
         }
-        SettingsItemCard(
-            title = page.title,
-            description = page.description,
-            icon = icon,
-            onClick = {
-                when (page.route) {
-                    SettingsRoute.VisualizationAdvancedChannelScope -> onOpenVisualizationAdvancedChannelScope()
-                    SettingsRoute.VisualizationAdvancedProjectM -> onOpenVisualizationAdvancedProjectM()
-                    else -> Unit
+        if (page.mode == VisualizationMode.ProjectM && !projectMSupported) {
+            SettingsItemCard(
+                title = page.title,
+                description = "Requires OpenGL ES 3.0 — unavailable on this device",
+                icon = icon,
+                onClick = {},
+                enabled = false
+            )
+        } else {
+            SettingsItemCard(
+                title = page.title,
+                description = page.description,
+                icon = icon,
+                onClick = {
+                    when (page.route) {
+                        SettingsRoute.VisualizationAdvancedChannelScope -> onOpenVisualizationAdvancedChannelScope()
+                        SettingsRoute.VisualizationAdvancedProjectM -> onOpenVisualizationAdvancedProjectM()
+                        else -> Unit
+                    }
                 }
-            }
-        )
+            )
+        }
         if (index < advancedPages.lastIndex) {
             SettingsRowSpacer()
         }
-    }
-    if (!supportsProjectM()) {
-        Text(
-            text = "projectM requires OpenGL ES 3.0, which this device doesn't support. " +
-                "It is unavailable.",
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 4.dp)
-        )
     }
 }

@@ -382,19 +382,21 @@ private fun PickerSheetContent(
                             },
                             modifier = Modifier.weight(1f)
                         )
-                        DialogSelectableCard(
-                            label = "projectM",
-                            icon = Icons.Default.AutoAwesome,
-                            isSelected = selectedMode == VisualizationMode.ProjectM,
-                            isEnabled = isProjectMAvailable,
-                            subtitle = "MilkDrop presets",
-                            onClick = {
-                                if (isProjectMAvailable) {
-                                    onSelectMode(VisualizationMode.ProjectM)
-                                }
-                            },
-                            modifier = Modifier.weight(1f)
-                        )
+                        if (isProjectMAvailable) {
+                            DialogSelectableCard(
+                                label = "projectM",
+                                icon = Icons.Default.AutoAwesome,
+                                isSelected = selectedMode == VisualizationMode.ProjectM,
+                                isEnabled = isProjectMAvailable,
+                                subtitle = "MilkDrop presets",
+                                onClick = {
+                                    if (isProjectMAvailable) {
+                                        onSelectMode(VisualizationMode.ProjectM)
+                                    }
+                                },
+                                modifier = Modifier.weight(1f)
+                            )
+                        }
                     }
                 }
 

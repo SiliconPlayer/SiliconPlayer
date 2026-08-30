@@ -169,29 +169,32 @@ internal fun SettingsItemCard(
     title: String,
     description: String,
     icon: ImageVector,
-    onClick: () -> Unit
+    onClick: () -> Unit,
+    enabled: Boolean = true
 ) {
     val context = LocalContext.current
     val isWatch = remember(context) { context.packageManager.hasSystemFeature(PackageManager.FEATURE_WATCH) }
-    SettingsRowContainer(onClick = onClick) {
+    val contentAlpha = if (enabled) 1f else 0.38f
+    SettingsRowContainer(onClick = onClick, enabled = enabled) {
         Icon(
             imageVector = icon,
             contentDescription = null,
-            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+            tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = contentAlpha),
             modifier = if (isWatch) Modifier.size(20.dp) else Modifier.size(24.dp)
         )
         Spacer(modifier = Modifier.width(if (isWatch) 8.dp else 12.dp))
         Column(modifier = Modifier.weight(1f)) {
             Text(
                 text = title,
-                style = if (isWatch) MaterialTheme.typography.titleSmall else MaterialTheme.typography.titleMedium
+                style = if (isWatch) MaterialTheme.typography.titleSmall else MaterialTheme.typography.titleMedium,
+                color = MaterialTheme.colorScheme.onSurface.copy(alpha = contentAlpha)
             )
             if (description.isNotBlank()) {
                 Spacer(modifier = Modifier.height(2.dp))
                 Text(
                     text = description,
                     style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = contentAlpha)
                 )
             }
         }
