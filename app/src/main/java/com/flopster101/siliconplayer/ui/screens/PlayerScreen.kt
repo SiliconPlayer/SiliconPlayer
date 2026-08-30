@@ -1147,7 +1147,9 @@ internal fun PlayerScreen(
                             onOpenTrackInfo = { showTrackInfoDialog = true },
                             onOpenAudioEffects = onOpenAudioEffects,
                             onOpenChannelControls = { showChannelControlDialog = true },
-                            showAudioOutputRouteChip = showAudioOutputRouteChip
+                            showAudioOutputRouteChip = showAudioOutputRouteChip,
+                            canOpenPlaylistSelector = canOpenPlaylistSelector,
+                            onOpenPlaylistSelector = onOpenPlaylistSelector
                         )
                     }
                 }
@@ -1455,8 +1457,6 @@ internal fun PlayerScreen(
                                     isTrackFavorited = isTrackFavorited,
                                     onToggleFavoriteTrack = onToggleFavoriteTrack,
                                     canToggleFavoriteTrack = pathOrUrl != null,
-                                    canOpenPlaylistSelector = canOpenPlaylistSelector,
-                                    onOpenPlaylistSelector = onOpenPlaylistSelector,
                                     compactLayout = false,
                                     layoutScale = actionStripScale,
                                     actionStripFirstFocusRequester = actionStripFirstFocusRequester,
@@ -1830,8 +1830,6 @@ internal fun PlayerScreen(
                             isTrackFavorited = isTrackFavorited,
                             onToggleFavoriteTrack = onToggleFavoriteTrack,
                             canToggleFavoriteTrack = pathOrUrl != null,
-                            canOpenPlaylistSelector = canOpenPlaylistSelector,
-                            onOpenPlaylistSelector = onOpenPlaylistSelector,
                             compactLayout = true,
                             layoutScale = if (shortPortraitLayout) {
                                 (shortPortraitHeightScale * 0.72f).coerceIn(0.40f, 0.62f)
@@ -2151,12 +2149,15 @@ private fun PlayerTopBar(
     onOpenTrackInfo: () -> Unit,
     onOpenAudioEffects: () -> Unit,
     onOpenChannelControls: () -> Unit,
-    showAudioOutputRouteChip: Boolean = true
+    showAudioOutputRouteChip: Boolean = true,
+    canOpenPlaylistSelector: Boolean = true,
+    onOpenPlaylistSelector: () -> Unit = {}
 ) {
     val context = LocalContext.current
     val outputRouteInfo = rememberAudioOutputRouteInfo()
     var showMoreMenu by remember { mutableStateOf(false) }
     val routePillFocusRequester = remember { FocusRequester() }
+    val playlistFocusRequester = remember { FocusRequester() }
     val moreOptionsFocusRequester = remember { FocusRequester() }
 
     val compactLandscapeHeader = isLandscape && !isTabletLike
@@ -2251,8 +2252,49 @@ private fun PlayerTopBar(
                     },
                     focusRequester = routePillFocusRequester,
                     leftFocusRequester = focusRequester,
-                    rightFocusRequester = moreOptionsFocusRequester,
+                    rightFocusRequester = playlistFocusRequester,
                     downFocusRequester = downFocusRequester
+                )
+            }
+
+            Box(
+                modifier = Modifier
+                    .size(navButtonSize)
+                    .focusRequester(playlistFocusRequester)
+                    .focusProperties {
+                        if (showAudioOutputRouteChip) {
+                            left = routePillFocusRequester
+                        } else if (focusRequester != null) {
+                            left = focusRequester
+                        }
+                        right = moreOptionsFocusRequester
+                        if (downFocusRequester != null) {
+                            down = downFocusRequester
+                        }
+                    }
+                    .clip(CircleShape)
+                    .playerFocusHighlight(
+                        shape = CircleShape,
+                        activeAlpha = 0.14f
+                    )
+                    .clickable(
+                        enabled = canOpenPlaylistSelector,
+                        interactionSource = remember { MutableInteractionSource() },
+                        indication = null,
+                        onClick = onOpenPlaylistSelector
+                    )
+                    .focusable(enabled = canOpenPlaylistSelector),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(
+                    imageVector = Icons.AutoMirrored.Filled.List,
+                    contentDescription = "Open current playlist",
+                    modifier = Modifier.size(navIconSize),
+                    tint = if (canOpenPlaylistSelector) {
+                        MaterialTheme.colorScheme.onSurfaceVariant
+                    } else {
+                        MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.38f)
+                    }
                 )
             }
 
@@ -2262,11 +2304,7 @@ private fun PlayerTopBar(
                         .size(navButtonSize)
                         .focusRequester(moreOptionsFocusRequester)
                         .focusProperties {
-                            if (showAudioOutputRouteChip) {
-                                left = routePillFocusRequester
-                            } else if (focusRequester != null) {
-                                left = focusRequester
-                            }
+                            left = playlistFocusRequester
                             if (downFocusRequester != null) {
                                 down = downFocusRequester
                             }
@@ -4477,19 +4515,15 @@ private fun FutureActionStrip(
     isTrackFavorited: Boolean,
     onToggleFavoriteTrack: () -> Unit,
     canToggleFavoriteTrack: Boolean,
-    canOpenPlaylistSelector: Boolean,
-    onOpenPlaylistSelector: () -> Unit,
     compactLayout: Boolean = false,
     layoutScale: Float = 1f,
     actionStripFirstFocusRequester: FocusRequester? = null,
     transportAnchorFocusRequester: FocusRequester? = null
 ) {
     val visualizationModeFocusRequester = actionStripFirstFocusRequester ?: remember { FocusRequester() }
-    val playlistSelectorFocusRequester = remember { FocusRequester() }
     val favoriteTrackFocusRequester = remember { FocusRequester() }
     val canFocusVisualizationMode = true
     val canFocusFavoriteTrack = canToggleFavoriteTrack
-    val canFocusPlaylistSelector = canOpenPlaylistSelector
 
     data class ActionFocusNode(
         val key: String,
@@ -4499,7 +4533,6 @@ private fun FutureActionStrip(
 
     val actionFocusNodes = listOf(
         ActionFocusNode("visualization", canFocusVisualizationMode, visualizationModeFocusRequester),
-        ActionFocusNode("playlist", canFocusPlaylistSelector, playlistSelectorFocusRequester),
         ActionFocusNode("favorite", canFocusFavoriteTrack, favoriteTrackFocusRequester)
     )
 
@@ -4571,34 +4604,6 @@ private fun FutureActionStrip(
                 )
             }
 
-            // 2. Playlist / Subtunes
-            IconButton(
-                onClick = onOpenPlaylistSelector,
-                enabled = canOpenPlaylistSelector,
-                modifier = Modifier
-                    .size(iconButtonSize)
-                    .focusRequester(playlistSelectorFocusRequester)
-                    .focusProperties {
-                        neighboringActionRequester("playlist", -1)?.let { left = it }
-                        neighboringActionRequester("playlist", 1)?.let { right = it }
-                        if (transportAnchorFocusRequester != null) {
-                            up = transportAnchorFocusRequester
-                        }
-                    }
-                    .playerFocusHalo(enabled = canOpenPlaylistSelector, shape = CircleShape)
-                    .focusable(enabled = canOpenPlaylistSelector)
-            ) {
-                Icon(
-                    imageVector = Icons.AutoMirrored.Filled.List,
-                    contentDescription = "Open current playlist",
-                    modifier = Modifier.size(genericIconSize),
-                    tint = if (canOpenPlaylistSelector) {
-                        MaterialTheme.colorScheme.onSurfaceVariant
-                    } else {
-                        MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.38f)
-                    }
-                )
-            }
 
             // 3. Favorite
             IconButton(
