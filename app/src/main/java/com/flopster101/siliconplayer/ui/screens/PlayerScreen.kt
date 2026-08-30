@@ -1288,7 +1288,11 @@ internal fun PlayerScreen(
                                         })
                                     }
                             ) {
-                                Box(modifier = Modifier.fillMaxSize()) {
+                                Box(
+                                    modifier = Modifier
+                                        .align(Alignment.Center)
+                                        .aspectRatio(1f, matchHeightConstraintsFirst = true)
+                                ) {
                                     AlbumArtPlaceholder(
                                 file = file,
                                 isPlaying = isPlaying && !seekInProgress,
@@ -1343,9 +1347,7 @@ internal fun PlayerScreen(
                                 artworkCornerRadiusDp = artworkCornerRadiusDp,
                                 onSwipePreviousTrack = onForcePreviousTrack,
                                 onSwipeNextTrack = onNextTrack,
-                                modifier = Modifier
-                                    .align(Alignment.Center)
-                                    .aspectRatio(1f, matchHeightConstraintsFirst = true)
+                                modifier = Modifier.fillMaxSize()
                             )
                                     Box(modifier = Modifier.align(Alignment.Center)) {
                                         FullscreenToggleAffordance(
