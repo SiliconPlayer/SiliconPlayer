@@ -22,6 +22,7 @@ public:
 
     void pushPcm(const float* pcmInterleaved, int32_t frames, int32_t channels, int32_t sampleRate) override;
     void setVuLevels(float left, float right);
+    void setAlpha(float alpha) override { flatRenderer_.setAlpha(alpha); }
 
     void setOptions(
         bool stereo,

@@ -100,6 +100,7 @@ data class SiliconNativeGlFrame(
     val artworkBitmap: Bitmap? = null,
     val placeholderIconResId: Int = 0,
     val showArtworkBackground: Boolean = true,
+    val visualAlpha: Float = 1f,
     val primaryColorArgb: Int = 0xFFFFFFFF.toInt(),
     val surfaceColorArgb: Int = 0xFF121212.toInt(),
     val placeholderIconType: Int = 1,
@@ -547,7 +548,13 @@ private class SiliconNativeTextureRenderThread(
         }
 
         if (!frame.isPlaying) {
-            if (pausedFrameRendered && !state.surfaceSizeChanged) {
+            // Bars/osc/VU fade out while paused via the visualization alpha;
+            // re-render while that settles, then hold the frame once faded.
+            // Channel scope / projectM ignore the alpha and keep their own
+            // pause handling (hold the first paused frame).
+            val isFadeMode = frame.mode == 1 || frame.mode == 2 || frame.mode == 3
+            val fadeSettled = !isFadeMode || frame.visualAlpha <= 0.001f
+            if (pausedFrameRendered && !state.surfaceSizeChanged && fadeSettled) {
                 return
             }
             pausedFrameRendered = true
@@ -571,6 +578,7 @@ private class SiliconNativeTextureRenderThread(
                     SiliconVisNativeBridge.nativeSetContrastMode(visHandle, frame.contrastMode)
                     SiliconVisNativeBridge.nativeSetContrastScrim(visHandle, frame.contrastScrimColorArgb)
                     SiliconVisNativeBridge.nativeSetShowArtworkBackground(visHandle, frame.showArtworkBackground)
+                    SiliconVisNativeBridge.nativeSetVisualAlpha(visHandle, frame.visualAlpha)
 
                     if (frame.mode == 100 && !projectMAttached) {
                         val appContext = context.applicationContext

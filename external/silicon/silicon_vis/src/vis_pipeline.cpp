@@ -222,6 +222,7 @@ void SiliconVisPipeline::render() {
     // 2. Render Active Visualizer
     IVisualizerRenderer* active = getActiveRenderer();
     if (active) {
+        active->setAlpha(visualAlpha_);
         active->render();
     }
 }

@@ -2146,6 +2146,18 @@ internal fun AlbumArtPlaceholder(
                     sleepUntilTickNs(nextFrameTickNs)
                     continue
                 }
+                if (
+                    (visualizationMode == VisualizationMode.Bars ||
+                        visualizationMode == VisualizationMode.Oscilloscope ||
+                        visualizationMode == VisualizationMode.VuMeters) &&
+                    !isPlaying
+                ) {
+                    val nowNs = System.nanoTime()
+                    nextFrameTickNs = nowNs + 90_000_000L
+                    lastPollIntervalNs = 90_000_000L
+                    sleepUntilTickNs(nextFrameTickNs)
+                    continue
+                }
                 val frameStartNs = System.nanoTime()
                 val textPollIntervalNs = 120_000_000L
                 val shouldPollText =
@@ -2664,7 +2676,7 @@ internal fun AlbumArtPlaceholder(
                         .background(brush = visualizationContrastBrush)
                 )
             }
-            if (!basicVisualizationMode || basicVisualizationAlpha > 0f) {
+            if (!basicVisualizationMode || basicVisualizationAlpha > 0f || isGlBackendActive) {
                 BasicVisualizationOverlay(
                     mode = visualizationMode,
                     bars = if (isGlBackendActive) emptyFloatArray else visBarsSmoothed,
@@ -2789,10 +2801,11 @@ internal fun AlbumArtPlaceholder(
                         visDebugDrawFps = fps.coerceAtLeast(0)
                         visDebugDrawFrameMs = frameMs.coerceAtLeast(0)
                     },
+                    visualAlpha = basicVisualizationAlpha,
                     modifier = Modifier
                         .matchParentSize()
                         .graphicsLayer {
-                            alpha = if (basicVisualizationMode) {
+                            alpha = if (basicVisualizationMode && !isGlBackendActive) {
                                 basicVisualizationAlpha
                             } else {
                                 1f

@@ -24,6 +24,10 @@ public:
     // Optional audio push for renderers that manage internal ring buffers
     virtual void pushPcm(const float* pcmInterleaved, int32_t frames, int32_t channels, int32_t sampleRate) {}
     virtual void pushFft(const float* magnitudes, int32_t binCount) {}
+
+    // Optional per-renderer opacity (1.0 = fully visible). Renderers that
+    // draw over the artwork can use this to fade while leaving the artwork.
+    virtual void setAlpha(float alpha) {}
 };
 
 using VisualizerRendererPtr = std::unique_ptr<IVisualizerRenderer>;

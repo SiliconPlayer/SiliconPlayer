@@ -74,11 +74,14 @@ public:
     void drawTriangles(const float* positions2D, int vertexCount, uint32_t colorArgb, float surfaceW, float surfaceH);
     void drawLines(const float* positions2D, int vertexCount, uint32_t colorArgb, float lineWidth, float surfaceW, float surfaceH);
 
+    void setAlpha(float alpha) { alpha_ = alpha; }
+
 private:
     GlProgram program_;
     GLint posLoc_ = -1;
     GLint resLoc_ = -1;
     GLint colorLoc_ = -1;
+    float alpha_ = 1.0f;
 };
 
 } // namespace silicon::vis::gl

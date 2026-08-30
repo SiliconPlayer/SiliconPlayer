@@ -52,6 +52,8 @@ public:
         int32_t glyphCount
     );
 
+    void setVisualAlpha(float alpha) { visualAlpha_ = std::max(0.0f, std::min(1.0f, alpha)); }
+
     // Audio feeds
     void pushPcm(const float* pcmInterleaved, int32_t frames, int32_t channels, int32_t sampleRate);
     void pushFft(const float* magnitudes, int32_t binCount);
@@ -75,6 +77,7 @@ private:
     int32_t heightPx_ = 0;
     float density_ = 1.0f;
     bool glInitialized_ = false;
+    float visualAlpha_ = 1.0f;
 
     SiliconVisMode currentMode_ = SILICON_VIS_MODE_NONE;
     IVisualizationAudioProvider* audioProvider_ = nullptr;

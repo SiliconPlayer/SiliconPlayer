@@ -212,6 +212,7 @@ void GlFlatColorRenderer::drawTriangles(
 ) {
     if (!program_.isReady() || vertexCount <= 0 || !positions2D) return;
     Color4f c = argbToColor4f(colorArgb);
+    c.a *= alpha_;
     if (c.a <= 0.0f) return;
 
     glEnable(GL_BLEND);
@@ -235,6 +236,7 @@ void GlFlatColorRenderer::drawLines(
 ) {
     if (!program_.isReady() || vertexCount <= 0 || !positions2D) return;
     Color4f c = argbToColor4f(colorArgb);
+    c.a *= alpha_;
     if (c.a <= 0.0f) return;
 
     glEnable(GL_BLEND);

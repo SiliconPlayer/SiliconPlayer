@@ -20,6 +20,7 @@ public:
     void releaseGl() override;
 
     void pushFft(const float* magnitudes, int32_t binCount) override;
+    void setAlpha(float alpha) override { flatRenderer_.setAlpha(alpha); }
 
     void setOptions(
         int32_t barCount,

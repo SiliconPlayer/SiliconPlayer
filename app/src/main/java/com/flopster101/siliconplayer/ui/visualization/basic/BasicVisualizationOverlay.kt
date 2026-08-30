@@ -158,6 +158,7 @@ fun BasicVisualizationOverlay(
     isPlaying: Boolean = true,
     trackKey: String? = null,
     channelScopeOnFrameStats: ((fps: Int, frameMs: Int) -> Unit)? = null,
+    visualAlpha: Float = 1f,
     modifier: Modifier = Modifier
 ) {
     if (mode == VisualizationMode.Off) return
@@ -271,6 +272,7 @@ fun BasicVisualizationOverlay(
     val baseNativeFrame = remember(
         isPlaying,
         trackKey,
+        visualAlpha,
         primaryColor,
         surfaceVariantColor,
         contrastScrimColor,
@@ -289,7 +291,8 @@ fun BasicVisualizationOverlay(
             placeholderIconType = placeholderIconType,
             placeholderIconResId = placeholderIconResId,
             artworkBitmap = artwork?.asAndroidBitmap(),
-            showArtworkBackground = true
+            showArtworkBackground = true,
+            visualAlpha = visualAlpha
         )
     }
 

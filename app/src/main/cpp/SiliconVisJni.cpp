@@ -416,6 +416,17 @@ Java_com_flopster101_siliconplayer_ui_visualization_gl_SiliconVisNativeBridge_na
 }
 
 JNIEXPORT void JNICALL
+Java_com_flopster101_siliconplayer_ui_visualization_gl_SiliconVisNativeBridge_nativeSetVisualAlpha(
+    JNIEnv* env,
+    jobject /* thiz */,
+    jlong handle,
+    jfloat alpha
+) {
+    if (!handle) return;
+    silicon_vis_set_visual_alpha(reinterpret_cast<SiliconVisHandle>(handle), alpha);
+}
+
+JNIEXPORT void JNICALL
 Java_com_flopster101_siliconplayer_ui_visualization_gl_SiliconVisNativeBridge_nativeSetArtworkPixels(
     JNIEnv* env,
     jobject /* thiz */,
