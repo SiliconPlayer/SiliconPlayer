@@ -1264,11 +1264,6 @@ internal fun PlayerScreen(
                     val rightPaneWeight = 1f - artPaneWeight
                     val landscapeTitleScaleBoost = lerpFloat(2.0f, 4f, landscapeLayoutScale)
                     val landscapeSupportingScaleBoost = lerpFloat(1f, 2.2f, landscapeLayoutScale)
-                    val landscapePaneHeight = (maxHeight - verticalPadding * 2f).coerceAtLeast(120.dp)
-                    val landscapeContentWidth = (maxWidth - horizontalPadding * 2f - paneGap).coerceAtLeast(120.dp)
-                    val landscapeArtPaneWidth = (landscapeContentWidth * artPaneWeight).coerceAtLeast(120.dp)
-                    val landscapeArtMaxByHeight = landscapePaneHeight * lerpFloat(0.90f, 0.95f, landscapeLayoutScale)
-                    val landscapeArtSize = minOf(landscapeArtPaneWidth, landscapeArtMaxByHeight).coerceAtLeast(120.dp)
                     Row(
                         modifier = Modifier
                             .fillMaxSize()
@@ -1280,6 +1275,7 @@ internal fun PlayerScreen(
                             modifier = Modifier
                                 .weight(artPaneWeight)
                                 .fillMaxHeight()
+                                .padding(lerpDp(24.dp, 32.dp, landscapeLayoutScale))
                         ) {
                             Box(
                                 modifier = Modifier
@@ -1349,7 +1345,7 @@ internal fun PlayerScreen(
                                 onSwipeNextTrack = onNextTrack,
                                 modifier = Modifier
                                     .align(Alignment.Center)
-                                    .size(landscapeArtSize)
+                                    .aspectRatio(1f, matchHeightConstraintsFirst = true)
                             )
                                     Box(modifier = Modifier.align(Alignment.Center)) {
                                         FullscreenToggleAffordance(
@@ -1393,10 +1389,10 @@ internal fun PlayerScreen(
                             Column(
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .padding(horizontal = lerpDp(24.dp, 48.dp, landscapeLayoutScale))
-                                    .height(landscapeArtSize)
-                                    .padding(vertical = 8.dp),
-                                verticalArrangement = Arrangement.SpaceBetween,
+                                    .widthIn(max = 480.dp)
+                                    .padding(horizontal = 32.dp)
+                                    .wrapContentHeight(),
+                                verticalArrangement = Arrangement.Top,
                                 horizontalAlignment = Alignment.CenterHorizontally
                             ) {
                                 PortraitTrackMetadataBlock(
@@ -1459,6 +1455,8 @@ internal fun PlayerScreen(
                                     modifier = Modifier.fillMaxWidth()
                                 )
 
+                                Spacer(Modifier.height(lerpDp(12.dp, 16.dp, landscapeLayoutScale)))
+
                                 TimelineSection(
                                     sliderPosition = if (isSeeking) sliderPosition else positionSeconds,
                                     elapsedPositionSeconds = if (isSeeking) sliderPosition else positionSeconds,
@@ -1486,6 +1484,8 @@ internal fun PlayerScreen(
                                         }
                                     }
                                 )
+
+                                Spacer(Modifier.height(lerpDp(16.dp, 20.dp, landscapeLayoutScale)))
 
                                 TransportControls(
                                     hasTrack = hasTrack,
@@ -1523,7 +1523,8 @@ internal fun PlayerScreen(
                                     onCycleRepeatMode = onCycleRepeatMode,
                                     layoutScale = landscapeLayoutScale,
                                     transportAnchorFocusRequester = transportAnchorFocusRequester,
-                                    actionStripFirstFocusRequester = actionStripFirstFocusRequester
+                                    actionStripFirstFocusRequester = actionStripFirstFocusRequester,
+                                    spacedByRow = true
                                 )
 
                             }
@@ -4001,7 +4002,8 @@ private fun TransportControls(
     compactPortraitMode: Boolean = false,
     layoutScale: Float = 1f,
     transportAnchorFocusRequester: FocusRequester? = null,
-    actionStripFirstFocusRequester: FocusRequester? = null
+    actionStripFirstFocusRequester: FocusRequester? = null,
+    spacedByRow: Boolean = false
 ) {
     val remoteLoadActive = remoteLoadUiState != null
     val remotePreloadUiState = RemotePreloadUiStateHolder.current
@@ -4076,7 +4078,6 @@ private fun TransportControls(
         val stopIconSize = 23.dp
         val subtuneButtonMax = lerpDp(58.dp, 80.dp, widthScale)
         val subtuneButtonSize = scaledDp(sideButtonSize, 1.03f).coerceIn(48.dp, subtuneButtonMax)
-        val rowGap = 0.dp
         val repeatIconSize = auxiliaryIconSize
         val effectiveRepeatIconSize = repeatIconSize
         val repeatBadgeCenterOffsetX = scaledDp(auxiliaryButtonSize, 0.22f)
@@ -4106,8 +4107,8 @@ private fun TransportControls(
                 contentAlignment = Alignment.Center
             ) {
                 Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
+                    modifier = if (spacedByRow) Modifier.wrapContentWidth() else Modifier.fillMaxWidth(),
+                    horizontalArrangement = if (spacedByRow) Arrangement.spacedBy(18.dp) else Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                 IconButton(
@@ -4147,7 +4148,6 @@ private fun TransportControls(
                         modifier = Modifier.size(stopIconSize)
                     )
                 }
-                Spacer(modifier = Modifier.width(rowGap))
                 Box(
                     modifier = Modifier.size(sideButtonSize),
                     contentAlignment = Alignment.Center
@@ -4219,7 +4219,6 @@ private fun TransportControls(
                         )
                     }
                 }
-                Spacer(modifier = Modifier.width(rowGap))
 
                 FilledIconButton(
                     onClick = onPlayPause,
@@ -4275,7 +4274,6 @@ private fun TransportControls(
                     }
                 }
 
-                Spacer(modifier = Modifier.width(rowGap))
 
                 Box(
                     modifier = Modifier.size(sideButtonSize),
@@ -4375,7 +4373,6 @@ private fun TransportControls(
                         }
                     }
                 }
-                Spacer(modifier = Modifier.width(rowGap))
 
                 IconButton(
                     onClick = onCycleRepeatMode,
