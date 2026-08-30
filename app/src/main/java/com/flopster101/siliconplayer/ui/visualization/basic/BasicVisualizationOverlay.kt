@@ -257,10 +257,20 @@ fun BasicVisualizationOverlay(
     val density = LocalDensity.current.density
     val primaryColor = MaterialTheme.colorScheme.primary
     val surfaceVariantColor = MaterialTheme.colorScheme.surfaceVariant
-    val contrastScrimColor = if (MaterialTheme.colorScheme.surface.luminance() > 0.5f) {
-        Color.White
-    } else {
+    val visUsesArtworkColor = when (mode) {
+        VisualizationMode.Bars -> barColorModeWithArtwork == VisualizationOscColorMode.Artwork
+        VisualizationMode.Oscilloscope -> oscLineColorModeWithArtwork == VisualizationOscColorMode.Artwork
+        VisualizationMode.VuMeters -> vuColorModeWithArtwork == VisualizationOscColorMode.Artwork
+        VisualizationMode.ChannelScope -> channelScopeLineColorModeWithArtwork == VisualizationOscColorMode.Artwork
+        else -> false
+    }
+    val themeIsLight = MaterialTheme.colorScheme.surface.luminance() > 0.5f
+    // Dark scrim whenever real artwork with From-artwork colors is shown (the vis
+    // may already be light); otherwise follow the UI theme's dark/light mode.
+    val contrastScrimColor = if (hasArtwork && visUsesArtworkColor) {
         Color.Black
+    } else {
+        if (themeIsLight) Color.White else Color.Black
     }
 
     val placeholderIconType = when (placeholderIconResId) {

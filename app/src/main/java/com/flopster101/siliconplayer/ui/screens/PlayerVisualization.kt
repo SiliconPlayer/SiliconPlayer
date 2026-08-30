@@ -2552,8 +2552,27 @@ internal fun AlbumArtPlaceholder(
         animationSpec = tween(durationMillis = 220),
         label = "basicVisualizationVisibility"
     )
-    val visualizationContrastBrush = remember(visualizationMode, oscStereoActive, themeSurfaceIsLight) {
-        val scrim = if (themeSurfaceIsLight) Color.White else Color.Black
+    val visUsesArtworkColor = when (visualizationMode) {
+        VisualizationMode.Bars -> barColorModeWithArtwork == VisualizationOscColorMode.Artwork
+        VisualizationMode.Oscilloscope -> oscLineColorModeWithArtwork == VisualizationOscColorMode.Artwork
+        VisualizationMode.VuMeters -> vuColorModeWithArtwork == VisualizationOscColorMode.Artwork
+        VisualizationMode.ChannelScope -> channelScopePrefs.lineColorModeWithArtwork == VisualizationOscColorMode.Artwork
+        else -> false
+    }
+    val visualizationContrastBrush = remember(
+        visualizationMode,
+        oscStereoActive,
+        themeSurfaceIsLight,
+        effectiveArtwork,
+        visUsesArtworkColor
+    ) {
+        // Dark scrim whenever real artwork with From-artwork colors is shown (the vis
+        // may already be light); otherwise follow the UI theme's dark/light mode.
+        val scrim = if (effectiveArtwork != null && visUsesArtworkColor) {
+            Color.Black
+        } else {
+            if (themeSurfaceIsLight) Color.White else Color.Black
+        }
         when (visualizationMode) {
             VisualizationMode.Bars -> if (barContrastBackdropEnabled) {
                 // Subtle bottom-up scrim improves bar readability on busy artwork.
