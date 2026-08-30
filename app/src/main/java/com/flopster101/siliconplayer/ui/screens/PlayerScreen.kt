@@ -1126,6 +1126,8 @@ internal fun PlayerScreen(
             }
 
             Scaffold(
+                contentWindowInsets = WindowInsets(0.dp, 0.dp, 0.dp, 0.dp),
+                modifier = Modifier.consumeWindowInsets(WindowInsets.systemBars),
                 topBar = {
                     if (!isWatchDevice) {
                         PlayerTopBar(
@@ -2183,7 +2185,7 @@ private fun PlayerTopBar(
         compactPortraitHeader -> 10.dp
         else -> 14.dp
     }
-    val statusBarTopInset = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
+    val statusBarTopInset = 0.dp
     val totalHeaderHeight = statusBarTopInset + headerHeight
     Box(
         modifier = Modifier

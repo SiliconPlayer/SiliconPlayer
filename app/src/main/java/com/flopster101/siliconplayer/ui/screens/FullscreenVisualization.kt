@@ -613,10 +613,21 @@ internal fun FullscreenVisualizationOverlay(
             val w = (context as? Activity)?.window
             if (w != null) {
                 WindowCompat.setDecorFitsSystemWindows(w, true)
-                w.decorView.requestApplyInsets()
-                WindowCompat.getInsetsController(w, w.decorView)?.show(
-                    WindowInsetsCompat.Type.systemBars()
-                )
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+                    val attrs = w.attributes
+                    attrs.layoutInDisplayCutoutMode =
+                        WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_DEFAULT
+                    w.attributes = attrs
+                }
+                WindowCompat.getInsetsController(w, w.decorView)?.apply {
+                    show(WindowInsetsCompat.Type.systemBars())
+                    systemBarsBehavior = WindowInsetsControllerCompat.BEHAVIOR_DEFAULT
+                }
+                // The window must re-measure to the system-fits layout before the
+                // insets re-dispatch, else it stays edge-to-edge and every other
+                // screen reads the stale system-bar insets.
+                w.decorView.requestLayout()
+                w.decorView.post { w.decorView.requestApplyInsets() }
             }
         }
     }
