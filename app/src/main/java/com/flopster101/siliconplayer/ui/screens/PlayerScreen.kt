@@ -1521,141 +1521,41 @@ internal fun PlayerScreen(
                     } else {
                         lerpFloat(0.84f, 1f, shortPortraitHeightScale)
                     }
-                    val horizontalPadding = lerpDp(10.dp, 20.dp, portraitLayoutScale)
+                    val horizontalPadding = lerpDp(16.dp, 20.dp, portraitLayoutScale)
                     val verticalPadding = lerpDp(8.dp, 12.dp, portraitLayoutScale)
-                    val artWidthFraction = if (shortPortraitLayout) {
-                        (
-                            lerpFloat(0.70f, 0.88f, shortPortraitHeightScale) *
-                                lerpFloat(0.98f, 1.04f, portraitWidthScale)
-                            ).coerceIn(0.60f, 0.90f)
-                    } else {
-                        (
-                            lerpFloat(0.72f, 0.94f, portraitLayoutScale) *
-                                lerpFloat(0.95f, 1.08f, portraitWidthScale) *
-                                lerpFloat(0.98f, 1.05f, portraitHeightScale)
-                            ).coerceIn(0.65f, 0.96f)
-                    }
-                    val artworkToInfoGap = if (shortPortraitLayout) {
-                        lerpDp(6.dp, 10.dp, shortPortraitHeightScale)
-                    } else if (compactPortraitLayout) {
-                        lerpDp(3.dp, 8.dp, shortPortraitHeightScale)
-                    } else {
-                        lerpDp(4.dp, 10.dp, shortPortraitHeightScale)
-                    }
-                    val actionStripSpacer = if (shortPortraitLayout) {
-                        lerpDp(6.dp, 10.dp, shortPortraitHeightScale)
-                    } else if (compactPortraitLayout) {
-                        lerpDp(3.dp, 8.dp, shortPortraitHeightScale)
-                    } else {
-                        lerpDp(4.dp, 10.dp, shortPortraitHeightScale)
-                    }
-                    val actionStripBottomPadding = if (shortPortraitLayout) {
-                        lerpDp(2.dp, 6.dp, shortPortraitHeightScale)
-                    } else if (compactPortraitLayout) {
-                        lerpDp(2.dp, 10.dp, shortPortraitHeightScale)
-                    } else {
-                        lerpDp(4.dp, 14.dp, shortPortraitHeightScale)
-                    }
-                    val portraitArtworkHeightWeight = if (shortPortraitLayout) {
-                        (
-                            lerpFloat(0.50f, 0.58f, shortPortraitHeightScale) +
-                                lerpFloat(0.02f, 0f, portraitWidthScale)
-                                - 0.03f
-                            ).coerceIn(0.48f, 0.58f)
-                    } else {
-                        (
-                            lerpFloat(0.52f, 0.64f, portraitLayoutScale) +
-                                lerpFloat(0.07f, 0f, shortPortraitHeightScale) +
-                                (if (compactPortraitLayout) 0.015f else 0f) -
-                                0.03f
-                            ).coerceIn(0.50f, 0.66f)
-                    }
                     Box(
                         modifier = Modifier
                             .fillMaxSize()
+                            .navigationBarsPadding()
                             .padding(horizontal = horizontalPadding, vertical = verticalPadding)
                     ) {
-                        var actionStripHeightPx by remember { mutableIntStateOf(0) }
-                        val actionStripHeightDp = with(density) { actionStripHeightPx.toDp() }
+                        val navBarInset = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
                         val minArtworkSize = lerpDp(128.dp, 240.dp, portraitLayoutScale)
                         val contentAvailableHeight = (
-                            maxHeight -
-                                actionStripHeightDp -
-                                actionStripSpacer -
-                                actionStripBottomPadding
+                            maxHeight - verticalPadding * 2 - navBarInset
                             ).coerceAtLeast(minArtworkSize)
                         val portraitSectionSpacingScale = (
                             portraitLayoutScale * 0.55f +
                                 normalizedScale(contentAvailableHeight, compactDp = 300.dp, roomyDp = 620.dp) * 0.45f
                             ).coerceIn(0f, 1f)
-                        val balancedPortraitSpacing = !shortPortraitLayout
-                        val portraitSectionGap = if (shortPortraitLayout) {
-                            lerpDp(6.dp, 11.dp, portraitSectionSpacingScale)
-                        } else if (compactPortraitLayout) {
-                            lerpDp(8.dp, 14.dp, portraitSectionSpacingScale)
-                        } else {
-                            lerpDp(10.dp, 18.dp, portraitSectionSpacingScale)
-                        }
-                        val portraitArtworkTopPadding = if (shortPortraitLayout) {
-                            lerpDp(2.dp, 6.dp, portraitSectionSpacingScale)
-                        } else {
-                            lerpDp(4.dp, 10.dp, portraitSectionSpacingScale)
-                        }
-                        val metadataSpacer = portraitSectionGap
-                        val timelineSpacer = portraitSectionGap + 10.dp
-                        val portraitArtworkTargetHeight = (
-                            contentAvailableHeight * portraitArtworkHeightWeight
-                        ).coerceAtLeast(minArtworkSize)
-                        val portraitContentMaxWidth = lerpDp(310.dp, 700.dp, portraitWidthScale)
-                        val portraitContentSideInset = lerpDp(68.dp, 88.dp, portraitWidthScale)
-                        val portraitContentWidth = minOf(
-                            (maxWidth - portraitContentSideInset).coerceAtLeast(250.dp),
-                            portraitContentMaxWidth
-                        )
-                        val portraitArtworkWidth = if (shortPortraitLayout) {
-                            minOf(
-                                (maxWidth - 44.dp).coerceAtLeast(minArtworkSize),
-                                lerpDp(264.dp, 600.dp, portraitWidthScale)
-                            )
-                        } else {
-                            minOf(
-                                (maxWidth - 48.dp).coerceAtLeast(minArtworkSize),
-                                portraitContentMaxWidth
-                            )
-                        }
-                        val maxArtworkByWidth = minOf(
-                            maxWidth * artWidthFraction,
-                            portraitArtworkWidth
-                        )
-                        val maxArtworkByHeight = portraitArtworkTargetHeight.coerceAtLeast(minArtworkSize)
-                        val artworkSize = minOf(maxArtworkByWidth, maxArtworkByHeight).coerceAtLeast(minArtworkSize)
-
                         Column(
                             modifier = Modifier
                                 .align(Alignment.TopCenter)
                                 .fillMaxHeight()
                                 .fillMaxWidth()
-                                .padding(
-                                    bottom = actionStripHeightDp + actionStripSpacer + actionStripBottomPadding
-                                ),
+                                .padding(bottom = lerpDp(16.dp, 20.dp, portraitSectionSpacingScale)),
                             horizontalAlignment = Alignment.CenterHorizontally,
                             verticalArrangement = Arrangement.Top
                         ) {
                             Box(
                                 modifier = Modifier
+                                    .weight(1f, fill = true)
                                     .fillMaxWidth(),
-                                contentAlignment = Alignment.TopCenter
+                                contentAlignment = Alignment.Center
                             ) {
-                                Column(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .padding(top = portraitArtworkTopPadding),
-                                    horizontalAlignment = Alignment.CenterHorizontally,
-                                    verticalArrangement = Arrangement.Top
-                                ) {
                                     Box(
                                         modifier = Modifier
-                                            .size(artworkSize)
+                                            .aspectRatio(1f, matchHeightConstraintsFirst = true)
                                             .pointerInput(Unit) {
                                                 detectTapGestures(onTap = {
                                                     if (!isVisualizationFullscreen && visualizationMode != VisualizationMode.Off && file != null) {
@@ -1750,21 +1650,15 @@ internal fun PlayerScreen(
                                             )
                                         }
                                     }
-                                }
                             }
-                            Box(
+                            Spacer(Modifier.height(16.dp))
+                            Column(
                                 modifier = Modifier
-                                    .fillMaxWidth()
-                                    .weight(1f, fill = true),
-                                contentAlignment = Alignment.Center
+                                    .wrapContentHeight()
+                                    .fillMaxWidth(),
+                                horizontalAlignment = Alignment.CenterHorizontally,
+                                verticalArrangement = Arrangement.Top
                             ) {
-                                Column(
-                                    modifier = Modifier
-                                        .width(portraitContentWidth)
-                                        .wrapContentHeight(),
-                                    horizontalAlignment = Alignment.CenterHorizontally,
-                                    verticalArrangement = Arrangement.Center
-                                ) {
                                     PortraitTrackMetadataBlock(
                                         title = displayTitle,
                                         artist = displayArtist,
@@ -1823,7 +1717,7 @@ internal fun PlayerScreen(
                                         modifier = Modifier.fillMaxWidth()
                                     )
 
-                                    Spacer(modifier = Modifier.height(lerpDp(8.dp, 16.dp, portraitSectionSpacingScale)))
+                                    Spacer(modifier = Modifier.height(12.dp))
 
                                     Box(
                                         modifier = Modifier.fillMaxWidth(),
@@ -1857,9 +1751,7 @@ internal fun PlayerScreen(
                                             }
                                         )
                                     }
-
-                                    Spacer(modifier = Modifier.height(lerpDp(12.dp, 24.dp, portraitSectionSpacingScale)))
-
+                                    Spacer(modifier = Modifier.height(lerpDp(12.dp, 16.dp, portraitSectionSpacingScale)))
                                     TransportControls(
                                         hasTrack = hasTrack,
                                         isPlaying = isPlaying,
@@ -1894,24 +1786,14 @@ internal fun PlayerScreen(
                                         canOpenSubtuneSelector = canOpenSubtuneSelector,
                                         onStopAndClear = onStopAndClear,
                                         onCycleRepeatMode = onCycleRepeatMode,
-                                        maxClusterWidth = portraitContentWidth,
                                         compactPortraitMode = shortPortraitLayout,
                                         layoutScale = portraitTransportScale,
                                         transportAnchorFocusRequester = transportAnchorFocusRequester,
                                         actionStripFirstFocusRequester = actionStripFirstFocusRequester
                                     )
-                                }
                             }
                         }
 
-                        Box(
-                            modifier = Modifier
-                                .align(Alignment.BottomCenter)
-                                .width(portraitContentWidth)
-                                .onSizeChangedDeferred { actionStripHeightPx = it.height }
-                                .navigationBarsPadding()
-                                .padding(bottom = actionStripBottomPadding)
-                        )
                     }
                 }
             }
@@ -3637,18 +3519,18 @@ private fun PortraitTrackMetadataBlock(
     val titleTextStyle = MaterialTheme.typography.headlineSmall.copy(
         fontSize = (lerpSp(20.sp, 28.sp, effectiveTitleScale).value + titleFontBoost.value).sp,
         lineHeight = (lerpSp(25.sp, 34.sp, effectiveTitleScale).value + titleLineBoost.value).sp,
-        fontWeight = FontWeight.SemiBold
+        fontWeight = FontWeight.Bold
     )
-    val artistTextStyle = MaterialTheme.typography.titleMedium.copy(
-        fontSize = (lerpSp(12.5.sp, 16.sp, effectiveSupportingScale).value + supportingFontBoost.value).sp,
-        lineHeight = (lerpSp(15.sp, 20.sp, effectiveSupportingScale).value + supportingLineBoost.value).sp,
-        fontWeight = FontWeight.Medium
+    val artistTextStyle = MaterialTheme.typography.bodyMedium.copy(
+        fontSize = (lerpSp(12.5.sp, 15.sp, effectiveSupportingScale).value + supportingFontBoost.value).sp,
+        lineHeight = (lerpSp(15.sp, 19.sp, effectiveSupportingScale).value + supportingLineBoost.value).sp,
+        fontWeight = FontWeight.Normal
     )
     val filenameTextStyle = MaterialTheme.typography.bodySmall.copy(
         fontSize = (lerpSp(11.sp, 14.sp, effectiveSupportingScale).value + supportingFontBoost.value).sp,
         lineHeight = (lerpSp(14.sp, 18.sp, effectiveSupportingScale).value + supportingLineBoost.value).sp
     )
-    val technicalSummaryTextStyle = MaterialTheme.typography.labelMedium.copy(
+    val technicalSummaryTextStyle = MaterialTheme.typography.bodySmall.copy(
         fontSize = (lerpSp(10.5.sp, 13.sp, effectiveSupportingScale).value + supportingFontBoost.value).sp,
         lineHeight = (lerpSp(13.sp, 17.sp, effectiveSupportingScale).value + supportingLineBoost.value).sp
     )
@@ -3780,7 +3662,7 @@ private fun PortraitTrackMetadataBlock(
                         Text(
                             text = animatedArtistAlbum,
                             style = artistTextStyle,
-                            color = MaterialTheme.colorScheme.onSurface,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis,
                             textAlign = TextAlign.Start,
@@ -3833,7 +3715,7 @@ private fun PortraitTrackMetadataBlock(
                         )
                     ) {
                         Column {
-                            Spacer(modifier = Modifier.height(lerpDp(3.dp, 7.dp, layoutScale)))
+                            Spacer(modifier = Modifier.height(lerpDp(2.dp, 4.dp, layoutScale)))
                             BoxWithConstraints(modifier = Modifier.fillMaxWidth()) {
                                 val textMeasurer = rememberTextMeasurer()
                                 val density = LocalDensity.current
@@ -4145,20 +4027,17 @@ private fun TransportControls(
         val compactPortraitTransport = portraitTransportSizing && compactPortraitMode
         val availableWidth = maxClusterWidth?.let { minOf(maxWidth, it) } ?: maxWidth
         val widthScale = normalizedScale(availableWidth, compactDp = 280.dp, roomyDp = 560.dp).coerceIn(0f, 1f)
-        val playButtonSize = lerpDp(78.dp, 108.dp, widthScale)
-        val playIconSize = lerpDp(38.dp, 52.dp, widthScale)
-        val playIndicatorSize = lerpDp(32.dp, 44.dp, widthScale)
-        val sideButtonSize = lerpDp(52.dp, 68.dp, widthScale)
-        val sideTransportIconSize = lerpDp(26.dp, 34.dp, widthScale)
-        val auxiliaryButtonSize = lerpDp(46.dp, 58.dp, widthScale)
-        val auxiliaryIconSize = lerpDp(24.dp, 30.dp, widthScale)
-        val stopIconSize = lerpDp(22.dp, 28.dp, widthScale)
+        val playButtonSize = 82.dp
+        val playIconSize = 39.dp
+        val playIndicatorSize = 32.dp
+        val sideButtonSize = 56.dp
+        val sideTransportIconSize = 27.dp
+        val auxiliaryButtonSize = 48.dp
+        val auxiliaryIconSize = 24.dp
+        val stopIconSize = 23.dp
         val subtuneButtonMax = lerpDp(58.dp, 80.dp, widthScale)
         val subtuneButtonSize = scaledDp(sideButtonSize, 1.03f).coerceIn(48.dp, subtuneButtonMax)
-        val occupiedButtonsWidth = (auxiliaryButtonSize.value * 2f + sideButtonSize.value * 2f + playButtonSize.value).dp
-        val maxAvailableGap = ((availableWidth - occupiedButtonsWidth).coerceAtLeast(0.dp) / 4f)
-        val preferredGap = lerpDp(10.dp, 28.dp, widthScale)
-        val rowGap = preferredGap.coerceAtMost(maxAvailableGap).coerceAtLeast(4.dp)
+        val rowGap = 0.dp
         val repeatIconSize = auxiliaryIconSize
         val effectiveRepeatIconSize = repeatIconSize
         val repeatBadgeCenterOffsetX = scaledDp(auxiliaryButtonSize, 0.22f)
@@ -4188,8 +4067,8 @@ private fun TransportControls(
                 contentAlignment = Alignment.Center
             ) {
                 Row(
-                    modifier = Modifier.wrapContentWidth(),
-                    horizontalArrangement = Arrangement.Center,
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                 IconButton(
