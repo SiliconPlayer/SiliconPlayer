@@ -808,6 +808,7 @@ internal fun PlayerScreen(
             visualizationMode
         }
     var showFullscreenAffordance by remember { mutableStateOf(false) }
+    var affordanceInteractionTick by remember { mutableIntStateOf(0) }
     val prefs = remember {
         context.getSharedPreferences(AppPreferenceKeys.PREFS_NAME, Context.MODE_PRIVATE)
     }
@@ -1375,6 +1376,7 @@ internal fun PlayerScreen(
                                                         showVisualizationPickerDialog = true
                                                     }
                                                 },
+                                                onInteraction = { affordanceInteractionTick++ },
                                                 compact = false
                                             )
                                         }
@@ -1743,6 +1745,7 @@ internal fun PlayerScreen(
                                                         showVisualizationPickerDialog = true
                                                     }
                                                 },
+                                                onInteraction = { affordanceInteractionTick++ },
                                                 compact = false
                                             )
                                         }
@@ -1937,7 +1940,7 @@ internal fun PlayerScreen(
             onDismiss = { showTrackInfoDialog = false }
         )
     }
-    LaunchedEffect(showFullscreenAffordance) {
+    LaunchedEffect(showFullscreenAffordance, affordanceInteractionTick) {
         if (showFullscreenAffordance) {
             kotlinx.coroutines.delay(2500)
             showFullscreenAffordance = false

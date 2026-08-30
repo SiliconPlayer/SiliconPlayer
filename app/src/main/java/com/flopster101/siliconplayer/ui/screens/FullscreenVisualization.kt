@@ -59,6 +59,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -268,6 +269,7 @@ internal fun FullscreenVisualizerSwitcher(
     onSelectVisualizationMode: (VisualizationMode) -> Unit,
     onVisualizerAction: () -> Unit,
     onVisualizerLongPress: (() -> Unit)? = null,
+    onInteraction: () -> Unit = {},
     compact: Boolean,
     modifier: Modifier = Modifier
 ) {
@@ -294,8 +296,14 @@ internal fun FullscreenVisualizerSwitcher(
                 .size(40.dp)
                 .clip(CircleShape)
                 .combinedClickable(
-                    onClick = onCycleVisualizationMode,
-                    onLongClick = onVisualizerAction
+                    onClick = {
+                        onInteraction()
+                        onCycleVisualizationMode()
+                    },
+                    onLongClick = {
+                        onInteraction()
+                        onVisualizerAction()
+                    }
                 ),
             contentAlignment = Alignment.Center
         ) {
@@ -318,7 +326,10 @@ internal fun FullscreenVisualizerSwitcher(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 IconButton(
-                    onClick = onPrev,
+                    onClick = {
+                        onInteraction()
+                        onPrev()
+                    },
                     modifier = Modifier.size(36.dp),
                     colors = IconButtonDefaults.iconButtonColors(contentColor = Color.White)
                 ) {
@@ -334,8 +345,14 @@ internal fun FullscreenVisualizerSwitcher(
                     modifier = Modifier
                         .clip(RoundedCornerShape(percent = 50))
                         .combinedClickable(
-                            onClick = { onVisualizerAction() },
-                            onLongClick = onVisualizerLongPress
+                            onClick = {
+                                onInteraction()
+                                onVisualizerAction()
+                            },
+                            onLongClick = {
+                                onInteraction()
+                                onVisualizerLongPress?.invoke()
+                            }
                         )
                         .padding(horizontal = 6.dp, vertical = 8.dp)
                 ) {
@@ -351,7 +368,10 @@ internal fun FullscreenVisualizerSwitcher(
                     )
                 }
                 IconButton(
-                    onClick = onNext,
+                    onClick = {
+                        onInteraction()
+                        onNext()
+                    },
                     modifier = Modifier.size(36.dp),
                     colors = IconButtonDefaults.iconButtonColors(contentColor = Color.White)
                 ) {
@@ -574,8 +594,9 @@ internal fun FullscreenVisualizationOverlay(
     val isWatch = remember(context) { context.packageManager.hasSystemFeature(PackageManager.FEATURE_WATCH) }
     val effectiveMode = resolveEffectiveVisualizationFullscreenMode(fullscreenModePref, isWatch)
     var controlsVisible by remember { mutableStateOf(true) }
+    var controlsInteractionTick by remember { mutableIntStateOf(0) }
 
-    LaunchedEffect(controlsVisible, isFullscreen) {
+    LaunchedEffect(controlsVisible, isFullscreen, controlsInteractionTick) {
         if (controlsVisible && isFullscreen) {
             delay(3000)
             controlsVisible = false
@@ -707,6 +728,7 @@ internal fun FullscreenVisualizationOverlay(
                             onCycleVisualizationMode = onCycleVisualizationMode,
                             onSelectVisualizationMode = onSelectVisualizationMode,
                             onVisualizerAction = onVisualizerAction,
+                            onInteraction = { controlsInteractionTick++ },
                             compact = effectiveMode == VisualizationFullscreenMode.Compact,
                             modifier = Modifier.padding(bottom = 12.dp)
                         )
