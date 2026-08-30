@@ -261,12 +261,13 @@ private fun FullscreenTransportControls(
 
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
-private fun FullscreenVisualizerSwitcher(
+internal fun FullscreenVisualizerSwitcher(
     visualizationMode: VisualizationMode,
     availableVisualizationModes: List<VisualizationMode>,
     onCycleVisualizationMode: () -> Unit,
     onSelectVisualizationMode: (VisualizationMode) -> Unit,
     onVisualizerAction: () -> Unit,
+    onVisualizerLongPress: (() -> Unit)? = null,
     compact: Boolean,
     modifier: Modifier = Modifier
 ) {
@@ -332,7 +333,10 @@ private fun FullscreenVisualizerSwitcher(
                     verticalAlignment = Alignment.CenterVertically,
                     modifier = Modifier
                         .clip(RoundedCornerShape(percent = 50))
-                        .clickable(onClickLabel = "Visualizer action") { onVisualizerAction() }
+                        .combinedClickable(
+                            onClick = { onVisualizerAction() },
+                            onLongClick = onVisualizerLongPress
+                        )
                         .padding(horizontal = 6.dp, vertical = 8.dp)
                 ) {
                     Icon(

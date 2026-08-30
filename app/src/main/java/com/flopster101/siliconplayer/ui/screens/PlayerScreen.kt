@@ -835,6 +835,20 @@ internal fun PlayerScreen(
         defaultVuRenderBackend = visualizationVuRenderBackend
     )
     val channelScopePrefs = rememberChannelScopePrefs(prefs)
+    val onVisualizerAction: () -> Unit = {
+        when (visualizationMode) {
+            VisualizationMode.ProjectM ->
+                SiliconVisNativeBridge.nativeProjectMNextPreset(true)
+            VisualizationMode.ChannelScope ->
+                prefs.edit()
+                    .putBoolean(
+                        "visualization_channel_scope_text_enabled",
+                        !channelScopePrefs.textEnabled
+                    )
+                    .apply()
+            else -> Unit
+        }
+    }
     val trackGainPrefs = remember {
         context.getSharedPreferences("silicon_player_channel_scope_track_gains", Context.MODE_PRIVATE)
     }
@@ -1149,7 +1163,8 @@ internal fun PlayerScreen(
                             onOpenChannelControls = { showChannelControlDialog = true },
                             showAudioOutputRouteChip = showAudioOutputRouteChip,
                             canOpenPlaylistSelector = canOpenPlaylistSelector,
-                            onOpenPlaylistSelector = onOpenPlaylistSelector
+                            onOpenPlaylistSelector = onOpenPlaylistSelector,
+                            onOpenVisualizationPicker = { showVisualizationPickerDialog = true }
                         )
                     }
                 }
@@ -1246,7 +1261,6 @@ internal fun PlayerScreen(
                     val paneGap = lerpDp(16.dp, 32.dp, landscapeLayoutScale)
                     val artPaneWeight = lerpFloat(0.38f, 0.48f, landscapeLayoutScale)
                     val rightPaneWeight = 1f - artPaneWeight
-                    val actionStripScale = (landscapeLayoutScale * 0.78f).coerceIn(0.44f, 0.76f)
                     val landscapeTitleScaleBoost = lerpFloat(2.0f, 4f, landscapeLayoutScale)
                     val landscapeSupportingScaleBoost = lerpFloat(1f, 2.2f, landscapeLayoutScale)
                     val landscapePaneHeight = (maxHeight - verticalPadding * 2f).coerceAtLeast(120.dp)
@@ -1342,6 +1356,28 @@ internal fun PlayerScreen(
                                             show = showFullscreenAffordance
                                         )
                                     }
+                                        androidx.compose.animation.AnimatedVisibility(
+                                            visible = showFullscreenAffordance,
+                                            enter = fadeIn(),
+                                            exit = fadeOut(),
+                                            modifier = Modifier
+                                                .align(Alignment.BottomCenter)
+                                                .padding(bottom = 12.dp)
+                                        ) {
+                                            FullscreenVisualizerSwitcher(
+                                                visualizationMode = visualizationMode,
+                                                availableVisualizationModes = availableVisualizationModes,
+                                                onCycleVisualizationMode = onCycleVisualizationMode,
+                                                onSelectVisualizationMode = onSelectVisualizationMode,
+                                                onVisualizerAction = onVisualizerAction,
+                                                onVisualizerLongPress = {
+                                                    if (!isVisualizationFullscreen) {
+                                                        showVisualizationPickerDialog = true
+                                                    }
+                                                },
+                                                compact = false
+                                            )
+                                        }
                                 }
                             }
                         }
@@ -1449,16 +1485,6 @@ internal fun PlayerScreen(
                                     actionStripFirstFocusRequester = actionStripFirstFocusRequester
                                 )
 
-                                FutureActionStrip(
-                                    modifier = Modifier.fillMaxWidth(),
-                                    isVisualizerActive = visualizationMode != VisualizationMode.Off,
-                                    onCycleVisualizationMode = onCycleVisualizationMode,
-                                    onOpenVisualizationPicker = { showVisualizationPickerDialog = true },
-                                    compactLayout = false,
-                                    layoutScale = actionStripScale,
-                                    actionStripFirstFocusRequester = actionStripFirstFocusRequester,
-                                    transportAnchorFocusRequester = transportAnchorFocusRequester
-                                )
                             }
                         }
                     }
@@ -1698,6 +1724,28 @@ internal fun PlayerScreen(
                                                 show = showFullscreenAffordance
                                             )
                                         }
+                                        androidx.compose.animation.AnimatedVisibility(
+                                            visible = showFullscreenAffordance,
+                                            enter = fadeIn(),
+                                            exit = fadeOut(),
+                                            modifier = Modifier
+                                                .align(Alignment.BottomCenter)
+                                                .padding(bottom = 12.dp)
+                                        ) {
+                                            FullscreenVisualizerSwitcher(
+                                                visualizationMode = visualizationMode,
+                                                availableVisualizationModes = availableVisualizationModes,
+                                                onCycleVisualizationMode = onCycleVisualizationMode,
+                                                onSelectVisualizationMode = onSelectVisualizationMode,
+                                                onVisualizerAction = onVisualizerAction,
+                                                onVisualizerLongPress = {
+                                                    if (!isVisualizationFullscreen) {
+                                                        showVisualizationPickerDialog = true
+                                                    }
+                                                },
+                                                compact = false
+                                            )
+                                        }
                                     }
                                 }
                             }
@@ -1853,26 +1901,13 @@ internal fun PlayerScreen(
                             }
                         }
 
-                        FutureActionStrip(
+                        Box(
                             modifier = Modifier
                                 .align(Alignment.BottomCenter)
                                 .width(portraitContentWidth)
                                 .onSizeChangedDeferred { actionStripHeightPx = it.height }
                                 .navigationBarsPadding()
-                                .padding(bottom = actionStripBottomPadding),
-                            isVisualizerActive = visualizationMode != VisualizationMode.Off,
-                            onCycleVisualizationMode = onCycleVisualizationMode,
-                            onOpenVisualizationPicker = { showVisualizationPickerDialog = true },
-                            compactLayout = true,
-                            layoutScale = if (shortPortraitLayout) {
-                                (shortPortraitHeightScale * 0.72f).coerceIn(0.40f, 0.62f)
-                            } else if (compactPortraitLayout) {
-                                (shortPortraitHeightScale * 0.8f).coerceIn(0.45f, 0.8f)
-                            } else {
-                                shortPortraitHeightScale
-                            },
-                            actionStripFirstFocusRequester = actionStripFirstFocusRequester,
-                            transportAnchorFocusRequester = transportAnchorFocusRequester
+                                .padding(bottom = actionStripBottomPadding)
                         )
                     }
                 }
@@ -1935,20 +1970,7 @@ internal fun PlayerScreen(
         availableVisualizationModes = availableVisualizationModes,
         onCycleVisualizationMode = onCycleVisualizationMode,
         onSelectVisualizationMode = onSelectVisualizationMode,
-        onVisualizerAction = {
-            when (visualizationMode) {
-                VisualizationMode.ProjectM ->
-                    SiliconVisNativeBridge.nativeProjectMNextPreset(true)
-                VisualizationMode.ChannelScope ->
-                    prefs.edit()
-                        .putBoolean(
-                            "visualization_channel_scope_text_enabled",
-                            !channelScopePrefs.textEnabled
-                        )
-                        .apply()
-                else -> Unit
-            }
-        },
+        onVisualizerAction = onVisualizerAction,
         fullscreenModePref = fullscreenModePref,
         visualizationContent = {
             AlbumArtPlaceholder(
@@ -2184,7 +2206,8 @@ private fun PlayerTopBar(
     onOpenChannelControls: () -> Unit,
     showAudioOutputRouteChip: Boolean = true,
     canOpenPlaylistSelector: Boolean = true,
-    onOpenPlaylistSelector: () -> Unit = {}
+    onOpenPlaylistSelector: () -> Unit = {},
+    onOpenVisualizationPicker: () -> Unit = {}
 ) {
     val context = LocalContext.current
     val outputRouteInfo = rememberAudioOutputRouteInfo()
@@ -2423,6 +2446,31 @@ private fun PlayerTopBar(
                     HorizontalDivider(
                         modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
                         color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.6f)
+                    )
+
+                    DropdownMenuItem(
+                        text = {
+                            Text(
+                                text = "Visualizations",
+                                style = MaterialTheme.typography.bodyLarge
+                            )
+                        },
+                        leadingIcon = {
+                            Icon(
+                                imageVector = Icons.Default.GraphicEq,
+                                contentDescription = null,
+                                modifier = Modifier.size(22.dp)
+                            )
+                        },
+                        contentPadding = PaddingValues(start = 14.dp, end = 18.dp),
+                        colors = MenuDefaults.itemColors(
+                            textColor = MaterialTheme.colorScheme.onSurface,
+                            leadingIconColor = MaterialTheme.colorScheme.onSurfaceVariant
+                        ),
+                        onClick = {
+                            showMoreMenu = false
+                            onOpenVisualizationPicker()
+                        }
                     )
 
                     DropdownMenuItem(
@@ -4557,102 +4605,6 @@ private fun remoteLoadProgressLabel(remoteLoadUiState: RemoteLoadUiState?): Stri
         ?.let { percent -> " • $percent%" }
         .orEmpty()
     return "$phaseLabel $sizeLabel$percentLabel"
-}
-
-@Composable
-@OptIn(ExperimentalFoundationApi::class)
-private fun FutureActionStrip(
-    modifier: Modifier = Modifier,
-    isVisualizerActive: Boolean,
-    onCycleVisualizationMode: () -> Unit,
-    onOpenVisualizationPicker: () -> Unit,
-    compactLayout: Boolean = false,
-    layoutScale: Float = 1f,
-    actionStripFirstFocusRequester: FocusRequester? = null,
-    transportAnchorFocusRequester: FocusRequester? = null
-) {
-    val visualizationModeFocusRequester = actionStripFirstFocusRequester ?: remember { FocusRequester() }
-    val canFocusVisualizationMode = true
-
-    data class ActionFocusNode(
-        val key: String,
-        val enabled: Boolean,
-        val requester: FocusRequester
-    )
-
-    val actionFocusNodes = listOf(
-        ActionFocusNode("visualization", canFocusVisualizationMode, visualizationModeFocusRequester)
-    )
-
-    fun neighboringActionRequester(key: String, step: Int): FocusRequester? {
-        val enabledNodes = actionFocusNodes.filter { it.enabled }
-        if (enabledNodes.isEmpty()) return null
-        val currentIndex = enabledNodes.indexOfFirst { it.key == key }
-        if (currentIndex == -1) {
-            return if (step < 0) enabledNodes.last().requester else enabledNodes.first().requester
-        }
-        val neighborIndex = (currentIndex + step + enabledNodes.size) % enabledNodes.size
-        return enabledNodes[neighborIndex].requester
-    }
-
-    BoxWithConstraints(modifier = modifier) {
-        val stripMaxWidth = maxWidth
-        val tabletWidthScale = normalizedScale(stripMaxWidth, compactDp = 340.dp, roomyDp = 560.dp)
-        val compactShortLayout = compactLayout && layoutScale < 0.7f
-        val iconButtonMax = lerpDp(48.dp, 56.dp, tabletWidthScale)
-        val iconButtonMin = if (compactShortLayout) 36.dp else 40.dp
-        val iconButtonSize = lerpDp(40.dp, 52.dp, tabletWidthScale).coerceIn(iconButtonMin, iconButtonMax)
-        val modeIconSize = scaledDp(iconButtonSize, 0.58f).coerceIn(20.dp, lerpDp(24.dp, 30.dp, tabletWidthScale))
-
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            // 1. Visualizer (MD3 FilledTonalIconToggleButton Pattern)
-            val visualizerBgColor = if (isVisualizerActive) {
-                MaterialTheme.colorScheme.secondaryContainer
-            } else {
-                Color.Transparent
-            }
-            val visualizerIconTint = if (isVisualizerActive) {
-                MaterialTheme.colorScheme.onSecondaryContainer
-            } else {
-                MaterialTheme.colorScheme.onSurfaceVariant
-            }
-
-            Box(
-                modifier = Modifier
-                    .size(iconButtonSize)
-                    .focusRequester(visualizationModeFocusRequester)
-                    .focusProperties {
-                        neighboringActionRequester("visualization", -1)?.let { left = it }
-                        neighboringActionRequester("visualization", 1)?.let { right = it }
-                        if (transportAnchorFocusRequester != null) {
-                            up = transportAnchorFocusRequester
-                        }
-                    }
-                    .clip(CircleShape)
-                    .background(visualizerBgColor, CircleShape)
-                    .playerFocusHalo(shape = CircleShape)
-                    .focusable()
-                    .tvKeyLongPress(onOpenVisualizationPicker)
-                    .combinedClickable(
-                        onClick = onCycleVisualizationMode,
-                        onLongClick = onOpenVisualizationPicker
-                    ),
-                contentAlignment = Alignment.Center
-            ) {
-                Icon(
-                    imageVector = Icons.Default.GraphicEq,
-                    contentDescription = "Visualization mode",
-                    modifier = Modifier.size(modeIconSize),
-                    tint = visualizerIconTint
-                )
-            }
-
-        }
-    }
 }
 
 private data class ChannelControlItem(
