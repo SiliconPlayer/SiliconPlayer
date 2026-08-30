@@ -1282,7 +1282,7 @@ internal fun PlayerScreen(
                                     .fillMaxSize()
                                     .pointerInput(Unit) {
                                         detectTapGestures(onTap = {
-                                            if (!isVisualizationFullscreen && visualizationMode != VisualizationMode.Off && file != null) {
+                                            if (!isVisualizationFullscreen && file != null) {
                                                 showFullscreenAffordance = true
                                             }
                                         })
@@ -1600,7 +1600,7 @@ internal fun PlayerScreen(
                                             .aspectRatio(1f, matchHeightConstraintsFirst = true)
                                             .pointerInput(Unit) {
                                                 detectTapGestures(onTap = {
-                                                    if (!isVisualizationFullscreen && visualizationMode != VisualizationMode.Off && file != null) {
+                                                    if (!isVisualizationFullscreen && file != null) {
                                                         showFullscreenAffordance = true
                                                     }
                                                 })
