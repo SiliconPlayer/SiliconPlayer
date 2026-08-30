@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -25,22 +26,26 @@ import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.SkipNext
 import androidx.compose.material.icons.filled.SkipPrevious
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.BottomSheetDefaults
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.ModalBottomSheet
+import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.material.icons.filled.ExpandLess
 import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedIconButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import androidx.compose.material3.rememberModalBottomSheetState
 import com.flopster101.siliconplayer.AppDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -55,6 +60,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import android.content.Context
+import android.os.Build
 import androidx.compose.ui.platform.LocalContext
 import com.flopster101.siliconplayer.AppPreferenceKeys
 import com.flopster101.siliconplayer.VisualizationMode
@@ -96,15 +102,66 @@ internal fun VisualizationOptionsSheet(
     onResetDefaults: () -> Unit,
     onDismiss: () -> Unit
 ) {
-    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = false)
+    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+        ModalBottomSheet(
+            onDismissRequest = onDismiss,
+            sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = false)
+        ) {
+            OptionsSheetContent(mode, globalInputGain, onGlobalInputGainChange, trackInputGain, onTrackInputGainChange, showChannelLabels, onShowChannelLabelsChange, savedProjectMPreset, onProjectMPresetSelected, presetSetLabels, onResetDefaults)
+        }
+    } else {
+        Dialog(
+            onDismissRequest = onDismiss,
+            properties = DialogProperties(usePlatformDefaultWidth = false, dismissOnClickOutside = true)
+        ) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .clickable(
+                        interactionSource = remember { MutableInteractionSource() },
+                        indication = null,
+                        onClick = onDismiss
+                    ),
+                contentAlignment = Alignment.BottomCenter
+            ) {
+                Card(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .fillMaxHeight(0.5f)
+                        .heightIn(max = 560.dp)
+                        .padding(top = 48.dp)
+                        .clickable(
+                            interactionSource = remember { MutableInteractionSource() },
+                            indication = null,
+                            onClick = {}
+                        ),
+                    shape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp),
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer)
+                ) {
+                    Column(modifier = Modifier.fillMaxWidth().padding(top = 12.dp)) {
+                        Box(modifier = Modifier.align(Alignment.CenterHorizontally).padding(bottom = 8.dp).size(width = 36.dp, height = 4.dp).background(MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f), RoundedCornerShape(2.dp)))
+                        OptionsSheetContent(mode, globalInputGain, onGlobalInputGainChange, trackInputGain, onTrackInputGainChange, showChannelLabels, onShowChannelLabelsChange, savedProjectMPreset, onProjectMPresetSelected, presetSetLabels, onResetDefaults)
+                    }
+                }
+            }
+        }
+    }
+}
 
-    ModalBottomSheet(
-        onDismissRequest = onDismiss,
-        sheetState = sheetState,
-        dragHandle = { BottomSheetDefaults.DragHandle() },
-        containerColor = MaterialTheme.colorScheme.surfaceContainer,
-        shape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp)
-    ) {
+@Composable
+private fun OptionsSheetContent(
+    mode: VisualizationMode,
+    globalInputGain: Int,
+    onGlobalInputGainChange: (Int) -> Unit,
+    trackInputGain: Int,
+    onTrackInputGainChange: (Int) -> Unit,
+    showChannelLabels: Boolean,
+    onShowChannelLabelsChange: (Boolean) -> Unit,
+    savedProjectMPreset: String?,
+    onProjectMPresetSelected: (String) -> Unit,
+    presetSetLabels: Map<String, String>,
+    onResetDefaults: () -> Unit
+) {
         Column(
             modifier = Modifier
                 .fillMaxWidth()
@@ -160,7 +217,6 @@ internal fun VisualizationOptionsSheet(
             }
         }
     }
-}
 
 @Composable
 private fun ChannelScopeOptionsContent(

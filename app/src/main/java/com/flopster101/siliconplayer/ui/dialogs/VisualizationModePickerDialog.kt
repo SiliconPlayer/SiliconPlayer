@@ -16,6 +16,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import android.content.Context
+import android.os.Build
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.Equalizer
@@ -25,10 +26,18 @@ import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material.icons.filled.VisibilityOff
 import androidx.compose.material.icons.filled.GraphicEq
-import androidx.compose.material3.BottomSheetDefaults
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.ModalBottomSheet
+import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -40,10 +49,8 @@ import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -208,15 +215,64 @@ internal fun VisualizationModePickerDialog(
         return
     }
 
-    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = false)
+    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+        ModalBottomSheet(
+            onDismissRequest = onDismiss,
+            sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = false)
+        ) {
+            PickerSheetContent(availableModes, selectedMode, onSelectMode, onOpenSelectedVisualizationSettings, onOpenVisualizationSettings, onOpenOptions, onDismiss, keepScreenOnState, onKeepScreenOnChange = { keepScreenOnState = it; prefs.edit().putBoolean(AppPreferenceKeys.VISUALIZATION_KEEP_SCREEN_ON, it).apply() })
+        }
+    } else {
+        Dialog(
+            onDismissRequest = onDismiss,
+            properties = DialogProperties(usePlatformDefaultWidth = false, dismissOnClickOutside = true)
+        ) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .clickable(
+                        interactionSource = remember { MutableInteractionSource() },
+                        indication = null,
+                        onClick = onDismiss
+                    ),
+                contentAlignment = Alignment.BottomCenter
+            ) {
+                Card(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .fillMaxHeight(0.5f)
+                        .heightIn(max = 560.dp)
+                        .padding(top = 48.dp)
+                        .clickable(
+                            interactionSource = remember { MutableInteractionSource() },
+                            indication = null,
+                            onClick = {}
+                        ),
+                    shape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp),
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer)
+                ) {
+                    Column(modifier = Modifier.fillMaxWidth().padding(top = 12.dp)) {
+                        Box(modifier = Modifier.align(Alignment.CenterHorizontally).padding(bottom = 8.dp).size(width = 36.dp, height = 4.dp).background(MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f), RoundedCornerShape(2.dp)))
+                        PickerSheetContent(availableModes, selectedMode, onSelectMode, onOpenSelectedVisualizationSettings, onOpenVisualizationSettings, onOpenOptions, onDismiss, keepScreenOnState, onKeepScreenOnChange = { keepScreenOnState = it; prefs.edit().putBoolean(AppPreferenceKeys.VISUALIZATION_KEEP_SCREEN_ON, it).apply() })
+                    }
+                }
+            }
+        }
+    }
+}
 
-    ModalBottomSheet(
-        onDismissRequest = onDismiss,
-        sheetState = sheetState,
-        dragHandle = { BottomSheetDefaults.DragHandle() },
-        containerColor = MaterialTheme.colorScheme.surfaceContainer,
-        shape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp)
-    ) {
+@Composable
+private fun PickerSheetContent(
+    availableModes: List<VisualizationMode>,
+    selectedMode: VisualizationMode,
+    onSelectMode: (VisualizationMode) -> Unit,
+    onOpenSelectedVisualizationSettings: () -> Unit,
+    onOpenVisualizationSettings: () -> Unit,
+    onOpenOptions: () -> Unit,
+    onDismiss: () -> Unit,
+    keepScreenOnState: Boolean,
+    onKeepScreenOnChange: (Boolean) -> Unit
+) {
         Column(
             modifier = Modifier
                 .fillMaxWidth()
@@ -395,8 +451,7 @@ internal fun VisualizationModePickerDialog(
                         subtitle = "Keep screen on while visualization is visible",
                         checked = keepScreenOnState,
                         onCheckedChange = { enabled ->
-                            keepScreenOnState = enabled
-                            prefs.edit().putBoolean(AppPreferenceKeys.VISUALIZATION_KEEP_SCREEN_ON, enabled).apply()
+                            onKeepScreenOnChange(enabled)
                         }
                     )
                 }
@@ -431,4 +486,3 @@ internal fun VisualizationModePickerDialog(
             }
         }
     }
-}

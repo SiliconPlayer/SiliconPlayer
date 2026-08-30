@@ -18,9 +18,6 @@ import androidx.compose.foundation.focusable
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.SwipeToDismissBox
-import androidx.compose.material3.SwipeToDismissBoxValue
-import androidx.compose.material3.rememberSwipeToDismissBoxState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.State
@@ -178,23 +175,15 @@ internal fun BoxScope.MiniPlayerOverlayHost(
             animationSpec = tween(durationMillis = 180, easing = LinearOutSlowInEasing),
             label = "miniPlayerFocusHighlight"
         )
-        val dismissState = rememberSwipeToDismissBoxState(
-            positionalThreshold = { totalDistance -> totalDistance * 0.6f },
-            confirmValueChange = { targetValue ->
-                val isDismiss = targetValue == SwipeToDismissBoxValue.StartToEnd ||
-                    targetValue == SwipeToDismissBoxValue.EndToStart
-                if (isDismiss && !isPlaying) {
-                    onHidePlayerSurface()
-                    true
-                } else {
-                    false
-                }
-            }
-        )
+        var dismissOffsetPx by remember { mutableFloatStateOf(0f) }
+        val dismissSettleOffset = remember { Animatable(0f) }
+        var dismissSettling by remember { mutableStateOf(false) }
         LaunchedEffect(isPlaying, isPlayerSurfaceVisible) {
             if (!isPlaying || !isPlayerSurfaceVisible) {
                 blockedDismissSettling = false
                 blockedDismissOffsetPx = 0f
+                dismissSettling = false
+                dismissOffsetPx = 0f
             }
         }
         val miniPlayerModifier = Modifier
@@ -202,7 +191,7 @@ internal fun BoxScope.MiniPlayerOverlayHost(
                 val dragProgress = miniExpandPreviewProgress.coerceIn(0f, 1f)
                 val hideMini = dragExpandCommitInProgress || expandFromMiniDrag || isPlayerExpanded
                 alpha = if (hideMini) 0f else (1f - dragProgress).coerceIn(0f, 1f)
-                translationX = if (isPlaying) blockedDismissOffsetPx else 0f
+                translationX = if (isPlaying) blockedDismissOffsetPx else dismissOffsetPx
                 translationY = -miniPreviewLiftPx * dragProgress
             }
             .onFocusChanged { state -> miniPlayerHasFocus = state.hasFocus }
@@ -290,6 +279,67 @@ internal fun BoxScope.MiniPlayerOverlayHost(
                             }
                             blockedDismissSettling = false
                             blockedDismissOffsetPx = 0f
+                        }
+                    }
+                )
+            }
+        } else {
+            Modifier
+        }
+        val dismissModifier = if (!isPlaying) {
+            Modifier.pointerInput(blockedDismissMaxOffsetPx) {
+                detectHorizontalDragGestures(
+                    onHorizontalDrag = { change, dragAmount ->
+                        if (dismissSettling) {
+                            return@detectHorizontalDragGestures
+                        }
+                        dismissOffsetPx =
+                            (dismissOffsetPx + dragAmount).coerceIn(
+                                -blockedDismissMaxOffsetPx,
+                                blockedDismissMaxOffsetPx
+                            )
+                        change.consume()
+                    },
+                    onDragEnd = {
+                        val releaseOffset = dismissOffsetPx
+                        miniPlayerUiScope.launch {
+                            dismissSettling = true
+                            dismissSettleOffset.snapTo(releaseOffset)
+                            val dismissed =
+                                (if (releaseOffset < 0f) -releaseOffset else releaseOffset) >= blockedDismissMaxOffsetPx * 0.6f
+                            if (dismissed) {
+                                onHidePlayerSurface()
+                                dismissOffsetPx = 0f
+                            } else {
+                                dismissSettleOffset.animateTo(
+                                    targetValue = 0f,
+                                    animationSpec = tween(
+                                        durationMillis = 220,
+                                        easing = LinearOutSlowInEasing
+                                    )
+                                ) {
+                                    dismissOffsetPx = value
+                                }
+                            }
+                            dismissSettling = false
+                        }
+                    },
+                    onDragCancel = {
+                        val releaseOffset = dismissOffsetPx
+                        miniPlayerUiScope.launch {
+                            dismissSettling = true
+                            dismissSettleOffset.snapTo(releaseOffset)
+                            dismissSettleOffset.animateTo(
+                                targetValue = 0f,
+                                animationSpec = tween(
+                                    durationMillis = 220,
+                                    easing = LinearOutSlowInEasing
+                                )
+                            ) {
+                                dismissOffsetPx = value
+                            }
+                            dismissSettling = false
+                            dismissOffsetPx = 0f
                         }
                     }
                 )
@@ -396,13 +446,7 @@ internal fun BoxScope.MiniPlayerOverlayHost(
                 miniPlayerContent()
             }
         } else {
-            SwipeToDismissBox(
-                state = dismissState,
-                modifier = miniPlayerModifier,
-                backgroundContent = {},
-                enableDismissFromStartToEnd = true,
-                enableDismissFromEndToStart = true
-            ) {
+            Box(modifier = miniPlayerModifier.then(dismissModifier)) {
                 miniPlayerContent()
             }
         }
