@@ -2703,7 +2703,7 @@ onStopEngine = { NativeBridge.releaseCurrentDecoder() }, onMetadataAlbumChanged 
             showPlaylistPreviewDialog = true
         }
     }
-    val playPlaylistEntryAction: (PlaylistTrackEntry, StoredPlaylist?) -> Unit = { entry, playlist ->
+    val playPlaylistEntryAction: (PlaylistTrackEntry, StoredPlaylist?, Boolean?) -> Unit = { entry, playlist, expandOverride ->
         openPlaylistEntry(
             context = context,
             entry = entry,
@@ -2712,6 +2712,7 @@ onStopEngine = { NativeBridge.releaseCurrentDecoder() }, onMetadataAlbumChanged 
             manualOpenDelegates = manualOpenDelegates,
             autoPlayOnTrackSelect = autoPlayOnTrackSelect,
             openPlayerOnTrackSelect = openPlayerOnTrackSelect,
+            expandOverride = expandOverride ?: openPlayerOnTrackSelect,
             onActivePlaylistChanged = { activePlaylist = it },
             onActivePlaylistEntryIdChanged = { activePlaylistEntryId = it },
             onPendingPlaylistSubtuneSelectionChanged = { pendingPlaylistSubtuneSelection = it }
@@ -3805,7 +3806,7 @@ onStopEngine = { NativeBridge.releaseCurrentDecoder() }, onMetadataAlbumChanged 
             playlistEntries = activePlaylist?.entries.orEmpty(),
             currentPlaylistEntryId = activePlaylistEntryId,
             onShowPlaylistSelectorDialogChanged = { showPlaylistSelectorDialog = it },
-            onSelectPlaylistEntry = { playPlaylistEntryAction(it, activePlaylist) },
+            onSelectPlaylistEntry = { playPlaylistEntryAction(it, activePlaylist, isPlayerExpanded) },
             showPlaylistOpenActionDialog = showPlaylistOpenActionDialog,
             playlistOpenActionTitle = pendingBrowserPlaylistDocument?.title ?: "Playlist",
             playlistOpenActionEntryCount = pendingBrowserPlaylistDocument?.entries?.size ?: 0,
@@ -4529,7 +4530,7 @@ filenameOnlyWhenTitleMissing = filenameOnlyWhenTitleMissing,
                     activePlaylistEntryId = playlist.entries.firstOrNull()?.id
                     activePlaylistShuffleActive = false
                     playlist.entries.firstOrNull()?.let { entry ->
-                        playPlaylistEntryAction(entry, playlist)
+                        playPlaylistEntryAction(entry, playlist, null)
                     }
                 },
                 onShuffleStoredPlaylist = { playlist ->
@@ -4539,14 +4540,14 @@ filenameOnlyWhenTitleMissing = filenameOnlyWhenTitleMissing,
                     activePlaylistEntryId = shuffledPlaylist.entries.firstOrNull()?.id
                     activePlaylistShuffleActive = true
                     shuffledPlaylist.entries.firstOrNull()?.let { entry ->
-                        playPlaylistEntryAction(entry, shuffledPlaylist)
+                        playPlaylistEntryAction(entry, shuffledPlaylist, null)
                     }
                 },
                 onOpenStoredPlaylistEntry = { entry, playlist ->
                     activePlaylist = playlist
                     activePlaylistEntryId = entry.id
                     activePlaylistShuffleActive = false
-                    playPlaylistEntryAction(entry, playlist)
+                    playPlaylistEntryAction(entry, playlist, null)
                 },
                 onPlayFavoritePlaylist = {
                     val firstEntry = sortedFavoriteEntries.firstOrNull()
