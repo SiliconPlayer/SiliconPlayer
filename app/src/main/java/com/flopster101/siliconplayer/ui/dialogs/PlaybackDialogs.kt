@@ -42,6 +42,7 @@ import androidx.compose.material.icons.filled.WarningAmber
 import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material.icons.filled.VisibilityOff
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
@@ -1025,7 +1026,22 @@ internal fun PlaylistSelectorDialog(
                     if (entries.isEmpty()) {
                         Text("No playlist entries available.")
                     } else {
-                        val listState = rememberLazyListState()
+                        val currentIndex = remember(entries, currentEntryId) {
+                            if (currentEntryId != null) {
+                                entries.indexOfFirst { it.id == currentEntryId }
+                            } else {
+                                -1
+                            }
+                        }
+                        val initialIndex = remember(currentIndex) {
+                            if (currentIndex > 0) currentIndex - 1 else currentIndex.coerceAtLeast(0)
+                        }
+                        val listState = rememberLazyListState(initialFirstVisibleItemIndex = initialIndex)
+                        LaunchedEffect(currentIndex) {
+                            if (currentIndex >= 0) {
+                                listState.scrollToItem(if (currentIndex > 0) currentIndex - 1 else currentIndex)
+                            }
+                        }
                         val scrollbarAlpha = rememberDialogLazyListScrollbarAlpha(
                             enabled = entries.size > 1,
                             listState = listState,
