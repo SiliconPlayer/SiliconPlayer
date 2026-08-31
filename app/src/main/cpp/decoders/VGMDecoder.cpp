@@ -334,6 +334,9 @@ int VGMDecoder::read(float* buffer, int numFrames) {
 
     std::vector<int16_t> int16Buffer(numFrames * channels);
     int framesRendered = 0;
+    PlayerBase* playerBase = player->GetPlayer();
+    VGMPlayer* vgmPlayer = playerBase ? dynamic_cast<VGMPlayer*>(playerBase) : nullptr;
+
     while (framesRendered < numFrames) {
         const int framesRemaining = numFrames - framesRendered;
         const uint32_t bytesRequested = static_cast<uint32_t>(framesRemaining * channels * sizeof(int16_t));
@@ -344,6 +347,9 @@ int VGMDecoder::read(float* buffer, int numFrames) {
         const int chunkFrames = static_cast<int>(bytesRendered / (channels * sizeof(int16_t)));
         if (chunkFrames <= 0) {
             break;
+        }
+        if (vgmPlayer) {
+            appendScopeChunkLocked(vgmPlayer, chunkFrames);
         }
         framesRendered += chunkFrames;
     }
@@ -356,10 +362,8 @@ int VGMDecoder::read(float* buffer, int numFrames) {
         buffer[i] = static_cast<float>(int16Buffer[i]) / 32768.0f;
     }
 
-    if (PlayerBase* playerBase = player->GetPlayer()) {
-        if (VGMPlayer* vgmPlayer = dynamic_cast<VGMPlayer*>(playerBase)) {
-            captureScopeSnapshotLocked(vgmPlayer);
-        }
+    if (vgmPlayer) {
+        publishScopeSnapshotLocked(vgmPlayer);
     }
 
     const uint32_t loopCount = player->GetCurLoop();
@@ -949,18 +953,8 @@ std::vector<int32_t> VGMDecoder::getChannelScopeTextState(int maxChannels) {
     return flat;
 }
 
-void VGMDecoder::captureScopeSnapshotLocked(VGMPlayer* vgmPlayer) {
-    if (!channelScopeState || !vgmPlayer) {
-        return;
-    }
-
-    // Gate before gathering: per-device scope copies scale with channel
-    // count and are too heavy to run at full read rate.
-    const int numChannels = std::min(static_cast<int>(toggleChipEntries.size()), 64);
-    const int64_t scopeGateNowNs = std::chrono::duration_cast<std::chrono::nanoseconds>(
-            std::chrono::steady_clock::now().time_since_epoch()
-    ).count();
-    if (!channelScopeState->tryBeginCapture(scopeGateNowNs, numChannels)) {
+void VGMDecoder::appendScopeChunkLocked(VGMPlayer* vgmPlayer, int chunkFrames) {
+    if (!channelScopeState || !vgmPlayer || chunkFrames <= 0 || toggleChipEntries.empty()) {
         return;
     }
 
@@ -971,10 +965,11 @@ void VGMDecoder::captureScopeSnapshotLocked(VGMPlayer* vgmPlayer) {
     }
 
     const UINT32 sampleCount = vgmPlayer->GetChannelScopeSampleCount();
-    if (sampleCount == 0 || toggleChipEntries.empty()) {
+    if (sampleCount == 0) {
         return;
     }
 
+    const int numChannels = std::min(static_cast<int>(toggleChipEntries.size()), 64);
     const int maxSamples = ChannelScopeSharedState::kMaxSamples;
     const size_t ringSize = static_cast<size_t>(numChannels) * maxSamples;
     if (scopeRingChannels != numChannels || scopeRingRaw.size() != ringSize) {
@@ -984,65 +979,82 @@ void VGMDecoder::captureScopeSnapshotLocked(VGMPlayer* vgmPlayer) {
         scopeRingSamples = 0;
     }
 
-    const UINT32 samplesToRead = std::min(static_cast<UINT32>(maxSamples), sampleCount);
+    const UINT32 samplesToRead = std::min({static_cast<UINT32>(chunkFrames), static_cast<UINT32>(maxSamples), sampleCount});
+    if (samplesToRead == 0) {
+        return;
+    }
 
     thread_local std::vector<WAVE_32BS> scopeTempBuffer;
-    scopeTempBuffer.resize(samplesToRead);
-    thread_local std::vector<float> channelBlock;
-    channelBlock.assign(static_cast<size_t>(numChannels) * samplesToRead, 0.0f);
+    if (scopeTempBuffer.size() < samplesToRead) {
+        scopeTempBuffer.resize(samplesToRead);
+    }
 
     for (int channel = 0; channel < numChannels; ++channel) {
         const auto& entry = toggleChipEntries[static_cast<size_t>(channel)];
-        if (entry.deviceId >= devCount) {
+        float* channelDst = scopeRingRaw.data() + static_cast<size_t>(channel) * maxSamples;
+        if (entry.deviceId >= devCount ||
+            vgmPlayer->GetChannelScopeSamples(entry.deviceId, entry.channelBit, samplesToRead, scopeTempBuffer.data()) != 0x00) {
+            for (UINT32 s = 0; s < samplesToRead; ++s) {
+                const int dstIdx = (scopeRingWritePos + s) % maxSamples;
+                channelDst[dstIdx] = 0.0f;
+            }
             continue;
         }
-        std::fill(scopeTempBuffer.begin(), scopeTempBuffer.end(), WAVE_32BS{0, 0});
-
-        if (vgmPlayer->GetChannelScopeSamples(entry.deviceId, entry.channelBit, samplesToRead, scopeTempBuffer.data()) != 0x00) {
-            continue;
-        }
-
-        float* dest = channelBlock.data() + static_cast<size_t>(channel) * samplesToRead;
 
         for (UINT32 s = 0; s < samplesToRead; ++s) {
+            const int dstIdx = (scopeRingWritePos + s) % maxSamples;
             const float sampleL = static_cast<float>(scopeTempBuffer[s].L) / 8388608.0f;
             const float sampleR = static_cast<float>(scopeTempBuffer[s].R) / 8388608.0f;
-            dest[s] = std::clamp((sampleL + sampleR) * 0.5f, -1.0f, 1.0f);
+            channelDst[dstIdx] = std::clamp((sampleL + sampleR) * 0.5f, -1.0f, 1.0f);
         }
     }
 
-    for (UINT32 s = 0; s < samplesToRead; ++s) {
-        for (int channel = 0; channel < numChannels; ++channel) {
-            scopeRingRaw[
-                    static_cast<size_t>(channel) * maxSamples +
-                    static_cast<size_t>(scopeRingWritePos)
-            ] = channelBlock[
-                    static_cast<size_t>(channel) * samplesToRead +
-                    static_cast<size_t>(s)
-            ];
-        }
-        scopeRingWritePos = (scopeRingWritePos + 1) % maxSamples;
-    }
+    scopeRingWritePos = (scopeRingWritePos + samplesToRead) % maxSamples;
     scopeRingSamples = std::min(
             scopeRingSamples + static_cast<int>(samplesToRead),
             maxSamples
     );
+}
 
-    std::vector<float> raw(ringSize, 0.0f);
-    std::vector<float> vu(static_cast<size_t>(numChannels), 0.0f);
+void VGMDecoder::publishScopeSnapshotLocked(VGMPlayer* vgmPlayer) {
+    if (!channelScopeState || scopeRingChannels <= 0 || scopeRingRaw.empty() || scopeRingSamples <= 0) {
+        return;
+    }
+
+    const int numChannels = scopeRingChannels;
+    const int64_t nowNs = std::chrono::duration_cast<std::chrono::nanoseconds>(
+            std::chrono::steady_clock::now().time_since_epoch()
+    ).count();
+    if (!channelScopeState->tryBeginCapture(nowNs, numChannels)) {
+        return;
+    }
+
+    const int maxSamples = ChannelScopeSharedState::kMaxSamples;
+    const size_t ringSize = static_cast<size_t>(numChannels) * maxSamples;
+
+    thread_local std::vector<float> raw;
+    thread_local std::vector<float> vu;
+    if (raw.size() != ringSize) {
+        raw.resize(ringSize);
+    }
+    if (vu.size() != static_cast<size_t>(numChannels)) {
+        vu.resize(static_cast<size_t>(numChannels));
+    }
+
     const int filledSamples = std::clamp(scopeRingSamples, 0, maxSamples);
     const int zeroPrefix = maxSamples - filledSamples;
     const int trailingSamples = std::clamp(sampleRate > 0 ? sampleRate / 50 : 64, 64, 2048);
 
     for (int channel = 0; channel < numChannels; ++channel) {
+        const float* src = scopeRingRaw.data() + static_cast<size_t>(channel) * maxSamples;
         float* dest = raw.data() + static_cast<size_t>(channel) * maxSamples;
+        if (zeroPrefix > 0) {
+            std::fill(dest, dest + zeroPrefix, 0.0f);
+        }
         for (int i = 0; i < filledSamples; ++i) {
             const int ringIndex =
                     (scopeRingWritePos - filledSamples + i + maxSamples) % maxSamples;
-            dest[zeroPrefix + i] = scopeRingRaw[
-                    static_cast<size_t>(channel) * maxSamples +
-                    static_cast<size_t>(ringIndex)
-            ];
+            dest[zeroPrefix + i] = src[ringIndex];
         }
 
         float peak = 0.0f;
@@ -1053,5 +1065,5 @@ void VGMDecoder::captureScopeSnapshotLocked(VGMPlayer* vgmPlayer) {
         vu[static_cast<size_t>(channel)] = std::clamp(peak, 0.0f, 1.0f);
     }
 
-    channelScopeState->publish(raw, vu, numChannels, ++channelScopeSourceSerial);
+    channelScopeState->publish(raw, vu, numChannels, ++channelScopeSourceSerial, true);
 }

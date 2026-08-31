@@ -197,8 +197,8 @@ internal class GlFontAtlas(
 
             val u0 = x.toFloat() / atlasW.toFloat()
             val v0 = y.toFloat() / atlasH.toFloat()
-            val u1 = (x + cellW - padding).toFloat() / atlasW.toFloat()
-            val v1 = (y + cellH - padding).toFloat() / atlasH.toFloat()
+            val u1 = (x + advance).toFloat() / atlasW.toFloat()
+            val v1 = (y + lineHeightPx).toFloat() / atlasH.toFloat()
 
             val glyph = Glyph(
                 char = ch,
@@ -206,8 +206,8 @@ internal class GlFontAtlas(
                 v0 = v0,
                 u1 = u1,
                 v1 = v1,
-                widthPx = (cellW - padding).toFloat(),
-                heightPx = (cellH - padding).toFloat(),
+                widthPx = advance,
+                heightPx = lineHeightPx,
                 advanceX = advance,
                 ascentPx = fontAscent
             )
@@ -452,6 +452,9 @@ internal class GlTextProgram {
 
     fun draw(buffer: FloatBuffer, vertexCount: Int, atlas: GlFontAtlas, surfaceWidth: Float, surfaceHeight: Float) {
         if (programId == 0 || vertexCount <= 0) return
+
+        GLES20.glEnable(GLES20.GL_BLEND)
+        GLES20.glBlendFunc(GLES20.GL_SRC_ALPHA, GLES20.GL_ONE_MINUS_SRC_ALPHA)
 
         GLES20.glUseProgram(programId)
         GLES20.glUniform2f(resolutionLoc, surfaceWidth, surfaceHeight)

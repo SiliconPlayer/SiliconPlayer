@@ -137,7 +137,8 @@ private:
     int scopeRingWritePos = 0;
     int scopeRingSamples = 0;
 
-    void captureScopeSnapshotLocked(VGMPlayer* vgmPlayer);
+    void appendScopeChunkLocked(VGMPlayer* vgmPlayer, int chunkFrames);
+    void publishScopeSnapshotLocked(VGMPlayer* vgmPlayer);
 };
 
 #endif //SILICONPLAYER_VGMDECODER_H
