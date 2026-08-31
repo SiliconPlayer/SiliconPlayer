@@ -28,6 +28,24 @@ internal enum class PlaylistStoredFormat(
     }
 }
 
+internal enum class PlaylistEntrySortMode(
+    val storageValue: String,
+    val label: String
+) {
+    Custom("custom", "Custom"),
+    Title("title", "Title"),
+    Artist("artist", "Artist"),
+    Album("album", "Album"),
+    RecentlyAdded("recently_added", "Recently added");
+
+    companion object {
+        fun fromStorage(value: String?): PlaylistEntrySortMode {
+            return entries.firstOrNull { it.storageValue == value || it.name.equals(value, ignoreCase = true) }
+                ?: Custom
+        }
+    }
+}
+
 internal data class PlaylistTrackEntry(
     val id: String = UUID.randomUUID().toString(),
     val source: String,
@@ -537,3 +555,60 @@ private fun derivePlaylistEntryTitle(source: String, lineIndex: Int): String {
 }
 
 private val WINDOWS_ABSOLUTE_PATH_REGEX = Regex("^[A-Za-z]:[\\\\/].*")
+
+internal fun sortPlaylistEntries(
+    entries: List<PlaylistTrackEntry>,
+    sortMode: PlaylistEntrySortMode
+): List<PlaylistTrackEntry> {
+    if (entries.size <= 1 || sortMode == PlaylistEntrySortMode.Custom) return entries
+    val indexedEntries = entries.withIndex()
+    return when (sortMode) {
+        PlaylistEntrySortMode.Custom -> entries
+        PlaylistEntrySortMode.Title -> {
+            indexedEntries
+                .sortedWith(
+                    compareBy<IndexedValue<PlaylistTrackEntry>> { it.value.title.lowercase(Locale.ROOT) }
+                        .thenBy { sortablePlaylistText(it.value.artist) }
+                        .thenBy { sortablePlaylistText(it.value.album) }
+                        .thenBy { it.index }
+                )
+                .map { it.value }
+        }
+
+        PlaylistEntrySortMode.Artist -> {
+            indexedEntries
+                .sortedWith(
+                    compareBy<IndexedValue<PlaylistTrackEntry>> { sortablePlaylistText(it.value.artist) }
+                        .thenBy { it.value.title.lowercase(Locale.ROOT) }
+                        .thenBy { sortablePlaylistText(it.value.album) }
+                        .thenBy { it.index }
+                )
+                .map { it.value }
+        }
+
+        PlaylistEntrySortMode.Album -> {
+            indexedEntries
+                .sortedWith(
+                    compareBy<IndexedValue<PlaylistTrackEntry>> { sortablePlaylistText(it.value.album) }
+                        .thenBy { sortablePlaylistText(it.value.artist) }
+                        .thenBy { it.value.title.lowercase(Locale.ROOT) }
+                        .thenBy { it.index }
+                )
+                .map { it.value }
+        }
+
+        PlaylistEntrySortMode.RecentlyAdded -> {
+            indexedEntries
+                .sortedWith(
+                    compareByDescending<IndexedValue<PlaylistTrackEntry>> { it.value.addedAtMs }
+                        .thenBy { it.index }
+                )
+                .map { it.value }
+        }
+    }
+}
+
+private fun sortablePlaylistText(value: String?): String {
+    val normalized = value?.trim()?.lowercase(Locale.ROOT).orEmpty()
+    return if (normalized.isBlank()) "\uFFFF" else normalized
+}

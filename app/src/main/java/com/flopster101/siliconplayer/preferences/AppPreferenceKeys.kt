@@ -53,6 +53,7 @@ internal object AppPreferenceKeys {
     const val RECENT_PLAYED_FILES = "recent_played_files"
     const val PINNED_HOME_ENTRIES = "pinned_home_entries"
     const val PLAYLIST_LIBRARY_JSON = "playlist_library_json"
+    const val FAVORITES_SORT_MODE = "favorites_sort_mode"
     const val RECENT_FOLDERS_LIMIT = "recent_folders_limit"
     const val RECENT_PLAYED_FILES_LIMIT = "recent_played_files_limit"
     const val PRESS_BACK_TWICE_TO_EXIT = "press_back_twice_to_exit"

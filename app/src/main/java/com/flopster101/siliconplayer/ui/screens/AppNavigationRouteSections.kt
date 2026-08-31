@@ -21,7 +21,6 @@ import androidx.compose.ui.input.pointer.PointerEventType
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.ExperimentalComposeUiApi
-import com.flopster101.siliconplayer.ui.screens.PlaylistEntrySortMode
 import java.io.File
 
 @Composable

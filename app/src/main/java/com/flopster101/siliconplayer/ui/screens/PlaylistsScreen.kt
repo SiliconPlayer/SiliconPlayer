@@ -1,5 +1,7 @@
 package com.flopster101.siliconplayer.ui.screens
 
+import com.flopster101.siliconplayer.PlaylistEntrySortMode
+import com.flopster101.siliconplayer.sortPlaylistEntries
 import com.flopster101.siliconplayer.isRoundScreenCompat
 import android.net.Uri
 import android.graphics.BitmapFactory
@@ -174,16 +176,6 @@ private enum class LibrarySurfaceTab {
 private enum class AlbumCollectionLayout {
     Grid,
     List
-}
-
-internal enum class PlaylistEntrySortMode(
-    val label: String
-) {
-    Custom("Custom"),
-    Title("Title"),
-    Artist("Artist"),
-    Album("Album"),
-    RecentlyAdded("Recently added")
 }
 
 private const val PLAYLISTS_PAGE_NAV_DURATION_MS = 280
@@ -2144,63 +2136,6 @@ private fun PlaylistActionPill(
             )
         }
     }
-}
-
-internal fun sortPlaylistEntries(
-    entries: List<PlaylistTrackEntry>,
-    sortMode: PlaylistEntrySortMode
-): List<PlaylistTrackEntry> {
-    if (entries.size <= 1 || sortMode == PlaylistEntrySortMode.Custom) return entries
-    val indexedEntries = entries.withIndex()
-    return when (sortMode) {
-        PlaylistEntrySortMode.Custom -> entries
-        PlaylistEntrySortMode.Title -> {
-            indexedEntries
-                .sortedWith(
-                    compareBy<IndexedValue<PlaylistTrackEntry>> { it.value.title.lowercase(Locale.ROOT) }
-                        .thenBy { sortablePlaylistText(it.value.artist) }
-                        .thenBy { sortablePlaylistText(it.value.album) }
-                        .thenBy { it.index }
-                )
-                .map { it.value }
-        }
-
-        PlaylistEntrySortMode.Artist -> {
-            indexedEntries
-                .sortedWith(
-                    compareBy<IndexedValue<PlaylistTrackEntry>> { sortablePlaylistText(it.value.artist) }
-                        .thenBy { it.value.title.lowercase(Locale.ROOT) }
-                        .thenBy { sortablePlaylistText(it.value.album) }
-                        .thenBy { it.index }
-                )
-                .map { it.value }
-        }
-
-        PlaylistEntrySortMode.Album -> {
-            indexedEntries
-                .sortedWith(
-                    compareBy<IndexedValue<PlaylistTrackEntry>> { sortablePlaylistText(it.value.album) }
-                        .thenBy { sortablePlaylistText(it.value.artist) }
-                        .thenBy { it.value.title.lowercase(Locale.ROOT) }
-                        .thenBy { it.index }
-                )
-                .map { it.value }
-        }
-
-        PlaylistEntrySortMode.RecentlyAdded -> {
-            indexedEntries
-                .sortedWith(
-                    compareByDescending<IndexedValue<PlaylistTrackEntry>> { it.value.addedAtMs }
-                        .thenBy { it.index }
-                )
-                .map { it.value }
-        }
-    }
-}
-
-private fun sortablePlaylistText(value: String?): String {
-    val normalized = value?.trim()?.lowercase(Locale.ROOT).orEmpty()
-    return if (normalized.isBlank()) "\uFFFF" else normalized
 }
 
 @Composable

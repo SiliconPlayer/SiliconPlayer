@@ -114,8 +114,6 @@ import com.flopster101.siliconplayer.playback.loadPlayableSiblingFilesForExterna
 import org.json.JSONArray
 import com.flopster101.siliconplayer.playback.applyTrackSelectionAction
 import com.flopster101.siliconplayer.session.exportCachedFilesToTree
-import com.flopster101.siliconplayer.ui.screens.PlaylistEntrySortMode
-import com.flopster101.siliconplayer.ui.screens.sortPlaylistEntries
 import com.flopster101.siliconplayer.ui.visualization.rememberVisualizationUiState
 import com.flopster101.siliconplayer.ui.theme.SiliconPlayerTheme
 import java.io.BufferedInputStream
@@ -1511,7 +1509,11 @@ private fun AppNavigation(
         mutableStateOf(readPlaylistLibraryState(prefs))
     }
     var favoritesSortMode by remember {
-        mutableStateOf(PlaylistEntrySortMode.Custom)
+        mutableStateOf(
+            PlaylistEntrySortMode.fromStorage(
+                prefs.getString(AppPreferenceKeys.FAVORITES_SORT_MODE, null)
+            )
+        )
     }
     var externalTrackInfoDialogRequestToken by remember { mutableIntStateOf(0) }
     var activePlaylist by remember { mutableStateOf<StoredPlaylist?>(null) }
@@ -4425,9 +4427,8 @@ filenameOnlyWhenTitleMissing = filenameOnlyWhenTitleMissing,
                     activePlaylistEntryId = null
                     activePlaylistShuffleActive = false
                     pendingPlaylistSubtuneSelection = null
-                } else {
+                } else if (!activePlaylistShuffleActive) {
                     activePlaylist = buildFavoritesPlaybackPlaylist(sortedFavorites)
-                    activePlaylistShuffleActive = false
                     val playbackMatchedEntryId = sortedFavorites.firstOrNull { entry ->
                         playlistEntryMatchesPlayback(
                             entry = entry,
@@ -4494,7 +4495,10 @@ filenameOnlyWhenTitleMissing = filenameOnlyWhenTitleMissing,
                         onRecentFoldersChanged = { recentFolders = it },
                         onRecentPlayedFilesChanged = { recentPlayedFiles = it },
                         onPlaylistLibraryStateChanged = onPlaylistLibraryStateChanged,
-                        onFavoritesSortModeChange = { favoritesSortMode = it },
+                        onFavoritesSortModeChange = { mode ->
+                            favoritesSortMode = mode
+                            prefs.edit().putString(AppPreferenceKeys.FAVORITES_SORT_MODE, mode.storageValue).apply()
+                        },
                         onOpenFavorite = { entry ->
                             openPlaylistEntry(
                                 context = context,

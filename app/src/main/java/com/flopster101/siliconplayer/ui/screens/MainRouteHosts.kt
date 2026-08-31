@@ -11,7 +11,6 @@ import androidx.compose.ui.Modifier
 import com.flopster101.siliconplayer.ui.screens.FileBrowserScreen
 import com.flopster101.siliconplayer.ui.screens.HttpFileBrowserScreen
 import com.flopster101.siliconplayer.ui.screens.NetworkBrowserScreen
-import com.flopster101.siliconplayer.ui.screens.PlaylistEntrySortMode
 import com.flopster101.siliconplayer.ui.screens.PlaylistsScreen
 import com.flopster101.siliconplayer.ui.screens.SmbFileBrowserScreen
 import com.flopster101.siliconplayer.RemotePlayableSourceIdsHolder
