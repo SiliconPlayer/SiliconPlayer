@@ -2159,7 +2159,7 @@ internal fun AlbumArtPlaceholder(
                     continue
                 }
                 val frameStartNs = System.nanoTime()
-                val textPollIntervalNs = 120_000_000L
+                val textPollIntervalNs = 20_000_000L
                 val shouldPollText =
                     localChannelScopeLastTextPollNs == 0L ||
                         frameStartNs - localChannelScopeLastTextPollNs >= textPollIntervalNs

@@ -831,7 +831,7 @@ private class SiliconNativeTextureRenderThread(
                     // 4b. Draw GL Channel Scope text directly in OpenGL ES (100% GLES, zero Compose overlays!)
                     if (frame.mode == 4 && frame.channelScopeTextEnabled) {
                         val textNowNs = System.nanoTime()
-                        if (textNowNs - localLastTextPollNs >= 100_000_000L || localChannelCount <= 0) {
+                        if (textNowNs - localLastTextPollNs >= 20_000_000L || localChannelCount <= 0) {
                             localLastTextPollNs = textNowNs
                             val rawText = com.flopster101.siliconplayer.NativeBridge.getChannelScopeTextState(64)
                             if (rawText.isNotEmpty()) {
