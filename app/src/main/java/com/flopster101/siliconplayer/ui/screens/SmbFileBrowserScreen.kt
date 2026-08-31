@@ -28,6 +28,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
@@ -609,12 +610,16 @@ internal fun SmbFileBrowserScreen(
             pathKey = key
         )
     }
-    val entriesListState = rememberLazyListState()
+    val listStateMap = remember(screenSessionKey) { mutableMapOf<String, LazyListState>() }
     val nonEntriesListState = rememberLazyListState()
+    fun listStateFor(pathKey: String): LazyListState {
+        return listStateMap.getOrPut(pathKey) { LazyListState() }
+    }
+    val activeEntriesListState = listStateFor(browserContentState.pathKey)
     var selectorExpanded by remember(screenSessionKey) { mutableStateOf(false) }
     val directoryScrollbarAlpha = rememberDialogLazyListScrollbarAlpha(
         enabled = browserContentState.pane == SmbBrowserPane.Entries,
-        listState = entriesListState,
+        listState = activeEntriesListState,
         flashKey = "${browserContentState.pathKey}|${filteredEntries.size}|${browserSearchController.debouncedQuery}",
         label = "smbBrowserDirectoryScrollbarAlpha"
     )
@@ -1095,7 +1100,7 @@ internal fun SmbFileBrowserScreen(
         LazyColumn(
             modifier = Modifier.fillMaxSize(),
             state = if (state.pane == SmbBrowserPane.Entries) {
-                entriesListState
+                listStateFor(state.pathKey)
             } else {
                 nonEntriesListState
             },
@@ -1529,7 +1534,7 @@ internal fun SmbFileBrowserScreen(
             }
             if (!isWatch && browserContentState.pane == SmbBrowserPane.Entries) {
                 BrowserLazyListScrollbar(
-                    listState = entriesListState,
+                    listState = activeEntriesListState,
                     onDragActiveChanged = { isActive -> directoryScrollbarHeld = isActive },
                     modifier = Modifier
                         .align(Alignment.CenterEnd)

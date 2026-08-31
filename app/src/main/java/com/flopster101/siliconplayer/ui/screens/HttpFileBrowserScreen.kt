@@ -31,6 +31,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
@@ -633,8 +634,12 @@ internal fun HttpFileBrowserScreen(
     val subtitle = decodePercentEncodedForDisplay(rawSubtitle) ?: rawSubtitle
     val protocolLabel = browserSpec().scheme.uppercase(Locale.ROOT)
     var selectorExpanded by remember(screenSessionKey) { mutableStateOf(false) }
-    val entriesListState = rememberLazyListState()
+    val listStateMap = remember(screenSessionKey) { mutableMapOf<String, LazyListState>() }
     val nonEntriesListState = rememberLazyListState()
+    fun listStateFor(path: String): LazyListState {
+        return listStateMap.getOrPut(path) { LazyListState() }
+    }
+    val activeEntriesListState = listStateFor(browserContentState.path)
     val pullRefreshState = rememberPullRefreshState(
         refreshing = isPullRefreshing,
         onRefresh = {
@@ -661,7 +666,7 @@ internal fun HttpFileBrowserScreen(
     )
     val directoryScrollbarAlpha = rememberDialogLazyListScrollbarAlpha(
         enabled = browserContentState.pane == HttpBrowserPane.Entries,
-        listState = entriesListState,
+        listState = activeEntriesListState,
         flashKey = "${browserContentState.path}|${filteredEntries.size}|${browserSearchController.debouncedQuery}",
         label = "httpBrowserDirectoryScrollbarAlpha"
     )
@@ -1100,7 +1105,7 @@ internal fun HttpFileBrowserScreen(
         LazyColumn(
             modifier = Modifier.fillMaxSize(),
             state = if (state.pane == HttpBrowserPane.Entries) {
-                entriesListState
+                listStateFor(state.path)
             } else {
                 nonEntriesListState
             },
@@ -1545,7 +1550,7 @@ internal fun HttpFileBrowserScreen(
             }
             if (!isWatch && browserContentState.pane == HttpBrowserPane.Entries) {
                 BrowserLazyListScrollbar(
-                    listState = entriesListState,
+                    listState = activeEntriesListState,
                     onDragActiveChanged = { isActive -> directoryScrollbarHeld = isActive },
                     modifier = Modifier
                         .align(Alignment.CenterEnd)
