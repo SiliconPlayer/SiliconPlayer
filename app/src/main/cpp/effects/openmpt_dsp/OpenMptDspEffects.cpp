@@ -596,48 +596,61 @@ void OpenMptDspEffects::applyReverb(
         reverbConfiguredDepth = depth;
     }
 
-    reverbWetWork.resize(static_cast<size_t>(frames) * 2);
-    reverbDryWork.resize(static_cast<size_t>(frames) * 2);
-    for (int frame = 0; frame < frames; ++frame) {
-        const int idx = frame * channels;
-        const int32_t inL = static_cast<int32_t>(std::lrint(std::clamp(buffer[idx], -1.0f, 1.0f) * kMixScale));
-        const int32_t inR = static_cast<int32_t>(std::lrint(std::clamp(buffer[idx + 1], -1.0f, 1.0f) * kMixScale));
-        // Route signal through a dedicated reverb send and rebuild dry mix from send.
-        reverbWetWork[static_cast<size_t>(frame) * 2] = static_cast<int32_t>(std::lrint(static_cast<float>(inL) * kGlobalReverbSendGain));
-        reverbWetWork[static_cast<size_t>(frame) * 2 + 1] = static_cast<int32_t>(std::lrint(static_cast<float>(inR) * kGlobalReverbSendGain));
-        reverbDryWork[static_cast<size_t>(frame) * 2] = 0;
-        reverbDryWork[static_cast<size_t>(frame) * 2 + 1] = 0;
-    }
-
     int32_t maxRvbGain = (reverbRefMasterGain > reverbLateMasterGain) ? reverbRefMasterGain : reverbLateMasterGain;
     if (maxRvbGain > 32768) maxRvbGain = 32768;
     int32_t dryVol = (36 - depth) >> 1;
     if (dryVol < 8) dryVol = 8;
     if (dryVol > 16) dryVol = 16;
     dryVol = 16 - (((16 - dryVol) * maxRvbGain) >> 15);
-    applyReverbDryMix(reverbDryWork.data(), reverbWetWork.data(), dryVol, frames);
 
-    for (int i = 0; i < frames; ++i) {
-        const int pos = i * 2;
-        const int32_t xL = reverbWetWork[static_cast<size_t>(pos)] >> 12;
-        const int32_t xR = reverbWetWork[static_cast<size_t>(pos + 1)] >> 12;
-        reverbInputY1L = xL + (((xL - reverbInputY1L) * reverbRoomLpCoeffL) >> 15);
-        reverbInputY1R = xR + (((xR - reverbInputY1R) * reverbRoomLpCoeffR) >> 15);
-        reverbWetWork[static_cast<size_t>(pos)] = reverbInputY1L;
-        reverbWetWork[static_cast<size_t>(pos + 1)] = reverbInputY1R;
-    }
+    constexpr int kMaxChunkFrames = 64;
+    reverbWetWork.resize(static_cast<size_t>(kMaxChunkFrames) * 2);
+    reverbDryWork.resize(static_cast<size_t>(kMaxChunkFrames) * 2);
 
-    processReverbPreDelay(reverbWetWork.data(), frames);
-    processReverbReflections(reverbWetWork.data(), frames);
-    processReverbLate(reverbWetWork.data(), frames);
-    processReverbPost(reverbWetWork.data(), reverbDryWork.data(), frames);
+    int framesRemaining = frames;
+    int frameOffset = 0;
 
-    for (int frame = 0; frame < frames; ++frame) {
-        const int idx = frame * channels;
-        const float outL = static_cast<float>(reverbDryWork[static_cast<size_t>(frame) * 2] / kMixScale);
-        const float outR = static_cast<float>(reverbDryWork[static_cast<size_t>(frame) * 2 + 1] / kMixScale);
-        buffer[idx] = clampSample(outL);
-        buffer[idx + 1] = clampSample(outR);
+    while (framesRemaining > 0) {
+        const int chunk = std::min(framesRemaining, kMaxChunkFrames);
+
+        for (int frame = 0; frame < chunk; ++frame) {
+            const int idx = (frameOffset + frame) * channels;
+            const int32_t inL = static_cast<int32_t>(std::lrint(std::clamp(buffer[idx], -1.0f, 1.0f) * kMixScale));
+            const int32_t inR = static_cast<int32_t>(std::lrint(std::clamp(buffer[idx + 1], -1.0f, 1.0f) * kMixScale));
+            // Route signal through a dedicated reverb send and rebuild dry mix from send.
+            reverbWetWork[static_cast<size_t>(frame) * 2] = static_cast<int32_t>(std::lrint(static_cast<float>(inL) * kGlobalReverbSendGain));
+            reverbWetWork[static_cast<size_t>(frame) * 2 + 1] = static_cast<int32_t>(std::lrint(static_cast<float>(inR) * kGlobalReverbSendGain));
+            reverbDryWork[static_cast<size_t>(frame) * 2] = 0;
+            reverbDryWork[static_cast<size_t>(frame) * 2 + 1] = 0;
+        }
+
+        applyReverbDryMix(reverbDryWork.data(), reverbWetWork.data(), dryVol, chunk);
+
+        for (int i = 0; i < chunk; ++i) {
+            const int pos = i * 2;
+            const int32_t xL = reverbWetWork[static_cast<size_t>(pos)] >> 12;
+            const int32_t xR = reverbWetWork[static_cast<size_t>(pos + 1)] >> 12;
+            reverbInputY1L = xL + (((xL - reverbInputY1L) * reverbRoomLpCoeffL) >> 15);
+            reverbInputY1R = xR + (((xR - reverbInputY1R) * reverbRoomLpCoeffR) >> 15);
+            reverbWetWork[static_cast<size_t>(pos)] = reverbInputY1L;
+            reverbWetWork[static_cast<size_t>(pos + 1)] = reverbInputY1R;
+        }
+
+        processReverbPreDelay(reverbWetWork.data(), chunk);
+        processReverbReflections(reverbWetWork.data(), chunk);
+        processReverbLate(reverbWetWork.data(), chunk);
+        processReverbPost(reverbWetWork.data(), reverbDryWork.data(), chunk);
+
+        for (int frame = 0; frame < chunk; ++frame) {
+            const int idx = (frameOffset + frame) * channels;
+            const float outL = static_cast<float>(reverbDryWork[static_cast<size_t>(frame) * 2] / kMixScale);
+            const float outR = static_cast<float>(reverbDryWork[static_cast<size_t>(frame) * 2 + 1] / kMixScale);
+            buffer[idx] = clampSample(outL);
+            buffer[idx + 1] = clampSample(outR);
+        }
+
+        frameOffset += chunk;
+        framesRemaining -= chunk;
     }
 }
 
