@@ -19,6 +19,8 @@ import androidx.compose.animation.animateContentSize
 import androidx.compose.animation.expandVertically
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
+import androidx.compose.animation.scaleIn
+import androidx.compose.animation.scaleOut
 import androidx.compose.animation.shrinkVertically
 import androidx.compose.animation.togetherWith
 import androidx.compose.animation.core.LinearOutSlowInEasing
@@ -679,6 +681,84 @@ private fun PlayerLayoutBox(
     }
 }
 
+private enum class CanvasSeekSide {
+    Backward,
+    Forward
+}
+
+private data class CanvasSeekFeedbackState(
+    val side: CanvasSeekSide,
+    val totalSeconds: Int,
+    val token: Long = 0L
+)
+
+@Composable
+private fun CanvasSeekFeedbackOverlay(
+    feedbackState: CanvasSeekFeedbackState?,
+    modifier: Modifier = Modifier
+) {
+    androidx.compose.animation.AnimatedVisibility(
+        visible = feedbackState != null,
+        enter = fadeIn(animationSpec = androidx.compose.animation.core.tween(120)) +
+                scaleIn(initialScale = 0.82f, animationSpec = androidx.compose.animation.core.tween(120)),
+        exit = fadeOut(animationSpec = androidx.compose.animation.core.tween(220)),
+        modifier = modifier
+    ) {
+        if (feedbackState != null) {
+            val isBackward = feedbackState.side == CanvasSeekSide.Backward
+            val alignment = if (isBackward) Alignment.CenterStart else Alignment.CenterEnd
+            val text = if (isBackward) "-${feedbackState.totalSeconds}s" else "+${feedbackState.totalSeconds}s"
+            val icon = if (isBackward) Icons.Default.KeyboardDoubleArrowLeft else Icons.Default.KeyboardDoubleArrowRight
+
+            Box(
+                modifier = Modifier.fillMaxSize(),
+                contentAlignment = alignment
+            ) {
+                Surface(
+                    shape = RoundedCornerShape(percent = 50),
+                    color = Color.Black.copy(alpha = 0.45f),
+                    contentColor = Color.White,
+                    modifier = Modifier.padding(horizontal = 24.dp)
+                ) {
+                    Row(
+                        modifier = Modifier.padding(horizontal = 14.dp, vertical = 8.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        if (isBackward) {
+                            Icon(
+                                imageVector = icon,
+                                contentDescription = null,
+                                modifier = Modifier.size(20.dp),
+                                tint = Color.White
+                            )
+                            Text(
+                                text = text,
+                                style = MaterialTheme.typography.labelLarge,
+                                fontWeight = androidx.compose.ui.text.font.FontWeight.Bold,
+                                color = Color.White
+                            )
+                        } else {
+                            Text(
+                                text = text,
+                                style = MaterialTheme.typography.labelLarge,
+                                fontWeight = androidx.compose.ui.text.font.FontWeight.Bold,
+                                color = Color.White
+                            )
+                            Icon(
+                                imageVector = icon,
+                                contentDescription = null,
+                                modifier = Modifier.size(20.dp),
+                                tint = Color.White
+                            )
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 internal fun PlayerScreen(
@@ -758,6 +838,7 @@ internal fun PlayerScreen(
     visualizationPerformanceMode: VisualizationPerformanceMode = com.flopster101.siliconplayer.AppDefaults.Visualization.performanceMode,
     visualizationShowDebugInfo: Boolean = false,
     artworkCornerRadiusDp: Int = 3,
+    canvasTapToSeekSeconds: Int = com.flopster101.siliconplayer.AppDefaults.Player.canvasTapToSeekSeconds,
     isTrackFavorited: Boolean = false,
     onToggleFavoriteTrack: () -> Unit = {},
     onOpenAudioEffects: () -> Unit,
@@ -809,6 +890,117 @@ internal fun PlayerScreen(
         }
     var showFullscreenAffordance by remember { mutableStateOf(false) }
     var affordanceInteractionTick by remember { mutableIntStateOf(0) }
+    var seekFeedbackState by remember { mutableStateOf<CanvasSeekFeedbackState?>(null) }
+    var pendingSingleTapJob by remember { mutableStateOf<kotlinx.coroutines.Job?>(null) }
+    var lastTapTimestamp by remember { mutableLongStateOf(0L) }
+    var lastTapSide by remember { mutableStateOf<CanvasSeekSide?>(null) }
+    var accumulatedSeekSeconds by remember { mutableIntStateOf(0) }
+    var activeSeekTargetPosition by remember { mutableStateOf<Double?>(null) }
+    var feedbackToken by remember { mutableLongStateOf(0L) }
+    val canvasGestureScope = rememberCoroutineScope()
+
+    val latestPositionSeconds by rememberUpdatedState(positionSeconds)
+    val latestDurationSeconds by rememberUpdatedState(durationSeconds)
+    val latestCanSeek by rememberUpdatedState(canSeek)
+    val latestCanvasTapToSeekSeconds by rememberUpdatedState(canvasTapToSeekSeconds)
+    val latestOnSeek by rememberUpdatedState(onSeek)
+    val latestFile by rememberUpdatedState(file)
+    val latestIsVisualizationFullscreen by rememberUpdatedState(isVisualizationFullscreen)
+    val latestIsSeeking by rememberUpdatedState(isSeeking)
+
+    val handleCanvasTap: (androidx.compose.ui.geometry.Offset, Float) -> Unit = { offset, boxWidth ->
+        if (!latestIsVisualizationFullscreen && latestFile != null) {
+            val seekStep = latestCanvasTapToSeekSeconds
+            val seekAvailable = latestCanSeek && seekStep > 0
+            if (!seekAvailable || boxWidth <= 0f) {
+                pendingSingleTapJob?.cancel()
+                pendingSingleTapJob = null
+                lastTapSide = null
+                lastTapTimestamp = 0L
+                accumulatedSeekSeconds = 0
+                activeSeekTargetPosition = null
+                showFullscreenAffordance = true
+            } else {
+                val leftThreshold = boxWidth * 0.35f
+                val rightThreshold = boxWidth * 0.65f
+
+                if (offset.x in leftThreshold..rightThreshold) {
+                    // Center tap -> immediately toggle affordance
+                    pendingSingleTapJob?.cancel()
+                    pendingSingleTapJob = null
+                    lastTapSide = null
+                    lastTapTimestamp = 0L
+                    accumulatedSeekSeconds = 0
+                    activeSeekTargetPosition = null
+                    showFullscreenAffordance = true
+                } else {
+                    val side = if (offset.x < leftThreshold) CanvasSeekSide.Backward else CanvasSeekSide.Forward
+                    val now = android.os.SystemClock.elapsedRealtime()
+                    val isMultiTap = (lastTapSide == side && (now - lastTapTimestamp) <= 400L) ||
+                            (seekFeedbackState?.side == side && (now - lastTapTimestamp) <= 750L)
+
+                    if (isMultiTap) {
+                        // Multi-tap seek!
+                        pendingSingleTapJob?.cancel()
+                        pendingSingleTapJob = null
+                        showFullscreenAffordance = false
+                        lastTapTimestamp = now
+
+                        val currentAccum = if (accumulatedSeekSeconds <= 0) seekStep else accumulatedSeekSeconds + seekStep
+                        accumulatedSeekSeconds = currentAccum
+
+                        val delta = if (side == CanvasSeekSide.Backward) -seekStep.toDouble() else seekStep.toDouble()
+                        val currentPlaybackPos = if (latestIsSeeking) sliderPosition else latestPositionSeconds
+                        val basePos = activeSeekTargetPosition ?: currentPlaybackPos
+                        val maxDuration = latestDurationSeconds.coerceAtLeast(0.0)
+                        val targetPos = if (maxDuration > 0.0) {
+                            (basePos + delta).coerceIn(0.0, maxDuration)
+                        } else {
+                            (basePos + delta).coerceAtLeast(0.0)
+                        }
+                        activeSeekTargetPosition = targetPos
+                        sliderPosition = targetPos
+                        latestOnSeek(targetPos)
+
+                        val token = ++feedbackToken
+                        seekFeedbackState = CanvasSeekFeedbackState(
+                            side = side,
+                            totalSeconds = currentAccum,
+                            token = token
+                        )
+                        canvasGestureScope.launch {
+                            kotlinx.coroutines.delay(700L)
+                            if (feedbackToken == token) {
+                                seekFeedbackState = null
+                                accumulatedSeekSeconds = 0
+                                activeSeekTargetPosition = null
+                                lastTapSide = null
+                                lastTapTimestamp = 0L
+                            }
+                        }
+                    } else {
+                        // First tap on this side -> wait debounce timeout
+                        pendingSingleTapJob?.cancel()
+                        lastTapSide = side
+                        lastTapTimestamp = now
+                        accumulatedSeekSeconds = 0
+                        activeSeekTargetPosition = null
+                        pendingSingleTapJob = canvasGestureScope.launch {
+                            kotlinx.coroutines.delay(280L)
+                            if (!latestIsVisualizationFullscreen && latestFile != null) {
+                                showFullscreenAffordance = true
+                            }
+                            lastTapSide = null
+                            lastTapTimestamp = 0L
+                            accumulatedSeekSeconds = 0
+                            activeSeekTargetPosition = null
+                        }
+                    }
+                }
+            }
+        }
+    }
+    val currentHandleCanvasTap by rememberUpdatedState(handleCanvasTap)
     val prefs = remember {
         context.getSharedPreferences(AppPreferenceKeys.PREFS_NAME, Context.MODE_PRIVATE)
     }
@@ -1279,19 +1471,18 @@ internal fun PlayerScreen(
                         ) {
                             Box(
                                 modifier = Modifier
-                                    .fillMaxSize()
-                                    .pointerInput(Unit) {
-                                        detectTapGestures(onTap = {
-                                            if (!isVisualizationFullscreen && file != null) {
-                                                showFullscreenAffordance = true
-                                            }
-                                        })
-                                    }
+                                    .fillMaxSize(),
+                                contentAlignment = Alignment.Center
                             ) {
                                 Box(
                                     modifier = Modifier
                                         .align(Alignment.Center)
                                         .aspectRatio(1f, matchHeightConstraintsFirst = true)
+                                        .pointerInput(Unit) {
+                                            detectTapGestures(onTap = { offset ->
+                                                currentHandleCanvasTap(offset, size.width.toFloat())
+                                            })
+                                        }
                                 ) {
                                     AlbumArtPlaceholder(
                                 file = file,
@@ -1378,6 +1569,10 @@ internal fun PlayerScreen(
                                                 compact = false
                                             )
                                         }
+                                        CanvasSeekFeedbackOverlay(
+                                            feedbackState = seekFeedbackState,
+                                            modifier = Modifier.matchParentSize()
+                                        )
                                 }
                             }
                         }
@@ -1599,10 +1794,8 @@ internal fun PlayerScreen(
                                         modifier = Modifier
                                             .aspectRatio(1f, matchHeightConstraintsFirst = true)
                                             .pointerInput(Unit) {
-                                                detectTapGestures(onTap = {
-                                                    if (!isVisualizationFullscreen && file != null) {
-                                                        showFullscreenAffordance = true
-                                                    }
+                                                detectTapGestures(onTap = { offset ->
+                                                    currentHandleCanvasTap(offset, size.width.toFloat())
                                                 })
                                             }
                                     ) {
@@ -1691,6 +1884,10 @@ internal fun PlayerScreen(
                                                 compact = false
                                             )
                                         }
+                                        CanvasSeekFeedbackOverlay(
+                                            feedbackState = seekFeedbackState,
+                                            modifier = Modifier.matchParentSize()
+                                        )
                                     }
                             }
                             Spacer(Modifier.height(16.dp))

@@ -22,6 +22,7 @@ object AppDefaults {
         const val preloadNextCachedRemoteTrack = true
         const val artworkCornerRadiusDp = 16
         const val showAudioOutputRouteChip = true
+        const val canvasTapToSeekSeconds = 10
         const val endFadeApplyToAllTracks = false
         const val endFadeDurationMs = 10_000
         val endFadeCurve = EndFadeCurve.Linear

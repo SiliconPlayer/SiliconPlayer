@@ -97,6 +97,7 @@ internal data class PlayerRouteState(
     val keepScreenOn: Boolean,
     val playerArtworkCornerRadiusDp: Int,
     val showAudioOutputRouteChip: Boolean,
+    val canvasTapToSeekSeconds: Int,
     val filenameDisplayMode: FilenameDisplayMode,
     val filenameOnlyWhenTitleMissing: Boolean
 )
@@ -118,6 +119,7 @@ internal data class PlayerRouteActions(
     val onKeepScreenOnChanged: (Boolean) -> Unit,
     val onPlayerArtworkCornerRadiusDpChanged: (Int) -> Unit,
     val onShowAudioOutputRouteChipChanged: (Boolean) -> Unit,
+    val onCanvasTapToSeekSecondsChanged: (Int) -> Unit,
     val onFilenameDisplayModeChanged: (FilenameDisplayMode) -> Unit,
     val onFilenameOnlyWhenTitleMissingChanged: (Boolean) -> Unit
 )
@@ -186,6 +188,8 @@ internal fun PlayerRouteContent(
     val onKeepScreenOnChanged = actions.onKeepScreenOnChanged
     val playerArtworkCornerRadiusDp = state.playerArtworkCornerRadiusDp
     val onPlayerArtworkCornerRadiusDpChanged = actions.onPlayerArtworkCornerRadiusDpChanged
+    val canvasTapToSeekSeconds = state.canvasTapToSeekSeconds
+    val onCanvasTapToSeekSecondsChanged = actions.onCanvasTapToSeekSecondsChanged
     val filenameDisplayMode = state.filenameDisplayMode
     val onFilenameDisplayModeChanged = actions.onFilenameDisplayModeChanged
     val filenameOnlyWhenTitleMissing = state.filenameOnlyWhenTitleMissing
@@ -195,6 +199,7 @@ internal fun PlayerRouteContent(
     var showEndFadeDurationDialog by remember { mutableStateOf(false) }
     var showEndFadeCurveDialog by remember { mutableStateOf(false) }
     var showArtworkCornerRadiusDialog by remember { mutableStateOf(false) }
+    var showCanvasTapToSeekDialog by remember { mutableStateOf(false) }
 
     SettingsSectionLabel("Track duration fallback")
     SettingsItemCard(
@@ -375,6 +380,34 @@ internal fun PlayerRouteContent(
                 onPlayerArtworkCornerRadiusDpChanged(value.coerceIn(0, 48))
                 showArtworkCornerRadiusDialog = false
             }
+        )
+    }
+    SettingsRowSpacer()
+    SettingsItemCard(
+        title = "Double-tap canvas to seek",
+        description = if (canvasTapToSeekSeconds <= 0) "Disabled" else "${canvasTapToSeekSeconds} seconds",
+        icon = Icons.Default.MoreHoriz,
+        onClick = { showCanvasTapToSeekDialog = true }
+    )
+    if (showCanvasTapToSeekDialog) {
+        val options = listOf(
+            ChoiceDialogOption(0, "Disabled"),
+            ChoiceDialogOption(5, "5 seconds"),
+            ChoiceDialogOption(10, "10 seconds (default)"),
+            ChoiceDialogOption(15, "15 seconds"),
+            ChoiceDialogOption(20, "20 seconds"),
+            ChoiceDialogOption(30, "30 seconds"),
+            ChoiceDialogOption(60, "60 seconds")
+        )
+        SettingsSingleChoiceDialog(
+            title = "Double-tap canvas to seek",
+            selectedValue = canvasTapToSeekSeconds,
+            options = options,
+            onSelected = { seconds ->
+                onCanvasTapToSeekSecondsChanged(seconds)
+                showCanvasTapToSeekDialog = false
+            },
+            onDismiss = { showCanvasTapToSeekDialog = false }
         )
     }
     SettingsRowSpacer()

@@ -1232,6 +1232,7 @@ private fun clearAllSettingsAndUiState(
     onKeepScreenOnChanged: (Boolean) -> Unit,
     onPlayerArtworkCornerRadiusDpChanged: (Int) -> Unit,
     onShowAudioOutputRouteChipChanged: (Boolean) -> Unit,
+    onCanvasTapToSeekSecondsChanged: (Int) -> Unit,
     onFilenameDisplayModeChanged: (FilenameDisplayMode) -> Unit,
     onFilenameOnlyWhenTitleMissingChanged: (Boolean) -> Unit,
     onUnknownTrackDurationSecondsChanged: (Int) -> Unit,
@@ -1290,6 +1291,7 @@ private fun clearAllSettingsAndUiState(
         onKeepScreenOnChanged = onKeepScreenOnChanged,
         onPlayerArtworkCornerRadiusDpChanged = onPlayerArtworkCornerRadiusDpChanged,
         onShowAudioOutputRouteChipChanged = onShowAudioOutputRouteChipChanged,
+        onCanvasTapToSeekSecondsChanged = onCanvasTapToSeekSecondsChanged,
         onFilenameDisplayModeChanged = onFilenameDisplayModeChanged,
         onFilenameOnlyWhenTitleMissingChanged = onFilenameOnlyWhenTitleMissingChanged,
         onUnknownTrackDurationSecondsChanged = onUnknownTrackDurationSecondsChanged,
@@ -1717,6 +1719,14 @@ private fun AppNavigation(
                 AppPreferenceKeys.PLAYER_SHOW_AUDIO_OUTPUT_CHIP,
                 AppDefaults.Player.showAudioOutputRouteChip
             )
+        )
+    }
+    var canvasTapToSeekSeconds by remember {
+        mutableIntStateOf(
+            prefs.getInt(
+                AppPreferenceKeys.CANVAS_TAP_TO_SEEK_SECONDS,
+                AppDefaults.Player.canvasTapToSeekSeconds
+            ).coerceAtLeast(0)
         )
     }
     var audioDucking by remember {
@@ -3624,6 +3634,7 @@ onStopEngine = { NativeBridge.releaseCurrentDecoder() }, onMetadataAlbumChanged 
             visualizationShowDebugInfo = visualizationShowDebugInfo,
             playerArtworkCornerRadiusDp = playerArtworkCornerRadiusDp,
             showAudioOutputRouteChip = showAudioOutputRouteChip,
+            canvasTapToSeekSeconds = canvasTapToSeekSeconds,
             filenameDisplayMode = filenameDisplayMode,
             filenameOnlyWhenTitleMissing = filenameOnlyWhenTitleMissing,
             externalTrackInfoDialogRequestToken = externalTrackInfoDialogRequestToken,
@@ -3680,64 +3691,33 @@ onStopEngine = { NativeBridge.releaseCurrentDecoder() }, onMetadataAlbumChanged 
             canNextTrack = selectedFile != null,
             previousRestartsAfterThreshold = previousRestartsAfterThreshold,
             onSeek = { seconds ->
-                if (!seekInProgress) {
-                    val activeSourceId = settingsStates.currentPlaybackSourceId.value ?: selectedFile?.absolutePath
-                    val pendingSeek = deferredPlaybackSeek
-                    if (
-                        pendingSeek != null &&
-                        activeSourceId == pendingSeek.sourceId
-                    ) {
-                        val maxDuration = duration.coerceAtLeast(0.0)
-                        val clamped = if (maxDuration > 0.0) {
-                            seconds.coerceIn(0.0, maxDuration)
-                        } else {
-                            seconds.coerceAtLeast(0.0)
-                        }
-                        if (metadataSampleRate <= 0) {
-                            deferredPlaybackSeek = pendingSeek.copy(positionSeconds = clamped)
-                            position = clamped
-                            playbackSessionCoordinator.syncPlaybackService()
-                        } else {
-                            // Keep deferred seek set so polling uses target position, not native position during seek
-                            deferredPlaybackSeek = pendingSeek.copy(positionSeconds = clamped)
-                            seekInProgress = true
-                            seekRequestedAtMs = SystemClock.elapsedRealtime()
-                            seekUiBusy = false
-                            position = clamped
-                            appScope.launch {
-                                withContext(Dispatchers.PlaybackIo) {
-                                    NativeBridge.seekTo(clamped)
-                                }
-                            }
-                            appScope.launch {
-                                delay(seekUiBusyThresholdMs)
-                                if (seekInProgress) {
-                                    seekUiBusy = true
-                                }
-                            }
-                        }
-                    } else {
-                        // No pending seek: create deferred seek to hold target position during seek
-                        val targetDeferred = DeferredPlaybackSeek(
-                            sourceId = activeSourceId.orEmpty(),
-                            positionSeconds = seconds
-                        )
-                        deferredPlaybackSeek = targetDeferred
-                        seekInProgress = true
-                        seekRequestedAtMs = SystemClock.elapsedRealtime()
-                        seekUiBusy = false
-                        position = seconds
-                        appScope.launch {
-                            withContext(Dispatchers.PlaybackIo) {
-                                NativeBridge.seekTo(seconds)
-                            }
-                        }
-                        appScope.launch {
-                            delay(seekUiBusyThresholdMs)
-                            if (seekInProgress) {
-                                seekUiBusy = true
-                            }
-                        }
+                val activeSourceId = settingsStates.currentPlaybackSourceId.value ?: selectedFile?.absolutePath
+                val maxDuration = duration.coerceAtLeast(0.0)
+                val clamped = if (maxDuration > 0.0) {
+                    seconds.coerceIn(0.0, maxDuration)
+                } else {
+                    seconds.coerceAtLeast(0.0)
+                }
+                val targetDeferred = DeferredPlaybackSeek(
+                    sourceId = activeSourceId.orEmpty(),
+                    positionSeconds = clamped
+                )
+                deferredPlaybackSeek = targetDeferred
+                position = clamped
+                playbackSessionCoordinator.syncPlaybackService()
+
+                seekInProgress = true
+                seekRequestedAtMs = SystemClock.elapsedRealtime()
+                seekUiBusy = false
+                appScope.launch {
+                    withContext(Dispatchers.PlaybackIo) {
+                        NativeBridge.seekTo(clamped)
+                    }
+                }
+                appScope.launch {
+                    delay(seekUiBusyThresholdMs)
+                    if (seekInProgress) {
+                        seekUiBusy = true
                     }
                 }
             },
@@ -3906,6 +3886,7 @@ onStopEngine = { NativeBridge.releaseCurrentDecoder() }, onMetadataAlbumChanged 
                                     keepScreenOn = keepScreenOn,
                                     playerArtworkCornerRadiusDp = playerArtworkCornerRadiusDp,
                                     showAudioOutputRouteChip = showAudioOutputRouteChip,
+                                    canvasTapToSeekSeconds = canvasTapToSeekSeconds,
                                     filenameDisplayMode = filenameDisplayMode,
 filenameOnlyWhenTitleMissing = filenameOnlyWhenTitleMissing,
                                     unknownTrackDurationSeconds = unknownTrackDurationSeconds,
@@ -4186,6 +4167,11 @@ filenameOnlyWhenTitleMissing = filenameOnlyWhenTitleMissing,
                             showAudioOutputRouteChip = enabled
                             prefs.edit().putBoolean(AppPreferenceKeys.PLAYER_SHOW_AUDIO_OUTPUT_CHIP, enabled).apply()
                         },
+                                    onCanvasTapToSeekSecondsChanged = { value ->
+                            val normalized = value.coerceAtLeast(0)
+                            canvasTapToSeekSeconds = normalized
+                            prefs.edit().putInt(AppPreferenceKeys.CANVAS_TAP_TO_SEEK_SECONDS, normalized).apply()
+                        },
                                     onFilenameDisplayModeChanged = { mode ->
                             filenameDisplayMode = mode
                             prefs.edit().putString(AppPreferenceKeys.FILENAME_DISPLAY_MODE, mode.storageValue).apply()
@@ -4335,6 +4321,7 @@ filenameOnlyWhenTitleMissing = filenameOnlyWhenTitleMissing,
                                 onKeepScreenOnChanged = { keepScreenOn = it },
                                 onPlayerArtworkCornerRadiusDpChanged = { playerArtworkCornerRadiusDp = it },
                                 onShowAudioOutputRouteChipChanged = { showAudioOutputRouteChip = it },
+                                onCanvasTapToSeekSecondsChanged = { canvasTapToSeekSeconds = it },
                                 onFilenameDisplayModeChanged = { filenameDisplayMode = it },
                                 onFilenameOnlyWhenTitleMissingChanged = { filenameOnlyWhenTitleMissing = it },
                                 onUnknownTrackDurationSecondsChanged = { unknownTrackDurationSeconds = it },

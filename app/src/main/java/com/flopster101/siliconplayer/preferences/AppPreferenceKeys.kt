@@ -59,6 +59,7 @@ internal object AppPreferenceKeys {
     const val KEEP_SCREEN_ON = "keep_screen_on"
     const val PLAYER_ARTWORK_CORNER_RADIUS_DP = "player_artwork_corner_radius_dp"
     const val PLAYER_SHOW_AUDIO_OUTPUT_CHIP = "player_show_audio_output_chip"
+    const val CANVAS_TAP_TO_SEEK_SECONDS = "canvas_tap_to_seek_seconds"
     const val AUDIO_FOCUS_INTERRUPT = "audio_focus_interrupt"
     const val AUDIO_DUCKING = "audio_ducking"
     const val AUDIO_MASTER_VOLUME_DB = "audio_master_volume_db"

@@ -304,6 +304,7 @@ internal fun SettingsRouteContentHost(
                                 keepScreenOn = state.keepScreenOn,
                                 playerArtworkCornerRadiusDp = state.playerArtworkCornerRadiusDp,
                                 showAudioOutputRouteChip = state.showAudioOutputRouteChip,
+                                canvasTapToSeekSeconds = state.canvasTapToSeekSeconds,
                                 filenameDisplayMode = state.filenameDisplayMode,
                                 filenameOnlyWhenTitleMissing = state.filenameOnlyWhenTitleMissing
                             ),
@@ -324,6 +325,7 @@ internal fun SettingsRouteContentHost(
                                 onKeepScreenOnChanged = actions.onKeepScreenOnChanged,
                                 onPlayerArtworkCornerRadiusDpChanged = actions.onPlayerArtworkCornerRadiusDpChanged,
                                 onShowAudioOutputRouteChipChanged = actions.onShowAudioOutputRouteChipChanged,
+                                onCanvasTapToSeekSecondsChanged = actions.onCanvasTapToSeekSecondsChanged,
                                 onFilenameDisplayModeChanged = actions.onFilenameDisplayModeChanged,
                                 onFilenameOnlyWhenTitleMissingChanged = actions.onFilenameOnlyWhenTitleMissingChanged
                             )
