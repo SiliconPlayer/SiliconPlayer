@@ -320,6 +320,7 @@ internal fun AppNavigationPlaylistsContentSection(
     currentPlaybackSourceId: String?,
     currentSubtuneIndex: Int,
     favoritesSortMode: PlaylistEntrySortMode,
+    networkNodes: List<NetworkNode> = emptyList(),
     onCurrentViewChanged: (MainView) -> Unit,
     onFavoritesSortModeChange: (PlaylistEntrySortMode) -> Unit,
     onOpenFavorite: (PlaylistTrackEntry) -> Unit,
@@ -346,6 +347,7 @@ internal fun AppNavigationPlaylistsContentSection(
         currentPlaybackSourceId = currentPlaybackSourceId,
         currentSubtuneIndex = currentSubtuneIndex,
         favoritesSortMode = favoritesSortMode,
+        networkNodes = networkNodes,
         onExitPlaylists = { onCurrentViewChanged(MainView.Home) },
         onFavoritesSortModeChange = onFavoritesSortModeChange,
         onOpenFavorite = onOpenFavorite,
@@ -505,6 +507,7 @@ internal fun AppNavigationBrowserContentSection(
         playingFile = selectedFile,
         playingPlaylistFile = playingPlaylistFile,
         favoriteSourcePaths = favoriteSourcePaths,
+        networkNodes = networkNodes,
         onVisiblePlayableFilesChanged = onVisiblePlayableFilesChanged,
         onExitBrowser = {
             onCurrentViewChanged(if (returnToNetworkOnBrowserExit) MainView.Network else MainView.Home)
@@ -750,6 +753,7 @@ internal fun AppNavigationMainContentHost(
                 currentPlaybackSourceId = currentPlaybackSourceId ?: selectedFile?.absolutePath,
                 currentSubtuneIndex = currentSubtuneIndex,
                 favoritesSortMode = favoritesSortMode,
+                networkNodes = networkNodes,
                 onCurrentViewChanged = onCurrentViewChanged,
                 onFavoritesSortModeChange = onFavoritesSortModeChange,
                 onOpenFavorite = onOpenFavorite,

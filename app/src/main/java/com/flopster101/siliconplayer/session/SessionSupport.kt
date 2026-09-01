@@ -136,7 +136,8 @@ internal data class ManualSourceOpenOptions(
 
 internal fun resolvePlaybackSourceLabel(
     selectedFile: File?,
-    sourceId: String?
+    sourceId: String?,
+    networkNodes: List<NetworkNode> = emptyList()
 ): String? {
     if (selectedFile == null) return null
     val normalizedSource = normalizeSourceIdentity(sourceId ?: selectedFile.absolutePath) ?: return "Local"
@@ -152,10 +153,12 @@ internal fun resolvePlaybackSourceLabel(
             } else {
                 ""
             }
-            val smbTarget = if (smbSpec.share.isBlank()) {
-                smbSpec.host
+            val displayHost = resolveSmbDisplayHost(smbSpec.host, networkNodes)
+            val decodedShare = decodePercentEncodedForDisplay(smbSpec.share) ?: smbSpec.share
+            val smbTarget = if (decodedShare.isBlank()) {
+                displayHost
             } else {
-                "${smbSpec.host}/${smbSpec.share}"
+                "$displayHost/$decodedShare"
             }
             return "SMB ($smbTarget)$suffix"
         }
@@ -496,11 +499,8 @@ private fun resolveRecentSmbHostDisplayLabel(
         .takeUnless { it.isNullOrBlank() }
         ?: sourceNode?.title
             ?.trim()
-            .takeUnless { it.isNullOrBlank() }
-        ?: sourceNode?.smbHost
-            ?.trim()
-            .takeUnless { it.isNullOrBlank() }
-        ?: smbSpec.host.trim()
+            .takeUnless { it.isNullOrBlank() || it.startsWith("smb://", ignoreCase = true) }
+        ?: resolveSmbDisplayHost(smbSpec.host, networkNodes)
     return resolved.ifBlank { smbSpec.host }
 }
 

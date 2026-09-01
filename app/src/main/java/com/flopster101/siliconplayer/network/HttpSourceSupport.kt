@@ -19,17 +19,33 @@ internal data class HttpSourceSpec(
 internal fun parseHttpSourceSpecFromInput(input: String): HttpSourceSpec? {
     val trimmed = input.trim()
     if (trimmed.isBlank()) return null
-    val parsed = Uri.parse(trimmed)
-    val scheme = parsed.scheme?.lowercase(Locale.ROOT)
+    val parsedUri = runCatching { Uri.parse(trimmed) }.getOrNull()
+    if (parsedUri != null && parsedUri.scheme != null) {
+        val scheme = parsedUri.scheme?.lowercase(Locale.ROOT)
+        if (scheme != "http" && scheme != "https") return null
+        val host = parsedUri.host?.trim().takeUnless { it.isNullOrBlank() } ?: return null
+        val (username, password) = parseHttpUserInfo(parsedUri.encodedUserInfo)
+        return HttpSourceSpec(
+            scheme = scheme,
+            host = host.removePrefix("[").removeSuffix("]"),
+            port = parsedUri.port.takeIf { it > 0 },
+            path = normalizeHttpPath(parsedUri.path),
+            query = parsedUri.query?.trim().takeUnless { it.isNullOrBlank() },
+            username = username,
+            password = password
+        )
+    }
+    val javaUri = runCatching { URI(trimmed) }.getOrNull() ?: return null
+    val scheme = javaUri.scheme?.lowercase(Locale.ROOT)
     if (scheme != "http" && scheme != "https") return null
-    val host = parsed.host?.trim().takeUnless { it.isNullOrBlank() } ?: return null
-    val (username, password) = parseHttpUserInfo(parsed.encodedUserInfo)
+    val host = javaUri.host?.trim().takeUnless { it.isNullOrBlank() } ?: return null
+    val (username, password) = parseHttpUserInfo(javaUri.rawUserInfo)
     return HttpSourceSpec(
         scheme = scheme,
         host = host.removePrefix("[").removeSuffix("]"),
-        port = parsed.port.takeIf { it > 0 },
-        path = normalizeHttpPath(parsed.path),
-        query = parsed.query?.trim().takeUnless { it.isNullOrBlank() },
+        port = javaUri.port.takeIf { it > 0 },
+        path = normalizeHttpPath(javaUri.path),
+        query = javaUri.query?.trim().takeUnless { it.isNullOrBlank() },
         username = username,
         password = password
     )
@@ -131,9 +147,15 @@ private fun buildHttpUri(spec: HttpSourceSpec, includePassword: Boolean): String
     return uri.toASCIIString()
 }
 
+private fun safeUriDecode(value: String): String {
+    return runCatching { Uri.decode(value) }.getOrElse {
+        runCatching { java.net.URLDecoder.decode(value, "UTF-8") }.getOrDefault(value)
+    }
+}
+
 private fun parseHttpUserInfo(encodedUserInfo: String?): Pair<String?, String?> {
     if (encodedUserInfo.isNullOrBlank()) return null to null
-    val decoded = Uri.decode(encodedUserInfo)
+    val decoded = safeUriDecode(encodedUserInfo)
     val split = decoded.split(':', limit = 2)
     val username = split.getOrNull(0)?.trim().takeUnless { it.isNullOrBlank() }
     val password = split.getOrNull(1)?.trim().takeUnless { it.isNullOrBlank() }

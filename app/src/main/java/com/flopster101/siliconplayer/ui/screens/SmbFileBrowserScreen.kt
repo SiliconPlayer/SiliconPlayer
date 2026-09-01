@@ -97,6 +97,8 @@ import com.flopster101.siliconplayer.buildSmbDisplayUri
 import com.flopster101.siliconplayer.buildSmbRequestUri
 import com.flopster101.siliconplayer.buildSmbSourceId
 import com.flopster101.siliconplayer.decodePercentEncodedForDisplay
+import com.flopster101.siliconplayer.NetworkNode
+import com.flopster101.siliconplayer.resolveSmbDisplayHost
 import com.flopster101.siliconplayer.tvKeyLongPress
 import com.flopster101.siliconplayer.fileMatchesSupportedExtensions
 import com.flopster101.siliconplayer.inferredPrimaryExtensionForName
@@ -167,7 +169,8 @@ internal fun SmbFileBrowserScreen(
     onBrowserLocationChanged: (BrowserLaunchState) -> Unit,
     onPlaylistFileSelected: (File, String?) -> Unit = { _, _ -> },
     pinnedHomeEntries: List<HomePinnedEntry> = emptyList(),
-    onPinHomeEntry: (RecentPathEntry, Boolean) -> Unit = { _, _ -> }
+    onPinHomeEntry: (RecentPathEntry, Boolean) -> Unit = { _, _ -> },
+    networkNodes: List<NetworkNode> = emptyList()
 ) {
     val context = LocalContext.current
     val isWatch = remember(context) { context.packageManager.hasSystemFeature(PackageManager.FEATURE_WATCH) }
@@ -916,14 +919,16 @@ internal fun SmbFileBrowserScreen(
                 sizeBytes = if (entry.isDirectory) null else entry.sizeBytes
             )
         }
+        val displayHost = resolveSmbDisplayHost(credentialsSpec.host, networkNodes)
         val pathLabel = buildSmbDisplayUri(
             credentialsSpec.copy(
                 share = currentShare,
                 path = effectivePath()
-            )
+            ),
+            networkNodes
         )
         val hostLabel = buildString {
-            append(credentialsSpec.host)
+            append(displayHost)
             if (currentShare.isNotBlank()) {
                 append('/')
                 append(decodePercentEncodedForDisplay(currentShare) ?: currentShare)
@@ -1687,14 +1692,16 @@ internal fun SmbFileBrowserScreen(
                                             sizeBytes = if (isDir) null else entry.sizeBytes
                                         )
                                     )
+                                    val displayHost = resolveSmbDisplayHost(credentialsSpec.host, networkNodes)
                                     val pathLabel = buildSmbDisplayUri(
                                         credentialsSpec.copy(
                                             share = currentShare,
                                             path = effectivePath()
-                                        )
+                                        ),
+                                        networkNodes
                                     )
                                     val hostLabel = buildString {
-                                        append(credentialsSpec.host)
+                                        append(displayHost)
                                         if (currentShare.isNotBlank()) {
                                             append('/')
                                             append(decodePercentEncodedForDisplay(currentShare) ?: currentShare)

@@ -1,6 +1,9 @@
 package com.flopster101.siliconplayer.ui.screens
 
 import com.flopster101.siliconplayer.PlaylistEntrySortMode
+import com.flopster101.siliconplayer.formatSourceIdForDisplay
+import com.flopster101.siliconplayer.NetworkNode
+import com.flopster101.siliconplayer.resolveSmbDisplayHost
 import com.flopster101.siliconplayer.sortPlaylistEntries
 import com.flopster101.siliconplayer.isRoundScreenCompat
 import android.net.Uri
@@ -394,6 +397,7 @@ internal fun PlaylistsScreen(
     currentSubtuneIndex: Int,
     bottomContentPadding: Dp,
     favoritesSortMode: PlaylistEntrySortMode,
+    networkNodes: List<NetworkNode> = emptyList(),
     backHandlingEnabled: Boolean = true,
     onBack: () -> Unit,
     onFavoritesSortModeChange: (PlaylistEntrySortMode) -> Unit,
@@ -675,7 +679,8 @@ internal fun PlaylistsScreen(
                             onOpenEntryInfo = { entry ->
                                 trackInfoDialogState = buildPlaylistTrackInfoDialogState(
                                     playlistTitle = "Favorites",
-                                    entry = entry
+                                    entry = entry,
+                                    networkNodes = networkNodes
                                 )
                             },
                             isWatch = isWatch,
@@ -736,7 +741,8 @@ internal fun PlaylistsScreen(
                             onOpenEntryInfo = { entry ->
                                 trackInfoDialogState = buildPlaylistTrackInfoDialogState(
                                     playlistTitle = selectedStoredPlaylist.title,
-                                    entry = entry
+                                    entry = entry,
+                                    networkNodes = networkNodes
                                 )
                             },
                             showPlayAsCachedAction = false,
@@ -3233,7 +3239,8 @@ private data class PlaylistTrackInfoDialogState(
 
 private fun buildPlaylistTrackInfoDialogState(
     playlistTitle: String,
-    entry: PlaylistTrackEntry
+    entry: PlaylistTrackEntry,
+    networkNodes: List<NetworkNode> = emptyList()
 ): PlaylistTrackInfoDialogState {
     val sourceId = entry.source.trim()
     val localFile = resolvePlaylistEntryLocalFile(sourceId)?.takeIf { it.exists() && it.isFile }
@@ -3251,7 +3258,7 @@ private fun buildPlaylistTrackInfoDialogState(
     }
     val storageOrHostValue = when {
         httpSource != null -> httpSource.host
-        smbSource != null -> smbSource.host
+        smbSource != null -> resolveSmbDisplayHost(smbSource.host, networkNodes)
         archiveSource != null -> decodePercentEncodedForDisplay(archiveSource.archivePath) ?: archiveSource.archivePath
         localFile?.parentFile != null -> localFile.parentFile?.absolutePath.orEmpty()
         else -> sourceId
@@ -3264,7 +3271,7 @@ private fun buildPlaylistTrackInfoDialogState(
                 sizeBytes = sourceSizeBytes
             )
         ),
-        path = sourceId,
+        path = formatSourceIdForDisplay(sourceId, networkNodes),
         storageOrHostLabel = storageOrHostLabel,
         storageOrHost = storageOrHostValue
     ).toMutableList()

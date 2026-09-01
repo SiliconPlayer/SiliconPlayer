@@ -136,6 +136,7 @@ internal fun MainPlaylistsRouteHost(
     currentPlaybackSourceId: String?,
     currentSubtuneIndex: Int,
     favoritesSortMode: PlaylistEntrySortMode,
+    networkNodes: List<NetworkNode> = emptyList(),
     onExitPlaylists: () -> Unit,
     onFavoritesSortModeChange: (PlaylistEntrySortMode) -> Unit,
     onOpenFavorite: (PlaylistTrackEntry) -> Unit,
@@ -161,6 +162,7 @@ internal fun MainPlaylistsRouteHost(
             currentSubtuneIndex = currentSubtuneIndex,
             bottomContentPadding = bottomContentPadding,
             favoritesSortMode = favoritesSortMode,
+            networkNodes = networkNodes,
             backHandlingEnabled = backHandlingEnabled,
             onBack = onExitPlaylists,
             onFavoritesSortModeChange = onFavoritesSortModeChange,
@@ -201,6 +203,7 @@ internal fun MainBrowserRouteHost(
     playingFile: File?,
     playingPlaylistFile: File?,
     favoriteSourcePaths: List<String>,
+    networkNodes: List<NetworkNode> = emptyList(),
     onVisiblePlayableFilesChanged: (List<File>) -> Unit,
     onExitBrowser: () -> Unit,
     onBrowserLocationChanged: (BrowserLaunchState) -> Unit,
@@ -250,7 +253,8 @@ internal fun MainBrowserRouteHost(
                 onBrowserLocationChanged = onBrowserLocationChanged,
                 onPlaylistFileSelected = onPlaylistFileSelected,
                 pinnedHomeEntries = pinnedHomeEntries,
-                onPinHomeEntry = onPinHomeEntry
+                onPinHomeEntry = onPinHomeEntry,
+                networkNodes = networkNodes
             )
         } else if (renderState.renderMode == BrowserRouteMode.Http && renderState.renderHttpSpec != null) {
             val httpSpec = requireNotNull(renderState.renderHttpSpec)

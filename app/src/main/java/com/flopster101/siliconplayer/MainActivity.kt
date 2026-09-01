@@ -2107,8 +2107,14 @@ private fun AppNavigation(
         } else {
             playbackCapabilitiesFlags
         }
-    val playbackSourceLabel = remember(selectedFile, settingsStates.currentPlaybackSourceId.value) {
-        resolvePlaybackSourceLabel(selectedFile, settingsStates.currentPlaybackSourceId.value)
+    val displayTrackPathOrUrl = remember(currentTrackPathOrUrl, networkNodes) {
+        formatSourceIdForDisplay(currentTrackPathOrUrl, networkNodes)
+    }
+    val displayTrackInfoPlaylistPathOrUrl = remember(trackInfoPlaylistPathOrUrl, networkNodes) {
+        trackInfoPlaylistPathOrUrl?.let { formatSourceIdForDisplay(it, networkNodes) }
+    }
+    val playbackSourceLabel = remember(selectedFile, settingsStates.currentPlaybackSourceId.value, networkNodes) {
+        resolvePlaybackSourceLabel(selectedFile, settingsStates.currentPlaybackSourceId.value, networkNodes)
     }
 
     LaunchedEffect(
@@ -3603,11 +3609,11 @@ onStopEngine = { NativeBridge.releaseCurrentDecoder() }, onMetadataAlbumChanged 
             metadataBitDepthLabel = metadataBitDepthLabel,
             decoderName = activeCoreNameForUi,
             playbackSourceLabel = playbackSourceLabel,
-            pathOrUrl = currentTrackPathOrUrl,
+            pathOrUrl = displayTrackPathOrUrl,
             playlistTitle = trackInfoPlaylistTitle,
             playlistFormatLabel = trackInfoPlaylistFormatLabel,
             playlistTrackCount = trackInfoPlaylistTrackCount,
-            playlistPathOrUrl = trackInfoPlaylistPathOrUrl,
+            playlistPathOrUrl = displayTrackInfoPlaylistPathOrUrl,
             artworkBitmap = displayedArtworkBitmap,
             artworkSwipePreviewState = artworkSwipePreviewState,
             isCurrentTrackFavorited = isCurrentTrackFavorited,
