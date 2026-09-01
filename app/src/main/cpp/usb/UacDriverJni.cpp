@@ -5,9 +5,8 @@
 #define TAG "UacDriverJni"
 
 namespace {
-siliconplayer::usb::UacDriver& driver() {
-    static siliconplayer::usb::UacDriver instance;
-    return instance;
+inline siliconplayer::usb::UacDriver& driver() {
+    return siliconplayer::usb::getUacDriverInstance();
 }
 } // namespace
 

@@ -10,6 +10,7 @@
 #include <sys/syscall.h>
 #include <unistd.h>
 #include <vector>
+#include "usb/UacDriver.h"
 
 #define LOG_TAG "AudioEngine"
 #define LOGD(...) __android_log_print(ANDROID_LOG_DEBUG, LOG_TAG, __VA_ARGS__)
@@ -150,7 +151,11 @@ bool AudioEngine::createMiniaudioStream() {
     deviceConfig.playback.shareMode = bitPerfectModeEnabled ? ma_share_mode_exclusive : ma_share_mode_shared;
     deviceConfig.aaudio.usage = ma_aaudio_usage_media;
     deviceConfig.aaudio.contentType = ma_aaudio_content_type_music;
-    if (bitPerfectModeEnabled && decoderRenderSampleRate > 0) {
+    auto& uac = siliconplayer::usb::getUacDriverInstance();
+    if (uac.isStreaming()) {
+        deviceConfig.sampleRate = static_cast<ma_uint32>(uac.currentFormat().sampleRateHz);
+        deviceConfig.playback.channels = static_cast<ma_uint32>(uac.currentFormat().channels);
+    } else if (bitPerfectModeEnabled && decoderRenderSampleRate > 0) {
         deviceConfig.sampleRate = static_cast<ma_uint32>(decoderRenderSampleRate);
     } else {
         deviceConfig.sampleRate = 0;
@@ -364,6 +369,57 @@ void AudioEngine::miniaudioDataCallback(
             : (engine->streamSampleRate > 0 ? engine->streamSampleRate : 48000);
 
     engine->renderOutputCallbackFrames(outputData, static_cast<int32_t>(frameCount), callbackRate);
+
+    auto& uac = siliconplayer::usb::getUacDriverInstance();
+    if (uac.isStreaming()) {
+        const auto& fmt = uac.currentFormat();
+        const int ch = fmt.channels > 0 ? fmt.channels : 2;
+        const int subslot = fmt.bytesPerSample > 0 ? fmt.bytesPerSample : (fmt.bitsPerSample / 8);
+        const size_t totalBytes = static_cast<size_t>(frameCount * ch * subslot);
+        static thread_local std::vector<uint8_t> pcmBuf;
+        if (pcmBuf.size() < totalBytes) pcmBuf.resize(totalBytes);
+
+        if (subslot == 2) {
+            auto* dst = reinterpret_cast<int16_t*>(pcmBuf.data());
+            for (size_t i = 0; i < frameCount * ch; ++i) {
+                float sample = std::clamp(outputData[i], -1.0f, 1.0f);
+                dst[i] = static_cast<int16_t>(sample * 32767.0f);
+            }
+        } else if (subslot == 3) {
+            uint8_t* dst = pcmBuf.data();
+            for (size_t i = 0; i < frameCount * ch; ++i) {
+                float sample = std::clamp(outputData[i], -1.0f, 1.0f);
+                int32_t s24 = static_cast<int32_t>(sample * 8388607.0f);
+                dst[i * 3 + 0] = static_cast<uint8_t>(s24 & 0xFF);
+                dst[i * 3 + 1] = static_cast<uint8_t>((s24 >> 8) & 0xFF);
+                dst[i * 3 + 2] = static_cast<uint8_t>((s24 >> 16) & 0xFF);
+            }
+        } else if (subslot == 4) {
+            if (fmt.bitsPerSample == 24) {
+                auto* dst = reinterpret_cast<int32_t*>(pcmBuf.data());
+                for (size_t i = 0; i < frameCount * ch; ++i) {
+                    float sample = std::clamp(outputData[i], -1.0f, 1.0f);
+                    dst[i] = static_cast<int32_t>(sample * 8388607.0f) << 8;
+                }
+            } else {
+                auto* dst = reinterpret_cast<int32_t*>(pcmBuf.data());
+                for (size_t i = 0; i < frameCount * ch; ++i) {
+                    float sample = std::clamp(outputData[i], -1.0f, 1.0f);
+                    dst[i] = static_cast<int32_t>(sample * 2147483647.0f);
+                }
+            }
+        }
+        uac.writePcm(pcmBuf.data(), static_cast<int>(frameCount));
+        static int sUacLogCounter = 0;
+        if (sUacLogCounter++ % 500 == 0) {
+            LOGD("Direct UAC driver active: streaming %d frames @ %dHz %d-bit (played=%lld written=%lld)",
+                 static_cast<int>(frameCount), fmt.sampleRateHz, fmt.bitsPerSample,
+                 static_cast<long long>(uac.playedFrames()), static_cast<long long>(uac.writtenFrames()));
+        }
+        if (pDevice->pContext && pDevice->pContext->backend != ma_backend_null) {
+            std::memset(pOutput, 0, frameCount * ch * sizeof(float));
+        }
+    }
 }
 
 void AudioEngine::recoverStreamIfNeeded() {
@@ -426,9 +482,12 @@ bool AudioEngine::renderOutputCallbackFrames(float* outputData, int32_t numFrame
         );
     }
 
-    renderQueueCallbackCount.fetch_add(1, std::memory_order_relaxed);
+    const bool activePlayback = isPlaying.load(std::memory_order_relaxed);
+    if (activePlayback) {
+        renderQueueCallbackCount.fetch_add(1, std::memory_order_relaxed);
+    }
     const int framesCopied = popRenderQueue(outputData, numFrames, 2);
-    if (framesCopied < numFrames) {
+    if (activePlayback && framesCopied < numFrames) {
         const uint64_t missingFrames = static_cast<uint64_t>(numFrames - framesCopied);
         const int64_t nowNs = std::chrono::duration_cast<std::chrono::nanoseconds>(
                 std::chrono::steady_clock::now().time_since_epoch()

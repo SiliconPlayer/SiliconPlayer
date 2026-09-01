@@ -132,4 +132,6 @@ private:
     std::vector<ClockRateRange> supportedRates_;
 };
 
+UacDriver& getUacDriverInstance();
+
 } // namespace siliconplayer::usb

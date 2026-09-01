@@ -5,6 +5,7 @@
 #include <cstring>
 
 #define TAG "UacDriver"
+#define LOGD(...) __android_log_print(ANDROID_LOG_DEBUG, TAG, __VA_ARGS__)
 #define LOGI(...) __android_log_print(ANDROID_LOG_INFO, TAG, __VA_ARGS__)
 #define LOGW(...) __android_log_print(ANDROID_LOG_WARN, TAG, __VA_ARGS__)
 #define LOGE(...) __android_log_print(ANDROID_LOG_ERROR, TAG, __VA_ARGS__)
@@ -160,6 +161,8 @@ bool UacDriver::selectAltSetting(int sampleRateHz, int bitsPerSample, int channe
     struct ClockEntity { uint8_t id; uint8_t subtype; uint8_t baseId; };
     std::vector<ClockEntity> clockEntities;
 
+    LOGI("selectAltSetting: %u interfaces in config, requested %dHz %d-bit %dch", config->bNumInterfaces, sampleRateHz, bitsPerSample, channels);
+
     for (uint8_t i = 0; i < config->bNumInterfaces; ++i) {
         const libusb_interface& iface = config->interface[i];
         for (int a = 0; a < iface.num_altsetting; ++a) {
@@ -187,62 +190,84 @@ bool UacDriver::selectAltSetting(int sampleRateHz, int bitsPerSample, int channe
         }
         if (foundControl) break;
     }
+
     if (!foundControl) {
-        libusb_free_config_descriptor(config);
-        return false;
+        LOGI("no AudioControl interface found; defaulting controlIface=0, UAC 1.0");
+        controlIface = 0;
+        uacVersion = 0x0100;
+    } else {
+        LOGI("AudioControl iface=%u, UAC version=0x%04x, clock entities=%zu, terminals=%zu",
+             controlIface, uacVersion, clockEntities.size(), terminals.size());
     }
 
-    bool found = false;
-    for (uint8_t i = 0; i < config->bNumInterfaces && !found; ++i) {
+    struct Candidate {
+        const libusb_interface_descriptor* alt = nullptr;
+        int channels = 2;
+        int bits = 16;
+        int subslot = 2;
+        int selectedRate = 48000;
+        uint8_t terminalLink = 0;
+        const libusb_endpoint_descriptor* iso = nullptr;
+        const libusb_endpoint_descriptor* feedback = nullptr;
+        int score = 0;
+    };
+    std::vector<Candidate> candidates;
+
+    bool isHs = libusb_get_device_speed(dev) >= LIBUSB_SPEED_HIGH;
+    int microframesPerSecond = isHs ? 8000 : 1000;
+
+    for (uint8_t i = 0; i < config->bNumInterfaces; ++i) {
         const libusb_interface& iface = config->interface[i];
         for (int a = 0; a < iface.num_altsetting; ++a) {
             const libusb_interface_descriptor& alt = iface.altsetting[a];
-            if (alt.bInterfaceClass != USB_CLASS_AUDIO || alt.bInterfaceSubClass != SUBCLASS_AUDIOSTREAM) continue;
-            if (alt.bAlternateSetting == 0) continue;
+            if (alt.bInterfaceClass != USB_CLASS_AUDIO) continue;
+            if (alt.bInterfaceSubClass != SUBCLASS_AUDIOSTREAM && alt.bInterfaceSubClass != 0 && alt.bInterfaceSubClass != 0x03) continue;
+            if (alt.bAlternateSetting == 0 && iface.num_altsetting > 1) continue;
 
             int altChannels = 0, altBits = 0, altSubslot = 0;
             uint8_t altTerminalLink = 0;
             bool rateSupported = (uacVersion >= 0x0200);
 
+            std::vector<uint32_t> discreteRates;
+            uint32_t contLo = 0, contHi = 0;
+            bool isContinuous = false;
+
             walkExtra(alt.extra, alt.extra_length, [&](const uint8_t* p, int len) {
                 if (isClassDescriptor(p, len, CS_INTERFACE, AS_GENERAL)) {
-                    if (uacVersion >= 0x0200 && len >= 16) {
-                        altTerminalLink = p[3];
-                        altChannels = p[10];
+                    if (uacVersion >= 0x0200) {
+                        if (len >= 4) altTerminalLink = p[3];
+                        if (len >= 11) altChannels = p[10];
                     }
                 } else if (isClassDescriptor(p, len, CS_INTERFACE, AS_FORMAT_TYPE) && len >= 4 && p[3] == FORMAT_TYPE_I) {
                     if (uacVersion >= 0x0200) {
-                        if (len >= 6) {
-                            altSubslot = p[4];
-                            altBits = p[5];
-                        }
+                        if (len >= 5) altSubslot = p[4];
+                        if (len >= 6) altBits = p[5];
                     } else if (len >= 7) {
                         altChannels = p[4];
                         altSubslot = p[5];
                         altBits = p[6];
-                        if (len >= 8 && altChannels == channels && altBits == bitsPerSample) {
+                        if (len >= 8) {
                             int kind = p[7];
                             if (kind == 0 && len >= 14) {
+                                isContinuous = true;
                                 auto rd24 = [](const uint8_t* q) {
                                     return static_cast<uint32_t>(q[0]) | (static_cast<uint32_t>(q[1]) << 8) | (static_cast<uint32_t>(q[2]) << 16);
                                 };
-                                uint32_t lo = rd24(p + 8);
-                                uint32_t hi = rd24(p + 11);
-                                rateSupported = (static_cast<uint32_t>(sampleRateHz) >= lo && static_cast<uint32_t>(sampleRateHz) <= hi);
+                                contLo = rd24(p + 8);
+                                contHi = rd24(p + 11);
                                 std::lock_guard<std::mutex> elock(errorMutex_);
                                 bool dup = false;
                                 for (const auto& e : supportedRates_) {
-                                    if (e.minHz == lo && e.maxHz == hi) { dup = true; break; }
+                                    if (e.minHz == contLo && e.maxHz == contHi) { dup = true; break; }
                                 }
-                                if (!dup) supportedRates_.push_back({0, lo, hi, 0});
+                                if (!dup) supportedRates_.push_back({0, contLo, contHi, 0});
                             } else if (kind > 0) {
-                                rateSupported = false;
                                 std::lock_guard<std::mutex> elock(errorMutex_);
                                 for (int k = 0; k < kind; ++k) {
                                     int off = 8 + k * 3;
                                     if (off + 3 > len) break;
                                     uint32_t hz = static_cast<uint32_t>(p[off]) | (static_cast<uint32_t>(p[off + 1]) << 8) | (static_cast<uint32_t>(p[off + 2]) << 16);
-                                    if (static_cast<int>(hz) == sampleRateHz) rateSupported = true;
+                                    discreteRates.push_back(hz);
                                     bool dup = false;
                                     for (const auto& e : supportedRates_) {
                                         if (e.minHz == hz && e.maxHz == hz) { dup = true; break; }
@@ -256,7 +281,40 @@ bool UacDriver::selectAltSetting(int sampleRateHz, int bitsPerSample, int channe
                 return false;
             });
 
-            if (altChannels != channels || altBits != bitsPerSample || !rateSupported) continue;
+            int selectedRate = sampleRateHz;
+            int rateScore = 1000;
+            if (uacVersion < 0x0200) {
+                if (isContinuous) {
+                    if (static_cast<uint32_t>(sampleRateHz) < contLo) {
+                        selectedRate = static_cast<int>(contLo);
+                        rateScore = 500;
+                    } else if (static_cast<uint32_t>(sampleRateHz) > contHi) {
+                        selectedRate = static_cast<int>(contHi);
+                        rateScore = 500;
+                    } else {
+                        selectedRate = sampleRateHz;
+                        rateScore = 1000;
+                    }
+                } else if (!discreteRates.empty()) {
+                    auto it = std::find(discreteRates.begin(), discreteRates.end(), static_cast<uint32_t>(sampleRateHz));
+                    if (it != discreteRates.end()) {
+                        selectedRate = sampleRateHz;
+                        rateScore = 1000;
+                    } else {
+                        uint32_t closest = discreteRates.front();
+                        int minDiff = std::abs(static_cast<int>(closest) - sampleRateHz);
+                        for (uint32_t r : discreteRates) {
+                            int diff = std::abs(static_cast<int>(r) - sampleRateHz);
+                            if (diff < minDiff) {
+                                minDiff = diff;
+                                closest = r;
+                            }
+                        }
+                        selectedRate = static_cast<int>(closest);
+                        rateScore = 500;
+                    }
+                }
+            }
 
             const libusb_endpoint_descriptor* iso = nullptr;
             const libusb_endpoint_descriptor* feedback = nullptr;
@@ -264,80 +322,118 @@ bool UacDriver::selectAltSetting(int sampleRateHz, int bitsPerSample, int channe
                 const libusb_endpoint_descriptor& ep = alt.endpoint[e];
                 if ((ep.bmAttributes & 0x03) != LIBUSB_TRANSFER_TYPE_ISOCHRONOUS) continue;
                 bool isIn = (ep.bEndpointAddress & 0x80) != 0;
-                uint8_t usage = (ep.bmAttributes >> 4) & 0x03;
-                if (!isIn && usage == 0x00 && !iso) iso = &ep;
-                else if (isIn && usage == 0x01 && !feedback) feedback = &ep;
+                if (!isIn && !iso) iso = &ep;
+                else if (isIn && !feedback) feedback = &ep;
             }
             if (!iso) continue;
 
-            bool isHs = libusb_get_device_speed(dev) >= LIBUSB_SPEED_HIGH;
+            if (altChannels <= 0) altChannels = 2;
+            if (altBits <= 0) altBits = altSubslot ? altSubslot * 8 : 16;
+            if (altSubslot <= 0) altSubslot = altBits / 8;
+
             int microframesPerInterval = isHs ? (1 << (iso->bInterval > 0 ? iso->bInterval - 1 : 0)) : iso->bInterval;
-            int microframesPerSecond = isHs ? 8000 : 1000;
             int packetsPerSec = microframesPerInterval > 0 ? microframesPerSecond / microframesPerInterval : microframesPerSecond;
-            int frameStride = (altSubslot ? altSubslot : bitsPerSample / 8) * channels;
-            int reqBytesPerPacket = ((sampleRateHz + packetsPerSec - 1) / packetsPerSec + 1) * frameStride;
+            int frameStride = altSubslot * altChannels;
+            int framesPerPacket = (selectedRate + packetsPerSec - 1) / packetsPerSec;
+            int reqBytesPerPacket = framesPerPacket * frameStride;
             int actualMps = iso->wMaxPacketSize & 0x07FF;
             int extraTransactions = ((iso->wMaxPacketSize >> 11) & 0x3) + 1;
             int realMps = actualMps * extraTransactions;
-            if (reqBytesPerPacket > realMps) continue;
-
-            outFmt->sampleRateHz = sampleRateHz;
-            outFmt->bitsPerSample = bitsPerSample;
-            outFmt->bytesPerSample = altSubslot ? altSubslot : bitsPerSample / 8;
-            outFmt->channels = channels;
-            outFmt->interfaceNumber = alt.bInterfaceNumber;
-            outFmt->altSetting = alt.bAlternateSetting;
-            outFmt->endpointAddress = iso->bEndpointAddress;
-            outFmt->maxPacketSize = iso->wMaxPacketSize;
-
-            uint8_t resolvedClock = 0;
-            for (const auto& tc : terminals) {
-                if (tc.termId == altTerminalLink) { resolvedClock = tc.clockId; break; }
-            }
-            for (int hop = 0; hop < 4 && resolvedClock != 0; ++hop) {
-                const ClockEntity* ent = nullptr;
-                for (const auto& ce : clockEntities) {
-                    if (ce.id == resolvedClock) { ent = &ce; break; }
-                }
-                if (!ent) break;
-                if (ent->subtype == AC_CLOCK_SOURCE) break;
-                if (ent->baseId == 0) break;
-                resolvedClock = ent->baseId;
-            }
-            if (resolvedClock == 0) {
-                for (const auto& ce : clockEntities) {
-                    if (ce.subtype == AC_CLOCK_SOURCE) { resolvedClock = ce.id; break; }
-                }
-            }
-            if (resolvedClock == 0 && !clockEntities.empty()) {
-                resolvedClock = clockEntities.front().id;
+            if (realMps > 0 && reqBytesPerPacket > realMps) {
+                LOGW("alt %u (mps=%d) too small for %d bytes/pkt (%d frames * %d stride) — skipping",
+                     alt.bAlternateSetting, realMps, reqBytesPerPacket, framesPerPacket, frameStride);
+                continue;
             }
 
-            outFmt->clockSourceId = resolvedClock;
-            outFmt->controlInterfaceNum = controlIface;
-            outFmt->candidateClockIds.clear();
-            for (const auto& ce : clockEntities) {
-                if (ce.subtype == AC_CLOCK_SOURCE) outFmt->candidateClockIds.push_back(ce.id);
-            }
-            for (const auto& ce : clockEntities) {
-                if (ce.subtype != AC_CLOCK_SOURCE) outFmt->candidateClockIds.push_back(ce.id);
-            }
+            int score = rateScore;
+            if (altChannels == channels) score += 1000;
+            else if (altChannels == 2) score += 500;
 
-            outFmt->isHighSpeed = isHs;
-            outFmt->bInterval = iso->bInterval;
-            outFmt->uacVersion = uacVersion;
-            if (feedback) {
-                outFmt->feedbackEndpointAddress = feedback->bEndpointAddress;
-                outFmt->feedbackMaxPacketSize = feedback->wMaxPacketSize;
-                outFmt->feedbackInterval = feedback->bInterval;
-            }
-            found = true;
-            break;
+            if (altBits == bitsPerSample) score += 1000;
+            else if (altBits == 24 && bitsPerSample == 16) score += 850;
+            else if (altBits == 32 && bitsPerSample == 16) score += 750;
+            else if (altBits == 32 && bitsPerSample == 24) score += 850;
+            else if (altBits >= bitsPerSample) score += 500;
+            else score += 100;
+
+            if (feedback != nullptr) score += 50;
+
+            LOGI("candidate alt %u on iface %u: %dch %d-bit (subslot %d) rate=%d (req %d) score=%d ep=0x%02x mps=%d (real %d)",
+                 alt.bAlternateSetting, alt.bInterfaceNumber, altChannels, altBits, altSubslot, selectedRate, sampleRateHz, score, iso->bEndpointAddress, actualMps, realMps);
+
+            candidates.push_back({&alt, altChannels, altBits, altSubslot, selectedRate, altTerminalLink, iso, feedback, score});
         }
     }
 
+    if (candidates.empty()) {
+        LOGW("no candidate alt-settings found on device");
+        libusb_free_config_descriptor(config);
+        return false;
+    }
+
+    std::sort(candidates.begin(), candidates.end(), [](const Candidate& a, const Candidate& b) {
+        return a.score > b.score;
+    });
+
+    const Candidate& best = candidates.front();
+    outFmt->sampleRateHz = best.selectedRate;
+    outFmt->bitsPerSample = best.bits;
+    outFmt->bytesPerSample = best.subslot;
+    outFmt->channels = best.channels;
+    outFmt->interfaceNumber = best.alt->bInterfaceNumber;
+    outFmt->altSetting = best.alt->bAlternateSetting;
+    outFmt->endpointAddress = best.iso->bEndpointAddress;
+    outFmt->maxPacketSize = best.iso->wMaxPacketSize;
+
+    uint8_t resolvedClock = 0;
+    for (const auto& tc : terminals) {
+        if (tc.termId == best.terminalLink) { resolvedClock = tc.clockId; break; }
+    }
+    for (int hop = 0; hop < 4 && resolvedClock != 0; ++hop) {
+        const ClockEntity* ent = nullptr;
+        for (const auto& ce : clockEntities) {
+            if (ce.id == resolvedClock) { ent = &ce; break; }
+        }
+        if (!ent) break;
+        if (ent->subtype == AC_CLOCK_SOURCE) break;
+        if (ent->baseId == 0) break;
+        resolvedClock = ent->baseId;
+    }
+    if (resolvedClock == 0) {
+        for (const auto& ce : clockEntities) {
+            if (ce.subtype == AC_CLOCK_SOURCE) { resolvedClock = ce.id; break; }
+        }
+    }
+    if (resolvedClock == 0 && !clockEntities.empty()) {
+        resolvedClock = clockEntities.front().id;
+    }
+
+    outFmt->clockSourceId = resolvedClock;
+    outFmt->controlInterfaceNum = controlIface;
+    outFmt->candidateClockIds.clear();
+    for (const auto& ce : clockEntities) {
+        if (ce.subtype == AC_CLOCK_SOURCE) outFmt->candidateClockIds.push_back(ce.id);
+    }
+    for (const auto& ce : clockEntities) {
+        if (ce.subtype != AC_CLOCK_SOURCE) outFmt->candidateClockIds.push_back(ce.id);
+    }
+
+    outFmt->isHighSpeed = isHs;
+    outFmt->bInterval = best.iso->bInterval;
+    outFmt->uacVersion = uacVersion;
+    if (best.feedback) {
+        outFmt->feedbackEndpointAddress = best.feedback->bEndpointAddress;
+        outFmt->feedbackMaxPacketSize = best.feedback->wMaxPacketSize;
+        outFmt->feedbackInterval = best.feedback->bInterval;
+    }
+
+    LOGI("matched alt %u on iface %u: %dch %d-bit (subslot %d), data ep 0x%02x mps=%d bInterval=%u clockId=%u%s",
+         outFmt->altSetting, outFmt->interfaceNumber, outFmt->channels, outFmt->bitsPerSample, outFmt->bytesPerSample,
+         outFmt->endpointAddress, outFmt->maxPacketSize, outFmt->bInterval, outFmt->clockSourceId,
+         outFmt->feedbackEndpointAddress != 0 ? " + feedback" : "");
+
     libusb_free_config_descriptor(config);
-    return found;
+    return true;
 }
 
 void UacDriver::captureRangeForClock(uint8_t clockId) {
@@ -428,7 +524,9 @@ bool UacDriver::setSampleRate(uint32_t hz) {
             static_cast<uint16_t>(CS_SAM_FREQ_CONTROL_SEL << 8),
             static_cast<uint16_t>(format_.endpointAddress),
             data4, 4, 1000);
-        if (rc != 4) return false;
+        if (rc != 4) {
+            LOGW("UAC1 set endpoint rate to %uHz returned %d (endpoint may be fixed-rate)", hz, rc);
+        }
     }
     return true;
 }
@@ -489,10 +587,7 @@ bool UacDriver::start(int sampleRateHz, int bitsPerSample, int channels) {
         err(StartError::SetAltFailed, "libusb_set_interface_alt_setting failed");
         return false;
     }
-    if (!setSampleRate(static_cast<uint32_t>(sampleRateHz))) {
-        err(StartError::SetSampleRateFailed, "failed to configure sample rate on clock entity");
-        return false;
-    }
+    setSampleRate(static_cast<uint32_t>(format_.sampleRateHz));
 
     ringHead_.store(0, std::memory_order_relaxed);
     ringTail_.store(0, std::memory_order_relaxed);
@@ -507,6 +602,10 @@ bool UacDriver::start(int sampleRateHz, int bitsPerSample, int channels) {
         return false;
     }
     streaming_.store(true, std::memory_order_release);
+    LOGI("UAC stream started: %dHz %d-bit %dch (alt %u on iface %u, ep 0x%02x, clock %u, highSpeed=%d)",
+         format_.sampleRateHz, format_.bitsPerSample, format_.channels,
+         format_.altSetting, format_.interfaceNumber, format_.endpointAddress,
+         format_.clockSourceId, format_.isHighSpeed);
     return true;
 }
 
@@ -553,21 +652,24 @@ bool UacDriver::startIsoPump() {
         static_cast<uint32_t>((static_cast<uint64_t>(rateRemainder) << 16) / static_cast<uint32_t>(microframesPerSec_));
     framesPerUframe_q16_.store(seed_q16, std::memory_order_relaxed);
     fracAccumulator_q16_ = 0;
-    maxFramesPerPacket_ = baseFrames + (rateRemainder > 0 ? 1 : 0) + 1;
+    maxFramesPerPacket_ = baseFrames + (rateRemainder > 0 ? 1 : 0);
 
     int frameStride = format_.channels * format_.bytesPerSample;
     int maxBytesPerPacket = maxFramesPerPacket_ * frameStride;
-    int maxPacket = libusb_get_max_iso_packet_size(libusb_get_device(device_), format_.endpointAddress);
-    if (maxPacket > 0 && maxBytesPerPacket > maxPacket) return false;
-
-    transfers_.reserve(kNumTransfers);
-    transferBuffers_.reserve(kNumTransfers);
+    int mps = format_.maxPacketSize & 0x07FF;
+    if (mps > 0 && maxBytesPerPacket > mps) {
+        maxBytesPerPacket = mps;
+        maxFramesPerPacket_ = maxBytesPerPacket / frameStride;
+    }
 
     auto setErr = [this](StartError c, const std::string& d) {
         lastError_.store(c, std::memory_order_release);
         std::lock_guard<std::mutex> lock(errorMutex_);
         lastErrorDetail_ = d;
     };
+
+    transfers_.reserve(kNumTransfers);
+    transferBuffers_.reserve(kNumTransfers);
 
     for (int i = 0; i < kNumTransfers; ++i) {
         libusb_transfer* xfr = libusb_alloc_transfer(kPacketsPerTransfer);
@@ -577,6 +679,11 @@ bool UacDriver::startIsoPump() {
             return false;
         }
         std::vector<uint8_t> buf(maxBytesPerPacket * kPacketsPerTransfer, 0);
+        libusb_fill_iso_transfer(
+            xfr, device_, format_.endpointAddress, buf.data(),
+            static_cast<int>(buf.size()), kPacketsPerTransfer,
+            &UacDriver::onIsoTrampoline, this, 0);
+        libusb_set_iso_packet_lengths(xfr, baseFrames * frameStride);
         transferBuffers_.push_back(std::move(buf));
         transfers_.push_back(xfr);
     }
@@ -587,7 +694,13 @@ bool UacDriver::startIsoPump() {
         for (int i = 0; i < 2; ++i) {
             libusb_transfer* fb = libusb_alloc_transfer(1);
             if (fb) {
-                std::vector<uint8_t> fbuf(8, 0);
+                int fbLen = format_.isHighSpeed ? 4 : 3;
+                std::vector<uint8_t> fbuf(fbLen, 0);
+                libusb_fill_iso_transfer(
+                    fb, device_, format_.feedbackEndpointAddress, fbuf.data(),
+                    static_cast<int>(fbuf.size()), 1,
+                    &UacDriver::onFeedbackTrampoline, this, 0);
+                libusb_set_iso_packet_lengths(fb, fbLen);
                 feedbackBuffers_.push_back(std::move(fbuf));
                 feedbackTransfers_.push_back(fb);
             }
@@ -596,45 +709,41 @@ bool UacDriver::startIsoPump() {
 
     stopRequested_.store(false, std::memory_order_release);
     eventThread_ = std::thread([this]() {
-        while (!stopRequested_.load(std::memory_order_acquire)) {
-            timeval tv{0, 100000};
-            libusb_handle_events_timeout_completed(ctx_, &tv, nullptr);
+        while (!stopRequested_.load(std::memory_order_acquire) || inflight_.load(std::memory_order_acquire) > 0) {
+            timeval tv{0, 10000};
+            if (ctx_) {
+                libusb_handle_events_timeout_completed(ctx_, &tv, nullptr);
+            } else {
+                break;
+            }
+            if (stopRequested_.load(std::memory_order_acquire) && inflight_.load(std::memory_order_acquire) == 0) {
+                break;
+            }
         }
     });
 
-    for (size_t i = 0; i < transfers_.size(); ++i) {
-        libusb_transfer* xfr = transfers_[i];
-        uint8_t* buf = transferBuffers_[i].data();
-        libusb_fill_iso_transfer(
-            xfr, device_, format_.endpointAddress, buf,
-            maxBytesPerPacket * kPacketsPerTransfer, kPacketsPerTransfer,
-            &UacDriver::onIsoTrampoline, this, 1000);
-        for (int p = 0; p < kPacketsPerTransfer; ++p) {
-            xfr->iso_packet_desc[p].length = maxBytesPerPacket;
-        }
-        inflight_.fetch_add(1, std::memory_order_relaxed);
-        int rc = libusb_submit_transfer(xfr);
-        if (rc != LIBUSB_SUCCESS) {
-            inflight_.fetch_sub(1, std::memory_order_relaxed);
-            setErr(StartError::IsoPumpSubmitFailed, "libusb_submit_transfer failed");
-            stopIsoPump();
-            return false;
-        }
-    }
-
-    for (size_t i = 0; i < feedbackTransfers_.size(); ++i) {
-        libusb_transfer* fb = feedbackTransfers_[i];
-        uint8_t* fbuf = feedbackBuffers_[i].data();
-        int fbLen = format_.isHighSpeed ? 4 : 3;
-        libusb_fill_iso_transfer(
-            fb, device_, format_.feedbackEndpointAddress, fbuf,
-            fbLen, 1, &UacDriver::onFeedbackTrampoline, this, 1000);
-        fb->iso_packet_desc[0].length = fbLen;
+    for (libusb_transfer* fb : feedbackTransfers_) {
         inflight_.fetch_add(1, std::memory_order_relaxed);
         if (libusb_submit_transfer(fb) != LIBUSB_SUCCESS) {
             inflight_.fetch_sub(1, std::memory_order_relaxed);
         }
     }
+
+    for (size_t i = 0; i < transfers_.size(); ++i) {
+        libusb_transfer* xfr = transfers_[i];
+        inflight_.fetch_add(1, std::memory_order_relaxed);
+        int rc = libusb_submit_transfer(xfr);
+        if (rc != LIBUSB_SUCCESS) {
+            LOGW("libusb_submit_transfer failed with rc=%d (%s)", rc, libusb_error_name(rc));
+            inflight_.fetch_sub(1, std::memory_order_relaxed);
+            setErr(StartError::IsoPumpSubmitFailed, std::string("libusb_submit_transfer failed: ") + libusb_error_name(rc));
+            stopIsoPump();
+            return false;
+        }
+    }
+
+    LOGI("Iso pump successfully started: %zu data transfers, %zu feedback transfers, %d pkts/xfr, %d bytes/pkt",
+         transfers_.size(), feedbackTransfers_.size(), kPacketsPerTransfer, maxBytesPerPacket);
     return true;
 }
 
@@ -645,6 +754,12 @@ void UacDriver::stopIsoPump() {
     }
     for (libusb_transfer* fb : feedbackTransfers_) {
         if (fb) libusb_cancel_transfer(fb);
+    }
+
+    for (int spin = 0; spin < 200; ++spin) {
+        if (inflight_.load(std::memory_order_acquire) == 0) break;
+        timeval tv{0, 5000};
+        if (ctx_) libusb_handle_events_timeout_completed(ctx_, &tv, nullptr);
     }
 
     if (eventThread_.joinable()) {
@@ -675,7 +790,7 @@ void UacDriver::onIso(libusb_transfer* xfr) {
         return;
     }
 
-    uint8_t* ptr = xfr->buffer;
+    uint8_t* cursor = xfr->buffer;
     int frameStride = format_.channels * format_.bytesPerSample;
     uint32_t step_q16 = framesPerUframe_q16_.load(std::memory_order_relaxed);
     long totalFramesThisTransfer = 0;
@@ -684,11 +799,12 @@ void UacDriver::onIso(libusb_transfer* xfr) {
         fracAccumulator_q16_ += step_q16;
         int frames = static_cast<int>(fracAccumulator_q16_ >> 16);
         fracAccumulator_q16_ &= 0xFFFF;
+        if (frames > maxFramesPerPacket_) frames = maxFramesPerPacket_;
         int packetBytes = frames * frameStride;
 
         xfr->iso_packet_desc[p].length = packetBytes;
-        drainRing(ptr, packetBytes);
-        ptr += packetBytes;
+        if (packetBytes > 0) drainRing(cursor, packetBytes);
+        cursor += packetBytes;
         totalFramesThisTransfer += frames;
     }
     playedFrames_.fetch_add(totalFramesThisTransfer, std::memory_order_relaxed);
@@ -788,6 +904,11 @@ int UacDriver::writableFrames() const {
     size_t tail = ringTail_.load(std::memory_order_acquire);
     size_t space = kRingBytes - ringSize(head, tail);
     return static_cast<int>(space / frameStride);
+}
+
+UacDriver& getUacDriverInstance() {
+    static UacDriver instance;
+    return instance;
 }
 
 } // namespace siliconplayer::usb
