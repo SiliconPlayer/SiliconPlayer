@@ -76,6 +76,7 @@ import com.flopster101.siliconplayer.AudioBackendPreference
 import com.flopster101.siliconplayer.AudioBufferPreset
 import com.flopster101.siliconplayer.AudioResamplerPreference
 import com.flopster101.siliconplayer.BitPerfectCoordinator
+import com.flopster101.siliconplayer.BitPerfectSupportStatus
 import com.flopster101.siliconplayer.supportsLiveSampleRateChange
 import com.flopster101.siliconplayer.ui.icons.ConversionPathIcon
 import com.flopster101.siliconplayer.ui.screens.AudioOutputRouteInfo
@@ -114,7 +115,10 @@ internal fun AudioOutputDetailsDialog(
         context.getSharedPreferences(AppPreferenceKeys.PREFS_NAME, Context.MODE_PRIVATE)
     }
 
-    val isPlatformBitPerfectSupported = remember { BitPerfectCoordinator.isBitPerfectPlatformSupported() }
+    val bitPerfectSupportStatus = remember(routeInfo) {
+        BitPerfectCoordinator.checkBitPerfectSupport(context)
+    }
+    val isPlatformBitPerfectSupported = bitPerfectSupportStatus == BitPerfectSupportStatus.Supported
     var showRestartConfirmDialog by remember { mutableStateOf(false) }
     var pendingBitPerfectState by remember { mutableStateOf(false) }
 
@@ -644,13 +648,17 @@ internal fun AudioOutputDetailsDialog(
                                             )
                                             Spacer(modifier = Modifier.height(4.dp))
                                             Text(
-                                                text = if (isPlatformBitPerfectSupported) {
-                                                    "Bypasses Android audio mixer for bit-perfect output."
-                                                } else {
-                                                    "Platform bit-perfect USB routing requires Android 14 or higher."
+                                                text = when (bitPerfectSupportStatus) {
+                                                    BitPerfectSupportStatus.Supported -> "Bypasses Android audio mixer for bit-perfect output."
+                                                    BitPerfectSupportStatus.UnsupportedAudioHal -> "Platform bit-perfect API is not supported by this device's audio HAL."
+                                                    BitPerfectSupportStatus.UnsupportedApiLevel -> "Platform bit-perfect USB routing requires Android 14 or higher."
                                                 },
                                                 style = MaterialTheme.typography.bodySmall,
-                                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                                                color = if (isPlatformBitPerfectSupported) {
+                                                    MaterialTheme.colorScheme.onSurfaceVariant
+                                                } else {
+                                                    MaterialTheme.colorScheme.error
+                                                }
                                             )
                                         }
                                         Spacer(modifier = Modifier.width(12.dp))

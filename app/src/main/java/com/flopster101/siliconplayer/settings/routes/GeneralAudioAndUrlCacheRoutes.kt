@@ -7,6 +7,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.MoreHoriz
 import androidx.compose.material.icons.filled.Tune
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -14,6 +15,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import java.util.Locale
 
@@ -167,17 +169,36 @@ internal fun GeneralAudioRouteContent(
         checked = state.audioAllowBackendFallback,
         onCheckedChange = actions.onAudioAllowBackendFallbackChanged
     )
-    val isPlatformBitPerfectSupported = remember { BitPerfectCoordinator.isBitPerfectPlatformSupported() }
+    val context = LocalContext.current
+    val bitPerfectSupportStatus = remember { BitPerfectCoordinator.checkBitPerfectSupport(context) }
+    val isBitPerfectSupported = bitPerfectSupportStatus == BitPerfectSupportStatus.Supported
+    val (bitPerfectDesc, bitPerfectColor) = when (bitPerfectSupportStatus) {
+        BitPerfectSupportStatus.Supported -> {
+            Pair(
+                "Route audio directly to external USB DACs at native track sample rate without OS mixing or fixed resampling.",
+                null
+            )
+        }
+        BitPerfectSupportStatus.UnsupportedAudioHal -> {
+            Pair(
+                "Platform bit-perfect API is not supported by this device's audio HAL.",
+                MaterialTheme.colorScheme.error
+            )
+        }
+        BitPerfectSupportStatus.UnsupportedApiLevel -> {
+            Pair(
+                "Platform bit-perfect USB routing requires Android 14 or higher.",
+                MaterialTheme.colorScheme.error
+            )
+        }
+    }
     SettingsRowSpacer()
     PlayerSettingToggleCard(
         title = "Bit-perfect USB audio",
-        description = if (isPlatformBitPerfectSupported) {
-            "Route audio directly to external USB DACs at native track sample rate without OS mixing or fixed resampling."
-        } else {
-            "Platform bit-perfect USB routing requires Android 14 or higher."
-        },
-        checked = state.bitPerfectUsbAudio && isPlatformBitPerfectSupported,
-        enabled = isPlatformBitPerfectSupported,
+        description = bitPerfectDesc,
+        checked = state.bitPerfectUsbAudio && isBitPerfectSupported,
+        enabled = isBitPerfectSupported,
+        descriptionColor = bitPerfectColor,
         onCheckedChange = actions.onBitPerfectUsbAudioChanged
     )
 }

@@ -8,10 +8,33 @@ import android.media.AudioManager
 import android.media.AudioMixerAttributes
 import android.os.Build
 
+enum class BitPerfectSupportStatus {
+    Supported,
+    UnsupportedApiLevel,
+    UnsupportedAudioHal
+}
+
 object BitPerfectCoordinator {
 
     fun isBitPerfectPlatformSupported(): Boolean =
         Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE
+
+    fun checkBitPerfectSupport(context: Context, usbDevice: AudioDeviceInfo? = null): BitPerfectSupportStatus {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
+            return BitPerfectSupportStatus.UnsupportedApiLevel
+        }
+        val audioManager = context.getSystemService(Context.AUDIO_SERVICE) as? AudioManager
+            ?: return BitPerfectSupportStatus.UnsupportedAudioHal
+        val device = usbDevice ?: findConnectedUsbAudioDevice(context)
+            ?: return BitPerfectSupportStatus.Supported
+
+        val supportedMixers = runCatching { audioManager.getSupportedMixerAttributes(device) }.getOrNull() ?: emptyList()
+        return if (supportedMixers.any { it.mixerBehavior == AudioMixerAttributes.MIXER_BEHAVIOR_BIT_PERFECT }) {
+            BitPerfectSupportStatus.Supported
+        } else {
+            BitPerfectSupportStatus.UnsupportedAudioHal
+        }
+    }
 
     fun findConnectedUsbAudioDevice(context: Context): AudioDeviceInfo? {
         val audioManager = context.getSystemService(Context.AUDIO_SERVICE) as? AudioManager ?: return null
