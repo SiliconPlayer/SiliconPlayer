@@ -75,6 +75,8 @@ internal fun BoxScope.AppNavigationPlayerOverlaysSection(
     filenameDisplayMode: FilenameDisplayMode,
     filenameOnlyWhenTitleMissing: Boolean,
     externalTrackInfoDialogRequestToken: Int,
+    bitPerfectUsbAudio: Boolean = false,
+    onBitPerfectUsbAudioChanged: (Boolean) -> Unit = {},
     showMiniPlayerFocusHighlight: Boolean,
     onHardwareNavigationInput: () -> Unit,
     onTouchInteraction: () -> Unit,
@@ -275,6 +277,8 @@ internal fun BoxScope.AppNavigationPlayerOverlaysSection(
         filenameDisplayMode = filenameDisplayMode,
         filenameOnlyWhenTitleMissing = filenameOnlyWhenTitleMissing,
         externalTrackInfoDialogRequestToken = externalTrackInfoDialogRequestToken,
+        bitPerfectUsbAudio = bitPerfectUsbAudio,
+        onBitPerfectUsbAudioChanged = onBitPerfectUsbAudioChanged,
         showFocusIndicators = showMiniPlayerFocusHighlight,
         onHardwareNavigationInput = onHardwareNavigationInput,
         onTouchInteraction = onTouchInteraction

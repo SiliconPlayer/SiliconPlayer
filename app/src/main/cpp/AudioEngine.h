@@ -232,6 +232,8 @@ public:
     bool isTrackVBR();
     std::string getAudioBackendLabel() const;
     int getStreamBurstFrames() const;
+    void setBitPerfectMode(bool enabled);
+    bool isBitPerfectModeEnabled() const { return bitPerfectModeEnabled; }
 
     // Gain control
     void setMasterGain(float gainDb);
@@ -322,6 +324,7 @@ private:
     int outputBufferPreset = 3; // 0 very small, 1 small, 2 medium, 3 large, 4 very large
     int outputResamplerPreference = 1; // 1 built-in, 2 sox
     bool outputAllowFallback = true;
+    bool bitPerfectModeEnabled = false;
     std::atomic<bool> isPlaying { false };
     std::atomic<bool> looping { false };
     std::atomic<int> repeatMode { 0 };

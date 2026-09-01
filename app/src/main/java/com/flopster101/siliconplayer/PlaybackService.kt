@@ -281,6 +281,8 @@ class PlaybackService : Service() {
         releaseWakeLock()
         unregisterReceiver(noisyReceiver)
         abandonAudioFocus()
+        BitPerfectCoordinator.clearBitPerfectMixer(this)
+        NativeBridge.setBitPerfectMode(false)
         kotlinx.coroutines.GlobalScope.launch(kotlinx.coroutines.Dispatchers.IO) { NativeBridge.stopEngine() }
         mediaSession?.release()
     }
@@ -300,6 +302,21 @@ class PlaybackService : Service() {
             ACTION_REPEAT_CYCLE -> cycleRepeatMode()
             ACTION_STOP_CLEAR -> stopAndClear()
             ACTION_REFRESH_SETTINGS -> {
+                if (prefs.getBoolean(AppPreferenceKeys.BIT_PERFECT_USB_AUDIO, false) &&
+                    BitPerfectCoordinator.isBitPerfectPlatformSupported()) {
+                    val usbDevice = BitPerfectCoordinator.findConnectedUsbAudioDevice(this)
+                    if (usbDevice != null) {
+                        val targetRate = NativeBridge.getDecoderRenderSampleRateHz().takeIf { it > 0 } ?: 48000
+                        BitPerfectCoordinator.setPreferredBitPerfectMixer(this, usbDevice, targetRate)
+                        NativeBridge.setBitPerfectMode(true)
+                    } else {
+                        BitPerfectCoordinator.clearBitPerfectMixer(this)
+                        NativeBridge.setBitPerfectMode(false)
+                    }
+                } else {
+                    BitPerfectCoordinator.clearBitPerfectMixer(this)
+                    NativeBridge.setBitPerfectMode(false)
+                }
                 updateMediaSessionState()
                 pushNotification()
             }
@@ -399,6 +416,15 @@ class PlaybackService : Service() {
         acquireWakeLock()
         serviceScope.launch {
             withContext(Dispatchers.PlaybackIo) {
+                if (prefs.getBoolean(AppPreferenceKeys.BIT_PERFECT_USB_AUDIO, false) &&
+                    BitPerfectCoordinator.isBitPerfectPlatformSupported()) {
+                    val usbDevice = BitPerfectCoordinator.findConnectedUsbAudioDevice(this@PlaybackService)
+                    if (usbDevice != null) {
+                        val targetRate = NativeBridge.getDecoderRenderSampleRateHz().takeIf { it > 0 } ?: 48000
+                        BitPerfectCoordinator.setPreferredBitPerfectMixer(this@PlaybackService, usbDevice, targetRate)
+                        NativeBridge.setBitPerfectMode(true)
+                    }
+                }
                 if (shouldApplyPauseResumeFade()) {
                     NativeBridge.startEngineWithPauseResumeFade()
                 } else {

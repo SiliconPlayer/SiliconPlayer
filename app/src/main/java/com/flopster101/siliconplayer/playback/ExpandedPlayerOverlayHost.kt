@@ -126,6 +126,8 @@ internal fun ExpandedPlayerOverlayHost(
     filenameDisplayMode: FilenameDisplayMode,
     filenameOnlyWhenTitleMissing: Boolean,
     externalTrackInfoDialogRequestToken: Int,
+    bitPerfectUsbAudio: Boolean = false,
+    onBitPerfectUsbAudioChanged: (Boolean) -> Unit = {},
     showFocusIndicators: Boolean,
     onHardwareNavigationInput: () -> Unit,
     onTouchInteraction: () -> Unit
@@ -337,6 +339,9 @@ internal fun ExpandedPlayerOverlayHost(
                     filenameDisplayMode = filenameDisplayMode,
                     filenameOnlyWhenTitleMissing = filenameOnlyWhenTitleMissing,
                     externalTrackInfoDialogRequestToken = externalTrackInfoDialogRequestToken,
+                    playbackCapabilitiesFlags = playbackCapabilitiesFlags,
+                    bitPerfectUsbAudio = bitPerfectUsbAudio,
+                    onBitPerfectUsbAudioChanged = onBitPerfectUsbAudioChanged,
                     onCollapseDragProgressChanged = onCollapseDragProgressChanged
                 )
             }

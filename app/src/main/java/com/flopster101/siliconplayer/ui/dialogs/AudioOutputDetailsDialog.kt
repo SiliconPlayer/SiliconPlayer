@@ -28,6 +28,7 @@ import androidx.compose.material.icons.filled.Headphones
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.MusicNote
 import androidx.compose.material.icons.filled.Usb
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -35,10 +36,14 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -69,6 +74,8 @@ import com.flopster101.siliconplayer.resolveDecoderArtworkHintForFileName
 import com.flopster101.siliconplayer.AudioBackendPreference
 import com.flopster101.siliconplayer.AudioBufferPreset
 import com.flopster101.siliconplayer.AudioResamplerPreference
+import com.flopster101.siliconplayer.BitPerfectCoordinator
+import com.flopster101.siliconplayer.supportsLiveSampleRateChange
 import com.flopster101.siliconplayer.ui.icons.ConversionPathIcon
 import com.flopster101.siliconplayer.ui.screens.AudioOutputRouteInfo
 import com.flopster101.siliconplayer.ui.screens.AudioOutputRouteType
@@ -93,6 +100,11 @@ internal fun AudioOutputDetailsDialog(
     channelCount: Int,
     bitDepthLabel: String,
     decoderExtensionArtworkHints: Map<String, DecoderArtworkHint> = emptyMap(),
+    isPlaying: Boolean = false,
+    playbackCapabilitiesFlags: Int = 0,
+    bitPerfectEnabled: Boolean = false,
+    onBitPerfectToggled: (Boolean) -> Unit = {},
+    onRestartTrack: () -> Unit = {},
     onOpenAudioSettings: () -> Unit,
     onDismiss: () -> Unit
 ) {
@@ -100,6 +112,10 @@ internal fun AudioOutputDetailsDialog(
     val prefs = remember(context) {
         context.getSharedPreferences(AppPreferenceKeys.PREFS_NAME, Context.MODE_PRIVATE)
     }
+
+    val isPlatformBitPerfectSupported = remember { BitPerfectCoordinator.isBitPerfectPlatformSupported() }
+    var showRestartConfirmDialog by remember { mutableStateOf(false) }
+    var pendingBitPerfectState by remember { mutableStateOf(false) }
 
     val selectedBackend = remember(prefs) {
         AudioBackendPreference.fromStorage(prefs.getString(AppPreferenceKeys.AUDIO_BACKEND_PREFERENCE, null))
@@ -131,6 +147,28 @@ internal fun AudioOutputDetailsDialog(
         effectiveBurstFrames * 1000.0 / effectiveOutputRate
     } else {
         10.0
+    }
+
+    val isBitPerfectActive = remember(bitPerfectEnabled, routeInfo) {
+        routeInfo.type == AudioOutputRouteType.Usb && bitPerfectEnabled && (BitPerfectCoordinator.isBitPerfectActive(context) || isPlatformBitPerfectSupported)
+    }
+
+    val onToggleBitPerfect: (Boolean) -> Unit = { targetEnabled ->
+        val canLiveChange = supportsLiveSampleRateChange(playbackCapabilitiesFlags)
+        if (isPlaying && !canLiveChange) {
+            pendingBitPerfectState = targetEnabled
+            showRestartConfirmDialog = true
+        } else {
+            onBitPerfectToggled(targetEnabled)
+            val usbDevice = BitPerfectCoordinator.findConnectedUsbAudioDevice(context)
+            if (targetEnabled && usbDevice != null) {
+                BitPerfectCoordinator.setPreferredBitPerfectMixer(context, usbDevice, effectiveDecoderRate, effectiveChannels)
+                NativeBridge.setBitPerfectMode(true)
+            } else {
+                BitPerfectCoordinator.clearBitPerfectMixer(context)
+                NativeBridge.setBitPerfectMode(false)
+            }
+        }
     }
 
     val isResamplingActive = effectiveDecoderRate > 0 && effectiveOutputRate > 0 && effectiveDecoderRate != effectiveOutputRate
@@ -405,22 +443,27 @@ internal fun AudioOutputDetailsDialog(
                                 // Connector to Output Sink
                                 val outputConnectorLabel = when (routeInfo.type) {
                                     AudioOutputRouteType.Bluetooth -> "$backendLabel → Bluetooth A2DP"
-                                    AudioOutputRouteType.Usb -> "$backendLabel → AudioFlinger"
+                                    AudioOutputRouteType.Usb -> if (isBitPerfectActive) "$backendLabel → Direct USB DAC" else "$backendLabel → AudioFlinger"
                                     else -> "$backendLabel → AudioFlinger"
                                 }
-                                SignalChainConnector(label = outputConnectorLabel)
+                                val bitPerfectHighlightColor = Color(0xFF4DD0E1)
+                                SignalChainConnector(
+                                    label = outputConnectorLabel,
+                                    highlightColor = if (isBitPerfectActive) bitPerfectHighlightColor else null
+                                )
 
                                 // Node 4 (or 3): Output Endpoint
                                 val sinkBadgeText = when (routeInfo.type) {
                                     AudioOutputRouteType.Speaker -> "Internal"
                                     AudioOutputRouteType.Headphones -> "Wired"
-                                    AudioOutputRouteType.Usb -> "USB"
+                                    AudioOutputRouteType.Usb -> if (isBitPerfectActive) "Bit-Perfect" else "USB"
                                     AudioOutputRouteType.Bluetooth -> "A2DP"
                                 }
-                                val sinkExtra = when (routeInfo.type) {
-                                    AudioOutputRouteType.Usb -> "Routing" to "AudioFlinger"
-                                    else -> null
-                                }
+                                val sinkIconTint = if (isBitPerfectActive) bitPerfectHighlightColor else MaterialTheme.colorScheme.secondary
+                                val sinkIconBg = if (isBitPerfectActive) bitPerfectHighlightColor.copy(alpha = 0.15f) else MaterialTheme.colorScheme.secondary.copy(alpha = 0.15f)
+                                val sinkBadgeColor = if (isBitPerfectActive) bitPerfectHighlightColor else MaterialTheme.colorScheme.onSurfaceVariant
+                                val sinkBadgeBg = if (isBitPerfectActive) bitPerfectHighlightColor.copy(alpha = 0.15f) else MaterialTheme.colorScheme.surfaceContainerHighest
+
                                 SignalChainNodeCard(
                                     icon = {
                                         Icon(
@@ -432,18 +475,17 @@ internal fun AudioOutputDetailsDialog(
                                             },
                                             contentDescription = null,
                                             modifier = Modifier.size(18.dp),
-                                            tint = MaterialTheme.colorScheme.secondary
+                                            tint = sinkIconTint
                                         )
                                     },
-                                    iconBackgroundColor = MaterialTheme.colorScheme.secondary.copy(alpha = 0.15f),
+                                    iconBackgroundColor = sinkIconBg,
                                     title = routeInfo.name,
                                     badgeText = sinkBadgeText,
-                                    badgeColor = MaterialTheme.colorScheme.onSurfaceVariant,
-                                    badgeBackgroundColor = MaterialTheme.colorScheme.surfaceContainerHighest,
-                                    details = listOfNotNull(
+                                    badgeColor = sinkBadgeColor,
+                                    badgeBackgroundColor = sinkBadgeBg,
+                                    details = listOf(
                                         "Rate" to formatSampleRateForInspector(effectiveOutputRate),
-                                        "Format" to "16-bit PCM",
-                                        sinkExtra
+                                        "Format" to "16-bit PCM"
                                     )
                                 )
                             }
@@ -478,7 +520,7 @@ internal fun AudioOutputDetailsDialog(
                             ) {
                                 MetricListRow(
                                     label = "Active backend",
-                                    value = "$backendLabel (Shared)",
+                                    value = backendLabel,
                                     sub = "miniaudio"
                                 )
                                 HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.2f))
@@ -510,11 +552,89 @@ internal fun AudioOutputDetailsDialog(
                         }
                     }
 
+                    // Section: Bit-Perfect USB Audio (if USB route)
+                    if (routeInfo.type == AudioOutputRouteType.Usb) {
+                        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                            DialogSectionLabel(
+                                text = "Bit-perfect audio",
+                                modifier = Modifier.padding(start = 8.dp)
+                            )
+
+                            Card(
+                                modifier = Modifier.fillMaxWidth(),
+                                shape = RoundedCornerShape(16.dp),
+                                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow),
+                                border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f))
+                            ) {
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(horizontal = 14.dp, vertical = 12.dp),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Column(modifier = Modifier.weight(1f)) {
+                                        Row(
+                                            verticalAlignment = Alignment.CenterVertically,
+                                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                        ) {
+                                            Text(
+                                                text = "Lossless USB routing",
+                                                style = MaterialTheme.typography.titleMedium,
+                                                fontWeight = FontWeight.SemiBold,
+                                                color = MaterialTheme.colorScheme.onSurface
+                                            )
+                                            Box(
+                                                modifier = Modifier
+                                                    .clip(RoundedCornerShape(6.dp))
+                                                    .background(
+                                                        if (!isPlatformBitPerfectSupported) MaterialTheme.colorScheme.surfaceContainerHighest
+                                                        else if (bitPerfectEnabled) MaterialTheme.colorScheme.primaryContainer
+                                                        else MaterialTheme.colorScheme.surfaceContainerHighest
+                                                    )
+                                                    .padding(horizontal = 6.dp, vertical = 2.dp)
+                                            ) {
+                                                Text(
+                                                    text = if (!isPlatformBitPerfectSupported) "Requires Android 14+"
+                                                    else if (bitPerfectEnabled) "Active"
+                                                    else "Disabled",
+                                                    style = MaterialTheme.typography.labelSmall,
+                                                    fontWeight = FontWeight.Medium,
+                                                    color = if (!isPlatformBitPerfectSupported) MaterialTheme.colorScheme.onSurfaceVariant
+                                                    else if (bitPerfectEnabled) MaterialTheme.colorScheme.onPrimaryContainer
+                                                    else MaterialTheme.colorScheme.onSurfaceVariant,
+                                                    fontSize = 10.sp
+                                                )
+                                            }
+                                        }
+                                        Spacer(modifier = Modifier.height(4.dp))
+                                        Text(
+                                            text = if (isPlatformBitPerfectSupported) {
+                                                "Bypasses the OS mixer and sends audio directly to the USB device bit-perfectly."
+                                            } else {
+                                                "Platform bit-perfect USB routing requires Android 14 or higher."
+                                            },
+                                            style = MaterialTheme.typography.bodySmall,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                                        )
+                                    }
+                                    Spacer(modifier = Modifier.width(12.dp))
+                                    Switch(
+                                        checked = bitPerfectEnabled && isPlatformBitPerfectSupported,
+                                        onCheckedChange = onToggleBitPerfect,
+                                        enabled = isPlatformBitPerfectSupported
+                                    )
+                                }
+                            }
+                        }
+                    }
+
                     // Section: USB Supported Sample Rates (if USB route)
                     if (routeInfo.type == AudioOutputRouteType.Usb) {
                         UsbSupportedRatesSection(
                             context = context,
-                            activeRateHz = effectiveOutputRate
+                            activeRateHz = effectiveOutputRate,
+                            routeType = routeInfo.type
                         )
                     }
                 }
@@ -548,6 +668,54 @@ internal fun AudioOutputDetailsDialog(
                 }
             }
         }
+    }
+
+    if (showRestartConfirmDialog) {
+        AlertDialog(
+            onDismissRequest = { showRestartConfirmDialog = false },
+            title = {
+                Text(
+                    text = "Restart playback?",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold
+                )
+            },
+            text = {
+                Text(
+                    text = "Changing bit-perfect audio for $effectiveDecoderName won't take effect until playback is restarted. Would you like to restart playback now?",
+                    style = MaterialTheme.typography.bodyMedium
+                )
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        showRestartConfirmDialog = false
+                        onBitPerfectToggled(pendingBitPerfectState)
+                        val usbDevice = BitPerfectCoordinator.findConnectedUsbAudioDevice(context)
+                        if (pendingBitPerfectState && usbDevice != null) {
+                            BitPerfectCoordinator.setPreferredBitPerfectMixer(context, usbDevice, effectiveDecoderRate, effectiveChannels)
+                            NativeBridge.setBitPerfectMode(true)
+                        } else {
+                            BitPerfectCoordinator.clearBitPerfectMixer(context)
+                            NativeBridge.setBitPerfectMode(false)
+                        }
+                        onRestartTrack()
+                    }
+                ) {
+                    Text("Restart")
+                }
+            },
+            dismissButton = {
+                TextButton(
+                    onClick = {
+                        showRestartConfirmDialog = false
+                        onBitPerfectToggled(pendingBitPerfectState)
+                    }
+                ) {
+                    Text("Keep playing")
+                }
+            }
+        )
     }
 }
 
@@ -758,7 +926,15 @@ private fun BulletSeparatedDetails(
 }
 
 @Composable
-private fun SignalChainConnector(label: String) {
+private fun SignalChainConnector(
+    label: String,
+    highlightColor: Color? = null
+) {
+    val lineColor = highlightColor?.copy(alpha = 0.5f) ?: MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.7f)
+    val pillBg = highlightColor?.copy(alpha = 0.12f) ?: MaterialTheme.colorScheme.surfaceContainerHighest
+    val pillBorder = highlightColor?.copy(alpha = 0.35f) ?: MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f)
+    val contentColor = highlightColor ?: MaterialTheme.colorScheme.onSurfaceVariant
+
     Box(
         modifier = Modifier
             .fillMaxWidth()
@@ -771,15 +947,15 @@ private fun SignalChainConnector(label: String) {
                 .padding(start = 27.dp)
                 .width(2.dp)
                 .height(26.dp)
-                .background(MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.7f))
+                .background(lineColor)
         )
 
         // Centered Pill
         Surface(
             modifier = Modifier.padding(start = 42.dp),
             shape = RoundedCornerShape(8.dp),
-            color = MaterialTheme.colorScheme.surfaceContainerHighest,
-            border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f))
+            color = pillBg,
+            border = androidx.compose.foundation.BorderStroke(1.dp, pillBorder)
         ) {
             Row(
                 modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp),
@@ -790,13 +966,13 @@ private fun SignalChainConnector(label: String) {
                     imageVector = Icons.Default.KeyboardArrowDown,
                     contentDescription = null,
                     modifier = Modifier.size(12.dp),
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant
+                    tint = contentColor
                 )
                 Text(
                     text = label,
                     style = MaterialTheme.typography.labelSmall,
                     fontWeight = FontWeight.Medium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    color = contentColor,
                     fontSize = 11.sp
                 )
             }
@@ -854,27 +1030,19 @@ private fun MetricListRow(
 @Composable
 private fun UsbSupportedRatesSection(
     context: Context,
-    activeRateHz: Int
+    activeRateHz: Int,
+    routeType: AudioOutputRouteType
 ) {
     val supportedRates = remember(context) {
-        val audioManager = context.getSystemService(Context.AUDIO_SERVICE) as? AudioManager
-        val rates = mutableSetOf<Int>()
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M && audioManager != null) {
-            val devices = audioManager.getDevices(AudioManager.GET_DEVICES_OUTPUTS)
-            val usbDevices = devices.filter {
-                it.type == AudioDeviceInfo.TYPE_USB_HEADSET ||
-                it.type == AudioDeviceInfo.TYPE_USB_DEVICE ||
-                it.type == AudioDeviceInfo.TYPE_USB_ACCESSORY
-            }
-            for (dev in usbDevices) {
-                dev.sampleRates.forEach { if (it > 0) rates.add(it) }
-            }
-        }
-        if (rates.isEmpty()) {
-            listOf(44100, 48000, 88200, 96000, 176400, 192000, 352800, 384000)
-        } else {
-            rates.sorted()
-        }
+        BitPerfectCoordinator.getUsbDeviceSupportedSampleRates(context)
+    }
+    val isUac1 = remember(context) {
+        BitPerfectCoordinator.isConnectedUsbAudioUac1(context)
+    }
+    val badgeLabel = if (routeType == AudioOutputRouteType.Usb) {
+        if (isUac1) "UAC 1.0" else "UAC 2.0"
+    } else {
+        null
     }
 
     Card(
@@ -900,18 +1068,20 @@ private fun UsbSupportedRatesSection(
                     fontWeight = FontWeight.SemiBold,
                     color = MaterialTheme.colorScheme.onSurface
                 )
-                Box(
-                    modifier = Modifier
-                        .clip(RoundedCornerShape(4.dp))
-                        .background(MaterialTheme.colorScheme.surfaceContainerHighest)
-                        .padding(horizontal = 6.dp, vertical = 1.dp)
-                ) {
-                    Text(
-                        text = "Hardware query",
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        fontSize = 10.sp
-                    )
+                if (badgeLabel != null) {
+                    Box(
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(4.dp))
+                            .background(MaterialTheme.colorScheme.surfaceContainerHighest)
+                            .padding(horizontal = 6.dp, vertical = 1.dp)
+                    ) {
+                        Text(
+                            text = badgeLabel,
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            fontSize = 10.sp
+                        )
+                    }
                 }
             }
 

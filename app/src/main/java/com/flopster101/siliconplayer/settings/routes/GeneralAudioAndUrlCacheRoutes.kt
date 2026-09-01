@@ -28,7 +28,8 @@ internal data class GeneralAudioRouteState(
     val audioResamplerPreference: AudioResamplerPreference,
     val audioOutputLimiterEnabled: Boolean,
     val lookaheadClipperMode: LookaheadClipperMode,
-    val audioAllowBackendFallback: Boolean
+    val audioAllowBackendFallback: Boolean,
+    val bitPerfectUsbAudio: Boolean
 )
 
 internal data class GeneralAudioRouteActions(
@@ -46,7 +47,8 @@ internal data class GeneralAudioRouteActions(
     val onAudioResamplerPreferenceChanged: (AudioResamplerPreference) -> Unit,
     val onAudioOutputLimiterEnabledChanged: (Boolean) -> Unit,
     val onLookaheadClipperModeChanged: (LookaheadClipperMode) -> Unit,
-    val onAudioAllowBackendFallbackChanged: (Boolean) -> Unit
+    val onAudioAllowBackendFallbackChanged: (Boolean) -> Unit,
+    val onBitPerfectUsbAudioChanged: (Boolean) -> Unit
 )
 
 internal data class UrlCacheRouteState(
@@ -164,6 +166,19 @@ internal fun GeneralAudioRouteContent(
         description = "If selected backend is unavailable, fall back automatically to a working output backend.",
         checked = state.audioAllowBackendFallback,
         onCheckedChange = actions.onAudioAllowBackendFallbackChanged
+    )
+    val isPlatformBitPerfectSupported = remember { BitPerfectCoordinator.isBitPerfectPlatformSupported() }
+    SettingsRowSpacer()
+    PlayerSettingToggleCard(
+        title = "Bit-perfect USB audio",
+        description = if (isPlatformBitPerfectSupported) {
+            "Route audio directly to external USB DACs at native track sample rate without OS mixing or fixed resampling."
+        } else {
+            "Platform bit-perfect USB routing requires Android 14 or higher."
+        },
+        checked = state.bitPerfectUsbAudio && isPlatformBitPerfectSupported,
+        enabled = isPlatformBitPerfectSupported,
+        onCheckedChange = actions.onBitPerfectUsbAudioChanged
     )
 }
 

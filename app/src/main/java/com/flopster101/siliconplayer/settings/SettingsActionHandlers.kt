@@ -809,6 +809,7 @@ internal fun clearAllSettingsAction(
     onAudioOutputLimiterEnabledChanged: (Boolean) -> Unit,
     onLookaheadClipperModeChanged: (LookaheadClipperMode) -> Unit,
     onAudioAllowBackendFallbackChanged: (Boolean) -> Unit,
+    onBitPerfectUsbAudioChanged: (Boolean) -> Unit,
     onOpenPlayerFromNotificationChanged: (Boolean) -> Unit,
     onPersistRepeatModeChanged: (Boolean) -> Unit,
     onPreferredRepeatModeChanged: (RepeatMode) -> Unit,
@@ -990,6 +991,7 @@ internal fun clearAllSettingsAction(
     onAudioOutputLimiterEnabledChanged(AppDefaults.AudioProcessing.outputLimiterEnabled)
     onLookaheadClipperModeChanged(AppDefaults.AudioProcessing.lookaheadClipperMode)
     onAudioAllowBackendFallbackChanged(true)
+    onBitPerfectUsbAudioChanged(AppDefaults.OutputPipeline.bitPerfectUsbAudio)
     onOpenPlayerFromNotificationChanged(true)
     onPersistRepeatModeChanged(true)
     onPreferredRepeatModeChanged(RepeatMode.None)

@@ -847,6 +847,9 @@ internal fun PlayerScreen(
     filenameDisplayMode: com.flopster101.siliconplayer.FilenameDisplayMode = com.flopster101.siliconplayer.AppDefaults.Player.filenameDisplayMode,
     filenameOnlyWhenTitleMissing: Boolean = false,
     externalTrackInfoDialogRequestToken: Int = 0,
+    playbackCapabilitiesFlags: Int = 0,
+    bitPerfectUsbAudio: Boolean = false,
+    onBitPerfectUsbAudioChanged: (Boolean) -> Unit = {},
     onCollapseDragProgressChanged: (Boolean) -> Unit = {}
 ) {
     var sliderPosition by remember(file?.absolutePath, durationSeconds) {
@@ -2244,6 +2247,11 @@ internal fun PlayerScreen(
     }
     if (showAudioOutputDetailsDialog) {
         val outputRouteInfo = rememberAudioOutputRouteInfo()
+        val effectiveCaps = if (playbackCapabilitiesFlags != 0) {
+            playbackCapabilitiesFlags
+        } else {
+            NativeBridge.getCoreCapabilities(decoderName ?: "")
+        }
         AudioOutputDetailsDialog(
             routeInfo = outputRouteInfo,
             displayFile = file,
@@ -2253,6 +2261,13 @@ internal fun PlayerScreen(
             trackSampleRateHz = sampleRateHz,
             channelCount = channelCount,
             bitDepthLabel = bitDepthLabel,
+            isPlaying = isPlaying,
+            playbackCapabilitiesFlags = effectiveCaps,
+            bitPerfectEnabled = bitPerfectUsbAudio,
+            onBitPerfectToggled = onBitPerfectUsbAudioChanged,
+            onRestartTrack = {
+                onSeek(0.0)
+            },
             onOpenAudioSettings = {
                 showAudioOutputDetailsDialog = false
                 openAudioOutputSwitcher(context)
@@ -2782,7 +2797,14 @@ internal fun resolveCurrentAudioOutputRoute(context: Context): AudioOutputRouteI
             device.type == AudioDeviceInfo.TYPE_USB_ACCESSORY
         }
         if (usbDevice != null) {
-            return AudioOutputRouteInfo(AudioOutputRouteType.Usb, "USB Audio")
+            val rawName = usbDevice.productName?.toString()?.trim()
+            val name = rawName
+                ?.removePrefix("USB-Audio - ")
+                ?.removePrefix("USB-Audio-")
+                ?.removePrefix("USB Audio - ")
+                ?.trim()
+            val displayName = if (!name.isNullOrBlank()) name else "USB Audio"
+            return AudioOutputRouteInfo(AudioOutputRouteType.Usb, displayName)
         }
 
         // 3. 3.5mm Wired Headset / Headphones / Line Out / HDMI

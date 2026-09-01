@@ -264,6 +264,8 @@ object NativeBridge {
     external fun isTrackVBR(): Boolean
     external fun getAudioBackendLabel(): String
     external fun getStreamBurstFrames(): Int
+    external fun setBitPerfectMode(enabled: Boolean)
+    external fun isBitPerfectActive(): Boolean
     external fun setCoreOutputSampleRate(coreName: String, sampleRateHz: Int)
     external fun setCoreOption(coreName: String, optionName: String, optionValue: String)
     external fun getCoreCapabilities(coreName: String): Int

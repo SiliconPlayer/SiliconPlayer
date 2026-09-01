@@ -13,6 +13,7 @@
 
 #define LOG_TAG "AudioEngine"
 #define LOGD(...) __android_log_print(ANDROID_LOG_DEBUG, LOG_TAG, __VA_ARGS__)
+#define LOGW(...) __android_log_print(ANDROID_LOG_WARN, LOG_TAG, __VA_ARGS__)
 #define LOGE(...) __android_log_print(ANDROID_LOG_ERROR, LOG_TAG, __VA_ARGS__)
 
 namespace {
@@ -146,7 +147,14 @@ bool AudioEngine::createMiniaudioStream() {
     ma_device_config deviceConfig = ma_device_config_init(ma_device_type_playback);
     deviceConfig.playback.format = ma_format_f32;
     deviceConfig.playback.channels = 2;
-    deviceConfig.sampleRate = 0;
+    deviceConfig.playback.shareMode = bitPerfectModeEnabled ? ma_share_mode_exclusive : ma_share_mode_shared;
+    deviceConfig.aaudio.usage = ma_aaudio_usage_media;
+    deviceConfig.aaudio.contentType = ma_aaudio_content_type_music;
+    if (bitPerfectModeEnabled && decoderRenderSampleRate > 0) {
+        deviceConfig.sampleRate = static_cast<ma_uint32>(decoderRenderSampleRate);
+    } else {
+        deviceConfig.sampleRate = 0;
+    }
     deviceConfig.dataCallback = miniaudioDataCallback;
     deviceConfig.stopCallback = miniaudioStopCallback;
     deviceConfig.pUserData = this;
@@ -166,6 +174,13 @@ bool AudioEngine::createMiniaudioStream() {
     deviceConfig.periods = 2;
 
     result = ma_device_init(&miniaudioContext, &deviceConfig, &miniaudioDevice);
+    if (result != MA_SUCCESS && (deviceConfig.playback.shareMode == ma_share_mode_exclusive || deviceConfig.sampleRate != 0)) {
+        LOGW("Miniaudio init failed (rate=%u, shareMode=%d, result=%d), retrying with shared native mode",
+             deviceConfig.sampleRate, static_cast<int>(deviceConfig.playback.shareMode), static_cast<int>(result));
+        deviceConfig.playback.shareMode = ma_share_mode_shared;
+        deviceConfig.sampleRate = 0;
+        result = ma_device_init(&miniaudioContext, &deviceConfig, &miniaudioDevice);
+    }
     if (result != MA_SUCCESS) {
         LOGE("Failed to initialize Miniaudio device: result=%d (backend=%s)",
              static_cast<int>(result), ma_get_backend_name(activeMiniaudioBackend));
@@ -268,6 +283,17 @@ std::string AudioEngine::getAudioBackendLabel() const {
     }
     const char* name = ma_get_backend_name(activeMiniaudioBackend);
     return name ? name : "Unknown";
+}
+
+void AudioEngine::setBitPerfectMode(bool enabled) {
+    if (bitPerfectModeEnabled == enabled) return;
+    bitPerfectModeEnabled = enabled;
+    LOGD("Bit-perfect mode changed: %d", enabled ? 1 : 0);
+    if (isPlaying.load()) {
+        reconfigureStream(true);
+    } else {
+        streamNeedsRebuild.store(true);
+    }
 }
 
 void AudioEngine::reconfigureStream(bool resumePlayback) {

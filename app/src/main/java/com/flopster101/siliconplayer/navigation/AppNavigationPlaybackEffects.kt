@@ -20,6 +20,7 @@ internal fun AppNavigationPlaybackEffects(
     audioOutputLimiterEnabled: Boolean,
     lookaheadClipperMode: LookaheadClipperMode,
     audioAllowBackendFallback: Boolean,
+    bitPerfectUsbAudio: Boolean,
     pendingSoxExperimentalDialog: Boolean,
     onPendingSoxExperimentalDialogChanged: (Boolean) -> Unit,
     onShowSoxExperimentalDialogChanged: (Boolean) -> Unit,
@@ -148,6 +149,30 @@ internal fun AppNavigationPlaybackEffects(
             resamplerPreference = audioResamplerPreference.nativeValue,
             allowFallback = audioAllowBackendFallback
         )
+    }
+
+    LaunchedEffect(bitPerfectUsbAudio) {
+        prefs.edit()
+            .putBoolean(AppPreferenceKeys.BIT_PERFECT_USB_AUDIO, bitPerfectUsbAudio)
+            .apply()
+        PlaybackService.refreshSettings(context)
+    }
+
+    LaunchedEffect(bitPerfectUsbAudio, selectedFile, isPlaying) {
+        if (bitPerfectUsbAudio && BitPerfectCoordinator.isBitPerfectPlatformSupported()) {
+            val usbDevice = BitPerfectCoordinator.findConnectedUsbAudioDevice(context)
+            if (usbDevice != null) {
+                val targetRate = NativeBridge.getDecoderRenderSampleRateHz().takeIf { it > 0 } ?: 48000
+                BitPerfectCoordinator.setPreferredBitPerfectMixer(context, usbDevice, targetRate)
+                NativeBridge.setBitPerfectMode(true)
+            } else {
+                BitPerfectCoordinator.clearBitPerfectMixer(context)
+                NativeBridge.setBitPerfectMode(false)
+            }
+        } else {
+            BitPerfectCoordinator.clearBitPerfectMixer(context)
+            NativeBridge.setBitPerfectMode(false)
+        }
     }
 
     LaunchedEffect(openPlayerFromNotification) {

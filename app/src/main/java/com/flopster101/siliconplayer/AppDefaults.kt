@@ -28,6 +28,10 @@ object AppDefaults {
         val endFadeCurve = EndFadeCurve.Linear
     }
 
+    object OutputPipeline {
+        const val bitPerfectUsbAudio = false
+    }
+
     object AudioProcessing {
         const val outputLimiterEnabled = false
         val lookaheadClipperMode = LookaheadClipperMode.Soft

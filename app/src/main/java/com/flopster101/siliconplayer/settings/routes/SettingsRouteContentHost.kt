@@ -221,7 +221,8 @@ internal fun SettingsRouteContentHost(
                                 audioResamplerPreference = state.audioResamplerPreference,
                                 audioOutputLimiterEnabled = state.audioOutputLimiterEnabled,
                                 lookaheadClipperMode = state.lookaheadClipperMode,
-                                audioAllowBackendFallback = state.audioAllowBackendFallback
+                                audioAllowBackendFallback = state.audioAllowBackendFallback,
+                                bitPerfectUsbAudio = state.bitPerfectUsbAudio
                             ),
                             actions = GeneralAudioRouteActions(
                                 onRespondHeadphoneMediaButtonsChanged = actions.onRespondHeadphoneMediaButtonsChanged,
@@ -238,7 +239,8 @@ internal fun SettingsRouteContentHost(
                                 onAudioResamplerPreferenceChanged = actions.onAudioResamplerPreferenceChanged,
                                 onAudioOutputLimiterEnabledChanged = actions.onAudioOutputLimiterEnabledChanged,
                                 onLookaheadClipperModeChanged = actions.onLookaheadClipperModeChanged,
-                                onAudioAllowBackendFallbackChanged = actions.onAudioAllowBackendFallbackChanged
+                                onAudioAllowBackendFallbackChanged = actions.onAudioAllowBackendFallbackChanged,
+                                onBitPerfectUsbAudioChanged = actions.onBitPerfectUsbAudioChanged
                             )
                         )
                     }

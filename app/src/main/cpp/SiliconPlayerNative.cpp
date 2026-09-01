@@ -2271,6 +2271,21 @@ Java_com_flopster101_siliconplayer_NativeBridge_getStreamBurstFrames(JNIEnv* env
     return audioEngine->getStreamBurstFrames();
 }
 
+extern "C" JNIEXPORT void JNICALL
+Java_com_flopster101_siliconplayer_NativeBridge_setBitPerfectMode(JNIEnv* env, jobject thiz, jboolean enabled) {
+    if (audioEngine != nullptr) {
+        audioEngine->setBitPerfectMode(enabled == JNI_TRUE);
+    }
+}
+
+extern "C" JNIEXPORT jboolean JNICALL
+Java_com_flopster101_siliconplayer_NativeBridge_isBitPerfectActive(JNIEnv* env, jobject thiz) {
+    if (audioEngine == nullptr) {
+        return JNI_FALSE;
+    }
+    return audioEngine->isBitPerfectModeEnabled() ? JNI_TRUE : JNI_FALSE;
+}
+
 extern "C" JNIEXPORT jfloatArray JNICALL
 Java_com_flopster101_siliconplayer_NativeBridge_getVisualizationWaveformScope(
         JNIEnv* env, jobject, jint channelIndex, jint windowMs, jint triggerMode) {
