@@ -35,6 +35,8 @@ add_library(
         decoders/DecoderRegistry.cpp
         decoders/SdlCompat.c
         decoders/CPConvStub.c
+        usb/UacDriver.cpp
+        usb/UacDriverJni.cpp
 )
 
 target_compile_definitions(
@@ -81,6 +83,39 @@ include_directories(${CMAKE_SOURCE_DIR}/../../../../external/furnace/extern/libs
 # Expose silicon_vis multiplatform visualizer headers.
 add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/../../../../external/silicon/silicon_vis ${CMAKE_CURRENT_BINARY_DIR}/silicon_vis)
 include_directories(${CMAKE_SOURCE_DIR}/../../../../external/silicon/silicon_vis/include)
+
+# Vendored libusb static library for direct UAC output
+set(LIBUSB_DIR ${CMAKE_CURRENT_SOURCE_DIR}/../../../../external/libusb)
+file(MAKE_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/libusb_gen)
+file(WRITE ${CMAKE_CURRENT_BINARY_DIR}/libusb_gen/version_describe.h "#define LIBUSB_DESCRIBE \"1.0.30\"\n")
+
+add_library(usb1.0 STATIC
+    ${LIBUSB_DIR}/libusb/core.c
+    ${LIBUSB_DIR}/libusb/descriptor.c
+    ${LIBUSB_DIR}/libusb/hotplug.c
+    ${LIBUSB_DIR}/libusb/io.c
+    ${LIBUSB_DIR}/libusb/sync.c
+    ${LIBUSB_DIR}/libusb/strerror.c
+    ${LIBUSB_DIR}/libusb/os/linux_usbfs.c
+    ${LIBUSB_DIR}/libusb/os/events_posix.c
+    ${LIBUSB_DIR}/libusb/os/threads_posix.c
+    ${LIBUSB_DIR}/libusb/os/linux_netlink.c
+)
+target_include_directories(usb1.0 PUBLIC
+    ${LIBUSB_DIR}/libusb
+    ${LIBUSB_DIR}/libusb/os
+    ${LIBUSB_DIR}/android
+    ${CMAKE_CURRENT_BINARY_DIR}/libusb_gen
+)
+target_compile_options(usb1.0 PRIVATE
+    -fvisibility=hidden
+    -Wno-unused-parameter
+    -Wno-unused-but-set-variable
+)
+set_target_properties(usb1.0 PROPERTIES POSITION_INDEPENDENT_CODE ON)
+include_directories(${LIBUSB_DIR}/libusb)
+include_directories(${LIBUSB_DIR}/android)
+include_directories(${CMAKE_CURRENT_BINARY_DIR}/libusb_gen)
 
     # Find Android libraries
     find_library(log-lib log)
@@ -215,6 +250,7 @@ include_directories(${CMAKE_SOURCE_DIR}/../../../../external/silicon/silicon_vis
             libsoxr
             z # zlib is needed for openmpt/ffmpeg/vgm
             m # libbinio can require libm symbols on some toolchains
+            usb1.0
             ${dl-lib}
     )
 

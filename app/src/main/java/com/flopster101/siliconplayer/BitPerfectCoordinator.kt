@@ -69,9 +69,14 @@ object BitPerfectCoordinator {
             }
         }
 
-        // 3. UsbManager direct hardware raw descriptor parsing
+        // 3. UsbManager direct hardware raw descriptor parsing & native UAC driver GET_RANGE
         val usbRates = queryUsbDeviceSampleRatesFromUsbManager(context)
         rates.addAll(usbRates)
+        val uacRanges = com.flopster101.siliconplayer.usb.UacDriverCoordinator.getSupportedRates()
+        uacRanges.forEach { range ->
+            if (range.minHz > 0) rates.add(range.minHz)
+            if (range.maxHz > 0) rates.add(range.maxHz)
+        }
 
         // 4. AudioDeviceInfo audioProfiles (API 31+) & sampleRates
         val targetDevice = device ?: findConnectedUsbAudioDevice(context)
