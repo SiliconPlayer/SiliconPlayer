@@ -93,3 +93,7 @@
 	path = external/projectm
 	url = https://github.com/projectM-visualizer/projectm
 	ignore = dirty
+[submodule "external/libusb"]
+	path = external/libusb
+	url = https://github.com/libusb/libusb
+	ignore = dirty
