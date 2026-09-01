@@ -47,14 +47,10 @@ class PlaybackService : Service() {
     private val powerManager by lazy { getSystemService(Context.POWER_SERVICE) as PowerManager }
     private val wifiManager by lazy { applicationContext.getSystemService(Context.WIFI_SERVICE) as WifiManager }
     private val smbWifiLock by lazy {
+        @Suppress("DEPRECATION")
         wifiManager.createWifiLock(
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-                WifiManager.WIFI_MODE_FULL_LOW_LATENCY
-            } else {
-                @Suppress("DEPRECATION")
-                WifiManager.WIFI_MODE_FULL_HIGH_PERF
-            },
-            "SiliconPlayer:SmbPlayback"
+            WifiManager.WIFI_MODE_FULL_HIGH_PERF,
+            "SiliconPlayer:NetworkPlayback"
         ).apply {
             setReferenceCounted(false)
         }
@@ -372,6 +368,11 @@ class PlaybackService : Service() {
             abandonAudioFocus()
             resumeOnFocusGain = false
         }
+        if (isPlaying) {
+            acquireWakeLock()
+        } else {
+            releaseWakeLock()
+        }
         updateNetworkPlaybackLocks()
         persistResumeCheckpointIfNeeded(force = true)
 
@@ -518,7 +519,14 @@ class PlaybackService : Service() {
         val activeSource = currentRequestUrl?.takeIf { it.isNotBlank() }
             ?: currentPath?.takeIf { it.isNotBlank() }
             ?: return false
-        val scheme = runCatching { Uri.parse(activeSource).scheme?.lowercase() }.getOrNull()
+        val trimmed = activeSource.trim()
+        if (trimmed.startsWith("smb://", ignoreCase = true) ||
+            trimmed.startsWith("http://", ignoreCase = true) ||
+            trimmed.startsWith("https://", ignoreCase = true)
+        ) {
+            return true
+        }
+        val scheme = runCatching { Uri.parse(trimmed).scheme?.lowercase() }.getOrNull()
         return scheme == "smb" || scheme == "http" || scheme == "https"
     }
 
