@@ -8,6 +8,7 @@
 #include <pthread.h>
 #include <sys/resource.h>
 #include <sys/syscall.h>
+#include <thread>
 #include <unistd.h>
 #include <vector>
 #include "usb/UacDriver.h"
@@ -294,6 +295,20 @@ void AudioEngine::setBitPerfectMode(bool enabled) {
     if (bitPerfectModeEnabled == enabled) return;
     bitPerfectModeEnabled = enabled;
     LOGD("Bit-perfect mode changed: %d", enabled ? 1 : 0);
+    if (!enabled) {
+        auto& uac = siliconplayer::usb::getUacDriverInstance();
+        uac.stop();
+        if (isPlaying.load()) {
+            std::thread([this]() {
+                pthread_setname_np(pthread_self(), "sp_bitperf_off");
+                usleep(150000);
+                if (isPlaying.load() && !bitPerfectModeEnabled) {
+                    reconfigureStream(true);
+                }
+            }).detach();
+            return;
+        }
+    }
     if (isPlaying.load()) {
         reconfigureStream(true);
     } else {
@@ -346,7 +361,17 @@ void AudioEngine::reconfigureStream(bool resumePlayback) {
 void AudioEngine::miniaudioStopCallback(ma_device* pDevice) {
     auto* engine = static_cast<AudioEngine*>(pDevice->pUserData);
     if (!engine) return;
-    LOGD("Miniaudio device stop callback received");
+    LOGD("Miniaudio device stop callback received (isPlaying=%d)", engine->isPlaying.load() ? 1 : 0);
+    if (engine->isPlaying.load()) {
+        engine->streamNeedsRebuild.store(true);
+        std::thread([engine]() {
+            pthread_setname_np(pthread_self(), "sp_recover");
+            usleep(150000);
+            if (engine->isPlaying.load()) {
+                engine->reconfigureStream(true);
+            }
+        }).detach();
+    }
 }
 
 void AudioEngine::miniaudioDataCallback(

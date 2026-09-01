@@ -95,10 +95,13 @@ internal suspend fun applyTrackSelectionAction(
     onArtworkBitmapCleared()
     refreshRepeatModeForTrack()
     if (autoStart) {
-        onAddRecentPlayedTrack(sourceId, locationIdOverride, metadataTitleProvider(), metadataArtistProvider())
-        onStartEngine()
-        onIsPlayingChanged(true)
-        scheduleRecentTrackMetadataRefresh(sourceId, locationIdOverride)
+        val canStart = com.flopster101.siliconplayer.usb.UacDriverCoordinator.ensureUacReadyForPlayback(context)
+        if (canStart) {
+            onAddRecentPlayedTrack(sourceId, locationIdOverride, metadataTitleProvider(), metadataArtistProvider())
+            onStartEngine()
+            onIsPlayingChanged(true)
+            scheduleRecentTrackMetadataRefresh(sourceId, locationIdOverride)
+        }
     }
     syncPlaybackService()
 }

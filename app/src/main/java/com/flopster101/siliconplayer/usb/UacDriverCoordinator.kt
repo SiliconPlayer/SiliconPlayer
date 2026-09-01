@@ -13,6 +13,8 @@ import android.media.AudioManager
 import android.os.Build
 import android.util.Log
 import com.flopster101.siliconplayer.AppPreferenceKeys
+import com.flopster101.siliconplayer.BitPerfectDriverMethod
+import com.flopster101.siliconplayer.NativeBridge
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -221,6 +223,35 @@ object UacDriverCoordinator {
             _lastErrorMessage.value = if (!detail.isNullOrBlank()) detail else "Failed to start stream (error $code)"
             Log.w(TAG, "UAC start failed (code $code): ${_lastErrorMessage.value}")
         }
+        return ok
+    }
+
+    suspend fun ensureUacReadyForPlayback(context: Context): Boolean {
+        val prefs = context.getSharedPreferences(AppPreferenceKeys.PREFS_NAME, Context.MODE_PRIVATE)
+        val bitPerfectEnabled = prefs.getBoolean(AppPreferenceKeys.BIT_PERFECT_USB_AUDIO, false)
+        val driverMethod = BitPerfectDriverMethod.fromStorage(prefs.getString(AppPreferenceKeys.BIT_PERFECT_DRIVER_METHOD, null))
+        if (!bitPerfectEnabled || driverMethod != BitPerfectDriverMethod.DirectUac) {
+            return true
+        }
+        val rawUsb = findUsbAudioDevice(context) ?: return true
+        if (!_isOpen.value) {
+            val hasPerm = hasPermission(context, rawUsb)
+            val granted = if (hasPerm) true else requestPermission(context, rawUsb)
+            if (!granted) {
+                _lastErrorMessage.value = "USB permission not granted"
+                return false
+            }
+            val opened = open(context, rawUsb)
+            if (!opened) {
+                return false
+            }
+        }
+        val targetRate = NativeBridge.getDecoderRenderSampleRateHz().takeIf { it > 0 } ?: 48000
+        val targetBitDepth = NativeBridge.getTrackBitDepth().takeIf { it in listOf(16, 24, 32) } ?: 16
+        val targetChannels = NativeBridge.getTrackChannelCount().takeIf { it > 0 } ?: 2
+        val ok = start(targetRate, targetBitDepth, targetChannels)
+        if (ok) syncVolume(context)
+        NativeBridge.setBitPerfectMode(ok)
         return ok
     }
 

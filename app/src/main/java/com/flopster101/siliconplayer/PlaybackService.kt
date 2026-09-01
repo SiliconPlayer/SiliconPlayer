@@ -261,6 +261,36 @@ class PlaybackService : Service() {
         }
     }
 
+    private val audioDeviceCallback = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+        object : android.media.AudioDeviceCallback() {
+            override fun onAudioDevicesAdded(addedDevices: Array<out android.media.AudioDeviceInfo>?) {
+                val hasUsb = addedDevices?.any {
+                    it.type == android.media.AudioDeviceInfo.TYPE_USB_DEVICE ||
+                    it.type == android.media.AudioDeviceInfo.TYPE_USB_HEADSET ||
+                    it.type == android.media.AudioDeviceInfo.TYPE_USB_ACCESSORY
+                } == true
+                if (hasUsb && isPlaying) {
+                    val bitPerfectEnabled = prefs.getBoolean(AppPreferenceKeys.BIT_PERFECT_USB_AUDIO, false)
+                    val driverMethod = BitPerfectDriverMethod.fromStorage(prefs.getString(AppPreferenceKeys.BIT_PERFECT_DRIVER_METHOD, null))
+                    if (!bitPerfectEnabled || driverMethod != BitPerfectDriverMethod.DirectUac) {
+                        NativeBridge.reconfigureStream()
+                    }
+                }
+            }
+
+            override fun onAudioDevicesRemoved(removedDevices: Array<out android.media.AudioDeviceInfo>?) {
+                val hadUsb = removedDevices?.any {
+                    it.type == android.media.AudioDeviceInfo.TYPE_USB_DEVICE ||
+                    it.type == android.media.AudioDeviceInfo.TYPE_USB_HEADSET ||
+                    it.type == android.media.AudioDeviceInfo.TYPE_USB_ACCESSORY
+                } == true
+                if (hadUsb && isPlaying) {
+                    NativeBridge.reconfigureStream()
+                }
+            }
+        }
+    } else null
+
     override fun onCreate() {
         super.onCreate()
         isServiceAlive = true
@@ -270,6 +300,10 @@ class PlaybackService : Service() {
             noisyReceiver,
             IntentFilter(AudioManager.ACTION_AUDIO_BECOMING_NOISY)
         )
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+            val am = getSystemService(Context.AUDIO_SERVICE) as? AudioManager
+            audioDeviceCallback?.let { am?.registerAudioDeviceCallback(it, handler) }
+        }
     }
 
     override fun onDestroy() {
@@ -280,6 +314,10 @@ class PlaybackService : Service() {
         releaseSmbWifiLockIfHeld()
         releaseWakeLock()
         unregisterReceiver(noisyReceiver)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+            val am = getSystemService(Context.AUDIO_SERVICE) as? AudioManager
+            audioDeviceCallback?.let { am?.unregisterAudioDeviceCallback(it) }
+        }
         abandonAudioFocus()
         BitPerfectCoordinator.clearBitPerfectMixer(this)
         NativeBridge.setBitPerfectMode(false)
@@ -438,28 +476,14 @@ class PlaybackService : Service() {
         requestAudioFocus()
         acquireWakeLock()
         serviceScope.launch {
-            withContext(Dispatchers.PlaybackIo) {
+            val canStart = withContext(Dispatchers.PlaybackIo) {
                 val bitPerfectEnabled = prefs.getBoolean(AppPreferenceKeys.BIT_PERFECT_USB_AUDIO, false)
                 val driverMethod = BitPerfectDriverMethod.fromStorage(prefs.getString(AppPreferenceKeys.BIT_PERFECT_DRIVER_METHOD, null))
                 if (bitPerfectEnabled) {
                     if (driverMethod == BitPerfectDriverMethod.DirectUac) {
-                        val rawUsb = com.flopster101.siliconplayer.usb.UacDriverCoordinator.findUsbAudioDevice(this@PlaybackService)
-                        if (rawUsb != null) {
-                            if (!com.flopster101.siliconplayer.usb.UacDriverCoordinator.isOpen.value && com.flopster101.siliconplayer.usb.UacDriverCoordinator.hasPermission(this@PlaybackService, rawUsb)) {
-                                com.flopster101.siliconplayer.usb.UacDriverCoordinator.open(this@PlaybackService, rawUsb)
-                            }
-                            if (com.flopster101.siliconplayer.usb.UacDriverCoordinator.isOpen.value) {
-                                val targetRate = NativeBridge.getDecoderRenderSampleRateHz().takeIf { it > 0 } ?: 48000
-                                val targetBitDepth = NativeBridge.getTrackBitDepth().takeIf { it in listOf(16, 24, 32) } ?: 16
-                                val targetChannels = NativeBridge.getTrackChannelCount().takeIf { it > 0 } ?: 2
-                                val ok = com.flopster101.siliconplayer.usb.UacDriverCoordinator.start(targetRate, targetBitDepth, targetChannels)
-                                if (ok) com.flopster101.siliconplayer.usb.UacDriverCoordinator.syncVolume(this@PlaybackService)
-                                NativeBridge.setBitPerfectMode(ok)
-                            } else {
-                                NativeBridge.setBitPerfectMode(false)
-                            }
-                        } else {
-                            NativeBridge.setBitPerfectMode(false)
+                        val ready = com.flopster101.siliconplayer.usb.UacDriverCoordinator.ensureUacReadyForPlayback(this@PlaybackService)
+                        if (!ready) {
+                            return@withContext false
                         }
                     } else if (BitPerfectCoordinator.isBitPerfectPlatformSupported()) {
                         val usbDevice = BitPerfectCoordinator.findConnectedUsbAudioDevice(this@PlaybackService)
@@ -475,12 +499,15 @@ class PlaybackService : Service() {
                 } else {
                     NativeBridge.startEngine()
                 }
+                true
             }
-            isPlaying = true
-            updateNetworkPlaybackLocks()
-            persistResumeCheckpointIfNeeded(force = true)
-            updateMediaSessionState()
-            pushNotification()
+            if (canStart) {
+                isPlaying = true
+                updateNetworkPlaybackLocks()
+                persistResumeCheckpointIfNeeded(force = true)
+                updateMediaSessionState()
+                pushNotification()
+            }
         }
     }
 

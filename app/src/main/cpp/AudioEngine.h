@@ -240,6 +240,7 @@ public:
     void setPluginGain(float gainDb);
     void setSongGain(float gainDb);
     void setForceMono(bool enabled);
+    void reconfigureStream(bool resumePlayback = true);
     void setOutputLimiterEnabled(bool enabled);
     void setLookaheadClipperMode(int mode);
     void setDspBassEnabled(bool enabled);
@@ -418,7 +419,6 @@ private:
     static constexpr uint32_t kVisualizationFeatureChannelScope = 1u << 4;
 
     int resolveOutputSampleRateForCore(const std::string& coreName) const;
-    void reconfigureStream(bool resumePlayback);
     void applyStreamBufferPreset();
     void resetResamplerStateLocked(bool preserveBuffer = false);
     bool ensureOutputSoxrContextLocked(int channels, int inputRate, int outputRate);

@@ -632,10 +632,12 @@ void UacDriver::stop() {
             libusb_set_interface_alt_setting(device_, format_.interfaceNumber, 0);
         }
         libusb_release_interface(device_, format_.interfaceNumber);
+        libusb_attach_kernel_driver(device_, format_.interfaceNumber);
         interfaceClaimed_ = false;
     }
     if (device_ && controlInterfaceClaimed_) {
         libusb_release_interface(device_, claimedControlIface_);
+        libusb_attach_kernel_driver(device_, claimedControlIface_);
         controlInterfaceClaimed_ = false;
     }
 }
@@ -709,14 +711,12 @@ bool UacDriver::startIsoPump() {
 
     stopRequested_.store(false, std::memory_order_release);
     eventThread_ = std::thread([this]() {
+        pthread_setname_np(pthread_self(), "sp_uac_events");
         while (!stopRequested_.load(std::memory_order_acquire) || inflight_.load(std::memory_order_acquire) > 0) {
-            timeval tv{0, 10000};
+            timeval tv{0, 50000};
             if (ctx_) {
                 libusb_handle_events_timeout_completed(ctx_, &tv, nullptr);
             } else {
-                break;
-            }
-            if (stopRequested_.load(std::memory_order_acquire) && inflight_.load(std::memory_order_acquire) == 0) {
                 break;
             }
         }
@@ -755,11 +755,8 @@ void UacDriver::stopIsoPump() {
     for (libusb_transfer* fb : feedbackTransfers_) {
         if (fb) libusb_cancel_transfer(fb);
     }
-
-    for (int spin = 0; spin < 200; ++spin) {
-        if (inflight_.load(std::memory_order_acquire) == 0) break;
-        timeval tv{0, 5000};
-        if (ctx_) libusb_handle_events_timeout_completed(ctx_, &tv, nullptr);
+    if (ctx_) {
+        libusb_interrupt_event_handler(ctx_);
     }
 
     if (eventThread_.joinable()) {
