@@ -39,9 +39,11 @@ import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -76,11 +78,14 @@ import com.flopster101.siliconplayer.AudioBackendPreference
 import com.flopster101.siliconplayer.AudioBufferPreset
 import com.flopster101.siliconplayer.AudioResamplerPreference
 import com.flopster101.siliconplayer.BitPerfectCoordinator
+import com.flopster101.siliconplayer.BitPerfectDriverMethod
 import com.flopster101.siliconplayer.BitPerfectSupportStatus
 import com.flopster101.siliconplayer.supportsLiveSampleRateChange
 import com.flopster101.siliconplayer.ui.icons.ConversionPathIcon
 import com.flopster101.siliconplayer.ui.screens.AudioOutputRouteInfo
 import com.flopster101.siliconplayer.ui.screens.AudioOutputRouteType
+import com.flopster101.siliconplayer.usb.UacDriverCoordinator
+import kotlinx.coroutines.launch
 import java.io.File
 import java.util.Locale
 
@@ -115,10 +120,20 @@ internal fun AudioOutputDetailsDialog(
         context.getSharedPreferences(AppPreferenceKeys.PREFS_NAME, Context.MODE_PRIVATE)
     }
 
-    val bitPerfectSupportStatus = remember(routeInfo) {
-        BitPerfectCoordinator.checkBitPerfectSupport(context)
+    val driverMethod = remember(prefs) {
+        BitPerfectDriverMethod.fromStorage(prefs.getString(AppPreferenceKeys.BIT_PERFECT_DRIVER_METHOD, null))
     }
-    val isPlatformBitPerfectSupported = bitPerfectSupportStatus == BitPerfectSupportStatus.Supported
+    val bitPerfectSupportStatus = remember(routeInfo, driverMethod) {
+        BitPerfectCoordinator.checkBitPerfectSupport(context, driverMethod)
+    }
+    val isBitPerfectSupported = bitPerfectSupportStatus == BitPerfectSupportStatus.Supported
+    val isUacDriverOpen by UacDriverCoordinator.isOpen.collectAsState()
+    val isUacStreaming by UacDriverCoordinator.isStreaming.collectAsState()
+    val uacLastError by UacDriverCoordinator.lastErrorMessage.collectAsState()
+    val uacDiagnostics = remember(isUacStreaming, isUacDriverOpen) {
+        if (isUacDriverOpen) UacDriverCoordinator.getDiagnostics() else null
+    }
+    val coroutineScope = rememberCoroutineScope()
     var showRestartConfirmDialog by remember { mutableStateOf(false) }
     var pendingBitPerfectState by remember { mutableStateOf(false) }
 
@@ -192,8 +207,8 @@ internal fun AudioOutputDetailsDialog(
         10.0
     }
 
-    val isBitPerfectActive = remember(bitPerfectEnabled, routeInfo) {
-        routeInfo.type == AudioOutputRouteType.Usb && bitPerfectEnabled && (BitPerfectCoordinator.isBitPerfectActive(context) || isPlatformBitPerfectSupported)
+    val isBitPerfectActive = remember(bitPerfectEnabled, routeInfo, isUacDriverOpen, isBitPerfectSupported) {
+        routeInfo.type == AudioOutputRouteType.Usb && bitPerfectEnabled && (isUacDriverOpen || BitPerfectCoordinator.isBitPerfectActive(context) || isBitPerfectSupported)
     }
 
     val onToggleBitPerfect: (Boolean) -> Unit = { targetEnabled ->
@@ -203,11 +218,48 @@ internal fun AudioOutputDetailsDialog(
             showRestartConfirmDialog = true
         } else {
             onBitPerfectToggled(targetEnabled)
-            val usbDevice = BitPerfectCoordinator.findConnectedUsbAudioDevice(context)
-            if (targetEnabled && usbDevice != null) {
-                BitPerfectCoordinator.setPreferredBitPerfectMixer(context, usbDevice, effectiveDecoderRate, effectiveChannels)
-                NativeBridge.setBitPerfectMode(true)
+            if (targetEnabled) {
+                if (driverMethod == BitPerfectDriverMethod.DirectUac) {
+                    val rawUsb = UacDriverCoordinator.findUsbAudioDevice(context)
+                    if (rawUsb != null) {
+                        coroutineScope.launch {
+                            val granted = UacDriverCoordinator.requestPermission(context, rawUsb)
+                            if (granted) {
+                                UacDriverCoordinator.open(context, rawUsb)
+                                if (isPlaying) {
+                                    val targetRate = effectiveDecoderRate
+                                    val targetBitDepth = NativeBridge.getTrackBitDepth().takeIf { it in listOf(16, 24, 32) } ?: 16
+                                    val ok = UacDriverCoordinator.start(targetRate, targetBitDepth, effectiveChannels)
+                                    NativeBridge.setBitPerfectMode(ok)
+                                    if (!ok) {
+                                        onBitPerfectToggled(false)
+                                    }
+                                } else {
+                                    NativeBridge.setBitPerfectMode(true)
+                                }
+                            } else {
+                                onBitPerfectToggled(false)
+                            }
+                        }
+                    } else {
+                        onBitPerfectToggled(false)
+                    }
+                } else if (BitPerfectCoordinator.isBitPerfectPlatformSupported()) {
+                    val usbAudioDevice = BitPerfectCoordinator.findConnectedUsbAudioDevice(context)
+                    if (usbAudioDevice != null) {
+                        if (isPlaying) {
+                            val targetRate = effectiveDecoderRate
+                            BitPerfectCoordinator.setPreferredBitPerfectMixer(context, usbAudioDevice, targetRate, effectiveChannels)
+                        }
+                        NativeBridge.setBitPerfectMode(true)
+                    } else {
+                        BitPerfectCoordinator.clearBitPerfectMixer(context)
+                        NativeBridge.setBitPerfectMode(false)
+                        onBitPerfectToggled(false)
+                    }
+                }
             } else {
+                UacDriverCoordinator.close()
                 BitPerfectCoordinator.clearBitPerfectMixer(context)
                 NativeBridge.setBitPerfectMode(false)
             }
@@ -647,25 +699,40 @@ internal fun AudioOutputDetailsDialog(
                                                 color = MaterialTheme.colorScheme.onSurface
                                             )
                                             Spacer(modifier = Modifier.height(4.dp))
+                                            val (statusText, statusColor) = when (bitPerfectSupportStatus) {
+                                                BitPerfectSupportStatus.Supported -> Pair("Bypasses Android audio mixer for bit-perfect output.", MaterialTheme.colorScheme.onSurfaceVariant)
+                                                BitPerfectSupportStatus.UnsupportedAudioHal -> Pair("Platform bit-perfect API is not supported by this device's audio HAL.", MaterialTheme.colorScheme.error)
+                                                BitPerfectSupportStatus.UnsupportedApiLevel -> Pair("Platform bit-perfect USB routing requires Android 14 or higher.", MaterialTheme.colorScheme.error)
+                                                BitPerfectSupportStatus.NoUsbDeviceConnected -> Pair("No compatible USB audio device connected.", MaterialTheme.colorScheme.error)
+                                            }
                                             Text(
-                                                text = when (bitPerfectSupportStatus) {
-                                                    BitPerfectSupportStatus.Supported -> "Bypasses Android audio mixer for bit-perfect output."
-                                                    BitPerfectSupportStatus.UnsupportedAudioHal -> "Platform bit-perfect API is not supported by this device's audio HAL."
-                                                    BitPerfectSupportStatus.UnsupportedApiLevel -> "Platform bit-perfect USB routing requires Android 14 or higher."
-                                                },
+                                                text = statusText,
                                                 style = MaterialTheme.typography.bodySmall,
-                                                color = if (isPlatformBitPerfectSupported) {
-                                                    MaterialTheme.colorScheme.onSurfaceVariant
-                                                } else {
-                                                    MaterialTheme.colorScheme.error
-                                                }
+                                                color = statusColor
                                             )
+                                            Spacer(modifier = Modifier.height(3.dp))
+                                            val driverBadge = "Driver: ${driverMethod.displayName}"
+                                            Text(
+                                                text = driverBadge,
+                                                style = MaterialTheme.typography.bodySmall,
+                                                color = if (isBitPerfectSupported) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.38f),
+                                                fontWeight = FontWeight.SemiBold
+                                            )
+                                            if (driverMethod == BitPerfectDriverMethod.DirectUac && uacLastError != null) {
+                                                Spacer(modifier = Modifier.height(3.dp))
+                                                Text(
+                                                    text = "Error: $uacLastError",
+                                                    style = MaterialTheme.typography.bodySmall,
+                                                    color = MaterialTheme.colorScheme.error,
+                                                    fontWeight = FontWeight.Medium
+                                                )
+                                            }
                                         }
                                         Spacer(modifier = Modifier.width(12.dp))
                                         Switch(
-                                            checked = bitPerfectEnabled && isPlatformBitPerfectSupported,
+                                            checked = bitPerfectEnabled && isBitPerfectSupported,
                                             onCheckedChange = onToggleBitPerfect,
-                                            enabled = isPlatformBitPerfectSupported
+                                            enabled = isBitPerfectSupported
                                         )
                                     }
 

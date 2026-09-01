@@ -8,10 +8,34 @@ import android.media.AudioManager
 import android.media.AudioMixerAttributes
 import android.os.Build
 
+enum class BitPerfectDriverMethod(val storageValue: String, val displayName: String) {
+    Platform("platform", "Platform Audio HAL"),
+    DirectUac("direct_uac", "Direct UAC driver");
+
+    companion object {
+        fun resolveDefault(context: Context): BitPerfectDriverMethod {
+            return if (BitPerfectCoordinator.checkBitPerfectSupport(context, Platform) == BitPerfectSupportStatus.Supported) {
+                Platform
+            } else {
+                DirectUac
+            }
+        }
+
+        fun fromStorage(value: String?, context: Context? = null): BitPerfectDriverMethod {
+            if (value != null) {
+                val matched = entries.firstOrNull { it.storageValue == value }
+                if (matched != null) return matched
+            }
+            return if (context != null) resolveDefault(context) else DirectUac
+        }
+    }
+}
+
 enum class BitPerfectSupportStatus {
     Supported,
     UnsupportedApiLevel,
-    UnsupportedAudioHal
+    UnsupportedAudioHal,
+    NoUsbDeviceConnected
 }
 
 object BitPerfectCoordinator {
@@ -19,7 +43,15 @@ object BitPerfectCoordinator {
     fun isBitPerfectPlatformSupported(): Boolean =
         Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE
 
-    fun checkBitPerfectSupport(context: Context, usbDevice: AudioDeviceInfo? = null): BitPerfectSupportStatus {
+    fun checkBitPerfectSupport(
+        context: Context,
+        driverMethod: BitPerfectDriverMethod = BitPerfectDriverMethod.Platform,
+        usbDevice: AudioDeviceInfo? = null
+    ): BitPerfectSupportStatus {
+        if (driverMethod == BitPerfectDriverMethod.DirectUac) {
+            val rawUsb = com.flopster101.siliconplayer.usb.UacDriverCoordinator.findUsbAudioDevice(context)
+            return if (rawUsb != null) BitPerfectSupportStatus.Supported else BitPerfectSupportStatus.NoUsbDeviceConnected
+        }
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
             return BitPerfectSupportStatus.UnsupportedApiLevel
         }

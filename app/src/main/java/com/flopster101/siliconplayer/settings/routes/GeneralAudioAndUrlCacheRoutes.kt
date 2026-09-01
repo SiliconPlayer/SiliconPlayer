@@ -10,13 +10,17 @@ import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import android.content.Context
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.unit.dp
+import kotlinx.coroutines.launch
 import java.util.Locale
 
 internal data class GeneralAudioRouteState(
@@ -170,12 +174,20 @@ internal fun GeneralAudioRouteContent(
         onCheckedChange = actions.onAudioAllowBackendFallbackChanged
     )
     val context = LocalContext.current
-    val bitPerfectSupportStatus = remember { BitPerfectCoordinator.checkBitPerfectSupport(context) }
+    val prefs = remember(context) { context.getSharedPreferences(AppPreferenceKeys.PREFS_NAME, Context.MODE_PRIVATE) }
+    var driverMethod by remember {
+        mutableStateOf(BitPerfectDriverMethod.fromStorage(prefs.getString(AppPreferenceKeys.BIT_PERFECT_DRIVER_METHOD, null)))
+    }
+    var showDriverMethodDialog by remember { mutableStateOf(false) }
+
+    val bitPerfectSupportStatus = remember(driverMethod) {
+        BitPerfectCoordinator.checkBitPerfectSupport(context, driverMethod)
+    }
     val isBitPerfectSupported = bitPerfectSupportStatus == BitPerfectSupportStatus.Supported
     val (bitPerfectDesc, bitPerfectColor) = when (bitPerfectSupportStatus) {
         BitPerfectSupportStatus.Supported -> {
             Pair(
-                "Route audio directly to external USB DACs at native track sample rate without OS mixing or fixed resampling.",
+                "Bypasses Android audio mixer for bit-perfect output.",
                 null
             )
         }
@@ -191,7 +203,21 @@ internal fun GeneralAudioRouteContent(
                 MaterialTheme.colorScheme.error
             )
         }
+        BitPerfectSupportStatus.NoUsbDeviceConnected -> {
+            Pair(
+                "No compatible USB audio device connected.",
+                MaterialTheme.colorScheme.error
+            )
+        }
     }
+
+    val isUacOpen by com.flopster101.siliconplayer.usb.UacDriverCoordinator.isOpen.collectAsState()
+    val isUacStreaming by com.flopster101.siliconplayer.usb.UacDriverCoordinator.isStreaming.collectAsState()
+    val uacLastError by com.flopster101.siliconplayer.usb.UacDriverCoordinator.lastErrorMessage.collectAsState()
+    val driverBadge = "Driver: ${driverMethod.displayName}"
+
+    val coroutineScope = rememberCoroutineScope()
+
     SettingsRowSpacer()
     PlayerSettingToggleCard(
         title = "Bit-perfect USB audio",
@@ -199,8 +225,93 @@ internal fun GeneralAudioRouteContent(
         checked = state.bitPerfectUsbAudio && isBitPerfectSupported,
         enabled = isBitPerfectSupported,
         descriptionColor = bitPerfectColor,
-        onCheckedChange = actions.onBitPerfectUsbAudioChanged
+        badgeText = driverBadge,
+        errorText = if (driverMethod == BitPerfectDriverMethod.DirectUac) uacLastError else null,
+        onCheckedChange = { targetEnabled ->
+            actions.onBitPerfectUsbAudioChanged(targetEnabled)
+            if (targetEnabled && driverMethod == BitPerfectDriverMethod.DirectUac) {
+                val rawUsb = com.flopster101.siliconplayer.usb.UacDriverCoordinator.findUsbAudioDevice(context)
+                if (rawUsb != null) {
+                    coroutineScope.launch {
+                        val granted = com.flopster101.siliconplayer.usb.UacDriverCoordinator.requestPermission(context, rawUsb)
+                        if (granted) {
+                            com.flopster101.siliconplayer.usb.UacDriverCoordinator.open(context, rawUsb)
+                            val targetRate = NativeBridge.getDecoderRenderSampleRateHz().takeIf { it > 0 } ?: 48000
+                            val targetBitDepth = NativeBridge.getTrackBitDepth().takeIf { it in listOf(16, 24, 32) } ?: 16
+                            val targetChannels = NativeBridge.getTrackChannelCount().takeIf { it > 0 } ?: 2
+                            val ok = com.flopster101.siliconplayer.usb.UacDriverCoordinator.start(targetRate, targetBitDepth, targetChannels)
+                            NativeBridge.setBitPerfectMode(ok)
+                            if (!ok) {
+                                actions.onBitPerfectUsbAudioChanged(false)
+                            }
+                        } else {
+                            actions.onBitPerfectUsbAudioChanged(false)
+                        }
+                    }
+                } else {
+                    actions.onBitPerfectUsbAudioChanged(false)
+                }
+            } else if (!targetEnabled) {
+                com.flopster101.siliconplayer.usb.UacDriverCoordinator.close()
+                BitPerfectCoordinator.clearBitPerfectMixer(context)
+                NativeBridge.setBitPerfectMode(false)
+            }
+        }
     )
+
+    SettingsRowSpacer()
+    SettingsValuePickerCard(
+        title = "Bit-perfect driver mode",
+        description = "Select whether to route via Android's platform audio HAL or the user-space direct UAC driver.",
+        value = driverMethod.displayName,
+        onClick = { showDriverMethodDialog = true }
+    )
+
+    if (showDriverMethodDialog) {
+        SettingsSingleChoiceDialog(
+            title = "Bit-perfect driver mode",
+            selectedValue = driverMethod.storageValue,
+            options = BitPerfectDriverMethod.entries.map {
+                ChoiceDialogOption(
+                    value = it.storageValue,
+                    label = it.displayName
+                )
+            },
+            onSelected = { selectedStorage ->
+                val selected = BitPerfectDriverMethod.fromStorage(selectedStorage, context)
+                driverMethod = selected
+                prefs.edit().putString(AppPreferenceKeys.BIT_PERFECT_DRIVER_METHOD, selected.storageValue).apply()
+                showDriverMethodDialog = false
+                if (state.bitPerfectUsbAudio && selected == BitPerfectDriverMethod.DirectUac) {
+                    val rawUsb = com.flopster101.siliconplayer.usb.UacDriverCoordinator.findUsbAudioDevice(context)
+                    if (rawUsb != null) {
+                        coroutineScope.launch {
+                            val granted = com.flopster101.siliconplayer.usb.UacDriverCoordinator.requestPermission(context, rawUsb)
+                            if (granted) {
+                                com.flopster101.siliconplayer.usb.UacDriverCoordinator.open(context, rawUsb)
+                                val targetRate = NativeBridge.getDecoderRenderSampleRateHz().takeIf { it > 0 } ?: 48000
+                                val targetBitDepth = NativeBridge.getTrackBitDepth().takeIf { it in listOf(16, 24, 32) } ?: 16
+                                val targetChannels = NativeBridge.getTrackChannelCount().takeIf { it > 0 } ?: 2
+                                com.flopster101.siliconplayer.usb.UacDriverCoordinator.start(targetRate, targetBitDepth, targetChannels)
+                                NativeBridge.setBitPerfectMode(true)
+                            }
+                        }
+                    }
+                } else if (state.bitPerfectUsbAudio && selected == BitPerfectDriverMethod.Platform) {
+                    com.flopster101.siliconplayer.usb.UacDriverCoordinator.close()
+                    val usbAudioDevice = BitPerfectCoordinator.findConnectedUsbAudioDevice(context)
+                    if (usbAudioDevice != null && BitPerfectCoordinator.isBitPerfectPlatformSupported()) {
+                        val targetRate = NativeBridge.getDecoderRenderSampleRateHz().takeIf { it > 0 } ?: 48000
+                        val targetChannels = NativeBridge.getTrackChannelCount().takeIf { it > 0 } ?: 2
+                        BitPerfectCoordinator.setPreferredBitPerfectMixer(context, usbAudioDevice, targetRate, targetChannels)
+                        NativeBridge.setBitPerfectMode(true)
+                    }
+                }
+                PlaybackService.refreshSettings(context)
+            },
+            onDismiss = { showDriverMethodDialog = false }
+        )
+    }
 }
 
 @Composable

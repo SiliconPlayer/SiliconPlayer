@@ -69,6 +69,9 @@ object UacDriverCoordinator {
     private val _activeDevice = MutableStateFlow<UsbDevice?>(null)
     val activeDevice: StateFlow<UsbDevice?> = _activeDevice.asStateFlow()
 
+    private val _lastErrorMessage = MutableStateFlow<String?>(null)
+    val lastErrorMessage: StateFlow<String?> = _lastErrorMessage.asStateFlow()
+
     private var activeConnection: UsbDeviceConnection? = null
 
     init {
@@ -89,6 +92,11 @@ object UacDriverCoordinator {
             if (iface.interfaceClass == UsbConstants.USB_CLASS_AUDIO) return true
         }
         return false
+    }
+
+    fun hasPermission(context: Context, device: UsbDevice): Boolean {
+        val usbManager = context.getSystemService(Context.USB_SERVICE) as? UsbManager ?: return false
+        return usbManager.hasPermission(device)
     }
 
     suspend fun requestPermission(context: Context, device: UsbDevice): Boolean {
@@ -133,24 +141,34 @@ object UacDriverCoordinator {
             return false
         }
         close()
-        val conn = usbManager.openDevice(device) ?: run {
+        val conn = try {
+            usbManager.openDevice(device)
+        } catch (e: SecurityException) {
+            Log.e(TAG, "SecurityException in UsbManager.openDevice", e)
+            null
+        } ?: run {
             Log.e(TAG, "UsbManager.openDevice returned null")
+            _lastErrorMessage.value = "Failed to open USB device connection"
             return false
         }
         val fd = conn.fileDescriptor
         if (fd < 0) {
             Log.e(TAG, "Invalid USB connection file descriptor")
             conn.close()
+            _lastErrorMessage.value = "Invalid USB device file descriptor"
             return false
         }
         val ok = UacDriverNative.nativeOpen(fd)
         if (!ok) {
             conn.close()
+            _lastErrorMessage.value = "libusb wrap device failed"
             return false
         }
         activeConnection = conn
         _activeDevice.value = device
         _isOpen.value = true
+        _lastErrorMessage.value = null
+        Log.i(TAG, "Opened USB audio device '${device.deviceName}' (vid=0x${device.vendorId.toString(16)}, pid=0x${device.productId.toString(16)})")
         return true
     }
 
@@ -162,20 +180,39 @@ object UacDriverCoordinator {
             activeConnection = null
             _activeDevice.value = null
             _isOpen.value = false
+            Log.i(TAG, "Closed USB audio device")
         }
     }
 
     fun start(sampleRateHz: Int, bitsPerSample: Int, channels: Int = 2): Boolean {
-        if (!_isOpen.value) return false
+        if (!_isOpen.value) {
+            _lastErrorMessage.value = "USB device is not opened"
+            Log.w(TAG, "start called but USB device is not open")
+            return false
+        }
         val ok = UacDriverNative.nativeStart(sampleRateHz, bitsPerSample, channels)
         _isStreaming.value = ok
+        if (ok) {
+            _lastErrorMessage.value = null
+            Log.i(TAG, "UAC stream successfully started: ${sampleRateHz}Hz ${bitsPerSample}-bit ${channels}ch")
+        } else {
+            val detail = UacDriverNative.nativeLastErrorDetail()
+            val code = UacDriverNative.nativeLastErrorCode()
+            _lastErrorMessage.value = if (!detail.isNullOrBlank()) detail else "Failed to start stream (error $code)"
+            Log.w(TAG, "UAC start failed (code $code): ${_lastErrorMessage.value}")
+        }
         return ok
+    }
+
+    fun clearError() {
+        _lastErrorMessage.value = null
     }
 
     fun stop() {
         if (_isStreaming.value) {
             UacDriverNative.nativeStop()
             _isStreaming.value = false
+            Log.i(TAG, "UAC stream stopped")
         }
     }
 

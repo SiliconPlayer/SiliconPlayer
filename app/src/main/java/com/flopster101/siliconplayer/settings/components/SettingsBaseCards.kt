@@ -248,7 +248,9 @@ internal fun PlayerSettingToggleCard(
     checked: Boolean,
     onCheckedChange: (Boolean) -> Unit,
     enabled: Boolean = true,
-    descriptionColor: Color? = null
+    descriptionColor: Color? = null,
+    badgeText: String? = null,
+    errorText: String? = null
 ) {
     val context = LocalContext.current
     val isWatch = remember(context) { context.packageManager.hasSystemFeature(PackageManager.FEATURE_WATCH) }
@@ -283,6 +285,24 @@ internal fun PlayerSettingToggleCard(
                     text = description,
                     style = MaterialTheme.typography.bodySmall,
                     color = targetDescColor
+                )
+            }
+            if (!badgeText.isNullOrBlank()) {
+                Spacer(modifier = Modifier.height(3.dp))
+                Text(
+                    text = badgeText,
+                    style = MaterialTheme.typography.bodySmall,
+                    fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold,
+                    color = if (enabled) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.38f)
+                )
+            }
+            if (!errorText.isNullOrBlank()) {
+                Spacer(modifier = Modifier.height(2.dp))
+                Text(
+                    text = "Error: $errorText",
+                    style = MaterialTheme.typography.bodySmall,
+                    fontWeight = androidx.compose.ui.text.font.FontWeight.Medium,
+                    color = MaterialTheme.colorScheme.error
                 )
             }
         }

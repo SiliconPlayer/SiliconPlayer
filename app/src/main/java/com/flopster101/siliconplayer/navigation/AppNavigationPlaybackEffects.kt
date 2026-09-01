@@ -159,17 +159,49 @@ internal fun AppNavigationPlaybackEffects(
     }
 
     LaunchedEffect(bitPerfectUsbAudio, selectedFile, isPlaying) {
-        if (bitPerfectUsbAudio && BitPerfectCoordinator.isBitPerfectPlatformSupported()) {
-            val usbDevice = BitPerfectCoordinator.findConnectedUsbAudioDevice(context)
-            if (usbDevice != null) {
-                val targetRate = NativeBridge.getDecoderRenderSampleRateHz().takeIf { it > 0 } ?: 48000
-                BitPerfectCoordinator.setPreferredBitPerfectMixer(context, usbDevice, targetRate)
-                NativeBridge.setBitPerfectMode(true)
+        val driverMethod = BitPerfectDriverMethod.fromStorage(prefs.getString(AppPreferenceKeys.BIT_PERFECT_DRIVER_METHOD, null))
+        if (bitPerfectUsbAudio) {
+            if (driverMethod == BitPerfectDriverMethod.DirectUac) {
+                val rawUsb = com.flopster101.siliconplayer.usb.UacDriverCoordinator.findUsbAudioDevice(context)
+                if (rawUsb != null) {
+                    if (!com.flopster101.siliconplayer.usb.UacDriverCoordinator.isOpen.value) {
+                        val granted = if (com.flopster101.siliconplayer.usb.UacDriverCoordinator.hasPermission(context, rawUsb)) {
+                            true
+                        } else {
+                            com.flopster101.siliconplayer.usb.UacDriverCoordinator.requestPermission(context, rawUsb)
+                        }
+                        if (granted) {
+                            com.flopster101.siliconplayer.usb.UacDriverCoordinator.open(context, rawUsb)
+                        }
+                    }
+                    if (com.flopster101.siliconplayer.usb.UacDriverCoordinator.isOpen.value) {
+                        val targetRate = NativeBridge.getDecoderRenderSampleRateHz().takeIf { it > 0 } ?: 48000
+                        val targetBitDepth = NativeBridge.getTrackBitDepth().takeIf { it in listOf(16, 24, 32) } ?: 16
+                        val targetChannels = NativeBridge.getTrackChannelCount().takeIf { it > 0 } ?: 2
+                        val ok = com.flopster101.siliconplayer.usb.UacDriverCoordinator.start(targetRate, targetBitDepth, targetChannels)
+                        NativeBridge.setBitPerfectMode(ok)
+                    } else {
+                        NativeBridge.setBitPerfectMode(false)
+                    }
+                } else {
+                    NativeBridge.setBitPerfectMode(false)
+                }
+            } else if (BitPerfectCoordinator.isBitPerfectPlatformSupported()) {
+                val usbDevice = BitPerfectCoordinator.findConnectedUsbAudioDevice(context)
+                if (usbDevice != null) {
+                    val targetRate = NativeBridge.getDecoderRenderSampleRateHz().takeIf { it > 0 } ?: 48000
+                    BitPerfectCoordinator.setPreferredBitPerfectMixer(context, usbDevice, targetRate)
+                    NativeBridge.setBitPerfectMode(true)
+                } else {
+                    BitPerfectCoordinator.clearBitPerfectMixer(context)
+                    NativeBridge.setBitPerfectMode(false)
+                }
             } else {
                 BitPerfectCoordinator.clearBitPerfectMixer(context)
                 NativeBridge.setBitPerfectMode(false)
             }
         } else {
+            com.flopster101.siliconplayer.usb.UacDriverCoordinator.close()
             BitPerfectCoordinator.clearBitPerfectMixer(context)
             NativeBridge.setBitPerfectMode(false)
         }
