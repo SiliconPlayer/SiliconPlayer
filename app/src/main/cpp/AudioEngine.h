@@ -231,6 +231,7 @@ public:
     int64_t getTrackBitrate();
     bool isTrackVBR();
     std::string getAudioBackendLabel() const;
+    int getStreamBurstFrames() const;
 
     // Gain control
     void setMasterGain(float gainDb);
@@ -433,7 +434,6 @@ private:
     bool requestStreamStart();
     void requestStreamStop();
     bool isStreamDisconnectedOrClosed() const;
-    int getStreamBurstFrames() const;
     bool createMiniaudioStream();
     void closeMiniaudioStream();
     bool renderOutputCallbackFrames(float* outputData, int32_t numFrames, int callbackRate);

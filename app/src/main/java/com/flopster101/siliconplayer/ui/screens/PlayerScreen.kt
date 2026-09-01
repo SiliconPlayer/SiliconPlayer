@@ -191,6 +191,7 @@ import com.flopster101.siliconplayer.shouldRestartCurrentTrackOnPrevious
 import com.flopster101.siliconplayer.stripRemoteCacheHashPrefix
 import com.flopster101.siliconplayer.tvKeyLongPress
 import com.flopster101.siliconplayer.ui.dialogs.dialogScrollableContentNavigation
+import com.flopster101.siliconplayer.ui.dialogs.AudioOutputDetailsDialog
 import com.flopster101.siliconplayer.ui.dialogs.AudioOutputDeviceDialog
 import com.flopster101.siliconplayer.ui.dialogs.DialogResetButton
 import com.flopster101.siliconplayer.ui.dialogs.DialogSectionLabel
@@ -860,6 +861,7 @@ internal fun PlayerScreen(
     var showVisualizationPickerDialog by remember { mutableStateOf(false) }
     var showVisualizationOptionsSheet by remember { mutableStateOf(false) }
     var showChannelControlDialog by remember { mutableStateOf(false) }
+    var showAudioOutputDetailsDialog by remember { mutableStateOf(false) }
     val context = LocalContext.current
     var showVisualizationModeBadge by remember { mutableStateOf(false) }
     var visualizationModeBadgeText by remember { mutableStateOf(visualizationMode.label) }
@@ -1357,7 +1359,8 @@ internal fun PlayerScreen(
                             showAudioOutputRouteChip = showAudioOutputRouteChip,
                             canOpenPlaylistSelector = canOpenPlaylistSelector,
                             onOpenPlaylistSelector = onOpenPlaylistSelector,
-                            onOpenVisualizationPicker = { showVisualizationPickerDialog = true }
+                            onOpenVisualizationPicker = { showVisualizationPickerDialog = true },
+                            onOpenAudioOutputDetails = { showAudioOutputDetailsDialog = true }
                         )
                     }
                 }
@@ -2239,6 +2242,24 @@ internal fun PlayerScreen(
             onDismiss = { showChannelControlDialog = false }
         )
     }
+    if (showAudioOutputDetailsDialog) {
+        val outputRouteInfo = rememberAudioOutputRouteInfo()
+        AudioOutputDetailsDialog(
+            routeInfo = outputRouteInfo,
+            displayFile = file,
+            sourceId = pathOrUrl,
+            requestUrl = pathOrUrl,
+            decoderName = decoderName,
+            trackSampleRateHz = sampleRateHz,
+            channelCount = channelCount,
+            bitDepthLabel = bitDepthLabel,
+            onOpenAudioSettings = {
+                showAudioOutputDetailsDialog = false
+                openAudioOutputSwitcher(context)
+            },
+            onDismiss = { showAudioOutputDetailsDialog = false }
+        )
+    }
 }
 
 private fun handlePlayerGlobalKeyDown(
@@ -2331,7 +2352,8 @@ private fun PlayerTopBar(
     showAudioOutputRouteChip: Boolean = true,
     canOpenPlaylistSelector: Boolean = true,
     onOpenPlaylistSelector: () -> Unit = {},
-    onOpenVisualizationPicker: () -> Unit = {}
+    onOpenVisualizationPicker: () -> Unit = {},
+    onOpenAudioOutputDetails: () -> Unit = {}
 ) {
     val context = LocalContext.current
     val outputRouteInfo = rememberAudioOutputRouteInfo()
@@ -2423,7 +2445,7 @@ private fun PlayerTopBar(
             if (showAudioOutputRouteChip) {
                 AudioOutputRoutePill(
                     routeInfo = outputRouteInfo,
-                    onClick = { openAudioOutputSwitcher(context) },
+                    onClick = onOpenAudioOutputDetails,
                     compactLayout = compactLandscapeHeader || compactPortraitHeader,
                     maxPillWidth = when {
                         compactLandscapeHeader -> 160.dp

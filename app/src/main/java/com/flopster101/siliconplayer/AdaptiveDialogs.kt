@@ -121,8 +121,10 @@ internal fun adaptiveDialogModifier(): Modifier {
 
     val isLandscape = configuration.orientation == Configuration.ORIENTATION_LANDSCAPE
     if (!isLandscape) {
-        // Portrait baseline matches Core capabilities dialog width.
-        return Modifier.fillMaxWidth(0.85f)
+        // Portrait baseline matches standard MD3 dialog margins.
+        return Modifier
+            .fillMaxWidth(0.92f)
+            .widthIn(max = 520.dp)
     }
 
     val landscapeWidthFraction = when {

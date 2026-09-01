@@ -263,6 +263,7 @@ object NativeBridge {
     external fun getTrackBitrate(): Long
     external fun isTrackVBR(): Boolean
     external fun getAudioBackendLabel(): String
+    external fun getStreamBurstFrames(): Int
     external fun setCoreOutputSampleRate(coreName: String, sampleRateHz: Int)
     external fun setCoreOption(coreName: String, optionName: String, optionValue: String)
     external fun getCoreCapabilities(coreName: String): Int

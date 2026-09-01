@@ -2263,6 +2263,14 @@ Java_com_flopster101_siliconplayer_NativeBridge_getAudioBackendLabel(JNIEnv* env
     return toJString(env, audioEngine->getAudioBackendLabel());
 }
 
+extern "C" JNIEXPORT jint JNICALL
+Java_com_flopster101_siliconplayer_NativeBridge_getStreamBurstFrames(JNIEnv* env, jobject thiz) {
+    if (audioEngine == nullptr) {
+        return 0;
+    }
+    return audioEngine->getStreamBurstFrames();
+}
+
 extern "C" JNIEXPORT jfloatArray JNICALL
 Java_com_flopster101_siliconplayer_NativeBridge_getVisualizationWaveformScope(
         JNIEnv* env, jobject, jint channelIndex, jint windowMs, jint triggerMode) {
