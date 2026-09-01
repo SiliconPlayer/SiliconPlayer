@@ -10,6 +10,7 @@ import android.util.LruCache
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.asImageBitmap
 import com.hierynomus.msdtyp.AccessMask
+import com.hierynomus.msfscc.fileinformation.FileDirectoryInformation
 import com.hierynomus.msfscc.fileinformation.FileStandardInformation
 import com.hierynomus.mssmb2.SMB2CreateDisposition
 import com.hierynomus.mssmb2.SMB2ShareAccess
@@ -174,13 +175,13 @@ internal fun loadArtworkBitmapForSource(
             }
         }
         if (scheme == "smb" && !artworkRequestUrl.isNullOrBlank()) {
-            loadFolderArtworkFromSmb(artworkRequestUrl)?.let {
+            loadEmbeddedArtworkFromSmb(artworkRequestUrl)?.let {
                 cacheArtworkBitmapForSource(displayFile, sourceId, requestUrl, it)
                 return it
             }
         }
         if (scheme == "smb" && !artworkRequestUrl.isNullOrBlank()) {
-            loadEmbeddedArtworkFromSmb(artworkRequestUrl)?.let {
+            loadFolderArtworkFromSmb(artworkRequestUrl)?.let {
                 cacheArtworkBitmapForSource(displayFile, sourceId, requestUrl, it)
                 return it
             }
@@ -271,35 +272,74 @@ private fun loadFolderArtworkFromSmb(requestUri: String): Bitmap? {
     val normalizedPath = normalizeSmbPathForShare(spec.path).orEmpty()
     if (spec.share.isBlank() || normalizedPath.isBlank()) return null
     val parentPath = normalizedPath.substringBeforeLast('/', missingDelimiterValue = "").trim()
-    return FOLDER_ARTWORK_FILE_NAMES.firstNotNullOfOrNull { artworkName ->
-        val artworkPath = joinSmbRelativePath(parentPath, artworkName)
-        loadBitmapFromSmbFile(spec.copy(path = artworkPath))
+    val credentialedSpec = NetworkCredentialStore.applyTo(spec)
+    return try {
+        withAppSmbSession(credentialedSpec) { session ->
+            val share = session.connectShare(credentialedSpec.share)
+            if (share !is DiskShare) {
+                runCatching { share.close() }
+                return@withAppSmbSession null
+            }
+            try {
+                val listPath = normalizeSmbPathForShare(parentPath).orEmpty()
+                val rawEntries = runCatching {
+                    share.list(listPath, FileDirectoryInformation::class.java)
+                }.getOrNull() ?: return@withAppSmbSession null
+
+                val fileNames = rawEntries.mapNotNull { entry ->
+                    val name = entry.fileName?.trim().orEmpty()
+                    if (name.isBlank() || name == "." || name == "..") null else name
+                }
+
+                val matchedName = FOLDER_ARTWORK_FILE_NAMES.firstNotNullOfOrNull { candidate ->
+                    fileNames.firstOrNull { it.equals(candidate, ignoreCase = true) }
+                } ?: return@withAppSmbSession null
+
+                val artworkPath = joinSmbRelativePath(parentPath, matchedName)
+                loadBitmapFromDiskShare(share, artworkPath)
+            } finally {
+                runCatching { share.close() }
+            }
+        }
+    } catch (_: Throwable) {
+        null
     }
 }
 
-private fun loadBitmapFromSmbFile(spec: SmbSourceSpec): Bitmap? {
-    val credentialedSpec = NetworkCredentialStore.applyTo(spec)
-    val remotePath = normalizeSmbPathForShare(credentialedSpec.path).orEmpty()
-    if (credentialedSpec.share.isBlank() || remotePath.isBlank()) return null
-    return withOpenedSmbFile(credentialedSpec, remotePath) { _, smbFile, _ ->
-        val input = runCatching { smbFile.inputStream }.getOrNull() ?: return@withOpenedSmbFile null
-        try {
-            val output = ByteArrayOutputStream()
-            val buffer = ByteArray(16 * 1024)
-            var total = 0
-            while (true) {
-                val read = input.read(buffer)
-                if (read <= 0) break
-                total += read
-                if (total > MAX_REMOTE_ARTWORK_BYTES) return@withOpenedSmbFile null
-                output.write(buffer, 0, read)
-            }
-            decodeScaledBitmapFromBytes(output.toByteArray())
-        } catch (_: Throwable) {
+private fun loadBitmapFromDiskShare(share: DiskShare, remotePath: String): Bitmap? {
+    val normalizedPath = normalizeSmbPathForShare(remotePath).orEmpty()
+    if (normalizedPath.isBlank()) return null
+    return try {
+        val smbFile = share.openFile(
+            normalizedPath,
+            setOf(AccessMask.GENERIC_READ),
+            null,
+            SMB2ShareAccess.ALL,
+            SMB2CreateDisposition.FILE_OPEN,
             null
+        )
+        try {
+            val input = smbFile.inputStream ?: return null
+            try {
+                val output = ByteArrayOutputStream()
+                val buffer = ByteArray(16 * 1024)
+                var total = 0
+                while (true) {
+                    val read = input.read(buffer)
+                    if (read <= 0) break
+                    total += read
+                    if (total > MAX_REMOTE_ARTWORK_BYTES) return null
+                    output.write(buffer, 0, read)
+                }
+                decodeScaledBitmapFromBytes(output.toByteArray())
+            } finally {
+                runCatching { input.close() }
+            }
         } finally {
-            runCatching { input.close() }
+            runCatching { smbFile.close() }
         }
+    } catch (_: Throwable) {
+        null
     }
 }
 
@@ -350,17 +390,52 @@ private class SmbRetrieverDataSource(
     @Volatile
     private var closed = false
 
-    override fun readAt(position: Long, buffer: ByteArray, offset: Int, size: Int): Int {
-        if (closed || position < 0L || offset !in 0..buffer.size || size <= 0) return -1
+    private val bufferLock = Any()
+    private val buffer = ByteArray(512 * 1024)
+    private var bufferStart: Long = -1L
+    private var bufferLength: Int = 0
+
+    override fun readAt(position: Long, dest: ByteArray, offset: Int, size: Int): Int {
+        if (closed || position < 0L || offset !in 0..dest.size || size <= 0) return -1
         if (position >= sizeBytes) return -1
-        val maxReadable = (buffer.size - offset).coerceAtLeast(0)
-        val clampedSize = size.coerceAtMost(maxReadable)
-        if (clampedSize <= 0) return -1
-        return try {
-            val read = smbFile.read(buffer, position, offset, clampedSize)
-            if (read <= 0) -1 else read
-        } catch (_: Throwable) {
-            -1
+        val maxReadable = (dest.size - offset).coerceAtLeast(0)
+        val requestedSize = size.coerceAtMost(maxReadable).toLong().coerceAtMost(sizeBytes - position).toInt()
+        if (requestedSize <= 0) return -1
+
+        synchronized(bufferLock) {
+            if (closed) return -1
+            if (bufferStart >= 0L && position >= bufferStart && position + requestedSize <= bufferStart + bufferLength) {
+                val bufferOffset = (position - bufferStart).toInt()
+                System.arraycopy(buffer, bufferOffset, dest, offset, requestedSize)
+                return requestedSize
+            }
+
+            if (requestedSize > buffer.size) {
+                return try {
+                    val read = smbFile.read(dest, position, offset, requestedSize)
+                    if (read <= 0) -1 else read
+                } catch (_: Throwable) {
+                    -1
+                }
+            }
+
+            val toRead = buffer.size.toLong().coerceAtMost(sizeBytes - position).toInt()
+            val read = try {
+                smbFile.read(buffer, position, 0, toRead)
+            } catch (_: Throwable) {
+                -1
+            }
+            if (read <= 0) {
+                bufferStart = -1L
+                bufferLength = 0
+                return -1
+            }
+            bufferStart = position
+            bufferLength = read
+
+            val copyCount = requestedSize.coerceAtMost(read)
+            System.arraycopy(buffer, 0, dest, offset, copyCount)
+            return copyCount
         }
     }
 
@@ -368,6 +443,10 @@ private class SmbRetrieverDataSource(
 
     override fun close() {
         closed = true
+        synchronized(bufferLock) {
+            bufferStart = -1L
+            bufferLength = 0
+        }
     }
 }
 
