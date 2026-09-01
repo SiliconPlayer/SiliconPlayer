@@ -23,9 +23,9 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.VolumeUp
+import androidx.compose.material.icons.filled.AudioFile
 import androidx.compose.material.icons.filled.Bluetooth
 import androidx.compose.material.icons.filled.Headphones
-import androidx.compose.material.icons.filled.MusicNote
 import androidx.compose.material.icons.filled.Usb
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
@@ -67,6 +67,11 @@ import com.flopster101.siliconplayer.isWatchDevice
 import com.flopster101.siliconplayer.buildDecoderExtensionArtworkHintMap
 import com.flopster101.siliconplayer.decoderArtworkHintForName
 import com.flopster101.siliconplayer.resolveDecoderArtworkHintForFileName
+import com.flopster101.siliconplayer.REMOTE_SOURCE_CACHE_DIR
+import com.flopster101.siliconplayer.isCachedRemoteSourceFile
+import com.flopster101.siliconplayer.sourceIdForCachedFileName
+import com.flopster101.siliconplayer.stripRemoteCacheHashPrefix
+import com.flopster101.siliconplayer.decodePercentEncodedForDisplay
 import com.flopster101.siliconplayer.AudioBackendPreference
 import com.flopster101.siliconplayer.AudioBufferPreset
 import com.flopster101.siliconplayer.AudioResamplerPreference
@@ -130,8 +135,46 @@ internal fun AudioOutputDetailsDialog(
         AudioResamplerPreference.fromStorage(prefs.getString(AppPreferenceKeys.AUDIO_RESAMPLER_PREFERENCE, null))
     }
 
+    val cacheRoot = remember(context) { File(context.cacheDir, REMOTE_SOURCE_CACHE_DIR) }
+    val resolvedSourceId = remember(displayFile, sourceId, requestUrl) {
+        val direct = sourceId?.trim()?.takeIf { it.isNotBlank() } ?: requestUrl?.trim()?.takeIf { it.isNotBlank() }
+        if (direct != null && (direct.startsWith("smb://", ignoreCase = true) || direct.startsWith("http://", ignoreCase = true) || direct.startsWith("https://", ignoreCase = true))) {
+            direct
+        } else if (displayFile != null && isCachedRemoteSourceFile(displayFile)) {
+            sourceIdForCachedFileName(cacheRoot, displayFile.name) ?: direct
+        } else {
+            direct
+        }
+    }
+
     val effectiveDecoderName = decoderName?.takeIf { it.isNotBlank() } ?: "Unknown"
-    val effectiveFileName = displayFile?.name ?: sourceId?.substringAfterLast('/')?.takeIf { it.isNotBlank() } ?: "Unknown audio"
+    val effectiveFileName = remember(displayFile, resolvedSourceId, sourceId, requestUrl) {
+        val candidate = when {
+            resolvedSourceId != null && (resolvedSourceId.startsWith("smb://", ignoreCase = true) || resolvedSourceId.startsWith("http://", ignoreCase = true) || resolvedSourceId.startsWith("https://", ignoreCase = true)) -> {
+                val leaf = resolvedSourceId.substringAfterLast('/').trim()
+                decodePercentEncodedForDisplay(leaf) ?: leaf
+            }
+            displayFile != null -> {
+                val stripped = stripRemoteCacheHashPrefix(displayFile.name)
+                decodePercentEncodedForDisplay(stripped) ?: stripped
+            }
+            sourceId != null -> {
+                val leaf = stripRemoteCacheHashPrefix(sourceId.substringAfterLast('/').trim())
+                decodePercentEncodedForDisplay(leaf) ?: leaf
+            }
+            requestUrl != null -> {
+                val leaf = stripRemoteCacheHashPrefix(requestUrl.substringAfterLast('/').trim())
+                decodePercentEncodedForDisplay(leaf) ?: leaf
+            }
+            else -> "Unknown audio"
+        }
+        if (candidate.isBlank() || candidate == "remote") {
+            val fallbackLeaf = resolvedSourceId?.substringAfterLast('/')?.trim()
+            fallbackLeaf?.let { decodePercentEncodedForDisplay(it) ?: it }?.takeIf { it.isNotBlank() && it != "remote" } ?: candidate
+        } else {
+            candidate
+        }
+    }
     val effectiveTrackRate = if (trackSampleRateHz > 0) trackSampleRateHz else (decoderRenderRateHz.takeIf { it > 0 } ?: 48000)
     val effectiveDecoderRate = if (decoderRenderRateHz > 0) decoderRenderRateHz else effectiveTrackRate
     val effectiveOutputRate = if (outputStreamRateHz > 0) outputStreamRateHz else 48000
@@ -170,9 +213,24 @@ internal fun AudioOutputDetailsDialog(
     val isResamplingActive = effectiveDecoderRate > 0 && effectiveOutputRate > 0 && effectiveDecoderRate != effectiveOutputRate
 
     val storageSourceLabel = when {
-        sourceId?.startsWith("smb://", ignoreCase = true) == true || requestUrl?.startsWith("smb://", ignoreCase = true) == true -> "SMB share"
-        sourceId?.startsWith("http://", ignoreCase = true) == true || sourceId?.startsWith("https://", ignoreCase = true) == true ||
-        requestUrl?.startsWith("http://", ignoreCase = true) == true || requestUrl?.startsWith("https://", ignoreCase = true) == true -> "HTTP stream"
+        resolvedSourceId?.startsWith("smb://", ignoreCase = true) == true ||
+        sourceId?.startsWith("smb://", ignoreCase = true) == true ||
+        requestUrl?.startsWith("smb://", ignoreCase = true) == true -> "SMB share"
+
+        resolvedSourceId?.startsWith("http://", ignoreCase = true) == true ||
+        resolvedSourceId?.startsWith("https://", ignoreCase = true) == true ||
+        sourceId?.startsWith("http://", ignoreCase = true) == true ||
+        sourceId?.startsWith("https://", ignoreCase = true) == true ||
+        requestUrl?.startsWith("http://", ignoreCase = true) == true ||
+        requestUrl?.startsWith("https://", ignoreCase = true) == true -> "HTTP stream"
+
+        displayFile != null && isCachedRemoteSourceFile(displayFile) -> {
+            val cachedSource = sourceIdForCachedFileName(cacheRoot, displayFile.name)
+            if (cachedSource?.startsWith("smb://", ignoreCase = true) == true) "SMB share"
+            else if (cachedSource?.startsWith("http://", ignoreCase = true) == true || cachedSource?.startsWith("https://", ignoreCase = true) == true) "HTTP stream"
+            else "Local storage"
+        }
+
         else -> "Local storage"
     }
 
@@ -386,7 +444,7 @@ internal fun AudioOutputDetailsDialog(
                                             }
                                             else -> {
                                                 Icon(
-                                                    imageVector = Icons.Default.MusicNote,
+                                                    imageVector = Icons.Default.AudioFile,
                                                     contentDescription = null,
                                                     modifier = Modifier.size(18.dp),
                                                     tint = MaterialTheme.colorScheme.primary
