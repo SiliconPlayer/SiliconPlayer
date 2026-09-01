@@ -30,6 +30,8 @@ object AppDefaults {
 
     object OutputPipeline {
         const val bitPerfectUsbAudio = false
+        val directUacVolumeMode = com.flopster101.siliconplayer.usb.DirectUacVolumeMode.System
+        const val directUacManualVolume = 1.0f
     }
 
     object AudioProcessing {

@@ -17,6 +17,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -31,15 +32,21 @@ import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.HorizontalDivider
+import androidx.compose.foundation.clickable
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Slider
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
+import com.flopster101.siliconplayer.ChoiceDialogOption
+import com.flopster101.siliconplayer.SettingsSingleChoiceDialog
+import com.flopster101.siliconplayer.usb.DirectUacVolumeMode
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -133,6 +140,11 @@ internal fun AudioOutputDetailsDialog(
     val uacDiagnostics = remember(isUacStreaming, isUacDriverOpen) {
         if (isUacDriverOpen) UacDriverCoordinator.getDiagnostics() else null
     }
+    val uacVolumeMode by UacDriverCoordinator.volumeMode.collectAsState()
+    val uacManualVolume by UacDriverCoordinator.manualVolume.collectAsState()
+    val uacEffectiveVolumeScale by UacDriverCoordinator.effectiveVolumeScale.collectAsState()
+    var showVolumeModeDialog by remember { mutableStateOf(false) }
+
     val coroutineScope = rememberCoroutineScope()
     var showRestartConfirmDialog by remember { mutableStateOf(false) }
     var pendingBitPerfectState by remember { mutableStateOf(false) }
@@ -776,6 +788,77 @@ internal fun AudioOutputDetailsDialog(
                                             }
                                         }
                                     }
+
+                                    if (bitPerfectEnabled && isBitPerfectSupported && driverMethod == BitPerfectDriverMethod.DirectUac) {
+                                        HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.2f))
+
+                                        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                                            Row(
+                                                modifier = Modifier.fillMaxWidth(),
+                                                horizontalArrangement = Arrangement.SpaceBetween,
+                                                verticalAlignment = Alignment.CenterVertically
+                                            ) {
+                                                Column(modifier = Modifier.weight(1f)) {
+                                                    Text(
+                                                        text = "DAC Volume Scaling",
+                                                        style = MaterialTheme.typography.labelMedium,
+                                                        fontWeight = FontWeight.SemiBold,
+                                                        color = MaterialTheme.colorScheme.onSurface
+                                                    )
+                                                    Text(
+                                                        text = when (uacVolumeMode) {
+                                                            DirectUacVolumeMode.None -> "None (0 dBFS unity gain)"
+                                                            DirectUacVolumeMode.System -> "Match Android system volume"
+                                                            DirectUacVolumeMode.Manual -> "Manual slider"
+                                                        },
+                                                        style = MaterialTheme.typography.bodySmall,
+                                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                                    )
+                                                }
+                                                FilledTonalButton(
+                                                    onClick = { showVolumeModeDialog = true },
+                                                    shape = RoundedCornerShape(12.dp),
+                                                    contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp)
+                                                ) {
+                                                    Text(
+                                                        text = uacVolumeMode.displayName,
+                                                        style = MaterialTheme.typography.labelMedium,
+                                                        fontWeight = FontWeight.SemiBold
+                                                    )
+                                                }
+                                            }
+
+                                            if (uacVolumeMode == DirectUacVolumeMode.Manual) {
+                                                Row(
+                                                    modifier = Modifier.fillMaxWidth(),
+                                                    verticalAlignment = Alignment.CenterVertically,
+                                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                                ) {
+                                                    Icon(
+                                                        imageVector = Icons.AutoMirrored.Filled.VolumeUp,
+                                                        contentDescription = null,
+                                                        modifier = Modifier.size(18.dp),
+                                                        tint = MaterialTheme.colorScheme.primary
+                                                    )
+                                                    Slider(
+                                                        value = uacManualVolume,
+                                                        onValueChange = { newVol ->
+                                                            UacDriverCoordinator.setManualVolume(context, newVol)
+                                                        },
+                                                        valueRange = 0f..1f,
+                                                        modifier = Modifier.weight(1f)
+                                                    )
+                                                    Text(
+                                                        text = "${(uacManualVolume * 100).toInt()}%",
+                                                        style = MaterialTheme.typography.labelMedium.copy(fontFeatureSettings = "tnum"),
+                                                        fontWeight = FontWeight.Bold,
+                                                        color = MaterialTheme.colorScheme.primary,
+                                                        modifier = Modifier.width(36.dp)
+                                                    )
+                                                }
+                                            }
+                                        }
+                                    }
                                 }
                             }
                         }
@@ -858,6 +941,25 @@ internal fun AudioOutputDetailsDialog(
                     Text("Keep playing")
                 }
             }
+        )
+    }
+
+    if (showVolumeModeDialog) {
+        SettingsSingleChoiceDialog(
+            title = "DAC Volume Scaling",
+            selectedValue = uacVolumeMode.storageValue,
+            options = DirectUacVolumeMode.entries.map {
+                ChoiceDialogOption(
+                    value = it.storageValue,
+                    label = it.displayName
+                )
+            },
+            onSelected = { selectedStorage ->
+                val selected = DirectUacVolumeMode.fromStorage(selectedStorage)
+                UacDriverCoordinator.setVolumeMode(context, selected)
+                showVolumeModeDialog = false
+            },
+            onDismiss = { showVolumeModeDialog = false }
         )
     }
 }

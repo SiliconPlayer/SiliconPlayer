@@ -24,4 +24,6 @@ internal object UacDriverNative {
     external fun nativeLastErrorDetail(): String?
     external fun nativeSupportedRates(): IntArray?
     external fun nativeFormatDiagnostics(): LongArray?
+    external fun nativeSetVolumeScale(scale: Float)
+    external fun nativeGetVolumeScale(): Float
 }

@@ -29,6 +29,8 @@ internal object AppPreferenceKeys {
     const val AUDIO_ALLOW_BACKEND_FALLBACK = "audio_allow_backend_fallback"
     const val BIT_PERFECT_USB_AUDIO = "bit_perfect_usb_audio"
     const val BIT_PERFECT_DRIVER_METHOD = "bit_perfect_driver_method"
+    const val DIRECT_UAC_VOLUME_MODE = "direct_uac_volume_mode"
+    const val DIRECT_UAC_MANUAL_VOLUME = "direct_uac_manual_volume"
     const val OPEN_PLAYER_FROM_NOTIFICATION = "open_player_from_notification"
     const val PERSIST_REPEAT_MODE = "persist_repeat_mode"
     const val FADE_PAUSE_RESUME = "fade_pause_resume"

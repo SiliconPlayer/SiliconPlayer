@@ -9,8 +9,10 @@ import android.hardware.usb.UsbConstants
 import android.hardware.usb.UsbDevice
 import android.hardware.usb.UsbDeviceConnection
 import android.hardware.usb.UsbManager
+import android.media.AudioManager
 import android.os.Build
 import android.util.Log
+import com.flopster101.siliconplayer.AppPreferenceKeys
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -71,6 +73,22 @@ object UacDriverCoordinator {
 
     private val _lastErrorMessage = MutableStateFlow<String?>(null)
     val lastErrorMessage: StateFlow<String?> = _lastErrorMessage.asStateFlow()
+
+    private val _volumeMode = MutableStateFlow(DirectUacVolumeMode.System)
+    val volumeMode: StateFlow<DirectUacVolumeMode> = _volumeMode.asStateFlow()
+
+    private val _manualVolume = MutableStateFlow(1.0f)
+    val manualVolume: StateFlow<Float> = _manualVolume.asStateFlow()
+
+    private val _effectiveVolumeScale = MutableStateFlow(1.0f)
+    val effectiveVolumeScale: StateFlow<Float> = _effectiveVolumeScale.asStateFlow()
+
+    private var volumeReceiverRegistered = false
+    private val volumeReceiver = object : BroadcastReceiver() {
+        override fun onReceive(context: Context?, intent: Intent?) {
+            context?.let { syncVolume(it) }
+        }
+    }
 
     private var activeConnection: UsbDeviceConnection? = null
 
@@ -168,6 +186,8 @@ object UacDriverCoordinator {
         _activeDevice.value = device
         _isOpen.value = true
         _lastErrorMessage.value = null
+        registerVolumeReceiver(context)
+        syncVolume(context)
         Log.i(TAG, "Opened USB audio device '${device.deviceName}' (vid=0x${device.vendorId.toString(16)}, pid=0x${device.productId.toString(16)})")
         return true
     }
@@ -202,6 +222,88 @@ object UacDriverCoordinator {
             Log.w(TAG, "UAC start failed (code $code): ${_lastErrorMessage.value}")
         }
         return ok
+    }
+
+    fun registerVolumeReceiver(context: Context) {
+        if (volumeReceiverRegistered) return
+        val filter = IntentFilter("android.media.VOLUME_CHANGED_ACTION").apply {
+            addAction("android.media.EXTRA_VOLUME_STREAM_TYPE")
+        }
+        val appCtx = context.applicationContext
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            appCtx.registerReceiver(volumeReceiver, filter, Context.RECEIVER_NOT_EXPORTED)
+        } else {
+            @Suppress("UnspecifiedRegisterReceiverFlag")
+            appCtx.registerReceiver(volumeReceiver, filter)
+        }
+        volumeReceiverRegistered = true
+        syncVolume(appCtx)
+    }
+
+    fun unregisterVolumeReceiver(context: Context) {
+        if (!volumeReceiverRegistered) return
+        runCatching { context.applicationContext.unregisterReceiver(volumeReceiver) }
+        volumeReceiverRegistered = false
+    }
+
+    fun setVolumeMode(context: Context, mode: DirectUacVolumeMode) {
+        _volumeMode.value = mode
+        val prefs = context.getSharedPreferences(AppPreferenceKeys.PREFS_NAME, Context.MODE_PRIVATE)
+        prefs.edit().putString(AppPreferenceKeys.DIRECT_UAC_VOLUME_MODE, mode.storageValue).apply()
+        syncVolume(context)
+    }
+
+    fun setManualVolume(context: Context, volume: Float) {
+        val clamped = volume.coerceIn(0f, 1f)
+        _manualVolume.value = clamped
+        val prefs = context.getSharedPreferences(AppPreferenceKeys.PREFS_NAME, Context.MODE_PRIVATE)
+        prefs.edit().putFloat(AppPreferenceKeys.DIRECT_UAC_MANUAL_VOLUME, clamped).apply()
+        syncVolume(context)
+    }
+
+    fun syncVolume(context: Context) {
+        val prefs = context.getSharedPreferences(AppPreferenceKeys.PREFS_NAME, Context.MODE_PRIVATE)
+        val mode = DirectUacVolumeMode.fromStorage(prefs.getString(AppPreferenceKeys.DIRECT_UAC_VOLUME_MODE, DirectUacVolumeMode.System.storageValue))
+        _volumeMode.value = mode
+        val manualVol = prefs.getFloat(AppPreferenceKeys.DIRECT_UAC_MANUAL_VOLUME, 1.0f).coerceIn(0f, 1f)
+        _manualVolume.value = manualVol
+
+        val scale = when (mode) {
+            DirectUacVolumeMode.None -> 1.0f
+            DirectUacVolumeMode.Manual -> manualVol
+            DirectUacVolumeMode.System -> {
+                val am = context.getSystemService(Context.AUDIO_SERVICE) as? AudioManager
+                if (am != null) {
+                    val max = am.getStreamMaxVolume(AudioManager.STREAM_MUSIC)
+                    val cur = am.getStreamVolume(AudioManager.STREAM_MUSIC)
+                    val min = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) am.getStreamMinVolume(AudioManager.STREAM_MUSIC) else 0
+                    if (cur <= min) {
+                        0.0f
+                    } else {
+                        var computedScale: Float? = null
+                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+                            try {
+                                val db = am.getStreamVolumeDb(AudioManager.STREAM_MUSIC, cur, android.media.AudioDeviceInfo.TYPE_USB_DEVICE)
+                                if (!db.isNaN() && db <= 0.0f && db > -120.0f) {
+                                    computedScale = Math.pow(10.0, db.toDouble() / 20.0).toFloat().coerceIn(0f, 1f)
+                                }
+                            } catch (_: Throwable) {}
+                        }
+                        if (computedScale != null) {
+                            computedScale
+                        } else {
+                            val range = (max - min).coerceAtLeast(1)
+                            val normalized = ((cur - min).toFloat() / range.toFloat()).coerceIn(0f, 1f)
+                            normalized * normalized * normalized
+                        }
+                    }
+                } else {
+                    1.0f
+                }
+            }
+        }
+        _effectiveVolumeScale.value = scale
+        UacDriverNative.nativeSetVolumeScale(scale)
     }
 
     fun clearError() {

@@ -316,6 +316,7 @@ class PlaybackService : Service() {
                                 val targetBitDepth = NativeBridge.getTrackBitDepth().takeIf { it in listOf(16, 24, 32) } ?: 16
                                 val targetChannels = NativeBridge.getTrackChannelCount().takeIf { it > 0 } ?: 2
                                 val ok = com.flopster101.siliconplayer.usb.UacDriverCoordinator.start(targetRate, targetBitDepth, targetChannels)
+                                if (ok) com.flopster101.siliconplayer.usb.UacDriverCoordinator.syncVolume(this)
                                 NativeBridge.setBitPerfectMode(ok)
                             } else {
                                 NativeBridge.setBitPerfectMode(false)
@@ -452,6 +453,7 @@ class PlaybackService : Service() {
                                 val targetBitDepth = NativeBridge.getTrackBitDepth().takeIf { it in listOf(16, 24, 32) } ?: 16
                                 val targetChannels = NativeBridge.getTrackChannelCount().takeIf { it > 0 } ?: 2
                                 val ok = com.flopster101.siliconplayer.usb.UacDriverCoordinator.start(targetRate, targetBitDepth, targetChannels)
+                                if (ok) com.flopster101.siliconplayer.usb.UacDriverCoordinator.syncVolume(this@PlaybackService)
                                 NativeBridge.setBitPerfectMode(ok)
                             } else {
                                 NativeBridge.setBitPerfectMode(false)

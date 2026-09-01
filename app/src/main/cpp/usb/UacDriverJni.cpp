@@ -138,4 +138,16 @@ Java_com_flopster101_siliconplayer_usb_UacDriverNative_nativeFormatDiagnostics(J
     return arr;
 }
 
+JNIEXPORT void JNICALL
+Java_com_flopster101_siliconplayer_usb_UacDriverNative_nativeSetVolumeScale(
+    JNIEnv*, jobject, jfloat scale) {
+    driver().setVolumeScale(static_cast<float>(scale));
+}
+
+JNIEXPORT jfloat JNICALL
+Java_com_flopster101_siliconplayer_usb_UacDriverNative_nativeGetVolumeScale(
+    JNIEnv*, jobject) {
+    return static_cast<jfloat>(driver().volumeScale());
+}
+
 } // extern "C"

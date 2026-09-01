@@ -379,16 +379,23 @@ void AudioEngine::miniaudioDataCallback(
         static thread_local std::vector<uint8_t> pcmBuf;
         if (pcmBuf.size() < totalBytes) pcmBuf.resize(totalBytes);
 
+        const float volScale = uac.volumeScale();
+        const bool applyVol = (volScale < 0.9999f || volScale > 1.0001f);
+
         if (subslot == 2) {
             auto* dst = reinterpret_cast<int16_t*>(pcmBuf.data());
             for (size_t i = 0; i < frameCount * ch; ++i) {
-                float sample = std::clamp(outputData[i], -1.0f, 1.0f);
+                float sample = outputData[i];
+                if (applyVol) sample *= volScale;
+                sample = std::clamp(sample, -1.0f, 1.0f);
                 dst[i] = static_cast<int16_t>(sample * 32767.0f);
             }
         } else if (subslot == 3) {
             uint8_t* dst = pcmBuf.data();
             for (size_t i = 0; i < frameCount * ch; ++i) {
-                float sample = std::clamp(outputData[i], -1.0f, 1.0f);
+                float sample = outputData[i];
+                if (applyVol) sample *= volScale;
+                sample = std::clamp(sample, -1.0f, 1.0f);
                 int32_t s24 = static_cast<int32_t>(sample * 8388607.0f);
                 dst[i * 3 + 0] = static_cast<uint8_t>(s24 & 0xFF);
                 dst[i * 3 + 1] = static_cast<uint8_t>((s24 >> 8) & 0xFF);
@@ -398,13 +405,17 @@ void AudioEngine::miniaudioDataCallback(
             if (fmt.bitsPerSample == 24) {
                 auto* dst = reinterpret_cast<int32_t*>(pcmBuf.data());
                 for (size_t i = 0; i < frameCount * ch; ++i) {
-                    float sample = std::clamp(outputData[i], -1.0f, 1.0f);
+                    float sample = outputData[i];
+                    if (applyVol) sample *= volScale;
+                    sample = std::clamp(sample, -1.0f, 1.0f);
                     dst[i] = static_cast<int32_t>(sample * 8388607.0f) << 8;
                 }
             } else {
                 auto* dst = reinterpret_cast<int32_t*>(pcmBuf.data());
                 for (size_t i = 0; i < frameCount * ch; ++i) {
-                    float sample = std::clamp(outputData[i], -1.0f, 1.0f);
+                    float sample = outputData[i];
+                    if (applyVol) sample *= volScale;
+                    sample = std::clamp(sample, -1.0f, 1.0f);
                     dst[i] = static_cast<int32_t>(sample * 2147483647.0f);
                 }
             }

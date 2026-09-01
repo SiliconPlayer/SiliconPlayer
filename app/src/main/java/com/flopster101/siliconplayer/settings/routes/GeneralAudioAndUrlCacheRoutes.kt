@@ -267,6 +267,19 @@ internal fun GeneralAudioRouteContent(
         onClick = { showDriverMethodDialog = true }
     )
 
+    var showVolumeModeDialog by remember { mutableStateOf(false) }
+    val uacVolumeMode by com.flopster101.siliconplayer.usb.UacDriverCoordinator.volumeMode.collectAsState()
+
+    if (driverMethod == BitPerfectDriverMethod.DirectUac) {
+        SettingsRowSpacer()
+        SettingsValuePickerCard(
+            title = "Direct UAC volume scaling",
+            description = "Choose how output volume sent to the USB DAC is scaled.",
+            value = uacVolumeMode.displayName,
+            onClick = { showVolumeModeDialog = true }
+        )
+    }
+
     if (showDriverMethodDialog) {
         SettingsSingleChoiceDialog(
             title = "Bit-perfect driver mode",
@@ -310,6 +323,25 @@ internal fun GeneralAudioRouteContent(
                 PlaybackService.refreshSettings(context)
             },
             onDismiss = { showDriverMethodDialog = false }
+        )
+    }
+
+    if (showVolumeModeDialog) {
+        SettingsSingleChoiceDialog(
+            title = "Direct UAC volume scaling",
+            selectedValue = uacVolumeMode.storageValue,
+            options = com.flopster101.siliconplayer.usb.DirectUacVolumeMode.entries.map {
+                ChoiceDialogOption(
+                    value = it.storageValue,
+                    label = it.displayName
+                )
+            },
+            onSelected = { selectedStorage ->
+                val selected = com.flopster101.siliconplayer.usb.DirectUacVolumeMode.fromStorage(selectedStorage)
+                com.flopster101.siliconplayer.usb.UacDriverCoordinator.setVolumeMode(context, selected)
+                showVolumeModeDialog = false
+            },
+            onDismiss = { showVolumeModeDialog = false }
         )
     }
 }

@@ -77,6 +77,13 @@ public:
     std::string lastErrorDetail() const;
     std::vector<ClockRateRange> supportedRates() const;
 
+    void setVolumeScale(float scale) {
+        volumeScale_.store(std::clamp(scale, 0.0f, 1.0f), std::memory_order_release);
+    }
+    float volumeScale() const {
+        return volumeScale_.load(std::memory_order_acquire);
+    }
+
 private:
     bool selectAltSetting(int sampleRateHz, int bitsPerSample, int channels, StreamFormat* outFmt);
     bool setSampleRate(uint32_t hz);
@@ -130,6 +137,7 @@ private:
     mutable std::mutex errorMutex_;
     std::string lastErrorDetail_;
     std::vector<ClockRateRange> supportedRates_;
+    std::atomic<float> volumeScale_{1.0f};
 };
 
 UacDriver& getUacDriverInstance();
