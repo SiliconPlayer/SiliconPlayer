@@ -82,13 +82,19 @@ object BitPerfectCoordinator {
     }
 
     fun getUsbDeviceSupportedSampleRates(context: Context, device: AudioDeviceInfo? = null): List<Int> {
+        // 1. Direct UAC driver exact hardware rates (via GET_RANGE and descriptor parsing)
+        val uacRates = com.flopster101.siliconplayer.usb.UacDriverCoordinator.getSupportedSampleRates()
+        if (uacRates.isNotEmpty()) {
+            return uacRates
+        }
+
         val rates = mutableSetOf<Int>()
 
-        // 1. Linux ALSA kernel procfs (queries all UAC 1.0 & 2.0 altsets from snd-usb-audio driver)
+        // 2. Linux ALSA kernel procfs (queries all UAC 1.0 & 2.0 altsets from snd-usb-audio driver)
         val alsaRates = queryAlsaUsbSupportedSampleRates()
         rates.addAll(alsaRates)
 
-        // 2. Android 14+ AudioMixerAttributes hardware queries
+        // 3. Android 14+ AudioMixerAttributes hardware queries
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
             val audioManager = context.getSystemService(Context.AUDIO_SERVICE) as? AudioManager
             val targetDevice = device ?: findConnectedUsbAudioDevice(context)
@@ -99,15 +105,6 @@ object BitPerfectCoordinator {
                     if (rate > 0) rates.add(rate)
                 }
             }
-        }
-
-        // 3. UsbManager direct hardware raw descriptor parsing & native UAC driver GET_RANGE
-        val usbRates = queryUsbDeviceSampleRatesFromUsbManager(context)
-        rates.addAll(usbRates)
-        val uacRanges = com.flopster101.siliconplayer.usb.UacDriverCoordinator.getSupportedRates()
-        uacRanges.forEach { range ->
-            if (range.minHz > 0) rates.add(range.minHz)
-            if (range.maxHz > 0) rates.add(range.maxHz)
         }
 
         // 4. AudioDeviceInfo audioProfiles (API 31+) & sampleRates
@@ -123,21 +120,14 @@ object BitPerfectCoordinator {
             }
         }
 
-        val isUac1 = isConnectedUsbAudioUac1(context)
-        val resolvedRates = if (rates.isEmpty() || (rates.size == 1 && rates.contains(48000))) {
-            if (isUac1) {
-                listOf(44100, 48000, 96000)
-            } else {
-                listOf(44100, 48000, 88200, 96000, 176400, 192000)
-            }
-        } else {
-            rates.sorted()
-        }
+        // 5. UsbManager direct hardware raw descriptor parsing
+        val usbRates = queryUsbDeviceSampleRatesFromUsbManager(context)
+        rates.addAll(usbRates)
 
-        return if (isUac1) {
-            resolvedRates.filter { it <= 96000 }
+        return if (rates.isNotEmpty()) {
+            rates.sorted()
         } else {
-            resolvedRates
+            listOf(44100, 48000, 88200, 96000, 176400, 192000)
         }
     }
 
@@ -237,33 +227,41 @@ object BitPerfectCoordinator {
 
     private fun parseUacSampleRatesFromDescriptors(descriptors: ByteArray, outRates: MutableSet<Int>) {
         var offset = 0
+        var isUac2OrHigher = false
         while (offset + 2 <= descriptors.size) {
             val length = descriptors[offset].toInt() and 0xFF
             if (length < 2 || offset + length > descriptors.size) break
             val descType = descriptors[offset + 1].toInt() and 0xFF
 
-            // CS_INTERFACE = 0x24
-            if (descType == 0x24 && length >= 8) {
+            // USB Standard Interface Descriptor (0x04)
+            if (descType == 0x04 && length >= 8) {
+                val ifaceClass = descriptors[offset + 5].toInt() and 0xFF
+                val ifaceProtocol = descriptors[offset + 7].toInt() and 0xFF
+                if (ifaceClass == 0x01) { // Audio
+                    isUac2OrHigher = (ifaceProtocol >= 0x20)
+                }
+            }
+
+            // CS_INTERFACE = 0x24 (Class-specific Audio Interface descriptor, UAC 1.0 only)
+            if (!isUac2OrHigher && descType == 0x24 && length >= 8) {
                 val descSubtype = descriptors[offset + 2].toInt() and 0xFF
                 // FORMAT_TYPE = 0x02
                 if (descSubtype == 0x02) {
                     val formatType = descriptors[offset + 3].toInt() and 0xFF
                     if (formatType == 0x01 || formatType == 0x03) { // FORMAT_TYPE_I or FORMAT_TYPE_III
                         val samFreqType = descriptors[offset + 7].toInt() and 0xFF
-                        if (samFreqType > 0) {
+                        if (samFreqType > 0 && length >= 8 + samFreqType * 3) {
                             // Discrete frequencies (3-byte little-endian per frequency)
                             for (i in 0 until samFreqType) {
                                 val fIdx = offset + 8 + i * 3
-                                if (fIdx + 3 <= offset + length) {
-                                    val rate = (descriptors[fIdx].toInt() and 0xFF) or
-                                            ((descriptors[fIdx + 1].toInt() and 0xFF) shl 8) or
-                                            ((descriptors[fIdx + 2].toInt() and 0xFF) shl 16)
-                                    if (rate in 8000..768000) {
-                                        outRates.add(rate)
-                                    }
+                                val rate = (descriptors[fIdx].toInt() and 0xFF) or
+                                        ((descriptors[fIdx + 1].toInt() and 0xFF) shl 8) or
+                                        ((descriptors[fIdx + 2].toInt() and 0xFF) shl 16)
+                                if (rate in 8000..768000) {
+                                    outRates.add(rate)
                                 }
                             }
-                        } else if (samFreqType == 0 && offset + 14 <= offset + length) {
+                        } else if (samFreqType == 0 && length >= 14) {
                             // Continuous frequency range: lower (3 bytes) and upper (3 bytes)
                             val minRate = (descriptors[offset + 8].toInt() and 0xFF) or
                                     ((descriptors[offset + 9].toInt() and 0xFF) shl 8) or

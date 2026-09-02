@@ -95,6 +95,7 @@ private:
     bool selectAltSetting(int sampleRateHz, int bitsPerSample, int channels, StreamFormat* outFmt);
     bool setSampleRate(uint32_t hz);
     void captureRangeForClock(uint8_t clockId);
+    void discoverSupportedRates();
 
     bool startIsoPump();
     void stopIsoPump();

@@ -370,6 +370,24 @@ object UacDriverCoordinator {
         return list
     }
 
+    fun getSupportedSampleRates(): List<Int> {
+        val ranges = getSupportedRates()
+        if (ranges.isEmpty()) return emptyList()
+        val rates = mutableSetOf<Int>()
+        val standardRates = listOf(8000, 11025, 12000, 16000, 22050, 24000, 32000, 44100, 48000, 64000, 88200, 96000, 128000, 176400, 192000, 352800, 384000, 705600, 768000)
+        for (range in ranges) {
+            if (range.minHz <= 0 || range.maxHz <= 0) continue
+            if (range.minHz == range.maxHz) {
+                rates.add(range.minHz)
+            } else {
+                standardRates.filter { it in range.minHz..range.maxHz }.forEach { rates.add(it) }
+                rates.add(range.minHz)
+                rates.add(range.maxHz)
+            }
+        }
+        return rates.sorted()
+    }
+
     fun getDiagnostics(): UacDiagnostics? {
         val raw = UacDriverNative.nativeFormatDiagnostics() ?: return null
         if (raw.size < 13) return null

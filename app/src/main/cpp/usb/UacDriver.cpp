@@ -129,7 +129,109 @@ bool UacDriver::open(int fileDescriptor) {
     device_ = handle;
     fd_ = fileDescriptor;
     libusb_set_auto_detach_kernel_driver(device_, 1);
+    discoverSupportedRates();
     return true;
+}
+
+void UacDriver::discoverSupportedRates() {
+    if (!device_) return;
+    libusb_device* dev = libusb_get_device(device_);
+    libusb_config_descriptor* config = nullptr;
+    int rc = libusb_get_active_config_descriptor(dev, &config);
+    if (rc != LIBUSB_SUCCESS) {
+        rc = libusb_get_config_descriptor(dev, 0, &config);
+    }
+    if (rc != LIBUSB_SUCCESS || !config) return;
+
+    uint8_t controlIface = 0;
+    uint16_t uacVersion = 0x0100;
+    std::vector<uint8_t> clockSourceIds;
+
+    for (uint8_t i = 0; i < config->bNumInterfaces; ++i) {
+        const libusb_interface& iface = config->interface[i];
+        for (int a = 0; a < iface.num_altsetting; ++a) {
+            const libusb_interface_descriptor& alt = iface.altsetting[a];
+            if (alt.bInterfaceClass != USB_CLASS_AUDIO || alt.bInterfaceSubClass != SUBCLASS_AUDIOCONTROL) continue;
+            controlIface = alt.bInterfaceNumber;
+            walkExtra(alt.extra, alt.extra_length, [&](const uint8_t* p, int len) {
+                if (isClassDescriptor(p, len, CS_INTERFACE, AC_HEADER) && len >= 5) {
+                    uacVersion = static_cast<uint16_t>(p[3]) | (static_cast<uint16_t>(p[4]) << 8);
+                } else if (isClassDescriptor(p, len, CS_INTERFACE, AC_CLOCK_SOURCE) && len >= 4) {
+                    clockSourceIds.push_back(p[3]);
+                }
+                return false;
+            });
+            break;
+        }
+    }
+
+    format_.controlInterfaceNum = controlIface;
+    format_.uacVersion = uacVersion;
+
+    if (uacVersion >= 0x0200 && !clockSourceIds.empty()) {
+        if (!controlClaimed_) {
+            libusb_detach_kernel_driver(device_, controlIface);
+            int crc = libusb_claim_interface(device_, controlIface);
+            if (crc == LIBUSB_SUCCESS) controlClaimed_ = true;
+        }
+        for (uint8_t id : clockSourceIds) {
+            captureRangeForClock(id);
+            uint8_t cur[4] = {0};
+            int gc = libusb_control_transfer(
+                device_, 0xA1, REQ_SET_CUR,
+                static_cast<uint16_t>(CS_SAM_FREQ_CONTROL_SEL << 8),
+                static_cast<uint16_t>((id << 8) | controlIface),
+                cur, 4, 1000);
+            if (gc == 4) {
+                uint32_t curHz = uint32_t(cur[0]) | (uint32_t(cur[1]) << 8) | (uint32_t(cur[2]) << 16) | (uint32_t(cur[3]) << 24);
+                if (curHz > 0) {
+                    std::lock_guard<std::mutex> elock(errorMutex_);
+                    bool dup = false;
+                    for (const auto& e : supportedRates_) {
+                        if (e.minHz == curHz && e.maxHz == curHz) { dup = true; break; }
+                    }
+                    if (!dup) supportedRates_.push_back({id, curHz, curHz, 0});
+                }
+            }
+        }
+    } else {
+        for (uint8_t i = 0; i < config->bNumInterfaces; ++i) {
+            const libusb_interface& iface = config->interface[i];
+            for (int a = 0; a < iface.num_altsetting; ++a) {
+                const libusb_interface_descriptor& alt = iface.altsetting[a];
+                if (alt.bInterfaceClass != USB_CLASS_AUDIO || alt.bInterfaceSubClass != SUBCLASS_AUDIOSTREAM) continue;
+                walkExtra(alt.extra, alt.extra_length, [&](const uint8_t* p, int len) {
+                    if (isClassDescriptor(p, len, CS_INTERFACE, AS_FORMAT_TYPE) && len >= 8 && p[3] == FORMAT_TYPE_I) {
+                        int kind = p[7];
+                        if (kind == 0 && len >= 14) {
+                            uint32_t mn = static_cast<uint32_t>(p[8]) | (static_cast<uint32_t>(p[9]) << 8) | (static_cast<uint32_t>(p[10]) << 16);
+                            uint32_t mx = static_cast<uint32_t>(p[11]) | (static_cast<uint32_t>(p[12]) << 8) | (static_cast<uint32_t>(p[13]) << 16);
+                            std::lock_guard<std::mutex> elock(errorMutex_);
+                            bool dup = false;
+                            for (const auto& e : supportedRates_) {
+                                if (e.minHz == mn && e.maxHz == mx) { dup = true; break; }
+                            }
+                            if (!dup) supportedRates_.push_back({0, mn, mx, 0});
+                        } else if (kind > 0 && len >= 8 + kind * 3) {
+                            std::lock_guard<std::mutex> elock(errorMutex_);
+                            for (int k = 0; k < kind; ++k) {
+                                int off = 8 + k * 3;
+                                uint32_t hz = static_cast<uint32_t>(p[off]) | (static_cast<uint32_t>(p[off + 1]) << 8) | (static_cast<uint32_t>(p[off + 2]) << 16);
+                                bool dup = false;
+                                for (const auto& e : supportedRates_) {
+                                    if (e.minHz == hz && e.maxHz == hz) { dup = true; break; }
+                                }
+                                if (!dup) supportedRates_.push_back({0, hz, hz, 0});
+                            }
+                        }
+                    }
+                    return false;
+                });
+            }
+        }
+    }
+
+    libusb_free_config_descriptor(config);
 }
 
 void UacDriver::close() {
