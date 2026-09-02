@@ -92,6 +92,24 @@ object UacDriverCoordinator {
         }
     }
 
+    private var usbReceiverRegistered = false
+    private val usbReceiver = object : BroadcastReceiver() {
+        override fun onReceive(context: Context?, intent: Intent?) {
+            if (intent?.action == UsbManager.ACTION_USB_DEVICE_DETACHED) {
+                val dev = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                    intent.getParcelableExtra(UsbManager.EXTRA_DEVICE, UsbDevice::class.java)
+                } else {
+                    @Suppress("DEPRECATION")
+                    intent.getParcelableExtra(UsbManager.EXTRA_DEVICE)
+                }
+                if (dev != null && (_activeDevice.value == null || _activeDevice.value?.deviceId == dev.deviceId)) {
+                    Log.i(TAG, "USB audio device detached (${dev.deviceName}), closing Direct UAC driver")
+                    close()
+                }
+            }
+        }
+    }
+
     private var activeConnection: UsbDeviceConnection? = null
 
     init {
@@ -234,6 +252,10 @@ object UacDriverCoordinator {
             return true
         }
         val rawUsb = findUsbAudioDevice(context) ?: return true
+        if (_isOpen.value && (_activeDevice.value == null || _activeDevice.value?.deviceId != rawUsb.deviceId)) {
+            Log.i(TAG, "Active USB device changed or was replugged, resetting previous UAC session")
+            close()
+        }
         if (!_isOpen.value) {
             val hasPerm = hasPermission(context, rawUsb)
             val granted = if (hasPerm) true else requestPermission(context, rawUsb)
@@ -255,27 +277,48 @@ object UacDriverCoordinator {
         return ok
     }
 
-    fun registerVolumeReceiver(context: Context) {
-        if (volumeReceiverRegistered) return
-        val filter = IntentFilter("android.media.VOLUME_CHANGED_ACTION").apply {
-            addAction("android.media.EXTRA_VOLUME_STREAM_TYPE")
-        }
+    fun registerReceivers(context: Context) {
         val appCtx = context.applicationContext
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            appCtx.registerReceiver(volumeReceiver, filter, Context.RECEIVER_NOT_EXPORTED)
-        } else {
-            @Suppress("UnspecifiedRegisterReceiverFlag")
-            appCtx.registerReceiver(volumeReceiver, filter)
+        if (!volumeReceiverRegistered) {
+            val filter = IntentFilter("android.media.VOLUME_CHANGED_ACTION").apply {
+                addAction("android.media.EXTRA_VOLUME_STREAM_TYPE")
+            }
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                appCtx.registerReceiver(volumeReceiver, filter, Context.RECEIVER_NOT_EXPORTED)
+            } else {
+                @Suppress("UnspecifiedRegisterReceiverFlag")
+                appCtx.registerReceiver(volumeReceiver, filter)
+            }
+            volumeReceiverRegistered = true
+            syncVolume(appCtx)
         }
-        volumeReceiverRegistered = true
-        syncVolume(appCtx)
+
+        if (!usbReceiverRegistered) {
+            val filter = IntentFilter(UsbManager.ACTION_USB_DEVICE_DETACHED)
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                appCtx.registerReceiver(usbReceiver, filter, Context.RECEIVER_NOT_EXPORTED)
+            } else {
+                @Suppress("UnspecifiedRegisterReceiverFlag")
+                appCtx.registerReceiver(usbReceiver, filter)
+            }
+            usbReceiverRegistered = true
+        }
     }
 
-    fun unregisterVolumeReceiver(context: Context) {
-        if (!volumeReceiverRegistered) return
-        runCatching { context.applicationContext.unregisterReceiver(volumeReceiver) }
-        volumeReceiverRegistered = false
+    fun unregisterReceivers(context: Context) {
+        val appCtx = context.applicationContext
+        if (volumeReceiverRegistered) {
+            runCatching { appCtx.unregisterReceiver(volumeReceiver) }
+            volumeReceiverRegistered = false
+        }
+        if (usbReceiverRegistered) {
+            runCatching { appCtx.unregisterReceiver(usbReceiver) }
+            usbReceiverRegistered = false
+        }
     }
+
+    fun registerVolumeReceiver(context: Context) = registerReceivers(context)
+    fun unregisterVolumeReceiver(context: Context) = unregisterReceivers(context)
 
     fun setVolumeMode(context: Context, mode: DirectUacVolumeMode) {
         _volumeMode.value = mode

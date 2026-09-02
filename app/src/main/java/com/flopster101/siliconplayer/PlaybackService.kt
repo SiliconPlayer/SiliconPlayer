@@ -284,8 +284,12 @@ class PlaybackService : Service() {
                     it.type == android.media.AudioDeviceInfo.TYPE_USB_HEADSET ||
                     it.type == android.media.AudioDeviceInfo.TYPE_USB_ACCESSORY
                 } == true
-                if (hadUsb && isPlaying) {
-                    NativeBridge.reconfigureStream()
+                if (hadUsb) {
+                    com.flopster101.siliconplayer.usb.UacDriverCoordinator.close()
+                    NativeBridge.setBitPerfectMode(false)
+                    if (isPlaying) {
+                        NativeBridge.reconfigureStream()
+                    }
                 }
             }
         }
@@ -304,6 +308,7 @@ class PlaybackService : Service() {
             val am = getSystemService(Context.AUDIO_SERVICE) as? AudioManager
             audioDeviceCallback?.let { am?.registerAudioDeviceCallback(it, handler) }
         }
+        com.flopster101.siliconplayer.usb.UacDriverCoordinator.registerReceivers(this)
     }
 
     override fun onDestroy() {
@@ -318,6 +323,7 @@ class PlaybackService : Service() {
             val am = getSystemService(Context.AUDIO_SERVICE) as? AudioManager
             audioDeviceCallback?.let { am?.unregisterAudioDeviceCallback(it) }
         }
+        com.flopster101.siliconplayer.usb.UacDriverCoordinator.unregisterReceivers(this)
         abandonAudioFocus()
         BitPerfectCoordinator.clearBitPerfectMixer(this)
         NativeBridge.setBitPerfectMode(false)
@@ -346,6 +352,10 @@ class PlaybackService : Service() {
                     if (driverMethod == BitPerfectDriverMethod.DirectUac) {
                         val rawUsb = com.flopster101.siliconplayer.usb.UacDriverCoordinator.findUsbAudioDevice(this)
                         if (rawUsb != null) {
+                            if (com.flopster101.siliconplayer.usb.UacDriverCoordinator.isOpen.value &&
+                                com.flopster101.siliconplayer.usb.UacDriverCoordinator.activeDevice.value?.deviceId != rawUsb.deviceId) {
+                                com.flopster101.siliconplayer.usb.UacDriverCoordinator.close()
+                            }
                             if (!com.flopster101.siliconplayer.usb.UacDriverCoordinator.isOpen.value && com.flopster101.siliconplayer.usb.UacDriverCoordinator.hasPermission(this, rawUsb)) {
                                 com.flopster101.siliconplayer.usb.UacDriverCoordinator.open(this, rawUsb)
                             }
@@ -360,6 +370,7 @@ class PlaybackService : Service() {
                                 NativeBridge.setBitPerfectMode(false)
                             }
                         } else {
+                            com.flopster101.siliconplayer.usb.UacDriverCoordinator.close()
                             NativeBridge.setBitPerfectMode(false)
                         }
                     } else if (BitPerfectCoordinator.isBitPerfectPlatformSupported()) {
