@@ -245,8 +245,7 @@ internal fun GeneralAudioRouteContent(
                             com.flopster101.siliconplayer.usb.UacDriverCoordinator.open(context, rawUsb)
                             val targetRate = NativeBridge.getDecoderRenderSampleRateHz().takeIf { it > 0 } ?: 48000
                             val targetBitDepth = NativeBridge.getTrackBitDepth().takeIf { it in listOf(16, 24, 32) } ?: 16
-                            val targetChannels = NativeBridge.getTrackChannelCount().takeIf { it > 0 } ?: 2
-                            val ok = com.flopster101.siliconplayer.usb.UacDriverCoordinator.start(targetRate, targetBitDepth, targetChannels)
+                            val ok = com.flopster101.siliconplayer.usb.UacDriverCoordinator.start(targetRate, targetBitDepth, 2)
                             NativeBridge.setBitPerfectMode(ok)
                             if (!ok) {
                                 actions.onBitPerfectUsbAudioChanged(false)
@@ -312,8 +311,7 @@ internal fun GeneralAudioRouteContent(
                                 com.flopster101.siliconplayer.usb.UacDriverCoordinator.open(context, rawUsb)
                                 val targetRate = NativeBridge.getDecoderRenderSampleRateHz().takeIf { it > 0 } ?: 48000
                                 val targetBitDepth = NativeBridge.getTrackBitDepth().takeIf { it in listOf(16, 24, 32) } ?: 16
-                                val targetChannels = NativeBridge.getTrackChannelCount().takeIf { it > 0 } ?: 2
-                                com.flopster101.siliconplayer.usb.UacDriverCoordinator.start(targetRate, targetBitDepth, targetChannels)
+                                com.flopster101.siliconplayer.usb.UacDriverCoordinator.start(targetRate, targetBitDepth, 2)
                                 NativeBridge.setBitPerfectMode(true)
                             }
                         }

@@ -644,6 +644,13 @@ bool UacDriver::start(int sampleRateHz, int bitsPerSample, int channels) {
         return false;
     }
     if (streaming_.load(std::memory_order_acquire)) {
+        if (format_.sampleRateHz == sampleRateHz &&
+            format_.bitsPerSample == bitsPerSample &&
+            format_.channels == channels) {
+            LOGI("UacDriver::start: already streaming format %dHz %d-bit %dch; keeping active stream",
+                 sampleRateHz, bitsPerSample, channels);
+            return true;
+        }
         stopIsoPump();
         streaming_.store(false, std::memory_order_release);
     }
@@ -889,7 +896,7 @@ void UacDriver::onIso(libusb_transfer* xfr) {
         return;
     }
 
-    if (format_.feedbackEndpointAddress == 0 && nominalStep_q16_ > 0) {
+    if (format_.feedbackEndpointAddress == 0 && nominalStep_q16_ > 0 && !audioProvider_) {
         size_t head = ringHead_.load(std::memory_order_relaxed);
         size_t tail = ringTail_.load(std::memory_order_relaxed);
         size_t currentFillBytes = ringSize(head, tail);

@@ -107,20 +107,21 @@ bool AudioEngine::start() {
         // Prime render queue before starting callback-driven playback.
         // This avoids audible startup gaps for decoders that need a short warmup
         // (notably SID cores) and reduces first-second underruns.
+        playbackStreamStarted.store(false, std::memory_order_release);
         clearRenderQueue();
         isPlaying = true;
         naturalEndPending.store(false);
         const int startupChunkFrames = std::max(256, renderWorkerChunkFrames.load(std::memory_order_relaxed));
         int startupBaseTargetFrames = std::max(
-                startupChunkFrames * 2,
-                std::min(renderWorkerTargetFrames.load(std::memory_order_relaxed), 4096)
+                startupChunkFrames * 4,
+                std::min(renderWorkerTargetFrames.load(std::memory_order_relaxed), 8192)
         );
         const int burstFrames = getStreamBurstFrames();
         if (burstFrames > 0) {
             startupBaseTargetFrames = std::max(startupBaseTargetFrames, burstFrames * 2);
         }
         int startupPrerollFrames = 0;
-        if (streamStartupPrerollPending) {
+        if (streamStartupPrerollPending && !isBitPerfectModeEnabled()) {
             const int prerollFrames = burstFrames > 0 ? burstFrames : startupChunkFrames;
             startupPrerollFrames = std::clamp(prerollFrames, 128, 2048);
             std::vector<float> prerollSilence(static_cast<size_t>(startupPrerollFrames) * 2u, 0.0f);
@@ -128,12 +129,12 @@ bool AudioEngine::start() {
             LOGD("Applying one-time startup preroll: %d frames", startupPrerollFrames);
         }
         const int startupTargetFrames = startupBaseTargetFrames + startupPrerollFrames;
-        renderWorkerCv.notify_one();
-        const auto prefillDeadline = std::chrono::steady_clock::now() + std::chrono::milliseconds(kStartupPrefillDeadlineMs);
+        renderWorkerCv.notify_all();
+        const auto prefillDeadline = std::chrono::steady_clock::now() + std::chrono::milliseconds(350);
         while (renderQueueFrames() < startupTargetFrames &&
                std::chrono::steady_clock::now() < prefillDeadline) {
-            std::this_thread::sleep_for(std::chrono::milliseconds(kStartupPrefillPollIntervalMs));
-            renderWorkerCv.notify_one();
+            std::this_thread::sleep_for(std::chrono::milliseconds(1));
+            renderWorkerCv.notify_all();
         }
 
         if (!requestStreamStart()) {
@@ -141,14 +142,17 @@ bool AudioEngine::start() {
             createStream();
             if (!outputStreamReady.load(std::memory_order_relaxed)) {
                 isPlaying = false;
+                playbackStreamStarted.store(false, std::memory_order_release);
                 return false;
             }
             if (!requestStreamStart()) {
                 isPlaying = false;
+                playbackStreamStarted.store(false, std::memory_order_release);
                 return false;
             }
         }
         streamStartupPrerollPending = false;
+        playbackStreamStarted.store(true, std::memory_order_release);
         renderWorkerCv.notify_all();
         return true;
     }
@@ -161,6 +165,7 @@ void AudioEngine::setFastTrackSwitchStartupHint(bool enabled) {
 
 void AudioEngine::stop() {
     std::lock_guard<std::mutex> lifecycleLock(lifecycleMutex);
+    playbackStreamStarted.store(false, std::memory_order_release);
     pendingPauseFadeRequest.store(false, std::memory_order_relaxed);
     pendingResumeFadeOnStart.store(false, std::memory_order_relaxed);
     refreshPausedStreamOnNextStart.store(true, std::memory_order_relaxed);

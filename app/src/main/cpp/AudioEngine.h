@@ -332,6 +332,7 @@ private:
     bool outputAllowFallback = true;
     bool bitPerfectModeEnabled = false;
     std::atomic<bool> isPlaying { false };
+    std::atomic<bool> playbackStreamStarted { false };
     std::atomic<bool> looping { false };
     std::atomic<int> repeatMode { 0 };
     std::atomic<double> positionSeconds { 0.0 };
@@ -444,7 +445,7 @@ private:
     bool isStreamDisconnectedOrClosed() const;
     bool createMiniaudioStream();
     void closeMiniaudioStream();
-    bool renderOutputCallbackFrames(float* outputData, int32_t numFrames, int callbackRate);
+    bool renderOutputCallbackFrames(float* outputData, int32_t numFrames, int callbackRate, int* outFramesCopied = nullptr);
     int provideUacDirectFrames(uint8_t* dst, int maxFrames, const siliconplayer::usb::StreamFormat& fmt);
 
     std::atomic<bool> intentionalStreamTeardown{false};

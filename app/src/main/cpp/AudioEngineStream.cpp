@@ -251,9 +251,10 @@ void AudioEngine::closeStream() {
 }
 
 void AudioEngine::syncUacStreamRate(int sampleRateHz, int channels) {
-    clearRenderQueue();
+    if (sampleRateHz <= 0) return;
     std::lock_guard<std::mutex> lock(decoderMutex);
-    if (sampleRateHz > 0) {
+    if (streamSampleRate != sampleRateHz || streamChannelCount != channels) {
+        clearRenderQueue();
         streamSampleRate = sampleRateHz;
         streamChannelCount = channels > 0 ? channels : 2;
         if (decoder) {
@@ -344,6 +345,7 @@ void AudioEngine::setBitPerfectMode(bool enabled) {
 
 void AudioEngine::reconfigureStream(bool resumePlayback) {
     const bool shouldResume = resumePlayback && isPlaying.load();
+    playbackStreamStarted.store(false, std::memory_order_release);
     requestStreamStop();
     isPlaying.store(false);
 
@@ -376,12 +378,14 @@ void AudioEngine::reconfigureStream(bool resumePlayback) {
 
     if (requestStreamStart()) {
         streamStartupPrerollPending = false;
+        playbackStreamStarted.store(true, std::memory_order_release);
         renderWorkerCv.notify_all();
         return;
     }
 
     LOGE("Reconfigure resume start failed");
     isPlaying.store(false);
+    playbackStreamStarted.store(false, std::memory_order_release);
 }
 
 void AudioEngine::miniaudioStopCallback(ma_device* pDevice) {
@@ -436,18 +440,25 @@ void AudioEngine::miniaudioDataCallback(
 }
 
 int AudioEngine::provideUacDirectFrames(uint8_t* dst, int maxFrames, const siliconplayer::usb::StreamFormat& fmt) {
-    if (!dst || maxFrames <= 0 || !isPlaying.load(std::memory_order_relaxed)) {
-        if (dst && maxFrames > 0) {
-            std::memset(dst, 0, maxFrames * fmt.channels * fmt.bytesPerSample);
-        }
+    if (!dst || maxFrames <= 0) return 0;
+
+    static thread_local std::vector<float> stagingBuf;
+    static thread_local size_t stagingReadPos = 0;
+    static thread_local size_t stagingAvailableFrames = 0;
+    static thread_local int lastSampleRate = 0;
+
+    if (!isPlaying.load(std::memory_order_relaxed) || !playbackStreamStarted.load(std::memory_order_acquire)) {
+        std::memset(dst, 0, maxFrames * fmt.channels * fmt.bytesPerSample);
+        stagingReadPos = 0;
+        stagingAvailableFrames = 0;
         return 0;
     }
 
-    static thread_local std::vector<float> floatBuf;
-    const size_t totalFloats = static_cast<size_t>(maxFrames * 2);
-    if (floatBuf.size() < totalFloats) floatBuf.resize(totalFloats);
-
-    renderOutputCallbackFrames(floatBuf.data(), maxFrames, fmt.sampleRateHz);
+    if (lastSampleRate != fmt.sampleRateHz) {
+        stagingReadPos = 0;
+        stagingAvailableFrames = 0;
+        lastSampleRate = fmt.sampleRateHz;
+    }
 
     const int ch = fmt.channels > 0 ? fmt.channels : 2;
     const int subslot = fmt.bytesPerSample > 0 ? fmt.bytesPerSample : (fmt.bitsPerSample / 8);
@@ -455,42 +466,72 @@ int AudioEngine::provideUacDirectFrames(uint8_t* dst, int maxFrames, const silic
     const float volScale = uac.volumeScale();
     const bool applyVol = (volScale < 0.9999f || volScale > 1.0001f);
 
-    if (subslot == 2) {
-        auto* out16 = reinterpret_cast<int16_t*>(dst);
-        for (size_t i = 0; i < static_cast<size_t>(maxFrames * ch); ++i) {
-            float s = floatBuf[i];
-            if (applyVol) s *= volScale;
-            s = std::clamp(s, -1.0f, 1.0f);
-            out16[i] = static_cast<int16_t>(s * 32767.0f);
+    int framesFilled = 0;
+    uint8_t* outCursor = dst;
+
+    while (framesFilled < maxFrames) {
+        if (stagingAvailableFrames == 0) {
+            constexpr int kBatchFrames = 512;
+            if (stagingBuf.size() < static_cast<size_t>(kBatchFrames * 2)) {
+                stagingBuf.resize(kBatchFrames * 2);
+            }
+            int actualCopied = 0;
+            renderOutputCallbackFrames(stagingBuf.data(), kBatchFrames, fmt.sampleRateHz, &actualCopied);
+            if (actualCopied <= 0) {
+                int missing = maxFrames - framesFilled;
+                std::memset(outCursor, 0, missing * ch * subslot);
+                return maxFrames;
+            }
+            stagingReadPos = 0;
+            stagingAvailableFrames = static_cast<size_t>(actualCopied);
         }
-    } else if (subslot == 3) {
-        for (size_t i = 0; i < static_cast<size_t>(maxFrames * ch); ++i) {
-            float s = floatBuf[i];
-            if (applyVol) s *= volScale;
-            s = std::clamp(s, -1.0f, 1.0f);
-            int32_t s24 = static_cast<int32_t>(s * 8388607.0f);
-            dst[i * 3 + 0] = static_cast<uint8_t>(s24 & 0xFF);
-            dst[i * 3 + 1] = static_cast<uint8_t>((s24 >> 8) & 0xFF);
-            dst[i * 3 + 2] = static_cast<uint8_t>((s24 >> 16) & 0xFF);
-        }
-    } else if (subslot == 4) {
-        auto* out32 = reinterpret_cast<int32_t*>(dst);
-        if (fmt.bitsPerSample == 24) {
-            for (size_t i = 0; i < static_cast<size_t>(maxFrames * ch); ++i) {
-                float s = floatBuf[i];
+
+        int chunk = std::min(maxFrames - framesFilled, static_cast<int>(stagingAvailableFrames));
+        const float* src = stagingBuf.data() + (stagingReadPos * 2);
+
+        if (subslot == 2) {
+            auto* out16 = reinterpret_cast<int16_t*>(outCursor);
+            for (int i = 0; i < chunk * ch; ++i) {
+                float s = src[i];
                 if (applyVol) s *= volScale;
                 s = std::clamp(s, -1.0f, 1.0f);
-                out32[i] = static_cast<int32_t>(s * 8388607.0f) << 8;
+                out16[i] = static_cast<int16_t>(s * 32767.0f);
             }
-        } else {
-            for (size_t i = 0; i < static_cast<size_t>(maxFrames * ch); ++i) {
-                float s = floatBuf[i];
+        } else if (subslot == 3) {
+            for (int i = 0; i < chunk * ch; ++i) {
+                float s = src[i];
                 if (applyVol) s *= volScale;
                 s = std::clamp(s, -1.0f, 1.0f);
-                out32[i] = static_cast<int32_t>(s * 2147483647.0f);
+                int32_t s24 = static_cast<int32_t>(s * 8388607.0f);
+                outCursor[i * 3 + 0] = static_cast<uint8_t>(s24 & 0xFF);
+                outCursor[i * 3 + 1] = static_cast<uint8_t>((s24 >> 8) & 0xFF);
+                outCursor[i * 3 + 2] = static_cast<uint8_t>((s24 >> 16) & 0xFF);
+            }
+        } else if (subslot == 4) {
+            auto* out32 = reinterpret_cast<int32_t*>(outCursor);
+            if (fmt.bitsPerSample == 24) {
+                for (int i = 0; i < chunk * ch; ++i) {
+                    float s = src[i];
+                    if (applyVol) s *= volScale;
+                    s = std::clamp(s, -1.0f, 1.0f);
+                    out32[i] = static_cast<int32_t>(s * 8388607.0f) << 8;
+                }
+            } else {
+                for (int i = 0; i < chunk * ch; ++i) {
+                    float s = src[i];
+                    if (applyVol) s *= volScale;
+                    s = std::clamp(s, -1.0f, 1.0f);
+                    out32[i] = static_cast<int32_t>(s * 2147483647.0f);
+                }
             }
         }
+
+        stagingReadPos += static_cast<size_t>(chunk);
+        stagingAvailableFrames -= static_cast<size_t>(chunk);
+        framesFilled += chunk;
+        outCursor += chunk * ch * subslot;
     }
+
     return maxFrames;
 }
 
@@ -527,13 +568,15 @@ void AudioEngine::recoverStreamIfNeeded() {
     }
 }
 
-bool AudioEngine::renderOutputCallbackFrames(float* outputData, int32_t numFrames, int callbackRate) {
+bool AudioEngine::renderOutputCallbackFrames(float* outputData, int32_t numFrames, int callbackRate, int* outFramesCopied) {
     if (!outputData || numFrames <= 0) {
+        if (outFramesCopied) *outFramesCopied = 0;
         return false;
     }
 
     if (seekInProgress.load()) {
         std::memset(outputData, 0, static_cast<size_t>(numFrames) * 2u * sizeof(float));
+        if (outFramesCopied) *outFramesCopied = 0;
         return false;
     }
 
@@ -559,6 +602,7 @@ bool AudioEngine::renderOutputCallbackFrames(float* outputData, int32_t numFrame
         renderQueueCallbackCount.fetch_add(1, std::memory_order_relaxed);
     }
     const int framesCopied = popRenderQueue(outputData, numFrames, 2);
+    if (outFramesCopied) *outFramesCopied = framesCopied;
     if (activePlayback && framesCopied < numFrames) {
         const uint64_t missingFrames = static_cast<uint64_t>(numFrames - framesCopied);
         const int64_t nowNs = std::chrono::duration_cast<std::chrono::nanoseconds>(

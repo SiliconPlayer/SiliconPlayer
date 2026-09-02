@@ -244,7 +244,7 @@ internal fun AudioOutputDetailsDialog(
                                 if (isPlaying) {
                                     val targetRate = effectiveDecoderRate
                                     val targetBitDepth = NativeBridge.getTrackBitDepth().takeIf { it in listOf(16, 24, 32) } ?: 16
-                                    val ok = UacDriverCoordinator.start(targetRate, targetBitDepth, effectiveChannels)
+                                    val ok = UacDriverCoordinator.start(targetRate, targetBitDepth, 2)
                                     NativeBridge.setBitPerfectMode(ok)
                                     if (!ok) {
                                         onBitPerfectToggled(false)
@@ -931,7 +931,7 @@ internal fun AudioOutputDetailsDialog(
                                             onBitPerfectToggled(true)
                                             val targetRate = effectiveDecoderRate
                                             val targetBitDepth = NativeBridge.getTrackBitDepth().takeIf { it in listOf(16, 24, 32) } ?: 16
-                                            val ok = UacDriverCoordinator.start(targetRate, targetBitDepth, effectiveChannels)
+                                            val ok = UacDriverCoordinator.start(targetRate, targetBitDepth, 2)
                                             NativeBridge.setBitPerfectMode(ok)
                                             if (ok) {
                                                 onRestartTrack()
