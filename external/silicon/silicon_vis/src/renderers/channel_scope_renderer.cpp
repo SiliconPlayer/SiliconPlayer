@@ -369,12 +369,16 @@ void ChannelScopeRenderer::drawText() {
     float cellH = static_cast<float>(heightPx_) / static_cast<float>(rows);
 
     float cellWidthDp = cellW / density_;
-    float paddingDp = std::max(2.0f, paddingPx_ / density_);
     int selectedSp = std::clamp(textSizeSp_, 6, 22);
     int minSp = std::max(6, selectedSp - 6);
 
-    int effectiveSp = computeAutoTextSizeSp(selectedSp, minSp, cellWidthDp, paddingDp);
-    if (hideWhenOverflow_ && estimateTextWidthDp(effectiveSp, paddingDp) > cellWidthDp) {
+    // Fixed padding swallows narrow cells at high channel counts; cap it per axis.
+    float padX = std::min(paddingPx_, cellW * 0.12f);
+    float padY = std::min(paddingPx_, cellH * 0.18f);
+    float effPadDp = padX / density_;
+
+    int effectiveSp = computeAutoTextSizeSp(selectedSp, minSp, cellWidthDp, effPadDp);
+    if (hideWhenOverflow_ && estimateTextWidthDp(effectiveSp, effPadDp) > cellWidthDp) {
         return;
     }
 
@@ -398,15 +402,15 @@ void ChannelScopeRenderer::drawText() {
             float cellTop = row * cellH;
             float cellRight = cellLeft + cellW;
             float cellBottom = cellTop + cellH;
-            float maxRight = cellRight - paddingPx_;
+            float maxRight = cellRight - padX;
 
             float originY = (anchor_ == SILICON_VIS_TEXT_ANCHOR_TOP_LEFT ||
                              anchor_ == SILICON_VIS_TEXT_ANCHOR_TOP_CENTER ||
                              anchor_ == SILICON_VIS_TEXT_ANCHOR_TOP_RIGHT)
-                ? (cellTop + paddingPx_ * 0.42f)
-                : (cellBottom - lineHeight - paddingPx_);
+                ? (cellTop + padY * 0.42f)
+                : (cellBottom - lineHeight - padY);
 
-            float cursorX = cellLeft + paddingPx_;
+            float cursorX = cellLeft + padX;
             bool hasPrev = false;
 
             auto drawSeparator = [&]() {
