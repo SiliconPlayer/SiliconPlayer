@@ -920,18 +920,48 @@ internal fun AudioOutputDetailsDialog(
                 Button(
                     onClick = {
                         showRestartConfirmDialog = false
-                        onBitPerfectToggled(pendingBitPerfectState)
-                        val usbDevice = BitPerfectCoordinator.findConnectedUsbAudioDevice(context)
-                        if (pendingBitPerfectState && usbDevice != null) {
-                            BitPerfectCoordinator.setPreferredBitPerfectMixer(context, usbDevice, effectiveDecoderRate, effectiveChannels)
-                            NativeBridge.setBitPerfectMode(true)
+                        if (pendingBitPerfectState) {
+                            if (driverMethod == BitPerfectDriverMethod.DirectUac) {
+                                val rawUsb = UacDriverCoordinator.findUsbAudioDevice(context)
+                                if (rawUsb != null) {
+                                    coroutineScope.launch {
+                                        val granted = UacDriverCoordinator.requestPermission(context, rawUsb)
+                                        if (granted) {
+                                            UacDriverCoordinator.open(context, rawUsb)
+                                            onBitPerfectToggled(true)
+                                            val targetRate = effectiveDecoderRate
+                                            val targetBitDepth = NativeBridge.getTrackBitDepth().takeIf { it in listOf(16, 24, 32) } ?: 16
+                                            val ok = UacDriverCoordinator.start(targetRate, targetBitDepth, effectiveChannels)
+                                            NativeBridge.setBitPerfectMode(ok)
+                                            if (ok) {
+                                                onRestartTrack()
+                                            } else {
+                                                onBitPerfectToggled(false)
+                                            }
+                                        } else {
+                                            onBitPerfectToggled(false)
+                                        }
+                                    }
+                                } else {
+                                    onBitPerfectToggled(false)
+                                }
+                            } else {
+                                onBitPerfectToggled(true)
+                                val usbDevice = BitPerfectCoordinator.findConnectedUsbAudioDevice(context)
+                                if (usbDevice != null) {
+                                    BitPerfectCoordinator.setPreferredBitPerfectMixer(context, usbDevice, effectiveDecoderRate, effectiveChannels)
+                                    NativeBridge.setBitPerfectMode(true)
+                                }
+                                onRestartTrack()
+                            }
                         } else {
                             UacDriverCoordinator.close()
                             BitPerfectCoordinator.clearBitPerfectMixer(context)
                             NativeBridge.setBitPerfectMode(false)
+                            onBitPerfectToggled(false)
                             showReplugNoticeDialog = true
+                            onRestartTrack()
                         }
-                        onRestartTrack()
                     }
                 ) {
                     Text("Restart")
