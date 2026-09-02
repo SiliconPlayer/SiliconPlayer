@@ -7,6 +7,8 @@ import com.flopster101.siliconplayer.VisualizationPerformanceMode
 import com.flopster101.siliconplayer.VerticalScrollbarTrack
 import android.content.Context
 import android.content.SharedPreferences
+import android.hardware.usb.UsbConstants
+import android.hardware.usb.UsbDevice
 import android.widget.Toast
 import androidx.activity.compose.BackHandler
 import com.flopster101.siliconplayer.NativeBridge
@@ -2860,6 +2862,71 @@ internal fun openAudioOutputSwitcher(context: Context) {
     }
 }
 
+private fun isGenericUsbAudioProductName(name: String?): Boolean {
+    if (name.isNullOrBlank()) return true
+    val lower = name.trim().lowercase()
+    val genericExact = setOf(
+        "usb audio",
+        "usb-audio",
+        "usb audio device",
+        "usb-audio device",
+        "usb composite device",
+        "usb advanced audio device",
+        "usb dac",
+        "usb audio dac",
+        "usb sound device",
+        "usb pnp sound device",
+        "generic usb audio",
+        "audio device",
+        "composite device",
+        "android audio",
+        "android usb audio"
+    )
+    if (lower in genericExact) return true
+    if (lower.startsWith("linux") && (lower.contains("gadget") || lower.contains("uac") || lower.contains("audio"))) return true
+    if (lower.contains("uac1_gadget") || lower.contains("uac2_gadget")) return true
+    return false
+}
+
+private fun getUsbAudioProtocolVersion(device: UsbDevice): String {
+    for (i in 0 until device.interfaceCount) {
+        val iface = device.getInterface(i)
+        if (iface.interfaceClass == UsbConstants.USB_CLASS_AUDIO) {
+            if (iface.interfaceProtocol >= 0x20) {
+                return if (iface.interfaceProtocol == 0x30) "USB Audio 3.0" else "USB Audio 2.0"
+            }
+        }
+    }
+    return "USB Audio 1.0"
+}
+
+private fun formatUsbAudioPillName(context: Context, rawName: String): String {
+    if (!isGenericUsbAudioProductName(rawName)) {
+        return rawName
+    }
+
+    val rawUsb = com.flopster101.siliconplayer.usb.UacDriverCoordinator.findUsbAudioDevice(context)
+    val uacVersion = if (rawUsb != null) {
+        getUsbAudioProtocolVersion(rawUsb)
+    } else {
+        "USB Audio 1.0"
+    }
+
+    val manufacturer = rawUsb?.manufacturerName?.trim()?.takeIf {
+        it.isNotBlank() &&
+        !it.equals("Linux Foundation", ignoreCase = true) &&
+        !it.equals("Linux", ignoreCase = true) &&
+        !it.equals("Android", ignoreCase = true) &&
+        !it.equals("Generic", ignoreCase = true)
+    }
+
+    return if (manufacturer != null) {
+        "$manufacturer $uacVersion"
+    } else {
+        uacVersion
+    }
+}
+
 @Composable
 private fun AudioOutputRoutePill(
     routeInfo: AudioOutputRouteInfo,
@@ -2872,6 +2939,7 @@ private fun AudioOutputRoutePill(
     downFocusRequester: FocusRequester? = null,
     modifier: Modifier = Modifier
 ) {
+    val context = LocalContext.current
     val pillHeight = if (compactLayout) 26.dp else 28.dp
     val iconSize = if (compactLayout) 14.dp else 15.dp
 
@@ -2917,8 +2985,13 @@ private fun AudioOutputRoutePill(
                 modifier = Modifier.size(iconSize),
                 tint = MaterialTheme.colorScheme.onSurfaceVariant
             )
+            val displayText = if (routeInfo.type == AudioOutputRouteType.Usb) {
+                formatUsbAudioPillName(context, routeInfo.name)
+            } else {
+                routeInfo.name
+            }
             Text(
-                text = routeInfo.name,
+                text = displayText,
                 style = MaterialTheme.typography.labelMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 maxLines = 1,
