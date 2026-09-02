@@ -652,6 +652,7 @@ bool UacDriver::startIsoPump() {
 
     uint32_t seed_q16 = (static_cast<uint32_t>(baseFrames) << 16) +
         static_cast<uint32_t>((static_cast<uint64_t>(rateRemainder) << 16) / static_cast<uint32_t>(microframesPerSec_));
+    nominalStep_q16_ = seed_q16;
     framesPerUframe_q16_.store(seed_q16, std::memory_order_relaxed);
     fracAccumulator_q16_ = 0;
     maxFramesPerPacket_ = baseFrames + (rateRemainder > 0 ? 1 : 0);
@@ -785,6 +786,26 @@ void UacDriver::onIso(libusb_transfer* xfr) {
     if (stopRequested_.load(std::memory_order_acquire) || xfr->status == LIBUSB_TRANSFER_CANCELLED || xfr->status == LIBUSB_TRANSFER_NO_DEVICE) {
         inflight_.fetch_sub(1, std::memory_order_relaxed);
         return;
+    }
+
+    if (format_.feedbackEndpointAddress == 0 && nominalStep_q16_ > 0) {
+        size_t head = ringHead_.load(std::memory_order_relaxed);
+        size_t tail = ringTail_.load(std::memory_order_relaxed);
+        size_t currentFillBytes = ringSize(head, tail);
+
+        constexpr size_t targetWatermark = kRingBytes / 2;
+        int64_t fillErrorBytes = static_cast<int64_t>(currentFillBytes) - static_cast<int64_t>(targetWatermark);
+
+        int64_t maxAdj_q16 = (static_cast<int64_t>(nominalStep_q16_) * 5) / 10000;
+        if (maxAdj_q16 < 1) maxAdj_q16 = 1;
+
+        constexpr int64_t rangeBytes = static_cast<int64_t>(kRingBytes / 4);
+        int64_t adj_q16 = (fillErrorBytes * maxAdj_q16) / rangeBytes;
+        if (adj_q16 > maxAdj_q16) adj_q16 = maxAdj_q16;
+        if (adj_q16 < -maxAdj_q16) adj_q16 = -maxAdj_q16;
+
+        uint32_t adjustedStep = static_cast<uint32_t>(static_cast<int64_t>(nominalStep_q16_) + adj_q16);
+        framesPerUframe_q16_.store(adjustedStep, std::memory_order_relaxed);
     }
 
     uint8_t* cursor = xfr->buffer;

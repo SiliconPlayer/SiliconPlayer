@@ -129,6 +129,7 @@ private:
     std::thread eventThread_;
 
     std::atomic<uint32_t> framesPerUframe_q16_{0};
+    uint32_t nominalStep_q16_ = 0;
     int microframesPerSec_ = 8000;
     int maxFramesPerPacket_ = 0;
     uint32_t fracAccumulator_q16_ = 0;
