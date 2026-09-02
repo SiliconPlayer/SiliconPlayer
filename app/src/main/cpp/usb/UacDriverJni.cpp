@@ -42,7 +42,8 @@ Java_com_flopster101_siliconplayer_usb_UacDriverNative_nativeStart(
     if (ok) {
         AudioEngine* engine = getGlobalAudioEngine();
         if (engine) {
-            engine->syncUacStreamRate(sampleRate, channels);
+            const auto& fmt = driver().currentFormat();
+            engine->syncUacStreamRate(fmt.sampleRateHz, fmt.channels);
         }
     }
     return ok ? JNI_TRUE : JNI_FALSE;

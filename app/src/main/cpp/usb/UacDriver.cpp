@@ -475,20 +475,13 @@ bool UacDriver::setSampleRate(uint32_t hz) {
             static_cast<uint8_t>((hz >> 16) & 0xFF),
             static_cast<uint8_t>((hz >> 24) & 0xFF),
         };
-        int rc = -1;
-        uint8_t winningId = 0;
         for (uint8_t id : tryIds) {
             int r = libusb_control_transfer(
                 device_, 0x21, REQ_SET_CUR,
                 static_cast<uint16_t>(CS_SAM_FREQ_CONTROL_SEL << 8),
                 static_cast<uint16_t>((id << 8) | format_.controlInterfaceNum),
                 data, 4, 1000);
-            if (r == 4) { rc = r; winningId = id; break; }
-        }
-        if (rc == 4) {
-            if (winningId != format_.clockSourceId) format_.clockSourceId = winningId;
-            captureRangeForClock(winningId);
-            return true;
+            LOGI("UAC2 setSampleRate REQ_SET_CUR id=%u iface=%u hz=%u -> rc=%d", id, format_.controlInterfaceNum, hz, r);
         }
 
         for (uint8_t id : tryIds) {
@@ -499,8 +492,14 @@ bool UacDriver::setSampleRate(uint32_t hz) {
                 static_cast<uint16_t>((id << 8) | format_.controlInterfaceNum),
                 cur, 4, 1000);
             uint32_t hzGot = (gc == 4) ? (uint32_t(cur[0]) | (uint32_t(cur[1]) << 8) | (uint32_t(cur[2]) << 16) | (uint32_t(cur[3]) << 24)) : 0;
-            if (gc == 4 && hzGot == hz) {
+            LOGI("UAC2 getSampleRate REQ_GET_CUR id=%u iface=%u -> rc=%d, hzGot=%u", id, format_.controlInterfaceNum, gc, hzGot);
+            if (gc == 4 && hzGot > 0) {
                 format_.clockSourceId = id;
+                if (static_cast<int>(hzGot) != format_.sampleRateHz) {
+                    LOGW("UAC2 DAC hardware rate is %uHz (requested %dHz); adopting hardware rate", hzGot, format_.sampleRateHz);
+                    format_.sampleRateHz = static_cast<int>(hzGot);
+                }
+                captureRangeForClock(id);
                 return true;
             }
         }
@@ -524,10 +523,8 @@ bool UacDriver::setSampleRate(uint32_t hz) {
             static_cast<uint16_t>(CS_SAM_FREQ_CONTROL_SEL << 8),
             static_cast<uint16_t>(format_.endpointAddress),
             data4, 4, 1000);
-        if (rc != 4) {
-            LOGW("UAC1 set endpoint rate to %uHz returned %d (endpoint may be fixed-rate)", hz, rc);
-        }
     }
+    LOGI("UAC1 setSampleRate ep=0x%02x hz=%u -> rc=%d", format_.endpointAddress, hz, rc);
     return true;
 }
 
@@ -555,12 +552,23 @@ bool UacDriver::start(int sampleRateHz, int bitsPerSample, int channels) {
         return false;
     }
 
+    if (!controlClaimed_) {
+        libusb_detach_kernel_driver(device_, fmt.controlInterfaceNum);
+        int crc = libusb_claim_interface(device_, fmt.controlInterfaceNum);
+        if (crc == LIBUSB_SUCCESS) {
+            controlClaimed_ = true;
+        } else {
+            LOGW("Failed to claim control interface %u: rc=%d", fmt.controlInterfaceNum, crc);
+        }
+    }
+
     bool needClaim = !interfaceClaimed_ || format_.interfaceNumber != fmt.interfaceNumber;
     if (needClaim) {
         if (interfaceClaimed_) {
             libusb_release_interface(device_, format_.interfaceNumber);
             interfaceClaimed_ = false;
         }
+        libusb_detach_kernel_driver(device_, fmt.interfaceNumber);
         int rc = libusb_claim_interface(device_, fmt.interfaceNumber);
         if (rc != LIBUSB_SUCCESS) {
             err(StartError::ClaimInterfaceFailed, "libusb_claim_interface failed");
@@ -612,17 +620,24 @@ bool UacDriver::isStreamingFormat(int sampleRate, int bitsPerSample, int channel
 
 void UacDriver::stop() {
     bool was = streaming_.exchange(false, std::memory_order_acq_rel);
-    if (!was && transfers_.empty() && !interfaceClaimed_) return;
+    if (!was && transfers_.empty() && !interfaceClaimed_ && !controlClaimed_) return;
 
     std::lock_guard<std::mutex> lock(mutex_);
     stopIsoPump();
-    if (device_ && interfaceClaimed_) {
-        if (format_.altSetting != 0) {
-            libusb_set_interface_alt_setting(device_, format_.interfaceNumber, 0);
+    if (device_) {
+        if (interfaceClaimed_) {
+            if (format_.altSetting != 0) {
+                libusb_set_interface_alt_setting(device_, format_.interfaceNumber, 0);
+            }
+            libusb_release_interface(device_, format_.interfaceNumber);
+            libusb_attach_kernel_driver(device_, format_.interfaceNumber);
+            interfaceClaimed_ = false;
         }
-        libusb_release_interface(device_, format_.interfaceNumber);
-        libusb_attach_kernel_driver(device_, format_.interfaceNumber);
-        interfaceClaimed_ = false;
+        if (controlClaimed_) {
+            libusb_release_interface(device_, format_.controlInterfaceNum);
+            libusb_attach_kernel_driver(device_, format_.controlInterfaceNum);
+            controlClaimed_ = false;
+        }
     }
 }
 
@@ -639,7 +654,7 @@ bool UacDriver::startIsoPump() {
     nominalStep_q16_ = seed_q16;
     framesPerUframe_q16_.store(seed_q16, std::memory_order_relaxed);
     fracAccumulator_q16_ = 0;
-    maxFramesPerPacket_ = baseFrames + (rateRemainder > 0 ? 1 : 0);
+    maxFramesPerPacket_ = baseFrames + (rateRemainder > 0 ? 2 : 1);
 
     int frameStride = format_.channels * format_.bytesPerSample;
     int maxBytesPerPacket = maxFramesPerPacket_ * frameStride;
@@ -830,25 +845,61 @@ void LIBUSB_CALL UacDriver::onFeedbackTrampoline(libusb_transfer* xfr) {
 }
 
 void UacDriver::onFeedback(libusb_transfer* xfr) {
-    if (stopRequested_.load(std::memory_order_acquire) || xfr->status == LIBUSB_TRANSFER_CANCELLED || xfr->status == LIBUSB_TRANSFER_NO_DEVICE) {
+    if (stopRequested_.load(std::memory_order_acquire) ||
+        xfr->status == LIBUSB_TRANSFER_CANCELLED ||
+        xfr->status == LIBUSB_TRANSFER_NO_DEVICE) {
         inflight_.fetch_sub(1, std::memory_order_relaxed);
         return;
     }
 
     if (xfr->status == LIBUSB_TRANSFER_COMPLETED && xfr->iso_packet_desc[0].actual_length >= 3) {
         const uint8_t* p = xfr->buffer;
-        uint32_t val_q16 = 0;
+        uint32_t rawVal = 0;
         if (format_.isHighSpeed && xfr->iso_packet_desc[0].actual_length >= 4) {
-            uint32_t raw_16_16 = uint32_t(p[0]) | (uint32_t(p[1]) << 8) | (uint32_t(p[2]) << 16) | (uint32_t(p[3]) << 24);
-            int shift = (format_.feedbackInterval > 1) ? (format_.feedbackInterval - 1) : 0;
-            val_q16 = raw_16_16 >> (shift + 3);
+            rawVal = uint32_t(p[0]) | (uint32_t(p[1]) << 8) | (uint32_t(p[2]) << 16) | (uint32_t(p[3]) << 24);
         } else {
             uint32_t raw_10_14 = uint32_t(p[0]) | (uint32_t(p[1]) << 8) | (uint32_t(p[2]) << 16);
-            val_q16 = raw_10_14 << 2;
+            rawVal = raw_10_14 << 2;
         }
-        if (val_q16 > 0) {
-            framesPerUframe_q16_.store(val_q16, std::memory_order_relaxed);
+
+        uint32_t chosenVal = nominalStep_q16_;
+        if (nominalStep_q16_ > 0 && rawVal > 0) {
+            const uint32_t minAllowed = nominalStep_q16_ - (nominalStep_q16_ / 20); // 95%
+            const uint32_t maxAllowed = nominalStep_q16_ + (nominalStep_q16_ / 20); // 105%
+
+            int uShift = (format_.bInterval > 1) ? (format_.bInterval - 1) : 0;
+            uint32_t candidates[] = {
+                rawVal,
+                (uShift > 0 && uShift < 16) ? (rawVal << uShift) : rawVal,
+                rawVal << 3,
+                rawVal << 2,
+                rawVal >> 3,
+                (uShift > 0 && uShift < 16) ? (rawVal >> uShift) : rawVal,
+                rawVal >> 2
+            };
+
+            bool matched = false;
+            for (uint32_t cand : candidates) {
+                if (cand >= minAllowed && cand <= maxAllowed) {
+                    chosenVal = cand;
+                    matched = true;
+                    break;
+                }
+            }
+            if (!matched) {
+                chosenVal = nominalStep_q16_;
+            }
+
+            static int sFeedbackLogCount = 0;
+            if (sFeedbackLogCount++ < 5) {
+                LOGD("UAC onFeedback: raw=0x%08x nominal=%u chosen=%u matched=%d (data_bInterval=%u)",
+                     rawVal, nominalStep_q16_, chosenVal, matched ? 1 : 0, format_.bInterval);
+            }
+        } else if (rawVal > 0) {
+            chosenVal = rawVal;
         }
+
+        framesPerUframe_q16_.store(chosenVal, std::memory_order_relaxed);
     }
 
     int fbLen = format_.isHighSpeed ? 4 : 3;

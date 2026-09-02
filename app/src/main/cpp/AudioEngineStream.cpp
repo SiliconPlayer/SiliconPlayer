@@ -251,6 +251,7 @@ void AudioEngine::closeStream() {
 }
 
 void AudioEngine::syncUacStreamRate(int sampleRateHz, int channels) {
+    clearRenderQueue();
     std::lock_guard<std::mutex> lock(decoderMutex);
     if (sampleRateHz > 0) {
         streamSampleRate = sampleRateHz;
