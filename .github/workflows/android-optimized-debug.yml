@@ -124,12 +124,35 @@ jobs:
           mkdir -p artifact
           find app/build/outputs -type f -name "*.apk" | grep -i optimizeddebug | while read -r APK; do
             ABI=$(basename "$APK" | sed -n 's/.*app-\(.*\)-optimizedDebug\.apk/\1/p')
+            [ -n "$ABI" ] || continue
             cp "$APK" "artifact/SiliconPlayer-${{ steps.version.outputs.version_name }}-${{ steps.vars.outputs.short_sha }}-$ABI.apk"
           done
           ls -la artifact/
 
-      - name: Upload APK artifacts
+      - name: Upload arm64-v8a artifact
         uses: actions/upload-artifact@v4
         with:
-          name: SiliconPlayer-${{ steps.version.outputs.version_name }}-${{ steps.vars.outputs.short_sha }}
-          path: artifact/*.apk
+          name: SiliconPlayer-${{ steps.version.outputs.version_name }}-${{ steps.vars.outputs.short_sha }}-arm64-v8a
+          path: artifact/*arm64-v8a.apk
+          if-no-files-found: error
+
+      - name: Upload armeabi-v7a artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: SiliconPlayer-${{ steps.version.outputs.version_name }}-${{ steps.vars.outputs.short_sha }}-armeabi-v7a
+          path: artifact/*armeabi-v7a.apk
+          if-no-files-found: error
+
+      - name: Upload x86_64 artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: SiliconPlayer-${{ steps.version.outputs.version_name }}-${{ steps.vars.outputs.short_sha }}-x86_64
+          path: artifact/*x86_64.apk
+          if-no-files-found: error
+
+      - name: Upload x86 artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: SiliconPlayer-${{ steps.version.outputs.version_name }}-${{ steps.vars.outputs.short_sha }}-x86
+          path: artifact/*-x86.apk
+          if-no-files-found: error
