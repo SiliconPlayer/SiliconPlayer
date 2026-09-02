@@ -27,6 +27,7 @@ import androidx.compose.material.icons.automirrored.filled.VolumeUp
 import androidx.compose.material.icons.filled.AudioFile
 import androidx.compose.material.icons.filled.Bluetooth
 import androidx.compose.material.icons.filled.Headphones
+import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Usb
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
@@ -223,6 +224,8 @@ internal fun AudioOutputDetailsDialog(
         routeInfo.type == AudioOutputRouteType.Usb && bitPerfectEnabled && (isUacDriverOpen || BitPerfectCoordinator.isBitPerfectActive(context) || isBitPerfectSupported)
     }
 
+    var showReplugNoticeDialog by remember { mutableStateOf(false) }
+
     val onToggleBitPerfect: (Boolean) -> Unit = { targetEnabled ->
         val canLiveChange = supportsLiveSampleRateChange(playbackCapabilitiesFlags)
         if (isPlaying && !canLiveChange) {
@@ -274,6 +277,7 @@ internal fun AudioOutputDetailsDialog(
                 UacDriverCoordinator.close()
                 BitPerfectCoordinator.clearBitPerfectMixer(context)
                 NativeBridge.setBitPerfectMode(false)
+                showReplugNoticeDialog = true
             }
         }
     }
@@ -922,8 +926,10 @@ internal fun AudioOutputDetailsDialog(
                             BitPerfectCoordinator.setPreferredBitPerfectMixer(context, usbDevice, effectiveDecoderRate, effectiveChannels)
                             NativeBridge.setBitPerfectMode(true)
                         } else {
+                            UacDriverCoordinator.close()
                             BitPerfectCoordinator.clearBitPerfectMixer(context)
                             NativeBridge.setBitPerfectMode(false)
+                            showReplugNoticeDialog = true
                         }
                         onRestartTrack()
                     }
@@ -936,9 +942,46 @@ internal fun AudioOutputDetailsDialog(
                     onClick = {
                         showRestartConfirmDialog = false
                         onBitPerfectToggled(pendingBitPerfectState)
+                        if (!pendingBitPerfectState) {
+                            UacDriverCoordinator.close()
+                            BitPerfectCoordinator.clearBitPerfectMixer(context)
+                            NativeBridge.setBitPerfectMode(false)
+                            showReplugNoticeDialog = true
+                        }
                     }
                 ) {
                     Text("Keep playing")
+                }
+            }
+        )
+    }
+
+    if (showReplugNoticeDialog) {
+        AlertDialog(
+            onDismissRequest = { showReplugNoticeDialog = false },
+            icon = {
+                Icon(
+                    imageVector = Icons.Filled.Info,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.primary
+                )
+            },
+            title = {
+                Text(
+                    text = "Device reconnect notice",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold
+                )
+            },
+            text = {
+                Text(
+                    text = "Disabling direct USB audio while a device is active releases exclusive hardware control. To route audio through Android's standard audio mixer again, you may need to unplug and reconnect your USB audio device.",
+                    style = MaterialTheme.typography.bodyMedium
+                )
+            },
+            confirmButton = {
+                Button(onClick = { showReplugNoticeDialog = false }) {
+                    Text("Got it")
                 }
             }
         )

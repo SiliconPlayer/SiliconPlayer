@@ -115,8 +115,6 @@ private:
     std::atomic<bool> streaming_{false};
     std::atomic<bool> stopRequested_{false};
     bool interfaceClaimed_ = false;
-    bool controlInterfaceClaimed_ = false;
-    uint8_t claimedControlIface_ = 0xFF;
 
     std::vector<libusb_transfer*> transfers_;
     std::vector<std::vector<uint8_t>> transferBuffers_;

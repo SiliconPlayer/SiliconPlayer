@@ -5,8 +5,12 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.MoreHoriz
 import androidx.compose.material.icons.filled.Tune
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Button
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -17,6 +21,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.font.FontWeight
 import android.content.Context
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.unit.dp
@@ -218,6 +223,8 @@ internal fun GeneralAudioRouteContent(
 
     val coroutineScope = rememberCoroutineScope()
 
+    var showReplugNoticeDialog by remember { mutableStateOf(false) }
+
     SettingsRowSpacer()
     PlayerSettingToggleCard(
         title = "Bit-perfect USB audio",
@@ -255,6 +262,7 @@ internal fun GeneralAudioRouteContent(
                 com.flopster101.siliconplayer.usb.UacDriverCoordinator.close()
                 BitPerfectCoordinator.clearBitPerfectMixer(context)
                 NativeBridge.setBitPerfectMode(false)
+                showReplugNoticeDialog = true
             }
         }
     )
@@ -342,6 +350,37 @@ internal fun GeneralAudioRouteContent(
                 showVolumeModeDialog = false
             },
             onDismiss = { showVolumeModeDialog = false }
+        )
+    }
+
+    if (showReplugNoticeDialog) {
+        AlertDialog(
+            onDismissRequest = { showReplugNoticeDialog = false },
+            icon = {
+                Icon(
+                    imageVector = Icons.Filled.Info,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.primary
+                )
+            },
+            title = {
+                Text(
+                    text = "Device reconnect notice",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold
+                )
+            },
+            text = {
+                Text(
+                    text = "Disabling direct USB audio while a device is active releases exclusive hardware control. To route audio through Android's standard audio mixer again, you may need to unplug and reconnect your USB audio device.",
+                    style = MaterialTheme.typography.bodyMedium
+                )
+            },
+            confirmButton = {
+                Button(onClick = { showReplugNoticeDialog = false }) {
+                    Text("Got it")
+                }
+            }
         )
     }
 }

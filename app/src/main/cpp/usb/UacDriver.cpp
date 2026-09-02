@@ -569,17 +569,6 @@ bool UacDriver::start(int sampleRateHz, int bitsPerSample, int channels) {
         interfaceClaimed_ = true;
     }
 
-    if (fmt.controlInterfaceNum != 0xFF && (!controlInterfaceClaimed_ || claimedControlIface_ != fmt.controlInterfaceNum)) {
-        if (controlInterfaceClaimed_) {
-            libusb_release_interface(device_, claimedControlIface_);
-            controlInterfaceClaimed_ = false;
-        }
-        int rc = libusb_claim_interface(device_, fmt.controlInterfaceNum);
-        if (rc == LIBUSB_SUCCESS) {
-            controlInterfaceClaimed_ = true;
-            claimedControlIface_ = fmt.controlInterfaceNum;
-        }
-    }
     format_ = fmt;
 
     int rc = libusb_set_interface_alt_setting(device_, format_.interfaceNumber, format_.altSetting);
@@ -623,7 +612,7 @@ bool UacDriver::isStreamingFormat(int sampleRate, int bitsPerSample, int channel
 
 void UacDriver::stop() {
     bool was = streaming_.exchange(false, std::memory_order_acq_rel);
-    if (!was && transfers_.empty() && !interfaceClaimed_ && !controlInterfaceClaimed_) return;
+    if (!was && transfers_.empty() && !interfaceClaimed_) return;
 
     std::lock_guard<std::mutex> lock(mutex_);
     stopIsoPump();
@@ -634,11 +623,6 @@ void UacDriver::stop() {
         libusb_release_interface(device_, format_.interfaceNumber);
         libusb_attach_kernel_driver(device_, format_.interfaceNumber);
         interfaceClaimed_ = false;
-    }
-    if (device_ && controlInterfaceClaimed_) {
-        libusb_release_interface(device_, claimedControlIface_);
-        libusb_attach_kernel_driver(device_, claimedControlIface_);
-        controlInterfaceClaimed_ = false;
     }
 }
 
