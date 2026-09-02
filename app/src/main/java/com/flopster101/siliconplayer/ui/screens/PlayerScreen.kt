@@ -2407,12 +2407,17 @@ private fun PlayerTopBar(
     }
     val statusBarTopInset = 0.dp
     val totalHeaderHeight = statusBarTopInset + headerHeight
-    Box(
+    BoxWithConstraints(
         modifier = Modifier
             .fillMaxWidth()
             .height(totalHeaderHeight),
         contentAlignment = Alignment.TopStart
     ) {
+        val totalWidth = maxWidth
+        val rightActionsWidth = navButtonSize * 2 + 16.dp + horizontalInset
+        val leftActionsWidth = navButtonSize + horizontalInset + 16.dp
+        val maxAvailablePillWidth = (totalWidth - rightActionsWidth - leftActionsWidth).coerceAtLeast(140.dp)
+
         Box(
             modifier = Modifier
                 .then(
@@ -2464,11 +2469,7 @@ private fun PlayerTopBar(
                     routeInfo = outputRouteInfo,
                     onClick = onOpenAudioOutputDetails,
                     compactLayout = compactLandscapeHeader || compactPortraitHeader,
-                    maxPillWidth = when {
-                        compactLandscapeHeader -> 160.dp
-                        compactPortraitHeader -> 180.dp
-                        else -> 210.dp
-                    },
+                    maxPillWidth = maxAvailablePillWidth,
                     focusRequester = routePillFocusRequester,
                     leftFocusRequester = focusRequester,
                     rightFocusRequester = playlistFocusRequester,
