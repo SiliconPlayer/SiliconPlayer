@@ -2,13 +2,21 @@ name: Android CI - optimizedDebug
 
 on:
   push:
+    branches:
+      - master
   pull_request:
   workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   build:
     name: Build optimizedDebug APK
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
     env:
       JAVA_TOOL_OPTIONS: -Dfile.encoding=UTF8
       ANDROID_SDK_ROOT: /usr/local/lib/android/sdk
@@ -117,6 +125,7 @@ jobs:
         id: version
         run: |
           VERSION_NAME=$(grep -oP 'versionName\s*=\s*"\K[^"]+' app/build.gradle.kts)
+          echo "version_base=${VERSION_NAME}" >> "$GITHUB_OUTPUT"
           echo "version_name=${VERSION_NAME}-optdebug" >> "$GITHUB_OUTPUT"
 
       - name: Prepare artifacts
@@ -156,3 +165,34 @@ jobs:
           name: SiliconPlayer-${{ steps.version.outputs.version_name }}-${{ steps.vars.outputs.short_sha }}-x86
           path: artifact/*-x86.apk
           if-no-files-found: error
+
+      - name: Publish experimental release
+        if: github.event_name == 'push' && github.ref == 'refs/heads/master'
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          VERSION_BASE: ${{ steps.version.outputs.version_base }}
+          SHORT_SHA: ${{ steps.vars.outputs.short_sha }}
+          BUILD: ${{ github.run_number }}
+        run: |
+          set -euo pipefail
+          TAG="experimental"
+
+          if PREV_SHA=$(git rev-parse -q --verify refs/tags/experimental 2>/dev/null); then
+            CHANGELOG=$(git log --format='- %h %s' "${PREV_SHA}..HEAD" | grep -v '^-[ ]*[0-9a-f]\+ ci:' || true)
+            [ -n "$CHANGELOG" ] || CHANGELOG="- No code changes since the previous build"
+          else
+            CHANGELOG=$(git log --format='- %h %s' -15 HEAD)
+          fi
+
+          NOTES=$(printf '%s\n\n## Changes\n%s\n' \
+            "Experimental build from commit ${SHORT_SHA}. This build is auto-generated on every master push; expect instability." \
+            "$CHANGELOG")
+
+          gh release delete "$TAG" --cleanup-tag --yes || true
+
+          gh release create "$TAG" \
+            --prerelease \
+            --target "$GITHUB_SHA" \
+            --title "SiliconPlayer ${VERSION_BASE} (build ${BUILD})" \
+            --notes "$NOTES" \
+            artifact/*.apk
