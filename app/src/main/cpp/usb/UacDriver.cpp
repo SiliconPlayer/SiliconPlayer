@@ -805,7 +805,16 @@ void UacDriver::onIso(libusb_transfer* xfr) {
         int packetBytes = frames * frameStride;
 
         xfr->iso_packet_desc[p].length = packetBytes;
-        if (packetBytes > 0) drainRing(cursor, packetBytes);
+        if (packetBytes > 0) {
+            if (audioProvider_) {
+                int provided = audioProvider_(cursor, frames, format_);
+                if (provided < frames) {
+                    std::memset(cursor + (provided * frameStride), 0, (frames - provided) * frameStride);
+                }
+            } else {
+                drainRing(cursor, packetBytes);
+            }
+        }
         cursor += packetBytes;
         totalFramesThisTransfer += frames;
     }

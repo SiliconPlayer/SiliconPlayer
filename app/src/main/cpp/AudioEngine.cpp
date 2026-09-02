@@ -3,6 +3,7 @@
 #include "decoders/DecoderRegistry.h"
 #include "decoders/DecoderPluginLoader.h"
 #include "decoders/UadeExtensions.h"
+#include "usb/UacDriver.h"
 
 #include <cstring>
 #include <utility>
@@ -436,10 +437,16 @@ AudioEngine::AudioEngine() {
     updateRenderQueueTuning();
     seekWorkerThread = std::thread([this]() { seekWorkerLoop(); });
     renderWorkerThread = std::thread([this]() { renderWorkerLoop(); });
+    siliconplayer::usb::getUacDriverInstance().setAudioProvider(
+        [this](uint8_t* dst, int maxFrames, const siliconplayer::usb::StreamFormat& fmt) {
+            return provideUacDirectFrames(dst, maxFrames, fmt);
+        }
+    );
     createStream();
 }
 
 AudioEngine::~AudioEngine() {
+    siliconplayer::usb::getUacDriverInstance().setAudioProvider(nullptr);
     {
         std::lock_guard<std::mutex> lock(seekWorkerMutex);
         seekWorkerStop = true;

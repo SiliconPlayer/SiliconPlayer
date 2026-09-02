@@ -2,6 +2,7 @@
 
 #include <atomic>
 #include <cstdint>
+#include <functional>
 #include <mutex>
 #include <string>
 #include <thread>
@@ -77,6 +78,12 @@ public:
     std::string lastErrorDetail() const;
     std::vector<ClockRateRange> supportedRates() const;
 
+    using AudioProviderFn = std::function<int(uint8_t* dst, int maxFrames, const StreamFormat& fmt)>;
+    void setAudioProvider(AudioProviderFn provider) {
+        std::lock_guard<std::mutex> lock(mutex_);
+        audioProvider_ = std::move(provider);
+    }
+
     void setVolumeScale(float scale) {
         volumeScale_.store(std::clamp(scale, 0.0f, 1.0f), std::memory_order_release);
     }
@@ -137,6 +144,7 @@ private:
     std::string lastErrorDetail_;
     std::vector<ClockRateRange> supportedRates_;
     std::atomic<float> volumeScale_{1.0f};
+    AudioProviderFn audioProvider_;
 };
 
 UacDriver& getUacDriverInstance();

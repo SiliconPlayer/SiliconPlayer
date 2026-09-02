@@ -199,8 +199,14 @@ bool AudioEngine::createMiniaudioStream() {
     }
 
     miniaudioDeviceInitialized = true;
-    streamSampleRate = miniaudioDevice.sampleRate > 0 ? static_cast<int>(miniaudioDevice.sampleRate) : 48000;
-    streamChannelCount = miniaudioDevice.playback.channels > 0 ? static_cast<int>(miniaudioDevice.playback.channels) : 2;
+    auto& uacInstance = siliconplayer::usb::getUacDriverInstance();
+    if (uacInstance.isStreaming()) {
+        streamSampleRate = uacInstance.currentFormat().sampleRateHz;
+        streamChannelCount = uacInstance.currentFormat().channels;
+    } else {
+        streamSampleRate = miniaudioDevice.sampleRate > 0 ? static_cast<int>(miniaudioDevice.sampleRate) : 48000;
+        streamChannelCount = miniaudioDevice.playback.channels > 0 ? static_cast<int>(miniaudioDevice.playback.channels) : 2;
+    }
     miniaudioBufferFrames = miniaudioDevice.playback.internalPeriodSizeInFrames > 0
             ? static_cast<int>(miniaudioDevice.playback.internalPeriodSizeInFrames)
             : periodFrames;
@@ -221,6 +227,7 @@ bool AudioEngine::createMiniaudioStream() {
 }
 
 void AudioEngine::closeMiniaudioStream() {
+    intentionalStreamTeardown.store(true, std::memory_order_release);
     if (miniaudioDeviceInitialized) {
         ma_device_uninit(&miniaudioDevice);
         miniaudioDeviceInitialized = false;
@@ -232,6 +239,7 @@ void AudioEngine::closeMiniaudioStream() {
     activeMiniaudioBackend = ma_backend_null;
     activeOutputBackend.store(0, std::memory_order_relaxed);
     outputStreamReady.store(false, std::memory_order_relaxed);
+    intentionalStreamTeardown.store(false, std::memory_order_release);
 }
 
 void AudioEngine::createStream() {
@@ -240,6 +248,23 @@ void AudioEngine::createStream() {
 
 void AudioEngine::closeStream() {
     closeMiniaudioStream();
+}
+
+void AudioEngine::syncUacStreamRate(int sampleRateHz, int channels) {
+    std::lock_guard<std::mutex> lock(decoderMutex);
+    if (sampleRateHz > 0) {
+        streamSampleRate = sampleRateHz;
+        streamChannelCount = channels > 0 ? channels : 2;
+        if (decoder) {
+            const bool supportsLiveRateChange =
+                    (decoder->getPlaybackCapabilities() & AudioDecoder::PLAYBACK_CAP_LIVE_SAMPLE_RATE_CHANGE) != 0;
+            if (supportsLiveRateChange) {
+                decoder->setOutputSampleRate(sampleRateHz);
+                decoderRenderSampleRate = decoder->getRenderSampleRate();
+                resetResamplerStateLocked(true);
+            }
+        }
+    }
 }
 
 bool AudioEngine::requestStreamStart() {
@@ -362,12 +387,19 @@ void AudioEngine::miniaudioStopCallback(ma_device* pDevice) {
     auto* engine = static_cast<AudioEngine*>(pDevice->pUserData);
     if (!engine) return;
     LOGD("Miniaudio device stop callback received (isPlaying=%d)", engine->isPlaying.load() ? 1 : 0);
+    if (engine->intentionalStreamTeardown.load(std::memory_order_acquire)) {
+        return;
+    }
+    auto& uac = siliconplayer::usb::getUacDriverInstance();
+    if (uac.isStreaming()) {
+        return;
+    }
     if (engine->isPlaying.load()) {
         engine->streamNeedsRebuild.store(true);
         std::thread([engine]() {
             pthread_setname_np(pthread_self(), "sp_recover");
             usleep(150000);
-            if (engine->isPlaying.load()) {
+            if (engine->isPlaying.load() && !engine->intentionalStreamTeardown.load()) {
                 engine->reconfigureStream(true);
             }
         }).detach();
@@ -388,74 +420,77 @@ void AudioEngine::miniaudioDataCallback(
     auto* engine = static_cast<AudioEngine*>(pDevice->pUserData);
     if (!engine || !pOutput || frameCount == 0) return;
 
+    auto& uac = siliconplayer::usb::getUacDriverInstance();
+    if (uac.isStreaming()) {
+        std::memset(pOutput, 0, frameCount * 2 * sizeof(float));
+        return;
+    }
+
     auto* outputData = static_cast<float*>(pOutput);
     const int callbackRate = pDevice->sampleRate > 0
             ? static_cast<int>(pDevice->sampleRate)
             : (engine->streamSampleRate > 0 ? engine->streamSampleRate : 48000);
 
     engine->renderOutputCallbackFrames(outputData, static_cast<int32_t>(frameCount), callbackRate);
+}
 
+int AudioEngine::provideUacDirectFrames(uint8_t* dst, int maxFrames, const siliconplayer::usb::StreamFormat& fmt) {
+    if (!dst || maxFrames <= 0 || !isPlaying.load(std::memory_order_relaxed)) {
+        if (dst && maxFrames > 0) {
+            std::memset(dst, 0, maxFrames * fmt.channels * fmt.bytesPerSample);
+        }
+        return 0;
+    }
+
+    static thread_local std::vector<float> floatBuf;
+    const size_t totalFloats = static_cast<size_t>(maxFrames * 2);
+    if (floatBuf.size() < totalFloats) floatBuf.resize(totalFloats);
+
+    renderOutputCallbackFrames(floatBuf.data(), maxFrames, fmt.sampleRateHz);
+
+    const int ch = fmt.channels > 0 ? fmt.channels : 2;
+    const int subslot = fmt.bytesPerSample > 0 ? fmt.bytesPerSample : (fmt.bitsPerSample / 8);
     auto& uac = siliconplayer::usb::getUacDriverInstance();
-    if (uac.isStreaming()) {
-        const auto& fmt = uac.currentFormat();
-        const int ch = fmt.channels > 0 ? fmt.channels : 2;
-        const int subslot = fmt.bytesPerSample > 0 ? fmt.bytesPerSample : (fmt.bitsPerSample / 8);
-        const size_t totalBytes = static_cast<size_t>(frameCount * ch * subslot);
-        static thread_local std::vector<uint8_t> pcmBuf;
-        if (pcmBuf.size() < totalBytes) pcmBuf.resize(totalBytes);
+    const float volScale = uac.volumeScale();
+    const bool applyVol = (volScale < 0.9999f || volScale > 1.0001f);
 
-        const float volScale = uac.volumeScale();
-        const bool applyVol = (volScale < 0.9999f || volScale > 1.0001f);
-
-        if (subslot == 2) {
-            auto* dst = reinterpret_cast<int16_t*>(pcmBuf.data());
-            for (size_t i = 0; i < frameCount * ch; ++i) {
-                float sample = outputData[i];
-                if (applyVol) sample *= volScale;
-                sample = std::clamp(sample, -1.0f, 1.0f);
-                dst[i] = static_cast<int16_t>(sample * 32767.0f);
-            }
-        } else if (subslot == 3) {
-            uint8_t* dst = pcmBuf.data();
-            for (size_t i = 0; i < frameCount * ch; ++i) {
-                float sample = outputData[i];
-                if (applyVol) sample *= volScale;
-                sample = std::clamp(sample, -1.0f, 1.0f);
-                int32_t s24 = static_cast<int32_t>(sample * 8388607.0f);
-                dst[i * 3 + 0] = static_cast<uint8_t>(s24 & 0xFF);
-                dst[i * 3 + 1] = static_cast<uint8_t>((s24 >> 8) & 0xFF);
-                dst[i * 3 + 2] = static_cast<uint8_t>((s24 >> 16) & 0xFF);
-            }
-        } else if (subslot == 4) {
-            if (fmt.bitsPerSample == 24) {
-                auto* dst = reinterpret_cast<int32_t*>(pcmBuf.data());
-                for (size_t i = 0; i < frameCount * ch; ++i) {
-                    float sample = outputData[i];
-                    if (applyVol) sample *= volScale;
-                    sample = std::clamp(sample, -1.0f, 1.0f);
-                    dst[i] = static_cast<int32_t>(sample * 8388607.0f) << 8;
-                }
-            } else {
-                auto* dst = reinterpret_cast<int32_t*>(pcmBuf.data());
-                for (size_t i = 0; i < frameCount * ch; ++i) {
-                    float sample = outputData[i];
-                    if (applyVol) sample *= volScale;
-                    sample = std::clamp(sample, -1.0f, 1.0f);
-                    dst[i] = static_cast<int32_t>(sample * 2147483647.0f);
-                }
-            }
+    if (subslot == 2) {
+        auto* out16 = reinterpret_cast<int16_t*>(dst);
+        for (size_t i = 0; i < static_cast<size_t>(maxFrames * ch); ++i) {
+            float s = floatBuf[i];
+            if (applyVol) s *= volScale;
+            s = std::clamp(s, -1.0f, 1.0f);
+            out16[i] = static_cast<int16_t>(s * 32767.0f);
         }
-        uac.writePcm(pcmBuf.data(), static_cast<int>(frameCount));
-        static int sUacLogCounter = 0;
-        if (sUacLogCounter++ % 500 == 0) {
-            LOGD("Direct UAC driver active: streaming %d frames @ %dHz %d-bit (played=%lld written=%lld)",
-                 static_cast<int>(frameCount), fmt.sampleRateHz, fmt.bitsPerSample,
-                 static_cast<long long>(uac.playedFrames()), static_cast<long long>(uac.writtenFrames()));
+    } else if (subslot == 3) {
+        for (size_t i = 0; i < static_cast<size_t>(maxFrames * ch); ++i) {
+            float s = floatBuf[i];
+            if (applyVol) s *= volScale;
+            s = std::clamp(s, -1.0f, 1.0f);
+            int32_t s24 = static_cast<int32_t>(s * 8388607.0f);
+            dst[i * 3 + 0] = static_cast<uint8_t>(s24 & 0xFF);
+            dst[i * 3 + 1] = static_cast<uint8_t>((s24 >> 8) & 0xFF);
+            dst[i * 3 + 2] = static_cast<uint8_t>((s24 >> 16) & 0xFF);
         }
-        if (pDevice->pContext && pDevice->pContext->backend != ma_backend_null) {
-            std::memset(pOutput, 0, frameCount * ch * sizeof(float));
+    } else if (subslot == 4) {
+        auto* out32 = reinterpret_cast<int32_t*>(dst);
+        if (fmt.bitsPerSample == 24) {
+            for (size_t i = 0; i < static_cast<size_t>(maxFrames * ch); ++i) {
+                float s = floatBuf[i];
+                if (applyVol) s *= volScale;
+                s = std::clamp(s, -1.0f, 1.0f);
+                out32[i] = static_cast<int32_t>(s * 8388607.0f) << 8;
+            }
+        } else {
+            for (size_t i = 0; i < static_cast<size_t>(maxFrames * ch); ++i) {
+                float s = floatBuf[i];
+                if (applyVol) s *= volScale;
+                s = std::clamp(s, -1.0f, 1.0f);
+                out32[i] = static_cast<int32_t>(s * 2147483647.0f);
+            }
         }
     }
+    return maxFrames;
 }
 
 void AudioEngine::recoverStreamIfNeeded() {

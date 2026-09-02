@@ -1,8 +1,11 @@
 #include <jni.h>
 #include <android/log.h>
 #include "UacDriver.h"
+#include "../AudioEngine.h"
 
 #define TAG "UacDriverJni"
+
+extern AudioEngine* getGlobalAudioEngine();
 
 namespace {
 inline siliconplayer::usb::UacDriver& driver() {
@@ -35,7 +38,14 @@ Java_com_flopster101_siliconplayer_usb_UacDriverNative_nativeIsOpen(JNIEnv*, job
 JNIEXPORT jboolean JNICALL
 Java_com_flopster101_siliconplayer_usb_UacDriverNative_nativeStart(
     JNIEnv*, jobject, jint sampleRate, jint bitsPerSample, jint channels) {
-    return driver().start(sampleRate, bitsPerSample, channels) ? JNI_TRUE : JNI_FALSE;
+    bool ok = driver().start(sampleRate, bitsPerSample, channels);
+    if (ok) {
+        AudioEngine* engine = getGlobalAudioEngine();
+        if (engine) {
+            engine->syncUacStreamRate(sampleRate, channels);
+        }
+    }
+    return ok ? JNI_TRUE : JNI_FALSE;
 }
 
 JNIEXPORT void JNICALL

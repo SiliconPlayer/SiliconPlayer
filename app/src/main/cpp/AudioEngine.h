@@ -18,6 +18,10 @@
 
 struct SwrContext;
 
+namespace siliconplayer::usb {
+    struct StreamFormat;
+}
+
 class AudioEngine : public silicon::vis::IVisualizationAudioProvider {
 public:
     AudioEngine();
@@ -241,6 +245,7 @@ public:
     void setSongGain(float gainDb);
     void setForceMono(bool enabled);
     void reconfigureStream(bool resumePlayback = true);
+    void syncUacStreamRate(int sampleRateHz, int channels);
     void setOutputLimiterEnabled(bool enabled);
     void setLookaheadClipperMode(int mode);
     void setDspBassEnabled(bool enabled);
@@ -440,6 +445,9 @@ private:
     bool createMiniaudioStream();
     void closeMiniaudioStream();
     bool renderOutputCallbackFrames(float* outputData, int32_t numFrames, int callbackRate);
+    int provideUacDirectFrames(uint8_t* dst, int maxFrames, const siliconplayer::usb::StreamFormat& fmt);
+
+    std::atomic<bool> intentionalStreamTeardown{false};
 
     void createStream();
     void closeStream();
