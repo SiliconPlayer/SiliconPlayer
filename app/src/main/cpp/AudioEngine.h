@@ -319,6 +319,10 @@ private:
     // Serializes stop/setUrl/start so a follow-up setUrl/start cannot
     // race the detached stopEngine thread and have its prefill cleared.
     std::mutex lifecycleMutex;
+    // Guards ma_device init/uninit/start/stop; held inside close/create/start
+    // so short device ops (seek worker, repeat-mode stops) cannot interleave
+    // with a concurrent teardown without taking lifecycleMutex.
+    std::mutex deviceMutex;
     int streamSampleRate = 0;
     int streamChannelCount = 2;
     bool streamStartupPrerollPending = true;
@@ -433,6 +437,7 @@ private:
     void renderResampledLocked(float* outputData, int32_t numFrames, int channels, int streamRate, bool& reachedEnd);
     void renderSoxrResampledLocked(float* outputData, int32_t numFrames, int channels, int streamRate, int renderRate, bool& reachedEnd);
     void recoverStreamIfNeeded();
+    void recoverStreamIfNeededLocked();
     void clearRenderQueue();
     void appendRenderQueue(const float* data, int numFrames, int channels);
     int popRenderQueue(float* outputData, int numFrames, int channels);

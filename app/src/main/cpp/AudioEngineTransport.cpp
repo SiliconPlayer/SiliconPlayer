@@ -56,7 +56,7 @@ namespace {
 
 bool AudioEngine::start() {
     std::lock_guard<std::mutex> lifecycleLock(lifecycleMutex);
-    recoverStreamIfNeeded();
+    recoverStreamIfNeededLocked();
 
     if (refreshPausedStreamOnNextStart.exchange(false, std::memory_order_relaxed) &&
         outputStreamReady.load(std::memory_order_relaxed) &&

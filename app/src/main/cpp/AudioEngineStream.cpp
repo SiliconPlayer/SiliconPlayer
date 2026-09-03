@@ -243,10 +243,12 @@ void AudioEngine::closeMiniaudioStream() {
 }
 
 void AudioEngine::createStream() {
+    std::lock_guard<std::mutex> lock(deviceMutex);
     createMiniaudioStream();
 }
 
 void AudioEngine::closeStream() {
+    std::lock_guard<std::mutex> lock(deviceMutex);
     closeMiniaudioStream();
 }
 
@@ -274,6 +276,10 @@ bool AudioEngine::requestStreamStart() {
         return false;
     }
 
+    std::lock_guard<std::mutex> lock(deviceMutex);
+    if (!miniaudioDeviceInitialized) {
+        return false;
+    }
     const ma_result result = ma_device_start(&miniaudioDevice);
     if (result != MA_SUCCESS) {
         LOGE("Failed to start Miniaudio device: result=%d", static_cast<int>(result));
@@ -283,6 +289,7 @@ bool AudioEngine::requestStreamStart() {
 }
 
 void AudioEngine::requestStreamStop() {
+    std::lock_guard<std::mutex> lock(deviceMutex);
     if (!miniaudioDeviceInitialized) {
         return;
     }
@@ -344,6 +351,9 @@ void AudioEngine::setBitPerfectMode(bool enabled) {
 }
 
 void AudioEngine::reconfigureStream(bool resumePlayback) {
+    // Serializes device teardown/rebuild against start()/stop()/setUrl(); two
+    // concurrent closeStream/createStream cycles corrupt the ma_device.
+    std::lock_guard<std::mutex> lifecycleLock(lifecycleMutex);
     const bool shouldResume = resumePlayback && isPlaying.load();
     playbackStreamStarted.store(false, std::memory_order_release);
     requestStreamStop();
@@ -536,6 +546,19 @@ int AudioEngine::provideUacDirectFrames(uint8_t* dst, int maxFrames, const silic
 }
 
 void AudioEngine::recoverStreamIfNeeded() {
+    if (!streamNeedsRebuild.load()) {
+        return;
+    }
+    // Never block the polling thread behind a lifecycle op; the rebuild is
+    // retried on the next poll if one is in flight.
+    std::unique_lock<std::mutex> lock(lifecycleMutex, std::try_to_lock);
+    if (!lock.owns_lock()) {
+        return;
+    }
+    recoverStreamIfNeededLocked();
+}
+
+void AudioEngine::recoverStreamIfNeededLocked() {
     if (!streamNeedsRebuild.load()) {
         return;
     }
