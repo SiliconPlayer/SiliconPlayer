@@ -41,8 +41,7 @@ if (ANDROID)
 
     target_link_libraries(silicon_vis
         PUBLIC
-            GLESv2
-            EGL
+            GLESv3
             log
             m
             libprojectM-4

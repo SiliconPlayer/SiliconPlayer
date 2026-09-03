@@ -173,16 +173,9 @@ bool SiliconVisPipeline::wantsMsaa() const {
 bool SiliconVisPipeline::probeMsaaSupport() {
     if (msaaProbed_) return msaaSupported_;
     msaaProbed_ = true;
-#if defined(__ANDROID__)
-    // Resolve the ES3 entry points dynamically: the vis context may be ES2.
-    glRenderbufferStorageMultisample_ = reinterpret_cast<PfnRenderbufferStorageMultisample>(
-            eglGetProcAddress("glRenderbufferStorageMultisample"));
-    glBlitFramebuffer_ = reinterpret_cast<PfnBlitFramebuffer>(eglGetProcAddress("glBlitFramebuffer"));
-#else
-    glRenderbufferStorageMultisample_ = glRenderbufferStorageMultisample;
-    glBlitFramebuffer_ = glBlitFramebuffer;
-#endif
-    msaaSupported_ = glRenderbufferStorageMultisample_ != nullptr && glBlitFramebuffer_ != nullptr;
+    GLint maxSamples = 0;
+    glGetIntegerv(GL_MAX_SAMPLES, &maxSamples);
+    msaaSupported_ = maxSamples >= 4;
     return msaaSupported_;
 }
 
@@ -194,32 +187,15 @@ bool SiliconVisPipeline::ensureMsaaTarget(int32_t width, int32_t height) {
     if (!probeMsaaSupport()) {
         return false;
     }
-
-#ifndef GL_MAX_SAMPLES
-#define GL_MAX_SAMPLES 0x8DAB
-#endif
-#ifndef GL_RGBA8
-#define GL_RGBA8 0x8058
-#endif
-#ifndef GL_DEPTH_COMPONENT16
-#define GL_DEPTH_COMPONENT16 0x81A5
-#endif
-
-    // Pick the highest supported sample count up to 4x.
-    GLint maxSamples = 0;
-    glGetIntegerv(GL_MAX_SAMPLES, &maxSamples);
-    msaaSamples_ = maxSamples >= 4 ? 4 : (maxSamples > 0 ? 1 : 0);
-    if (msaaSamples_ <= 0) {
-        return false;
-    }
+    msaaSamples_ = 4;
 
     glGenFramebuffers(1, &msaaFbo_);
     glGenRenderbuffers(1, &msaaColorRb_);
     glBindRenderbuffer(GL_RENDERBUFFER, msaaColorRb_);
-    glRenderbufferStorageMultisample_(GL_RENDERBUFFER, msaaSamples_, GL_RGBA8, width, height);
+    glRenderbufferStorageMultisample(GL_RENDERBUFFER, msaaSamples_, GL_RGBA8, width, height);
     glGenRenderbuffers(1, &msaaDepthRb_);
     glBindRenderbuffer(GL_RENDERBUFFER, msaaDepthRb_);
-    glRenderbufferStorageMultisample_(GL_RENDERBUFFER, msaaSamples_, GL_DEPTH_COMPONENT16, width, height);
+    glRenderbufferStorageMultisample(GL_RENDERBUFFER, msaaSamples_, GL_DEPTH_COMPONENT16, width, height);
 
     glBindFramebuffer(GL_FRAMEBUFFER, msaaFbo_);
     glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_RENDERBUFFER, msaaColorRb_);
@@ -227,6 +203,7 @@ bool SiliconVisPipeline::ensureMsaaTarget(int32_t width, int32_t height) {
     const GLenum status = glCheckFramebufferStatus(GL_FRAMEBUFFER);
     glBindFramebuffer(GL_FRAMEBUFFER, 0);
     if (status != GL_FRAMEBUFFER_COMPLETE) {
+        VIS_LOGW("Scope MSAA: framebuffer incomplete (0x%x), falling back", status);
         releaseMsaaTarget();
         return false;
     }
@@ -322,7 +299,7 @@ void SiliconVisPipeline::render() {
     if (useMsaa) {
         glBindFramebuffer(GL_DRAW_FRAMEBUFFER, 0);
         glBindFramebuffer(GL_READ_FRAMEBUFFER, msaaFbo_);
-        glBlitFramebuffer_(
+        glBlitFramebuffer(
                 0, 0, msaaWidth_, msaaHeight_,
                 0, 0, widthPx_, heightPx_,
                 GL_COLOR_BUFFER_BIT, GL_NEAREST);

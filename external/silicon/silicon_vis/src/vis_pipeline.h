@@ -94,15 +94,6 @@ private:
     int msaaSamples_ = 0;
     bool msaaProbed_ = false;
     bool msaaSupported_ = false;
-#if defined(__ANDROID__)
-    using PfnRenderbufferStorageMultisample = void (GL_APIENTRYP)(GLenum, GLsizei, GLenum, GLsizei, GLsizei);
-    using PfnBlitFramebuffer = void (GL_APIENTRYP)(GLint, GLint, GLint, GLint, GLint, GLint, GLint, GLint, GLbitfield, GLenum);
-#else
-    using PfnRenderbufferStorageMultisample = void (*)(GLenum, GLsizei, GLenum, GLsizei, GLsizei);
-    using PfnBlitFramebuffer = void (*)(GLint, GLint, GLint, GLint, GLint, GLint, GLint, GLint, GLbitfield, GLenum);
-#endif
-    PfnRenderbufferStorageMultisample glRenderbufferStorageMultisample_ = nullptr;
-    PfnBlitFramebuffer glBlitFramebuffer_ = nullptr;
 
     bool probeMsaaSupport();
 

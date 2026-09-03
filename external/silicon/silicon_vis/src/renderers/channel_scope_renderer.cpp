@@ -252,7 +252,7 @@ void ChannelScopeRenderer::buildGeometry() {
     const size_t segmentsPerChannel = histSize >= 2
             ? ((histSize - 2) / waveStride) + 1
             : 0;
-    waveformVertices_.reserve(channels * segmentsPerChannel * (waveRenderMode_ == 2 ? 18 : 4));
+    waveformVertices_.reserve(channels * segmentsPerChannel * (waveRenderMode_ == 2 ? 18 : 40));
     gridVertices_.reserve(static_cast<size_t>(cols + rows) * 4);
     vuTrackVertices_.reserve(static_cast<size_t>(channels) * 12);
 
@@ -283,11 +283,12 @@ void ChannelScopeRenderer::buildGeometry() {
             float cellBottom = cellTop + cellH;
             float centerY = (cellTop + cellBottom) * 0.5f;
 
-            // Waveforms. Off and AA use the identical GL_LINES geometry — AA
-            // differs only by rendering through the pipeline's multisampled
-            // framebuffer, so both share the same line weight and shape. CRT
-            // uses columnar bars per decimated sample (OVGen analog-scope
-            // stroke) with hard column edges and soft top/bottom edges.
+            // Waveforms. Off and AA share one miter-joined ribbon per channel —
+            // a single triangle strip with shared vertices, the GL equivalent of
+            // a stroked path: no seams, no missing joins, filled corners. Off
+            // rasterizes aliased; AA renders through the pipeline's multisample
+            // framebuffer. CRT uses columnar bars per decimated sample (OVGen
+            // analog-scope stroke) with hard column edges.
             const auto& hist = channelHistories_[ch];
             if (hist.size() >= 2) {
                 float stepX = cellW / static_cast<float>(hist.size() - 1);
@@ -296,18 +297,99 @@ void ChannelScopeRenderer::buildGeometry() {
                 const float halfW = lineWidthPx_ * 0.5f;
                 const float barHalf = halfW + kWaveCrtSoftnessPx;
 
+                if (!crtMode) {
+                    // Round-join stroke, the GL equivalent of Agg's default:
+                    // per-segment quads with shared edge vertices, plus a screen-
+                    // aligned disc at every point where the direction turns. The
+                    // union has exactly lineWidth width everywhere regardless of
+                    // angle, so vertical runs keep uniform weight, and corners
+                    // are filled by the discs.
+                    static thread_local std::vector<float> px, py, nx, ny;
+                    px.clear(); py.clear(); nx.clear(); ny.clear();
+                    for (size_t i = 0; i < hist.size(); i += waveStride) {
+                        const float x = cellLeft + i * stepX;
+                        const float y = centerY - (hist[i] * maxAmp);
+                        if (!px.empty()) {
+                            const float ddx = x - px.back();
+                            const float ddy = y - py.back();
+                            if (ddx * ddx + ddy * ddy < 1e-8f) continue;
+                        }
+                        px.push_back(x);
+                        py.push_back(y);
+                    }
+                    const size_t lastIdx = hist.size() - 1;
+                    const float lastX = cellLeft + lastIdx * stepX;
+                    const float lastY = centerY - (hist[lastIdx] * maxAmp);
+                    if (px.empty() || px.back() != lastX || py.back() != lastY) {
+                        px.push_back(lastX);
+                        py.push_back(lastY);
+                    }
+                    const size_t n = px.size();
+                    if (n >= 2) {
+                        for (size_t k = 0; k + 1 < n; ++k) {
+                            float dx = px[k + 1] - px[k];
+                            float dy = py[k + 1] - py[k];
+                            const float segLen = std::sqrt(dx * dx + dy * dy);
+                            if (segLen < 1e-4f) continue;
+                            dx /= segLen;
+                            dy /= segLen;
+                            const float ox = -dy * halfW;
+                            const float oy = dx * halfW;
+
+                            waveformVertices_.push_back(px[k] + ox); waveformVertices_.push_back(py[k] + oy);
+                            waveformVertices_.push_back(px[k + 1] + ox); waveformVertices_.push_back(py[k + 1] + oy);
+                            waveformVertices_.push_back(px[k] - ox); waveformVertices_.push_back(py[k] - oy);
+
+                            waveformVertices_.push_back(px[k + 1] + ox); waveformVertices_.push_back(py[k + 1] + oy);
+                            waveformVertices_.push_back(px[k + 1] - ox); waveformVertices_.push_back(py[k + 1] - oy);
+                            waveformVertices_.push_back(px[k] - ox); waveformVertices_.push_back(py[k] - oy);
+                        }
+
+                        // Turn-point discs: cap the joins where consecutive
+                        // segment directions differ.
+                        const int segments = 10;
+                        for (size_t k = 1; k + 1 < n; ++k) {
+                            float d0x = px[k] - px[k - 1];
+                            float d0y = py[k] - py[k - 1];
+                            float d1x = px[k + 1] - px[k];
+                            float d1y = py[k + 1] - py[k];
+                            const float l0 = std::sqrt(d0x * d0x + d0y * d0y);
+                            const float l1 = std::sqrt(d1x * d1x + d1y * d1y);
+                            if (l0 < 1e-4f || l1 < 1e-4f) continue;
+                            d0x /= l0; d0y /= l0; d1x /= l1; d1y /= l1;
+                            const float dot = d0x * d1x + d0y * d1y;
+                            if (dot > 0.999f) continue;
+
+                            const float cx = px[k];
+                            const float cy = py[k];
+                            float prevX = cx - d0y * halfW;
+                            float prevY = cy + d0x * halfW;
+                            const float endX = cx - d1y * halfW;
+                            const float endY = cy + d1x * halfW;
+                            float angle0 = std::atan2(prevY - cy, prevX - cx);
+                            float angle1 = std::atan2(endY - cy, endX - cx);
+                            float sweep = angle1 - angle0;
+                            if (sweep > (float)M_PI) sweep -= 2.0f * (float)M_PI;
+                            if (sweep < -(float)M_PI) sweep += 2.0f * (float)M_PI;
+                            for (int s = 1; s <= segments; ++s) {
+                                const float a = angle0 + sweep * (static_cast<float>(s) / segments);
+                                const float vx = cx + std::cos(a) * halfW;
+                                const float vy = cy + std::sin(a) * halfW;
+                                waveformVertices_.push_back(cx); waveformVertices_.push_back(cy);
+                                waveformVertices_.push_back(prevX); waveformVertices_.push_back(prevY);
+                                waveformVertices_.push_back(vx); waveformVertices_.push_back(vy);
+                                prevX = vx;
+                                prevY = vy;
+                            }
+                        }
+                    }
+                } else {
                 for (size_t i = 0; i + 1 < hist.size(); i += waveStride) {
                     size_t j = std::min(i + static_cast<size_t>(waveStride), hist.size() - 1);
                     float x0 = cellLeft + i * stepX;
                     float y0 = centerY - (hist[i] * maxAmp);
                     float x1 = cellLeft + j * stepX;
                     float y1 = centerY - (hist[j] * maxAmp);
-
-                    if (!crtMode) {
-                        waveformVertices_.push_back(x0); waveformVertices_.push_back(y0);
-                        waveformVertices_.push_back(x1); waveformVertices_.push_back(y1);
-                        continue;
-                    }
 
                     float bx1 = x1 + kWaveCrtColumnOverlapPx;
 
@@ -324,6 +406,7 @@ void ChannelScopeRenderer::buildGeometry() {
                     waveformVertices_.push_back(barHalf);
                     waveformVertices_.push_back(x0); waveformVertices_.push_back(y0 + barHalf);
                     waveformVertices_.push_back(barHalf);
+                }
                 }
             }
 
@@ -530,11 +613,10 @@ void ChannelScopeRenderer::render() {
     // 3. Scope waveforms
     if (!waveformVertices_.empty()) {
         if (waveRenderMode_ == 0 || waveRenderMode_ == 1) {
-            flatRenderer_.drawLines(
+            flatRenderer_.drawTriangles(
                 waveformVertices_.data(),
                 static_cast<int>(waveformVertices_.size() / 2),
                 lineColorArgb_,
-                lineWidthPx_,
                 static_cast<float>(widthPx_),
                 static_cast<float>(heightPx_)
             );
