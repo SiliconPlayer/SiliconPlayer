@@ -15,7 +15,9 @@ import com.flopster101.siliconplayer.samePath
 import com.flopster101.siliconplayer.data.resolveArchiveSourceToMountedFile
 import java.io.File
 import kotlin.coroutines.coroutineContext
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ensureActive
+import kotlinx.coroutines.withContext
 
 internal suspend fun applyTrackSelectionAction(
     context: Context,
@@ -98,7 +100,9 @@ internal suspend fun applyTrackSelectionAction(
         val canStart = com.flopster101.siliconplayer.usb.UacDriverCoordinator.ensureUacReadyForPlayback(context)
         if (canStart) {
             onAddRecentPlayedTrack(sourceId, locationIdOverride, metadataTitleProvider(), metadataArtistProvider())
-            onStartEngine()
+            // start() spins on the render prefill deadline while holding the
+            // lifecycle mutex; keep that off the caller's (main) dispatcher.
+            withContext(Dispatchers.IO) { onStartEngine() }
             onIsPlayingChanged(true)
             scheduleRecentTrackMetadataRefresh(sourceId, locationIdOverride)
         }
