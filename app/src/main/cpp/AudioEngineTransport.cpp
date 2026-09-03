@@ -113,8 +113,8 @@ bool AudioEngine::start() {
         naturalEndPending.store(false);
         const int startupChunkFrames = std::max(256, renderWorkerChunkFrames.load(std::memory_order_relaxed));
         int startupBaseTargetFrames = std::max(
-                startupChunkFrames * 4,
-                std::min(renderWorkerTargetFrames.load(std::memory_order_relaxed), 8192)
+                startupChunkFrames * 2,
+                std::min(renderWorkerTargetFrames.load(std::memory_order_relaxed), 4096)
         );
         const int burstFrames = getStreamBurstFrames();
         if (burstFrames > 0) {
@@ -129,12 +129,12 @@ bool AudioEngine::start() {
             LOGD("Applying one-time startup preroll: %d frames", startupPrerollFrames);
         }
         const int startupTargetFrames = startupBaseTargetFrames + startupPrerollFrames;
-        renderWorkerCv.notify_all();
-        const auto prefillDeadline = std::chrono::steady_clock::now() + std::chrono::milliseconds(350);
+        renderWorkerCv.notify_one();
+        const auto prefillDeadline = std::chrono::steady_clock::now() + std::chrono::milliseconds(kStartupPrefillDeadlineMs);
         while (renderQueueFrames() < startupTargetFrames &&
                std::chrono::steady_clock::now() < prefillDeadline) {
-            std::this_thread::sleep_for(std::chrono::milliseconds(1));
-            renderWorkerCv.notify_all();
+            std::this_thread::sleep_for(std::chrono::milliseconds(kStartupPrefillPollIntervalMs));
+            renderWorkerCv.notify_one();
         }
 
         if (!requestStreamStart()) {
