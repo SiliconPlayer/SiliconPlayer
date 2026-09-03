@@ -6,6 +6,7 @@ namespace silicon::vis {
 SiliconVisPipeline::SiliconVisPipeline() = default;
 
 SiliconVisPipeline::~SiliconVisPipeline() {
+    releaseMsaaTarget();
     releaseGl();
 }
 
@@ -27,6 +28,7 @@ bool SiliconVisPipeline::initGl() {
 
 void SiliconVisPipeline::releaseGl() {
     if (!glInitialized_) return;
+    releaseMsaaTarget();
     artworkRenderer_.release();
     channelScope_.releaseGl();
     oscilloscope_.releaseGl();
@@ -163,6 +165,89 @@ IVisualizerRenderer* SiliconVisPipeline::getActiveRenderer() {
     }
 }
 
+bool SiliconVisPipeline::wantsMsaa() const {
+    return currentMode_ == SILICON_VIS_MODE_CHANNEL_SCOPE &&
+            channelScope_.getWaveRenderMode() == 1;
+}
+
+bool SiliconVisPipeline::probeMsaaSupport() {
+    if (msaaProbed_) return msaaSupported_;
+    msaaProbed_ = true;
+#if defined(__ANDROID__)
+    // Resolve the ES3 entry points dynamically: the vis context may be ES2.
+    glRenderbufferStorageMultisample_ = reinterpret_cast<PfnRenderbufferStorageMultisample>(
+            eglGetProcAddress("glRenderbufferStorageMultisample"));
+    glBlitFramebuffer_ = reinterpret_cast<PfnBlitFramebuffer>(eglGetProcAddress("glBlitFramebuffer"));
+#else
+    glRenderbufferStorageMultisample_ = glRenderbufferStorageMultisample;
+    glBlitFramebuffer_ = glBlitFramebuffer;
+#endif
+    msaaSupported_ = glRenderbufferStorageMultisample_ != nullptr && glBlitFramebuffer_ != nullptr;
+    return msaaSupported_;
+}
+
+bool SiliconVisPipeline::ensureMsaaTarget(int32_t width, int32_t height) {
+    if (msaaFbo_ != 0 && msaaWidth_ == width && msaaHeight_ == height && msaaSamples_ > 0) {
+        return true;
+    }
+    releaseMsaaTarget();
+    if (!probeMsaaSupport()) {
+        return false;
+    }
+
+#ifndef GL_MAX_SAMPLES
+#define GL_MAX_SAMPLES 0x8DAB
+#endif
+#ifndef GL_RGBA8
+#define GL_RGBA8 0x8058
+#endif
+#ifndef GL_DEPTH_COMPONENT16
+#define GL_DEPTH_COMPONENT16 0x81A5
+#endif
+
+    // Pick the highest supported sample count up to 4x.
+    GLint maxSamples = 0;
+    glGetIntegerv(GL_MAX_SAMPLES, &maxSamples);
+    msaaSamples_ = maxSamples >= 4 ? 4 : (maxSamples > 0 ? 1 : 0);
+    if (msaaSamples_ <= 0) {
+        return false;
+    }
+
+    glGenFramebuffers(1, &msaaFbo_);
+    glGenRenderbuffers(1, &msaaColorRb_);
+    glBindRenderbuffer(GL_RENDERBUFFER, msaaColorRb_);
+    glRenderbufferStorageMultisample_(GL_RENDERBUFFER, msaaSamples_, GL_RGBA8, width, height);
+    glGenRenderbuffers(1, &msaaDepthRb_);
+    glBindRenderbuffer(GL_RENDERBUFFER, msaaDepthRb_);
+    glRenderbufferStorageMultisample_(GL_RENDERBUFFER, msaaSamples_, GL_DEPTH_COMPONENT16, width, height);
+
+    glBindFramebuffer(GL_FRAMEBUFFER, msaaFbo_);
+    glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_RENDERBUFFER, msaaColorRb_);
+    glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_RENDERBUFFER, msaaDepthRb_);
+    const GLenum status = glCheckFramebufferStatus(GL_FRAMEBUFFER);
+    glBindFramebuffer(GL_FRAMEBUFFER, 0);
+    if (status != GL_FRAMEBUFFER_COMPLETE) {
+        releaseMsaaTarget();
+        return false;
+    }
+
+    msaaWidth_ = width;
+    msaaHeight_ = height;
+    return true;
+}
+
+void SiliconVisPipeline::releaseMsaaTarget() {
+    if (msaaFbo_ != 0) glDeleteFramebuffers(1, &msaaFbo_);
+    if (msaaColorRb_ != 0) glDeleteRenderbuffers(1, &msaaColorRb_);
+    if (msaaDepthRb_ != 0) glDeleteRenderbuffers(1, &msaaDepthRb_);
+    msaaFbo_ = 0;
+    msaaColorRb_ = 0;
+    msaaDepthRb_ = 0;
+    msaaWidth_ = 0;
+    msaaHeight_ = 0;
+    msaaSamples_ = 0;
+}
+
 void SiliconVisPipeline::render() {
     if (!glInitialized_ || widthPx_ <= 0 || heightPx_ <= 0) return;
 
@@ -216,6 +301,14 @@ void SiliconVisPipeline::render() {
 
     glViewport(0, 0, widthPx_, heightPx_);
 
+    // The AA wave mode needs hardware multisampling: the window surface has a
+    // fixed sample config, so render into an MSAA FBO and resolve to the
+    // default framebuffer. Other modes draw directly.
+    const bool useMsaa = wantsMsaa() && probeMsaaSupport() && ensureMsaaTarget(widthPx_, heightPx_);
+    if (useMsaa) {
+        glBindFramebuffer(GL_FRAMEBUFFER, msaaFbo_);
+    }
+
     // 1. Render Artwork / Radial Fallback & Contrast Backdrop
     artworkRenderer_.draw(static_cast<float>(widthPx_), static_cast<float>(heightPx_), density_);
 
@@ -224,6 +317,16 @@ void SiliconVisPipeline::render() {
     if (active) {
         active->setAlpha(visualAlpha_);
         active->render();
+    }
+
+    if (useMsaa) {
+        glBindFramebuffer(GL_DRAW_FRAMEBUFFER, 0);
+        glBindFramebuffer(GL_READ_FRAMEBUFFER, msaaFbo_);
+        glBlitFramebuffer_(
+                0, 0, msaaWidth_, msaaHeight_,
+                0, 0, widthPx_, heightPx_,
+                GL_COLOR_BUFFER_BIT, GL_NEAREST);
+        glBindFramebuffer(GL_FRAMEBUFFER, 0);
     }
 }
 

@@ -146,6 +146,7 @@ data class SiliconNativeGlFrame(
     val channelScopeGainPercent: Int = 100,
     val channelScopeDcRemovalEnabled: Boolean = true,
     val channelScopeTriggerMode: Int = 0,
+    val channelScopeWaveRenderMode: Int = 1,
     // Oscilloscope options
     val oscStereo: Boolean = false,
     val oscWindowMs: Int = 30,
@@ -782,7 +783,8 @@ private class SiliconNativeTextureRenderThread(
                                 windowMs = frame.channelScopeWindowMs,
                                 gainPercent = frame.channelScopeGainPercent,
                                 dcRemovalEnabled = frame.channelScopeDcRemovalEnabled,
-                                triggerMode = frame.channelScopeTriggerMode
+                                triggerMode = frame.channelScopeTriggerMode,
+                                waveRenderMode = frame.channelScopeWaveRenderMode
                             )
                         }
                         2 -> { // Oscilloscope

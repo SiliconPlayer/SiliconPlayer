@@ -4,6 +4,11 @@
 
 namespace silicon::vis {
 
+namespace {
+constexpr float kWaveCrtSoftnessPx = 0.75f;
+constexpr float kWaveCrtColumnOverlapPx = 0.5f;
+}
+
 ChannelScopeRenderer::ChannelScopeRenderer() {
     palette_.channelArgb = 0xFFCCCCCC;
     palette_.noteArgb = 0xFF80D8FF;
@@ -15,6 +20,7 @@ ChannelScopeRenderer::ChannelScopeRenderer() {
 
 bool ChannelScopeRenderer::initGl() {
     if (!flatRenderer_.init()) return false;
+    if (!waveRenderer_.init()) return false;
     if (!fontAtlas_.init()) return false;
     if (!textProgram_.init()) return false;
     return true;
@@ -22,6 +28,7 @@ bool ChannelScopeRenderer::initGl() {
 
 void ChannelScopeRenderer::releaseGl() {
     flatRenderer_.release();
+    waveRenderer_.release();
     fontAtlas_.release();
     textProgram_.release();
 }
@@ -50,7 +57,8 @@ void ChannelScopeRenderer::setOptions(
     int32_t windowMs,
     int32_t gainPercent,
     bool dcRemovalEnabled,
-    int32_t triggerMode
+    int32_t triggerMode,
+    int32_t waveRenderMode
 ) {
     layout_ = layout;
     anchor_ = anchor;
@@ -70,6 +78,7 @@ void ChannelScopeRenderer::setOptions(
     gainPercent_ = std::clamp(gainPercent, 1, 10000);
     dcRemovalEnabled_ = dcRemovalEnabled;
     triggerMode_ = triggerMode;
+    waveRenderMode_ = std::clamp(waveRenderMode, 0, 2);
 }
 
 void ChannelScopeRenderer::setChannelHistory(int32_t channel, const float* history, int32_t sampleCount) {
@@ -243,7 +252,7 @@ void ChannelScopeRenderer::buildGeometry() {
     const size_t segmentsPerChannel = histSize >= 2
             ? ((histSize - 2) / waveStride) + 1
             : 0;
-    waveformVertices_.reserve(channels * segmentsPerChannel * 4);
+    waveformVertices_.reserve(channels * segmentsPerChannel * (waveRenderMode_ == 2 ? 18 : 4));
     gridVertices_.reserve(static_cast<size_t>(cols + rows) * 4);
     vuTrackVertices_.reserve(static_cast<size_t>(channels) * 12);
 
@@ -274,11 +283,18 @@ void ChannelScopeRenderer::buildGeometry() {
             float cellBottom = cellTop + cellH;
             float centerY = (cellTop + cellBottom) * 0.5f;
 
-            // Waveform lines
+            // Waveforms. Off and AA use the identical GL_LINES geometry — AA
+            // differs only by rendering through the pipeline's multisampled
+            // framebuffer, so both share the same line weight and shape. CRT
+            // uses columnar bars per decimated sample (OVGen analog-scope
+            // stroke) with hard column edges and soft top/bottom edges.
             const auto& hist = channelHistories_[ch];
             if (hist.size() >= 2) {
                 float stepX = cellW / static_cast<float>(hist.size() - 1);
                 float maxAmp = cellH * 0.42f;
+                const bool crtMode = waveRenderMode_ == 2;
+                const float halfW = lineWidthPx_ * 0.5f;
+                const float barHalf = halfW + kWaveCrtSoftnessPx;
 
                 for (size_t i = 0; i + 1 < hist.size(); i += waveStride) {
                     size_t j = std::min(i + static_cast<size_t>(waveStride), hist.size() - 1);
@@ -287,8 +303,27 @@ void ChannelScopeRenderer::buildGeometry() {
                     float x1 = cellLeft + j * stepX;
                     float y1 = centerY - (hist[j] * maxAmp);
 
-                    waveformVertices_.push_back(x0); waveformVertices_.push_back(y0);
-                    waveformVertices_.push_back(x1); waveformVertices_.push_back(y1);
+                    if (!crtMode) {
+                        waveformVertices_.push_back(x0); waveformVertices_.push_back(y0);
+                        waveformVertices_.push_back(x1); waveformVertices_.push_back(y1);
+                        continue;
+                    }
+
+                    float bx1 = x1 + kWaveCrtColumnOverlapPx;
+
+                    waveformVertices_.push_back(x0); waveformVertices_.push_back(y0 - barHalf);
+                    waveformVertices_.push_back(-barHalf);
+                    waveformVertices_.push_back(bx1); waveformVertices_.push_back(y0 - barHalf);
+                    waveformVertices_.push_back(-barHalf);
+                    waveformVertices_.push_back(x0); waveformVertices_.push_back(y0 + barHalf);
+                    waveformVertices_.push_back(barHalf);
+
+                    waveformVertices_.push_back(bx1); waveformVertices_.push_back(y0 - barHalf);
+                    waveformVertices_.push_back(-barHalf);
+                    waveformVertices_.push_back(bx1); waveformVertices_.push_back(y0 + barHalf);
+                    waveformVertices_.push_back(barHalf);
+                    waveformVertices_.push_back(x0); waveformVertices_.push_back(y0 + barHalf);
+                    waveformVertices_.push_back(barHalf);
                 }
             }
 
@@ -494,14 +529,26 @@ void ChannelScopeRenderer::render() {
 
     // 3. Scope waveforms
     if (!waveformVertices_.empty()) {
-        flatRenderer_.drawLines(
-            waveformVertices_.data(),
-            static_cast<int>(waveformVertices_.size() / 2),
-            lineColorArgb_,
-            lineWidthPx_,
-            static_cast<float>(widthPx_),
-            static_cast<float>(heightPx_)
-        );
+        if (waveRenderMode_ == 0 || waveRenderMode_ == 1) {
+            flatRenderer_.drawLines(
+                waveformVertices_.data(),
+                static_cast<int>(waveformVertices_.size() / 2),
+                lineColorArgb_,
+                lineWidthPx_,
+                static_cast<float>(widthPx_),
+                static_cast<float>(heightPx_)
+            );
+        } else {
+            waveRenderer_.draw(
+                waveformVertices_.data(),
+                static_cast<int>(waveformVertices_.size() / 3),
+                lineColorArgb_,
+                lineWidthPx_ * 0.5f,
+                kWaveCrtSoftnessPx,
+                static_cast<float>(widthPx_),
+                static_cast<float>(heightPx_)
+            );
+        }
     }
 }
 

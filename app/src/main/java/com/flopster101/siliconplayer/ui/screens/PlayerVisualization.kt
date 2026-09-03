@@ -86,6 +86,7 @@ import com.flopster101.siliconplayer.VisualizationChannelScopeBackgroundMode
 import com.flopster101.siliconplayer.VisualizationChannelScopeTextColorMode
 import com.flopster101.siliconplayer.VisualizationChannelScopeTextFont
 import com.flopster101.siliconplayer.VisualizationChannelScopeTriggerAlgorithm
+import com.flopster101.siliconplayer.VisualizationChannelScopeWaveRenderMode
 import com.flopster101.siliconplayer.VisualizationMode
 import com.flopster101.siliconplayer.VisualizationNoteNameFormat
 import com.flopster101.siliconplayer.VisualizationOscColorMode
@@ -1460,6 +1461,7 @@ internal data class ChannelScopePrefs(
     val contrastBackdropEnabled: Boolean,
     val triggerModeNative: Int,
     val triggerAlgorithmNative: Int,
+    val waveRenderMode: VisualizationChannelScopeWaveRenderMode,
     val fpsMode: VisualizationOscFpsMode,
     val lineWidthDp: Int,
     val gridWidthDp: Int,
@@ -1501,6 +1503,7 @@ internal data class ChannelScopePrefs(
         private const val KEY_CONTRAST_BACKDROP_ENABLED = "visualization_channel_scope_contrast_backdrop_enabled"
         private const val KEY_TRIGGER_MODE = "visualization_channel_scope_trigger_mode"
         private const val KEY_TRIGGER_ALGORITHM = "visualization_channel_scope_trigger_algorithm"
+        private const val KEY_WAVE_RENDER_MODE = "visualization_channel_scope_wave_render_mode"
         private const val KEY_FPS_MODE = "visualization_channel_scope_fps_mode"
         private const val KEY_LINE_WIDTH_DP = "visualization_channel_scope_line_width_dp"
         private const val KEY_GRID_WIDTH_DP = "visualization_channel_scope_grid_width_dp"
@@ -1546,6 +1549,12 @@ internal data class ChannelScopePrefs(
                     AppDefaults.Visualization.ChannelScope.triggerAlgorithm.storageValue
                 )
             ).nativeValue
+            val waveRenderMode = VisualizationChannelScopeWaveRenderMode.fromStorage(
+                sharedPrefs.getString(
+                    KEY_WAVE_RENDER_MODE,
+                    AppDefaults.Visualization.ChannelScope.waveRenderMode.storageValue
+                )
+            )
             return ChannelScopePrefs(
                 windowMs = sharedPrefs.getInt(
                     KEY_WINDOW_MS,
@@ -1578,6 +1587,7 @@ internal data class ChannelScopePrefs(
                 ),
                 triggerModeNative = triggerModeNative,
                 triggerAlgorithmNative = triggerAlgorithmNative,
+                waveRenderMode = waveRenderMode,
                 fpsMode = VisualizationOscFpsMode.fromStorage(
                     sharedPrefs.getString(
                         KEY_FPS_MODE,
@@ -2745,6 +2755,7 @@ internal fun AlbumArtPlaceholder(
                     channelScopeSampleNamesByIndex = channelScopeState.sampleNamesByIndex,
                     channelScopeChipNamesByChannelIndex = channelScopeState.chipNamesByChannelIndex,
                     channelScopeTriggerModeNative = channelScopePrefs.triggerModeNative,
+                    channelScopeWaveRenderModeNative = channelScopePrefs.waveRenderMode.nativeValue,
                     channelScopeTriggerIndices = channelScopeState.triggerIndices,
                     channelScopeWindowMs = channelScopePrefs.windowMs,
                     channelScopeGainPercent = channelScopePrefs.gainPercent,

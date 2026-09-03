@@ -134,6 +134,22 @@ enum class VisualizationChannelScopeTriggerAlgorithm(
     }
 }
 
+enum class VisualizationChannelScopeWaveRenderMode(
+    val storageValue: String,
+    val label: String,
+    val nativeValue: Int
+) {
+    Off("off", "Off", 0),
+    Antialiased("antialiased", "Antialiased", 1),
+    Crt("crt", "CRT", 2);
+
+    companion object {
+        fun fromStorage(value: String?): VisualizationChannelScopeWaveRenderMode {
+            return entries.firstOrNull { it.storageValue == value } ?: Antialiased
+        }
+    }
+}
+
 enum class VisualizationOscColorMode(
     val storageValue: String,
     val label: String

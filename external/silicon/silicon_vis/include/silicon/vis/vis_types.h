@@ -38,6 +38,12 @@ typedef enum SiliconVisVuAnchor {
     SILICON_VIS_VU_ANCHOR_BOTTOM = 1
 } SiliconVisVuAnchor;
 
+typedef enum SiliconVisWaveRenderMode {
+    SILICON_VIS_WAVE_RENDER_OFF = 0,
+    SILICON_VIS_WAVE_RENDER_ANTIALIAS = 1,
+    SILICON_VIS_WAVE_RENDER_CRT = 2
+} SiliconVisWaveRenderMode;
+
 typedef enum SiliconVisContrastMode {
     SILICON_VIS_CONTRAST_NONE = 0,
     SILICON_VIS_CONTRAST_BARS = 1,

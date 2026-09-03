@@ -63,6 +63,10 @@ import android.content.Context
 import android.os.Build
 import androidx.compose.ui.platform.LocalContext
 import com.flopster101.siliconplayer.AppPreferenceKeys
+import com.flopster101.siliconplayer.ChoiceDialogOption
+import com.flopster101.siliconplayer.SettingsSingleChoiceDialog
+import com.flopster101.siliconplayer.SettingsValuePickerCard
+import com.flopster101.siliconplayer.VisualizationChannelScopeWaveRenderMode
 import com.flopster101.siliconplayer.VisualizationMode
 import com.flopster101.siliconplayer.ui.visualization.gl.ProjectMPresetSets
 import com.flopster101.siliconplayer.ui.visualization.gl.SiliconVisNativeBridge
@@ -226,6 +230,20 @@ private fun ChannelScopeOptionsContent(
     showChannelLabels: Boolean,
     onShowChannelLabelsChange: (Boolean) -> Unit
 ) {
+    val context = LocalContext.current
+    val prefs = remember(context) { context.getSharedPreferences(AppPreferenceKeys.PREFS_NAME, Context.MODE_PRIVATE) }
+    var waveRenderMode by remember {
+        mutableStateOf(
+            VisualizationChannelScopeWaveRenderMode.fromStorage(
+                prefs.getString(
+                    AppPreferenceKeys.VISUALIZATION_CHANNEL_SCOPE_WAVE_RENDER_MODE,
+                    AppDefaults.Visualization.ChannelScope.waveRenderMode.storageValue
+                )
+            )
+        )
+    }
+    var showWaveRenderModeDialog by remember { mutableStateOf(false) }
+
     Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
         DialogIntSliderRow(
             title = "Global input gain",
@@ -250,6 +268,30 @@ private fun ChannelScopeOptionsContent(
             subtitle = "Display track index, notes, and instruments",
             checked = showChannelLabels,
             onCheckedChange = onShowChannelLabelsChange
+        )
+        SettingsValuePickerCard(
+            title = "Wave rendering",
+            description = "Antialiased smooths trace edges. CRT renders steep transitions softer and dimmer, like a phosphor screen.",
+            value = waveRenderMode.label,
+            onClick = { showWaveRenderModeDialog = true }
+        )
+    }
+
+    if (showWaveRenderModeDialog) {
+        SettingsSingleChoiceDialog(
+            title = "Wave rendering",
+            selectedValue = waveRenderMode,
+            options = VisualizationChannelScopeWaveRenderMode.entries.map { mode ->
+                ChoiceDialogOption(value = mode, label = mode.label)
+            },
+            onSelected = { mode ->
+                waveRenderMode = mode
+                prefs.edit().putString(
+                    AppPreferenceKeys.VISUALIZATION_CHANNEL_SCOPE_WAVE_RENDER_MODE,
+                    mode.storageValue
+                ).apply()
+            },
+            onDismiss = { showWaveRenderModeDialog = false }
         )
     }
 }

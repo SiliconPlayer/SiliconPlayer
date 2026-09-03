@@ -84,4 +84,36 @@ private:
     float alpha_ = 1.0f;
 };
 
+// Columnar stroke renderer for the CRT wave render mode: triangle vertices
+// carry a signed vertical offset from the bar centerline so the fragment
+// shader applies a vertical falloff around the bar height, with hard column
+// edges. Vertex layout: x, y, distPx (3 floats per vertex).
+class GlWaveLineRenderer {
+public:
+    GlWaveLineRenderer() = default;
+    ~GlWaveLineRenderer() { release(); }
+
+    bool init();
+    void release();
+
+    void draw(
+        const float* vertices3, int vertexCount,
+        uint32_t colorArgb,
+        float halfWidthPx, float softnessPx,
+        float surfaceW, float surfaceH
+    );
+
+    void setAlpha(float alpha) { alpha_ = alpha; }
+
+private:
+    GlProgram program_;
+    GLint posLoc_ = -1;
+    GLint distLoc_ = -1;
+    GLint resLoc_ = -1;
+    GLint colorLoc_ = -1;
+    GLint halfWidthLoc_ = -1;
+    GLint softnessLoc_ = -1;
+    float alpha_ = 1.0f;
+};
+
 } // namespace silicon::vis::gl

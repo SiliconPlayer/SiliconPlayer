@@ -688,7 +688,8 @@ Java_com_flopster101_siliconplayer_ui_visualization_gl_SiliconVisNativeBridge_na
     jint windowMs,
     jint gainPercent,
     jboolean dcRemovalEnabled,
-    jint triggerMode
+    jint triggerMode,
+    jint waveRenderMode
 ) {
     if (!handle) return;
     SiliconVisTextPalette pal;
@@ -718,7 +719,8 @@ Java_com_flopster101_siliconplayer_ui_visualization_gl_SiliconVisNativeBridge_na
         windowMs,
         gainPercent,
         dcRemovalEnabled,
-        triggerMode
+        triggerMode,
+        static_cast<SiliconVisWaveRenderMode>(waveRenderMode)
     );
 }
 

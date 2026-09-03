@@ -4,6 +4,7 @@
 #include "silicon/vis/IVisualizerRenderer.h"
 #include "silicon/vis/IVisualizationAudioProvider.h"
 #include "gl/gl_artwork_renderer.h"
+#include "gl/gl_platform.h"
 #include "renderers/channel_scope_renderer.h"
 #include "renderers/oscilloscope_renderer.h"
 #include "renderers/bars_renderer.h"
@@ -72,12 +73,38 @@ public:
 
 private:
     IVisualizerRenderer* getActiveRenderer();
+    bool ensureMsaaTarget(int32_t width, int32_t height);
+    void releaseMsaaTarget();
+    bool wantsMsaa() const;
 
     int32_t widthPx_ = 0;
     int32_t heightPx_ = 0;
     float density_ = 1.0f;
     bool glInitialized_ = false;
     float visualAlpha_ = 1.0f;
+
+    // Multisampled offscreen target for the AA wave render mode. Only used
+    // when the active renderer opts in; other modes render straight to the
+    // window surface.
+    GLuint msaaFbo_ = 0;
+    GLuint msaaColorRb_ = 0;
+    GLuint msaaDepthRb_ = 0;
+    int32_t msaaWidth_ = 0;
+    int32_t msaaHeight_ = 0;
+    int msaaSamples_ = 0;
+    bool msaaProbed_ = false;
+    bool msaaSupported_ = false;
+#if defined(__ANDROID__)
+    using PfnRenderbufferStorageMultisample = void (GL_APIENTRYP)(GLenum, GLsizei, GLenum, GLsizei, GLsizei);
+    using PfnBlitFramebuffer = void (GL_APIENTRYP)(GLint, GLint, GLint, GLint, GLint, GLint, GLint, GLint, GLbitfield, GLenum);
+#else
+    using PfnRenderbufferStorageMultisample = void (*)(GLenum, GLsizei, GLenum, GLsizei, GLsizei);
+    using PfnBlitFramebuffer = void (*)(GLint, GLint, GLint, GLint, GLint, GLint, GLint, GLint, GLbitfield, GLenum);
+#endif
+    PfnRenderbufferStorageMultisample glRenderbufferStorageMultisample_ = nullptr;
+    PfnBlitFramebuffer glBlitFramebuffer_ = nullptr;
+
+    bool probeMsaaSupport();
 
     SiliconVisMode currentMode_ = SILICON_VIS_MODE_NONE;
     IVisualizationAudioProvider* audioProvider_ = nullptr;

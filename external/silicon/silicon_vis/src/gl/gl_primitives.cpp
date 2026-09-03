@@ -254,4 +254,83 @@ void GlFlatColorRenderer::drawLines(
     glDisableVertexAttribArray(posLoc_);
 }
 
+static const char* WAVE_LINE_VERTEX_SHADER = R"(
+    precision mediump float;
+    attribute vec2 aPosition;
+    attribute float aDist;
+    uniform vec2 uResolution;
+    varying float vDist;
+    void main() {
+        vec2 zeroToOne = aPosition / uResolution;
+        vec2 zeroToTwo = zeroToOne * 2.0;
+        vec2 clipSpace = zeroToTwo - 1.0;
+        gl_Position = vec4(clipSpace.x, -clipSpace.y, 0.0, 1.0);
+        vDist = aDist;
+    }
+)";
+
+static const char* WAVE_LINE_FRAGMENT_SHADER = R"(
+    precision mediump float;
+    varying float vDist;
+    uniform vec4 uColor;
+    uniform float uHalfWidth;
+    uniform float uSoftness;
+    void main() {
+        float d = abs(vDist);
+        float inner = max(uHalfWidth - uSoftness, 0.0);
+        float outer = uHalfWidth + uSoftness;
+        float core = 1.0 - smoothstep(inner, outer, d);
+        gl_FragColor = vec4(uColor.rgb, uColor.a * core);
+    }
+)";
+
+bool GlWaveLineRenderer::init() {
+    if (program_.isReady()) return true;
+    if (!program_.compileAndLink(WAVE_LINE_VERTEX_SHADER, WAVE_LINE_FRAGMENT_SHADER)) {
+        return false;
+    }
+    posLoc_ = program_.getAttribLoc("aPosition");
+    distLoc_ = program_.getAttribLoc("aDist");
+    resLoc_ = program_.getUniformLoc("uResolution");
+    colorLoc_ = program_.getUniformLoc("uColor");
+    halfWidthLoc_ = program_.getUniformLoc("uHalfWidth");
+    softnessLoc_ = program_.getUniformLoc("uSoftness");
+    return true;
+}
+
+void GlWaveLineRenderer::release() {
+    program_.release();
+}
+
+void GlWaveLineRenderer::draw(
+    const float* vertices3, int vertexCount,
+    uint32_t colorArgb,
+    float halfWidthPx, float softnessPx,
+    float surfaceW, float surfaceH
+) {
+    if (!program_.isReady() || vertexCount <= 0 || !vertices3) return;
+    Color4f c = argbToColor4f(colorArgb);
+    c.a *= alpha_;
+    if (c.a <= 0.0f) return;
+
+    glEnable(GL_BLEND);
+    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+    glBindBuffer(GL_ARRAY_BUFFER, 0);
+
+    program_.use();
+    glUniform2f(resLoc_, surfaceW, surfaceH);
+    glUniform4f(colorLoc_, c.r, c.g, c.b, c.a);
+    glUniform1f(halfWidthLoc_, halfWidthPx);
+    glUniform1f(softnessLoc_, softnessPx);
+
+    const GLsizei stride = 3 * sizeof(GLfloat);
+    glEnableVertexAttribArray(posLoc_);
+    glVertexAttribPointer(posLoc_, 2, GL_FLOAT, GL_FALSE, stride, vertices3);
+    glEnableVertexAttribArray(distLoc_);
+    glVertexAttribPointer(distLoc_, 1, GL_FLOAT, GL_FALSE, stride, vertices3 + 2);
+    glDrawArrays(GL_TRIANGLES, 0, vertexCount);
+    glDisableVertexAttribArray(posLoc_);
+    glDisableVertexAttribArray(distLoc_);
+}
+
 } // namespace silicon::vis::gl

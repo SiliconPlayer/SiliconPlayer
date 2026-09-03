@@ -111,6 +111,7 @@ fun BasicVisualizationOverlay(
     channelScopeSampleNamesByIndex: Map<Int, String>,
     channelScopeChipNamesByChannelIndex: Map<Int, String>,
     channelScopeTriggerModeNative: Int,
+    channelScopeWaveRenderModeNative: Int = 1,
     channelScopeTriggerIndices: IntArray,
     channelScopeWindowMs: Int = 30,
     channelScopeGainPercent: Int = 100,
@@ -562,7 +563,8 @@ fun BasicVisualizationOverlay(
                             channelScopeWindowMs = channelScopeWindowMs,
                             channelScopeGainPercent = channelScopeGainPercent,
                             channelScopeDcRemovalEnabled = channelScopeDcRemovalEnabled,
-                            channelScopeTriggerMode = channelScopeTriggerModeNative
+                            channelScopeTriggerMode = channelScopeTriggerModeNative,
+                            channelScopeWaveRenderMode = channelScopeWaveRenderModeNative
                         )
                         com.flopster101.siliconplayer.ui.visualization.gl.SiliconNativeGlTextureVisualization(
                             frame = nativeFrame,

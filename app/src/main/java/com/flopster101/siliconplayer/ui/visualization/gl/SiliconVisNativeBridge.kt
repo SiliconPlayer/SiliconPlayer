@@ -93,7 +93,8 @@ object SiliconVisNativeBridge {
         windowMs: Int,
         gainPercent: Int,
         dcRemovalEnabled: Boolean,
-        triggerMode: Int
+        triggerMode: Int,
+        waveRenderMode: Int = 1
     )
 
     external fun nativeSetOscilloscopeOptions(

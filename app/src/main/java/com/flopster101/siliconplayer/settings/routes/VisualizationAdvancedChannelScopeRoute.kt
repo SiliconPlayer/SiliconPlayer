@@ -33,6 +33,7 @@ internal fun VisualizationAdvancedChannelScopeRouteContent() {
                             AppPreferenceKeys.VISUALIZATION_CHANNEL_SCOPE_CONTRAST_BACKDROP_ENABLED
                         val scopeTriggerKey = "visualization_channel_scope_trigger_mode"
                         val scopeTriggerAlgorithmKey = "visualization_channel_scope_trigger_algorithm"
+                        val scopeWaveRenderModeKey = "visualization_channel_scope_wave_render_mode"
                         val scopeFpsModeKey = "visualization_channel_scope_fps_mode"
                         val scopeLineWidthKey = "visualization_channel_scope_line_width_dp"
                         val scopeGridWidthKey = "visualization_channel_scope_grid_width_dp"
@@ -95,6 +96,16 @@ internal fun VisualizationAdvancedChannelScopeRouteContent() {
                                     prefs.getString(
                                         scopeTriggerAlgorithmKey,
                                         AppDefaults.Visualization.ChannelScope.triggerAlgorithm.storageValue
+                                    )
+                                )
+                            )
+                        }
+                        var scopeWaveRenderMode by remember {
+                            mutableStateOf(
+                                VisualizationChannelScopeWaveRenderMode.fromStorage(
+                                    prefs.getString(
+                                        scopeWaveRenderModeKey,
+                                        AppDefaults.Visualization.ChannelScope.waveRenderMode.storageValue
                                     )
                                 )
                             )
@@ -436,6 +447,7 @@ internal fun VisualizationAdvancedChannelScopeRouteContent() {
                         var showGainDialog by remember { mutableStateOf(false) }
                         var showTriggerDialog by remember { mutableStateOf(false) }
                         var showTriggerAlgorithmDialog by remember { mutableStateOf(false) }
+                        var showWaveRenderModeDialog by remember { mutableStateOf(false) }
                         var showFpsModeDialog by remember { mutableStateOf(false) }
                         var showLineWidthDialog by remember { mutableStateOf(false) }
                         var showGridWidthDialog by remember { mutableStateOf(false) }
@@ -521,6 +533,12 @@ internal fun VisualizationAdvancedChannelScopeRouteContent() {
                                 prefs.getString(
                                     scopeTriggerAlgorithmKey,
                                     AppDefaults.Visualization.ChannelScope.triggerAlgorithm.storageValue
+                                )
+                            )
+                            scopeWaveRenderMode = VisualizationChannelScopeWaveRenderMode.fromStorage(
+                                prefs.getString(
+                                    scopeWaveRenderModeKey,
+                                    AppDefaults.Visualization.ChannelScope.waveRenderMode.storageValue
                                 )
                             )
                             scopeRenderBackend = VisualizationRenderBackend.fromStorage(
@@ -752,6 +770,13 @@ internal fun VisualizationAdvancedChannelScopeRouteContent() {
                                 onClick = { showTriggerAlgorithmDialog = true }
                             )
                         }
+                        SettingsRowSpacer()
+                        SettingsValuePickerCard(
+                            title = "Wave rendering",
+                            description = "Antialiased smooths trace edges. CRT renders steep transitions softer and dimmer, like a phosphor screen.",
+                            value = scopeWaveRenderMode.label,
+                            onClick = { showWaveRenderModeDialog = true }
+                        )
                         SettingsRowSpacer()
                         SettingsValuePickerCard(
                             title = "Renderer backend",
@@ -1132,6 +1157,20 @@ internal fun VisualizationAdvancedChannelScopeRouteContent() {
                                     prefs.edit().putString(scopeTriggerAlgorithmKey, alg.storageValue).apply()
                                 },
                                 onDismiss = { showTriggerAlgorithmDialog = false }
+                            )
+                        }
+                        if (showWaveRenderModeDialog) {
+                            SettingsSingleChoiceDialog(
+                                title = "Wave rendering",
+                                selectedValue = scopeWaveRenderMode,
+                                options = VisualizationChannelScopeWaveRenderMode.entries.map { mode ->
+                                    ChoiceDialogOption(value = mode, label = mode.label)
+                                },
+                                onSelected = { mode ->
+                                    scopeWaveRenderMode = mode
+                                    prefs.edit().putString(scopeWaveRenderModeKey, mode.storageValue).apply()
+                                },
+                                onDismiss = { showWaveRenderModeDialog = false }
                             )
                         }
                         if (showBackgroundModeDialog) {

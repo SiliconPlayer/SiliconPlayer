@@ -184,7 +184,8 @@ void silicon_vis_set_channel_scope_options(
     int32_t windowMs,
     int32_t gainPercent,
     bool dcRemovalEnabled,
-    int32_t triggerMode
+    int32_t triggerMode,
+    SiliconVisWaveRenderMode waveRenderMode
 ) {
     if (!handle) return;
     auto* pipeline = static_cast<SiliconVisPipeline*>(handle);
@@ -192,7 +193,8 @@ void silicon_vis_set_channel_scope_options(
         layout, anchor, vuAnchor, vuEnabled, textSizeSp, paddingPx,
         gridColorArgb, gridWidthPx, lineColorArgb, lineWidthPx,
         vuColorArgb, palette, shadowEnabled, hideWhenOverflow,
-        windowMs, gainPercent, dcRemovalEnabled, triggerMode
+        windowMs, gainPercent, dcRemovalEnabled, triggerMode,
+        static_cast<int32_t>(waveRenderMode)
     );
 }
 
