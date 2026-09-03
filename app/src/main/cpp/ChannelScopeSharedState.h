@@ -59,14 +59,6 @@ private:
     int localChannels = 0;
     uint64_t localSerial = 0;
     bool localValid = false;
-    std::vector<float> prevSnapshot;
-    std::vector<float> processedFrame;
-    std::vector<std::uint8_t> frozenFrameCount;
-    int lastChannels = 0;
-    uint64_t consumedSerial = 0;
-    bool processedValid = false;
-    int lastWindowStart = 0;
-    int lastWindowEnd = 0;
 };
 
 #endif // SILICONPLAYER_CHANNEL_SCOPE_SHARED_STATE_H
