@@ -465,7 +465,9 @@ AudioEngine::~AudioEngine() {
     if (renderWorkerThread.joinable()) {
         renderWorkerThread.join();
     }
-    std::lock_guard<std::mutex> lock(decoderMutex);
-    freeOutputSoxrContextLocked();
     closeStream();
+    {
+        std::lock_guard<std::mutex> lock(decoderMutex);
+        freeOutputSoxrContextLocked();
+    }
 }
