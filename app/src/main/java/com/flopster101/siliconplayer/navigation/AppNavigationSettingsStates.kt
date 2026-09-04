@@ -100,6 +100,7 @@ internal data class AppNavigationSettingsStates(
     val audioResamplerPreference: MutableState<AudioResamplerPreference>,
     val audioOutputLimiterEnabled: MutableState<Boolean>,
     val lookaheadClipperMode: MutableState<LookaheadClipperMode>,
+    val multiChannelOutputMode: MutableState<MultiChannelOutputMode>,
     val pendingSoxExperimentalDialog: MutableState<Boolean>,
     val showSoxExperimentalDialog: MutableState<Boolean>,
     val showUrlOrPathDialog: MutableState<Boolean>,
@@ -558,6 +559,16 @@ internal fun rememberAppNavigationSettingsStates(
             )
         )
     }
+    val multiChannelOutputMode = remember {
+        mutableStateOf(
+            MultiChannelOutputMode.fromStorage(
+                prefs.getString(
+                    AppPreferenceKeys.AUDIO_MULTI_CHANNEL_OUTPUT_MODE,
+                    AppDefaults.OutputPipeline.multiChannelOutputMode.storageValue
+                )
+            )
+        )
+    }
     val pendingSoxExperimentalDialog = remember { mutableStateOf(false) }
     val showSoxExperimentalDialog = remember { mutableStateOf(false) }
     val showUrlOrPathDialog = remember { mutableStateOf(false) }
@@ -688,6 +699,7 @@ internal fun rememberAppNavigationSettingsStates(
         audioResamplerPreference = audioResamplerPreference,
         audioOutputLimiterEnabled = audioOutputLimiterEnabled,
         lookaheadClipperMode = lookaheadClipperMode,
+        multiChannelOutputMode = multiChannelOutputMode,
         pendingSoxExperimentalDialog = pendingSoxExperimentalDialog,
         showSoxExperimentalDialog = showSoxExperimentalDialog,
         showUrlOrPathDialog = showUrlOrPathDialog,

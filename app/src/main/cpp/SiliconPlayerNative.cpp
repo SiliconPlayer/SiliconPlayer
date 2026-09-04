@@ -2486,6 +2486,13 @@ Java_com_flopster101_siliconplayer_NativeBridge_setLookaheadClipperMode(
 }
 
 extern "C" JNIEXPORT void JNICALL
+Java_com_flopster101_siliconplayer_NativeBridge_setMultiChannelOutputMode(
+        JNIEnv*, jobject, jint mode) {
+    ensureEngine();
+    audioEngine->setMultiChannelOutputMode(static_cast<int>(mode));
+}
+
+extern "C" JNIEXPORT void JNICALL
 Java_com_flopster101_siliconplayer_NativeBridge_setDspBassEnabled(
         JNIEnv*, jobject, jboolean enabled) {
     ensureEngine();

@@ -249,6 +249,25 @@ internal fun LookaheadClipperSelectorCard(
 }
 
 @Composable
+internal fun MultiChannelOutputModeSelectorCard(
+    selectedMode: MultiChannelOutputMode,
+    onSelectedModeChanged: (MultiChannelOutputMode) -> Unit,
+    description: String = "Control discrete multi-channel audio output."
+) {
+    SettingsEnumSelectorCard(
+        title = "Multi-channel audio output",
+        description = description,
+        selectedValue = selectedMode,
+        options = listOf(
+            EnumChoice(MultiChannelOutputMode.FfmpegOnly, MultiChannelOutputMode.FfmpegOnly.label),
+            EnumChoice(MultiChannelOutputMode.AllDecoders, MultiChannelOutputMode.AllDecoders.label),
+            EnumChoice(MultiChannelOutputMode.Disabled, MultiChannelOutputMode.Disabled.label)
+        ),
+        onSelected = onSelectedModeChanged
+    )
+}
+
+@Composable
 @OptIn(ExperimentalMaterial3Api::class)
 internal fun SampleRateSelectorCard(
     title: String,

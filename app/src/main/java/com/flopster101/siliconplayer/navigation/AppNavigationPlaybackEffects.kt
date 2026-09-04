@@ -19,6 +19,7 @@ internal fun AppNavigationPlaybackEffects(
     audioResamplerPreference: AudioResamplerPreference,
     audioOutputLimiterEnabled: Boolean,
     lookaheadClipperMode: LookaheadClipperMode,
+    multiChannelOutputMode: MultiChannelOutputMode,
     audioAllowBackendFallback: Boolean,
     bitPerfectUsbAudio: Boolean,
     pendingSoxExperimentalDialog: Boolean,
@@ -133,6 +134,16 @@ internal fun AppNavigationPlaybackEffects(
             )
             .apply()
         NativeBridge.setLookaheadClipperMode(lookaheadClipperMode.nativeValue)
+    }
+
+    LaunchedEffect(multiChannelOutputMode) {
+        prefs.edit()
+            .putString(
+                AppPreferenceKeys.AUDIO_MULTI_CHANNEL_OUTPUT_MODE,
+                multiChannelOutputMode.storageValue
+            )
+            .apply()
+        NativeBridge.setMultiChannelOutputMode(multiChannelOutputMode.nativeValue)
     }
 
     LaunchedEffect(

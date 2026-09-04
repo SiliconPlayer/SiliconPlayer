@@ -94,6 +94,31 @@ namespace {
     }
 }
 
+int AudioEngine::resolveOutputStreamChannelsForTrackLocked() const {
+    auto& uac = siliconplayer::usb::getUacDriverInstance();
+    if (uac.isStreaming()) {
+        return uac.currentFormat().channels > 0 ? uac.currentFormat().channels : 2;
+    }
+    const int mode = multiChannelOutputMode.load(std::memory_order_relaxed);
+    if (mode == 2 || !decoder) { // 2 = disabled
+        return 2;
+    }
+    const int srcChannels = decoder->getSourceChannelCount();
+    if (srcChannels <= 2) {
+        return 2;
+    }
+    if (mode == 0) { // 0 = ffmpeg only
+        if (std::string(decoder->getName()) == "FFmpeg") {
+            return 12;
+        }
+        return 2;
+    }
+    if (mode == 1) { // 1 = all decoders
+        return 12;
+    }
+    return 2;
+}
+
 bool AudioEngine::createMiniaudioStream() {
     closeMiniaudioStream();
 
@@ -149,7 +174,15 @@ bool AudioEngine::createMiniaudioStream() {
 
     ma_device_config deviceConfig = ma_device_config_init(ma_device_type_playback);
     deviceConfig.playback.format = ma_format_f32;
-    deviceConfig.playback.channels = 2;
+    int targetChannels = 2;
+    {
+        std::lock_guard<std::mutex> lock(decoderMutex);
+        targetChannels = resolveOutputStreamChannelsForTrackLocked();
+        if (decoder) {
+            decoder->setOutputChannelCount(targetChannels);
+        }
+    }
+    deviceConfig.playback.channels = static_cast<ma_uint32>(targetChannels);
     deviceConfig.playback.shareMode = bitPerfectModeEnabled ? ma_share_mode_exclusive : ma_share_mode_shared;
     deviceConfig.aaudio.usage = ma_aaudio_usage_media;
     deviceConfig.aaudio.contentType = ma_aaudio_content_type_music;
@@ -166,11 +199,7 @@ bool AudioEngine::createMiniaudioStream() {
     deviceConfig.stopCallback = miniaudioStopCallback;
     deviceConfig.pUserData = this;
 
-    if (outputPerformanceMode == 0) {
-        deviceConfig.performanceProfile = (outputBufferPreset >= 3)
-                ? ma_performance_profile_conservative
-                : ma_performance_profile_low_latency;
-    } else if (outputPerformanceMode == 1) {
+    if (outputPerformanceMode == 1) {
         deviceConfig.performanceProfile = ma_performance_profile_low_latency;
     } else {
         deviceConfig.performanceProfile = ma_performance_profile_conservative;
@@ -438,7 +467,8 @@ void AudioEngine::miniaudioDataCallback(
 
     auto& uac = siliconplayer::usb::getUacDriverInstance();
     if (uac.isStreaming()) {
-        std::memset(pOutput, 0, frameCount * 2 * sizeof(float));
+        const int ch = pDevice->playback.channels > 0 ? static_cast<int>(pDevice->playback.channels) : 2;
+        std::memset(pOutput, 0, frameCount * ch * sizeof(float));
         return;
     }
 
@@ -482,23 +512,24 @@ int AudioEngine::provideUacDirectFrames(uint8_t* dst, int maxFrames, const silic
 
     while (framesFilled < maxFrames) {
         if (stagingAvailableFrames == 0) {
-            constexpr int kBatchFrames = 512;
-            if (stagingBuf.size() < static_cast<size_t>(kBatchFrames * 2)) {
-                stagingBuf.resize(kBatchFrames * 2);
-            }
-            int actualCopied = 0;
-            renderOutputCallbackFrames(stagingBuf.data(), kBatchFrames, fmt.sampleRateHz, &actualCopied);
-            if (actualCopied <= 0) {
-                int missing = maxFrames - framesFilled;
-                std::memset(outCursor, 0, missing * ch * subslot);
-                return maxFrames;
-            }
+            stagingBuf.resize(static_cast<size_t>(maxFrames) * static_cast<size_t>(ch));
+            int copied = 0;
+            renderOutputCallbackFrames(stagingBuf.data(), maxFrames, fmt.sampleRateHz, &copied);
             stagingReadPos = 0;
-            stagingAvailableFrames = static_cast<size_t>(actualCopied);
+            stagingAvailableFrames = static_cast<size_t>(copied);
+            if (stagingAvailableFrames == 0) {
+                const int remaining = maxFrames - framesFilled;
+                std::memset(outCursor, 0, remaining * ch * subslot);
+                framesFilled = maxFrames;
+                break;
+            }
         }
 
-        int chunk = std::min(maxFrames - framesFilled, static_cast<int>(stagingAvailableFrames));
-        const float* src = stagingBuf.data() + (stagingReadPos * 2);
+        const int chunk = static_cast<int>(std::min(
+                stagingAvailableFrames,
+                static_cast<size_t>(maxFrames - framesFilled)
+        ));
+        const float* src = stagingBuf.data() + (stagingReadPos * static_cast<size_t>(ch));
 
         if (subslot == 2) {
             auto* out16 = reinterpret_cast<int16_t*>(outCursor);
@@ -513,10 +544,10 @@ int AudioEngine::provideUacDirectFrames(uint8_t* dst, int maxFrames, const silic
                 float s = src[i];
                 if (applyVol) s *= volScale;
                 s = std::clamp(s, -1.0f, 1.0f);
-                int32_t s24 = static_cast<int32_t>(s * 8388607.0f);
-                outCursor[i * 3 + 0] = static_cast<uint8_t>(s24 & 0xFF);
-                outCursor[i * 3 + 1] = static_cast<uint8_t>((s24 >> 8) & 0xFF);
-                outCursor[i * 3 + 2] = static_cast<uint8_t>((s24 >> 16) & 0xFF);
+                auto val = static_cast<int32_t>(s * 8388607.0f);
+                outCursor[i * 3 + 0] = static_cast<uint8_t>(val & 0xFF);
+                outCursor[i * 3 + 1] = static_cast<uint8_t>((val >> 8) & 0xFF);
+                outCursor[i * 3 + 2] = static_cast<uint8_t>((val >> 16) & 0xFF);
             }
         } else if (subslot == 4) {
             auto* out32 = reinterpret_cast<int32_t*>(outCursor);
@@ -598,8 +629,10 @@ bool AudioEngine::renderOutputCallbackFrames(float* outputData, int32_t numFrame
         return false;
     }
 
+    const int channels = streamChannelCount > 0 ? streamChannelCount : 2;
+
     if (seekInProgress.load()) {
-        std::memset(outputData, 0, static_cast<size_t>(numFrames) * 2u * sizeof(float));
+        std::memset(outputData, 0, static_cast<size_t>(numFrames) * static_cast<size_t>(channels) * sizeof(float));
         if (outFramesCopied) *outFramesCopied = 0;
         return false;
     }
@@ -625,7 +658,7 @@ bool AudioEngine::renderOutputCallbackFrames(float* outputData, int32_t numFrame
     if (activePlayback) {
         renderQueueCallbackCount.fetch_add(1, std::memory_order_relaxed);
     }
-    const int framesCopied = popRenderQueue(outputData, numFrames, 2);
+    const int framesCopied = popRenderQueue(outputData, numFrames, channels);
     if (outFramesCopied) *outFramesCopied = framesCopied;
     if (activePlayback && framesCopied < numFrames) {
         const uint64_t missingFrames = static_cast<uint64_t>(numFrames - framesCopied);
@@ -658,9 +691,9 @@ bool AudioEngine::renderOutputCallbackFrames(float* outputData, int32_t numFrame
         }
 #endif
         std::memset(
-                outputData + (static_cast<size_t>(framesCopied) * 2u),
+                outputData + (static_cast<size_t>(framesCopied) * static_cast<size_t>(channels)),
                 0,
-                static_cast<size_t>(numFrames - framesCopied) * 2u * sizeof(float)
+                static_cast<size_t>(numFrames - framesCopied) * static_cast<size_t>(channels) * sizeof(float)
         );
     }
 
@@ -668,13 +701,14 @@ bool AudioEngine::renderOutputCallbackFrames(float* outputData, int32_t numFrame
         for (int frame = 0; frame < numFrames; ++frame) {
             const float fadeGain = nextPauseResumeFadeGainLocked();
             if (fadeGain == 1.0f) continue;
-            const size_t base = static_cast<size_t>(frame) * 2u;
-            outputData[base] *= fadeGain;
-            outputData[base + 1u] *= fadeGain;
+            const size_t base = static_cast<size_t>(frame) * static_cast<size_t>(channels);
+            for (int c = 0; c < channels; ++c) {
+                outputData[base + c] *= fadeGain;
+            }
         }
     }
 
-    const size_t totalSamples = static_cast<size_t>(numFrames) * 2u;
+    const size_t totalSamples = static_cast<size_t>(numFrames) * static_cast<size_t>(channels);
     for (size_t i = 0; i < totalSamples; ++i) {
         outputData[i] = std::clamp(outputData[i], -1.0f, 1.0f);
     }
@@ -684,7 +718,7 @@ bool AudioEngine::renderOutputCallbackFrames(float* outputData, int32_t numFrame
         updateVisualizationDataFromOutputCallback(
                 outputData,
                 numFrames,
-                2,
+                channels,
                 requestedFeatures
         );
     }

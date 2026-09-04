@@ -159,6 +159,18 @@ enum class LookaheadClipperMode(val storageValue: String, val label: String, val
     }
 }
 
+enum class MultiChannelOutputMode(val storageValue: String, val label: String, val nativeValue: Int) {
+    FfmpegOnly("ffmpeg_only", "FFmpeg only", 0),
+    AllDecoders("all_decoders", "All decoders", 1),
+    Disabled("disabled", "Disabled", 2);
+
+    companion object {
+        fun fromStorage(value: String?): MultiChannelOutputMode {
+            return entries.firstOrNull { it.storageValue == value } ?: FfmpegOnly
+        }
+    }
+}
+
 enum class FilenameDisplayMode(val storageValue: String, val label: String) {
     Always("always", "Always"),
     Never("never", "Never"),

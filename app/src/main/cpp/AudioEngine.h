@@ -248,6 +248,7 @@ public:
     void syncUacStreamRate(int sampleRateHz, int channels);
     void setOutputLimiterEnabled(bool enabled);
     void setLookaheadClipperMode(int mode);
+    void setMultiChannelOutputMode(int mode);
     void setDspBassEnabled(bool enabled);
     void setDspBassDepth(int depth);
     void setDspBassRange(int range);
@@ -379,6 +380,7 @@ private:
     std::atomic<bool> masterSoloRight { false };
     std::atomic<bool> outputLimiterEnabled { false };
     std::atomic<int> lookaheadClipperMode { 1 };
+    std::atomic<int> multiChannelOutputMode { 0 }; // 0 ffmpeg only, 1 all decoders, 2 disabled
     std::atomic<bool> dspBassEnabled { false };
     std::atomic<int> dspBassDepth { 2 };
     std::atomic<int> dspBassRange { 2 };
@@ -430,6 +432,7 @@ private:
     static constexpr uint32_t kVisualizationFeatureChannelScope = 1u << 4;
 
     int resolveOutputSampleRateForCore(const std::string& coreName) const;
+    int resolveOutputStreamChannelsForTrackLocked() const;
     void applyStreamBufferPreset();
     void resetResamplerStateLocked(bool preserveBuffer = false);
     bool ensureOutputSoxrContextLocked(int channels, int inputRate, int outputRate);

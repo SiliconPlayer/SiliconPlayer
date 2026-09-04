@@ -808,6 +808,7 @@ internal fun clearAllSettingsAction(
     onAudioResamplerPreferenceChanged: (AudioResamplerPreference) -> Unit,
     onAudioOutputLimiterEnabledChanged: (Boolean) -> Unit,
     onLookaheadClipperModeChanged: (LookaheadClipperMode) -> Unit,
+    onMultiChannelOutputModeChanged: (MultiChannelOutputMode) -> Unit,
     onAudioAllowBackendFallbackChanged: (Boolean) -> Unit,
     onBitPerfectUsbAudioChanged: (Boolean) -> Unit,
     onOpenPlayerFromNotificationChanged: (Boolean) -> Unit,
@@ -990,6 +991,7 @@ internal fun clearAllSettingsAction(
     onAudioResamplerPreferenceChanged(AudioResamplerPreference.BuiltIn)
     onAudioOutputLimiterEnabledChanged(AppDefaults.AudioProcessing.outputLimiterEnabled)
     onLookaheadClipperModeChanged(AppDefaults.AudioProcessing.lookaheadClipperMode)
+    onMultiChannelOutputModeChanged(AppDefaults.OutputPipeline.multiChannelOutputMode)
     onAudioAllowBackendFallbackChanged(true)
     onBitPerfectUsbAudioChanged(AppDefaults.OutputPipeline.bitPerfectUsbAudio)
     onOpenPlayerFromNotificationChanged(true)

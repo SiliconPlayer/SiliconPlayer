@@ -63,6 +63,7 @@ object NativeBridge {
     }
 
     external fun isAudioBackendSupported(backendId: Int): Boolean
+    external fun getAudioSessionId(): Int
 
     external fun startEngine()
     external fun startEngineWithPauseResumeFade()
@@ -140,7 +141,6 @@ object NativeBridge {
     external fun getVgmNotes(): String
     external fun getVgmFileVersion(): String
     external fun getVgmDeviceCount(): Int
-    external fun getAudioSessionId(): Int
     external fun getVgmUsedChipList(): String
     external fun getVgmHasLoopPoint(): Boolean
     external fun getFfmpegCodecName(): String
@@ -299,6 +299,7 @@ object NativeBridge {
     external fun setForceMono(enabled: Boolean)
     external fun setOutputLimiterEnabled(enabled: Boolean)
     external fun setLookaheadClipperMode(mode: Int)
+    external fun setMultiChannelOutputMode(mode: Int)
     external fun setDspBassEnabled(enabled: Boolean)
     external fun setDspBassDepth(depth: Int)
     external fun setDspBassRange(range: Int)

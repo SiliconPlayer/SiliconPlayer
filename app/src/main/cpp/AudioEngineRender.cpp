@@ -123,13 +123,10 @@ bool AudioEngine::ensureOutputSoxrContextLocked(int channels, int inputRate, int
 
     freeOutputSoxrContextLocked();
 
-    AVChannelLayout inLayout;
-    if (channels == 1) {
-        inLayout = AV_CHANNEL_LAYOUT_MONO;
-    } else {
-        inLayout = AV_CHANNEL_LAYOUT_STEREO;
-    }
-    AVChannelLayout outLayout = inLayout;
+    AVChannelLayout inLayout{};
+    av_channel_layout_default(&inLayout, channels > 0 ? channels : 2);
+    AVChannelLayout outLayout{};
+    av_channel_layout_copy(&outLayout, &inLayout);
 
     int result = swr_alloc_set_opts2(
             &outputSoxrContext,
@@ -142,6 +139,9 @@ bool AudioEngine::ensureOutputSoxrContextLocked(int channels, int inputRate, int
             0,
             nullptr
     );
+
+    av_channel_layout_uninit(&outLayout);
+    av_channel_layout_uninit(&inLayout);
 
     if (result < 0 || outputSoxrContext == nullptr) {
         LOGE("SoX context allocation failed (channels=%d inRate=%d outRate=%d result=%d)",
@@ -587,9 +587,9 @@ void AudioEngine::ensureRenderQueueCapacityLocked(size_t minSampleCapacity) {
 void AudioEngine::appendRenderQueue(const float* data, int numFrames, int channels) {
     if (!data || numFrames <= 0 || channels <= 0) return;
     std::lock_guard<std::mutex> lock(renderQueueMutex);
-    const size_t requestedStereoSamples = static_cast<size_t>(numFrames) * 2u;
+    const size_t requestedSamples = static_cast<size_t>(numFrames) * static_cast<size_t>(channels);
     if (renderQueueRing.empty()) {
-        ensureRenderQueueCapacityLocked(requestedStereoSamples);
+        ensureRenderQueueCapacityLocked(requestedSamples);
     }
     if (renderQueueRing.empty()) {
         return;
@@ -599,35 +599,22 @@ void AudioEngine::appendRenderQueue(const float* data, int numFrames, int channe
         return;
     }
 
-    if (channels == 2) {
-        const size_t sampleCount = std::min(requestedStereoSamples, freeSamples);
-        const size_t firstChunk = std::min(sampleCount, renderQueueRing.size() - renderQueueWriteIndex);
+    const size_t sampleCount = std::min(requestedSamples, freeSamples);
+    const size_t firstChunk = std::min(sampleCount, renderQueueRing.size() - renderQueueWriteIndex);
+    std::memcpy(
+            renderQueueRing.data() + renderQueueWriteIndex,
+            data,
+            firstChunk * sizeof(float)
+    );
+    if (sampleCount > firstChunk) {
         std::memcpy(
-                renderQueueRing.data() + renderQueueWriteIndex,
-                data,
-                firstChunk * sizeof(float)
+                renderQueueRing.data(),
+                data + firstChunk,
+                (sampleCount - firstChunk) * sizeof(float)
         );
-        if (sampleCount > firstChunk) {
-            std::memcpy(
-                    renderQueueRing.data(),
-                    data + firstChunk,
-                    (sampleCount - firstChunk) * sizeof(float)
-            );
-        }
-        renderQueueWriteIndex = (renderQueueWriteIndex + sampleCount) % renderQueueRing.size();
-        renderQueueSampleCount += sampleCount;
-        return;
     }
-
-    const size_t framesToWrite = std::min(static_cast<size_t>(numFrames), freeSamples / 2u);
-    for (size_t i = 0; i < framesToWrite; ++i) {
-        const float mono = data[i * channels];
-        renderQueueRing[renderQueueWriteIndex] = mono;
-        renderQueueWriteIndex = (renderQueueWriteIndex + 1u) % renderQueueRing.size();
-        renderQueueRing[renderQueueWriteIndex] = mono;
-        renderQueueWriteIndex = (renderQueueWriteIndex + 1u) % renderQueueRing.size();
-    }
-    renderQueueSampleCount += framesToWrite * 2u;
+    renderQueueWriteIndex = (renderQueueWriteIndex + sampleCount) % renderQueueRing.size();
+    renderQueueSampleCount += sampleCount;
 }
 
 int AudioEngine::popRenderQueue(float* outputData, int numFrames, int channels) {
@@ -645,9 +632,9 @@ int AudioEngine::popRenderQueue(float* outputData, int numFrames, int channels) 
         );
         if (samplesToCopy > firstChunk) {
             std::memcpy(
-                    outputData + firstChunk,
-                    renderQueueRing.data(),
-                    (samplesToCopy - firstChunk) * sizeof(float)
+                outputData + firstChunk,
+                renderQueueRing.data(),
+                (samplesToCopy - firstChunk) * sizeof(float)
             );
         }
         renderQueueReadIndex = (renderQueueReadIndex + samplesToCopy) % renderQueueRing.size();
@@ -662,7 +649,8 @@ int AudioEngine::popRenderQueue(float* outputData, int numFrames, int channels) 
 
 int AudioEngine::renderQueueFrames() const {
     std::lock_guard<std::mutex> lock(renderQueueMutex);
-    return static_cast<int>(renderQueueSampleCount / 2u);
+    const size_t ch = streamChannelCount > 0 ? static_cast<size_t>(streamChannelCount) : 2u;
+    return static_cast<int>(renderQueueSampleCount / ch);
 }
 
 void AudioEngine::renderWorkerLoop() {
@@ -714,7 +702,8 @@ void AudioEngine::renderWorkerLoop() {
             renderWorkerCv.wait(lock, [this, effectiveTarget]() {
                 if (renderWorkerStop) return true;
                 if (!isPlaying.load() || seekInProgress.load()) return false;
-                const int bufferedFrames = static_cast<int>(renderQueueSampleCount / 2u);
+                const size_t ch = streamChannelCount > 0 ? static_cast<size_t>(streamChannelCount) : 2u;
+                const int bufferedFrames = static_cast<int>(renderQueueSampleCount / ch);
                 return bufferedFrames < effectiveTarget;
             });
             if (renderWorkerStop) {
@@ -723,7 +712,8 @@ void AudioEngine::renderWorkerLoop() {
             if (!isPlaying.load() || seekInProgress.load()) {
                 continue;
             }
-            bufferedFramesBeforeFill = static_cast<int>(renderQueueSampleCount / 2u);
+            const size_t ch = streamChannelCount > 0 ? static_cast<size_t>(streamChannelCount) : 2u;
+            bufferedFramesBeforeFill = static_cast<int>(renderQueueSampleCount / ch);
             needsFill = bufferedFramesBeforeFill < effectiveTarget;
         }
 
@@ -732,7 +722,8 @@ void AudioEngine::renderWorkerLoop() {
         }
 
         bool reachedEnd = false;
-        int channels = 2;
+        int channels = streamChannelCount > 0 ? streamChannelCount : 2;
+        int decodeChannels = channels;
         int chunkFrames = baseChunkFrames;
         const int deficitFrames = std::max(0, effectiveTarget - bufferedFramesBeforeFill);
         if (recoveryBoostActive || backgroundHeadroomActive ||
@@ -754,15 +745,55 @@ void AudioEngine::renderWorkerLoop() {
             if (!decoder || !isPlaying.load()) {
                 continue;
             }
-            channels = std::clamp(decoder->getChannelCount(), 1, 2);
+            // The decoder emits its own output channel count per frame, while the
+            // render queue consumes streamChannelCount. During track switches the
+            // two disagree (e.g. 12ch decoder installed before the stream is
+            // rebuilt); decode at the decoder's stride and adapt below, or a
+            // wider decoder stride overflows the buffer sized for the stream.
+            decodeChannels = std::clamp(decoder->getChannelCount(), 1, 16);
+            channels = streamChannelCount > 0 ? streamChannelCount : decodeChannels;
             if (channels <= 0) channels = 2;
-            localBuffer.resize(static_cast<size_t>(chunkFrames) * static_cast<size_t>(channels));
+            localBuffer.resize(static_cast<size_t>(chunkFrames) *
+                    static_cast<size_t>(std::max(channels, decodeChannels)));
 
             const int outputSampleRate = streamSampleRate > 0 ? streamSampleRate : 48000;
             const int64_t decodeStartNs = std::chrono::duration_cast<std::chrono::nanoseconds>(
                     std::chrono::steady_clock::now().time_since_epoch()
             ).count();
-            renderResampledLocked(localBuffer.data(), chunkFrames, channels, outputSampleRate, reachedEnd);
+            renderResampledLocked(localBuffer.data(), chunkFrames, decodeChannels, outputSampleRate, reachedEnd);
+
+            // Adapt decoder stride to stream stride so downstream DSP and the
+            // render queue (both at streamChannelCount) always stay in bounds.
+            if (decodeChannels != channels) {
+                float* src = localBuffer.data();
+                if (decodeChannels > channels) {
+                    // Fold inputs onto their mapped output; ascending writes never
+                    // overtake the wider source stride.
+                    for (int frame = 0; frame < chunkFrames; ++frame) {
+                        const float* srcFrame = src + static_cast<size_t>(frame) * decodeChannels;
+                        float* dstFrame = src + static_cast<size_t>(frame) * channels;
+                        for (int outCh = 0; outCh < channels; ++outCh) {
+                            float sum = 0.0f;
+                            int contributors = 0;
+                            for (int inCh = outCh; inCh < decodeChannels; inCh += channels) {
+                                sum += srcFrame[inCh];
+                                ++contributors;
+                            }
+                            dstFrame[outCh] = contributors > 0 ? sum / static_cast<float>(contributors) : 0.0f;
+                        }
+                    }
+                } else {
+                    // Replicate inputs across the wider output; descending writes
+                    // never clobber source frames still to be read.
+                    for (int frame = chunkFrames - 1; frame >= 0; --frame) {
+                        const float* srcFrame = src + static_cast<size_t>(frame) * decodeChannels;
+                        float* dstFrame = src + static_cast<size_t>(frame) * channels;
+                        for (int outCh = 0; outCh < channels; ++outCh) {
+                            dstFrame[outCh] = outCh < decodeChannels ? srcFrame[outCh] : 0.0f;
+                        }
+                    }
+                }
+            }
             const int64_t decodeEndNs = std::chrono::duration_cast<std::chrono::nanoseconds>(
                     std::chrono::steady_clock::now().time_since_epoch()
             ).count();

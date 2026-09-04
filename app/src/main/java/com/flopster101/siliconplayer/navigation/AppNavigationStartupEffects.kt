@@ -80,6 +80,12 @@ internal fun AppNavigationStartupEffects(
                 AppDefaults.AudioProcessing.lookaheadClipperMode.storageValue
             )
         )
+        val multiChannelOutputMode = MultiChannelOutputMode.fromStorage(
+            prefs.getString(
+                AppPreferenceKeys.AUDIO_MULTI_CHANNEL_OUTPUT_MODE,
+                AppDefaults.OutputPipeline.multiChannelOutputMode.storageValue
+            )
+        )
         val dspBassEnabled = prefs.getBoolean(
             AppPreferenceKeys.AUDIO_DSP_BASS_ENABLED,
             AppDefaults.AudioProcessing.Dsp.bassEnabled
@@ -133,6 +139,7 @@ internal fun AppNavigationStartupEffects(
         NativeBridge.setForceMono(forceMono)
         NativeBridge.setOutputLimiterEnabled(outputLimiterEnabled)
         NativeBridge.setLookaheadClipperMode(lookaheadClipperMode.nativeValue)
+        NativeBridge.setMultiChannelOutputMode(multiChannelOutputMode.nativeValue)
         NativeBridge.setDspBassEnabled(dspBassEnabled)
         NativeBridge.setDspBassDepth(dspBassDepth)
         NativeBridge.setDspBassRange(dspBassRange)

@@ -39,6 +39,7 @@ internal data class GeneralAudioRouteState(
     val audioResamplerPreference: AudioResamplerPreference,
     val audioOutputLimiterEnabled: Boolean,
     val lookaheadClipperMode: LookaheadClipperMode,
+    val multiChannelOutputMode: MultiChannelOutputMode,
     val audioAllowBackendFallback: Boolean,
     val bitPerfectUsbAudio: Boolean
 )
@@ -58,6 +59,7 @@ internal data class GeneralAudioRouteActions(
     val onAudioResamplerPreferenceChanged: (AudioResamplerPreference) -> Unit,
     val onAudioOutputLimiterEnabledChanged: (Boolean) -> Unit,
     val onLookaheadClipperModeChanged: (LookaheadClipperMode) -> Unit,
+    val onMultiChannelOutputModeChanged: (MultiChannelOutputMode) -> Unit,
     val onAudioAllowBackendFallbackChanged: (Boolean) -> Unit,
     val onBitPerfectUsbAudioChanged: (Boolean) -> Unit
 )
@@ -177,6 +179,11 @@ internal fun GeneralAudioRouteContent(
         description = "If selected backend is unavailable, fall back automatically to a working output backend.",
         checked = state.audioAllowBackendFallback,
         onCheckedChange = actions.onAudioAllowBackendFallbackChanged
+    )
+    SettingsRowSpacer()
+    MultiChannelOutputModeSelectorCard(
+        selectedMode = state.multiChannelOutputMode,
+        onSelectedModeChanged = actions.onMultiChannelOutputModeChanged
     )
     val context = LocalContext.current
     val prefs = remember(context) { context.getSharedPreferences(AppPreferenceKeys.PREFS_NAME, Context.MODE_PRIVATE) }

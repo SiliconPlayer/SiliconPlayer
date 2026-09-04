@@ -77,12 +77,28 @@ bool AudioEngine::start() {
             closeStream();
             createStream();
         }
+        bool needChannelReopen = false;
+        {
+            std::lock_guard<std::mutex> lock(decoderMutex);
+            if (decoder) {
+                const int desiredChannels = resolveOutputStreamChannelsForTrackLocked();
+                if (streamChannelCount != desiredChannels) {
+                    needChannelReopen = true;
+                }
+            }
+        }
+        if (needChannelReopen) {
+            closeStream();
+            createStream();
+        }
 
         {
             std::lock_guard<std::mutex> lock(decoderMutex);
             if (decoder) {
                 const int desiredRate = resolveOutputSampleRateForCore(decoder->getName());
+                const int desiredChannels = resolveOutputStreamChannelsForTrackLocked();
                 decoder->setOutputSampleRate(desiredRate);
+                decoder->setOutputChannelCount(desiredChannels);
                 decoderRenderSampleRate = decoder->getRenderSampleRate();
                 resetResamplerStateLocked();
                 const double durationNow = decoder->getDuration();
@@ -124,9 +140,10 @@ bool AudioEngine::start() {
         if (streamStartupPrerollPending && !isBitPerfectModeEnabled()) {
             const int prerollFrames = burstFrames > 0 ? burstFrames : startupChunkFrames;
             startupPrerollFrames = std::clamp(prerollFrames, 128, 2048);
-            std::vector<float> prerollSilence(static_cast<size_t>(startupPrerollFrames) * 2u, 0.0f);
-            appendRenderQueue(prerollSilence.data(), startupPrerollFrames, 2);
-            LOGD("Applying one-time startup preroll: %d frames", startupPrerollFrames);
+            const size_t ch = streamChannelCount > 0 ? static_cast<size_t>(streamChannelCount) : 2u;
+            std::vector<float> prerollSilence(static_cast<size_t>(startupPrerollFrames) * ch, 0.0f);
+            appendRenderQueue(prerollSilence.data(), startupPrerollFrames, static_cast<int>(ch));
+            LOGD("Applying one-time startup preroll: %d frames (ch=%zu)", startupPrerollFrames, ch);
         }
         const int startupTargetFrames = startupBaseTargetFrames + startupPrerollFrames;
         renderWorkerCv.notify_one();
@@ -345,6 +362,8 @@ void AudioEngine::setUrl(const char* url) {
             }
         }
         decoder = std::move(newDecoder);
+        const int desiredChannels = resolveOutputStreamChannelsForTrackLocked();
+        decoder->setOutputChannelCount(desiredChannels);
         cachedDurationSeconds.store(decoder->getDuration());
         resetResamplerStateLocked();
         positionSeconds.store(0.0);
