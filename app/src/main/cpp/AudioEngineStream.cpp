@@ -199,7 +199,13 @@ bool AudioEngine::createMiniaudioStream() {
     deviceConfig.stopCallback = miniaudioStopCallback;
     deviceConfig.pUserData = this;
 
-    if (outputPerformanceMode == 1) {
+    /* The FAST/MMAP path lands on an output whose Stage policy has no
+     * spatializer sub-stage, so multichannel content on the shared output
+     * must take the conservative profile to reach deep_buffer (and its
+     * platform spatializer/Dolby stage). */
+    const bool multichannelSharedOutput =
+        !uac.isStreaming() && !bitPerfectModeEnabled && targetChannels > 2;
+    if (outputPerformanceMode == 1 && !multichannelSharedOutput) {
         deviceConfig.performanceProfile = ma_performance_profile_low_latency;
     } else {
         deviceConfig.performanceProfile = ma_performance_profile_conservative;

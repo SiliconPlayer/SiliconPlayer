@@ -249,10 +249,12 @@ class PlaybackService : Service() {
                         }
                     }
                     isPlaying = snapshot.isEnginePlaying
-                    if (isPlaying && currentAudioEffectSessionId <= 0) {
-                        val sid = NativeBridge.getAudioSessionId()
-                        if (sid > 0) {
-                            openAudioEffectControlSession(sid)
+                    if (isPlaying) {
+                        if (currentAudioEffectSessionId <= 0) {
+                            val sid = NativeBridge.getAudioSessionId()
+                            if (sid > 0) {
+                                openAudioEffectControlSession(sid)
+                            }
                         }
                     }
                     persistResumeCheckpointIfNeeded(
