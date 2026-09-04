@@ -2193,7 +2193,7 @@ Java_com_flopster101_siliconplayer_NativeBridge_getTimelineMode(JNIEnv* env, job
 }
 
 extern "C" JNIEXPORT jstring JNICALL
-Java_com_flopster101_siliconplayer_NativeBridge_getCurrentDecoderName(JNIEnv* env, jobject thiz) {
+Java_com_flopster101_siliconplayer_NativeBridge_getCurrentDecoderNameImpl(JNIEnv* env, jobject thiz) {
     return Java_com_flopster101_siliconplayer_MainActivity_getCurrentDecoderName(env, thiz);
 }
 

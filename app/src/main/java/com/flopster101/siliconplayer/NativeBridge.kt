@@ -179,7 +179,17 @@ object NativeBridge {
     external fun getRepeatModeCapabilities(): Int
     external fun getPlaybackCapabilities(): Int
     external fun getTimelineMode(): Int
-    external fun getCurrentDecoderName(): String
+    @JvmStatic
+    fun getCurrentDecoderName(): String =
+        if (PlatformDolbyPlayer.isActive()) DecoderNames.PLATFORM_DOLBY
+        else getCurrentDecoderNameImpl()
+
+    /** Name of the platform codec actually allocated by the Dolby core, if any. */
+    @JvmStatic
+    fun getPlatformDecoderCodecName(): String = PlatformDolbyPlayer.codecName()
+
+    private external fun getCurrentDecoderNameImpl(): String
+
     external fun getSubtuneCount(): Int
     external fun getCurrentSubtuneIndex(): Int
     external fun selectSubtune(index: Int): Boolean

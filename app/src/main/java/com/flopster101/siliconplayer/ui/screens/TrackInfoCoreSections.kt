@@ -71,6 +71,22 @@ internal fun TrackInfoCoreSections(
             if (metadata.ffmpeg.encoderName.isNotBlank()) TrackInfoDetailsRow("Encoder", metadata.ffmpeg.encoderName)
         }
 
+        decoderName.equals(DecoderNames.PLATFORM_DOLBY, ignoreCase = true) -> {
+            TrackInfoSectionHeader(DecoderNames.PLATFORM_DOLBY)
+            if (metadata.platformDolby.componentCodecName.isNotBlank()) {
+                TrackInfoDetailsRow("System codec", metadata.platformDolby.componentCodecName)
+            }
+            if (metadata.platformDolby.streamCodecName.isNotBlank()) {
+                TrackInfoDetailsRow("Stream codec", metadata.platformDolby.streamCodecName)
+            }
+            if (metadata.platformDolby.containerName.isNotBlank()) {
+                TrackInfoDetailsRow("Container", metadata.platformDolby.containerName)
+            }
+            if (metadata.platformDolby.channelLayoutName.isNotBlank()) {
+                TrackInfoDetailsRow("Channel layout", metadata.platformDolby.channelLayoutName)
+            }
+        }
+
         decoderName.equals(DecoderNames.GAME_MUSIC_EMU, ignoreCase = true) -> {
             TrackInfoSectionHeader(DecoderNames.GAME_MUSIC_EMU)
             if (metadata.gme.systemName.isNotBlank()) TrackInfoDetailsRow("System", metadata.gme.systemName)
@@ -272,6 +288,14 @@ internal fun appendCoreTrackInfoCopyRows(
             if (metadata.ffmpeg.sampleFormatName.isNotBlank()) row("Sample format", metadata.ffmpeg.sampleFormatName)
             if (metadata.ffmpeg.channelLayoutName.isNotBlank()) row("Channel layout", metadata.ffmpeg.channelLayoutName)
             if (metadata.ffmpeg.encoderName.isNotBlank()) row("Encoder", metadata.ffmpeg.encoderName)
+        }
+
+        decoderName.equals(DecoderNames.PLATFORM_DOLBY, ignoreCase = true) -> {
+            builder.append('\n').append("[System Dolby]").append('\n')
+            if (metadata.platformDolby.componentCodecName.isNotBlank()) row("System codec", metadata.platformDolby.componentCodecName)
+            if (metadata.platformDolby.streamCodecName.isNotBlank()) row("Stream codec", metadata.platformDolby.streamCodecName)
+            if (metadata.platformDolby.containerName.isNotBlank()) row("Container", metadata.platformDolby.containerName)
+            if (metadata.platformDolby.channelLayoutName.isNotBlank()) row("Channel layout", metadata.platformDolby.channelLayoutName)
         }
 
         decoderName.equals(DecoderNames.GAME_MUSIC_EMU, ignoreCase = true) -> {

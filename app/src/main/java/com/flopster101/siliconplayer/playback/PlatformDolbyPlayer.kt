@@ -44,6 +44,12 @@ internal object PlatformDolbyPlayer {
     @Volatile
     private var naturalEnd = false
 
+    // MediaCodec component name backing the active platform playback
+    // (e.g. c2.dolby.eac3.decoder.eac3-joc), resolved from the same codec
+    // list the platform uses for decoder selection.
+    @Volatile
+    private var codecName: String? = null
+
     private var handlerThread: HandlerThread? = null
     private var handler: Handler? = null
     private var player: MediaPlayer? = null
@@ -90,11 +96,16 @@ internal object PlatformDolbyPlayer {
         pendingStart = false
         lastKnownPlaying = false
         naturalEnd = false
+        codecName = null
         releasePlayer()
         if (hadActive) {
             Log.i(TAG, "deactivated")
         }
     }
+
+    /** MediaCodec component backing the active core, e.g. c2.dolby.eac3.decoder. */
+    @JvmStatic
+    fun codecName(): String = codecName.orEmpty()
 
     @JvmStatic
     fun redirectPlay(): Boolean {
@@ -232,15 +243,19 @@ internal object PlatformDolbyPlayer {
             codec.startsWith("ac3") -> arrayOf("audio/ac3")
             else -> return false
         }
-        val available = candidateMimes.any { mime -> hasPlatformDolbyDecoder(mime) }
-        if (!available) {
-            Log.i(TAG, "codec=$codec but no platform Dolby decoder; staying on FFmpeg")
+        val component = candidateMimes.firstNotNullOfOrNull { mime ->
+            resolvePlatformDolbyDecoder(mime)
         }
-        return available
+        if (component == null) {
+            Log.i(TAG, "codec=$codec but no platform Dolby decoder; staying on FFmpeg")
+            return false
+        }
+        codecName = component
+        return true
     }
 
-    private fun hasPlatformDolbyDecoder(mime: String): Boolean = try {
-        MediaCodecList(MediaCodecList.REGULAR_CODECS).codecInfos.any { info ->
+    private fun resolvePlatformDolbyDecoder(mime: String): String? = try {
+        MediaCodecList(MediaCodecList.REGULAR_CODECS).codecInfos.firstOrNull { info ->
             !info.isEncoder &&
                 (info.name.startsWith("c2.dolby") || info.name.startsWith("OMX.dolby")) &&
                 try {
@@ -248,9 +263,9 @@ internal object PlatformDolbyPlayer {
                 } catch (t: Throwable) {
                     false
                 }
-        }
+        }?.name
     } catch (t: Throwable) {
-        false
+        null
     }
 
     private fun activate(path: String, pendingStart: Boolean) {

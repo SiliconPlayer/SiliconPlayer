@@ -47,6 +47,18 @@ internal fun readCurrentFormatName(decoderName: String?): String? {
     if (decoderName.isNullOrBlank()) return null
     return try {
         when {
+            decoderName.equals(DecoderNames.PLATFORM_DOLBY, ignoreCase = true) -> {
+                // The player-facing format line stays stream-level (what
+                // FFmpeg reports for the file); the platform codec component
+                // is only surfaced in the track info dialog.
+                val container = NativeBridge.getFfmpegContainerName().trim()
+                val codec = NativeBridge.getFfmpegCodecName().trim()
+                when {
+                    container.isNotEmpty() -> container
+                    codec.isNotEmpty() -> codec
+                    else -> null
+                }
+            }
             decoderName.equals(DecoderNames.FFMPEG, ignoreCase = true) -> {
                 val container = NativeBridge.getFfmpegContainerName().trim()
                 val codec = NativeBridge.getFfmpegCodecName().trim()

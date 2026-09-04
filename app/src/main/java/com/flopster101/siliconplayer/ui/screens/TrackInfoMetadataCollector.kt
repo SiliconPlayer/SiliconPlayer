@@ -46,6 +46,13 @@ internal data class FfmpegMetadata(
     val encoderName: String = ""
 )
 
+internal data class PlatformDolbyMetadata(
+    val componentCodecName: String = "",
+    val streamCodecName: String = "",
+    val containerName: String = "",
+    val channelLayoutName: String = ""
+)
+
 internal data class GmeMetadata(
     val systemName: String = "",
     val gameName: String = "",
@@ -205,6 +212,7 @@ internal data class TrackInfoLiveMetadata(
     val openMpt: OpenMptMetadata = OpenMptMetadata(),
     val vgmPlay: VgmPlayMetadata = VgmPlayMetadata(),
     val ffmpeg: FfmpegMetadata = FfmpegMetadata(),
+    val platformDolby: PlatformDolbyMetadata = PlatformDolbyMetadata(),
     val gme: GmeMetadata = GmeMetadata(),
     val lazyUsf2: LazyUsf2Metadata = LazyUsf2Metadata(),
     val vio2sf: Vio2sfMetadata = Vio2sfMetadata(),
@@ -291,6 +299,15 @@ private fun queryTrackInfoLiveMetadata(decoderName: String?): TrackInfoLiveMetad
                 sampleFormatName = NativeBridge.getFfmpegSampleFormatName(),
                 channelLayoutName = NativeBridge.getFfmpegChannelLayoutName(),
                 encoderName = NativeBridge.getFfmpegEncoderName()
+            )
+        )
+
+        decoderName.equals(DecoderNames.PLATFORM_DOLBY, ignoreCase = true) -> common.copy(
+            platformDolby = PlatformDolbyMetadata(
+                componentCodecName = NativeBridge.getPlatformDecoderCodecName(),
+                streamCodecName = NativeBridge.getFfmpegCodecName(),
+                containerName = NativeBridge.getFfmpegContainerName(),
+                channelLayoutName = NativeBridge.getFfmpegChannelLayoutName()
             )
         )
 
