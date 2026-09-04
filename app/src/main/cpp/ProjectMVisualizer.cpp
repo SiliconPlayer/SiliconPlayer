@@ -107,6 +107,10 @@ bool ProjectMVisualizer::initGl() {
         projectm_set_window_size(instance_, static_cast<size_t>(renderWidth_), static_cast<size_t>(renderHeight_));
     }
 
+    // Feedback textures are allocated with undefined contents, so the first
+    // preset would otherwise sample garbage until its first render completes.
+    projectm_set_preset_start_clean(instance_, true);
+
     if (!presets_.empty()) {
         size_t startIndex = 0;
         // Warm-cache reuse keeps the last live preset; resume it.
@@ -121,6 +125,7 @@ bool ProjectMVisualizer::initGl() {
     } else {
         loadIdlePreset();
     }
+    projectm_set_preset_start_clean(instance_, false);
     return true;
 }
 
