@@ -770,8 +770,12 @@ bool FFmpegDecoder::initResampler() {
             [](bool muted) { return muted; }
     );
     if (hasMutedSourceChannels && inChannelCount > 0 && outChannelCount > 0) {
+        // swr_build_matrix2's normalize/volume passes walk stride*SWR_CH_MAX
+        // entries regardless of the actual channel counts; the buffer must
+        // span the full 64-row span or the pass overflows the allocation.
+        constexpr int kSwrChMax = 64;
         std::vector<double> matrix(
-                static_cast<size_t>(inChannelCount) * static_cast<size_t>(outChannelCount),
+                (static_cast<size_t>(inChannelCount) + 1u) * static_cast<size_t>(kSwrChMax),
                 0.0
         );
         const int stride = inChannelCount;
