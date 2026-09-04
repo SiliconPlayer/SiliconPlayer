@@ -63,6 +63,8 @@ public:
     virtual std::string getCopyright() { return ""; }
     virtual std::string getComment() { return ""; }
     virtual void setOutputSampleRate(int /*sampleRate*/) {}
+    virtual void setOutputChannelCount(int /*channels*/) {}
+    virtual int getSourceChannelCount() { return getChannelCount(); }
     virtual void setRepeatMode(int /*mode*/) {}
     virtual int getRepeatModeCapabilities() const { return REPEAT_CAP_TRACK; }
     virtual int getPlaybackCapabilities() const {

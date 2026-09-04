@@ -359,7 +359,11 @@ bool FFmpegDecoder::openLocked(const char* path) {
         return false;
     }
 
-    if (avcodec_open2(codecContext, codec, nullptr) < 0) {
+    AVDictionary* codecOpts = nullptr;
+    av_dict_set(&codecOpts, "drc_scale", "0", 0);
+    const int openCodecResult = avcodec_open2(codecContext, codec, &codecOpts);
+    av_dict_free(&codecOpts);
+    if (openCodecResult < 0) {
         LOGE("Failed to open codec");
         close();
         return false;
@@ -730,7 +734,13 @@ bool FFmpegDecoder::initResampler() {
 
     // Calculate channel layout from channel count logic since layout might be 0 for some files.
     AVChannelLayout out_ch_layout{};
-    av_channel_layout_default(&out_ch_layout, outputChannelCount);
+    if (outputChannelCount == 12) {
+        out_ch_layout = AV_CHANNEL_LAYOUT_7POINT1POINT4_BACK;
+    } else if (outputChannelCount == sourceChannelCount && codecContext->ch_layout.nb_channels > 0) {
+        av_channel_layout_copy(&out_ch_layout, &codecContext->ch_layout);
+    } else {
+        av_channel_layout_default(&out_ch_layout, outputChannelCount);
+    }
 
     AVChannelLayout in_ch_layout{};
     // Use ch_layout (new FFmpeg standard) if available, otherwise fallback to default
@@ -833,6 +843,37 @@ bool FFmpegDecoder::initResampler() {
                 }
                 for (int outputChannel = 0; outputChannel < outChannelCount; ++outputChannel) {
                     matrix[inputChannel + stride * outputChannel] = 0.0;
+                }
+            }
+            result = swr_set_matrix(newSwrContext, matrix.data(), stride);
+        }
+    } else if (inChannelCount > 2 && outChannelCount == 2) {
+        // Same padding requirement as the mute branch above.
+        constexpr int kSwrChMax = 64;
+        std::vector<double> matrix(
+                (static_cast<size_t>(inChannelCount) + 1u) * static_cast<size_t>(kSwrChMax),
+                0.0
+        );
+        const int stride = inChannelCount;
+        result = swr_build_matrix2(
+                &in_ch_layout,
+                &out_ch_layout,
+                1.0,
+                1.25,
+                1.0,
+                1.0,
+                1.0,
+                matrix.data(),
+                stride,
+                AV_MATRIX_ENCODING_DPLII,
+                nullptr
+        );
+        if (result >= 0) {
+            const double frontGain = std::max(std::abs(matrix[0]), std::abs(matrix[stride + 1]));
+            if (frontGain > 0.0) {
+                const double scale = 1.0 / frontGain;
+                for (auto& val : matrix) {
+                    val *= scale;
                 }
             }
             result = swr_set_matrix(newSwrContext, matrix.data(), stride);
@@ -1312,6 +1353,24 @@ void FFmpegDecoder::setOutputSampleRate(int sampleRate) {
         totalFramesOutput = 0;
     }
     outputSampleRate = sampleRate;
+    if (codecContext) {
+        initResampler();
+        sampleBuffer.clear();
+        sampleBufferCursor = 0;
+    }
+}
+
+int FFmpegDecoder::getSourceChannelCount() {
+    return sourceChannelCount > 0 ? sourceChannelCount : outputChannelCount;
+}
+
+void FFmpegDecoder::setOutputChannelCount(int channels) {
+    if (channels <= 0) {
+        channels = 2;
+    }
+    std::lock_guard<std::mutex> lock(decodeMutex);
+    if (outputChannelCount == channels) return;
+    outputChannelCount = channels;
     if (codecContext) {
         initResampler();
         sampleBuffer.clear();

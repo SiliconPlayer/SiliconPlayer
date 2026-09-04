@@ -52,6 +52,8 @@ public:
     bool getToggleChannelMuted(int channelIndex) const override;
     void clearToggleChannelMutes() override;
     void setOutputSampleRate(int sampleRate) override;
+    void setOutputChannelCount(int channels) override;
+    int getSourceChannelCount() override;
     void setRepeatMode(int mode) override;
     void setOption(const char* name, const char* value) override;
     int getOptionApplyPolicy(const char* name) const override;
