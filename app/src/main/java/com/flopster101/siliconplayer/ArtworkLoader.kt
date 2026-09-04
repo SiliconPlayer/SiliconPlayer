@@ -190,44 +190,50 @@ internal fun loadArtworkBitmapForSource(
     return null
 }
 
+internal val MediaMetadataRetrieverGlobalLock = Any()
+
 private fun loadEmbeddedArtwork(file: File): Bitmap? {
-    val retriever = MediaMetadataRetriever()
-    return try {
-        retriever.setDataSource(file.absolutePath)
-        val embedded = retriever.embeddedPicture ?: return null
-        decodeScaledBitmapFromBytes(embedded)
-    } catch (_: Exception) {
-        null
-    } finally {
-        retriever.release()
+    synchronized(MediaMetadataRetrieverGlobalLock) {
+        val retriever = MediaMetadataRetriever()
+        return try {
+            retriever.setDataSource(file.absolutePath)
+            val embedded = retriever.embeddedPicture ?: return null
+            decodeScaledBitmapFromBytes(embedded)
+        } catch (_: Exception) {
+            null
+        } finally {
+            retriever.release()
+        }
     }
 }
 
 private fun loadEmbeddedArtworkFromRemote(url: String): Bitmap? {
-    val retriever = MediaMetadataRetriever()
-    return try {
-        val headers = mutableMapOf(
-            "User-Agent" to "SiliconPlayer/1.0 (Android)",
-            "Icy-MetaData" to "1"
-        )
-        parseHttpSourceSpecFromInput(url)?.let { spec ->
-            httpBasicAuthorizationHeader(
-                username = spec.username,
-                password = spec.password
-            )?.let { authHeader ->
-                headers["Authorization"] = authHeader
-            }
+    val headers = mutableMapOf(
+        "User-Agent" to "SiliconPlayer/1.0 (Android)",
+        "Icy-MetaData" to "1"
+    )
+    parseHttpSourceSpecFromInput(url)?.let { spec ->
+        httpBasicAuthorizationHeader(
+            username = spec.username,
+            password = spec.password
+        )?.let { authHeader ->
+            headers["Authorization"] = authHeader
         }
-        retriever.setDataSource(
-            url,
-            headers
-        )
-        val embedded = retriever.embeddedPicture ?: return null
-        decodeScaledBitmapFromBytes(embedded)
-    } catch (_: Exception) {
-        null
-    } finally {
-        retriever.release()
+    }
+    synchronized(MediaMetadataRetrieverGlobalLock) {
+        val retriever = MediaMetadataRetriever()
+        return try {
+            retriever.setDataSource(
+                url,
+                headers
+            )
+            val embedded = retriever.embeddedPicture ?: return null
+            decodeScaledBitmapFromBytes(embedded)
+        } catch (_: Exception) {
+            null
+        } finally {
+            retriever.release()
+        }
     }
 }
 
@@ -253,16 +259,18 @@ private fun loadEmbeddedArtworkFromSmb(requestUri: String): Bitmap? {
     return withOpenedSmbFile(spec, remotePath) { _, smbFile, sizeBytes ->
         if (sizeBytes <= 0L) return@withOpenedSmbFile null
         val dataSource = SmbRetrieverDataSource(smbFile, sizeBytes)
-        val retriever = MediaMetadataRetriever()
-        try {
-            retriever.setDataSource(dataSource)
-            val embedded = retriever.embeddedPicture ?: return@withOpenedSmbFile null
-            decodeScaledBitmapFromBytes(embedded)
-        } catch (_: Throwable) {
-            null
-        } finally {
-            retriever.release()
-            dataSource.close()
+        synchronized(MediaMetadataRetrieverGlobalLock) {
+            val retriever = MediaMetadataRetriever()
+            try {
+                retriever.setDataSource(dataSource)
+                val embedded = retriever.embeddedPicture ?: return@withOpenedSmbFile null
+                decodeScaledBitmapFromBytes(embedded)
+            } catch (_: Throwable) {
+                null
+            } finally {
+                retriever.release()
+                dataSource.close()
+            }
         }
     }
 }

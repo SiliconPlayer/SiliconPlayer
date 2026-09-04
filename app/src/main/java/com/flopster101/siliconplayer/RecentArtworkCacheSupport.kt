@@ -101,15 +101,17 @@ private fun loadRecentArtworkBitmap(trackFile: File): Bitmap? {
 }
 
 private fun loadEmbeddedArtworkBitmap(file: File): Bitmap? {
-    val retriever = MediaMetadataRetriever()
-    return try {
-        retriever.setDataSource(file.absolutePath)
-        val embedded = retriever.embeddedPicture ?: return null
-        decodeScaledBitmapFromBytes(embedded)
-    } catch (_: Throwable) {
-        null
-    } finally {
-        retriever.release()
+    synchronized(MediaMetadataRetrieverGlobalLock) {
+        val retriever = MediaMetadataRetriever()
+        return try {
+            retriever.setDataSource(file.absolutePath)
+            val embedded = retriever.embeddedPicture ?: return null
+            decodeScaledBitmapFromBytes(embedded)
+        } catch (_: Throwable) {
+            null
+        } finally {
+            retriever.release()
+        }
     }
 }
 
@@ -132,15 +134,17 @@ private fun loadRemoteEmbeddedArtworkBitmap(
     )?.let { authHeader ->
         headers["Authorization"] = authHeader
     }
-    val retriever = MediaMetadataRetriever()
-    return try {
-        retriever.setDataSource(requestUrl, headers)
-        val embedded = retriever.embeddedPicture ?: return null
-        decodeScaledBitmapFromBytes(embedded)
-    } catch (_: Throwable) {
-        null
-    } finally {
-        retriever.release()
+    synchronized(MediaMetadataRetrieverGlobalLock) {
+        val retriever = MediaMetadataRetriever()
+        return try {
+            retriever.setDataSource(requestUrl, headers)
+            val embedded = retriever.embeddedPicture ?: return null
+            decodeScaledBitmapFromBytes(embedded)
+        } catch (_: Throwable) {
+            null
+        } finally {
+            retriever.release()
+        }
     }
 }
 

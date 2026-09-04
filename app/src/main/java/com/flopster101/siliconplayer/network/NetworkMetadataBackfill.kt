@@ -61,53 +61,61 @@ private suspend fun readNetworkSourceMetadata(
 ): Pair<String?, String?>? {
     val uri = Uri.parse(sourceId)
     val scheme = uri.scheme?.lowercase(Locale.ROOT)
-    val retriever = MediaMetadataRetriever()
-    return try {
-        when (scheme) {
-            "http", "https" -> {
-                val requestSpec = resolveCredentialedHttpSpec(sourceId) ?: return null
-                val headers = mutableMapOf<String, String>()
-                httpBasicAuthorizationHeader(
-                    username = requestSpec.username,
-                    password = requestSpec.password
-                )?.let { authorizationHeader ->
-                    headers["Authorization"] = authorizationHeader
-                }
-                retriever.setDataSource(buildHttpRequestUri(requestSpec), headers)
-            }
-            "file" -> retriever.setDataSource(uri.path ?: return null)
-            "smb" -> {
-                val smbSpec = resolveCredentialedSmbSpec(sourceId) ?: return null
-                val downloadResult = downloadSmbSourceToCache(
-                    context = context,
-                    sourceId = sourceId,
-                    spec = smbSpec,
-                    onStatus = {}
-                )
-                val localFile = downloadResult.file ?: return null
-                retriever.setDataSource(localFile.absolutePath)
-            }
-            else -> {
-                val localFile = File(sourceId)
-                if (localFile.exists() && localFile.isFile) {
-                    retriever.setDataSource(localFile.absolutePath)
-                } else {
-                    retriever.setDataSource(sourceId, emptyMap())
-                }
-            }
-        }
-        val title = retriever
-            .extractMetadata(MediaMetadataRetriever.METADATA_KEY_TITLE)
-            ?.trim()
-            .takeUnless { it.isNullOrBlank() }
-        val artist = retriever
-            .extractMetadata(MediaMetadataRetriever.METADATA_KEY_ARTIST)
-            ?.trim()
-            .takeUnless { it.isNullOrBlank() }
-        if (title == null && artist == null) null else Pair(title, artist)
-    } catch (_: Throwable) {
+    val smbLocalFilePath: String? = if (scheme == "smb") {
+        val smbSpec = resolveCredentialedSmbSpec(sourceId) ?: return null
+        val downloadResult = downloadSmbSourceToCache(
+            context = context,
+            sourceId = sourceId,
+            spec = smbSpec,
+            onStatus = {}
+        )
+        downloadResult.file?.absolutePath ?: return null
+    } else {
         null
-    } finally {
-        retriever.release()
+    }
+
+    synchronized(com.flopster101.siliconplayer.MediaMetadataRetrieverGlobalLock) {
+        val retriever = MediaMetadataRetriever()
+        return try {
+            when (scheme) {
+                "http", "https" -> {
+                    val requestSpec = resolveCredentialedHttpSpec(sourceId) ?: return null
+                    val headers = mutableMapOf<String, String>()
+                    httpBasicAuthorizationHeader(
+                        username = requestSpec.username,
+                        password = requestSpec.password
+                    )?.let { authorizationHeader ->
+                        headers["Authorization"] = authorizationHeader
+                    }
+                    retriever.setDataSource(buildHttpRequestUri(requestSpec), headers)
+                }
+                "file" -> retriever.setDataSource(uri.path ?: return null)
+                "smb" -> {
+                    if (smbLocalFilePath == null) return null
+                    retriever.setDataSource(smbLocalFilePath)
+                }
+                else -> {
+                    val localFile = File(sourceId)
+                    if (localFile.exists() && localFile.isFile) {
+                        retriever.setDataSource(localFile.absolutePath)
+                    } else {
+                        retriever.setDataSource(sourceId, emptyMap())
+                    }
+                }
+            }
+            val title = retriever
+                .extractMetadata(MediaMetadataRetriever.METADATA_KEY_TITLE)
+                ?.trim()
+                .takeUnless { it.isNullOrBlank() }
+            val artist = retriever
+                .extractMetadata(MediaMetadataRetriever.METADATA_KEY_ARTIST)
+                ?.trim()
+                .takeUnless { it.isNullOrBlank() }
+            if (title == null && artist == null) null else Pair(title, artist)
+        } catch (_: Throwable) {
+            null
+        } finally {
+            retriever.release()
+        }
     }
 }

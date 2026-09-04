@@ -209,21 +209,23 @@ private fun readLocalTrackMetadata(sourceId: String): Pair<String, String>? {
     val file = File(localPath)
     if (!file.exists() || !file.isFile) return null
 
-    val retriever = MediaMetadataRetriever()
-    return try {
-        retriever.setDataSource(file.absolutePath)
-        val title = retriever
-            .extractMetadata(MediaMetadataRetriever.METADATA_KEY_TITLE)
-            ?.trim()
-            .orEmpty()
-        val artist = retriever
-            .extractMetadata(MediaMetadataRetriever.METADATA_KEY_ARTIST)
-            ?.trim()
-            .orEmpty()
-        if (title.isBlank() && artist.isBlank()) null else Pair(title, artist)
-    } catch (_: Throwable) {
-        null
-    } finally {
-        retriever.release()
+    synchronized(com.flopster101.siliconplayer.MediaMetadataRetrieverGlobalLock) {
+        val retriever = MediaMetadataRetriever()
+        return try {
+            retriever.setDataSource(file.absolutePath)
+            val title = retriever
+                .extractMetadata(MediaMetadataRetriever.METADATA_KEY_TITLE)
+                ?.trim()
+                .orEmpty()
+            val artist = retriever
+                .extractMetadata(MediaMetadataRetriever.METADATA_KEY_ARTIST)
+                ?.trim()
+                .orEmpty()
+            if (title.isBlank() && artist.isBlank()) null else Pair(title, artist)
+        } catch (_: Throwable) {
+            null
+        } finally {
+            retriever.release()
+        }
     }
 }
