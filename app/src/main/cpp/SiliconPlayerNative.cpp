@@ -1224,6 +1224,12 @@ Java_com_flopster101_siliconplayer_NativeBridge_getVgmDeviceCount(JNIEnv*, jobje
     return static_cast<jint>(audioEngine->getVgmDeviceCount());
 }
 
+extern "C" JNIEXPORT jint JNICALL
+Java_com_flopster101_siliconplayer_NativeBridge_getAudioSessionId(JNIEnv*, jobject) {
+    if (audioEngine == nullptr) return -1;
+    return static_cast<jint>(audioEngine->getAudioSessionId());
+}
+
 extern "C" JNIEXPORT jstring JNICALL
 Java_com_flopster101_siliconplayer_NativeBridge_getVgmUsedChipList(JNIEnv* env, jobject) {
     if (audioEngine == nullptr) return toJString(env, "");

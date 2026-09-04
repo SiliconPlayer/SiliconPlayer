@@ -17,6 +17,7 @@ import android.media.AudioAttributes
 import android.media.AudioFocusRequest
 import android.media.AudioManager
 import android.media.MediaMetadataRetriever
+import android.media.audiofx.AudioEffect
 import android.net.Uri
 import android.media.session.MediaSession
 import android.media.session.PlaybackState
@@ -68,6 +69,58 @@ class PlaybackService : Service() {
     private var isDucked = false
     private var originalMasterVolume = 0f
     private var isForegroundNotificationShown = false
+    private var currentAudioEffectSessionId = -1
+    private var attachedAudioEffect: AudioEffect? = null
+
+    private fun openAudioEffectControlSession(sessionId: Int) {
+        if (sessionId <= 0 || sessionId == currentAudioEffectSessionId) return
+        if (currentAudioEffectSessionId > 0) {
+            closeAudioEffectControlSession(currentAudioEffectSessionId)
+        }
+        currentAudioEffectSessionId = sessionId
+        try {
+            val intent = Intent(AudioEffect.ACTION_OPEN_AUDIO_EFFECT_CONTROL_SESSION).apply {
+                putExtra(AudioEffect.EXTRA_AUDIO_SESSION, sessionId)
+                putExtra(AudioEffect.EXTRA_PACKAGE_NAME, packageName)
+                putExtra(AudioEffect.EXTRA_CONTENT_TYPE, AudioAttributes.CONTENT_TYPE_MUSIC)
+            }
+            sendBroadcast(intent)
+        } catch (ignored: Exception) {}
+
+        try {
+            attachedAudioEffect?.release()
+            attachedAudioEffect = android.media.audiofx.Equalizer(0, sessionId).apply {
+                enabled = true
+            }
+        } catch (e: Exception) {
+            try {
+                attachedAudioEffect = android.media.audiofx.Virtualizer(0, sessionId).apply {
+                    enabled = true
+                }
+            } catch (ignored: Exception) {}
+        }
+    }
+
+    private fun closeAudioEffectControlSession(sessionId: Int = currentAudioEffectSessionId) {
+        if (sessionId <= 0) return
+        if (sessionId == currentAudioEffectSessionId) {
+            currentAudioEffectSessionId = -1
+        }
+        try {
+            attachedAudioEffect?.apply {
+                enabled = false
+                release()
+            }
+        } catch (ignored: Exception) {}
+        attachedAudioEffect = null
+        try {
+            val intent = Intent(AudioEffect.ACTION_CLOSE_AUDIO_EFFECT_CONTROL_SESSION).apply {
+                putExtra(AudioEffect.EXTRA_AUDIO_SESSION, sessionId)
+                putExtra(AudioEffect.EXTRA_PACKAGE_NAME, packageName)
+            }
+            sendBroadcast(intent)
+        } catch (ignored: Exception) {}
+    }
 
     private val audioFocusChangeListener = AudioManager.OnAudioFocusChangeListener { focusChange ->
         if (!prefs.getBoolean(PREF_AUDIO_FOCUS_INTERRUPT, true)) return@OnAudioFocusChangeListener
@@ -196,6 +249,12 @@ class PlaybackService : Service() {
                         }
                     }
                     isPlaying = snapshot.isEnginePlaying
+                    if (isPlaying && currentAudioEffectSessionId <= 0) {
+                        val sid = NativeBridge.getAudioSessionId()
+                        if (sid > 0) {
+                            openAudioEffectControlSession(sid)
+                        }
+                    }
                     persistResumeCheckpointIfNeeded(
                         force = false,
                         playbackCapabilities = snapshot.playbackCapabilities,
@@ -325,6 +384,7 @@ class PlaybackService : Service() {
         }
         com.flopster101.siliconplayer.usb.UacDriverCoordinator.unregisterReceivers(this)
         abandonAudioFocus()
+        closeAudioEffectControlSession()
         BitPerfectCoordinator.clearBitPerfectMixer(this)
         NativeBridge.setBitPerfectMode(false)
         kotlinx.coroutines.GlobalScope.launch(kotlinx.coroutines.Dispatchers.IO) { NativeBridge.stopEngine() }
@@ -513,6 +573,10 @@ class PlaybackService : Service() {
             }
             if (canStart) {
                 isPlaying = true
+                val sessionId = NativeBridge.getAudioSessionId()
+                if (sessionId > 0) {
+                    openAudioEffectControlSession(sessionId)
+                }
                 updateNetworkPlaybackLocks()
                 persistResumeCheckpointIfNeeded(force = true)
                 updateMediaSessionState()
@@ -537,6 +601,7 @@ class PlaybackService : Service() {
                 }
             }
             isPlaying = false
+            closeAudioEffectControlSession()
             updateNetworkPlaybackLocks()
             persistResumeCheckpointIfNeeded(force = true)
             updateMediaSessionState()
@@ -554,6 +619,7 @@ class PlaybackService : Service() {
     private fun stopAndClear() {
         abandonAudioFocus()
         resumeOnFocusGain = false
+        closeAudioEffectControlSession()
         serviceScope.launch { withContext(Dispatchers.PlaybackIo) { NativeBridge.releaseCurrentDecoder() } }
         isPlaying = false
         releaseWakeLock()

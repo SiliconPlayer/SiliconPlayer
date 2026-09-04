@@ -5,6 +5,7 @@
 #include <cerrno>
 #include <chrono>
 #include <cstring>
+#include <dlfcn.h>
 #include <pthread.h>
 #include <sys/resource.h>
 #include <sys/syscall.h>
@@ -725,4 +726,33 @@ bool AudioEngine::renderOutputCallbackFrames(float* outputData, int32_t numFrame
         renderWorkerCv.notify_one();
     }
     return false;
+}
+
+int AudioEngine::getAudioSessionId() const {
+    if (!miniaudioContextInitialized || !outputStreamReady.load()) {
+        return -1;
+    }
+#if defined(MA_SUPPORT_AAUDIO)
+    if (activeMiniaudioBackend == ma_backend_aaudio) {
+        void* stream = miniaudioDevice.aaudio.pStreamPlayback;
+        if (stream) {
+            typedef int32_t (*PFN_AAudioStream_getSessionId)(void* stream);
+            static PFN_AAudioStream_getSessionId pfn_getSessionId = nullptr;
+            static bool resolved = false;
+            if (!resolved) {
+                pfn_getSessionId = reinterpret_cast<PFN_AAudioStream_getSessionId>(
+                    dlsym(RTLD_DEFAULT, "AAudioStream_getSessionId")
+                );
+                resolved = true;
+            }
+            if (pfn_getSessionId) {
+                const int32_t sessionId = pfn_getSessionId(stream);
+                if (sessionId > 0) {
+                    return static_cast<int>(sessionId);
+                }
+            }
+        }
+    }
+#endif
+    return -1;
 }

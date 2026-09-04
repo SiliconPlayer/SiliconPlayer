@@ -140,6 +140,7 @@ object NativeBridge {
     external fun getVgmNotes(): String
     external fun getVgmFileVersion(): String
     external fun getVgmDeviceCount(): Int
+    external fun getAudioSessionId(): Int
     external fun getVgmUsedChipList(): String
     external fun getVgmHasLoopPoint(): Boolean
     external fun getFfmpegCodecName(): String

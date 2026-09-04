@@ -268,6 +268,7 @@ public:
     std::vector<float> getVisualizationBars() const;
     std::vector<float> getVisualizationVuLevels() const;
     int getVisualizationChannelCount() const;
+    int getAudioSessionId() const;
 
     // IVisualizationAudioProvider implementation
     void getWaveformScope(int channelIndex, int windowMs, int triggerMode, std::vector<float>& out) override {
