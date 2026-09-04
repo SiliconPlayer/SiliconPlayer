@@ -2000,23 +2000,23 @@ Java_com_flopster101_siliconplayer_NativeBridge_getUadeSubsongBytes(JNIEnv*, job
 }
 
 extern "C" JNIEXPORT void JNICALL
-Java_com_flopster101_siliconplayer_NativeBridge_startEngine(JNIEnv* env, jobject thiz) {
+Java_com_flopster101_siliconplayer_NativeBridge_startEngineNative(JNIEnv* env, jobject thiz) {
     Java_com_flopster101_siliconplayer_MainActivity_startEngine(env, thiz);
 }
 
 extern "C" JNIEXPORT void JNICALL
-Java_com_flopster101_siliconplayer_NativeBridge_startEngineWithPauseResumeFade(JNIEnv*, jobject) {
+Java_com_flopster101_siliconplayer_NativeBridge_startEngineWithPauseResumeFadeNative(JNIEnv*, jobject) {
     ensureEngine();
     audioEngine->startWithPauseResumeFade(100, 16.0f);
 }
 
 extern "C" JNIEXPORT void JNICALL
-Java_com_flopster101_siliconplayer_NativeBridge_stopEngine(JNIEnv* env, jobject thiz) {
+Java_com_flopster101_siliconplayer_NativeBridge_stopEngineNative(JNIEnv* env, jobject thiz) {
     Java_com_flopster101_siliconplayer_MainActivity_stopEngine(env, thiz);
 }
 
 extern "C" JNIEXPORT void JNICALL
-Java_com_flopster101_siliconplayer_NativeBridge_stopEngineWithPauseResumeFade(JNIEnv*, jobject) {
+Java_com_flopster101_siliconplayer_NativeBridge_stopEngineWithPauseResumeFadeNative(JNIEnv*, jobject) {
     if (audioEngine == nullptr) {
         return;
     }
@@ -2034,7 +2034,7 @@ Java_com_flopster101_siliconplayer_NativeBridge_reconfigureStream(JNIEnv*, jobje
 extern "C" void silicon_vis_projectm_clear_last_preset();
 
 extern "C" JNIEXPORT void JNICALL
-Java_com_flopster101_siliconplayer_NativeBridge_releaseCurrentDecoder(JNIEnv*, jobject) {
+Java_com_flopster101_siliconplayer_NativeBridge_releaseCurrentDecoderNative(JNIEnv*, jobject) {
     if (audioEngine == nullptr) {
         return;
     }
@@ -2043,7 +2043,7 @@ Java_com_flopster101_siliconplayer_NativeBridge_releaseCurrentDecoder(JNIEnv*, j
 }
 
 extern "C" JNIEXPORT jboolean JNICALL
-Java_com_flopster101_siliconplayer_NativeBridge_isEnginePlaying(JNIEnv* env, jobject thiz) {
+Java_com_flopster101_siliconplayer_NativeBridge_isEnginePlayingImpl(JNIEnv* env, jobject thiz) {
     return Java_com_flopster101_siliconplayer_MainActivity_isEnginePlaying(env, thiz);
 }
 
@@ -2067,7 +2067,7 @@ Java_com_flopster101_siliconplayer_NativeBridge_getSupportedExtensions(JNIEnv* e
 }
 
 extern "C" JNIEXPORT jdouble JNICALL
-Java_com_flopster101_siliconplayer_NativeBridge_getDuration(JNIEnv* env, jobject thiz) {
+Java_com_flopster101_siliconplayer_NativeBridge_getDurationImpl(JNIEnv* env, jobject thiz) {
     return Java_com_flopster101_siliconplayer_MainActivity_getDuration(env, thiz);
 }
 
@@ -2078,22 +2078,22 @@ Java_com_flopster101_siliconplayer_NativeBridge_getCoreFixedSampleRateHz(
 }
 
 extern "C" JNIEXPORT jdouble JNICALL
-Java_com_flopster101_siliconplayer_NativeBridge_getPosition(JNIEnv* env, jobject thiz) {
+Java_com_flopster101_siliconplayer_NativeBridge_getPositionImpl(JNIEnv* env, jobject thiz) {
     return Java_com_flopster101_siliconplayer_MainActivity_getPosition(env, thiz);
 }
 
 extern "C" JNIEXPORT jboolean JNICALL
-Java_com_flopster101_siliconplayer_NativeBridge_consumeNaturalEndEvent(JNIEnv* env, jobject thiz) {
+Java_com_flopster101_siliconplayer_NativeBridge_consumeNaturalEndEventImpl(JNIEnv* env, jobject thiz) {
     return Java_com_flopster101_siliconplayer_MainActivity_consumeNaturalEndEvent(env, thiz);
 }
 
 extern "C" JNIEXPORT void JNICALL
-Java_com_flopster101_siliconplayer_NativeBridge_seekTo(JNIEnv* env, jobject thiz, jdouble seconds) {
+Java_com_flopster101_siliconplayer_NativeBridge_seekToImpl(JNIEnv* env, jobject thiz, jdouble seconds) {
     Java_com_flopster101_siliconplayer_MainActivity_seekTo(env, thiz, seconds);
 }
 
 extern "C" JNIEXPORT jboolean JNICALL
-Java_com_flopster101_siliconplayer_NativeBridge_isSeekInProgress(JNIEnv* env, jobject thiz) {
+Java_com_flopster101_siliconplayer_NativeBridge_isSeekInProgressImpl(JNIEnv* env, jobject thiz) {
     return Java_com_flopster101_siliconplayer_MainActivity_isSeekInProgress(env, thiz);
 }
 

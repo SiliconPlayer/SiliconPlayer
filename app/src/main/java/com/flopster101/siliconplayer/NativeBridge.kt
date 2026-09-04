@@ -2,6 +2,7 @@ package com.flopster101.siliconplayer
 
 import android.content.Context
 import com.flopster101.siliconplayer.data.resolveArchiveMountedCompanionPath
+import com.flopster101.siliconplayer.playback.PlatformDolbyPlayer
 
 object NativeBridge {
     const val CHANNEL_SCOPE_TEXT_STATE_STRIDE = 10
@@ -65,27 +66,100 @@ object NativeBridge {
     external fun isAudioBackendSupported(backendId: Int): Boolean
     external fun getAudioSessionId(): Int
 
-    external fun startEngine()
-    external fun startEngineWithPauseResumeFade()
-    external fun stopEngine()
-    external fun stopEngineWithPauseResumeFade()
     external fun reconfigureStream(resumePlayback: Boolean = true)
-    external fun releaseCurrentDecoder()
-    external fun isEnginePlaying(): Boolean
     external fun loadAudio(path: String)
+
+    // Path of the track currently loaded in the native decoder; used to
+    // re-arm the platform core when transport starts without a fresh load.
+    private var lastLoadedPath: String? = null
 
     fun replaceCurrentAudio(path: String) {
         cancelActiveSmbAvioHandles()
+        lastLoadedPath = path
+        PlatformDolbyPlayer.onNativeTrackUnloaded()
         loadAudio(path)
+        // Probe after the decoder opens the file so the FFmpeg codec name
+        // reflects the NEW track.
+        PlatformDolbyPlayer.onNativeTrackLoaded(path)
     }
+
+    @JvmStatic
+    fun startEngine() {
+        if (PlatformDolbyPlayer.redirectPlay()) return
+        PlatformDolbyPlayer.activateIfEligibleAndPlay(lastLoadedPath)
+        if (PlatformDolbyPlayer.redirectPlay()) return
+        startEngineNative()
+    }
+
+    @JvmStatic
+    fun startEngineWithPauseResumeFade() {
+        if (PlatformDolbyPlayer.redirectPlay()) return
+        PlatformDolbyPlayer.activateIfEligibleAndPlay(lastLoadedPath)
+        if (PlatformDolbyPlayer.redirectPlay()) return
+        startEngineWithPauseResumeFadeNative()
+    }
+
+    @JvmStatic
+    fun stopEngine() {
+        if (PlatformDolbyPlayer.redirectPause()) return
+        stopEngineNative()
+    }
+
+    @JvmStatic
+    fun stopEngineWithPauseResumeFade() {
+        if (PlatformDolbyPlayer.redirectPause()) return
+        stopEngineWithPauseResumeFadeNative()
+    }
+
+    @JvmStatic
+    fun releaseCurrentDecoder() {
+        PlatformDolbyPlayer.onNativeTrackUnloaded()
+        releaseCurrentDecoderNative()
+    }
+
+    internal external fun startEngineNative()
+    internal external fun seekToImpl(seconds: Double)
+
+    @JvmStatic
+    fun isEnginePlaying(): Boolean =
+        if (PlatformDolbyPlayer.isActive()) PlatformDolbyPlayer.isPlaying() else isEnginePlayingImpl()
+
+    @JvmStatic
+    fun getDuration(): Double =
+        if (PlatformDolbyPlayer.isActive()) {
+            PlatformDolbyPlayer.durationSeconds().takeIf { it > 0.0 } ?: getDurationImpl()
+        } else getDurationImpl()
+
+    @JvmStatic
+    fun getPosition(): Double =
+        if (PlatformDolbyPlayer.isActive()) PlatformDolbyPlayer.positionSeconds() else getPositionImpl()
+
+    @JvmStatic
+    fun consumeNaturalEndEvent(): Boolean =
+        if (PlatformDolbyPlayer.isActive()) PlatformDolbyPlayer.consumeNaturalEnd()
+        else consumeNaturalEndEventImpl()
+
+    @JvmStatic
+    fun seekTo(seconds: Double) {
+        if (PlatformDolbyPlayer.isActive()) PlatformDolbyPlayer.seekTo(seconds) else seekToImpl(seconds)
+    }
+
+    @JvmStatic
+    fun isSeekInProgress(): Boolean =
+        if (PlatformDolbyPlayer.isActive()) false else isSeekInProgressImpl()
+
+    private external fun startEngineWithPauseResumeFadeNative()
+    private external fun stopEngineNative()
+    private external fun stopEngineWithPauseResumeFadeNative()
+    private external fun getDurationImpl(): Double
+    private external fun getPositionImpl(): Double
+    private external fun consumeNaturalEndEventImpl(): Boolean
+    private external fun isEnginePlayingImpl(): Boolean
+    private external fun isSeekInProgressImpl(): Boolean
+    private external fun releaseCurrentDecoderNative()
 
     external fun setFastTrackSwitchStartupHint(enabled: Boolean)
     external fun getSupportedExtensions(): Array<String>
-    external fun getDuration(): Double
-    external fun getPosition(): Double
-    external fun consumeNaturalEndEvent(): Boolean
-    external fun seekTo(seconds: Double)
-    external fun isSeekInProgress(): Boolean
     external fun setLooping(enabled: Boolean)
     external fun setRepeatMode(mode: Int)
     external fun getTrackTitle(): String

@@ -22,6 +22,7 @@ internal fun AppNavigationPlaybackEffects(
     multiChannelOutputMode: MultiChannelOutputMode,
     audioAllowBackendFallback: Boolean,
     bitPerfectUsbAudio: Boolean,
+    platformDolbyDecoder: Boolean,
     pendingSoxExperimentalDialog: Boolean,
     onPendingSoxExperimentalDialogChanged: (Boolean) -> Unit,
     onShowSoxExperimentalDialogChanged: (Boolean) -> Unit,

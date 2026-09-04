@@ -41,7 +41,8 @@ internal data class GeneralAudioRouteState(
     val lookaheadClipperMode: LookaheadClipperMode,
     val multiChannelOutputMode: MultiChannelOutputMode,
     val audioAllowBackendFallback: Boolean,
-    val bitPerfectUsbAudio: Boolean
+    val bitPerfectUsbAudio: Boolean,
+    val platformDolbyDecoder: Boolean
 )
 
 internal data class GeneralAudioRouteActions(
@@ -61,7 +62,8 @@ internal data class GeneralAudioRouteActions(
     val onLookaheadClipperModeChanged: (LookaheadClipperMode) -> Unit,
     val onMultiChannelOutputModeChanged: (MultiChannelOutputMode) -> Unit,
     val onAudioAllowBackendFallbackChanged: (Boolean) -> Unit,
-    val onBitPerfectUsbAudioChanged: (Boolean) -> Unit
+    val onBitPerfectUsbAudioChanged: (Boolean) -> Unit,
+    val onPlatformDolbyDecoderChanged: (Boolean) -> Unit
 )
 
 internal data class UrlCacheRouteState(
@@ -232,6 +234,13 @@ internal fun GeneralAudioRouteContent(
 
     var showReplugNoticeDialog by remember { mutableStateOf(false) }
 
+    SettingsRowSpacer()
+    PlayerSettingToggleCard(
+        title = "System Dolby decoder for multichannel",
+        description = "Play Dolby Digital (E-AC-3 / AC-3) tracks with the system decoder so the device\'s Dolby processing (Atmos / spatializer) applies. Falls back to the FFmpeg core automatically if unsupported.",
+        checked = state.platformDolbyDecoder,
+        onCheckedChange = actions.onPlatformDolbyDecoderChanged
+    )
     SettingsRowSpacer()
     PlayerSettingToggleCard(
         title = "Bit-perfect USB audio",

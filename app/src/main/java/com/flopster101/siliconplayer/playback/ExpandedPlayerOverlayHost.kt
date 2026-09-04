@@ -127,6 +127,7 @@ internal fun ExpandedPlayerOverlayHost(
     filenameOnlyWhenTitleMissing: Boolean,
     externalTrackInfoDialogRequestToken: Int,
     bitPerfectUsbAudio: Boolean = false,
+    platformDolbyDecoder: Boolean = true,
     onBitPerfectUsbAudioChanged: (Boolean) -> Unit = {},
     showFocusIndicators: Boolean,
     onHardwareNavigationInput: () -> Unit,
