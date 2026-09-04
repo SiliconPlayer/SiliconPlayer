@@ -102,8 +102,14 @@ void AudioEngine::updateRenderQueueTuning() {
     renderWorkerTargetFrames.store(targetFrames, std::memory_order_relaxed);
     {
         std::lock_guard<std::mutex> lock(renderQueueMutex);
+        // The ring holds interleaved samples; size it for the widest stream
+        // the engine can open, or the capacity in frames shrinks with the
+        // channel count and background fill targets exceed it forever.
+        constexpr int kMaxOutputStreamChannels = 12;
         const int capacityFrames = std::max(targetFrames * 6, 16384);
-        ensureRenderQueueCapacityLocked(static_cast<size_t>(capacityFrames) * 2u);
+        ensureRenderQueueCapacityLocked(
+                static_cast<size_t>(capacityFrames) * static_cast<size_t>(kMaxOutputStreamChannels)
+        );
     }
     LOGD("Render queue tuning: preset=%d chunk=%d target=%d", outputBufferPreset, chunkFrames, targetFrames);
 }

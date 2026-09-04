@@ -703,8 +703,13 @@ void AudioEngine::renderWorkerLoop() {
                 if (renderWorkerStop) return true;
                 if (!isPlaying.load() || seekInProgress.load()) return false;
                 const size_t ch = streamChannelCount > 0 ? static_cast<size_t>(streamChannelCount) : 2u;
+                // Never wait for more frames than the ring can hold, or a
+                // target past capacity spins this worker decoding dropped
+                // chunks all the way to end-of-track.
+                const int capacityFrames = static_cast<int>(renderQueueRing.size() / ch);
+                const int clampedTarget = effectiveTarget < capacityFrames ? effectiveTarget : capacityFrames;
                 const int bufferedFrames = static_cast<int>(renderQueueSampleCount / ch);
-                return bufferedFrames < effectiveTarget;
+                return bufferedFrames < clampedTarget;
             });
             if (renderWorkerStop) {
                 break;
@@ -714,6 +719,10 @@ void AudioEngine::renderWorkerLoop() {
             }
             const size_t ch = streamChannelCount > 0 ? static_cast<size_t>(streamChannelCount) : 2u;
             bufferedFramesBeforeFill = static_cast<int>(renderQueueSampleCount / ch);
+            const int capacityFrames = static_cast<int>(renderQueueRing.size() / ch);
+            if (effectiveTarget > capacityFrames) {
+                effectiveTarget = capacityFrames;
+            }
             needsFill = bufferedFramesBeforeFill < effectiveTarget;
         }
 
