@@ -2314,6 +2314,13 @@ Java_com_flopster101_siliconplayer_NativeBridge_setBitPerfectMode(JNIEnv* env, j
     }
 }
 
+extern "C" JNIEXPORT void JNICALL
+Java_com_flopster101_siliconplayer_NativeBridge_setUacSettlePilotTone(JNIEnv* env, jobject thiz, jboolean enabled) {
+    if (audioEngine != nullptr) {
+        audioEngine->setUacSettlePilotTone(enabled == JNI_TRUE);
+    }
+}
+
 extern "C" JNIEXPORT jboolean JNICALL
 Java_com_flopster101_siliconplayer_NativeBridge_isBitPerfectActive(JNIEnv* env, jobject thiz) {
     if (audioEngine == nullptr) {

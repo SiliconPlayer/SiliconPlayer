@@ -283,8 +283,22 @@ internal fun GeneralAudioRouteContent(
 
     var showVolumeModeDialog by remember { mutableStateOf(false) }
     val uacVolumeMode by com.flopster101.siliconplayer.usb.UacDriverCoordinator.volumeMode.collectAsState()
+    var uacSettlePilotTone by remember {
+        mutableStateOf(prefs.getBoolean(AppPreferenceKeys.UAC_SETTLE_PILOT_TONE, false))
+    }
 
     if (driverMethod == BitPerfectDriverMethod.DirectUac) {
+        SettingsRowSpacer()
+        PlayerSettingToggleCard(
+            title = "USB DAC settle pilot tone",
+            description = "Emit a near-silent tone for ~60 ms on fresh USB starts so DACs that lock channel sync on the first signal stay aligned. Off by default.",
+            checked = uacSettlePilotTone,
+            onCheckedChange = { enabled ->
+                uacSettlePilotTone = enabled
+                prefs.edit().putBoolean(AppPreferenceKeys.UAC_SETTLE_PILOT_TONE, enabled).apply()
+                NativeBridge.setUacSettlePilotTone(enabled)
+            }
+        )
         SettingsRowSpacer()
         SettingsValuePickerCard(
             title = "Direct UAC volume scaling",

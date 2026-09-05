@@ -241,6 +241,8 @@ public:
     int getStreamBurstFrames() const;
     void setBitPerfectMode(bool enabled);
     bool isBitPerfectModeEnabled() const { return bitPerfectModeEnabled; }
+    void setUacSettlePilotTone(bool enabled) { uacSettlePilotToneEnabled.store(enabled, std::memory_order_release); }
+    bool isUacSettlePilotToneEnabled() const { return uacSettlePilotToneEnabled.load(std::memory_order_acquire); }
 
     // Gain control
     void setMasterGain(float gainDb);
@@ -340,6 +342,7 @@ private:
     int outputResamplerPreference = 1; // 1 built-in, 2 sox
     bool outputAllowFallback = true;
     bool bitPerfectModeEnabled = false;
+    std::atomic<bool> uacSettlePilotToneEnabled { false };
     std::atomic<bool> isPlaying { false };
     std::atomic<bool> playbackStreamStarted { false };
     // Shadow-render mute: when the platform (system Dolby) core owns audible

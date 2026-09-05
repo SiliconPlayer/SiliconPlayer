@@ -510,10 +510,35 @@ int AudioEngine::provideUacDirectFrames(uint8_t* dst, int maxFrames, const silic
     int framesFilled = 0;
     uint8_t* outCursor = dst;
 
-    // Fresh pump: hold silence until the DAC locks to the first slots, then
-    // release audio from the FIFO intact.
+    // Fresh pump: settle window feeds a -80 dBFS pilot when enabled so DACs
+    // that lock slot sync on the first signal align before real audio; else
+    // plain silence.
     if (uac.playedFrames() < 3000) {
-        std::memset(dst, 0, static_cast<size_t>(maxFrames) * ch * subslot);
+        if (isUacSettlePilotToneEnabled()) {
+            static thread_local long pilotPhase = 0;
+            const long amp16 = 3, amp24 = 839, amp32 = 214748;
+            for (int f = 0; f < maxFrames; ++f) {
+                const long v = (((pilotPhase + f) / 16) & 1) ? -1 : 1;
+                for (int c = 0; c < ch; ++c) {
+                    uint8_t* p = dst + (static_cast<size_t>(f) * ch + c) * subslot;
+                    if (subslot == 2) {
+                        const int16_t s = static_cast<int16_t>(v * amp16);
+                        std::memcpy(p, &s, 2);
+                    } else if (subslot == 3) {
+                        const long e = v * amp24;
+                        p[0] = static_cast<uint8_t>(e & 0xFF);
+                        p[1] = static_cast<uint8_t>((e >> 8) & 0xFF);
+                        p[2] = static_cast<uint8_t>((e >> 16) & 0xFF);
+                    } else {
+                        const int32_t s = static_cast<int32_t>(v * amp32);
+                        std::memcpy(p, &s, 4);
+                    }
+                }
+            }
+            pilotPhase += maxFrames;
+        } else {
+            std::memset(dst, 0, static_cast<size_t>(maxFrames) * ch * subslot);
+        }
         return maxFrames;
     }
 

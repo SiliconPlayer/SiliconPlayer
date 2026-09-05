@@ -270,6 +270,7 @@ object UacDriverCoordinator {
         }
         val targetRate = NativeBridge.getDecoderRenderSampleRateHz().takeIf { it > 0 } ?: 48000
         val targetBitDepth = NativeBridge.getTrackBitDepth().takeIf { it in listOf(16, 24, 32) } ?: 16
+        NativeBridge.setUacSettlePilotTone(prefs.getBoolean(AppPreferenceKeys.UAC_SETTLE_PILOT_TONE, false))
         val ok = start(targetRate, targetBitDepth, 2)
         if (ok) syncVolume(context)
         NativeBridge.setBitPerfectMode(ok)
