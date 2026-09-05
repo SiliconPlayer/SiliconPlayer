@@ -14,6 +14,9 @@ import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
+import androidx.compose.material.pullrefresh.PullRefreshIndicator
+import androidx.compose.material.pullrefresh.pullRefresh
+import androidx.compose.material.pullrefresh.rememberPullRefreshState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -134,6 +137,7 @@ import android.widget.Toast
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.suspendCancellableCoroutine
@@ -155,6 +159,7 @@ private data class SmbBrowserContentState(
     val pathKey: String
 )
 
+@OptIn(androidx.compose.material.ExperimentalMaterialApi::class)
 @Composable
 internal fun SmbFileBrowserScreen(
     sourceSpec: SmbSourceSpec,
@@ -217,6 +222,7 @@ internal fun SmbFileBrowserScreen(
     }
     var entries by remember(screenSessionKey) { mutableStateOf<List<SmbBrowserEntry>>(emptyList()) }
     var isLoading by remember(screenSessionKey) { mutableStateOf(false) }
+    var isPullRefreshing by remember(screenSessionKey) { mutableStateOf(false) }
     var errorMessage by remember(screenSessionKey) { mutableStateOf<String?>(null) }
     var listJob by remember(screenSessionKey) { mutableStateOf<Job?>(null) }
     val loadingLogLines = remember(screenSessionKey) { mutableStateListOf<String>() }
@@ -450,6 +456,22 @@ internal fun SmbFileBrowserScreen(
             listJob = null
         }
     }
+
+    val pullRefreshState = rememberPullRefreshState(
+        refreshing = isPullRefreshing,
+        onRefresh = {
+            if (isPullRefreshing) return@rememberPullRefreshState
+            coroutineScope.launch {
+                isPullRefreshing = true
+                loadCurrentDirectory()
+                val waitDeadline = System.currentTimeMillis() + 2500L
+                while (isLoading && System.currentTimeMillis() < waitDeadline) {
+                    delay(24)
+                }
+                isPullRefreshing = false
+            }
+        }
+    )
 
     fun openDirectory(
         targetShare: String,
@@ -1516,6 +1538,7 @@ internal fun SmbFileBrowserScreen(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(paddingValues)
+                .pullRefresh(pullRefreshState)
         ) {
             if (isConstrainedBrowserDevice) {
                 renderBrowserContent(browserContentState)
@@ -1537,6 +1560,13 @@ internal fun SmbFileBrowserScreen(
                     renderBrowserContent(state)
                 }
             }
+            PullRefreshIndicator(
+                refreshing = isPullRefreshing,
+                state = pullRefreshState,
+                modifier = Modifier.align(Alignment.TopCenter),
+                backgroundColor = MaterialTheme.colorScheme.surfaceContainerHigh,
+                contentColor = MaterialTheme.colorScheme.primary
+            )
             if (!isWatch && browserContentState.pane == SmbBrowserPane.Entries) {
                 BrowserLazyListScrollbar(
                     listState = activeEntriesListState,
