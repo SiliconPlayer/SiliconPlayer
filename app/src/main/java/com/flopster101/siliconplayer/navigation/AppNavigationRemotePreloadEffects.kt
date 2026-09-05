@@ -87,12 +87,30 @@ internal fun rememberRemoteNextTrackPreloadCanceller(
                         RemotePreloadUiStateHolder.current = state
                     }
                 } else if (currentTrackIsDirectSmbRemote) {
-                    delay(NEXT_TRACK_WARM_PREFETCH_START_DELAY_MS)
-                    warmProgressiveSmbSourcePrefix(
-                        context = context,
-                        sourceId = nextSourceId,
-                        credentialHintRequestUrl = currentPlaybackRequestUrl
-                    )
+                    // With the platform Dolby core active on this direct SMB
+                    // track, the next track needs its cache COMPLETE (not
+                    // just a warm prefix) so the advance can claim it
+                    // instantly. The current track is served from its own
+                    // local cache while the core is active, so the network
+                    // is idle — prefetch with no cap and no rate limit.
+                    val platformOwnsCurrent = com.flopster101.siliconplayer.NativeBridge.getPlatformDecoderCodecName().isNotBlank()
+                    if (platformOwnsCurrent) {
+                        delay(NEXT_TRACK_WARM_PREFETCH_START_DELAY_MS)
+                        warmProgressiveSmbSourcePrefix(
+                            context = context,
+                            sourceId = nextSourceId,
+                            credentialHintRequestUrl = currentPlaybackRequestUrl,
+                            maxBytesToPrefetch = null,
+                            rateLimitBytesPerSecond = null
+                        )
+                    } else {
+                        delay(NEXT_TRACK_WARM_PREFETCH_START_DELAY_MS)
+                        warmProgressiveSmbSourcePrefix(
+                            context = context,
+                            sourceId = nextSourceId,
+                            credentialHintRequestUrl = currentPlaybackRequestUrl
+                        )
+                    }
                 }
             } finally {
                 RemotePreloadUiStateHolder.current = null

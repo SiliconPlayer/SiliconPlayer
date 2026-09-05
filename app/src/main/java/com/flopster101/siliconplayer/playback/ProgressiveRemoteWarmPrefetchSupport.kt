@@ -27,8 +27,8 @@ internal suspend fun warmProgressiveSmbSourcePrefix(
     context: Context,
     sourceId: String,
     credentialHintRequestUrl: String?,
-    maxBytesToPrefetch: Long = NEXT_TRACK_WARM_PREFETCH_MAX_BYTES,
-    rateLimitBytesPerSecond: Long = NEXT_TRACK_WARM_PREFETCH_RATE_LIMIT_BYTES_PER_SECOND
+    maxBytesToPrefetch: Long? = NEXT_TRACK_WARM_PREFETCH_MAX_BYTES,
+    rateLimitBytesPerSecond: Long? = NEXT_TRACK_WARM_PREFETCH_RATE_LIMIT_BYTES_PER_SECOND
 ): Boolean = withContext(Dispatchers.IO) {
     val spec = resolvedCredentialedSmbSpecForWarmPrefetch(
         sourceId = sourceId,
@@ -39,8 +39,8 @@ internal suspend fun warmProgressiveSmbSourcePrefix(
         return@withContext false
     }
 
-    val normalizedMaxBytes = maxBytesToPrefetch.coerceAtLeast(0L)
-    val normalizedRateLimit = rateLimitBytesPerSecond.coerceAtLeast(1L)
+    val normalizedMaxBytes = maxBytesToPrefetch?.coerceAtLeast(0L)
+    val normalizedRateLimit = rateLimitBytesPerSecond?.coerceAtLeast(1L)
     var cache: ProgressiveRandomAccessCache? = null
     return@withContext try {
         cache = ProgressiveRandomAccessCache(
@@ -60,7 +60,9 @@ internal suspend fun warmProgressiveSmbSourcePrefix(
                 rateLimitBytesPerSecond = normalizedRateLimit
             )
         )
-        val targetBytes = min(normalizedMaxBytes, cache.sizeBytes)
+        val targetBytes = normalizedMaxBytes
+            ?.let { min(it, cache.sizeBytes) }
+            ?: cache.sizeBytes
         if (targetBytes <= 0L) {
             true
         } else {
