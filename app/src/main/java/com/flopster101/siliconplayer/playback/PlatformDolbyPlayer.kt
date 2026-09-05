@@ -69,6 +69,18 @@ internal object PlatformDolbyPlayer {
     @Volatile
     private var handoffPath: String? = null
 
+    // SMB upgrade: an smb:// DD source whose progressive cache has not fully
+    // downloaded yet. FFmpeg keeps audible playback; when the background
+    // prefetch completes, the platform core switches to the cached local
+    // copy and resumes at the engine's position.
+    @Volatile
+    private var smbUpgradeRequestPath: String? = null
+    private var smbUpgradeGeneration = 0
+    @Volatile
+    private var pendingResumePosition: Double = -1.0
+    @Volatile
+    private var pendingResumePath: String? = null
+
     @JvmStatic
     fun isActive(): Boolean = active
 
@@ -122,6 +134,10 @@ internal object PlatformDolbyPlayer {
         naturalEnd = false
         handoffPath = null
         codecName = null
+        smbUpgradeRequestPath = null
+        smbUpgradeGeneration++
+        pendingResumePosition = -1.0
+        pendingResumePath = null
         try {
             NativeBridge.onPlatformCoreInactive()
             NativeBridge.setOutputShadowMuted(false)
@@ -350,9 +366,91 @@ internal object PlatformDolbyPlayer {
         }
     }
 
+    /**
+     * Resolution for remote sources: either the URL itself is streamable
+     * directly (HTTP — NuPlayer handles those natively) or a fully cached
+     * local copy exists (SMB progressive cache). Null means the source is
+     * not usable by the platform core.
+     */
+    private sealed interface RemoteResolution {
+        data class Direct(val url: String) : RemoteResolution
+        data class Cached(val path: String) : RemoteResolution
+    }
+
+    /**
+     * Resolve a remote (http/https/smb) source for platform playback.
+     * SMB has no direct URL support in MediaPlayer, but its progressive
+     * cache prefetches the entire file — once fully downloaded, the cached
+     * local copy can be played with the position preserved.
+     */
+    private fun resolveRemoteSource(rawPath: String): RemoteResolution? {
+        val lowercase = rawPath.lowercase()
+        return when {
+            lowercase.startsWith("http://") || lowercase.startsWith("https://") ->
+                RemoteResolution.Direct(rawPath)
+            lowercase.startsWith("smb://") -> {
+                val cached = cachedFileForSmbSource(rawPath)
+                if (cached != null && isProgressiveCacheComplete(cached)) {
+                    RemoteResolution.Cached(cached.absolutePath)
+                } else null
+            }
+            else -> null
+        }
+    }
+
+    /**
+     * A progressive cache is complete when its meta header matches, every
+     * chunk slot in the chunk map is marked cached, and the data file spans
+     * the full remote size.
+     */
+    private fun isProgressiveCacheComplete(dataFile: File): Boolean = runCatching {
+        val metaFile = File(dataFile.absolutePath + ".meta")
+        val chunkMapFile = File(dataFile.absolutePath + ".chunks")
+        if (!metaFile.isFile || !chunkMapFile.isFile) return@runCatching false
+        var sizeBytes = -1L
+        var chunkSizeBytes = -1
+        metaFile.readText().lineSequence().forEach { line ->
+            val parts = line.split('=', limit = 2)
+            if (parts.size != 2) return@forEach
+            when (parts[0]) {
+                "sizeBytes" -> sizeBytes = parts[1].toLongOrNull() ?: -1L
+                "chunkSizeBytes" -> chunkSizeBytes = parts[1].toIntOrNull() ?: -1
+            }
+        }
+        if (sizeBytes <= 0L || chunkSizeBytes <= 0) return@runCatching false
+        val chunkCount = ((sizeBytes + chunkSizeBytes - 1L) / chunkSizeBytes).toInt()
+        if (chunkCount <= 0) return@runCatching false
+        val states = chunkMapFile.readBytes()
+        if (states.size < chunkCount) return@runCatching false
+        for (i in 0 until chunkCount) {
+            if (states[i].toInt() == 0) return@runCatching false
+        }
+        dataFile.length() == sizeBytes
+    }.getOrDefault(false)
+
+    private fun cachedFileForSmbSource(requestUri: String): File? = try {
+        val spec = com.flopster101.siliconplayer.resolveCredentialedSmbSpec(requestUri)
+            ?: return null
+        val sourceId = com.flopster101.siliconplayer.buildSmbSourceId(spec)
+        val context = NativeBridge.requireAppContext()
+        val cacheRoot = java.io.File(
+            context.cacheDir,
+            com.flopster101.siliconplayer.PROGRESSIVE_REMOTE_SOURCE_CACHE_DIR
+        )
+        com.flopster101.siliconplayer.remoteCacheFileForSource(cacheRoot, sourceId)
+    } catch (t: Throwable) {
+        Log.d(TAG, "SMB cache lookup failed", t)
+        null
+    }
+
+    private fun isRemoteSource(path: String): Boolean {
+        val lowercase = path.lowercase()
+        return lowercase.startsWith("http://") ||
+            lowercase.startsWith("https://") ||
+            lowercase.startsWith("smb://")
+    }
+
     private fun shouldUsePlatform(path: String): Boolean {
-        // Local files only (SMB/HTTP keeps the FFmpeg path for now).
-        if (!path.startsWith("/") || !File(path).exists()) return false
         val context = try {
             NativeBridge.requireAppContext()
         } catch (t: Throwable) {
@@ -365,6 +463,11 @@ internal object PlatformDolbyPlayer {
         // Bit-perfect mode owns the output exclusively; platform decode cannot
         // honor it, so it always wins over this core.
         if (prefs.getBoolean(AppPreferenceKeys.BIT_PERFECT_USB_AUDIO, false)) return false
+        if (!isRemoteSource(path)) {
+            // Local files only unless it is a streamable remote URL; SMB is
+            // playable once its progressive cache holds the whole file.
+            if (!path.startsWith("/") || !File(path).exists()) return false
+        }
         val codec = try {
             NativeBridge.getFfmpegCodecName().trim().lowercase()
         } catch (t: Throwable) {
@@ -409,8 +512,33 @@ internal object PlatformDolbyPlayer {
         releaseNextPlayer()
         handoffPath = null
         naturalEnd = false
+        // Remote sources resolve to a playable locator up front (direct URL
+        // or cached file). Resolution happens before the async prepare so a
+        // null result can bail out synchronously into the FFmpeg fallback.
+        val dataSource = when {
+            !isRemoteSource(path) -> path
+            else -> when (val remote = resolveRemoteSource(path)) {
+                is RemoteResolution.Direct -> remote.url
+                is RemoteResolution.Cached -> remote.path
+                null -> {
+                    // Nothing claimed yet: keep the FFmpeg engine audible and
+                    // let the SMB upgrade checker re-evaluate once the cache
+                    // has the whole file.
+                    Log.i(TAG, "remote source not yet playable by platform core: $path")
+                    if (path.startsWith("smb://", true)) {
+                        armSmbUpgrade(path)
+                    }
+                    return
+                }
+            }
+        }
         prepared = false
         this.pendingStart = pendingStart
+        // Claim-time capture of a pending resume position (SMB upgrade), so
+        // a track switch racing the takeover cannot inherit a stale seek.
+        val resumePosition = if (pendingResumePath == path) pendingResumePosition else -1.0
+        pendingResumePosition = -1.0
+        pendingResumePath = null
         lastKnownPlaying = pendingStart
         active = true
         NativeBridge.setOutputShadowMuted(isParallelVisEnabled())
@@ -424,7 +552,23 @@ internal object PlatformDolbyPlayer {
                         .setContentType(AudioAttributes.CONTENT_TYPE_MUSIC)
                         .build()
                 )
-                p.setDataSource(path)
+                try {
+                    if (dataSource.startsWith("http://", true) ||
+                        dataSource.startsWith("https://", true)
+                    ) {
+                        // MediaUri variant routes through the framework HTTP
+                        // stack (proper UA/cookie handling for NuPlayer).
+                        p.setDataSource(
+                            NativeBridge.requireAppContext(),
+                            android.net.Uri.parse(dataSource)
+                        )
+                    } else {
+                        p.setDataSource(dataSource)
+                    }
+                } catch (e: Exception) {
+                    Log.w(TAG, "setDataSource failed for $dataSource", e)
+                    throw e
+                }
                 p.setOnPreparedListener { mp ->
                     prepared = true
                     Log.i(TAG, "prepared (system decoder active)")
@@ -432,6 +576,10 @@ internal object PlatformDolbyPlayer {
                     if (this@PlatformDolbyPlayer.pendingStart) {
                         this@PlatformDolbyPlayer.pendingStart = false
                         try {
+                            if (resumePosition > 0.5) {
+                                @Suppress("DEPRECATION")
+                                mp.seekTo((resumePosition * 1000).toInt())
+                            }
                             mp.start()
                             lastKnownPlaying = true
                         } catch (e: Exception) {
@@ -487,6 +635,66 @@ internal object PlatformDolbyPlayer {
     }
 
     /**
+     * Watch the SMB progressive cache until it holds the whole file, then
+     * switch the platform core onto the cached local copy (position resume;
+     * the engine keeps running underneath for visualizers).
+     */
+    private fun armSmbUpgrade(requestPath: String) {
+        smbUpgradeRequestPath = requestPath
+        val gen = ++smbUpgradeGeneration
+        // The watcher can be armed before the player handler exists (the
+        // source resolves during the synchronous claim, before activate
+        // creates the thread), so create it instead of bailing out.
+        val h = ensureHandler()
+        Log.i(TAG, "SMB source is Dolby; watching cache for full download")
+        fun postCheck() {
+            h.postDelayed({
+                if (gen != smbUpgradeGeneration || smbUpgradeRequestPath != requestPath) {
+                    return@postDelayed
+                }
+                val cached = resolveRemoteSource(requestPath) as? RemoteResolution.Cached
+                if (cached == null) {
+                    postCheck()
+                    return@postDelayed
+                }
+                smbUpgradeRequestPath = null
+                // The takeover drives a full decoder load; keep it off the
+                // player handler thread (prepare callbacks live there).
+                Thread {
+                    try {
+                        takeOverFromEngine(cached.path)
+                    } catch (t: Throwable) {
+                        Log.w(TAG, "SMB cache takeover failed", t)
+                    }
+                }.start()
+            }, 2000L)
+        }
+        postCheck()
+    }
+
+    private fun takeOverFromEngine(cachedPath: String) {
+        val resume = try {
+            NativeBridge.getPositionImpl()
+        } catch (t: Throwable) {
+            0.0
+        }
+        val wasPlaying = try {
+            NativeBridge.isEnginePlayingImpl()
+        } catch (t: Throwable) {
+            false
+        }
+        if (resume > 0.5) {
+            pendingResumePosition = resume
+            pendingResumePath = cachedPath
+        }
+        Log.i(TAG, "SMB cache complete; platform core adopts cached copy (pos=$resume)")
+        NativeBridge.replaceCurrentAudio(cachedPath)
+        if (wasPlaying) {
+            NativeBridge.startEngine()
+        }
+    }
+
+    /**
      * App-side playlist hint: prepare [path] ahead so the framework can
      * hand off to it when the current track completes (gapless for DD
      * playlists). Safe to call repeatedly; stale preparations are released.
@@ -524,7 +732,14 @@ internal object PlatformDolbyPlayer {
             // Same audio session keeps the Visualizer tap (and any session
             // effects) continuous across the handoff.
             try { p.setAudioSessionId(cur.audioSessionId) } catch (ignored: Exception) {}
-            p.setDataSource(path)
+            if (isRemoteSource(path)) {
+                p.setDataSource(
+                    NativeBridge.requireAppContext(),
+                    android.net.Uri.parse(path)
+                )
+            } else {
+                p.setDataSource(path)
+            }
             p.setOnPreparedListener { mp ->
                 nextPlayerPrepared = true
                 try {
@@ -576,6 +791,10 @@ internal object PlatformDolbyPlayer {
         pendingStart = false
         lastKnownPlaying = false
         handoffPath = null
+        smbUpgradeRequestPath = null
+        smbUpgradeGeneration++
+        pendingResumePosition = -1.0
+        pendingResumePath = null
         try {
             NativeBridge.onPlatformCoreInactive()
             NativeBridge.setOutputShadowMuted(false)
