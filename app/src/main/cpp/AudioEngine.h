@@ -47,6 +47,7 @@ public:
     void setCoreOutputSampleRate(const std::string& coreName, int sampleRateHz);
     void setCoreOption(const std::string& coreName, const std::string& optionName, const std::string& optionValue);
     void setFastTrackSwitchStartupHint(bool enabled);
+    void setOutputShadowMuted(bool muted);
     int getCoreOptionApplyPolicy(const std::string& coreName, const std::string& optionName);
     int getCoreCapabilities(const std::string& coreName);
     int getCoreRepeatModeCapabilities(const std::string& coreName);
@@ -339,6 +340,10 @@ private:
     bool bitPerfectModeEnabled = false;
     std::atomic<bool> isPlaying { false };
     std::atomic<bool> playbackStreamStarted { false };
+    // Shadow-render mute: when the platform (system Dolby) core owns audible
+    // playback, the engine still renders to feed the visualization pipeline
+    // but its output is zeroed after visualization capture.
+    std::atomic<bool> outputShadowMuted { false };
     std::atomic<bool> looping { false };
     std::atomic<int> repeatMode { 0 };
     std::atomic<double> positionSeconds { 0.0 };

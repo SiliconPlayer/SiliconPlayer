@@ -97,6 +97,10 @@ internal object PlatformDolbyPlayer {
         lastKnownPlaying = false
         naturalEnd = false
         codecName = null
+        try {
+            NativeBridge.onPlatformCoreInactive()
+            NativeBridge.setOutputShadowMuted(false)
+        } catch (ignored: Throwable) {}
         releasePlayer()
         if (hadActive) {
             Log.i(TAG, "deactivated")
@@ -118,6 +122,31 @@ internal object PlatformDolbyPlayer {
         "E-AC-3 JOC (Atmos)" to resolvePlatformDolbyDecoder("audio/eac3-joc").orEmpty(),
         "AC-3 (DD)" to resolvePlatformDolbyDecoder("audio/ac3").orEmpty()
     )
+
+    /**
+     * Re-evaluate the shadow-render mute immediately (settings changed while
+     * a track is playing).
+     */
+    @JvmStatic
+    fun refreshShadowMute() {
+        if (active) {
+            NativeBridge.setOutputShadowMuted(isParallelVisEnabled())
+        }
+    }
+
+    /**
+     * True when the native engine should shadow-render muted so the
+     * visualization pipeline keeps receiving data while this core owns
+     * audible playback.
+     */
+    @JvmStatic
+    fun isParallelVisEnabled(): Boolean = try {
+        NativeBridge.requireAppContext().getSharedPreferences(
+            AppPreferenceKeys.PREFS_NAME, Context.MODE_PRIVATE
+        ).getBoolean(AppPreferenceKeys.PLATFORM_DOLBY_PARALLEL_VIS, true)
+    } catch (t: Throwable) {
+        true
+    }
 
     @JvmStatic
     fun redirectPlay(): Boolean {
@@ -290,6 +319,7 @@ internal object PlatformDolbyPlayer {
         this.pendingStart = pendingStart
         lastKnownPlaying = pendingStart
         active = true
+        NativeBridge.setOutputShadowMuted(isParallelVisEnabled())
         Log.i(TAG, "activated for $path")
         ensureHandler().post {
             try {
@@ -340,6 +370,10 @@ internal object PlatformDolbyPlayer {
         prepared = false
         pendingStart = false
         lastKnownPlaying = false
+        try {
+            NativeBridge.onPlatformCoreInactive()
+            NativeBridge.setOutputShadowMuted(false)
+        } catch (ignored: Throwable) {}
         releasePlayer()
         if (!wasPlaying) return
         // Native decoder is already loaded with the same path; resume there.

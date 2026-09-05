@@ -180,6 +180,10 @@ void AudioEngine::setFastTrackSwitchStartupHint(bool enabled) {
     fastTrackSwitchStartupHint.store(enabled, std::memory_order_relaxed);
 }
 
+void AudioEngine::setOutputShadowMuted(bool muted) {
+    outputShadowMuted.store(muted, std::memory_order_relaxed);
+}
+
 void AudioEngine::stop() {
     std::lock_guard<std::mutex> lifecycleLock(lifecycleMutex);
     playbackStreamStarted.store(false, std::memory_order_release);

@@ -765,6 +765,16 @@ bool AudioEngine::renderOutputCallbackFrames(float* outputData, int32_t numFrame
     if (framesCopied < numFrames || bufferedFrames < targetFramesHint) {
         renderWorkerCv.notify_one();
     }
+
+    if (outputShadowMuted.load(std::memory_order_relaxed)) {
+        // Platform core owns audible output. Zero AFTER the render-worker
+        // bookkeeping above so the shadow engine keeps decoding normally
+        // (zeroing earlier would starve it and blank the visualizers).
+        const size_t shadowSamples = static_cast<size_t>(numFrames) * static_cast<size_t>(channels);
+        for (size_t i = 0; i < shadowSamples; ++i) {
+            outputData[i] = 0.0f;
+        }
+    }
     return false;
 }
 

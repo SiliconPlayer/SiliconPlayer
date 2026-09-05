@@ -83,8 +83,51 @@ object NativeBridge {
         PlatformDolbyPlayer.onNativeTrackLoaded(path)
     }
 
+    // Shadow-render state: true while the muted engine runs alongside the
+    // platform player to feed the visualization pipeline.
+    @Volatile
+    private var shadowRenderActive = false
+    private var shadowAlignAttempts = 0
+    private var lastShadowAlignMs = 0L
+
+    /** Called by PlatformDolbyPlayer when the platform core goes away. */
+    @JvmStatic
+    fun onPlatformCoreInactive() {
+        shadowRenderActive = false
+    }
+
+    /**
+     * The shadow engine starts from its own decoder position (restored
+     * checkpoint, previous stop point) while NuPlayer spins up, so the vis
+     * can run ahead of the audible output. Re-align a BOUNDED number of
+     * times shortly after start; continuous correction would seek-loop and
+     * blank the visualizers (each seek stalls the render worker and clears
+     * the scope state).
+     */
+    private fun alignShadowToPlatform(platformPos: Double) {
+        if (!shadowRenderActive || shadowAlignAttempts >= 3) return
+        if (isSeekInProgressImpl()) return
+        val now = android.os.SystemClock.elapsedRealtime()
+        if (now - lastShadowAlignMs < 3000) return
+        lastShadowAlignMs = now
+        val enginePos = getPositionImpl()
+        if (kotlin.math.abs(enginePos - platformPos) > 0.5) {
+            shadowAlignAttempts++
+            seekToImpl(platformPos)
+        }
+    }
+
     @JvmStatic
     fun startEngine() {
+        if (PlatformDolbyPlayer.isActive()) {
+            // Shadow render: the engine keeps running (muted) for visualizers.
+            startEngineNative()
+            shadowRenderActive = true
+            shadowAlignAttempts = 0
+            lastShadowAlignMs = 0L
+            PlatformDolbyPlayer.redirectPlay()
+            return
+        }
         if (PlatformDolbyPlayer.redirectPlay()) return
         PlatformDolbyPlayer.activateIfEligibleAndPlay(lastLoadedPath)
         if (PlatformDolbyPlayer.redirectPlay()) return
@@ -93,6 +136,14 @@ object NativeBridge {
 
     @JvmStatic
     fun startEngineWithPauseResumeFade() {
+        if (PlatformDolbyPlayer.isActive()) {
+            startEngineNative()
+            shadowRenderActive = true
+            shadowAlignAttempts = 0
+            lastShadowAlignMs = 0L
+            PlatformDolbyPlayer.redirectPlay()
+            return
+        }
         if (PlatformDolbyPlayer.redirectPlay()) return
         PlatformDolbyPlayer.activateIfEligibleAndPlay(lastLoadedPath)
         if (PlatformDolbyPlayer.redirectPlay()) return
@@ -101,24 +152,40 @@ object NativeBridge {
 
     @JvmStatic
     fun stopEngine() {
+        if (PlatformDolbyPlayer.isActive()) {
+            // Freeze the shadow engine so visualizers do not free-wheel ahead.
+            stopEngineNative()
+            shadowRenderActive = false
+            PlatformDolbyPlayer.redirectPause()
+            return
+        }
         if (PlatformDolbyPlayer.redirectPause()) return
         stopEngineNative()
     }
 
     @JvmStatic
     fun stopEngineWithPauseResumeFade() {
+        if (PlatformDolbyPlayer.isActive()) {
+            stopEngineNative()
+            shadowRenderActive = false
+            PlatformDolbyPlayer.redirectPause()
+            return
+        }
         if (PlatformDolbyPlayer.redirectPause()) return
         stopEngineWithPauseResumeFadeNative()
     }
 
     @JvmStatic
     fun releaseCurrentDecoder() {
+        shadowRenderActive = false
         PlatformDolbyPlayer.onNativeTrackUnloaded()
         releaseCurrentDecoderNative()
     }
 
-    internal external fun startEngineNative()
-    internal external fun seekToImpl(seconds: Double)
+    // Public (not internal): internal externals get Kotlin module-name
+    // mangling in JNI ("$app" suffix) and would not bind to their C symbols.
+    external fun startEngineNative()
+    external fun seekToImpl(seconds: Double)
 
     @JvmStatic
     fun isEnginePlaying(): Boolean =
@@ -132,7 +199,11 @@ object NativeBridge {
 
     @JvmStatic
     fun getPosition(): Double =
-        if (PlatformDolbyPlayer.isActive()) PlatformDolbyPlayer.positionSeconds() else getPositionImpl()
+        if (PlatformDolbyPlayer.isActive()) {
+            val platformPos = PlatformDolbyPlayer.positionSeconds()
+            alignShadowToPlatform(platformPos)
+            platformPos
+        } else getPositionImpl()
 
     @JvmStatic
     fun consumeNaturalEndEvent(): Boolean =
@@ -141,22 +212,28 @@ object NativeBridge {
 
     @JvmStatic
     fun seekTo(seconds: Double) {
-        if (PlatformDolbyPlayer.isActive()) PlatformDolbyPlayer.seekTo(seconds) else seekToImpl(seconds)
+        if (PlatformDolbyPlayer.isActive()) {
+            // Keep the shadow engine aligned with the platform player.
+            seekToImpl(seconds)
+            PlatformDolbyPlayer.seekTo(seconds)
+            return
+        }
+        seekToImpl(seconds)
     }
 
     @JvmStatic
     fun isSeekInProgress(): Boolean =
         if (PlatformDolbyPlayer.isActive()) false else isSeekInProgressImpl()
 
-    private external fun startEngineWithPauseResumeFadeNative()
-    private external fun stopEngineNative()
-    private external fun stopEngineWithPauseResumeFadeNative()
-    private external fun getDurationImpl(): Double
-    private external fun getPositionImpl(): Double
-    private external fun consumeNaturalEndEventImpl(): Boolean
-    private external fun isEnginePlayingImpl(): Boolean
-    private external fun isSeekInProgressImpl(): Boolean
-    private external fun releaseCurrentDecoderNative()
+    external fun startEngineWithPauseResumeFadeNative()
+    external fun stopEngineNative()
+    external fun stopEngineWithPauseResumeFadeNative()
+    external fun getDurationImpl(): Double
+    external fun getPositionImpl(): Double
+    external fun consumeNaturalEndEventImpl(): Boolean
+    external fun isEnginePlayingImpl(): Boolean
+    external fun isSeekInProgressImpl(): Boolean
+    external fun releaseCurrentDecoderNative()
 
     external fun setFastTrackSwitchStartupHint(enabled: Boolean)
     external fun getSupportedExtensions(): Array<String>
@@ -188,7 +265,10 @@ object NativeBridge {
     @JvmStatic
     fun getPlatformDecoderCodecName(): String = PlatformDolbyPlayer.codecName()
 
-    private external fun getCurrentDecoderNameImpl(): String
+    @JvmStatic
+    external fun setOutputShadowMuted(muted: Boolean)
+
+    external fun getCurrentDecoderNameImpl(): String
 
     external fun getSubtuneCount(): Int
     external fun getCurrentSubtuneIndex(): Int
