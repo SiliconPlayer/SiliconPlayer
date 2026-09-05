@@ -281,9 +281,21 @@ void AudioEngine::closeMiniaudioStream() {
 void AudioEngine::createStream() {
     std::lock_guard<std::mutex> lock(deviceMutex);
     createMiniaudioStream();
+    auto& uac = siliconplayer::usb::getUacDriverInstance();
+    if (uacFifoChannels > 0 &&
+        uac.currentFormat().sampleRateHz != uacFifoRate) {
+        clearUacFifo();
+    }
+    if (uacFeederStop.exchange(false)) {
+        uacFeederThread = std::thread([this]() { uacFeederLoop(); });
+    }
 }
 
 void AudioEngine::closeStream() {
+    if (!uacFeederStop.exchange(true)) {
+        if (uacFeederThread.joinable()) uacFeederThread.join();
+        uacFeederThread = {};
+    }
     std::lock_guard<std::mutex> lock(deviceMutex);
     closeMiniaudioStream();
 }
@@ -472,7 +484,7 @@ void AudioEngine::miniaudioDataCallback(
     if (!engine || !pOutput || frameCount == 0) return;
 
     auto& uac = siliconplayer::usb::getUacDriverInstance();
-    if (uac.isStreaming()) {
+    if (uac.isStreaming() || engine->isBitPerfectModeEnabled()) {
         const int ch = pDevice->playback.channels > 0 ? static_cast<int>(pDevice->playback.channels) : 2;
         std::memset(pOutput, 0, frameCount * ch * sizeof(float));
         return;
@@ -489,24 +501,6 @@ void AudioEngine::miniaudioDataCallback(
 int AudioEngine::provideUacDirectFrames(uint8_t* dst, int maxFrames, const siliconplayer::usb::StreamFormat& fmt) {
     if (!dst || maxFrames <= 0) return 0;
 
-    static thread_local std::vector<float> stagingBuf;
-    static thread_local size_t stagingReadPos = 0;
-    static thread_local size_t stagingAvailableFrames = 0;
-    static thread_local int lastSampleRate = 0;
-
-    if (!isPlaying.load(std::memory_order_relaxed) || !playbackStreamStarted.load(std::memory_order_acquire)) {
-        std::memset(dst, 0, maxFrames * fmt.channels * fmt.bytesPerSample);
-        stagingReadPos = 0;
-        stagingAvailableFrames = 0;
-        return 0;
-    }
-
-    if (lastSampleRate != fmt.sampleRateHz) {
-        stagingReadPos = 0;
-        stagingAvailableFrames = 0;
-        lastSampleRate = fmt.sampleRateHz;
-    }
-
     const int ch = fmt.channels > 0 ? fmt.channels : 2;
     const int subslot = fmt.bytesPerSample > 0 ? fmt.bytesPerSample : (fmt.bitsPerSample / 8);
     auto& uac = siliconplayer::usb::getUacDriverInstance();
@@ -516,37 +510,58 @@ int AudioEngine::provideUacDirectFrames(uint8_t* dst, int maxFrames, const silic
     int framesFilled = 0;
     uint8_t* outCursor = dst;
 
+    // Fresh pump: hold silence until the DAC locks to the first slots, then
+    // release audio from the FIFO intact.
+    if (uac.playedFrames() < 3000) {
+        std::memset(dst, 0, static_cast<size_t>(maxFrames) * ch * subslot);
+        return maxFrames;
+    }
+
+    if (!isPlaying.load(std::memory_order_relaxed) ||
+        !playbackStreamStarted.load(std::memory_order_acquire)) {
+        std::memset(dst, 0, static_cast<size_t>(maxFrames) * ch * subslot);
+        return maxFrames;
+    }
+
+    {
+        std::lock_guard<std::mutex> lock(uacFifoMutex);
+        if (uacFifoRate > 0 && (uacFifoRate != fmt.sampleRateHz || uacFifoChannels != ch)) {
+            clearUacFifoLocked();
+        }
+    }
+
+    if (!uacFifoPrimed.load(std::memory_order_acquire)) {
+        const int rate = fmt.sampleRateHz > 0 ? fmt.sampleRateHz : 48000;
+        if (uacFifoFramesLocked() < rate * 200 / 1000) {
+            std::memset(dst, 0, static_cast<size_t>(maxFrames) * ch * subslot);
+            return maxFrames;
+        }
+        uacFifoPrimed.store(true, std::memory_order_release);
+    }
+
     while (framesFilled < maxFrames) {
-        if (stagingAvailableFrames == 0) {
-            stagingBuf.resize(static_cast<size_t>(maxFrames) * static_cast<size_t>(ch));
-            int copied = 0;
-            renderOutputCallbackFrames(stagingBuf.data(), maxFrames, fmt.sampleRateHz, &copied);
-            stagingReadPos = 0;
-            stagingAvailableFrames = static_cast<size_t>(copied);
-            if (stagingAvailableFrames == 0) {
-                const int remaining = maxFrames - framesFilled;
-                std::memset(outCursor, 0, remaining * ch * subslot);
-                framesFilled = maxFrames;
-                break;
-            }
+        float block[256];
+        const int want = std::min(maxFrames - framesFilled, 256 / ch);
+        int got = popUacFifo(block, want, ch);
+        if (got <= 0) {
+            const int remaining = maxFrames - framesFilled;
+            std::memset(outCursor, 0, remaining * ch * subslot);
+            framesFilled = maxFrames;
+            uacFifoPrimed.store(false, std::memory_order_release);
+            break;
         }
 
-        const int chunk = static_cast<int>(std::min(
-                stagingAvailableFrames,
-                static_cast<size_t>(maxFrames - framesFilled)
-        ));
-        const float* src = stagingBuf.data() + (stagingReadPos * static_cast<size_t>(ch));
-
+        const float* src = block;
         if (subslot == 2) {
             auto* out16 = reinterpret_cast<int16_t*>(outCursor);
-            for (int i = 0; i < chunk * ch; ++i) {
+            for (int i = 0; i < got * ch; ++i) {
                 float s = src[i];
                 if (applyVol) s *= volScale;
                 long v = std::lrintf(std::clamp(s, -1.0f, 1.0f) * 32768.0f);
                 out16[i] = static_cast<int16_t>(std::clamp(v, -32768L, 32767L));
             }
         } else if (subslot == 3) {
-            for (int i = 0; i < chunk * ch; ++i) {
+            for (int i = 0; i < got * ch; ++i) {
                 float s = src[i];
                 if (applyVol) s *= volScale;
                 long v = std::lrintf(std::clamp(s, -1.0f, 1.0f) * 8388608.0f);
@@ -558,14 +573,14 @@ int AudioEngine::provideUacDirectFrames(uint8_t* dst, int maxFrames, const silic
         } else if (subslot == 4) {
             auto* out32 = reinterpret_cast<int32_t*>(outCursor);
             if (fmt.bitsPerSample == 24) {
-                for (int i = 0; i < chunk * ch; ++i) {
+                for (int i = 0; i < got * ch; ++i) {
                     float s = src[i];
                     if (applyVol) s *= volScale;
                     long v = std::lrintf(std::clamp(s, -1.0f, 1.0f) * 8388608.0f);
                     out32[i] = static_cast<int32_t>(std::clamp(v, -8388608L, 8388607L)) << 8;
                 }
             } else {
-                for (int i = 0; i < chunk * ch; ++i) {
+                for (int i = 0; i < got * ch; ++i) {
                     float s = src[i];
                     if (applyVol) s *= volScale;
                     long long v = std::llround(static_cast<double>(s) * 2147483648.0);
@@ -575,13 +590,114 @@ int AudioEngine::provideUacDirectFrames(uint8_t* dst, int maxFrames, const silic
             }
         }
 
-        stagingReadPos += static_cast<size_t>(chunk);
-        stagingAvailableFrames -= static_cast<size_t>(chunk);
-        framesFilled += chunk;
-        outCursor += chunk * ch * subslot;
+        framesFilled += got;
+        outCursor += got * ch * subslot;
     }
 
     return maxFrames;
+}
+
+void AudioEngine::clearUacFifo() {
+    std::lock_guard<std::mutex> lock(uacFifoMutex);
+    clearUacFifoLocked();
+}
+
+void AudioEngine::clearUacFifoLocked() {
+    uacFifoReadIndex = 0;
+    uacFifoWriteIndex = 0;
+    uacFifoSampleCount = 0;
+    uacFifoPrimed.store(false, std::memory_order_release);
+}
+
+int AudioEngine::uacFifoFramesLocked() const {
+    const int ch = uacFifoChannels > 0 ? uacFifoChannels : 2;
+    return static_cast<int>(uacFifoSampleCount / static_cast<size_t>(ch));
+}
+
+int AudioEngine::popUacFifo(float* dst, int frames, int channels) {
+    std::lock_guard<std::mutex> lock(uacFifoMutex);
+    const size_t availableSamples = uacFifoSampleCount;
+    const size_t wanted = static_cast<size_t>(frames) * static_cast<size_t>(channels);
+    const size_t copySamples = std::min(availableSamples, wanted);
+    if (copySamples == 0) return 0;
+    const size_t firstPart = std::min(copySamples, uacFifoRing.size() - uacFifoReadIndex);
+    std::memcpy(dst, uacFifoRing.data() + uacFifoReadIndex, firstPart * sizeof(float));
+    if (copySamples > firstPart) {
+        std::memcpy(dst + firstPart, uacFifoRing.data(), (copySamples - firstPart) * sizeof(float));
+    }
+    uacFifoReadIndex = (uacFifoReadIndex + copySamples) % uacFifoRing.size();
+    uacFifoSampleCount -= copySamples;
+    return static_cast<int>(copySamples / static_cast<size_t>(channels));
+}
+
+void AudioEngine::pushUacFifo(const float* data, int frames, int channels) {
+    std::lock_guard<std::mutex> lock(uacFifoMutex);
+    const size_t pushSamples = static_cast<size_t>(frames) * static_cast<size_t>(channels);
+    const size_t freeSamples = uacFifoRing.size() - uacFifoSampleCount;
+    if (pushSamples > freeSamples) return;
+    size_t writePos = uacFifoWriteIndex;
+    for (size_t i = 0; i < pushSamples; ++i) {
+        uacFifoRing[writePos] = data[i];
+        writePos = (writePos + 1) % uacFifoRing.size();
+    }
+    uacFifoWriteIndex = writePos;
+    uacFifoSampleCount += pushSamples;
+}
+
+void AudioEngine::uacFeederLoop() {
+    pthread_setname_np(pthread_self(), "sp_uac_ring");
+    promoteThreadForAudio("uac-feeder", -16);
+    auto& uac = siliconplayer::usb::getUacDriverInstance();
+    std::vector<float> chunk;
+    for (;;) {
+        if (uacFeederStop.load(std::memory_order_acquire)) break;
+        if (seekInProgress.load(std::memory_order_relaxed)) {
+            clearUacFifo();
+            std::this_thread::sleep_for(std::chrono::milliseconds(10));
+            continue;
+        }
+        if (!uac.isStreaming() || !isPlaying.load(std::memory_order_relaxed) ||
+            !playbackStreamStarted.load(std::memory_order_acquire)) {
+            // Device restarts and pause windows preserve FIFO content when the
+            // format is unchanged; the callback simply idles until audio flows.
+            std::this_thread::sleep_for(std::chrono::milliseconds(10));
+            continue;
+        }
+        const siliconplayer::usb::StreamFormat fmt = uac.currentFormat();
+        const int ch = fmt.channels > 0 ? fmt.channels : 2;
+        {
+            std::lock_guard<std::mutex> lock(uacFifoMutex);
+            if (uacFifoRate != fmt.sampleRateHz || uacFifoChannels != ch || uacFifoRing.empty()) {
+                uacFifoRate = fmt.sampleRateHz;
+                uacFifoChannels = ch;
+                uacFifoRing.assign(
+                        static_cast<size_t>(fmt.sampleRateHz) * static_cast<size_t>(ch),
+                        0.0f);
+                uacFifoReadIndex = 0;
+                uacFifoWriteIndex = 0;
+                uacFifoSampleCount = 0;
+                uacFifoPrimed.store(false, std::memory_order_release);
+            }
+        }
+        const int fifoFrames = uacFifoFramesLocked();
+        const int targetFrames = (fmt.sampleRateHz * 250) / 1000;
+        if (fifoFrames >= targetFrames) {
+            std::this_thread::sleep_for(std::chrono::milliseconds(10));
+            continue;
+        }
+        int want = std::min(targetFrames - fifoFrames, fmt.sampleRateHz / 20);
+        want = std::max(want, 256);
+        if (chunk.size() != static_cast<size_t>(want) * static_cast<size_t>(ch)) {
+            chunk.resize(static_cast<size_t>(want) * static_cast<size_t>(ch));
+        }
+        int copied = 0;
+        renderOutputCallbackFrames(chunk.data(), want, fmt.sampleRateHz, &copied);
+        if (copied > 0) {
+            pushUacFifo(chunk.data(), copied, ch);
+        } else {
+            std::this_thread::sleep_for(std::chrono::milliseconds(10));
+        }
+    }
 }
 
 void AudioEngine::recoverStreamIfNeeded() {

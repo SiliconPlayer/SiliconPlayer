@@ -465,6 +465,11 @@ AudioEngine::~AudioEngine() {
     if (renderWorkerThread.joinable()) {
         renderWorkerThread.join();
     }
+    uacFeederStop.store(true);
+    if (uacFeederThread.joinable()) {
+        uacFeederThread.join();
+        uacFeederThread = {};
+    }
     closeStream();
     {
         std::lock_guard<std::mutex> lock(decoderMutex);

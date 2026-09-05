@@ -3,6 +3,10 @@
 #include <android/log.h>
 #include <algorithm>
 #include <cstring>
+#include <pthread.h>
+#include <sys/resource.h>
+#include <sys/syscall.h>
+#include <unistd.h>
 
 #define TAG "UacDriver"
 #define LOGD(...) __android_log_print(ANDROID_LOG_DEBUG, TAG, __VA_ARGS__)
@@ -651,6 +655,19 @@ bool UacDriver::start(int sampleRateHz, int bitsPerSample, int channels) {
                  sampleRateHz, bitsPerSample, channels);
             return true;
         }
+        if (format_.sampleRateHz == sampleRateHz && format_.channels == channels) {
+            // Same rate/channels with a different requested depth: keep the pump
+            // when the request still resolves to the alt setting already on the wire.
+            StreamFormat altFmt{};
+            if (selectAltSetting(sampleRateHz, bitsPerSample, channels, &altFmt) &&
+                altFmt.interfaceNumber == format_.interfaceNumber &&
+                altFmt.altSetting == format_.altSetting &&
+                altFmt.endpointAddress == format_.endpointAddress) {
+                LOGI("UacDriver::start: %dHz %d-bit request resolves to active alt; keeping active stream",
+                     sampleRateHz, bitsPerSample);
+                return true;
+            }
+        }
         stopIsoPump();
         streaming_.store(false, std::memory_order_release);
     }
@@ -821,6 +838,8 @@ bool UacDriver::startIsoPump() {
     stopRequested_.store(false, std::memory_order_release);
     eventThread_ = std::thread([this]() {
         pthread_setname_np(pthread_self(), "sp_uac_events");
+        const pid_t tid = static_cast<pid_t>(syscall(SYS_gettid));
+        setpriority(PRIO_PROCESS, tid, -16);
         while (!stopRequested_.load(std::memory_order_acquire) || inflight_.load(std::memory_order_acquire) > 0) {
             timeval tv{0, 50000};
             if (ctx_) {

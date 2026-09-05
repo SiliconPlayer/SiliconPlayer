@@ -463,6 +463,25 @@ private:
     void closeMiniaudioStream();
     bool renderOutputCallbackFrames(float* outputData, int32_t numFrames, int callbackRate, int* outFramesCopied = nullptr);
     int provideUacDirectFrames(uint8_t* dst, int maxFrames, const siliconplayer::usb::StreamFormat& fmt);
+    void uacFeederLoop();
+    void clearUacFifo();
+    void clearUacFifoLocked();
+    int popUacFifo(float* dst, int frames, int channels);
+    void pushUacFifo(const float* data, int frames, int channels);
+    int uacFifoFramesLocked() const;
+
+    // Renders ahead into a FIFO so USB packet pacing never depends on the
+    // render pipeline's worst-case latency.
+    std::thread uacFeederThread;
+    std::atomic<bool> uacFeederStop { false };
+    std::atomic<bool> uacFifoPrimed { false };
+    std::mutex uacFifoMutex;
+    std::vector<float> uacFifoRing;
+    size_t uacFifoReadIndex = 0;
+    size_t uacFifoWriteIndex = 0;
+    size_t uacFifoSampleCount = 0;
+    int uacFifoRate = 0;
+    int uacFifoChannels = 0;
 
     std::atomic<bool> intentionalStreamTeardown{false};
 

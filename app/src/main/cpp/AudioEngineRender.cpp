@@ -546,6 +546,7 @@ void AudioEngine::clearRenderQueue() {
     renderQueueWriteIndex = 0;
     renderQueueSampleCount = 0;
     renderTerminalStopPending.store(false);
+    clearUacFifo();
 }
 
 void AudioEngine::ensureRenderQueueCapacityLocked(size_t minSampleCapacity) {
