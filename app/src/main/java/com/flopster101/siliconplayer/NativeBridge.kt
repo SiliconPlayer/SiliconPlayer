@@ -77,14 +77,9 @@ object NativeBridge {
         cancelActiveSmbAvioHandles()
         lastLoadedPath = path
         if (PlatformDolbyPlayer.consumeHandoffIfMatches(path)) {
-            // The platform core already advanced audibly via a gapless
-            // framework handoff; reload only the native decoder underneath
-            // it (muted shadow render / metadata) and skip the teardown.
+            // Platform player already audible; reload the decoder only.
             loadAudio(path)
             PlatformDolbyPlayer.onNativeTrackLoaded(path)
-            // Transport will not issue a fresh start (playback is already
-            // running), so restart the muted engine explicitly. The load
-            // above reset the decoder, the old flag would be stale.
             shadowRenderActive = false
             startShadowRenderIfEnabled()
             return
@@ -116,12 +111,8 @@ object NativeBridge {
     }
 
     /**
-     * The shadow engine starts from its own decoder position (restored
-     * checkpoint, previous stop point) while NuPlayer spins up, so the vis
-     * can run ahead of the audible output. Re-align a BOUNDED number of
-     * times shortly after start; continuous correction would seek-loop and
-     * blank the visualizers (each seek stalls the render worker and clears
-     * the scope state).
+     * Bounded re-alignment: continuous correction seek-loops and blanks
+     * the visualizers (each seek stalls the render worker).
      */
     private fun alignShadowToPlatform(platformPos: Double) {
         if (!shadowRenderActive || shadowAlignAttempts >= 3) return
@@ -136,12 +127,7 @@ object NativeBridge {
         }
     }
 
-    /**
-     * Start the muted shadow engine alongside the platform player. Called
-     * from every play path (including the first play after app start, where
-     * the platform core activates inside startEngine) and on vis-source
-     * changes mid-playback.
-     */
+    /** Start the muted shadow engine; no-op when already running. */
     private fun startShadowRenderIfEnabled() {
         if (!PlatformDolbyPlayer.isParallelVisEnabled()) return
         if (shadowRenderActive) return
@@ -162,8 +148,6 @@ object NativeBridge {
         if (PlatformDolbyPlayer.redirectPlay()) return
         PlatformDolbyPlayer.activateIfEligibleAndPlay(lastLoadedPath)
         if (PlatformDolbyPlayer.isActive()) {
-            // First play through the platform core: the shadow engine must
-            // start here too, or visualizers stay dead until stop/replay.
             startShadowRenderIfEnabled()
             PlatformDolbyPlayer.redirectPlay()
             return
@@ -217,12 +201,7 @@ object NativeBridge {
         stopEngineWithPauseResumeFadeNative()
     }
 
-    /**
-     * React to a vis-source change while the platform core owns playback:
-     * bring the shadow engine up (aligned to the audible position) when the
-     * source becomes the shadow decoder, or stop it (saving the extra decode)
-     * when the source becomes the system tap or none.
-     */
+    /** Start/stop the shadow engine when the vis source changes mid-track. */
     @JvmStatic
     fun refreshShadowRenderForVisSourceChange() {
         if (!PlatformDolbyPlayer.isActive()) return
@@ -230,7 +209,6 @@ object NativeBridge {
             setOutputShadowMuted(true)
             if (PlatformDolbyPlayer.isPlaying() && !shadowRenderActive) {
                 startShadowRenderIfEnabled()
-                // Jump to the audible position; the bounded aligner fine-tunes.
                 seekToImpl(PlatformDolbyPlayer.positionSeconds())
             }
         } else {

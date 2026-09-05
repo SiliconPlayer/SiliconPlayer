@@ -18,11 +18,7 @@ import com.flopster101.siliconplayer.NativeBridge
 internal object PlatformVisTap {
     private const val TAG = "PlatformVisTap"
 
-    /**
-     * The system Visualizer captures the post-Dolby summed downmix, which is
-     * much hotter than the engine's per-channel capture; attenuate so both
-     * tap sources drive visualizers at a comparable level.
-     */
+    /** Downmix tap runs hotter than the engine capture. */
     private const val SYSTEM_TAP_GAIN = 0.45f
 
     private var visualizer: Visualizer? = null
@@ -45,10 +41,8 @@ internal object PlatformVisTap {
                         val data = waveform ?: return
                         val count = data.size
                         if (count <= 0) return
-                        // Byte (unsigned, 128-centered) -> float [-1, 1] mono mix.
-                        // The system tap is a post-Dolby summed downmix and runs
-                        // noticeably hotter than the in-app engine capture, so
-                        // scale it down for comparable visualizer response.
+                        // Byte (unsigned, 128-centered) -> float [-1, 1];
+                        // attenuated to match the engine capture level.
                         val buffer = FloatArray(count)
                         var sumSq = 0.0
                         var i = 0

@@ -54,25 +54,18 @@ internal object PlatformDolbyPlayer {
     private var handler: Handler? = null
     private var player: MediaPlayer? = null
 
-    // Prepare-ahead for gapless track advance: a MediaPlayer created for the
-    // next DD-family track, attached to the current one via setNextMediaPlayer
-    // (framework handoff with no audible gap). Promoted on completion; the
-    // app's advance path adopts it via consumeHandoffIfMatches and reloads
-    // only the native decoder.
+    // Gapless advance: next track pre-prepared via setNextMediaPlayer.
     @Volatile
     private var nextPath: String? = null
     private var nextPlayer: MediaPlayer? = null
     private var nextPlayerPrepared = false
 
-    // Path of a track the framework already handed off to (set on completion
-    // promotion), awaiting adoption by the app's advance path.
+    // Set on framework handoff promotion, consumed by the advance path.
     @Volatile
     private var handoffPath: String? = null
 
-    // SMB upgrade: an smb:// DD source whose progressive cache has not fully
-    // downloaded yet. FFmpeg keeps audible playback; when the background
-    // prefetch completes, the platform core switches to the cached local
-    // copy and resumes at the engine's position.
+    // Direct-SMB source whose cache is still downloading; FFmpeg stays
+    // audible until the cached copy can take over at the engine position.
     @Volatile
     private var smbUpgradeRequestPath: String? = null
     private var smbUpgradeGeneration = 0
@@ -84,18 +77,12 @@ internal object PlatformDolbyPlayer {
     @JvmStatic
     fun isActive(): Boolean = active
 
-    /**
-     * Called after the native decoder loaded [path]. Decides whether audible
-     * playback is routed to the platform decoder, based on the probed FFmpeg
-     * codec and the availability of a matching platform (c2.dolby/OMX.dolby)
-     * decoder. Any previous platform playback is torn down first.
-     */
+    /** Route [path] to the platform core when it qualifies; else drop it. */
     @JvmStatic
     fun onNativeTrackLoaded(path: String) {
-        // Gapless handoff: the framework already advanced audible playback to
-        // this track; keep the promoted player and let the native decoder
-        // reload underneath it for visualizers/metadata only.
         if (active && handoffPath != null && handoffPath == path) {
+            // Framework handoff already plays this; only the native
+            // decoder needs reloading underneath it.
             handoffPath = null
             naturalEnd = false
             Log.i(TAG, "adopted seamless handoff for $path")
@@ -106,11 +93,7 @@ internal object PlatformDolbyPlayer {
         activate(path, pendingStart = false)
     }
 
-    /**
-     * Re-arms the platform core for [path] when transport starts without a
-     * fresh load (e.g. replay after stop, or recovery from a lost race with
-     * the player thread). Returns true when playback was routed here.
-     */
+    /** Re-arm for [path] when transport starts without a fresh load. */
     @JvmStatic
     fun activateIfEligibleAndPlay(path: String?): Boolean {
         if (path == null || active) return false
@@ -366,23 +349,13 @@ internal object PlatformDolbyPlayer {
         }
     }
 
-    /**
-     * Resolution for remote sources: either the URL itself is streamable
-     * directly (HTTP — NuPlayer handles those natively) or a fully cached
-     * local copy exists (SMB progressive cache). Null means the source is
-     * not usable by the platform core.
-     */
+    /** Direct URL or fully cached local copy for a remote source. */
     private sealed interface RemoteResolution {
         data class Direct(val url: String) : RemoteResolution
         data class Cached(val path: String) : RemoteResolution
     }
 
-    /**
-     * Resolve a remote (http/https/smb) source for platform playback.
-     * SMB has no direct URL support in MediaPlayer, but its progressive
-     * cache prefetches the entire file — once fully downloaded, the cached
-     * local copy can be played with the position preserved.
-     */
+    /** HTTP streams directly; SMB only once its cache holds the whole file. */
     private fun resolveRemoteSource(rawPath: String): RemoteResolution? {
         val lowercase = rawPath.lowercase()
         return when {
@@ -398,11 +371,7 @@ internal object PlatformDolbyPlayer {
         }
     }
 
-    /**
-     * A progressive cache is complete when its meta header matches, every
-     * chunk slot in the chunk map is marked cached, and the data file spans
-     * the full remote size.
-     */
+    /** Complete cache: meta header matches, all chunks marked, size spans. */
     private fun isProgressiveCacheComplete(dataFile: File): Boolean = runCatching {
         val metaFile = File(dataFile.absolutePath + ".meta")
         val chunkMapFile = File(dataFile.absolutePath + ".chunks")
@@ -460,12 +429,9 @@ internal object PlatformDolbyPlayer {
             AppPreferenceKeys.PREFS_NAME, Context.MODE_PRIVATE
         )
         if (!prefs.getBoolean(AppPreferenceKeys.PLATFORM_DOLBY_DECODER, true)) return false
-        // Bit-perfect mode owns the output exclusively; platform decode cannot
-        // honor it, so it always wins over this core.
+        // Bit-perfect owns the output; the platform core cannot honor it.
         if (prefs.getBoolean(AppPreferenceKeys.BIT_PERFECT_USB_AUDIO, false)) return false
         if (!isRemoteSource(path)) {
-            // Local files only unless it is a streamable remote URL; SMB is
-            // playable once its progressive cache holds the whole file.
             if (!path.startsWith("/") || !File(path).exists()) return false
         }
         val codec = try {
@@ -505,25 +471,20 @@ internal object PlatformDolbyPlayer {
     }
 
     private fun activate(path: String, pendingStart: Boolean) {
-        // Claim synchronously so transport calls that arrive before the
-        // player thread finishes preparing are redirected, not leaked to
-        // the FFmpeg engine.
+        // Claim synchronously so transport calls arriving before prepare
+        // finishes are redirected, not leaked to the FFmpeg engine.
         releasePlayer()
         releaseNextPlayer()
         handoffPath = null
         naturalEnd = false
-        // Remote sources resolve to a playable locator up front (direct URL
-        // or cached file). Resolution happens before the async prepare so a
-        // null result can bail out synchronously into the FFmpeg fallback.
         val dataSource = when {
             !isRemoteSource(path) -> path
             else -> when (val remote = resolveRemoteSource(path)) {
                 is RemoteResolution.Direct -> remote.url
                 is RemoteResolution.Cached -> remote.path
                 null -> {
-                    // Nothing claimed yet: keep the FFmpeg engine audible and
-                    // let the SMB upgrade checker re-evaluate once the cache
-                    // has the whole file.
+                    // Unclaimed: FFmpeg stays audible until the SMB cache
+                    // completes and the upgrade watcher retries.
                     Log.i(TAG, "remote source not yet playable by platform core: $path")
                     if (path.startsWith("smb://", true)) {
                         armSmbUpgrade(path)
@@ -534,8 +495,6 @@ internal object PlatformDolbyPlayer {
         }
         prepared = false
         this.pendingStart = pendingStart
-        // Claim-time capture of a pending resume position (SMB upgrade), so
-        // a track switch racing the takeover cannot inherit a stale seek.
         val resumePosition = if (pendingResumePath == path) pendingResumePosition else -1.0
         pendingResumePosition = -1.0
         pendingResumePath = null
@@ -556,8 +515,7 @@ internal object PlatformDolbyPlayer {
                     if (dataSource.startsWith("http://", true) ||
                         dataSource.startsWith("https://", true)
                     ) {
-                        // MediaUri variant routes through the framework HTTP
-                        // stack (proper UA/cookie handling for NuPlayer).
+                        // Uri variant gets framework UA/cookie handling.
                         p.setDataSource(
                             NativeBridge.requireAppContext(),
                             android.net.Uri.parse(dataSource)
@@ -588,11 +546,8 @@ internal object PlatformDolbyPlayer {
                     }
                 }
                 p.setOnCompletionListener {
-                    // With a prepared next player attached, the framework has
-                    // already handed off audibly (it started the successor at
-                    // completion); promote it so this core keeps redirecting
-                    // transport to the new track. The app's advance path then
-                    // adopts the handoff via consumeHandoffIfMatches.
+                    // A prepared successor means the framework already handed
+                    // off audibly; promote it so the advance path can adopt.
                     val promoted = nextPlayer
                     if (nextPlayerPrepared && promoted != null) {
                         val old = player
@@ -621,8 +576,6 @@ internal object PlatformDolbyPlayer {
                 }
                 p.prepareAsync()
                 player = p
-                // A next-track hint may have arrived while the player thread
-                // was preparing; attach it once the current player exists.
                 val queued = nextPath
                 if (queued != null) {
                     handler?.post { prepareNextPlayerLocked() }
@@ -635,16 +588,12 @@ internal object PlatformDolbyPlayer {
     }
 
     /**
-     * Watch the SMB progressive cache until it holds the whole file, then
-     * switch the platform core onto the cached local copy (position resume;
-     * the engine keeps running underneath for visualizers).
+     * Watch the SMB progressive cache until complete, then take over from
+     * the engine at its position.
      */
     private fun armSmbUpgrade(requestPath: String) {
         smbUpgradeRequestPath = requestPath
         val gen = ++smbUpgradeGeneration
-        // The watcher can be armed before the player handler exists (the
-        // source resolves during the synchronous claim, before activate
-        // creates the thread), so create it instead of bailing out.
         val h = ensureHandler()
         Log.i(TAG, "SMB source is Dolby; watching cache for full download")
         fun postCheck() {
@@ -658,8 +607,7 @@ internal object PlatformDolbyPlayer {
                     return@postDelayed
                 }
                 smbUpgradeRequestPath = null
-                // The takeover drives a full decoder load; keep it off the
-                // player handler thread (prepare callbacks live there).
+                // Decoder load must not block player callbacks.
                 Thread {
                     try {
                         takeOverFromEngine(cached.path)
@@ -695,11 +643,8 @@ internal object PlatformDolbyPlayer {
     }
 
     /**
-     * App-side playlist hint: prepare [path] ahead so the framework can
-     * hand off to it when the current track completes (gapless for DD
-     * playlists). Safe to call repeatedly; stale preparations are released.
-     * Without an active platform playback the hint is dropped and the
-     * normal advance transition applies.
+     * Prepare [path] ahead for a gapless framework handoff at completion.
+     * Dropped when no platform playback is active.
      */
     @JvmStatic
     fun setNextTrackHint(path: String?) {
@@ -768,10 +713,8 @@ internal object PlatformDolbyPlayer {
     }
 
     /**
-     * True when the platform core just completed a seamless framework
-     * handoff into [path] (the app's advance path resolved the same track).
-     * The caller then reloads only the native decoder for visualizers and
-     * skips the audible teardown/rebuild.
+     * Consumed by the advance path when it resolves the handed-off track;
+     * the native decoder then reloads without audible teardown.
      */
     @JvmStatic
     fun consumeHandoffIfMatches(path: String?): Boolean {

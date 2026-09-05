@@ -817,10 +817,7 @@ void AudioEngine::pushExternalVisualizationSamples(
         const float* mono,
         int count,
         float vuLevel) {
-    // External tap (e.g. android.media.audiofx.Visualizer while the platform
-    // Dolby core owns playback). Feeds the same ring buffers the output
-    // callback uses so all stereo visualizers keep working. The channel
-    // scope is not fed: the tap is post-downmix stereo, not multichannel.
+    // System tap feed: post-downmix stereo, so the scope is not filled.
     if (!mono || count <= 0) {
         return;
     }
@@ -832,12 +829,8 @@ void AudioEngine::pushExternalVisualizationSamples(
     int wIndex = visualizationScopeWriteIndex;
     int mIndex = visualizationMonoWriteIndex;
     double sumSq = 0.0;
-    // The system tap waveform is 8-bit, so quiet passages arrive as wide
-    // stair-steps (each quantized level is held for many samples). A narrow
-    // kernel cannot round those; use a one-pole low-pass whose strength
-    // adapts to the chunk level: strong on quiet chunks (where quantization
-    // dominates), nearly transparent on loud ones (where the signal is
-    // already smooth). State resets per chunk; purely cosmetic.
+    // 8-bit tap captures quantize quiet passages into stair-steps; a
+    // level-adaptive one-pole smooths them without dulling loud chunks.
     float chunkPeak = 0.0f;
     for (int i = 0; i < count; ++i) {
         chunkPeak = std::max(chunkPeak, std::fabs(mono[i]));

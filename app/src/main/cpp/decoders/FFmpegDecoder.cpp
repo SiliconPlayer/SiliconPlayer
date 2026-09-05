@@ -774,13 +774,8 @@ bool FFmpegDecoder::initResampler() {
     const int inChannelCount = std::max(0, in_ch_layout.nb_channels);
     const int outChannelCount = std::max(0, out_ch_layout.nb_channels);
 
-    // swr_build_matrix2's normalize pass walks matrix_param[stride*i + j]
-    // for i, j over SWR_CH_MAX (64) rows/columns. With stride < 64 the walk
-    // ALIASES: buffer positions are hit multiple times, so later output
-    // rows get divided repeatedly and end up heavily attenuated (audible as
-    // a hard left pan for stereo downmixes). Use swresample's own native
-    // layout — 64x64 with stride 64 — so the walk is bijective and the
-    // normalize pass behaves exactly as upstream intends.
+    // swr_build_matrix2's normalize walk indexes stride*i + j over all 64
+    // rows, so smaller strides alias and divide later rows repeatedly.
     constexpr int kSwrChMax = 64;
     const int stride = kSwrChMax;
     std::vector<double> matrix(
@@ -866,9 +861,6 @@ bool FFmpegDecoder::initResampler() {
                 nullptr
         );
         if (result >= 0) {
-            // swr normalized every row to maxval=1.0 symmetrically now that
-            // the walk cannot alias; no app-side rescale is needed (the old
-            // frontGain rescale only existed to undo the bogus normalize).
             result = swr_set_matrix(newSwrContext, matrix.data(), stride);
         }
     }

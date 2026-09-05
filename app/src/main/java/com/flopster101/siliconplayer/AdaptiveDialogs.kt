@@ -55,10 +55,7 @@ internal fun Modifier.onGloballyPositionedDeferred(onPositioned: (LayoutCoordina
     val view = LocalView.current
     return onGloballyPositioned { coords ->
         view.post {
-            // The deferred run can land after the node detached (e.g. the
-            // screen was popped during the post), where coordinate queries
-            // would throw IllegalStateException.
-            if (coords.isAttached) onPositioned(coords)
+        if (coords.isAttached) onPositioned(coords)
         }
     }
 }
