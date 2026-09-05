@@ -130,8 +130,7 @@ internal object PlatformDolbyPlayer {
      */
     @JvmStatic
     fun refreshShadowMute() {
-        if (!active) return
-        NativeBridge.setOutputShadowMuted(isParallelVisEnabled())
+        NativeBridge.refreshShadowRenderForVisSourceChange()
         if (visSource() == VIS_SOURCE_SYSTEM && hasRecordAudioPermission()) {
             val p = player
             if (p != null) {

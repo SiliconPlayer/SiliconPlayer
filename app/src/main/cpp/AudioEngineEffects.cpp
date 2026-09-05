@@ -832,8 +832,22 @@ void AudioEngine::pushExternalVisualizationSamples(
     int wIndex = visualizationScopeWriteIndex;
     int mIndex = visualizationMonoWriteIndex;
     double sumSq = 0.0;
+    // The system tap waveform is 8-bit, so quiet passages arrive as wide
+    // stair-steps (each quantized level is held for many samples). A narrow
+    // kernel cannot round those; use a one-pole low-pass whose strength
+    // adapts to the chunk level: strong on quiet chunks (where quantization
+    // dominates), nearly transparent on loud ones (where the signal is
+    // already smooth). State resets per chunk; purely cosmetic.
+    float chunkPeak = 0.0f;
     for (int i = 0; i < count; ++i) {
-        const float sample = std::clamp(mono[i], -1.0f, 1.0f);
+        chunkPeak = std::max(chunkPeak, std::fabs(mono[i]));
+    }
+    const float alpha = (chunkPeak < 0.08f) ? 0.18f
+            : (chunkPeak < 0.25f) ? 0.45f : 0.85f;
+    float lpState = mono[0];
+    for (int i = 0; i < count; ++i) {
+        lpState += alpha * (mono[i] - lpState);
+        const float sample = std::clamp(lpState, -1.0f, 1.0f);
         visualizationScopeHistoryLeft[wIndex] = sample;
         visualizationScopeHistoryRight[wIndex] = sample;
         visualizationMonoHistory[mIndex] = sample;

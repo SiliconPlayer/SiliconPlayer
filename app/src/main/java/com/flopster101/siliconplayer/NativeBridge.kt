@@ -117,40 +117,55 @@ object NativeBridge {
         }
     }
 
+    /**
+     * Start the muted shadow engine alongside the platform player. Called
+     * from every play path (including the first play after app start, where
+     * the platform core activates inside startEngine) and on vis-source
+     * changes mid-playback.
+     */
+    private fun startShadowRenderIfEnabled() {
+        if (!PlatformDolbyPlayer.isParallelVisEnabled()) return
+        if (shadowRenderActive) return
+        setOutputShadowMuted(true)
+        startEngineNative()
+        shadowRenderActive = true
+        shadowAlignAttempts = 0
+        lastShadowAlignMs = 0L
+    }
+
     @JvmStatic
     fun startEngine() {
         if (PlatformDolbyPlayer.isActive()) {
-            if (PlatformDolbyPlayer.isParallelVisEnabled()) {
-                // Shadow render: the engine keeps running (muted) for visualizers.
-                startEngineNative()
-                shadowRenderActive = true
-                shadowAlignAttempts = 0
-                lastShadowAlignMs = 0L
-            }
+            startShadowRenderIfEnabled()
             PlatformDolbyPlayer.redirectPlay()
             return
         }
         if (PlatformDolbyPlayer.redirectPlay()) return
         PlatformDolbyPlayer.activateIfEligibleAndPlay(lastLoadedPath)
-        if (PlatformDolbyPlayer.redirectPlay()) return
+        if (PlatformDolbyPlayer.isActive()) {
+            // First play through the platform core: the shadow engine must
+            // start here too, or visualizers stay dead until stop/replay.
+            startShadowRenderIfEnabled()
+            PlatformDolbyPlayer.redirectPlay()
+            return
+        }
         startEngineNative()
     }
 
     @JvmStatic
     fun startEngineWithPauseResumeFade() {
         if (PlatformDolbyPlayer.isActive()) {
-            if (PlatformDolbyPlayer.isParallelVisEnabled()) {
-                startEngineNative()
-                shadowRenderActive = true
-                shadowAlignAttempts = 0
-                lastShadowAlignMs = 0L
-            }
+            startShadowRenderIfEnabled()
             PlatformDolbyPlayer.redirectPlay()
             return
         }
         if (PlatformDolbyPlayer.redirectPlay()) return
         PlatformDolbyPlayer.activateIfEligibleAndPlay(lastLoadedPath)
-        if (PlatformDolbyPlayer.redirectPlay()) return
+        if (PlatformDolbyPlayer.isActive()) {
+            startShadowRenderIfEnabled()
+            PlatformDolbyPlayer.redirectPlay()
+            return
+        }
         startEngineWithPauseResumeFadeNative()
     }
 
@@ -181,6 +196,31 @@ object NativeBridge {
         }
         if (PlatformDolbyPlayer.redirectPause()) return
         stopEngineWithPauseResumeFadeNative()
+    }
+
+    /**
+     * React to a vis-source change while the platform core owns playback:
+     * bring the shadow engine up (aligned to the audible position) when the
+     * source becomes the shadow decoder, or stop it (saving the extra decode)
+     * when the source becomes the system tap or none.
+     */
+    @JvmStatic
+    fun refreshShadowRenderForVisSourceChange() {
+        if (!PlatformDolbyPlayer.isActive()) return
+        if (PlatformDolbyPlayer.isParallelVisEnabled()) {
+            setOutputShadowMuted(true)
+            if (PlatformDolbyPlayer.isPlaying() && !shadowRenderActive) {
+                startShadowRenderIfEnabled()
+                // Jump to the audible position; the bounded aligner fine-tunes.
+                seekToImpl(PlatformDolbyPlayer.positionSeconds())
+            }
+        } else {
+            setOutputShadowMuted(false)
+            if (shadowRenderActive) {
+                stopEngineNative()
+                shadowRenderActive = false
+            }
+        }
     }
 
     @JvmStatic
