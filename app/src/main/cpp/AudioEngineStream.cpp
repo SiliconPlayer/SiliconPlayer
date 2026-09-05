@@ -341,7 +341,11 @@ void AudioEngine::requestStreamStop() {
     if (!miniaudioDeviceInitialized) {
         return;
     }
+    // Deliberate stops must not look like device loss to the stop callback,
+    // which would otherwise re-arm a stream rebuild mid-track-switch.
+    intentionalStreamTeardown.store(true, std::memory_order_release);
     ma_device_stop(&miniaudioDevice);
+    intentionalStreamTeardown.store(false, std::memory_order_release);
 }
 
 bool AudioEngine::isStreamDisconnectedOrClosed() const {
