@@ -542,18 +542,18 @@ int AudioEngine::provideUacDirectFrames(uint8_t* dst, int maxFrames, const silic
             for (int i = 0; i < chunk * ch; ++i) {
                 float s = src[i];
                 if (applyVol) s *= volScale;
-                s = std::clamp(s, -1.0f, 1.0f);
-                out16[i] = static_cast<int16_t>(s * 32767.0f);
+                long v = std::lrintf(std::clamp(s, -1.0f, 1.0f) * 32768.0f);
+                out16[i] = static_cast<int16_t>(std::clamp(v, -32768L, 32767L));
             }
         } else if (subslot == 3) {
             for (int i = 0; i < chunk * ch; ++i) {
                 float s = src[i];
                 if (applyVol) s *= volScale;
-                s = std::clamp(s, -1.0f, 1.0f);
-                auto val = static_cast<int32_t>(s * 8388607.0f);
-                outCursor[i * 3 + 0] = static_cast<uint8_t>(val & 0xFF);
-                outCursor[i * 3 + 1] = static_cast<uint8_t>((val >> 8) & 0xFF);
-                outCursor[i * 3 + 2] = static_cast<uint8_t>((val >> 16) & 0xFF);
+                long v = std::lrintf(std::clamp(s, -1.0f, 1.0f) * 8388608.0f);
+                v = std::clamp(v, -8388608L, 8388607L);
+                outCursor[i * 3 + 0] = static_cast<uint8_t>(v & 0xFF);
+                outCursor[i * 3 + 1] = static_cast<uint8_t>((v >> 8) & 0xFF);
+                outCursor[i * 3 + 2] = static_cast<uint8_t>((v >> 16) & 0xFF);
             }
         } else if (subslot == 4) {
             auto* out32 = reinterpret_cast<int32_t*>(outCursor);
@@ -561,15 +561,16 @@ int AudioEngine::provideUacDirectFrames(uint8_t* dst, int maxFrames, const silic
                 for (int i = 0; i < chunk * ch; ++i) {
                     float s = src[i];
                     if (applyVol) s *= volScale;
-                    s = std::clamp(s, -1.0f, 1.0f);
-                    out32[i] = static_cast<int32_t>(s * 8388607.0f) << 8;
+                    long v = std::lrintf(std::clamp(s, -1.0f, 1.0f) * 8388608.0f);
+                    out32[i] = static_cast<int32_t>(std::clamp(v, -8388608L, 8388607L)) << 8;
                 }
             } else {
                 for (int i = 0; i < chunk * ch; ++i) {
                     float s = src[i];
                     if (applyVol) s *= volScale;
-                    s = std::clamp(s, -1.0f, 1.0f);
-                    out32[i] = static_cast<int32_t>(s * 2147483647.0f);
+                    long long v = std::llround(static_cast<double>(s) * 2147483648.0);
+                    out32[i] = static_cast<int32_t>(
+                            std::clamp<long long>(v, -2147483648LL, 2147483647LL));
                 }
             }
         }

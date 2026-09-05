@@ -2,6 +2,7 @@
 #define SILICONPLAYER_AUDIOENGINE_H
 
 #include "miniaudio.h"
+#include <cmath>
 #include <cstdint>
 #include <thread>
 #include <atomic>

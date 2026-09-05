@@ -612,6 +612,13 @@ internal fun AudioOutputDetailsDialog(
                                 val sinkBadgeColor = if (isBitPerfectActive) bitPerfectHighlightColor else MaterialTheme.colorScheme.onSurfaceVariant
                                 val sinkBadgeBg = if (isBitPerfectActive) bitPerfectHighlightColor.copy(alpha = 0.15f) else MaterialTheme.colorScheme.surfaceContainerHighest
 
+                                val sinkFormatText = if (isUacStreaming) {
+                                    val bits = uacDiagnostics?.bitsPerSample?.takeIf { it > 0 } ?: 16
+                                    "$bits-bit PCM"
+                                } else {
+                                    "16-bit PCM"
+                                }
+
                                 SignalChainNodeCard(
                                     icon = {
                                         Icon(
@@ -633,7 +640,7 @@ internal fun AudioOutputDetailsDialog(
                                     badgeBackgroundColor = sinkBadgeBg,
                                     subtitleItems = listOf(
                                         formatSampleRateForInspector(effectiveOutputRate),
-                                        "16-bit PCM"
+                                        sinkFormatText
                                     )
                                 )
                             }
