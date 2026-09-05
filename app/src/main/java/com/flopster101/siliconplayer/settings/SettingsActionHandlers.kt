@@ -811,7 +811,6 @@ internal fun clearAllSettingsAction(
     onMultiChannelOutputModeChanged: (MultiChannelOutputMode) -> Unit,
     onAudioAllowBackendFallbackChanged: (Boolean) -> Unit,
     onBitPerfectUsbAudioChanged: (Boolean) -> Unit,
-    onPlatformDolbyDecoderChanged: (Boolean) -> Unit,
     onOpenPlayerFromNotificationChanged: (Boolean) -> Unit,
     onPersistRepeatModeChanged: (Boolean) -> Unit,
     onPreferredRepeatModeChanged: (RepeatMode) -> Unit,
@@ -995,7 +994,6 @@ internal fun clearAllSettingsAction(
     onMultiChannelOutputModeChanged(AppDefaults.OutputPipeline.multiChannelOutputMode)
     onAudioAllowBackendFallbackChanged(true)
     onBitPerfectUsbAudioChanged(AppDefaults.OutputPipeline.bitPerfectUsbAudio)
-    onPlatformDolbyDecoderChanged(AppDefaults.OutputPipeline.platformDolbyDecoder)
     onOpenPlayerFromNotificationChanged(true)
     onPersistRepeatModeChanged(true)
     onPreferredRepeatModeChanged(RepeatMode.None)

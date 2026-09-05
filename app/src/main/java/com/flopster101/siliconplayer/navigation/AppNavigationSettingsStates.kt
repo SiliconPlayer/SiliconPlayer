@@ -119,7 +119,6 @@ internal data class AppNavigationSettingsStates(
     val pendingCacheExportPaths: MutableState<List<String>>,
     val audioAllowBackendFallback: MutableState<Boolean>,
     val bitPerfectUsbAudio: MutableState<Boolean>,
-    val platformDolbyDecoder: MutableState<Boolean>,
     val openPlayerFromNotification: MutableState<Boolean>,
     val playbackWatchPath: MutableState<String?>,
     val currentPlaybackSourceId: MutableState<String?>
@@ -608,9 +607,6 @@ internal fun rememberAppNavigationSettingsStates(
     val bitPerfectUsbAudio = remember {
         mutableStateOf(prefs.getBoolean(AppPreferenceKeys.BIT_PERFECT_USB_AUDIO, AppDefaults.OutputPipeline.bitPerfectUsbAudio))
     }
-    val platformDolbyDecoder = remember {
-        mutableStateOf(prefs.getBoolean(AppPreferenceKeys.PLATFORM_DOLBY_DECODER, AppDefaults.OutputPipeline.platformDolbyDecoder))
-    }
     val openPlayerFromNotification = remember {
         mutableStateOf(prefs.getBoolean(AppPreferenceKeys.OPEN_PLAYER_FROM_NOTIFICATION, true))
     }
@@ -722,7 +718,6 @@ internal fun rememberAppNavigationSettingsStates(
         pendingCacheExportPaths = pendingCacheExportPaths,
         audioAllowBackendFallback = audioAllowBackendFallback,
         bitPerfectUsbAudio = bitPerfectUsbAudio,
-        platformDolbyDecoder = platformDolbyDecoder,
         openPlayerFromNotification = openPlayerFromNotification,
         playbackWatchPath = playbackWatchPath,
         currentPlaybackSourceId = currentPlaybackSourceId

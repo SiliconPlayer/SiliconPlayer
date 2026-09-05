@@ -223,8 +223,7 @@ internal fun SettingsRouteContentHost(
                                 lookaheadClipperMode = state.lookaheadClipperMode,
                                 multiChannelOutputMode = state.multiChannelOutputMode,
                                 audioAllowBackendFallback = state.audioAllowBackendFallback,
-                                bitPerfectUsbAudio = state.bitPerfectUsbAudio,
-                                platformDolbyDecoder = state.platformDolbyDecoder
+                                bitPerfectUsbAudio = state.bitPerfectUsbAudio
                             ),
                             actions = GeneralAudioRouteActions(
                                 onRespondHeadphoneMediaButtonsChanged = actions.onRespondHeadphoneMediaButtonsChanged,
@@ -243,8 +242,7 @@ internal fun SettingsRouteContentHost(
                                 onLookaheadClipperModeChanged = actions.onLookaheadClipperModeChanged,
                                 onMultiChannelOutputModeChanged = actions.onMultiChannelOutputModeChanged,
                                 onAudioAllowBackendFallbackChanged = actions.onAudioAllowBackendFallbackChanged,
-                                onBitPerfectUsbAudioChanged = actions.onBitPerfectUsbAudioChanged,
-                                onPlatformDolbyDecoderChanged = actions.onPlatformDolbyDecoderChanged
+                                onBitPerfectUsbAudioChanged = actions.onBitPerfectUsbAudioChanged
                             )
                         )
                     }
