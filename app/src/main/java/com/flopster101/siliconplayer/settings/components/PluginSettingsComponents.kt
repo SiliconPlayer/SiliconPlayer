@@ -71,6 +71,7 @@ internal fun PluginListItemCard(
     enableInteractions: Boolean,
     switchEnabled: Boolean,
     shape: Shape,
+    subtitleOverride: String? = null,
     onMeasuredHeight: (Float) -> Unit,
     onDragStart: () -> Unit,
     onDragDelta: (Float) -> Unit,
@@ -152,7 +153,8 @@ internal fun PluginListItemCard(
                     NativeBridge.getDecoderEnabledExtensions(pluginName).size
                 }
                 Text(
-                    text = if (isWatch) "$extensionCount extensions" else "$extensionCount extensions enabled",
+                    text = subtitleOverride
+                        ?: if (isWatch) "$extensionCount extensions" else "$extensionCount extensions enabled",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     maxLines = 1,

@@ -107,6 +107,18 @@ internal object PlatformDolbyPlayer {
     @JvmStatic
     fun codecName(): String = codecName.orEmpty()
 
+    /**
+     * Formats this core claims, each mapped to the platform decoder
+     * component that would handle it (may be empty when none exists on
+     * this device). Used by the core settings UI.
+     */
+    @JvmStatic
+    fun claimedFormats(): List<Pair<String, String>> = listOf(
+        "E-AC-3 (DD+)" to resolvePlatformDolbyDecoder("audio/eac3").orEmpty(),
+        "E-AC-3 JOC (Atmos)" to resolvePlatformDolbyDecoder("audio/eac3-joc").orEmpty(),
+        "AC-3 (DD)" to resolvePlatformDolbyDecoder("audio/ac3").orEmpty()
+    )
+
     @JvmStatic
     fun redirectPlay(): Boolean {
         if (!active) return false

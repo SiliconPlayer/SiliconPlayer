@@ -1,5 +1,7 @@
 package com.flopster101.siliconplayer
 
+import com.flopster101.siliconplayer.AppPreferenceKeys
+import com.flopster101.siliconplayer.DecoderNames
 import com.flopster101.siliconplayer.onGloballyPositionedDeferred
 import com.flopster101.siliconplayer.onSizeChangedDeferred
 import android.widget.Toast
@@ -305,6 +307,50 @@ internal fun AudioPluginsRouteContent(
                 onDragEnd = { }
             )
         }
+    }
+
+    // Platform (system Dolby) core: virtual entry, not part of the native
+    // decoder registry. Lowest priority by design — it only claims DD-family
+    // formats, and its toggle lives in the platform prefs, not the registry.
+    if (orderedPluginNames.none { it.equals(DecoderNames.PLATFORM_DOLBY, ignoreCase = true) }) {
+        val platformEnabled = remember {
+            mutableStateOf(
+                context.getSharedPreferences(AppPreferenceKeys.PREFS_NAME, android.content.Context.MODE_PRIVATE)
+                    .getBoolean(AppPreferenceKeys.PLATFORM_DOLBY_DECODER, true)
+            )
+        }
+        val platformPrefs = remember {
+            context.getSharedPreferences(AppPreferenceKeys.PREFS_NAME, android.content.Context.MODE_PRIVATE)
+        }
+        Spacer(modifier = Modifier.height(2.dp))
+        PluginListItemCard(
+            pluginName = DecoderNames.PLATFORM_DOLBY,
+            priority = orderedPluginNames.size,
+            enabled = platformEnabled.value,
+            onEnabledChanged = { enabled ->
+                platformEnabled.value = enabled
+                platformPrefs.edit()
+                    .putBoolean(AppPreferenceKeys.PLATFORM_DOLBY_DECODER, enabled)
+                    .apply()
+            },
+            onClick = {
+                if (!pluginPriorityEditMode) onPluginSelected(DecoderNames.PLATFORM_DOLBY)
+            },
+            editMode = false,
+            isDragging = false,
+            dragOffsetPx = 0f,
+            nudgeOffsetPx = 0f,
+            nudgeNonce = 0,
+            contentAlpha = 1f,
+            enableInteractions = true,
+            switchEnabled = true,
+            shape = RoundedCornerShape(pluginRowOuterCorner),
+            subtitleOverride = "Claims 3 formats (system decode)",
+            onMeasuredHeight = { },
+            onDragStart = { },
+            onDragDelta = { },
+            onDragEnd = { }
+        )
     }
 
     Spacer(modifier = Modifier.height(16.dp))

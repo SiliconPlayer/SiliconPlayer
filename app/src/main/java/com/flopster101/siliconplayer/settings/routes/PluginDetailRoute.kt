@@ -1,9 +1,11 @@
 package com.flopster101.siliconplayer
 
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.height
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Info
+import androidx.compose.material.icons.filled.MusicNote
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -200,6 +202,10 @@ internal fun PluginDetailRouteContent(
     actions: PluginDetailRouteActions
 ) {
     val pluginName = state.selectedPluginName ?: return
+    if (pluginName.equals(DecoderNames.PLATFORM_DOLBY, ignoreCase = true)) {
+        PlatformDolbyCoreDetailContent()
+        return
+    }
     val coreAboutEntry = remember(pluginName) { AboutCatalog.resolveCoreForPlugin(pluginName) }
     var selectedAboutEntry by remember(pluginName) { mutableStateOf<AboutEntity?>(null) }
     var showCoreCapabilitiesDialog by remember(pluginName) { mutableStateOf(false) }
@@ -551,5 +557,60 @@ internal fun PluginDetailRouteContent(
             isLiveSnapshot = coreCapabilitiesDialogIsLiveSnapshot,
             onDismiss = { showCoreCapabilitiesDialog = false }
         )
+    }
+}
+
+@Composable
+private fun PlatformDolbyCoreDetailContent() {
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val prefs = remember(context) {
+        context.getSharedPreferences(AppPreferenceKeys.PREFS_NAME, android.content.Context.MODE_PRIVATE)
+    }
+    var useForMultichannel by remember {
+        mutableStateOf(
+            prefs.getBoolean(AppPreferenceKeys.PLATFORM_DOLBY_DECODER, AppDefaults.OutputPipeline.platformDolbyDecoder)
+        )
+    }
+    // Live component names: refresh while the page is open so codec
+    // availability reflects the current device state.
+    var claimedFormats by remember {
+        mutableStateOf(com.flopster101.siliconplayer.playback.PlatformDolbyPlayer.claimedFormats())
+    }
+    LaunchedEffect(Unit) {
+        while (true) {
+            claimedFormats = com.flopster101.siliconplayer.playback.PlatformDolbyPlayer.claimedFormats()
+            kotlinx.coroutines.delay(2000)
+        }
+    }
+
+    Column {
+        SettingsSectionLabel("Core status")
+        PlayerSettingToggleCard(
+            title = "Use for Dolby formats",
+            description = "Hand E-AC-3 / AC-3 playback to the system decoder so the device's Dolby processing (Atmos / spatializer) applies. Falls back to the FFmpeg core automatically when unsupported or on error.",
+            checked = useForMultichannel,
+            onCheckedChange = { enabled ->
+                useForMultichannel = enabled
+                prefs.edit().putBoolean(AppPreferenceKeys.PLATFORM_DOLBY_DECODER, enabled).apply()
+            }
+        )
+
+        Spacer(modifier = Modifier.height(16.dp))
+        SettingsSectionLabel("Handled formats")
+        claimedFormats.forEach { (label, component) ->
+            SettingsItemCard(
+                title = label,
+                description = if (component.isNotBlank()) {
+                    "System codec: $component"
+                } else {
+                    "No system decoder available; the FFmpeg core handles this format"
+                },
+                icon = Icons.Default.MusicNote,
+                onClick = {}
+            )
+            if (label != claimedFormats.last().first) {
+                SettingsRowSpacer()
+            }
+        }
     }
 }
