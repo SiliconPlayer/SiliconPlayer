@@ -14,6 +14,9 @@ namespace {
     constexpr int kVisualizationFftSize = 2048;
     constexpr int kVisualizationSpectrumBins = 256;
     constexpr float kVisualizationMinDisplayHz = 35.0f;
+    // Shadow-render vis capture boost: per-channel levels of a multichannel
+    // mix sit well below the summed stereo downmix the system tap sees.
+    constexpr float kShadowVisualizationGain = 1.8f;
 
     int computeVisualizationMinBin(int sampleRateHz) {
         const int fftHalf = kVisualizationFftSize / 2;
@@ -725,6 +728,14 @@ void AudioEngine::updateVisualizationDataFromOutputCallback(
         return;
     }
 
+    // While the platform Dolby core owns playback this engine only renders
+    // for the visualizers, and it feeds them per-channel levels of a
+    // (often multichannel) mix. Those sit well below the summed stereo
+    // downmix the system output path produces, so boost the capture to keep
+    // visualizer response comparable between the two tap sources.
+    const float visGain = outputShadowMuted.load(std::memory_order_relaxed)
+            ? kShadowVisualizationGain : 1.0f;
+
     const int safeChannels = std::clamp(channels, 1, 2);
     std::array<float, 256> waveL {};
     std::array<float, 256> waveR {};
@@ -735,8 +746,8 @@ void AudioEngine::updateVisualizationDataFromOutputCallback(
             const int srcFrame = (n * numFrames) / kVisualizationWaveformSize;
             const int frameIndex = std::min(srcFrame, numFrames - 1);
             const int base = frameIndex * channels;
-            const float left = buffer[base];
-            const float right = channels > 1 ? buffer[base + 1] : left;
+            const float left = buffer[base] * visGain;
+            const float right = (channels > 1 ? buffer[base + 1] : buffer[base]) * visGain;
             waveL[n] = std::clamp(left, -1.0f, 1.0f);
             waveR[n] = std::clamp(right, -1.0f, 1.0f);
         }
@@ -744,8 +755,8 @@ void AudioEngine::updateVisualizationDataFromOutputCallback(
     if (needsVu) {
         for (int frame = 0; frame < numFrames; ++frame) {
             const int base = frame * channels;
-            const float left = buffer[base];
-            const float right = channels > 1 ? buffer[base + 1] : left;
+            const float left = buffer[base] * visGain;
+            const float right = (channels > 1 ? buffer[base + 1] : buffer[base]) * visGain;
             sumSqL += static_cast<double>(left) * left;
             sumSqR += static_cast<double>(right) * right;
         }
@@ -768,8 +779,8 @@ void AudioEngine::updateVisualizationDataFromOutputCallback(
         int wIndex = visualizationScopeWriteIndex;
         for (int frame = 0; frame < numFrames; ++frame) {
             const int base = frame * channels;
-            const float left = buffer[base];
-            const float right = channels > 1 ? buffer[base + 1] : left;
+            const float left = buffer[base] * visGain;
+            const float right = (channels > 1 ? buffer[base + 1] : buffer[base]) * visGain;
             visualizationScopeHistoryLeft[wIndex] = std::clamp(left, -1.0f, 1.0f);
             visualizationScopeHistoryRight[wIndex] = std::clamp(right, -1.0f, 1.0f);
             wIndex = (wIndex + 1) & kHistoryMask;
@@ -780,8 +791,8 @@ void AudioEngine::updateVisualizationDataFromOutputCallback(
         int mIndex = visualizationMonoWriteIndex;
         for (int frame = 0; frame < numFrames; ++frame) {
             const int base = frame * channels;
-            const float left = buffer[base];
-            const float right = channels > 1 ? buffer[base + 1] : left;
+            const float left = buffer[base] * visGain;
+            const float right = (channels > 1 ? buffer[base + 1] : buffer[base]) * visGain;
             const float mono = 0.5f * (left + right);
             visualizationMonoHistory[mIndex] = std::clamp(mono, -1.0f, 1.0f);
             mIndex = (mIndex + 1) & kHistoryMask;

@@ -1151,7 +1151,7 @@ Java_com_flopster101_siliconplayer_NativeBridge_setOutputShadowMuted(JNIEnv*, jo
 
 extern "C" JNIEXPORT void JNICALL
 Java_com_flopster101_siliconplayer_NativeBridge_pushExternalVisualizationSamples(
-        JNIEnv* env, jobject, jfloatArray samples, jint count) {
+        JNIEnv* env, jobject, jfloatArray samples, jint count, jfloat vuLevel) {
     if (audioEngine == nullptr || samples == nullptr) {
         return;
     }

@@ -279,7 +279,7 @@ object NativeBridge {
     external fun setOutputShadowMuted(muted: Boolean)
 
     @JvmStatic
-    external fun pushExternalVisualizationSamples(samples: FloatArray, count: Int)
+    external fun pushExternalVisualizationSamples(samples: FloatArray, count: Int, vuLevel: Float)
 
     external fun getCurrentDecoderNameImpl(): String
 
