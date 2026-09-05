@@ -4,6 +4,7 @@
 #include <algorithm>
 #include <cstring>
 #include <pthread.h>
+#include <sched.h>
 #include <sys/resource.h>
 #include <sys/syscall.h>
 #include <unistd.h>
@@ -37,7 +38,6 @@ constexpr uint8_t REQ_SET_CUR              = 0x01;
 constexpr uint16_t CS_SAM_FREQ_CONTROL_SEL = 0x01;
 
 constexpr int kNumTransfers = 4;
-constexpr int kPacketsPerTransfer = 8;
 constexpr size_t kRingBytes = 1u << 20;
 
 inline size_t ringSize(size_t head, size_t tail) {
@@ -790,6 +790,14 @@ bool UacDriver::startIsoPump() {
         maxFramesPerPacket_ = maxBytesPerPacket / frameStride;
     }
 
+    // Coalesce packets per URB: high speed caps a transfer at 4 ms of wire
+    // time (32 microframe packets), full speed uses 16. Four transfers stay
+    // queued, so completions land ~250x/s instead of 8000x/s and the wire
+    // queue tolerates tens of ms of event-thread stalls.
+    packetsPerTransfer_ = format_.isHighSpeed
+        ? std::clamp(32 / packetIntervalUframes, 16, 32)
+        : 16;
+
     auto setErr = [this](StartError c, const std::string& d) {
         lastError_.store(c, std::memory_order_release);
         std::lock_guard<std::mutex> lock(errorMutex_);
@@ -800,16 +808,16 @@ bool UacDriver::startIsoPump() {
     transferBuffers_.reserve(kNumTransfers);
 
     for (int i = 0; i < kNumTransfers; ++i) {
-        libusb_transfer* xfr = libusb_alloc_transfer(kPacketsPerTransfer);
+        libusb_transfer* xfr = libusb_alloc_transfer(packetsPerTransfer_);
         if (!xfr) {
             setErr(StartError::IsoPumpAllocFailed, "libusb_alloc_transfer returned null");
             stopIsoPump();
             return false;
         }
-        std::vector<uint8_t> buf(maxBytesPerPacket * kPacketsPerTransfer, 0);
+        std::vector<uint8_t> buf(maxBytesPerPacket * packetsPerTransfer_, 0);
         libusb_fill_iso_transfer(
             xfr, device_, format_.endpointAddress, buf.data(),
-            static_cast<int>(buf.size()), kPacketsPerTransfer,
+            static_cast<int>(buf.size()), packetsPerTransfer_,
             &UacDriver::onIsoTrampoline, this, 0);
         libusb_set_iso_packet_lengths(xfr, baseFrames * frameStride);
         transferBuffers_.push_back(std::move(buf));
@@ -839,7 +847,11 @@ bool UacDriver::startIsoPump() {
     eventThread_ = std::thread([this]() {
         pthread_setname_np(pthread_self(), "sp_uac_events");
         const pid_t tid = static_cast<pid_t>(syscall(SYS_gettid));
-        setpriority(PRIO_PROCESS, tid, -16);
+        sched_param sp{};
+        sp.sched_priority = 2;
+        if (sched_setscheduler(0, SCHED_FIFO, &sp) != 0) {
+            setpriority(PRIO_PROCESS, tid, -16);
+        }
         while (!stopRequested_.load(std::memory_order_acquire) || inflight_.load(std::memory_order_acquire) > 0) {
             timeval tv{0, 50000};
             if (ctx_) {
@@ -871,7 +883,7 @@ bool UacDriver::startIsoPump() {
     }
 
     LOGI("Iso pump successfully started: %zu data transfers, %zu feedback transfers, %d pkts/xfr, %d bytes/pkt",
-         transfers_.size(), feedbackTransfers_.size(), kPacketsPerTransfer, maxBytesPerPacket);
+         transfers_.size(), feedbackTransfers_.size(), packetsPerTransfer_, maxBytesPerPacket);
     return true;
 }
 

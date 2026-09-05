@@ -139,6 +139,7 @@ private:
     uint32_t nominalStep_q16_ = 0;
     int microframesPerSec_ = 8000;
     int maxFramesPerPacket_ = 0;
+    int packetsPerTransfer_ = 32;
     uint32_t fracAccumulator_q16_ = 0;
 
     std::atomic<StartError> lastError_{StartError::Ok};
