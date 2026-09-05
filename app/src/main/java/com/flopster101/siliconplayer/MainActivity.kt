@@ -3007,6 +3007,30 @@ onStopEngine = { NativeBridge.releaseCurrentDecoder() }, onMetadataAlbumChanged 
         }
     }
 
+    // Gapless handoff for the platform Dolby core: resolve the track the
+    // advance path would play next (local files only; remote URLs stay on
+    // the normal transition). Mirrors playAdjacentTrackAction's index math.
+    val nextPlatformHandoffPath: () -> String? = {
+        val wrap = playlistWrapNavigation || activeRepeatMode == RepeatMode.Playlist
+        val entries = activePlaylist?.entries
+        val entryId = currentPlaylistNavigationEntryId
+        if (usesSelfContainedPlaylistQueue && !entries.isNullOrEmpty() && !entryId.isNullOrBlank()) {
+            val index = entries.indexOfFirst { it.id == entryId }
+            val size = entries.size
+            val next = if (index >= 0) {
+                if (wrap) entries[(index + 1) % size] else entries.getOrNull(index + 1)
+            } else null
+            next?.source?.let { src -> File(src).takeIf { it.isFile }?.absolutePath }
+        } else {
+            val index = currentTrackIndexForList(selectedFile, visiblePlayableFiles)
+            val size = visiblePlayableFiles.size
+            if (index >= 0 && size > 0) {
+                val target = if (wrap) visiblePlayableFiles[(index + 1) % size] else visiblePlayableFiles.getOrNull(index + 1)
+                target?.absolutePath
+            } else null
+        }
+    }
+
     AppNavigationPlaybackPollEffects(
         selectedFile = selectedFile,
         isPlayingProvider = { isPlaying },
@@ -3022,6 +3046,7 @@ onStopEngine = { NativeBridge.releaseCurrentDecoder() }, onMetadataAlbumChanged 
         subtuneCountProvider = { subtuneCount },
         currentSubtuneIndexProvider = { currentSubtuneIndex },
         activeRepeatModeProvider = { activeRepeatMode },
+        nextTrackPathProvider = nextPlatformHandoffPath,
         currentPlaybackSourceIdProvider = { settingsStates.currentPlaybackSourceId.value },
         playbackWatchPath = settingsStates.playbackWatchPath.value,
         metadataTitleProvider = { metadataTitle },

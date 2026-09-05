@@ -76,11 +76,30 @@ object NativeBridge {
     fun replaceCurrentAudio(path: String) {
         cancelActiveSmbAvioHandles()
         lastLoadedPath = path
+        if (PlatformDolbyPlayer.consumeHandoffIfMatches(path)) {
+            // The platform core already advanced audibly via a gapless
+            // framework handoff; reload only the native decoder underneath
+            // it (muted shadow render / metadata) and skip the teardown.
+            loadAudio(path)
+            PlatformDolbyPlayer.onNativeTrackLoaded(path)
+            // Transport will not issue a fresh start (playback is already
+            // running), so restart the muted engine explicitly. The load
+            // above reset the decoder, the old flag would be stale.
+            shadowRenderActive = false
+            startShadowRenderIfEnabled()
+            return
+        }
         PlatformDolbyPlayer.onNativeTrackUnloaded()
         loadAudio(path)
         // Probe after the decoder opens the file so the FFmpeg codec name
         // reflects the NEW track.
         PlatformDolbyPlayer.onNativeTrackLoaded(path)
+    }
+
+    /** Gapless hint: platform core pre-prepares this track (null disarms). */
+    @JvmStatic
+    fun preparePlatformHandoff(path: String?) {
+        PlatformDolbyPlayer.setNextTrackHint(path)
     }
 
     // Shadow-render state: true while the muted engine runs alongside the

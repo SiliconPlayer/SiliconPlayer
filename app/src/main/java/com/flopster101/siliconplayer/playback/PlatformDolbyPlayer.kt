@@ -54,6 +54,21 @@ internal object PlatformDolbyPlayer {
     private var handler: Handler? = null
     private var player: MediaPlayer? = null
 
+    // Prepare-ahead for gapless track advance: a MediaPlayer created for the
+    // next DD-family track, attached to the current one via setNextMediaPlayer
+    // (framework handoff with no audible gap). Promoted on completion; the
+    // app's advance path adopts it via consumeHandoffIfMatches and reloads
+    // only the native decoder.
+    @Volatile
+    private var nextPath: String? = null
+    private var nextPlayer: MediaPlayer? = null
+    private var nextPlayerPrepared = false
+
+    // Path of a track the framework already handed off to (set on completion
+    // promotion), awaiting adoption by the app's advance path.
+    @Volatile
+    private var handoffPath: String? = null
+
     @JvmStatic
     fun isActive(): Boolean = active
 
@@ -65,6 +80,15 @@ internal object PlatformDolbyPlayer {
      */
     @JvmStatic
     fun onNativeTrackLoaded(path: String) {
+        // Gapless handoff: the framework already advanced audible playback to
+        // this track; keep the promoted player and let the native decoder
+        // reload underneath it for visualizers/metadata only.
+        if (active && handoffPath != null && handoffPath == path) {
+            handoffPath = null
+            naturalEnd = false
+            Log.i(TAG, "adopted seamless handoff for $path")
+            return
+        }
         deactivate()
         if (!shouldUsePlatform(path)) return
         activate(path, pendingStart = false)
@@ -96,6 +120,7 @@ internal object PlatformDolbyPlayer {
         pendingStart = false
         lastKnownPlaying = false
         naturalEnd = false
+        handoffPath = null
         codecName = null
         try {
             NativeBridge.onPlatformCoreInactive()
@@ -103,6 +128,7 @@ internal object PlatformDolbyPlayer {
         } catch (ignored: Throwable) {}
         PlatformVisTap.stop()
         releasePlayer()
+        releaseNextPlayer()
         if (hadActive) {
             Log.i(TAG, "deactivated")
         }
@@ -380,6 +406,8 @@ internal object PlatformDolbyPlayer {
         // player thread finishes preparing are redirected, not leaked to
         // the FFmpeg engine.
         releasePlayer()
+        releaseNextPlayer()
+        handoffPath = null
         naturalEnd = false
         prepared = false
         this.pendingStart = pendingStart
@@ -412,9 +440,31 @@ internal object PlatformDolbyPlayer {
                     }
                 }
                 p.setOnCompletionListener {
-                    lastKnownPlaying = false
-                    naturalEnd = true
-                    Log.i(TAG, "completed")
+                    // With a prepared next player attached, the framework has
+                    // already handed off audibly (it started the successor at
+                    // completion); promote it so this core keeps redirecting
+                    // transport to the new track. The app's advance path then
+                    // adopts the handoff via consumeHandoffIfMatches.
+                    val promoted = nextPlayer
+                    if (nextPlayerPrepared && promoted != null) {
+                        val old = player
+                        player = promoted
+                        prepared = true
+                        this@PlatformDolbyPlayer.pendingStart = false
+                        lastKnownPlaying = true
+                        handoffPath = nextPath
+                        nextPath = null
+                        nextPlayer = null
+                        nextPlayerPrepared = false
+                        naturalEnd = true
+                        try { promoted.start() } catch (ignored: Exception) {}
+                        old?.release()
+                        Log.i(TAG, "gapless handoff to $handoffPath")
+                    } else {
+                        lastKnownPlaying = false
+                        naturalEnd = true
+                        Log.i(TAG, "completed")
+                    }
                 }
                 p.setOnErrorListener { _, what, extra ->
                     Log.w(TAG, "platform decode error what=$what extra=$extra; falling back to FFmpeg")
@@ -423,11 +473,99 @@ internal object PlatformDolbyPlayer {
                 }
                 p.prepareAsync()
                 player = p
+                // A next-track hint may have arrived while the player thread
+                // was preparing; attach it once the current player exists.
+                val queued = nextPath
+                if (queued != null) {
+                    handler?.post { prepareNextPlayerLocked() }
+                }
             } catch (e: Exception) {
                 Log.w(TAG, "activation failed; falling back to FFmpeg", e)
                 fallbackToNative()
             }
         }
+    }
+
+    /**
+     * App-side playlist hint: prepare [path] ahead so the framework can
+     * hand off to it when the current track completes (gapless for DD
+     * playlists). Safe to call repeatedly; stale preparations are released.
+     * Without an active platform playback the hint is dropped and the
+     * normal advance transition applies.
+     */
+    @JvmStatic
+    fun setNextTrackHint(path: String?) {
+        if (path == nextPath) return
+        nextPath = path
+        val h = handler ?: return
+        if (!active) return
+        h.post { prepareNextPlayerLocked() }
+    }
+
+    /** Must run on the player handler thread. */
+    private fun prepareNextPlayerLocked() {
+        val path = nextPath ?: run { releaseNextPlayer(); return }
+        val cur = player
+        if (!active || cur == null || !prepared) {
+            releaseNextPlayer()
+            return
+        }
+        if (nextPlayer != null && nextPlayerPrepared) return
+        releaseNextPlayer()
+        if (!shouldUsePlatform(path)) return
+        try {
+            val p = MediaPlayer()
+            p.setAudioAttributes(
+                AudioAttributes.Builder()
+                    .setUsage(AudioAttributes.USAGE_MEDIA)
+                    .setContentType(AudioAttributes.CONTENT_TYPE_MUSIC)
+                    .build()
+            )
+            // Same audio session keeps the Visualizer tap (and any session
+            // effects) continuous across the handoff.
+            try { p.setAudioSessionId(cur.audioSessionId) } catch (ignored: Exception) {}
+            p.setDataSource(path)
+            p.setOnPreparedListener { mp ->
+                nextPlayerPrepared = true
+                try {
+                    player?.setNextMediaPlayer(mp)
+                } catch (e: Exception) {
+                    Log.w(TAG, "setNextMediaPlayer failed", e)
+                }
+            }
+            p.setOnErrorListener { _, what, extra ->
+                Log.w(TAG, "next-track prepare error what=$what extra=$extra; handoff disarmed")
+                releaseNextPlayer()
+                true
+            }
+            p.prepareAsync()
+            nextPlayer = p
+        } catch (e: Exception) {
+            Log.w(TAG, "next-track prepare failed", e)
+            releaseNextPlayer()
+        }
+    }
+
+    private fun releaseNextPlayer() {
+        nextPlayerPrepared = false
+        nextPlayer?.release()
+        nextPlayer = null
+    }
+
+    /**
+     * True when the platform core just completed a seamless framework
+     * handoff into [path] (the app's advance path resolved the same track).
+     * The caller then reloads only the native decoder for visualizers and
+     * skips the audible teardown/rebuild.
+     */
+    @JvmStatic
+    fun consumeHandoffIfMatches(path: String?): Boolean {
+        val pending = handoffPath
+        if (pending != null && path != null && pending == path) {
+            handoffPath = null
+            return true
+        }
+        return false
     }
 
     private fun fallbackToNative() {
@@ -437,12 +575,14 @@ internal object PlatformDolbyPlayer {
         prepared = false
         pendingStart = false
         lastKnownPlaying = false
+        handoffPath = null
         try {
             NativeBridge.onPlatformCoreInactive()
             NativeBridge.setOutputShadowMuted(false)
         } catch (ignored: Throwable) {}
         PlatformVisTap.stop()
         releasePlayer()
+        releaseNextPlayer()
         if (!wasPlaying) return
         // Native decoder is already loaded with the same path; resume there.
         // Native start (not NativeBridge.startEngine) so the routing layer

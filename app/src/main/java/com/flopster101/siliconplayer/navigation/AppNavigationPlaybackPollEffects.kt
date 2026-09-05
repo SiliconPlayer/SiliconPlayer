@@ -85,6 +85,7 @@ internal fun AppNavigationPlaybackPollEffects(
     subtuneCountProvider: () -> Int,
     currentSubtuneIndexProvider: () -> Int,
     activeRepeatModeProvider: () -> RepeatMode,
+    nextTrackPathProvider: () -> String?,
     currentPlaybackSourceIdProvider: () -> String?,
     playbackWatchPath: String?,
     metadataTitleProvider: () -> String,
@@ -301,6 +302,19 @@ internal fun AppNavigationPlaybackPollEffects(
                     val endedNaturally = snapshot.naturalEnd
                     if (endedNaturally && suppressTrackEndEvents) {
                         continue
+                    }
+                    // Platform Dolby core: prime a gapless framework handoff
+                    // while nearing the end of the track. Only repeat modes
+                    // that actually advance; restart/stop modes keep the
+                    // regular natural-end handling.
+                    if (!endedNaturally && nextIsPlaying && !nextSeekInProgress) {
+                        val repeatForHandoff = activeRepeatModeProvider()
+                        if (repeatForHandoff == RepeatMode.None || repeatForHandoff == RepeatMode.Playlist) {
+                            val remaining = nextDuration - nextPosition
+                            if (nextDuration > 0.0 && remaining in 0.0..5.0) {
+                                NativeBridge.preparePlatformHandoff(nextTrackPathProvider())
+                            }
+                        }
                     }
                     if (endedNaturally) {
                         val repeatMode = activeRepeatModeProvider()
