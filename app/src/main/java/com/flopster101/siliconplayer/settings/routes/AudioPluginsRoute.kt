@@ -111,7 +111,10 @@ internal fun AudioPluginsRouteContent(
     }
 
     fun shapeForIndex(index: Int): RoundedCornerShape {
-        val last = orderedPluginNames.lastIndex
+        // The virtual platform row renders after the native registry rows;
+        // count it in the group so the merged MD3 corners converge cleanly
+        // (row above it gets inner bottom corners, it gets outer bottom).
+        val last = orderedPluginNames.size
         return when {
             last <= 0 -> RoundedCornerShape(pluginRowOuterCorner)
             index == 0 -> RoundedCornerShape(
@@ -344,7 +347,7 @@ internal fun AudioPluginsRouteContent(
             contentAlpha = 1f,
             enableInteractions = true,
             switchEnabled = true,
-            shape = RoundedCornerShape(pluginRowOuterCorner),
+            shape = shapeForIndex(orderedPluginNames.size),
             subtitleOverride = "Claims 3 formats (system decode)",
             onMeasuredHeight = { },
             onDragStart = { },
