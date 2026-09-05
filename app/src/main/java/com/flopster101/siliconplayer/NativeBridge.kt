@@ -120,11 +120,13 @@ object NativeBridge {
     @JvmStatic
     fun startEngine() {
         if (PlatformDolbyPlayer.isActive()) {
-            // Shadow render: the engine keeps running (muted) for visualizers.
-            startEngineNative()
-            shadowRenderActive = true
-            shadowAlignAttempts = 0
-            lastShadowAlignMs = 0L
+            if (PlatformDolbyPlayer.isParallelVisEnabled()) {
+                // Shadow render: the engine keeps running (muted) for visualizers.
+                startEngineNative()
+                shadowRenderActive = true
+                shadowAlignAttempts = 0
+                lastShadowAlignMs = 0L
+            }
             PlatformDolbyPlayer.redirectPlay()
             return
         }
@@ -137,10 +139,12 @@ object NativeBridge {
     @JvmStatic
     fun startEngineWithPauseResumeFade() {
         if (PlatformDolbyPlayer.isActive()) {
-            startEngineNative()
-            shadowRenderActive = true
-            shadowAlignAttempts = 0
-            lastShadowAlignMs = 0L
+            if (PlatformDolbyPlayer.isParallelVisEnabled()) {
+                startEngineNative()
+                shadowRenderActive = true
+                shadowAlignAttempts = 0
+                lastShadowAlignMs = 0L
+            }
             PlatformDolbyPlayer.redirectPlay()
             return
         }
@@ -154,8 +158,10 @@ object NativeBridge {
     fun stopEngine() {
         if (PlatformDolbyPlayer.isActive()) {
             // Freeze the shadow engine so visualizers do not free-wheel ahead.
-            stopEngineNative()
-            shadowRenderActive = false
+            if (shadowRenderActive) {
+                stopEngineNative()
+                shadowRenderActive = false
+            }
             PlatformDolbyPlayer.redirectPause()
             return
         }
@@ -166,8 +172,10 @@ object NativeBridge {
     @JvmStatic
     fun stopEngineWithPauseResumeFade() {
         if (PlatformDolbyPlayer.isActive()) {
-            stopEngineNative()
-            shadowRenderActive = false
+            if (shadowRenderActive) {
+                stopEngineNative()
+                shadowRenderActive = false
+            }
             PlatformDolbyPlayer.redirectPause()
             return
         }
@@ -213,8 +221,10 @@ object NativeBridge {
     @JvmStatic
     fun seekTo(seconds: Double) {
         if (PlatformDolbyPlayer.isActive()) {
-            // Keep the shadow engine aligned with the platform player.
-            seekToImpl(seconds)
+            if (shadowRenderActive) {
+                // Keep the shadow engine aligned with the platform player.
+                seekToImpl(seconds)
+            }
             PlatformDolbyPlayer.seekTo(seconds)
             return
         }
@@ -267,6 +277,9 @@ object NativeBridge {
 
     @JvmStatic
     external fun setOutputShadowMuted(muted: Boolean)
+
+    @JvmStatic
+    external fun pushExternalVisualizationSamples(samples: FloatArray, count: Int)
 
     external fun getCurrentDecoderNameImpl(): String
 

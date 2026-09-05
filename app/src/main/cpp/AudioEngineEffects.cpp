@@ -802,6 +802,51 @@ void AudioEngine::updateVisualizationDataFromOutputCallback(
     visualizationLastCallbackNs = callbackNowNs;
 }
 
+void AudioEngine::pushExternalVisualizationSamples(
+        const float* mono,
+        int count,
+        float vuLevel) {
+    // External tap (e.g. android.media.audiofx.Visualizer while the platform
+    // Dolby core owns playback). Feeds the same ring buffers the output
+    // callback uses so all stereo visualizers keep working. The channel
+    // scope is not fed: the tap is post-downmix stereo, not multichannel.
+    if (!mono || count <= 0) {
+        return;
+    }
+    std::unique_lock<std::mutex> visLock(visualizationMutex, std::try_to_lock);
+    if (!visLock.owns_lock()) {
+        return;
+    }
+    constexpr int kHistoryMask = 16384 - 1;
+    int wIndex = visualizationScopeWriteIndex;
+    int mIndex = visualizationMonoWriteIndex;
+    double sumSq = 0.0;
+    for (int i = 0; i < count; ++i) {
+        const float sample = std::clamp(mono[i], -1.0f, 1.0f);
+        visualizationScopeHistoryLeft[wIndex] = sample;
+        visualizationScopeHistoryRight[wIndex] = sample;
+        visualizationMonoHistory[mIndex] = sample;
+        wIndex = (wIndex + 1) & kHistoryMask;
+        mIndex = (mIndex + 1) & kHistoryMask;
+        sumSq += static_cast<double>(sample) * sample;
+    }
+    visualizationScopeWriteIndex = wIndex;
+    visualizationMonoWriteIndex = mIndex;
+    if (vuLevel < 0.0f) {
+        // Derive VU from the samples themselves.
+        const float rms = static_cast<float>(std::sqrt(sumSq / static_cast<double>(count)));
+        visualizationVuLevels = { rms, rms };
+    } else {
+        const float level = std::clamp(vuLevel, 0.0f, 1.0f);
+        visualizationVuLevels = { level, level };
+    }
+    visualizationChannelCount.store(2, std::memory_order_relaxed);
+    visualizationLastCallbackFrames = count;
+    visualizationLastCallbackNs = std::chrono::duration_cast<std::chrono::nanoseconds>(
+            std::chrono::steady_clock::now().time_since_epoch()
+    ).count();
+}
+
 void AudioEngine::markVisualizationRequested(uint32_t features) const {
     const int64_t nowNs = std::chrono::duration_cast<std::chrono::nanoseconds>(
             std::chrono::steady_clock::now().time_since_epoch()

@@ -1149,6 +1149,20 @@ Java_com_flopster101_siliconplayer_NativeBridge_setOutputShadowMuted(JNIEnv*, jo
     audioEngine->setOutputShadowMuted(muted == JNI_TRUE);
 }
 
+extern "C" JNIEXPORT void JNICALL
+Java_com_flopster101_siliconplayer_NativeBridge_pushExternalVisualizationSamples(
+        JNIEnv* env, jobject, jfloatArray samples, jint count) {
+    if (audioEngine == nullptr || samples == nullptr) {
+        return;
+    }
+    jfloat* data = env->GetFloatArrayElements(samples, nullptr);
+    if (data == nullptr) {
+        return;
+    }
+    audioEngine->pushExternalVisualizationSamples(data, static_cast<int>(count), -1.0f);
+    env->ReleaseFloatArrayElements(samples, data, JNI_ABORT);
+}
+
 extern "C" JNIEXPORT jintArray JNICALL
 Java_com_flopster101_siliconplayer_NativeBridge_getChannelScopeTextState(JNIEnv* env, jobject, jint maxChannels) {
     if (audioEngine == nullptr) {

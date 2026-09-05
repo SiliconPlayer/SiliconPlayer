@@ -101,6 +101,7 @@ internal object PlatformDolbyPlayer {
             NativeBridge.onPlatformCoreInactive()
             NativeBridge.setOutputShadowMuted(false)
         } catch (ignored: Throwable) {}
+        PlatformVisTap.stop()
         releasePlayer()
         if (hadActive) {
             Log.i(TAG, "deactivated")
@@ -124,28 +125,94 @@ internal object PlatformDolbyPlayer {
     )
 
     /**
-     * Re-evaluate the shadow-render mute immediately (settings changed while
-     * a track is playing).
+     * Re-evaluate the shadow-render mute and vis tap immediately (settings
+     * changed while a track is playing).
      */
     @JvmStatic
     fun refreshShadowMute() {
-        if (active) {
-            NativeBridge.setOutputShadowMuted(isParallelVisEnabled())
+        if (!active) return
+        NativeBridge.setOutputShadowMuted(isParallelVisEnabled())
+        if (visSource() == VIS_SOURCE_SYSTEM && hasRecordAudioPermission()) {
+            val p = player
+            if (p != null) {
+                PlatformVisTap.start(p.audioSessionId)
+            }
+        } else {
+            PlatformVisTap.stop()
         }
+    }
+
+    /**
+     * Visualizer tap source for the platform core:
+     * 0 = shadow decoder (parallel muted render, full visualizers),
+     * 1 = Android system Visualizer (stereo, battery-friendly),
+     * 2 = none (frozen visualizers).
+     */
+    const val VIS_SOURCE_SHADOW = 0
+    const val VIS_SOURCE_SYSTEM = 1
+    const val VIS_SOURCE_NONE = 2
+
+    @JvmStatic
+    fun visSource(): Int = visSourceStorageValue()
+
+    @JvmStatic
+    fun setVisSourceStorageValue(value: Int) {
+        try {
+            NativeBridge.requireAppContext().getSharedPreferences(
+                AppPreferenceKeys.PREFS_NAME, Context.MODE_PRIVATE
+            ).edit().putInt(AppPreferenceKeys.PLATFORM_DOLBY_VIS_SOURCE, value).apply()
+        } catch (ignored: Throwable) {}
+    }
+
+    @JvmStatic
+    fun visSourceStorageValue(): Int = try {
+        NativeBridge.requireAppContext().getSharedPreferences(
+            AppPreferenceKeys.PREFS_NAME, Context.MODE_PRIVATE
+        ).getInt(AppPreferenceKeys.PLATFORM_DOLBY_VIS_SOURCE, VIS_SOURCE_SHADOW)
+    } catch (t: Throwable) {
+        VIS_SOURCE_SHADOW
+    }
+
+    @JvmStatic
+    fun hasRecordAudioPermission(): Boolean = try {
+        androidx.core.content.ContextCompat.checkSelfPermission(
+            NativeBridge.requireAppContext(),
+            android.Manifest.permission.RECORD_AUDIO
+        ) == android.content.pm.PackageManager.PERMISSION_GRANTED
+    } catch (t: Throwable) {
+        false
     }
 
     /**
      * True when the native engine should shadow-render muted so the
      * visualization pipeline keeps receiving data while this core owns
-     * audible playback.
+     * audible playback. Only the shadow source uses the engine; the system
+     * Visualizer taps the player session instead, and "none" freezes vis.
      */
     @JvmStatic
-    fun isParallelVisEnabled(): Boolean = try {
-        NativeBridge.requireAppContext().getSharedPreferences(
-            AppPreferenceKeys.PREFS_NAME, Context.MODE_PRIVATE
-        ).getBoolean(AppPreferenceKeys.PLATFORM_DOLBY_PARALLEL_VIS, true)
-    } catch (t: Throwable) {
-        true
+    fun isParallelVisEnabled(): Boolean {
+        if (visSource() != VIS_SOURCE_SHADOW) return false
+        return try {
+            NativeBridge.requireAppContext().getSharedPreferences(
+                AppPreferenceKeys.PREFS_NAME, Context.MODE_PRIVATE
+            ).getBoolean(AppPreferenceKeys.PLATFORM_DOLBY_PARALLEL_VIS, true)
+        } catch (t: Throwable) {
+            true
+        }
+    }
+
+    /**
+     * Start the system Visualizer tap when the configured source is the
+     * Android Visualizer and the permission is granted; otherwise stop it.
+     */
+    @JvmStatic
+    fun maybeStartFor(audioSessionId: Int) {
+        val source = visSource()
+        if (source == VIS_SOURCE_SYSTEM && hasRecordAudioPermission()) {
+            PlatformVisTap.start(audioSessionId)
+        } else {
+            PlatformVisTap.stop()
+        }
     }
 
     @JvmStatic
@@ -334,6 +401,7 @@ internal object PlatformDolbyPlayer {
                 p.setOnPreparedListener { mp ->
                     prepared = true
                     Log.i(TAG, "prepared (system decoder active)")
+                    maybeStartFor(mp.audioSessionId)
                     if (this@PlatformDolbyPlayer.pendingStart) {
                         this@PlatformDolbyPlayer.pendingStart = false
                         try {
@@ -374,6 +442,7 @@ internal object PlatformDolbyPlayer {
             NativeBridge.onPlatformCoreInactive()
             NativeBridge.setOutputShadowMuted(false)
         } catch (ignored: Throwable) {}
+        PlatformVisTap.stop()
         releasePlayer()
         if (!wasPlaying) return
         // Native decoder is already loaded with the same path; resume there.

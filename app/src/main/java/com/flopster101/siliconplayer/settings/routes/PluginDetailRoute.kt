@@ -14,6 +14,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import com.flopster101.siliconplayer.IntChoice
 import com.flopster101.siliconplayer.pluginsettings.AdPlugSettings
 import com.flopster101.siliconplayer.pluginsettings.CrsidSettings
 import com.flopster101.siliconplayer.pluginsettings.FfmpegSettings
@@ -571,6 +572,24 @@ private fun PlatformDolbyCoreDetailContent() {
             prefs.getBoolean(AppPreferenceKeys.PLATFORM_DOLBY_DECODER, AppDefaults.OutputPipeline.platformDolbyDecoder)
         )
     }
+    var visSource by remember {
+        androidx.compose.runtime.mutableIntStateOf(
+            com.flopster101.siliconplayer.playback.PlatformDolbyPlayer.visSourceStorageValue()
+        )
+    }
+    val hasRecordAudioPermission = remember {
+        mutableStateOf(com.flopster101.siliconplayer.playback.PlatformDolbyPlayer.hasRecordAudioPermission())
+    }
+    val recordAudioPermissionLauncher = androidx.activity.compose.rememberLauncherForActivityResult(
+        androidx.activity.result.contract.ActivityResultContracts.RequestPermission()
+    ) { granted ->
+        hasRecordAudioPermission.value = granted
+        if (!granted && visSource == com.flopster101.siliconplayer.playback.PlatformDolbyPlayer.VIS_SOURCE_SYSTEM) {
+            // Fall back to the shadow decoder if the mic permission is denied.
+            visSource = com.flopster101.siliconplayer.playback.PlatformDolbyPlayer.VIS_SOURCE_SHADOW
+            com.flopster101.siliconplayer.playback.PlatformDolbyPlayer.setVisSourceStorageValue(visSource)
+        }
+    }
     // Live component names: refresh while the page is open so codec
     // availability reflects the current device state.
     var claimedFormats by remember {
@@ -612,5 +631,58 @@ private fun PlatformDolbyCoreDetailContent() {
                 SettingsRowSpacer()
             }
         }
+
+        Spacer(modifier = Modifier.height(16.dp))
+        SettingsSectionLabel("Visualizer tap")
+        // Standardized single-choice modal: shadow decoder, Android system
+        // Visualizer, or none. Selecting the system tap requests the
+        // microphone permission first (Visualizer requires it).
+        val visSourceLabel = when (visSource) {
+            com.flopster101.siliconplayer.playback.PlatformDolbyPlayer.VIS_SOURCE_SYSTEM -> "Android system tap (stereo)"
+            com.flopster101.siliconplayer.playback.PlatformDolbyPlayer.VIS_SOURCE_NONE -> "None (frozen)"
+            else -> "Shadow decoder (full)"
+        }
+        val visSourceDescription = when (visSource) {
+            com.flopster101.siliconplayer.playback.PlatformDolbyPlayer.VIS_SOURCE_SYSTEM ->
+                if (hasRecordAudioPermission.value) {
+                    "Taps the system output mix. Stereo visualizers only."
+                } else {
+                    "Requires microphone access to capture the output mix."
+                }
+            com.flopster101.siliconplayer.playback.PlatformDolbyPlayer.VIS_SOURCE_NONE ->
+                "Visualizers freeze while this core is active."
+            else ->
+                "Renders the track silently in-app. All visualizers keep working."
+        }
+        CoreChoiceSelectorCard(
+            title = "Visualizer tap source",
+            description = visSourceDescription,
+            selectedValue = visSource,
+            options = listOf(
+                IntChoice(
+                    com.flopster101.siliconplayer.playback.PlatformDolbyPlayer.VIS_SOURCE_SHADOW,
+                    "Shadow decoder (full)"
+                ),
+                IntChoice(
+                    com.flopster101.siliconplayer.playback.PlatformDolbyPlayer.VIS_SOURCE_SYSTEM,
+                    "Android system tap (stereo)"
+                ),
+                IntChoice(
+                    com.flopster101.siliconplayer.playback.PlatformDolbyPlayer.VIS_SOURCE_NONE,
+                    "None (frozen)"
+                )
+            ),
+            onSelected = { selected ->
+                if (selected == com.flopster101.siliconplayer.playback.PlatformDolbyPlayer.VIS_SOURCE_SYSTEM &&
+                    !hasRecordAudioPermission.value
+                ) {
+                    recordAudioPermissionLauncher.launch(android.Manifest.permission.RECORD_AUDIO)
+                    return@CoreChoiceSelectorCard
+                }
+                visSource = selected
+                com.flopster101.siliconplayer.playback.PlatformDolbyPlayer.setVisSourceStorageValue(selected)
+                com.flopster101.siliconplayer.playback.PlatformDolbyPlayer.refreshShadowMute()
+            }
+        )
     }
 }

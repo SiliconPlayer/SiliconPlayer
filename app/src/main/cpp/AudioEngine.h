@@ -44,6 +44,7 @@ public:
     int getRepeatModeCapabilities();
     int getPlaybackCapabilities();
     int getTimelineMode();
+    void pushExternalVisualizationSamples(const float* mono, int count, float vuLevel);
     void setCoreOutputSampleRate(const std::string& coreName, int sampleRateHz);
     void setCoreOption(const std::string& coreName, const std::string& optionName, const std::string& optionValue);
     void setFastTrackSwitchStartupHint(bool enabled);

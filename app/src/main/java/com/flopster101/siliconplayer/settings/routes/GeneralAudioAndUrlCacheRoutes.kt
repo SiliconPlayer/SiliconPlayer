@@ -19,7 +19,6 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
-import com.flopster101.siliconplayer.playback.PlatformDolbyPlayer
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
@@ -241,18 +240,6 @@ internal fun GeneralAudioRouteContent(
         description = "Play Dolby Digital (E-AC-3 / AC-3) tracks with the system decoder so the device\'s Dolby processing (Atmos / spatializer) applies. Falls back to the FFmpeg core automatically if unsupported.",
         checked = state.platformDolbyDecoder,
         onCheckedChange = actions.onPlatformDolbyDecoderChanged
-    )
-    val parallelVisEnabled = remember { mutableStateOf(prefs.getBoolean(AppPreferenceKeys.PLATFORM_DOLBY_PARALLEL_VIS, true)) }
-    SettingsRowSpacer()
-    PlayerSettingToggleCard(
-        title = "Visualizer tap while Dolby core is active",
-        description = "Keep the internal engine rendering muted alongside the system decoder so visualizers keep working. Disable to save battery at the cost of frozen visualizers.",
-        checked = parallelVisEnabled.value,
-        onCheckedChange = {
-            parallelVisEnabled.value = it
-            prefs.edit().putBoolean(AppPreferenceKeys.PLATFORM_DOLBY_PARALLEL_VIS, it).apply()
-            PlatformDolbyPlayer.refreshShadowMute()
-        }
     )
     SettingsRowSpacer()
     PlayerSettingToggleCard(
