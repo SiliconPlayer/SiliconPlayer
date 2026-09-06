@@ -205,8 +205,11 @@ bool AudioEngine::createMiniaudioStream() {
      * platform spatializer/Dolby stage). */
     const bool multichannelSharedOutput =
         !uac.isStreaming() && !bitPerfectModeEnabled && targetChannels > 2;
+    const ma_performance_profile kPerformanceProfilePowerSaving = (ma_performance_profile)2; /* fork extension: AAUDIO_PERFORMANCE_MODE_POWER_SAVING */
     if (outputPerformanceMode == 1 && !multichannelSharedOutput) {
         deviceConfig.performanceProfile = ma_performance_profile_low_latency;
+    } else if (outputPerformanceMode == 3 && !multichannelSharedOutput) {
+        deviceConfig.performanceProfile = kPerformanceProfilePowerSaving;
     } else {
         deviceConfig.performanceProfile = ma_performance_profile_conservative;
     }
