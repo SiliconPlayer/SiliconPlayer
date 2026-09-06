@@ -573,6 +573,11 @@ int AudioEngine::provideUacDirectFrames(uint8_t* dst, int maxFrames, const silic
         const int want = std::min(maxFrames - framesFilled, 256 / ch);
         int got = popUacFifo(block, want, ch);
         if (got <= 0) {
+            static int sUacUnderrunLogs = 0;
+            if (sUacUnderrunLogs < 20) {
+                sUacUnderrunLogs++;
+                LOGW("UAC FIFO underrun at pump pull; repriming 200ms");
+            }
             const int remaining = maxFrames - framesFilled;
             std::memset(outCursor, 0, remaining * ch * subslot);
             framesFilled = maxFrames;
@@ -723,7 +728,12 @@ void AudioEngine::uacFeederLoop() {
         renderOutputCallbackFrames(chunk.data(), want, fmt.sampleRateHz, &copied);
         if (copied > 0) {
             pushUacFifo(chunk.data(), copied, ch);
-        } else {
+        } else if (isPlaying.load(std::memory_order_relaxed)) {
+            static int sUacFeedStarveLogs = 0;
+            if (sUacFeedStarveLogs < 20) {
+                sUacFeedStarveLogs++;
+                LOGW("UAC feeder got no frames from render worker (fifo=%d frames)", fifoFrames);
+            }
             std::this_thread::sleep_for(std::chrono::milliseconds(10));
         }
     }

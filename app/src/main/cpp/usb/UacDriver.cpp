@@ -1,6 +1,7 @@
 #include "UacDriver.h"
 
 #include <android/log.h>
+#include <cerrno>
 #include <algorithm>
 #include <cstring>
 #include <pthread.h>
@@ -850,7 +851,10 @@ bool UacDriver::startIsoPump() {
         sched_param sp{};
         sp.sched_priority = 2;
         if (sched_setscheduler(0, SCHED_FIFO, &sp) != 0) {
+            LOGW("SCHED_FIFO denied for iso event thread (errno %d); using nice -16", errno);
             setpriority(PRIO_PROCESS, tid, -16);
+        } else {
+            LOGI("SCHED_FIFO priority 2 granted for iso event thread");
         }
         while (!stopRequested_.load(std::memory_order_acquire) || inflight_.load(std::memory_order_acquire) > 0) {
             timeval tv{0, 50000};
@@ -974,6 +978,16 @@ void UacDriver::onIso(libusb_transfer* xfr) {
         totalFramesThisTransfer += frames;
     }
     playedFrames_.fetch_add(totalFramesThisTransfer, std::memory_order_relaxed);
+
+    // Wire-health signal: abnormal statuses fall through to resubmit, so
+    // surface them instead of letting glitches happen silently.
+    if (xfr->status != LIBUSB_TRANSFER_COMPLETED) {
+        static int sIsoStatusLogs = 0;
+        if (sIsoStatusLogs < 20) {
+            sIsoStatusLogs++;
+            LOGW("iso transfer status %d (%s)", static_cast<int>(xfr->status), libusb_error_name(static_cast<int>(xfr->status)));
+        }
+    }
 
     if (libusb_submit_transfer(xfr) != LIBUSB_SUCCESS) {
         inflight_.fetch_sub(1, std::memory_order_relaxed);
