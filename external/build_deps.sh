@@ -2329,6 +2329,32 @@ build_furnace() {
         echo "Warning: furnace mobile define pattern not found; continuing without patch."
     fi
 
+    # puNES osc taps fire only on sequencer events, so per-channel scopes
+    # zoom into a sparse staircase. Write channel outputs every tick instead
+    # (values only change on events anyway). Idempotent via marker.
+    local APU_FILE="$PROJECT_PATH/src/engine/platform/sound/nes/apu.cpp"
+    if grep -Fq "dense osc taps" "$APU_FILE"; then
+        echo "furnace puNES dense osc taps already applied."
+    elif grep -Fq "rem-=advance;" "$APU_FILE"; then
+        awk '
+            /^[[:space:]]*rem-=advance;[[:space:]]*$/ && !done {
+                print ""
+                print "    // dense osc taps: record channel outputs every tick, not just on"
+                print "    // sequencer events, so per-channel scopes survive zooming"
+                print "    a->oscBuf[0]->putSample(postTS,a->muted[0]?0:(a->S1.output<<11));"
+                print "    a->oscBuf[1]->putSample(postTS,a->muted[1]?0:(a->S2.output<<11));"
+                print "    a->oscBuf[2]->putSample(postTS,a->muted[2]?0:(a->TR.output<<11));"
+                print "    a->oscBuf[3]->putSample(postTS,a->muted[3]?0:(a->NS.output<<11));"
+                print "    a->oscBuf[4]->putSample(postTS,a->muted[4]?0:(a->DMC.output<<8));"
+                done=1
+            }
+            { print }
+        ' "$APU_FILE" > "$APU_FILE.tmp" && mv "$APU_FILE.tmp" "$APU_FILE"
+        echo "Patched furnace puNES osc taps for per-channel scope."
+    else
+        echo "Warning: puNES apu.cpp pattern not found; continuing without patch."
+    fi
+
     if ! cmake -Wno-dev -Wno-deprecated \
         -S "$PROJECT_PATH" \
         -B "$BUILD_DIR" \
