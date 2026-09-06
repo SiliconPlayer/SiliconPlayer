@@ -86,16 +86,7 @@ fun supportsMonetTheming(): Boolean = Build.VERSION.SDK_INT >= Build.VERSION_COD
 fun defaultUseMonetForCurrentApi(): Boolean = supportsMonetTheming()
 
 fun AudioBackendPreference.defaultPerformanceMode(): AudioPerformanceMode {
-    return when (this) {
-        AudioBackendPreference.Auto,
-        AudioBackendPreference.AAudio,
-        AudioBackendPreference.WASAPI,
-        AudioBackendPreference.ALSA,
-        AudioBackendPreference.PulseAudio,
-        AudioBackendPreference.JACK,
-        AudioBackendPreference.CoreAudio -> AudioPerformanceMode.LowLatency
-        else -> AudioPerformanceMode.None
-    }
+    return AudioPerformanceMode.None
 }
 
 fun AudioBackendPreference.defaultBufferPreset(): AudioBufferPreset {

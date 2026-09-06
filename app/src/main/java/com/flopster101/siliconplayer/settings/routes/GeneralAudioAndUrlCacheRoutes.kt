@@ -158,7 +158,7 @@ internal fun GeneralAudioRouteContent(
         selectedMode = state.audioPerformanceMode,
         onSelectedModeChanged = actions.onAudioPerformanceModeChanged,
         title = "${selectedBackend.label} performance mode",
-        description = "Stream mode for ${selectedBackend.label}. Low latency is recommended for responsive playback; power saving reduces CPU overhead."
+        description = "Stream mode for ${selectedBackend.label}. None uses the platform's power-efficient deep buffer; low latency trades it for responsiveness."
     )
     SettingsRowSpacer()
     AudioBufferPresetSelectorCard(
