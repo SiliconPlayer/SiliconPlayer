@@ -1140,6 +1140,10 @@ bool FFmpegDecoder::reopenSmbContextForSeekLocked(double seconds) {
     close();
     decoderDrainStarted = false;
     if (!openLocked(reopenPath.c_str())) {
+        // Keep the path and mode flags addressable so later seeks retry the reopen.
+        openedPath = reopenPath;
+        repeatMode = preservedRepeatMode;
+        gaplessRepeatTrack = preservedGaplessRepeatTrack;
         return false;
     }
 
