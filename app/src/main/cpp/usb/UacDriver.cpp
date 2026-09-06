@@ -37,7 +37,7 @@ constexpr uint8_t FORMAT_TYPE_I         = 0x01;
 constexpr uint8_t REQ_SET_CUR              = 0x01;
 constexpr uint16_t CS_SAM_FREQ_CONTROL_SEL = 0x01;
 
-constexpr int kNumTransfers = 4;
+constexpr int kNumTransfers = 8;
 constexpr size_t kRingBytes = 1u << 20;
 
 inline size_t ringSize(size_t head, size_t tail) {
@@ -791,9 +791,9 @@ bool UacDriver::startIsoPump() {
     }
 
     // Coalesce packets per URB: high speed caps a transfer at 4 ms of wire
-    // time (32 microframe packets), full speed uses 16. Four transfers stay
-    // queued, so completions land ~250x/s instead of 8000x/s and the wire
-    // queue tolerates tens of ms of event-thread stalls.
+    // time (32 microframe packets), full speed uses 16. Eight transfers stay
+    // queued, so the wire holds ~32 ms of pre-filled audio and tolerates
+    // event-thread stalls even when SCHED_FIFO is denied.
     packetsPerTransfer_ = format_.isHighSpeed
         ? std::clamp(32 / packetIntervalUframes, 16, 32)
         : 16;
