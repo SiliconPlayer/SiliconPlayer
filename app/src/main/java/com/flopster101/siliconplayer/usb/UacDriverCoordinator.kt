@@ -388,6 +388,9 @@ object UacDriverCoordinator {
         if (_isStreaming.value) {
             UacDriverNative.nativeStop()
             _isStreaming.value = false
+            // The engine callback gates on this flag; leaving it set after the
+            // pump dies would mute every other output until the next track.
+            NativeBridge.setBitPerfectMode(false)
             Log.i(TAG, "UAC stream stopped")
         }
     }
