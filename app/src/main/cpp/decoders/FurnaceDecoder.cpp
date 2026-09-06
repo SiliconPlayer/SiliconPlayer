@@ -116,6 +116,8 @@ void captureFurnaceOscBufferWindow(
     const unsigned short needle = static_cast<unsigned short>(oscBuffer->needle >> OSCBUF_PREC);
     const unsigned short start = static_cast<unsigned short>(needle - windowSize);
     float currentSample = 0.0f;
+    float minValue = 1.0f;
+    float maxValue = -1.0f;
 
     for (int i = 0; i < samplesPerChannel; ++i) {
         const int sourceOffset = (i * windowSize) / samplesPerChannel;
@@ -129,8 +131,19 @@ void captureFurnaceOscBufferWindow(
             currentSample = 0.0f;
         } else {
             currentSample = static_cast<float>(rawSample) / 32768.0f;
+            if (currentSample < minValue) minValue = currentSample;
+            if (currentSample > maxValue) maxValue = currentSample;
         }
         destination[i] = currentSample;
+    }
+
+    // Chip DAC taps are unipolar (NES/GB put unsigned output); upstream's own
+    // per-channel scope centers each window the same way by default.
+    if (maxValue > minValue) {
+        const float midpoint = (minValue + maxValue) * 0.5f;
+        for (int i = 0; i < samplesPerChannel; ++i) {
+            destination[i] -= midpoint;
+        }
     }
 }
 } // namespace
