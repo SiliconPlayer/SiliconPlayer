@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
@@ -49,6 +50,7 @@ import com.flopster101.siliconplayer.ChoiceDialogOption
 import com.flopster101.siliconplayer.SettingsSingleChoiceDialog
 import com.flopster101.siliconplayer.usb.DirectUacVolumeMode
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -57,6 +59,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.Layout
 import androidx.compose.ui.layout.Placeable
 import androidx.compose.ui.platform.LocalContext
@@ -71,6 +74,10 @@ import com.flopster101.siliconplayer.DecoderArtworkHint
 import com.flopster101.siliconplayer.NativeBridge
 import com.flopster101.siliconplayer.R
 import com.flopster101.siliconplayer.WatchDialogContainer
+import com.flopster101.siliconplayer.VerticalScrollbarTrack
+import com.flopster101.siliconplayer.onSizeChangedDeferred
+import com.flopster101.siliconplayer.rememberDialogScrollbarAlpha
+import com.flopster101.siliconplayer.rememberScrollStateScrollbarDragHandler
 import com.flopster101.siliconplayer.adaptiveDialogModifier
 import com.flopster101.siliconplayer.adaptiveDialogProperties
 import com.flopster101.siliconplayer.isWatchDevice
@@ -378,6 +385,24 @@ internal fun AudioOutputDetailsDialog(
         return
     }
 
+    val bodyScrollState = rememberScrollState()
+    var bodyViewportHeightPx by remember { mutableFloatStateOf(0f) }
+    val bodyThumbFraction = remember(bodyScrollState.maxValue, bodyViewportHeightPx) {
+        if (bodyViewportHeightPx <= 0f) 1f else {
+            val contentHeight = bodyViewportHeightPx + bodyScrollState.maxValue.toFloat()
+            (bodyViewportHeightPx / contentHeight).coerceIn(0.08f, 1f)
+        }
+    }
+    val bodyOffsetFraction = remember(bodyScrollState.value, bodyScrollState.maxValue) {
+        if (bodyScrollState.maxValue <= 0) 0f else bodyScrollState.value.toFloat() / bodyScrollState.maxValue.toFloat()
+    }
+    val bodyScrollbarAlpha = rememberDialogScrollbarAlpha(
+        enabled = true,
+        scrollState = bodyScrollState,
+        label = "audioOutputDetailsScrollbarAlpha"
+    )
+    val bodyDragToFraction = rememberScrollStateScrollbarDragHandler(bodyScrollState)
+
     Dialog(
         onDismissRequest = onDismiss,
         properties = adaptiveDialogProperties()
@@ -436,14 +461,20 @@ internal fun AudioOutputDetailsDialog(
                 }
 
                 // 2. Scrollable Body
-                Column(
+                Box(
                     modifier = Modifier
                         .fillMaxWidth()
                         .heightIn(max = 540.dp)
-                        .verticalScroll(rememberScrollState())
-                        .padding(horizontal = 18.dp, vertical = 2.dp),
-                    verticalArrangement = Arrangement.spacedBy(14.dp)
+                        .onSizeChangedDeferred { bodyViewportHeightPx = it.height.toFloat() }
                 ) {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(end = 10.dp)
+                            .verticalScroll(bodyScrollState)
+                            .padding(horizontal = 18.dp, vertical = 2.dp),
+                        verticalArrangement = Arrangement.spacedBy(14.dp)
+                    ) {
 
                     // Section: Signal Chain Graph
                     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -874,6 +905,22 @@ internal fun AudioOutputDetailsDialog(
                             }
                         }
                     }
+                }
+
+                if (bodyScrollState.maxValue > 0 && bodyViewportHeightPx > 0f) {
+                    VerticalScrollbarTrack(
+                        thumbFraction = bodyThumbFraction,
+                        offsetFraction = bodyOffsetFraction,
+                        modifier = Modifier
+                            .align(Alignment.CenterEnd)
+                            .width(4.dp)
+                            .fillMaxHeight()
+                            .graphicsLayer(alpha = bodyScrollbarAlpha),
+                        trackColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.12f),
+                        thumbColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.42f),
+                        onDragFractionChanged = bodyDragToFraction
+                    )
+                }
                 }
 
                 // 3. Dialog Action Buttons Footer

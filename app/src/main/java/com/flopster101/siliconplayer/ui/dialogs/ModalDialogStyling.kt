@@ -18,6 +18,7 @@ import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
@@ -47,12 +48,16 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Dp
@@ -61,6 +66,10 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import com.flopster101.siliconplayer.adaptiveDialogModifier
 import com.flopster101.siliconplayer.adaptiveDialogProperties
+import com.flopster101.siliconplayer.VerticalScrollbarTrack
+import com.flopster101.siliconplayer.onSizeChangedDeferred
+import com.flopster101.siliconplayer.rememberDialogScrollbarAlpha
+import com.flopster101.siliconplayer.rememberScrollStateScrollbarDragHandler
 
 /**
  * Shared MD3 visual language for player floating dialogs: dark surfaceContainer
@@ -79,6 +88,23 @@ internal fun FloatingActionDialog(
     bodyMaxHeight: Dp = 460.dp,
     content: @Composable ColumnScope.() -> Unit
 ) {
+    val scrollState = rememberScrollState()
+    var viewportHeightPx by remember { mutableFloatStateOf(0f) }
+    val thumbFraction = remember(scrollState.maxValue, viewportHeightPx) {
+        if (viewportHeightPx <= 0f) 1f else {
+            val contentHeight = viewportHeightPx + scrollState.maxValue.toFloat()
+            (viewportHeightPx / contentHeight).coerceIn(0.08f, 1f)
+        }
+    }
+    val offsetFraction = remember(scrollState.value, scrollState.maxValue) {
+        if (scrollState.maxValue <= 0) 0f else scrollState.value.toFloat() / scrollState.maxValue.toFloat()
+    }
+    val scrollbarAlpha = rememberDialogScrollbarAlpha(
+        enabled = true,
+        scrollState = scrollState,
+        label = "floatingActionDialogScrollbarAlpha"
+    )
+    val dragToFraction = rememberScrollStateScrollbarDragHandler(scrollState)
     Dialog(onDismissRequest = onDismiss, properties = adaptiveDialogProperties()) {
         Surface(
             modifier = adaptiveDialogModifier(),
@@ -99,15 +125,37 @@ internal fun FloatingActionDialog(
                         color = MaterialTheme.colorScheme.onSurface
                     )
                 }
-                Column(
+                Box(
                     modifier = Modifier
                         .fillMaxWidth()
                         .heightIn(max = bodyMaxHeight)
-                        .verticalScroll(rememberScrollState())
-                        .padding(horizontal = 20.dp, vertical = 8.dp),
-                    verticalArrangement = Arrangement.spacedBy(16.dp),
-                    content = content
-                )
+                        .onSizeChangedDeferred { viewportHeightPx = it.height.toFloat() }
+                ) {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(end = 10.dp)
+                            .verticalScroll(scrollState)
+                            .padding(horizontal = 20.dp, vertical = 8.dp),
+                        verticalArrangement = Arrangement.spacedBy(16.dp),
+                        content = content
+                    )
+
+                    if (scrollState.maxValue > 0 && viewportHeightPx > 0f) {
+                        VerticalScrollbarTrack(
+                            thumbFraction = thumbFraction,
+                            offsetFraction = offsetFraction,
+                            modifier = Modifier
+                                .align(Alignment.CenterEnd)
+                                .width(4.dp)
+                                .fillMaxHeight()
+                                .graphicsLayer(alpha = scrollbarAlpha),
+                            trackColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.12f),
+                            thumbColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.42f),
+                            onDragFractionChanged = dragToFraction
+                        )
+                    }
+                }
                 if (confirmText != null && onConfirm != null) {
                     FilledTonalButton(
                         onClick = onConfirm,
