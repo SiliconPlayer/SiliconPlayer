@@ -195,7 +195,6 @@ internal fun GeneralAudioRouteContent(
     val bitPerfectSupportStatus = remember(driverMethod) {
         BitPerfectCoordinator.checkBitPerfectSupport(context, driverMethod)
     }
-    val isBitPerfectSupported = bitPerfectSupportStatus == BitPerfectSupportStatus.Supported
     val (bitPerfectDesc, bitPerfectColor) = when (bitPerfectSupportStatus) {
         BitPerfectSupportStatus.Supported -> {
             Pair(
@@ -236,8 +235,7 @@ internal fun GeneralAudioRouteContent(
     PlayerSettingToggleCard(
         title = "Bit-perfect USB audio",
         description = bitPerfectDesc,
-        checked = state.bitPerfectUsbAudio && isBitPerfectSupported,
-        enabled = isBitPerfectSupported,
+        checked = state.bitPerfectUsbAudio,
         descriptionColor = bitPerfectColor,
         badgeText = driverBadge,
         errorText = if (driverMethod == BitPerfectDriverMethod.DirectUac) uacLastError else null,
@@ -261,8 +259,6 @@ internal fun GeneralAudioRouteContent(
                             actions.onBitPerfectUsbAudioChanged(false)
                         }
                     }
-                } else {
-                    actions.onBitPerfectUsbAudioChanged(false)
                 }
             } else if (!targetEnabled) {
                 com.flopster101.siliconplayer.usb.UacDriverCoordinator.close()

@@ -747,7 +747,7 @@ internal fun AudioOutputDetailsDialog(
                                     ) {
                                         Column(modifier = Modifier.weight(1f)) {
                                             Text(
-                                                text = "Lossless USB direct access",
+                                                text = "Bit-perfect USB audio",
                                                 style = MaterialTheme.typography.titleMedium,
                                                 fontWeight = FontWeight.SemiBold,
                                                 color = MaterialTheme.colorScheme.onSurface
