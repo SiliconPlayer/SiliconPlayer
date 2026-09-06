@@ -25,12 +25,6 @@ interface PluginSettingsBuilder {
      * This section only appears if options are added to it.
      */
     fun coreOptions(block: PluginSettingsSectionBuilder.() -> Unit)
-
-    /**
-     * Add generic output options section.
-     * This section always appears and typically contains sample rate settings.
-     */
-    fun genericOutputOptions(block: PluginSettingsSectionBuilder.() -> Unit)
 }
 
 /**

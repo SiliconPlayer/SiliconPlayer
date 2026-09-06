@@ -12,8 +12,6 @@ import com.flopster101.siliconplayer.*
  * OpenMPT has extensive core-specific options plus generic output options.
  */
 class OpenMptSettings(
-    private val sampleRateHz: Int,
-    private val capabilities: Int,
     private val stereoSeparationPercent: Int,
     private val stereoSeparationAmigaPercent: Int,
     private val interpolationFilterLength: Int,
@@ -23,7 +21,6 @@ class OpenMptSettings(
     private val ft2XmVolumeRamping: Boolean,
     private val masterGainMilliBel: Int,
     private val surroundEnabled: Boolean,
-    private val onSampleRateChanged: (Int) -> Unit,
     private val onStereoSeparationPercentChanged: (Int) -> Unit,
     private val onStereoSeparationAmigaPercentChanged: (Int) -> Unit,
     private val onInterpolationFilterLengthChanged: (Int) -> Unit,
@@ -32,8 +29,7 @@ class OpenMptSettings(
     private val onVolumeRampingStrengthChanged: (Int) -> Unit,
     private val onFt2XmVolumeRampingChanged: (Boolean) -> Unit,
     private val onMasterGainMilliBelChanged: (Int) -> Unit,
-    private val onSurroundEnabledChanged: (Boolean) -> Unit,
-    private val includeSampleRateControl: Boolean = true
+    private val onSurroundEnabledChanged: (Boolean) -> Unit
 ) : PluginSettings {
 
     @Composable
@@ -157,21 +153,6 @@ class OpenMptSettings(
                 message = "This forces the Amiga resampler onto non-Amiga modules too. High-channel module files can become extremely CPU-intensive and may stutter audio or freeze the UI on weaker devices.",
                 onDismiss = { showApplyAllModulesWarning = false }
             )
-        }
-
-        if (includeSampleRateControl) {
-            // Generic output options
-            builder.genericOutputOptions {
-                custom {
-                    SampleRateSelectorCard(
-                        title = "Render sample rate",
-                        description = "Preferred internal render sample rate for this core. Audio is resampled to the active output stream rate.",
-                        selectedHz = sampleRateHz,
-                        enabled = supportsCustomSampleRate(capabilities),
-                        onSelected = onSampleRateChanged
-                    )
-                }
-            }
         }
     }
 }

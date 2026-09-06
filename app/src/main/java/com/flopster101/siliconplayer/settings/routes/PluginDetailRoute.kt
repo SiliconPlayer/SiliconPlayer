@@ -322,16 +322,11 @@ internal fun PluginDetailRouteContent(
 
     val pluginSettings: PluginSettings? = when (pluginName) {
         DecoderNames.FFMPEG -> FfmpegSettings(
-            sampleRateHz = state.ffmpegSampleRateHz,
-            capabilities = selectedCoreCapabilities,
             gaplessRepeatTrack = state.ffmpegGaplessRepeatTrack,
-            onSampleRateChanged = actions.onFfmpegSampleRateChanged,
             onGaplessRepeatTrackChanged = actions.onFfmpegGaplessRepeatTrackChanged
         )
 
         DecoderNames.LIB_OPEN_MPT -> OpenMptSettings(
-            sampleRateHz = state.openMptSampleRateHz,
-            capabilities = state.openMptCapabilities,
             stereoSeparationPercent = state.openMptStereoSeparationPercent,
             stereoSeparationAmigaPercent = state.openMptStereoSeparationAmigaPercent,
             interpolationFilterLength = state.openMptInterpolationFilterLength,
@@ -341,7 +336,6 @@ internal fun PluginDetailRouteContent(
             ft2XmVolumeRamping = state.openMptFt2XmVolumeRamping,
             masterGainMilliBel = state.openMptMasterGainMilliBel,
             surroundEnabled = state.openMptSurroundEnabled,
-            onSampleRateChanged = actions.onOpenMptSampleRateChanged,
             onStereoSeparationPercentChanged = actions.onOpenMptStereoSeparationPercentChanged,
             onStereoSeparationAmigaPercentChanged = actions.onOpenMptStereoSeparationAmigaPercentChanged,
             onInterpolationFilterLengthChanged = actions.onOpenMptInterpolationFilterLengthChanged,
@@ -351,27 +345,22 @@ internal fun PluginDetailRouteContent(
             onFt2XmVolumeRampingChanged = actions.onOpenMptFt2XmVolumeRampingChanged,
             onMasterGainMilliBelChanged = actions.onOpenMptMasterGainMilliBelChanged,
             onSurroundEnabledChanged = actions.onOpenMptSurroundEnabledChanged,
-            includeSampleRateControl = false
         )
 
         DecoderNames.VGM_PLAY -> VgmPlaySettings(
-            sampleRateHz = state.vgmPlaySampleRateHz,
-            capabilities = state.vgmPlayCapabilities,
             loopCount = state.vgmPlayLoopCount,
             allowNonLoopingLoop = state.vgmPlayAllowNonLoopingLoop,
             vsyncRate = state.vgmPlayVsyncRate,
             resampleMode = state.vgmPlayResampleMode,
             chipSampleMode = state.vgmPlayChipSampleMode,
             chipSampleRate = state.vgmPlayChipSampleRate,
-            onSampleRateChanged = actions.onVgmPlaySampleRateChanged,
             onLoopCountChanged = actions.onVgmPlayLoopCountChanged,
             onAllowNonLoopingLoopChanged = actions.onVgmPlayAllowNonLoopingLoopChanged,
             onVsyncRateChanged = actions.onVgmPlayVsyncRateChanged,
             onResampleModeChanged = actions.onVgmPlayResampleModeChanged,
             onChipSampleModeChanged = actions.onVgmPlayChipSampleModeChanged,
             onChipSampleRateChanged = actions.onVgmPlayChipSampleRateChanged,
-            onOpenChipSettings = actions.onOpenVgmPlayChipSettings,
-            includeSampleRateControl = false
+            onOpenChipSettings = actions.onOpenVgmPlayChipSettings
         )
 
         DecoderNames.GAME_MUSIC_EMU -> GmeSettings(

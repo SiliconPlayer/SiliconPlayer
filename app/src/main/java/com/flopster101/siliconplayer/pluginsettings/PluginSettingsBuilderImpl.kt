@@ -13,18 +13,11 @@ import com.flopster101.siliconplayer.SettingsRowSpacer
  */
 class PluginSettingsBuilderImpl : PluginSettingsBuilder {
     private val coreOptionsContent = mutableListOf<@Composable () -> Unit>()
-    private val genericOutputOptionsContent = mutableListOf<@Composable () -> Unit>()
 
     override fun coreOptions(block: PluginSettingsSectionBuilder.() -> Unit) {
         val sectionBuilder = PluginSettingsSectionBuilderImpl()
         sectionBuilder.block()
         coreOptionsContent.addAll(sectionBuilder.getContent())
-    }
-
-    override fun genericOutputOptions(block: PluginSettingsSectionBuilder.() -> Unit) {
-        val sectionBuilder = PluginSettingsSectionBuilderImpl()
-        sectionBuilder.block()
-        genericOutputOptionsContent.addAll(sectionBuilder.getContent())
     }
 
     /**
@@ -33,19 +26,9 @@ class PluginSettingsBuilderImpl : PluginSettingsBuilder {
     fun hasCoreOptions(): Boolean = coreOptionsContent.isNotEmpty()
 
     /**
-     * Check if generic output options section has content.
-     */
-    fun hasGenericOutputOptions(): Boolean = genericOutputOptionsContent.isNotEmpty()
-
-    /**
      * Get the core options content.
      */
     fun getCoreOptionsContent(): List<@Composable () -> Unit> = coreOptionsContent
-
-    /**
-     * Get the generic output options content.
-     */
-    fun getGenericOutputOptionsContent(): List<@Composable () -> Unit> = genericOutputOptionsContent
 }
 
 /**
@@ -93,15 +76,6 @@ fun RenderPluginSettings(
         Spacer(modifier = Modifier.height(16.dp))
         settingsSectionLabel("Core options")
         builder.getCoreOptionsContent().forEach { content ->
-            content()
-        }
-    }
-
-    // Render generic output options section if it has content
-    if (builder.hasGenericOutputOptions()) {
-        Spacer(modifier = Modifier.height(16.dp))
-        settingsSectionLabel("Generic output options")
-        builder.getGenericOutputOptionsContent().forEach { content ->
             content()
         }
     }

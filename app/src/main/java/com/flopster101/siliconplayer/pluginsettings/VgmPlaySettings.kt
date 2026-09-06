@@ -6,31 +6,25 @@ import com.flopster101.siliconplayer.IntChoice
 import com.flopster101.siliconplayer.CoreChoiceSelectorCard
 import com.flopster101.siliconplayer.CoreDialogSliderCard
 import com.flopster101.siliconplayer.PlayerSettingToggleCard
-import com.flopster101.siliconplayer.SampleRateSelectorCard
 import com.flopster101.siliconplayer.SettingsRowSpacer
 import com.flopster101.siliconplayer.SettingsValuePickerCard
 import com.flopster101.siliconplayer.VgmChipCoreSpec
 import com.flopster101.siliconplayer.VgmPlayConfig
-import com.flopster101.siliconplayer.supportsCustomSampleRate
 
 internal class VgmPlaySettings(
-    private val sampleRateHz: Int,
-    private val capabilities: Int,
     private val loopCount: Int,
     private val allowNonLoopingLoop: Boolean,
     private val vsyncRate: Int,
     private val resampleMode: Int,
     private val chipSampleMode: Int,
     private val chipSampleRate: Int,
-    private val onSampleRateChanged: (Int) -> Unit,
     private val onLoopCountChanged: (Int) -> Unit,
     private val onAllowNonLoopingLoopChanged: (Boolean) -> Unit,
     private val onVsyncRateChanged: (Int) -> Unit,
     private val onResampleModeChanged: (Int) -> Unit,
     private val onChipSampleModeChanged: (Int) -> Unit,
     private val onChipSampleRateChanged: (Int) -> Unit,
-    private val onOpenChipSettings: () -> Unit,
-    private val includeSampleRateControl: Boolean = true
+    private val onOpenChipSettings: () -> Unit
 ) : PluginSettings {
 
     @Composable
@@ -103,20 +97,6 @@ internal class VgmPlaySettings(
                     description = "Choose emulator core per sound chip.",
                     onClick = onOpenChipSettings
                 )
-            }
-        }
-
-        if (includeSampleRateControl) {
-            builder.genericOutputOptions {
-                custom {
-                    SampleRateSelectorCard(
-                        title = "Render sample rate",
-                        description = "Preferred internal render sample rate for this core. Audio is resampled to the active output stream rate.",
-                        selectedHz = sampleRateHz,
-                        enabled = supportsCustomSampleRate(capabilities),
-                        onSelected = onSampleRateChanged
-                    )
-                }
             }
         }
     }
