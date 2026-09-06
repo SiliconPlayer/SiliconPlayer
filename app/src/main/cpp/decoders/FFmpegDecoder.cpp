@@ -930,6 +930,15 @@ int FFmpegDecoder::read(float* buffer, int numFrames) {
                     framesForPosition = 0;
                     continue;
                 }
+                // Tagless files in loop-point mode have no native wrap;
+                // repeat the whole track instead.
+                if (repeatMode == 2) {
+                    if (!seekInternalLocked(0.0)) {
+                        break;
+                    }
+                    framesForPosition = 0;
+                    continue;
+                }
                 // For regular repeat-track mode, optionally seek internally and continue
                 // filling this request without returning an EOF boundary gap.
                 if (repeatMode == 1 && gaplessRepeatTrack) {
