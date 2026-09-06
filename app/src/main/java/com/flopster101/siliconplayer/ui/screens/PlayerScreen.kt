@@ -83,7 +83,7 @@ import androidx.compose.material.icons.filled.SkipNext
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.filled.StarBorder
 import androidx.compose.material.icons.filled.Stop
-import androidx.compose.material.icons.rounded.Stop
+import androidx.compose.material.icons.sharp.Stop
 import android.bluetooth.BluetoothDevice
 import android.content.BroadcastReceiver
 import android.content.Intent
@@ -4460,7 +4460,7 @@ private fun TransportControls(
                     )
                 ) {
                     Icon(
-                        imageVector = Icons.Rounded.Stop,
+                        imageVector = Icons.Sharp.Stop,
                         contentDescription = "Stop",
                         modifier = Modifier.size(stopIconSize)
                     )
@@ -6244,7 +6244,7 @@ private fun WearPlayerContent(
                             modifier = Modifier.size(actionBtnSize)
                         ) {
                             Icon(
-                                imageVector = Icons.Rounded.Stop,
+                                imageVector = Icons.Sharp.Stop,
                                 contentDescription = "Stop",
                                 modifier = Modifier.size(actionIconSize),
                                 tint = MaterialTheme.colorScheme.onSurfaceVariant

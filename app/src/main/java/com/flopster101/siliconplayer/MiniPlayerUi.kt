@@ -36,6 +36,7 @@ import androidx.compose.material.icons.filled.SkipNext
 import androidx.compose.material.icons.filled.SkipPrevious
 import androidx.compose.material.icons.filled.Stop
 import androidx.compose.material.icons.filled.Videocam
+import androidx.compose.material.icons.sharp.Stop
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
@@ -448,7 +449,7 @@ internal fun MiniPlayerBar(
                             .size(controlButtonSize)
                     ) {
                         Icon(
-                            imageVector = Icons.Default.Stop,
+                            imageVector = Icons.Sharp.Stop,
                             contentDescription = "Stop",
                             modifier = Modifier.size(controlIconSize)
                         )

@@ -45,7 +45,7 @@ import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.SkipNext
 import androidx.compose.material.icons.filled.SkipPrevious
 import androidx.compose.material.icons.filled.VisibilityOff
-import androidx.compose.material.icons.rounded.Stop
+import androidx.compose.material.icons.sharp.Stop
 import androidx.compose.material3.FilledIconButton
 import androidx.compose.material3.FilledTonalIconButton
 import androidx.compose.material3.Icon
@@ -154,7 +154,7 @@ private fun FullscreenTransportControls(
                     disabledContentColor = Color.White.copy(alpha = 0.38f)
                 )
             ) {
-                Icon(Icons.Rounded.Stop, contentDescription = "Stop", modifier = Modifier.size(24.dp))
+                Icon(Icons.Sharp.Stop, contentDescription = "Stop", modifier = Modifier.size(24.dp))
             }
         }
 
