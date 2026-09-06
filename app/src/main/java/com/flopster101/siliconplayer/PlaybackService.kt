@@ -1376,6 +1376,7 @@ class PlaybackService : Service() {
 
     private fun duckAudio() {
         if (isDucked) return
+        if (BitPerfectCoordinator.isBitPerfectInUse(prefs, this)) return
         isDucked = true
         originalMasterVolume = NativeBridge.getMasterGain()
         // Duck to -12dB (about 25% volume)

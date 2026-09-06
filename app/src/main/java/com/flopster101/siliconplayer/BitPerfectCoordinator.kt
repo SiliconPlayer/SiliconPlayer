@@ -1,6 +1,7 @@
 package com.flopster101.siliconplayer
 
 import android.content.Context
+import android.content.SharedPreferences
 import android.media.AudioAttributes
 import android.media.AudioDeviceInfo
 import android.media.AudioFormat
@@ -353,6 +354,12 @@ object BitPerfectCoordinator {
         return runCatching {
             audioManager.clearPreferredMixerAttributes(mediaAudioAttributes, device)
         }.getOrDefault(false)
+    }
+
+    fun isBitPerfectInUse(prefs: SharedPreferences, context: Context): Boolean {
+        if (!prefs.getBoolean(AppPreferenceKeys.BIT_PERFECT_USB_AUDIO, false)) return false
+        return com.flopster101.siliconplayer.usb.UacDriverCoordinator.isStreaming.value ||
+            com.flopster101.siliconplayer.usb.UacDriverCoordinator.findUsbAudioDevice(context) != null
     }
 
     fun isBitPerfectActive(context: Context): Boolean {

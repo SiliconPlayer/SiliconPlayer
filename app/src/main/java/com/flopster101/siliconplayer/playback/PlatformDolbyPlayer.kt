@@ -8,6 +8,7 @@ import android.os.Handler
 import android.os.HandlerThread
 import android.util.Log
 import com.flopster101.siliconplayer.AppPreferenceKeys
+import com.flopster101.siliconplayer.BitPerfectCoordinator
 import com.flopster101.siliconplayer.NativeBridge
 import java.io.File
 
@@ -431,7 +432,7 @@ internal object PlatformDolbyPlayer {
         if (!prefs.getBoolean(AppPreferenceKeys.PLATFORM_DOLBY_DECODER, true)) return false
         // Bit-perfect owns the output only while it actually drives it; the
         // toggle alone must not suppress the platform core on other routes.
-        if (isBitPerfectInUse(prefs, context)) return false
+        if (BitPerfectCoordinator.isBitPerfectInUse(prefs, context)) return false
         if (!isRemoteSource(path)) {
             if (!path.startsWith("/") || !File(path).exists()) return false
         }
@@ -455,12 +456,6 @@ internal object PlatformDolbyPlayer {
         }
         codecName = component
         return true
-    }
-
-    private fun isBitPerfectInUse(prefs: android.content.SharedPreferences, context: Context): Boolean {
-        if (!prefs.getBoolean(AppPreferenceKeys.BIT_PERFECT_USB_AUDIO, false)) return false
-        return com.flopster101.siliconplayer.usb.UacDriverCoordinator.isStreaming.value ||
-            com.flopster101.siliconplayer.usb.UacDriverCoordinator.findUsbAudioDevice(context) != null
     }
 
     private fun resolvePlatformDolbyDecoder(mime: String): String? = try {
