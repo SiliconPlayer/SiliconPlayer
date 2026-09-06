@@ -218,6 +218,13 @@ int AudioEngine::readFromDecoderLocked(float* buffer, int numFrames, int channel
                 return framesRead;
             }
         }
+        static std::atomic<int> exhaustedLoopPointLogs{0};
+        if (exhaustedLoopPointLogs.fetch_add(1) < 5) {
+            LOGD(
+                    "Loop-point mode: decoder returned no frames after 32 retries (pos=%.2f)",
+                    decoder->getPlaybackPositionSeconds()
+            );
+        }
     }
 
     if (mode == 3) {
