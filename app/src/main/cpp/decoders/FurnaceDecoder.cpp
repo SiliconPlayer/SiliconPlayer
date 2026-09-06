@@ -1308,7 +1308,18 @@ std::vector<int32_t> FurnaceDecoder::getChannelScopeTextState(int maxChannels) {
 std::vector<std::string> FurnaceDecoder::getSupportedExtensions() {
     return {
             "fur",
-            "dmf"
+            "dmf",
+            "ftm",
+            "dnm",
+            "dnft",
+            "eft",
+            "fc",
+            "tfm",
+            "tfe",
+            "mod",
+            "xm",
+            "s3m",
+            "it"
     };
 }
 

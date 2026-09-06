@@ -177,7 +177,7 @@ internal object AboutCatalog {
             id = "core.furnace",
             kind = AboutEntityKind.Core,
             name = DecoderNames.FURNACE,
-            description = "Furnace Tracker playback core for .fur/.dmf modules using the upstream headless engine.",
+            description = "Furnace Tracker playback core for .fur/.dmf modules plus imported tracker formats (.ftm, .fc, .tfm, .mod, .xm, .s3m, .it) using the upstream headless engine.",
             author = "tildearrow and Furnace contributors",
             license = "GPL-2.0-or-later",
             links = listOf(

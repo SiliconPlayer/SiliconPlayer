@@ -424,7 +424,12 @@ namespace {
                 }
                 return AudioDecoder::OPTION_APPLY_LIVE;
             };
-            DecoderRegistry::getInstance().registerDecoder("Furnace", {"fur", "dmf"}, []() {
+            DecoderRegistry::getInstance().registerDecoder("Furnace", {
+                    "fur", "dmf",
+                    "ftm", "dnm", "dnft", "eft",
+                    "fc", "tfm", "tfe",
+                    "mod", "xm", "s3m", "it"
+            }, []() {
                 return DecoderPluginLoader::getInstance().createDecoder("libsiliconplayer_furnace_decoder.so");
             }, 16, std::move(furnaceStaticInfo));
         }
