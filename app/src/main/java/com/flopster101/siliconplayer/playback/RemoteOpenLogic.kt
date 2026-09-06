@@ -1,5 +1,6 @@
 package com.flopster101.siliconplayer
 
+import android.util.Log
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.TimeoutCancellationException
@@ -113,6 +114,7 @@ internal suspend fun executeManualRemoteOpen(
             }
 
             is DirectStreamOpenResult.Fallback -> {
+                Log.i("RemoteOpen", "Direct stream fallback for ${resolved.sourceId}: ${directResult.reason}")
                 streamingFailureReason = directResult.reason
             }
         }
