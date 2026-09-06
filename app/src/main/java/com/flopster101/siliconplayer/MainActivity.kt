@@ -2777,7 +2777,6 @@ onStopEngine = { NativeBridge.releaseCurrentDecoder() }, onMetadataAlbumChanged 
             lastStoppedFile = null
             lastStoppedSourceId = null
         },
-        urlOrPathForceCachingProvider = { settingsStates.urlOrPathForceCaching.value },
         isPlayerExpandedProvider = { isPlayerExpanded },
         selectedFileProvider = { selectedFile },
         currentPlaybackSourceIdProvider = { settingsStates.currentPlaybackSourceId.value },

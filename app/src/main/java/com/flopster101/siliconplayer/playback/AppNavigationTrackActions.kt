@@ -114,7 +114,6 @@ internal fun resumeLastStoppedTrackAction(
     lastStoppedFile: File?,
     lastStoppedSourceId: String?,
     autoStart: Boolean,
-    urlOrPathForceCaching: Boolean,
     isPlayerExpanded: Boolean,
     onApplyTrackSelection: (file: File, autoStart: Boolean, expandOverride: Boolean?) -> Unit,
     onApplyManualInputSelection: (String, ManualSourceOpenOptions, Boolean?) -> Unit,
@@ -129,7 +128,7 @@ internal fun resumeLastStoppedTrackAction(
         is ResumeTarget.SourceId -> {
             onApplyManualInputSelection(
                 target.sourceId,
-                ManualSourceOpenOptions(forceCaching = urlOrPathForceCaching),
+                ManualSourceOpenOptions(),
                 isPlayerExpanded
             )
             true
@@ -147,7 +146,6 @@ internal fun playAdjacentTrackAction(
     currentPlaybackSourceId: String?,
     visiblePlayableFiles: List<File>,
     visiblePlayableSourceIds: List<String>,
-    urlOrPathForceCaching: Boolean,
     isPlayerExpanded: Boolean,
     offset: Int,
     playlistWrapNavigation: Boolean,
@@ -200,7 +198,7 @@ internal fun playAdjacentTrackAction(
         val targetSourceId = visiblePlayableSourceIds.getOrNull(targetIndex) ?: return false
         onApplyManualInputSelection(
             targetSourceId,
-            ManualSourceOpenOptions(forceCaching = urlOrPathForceCaching),
+            ManualSourceOpenOptions(),
             isPlayerExpanded
         )
     }
