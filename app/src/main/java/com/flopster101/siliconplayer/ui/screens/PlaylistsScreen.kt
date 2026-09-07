@@ -25,7 +25,6 @@ import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectDragGestures
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.Image
@@ -80,6 +79,7 @@ import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Share
+import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Shuffle
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.filled.SwapVert
@@ -96,9 +96,6 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.LargeTopAppBar
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.MenuDefaults
-import androidx.compose.material3.Checkbox
-import androidx.compose.material3.LinearProgressIndicator
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Tab
@@ -167,10 +164,7 @@ import com.flopster101.siliconplayer.data.parseArchiveSourceId
 import com.flopster101.siliconplayer.library.LibraryAlbum
 import com.flopster101.siliconplayer.library.LibraryArtist
 import com.flopster101.siliconplayer.library.LibraryCollections
-import com.flopster101.siliconplayer.library.LibraryContract
 import com.flopster101.siliconplayer.library.LibraryRepository
-import com.flopster101.siliconplayer.library.LibraryScanRoot
-import com.flopster101.siliconplayer.library.LibraryScanRootStore
 import com.flopster101.siliconplayer.library.LibrarySyncState
 import com.flopster101.siliconplayer.loadArtworkForFile
 import androidx.compose.ui.graphics.ImageBitmap
@@ -409,6 +403,7 @@ private fun PlaylistsTopBarMarqueeText(
 internal fun PlaylistsScreen(
     libraryState: PlaylistLibraryState,
     libraryCollections: LibraryCollections,
+    onOpenLibrarySettings: () -> Unit,
     activePlaylist: StoredPlaylist?,
     currentPlaybackSourceId: String?,
     currentSubtuneIndex: Int,
@@ -446,7 +441,6 @@ internal fun PlaylistsScreen(
     var librarySyncState by remember { mutableStateOf(LibrarySyncState()) }
     var libraryCollectionsOverride by remember { mutableStateOf<LibraryCollections?>(null) }
     val effectiveLibraryCollections = libraryCollectionsOverride ?: libraryCollections
-    var showLibraryRootsDialog by rememberSaveable { mutableStateOf(false) }
     val libraryTabs = rememberLibraryTabs()
     val pagerState = rememberPagerState(
         initialPage = selectedTabIndex,
@@ -642,9 +636,9 @@ internal fun PlaylistsScreen(
                                         contentDescription = "Scan library now"
                                     )
                                 }
-                                IconButton(onClick = { showLibraryRootsDialog = true }) {
+                                IconButton(onClick = onOpenLibrarySettings) {
                                     Icon(
-                                        imageVector = Icons.Default.FolderOpen,
+                                        imageVector = Icons.Default.Settings,
                                         contentDescription = "Library sources"
                                     )
                                 }
@@ -1003,17 +997,6 @@ internal fun PlaylistsScreen(
                 }
             }
         }
-    }
-    if (showLibraryRootsDialog) {
-        LibraryRootsDialog(
-            onDismiss = { showLibraryRootsDialog = false },
-            onSourcesChanged = {
-                coroutineScope.launch {
-                    libraryCollectionsOverride = LibraryRepository.collections(context, forceSync = true)
-                    librarySyncState = LibrarySyncState(lastSyncedAtMs = System.currentTimeMillis())
-                }
-            }
-        )
     }
     if (showDeleteAllFavoritesConfirm) {
         if (isWatch) {
@@ -1608,124 +1591,6 @@ private fun ArtistLibraryRow(
             )
         }
     }
-}
-
-@Composable
-private fun LibraryRootsDialog(
-    onDismiss: () -> Unit,
-    onSourcesChanged: () -> Unit
-) {
-    val context = LocalContext.current
-    val coroutineScope = rememberCoroutineScope()
-    var roots by remember { mutableStateOf(LibraryScanRootStore.loadRoots(context)) }
-    var autoScanEnabled by remember {
-        mutableStateOf(LibraryScanRootStore.autoScanEnabled(context))
-    }
-    var pathInput by remember { mutableStateOf("") }
-
-    fun persistRoots(updated: List<LibraryScanRoot>) {
-        roots = updated
-        LibraryScanRootStore.saveRoots(context, updated)
-    }
-
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text("Library sources") },
-        text = {
-            Column(
-                modifier = Modifier.verticalScroll(rememberScrollState()),
-                verticalArrangement = Arrangement.spacedBy(10.dp)
-            ) {
-                Text(
-                    text = "MediaStore is included by default. Scanner folders add tracks directly from storage, including formats MediaStore cannot index.",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-                if (roots.isEmpty()) {
-                    Text(
-                        text = "No scanner folders yet.",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                } else {
-                    roots.forEach { root ->
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Checkbox(
-                                checked = root.enabled,
-                                onCheckedChange = { checked ->
-                                    persistRoots(roots.map {
-                                        if (it.path == root.path) it.copy(enabled = checked) else it
-                                    })
-                                    onSourcesChanged()
-                                }
-                            )
-                            Text(
-                                text = root.path,
-                                style = MaterialTheme.typography.bodySmall,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis,
-                                modifier = Modifier.weight(1f)
-                            )
-                            IconButton(onClick = {
-                                persistRoots(roots.filterNot { it.path == root.path })
-                                onSourcesChanged()
-                            }) {
-                                Icon(
-                                    imageVector = Icons.Default.Delete,
-                                    contentDescription = "Remove folder"
-                                )
-                            }
-                        }
-                    }
-                }
-                OutlinedTextField(
-                    value = pathInput,
-                    onValueChange = { pathInput = it },
-                    label = { Text("Add folder path") },
-                    placeholder = { Text("/storage/emulated/0/Music") },
-                    singleLine = true,
-                    modifier = Modifier.fillMaxWidth()
-                )
-                TextButton(
-                    onClick = {
-                        val trimmed = pathInput.trim()
-                        val directory = File(trimmed)
-                        if (trimmed.isNotEmpty() && directory.isDirectory &&
-                            roots.none { it.path == directory.absolutePath }
-                        ) {
-                            persistRoots(roots + LibraryScanRoot(directory.absolutePath))
-                            pathInput = ""
-                            coroutineScope.launch {
-                                LibraryRepository.setSourceEnabled(
-                                    context,
-                                    LibraryContract.SOURCE_SCANNER,
-                                    true
-                                )
-                            }
-                            onSourcesChanged()
-                        }
-                    }
-                ) {
-                    Text("Add folder")
-                }
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Checkbox(
-                        checked = autoScanEnabled,
-                        onCheckedChange = { checked ->
-                            autoScanEnabled = checked
-                            LibraryScanRootStore.setAutoScanEnabled(context, checked)
-                        }
-                    )
-                    Text("Scan automatically when the library opens")
-                }
-            }
-        },
-        confirmButton = {
-            TextButton(onClick = onDismiss) { Text("Done") }
-        }
-    )
 }
 
 @Composable

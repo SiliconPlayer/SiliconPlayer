@@ -3958,6 +3958,8 @@ filenameOnlyWhenTitleMissing = filenameOnlyWhenTitleMissing,
                         },
                                     onOpenAudioPlugins = { openSettingsRoute(SettingsRoute.AudioPlugins, false) },
                                     onOpenGeneralAudio = { openSettingsRoute(SettingsRoute.GeneralAudio, false) },
+                                    onOpenLibrary = { openSettingsRoute(SettingsRoute.Library, false) },
+                                    onOpenLibraryScanner = { openSettingsRoute(SettingsRoute.LibraryScanner, false) },
                                     onOpenHome = { openSettingsRoute(SettingsRoute.Home, false) },
                                     onOpenFileBrowser = { openSettingsRoute(SettingsRoute.FileBrowser, false) },
                                     onOpenNetwork = { openSettingsRoute(SettingsRoute.Network, false) },
@@ -4501,6 +4503,14 @@ filenameOnlyWhenTitleMissing = filenameOnlyWhenTitleMissing,
                                     .takeUnless { it == MainView.Settings }
                                     ?: MainView.Home
                             openSettingsRoute(SettingsRoute.Root, true)
+                            currentView = MainView.Settings
+                        },
+                        onOpenLibrarySettings = {
+                            settingsReturnView =
+                                (if (currentView == MainView.Settings) settingsReturnView else currentView)
+                                    .takeUnless { it == MainView.Settings }
+                                    ?: MainView.Home
+                            openSettingsRoute(SettingsRoute.Library, true)
                             currentView = MainView.Settings
                         },
                         context = context,

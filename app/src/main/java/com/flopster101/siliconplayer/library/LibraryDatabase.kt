@@ -105,6 +105,12 @@ internal interface LibraryTrackDao {
     @Query("SELECT COUNT(*) FROM library_tracks")
     suspend fun trackCount(): Int
 
+    @Query("SELECT COUNT(*) FROM library_tracks WHERE sourceId IN (SELECT id FROM library_sources WHERE enabled = 1)")
+    suspend fun enabledTrackCount(): Int
+
+    @Query("SELECT COUNT(*) FROM library_tracks WHERE sourceId = :sourceId")
+    suspend fun trackCountForSource(sourceId: String): Long
+
     @Query("SELECT path, sourceId FROM library_tracks")
     suspend fun trackSourcePairs(): List<LibraryTrackSourcePair>
 
@@ -123,6 +129,7 @@ internal interface LibraryTrackDao {
                MAX(year) AS year,
                MIN(path) AS artworkPath
         FROM library_tracks
+        WHERE sourceId IN (SELECT id FROM library_sources WHERE enabled = 1)
         GROUP BY name, artist
         ORDER BY name COLLATE NOCASE ASC
         """
@@ -136,6 +143,7 @@ internal interface LibraryTrackDao {
                MIN(path) AS artworkPath
         FROM library_tracks
         WHERE artist != ''
+          AND sourceId IN (SELECT id FROM library_sources WHERE enabled = 1)
         GROUP BY artist
         ORDER BY name COLLATE NOCASE ASC
         """
@@ -147,6 +155,9 @@ internal interface LibraryTrackDao {
 internal interface LibrarySourceDao {
     @Query("SELECT * FROM library_sources WHERE id = :id")
     suspend fun source(id: String): LibrarySourceEntity?
+
+    @Query("SELECT * FROM library_sources ORDER BY id")
+    suspend fun allSources(): List<LibrarySourceEntity>
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun upsertSource(source: LibrarySourceEntity)

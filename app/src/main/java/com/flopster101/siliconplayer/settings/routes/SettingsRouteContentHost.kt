@@ -1,5 +1,7 @@
 package com.flopster101.siliconplayer
 
+import com.flopster101.siliconplayer.settings.routes.LibraryScannerRouteContent
+import com.flopster101.siliconplayer.settings.routes.LibrarySettingsRouteContent
 import android.content.pm.PackageManager
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.core.FastOutLinearInEasing
@@ -104,6 +106,8 @@ internal fun SettingsRouteContentHost(
                             actions = RootRouteActions(
                                 onOpenAudioPlugins = actions.onOpenAudioPlugins,
                                 onOpenGeneralAudio = actions.onOpenGeneralAudio,
+                                onOpenLibrary = actions.onOpenLibrary,
+                                onOpenLibraryScanner = actions.onOpenLibraryScanner,
                                 onOpenPlayer = actions.onOpenPlayer,
                                 onOpenHome = actions.onOpenHome,
                                 onOpenFileBrowser = actions.onOpenFileBrowser,
@@ -245,6 +249,16 @@ internal fun SettingsRouteContentHost(
                                 onBitPerfectUsbAudioChanged = actions.onBitPerfectUsbAudioChanged
                             )
                         )
+                    }
+
+                    SettingsRoute.Library -> {
+                        LibrarySettingsRouteContent(
+                            onOpenScanner = actions.onOpenLibraryScanner
+                        )
+                    }
+
+                    SettingsRoute.LibraryScanner -> {
+                        LibraryScannerRouteContent()
                     }
 
                     SettingsRoute.Home -> {
@@ -522,6 +536,8 @@ internal fun settingsSecondaryTitle(route: SettingsRoute, selectedPluginName: St
         SettingsRoute.UrlCache -> "Cache settings"
         SettingsRoute.CacheManager -> "Manage cached files"
         SettingsRoute.GeneralAudio -> "General audio"
+        SettingsRoute.Library -> "Library"
+        SettingsRoute.LibraryScanner -> "Storage scanner"
         SettingsRoute.Home -> "Home settings"
         SettingsRoute.FileBrowser -> "File browser settings"
         SettingsRoute.Network -> "Network settings"

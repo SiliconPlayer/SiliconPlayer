@@ -14,13 +14,19 @@ data class LibrarySyncState(
     val lastSyncedAtMs: Long = 0L
 )
 
+data class LibrarySourceStatus(
+    val id: String,
+    val enabled: Boolean,
+    val lastSyncMs: Long,
+    val trackCount: Long
+)
+
 object LibraryRepository {
 
     private const val SYNC_STALENESS_MS = 15 * 60 * 1000L
 
     private val syncMutex = Mutex()
     private var cachedState = LibrarySyncState()
-    private var cachedCollections: LibraryCollections? = null
 
     suspend fun collections(context: Context, forceSync: Boolean = false): LibraryCollections =
         withContext(Dispatchers.IO) {
@@ -50,7 +56,7 @@ object LibraryRepository {
                 }
             }
 
-            val trackCount = trackDao.trackCount()
+            val trackCount = trackDao.enabledTrackCount()
             val collections = if (trackCount == 0) {
                 LibraryCollections(albums = emptyList(), artists = emptyList(), trackCount = 0, isSyncing = didSync)
             } else {
@@ -77,7 +83,6 @@ object LibraryRepository {
                     isSyncing = didSync
                 )
             }
-            cachedCollections = collections
             collections
         }
 
@@ -116,12 +121,47 @@ object LibraryRepository {
         return db.sourceDao().source(sourceId)?.enabled ?: (sourceId == LibraryContract.SOURCE_MEDIASTORE)
     }
 
+    suspend fun scanRoots(context: Context): List<LibraryScanRoot> = LibraryScanRootStore.loadRoots(context)
+
+    suspend fun setScanRoots(context: Context, roots: List<LibraryScanRoot>) {
+        LibraryScanRootStore.saveRoots(context, roots)
+    }
+
+    suspend fun scannerExtensions(context: Context): Set<String> = LibraryScanRootStore.loadExtensions(context)
+
+    suspend fun setScannerExtensions(context: Context, extensions: Set<String>) {
+        LibraryScanRootStore.saveExtensions(context, extensions)
+    }
+
+    suspend fun autoScanEnabled(context: Context): Boolean = LibraryScanRootStore.autoScanEnabled(context)
+
+    suspend fun setAutoScanEnabled(context: Context, enabled: Boolean) {
+        LibraryScanRootStore.setAutoScanEnabled(context, enabled)
+    }
+
+    suspend fun sourceStatuses(context: Context): List<LibrarySourceStatus> =
+        withContext(Dispatchers.IO) {
+            val db = LibraryDatabase.get(context)
+            ensureSourceDefaults(db.sourceDao())
+            db.sourceDao().allSources().map { source ->
+                LibrarySourceStatus(
+                    id = source.id,
+                    enabled = source.enabled,
+                    lastSyncMs = source.lastSyncMs,
+                    trackCount = if (source.enabled) {
+                        db.trackDao().trackCountForSource(source.id)
+                    } else {
+                        0L
+                    }
+                )
+            }
+        }
+
     suspend fun setSourceEnabled(context: Context, sourceId: String, enabled: Boolean) {
         val db = LibraryDatabase.get(context)
         db.sourceDao().upsertSource(
             LibrarySourceEntity(id = sourceId, enabled = enabled, lastSyncMs = 0L)
         )
-        cachedCollections = null
     }
 
     private suspend fun syncAllLocked(

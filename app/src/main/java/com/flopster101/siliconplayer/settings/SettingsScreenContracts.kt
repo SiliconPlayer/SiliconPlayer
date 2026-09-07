@@ -245,6 +245,8 @@ internal data class SettingsScreenActions(
     val onBack: () -> Unit,
     val onOpenAudioPlugins: () -> Unit,
     val onOpenGeneralAudio: () -> Unit,
+    val onOpenLibrary: () -> Unit,
+    val onOpenLibraryScanner: () -> Unit,
     val onOpenHome: () -> Unit,
     val onOpenFileBrowser: () -> Unit,
     val onOpenNetwork: () -> Unit,

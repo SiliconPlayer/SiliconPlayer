@@ -7,6 +7,7 @@ import androidx.compose.material.icons.filled.Folder
 import androidx.compose.material.icons.filled.GraphicEq
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.Info
+import androidx.compose.material.icons.filled.LibraryMusic
 import androidx.compose.material.icons.filled.Link
 import androidx.compose.material.icons.filled.MoreHoriz
 import androidx.compose.material.icons.filled.Palette
@@ -21,6 +22,8 @@ import com.flopster101.siliconplayer.pluginsettings.VgmPlayChipSettingsScreen
 internal data class RootRouteActions(
     val onOpenAudioPlugins: () -> Unit,
     val onOpenGeneralAudio: () -> Unit,
+    val onOpenLibrary: () -> Unit,
+    val onOpenLibraryScanner: () -> Unit,
     val onOpenPlayer: () -> Unit,
     val onOpenHome: () -> Unit,
     val onOpenFileBrowser: () -> Unit,
@@ -85,6 +88,8 @@ internal fun RootRouteContent(
 ) {
     val onOpenAudioPlugins = actions.onOpenAudioPlugins
     val onOpenGeneralAudio = actions.onOpenGeneralAudio
+    val onOpenLibrary = actions.onOpenLibrary
+    val onOpenLibraryScanner = actions.onOpenLibraryScanner
     val onOpenPlayer = actions.onOpenPlayer
     val onOpenHome = actions.onOpenHome
     val onOpenFileBrowser = actions.onOpenFileBrowser
@@ -109,6 +114,13 @@ internal fun RootRouteContent(
         description = "Global output and playback behavior.",
         icon = Icons.Default.Tune,
         onClick = onOpenGeneralAudio
+    )
+    SettingsRowSpacer()
+    SettingsItemCard(
+        title = "Library",
+        description = "Media sources, scanner folders and file types.",
+        icon = Icons.Default.LibraryMusic,
+        onClick = onOpenLibrary
     )
     SettingsRowSpacer()
     SettingsItemCard(
