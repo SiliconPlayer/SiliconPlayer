@@ -52,6 +52,11 @@ data class LibraryArtistRow(
     val artworkPath: String?
 )
 
+data class LibraryTrackSourcePair(
+    val path: String,
+    val sourceId: String
+)
+
 object LibraryContract {
     const val SOURCE_MEDIASTORE = "mediastore"
     const val SOURCE_SCANNER = "scanner"
@@ -99,6 +104,9 @@ internal interface LibraryTrackDao {
 
     @Query("SELECT COUNT(*) FROM library_tracks")
     suspend fun trackCount(): Int
+
+    @Query("SELECT path, sourceId FROM library_tracks")
+    suspend fun trackSourcePairs(): List<LibraryTrackSourcePair>
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun upsertTracks(tracks: List<LibraryTrackEntity>)

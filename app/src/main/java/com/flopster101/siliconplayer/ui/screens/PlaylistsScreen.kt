@@ -25,6 +25,8 @@ import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectDragGestures
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.pager.HorizontalPager
@@ -76,6 +78,7 @@ import androidx.compose.material.icons.filled.LibraryMusic
 import androidx.compose.material.icons.filled.MoreHoriz
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.material.icons.filled.Shuffle
 import androidx.compose.material.icons.filled.Star
@@ -93,6 +96,9 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.LargeTopAppBar
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.MenuDefaults
+import androidx.compose.material3.Checkbox
+import androidx.compose.material3.LinearProgressIndicator
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Tab
@@ -161,6 +167,11 @@ import com.flopster101.siliconplayer.data.parseArchiveSourceId
 import com.flopster101.siliconplayer.library.LibraryAlbum
 import com.flopster101.siliconplayer.library.LibraryArtist
 import com.flopster101.siliconplayer.library.LibraryCollections
+import com.flopster101.siliconplayer.library.LibraryContract
+import com.flopster101.siliconplayer.library.LibraryRepository
+import com.flopster101.siliconplayer.library.LibraryScanRoot
+import com.flopster101.siliconplayer.library.LibraryScanRootStore
+import com.flopster101.siliconplayer.library.LibrarySyncState
 import com.flopster101.siliconplayer.loadArtworkForFile
 import androidx.compose.ui.graphics.ImageBitmap
 import java.io.File
@@ -432,6 +443,10 @@ internal fun PlaylistsScreen(
     var selectedStoredPlaylistId by rememberSaveable { mutableStateOf<String?>(null) }
     var selectedTabIndex by rememberSaveable { mutableIntStateOf(0) }
     var albumCollectionLayout by rememberSaveable { mutableStateOf(AlbumCollectionLayout.Grid) }
+    var librarySyncState by remember { mutableStateOf(LibrarySyncState()) }
+    var libraryCollectionsOverride by remember { mutableStateOf<LibraryCollections?>(null) }
+    val effectiveLibraryCollections = libraryCollectionsOverride ?: libraryCollections
+    var showLibraryRootsDialog by rememberSaveable { mutableStateOf(false) }
     val libraryTabs = rememberLibraryTabs()
     val pagerState = rememberPagerState(
         initialPage = selectedTabIndex,
@@ -599,6 +614,40 @@ internal fun PlaylistsScreen(
                                     imageVector = Icons.AutoMirrored.Filled.ArrowBack,
                                     contentDescription = "Go back"
                                 )
+                            }
+                        },
+                        actions = {
+                            if (!showingPlaylistDetail && !isWatch) {
+                                if (librarySyncState.isScanning) {
+                                    Text(
+                                        text = "${librarySyncState.indexedTracks} new",
+                                        style = MaterialTheme.typography.labelMedium,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        modifier = Modifier.padding(end = 10.dp)
+                                    )
+                                }
+                                IconButton(
+                                    onClick = {
+                                        coroutineScope.launch {
+                                            LibraryRepository.runManualScan(context) { state ->
+                                                librarySyncState = state
+                                            }
+                                            val refreshed = LibraryRepository.collections(context)
+                                            libraryCollectionsOverride = refreshed
+                                        }
+                                    }
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.Refresh,
+                                        contentDescription = "Scan library now"
+                                    )
+                                }
+                                IconButton(onClick = { showLibraryRootsDialog = true }) {
+                                    Icon(
+                                        imageVector = Icons.Default.FolderOpen,
+                                        contentDescription = "Library sources"
+                                    )
+                                }
                             }
                         },
                         scrollBehavior = scrollBehavior
@@ -859,17 +908,17 @@ internal fun PlaylistsScreen(
                                     }
                                 }
                                 LibrarySurfaceTab.Albums -> {
-                                    if (libraryCollections.albums.isEmpty()) {
+                                    if (effectiveLibraryCollections.albums.isEmpty()) {
                                         item {
                                             LibraryPlaceholderRow(
-                                                title = if (libraryCollections.isSyncing) "Scanning library…" else "No albums yet",
-                                                body = if (libraryCollections.isSyncing) "Indexing MediaStore tracks" else "Library tracks will appear here",
+                                                title = if (effectiveLibraryCollections.isSyncing) "Scanning library…" else "No albums yet",
+                                                body = if (effectiveLibraryCollections.isSyncing) "Indexing MediaStore tracks" else "Albums from your media library will appear here",
                                                 isWatch = true
                                             )
                                         }
                                     } else {
                                         items(
-                                            items = libraryCollections.albums,
+                                            items = effectiveLibraryCollections.albums,
                                             key = { "${it.name}|${it.artist}" }
                                         ) { album ->
                                             LibraryAlbumCompactRow(album = album)
@@ -877,17 +926,17 @@ internal fun PlaylistsScreen(
                                     }
                                 }
                                 LibrarySurfaceTab.Artists -> {
-                                    if (libraryCollections.artists.isEmpty()) {
+                                    if (effectiveLibraryCollections.artists.isEmpty()) {
                                         item {
                                             LibraryPlaceholderRow(
-                                                title = if (libraryCollections.isSyncing) "Scanning library…" else "No artists yet",
-                                                body = if (libraryCollections.isSyncing) "Indexing MediaStore tracks" else "Library tracks will appear here",
+                                                title = if (effectiveLibraryCollections.isSyncing) "Scanning library…" else "No artists yet",
+                                                body = if (effectiveLibraryCollections.isSyncing) "Indexing MediaStore tracks" else "Library tracks will appear here",
                                                 isWatch = true
                                             )
                                         }
                                     } else {
                                         items(
-                                            items = libraryCollections.artists,
+                                            items = effectiveLibraryCollections.artists,
                                             key = { it.name }
                                         ) { artist ->
                                             LibraryArtistCompactRow(artist = artist)
@@ -931,18 +980,20 @@ internal fun PlaylistsScreen(
                                     }
                                     LibrarySurfaceTab.Albums -> {
                                         AlbumsLibraryPage(
-                                            albums = libraryCollections.albums,
+                                            albums = effectiveLibraryCollections.albums,
                                             bottomContentPadding = bottomContentPadding,
                                             layout = albumCollectionLayout,
                                             onLayoutChanged = { albumCollectionLayout = it },
-                                            isSyncing = libraryCollections.isSyncing
+                                            isSyncing = effectiveLibraryCollections.isSyncing,
+                                            syncState = librarySyncState
                                         )
                                     }
                                     LibrarySurfaceTab.Artists -> {
                                         ArtistsLibraryPage(
-                                            artists = libraryCollections.artists,
+                                            artists = effectiveLibraryCollections.artists,
                                             bottomContentPadding = bottomContentPadding,
-                                            isSyncing = libraryCollections.isSyncing
+                                            isSyncing = effectiveLibraryCollections.isSyncing,
+                                            syncState = librarySyncState
                                         )
                                     }
                                 }
@@ -952,6 +1003,17 @@ internal fun PlaylistsScreen(
                 }
             }
         }
+    }
+    if (showLibraryRootsDialog) {
+        LibraryRootsDialog(
+            onDismiss = { showLibraryRootsDialog = false },
+            onSourcesChanged = {
+                coroutineScope.launch {
+                    libraryCollectionsOverride = LibraryRepository.collections(context, forceSync = true)
+                    librarySyncState = LibrarySyncState(lastSyncedAtMs = System.currentTimeMillis())
+                }
+            }
+        )
     }
     if (showDeleteAllFavoritesConfirm) {
         if (isWatch) {
@@ -1131,6 +1193,7 @@ private fun AlbumsLibraryPage(
     layout: AlbumCollectionLayout,
     onLayoutChanged: (AlbumCollectionLayout) -> Unit,
     isSyncing: Boolean,
+    syncState: LibrarySyncState,
     isWatch: Boolean = false
 ) {
     if (albums.isEmpty()) {
@@ -1142,7 +1205,14 @@ private fun AlbumsLibraryPage(
         )
         return
     }
-    AnimatedContent(
+    Column(modifier = Modifier.fillMaxSize()) {
+        if (syncState.isScanning) {
+            LibraryScanProgressRow(
+                syncState = syncState,
+                modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 10.dp)
+            )
+        }
+        AnimatedContent(
             targetState = layout,
             transitionSpec = {
                 val enter = fadeIn(
@@ -1209,12 +1279,14 @@ private fun AlbumsLibraryPage(
             }
         }
     }
+    }
 
 @Composable
 private fun ArtistsLibraryPage(
     artists: List<LibraryArtist>,
     bottomContentPadding: Dp,
     isSyncing: Boolean,
+    syncState: LibrarySyncState,
     isWatch: Boolean = false
 ) {
     if (artists.isEmpty()) {
@@ -1226,7 +1298,14 @@ private fun ArtistsLibraryPage(
         )
         return
     }
-    LazyColumn(
+    Column(modifier = Modifier.fillMaxSize()) {
+        if (syncState.isScanning) {
+            LibraryScanProgressRow(
+                syncState = syncState,
+                modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 10.dp)
+            )
+        }
+        LazyColumn(
         modifier = Modifier.fillMaxSize(),
         contentPadding = PaddingValues(
             start = 16.dp,
@@ -1238,6 +1317,41 @@ private fun ArtistsLibraryPage(
     ) {
         items(artists, key = { it.name }) { artist ->
             ArtistLibraryRow(artist = artist)
+        }
+    }
+    }
+}
+
+@Composable
+private fun LibraryScanProgressRow(
+    syncState: LibrarySyncState,
+    modifier: Modifier = Modifier
+) {
+    Row(
+        modifier = modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(14.dp))
+            .background(MaterialTheme.colorScheme.surfaceContainerLow)
+            .padding(horizontal = 10.dp, vertical = 8.dp),
+        horizontalArrangement = Arrangement.spacedBy(10.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        androidx.compose.material3.CircularProgressIndicator(
+            modifier = Modifier.size(20.dp),
+            strokeWidth = 2.dp
+        )
+        Column(verticalArrangement = Arrangement.spacedBy(1.dp)) {
+            Text(
+                text = "Scanning library…",
+                style = MaterialTheme.typography.bodyMedium
+            )
+            Text(
+                text = "${syncState.scannedFiles} files checked · ${syncState.indexedTracks} tracks indexed",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
         }
     }
 }
@@ -1494,6 +1608,124 @@ private fun ArtistLibraryRow(
             )
         }
     }
+}
+
+@Composable
+private fun LibraryRootsDialog(
+    onDismiss: () -> Unit,
+    onSourcesChanged: () -> Unit
+) {
+    val context = LocalContext.current
+    val coroutineScope = rememberCoroutineScope()
+    var roots by remember { mutableStateOf(LibraryScanRootStore.loadRoots(context)) }
+    var autoScanEnabled by remember {
+        mutableStateOf(LibraryScanRootStore.autoScanEnabled(context))
+    }
+    var pathInput by remember { mutableStateOf("") }
+
+    fun persistRoots(updated: List<LibraryScanRoot>) {
+        roots = updated
+        LibraryScanRootStore.saveRoots(context, updated)
+    }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Library sources") },
+        text = {
+            Column(
+                modifier = Modifier.verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                Text(
+                    text = "MediaStore is included by default. Scanner folders add tracks directly from storage, including formats MediaStore cannot index.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                if (roots.isEmpty()) {
+                    Text(
+                        text = "No scanner folders yet.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                } else {
+                    roots.forEach { root ->
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Checkbox(
+                                checked = root.enabled,
+                                onCheckedChange = { checked ->
+                                    persistRoots(roots.map {
+                                        if (it.path == root.path) it.copy(enabled = checked) else it
+                                    })
+                                    onSourcesChanged()
+                                }
+                            )
+                            Text(
+                                text = root.path,
+                                style = MaterialTheme.typography.bodySmall,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                                modifier = Modifier.weight(1f)
+                            )
+                            IconButton(onClick = {
+                                persistRoots(roots.filterNot { it.path == root.path })
+                                onSourcesChanged()
+                            }) {
+                                Icon(
+                                    imageVector = Icons.Default.Delete,
+                                    contentDescription = "Remove folder"
+                                )
+                            }
+                        }
+                    }
+                }
+                OutlinedTextField(
+                    value = pathInput,
+                    onValueChange = { pathInput = it },
+                    label = { Text("Add folder path") },
+                    placeholder = { Text("/storage/emulated/0/Music") },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth()
+                )
+                TextButton(
+                    onClick = {
+                        val trimmed = pathInput.trim()
+                        val directory = File(trimmed)
+                        if (trimmed.isNotEmpty() && directory.isDirectory &&
+                            roots.none { it.path == directory.absolutePath }
+                        ) {
+                            persistRoots(roots + LibraryScanRoot(directory.absolutePath))
+                            pathInput = ""
+                            coroutineScope.launch {
+                                LibraryRepository.setSourceEnabled(
+                                    context,
+                                    LibraryContract.SOURCE_SCANNER,
+                                    true
+                                )
+                            }
+                            onSourcesChanged()
+                        }
+                    }
+                ) {
+                    Text("Add folder")
+                }
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Checkbox(
+                        checked = autoScanEnabled,
+                        onCheckedChange = { checked ->
+                            autoScanEnabled = checked
+                            LibraryScanRootStore.setAutoScanEnabled(context, checked)
+                        }
+                    )
+                    Text("Scan automatically when the library opens")
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = onDismiss) { Text("Done") }
+        }
+    )
 }
 
 @Composable
