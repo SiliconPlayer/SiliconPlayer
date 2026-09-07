@@ -12,6 +12,11 @@ import com.flopster101.siliconplayer.ui.screens.FileBrowserScreen
 import com.flopster101.siliconplayer.ui.screens.HttpFileBrowserScreen
 import com.flopster101.siliconplayer.ui.screens.NetworkBrowserScreen
 import com.flopster101.siliconplayer.ui.screens.PlaylistsScreen
+import com.flopster101.siliconplayer.library.LibraryCollections
+import com.flopster101.siliconplayer.library.LibraryRepository
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
 import com.flopster101.siliconplayer.ui.screens.SmbFileBrowserScreen
 import com.flopster101.siliconplayer.RemotePlayableSourceIdsHolder
 import java.io.File
@@ -154,9 +159,15 @@ internal fun MainPlaylistsRouteHost(
     onCopyFavoriteTrackSource: (PlaylistTrackEntry) -> Unit,
     onOpenFavoriteTrackInfo: (PlaylistTrackEntry) -> Unit
 ) {
+    val context = androidx.compose.ui.platform.LocalContext.current
+    var libraryCollections by remember { mutableStateOf(LibraryCollections.Empty) }
+    LaunchedEffect(Unit) {
+        libraryCollections = LibraryRepository.collections(context)
+    }
     Box(modifier = Modifier.fillMaxSize().padding(mainPadding)) {
         PlaylistsScreen(
             libraryState = libraryState,
+            libraryCollections = libraryCollections,
             activePlaylist = activePlaylist,
             currentPlaybackSourceId = currentPlaybackSourceId,
             currentSubtuneIndex = currentSubtuneIndex,

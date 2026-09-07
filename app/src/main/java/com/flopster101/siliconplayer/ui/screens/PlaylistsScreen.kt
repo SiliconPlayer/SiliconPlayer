@@ -158,6 +158,11 @@ import com.flopster101.siliconplayer.recentArtworkThumbnailFile
 import com.flopster101.siliconplayer.resolvePlaylistEntryLocalFile
 import com.flopster101.siliconplayer.sourceLeafNameForDisplay
 import com.flopster101.siliconplayer.data.parseArchiveSourceId
+import com.flopster101.siliconplayer.library.LibraryAlbum
+import com.flopster101.siliconplayer.library.LibraryArtist
+import com.flopster101.siliconplayer.library.LibraryCollections
+import com.flopster101.siliconplayer.loadArtworkForFile
+import androidx.compose.ui.graphics.ImageBitmap
 import java.io.File
 import java.util.Locale
 import kotlinx.coroutines.Dispatchers
@@ -392,6 +397,7 @@ private fun PlaylistsTopBarMarqueeText(
 @Composable
 internal fun PlaylistsScreen(
     libraryState: PlaylistLibraryState,
+    libraryCollections: LibraryCollections,
     activePlaylist: StoredPlaylist?,
     currentPlaybackSourceId: String?,
     currentSubtuneIndex: Int,
@@ -853,37 +859,39 @@ internal fun PlaylistsScreen(
                                     }
                                 }
                                 LibrarySurfaceTab.Albums -> {
-                                    item {
-                                        Text(
-                                            text = "Albums placeholder",
-                                            style = MaterialTheme.typography.bodySmall,
-                                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                            modifier = Modifier.padding(horizontal = 4.dp)
-                                        )
-                                    }
-                                    items(listOf("Album One", "Album Two", "Album Three", "Album Four")) { albumTitle ->
-                                        LibraryPlaceholderRow(
-                                            title = albumTitle,
-                                            body = "Album placeholder",
-                                            isWatch = true
-                                        )
+                                    if (libraryCollections.albums.isEmpty()) {
+                                        item {
+                                            LibraryPlaceholderRow(
+                                                title = if (libraryCollections.isSyncing) "Scanning library…" else "No albums yet",
+                                                body = if (libraryCollections.isSyncing) "Indexing MediaStore tracks" else "Library tracks will appear here",
+                                                isWatch = true
+                                            )
+                                        }
+                                    } else {
+                                        items(
+                                            items = libraryCollections.albums,
+                                            key = { "${it.name}|${it.artist}" }
+                                        ) { album ->
+                                            LibraryAlbumCompactRow(album = album)
+                                        }
                                     }
                                 }
                                 LibrarySurfaceTab.Artists -> {
-                                    item {
-                                        Text(
-                                            text = "Artists placeholder",
-                                            style = MaterialTheme.typography.bodySmall,
-                                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                            modifier = Modifier.padding(horizontal = 4.dp)
-                                        )
-                                    }
-                                    items(listOf("Artist One", "Artist Two", "Artist Three")) { artistTitle ->
-                                        LibraryPlaceholderRow(
-                                            title = artistTitle,
-                                            body = "Artist placeholder",
-                                            isWatch = true
-                                        )
+                                    if (libraryCollections.artists.isEmpty()) {
+                                        item {
+                                            LibraryPlaceholderRow(
+                                                title = if (libraryCollections.isSyncing) "Scanning library…" else "No artists yet",
+                                                body = if (libraryCollections.isSyncing) "Indexing MediaStore tracks" else "Library tracks will appear here",
+                                                isWatch = true
+                                            )
+                                        }
+                                    } else {
+                                        items(
+                                            items = libraryCollections.artists,
+                                            key = { it.name }
+                                        ) { artist ->
+                                            LibraryArtistCompactRow(artist = artist)
+                                        }
                                     }
                                 }
                             }
@@ -922,15 +930,19 @@ internal fun PlaylistsScreen(
                                         )
                                     }
                                     LibrarySurfaceTab.Albums -> {
-                                        AlbumsLibraryPlaceholderPage(
+                                        AlbumsLibraryPage(
+                                            albums = libraryCollections.albums,
                                             bottomContentPadding = bottomContentPadding,
                                             layout = albumCollectionLayout,
-                                            onLayoutChanged = { albumCollectionLayout = it }
+                                            onLayoutChanged = { albumCollectionLayout = it },
+                                            isSyncing = libraryCollections.isSyncing
                                         )
                                     }
                                     LibrarySurfaceTab.Artists -> {
-                                        ArtistsLibraryPlaceholderPage(
-                                            bottomContentPadding = bottomContentPadding
+                                        ArtistsLibraryPage(
+                                            artists = libraryCollections.artists,
+                                            bottomContentPadding = bottomContentPadding,
+                                            isSyncing = libraryCollections.isSyncing
                                         )
                                     }
                                 }
@@ -1113,36 +1125,24 @@ private fun LibraryCollectionPlaceholderPage(
 }
 
 @Composable
-private fun AlbumsLibraryPlaceholderPage(
+private fun AlbumsLibraryPage(
+    albums: List<LibraryAlbum>,
     bottomContentPadding: Dp,
     layout: AlbumCollectionLayout,
     onLayoutChanged: (AlbumCollectionLayout) -> Unit,
+    isSyncing: Boolean,
     isWatch: Boolean = false
 ) {
-    val placeholderAlbums = listOf(
-        "Album One",
-        "Album Two",
-        "Album Three",
-        "Album Four",
-        "Album Five",
-        "Album Six"
-    )
-    if (isWatch) {
-        LazyColumn(
-            modifier = Modifier.fillMaxSize(),
-            contentPadding = PaddingValues(0.dp),
-            verticalArrangement = Arrangement.spacedBy(6.dp)
-        ) {
-            items(placeholderAlbums) { albumTitle ->
-                LibraryPlaceholderRow(
-                    title = albumTitle,
-                    body = "Album placeholder",
-                    isWatch = true
-                )
-            }
-        }
-    } else {
-        AnimatedContent(
+    if (albums.isEmpty()) {
+        LibraryCollectionPlaceholderPage(
+            title = if (isSyncing) "Scanning library…" else "No albums yet",
+            body = if (isSyncing) "Indexing MediaStore tracks" else "Albums from your media library will appear here.",
+            bottomContentPadding = bottomContentPadding,
+            isWatch = isWatch
+        )
+        return
+    }
+    AnimatedContent(
             targetState = layout,
             transitionSpec = {
                 val enter = fadeIn(
@@ -1179,10 +1179,8 @@ private fun AlbumsLibraryPlaceholderPage(
                             onLayoutChanged = onLayoutChanged
                         )
                     }
-                    items(placeholderAlbums) { albumTitle ->
-                        AlbumPlaceholderListRow(
-                            title = albumTitle
-                        )
+                    items(albums, key = { "${it.name}|${it.artist}" }) { album ->
+                        AlbumLibraryListRow(album = album)
                     }
                 }
             } else {
@@ -1204,28 +1202,44 @@ private fun AlbumsLibraryPlaceholderPage(
                             onLayoutChanged = onLayoutChanged
                         )
                     }
-                    gridItems(placeholderAlbums) { albumTitle ->
-                        AlbumPlaceholderGridCard(
-                            title = albumTitle
-                        )
+                    gridItems(albums, key = { "${it.name}|${it.artist}" }) { album ->
+                        AlbumLibraryGridCard(album = album)
                     }
                 }
             }
         }
     }
-}
 
 @Composable
-private fun ArtistsLibraryPlaceholderPage(
+private fun ArtistsLibraryPage(
+    artists: List<LibraryArtist>,
     bottomContentPadding: Dp,
+    isSyncing: Boolean,
     isWatch: Boolean = false
 ) {
-    LibraryCollectionPlaceholderPage(
-        title = "Artists",
-        body = "Choose library folders later.",
-        bottomContentPadding = bottomContentPadding,
-        isWatch = isWatch
-    )
+    if (artists.isEmpty()) {
+        LibraryCollectionPlaceholderPage(
+            title = if (isSyncing) "Scanning library…" else "No artists yet",
+            body = if (isSyncing) "Indexing MediaStore tracks" else "Artists from your media library will appear here.",
+            bottomContentPadding = bottomContentPadding,
+            isWatch = isWatch
+        )
+        return
+    }
+    LazyColumn(
+        modifier = Modifier.fillMaxSize(),
+        contentPadding = PaddingValues(
+            start = 16.dp,
+            top = 10.dp,
+            end = 16.dp,
+            bottom = bottomContentPadding + 16.dp
+        ),
+        verticalArrangement = Arrangement.spacedBy(4.dp)
+    ) {
+        items(artists, key = { it.name }) { artist ->
+            ArtistLibraryRow(artist = artist)
+        }
+    }
 }
 
 @Composable
@@ -1298,8 +1312,8 @@ private fun LibraryLayoutToggleButton(
 }
 
 @Composable
-private fun AlbumPlaceholderGridCard(
-    title: String,
+private fun AlbumLibraryGridCard(
+    album: LibraryAlbum,
     modifier: Modifier = Modifier
 ) {
     Surface(
@@ -1320,40 +1334,23 @@ private fun AlbumPlaceholderGridCard(
                 shape = MaterialTheme.shapes.large,
                 color = MaterialTheme.colorScheme.surfaceContainerHighest
             ) {
-                Box(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .background(
-                            brush = Brush.radialGradient(
-                                colors = listOf(
-                                    MaterialTheme.colorScheme.primary.copy(alpha = 0.18f),
-                                    MaterialTheme.colorScheme.surfaceContainerHighest
-                                )
-                            )
-                        ),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.LibraryMusic,
-                        contentDescription = null,
-                        modifier = Modifier.size(34.dp),
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
+                AlbumArtworkBox(artworkPath = album.artworkPath)
             }
             Column(
                 verticalArrangement = Arrangement.spacedBy(2.dp)
             ) {
                 Text(
-                    text = title,
+                    text = album.name,
                     style = MaterialTheme.typography.titleSmall,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis
                 )
                 Text(
-                    text = "Album placeholder",
+                    text = if (album.artist.isBlank()) "${album.trackCount} tracks" else "${album.artist} · ${album.trackCount} tracks",
                     style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
                 )
             }
         }
@@ -1361,13 +1358,142 @@ private fun AlbumPlaceholderGridCard(
 }
 
 @Composable
-private fun AlbumPlaceholderListRow(
-    title: String
+private fun LibraryAlbumCompactRow(
+    album: LibraryAlbum
 ) {
     LibraryPlaceholderRow(
-        title = title,
-        body = "Album placeholder"
+        title = album.name,
+        body = if (album.artist.isBlank()) "${album.trackCount} tracks" else "${album.artist} · ${album.trackCount} tracks",
+        isWatch = true
     )
+}
+
+@Composable
+private fun LibraryArtistCompactRow(
+    artist: LibraryArtist
+) {
+    LibraryPlaceholderRow(
+        title = artist.name,
+        body = "${artist.albumCount} albums · ${artist.trackCount} tracks",
+        isWatch = true
+    )
+}
+
+@Composable
+private fun AlbumArtworkBox(artworkPath: String?) {
+    var bitmap by remember(artworkPath) { mutableStateOf<ImageBitmap?>(null) }
+    LaunchedEffect(artworkPath) {
+        val path = artworkPath ?: return@LaunchedEffect
+        bitmap = withContext(Dispatchers.IO) {
+            loadArtworkForFile(File(path))
+        }
+    }
+    val artwork = bitmap
+    if (artwork != null) {
+        Image(
+            bitmap = artwork,
+            contentDescription = null,
+            modifier = Modifier.fillMaxSize(),
+            contentScale = ContentScale.Crop
+        )
+    } else {
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(
+                    brush = Brush.radialGradient(
+                        colors = listOf(
+                            MaterialTheme.colorScheme.primary.copy(alpha = 0.18f),
+                            MaterialTheme.colorScheme.surfaceContainerHighest
+                        )
+                    )
+                ),
+            contentAlignment = Alignment.Center
+        ) {
+            Icon(
+                imageVector = Icons.Default.LibraryMusic,
+                contentDescription = null,
+                modifier = Modifier.size(34.dp),
+                tint = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
+    }
+}
+
+@Composable
+private fun AlbumLibraryListRow(
+    album: LibraryAlbum
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(14.dp))
+            .background(MaterialTheme.colorScheme.surfaceContainerLow)
+            .padding(horizontal = 10.dp, vertical = 8.dp),
+        horizontalArrangement = Arrangement.spacedBy(10.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Surface(
+            modifier = Modifier.size(46.dp),
+            shape = RoundedCornerShape(10.dp),
+            color = MaterialTheme.colorScheme.surfaceContainerHighest
+        ) {
+            AlbumArtworkBox(artworkPath = album.artworkPath)
+        }
+        Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(1.dp)) {
+            Text(
+                text = album.name,
+                style = MaterialTheme.typography.bodyMedium,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+            Text(
+                text = if (album.artist.isBlank()) "${album.trackCount} tracks" else "${album.artist} · ${album.trackCount} tracks",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+        }
+    }
+}
+
+@Composable
+private fun ArtistLibraryRow(
+    artist: LibraryArtist
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(14.dp))
+            .background(MaterialTheme.colorScheme.surfaceContainerLow)
+            .padding(horizontal = 10.dp, vertical = 8.dp),
+        horizontalArrangement = Arrangement.spacedBy(10.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Surface(
+            modifier = Modifier.size(46.dp),
+            shape = RoundedCornerShape(10.dp),
+            color = MaterialTheme.colorScheme.surfaceContainerHighest
+        ) {
+            AlbumArtworkBox(artworkPath = artist.artworkPath)
+        }
+        Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(1.dp)) {
+            Text(
+                text = artist.name,
+                style = MaterialTheme.typography.bodyMedium,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+            Text(
+                text = "${artist.albumCount} albums · ${artist.trackCount} tracks",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+        }
+    }
 }
 
 @Composable
