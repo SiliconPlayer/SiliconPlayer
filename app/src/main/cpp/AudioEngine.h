@@ -520,6 +520,14 @@ private:
     std::atomic<bool> resumeAfterRebuild { false };
     std::atomic<bool> refreshPausedStreamOnNextStart { false };
     std::atomic<uint64_t> decoderSerial { 0 };
+    // Scope pulls run on the GL thread without the decoder mutex; this cache
+    // is refreshed whenever a scope call holds the mutex and validated
+    // against decoderSerial so a decoder swap never serves a dead state.
+    mutable std::mutex scopeStateCacheMutex;
+    mutable std::shared_ptr<ChannelScopeSharedState> scopeStateCache;
+    mutable int scopeStateCacheDecoderRate = 0;
+    mutable uint64_t scopeStateCacheSerial = 0;
+    mutable bool scopeStateCacheValid = false;
     std::thread seekWorkerThread;
     std::mutex seekWorkerMutex;
     std::condition_variable seekWorkerCv;

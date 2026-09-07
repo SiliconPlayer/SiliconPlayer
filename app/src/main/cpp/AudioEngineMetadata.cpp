@@ -277,6 +277,13 @@ void AudioEngine::getChannelScopeSamples(int samplesPerChannel, std::vector<floa
         }
         state = decoder->getChannelScopeSharedState();
         decoderSampleRate = decoderRenderSampleRate > 0 ? decoderRenderSampleRate : decoder->getRenderSampleRate();
+        {
+            std::lock_guard<std::mutex> cacheLock(scopeStateCacheMutex);
+            scopeStateCache = state;
+            scopeStateCacheDecoderRate = decoderSampleRate;
+            scopeStateCacheSerial = decoderSerial.load(std::memory_order_relaxed);
+            scopeStateCacheValid = true;
+        }
     }
     if (!state) {
         outFlat.clear();
@@ -296,6 +303,23 @@ bool AudioEngine::tryGetChannelScopeSamples(int samplesPerChannel, std::vector<f
     // Declare vis demand so the render worker bumps the snapshot serial
     // frequently and keeps `visualizationLastCallbackNs` fresh.
     markVisualizationRequested(kVisualizationFeatureChannelScope);
+    {
+        std::lock_guard<std::mutex> cacheLock(scopeStateCacheMutex);
+        if (scopeStateCacheValid &&
+            scopeStateCache &&
+            scopeStateCacheSerial == decoderSerial.load(std::memory_order_relaxed)) {
+            const int decoderSampleRate = scopeStateCacheDecoderRate;
+            const int outputSampleRate = streamSampleRate > 0 ? streamSampleRate : decoderSampleRate;
+            const double presentationDelayDecoderFrames =
+                    scopePresentationDelayDecoderFrames(decoderSampleRate, outputSampleRate, samplesPerChannel);
+            scopeStateCache->getProcessedSamples(
+                    samplesPerChannel,
+                    static_cast<int>(std::ceil(std::max(0.0, presentationDelayDecoderFrames))),
+                    outFlat
+            );
+            return true;
+        }
+    }
     std::shared_ptr<ChannelScopeSharedState> state;
     int decoderSampleRate = 0;
     {
@@ -303,14 +327,28 @@ bool AudioEngine::tryGetChannelScopeSamples(int samplesPerChannel, std::vector<f
         // Decoder busy (long seek, heavy metadata read): leave the previous
         // window in place so the renderer redraws it instead of stalling.
         if (!lock.owns_lock()) {
+            static std::atomic<int> skippedPullLogs { 0 };
+            if (skippedPullLogs.fetch_add(1, std::memory_order_relaxed) < 10) {
+                LOGD("Channel scope pull skipped: decoder mutex contended");
+            }
             return false;
         }
         if (!decoder) {
+            std::lock_guard<std::mutex> cacheLock(scopeStateCacheMutex);
+            scopeStateCacheValid = false;
+            scopeStateCache.reset();
             outFlat.clear();
             return true;
         }
         state = decoder->getChannelScopeSharedState();
         decoderSampleRate = decoderRenderSampleRate > 0 ? decoderRenderSampleRate : decoder->getRenderSampleRate();
+        {
+            std::lock_guard<std::mutex> cacheLock(scopeStateCacheMutex);
+            scopeStateCache = state;
+            scopeStateCacheDecoderRate = decoderSampleRate;
+            scopeStateCacheSerial = decoderSerial.load(std::memory_order_relaxed);
+            scopeStateCacheValid = true;
+        }
     }
     if (!state) {
         outFlat.clear();
