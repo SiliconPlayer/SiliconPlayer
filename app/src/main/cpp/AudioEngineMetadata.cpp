@@ -327,8 +327,12 @@ bool AudioEngine::tryGetChannelScopeSamples(int samplesPerChannel, std::vector<f
         // Decoder busy (long seek, heavy metadata read): leave the previous
         // window in place so the renderer redraws it instead of stalling.
         if (!lock.owns_lock()) {
-            static std::atomic<int> skippedPullLogs { 0 };
-            if (skippedPullLogs.fetch_add(1, std::memory_order_relaxed) < 10) {
+            static std::atomic<int64_t> lastSkippedPullLogNs { 0 };
+            const int64_t nowNs = std::chrono::duration_cast<std::chrono::nanoseconds>(
+                    std::chrono::steady_clock::now().time_since_epoch()).count();
+            int64_t previousNs = lastSkippedPullLogNs.load(std::memory_order_relaxed);
+            if (nowNs - previousNs > 2000000000LL &&
+                lastSkippedPullLogNs.compare_exchange_strong(previousNs, nowNs, std::memory_order_relaxed)) {
                 LOGD("Channel scope pull skipped: decoder mutex contended");
             }
             return false;
