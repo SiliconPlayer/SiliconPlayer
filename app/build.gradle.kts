@@ -1,6 +1,7 @@
 plugins {
     alias(libs.plugins.androidApplication)
     alias(libs.plugins.kotlinCompose)
+    alias(libs.plugins.ksp)
 }
 
 import java.io.File
@@ -393,6 +394,9 @@ dependencies {
     implementation(libs.androidx.material)
     implementation(libs.androidx.material.icons.extended)
     implementation(libs.smbj)
+    implementation(libs.androidx.room.runtime)
+    implementation(libs.androidx.room.ktx)
+    ksp(libs.androidx.room.compiler)
     implementation(libs.smbj.rpc) {
         exclude(group = "org.bouncycastle", module = "bcprov-jdk15on")
     }

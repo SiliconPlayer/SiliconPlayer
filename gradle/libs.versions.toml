@@ -10,6 +10,8 @@ activityCompose = "1.8.2"
 composeBom = "2025.10.00"
 smbj = "0.14.0"
 smbjRpc = "0.11.1.1"
+ksp = "2.2.10-2.0.2"
+room = "2.7.2"
 
 [libraries]
 androidx-core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "coreKtx" }
@@ -30,8 +32,12 @@ androidx-material = { group = "androidx.compose.material", name = "material" }
 androidx-material-icons-extended = { group = "androidx.compose.material", name = "material-icons-extended" }
 smbj = { group = "com.hierynomus", name = "smbj", version.ref = "smbj" }
 smbj-rpc = { group = "io.github.daveboy", name = "smbj-rpc", version.ref = "smbjRpc" }
+androidx-room-runtime = { group = "androidx.room", name = "room-runtime", version.ref = "room" }
+androidx-room-ktx = { group = "androidx.room", name = "room-ktx", version.ref = "room" }
+androidx-room-compiler = { group = "androidx.room", name = "room-compiler", version.ref = "room" }
 
 [plugins]
 androidApplication = { id = "com.android.application", version.ref = "agp" }
 jetbrainsKotlinAndroid = { id = "org.jetbrains.kotlin.android", version.ref = "kotlin" }
 kotlinCompose = { id = "org.jetbrains.kotlin.plugin.compose", version.ref = "kotlin" }
+ksp = { id = "com.google.devtools.ksp", version.ref = "ksp" }
