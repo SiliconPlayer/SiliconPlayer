@@ -174,6 +174,7 @@ internal fun MainPlaylistsRouteHost(
     var libraryCollections by remember { mutableStateOf(LibraryCollections.Empty) }
     LaunchedEffect(Unit) {
         libraryCollections = LibraryRepository.collections(context)
+        LibraryRepository.maybeStartAutoScan(context)
     }
     Box(modifier = Modifier.fillMaxSize().padding(mainPadding)) {
         PlaylistsScreen(

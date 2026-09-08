@@ -1,7 +1,13 @@
 package com.flopster101.siliconplayer.library
 
 import android.content.Context
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
@@ -31,39 +37,22 @@ object LibraryRepository {
     private const val SYNC_STALENESS_MS = 15 * 60 * 1000L
 
     private val syncMutex = Mutex()
-    private var cachedState = LibrarySyncState()
 
-    suspend fun collections(context: Context, forceSync: Boolean = false): LibraryCollections =
+    // Scan jobs live on a process scope so they survive leaving the library
+    // screen; the UI observes scanState and the notifier posts progress.
+    private val scanScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+    private val _scanState = MutableStateFlow(LibrarySyncState())
+    val scanState: StateFlow<LibrarySyncState> = _scanState
+
+    suspend fun collections(context: Context): LibraryCollections =
         withContext(Dispatchers.IO) {
             val db = LibraryDatabase.get(context)
             val trackDao = db.trackDao()
-            val sourceDao = db.sourceDao()
-
-            val didSync = syncMutex.withLock {
-                ensureSourceDefaults(sourceDao)
-                val nowMs = System.currentTimeMillis()
-                val syncNeeded = forceSync || run {
-                    val mediaStore = sourceDao.source(LibraryContract.SOURCE_MEDIASTORE)
-                    val scanner = sourceDao.source(LibraryContract.SOURCE_SCANNER)
-                    val mediaStoreStale = (mediaStore?.enabled ?: true) &&
-                            (mediaStore == null || mediaStore.lastSyncMs <= 0L ||
-                                    nowMs - mediaStore.lastSyncMs > SYNC_STALENESS_MS)
-                    val scannerStale = (scanner?.enabled ?: false) &&
-                            (scanner.lastSyncMs <= 0L ||
-                                    nowMs - scanner.lastSyncMs > SYNC_STALENESS_MS)
-                    mediaStoreStale || scannerStale
-                }
-                if ((syncNeeded && LibraryScanRootStore.autoScanEnabled(context)) || forceSync) {
-                    syncAllLocked(context, trackDao, sourceDao)
-                    true
-                } else {
-                    false
-                }
-            }
+            ensureSourceDefaults(db.sourceDao())
 
             val trackCount = trackDao.enabledTrackCount()
-            val collections = if (trackCount == 0) {
-                LibraryCollections(albums = emptyList(), artists = emptyList(), trackCount = 0, isSyncing = didSync)
+            if (trackCount == 0) {
+                LibraryCollections(albums = emptyList(), artists = emptyList(), trackCount = 0)
             } else {
                 LibraryCollections(
                     albums = trackDao.albumRows().map { row ->
@@ -88,11 +77,9 @@ object LibraryRepository {
                             artworkPath = row.artworkPath
                         )
                     },
-                    trackCount = trackCount,
-                    isSyncing = didSync
+                    trackCount = trackCount
                 )
             }
-            collections
         }
 
     suspend fun albumDetail(
@@ -140,33 +127,60 @@ object LibraryRepository {
             }
         }
 
-    suspend fun syncState(): LibrarySyncState = cachedState
+    suspend fun syncState(): LibrarySyncState = _scanState.value
 
-    suspend fun runManualScan(
-        context: Context,
-        onStateChange: (LibrarySyncState) -> Unit = {}
-    ) {
-        withContext(Dispatchers.IO) {
-            val db = LibraryDatabase.get(context)
-            syncMutex.withLock {
+    /**
+     * Fire-and-forget scan on the process scope; concurrent requests no-op.
+     * Progress flows through [scanState] and the notification, so callers
+     * never need to own the scan job.
+     */
+    fun requestScan(context: Context) {
+        val appContext = context.applicationContext
+        scanScope.launch {
+            if (!syncMutex.tryLock()) return@launch
+            try {
+                val db = LibraryDatabase.get(appContext)
                 ensureSourceDefaults(db.sourceDao())
-                onStateChange(cachedState.copy(isScanning = true, scannedFiles = 0, indexedTracks = 0, currentPath = null))
-                syncAllLocked(context, db.trackDao(), db.sourceDao()) { scanned, indexed, path ->
-                    cachedState = LibrarySyncState(
+                LibraryScanNotifier.start(appContext)
+                _scanState.value = LibrarySyncState(isScanning = true)
+                syncAllLocked(appContext, db.trackDao(), db.sourceDao()) { scanned, indexed, path ->
+                    _scanState.value = LibrarySyncState(
                         isScanning = true,
                         scannedFiles = scanned,
                         indexedTracks = indexed,
                         currentPath = path,
-                        lastSyncedAtMs = cachedState.lastSyncedAtMs
+                        lastSyncedAtMs = _scanState.value.lastSyncedAtMs
                     )
-                    onStateChange(cachedState)
+                    LibraryScanNotifier.progress(appContext, _scanState.value)
                 }
-                cachedState = cachedState.copy(
-                    isScanning = false,
-                    lastSyncedAtMs = System.currentTimeMillis()
-                )
-                onStateChange(cachedState)
+                _scanState.value = LibrarySyncState(lastSyncedAtMs = System.currentTimeMillis())
+            } catch (error: Exception) {
+                if (error is CancellationException) throw error
+                // The next sync attempt retries; reset the UI state below.
+            } finally {
+                _scanState.value = _scanState.value.copy(isScanning = false)
+                LibraryScanNotifier.finish(appContext)
+                syncMutex.unlock()
             }
+        }
+    }
+
+    /** Start a scan if enabled sources look stale and auto-scan is enabled. */
+    suspend fun maybeStartAutoScan(context: Context) = withContext(Dispatchers.IO) {
+        val db = LibraryDatabase.get(context)
+        ensureSourceDefaults(db.sourceDao())
+        if (!LibraryScanRootStore.autoScanEnabled(context)) return@withContext
+        val nowMs = System.currentTimeMillis()
+        val mediaStore = db.sourceDao().source(LibraryContract.SOURCE_MEDIASTORE)
+        val scanner = db.sourceDao().source(LibraryContract.SOURCE_SCANNER)
+        val mediaStoreStale = (mediaStore?.enabled ?: true) &&
+                (mediaStore == null || mediaStore.lastSyncMs <= 0L ||
+                        nowMs - mediaStore.lastSyncMs > SYNC_STALENESS_MS)
+        val scannerStale = (scanner?.enabled ?: false) &&
+                (scanner.lastSyncMs <= 0L ||
+                        nowMs - scanner.lastSyncMs > SYNC_STALENESS_MS)
+        if (mediaStoreStale || scannerStale) {
+            requestScan(context)
         }
     }
 

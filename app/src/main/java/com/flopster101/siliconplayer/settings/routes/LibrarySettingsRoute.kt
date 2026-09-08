@@ -21,6 +21,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
@@ -51,10 +52,18 @@ internal fun LibrarySettingsRouteContent(
     var sources by remember {
         mutableStateOf<List<com.flopster101.siliconplayer.library.LibrarySourceStatus>>(emptyList())
     }
-    var isScanning by remember { mutableStateOf(false) }
+    val librarySyncState by LibraryRepository.scanState.collectAsState()
+    val isScanning = librarySyncState.isScanning
 
     LaunchedEffect(Unit) {
         sources = LibraryRepository.sourceStatuses(context)
+    }
+    var scanWasRunning by remember { mutableStateOf(false) }
+    LaunchedEffect(librarySyncState.isScanning) {
+        if (scanWasRunning && !isScanning) {
+            sources = LibraryRepository.sourceStatuses(context)
+        }
+        scanWasRunning = isScanning
     }
 
     // Rows register sequencer roles on first composition; the whole section
@@ -152,15 +161,7 @@ internal fun LibrarySettingsRouteContent(
         icon = Icons.Default.Refresh,
         onClick = {
             if (isScanning) return@SettingsItemCard
-            coroutineScope.launch {
-                isScanning = true
-                try {
-                    LibraryRepository.runManualScan(context)
-                } finally {
-                    isScanning = false
-                    sources = LibraryRepository.sourceStatuses(context)
-                }
-            }
+            LibraryRepository.requestScan(context)
         },
         enabled = !isScanning
     )

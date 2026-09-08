@@ -87,15 +87,13 @@ data class LibraryArtist(
 data class LibraryCollections(
     val albums: List<LibraryAlbum>,
     val artists: List<LibraryArtist>,
-    val trackCount: Int,
-    val isSyncing: Boolean
+    val trackCount: Int
 ) {
     companion object {
         val Empty = LibraryCollections(
             albums = emptyList(),
             artists = emptyList(),
-            trackCount = 0,
-            isSyncing = false
+            trackCount = 0
         )
     }
 }

@@ -110,6 +110,7 @@ import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.State
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableIntStateOf
@@ -450,9 +451,18 @@ internal fun PlaylistsScreen(
     var selectedStoredPlaylistId by rememberSaveable { mutableStateOf<String?>(null) }
     var selectedTabIndex by rememberSaveable { mutableIntStateOf(0) }
     var albumCollectionLayout by rememberSaveable { mutableStateOf(AlbumCollectionLayout.Grid) }
-    var librarySyncState by remember { mutableStateOf(LibrarySyncState()) }
+    val librarySyncState by LibraryRepository.scanState.collectAsState()
     var libraryCollectionsOverride by remember { mutableStateOf<LibraryCollections?>(null) }
     val effectiveLibraryCollections = libraryCollectionsOverride ?: libraryCollections
+    // Refresh the visible collections whenever a scan completes, regardless
+    // of where it was started from.
+    LaunchedEffect(Unit) {
+        LibraryRepository.scanState.collect { state ->
+            if (!state.isScanning && state.lastSyncedAtMs > 0L) {
+                libraryCollectionsOverride = LibraryRepository.collections(context)
+            }
+        }
+    }
     val libraryTabs = rememberLibraryTabs()
     val pagerState = rememberPagerState(
         initialPage = selectedTabIndex,
@@ -668,13 +678,7 @@ internal fun PlaylistsScreen(
                                 }
                                 IconButton(
                                     onClick = {
-                                        coroutineScope.launch {
-                                            LibraryRepository.runManualScan(context) { state ->
-                                                librarySyncState = state
-                                            }
-                                            val refreshed = LibraryRepository.collections(context)
-                                            libraryCollectionsOverride = refreshed
-                                        }
+                                        LibraryRepository.requestScan(context)
                                     }
                                 ) {
                                     Icon(
@@ -1000,8 +1004,8 @@ internal fun PlaylistsScreen(
                                     if (effectiveLibraryCollections.albums.isEmpty()) {
                                         item {
                                             LibraryPlaceholderRow(
-                                                title = if (effectiveLibraryCollections.isSyncing) "Scanning library…" else "No albums yet",
-                                                body = if (effectiveLibraryCollections.isSyncing) "Indexing MediaStore tracks" else "Albums from your media library will appear here",
+                                                title = if (librarySyncState.isScanning) "Scanning library…" else "No albums yet",
+                                                body = if (librarySyncState.isScanning) "Indexing MediaStore tracks" else "Albums from your media library will appear here",
                                                 isWatch = true
                                             )
                                         }
@@ -1024,8 +1028,8 @@ internal fun PlaylistsScreen(
                                     if (effectiveLibraryCollections.artists.isEmpty()) {
                                         item {
                                             LibraryPlaceholderRow(
-                                                title = if (effectiveLibraryCollections.isSyncing) "Scanning library…" else "No artists yet",
-                                                body = if (effectiveLibraryCollections.isSyncing) "Indexing MediaStore tracks" else "Library tracks will appear here",
+                                                title = if (librarySyncState.isScanning) "Scanning library…" else "No artists yet",
+                                                body = if (librarySyncState.isScanning) "Indexing MediaStore tracks" else "Library tracks will appear here",
                                                 isWatch = true
                                             )
                                         }
@@ -1085,7 +1089,7 @@ internal fun PlaylistsScreen(
                                             bottomContentPadding = bottomContentPadding,
                                             layout = albumCollectionLayout,
                                             onLayoutChanged = { albumCollectionLayout = it },
-                                            isSyncing = effectiveLibraryCollections.isSyncing,
+                                            isSyncing = librarySyncState.isScanning,
                                             syncState = librarySyncState,
                                             onOpenAlbum = { album ->
                                                 onOpenLibraryAlbum(album.rawName, album.rawName)
@@ -1097,7 +1101,7 @@ internal fun PlaylistsScreen(
                                         ArtistsLibraryPage(
                                             artists = effectiveLibraryCollections.artists,
                                             bottomContentPadding = bottomContentPadding,
-                                            isSyncing = effectiveLibraryCollections.isSyncing,
+                                            isSyncing = librarySyncState.isScanning,
                                             syncState = librarySyncState,
                                             onOpenArtist = { artist ->
                                                 onOpenLibraryArtist(artist.name)
