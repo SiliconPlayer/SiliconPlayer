@@ -142,6 +142,16 @@ object LibraryRepository {
         )
     }
 
+    suspend fun artistTracks(context: Context, artist: String): List<LibraryTrackEntity> =
+        withContext(Dispatchers.IO) {
+            LibraryDatabase.get(context).trackDao().artistTracks(artist)
+        }
+
+    suspend fun albumTracks(context: Context, albumName: String): List<LibraryTrackEntity> =
+        withContext(Dispatchers.IO) {
+            LibraryDatabase.get(context).trackDao().albumTracks(albumName)
+        }
+
     suspend fun artistAlbums(context: Context, artist: String): List<LibraryAlbum> =
         withContext(Dispatchers.IO) {
             val db = LibraryDatabase.get(context)

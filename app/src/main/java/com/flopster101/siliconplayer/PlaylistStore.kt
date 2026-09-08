@@ -113,6 +113,18 @@ internal fun upsertFavoriteTrack(
     return state.copy(favorites = listOf(track) + withoutExisting)
 }
 
+/** Batch favorite insert that preserves the given track order at the top. */
+internal fun upsertFavoriteTracks(
+    state: PlaylistLibraryState,
+    tracks: List<PlaylistTrackEntry>
+): PlaylistLibraryState {
+    var updated = state
+    for (track in tracks.asReversed()) {
+        updated = upsertFavoriteTrack(updated, track)
+    }
+    return updated
+}
+
 internal fun removeFavoriteTrack(
     state: PlaylistLibraryState,
     favoriteId: String

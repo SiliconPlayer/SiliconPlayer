@@ -27,7 +27,11 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.horizontalScroll
+import com.flopster101.siliconplayer.ui.dialogs.DialogSectionLabel
+import com.flopster101.siliconplayer.ui.dialogs.DialogSelectableCard
+import com.flopster101.siliconplayer.ui.dialogs.FloatingActionDialog
 import androidx.compose.foundation.Image
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.text.KeyboardOptions
@@ -79,6 +83,8 @@ import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.MoreHoriz
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Favorite
+import androidx.compose.material.icons.filled.PlaylistAdd
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Share
@@ -426,6 +432,8 @@ internal fun PlaylistsScreen(
     onOpenLibraryArtist: (String) -> Unit,
     onPlayLibraryTracks: (List<LibraryTrackEntity>, Int, String) -> Unit,
     onShuffleLibraryTracks: (List<LibraryTrackEntity>, String) -> Unit,
+    onAddLibraryTracksToFavorites: (List<LibraryTrackEntity>) -> Unit,
+    onAddLibraryTracksToPlaylist: (List<LibraryTrackEntity>, String?, String) -> Unit,
     onOpenLibrarySettings: () -> Unit,
     activePlaylist: StoredPlaylist?,
     currentPlaybackSourceId: String?,
@@ -465,6 +473,7 @@ internal fun PlaylistsScreen(
     var librarySearchActive by rememberSaveable { mutableStateOf(false) }
     var librarySearchQuery by rememberSaveable { mutableStateOf("") }
     var librarySearchResults by remember { mutableStateOf(LibrarySearchResults("", emptyList(), emptyList(), emptyList())) }
+    var libraryContextTracks by remember { mutableStateOf<List<LibraryTrackEntity>?>(null) }
     val keyboardController = LocalSoftwareKeyboardController.current
     LaunchedEffect(librarySearchQuery, librarySearchActive) {
         if (!librarySearchActive || librarySearchQuery.isBlank()) {
@@ -807,6 +816,18 @@ internal fun PlaylistsScreen(
                             onOpenLibraryArtist(libraryAlbumDetail.album.artist)
                             artistOpenedFromAlbum = true
                             destination = PlaylistsSurfaceDestination.ArtistDetail
+                        },
+                        onAddTrackToFavorites = { track ->
+                            onAddLibraryTracksToFavorites(listOf(track))
+                        },
+                        onAddTrackToPlaylist = { track ->
+                            libraryContextTracks = listOf(track)
+                        },
+                        onAddAllToFavorites = {
+                            onAddLibraryTracksToFavorites(libraryAlbumDetail.tracks)
+                        },
+                        onAddAllToPlaylist = {
+                            libraryContextTracks = libraryAlbumDetail.tracks
                         }
                     )
                 } else if (currentDestination == PlaylistsSurfaceDestination.ArtistDetail &&
@@ -1054,7 +1075,7 @@ internal fun PlaylistsScreen(
                                     } else {
                                         items(
                                             items = effectiveLibraryCollections.albums,
-                                            key = { "${it.name}|${it.artist}" }
+                                            key = { it.name }
                                         ) { album ->
                                             LibraryAlbumCompactRow(
                                                 album = album,
@@ -1119,6 +1140,12 @@ internal fun PlaylistsScreen(
                                     index,
                                     librarySearchQuery.ifBlank { "Search" }
                                 )
+                            },
+                            onAddTrackToFavorites = { track ->
+                                onAddLibraryTracksToFavorites(listOf(track))
+                            },
+                            onAddTrackToPlaylist = { track ->
+                                libraryContextTracks = listOf(track)
                             }
                         )
                     } else {
@@ -1165,6 +1192,10 @@ internal fun PlaylistsScreen(
                                             onOpenAlbum = { album ->
                                                 onOpenLibraryAlbum(album.rawName, album.rawName)
                                                 destination = PlaylistsSurfaceDestination.AlbumDetail
+                                            },
+                                            onAddToFavorites = onAddLibraryTracksToFavorites,
+                                            onAddToPlaylist = { tracks ->
+                                                libraryContextTracks = tracks
                                             }
                                         )
                                     }
@@ -1177,6 +1208,10 @@ internal fun PlaylistsScreen(
                                             onOpenArtist = { artist ->
                                                 onOpenLibraryArtist(artist.name)
                                                 destination = PlaylistsSurfaceDestination.ArtistDetail
+                                            },
+                                            onAddToFavorites = onAddLibraryTracksToFavorites,
+                                            onAddToPlaylist = { tracks ->
+                                                libraryContextTracks = tracks
                                             }
                                         )
                                     }
@@ -1247,6 +1282,44 @@ internal fun PlaylistsScreen(
             fields = dialogState.fields,
             onDismiss = { trackInfoDialogState = null }
         )
+    }
+    libraryContextTracks?.let { contextTracks ->
+        var newPlaylistTitle by remember(contextTracks) { mutableStateOf("") }
+        FloatingActionDialog(
+            title = "Add to playlist",
+            onDismiss = { libraryContextTracks = null },
+            confirmText = "Create",
+            confirmEnabled = newPlaylistTitle.isNotBlank(),
+            onConfirm = {
+                onAddLibraryTracksToPlaylist(contextTracks, null, newPlaylistTitle.trim())
+                libraryContextTracks = null
+            }
+        ) {
+            DialogSectionLabel("Create new playlist")
+            OutlinedTextField(
+                value = newPlaylistTitle,
+                onValueChange = { newPlaylistTitle = it },
+                singleLine = true,
+                placeholder = { Text("Playlist name") },
+                modifier = Modifier.fillMaxWidth()
+            )
+            if (libraryState.playlists.isNotEmpty()) {
+                DialogSectionLabel("Your playlists", modifier = Modifier.padding(top = 12.dp))
+                libraryState.playlists.forEach { playlist ->
+                    DialogSelectableCard(
+                        label = playlist.title,
+                        icon = Icons.Default.PlayArrow,
+                        isSelected = false,
+                        isEnabled = true,
+                        subtitle = "${playlist.entries.size} tracks",
+                        onClick = {
+                            onAddLibraryTracksToPlaylist(contextTracks, playlist.id, "")
+                            libraryContextTracks = null
+                        }
+                    )
+                }
+            }
+        }
     }
 }
 
@@ -1368,6 +1441,8 @@ private fun AlbumsLibraryPage(
     isSyncing: Boolean,
     syncState: LibrarySyncState,
     onOpenAlbum: (LibraryAlbum) -> Unit,
+    onAddToFavorites: (List<LibraryTrackEntity>) -> Unit,
+    onAddToPlaylist: (List<LibraryTrackEntity>) -> Unit,
     isWatch: Boolean = false
 ) {
     if (albums.isEmpty()) {
@@ -1378,6 +1453,11 @@ private fun AlbumsLibraryPage(
             isWatch = isWatch
         )
         return
+    }
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    fun tracksOf(album: LibraryAlbum, onReady: (List<LibraryTrackEntity>) -> Unit) {
+        scope.launch { onReady(LibraryRepository.albumTracks(context, album.rawName)) }
     }
     Column(modifier = Modifier.fillMaxSize()) {
         if (syncState.isScanning) {
@@ -1423,8 +1503,13 @@ private fun AlbumsLibraryPage(
                             onLayoutChanged = onLayoutChanged
                         )
                     }
-                    items(albums, key = { "${it.name}|${it.artist}" }) { album ->
-                        AlbumLibraryListRow(album = album, onClick = { onOpenAlbum(album) })
+                    items(albums, key = { it.name }) { album ->
+                        AlbumLibraryListRow(
+                            album = album,
+                            onClick = { onOpenAlbum(album) },
+                            onAddToFavorites = { tracksOf(album) { onAddToFavorites(it) } },
+                            onAddToPlaylist = { tracksOf(album) { onAddToPlaylist(it) } }
+                        )
                     }
                 }
             } else {
@@ -1446,8 +1531,13 @@ private fun AlbumsLibraryPage(
                             onLayoutChanged = onLayoutChanged
                         )
                     }
-                    gridItems(albums, key = { "${it.name}|${it.artist}" }) { album ->
-                        AlbumLibraryGridCard(album = album, onClick = { onOpenAlbum(album) })
+                    gridItems(albums, key = { it.name }) { album ->
+                        AlbumLibraryGridCard(
+                            album = album,
+                            onClick = { onOpenAlbum(album) },
+                            onAddToFavorites = { tracksOf(album) { onAddToFavorites(it) } },
+                            onAddToPlaylist = { tracksOf(album) { onAddToPlaylist(it) } }
+                        )
                     }
                 }
             }
@@ -1462,6 +1552,8 @@ private fun ArtistsLibraryPage(
     isSyncing: Boolean,
     syncState: LibrarySyncState,
     onOpenArtist: (LibraryArtist) -> Unit,
+    onAddToFavorites: (List<LibraryTrackEntity>) -> Unit,
+    onAddToPlaylist: (List<LibraryTrackEntity>) -> Unit,
     isWatch: Boolean = false
 ) {
     if (artists.isEmpty()) {
@@ -1491,7 +1583,12 @@ private fun ArtistsLibraryPage(
         verticalArrangement = Arrangement.spacedBy(4.dp)
     ) {
         items(artists, key = { it.name }) { artist ->
-            ArtistLibraryRow(artist = artist, onClick = { onOpenArtist(artist) })
+            ArtistLibraryRow(
+                artist = artist,
+                onClick = { onOpenArtist(artist) },
+                onAddTracksToFavorites = onAddToFavorites,
+                onAddTracksToPlaylist = onAddToPlaylist
+            )
         }
     }
     }
@@ -1604,14 +1701,32 @@ private fun LibraryLayoutToggleButton(
 private fun AlbumLibraryGridCard(
     album: LibraryAlbum,
     onClick: () -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    onAddToFavorites: (() -> Unit)? = null,
+    onAddToPlaylist: (() -> Unit)? = null
 ) {
+    var menuExpanded by remember { mutableStateOf(false) }
     Surface(
-        modifier = modifier.fillMaxWidth(),
+        modifier = modifier
+            .fillMaxWidth()
+            .clip(MaterialTheme.shapes.large)
+            .combinedClickable(
+                onClick = onClick,
+                onLongClick = if (onAddToFavorites != null && onAddToPlaylist != null) {
+                    { menuExpanded = true }
+                } else null
+            ),
         shape = MaterialTheme.shapes.large,
-        color = MaterialTheme.colorScheme.surfaceContainerLow,
-        onClick = onClick
+        color = MaterialTheme.colorScheme.surfaceContainerLow
     ) {
+        if (onAddToFavorites != null && onAddToPlaylist != null) {
+            LibraryItemActionsMenu(
+                expanded = menuExpanded,
+                onDismiss = { menuExpanded = false },
+                onAddToFavorites = onAddToFavorites,
+                onAddToPlaylist = onAddToPlaylist
+            )
+        }
         Column(
             modifier = Modifier
                 .fillMaxWidth()
@@ -1657,7 +1772,11 @@ private fun LibraryAlbumDetailPage(
     artistKnown: Boolean,
     onPlay: (Int) -> Unit,
     onShuffle: () -> Unit,
-    onOpenArtist: () -> Unit
+    onOpenArtist: () -> Unit,
+    onAddTrackToFavorites: (LibraryTrackEntity) -> Unit,
+    onAddTrackToPlaylist: (LibraryTrackEntity) -> Unit,
+    onAddAllToFavorites: () -> Unit,
+    onAddAllToPlaylist: () -> Unit
 ) {
     var menuExpanded by rememberSaveable { mutableStateOf(false) }
     LazyColumn(
@@ -1750,6 +1869,44 @@ private fun LibraryAlbumDetailPage(
                                     onOpenArtist()
                                 }
                             )
+                            DropdownMenuItem(
+                                text = { Text("Add album to favorites", style = MaterialTheme.typography.bodyLarge) },
+                                leadingIcon = {
+                                    Icon(
+                                        imageVector = Icons.Default.Favorite,
+                                        contentDescription = null,
+                                        modifier = Modifier.size(22.dp)
+                                    )
+                                },
+                                contentPadding = PaddingValues(start = 14.dp, end = 18.dp),
+                                colors = MenuDefaults.itemColors(
+                                    textColor = MaterialTheme.colorScheme.onSurface,
+                                    leadingIconColor = MaterialTheme.colorScheme.onSurfaceVariant
+                                ),
+                                onClick = {
+                                    menuExpanded = false
+                                    onAddAllToFavorites()
+                                }
+                            )
+                            DropdownMenuItem(
+                                text = { Text("Add album to playlist…", style = MaterialTheme.typography.bodyLarge) },
+                                leadingIcon = {
+                                    Icon(
+                                        imageVector = Icons.Default.PlaylistAdd,
+                                        contentDescription = null,
+                                        modifier = Modifier.size(22.dp)
+                                    )
+                                },
+                                contentPadding = PaddingValues(start = 14.dp, end = 18.dp),
+                                colors = MenuDefaults.itemColors(
+                                    textColor = MaterialTheme.colorScheme.onSurface,
+                                    leadingIconColor = MaterialTheme.colorScheme.onSurfaceVariant
+                                ),
+                                onClick = {
+                                    menuExpanded = false
+                                    onAddAllToPlaylist()
+                                }
+                            )
                         }
                     }
                     Spacer(modifier = Modifier.weight(1f))
@@ -1783,7 +1940,9 @@ private fun LibraryAlbumDetailPage(
                 subtitleArtist = track.artist,
                 durationMs = track.durationMs,
                 isActive = activeSourceId != null && activeSourceId == track.path,
-                onClick = { onPlay(index) }
+                onClick = { onPlay(index) },
+                onAddToFavorites = { onAddTrackToFavorites(track) },
+                onAddToPlaylist = { onAddTrackToPlaylist(track) }
             )
             if (index < detail.tracks.lastIndex) {
                 androidx.compose.material3.HorizontalDivider(
@@ -1802,17 +1961,33 @@ private fun LibraryTrackListRow(
     subtitleArtist: String,
     durationMs: Long,
     isActive: Boolean,
-    onClick: () -> Unit
+    onClick: () -> Unit,
+    onAddToFavorites: (() -> Unit)? = null,
+    onAddToPlaylist: (() -> Unit)? = null
 ) {
+    var menuExpanded by remember { mutableStateOf(false) }
     Row(
         modifier = Modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(12.dp))
-            .clickable(onClick = onClick)
+            .combinedClickable(
+                onClick = onClick,
+                onLongClick = if (onAddToFavorites != null && onAddToPlaylist != null) {
+                    { menuExpanded = true }
+                } else null
+            )
             .padding(horizontal = 10.dp, vertical = 9.dp),
         horizontalArrangement = Arrangement.spacedBy(12.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
+        if (onAddToFavorites != null && onAddToPlaylist != null) {
+            LibraryItemActionsMenu(
+                expanded = menuExpanded,
+                onDismiss = { menuExpanded = false },
+                onAddToFavorites = onAddToFavorites,
+                onAddToPlaylist = onAddToPlaylist
+            )
+        }
         Text(
             text = position.toString(),
             style = MaterialTheme.typography.bodyMedium,
@@ -1946,18 +2121,34 @@ private fun LibraryAlbumCompactRow(
 @Composable
 private fun LibraryArtistCompactRow(
     artist: LibraryArtist,
-    onClick: () -> Unit
+    onClick: () -> Unit,
+    onAddToFavorites: (() -> Unit)? = null,
+    onAddToPlaylist: (() -> Unit)? = null
 ) {
+    var menuExpanded by remember { mutableStateOf(false) }
     Row(
         modifier = Modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(14.dp))
             .background(MaterialTheme.colorScheme.surfaceContainerLow)
-            .clickable(onClick = onClick)
+            .combinedClickable(
+                onClick = onClick,
+                onLongClick = if (onAddToFavorites != null && onAddToPlaylist != null) {
+                    { menuExpanded = true }
+                } else null
+            )
             .padding(horizontal = 10.dp, vertical = 8.dp),
         horizontalArrangement = Arrangement.spacedBy(10.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
+        if (onAddToFavorites != null && onAddToPlaylist != null) {
+            LibraryItemActionsMenu(
+                expanded = menuExpanded,
+                onDismiss = { menuExpanded = false },
+                onAddToFavorites = onAddToFavorites,
+                onAddToPlaylist = onAddToPlaylist
+            )
+        }
         Surface(
             modifier = Modifier.size(34.dp),
             shape = RoundedCornerShape(10.dp),
@@ -2030,18 +2221,34 @@ private fun AlbumArtworkBox(
 @Composable
 private fun AlbumLibraryListRow(
     album: LibraryAlbum,
-    onClick: () -> Unit
+    onClick: () -> Unit,
+    onAddToFavorites: (() -> Unit)? = null,
+    onAddToPlaylist: (() -> Unit)? = null
 ) {
+    var menuExpanded by remember { mutableStateOf(false) }
     Row(
         modifier = Modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(14.dp))
             .background(MaterialTheme.colorScheme.surfaceContainerLow)
-            .clickable(onClick = onClick)
+            .combinedClickable(
+                onClick = onClick,
+                onLongClick = if (onAddToFavorites != null && onAddToPlaylist != null) {
+                    { menuExpanded = true }
+                } else null
+            )
             .padding(horizontal = 10.dp, vertical = 8.dp),
         horizontalArrangement = Arrangement.spacedBy(10.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
+        if (onAddToFavorites != null && onAddToPlaylist != null) {
+            LibraryItemActionsMenu(
+                expanded = menuExpanded,
+                onDismiss = { menuExpanded = false },
+                onAddToFavorites = onAddToFavorites,
+                onAddToPlaylist = onAddToPlaylist
+            )
+        }
         Surface(
             modifier = Modifier.size(46.dp),
             shape = RoundedCornerShape(10.dp),
@@ -2070,18 +2277,40 @@ private fun AlbumLibraryListRow(
 @Composable
 private fun ArtistLibraryRow(
     artist: LibraryArtist,
-    onClick: () -> Unit
+    onClick: () -> Unit,
+    onAddTracksToFavorites: (List<LibraryTrackEntity>) -> Unit,
+    onAddTracksToPlaylist: (List<LibraryTrackEntity>) -> Unit
 ) {
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    var menuExpanded by remember { mutableStateOf(false) }
     Row(
         modifier = Modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(14.dp))
             .background(MaterialTheme.colorScheme.surfaceContainerLow)
-            .clickable(onClick = onClick)
+            .combinedClickable(
+                onClick = onClick,
+                onLongClick = { menuExpanded = true }
+            )
             .padding(horizontal = 10.dp, vertical = 8.dp),
         horizontalArrangement = Arrangement.spacedBy(10.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
+        LibraryItemActionsMenu(
+            expanded = menuExpanded,
+            onDismiss = { menuExpanded = false },
+            onAddToFavorites = {
+                scope.launch {
+                    onAddTracksToFavorites(LibraryRepository.artistTracks(context, artist.name))
+                }
+            },
+            onAddToPlaylist = {
+                scope.launch {
+                    onAddTracksToPlaylist(LibraryRepository.artistTracks(context, artist.name))
+                }
+            }
+        )
         Surface(
             modifier = Modifier.size(46.dp),
             shape = RoundedCornerShape(10.dp),
@@ -4057,7 +4286,9 @@ private fun LibrarySearchOverlay(
     onQueryChanged: (String) -> Unit,
     onOpenAlbum: (LibraryAlbum) -> Unit,
     onOpenArtist: (LibraryArtist) -> Unit,
-    onPlayTrack: (LibraryTrackEntity, Int) -> Unit
+    onPlayTrack: (LibraryTrackEntity, Int) -> Unit,
+    onAddTrackToFavorites: (LibraryTrackEntity) -> Unit,
+    onAddTrackToPlaylist: (LibraryTrackEntity) -> Unit
 ) {
     val focusRequester = remember { FocusRequester() }
     val keyboard = LocalSoftwareKeyboardController.current
@@ -4152,12 +4383,66 @@ private fun LibrarySearchOverlay(
                             subtitleArtist = track.artist,
                             durationMs = track.durationMs,
                             isActive = activeSourceId != null && activeSourceId == track.path,
-                            onClick = { onPlayTrack(track, index) }
+                            onClick = { onPlayTrack(track, index) },
+                            onAddToFavorites = { onAddTrackToFavorites(track) },
+                            onAddToPlaylist = { onAddTrackToPlaylist(track) }
                         )
                     }
                 }
             }
         }
+    }
+}
+
+@Composable
+private fun LibraryItemActionsMenu(
+    expanded: Boolean,
+    onDismiss: () -> Unit,
+    onAddToFavorites: () -> Unit,
+    onAddToPlaylist: () -> Unit
+) {
+    DropdownMenu(
+        expanded = expanded,
+        onDismissRequest = onDismiss
+    ) {
+        DropdownMenuItem(
+            text = { Text("Add to favorites", style = MaterialTheme.typography.bodyLarge) },
+            leadingIcon = {
+                Icon(
+                    imageVector = Icons.Default.Favorite,
+                    contentDescription = null,
+                    modifier = Modifier.size(22.dp)
+                )
+            },
+            contentPadding = PaddingValues(start = 14.dp, end = 18.dp),
+            colors = MenuDefaults.itemColors(
+                textColor = MaterialTheme.colorScheme.onSurface,
+                leadingIconColor = MaterialTheme.colorScheme.onSurfaceVariant
+            ),
+            onClick = {
+                onDismiss()
+                onAddToFavorites()
+            }
+        )
+        DropdownMenuItem(
+            text = { Text("Add to playlist…", style = MaterialTheme.typography.bodyLarge) },
+            leadingIcon = {
+                Icon(
+                    imageVector = Icons.Default.PlaylistAdd,
+                    contentDescription = null,
+                    modifier = Modifier.size(22.dp)
+                )
+            },
+            contentPadding = PaddingValues(start = 14.dp, end = 18.dp),
+            colors = MenuDefaults.itemColors(
+                textColor = MaterialTheme.colorScheme.onSurface,
+                leadingIconColor = MaterialTheme.colorScheme.onSurfaceVariant
+            ),
+            onClick = {
+                onDismiss()
+                onAddToPlaylist()
+            }
+        )
     }
 }
 

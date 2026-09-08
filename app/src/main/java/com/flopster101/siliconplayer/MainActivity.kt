@@ -932,6 +932,70 @@ internal fun toggleFavoriteForFile(
     Toast.makeText(context, "Added to favorites", Toast.LENGTH_SHORT).show()
 }
 
+private fun buildLibraryFavoriteEntries(
+    context: Context,
+    tracks: List<LibraryTrackEntity>
+): List<PlaylistTrackEntry> = tracks.map { track ->
+    track.toPlaylistTrackEntry().copy(
+        artworkThumbnailCacheKey = ensureRecentArtworkThumbnailCached(
+            context = context,
+            sourceId = track.path
+        )
+    )
+}
+
+private fun applyLibraryAddToFavorites(
+    context: Context,
+    tracks: List<LibraryTrackEntity>,
+    entries: List<PlaylistTrackEntry>,
+    playlistLibraryState: PlaylistLibraryState,
+    onPlaylistLibraryStateChanged: (PlaylistLibraryState) -> Unit
+) {
+    onPlaylistLibraryStateChanged(upsertFavoriteTracks(playlistLibraryState, entries))
+    Toast.makeText(
+        context,
+        if (tracks.size == 1) "Added to favorites" else "Added ${tracks.size} tracks to favorites",
+        Toast.LENGTH_SHORT
+    ).show()
+}
+
+private fun applyLibraryAddToPlaylist(
+    context: Context,
+    tracks: List<LibraryTrackEntity>,
+    entries: List<PlaylistTrackEntry>,
+    playlistId: String?,
+    newTitle: String,
+    playlistLibraryState: PlaylistLibraryState,
+    onPlaylistLibraryStateChanged: (PlaylistLibraryState) -> Unit
+) {
+    val updatedState = if (playlistId != null) {
+        val playlist = playlistLibraryState.playlists.firstOrNull { it.id == playlistId }
+        if (playlist != null) {
+            upsertStoredPlaylist(
+                playlistLibraryState,
+                playlist.copy(entries = playlist.entries + entries)
+            )
+        } else {
+            playlistLibraryState
+        }
+    } else {
+        upsertStoredPlaylist(
+            playlistLibraryState,
+            StoredPlaylist(
+                title = newTitle.ifBlank { "New playlist" },
+                format = PlaylistStoredFormat.Internal,
+                entries = entries
+            )
+        )
+    }
+    onPlaylistLibraryStateChanged(updatedState)
+    Toast.makeText(
+        context,
+        if (playlistId != null) "Added to playlist" else "Created playlist",
+        Toast.LENGTH_SHORT
+    ).show()
+}
+
 private fun mergeFavoritePlaybackMetadata(
     playlistLibraryState: PlaylistLibraryState,
     favoriteId: String,
@@ -2812,6 +2876,42 @@ onStopEngine = { NativeBridge.releaseCurrentDecoder() }, onMetadataAlbumChanged 
             onPendingPlaylistSubtuneSelectionChanged = { pendingPlaylistSubtuneSelection = it }
         )
     }
+
+    val onAddLibraryTracksToFavoritesAction: (List<LibraryTrackEntity>) -> Unit = { tracks ->
+        if (tracks.isNotEmpty()) {
+            appScope.launch {
+                val entries = withContext(Dispatchers.IO) {
+                    buildLibraryFavoriteEntries(context, tracks)
+                }
+                applyLibraryAddToFavorites(
+                    context = context,
+                    tracks = tracks,
+                    entries = entries,
+                    playlistLibraryState = playlistLibraryState,
+                    onPlaylistLibraryStateChanged = onPlaylistLibraryStateChanged
+                )
+            }
+        }
+    }
+
+    val onAddLibraryTracksToPlaylistAction: (List<LibraryTrackEntity>, String?, String) -> Unit = { tracks, playlistId, newTitle ->
+        if (tracks.isNotEmpty()) {
+            appScope.launch {
+                val entries = withContext(Dispatchers.IO) {
+                    buildLibraryFavoriteEntries(context, tracks)
+                }
+                applyLibraryAddToPlaylist(
+                    context = context,
+                    tracks = tracks,
+                    entries = entries,
+                    playlistId = playlistId,
+                    newTitle = newTitle,
+                    playlistLibraryState = playlistLibraryState,
+                    onPlaylistLibraryStateChanged = onPlaylistLibraryStateChanged
+                )
+            }
+        }
+    }
     val toggleCurrentTrackFavoriteAction: () -> Unit = {
         toggleCurrentTrackFavorite(
             context = context,
@@ -4617,6 +4717,8 @@ filenameOnlyWhenTitleMissing = filenameOnlyWhenTitleMissing,
                         },
                         onPlayLibraryTracks = onPlayLibraryTracksAction,
                         onShuffleLibraryTracks = onShuffleLibraryTracksAction,
+                        onAddLibraryTracksToFavorites = onAddLibraryTracksToFavoritesAction,
+                        onAddLibraryTracksToPlaylist = onAddLibraryTracksToPlaylistAction,
                         networkNodes = networkNodes,
                         storageDescriptors = storageDescriptors,
                         miniPlayerListInset = miniPlayerListInset,

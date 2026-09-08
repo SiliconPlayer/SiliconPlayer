@@ -217,6 +217,17 @@ internal interface LibraryTrackDao {
 
     @Query(
         """
+        SELECT * FROM library_tracks
+        WHERE (albumArtist = :artist OR (COALESCE(albumArtist, '') = '' AND artist = :artist))
+          AND sourceId IN (SELECT id FROM library_sources WHERE enabled = 1)
+        ORDER BY COALESCE(album, '') COLLATE NOCASE ASC,
+                 discNo ASC, trackNo ASC, title COLLATE NOCASE ASC
+        """
+    )
+    suspend fun artistTracks(artist: String): List<LibraryTrackEntity>
+
+    @Query(
+        """
         SELECT artist AS name, COUNT(*) AS trackCount,
                COUNT(DISTINCT COALESCE(album, '')) AS albumCount,
                MIN(path) AS artworkPath
