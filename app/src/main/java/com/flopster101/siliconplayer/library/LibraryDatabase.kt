@@ -39,6 +39,7 @@ data class LibrarySourceEntity(
 data class LibraryAlbumRow(
     val name: String,
     val artist: String,
+    val distinctArtists: Int,
     val trackCount: Int,
     val durationMs: Long,
     val year: Int,
@@ -63,6 +64,7 @@ object LibraryContract {
 
     const val UNKNOWN_ALBUM = "Unknown album"
     const val UNKNOWN_ARTIST = "Unknown artist"
+    const val VARIOUS_ARTISTS = "Various artists"
 }
 
 data class LibraryAlbum(
@@ -72,8 +74,7 @@ data class LibraryAlbum(
     val durationMs: Long,
     val year: Int,
     val artworkPath: String?,
-    val rawName: String = name,
-    val rawArtistKey: String = artist
+    val rawName: String = name
 )
 
 data class LibraryArtist(
@@ -120,16 +121,17 @@ internal interface LibraryTrackDao {
         """
         SELECT * FROM library_tracks
         WHERE COALESCE(album, '') = :album
-          AND COALESCE(NULLIF(albumArtist, ''), NULLIF(artist, ''), '') = :artistKey
-        ORDER BY discNo ASC, trackNo ASC, title COLLATE NOCASE ASC
+        ORDER BY COALESCE(NULLIF(albumArtist, ''), NULLIF(artist, ''), '') ASC,
+                 discNo ASC, trackNo ASC, title COLLATE NOCASE ASC
         """
     )
-    suspend fun albumTracks(album: String, artistKey: String): List<LibraryTrackEntity>
+    suspend fun albumTracks(album: String): List<LibraryTrackEntity>
 
     @Query(
         """
         SELECT COALESCE(album, '') AS name,
                :artist AS artist,
+               COUNT(DISTINCT COALESCE(NULLIF(albumArtist, ''), NULLIF(artist, ''), '')) AS distinctArtists,
                COUNT(*) AS trackCount,
                SUM(durationMs) AS durationMs,
                MAX(year) AS year,
@@ -151,14 +153,15 @@ internal interface LibraryTrackDao {
     @Query(
         """
         SELECT COALESCE(album, '') AS name,
-               COALESCE(NULLIF(albumArtist, ''), NULLIF(artist, ''), '') AS artist,
+               MIN(COALESCE(NULLIF(albumArtist, ''), NULLIF(artist, ''), '')) AS artist,
+               COUNT(DISTINCT COALESCE(NULLIF(albumArtist, ''), NULLIF(artist, ''), '')) AS distinctArtists,
                COUNT(*) AS trackCount,
                SUM(durationMs) AS durationMs,
                MAX(year) AS year,
                MIN(path) AS artworkPath
         FROM library_tracks
         WHERE sourceId IN (SELECT id FROM library_sources WHERE enabled = 1)
-        GROUP BY name, artist
+        GROUP BY COALESCE(album, '')
         ORDER BY name COLLATE NOCASE ASC
         """
     )

@@ -1523,18 +1523,12 @@ private fun AppNavigation(
     var activePlaylist by remember { mutableStateOf<StoredPlaylist?>(null) }
     var activePlaylistEntryId by remember { mutableStateOf<String?>(null) }
     var librarySelectedAlbumName by remember { mutableStateOf<String?>(null) }
-    var librarySelectedAlbumArtistKey by remember { mutableStateOf<String?>(null) }
     var librarySelectedArtistName by remember { mutableStateOf<String?>(null) }
     var libraryAlbumDetail by remember { mutableStateOf<LibraryAlbumDetail?>(null) }
     var libraryArtistAlbums by remember { mutableStateOf<List<LibraryAlbum>?>(null) }
-    LaunchedEffect(librarySelectedAlbumName, librarySelectedAlbumArtistKey) {
+    LaunchedEffect(librarySelectedAlbumName) {
         val albumName = librarySelectedAlbumName
-        val artistKey = librarySelectedAlbumArtistKey
-        libraryAlbumDetail = if (albumName != null && artistKey != null) {
-            LibraryRepository.albumDetail(context, albumName, artistKey)
-        } else {
-            null
-        }
+        libraryAlbumDetail = albumName?.let { LibraryRepository.albumDetail(context, it) }
     }
     LaunchedEffect(librarySelectedArtistName) {
         val artistName = librarySelectedArtistName
@@ -4615,9 +4609,8 @@ filenameOnlyWhenTitleMissing = filenameOnlyWhenTitleMissing,
                         selectedArtistName = librarySelectedArtistName,
                         activePlaylist = activePlaylist,
                         favoritesSortMode = favoritesSortMode,
-                        onOpenLibraryAlbum = { albumName, artistKey ->
+                        onOpenLibraryAlbum = { albumName, _ ->
                             librarySelectedAlbumName = albumName
-                            librarySelectedAlbumArtistKey = artistKey
                         },
                         onOpenLibraryArtist = { artistName ->
                             librarySelectedArtistName = artistName

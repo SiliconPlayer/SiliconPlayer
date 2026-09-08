@@ -165,6 +165,7 @@ import com.flopster101.siliconplayer.library.LibraryAlbum
 import com.flopster101.siliconplayer.library.LibraryAlbumDetail
 import com.flopster101.siliconplayer.library.LibraryArtist
 import com.flopster101.siliconplayer.library.LibraryCollections
+import com.flopster101.siliconplayer.library.LibraryContract
 import com.flopster101.siliconplayer.library.LibraryRepository
 import com.flopster101.siliconplayer.library.LibrarySyncState
 import com.flopster101.siliconplayer.library.LibraryTrackEntity
@@ -741,7 +742,8 @@ internal fun PlaylistsScreen(
                         activeSourceId = currentPlaybackSourceId,
                         bottomContentPadding = bottomContentPadding,
                         artistKnown = libraryAlbumDetail.album.artist.isNotBlank() &&
-                                !libraryAlbumDetail.album.artist.equals("Unknown artist", ignoreCase = true),
+                                !libraryAlbumDetail.album.artist.equals(LibraryContract.UNKNOWN_ARTIST, ignoreCase = true) &&
+                                !libraryAlbumDetail.album.artist.equals(LibraryContract.VARIOUS_ARTISTS, ignoreCase = true),
                         onPlay = { index ->
                             onPlayLibraryTracks(
                                 libraryAlbumDetail.tracks,
@@ -773,7 +775,7 @@ internal fun PlaylistsScreen(
                             .padding(actualInnerPadding),
                         bottomContentPadding = bottomContentPadding,
                         onOpenAlbum = { album ->
-                            onOpenLibraryAlbum(album.rawName, album.rawArtistKey)
+                            onOpenLibraryAlbum(album.rawName, album.rawName)
                             albumOpenedFromArtist = true
                             destination = PlaylistsSurfaceDestination.AlbumDetail
                         }
@@ -1011,7 +1013,7 @@ internal fun PlaylistsScreen(
                                             LibraryAlbumCompactRow(
                                                 album = album,
                                                 onClick = {
-                                                    onOpenLibraryAlbum(album.rawName, album.rawArtistKey)
+                                                    onOpenLibraryAlbum(album.rawName, album.rawName)
                                                     destination = PlaylistsSurfaceDestination.AlbumDetail
                                                 }
                                             )
@@ -1086,7 +1088,7 @@ internal fun PlaylistsScreen(
                                             isSyncing = effectiveLibraryCollections.isSyncing,
                                             syncState = librarySyncState,
                                             onOpenAlbum = { album ->
-                                                onOpenLibraryAlbum(album.rawName, album.rawArtistKey)
+                                                onOpenLibraryAlbum(album.rawName, album.rawName)
                                                 destination = PlaylistsSurfaceDestination.AlbumDetail
                                             }
                                         )

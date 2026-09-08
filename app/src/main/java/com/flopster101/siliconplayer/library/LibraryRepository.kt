@@ -69,13 +69,15 @@ object LibraryRepository {
                     albums = trackDao.albumRows().map { row ->
                         LibraryAlbum(
                             name = row.name.ifBlank { LibraryContract.UNKNOWN_ALBUM },
-                            artist = row.artist.ifBlank { LibraryContract.UNKNOWN_ARTIST },
+                            artist = when {
+                                row.distinctArtists > 1 -> LibraryContract.VARIOUS_ARTISTS
+                                else -> row.artist.ifBlank { LibraryContract.UNKNOWN_ARTIST }
+                            },
                             trackCount = row.trackCount,
                             durationMs = row.durationMs,
                             year = row.year,
                             artworkPath = row.artworkPath,
-                            rawName = row.name,
-                            rawArtistKey = row.artist
+                            rawName = row.name
                         )
                     },
                     artists = trackDao.artistRows().map { row ->
@@ -95,16 +97,24 @@ object LibraryRepository {
 
     suspend fun albumDetail(
         context: Context,
-        albumName: String,
-        artistKey: String
+        albumName: String
     ): LibraryAlbumDetail? = withContext(Dispatchers.IO) {
         val db = LibraryDatabase.get(context)
-        val tracks = db.trackDao().albumTracks(albumName, artistKey)
+        val tracks = db.trackDao().albumTracks(albumName)
         if (tracks.isEmpty()) return@withContext null
+        // Albums group by title only, so a bucket can span artists (the unknown
+        // album always does); show the shared artist or a compilation label.
+        val artistKeys = tracks.map { it.albumArtist.ifBlank { it.artist } }
+            .filter { it.isNotBlank() }
+            .distinct()
         LibraryAlbumDetail(
             album = LibraryAlbum(
                 name = albumName.ifBlank { LibraryContract.UNKNOWN_ALBUM },
-                artist = artistKey.ifBlank { LibraryContract.UNKNOWN_ARTIST },
+                artist = when (artistKeys.size) {
+                    0 -> LibraryContract.UNKNOWN_ARTIST
+                    1 -> artistKeys[0]
+                    else -> LibraryContract.VARIOUS_ARTISTS
+                },
                 trackCount = tracks.size,
                 durationMs = tracks.sumOf { it.durationMs },
                 year = tracks.maxOf { it.year },
@@ -125,8 +135,7 @@ object LibraryRepository {
                     durationMs = row.durationMs,
                     year = row.year,
                     artworkPath = row.artworkPath,
-                    rawName = row.name,
-                    rawArtistKey = artist
+                    rawName = row.name
                 )
             }
         }
