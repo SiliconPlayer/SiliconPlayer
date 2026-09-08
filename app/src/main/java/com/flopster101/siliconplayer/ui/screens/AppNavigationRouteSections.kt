@@ -13,6 +13,9 @@ import androidx.compose.ui.focus.focusRestorer
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.input.key.KeyEventType
 import androidx.compose.ui.input.key.key
+import com.flopster101.siliconplayer.library.LibraryAlbum
+import com.flopster101.siliconplayer.library.LibraryAlbumDetail
+import com.flopster101.siliconplayer.library.LibraryTrackEntity
 import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.input.key.onKeyEvent
 import androidx.compose.ui.input.key.type
@@ -105,7 +108,14 @@ internal fun AppNavigationPlaylistsRouteSection(
     currentSubtuneIndex: Int,
     favoritesSortMode: PlaylistEntrySortMode,
     networkNodes: List<NetworkNode> = emptyList(),
+    libraryAlbumDetail: LibraryAlbumDetail?,
+    libraryArtistAlbums: List<LibraryAlbum>?,
+    selectedArtistName: String?,
     onExitPlaylists: () -> Unit,
+    onOpenLibraryAlbum: (String, String) -> Unit,
+    onOpenLibraryArtist: (String) -> Unit,
+    onPlayLibraryTracks: (List<LibraryTrackEntity>, Int, String) -> Unit,
+    onShuffleLibraryTracks: (List<LibraryTrackEntity>, String) -> Unit,
     onFavoritesSortModeChange: (PlaylistEntrySortMode) -> Unit,
     onOpenLibrarySettings: () -> Unit,
     onOpenFavorite: (PlaylistTrackEntry) -> Unit,
@@ -133,7 +143,14 @@ internal fun AppNavigationPlaylistsRouteSection(
         currentSubtuneIndex = currentSubtuneIndex,
         favoritesSortMode = favoritesSortMode,
         networkNodes = networkNodes,
+        libraryAlbumDetail = libraryAlbumDetail,
+        libraryArtistAlbums = libraryArtistAlbums,
+        selectedArtistName = selectedArtistName,
         onExitPlaylists = onExitPlaylists,
+        onOpenLibraryAlbum = onOpenLibraryAlbum,
+        onOpenLibraryArtist = onOpenLibraryArtist,
+        onPlayLibraryTracks = onPlayLibraryTracks,
+        onShuffleLibraryTracks = onShuffleLibraryTracks,
         onFavoritesSortModeChange = onFavoritesSortModeChange,
         onOpenLibrarySettings = onOpenLibrarySettings,
         onOpenFavorite = onOpenFavorite,

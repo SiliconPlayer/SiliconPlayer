@@ -12,8 +12,11 @@ import com.flopster101.siliconplayer.ui.screens.FileBrowserScreen
 import com.flopster101.siliconplayer.ui.screens.HttpFileBrowserScreen
 import com.flopster101.siliconplayer.ui.screens.NetworkBrowserScreen
 import com.flopster101.siliconplayer.ui.screens.PlaylistsScreen
+import com.flopster101.siliconplayer.library.LibraryAlbumDetail
+import com.flopster101.siliconplayer.library.LibraryAlbum
 import com.flopster101.siliconplayer.library.LibraryCollections
 import com.flopster101.siliconplayer.library.LibraryRepository
+import com.flopster101.siliconplayer.library.LibraryTrackEntity
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.setValue
@@ -142,7 +145,14 @@ internal fun MainPlaylistsRouteHost(
     currentSubtuneIndex: Int,
     favoritesSortMode: PlaylistEntrySortMode,
     networkNodes: List<NetworkNode> = emptyList(),
+    libraryAlbumDetail: LibraryAlbumDetail?,
+    libraryArtistAlbums: List<LibraryAlbum>?,
+    selectedArtistName: String?,
     onExitPlaylists: () -> Unit,
+    onOpenLibraryAlbum: (String, String) -> Unit,
+    onOpenLibraryArtist: (String) -> Unit,
+    onPlayLibraryTracks: (List<LibraryTrackEntity>, Int, String) -> Unit,
+    onShuffleLibraryTracks: (List<LibraryTrackEntity>, String) -> Unit,
     onFavoritesSortModeChange: (PlaylistEntrySortMode) -> Unit,
     onOpenLibrarySettings: () -> Unit,
     onOpenFavorite: (PlaylistTrackEntry) -> Unit,
@@ -169,12 +179,19 @@ internal fun MainPlaylistsRouteHost(
         PlaylistsScreen(
             libraryState = libraryState,
             libraryCollections = libraryCollections,
+            libraryAlbumDetail = libraryAlbumDetail,
+            libraryArtistAlbums = libraryArtistAlbums,
+            selectedArtistName = selectedArtistName,
             activePlaylist = activePlaylist,
             currentPlaybackSourceId = currentPlaybackSourceId,
             currentSubtuneIndex = currentSubtuneIndex,
             bottomContentPadding = bottomContentPadding,
             favoritesSortMode = favoritesSortMode,
             networkNodes = networkNodes,
+            onOpenLibraryAlbum = onOpenLibraryAlbum,
+            onOpenLibraryArtist = onOpenLibraryArtist,
+            onPlayLibraryTracks = onPlayLibraryTracks,
+        onShuffleLibraryTracks = onShuffleLibraryTracks,
             backHandlingEnabled = backHandlingEnabled,
             onBack = onExitPlaylists,
             onFavoritesSortModeChange = onFavoritesSortModeChange,

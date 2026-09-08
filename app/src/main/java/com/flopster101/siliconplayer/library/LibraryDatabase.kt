@@ -71,7 +71,9 @@ data class LibraryAlbum(
     val trackCount: Int,
     val durationMs: Long,
     val year: Int,
-    val artworkPath: String?
+    val artworkPath: String?,
+    val rawName: String = name,
+    val rawArtistKey: String = artist
 )
 
 data class LibraryArtist(
@@ -113,6 +115,32 @@ internal interface LibraryTrackDao {
 
     @Query("SELECT path, sourceId FROM library_tracks")
     suspend fun trackSourcePairs(): List<LibraryTrackSourcePair>
+
+    @Query(
+        """
+        SELECT * FROM library_tracks
+        WHERE COALESCE(album, '') = :album
+          AND COALESCE(NULLIF(albumArtist, ''), NULLIF(artist, ''), '') = :artistKey
+        ORDER BY discNo ASC, trackNo ASC, title COLLATE NOCASE ASC
+        """
+    )
+    suspend fun albumTracks(album: String, artistKey: String): List<LibraryTrackEntity>
+
+    @Query(
+        """
+        SELECT COALESCE(album, '') AS name,
+               :artist AS artist,
+               COUNT(*) AS trackCount,
+               SUM(durationMs) AS durationMs,
+               MAX(year) AS year,
+               MIN(path) AS artworkPath
+        FROM library_tracks
+        WHERE albumArtist = :artist OR (COALESCE(albumArtist, '') = '' AND artist = :artist)
+        GROUP BY COALESCE(album, '')
+        ORDER BY name COLLATE NOCASE ASC
+        """
+    )
+    suspend fun artistAlbumRows(artist: String): List<LibraryAlbumRow>
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun upsertTracks(tracks: List<LibraryTrackEntity>)

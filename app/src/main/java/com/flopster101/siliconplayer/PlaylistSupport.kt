@@ -10,8 +10,21 @@ import java.nio.charset.CodingErrorAction
 import java.nio.charset.Charset
 import java.util.Locale
 import java.util.UUID
+import com.flopster101.siliconplayer.library.LibraryTrackEntity
 
 private val SUPPORTED_PLAYLIST_EXTENSIONS = setOf("m3u", "m3u8")
+
+internal fun LibraryTrackEntity.toPlaylistTrackEntry(): PlaylistTrackEntry {
+    val artist = artist.takeUnless { it.isBlank() || it.equals("Unknown artist", ignoreCase = true) }
+    val album = album.takeUnless { it.isBlank() || it.equals("Unknown album", ignoreCase = true) }
+    return PlaylistTrackEntry(
+        source = path,
+        title = title,
+        artist = artist,
+        album = album,
+        durationSecondsOverride = if (durationMs > 0L) durationMs / 1000.0 else null
+    )
+}
 
 internal enum class PlaylistStoredFormat(
     val storageValue: String,

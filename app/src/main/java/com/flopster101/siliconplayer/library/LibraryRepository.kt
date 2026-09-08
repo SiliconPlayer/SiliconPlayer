@@ -21,6 +21,11 @@ data class LibrarySourceStatus(
     val trackCount: Long
 )
 
+data class LibraryAlbumDetail(
+    val album: LibraryAlbum,
+    val tracks: List<LibraryTrackEntity>
+)
+
 object LibraryRepository {
 
     private const val SYNC_STALENESS_MS = 15 * 60 * 1000L
@@ -68,7 +73,9 @@ object LibraryRepository {
                             trackCount = row.trackCount,
                             durationMs = row.durationMs,
                             year = row.year,
-                            artworkPath = row.artworkPath
+                            artworkPath = row.artworkPath,
+                            rawName = row.name,
+                            rawArtistKey = row.artist
                         )
                     },
                     artists = trackDao.artistRows().map { row ->
@@ -84,6 +91,44 @@ object LibraryRepository {
                 )
             }
             collections
+        }
+
+    suspend fun albumDetail(
+        context: Context,
+        albumName: String,
+        artistKey: String
+    ): LibraryAlbumDetail? = withContext(Dispatchers.IO) {
+        val db = LibraryDatabase.get(context)
+        val tracks = db.trackDao().albumTracks(albumName, artistKey)
+        if (tracks.isEmpty()) return@withContext null
+        LibraryAlbumDetail(
+            album = LibraryAlbum(
+                name = albumName.ifBlank { LibraryContract.UNKNOWN_ALBUM },
+                artist = artistKey.ifBlank { LibraryContract.UNKNOWN_ARTIST },
+                trackCount = tracks.size,
+                durationMs = tracks.sumOf { it.durationMs },
+                year = tracks.maxOf { it.year },
+                artworkPath = tracks.minOfOrNull { it.path }
+            ),
+            tracks = tracks
+        )
+    }
+
+    suspend fun artistAlbums(context: Context, artist: String): List<LibraryAlbum> =
+        withContext(Dispatchers.IO) {
+            val db = LibraryDatabase.get(context)
+            db.trackDao().artistAlbumRows(artist).map { row ->
+                LibraryAlbum(
+                    name = row.name.ifBlank { LibraryContract.UNKNOWN_ALBUM },
+                    artist = artist,
+                    trackCount = row.trackCount,
+                    durationMs = row.durationMs,
+                    year = row.year,
+                    artworkPath = row.artworkPath,
+                    rawName = row.name,
+                    rawArtistKey = artist
+                )
+            }
         }
 
     suspend fun syncState(): LibrarySyncState = cachedState

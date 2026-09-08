@@ -162,10 +162,12 @@ import com.flopster101.siliconplayer.resolvePlaylistEntryLocalFile
 import com.flopster101.siliconplayer.sourceLeafNameForDisplay
 import com.flopster101.siliconplayer.data.parseArchiveSourceId
 import com.flopster101.siliconplayer.library.LibraryAlbum
+import com.flopster101.siliconplayer.library.LibraryAlbumDetail
 import com.flopster101.siliconplayer.library.LibraryArtist
 import com.flopster101.siliconplayer.library.LibraryCollections
 import com.flopster101.siliconplayer.library.LibraryRepository
 import com.flopster101.siliconplayer.library.LibrarySyncState
+import com.flopster101.siliconplayer.library.LibraryTrackEntity
 import com.flopster101.siliconplayer.loadArtworkForFile
 import androidx.compose.ui.graphics.ImageBitmap
 import java.io.File
@@ -177,7 +179,9 @@ import kotlinx.coroutines.withContext
 private enum class PlaylistsSurfaceDestination {
     Library,
     Favorites,
-    StoredPlaylist
+    StoredPlaylist,
+    AlbumDetail,
+    ArtistDetail
 }
 
 private enum class LibrarySurfaceTab {
@@ -403,6 +407,13 @@ private fun PlaylistsTopBarMarqueeText(
 internal fun PlaylistsScreen(
     libraryState: PlaylistLibraryState,
     libraryCollections: LibraryCollections,
+    libraryAlbumDetail: LibraryAlbumDetail?,
+    libraryArtistAlbums: List<LibraryAlbum>?,
+    selectedArtistName: String?,
+    onOpenLibraryAlbum: (String, String) -> Unit,
+    onOpenLibraryArtist: (String) -> Unit,
+    onPlayLibraryTracks: (List<LibraryTrackEntity>, Int, String) -> Unit,
+    onShuffleLibraryTracks: (List<LibraryTrackEntity>, String) -> Unit,
     onOpenLibrarySettings: () -> Unit,
     activePlaylist: StoredPlaylist?,
     currentPlaybackSourceId: String?,
@@ -448,12 +459,15 @@ internal fun PlaylistsScreen(
     )
     val coroutineScope = rememberCoroutineScope()
     val showingFavoritesDetail = destination == PlaylistsSurfaceDestination.Favorites
+    val showingAlbumDetail = destination == PlaylistsSurfaceDestination.AlbumDetail && libraryAlbumDetail != null
+    val showingArtistDetail = destination == PlaylistsSurfaceDestination.ArtistDetail && selectedArtistName != null && libraryArtistAlbums != null
     val selectedStoredPlaylist = selectedStoredPlaylistId?.let { playlistId ->
         libraryState.playlists.firstOrNull { playlist -> playlist.id == playlistId }
     }
     val showingStoredPlaylistDetail =
         destination == PlaylistsSurfaceDestination.StoredPlaylist && selectedStoredPlaylist != null
-    val showingPlaylistDetail = showingFavoritesDetail || showingStoredPlaylistDetail
+    val showingPlaylistDetail = showingFavoritesDetail || showingStoredPlaylistDetail ||
+            showingAlbumDetail || showingArtistDetail
     var storedPlaylistSortMode by rememberSaveable(selectedStoredPlaylistId) {
         mutableStateOf(PlaylistEntrySortMode.Custom)
     }
@@ -468,6 +482,8 @@ internal fun PlaylistsScreen(
         showingStoredPlaylistDetail -> selectedStoredPlaylist?.title
         else -> null
     }
+    var albumOpenedFromArtist by rememberSaveable { mutableStateOf(false) }
+    var artistOpenedFromAlbum by rememberSaveable { mutableStateOf(false) }
     val detailCollapseFraction = scrollBehavior.state.collapsedFraction.coerceIn(0f, 1f)
     val showCollapsedDetailSubtitle = detailSubtitle != null &&
         scrollBehavior.state.collapsedFraction >= 0.999f
@@ -489,7 +505,17 @@ internal fun PlaylistsScreen(
         favoritesEditModeEnabled = false
         favoritesDraggingEntryId = null
         selectedStoredPlaylistId = null
-        destination = PlaylistsSurfaceDestination.Library
+        if (destination == PlaylistsSurfaceDestination.AlbumDetail && albumOpenedFromArtist) {
+            albumOpenedFromArtist = false
+            destination = PlaylistsSurfaceDestination.ArtistDetail
+        } else if (destination == PlaylistsSurfaceDestination.ArtistDetail && artistOpenedFromAlbum) {
+            artistOpenedFromAlbum = false
+            destination = PlaylistsSurfaceDestination.AlbumDetail
+        } else {
+            albumOpenedFromArtist = false
+            artistOpenedFromAlbum = false
+            destination = PlaylistsSurfaceDestination.Library
+        }
     }
     LaunchedEffect(favoritesEditModeEnabled, favoritesSortMode, libraryState.favorites) {
         val isCustomSort = favoritesSortMode == PlaylistEntrySortMode.Custom
@@ -587,7 +613,13 @@ internal fun PlaylistsScreen(
                                         }
                                     }
                                 } else {
-                                    Text(text = if (showingPlaylistDetail) "Playlists" else "Library")
+                                    Text(
+                                        text = when {
+                                            showingAlbumDetail || showingArtistDetail -> "Library"
+                                            showingPlaylistDetail -> "Playlists"
+                                            else -> "Library"
+                                        }
+                                    )
                                 }
                             }
                         },
@@ -598,7 +630,20 @@ internal fun PlaylistsScreen(
                                         favoritesEditModeEnabled = false
                                         favoritesDraggingEntryId = null
                                         selectedStoredPlaylistId = null
-                                        destination = PlaylistsSurfaceDestination.Library
+                                        if (destination == PlaylistsSurfaceDestination.AlbumDetail &&
+                                            albumOpenedFromArtist
+                                        ) {
+                                            albumOpenedFromArtist = false
+                                            destination = PlaylistsSurfaceDestination.ArtistDetail
+                                        } else if (destination == PlaylistsSurfaceDestination.ArtistDetail &&
+                                            artistOpenedFromAlbum
+                                        ) {
+                                            artistOpenedFromAlbum = false
+                                            destination = PlaylistsSurfaceDestination.AlbumDetail
+                                        } else {
+                                            albumOpenedFromArtist = false
+                                            destination = PlaylistsSurfaceDestination.Library
+                                        }
                                     } else {
                                         onBack()
                                     }
@@ -685,7 +730,55 @@ internal fun PlaylistsScreen(
                 label = "playlistsSurfaceTransition",
                 modifier = Modifier.fillMaxSize()
             ) { currentDestination ->
-                if (currentDestination == PlaylistsSurfaceDestination.Favorites) {
+                if (currentDestination == PlaylistsSurfaceDestination.AlbumDetail &&
+                    libraryAlbumDetail != null
+                ) {
+                    LibraryAlbumDetailPage(
+                        detail = libraryAlbumDetail,
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .padding(actualInnerPadding),
+                        activeSourceId = currentPlaybackSourceId,
+                        bottomContentPadding = bottomContentPadding,
+                        artistKnown = libraryAlbumDetail.album.artist.isNotBlank() &&
+                                !libraryAlbumDetail.album.artist.equals("Unknown artist", ignoreCase = true),
+                        onPlay = { index ->
+                            onPlayLibraryTracks(
+                                libraryAlbumDetail.tracks,
+                                index,
+                                libraryAlbumDetail.album.name
+                            )
+                        },
+                        onShuffle = {
+                            onShuffleLibraryTracks(
+                                libraryAlbumDetail.tracks,
+                                libraryAlbumDetail.album.name
+                            )
+                        },
+                        onOpenArtist = {
+                            onOpenLibraryArtist(libraryAlbumDetail.album.artist)
+                            artistOpenedFromAlbum = true
+                            destination = PlaylistsSurfaceDestination.ArtistDetail
+                        }
+                    )
+                } else if (currentDestination == PlaylistsSurfaceDestination.ArtistDetail &&
+                    selectedArtistName != null &&
+                    libraryArtistAlbums != null
+                ) {
+                    LibraryArtistDetailPage(
+                        artist = selectedArtistName,
+                        albums = libraryArtistAlbums,
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .padding(actualInnerPadding),
+                        bottomContentPadding = bottomContentPadding,
+                        onOpenAlbum = { album ->
+                            onOpenLibraryAlbum(album.rawName, album.rawArtistKey)
+                            albumOpenedFromArtist = true
+                            destination = PlaylistsSurfaceDestination.AlbumDetail
+                        }
+                    )
+                } else if (currentDestination == PlaylistsSurfaceDestination.Favorites) {
                     LazyColumn(
                         modifier = Modifier
                             .fillMaxSize()
@@ -915,7 +1008,13 @@ internal fun PlaylistsScreen(
                                             items = effectiveLibraryCollections.albums,
                                             key = { "${it.name}|${it.artist}" }
                                         ) { album ->
-                                            LibraryAlbumCompactRow(album = album)
+                                            LibraryAlbumCompactRow(
+                                                album = album,
+                                                onClick = {
+                                                    onOpenLibraryAlbum(album.rawName, album.rawArtistKey)
+                                                    destination = PlaylistsSurfaceDestination.AlbumDetail
+                                                }
+                                            )
                                         }
                                     }
                                 }
@@ -933,7 +1032,13 @@ internal fun PlaylistsScreen(
                                             items = effectiveLibraryCollections.artists,
                                             key = { it.name }
                                         ) { artist ->
-                                            LibraryArtistCompactRow(artist = artist)
+                                            LibraryArtistCompactRow(
+                                                artist = artist,
+                                                onClick = {
+                                                    onOpenLibraryArtist(artist.name)
+                                                    destination = PlaylistsSurfaceDestination.ArtistDetail
+                                                }
+                                            )
                                         }
                                     }
                                 }
@@ -979,7 +1084,11 @@ internal fun PlaylistsScreen(
                                             layout = albumCollectionLayout,
                                             onLayoutChanged = { albumCollectionLayout = it },
                                             isSyncing = effectiveLibraryCollections.isSyncing,
-                                            syncState = librarySyncState
+                                            syncState = librarySyncState,
+                                            onOpenAlbum = { album ->
+                                                onOpenLibraryAlbum(album.rawName, album.rawArtistKey)
+                                                destination = PlaylistsSurfaceDestination.AlbumDetail
+                                            }
                                         )
                                     }
                                     LibrarySurfaceTab.Artists -> {
@@ -987,7 +1096,11 @@ internal fun PlaylistsScreen(
                                             artists = effectiveLibraryCollections.artists,
                                             bottomContentPadding = bottomContentPadding,
                                             isSyncing = effectiveLibraryCollections.isSyncing,
-                                            syncState = librarySyncState
+                                            syncState = librarySyncState,
+                                            onOpenArtist = { artist ->
+                                                onOpenLibraryArtist(artist.name)
+                                                destination = PlaylistsSurfaceDestination.ArtistDetail
+                                            }
                                         )
                                     }
                                 }
@@ -1177,6 +1290,7 @@ private fun AlbumsLibraryPage(
     onLayoutChanged: (AlbumCollectionLayout) -> Unit,
     isSyncing: Boolean,
     syncState: LibrarySyncState,
+    onOpenAlbum: (LibraryAlbum) -> Unit,
     isWatch: Boolean = false
 ) {
     if (albums.isEmpty()) {
@@ -1233,7 +1347,7 @@ private fun AlbumsLibraryPage(
                         )
                     }
                     items(albums, key = { "${it.name}|${it.artist}" }) { album ->
-                        AlbumLibraryListRow(album = album)
+                        AlbumLibraryListRow(album = album, onClick = { onOpenAlbum(album) })
                     }
                 }
             } else {
@@ -1256,7 +1370,7 @@ private fun AlbumsLibraryPage(
                         )
                     }
                     gridItems(albums, key = { "${it.name}|${it.artist}" }) { album ->
-                        AlbumLibraryGridCard(album = album)
+                        AlbumLibraryGridCard(album = album, onClick = { onOpenAlbum(album) })
                     }
                 }
             }
@@ -1270,6 +1384,7 @@ private fun ArtistsLibraryPage(
     bottomContentPadding: Dp,
     isSyncing: Boolean,
     syncState: LibrarySyncState,
+    onOpenArtist: (LibraryArtist) -> Unit,
     isWatch: Boolean = false
 ) {
     if (artists.isEmpty()) {
@@ -1299,7 +1414,7 @@ private fun ArtistsLibraryPage(
         verticalArrangement = Arrangement.spacedBy(4.dp)
     ) {
         items(artists, key = { it.name }) { artist ->
-            ArtistLibraryRow(artist = artist)
+            ArtistLibraryRow(artist = artist, onClick = { onOpenArtist(artist) })
         }
     }
     }
@@ -1411,12 +1526,14 @@ private fun LibraryLayoutToggleButton(
 @Composable
 private fun AlbumLibraryGridCard(
     album: LibraryAlbum,
+    onClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     Surface(
         modifier = modifier.fillMaxWidth(),
         shape = MaterialTheme.shapes.large,
-        color = MaterialTheme.colorScheme.surfaceContainerLow
+        color = MaterialTheme.colorScheme.surfaceContainerLow,
+        onClick = onClick
     ) {
         Column(
             modifier = Modifier
@@ -1455,29 +1572,345 @@ private fun AlbumLibraryGridCard(
 }
 
 @Composable
-private fun LibraryAlbumCompactRow(
-    album: LibraryAlbum
+private fun LibraryAlbumDetailPage(
+    detail: LibraryAlbumDetail,
+    modifier: Modifier = Modifier,
+    activeSourceId: String?,
+    bottomContentPadding: Dp,
+    artistKnown: Boolean,
+    onPlay: (Int) -> Unit,
+    onShuffle: () -> Unit,
+    onOpenArtist: () -> Unit
 ) {
-    LibraryPlaceholderRow(
-        title = album.name,
-        body = if (album.artist.isBlank()) "${album.trackCount} tracks" else "${album.artist} · ${album.trackCount} tracks",
-        isWatch = true
-    )
+    var menuExpanded by rememberSaveable { mutableStateOf(false) }
+    LazyColumn(
+        modifier = modifier,
+        contentPadding = PaddingValues(
+            start = 16.dp,
+            top = 8.dp,
+            end = 16.dp,
+            bottom = bottomContentPadding + 16.dp
+        )
+    ) {
+        item {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(bottom = 14.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.spacedBy(18.dp)
+            ) {
+                Surface(
+                    modifier = Modifier.size(220.dp),
+                    shape = MaterialTheme.shapes.extraLarge,
+                    color = MaterialTheme.colorScheme.surfaceContainerHighest
+                ) {
+                    AlbumArtworkBox(
+                        artworkPath = detail.album.artworkPath,
+                        modifier = Modifier.fillMaxSize()
+                    )
+                }
+                Column(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    Text(
+                        text = detail.album.name,
+                        style = MaterialTheme.typography.headlineLarge,
+                        fontWeight = FontWeight.SemiBold
+                    )
+                    Text(
+                        text = buildString {
+                            if (artistKnown) append(detail.album.artist)
+                            if (detail.album.year > 0) {
+                                if (isNotEmpty()) append(" · ")
+                                append(detail.album.year)
+                            }
+                            if (isNotEmpty()) append(" · ")
+                            append(playlistTrackCountLabel(detail.album.trackCount))
+                            if (detail.album.durationMs > 0L) {
+                                append(" · ")
+                                append(formatPlaylistInfoDuration(detail.album.durationMs / 1000.0))
+                            }
+                        },
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Box {
+                        IconButton(onClick = { menuExpanded = true }) {
+                            Icon(
+                                imageVector = Icons.Default.MoreVert,
+                                contentDescription = "More actions"
+                            )
+                        }
+                        DropdownMenu(
+                            expanded = menuExpanded,
+                            onDismissRequest = { menuExpanded = false }
+                        ) {
+                            DropdownMenuItem(
+                                text = { Text("Go to artist", style = MaterialTheme.typography.bodyLarge) },
+                                leadingIcon = {
+                                    Icon(
+                                        imageVector = Icons.Default.LibraryMusic,
+                                        contentDescription = null,
+                                        modifier = Modifier.size(22.dp)
+                                    )
+                                },
+                                contentPadding = PaddingValues(start = 14.dp, end = 18.dp),
+                                colors = MenuDefaults.itemColors(
+                                    textColor = MaterialTheme.colorScheme.onSurface,
+                                    leadingIconColor = MaterialTheme.colorScheme.onSurfaceVariant
+                                ),
+                                enabled = artistKnown,
+                                onClick = {
+                                    menuExpanded = false
+                                    onOpenArtist()
+                                }
+                            )
+                        }
+                    }
+                    Spacer(modifier = Modifier.weight(1f))
+                    IconButton(onClick = onShuffle) {
+                        Icon(
+                            imageVector = Icons.Default.Shuffle,
+                            contentDescription = "Shuffle album"
+                        )
+                    }
+                    FilledIconButton(
+                        onClick = { onPlay(0) },
+                        modifier = Modifier.size(64.dp),
+                        shape = CircleShape
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.PlayArrow,
+                            contentDescription = "Play album",
+                            modifier = Modifier.size(34.dp)
+                        )
+                    }
+                }
+            }
+        }
+        itemsIndexed(
+            items = detail.tracks,
+            key = { _, track -> track.path }
+        ) { index, track ->
+            LibraryTrackListRow(
+                position = if (track.trackNo > 0) track.trackNo else index + 1,
+                title = track.title,
+                subtitleArtist = track.artist,
+                durationMs = track.durationMs,
+                isActive = activeSourceId != null && activeSourceId == track.path,
+                onClick = { onPlay(index) }
+            )
+            if (index < detail.tracks.lastIndex) {
+                androidx.compose.material3.HorizontalDivider(
+                    modifier = Modifier.padding(start = 58.dp),
+                    color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.45f)
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun LibraryTrackListRow(
+    position: Int,
+    title: String,
+    subtitleArtist: String,
+    durationMs: Long,
+    isActive: Boolean,
+    onClick: () -> Unit
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(12.dp))
+            .clickable(onClick = onClick)
+            .padding(horizontal = 10.dp, vertical = 9.dp),
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Text(
+            text = position.toString(),
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.width(28.dp)
+        )
+        Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(1.dp)) {
+            Text(
+                text = title,
+                style = MaterialTheme.typography.bodyLarge,
+                fontWeight = if (isActive) FontWeight.SemiBold else FontWeight.Normal,
+                color = if (isActive) {
+                    MaterialTheme.colorScheme.primary
+                } else {
+                    MaterialTheme.colorScheme.onSurface
+                },
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+            val subtitle = buildString {
+                if (durationMs > 0L) {
+                    append(formatPlaylistInfoDuration(durationMs / 1000.0))
+                }
+                val artist = subtitleArtist.takeUnless {
+                    it.isBlank() || it.equals("Unknown artist", ignoreCase = true)
+                }
+                if (artist != null) {
+                    if (isNotEmpty()) append(" · ")
+                    append(artist)
+                }
+            }
+            if (subtitle.isNotBlank()) {
+                Text(
+                    text = subtitle,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun LibraryArtistDetailPage(
+    artist: String,
+    albums: List<LibraryAlbum>,
+    modifier: Modifier = Modifier,
+    bottomContentPadding: Dp,
+    onOpenAlbum: (LibraryAlbum) -> Unit
+) {
+    LazyColumn(
+        modifier = modifier,
+        contentPadding = PaddingValues(
+            start = 16.dp,
+            top = 8.dp,
+            end = 16.dp,
+            bottom = bottomContentPadding + 16.dp
+        ),
+        verticalArrangement = Arrangement.spacedBy(4.dp)
+    ) {
+        item {
+            Column(
+                modifier = Modifier.padding(bottom = 10.dp),
+                verticalArrangement = Arrangement.spacedBy(2.dp)
+            ) {
+                Text(
+                    text = artist,
+                    style = MaterialTheme.typography.titleLarge,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis
+                )
+                val totalTracks = albums.sumOf { it.trackCount }
+                Text(
+                    text = "${albums.size} albums · $totalTracks tracks",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+        }
+        items(
+            items = albums,
+            key = { "${it.name}|${it.artist}" }
+        ) { album ->
+            AlbumLibraryListRow(album = album, onClick = { onOpenAlbum(album) })
+        }
+    }
+}
+
+@Composable
+private fun LibraryAlbumCompactRow(
+    album: LibraryAlbum,
+    onClick: () -> Unit
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(14.dp))
+            .background(MaterialTheme.colorScheme.surfaceContainerLow)
+            .clickable(onClick = onClick)
+            .padding(horizontal = 10.dp, vertical = 8.dp),
+        horizontalArrangement = Arrangement.spacedBy(10.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Surface(
+            modifier = Modifier.size(34.dp),
+            shape = RoundedCornerShape(10.dp),
+            color = MaterialTheme.colorScheme.surfaceContainerHighest
+        ) {
+            AlbumArtworkBox(artworkPath = album.artworkPath)
+        }
+        Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(1.dp)) {
+            Text(
+                text = album.name,
+                style = MaterialTheme.typography.bodyMedium,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+            Text(
+                text = if (album.artist.isBlank()) "${album.trackCount} tracks" else "${album.artist} · ${album.trackCount} tracks",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+        }
+    }
 }
 
 @Composable
 private fun LibraryArtistCompactRow(
-    artist: LibraryArtist
+    artist: LibraryArtist,
+    onClick: () -> Unit
 ) {
-    LibraryPlaceholderRow(
-        title = artist.name,
-        body = "${artist.albumCount} albums · ${artist.trackCount} tracks",
-        isWatch = true
-    )
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(14.dp))
+            .background(MaterialTheme.colorScheme.surfaceContainerLow)
+            .clickable(onClick = onClick)
+            .padding(horizontal = 10.dp, vertical = 8.dp),
+        horizontalArrangement = Arrangement.spacedBy(10.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Surface(
+            modifier = Modifier.size(34.dp),
+            shape = RoundedCornerShape(10.dp),
+            color = MaterialTheme.colorScheme.surfaceContainerHighest
+        ) {
+            AlbumArtworkBox(artworkPath = artist.artworkPath)
+        }
+        Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(1.dp)) {
+            Text(
+                text = artist.name,
+                style = MaterialTheme.typography.bodyMedium,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+            Text(
+                text = "${artist.albumCount} albums · ${artist.trackCount} tracks",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+        }
+    }
 }
 
 @Composable
-private fun AlbumArtworkBox(artworkPath: String?) {
+private fun AlbumArtworkBox(
+    artworkPath: String?,
+    modifier: Modifier = Modifier
+) {
     var bitmap by remember(artworkPath) { mutableStateOf<ImageBitmap?>(null) }
     LaunchedEffect(artworkPath) {
         val path = artworkPath ?: return@LaunchedEffect
@@ -1490,12 +1923,12 @@ private fun AlbumArtworkBox(artworkPath: String?) {
         Image(
             bitmap = artwork,
             contentDescription = null,
-            modifier = Modifier.fillMaxSize(),
+            modifier = modifier.fillMaxSize(),
             contentScale = ContentScale.Crop
         )
     } else {
         Box(
-            modifier = Modifier
+            modifier = modifier
                 .fillMaxSize()
                 .background(
                     brush = Brush.radialGradient(
@@ -1519,13 +1952,15 @@ private fun AlbumArtworkBox(artworkPath: String?) {
 
 @Composable
 private fun AlbumLibraryListRow(
-    album: LibraryAlbum
+    album: LibraryAlbum,
+    onClick: () -> Unit
 ) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(14.dp))
             .background(MaterialTheme.colorScheme.surfaceContainerLow)
+            .clickable(onClick = onClick)
             .padding(horizontal = 10.dp, vertical = 8.dp),
         horizontalArrangement = Arrangement.spacedBy(10.dp),
         verticalAlignment = Alignment.CenterVertically
@@ -1557,13 +1992,15 @@ private fun AlbumLibraryListRow(
 
 @Composable
 private fun ArtistLibraryRow(
-    artist: LibraryArtist
+    artist: LibraryArtist,
+    onClick: () -> Unit
 ) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(14.dp))
             .background(MaterialTheme.colorScheme.surfaceContainerLow)
+            .clickable(onClick = onClick)
             .padding(horizontal = 10.dp, vertical = 8.dp),
         horizontalArrangement = Arrangement.spacedBy(10.dp),
         verticalAlignment = Alignment.CenterVertically
@@ -2542,6 +2979,8 @@ private fun playlistsSurfaceDestinationOrder(destination: PlaylistsSurfaceDestin
         PlaylistsSurfaceDestination.Library -> 0
         PlaylistsSurfaceDestination.Favorites -> 1
         PlaylistsSurfaceDestination.StoredPlaylist -> 1
+        PlaylistsSurfaceDestination.AlbumDetail -> 1
+        PlaylistsSurfaceDestination.ArtistDetail -> 1
     }
 
 private fun playlistTrackCountLabel(trackCount: Int): String =
