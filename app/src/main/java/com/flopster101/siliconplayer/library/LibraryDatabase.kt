@@ -87,7 +87,8 @@ data class LibraryArtist(
 data class LibraryCollections(
     val albums: List<LibraryAlbum>,
     val artists: List<LibraryArtist>,
-    val trackCount: Int
+    val trackCount: Int,
+    val tracks: List<LibraryTrackEntity> = emptyList()
 ) {
     companion object {
         val Empty = LibraryCollections(
@@ -214,6 +215,15 @@ internal interface LibraryTrackDao {
         """
     )
     suspend fun searchTracks(pattern: String): List<LibraryTrackEntity>
+
+    @Query(
+        """
+        SELECT * FROM library_tracks
+        WHERE sourceId IN (SELECT id FROM library_sources WHERE enabled = 1)
+        ORDER BY title COLLATE NOCASE ASC, artist COLLATE NOCASE ASC
+        """
+    )
+    suspend fun allTracks(): List<LibraryTrackEntity>
 
     @Query(
         """

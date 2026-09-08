@@ -67,7 +67,8 @@ object LibraryRepository {
                 LibraryCollections(
                     albums = trackDao.albumRows().map { it.toLibraryAlbum() },
                     artists = trackDao.artistRows().map { it.toLibraryArtist() },
-                    trackCount = trackCount
+                    trackCount = trackCount,
+                    tracks = trackDao.allTracks()
                 )
             }
         }
@@ -141,6 +142,12 @@ object LibraryRepository {
             tracks = tracks
         )
     }
+
+    /** All enabled-source tracks in stable title/artist order. */
+    suspend fun allTracks(context: Context): List<LibraryTrackEntity> =
+        withContext(Dispatchers.IO) {
+            LibraryDatabase.get(context).trackDao().allTracks()
+        }
 
     suspend fun artistTracks(context: Context, artist: String): List<LibraryTrackEntity> =
         withContext(Dispatchers.IO) {

@@ -208,10 +208,11 @@ private enum class PlaylistsSurfaceDestination {
     ArtistDetail
 }
 
-private enum class LibrarySurfaceTab {
-    Playlists,
-    Albums,
-    Artists
+private enum class LibrarySurfaceTab(val label: String) {
+    Playlists("Playlists"),
+    Albums("Albums"),
+    Artists("Artists"),
+    Tracks("Tracks")
 }
 
 private enum class AlbumCollectionLayout {
@@ -1140,6 +1141,7 @@ internal fun PlaylistsScreen(
                                                         LibrarySurfaceTab.Playlists -> "Playlists"
                                                         LibrarySurfaceTab.Albums -> "Albums"
                                                         LibrarySurfaceTab.Artists -> "Artists"
+                                                        LibrarySurfaceTab.Tracks -> "Tracks"
                                                     },
                                                     style = MaterialTheme.typography.labelMedium,
                                                     fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
@@ -1226,6 +1228,37 @@ internal fun PlaylistsScreen(
                                                 onClick = {
                                                     onOpenLibraryArtist(artist.name)
                                                     destination = PlaylistsSurfaceDestination.ArtistDetail
+                                                }
+                                            )
+                                        }
+                                    }
+                                }
+                                LibrarySurfaceTab.Tracks -> {
+                                    if (effectiveLibraryCollections.tracks.isEmpty()) {
+                                        item {
+                                            LibraryPlaceholderRow(
+                                                title = if (librarySyncState.isScanning) "Scanning library…" else "No tracks yet",
+                                                body = if (librarySyncState.isScanning) "Indexing MediaStore tracks" else "Tracks from your media library will appear here",
+                                                isWatch = true
+                                            )
+                                        }
+                                    } else {
+                                        itemsIndexed(
+                                            items = effectiveLibraryCollections.tracks,
+                                            key = { _, track -> track.path }
+                                        ) { index, track ->
+                                            LibraryTrackListRow(
+                                                position = index + 1,
+                                                title = track.title,
+                                                subtitleArtist = track.artist,
+                                                durationMs = track.durationMs,
+                                                isActive = currentPlaybackSourceId != null && currentPlaybackSourceId == track.path,
+                                                onClick = {
+                                                    onPlayLibraryTracks(
+                                                        effectiveLibraryCollections.tracks,
+                                                        index,
+                                                        "All tracks"
+                                                    )
                                                 }
                                             )
                                         }
@@ -1322,6 +1355,17 @@ internal fun PlaylistsScreen(
                                                 destination = PlaylistsSurfaceDestination.ArtistDetail
                                             },
                                             contextMenuFor = ::libraryArtistContextMenu
+                                        )
+                                    }
+                                    LibrarySurfaceTab.Tracks -> {
+                                        TracksLibraryPage(
+                                            tracks = effectiveLibraryCollections.tracks,
+                                            bottomContentPadding = bottomContentPadding,
+                                            isSyncing = librarySyncState.isScanning,
+                                            syncState = librarySyncState,
+                                            activeSourceId = currentPlaybackSourceId,
+                                            onPlayTracks = onPlayLibraryTracks,
+                                            contextMenuFor = { track -> libraryRowActions(listOf(track)) }
                                         )
                                     }
                                 }
@@ -1645,6 +1689,57 @@ private fun AlbumsLibraryPage(
         }
     }
     }
+
+@Composable
+private fun TracksLibraryPage(
+    tracks: List<LibraryTrackEntity>,
+    bottomContentPadding: Dp,
+    isSyncing: Boolean,
+    syncState: LibrarySyncState,
+    activeSourceId: String?,
+    onPlayTracks: (List<LibraryTrackEntity>, Int, String) -> Unit,
+    contextMenuFor: (LibraryTrackEntity) -> LibraryRowContextActions
+) {
+    if (tracks.isEmpty()) {
+        LibraryCollectionPlaceholderPage(
+            title = if (isSyncing) "Scanning library…" else "No tracks yet",
+            body = if (isSyncing) "Indexing MediaStore tracks" else "Tracks from your media library will appear here.",
+            bottomContentPadding = bottomContentPadding,
+            isWatch = false
+        )
+        return
+    }
+    Column(modifier = Modifier.fillMaxSize()) {
+        if (syncState.isScanning) {
+            LibraryScanProgressRow(
+                syncState = syncState,
+                modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 10.dp)
+            )
+        }
+        LazyColumn(
+            modifier = Modifier.fillMaxSize(),
+            contentPadding = PaddingValues(
+                start = 16.dp,
+                top = 10.dp,
+                end = 16.dp,
+                bottom = bottomContentPadding + 16.dp
+            ),
+            verticalArrangement = Arrangement.spacedBy(4.dp)
+        ) {
+            itemsIndexed(tracks, key = { _, track -> track.path }) { index, track ->
+                LibraryTrackListRow(
+                    position = index + 1,
+                    title = track.title,
+                    subtitleArtist = track.artist,
+                    durationMs = track.durationMs,
+                    isActive = activeSourceId != null && activeSourceId == track.path,
+                    onClick = { onPlayTracks(tracks, index, "All tracks") },
+                    actions = contextMenuFor(track)
+                )
+            }
+        }
+    }
+}
 
 @Composable
 private fun ArtistsLibraryPage(
@@ -2624,6 +2719,7 @@ private fun LibraryTabRow(
                             LibrarySurfaceTab.Playlists -> "Playlists"
                             LibrarySurfaceTab.Albums -> "Albums"
                             LibrarySurfaceTab.Artists -> "Artists"
+                            LibrarySurfaceTab.Tracks -> "Tracks"
                         }
                     )
                 }
@@ -2637,7 +2733,8 @@ private fun rememberLibraryTabs(): List<LibrarySurfaceTab> {
     return listOf(
         LibrarySurfaceTab.Playlists,
         LibrarySurfaceTab.Albums,
-        LibrarySurfaceTab.Artists
+        LibrarySurfaceTab.Artists,
+        LibrarySurfaceTab.Tracks
     )
 }
 
