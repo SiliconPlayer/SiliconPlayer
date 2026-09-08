@@ -30,6 +30,7 @@ import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -74,8 +75,10 @@ import androidx.compose.material.icons.filled.FolderOpen
 import androidx.compose.material.icons.filled.GridView
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.LibraryMusic
+import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.MoreHoriz
 import androidx.compose.material.icons.filled.MoreVert
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Share
@@ -101,8 +104,11 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Tab
 import androidx.compose.material3.TabRow
 import androidx.compose.material3.Text
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBarDefaults
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.platform.LocalConfiguration
 import com.flopster101.siliconplayer.WatchDialogContainer
 import androidx.compose.runtime.Composable
@@ -141,9 +147,11 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.rememberTextMeasurer
@@ -168,6 +176,7 @@ import com.flopster101.siliconplayer.library.LibraryArtist
 import com.flopster101.siliconplayer.library.LibraryCollections
 import com.flopster101.siliconplayer.library.LibraryContract
 import com.flopster101.siliconplayer.library.LibraryRepository
+import com.flopster101.siliconplayer.library.LibrarySearchResults
 import com.flopster101.siliconplayer.library.LibrarySyncState
 import com.flopster101.siliconplayer.library.LibraryTrackEntity
 import com.flopster101.siliconplayer.loadArtworkForFile
@@ -175,6 +184,7 @@ import androidx.compose.ui.graphics.ImageBitmap
 import java.io.File
 import java.util.Locale
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
@@ -452,6 +462,18 @@ internal fun PlaylistsScreen(
     var selectedTabIndex by rememberSaveable { mutableIntStateOf(0) }
     var albumCollectionLayout by rememberSaveable { mutableStateOf(AlbumCollectionLayout.Grid) }
     val librarySyncState by LibraryRepository.scanState.collectAsState()
+    var librarySearchActive by rememberSaveable { mutableStateOf(false) }
+    var librarySearchQuery by rememberSaveable { mutableStateOf("") }
+    var librarySearchResults by remember { mutableStateOf(LibrarySearchResults("", emptyList(), emptyList(), emptyList())) }
+    val keyboardController = LocalSoftwareKeyboardController.current
+    LaunchedEffect(librarySearchQuery, librarySearchActive) {
+        if (!librarySearchActive || librarySearchQuery.isBlank()) {
+            librarySearchResults = LibrarySearchResults("", emptyList(), emptyList(), emptyList())
+            return@LaunchedEffect
+        }
+        delay(220)
+        librarySearchResults = LibraryRepository.search(context, librarySearchQuery)
+    }
     var libraryCollectionsOverride by remember { mutableStateOf<LibraryCollections?>(null) }
     val effectiveLibraryCollections = libraryCollectionsOverride ?: libraryCollections
     // Refresh the visible collections whenever a scan completes, regardless
@@ -668,6 +690,26 @@ internal fun PlaylistsScreen(
                         },
                         actions = {
                             if (!showingPlaylistDetail && !isWatch) {
+                                IconButton(
+                                    onClick = {
+                                        if (!librarySearchActive) {
+                                            librarySearchActive = true
+                                        } else {
+                                            librarySearchActive = false
+                                            librarySearchQuery = ""
+                                            keyboardController?.hide()
+                                        }
+                                    }
+                                ) {
+                                    Icon(
+                                        imageVector = if (librarySearchActive) {
+                                            Icons.Default.Close
+                                        } else {
+                                            Icons.Default.Search
+                                        },
+                                        contentDescription = if (librarySearchActive) "Close search" else "Search library"
+                                    )
+                                }
                                 if (librarySyncState.isScanning) {
                                     Text(
                                         text = "${librarySyncState.indexedTracks} new",
@@ -1050,6 +1092,35 @@ internal fun PlaylistsScreen(
                                 }
                             }
                         }
+                    } else if (librarySearchActive) {
+                        LibrarySearchOverlay(
+                            query = librarySearchQuery,
+                            results = librarySearchResults,
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .padding(actualInnerPadding),
+                            bottomContentPadding = bottomContentPadding,
+                            activeSourceId = currentPlaybackSourceId,
+                            onQueryChanged = { librarySearchQuery = it },
+                            onOpenAlbum = { album ->
+                                keyboardController?.hide()
+                                onOpenLibraryAlbum(album.rawName, album.rawName)
+                                destination = PlaylistsSurfaceDestination.AlbumDetail
+                            },
+                            onOpenArtist = { artist ->
+                                keyboardController?.hide()
+                                onOpenLibraryArtist(artist.name)
+                                destination = PlaylistsSurfaceDestination.ArtistDetail
+                            },
+                            onPlayTrack = { _, index ->
+                                keyboardController?.hide()
+                                onPlayLibraryTracks(
+                                    librarySearchResults.tracks,
+                                    index,
+                                    librarySearchQuery.ifBlank { "Search" }
+                                )
+                            }
+                        )
                     } else {
                         Column(
                             modifier = Modifier
@@ -3974,4 +4045,129 @@ private fun formatPlaylistInfoDuration(seconds: Double): String {
     } else {
         String.format(Locale.ROOT, "%d:%02d", minutes, secs)
     }
+}
+
+@Composable
+private fun LibrarySearchOverlay(
+    query: String,
+    results: LibrarySearchResults,
+    modifier: Modifier = Modifier,
+    bottomContentPadding: Dp,
+    activeSourceId: String?,
+    onQueryChanged: (String) -> Unit,
+    onOpenAlbum: (LibraryAlbum) -> Unit,
+    onOpenArtist: (LibraryArtist) -> Unit,
+    onPlayTrack: (LibraryTrackEntity, Int) -> Unit
+) {
+    val focusRequester = remember { FocusRequester() }
+    val keyboard = LocalSoftwareKeyboardController.current
+    Column(modifier = modifier) {
+        OutlinedTextField(
+            value = query,
+            onValueChange = onQueryChanged,
+            singleLine = true,
+            shape = MaterialTheme.shapes.extraLarge,
+            placeholder = { Text("Search library") },
+            leadingIcon = {
+                Icon(
+                    imageVector = Icons.Default.Search,
+                    contentDescription = null
+                )
+            },
+            trailingIcon = {
+                if (query.isNotEmpty()) {
+                    IconButton(onClick = { onQueryChanged("") }) {
+                        Icon(
+                            imageVector = Icons.Default.Close,
+                            contentDescription = "Clear query"
+                        )
+                    }
+                }
+            },
+            keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp, vertical = 8.dp)
+                .focusRequester(focusRequester)
+        )
+        LaunchedEffect(Unit) {
+            focusRequester.requestFocus()
+            keyboard?.show()
+        }
+        if (query.isNotBlank() && results.isEmpty) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(horizontal = 16.dp, vertical = 8.dp),
+                contentAlignment = Alignment.TopCenter
+            ) {
+                EmptySectionCard(
+                    title = "No results",
+                    body = "Nothing matches \"$query\" in the indexed library."
+                )
+            }
+        } else if (query.isNotBlank()) {
+            LazyColumn(
+                modifier = Modifier.fillMaxSize(),
+                contentPadding = PaddingValues(
+                    start = 16.dp,
+                    top = 4.dp,
+                    end = 16.dp,
+                    bottom = bottomContentPadding + 16.dp
+                )
+            ) {
+                if (results.albums.isNotEmpty()) {
+                    item(key = "section-albums") { LibrarySearchSectionHeader("Albums") }
+                    items(
+                        items = results.albums,
+                        key = { "album:${it.rawName}" }
+                    ) { album ->
+                        AlbumLibraryListRow(
+                            album = album,
+                            onClick = { onOpenAlbum(album) }
+                        )
+                    }
+                }
+                if (results.artists.isNotEmpty()) {
+                    item(key = "section-artists") { LibrarySearchSectionHeader("Artists") }
+                    items(
+                        items = results.artists,
+                        key = { "artist:${it.name}" }
+                    ) { artist ->
+                        LibraryArtistCompactRow(
+                            artist = artist,
+                            onClick = { onOpenArtist(artist) }
+                        )
+                    }
+                }
+                if (results.tracks.isNotEmpty()) {
+                    item(key = "section-tracks") { LibrarySearchSectionHeader("Tracks") }
+                    itemsIndexed(
+                        items = results.tracks,
+                        key = { _, track -> "track:${track.path}" }
+                    ) { index, track ->
+                        LibraryTrackListRow(
+                            position = index + 1,
+                            title = track.title,
+                            subtitleArtist = track.artist,
+                            durationMs = track.durationMs,
+                            isActive = activeSourceId != null && activeSourceId == track.path,
+                            onClick = { onPlayTrack(track, index) }
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun LibrarySearchSectionHeader(text: String) {
+    Text(
+        text = text,
+        style = MaterialTheme.typography.titleSmall,
+        color = MaterialTheme.colorScheme.primary,
+        fontWeight = FontWeight.SemiBold,
+        modifier = Modifier.padding(start = 12.dp, top = 16.dp, bottom = 4.dp)
+    )
 }

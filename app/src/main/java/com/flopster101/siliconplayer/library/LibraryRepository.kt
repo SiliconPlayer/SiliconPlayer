@@ -32,6 +32,16 @@ data class LibraryAlbumDetail(
     val tracks: List<LibraryTrackEntity>
 )
 
+data class LibrarySearchResults(
+    val query: String,
+    val albums: List<LibraryAlbum>,
+    val artists: List<LibraryArtist>,
+    val tracks: List<LibraryTrackEntity>
+) { 
+    val isEmpty: Boolean
+        get() = albums.isEmpty() && artists.isEmpty() && tracks.isEmpty()
+}
+
 object LibraryRepository {
 
     private const val SYNC_STALENESS_MS = 15 * 60 * 1000L
@@ -55,32 +65,53 @@ object LibraryRepository {
                 LibraryCollections(albums = emptyList(), artists = emptyList(), trackCount = 0)
             } else {
                 LibraryCollections(
-                    albums = trackDao.albumRows().map { row ->
-                        LibraryAlbum(
-                            name = row.name.ifBlank { LibraryContract.UNKNOWN_ALBUM },
-                            artist = when {
-                                row.distinctArtists > 1 -> LibraryContract.VARIOUS_ARTISTS
-                                else -> row.artist.ifBlank { LibraryContract.UNKNOWN_ARTIST }
-                            },
-                            trackCount = row.trackCount,
-                            durationMs = row.durationMs,
-                            year = row.year,
-                            artworkPath = row.artworkPath,
-                            rawName = row.name
-                        )
-                    },
-                    artists = trackDao.artistRows().map { row ->
-                        LibraryArtist(
-                            name = row.name,
-                            trackCount = row.trackCount,
-                            albumCount = row.albumCount,
-                            artworkPath = row.artworkPath
-                        )
-                    },
+                    albums = trackDao.albumRows().map { it.toLibraryAlbum() },
+                    artists = trackDao.artistRows().map { it.toLibraryArtist() },
                     trackCount = trackCount
                 )
             }
         }
+
+    /** Search albums, artists and tracks by a substring of their names. */
+    suspend fun search(context: Context, rawQuery: String): LibrarySearchResults =
+        withContext(Dispatchers.IO) {
+            val query = rawQuery.trim()
+            if (query.isEmpty()) {
+                return@withContext LibrarySearchResults(query, emptyList(), emptyList(), emptyList())
+            }
+            val escaped = query
+                .replace("\\", "\\\\")
+                .replace("%", "\\%")
+                .replace("_", "\\_")
+            val pattern = "%$escaped%"
+            val db = LibraryDatabase.get(context)
+            LibrarySearchResults(
+                query = query,
+                albums = db.trackDao().searchAlbumRows(pattern).map { it.toLibraryAlbum() },
+                artists = db.trackDao().searchArtistRows(pattern).map { it.toLibraryArtist() },
+                tracks = db.trackDao().searchTracks(pattern)
+            )
+        }
+
+    private fun LibraryAlbumRow.toLibraryAlbum(): LibraryAlbum = LibraryAlbum(
+        name = name.ifBlank { LibraryContract.UNKNOWN_ALBUM },
+        artist = when {
+            distinctArtists > 1 -> LibraryContract.VARIOUS_ARTISTS
+            else -> artist.ifBlank { LibraryContract.UNKNOWN_ARTIST }
+        },
+        trackCount = trackCount,
+        durationMs = durationMs,
+        year = year,
+        artworkPath = artworkPath,
+        rawName = name
+    )
+
+    private fun LibraryArtistRow.toLibraryArtist(): LibraryArtist = LibraryArtist(
+        name = name,
+        trackCount = trackCount,
+        albumCount = albumCount,
+        artworkPath = artworkPath
+    )
 
     suspend fun albumDetail(
         context: Context,

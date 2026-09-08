@@ -167,6 +167,56 @@ internal interface LibraryTrackDao {
 
     @Query(
         """
+        SELECT COALESCE(album, '') AS name,
+               MIN(COALESCE(NULLIF(albumArtist, ''), NULLIF(artist, ''), '')) AS artist,
+               COUNT(DISTINCT COALESCE(NULLIF(albumArtist, ''), NULLIF(artist, ''), '')) AS distinctArtists,
+               COUNT(*) AS trackCount,
+               SUM(durationMs) AS durationMs,
+               MAX(year) AS year,
+               MIN(path) AS artworkPath
+        FROM library_tracks
+        WHERE COALESCE(album, '') LIKE :pattern ESCAPE '\'
+          AND sourceId IN (SELECT id FROM library_sources WHERE enabled = 1)
+        GROUP BY COALESCE(album, '')
+        ORDER BY name COLLATE NOCASE ASC
+        LIMIT 24
+        """
+    )
+    suspend fun searchAlbumRows(pattern: String): List<LibraryAlbumRow>
+
+    @Query(
+        """
+        SELECT artist AS name, COUNT(*) AS trackCount,
+               COUNT(DISTINCT COALESCE(album, '')) AS albumCount,
+               MIN(path) AS artworkPath
+        FROM library_tracks
+        WHERE artist != ''
+          AND artist LIKE :pattern ESCAPE '\'
+          AND sourceId IN (SELECT id FROM library_sources WHERE enabled = 1)
+        GROUP BY artist
+        ORDER BY name COLLATE NOCASE ASC
+        LIMIT 24
+        """
+    )
+    suspend fun searchArtistRows(pattern: String): List<LibraryArtistRow>
+
+    @Query(
+        """
+        SELECT * FROM library_tracks
+        WHERE sourceId IN (SELECT id FROM library_sources WHERE enabled = 1)
+          AND (
+              title LIKE :pattern ESCAPE '\'
+              OR artist LIKE :pattern ESCAPE '\'
+              OR COALESCE(album, '') LIKE :pattern ESCAPE '\'
+          )
+        ORDER BY title COLLATE NOCASE ASC
+        LIMIT 100
+        """
+    )
+    suspend fun searchTracks(pattern: String): List<LibraryTrackEntity>
+
+    @Query(
+        """
         SELECT artist AS name, COUNT(*) AS trackCount,
                COUNT(DISTINCT COALESCE(album, '')) AS albumCount,
                MIN(path) AS artworkPath
