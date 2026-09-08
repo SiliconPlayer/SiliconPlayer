@@ -1734,7 +1734,8 @@ private fun TracksLibraryPage(
                     durationMs = track.durationMs,
                     isActive = activeSourceId != null && activeSourceId == track.path,
                     onClick = { onPlayTracks(tracks, index, "All tracks") },
-                    actions = contextMenuFor(track)
+                    actions = contextMenuFor(track),
+                    artworkPath = track.path
                 )
             }
         }
@@ -2248,7 +2249,8 @@ private fun LibraryTrackListRow(
     durationMs: Long,
     isActive: Boolean,
     onClick: () -> Unit,
-    actions: LibraryRowContextActions? = null
+    actions: LibraryRowContextActions? = null,
+    artworkPath: String? = null
 ) {
     var menuExpanded by remember { mutableStateOf(false) }
     Row(
@@ -2270,12 +2272,22 @@ private fun LibraryTrackListRow(
                 actions = actions
             )
         }
-        Text(
-            text = position.toString(),
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier.width(28.dp)
-        )
+        if (artworkPath != null) {
+            Box(
+                modifier = Modifier
+                    .size(48.dp)
+                    .clip(RoundedCornerShape(8.dp))
+            ) {
+                AlbumArtworkBox(artworkPath = artworkPath)
+            }
+        } else {
+            Text(
+                text = position.toString(),
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.width(28.dp)
+            )
+        }
         Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(1.dp)) {
             Text(
                 text = title,
