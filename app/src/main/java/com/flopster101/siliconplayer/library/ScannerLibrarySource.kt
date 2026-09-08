@@ -71,14 +71,14 @@ internal object ScannerLibrarySource {
                     LibraryTrackEntity(
                         path = path,
                         sourceId = LibraryContract.SOURCE_SCANNER,
-                        title = metadata.first ?: file.nameWithoutExtension,
-                        artist = metadata.second ?: "",
-                        albumArtist = "",
-                        album = "",
-                        trackNo = 0,
-                        discNo = 0,
-                        durationMs = metadata.third ?: 0L,
-                        year = 0,
+                        title = metadata.title ?: file.nameWithoutExtension,
+                        artist = metadata.artist ?: "",
+                        albumArtist = metadata.albumArtist ?: metadata.artist ?: "",
+                        album = metadata.album ?: "",
+                        trackNo = metadata.trackNo ?: 0,
+                        discNo = metadata.discNo ?: 0,
+                        durationMs = metadata.durationMs ?: 0L,
+                        year = metadata.year ?: 0,
                         format = extension.uppercase(),
                         sizeBytes = sizeBytes,
                         mtimeMs = mtimeMs,
@@ -96,31 +96,52 @@ internal object ScannerLibrarySource {
         return indexed
     }
 
-    /** Title/artist/duration probe; filename fallback keeps every file indexed. */
-    private fun probeMetadata(file: File, extension: String): Triple<String?, String?, Long?> {
-        if (extension in MEDIA_RETRIEVER_EXTENSIONS) {
-            synchronized(MediaMetadataRetrieverGlobalLock) {
-                val retriever = MediaMetadataRetriever()
-                return try {
-                    retriever.setDataSource(file.absolutePath)
-                    val title = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_TITLE)
-                        ?.trim()?.takeIf { it.isNotBlank() }
-                    val artist = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_ARTIST)
-                        ?.trim()?.takeIf { it.isNotBlank() }
-                    val durationMs = retriever
-                        .extractMetadata(MediaMetadataRetriever.METADATA_KEY_DURATION)
-                        ?.trim()?.toLongOrNull()
-                        ?: retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_DURATION)
-                            ?.trim()?.toDoubleOrNull()?.roundToLong()
-                    Triple(title, artist, durationMs?.takeIf { it > 0 })
-                } catch (_: Exception) {
-                    Triple(null, null, null)
-                } finally {
-                    runCatching { retriever.release() }
-                }
+    /** Full tag probe; filename fallback keeps every file indexed. */
+    private data class ScanMetadata(
+        val title: String?,
+        val artist: String?,
+        val albumArtist: String?,
+        val album: String?,
+        val trackNo: Int?,
+        val discNo: Int?,
+        val durationMs: Long?,
+        val year: Int?
+    )
+
+    private fun probeMetadata(file: File, extension: String): ScanMetadata {
+        if (extension !in MEDIA_RETRIEVER_EXTENSIONS) {
+            return ScanMetadata(null, null, null, null, null, null, null, null)
+        }
+        synchronized(MediaMetadataRetrieverGlobalLock) {
+            val retriever = MediaMetadataRetriever()
+            return try {
+                retriever.setDataSource(file.absolutePath)
+                fun tag(key: Int): String? = retriever.extractMetadata(key)
+                    ?.trim()?.takeIf { it.isNotBlank() }
+                // Mirror MediaProvider: the display artist falls back to the
+                // album artist when the plain artist tag is absent.
+                val artist = tag(MediaMetadataRetriever.METADATA_KEY_ARTIST)
+                    ?: tag(MediaMetadataRetriever.METADATA_KEY_ALBUMARTIST)
+                ScanMetadata(
+                    title = tag(MediaMetadataRetriever.METADATA_KEY_TITLE),
+                    artist = artist,
+                    albumArtist = tag(MediaMetadataRetriever.METADATA_KEY_ALBUMARTIST) ?: artist,
+                    album = tag(MediaMetadataRetriever.METADATA_KEY_ALBUM),
+                    trackNo = tag(MediaMetadataRetriever.METADATA_KEY_CD_TRACK_NUMBER)
+                        ?.substringBefore('/')?.trim()?.toIntOrNull(),
+                    discNo = tag(MediaMetadataRetriever.METADATA_KEY_DISC_NUMBER)
+                        ?.substringBefore('/')?.trim()?.toIntOrNull(),
+                    durationMs = tag(MediaMetadataRetriever.METADATA_KEY_DURATION)
+                        ?.toDoubleOrNull()?.roundToLong()?.takeIf { it > 0 },
+                    year = tag(MediaMetadataRetriever.METADATA_KEY_YEAR)
+                        ?.takeWhile { it.isDigit() }?.toIntOrNull()
+                )
+            } catch (_: Exception) {
+                ScanMetadata(null, null, null, null, null, null, null, null)
+            } finally {
+                runCatching { retriever.release() }
             }
         }
-        return Triple(null, null, null)
     }
 
     private val MEDIA_RETRIEVER_EXTENSIONS = setOf(

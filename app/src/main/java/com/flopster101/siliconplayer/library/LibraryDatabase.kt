@@ -199,7 +199,7 @@ internal interface LibrarySourceDao {
 
 @Database(
     entities = [LibraryTrackEntity::class, LibrarySourceEntity::class],
-    version = 1,
+    version = 2,
     exportSchema = false
 )
 internal abstract class LibraryDatabase : RoomDatabase() {
