@@ -134,6 +134,7 @@ import android.os.Environment
 import android.webkit.MimeTypeMap
 import android.widget.Toast
 import androidx.core.content.FileProvider
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
@@ -996,6 +997,129 @@ private fun applyLibraryAddToPlaylist(
     ).show()
 }
 
+internal fun removeLibraryFavoriteTracks(
+    state: PlaylistLibraryState,
+    tracks: List<LibraryTrackEntity>
+): PlaylistLibraryState {
+    val paths = tracks.map { it.path }
+    val remaining = state.favorites.filterNot { favorite ->
+        paths.any { path -> samePath(favorite.source, path) }
+    }
+    return if (remaining.size == state.favorites.size) state else state.copy(favorites = remaining)
+}
+
+private class LibraryDetailState {
+    var selectedAlbumName by mutableStateOf<String?>(null)
+    var selectedArtistName by mutableStateOf<String?>(null)
+    var albumDetail by mutableStateOf<LibraryAlbumDetail?>(null)
+    var artistAlbums by mutableStateOf<List<LibraryAlbum>?>(null)
+}
+
+@Composable
+private fun rememberLibraryDetailState(context: Context): LibraryDetailState {
+    val state = remember { LibraryDetailState() }
+    LaunchedEffect(state.selectedAlbumName) {
+        state.albumDetail = state.selectedAlbumName?.let { LibraryRepository.albumDetail(context, it) }
+    }
+    LaunchedEffect(state.selectedArtistName) {
+        state.artistAlbums = state.selectedArtistName?.let { LibraryRepository.artistAlbums(context, it) }
+    }
+    return state
+}
+
+private class LibraryActionHandlers(
+    val onPlay: (List<LibraryTrackEntity>, Int, String) -> Unit,
+    val onShuffle: (List<LibraryTrackEntity>, String) -> Unit,
+    val onAddFavorites: (List<LibraryTrackEntity>) -> Unit,
+    val onRemoveFavorites: (List<LibraryTrackEntity>) -> Unit,
+    val onAddToPlaylist: (List<LibraryTrackEntity>, String?, String) -> Unit
+)
+
+private fun createLibraryActionHandlers(
+    context: Context,
+    appScope: CoroutineScope,
+    trackLoadDelegates: AppNavigationTrackLoadDelegates,
+    manualOpenDelegates: AppNavigationManualOpenDelegates,
+    openPlayerOnTrackSelectProvider: () -> Boolean,
+    activePlaylistState: (StoredPlaylist?) -> Unit,
+    activePlaylistEntryIdState: (String?) -> Unit,
+    activePlaylistShuffleState: (Boolean) -> Unit,
+    playlistStateProvider: () -> PlaylistLibraryState,
+    onPlaylistLibraryStateChanged: (PlaylistLibraryState) -> Unit,
+    onPendingPlaylistSubtuneSelectionChanged: (PendingPlaylistSubtuneSelection?) -> Unit
+): LibraryActionHandlers {
+    fun openQueue(entry: PlaylistTrackEntry, queue: StoredPlaylist, shuffleActive: Boolean) {
+        activePlaylistState(queue)
+        activePlaylistEntryIdState(entry.id)
+        activePlaylistShuffleState(shuffleActive)
+        openPlaylistEntry(
+            context = context,
+            entry = entry,
+            playlist = queue,
+            trackLoadDelegates = trackLoadDelegates,
+            manualOpenDelegates = manualOpenDelegates,
+            autoPlayOnTrackSelect = true,
+            openPlayerOnTrackSelect = openPlayerOnTrackSelectProvider(),
+            onActivePlaylistChanged = {
+                activePlaylistState(it)
+                activePlaylistShuffleState(shuffleActive)
+            },
+            onActivePlaylistEntryIdChanged = { activePlaylistEntryIdState(it) },
+            onPendingPlaylistSubtuneSelectionChanged = onPendingPlaylistSubtuneSelectionChanged
+        )
+    }
+    return LibraryActionHandlers(
+        onPlay = { tracks, startIndex, title ->
+            val entries = tracks.map { it.toPlaylistTrackEntry() }
+            entries.getOrNull(startIndex)?.let { startEntry ->
+                openQueue(
+                    startEntry,
+                    StoredPlaylist(title = title, format = PlaylistStoredFormat.Internal, entries = entries),
+                    false
+                )
+            }
+        },
+        onShuffle = { tracks, title ->
+            val entries = tracks.map { it.toPlaylistTrackEntry() }.shuffled()
+            entries.firstOrNull()?.let { firstEntry ->
+                openQueue(
+                    firstEntry,
+                    StoredPlaylist(title = title, format = PlaylistStoredFormat.Internal, entries = entries),
+                    true
+                )
+            }
+        },
+        onAddFavorites = { tracks ->
+            if (tracks.isNotEmpty()) {
+                appScope.launch {
+                    val entries = withContext(Dispatchers.IO) { buildLibraryFavoriteEntries(context, tracks) }
+                    applyLibraryAddToFavorites(context, tracks, entries, playlistStateProvider(), onPlaylistLibraryStateChanged)
+                }
+            }
+        },
+        onRemoveFavorites = { tracks ->
+            if (tracks.isNotEmpty()) {
+                onPlaylistLibraryStateChanged(removeLibraryFavoriteTracks(playlistStateProvider(), tracks))
+                Toast.makeText(
+                    context,
+                    if (tracks.size == 1) "Removed from favorites" else "Removed ${tracks.size} tracks from favorites",
+                    Toast.LENGTH_SHORT
+                ).show()
+            }
+        },
+        onAddToPlaylist = { tracks, playlistId, newTitle ->
+            if (tracks.isNotEmpty()) {
+                appScope.launch {
+                    val entries = withContext(Dispatchers.IO) { buildLibraryFavoriteEntries(context, tracks) }
+                    applyLibraryAddToPlaylist(
+                        context, tracks, entries, playlistId, newTitle, playlistStateProvider(), onPlaylistLibraryStateChanged
+                    )
+                }
+            }
+        }
+    )
+}
+
 private fun mergeFavoritePlaybackMetadata(
     playlistLibraryState: PlaylistLibraryState,
     favoriteId: String,
@@ -1586,18 +1710,7 @@ private fun AppNavigation(
     var externalTrackInfoDialogRequestToken by remember { mutableIntStateOf(0) }
     var activePlaylist by remember { mutableStateOf<StoredPlaylist?>(null) }
     var activePlaylistEntryId by remember { mutableStateOf<String?>(null) }
-    var librarySelectedAlbumName by remember { mutableStateOf<String?>(null) }
-    var librarySelectedArtistName by remember { mutableStateOf<String?>(null) }
-    var libraryAlbumDetail by remember { mutableStateOf<LibraryAlbumDetail?>(null) }
-    var libraryArtistAlbums by remember { mutableStateOf<List<LibraryAlbum>?>(null) }
-    LaunchedEffect(librarySelectedAlbumName) {
-        val albumName = librarySelectedAlbumName
-        libraryAlbumDetail = albumName?.let { LibraryRepository.albumDetail(context, it) }
-    }
-    LaunchedEffect(librarySelectedArtistName) {
-        val artistName = librarySelectedArtistName
-        libraryArtistAlbums = artistName?.let { LibraryRepository.artistAlbums(context, it) }
-    }
+    val libraryDetail = rememberLibraryDetailState(context)
     var activePlaylistShuffleActive by remember { mutableStateOf(false) }
     var lastStoppedPlaylistResume by remember { mutableStateOf<LastStoppedPlaylistResume?>(null) }
     var pendingPlaylistSubtuneSelection by remember { mutableStateOf<PendingPlaylistSubtuneSelection?>(null) }
@@ -2734,65 +2847,22 @@ onStopEngine = { NativeBridge.releaseCurrentDecoder() }, onMetadataAlbumChanged 
         }
     )
 
-    val onPlayLibraryTracksAction: (List<LibraryTrackEntity>, Int, String) -> Unit = { tracks, startIndex, title ->
-        val entries = tracks.map { it.toPlaylistTrackEntry() }
-        val startEntry = entries.getOrNull(startIndex)
-        if (startEntry != null) {
-            val queue = StoredPlaylist(
-                title = title,
-                format = PlaylistStoredFormat.Internal,
-                entries = entries
-            )
-            activePlaylist = queue
-            activePlaylistEntryId = startEntry.id
-            activePlaylistShuffleActive = false
-            openPlaylistEntry(
-                context = context,
-                entry = startEntry,
-                playlist = queue,
-                trackLoadDelegates = trackLoadDelegates,
-                manualOpenDelegates = manualOpenDelegates,
-                autoPlayOnTrackSelect = true,
-                openPlayerOnTrackSelect = openPlayerOnTrackSelect,
-                onActivePlaylistChanged = {
-                    activePlaylist = it
-                    activePlaylistShuffleActive = false
-                },
-                onActivePlaylistEntryIdChanged = { activePlaylistEntryId = it },
-                onPendingPlaylistSubtuneSelectionChanged = { pendingPlaylistSubtuneSelection = it }
-            )
-        }
-    }
+    val libraryActions = createLibraryActionHandlers(
+        context = context,
+        appScope = appScope,
+        trackLoadDelegates = trackLoadDelegates,
+        manualOpenDelegates = manualOpenDelegates,
+        openPlayerOnTrackSelectProvider = { openPlayerOnTrackSelect },
+        activePlaylistState = { activePlaylist = it },
+        activePlaylistEntryIdState = { activePlaylistEntryId = it },
+        activePlaylistShuffleState = { activePlaylistShuffleActive = it },
+        playlistStateProvider = { playlistLibraryState },
+        onPlaylistLibraryStateChanged = onPlaylistLibraryStateChanged,
+        onPendingPlaylistSubtuneSelectionChanged = { pendingPlaylistSubtuneSelection = it }
+    )
 
-    val onShuffleLibraryTracksAction: (List<LibraryTrackEntity>, String) -> Unit = { tracks, title ->
-        val entries = tracks.map { it.toPlaylistTrackEntry() }.shuffled()
-        val firstEntry = entries.firstOrNull()
-        if (firstEntry != null) {
-            val queue = StoredPlaylist(
-                title = title,
-                format = PlaylistStoredFormat.Internal,
-                entries = entries
-            )
-            activePlaylist = queue
-            activePlaylistEntryId = firstEntry.id
-            activePlaylistShuffleActive = true
-            openPlaylistEntry(
-                context = context,
-                entry = firstEntry,
-                playlist = queue,
-                trackLoadDelegates = trackLoadDelegates,
-                manualOpenDelegates = manualOpenDelegates,
-                autoPlayOnTrackSelect = true,
-                openPlayerOnTrackSelect = openPlayerOnTrackSelect,
-                onActivePlaylistChanged = {
-                    activePlaylist = it
-                    activePlaylistShuffleActive = true
-                },
-                onActivePlaylistEntryIdChanged = { activePlaylistEntryId = it },
-                onPendingPlaylistSubtuneSelectionChanged = { pendingPlaylistSubtuneSelection = it }
-            )
-        }
-    }
+    val onPlayLibraryTracksAction = libraryActions.onPlay
+    val onShuffleLibraryTracksAction = libraryActions.onShuffle
 
     val openParsedPlaylistDocumentAction: (ParsedPlaylistDocument, String?) -> Unit = { document, entryId ->
         openPlaylistDocument(
@@ -2877,41 +2947,9 @@ onStopEngine = { NativeBridge.releaseCurrentDecoder() }, onMetadataAlbumChanged 
         )
     }
 
-    val onAddLibraryTracksToFavoritesAction: (List<LibraryTrackEntity>) -> Unit = { tracks ->
-        if (tracks.isNotEmpty()) {
-            appScope.launch {
-                val entries = withContext(Dispatchers.IO) {
-                    buildLibraryFavoriteEntries(context, tracks)
-                }
-                applyLibraryAddToFavorites(
-                    context = context,
-                    tracks = tracks,
-                    entries = entries,
-                    playlistLibraryState = playlistLibraryState,
-                    onPlaylistLibraryStateChanged = onPlaylistLibraryStateChanged
-                )
-            }
-        }
-    }
-
-    val onAddLibraryTracksToPlaylistAction: (List<LibraryTrackEntity>, String?, String) -> Unit = { tracks, playlistId, newTitle ->
-        if (tracks.isNotEmpty()) {
-            appScope.launch {
-                val entries = withContext(Dispatchers.IO) {
-                    buildLibraryFavoriteEntries(context, tracks)
-                }
-                applyLibraryAddToPlaylist(
-                    context = context,
-                    tracks = tracks,
-                    entries = entries,
-                    playlistId = playlistId,
-                    newTitle = newTitle,
-                    playlistLibraryState = playlistLibraryState,
-                    onPlaylistLibraryStateChanged = onPlaylistLibraryStateChanged
-                )
-            }
-        }
-    }
+    val onAddLibraryTracksToFavoritesAction = libraryActions.onAddFavorites
+    val onRemoveLibraryTracksFromFavoritesAction = libraryActions.onRemoveFavorites
+    val onAddLibraryTracksToPlaylistAction = libraryActions.onAddToPlaylist
     val toggleCurrentTrackFavoriteAction: () -> Unit = {
         toggleCurrentTrackFavorite(
             context = context,
@@ -4704,20 +4742,21 @@ filenameOnlyWhenTitleMissing = filenameOnlyWhenTitleMissing,
                         recentFoldersLimit = recentFoldersLimit,
                         recentFilesLimit = recentFilesLimit,
                         playlistLibraryState = playlistLibraryState,
-                        libraryAlbumDetail = libraryAlbumDetail,
-                        libraryArtistAlbums = libraryArtistAlbums,
-                        selectedArtistName = librarySelectedArtistName,
+                        libraryAlbumDetail = libraryDetail.albumDetail,
+                        libraryArtistAlbums = libraryDetail.artistAlbums,
+                        selectedArtistName = libraryDetail.selectedArtistName,
                         activePlaylist = activePlaylist,
                         favoritesSortMode = favoritesSortMode,
                         onOpenLibraryAlbum = { albumName, _ ->
-                            librarySelectedAlbumName = albumName
+                            libraryDetail.selectedAlbumName = albumName
                         },
                         onOpenLibraryArtist = { artistName ->
-                            librarySelectedArtistName = artistName
+                            libraryDetail.selectedArtistName = artistName
                         },
                         onPlayLibraryTracks = onPlayLibraryTracksAction,
                         onShuffleLibraryTracks = onShuffleLibraryTracksAction,
                         onAddLibraryTracksToFavorites = onAddLibraryTracksToFavoritesAction,
+                        onRemoveLibraryTracksFromFavorites = onRemoveLibraryTracksFromFavoritesAction,
                         onAddLibraryTracksToPlaylist = onAddLibraryTracksToPlaylistAction,
                         networkNodes = networkNodes,
                         storageDescriptors = storageDescriptors,

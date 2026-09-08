@@ -85,6 +85,8 @@ import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.PlaylistAdd
+import androidx.compose.material.icons.filled.PushPin
+import androidx.compose.material.icons.filled.StarBorder
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Share
@@ -117,6 +119,9 @@ import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.platform.LocalConfiguration
 import com.flopster101.siliconplayer.WatchDialogContainer
+import com.flopster101.siliconplayer.HomePinnedEntry
+import com.flopster101.siliconplayer.samePath
+import com.flopster101.siliconplayer.normalizeSourceIdentity
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
@@ -189,6 +194,7 @@ import com.flopster101.siliconplayer.loadArtworkForFile
 import androidx.compose.ui.graphics.ImageBitmap
 import java.io.File
 import java.util.Locale
+import android.widget.Toast
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -433,7 +439,11 @@ internal fun PlaylistsScreen(
     onPlayLibraryTracks: (List<LibraryTrackEntity>, Int, String) -> Unit,
     onShuffleLibraryTracks: (List<LibraryTrackEntity>, String) -> Unit,
     onAddLibraryTracksToFavorites: (List<LibraryTrackEntity>) -> Unit,
+    onRemoveLibraryTracksFromFavorites: (List<LibraryTrackEntity>) -> Unit,
     onAddLibraryTracksToPlaylist: (List<LibraryTrackEntity>, String?, String) -> Unit,
+    onPinLibraryEntries: (List<HomePinnedEntry>) -> Unit,
+    onUnpinLibraryPaths: (List<String>) -> Unit,
+    pinnedHomeEntries: List<HomePinnedEntry>,
     onOpenLibrarySettings: () -> Unit,
     activePlaylist: StoredPlaylist?,
     currentPlaybackSourceId: String?,
@@ -475,6 +485,127 @@ internal fun PlaylistsScreen(
     var librarySearchResults by remember { mutableStateOf(LibrarySearchResults("", emptyList(), emptyList(), emptyList())) }
     var libraryContextTracks by remember { mutableStateOf<List<LibraryTrackEntity>?>(null) }
     val keyboardController = LocalSoftwareKeyboardController.current
+    val coroutineScope = rememberCoroutineScope()
+    val libraryFavoriteKeySet = remember(libraryState.favorites) {
+        libraryState.favorites.asSequence()
+            .mapNotNull { normalizeSourceIdentity(it.source) }
+            .toSet()
+    }
+    val libraryPinnedFolderKeySet = remember(pinnedHomeEntries) {
+        pinnedHomeEntries.asSequence()
+            .filter { it.isFolder }
+            .mapNotNull { normalizeSourceIdentity(it.path) }
+            .toSet()
+    }
+    val libraryPinnedFileKeySet = remember(pinnedHomeEntries) {
+        pinnedHomeEntries.asSequence()
+            .filterNot { it.isFolder }
+            .mapNotNull { normalizeSourceIdentity(it.path) }
+            .toSet()
+    }
+    fun libraryPinnedEntriesFor(tracks: List<LibraryTrackEntity>): List<HomePinnedEntry> =
+        tracks.map { track ->
+            HomePinnedEntry(
+                path = track.path,
+                isFolder = false,
+                title = track.title,
+                artist = track.artist.takeUnless {
+                    it.isBlank() || it.equals("Unknown artist", ignoreCase = true)
+                }
+            )
+        }
+    fun libraryFolderPinsFor(tracks: List<LibraryTrackEntity>, titleOverride: String?): List<HomePinnedEntry> =
+        tracks.map { it.path.substringBeforeLast('/') }.distinct().map { folder ->
+            HomePinnedEntry(
+                path = folder,
+                isFolder = true,
+                title = titleOverride ?: folder.substringAfterLast('/')
+            )
+        }
+    fun libraryRowActions(tracks: List<LibraryTrackEntity>): LibraryRowContextActions {
+        val keys = tracks.mapNotNull { normalizeSourceIdentity(it.path) }
+        val isFavorite = keys.isNotEmpty() && keys.all { it in libraryFavoriteKeySet }
+        val pins = if (tracks.size == 1) {
+            libraryPinnedEntriesFor(tracks)
+        } else {
+            libraryFolderPinsFor(tracks, null)
+        }
+        val isPinned = pins.isNotEmpty() && pins.all { pin ->
+            val key = normalizeSourceIdentity(pin.path)
+            key != null && if (pin.isFolder) {
+                key in libraryPinnedFolderKeySet
+            } else {
+                key in libraryPinnedFileKeySet
+            }
+        }
+        return LibraryRowContextActions(
+            isFavorite = isFavorite,
+            isPinned = isPinned,
+            onToggleFavorite = {
+                if (isFavorite) {
+                    onRemoveLibraryTracksFromFavorites(tracks)
+                } else {
+                    onAddLibraryTracksToFavorites(tracks)
+                }
+            },
+            onTogglePin = {
+                if (isPinned) {
+                    onUnpinLibraryPaths(pins.map { it.path })
+                } else {
+                    onPinLibraryEntries(pins)
+                }
+            },
+            onAddToPlaylist = { libraryContextTracks = tracks }
+        )
+    }
+    fun libraryAlbumContextMenu(album: LibraryAlbum): LibraryCollectionContextMenu {
+        return LibraryCollectionContextMenu(
+            noun = "album",
+            onAddToFavorites = {
+                coroutineScope.launch {
+                    onAddLibraryTracksToFavorites(LibraryRepository.albumTracks(context, album.rawName))
+                }
+            },
+            onPin = {
+                coroutineScope.launch {
+                    val tracks = LibraryRepository.albumTracks(context, album.rawName)
+                    val folders = libraryFolderPinsFor(tracks, album.rawName)
+                    if (folders.size == 1) {
+                        onPinLibraryEntries(folders)
+                    } else {
+                        onPinLibraryEntries(libraryPinnedEntriesFor(tracks))
+                    }
+                }
+            },
+            onAddToPlaylist = {
+                coroutineScope.launch { libraryContextTracks = LibraryRepository.albumTracks(context, album.rawName) }
+            }
+        )
+    }
+    fun libraryArtistContextMenu(artist: LibraryArtist): LibraryCollectionContextMenu {
+        return LibraryCollectionContextMenu(
+            noun = "artist",
+            onAddToFavorites = {
+                coroutineScope.launch {
+                    onAddLibraryTracksToFavorites(LibraryRepository.artistTracks(context, artist.name))
+                }
+            },
+            onPin = {
+                coroutineScope.launch {
+                    val tracks = LibraryRepository.artistTracks(context, artist.name)
+                    val folders = libraryFolderPinsFor(tracks, artist.name)
+                    if (folders.size == 1) {
+                        onPinLibraryEntries(folders)
+                    } else {
+                        onPinLibraryEntries(libraryPinnedEntriesFor(tracks))
+                    }
+                }
+            },
+            onAddToPlaylist = {
+                coroutineScope.launch { libraryContextTracks = LibraryRepository.artistTracks(context, artist.name) }
+            }
+        )
+    }
     LaunchedEffect(librarySearchQuery, librarySearchActive) {
         if (!librarySearchActive || librarySearchQuery.isBlank()) {
             librarySearchResults = LibrarySearchResults("", emptyList(), emptyList(), emptyList())
@@ -499,7 +630,6 @@ internal fun PlaylistsScreen(
         initialPage = selectedTabIndex,
         pageCount = { libraryTabs.size }
     )
-    val coroutineScope = rememberCoroutineScope()
     val showingFavoritesDetail = destination == PlaylistsSurfaceDestination.Favorites
     val showingAlbumDetail = destination == PlaylistsSurfaceDestination.AlbumDetail && libraryAlbumDetail != null
     val showingArtistDetail = destination == PlaylistsSurfaceDestination.ArtistDetail && selectedArtistName != null && libraryArtistAlbums != null
@@ -817,18 +947,8 @@ internal fun PlaylistsScreen(
                             artistOpenedFromAlbum = true
                             destination = PlaylistsSurfaceDestination.ArtistDetail
                         },
-                        onAddTrackToFavorites = { track ->
-                            onAddLibraryTracksToFavorites(listOf(track))
-                        },
-                        onAddTrackToPlaylist = { track ->
-                            libraryContextTracks = listOf(track)
-                        },
-                        onAddAllToFavorites = {
-                            onAddLibraryTracksToFavorites(libraryAlbumDetail.tracks)
-                        },
-                        onAddAllToPlaylist = {
-                            libraryContextTracks = libraryAlbumDetail.tracks
-                        }
+                        trackActions = { track -> libraryRowActions(listOf(track)) },
+                        albumActions = libraryRowActions(libraryAlbumDetail.tracks)
                     )
                 } else if (currentDestination == PlaylistsSurfaceDestination.ArtistDetail &&
                     selectedArtistName != null &&
@@ -1141,12 +1261,7 @@ internal fun PlaylistsScreen(
                                     librarySearchQuery.ifBlank { "Search" }
                                 )
                             },
-                            onAddTrackToFavorites = { track ->
-                                onAddLibraryTracksToFavorites(listOf(track))
-                            },
-                            onAddTrackToPlaylist = { track ->
-                                libraryContextTracks = listOf(track)
-                            }
+                            trackActions = { track -> libraryRowActions(listOf(track)) }
                         )
                     } else {
                         Column(
@@ -1193,10 +1308,7 @@ internal fun PlaylistsScreen(
                                                 onOpenLibraryAlbum(album.rawName, album.rawName)
                                                 destination = PlaylistsSurfaceDestination.AlbumDetail
                                             },
-                                            onAddToFavorites = onAddLibraryTracksToFavorites,
-                                            onAddToPlaylist = { tracks ->
-                                                libraryContextTracks = tracks
-                                            }
+                                            contextMenuFor = ::libraryAlbumContextMenu
                                         )
                                     }
                                     LibrarySurfaceTab.Artists -> {
@@ -1209,10 +1321,7 @@ internal fun PlaylistsScreen(
                                                 onOpenLibraryArtist(artist.name)
                                                 destination = PlaylistsSurfaceDestination.ArtistDetail
                                             },
-                                            onAddToFavorites = onAddLibraryTracksToFavorites,
-                                            onAddToPlaylist = { tracks ->
-                                                libraryContextTracks = tracks
-                                            }
+                                            contextMenuFor = ::libraryArtistContextMenu
                                         )
                                     }
                                 }
@@ -1441,8 +1550,7 @@ private fun AlbumsLibraryPage(
     isSyncing: Boolean,
     syncState: LibrarySyncState,
     onOpenAlbum: (LibraryAlbum) -> Unit,
-    onAddToFavorites: (List<LibraryTrackEntity>) -> Unit,
-    onAddToPlaylist: (List<LibraryTrackEntity>) -> Unit,
+    contextMenuFor: (LibraryAlbum) -> LibraryCollectionContextMenu,
     isWatch: Boolean = false
 ) {
     if (albums.isEmpty()) {
@@ -1453,11 +1561,6 @@ private fun AlbumsLibraryPage(
             isWatch = isWatch
         )
         return
-    }
-    val context = LocalContext.current
-    val scope = rememberCoroutineScope()
-    fun tracksOf(album: LibraryAlbum, onReady: (List<LibraryTrackEntity>) -> Unit) {
-        scope.launch { onReady(LibraryRepository.albumTracks(context, album.rawName)) }
     }
     Column(modifier = Modifier.fillMaxSize()) {
         if (syncState.isScanning) {
@@ -1507,8 +1610,7 @@ private fun AlbumsLibraryPage(
                         AlbumLibraryListRow(
                             album = album,
                             onClick = { onOpenAlbum(album) },
-                            onAddToFavorites = { tracksOf(album) { onAddToFavorites(it) } },
-                            onAddToPlaylist = { tracksOf(album) { onAddToPlaylist(it) } }
+                            contextMenu = contextMenuFor(album)
                         )
                     }
                 }
@@ -1535,8 +1637,7 @@ private fun AlbumsLibraryPage(
                         AlbumLibraryGridCard(
                             album = album,
                             onClick = { onOpenAlbum(album) },
-                            onAddToFavorites = { tracksOf(album) { onAddToFavorites(it) } },
-                            onAddToPlaylist = { tracksOf(album) { onAddToPlaylist(it) } }
+                            contextMenu = contextMenuFor(album)
                         )
                     }
                 }
@@ -1552,8 +1653,7 @@ private fun ArtistsLibraryPage(
     isSyncing: Boolean,
     syncState: LibrarySyncState,
     onOpenArtist: (LibraryArtist) -> Unit,
-    onAddToFavorites: (List<LibraryTrackEntity>) -> Unit,
-    onAddToPlaylist: (List<LibraryTrackEntity>) -> Unit,
+    contextMenuFor: (LibraryArtist) -> LibraryCollectionContextMenu,
     isWatch: Boolean = false
 ) {
     if (artists.isEmpty()) {
@@ -1586,8 +1686,7 @@ private fun ArtistsLibraryPage(
             ArtistLibraryRow(
                 artist = artist,
                 onClick = { onOpenArtist(artist) },
-                onAddTracksToFavorites = onAddToFavorites,
-                onAddTracksToPlaylist = onAddToPlaylist
+                contextMenu = contextMenuFor(artist)
             )
         }
     }
@@ -1702,8 +1801,7 @@ private fun AlbumLibraryGridCard(
     album: LibraryAlbum,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
-    onAddToFavorites: (() -> Unit)? = null,
-    onAddToPlaylist: (() -> Unit)? = null
+    contextMenu: LibraryCollectionContextMenu? = null
 ) {
     var menuExpanded by remember { mutableStateOf(false) }
     Surface(
@@ -1712,19 +1810,16 @@ private fun AlbumLibraryGridCard(
             .clip(MaterialTheme.shapes.large)
             .combinedClickable(
                 onClick = onClick,
-                onLongClick = if (onAddToFavorites != null && onAddToPlaylist != null) {
-                    { menuExpanded = true }
-                } else null
+                onLongClick = contextMenu?.let { { menuExpanded = true } }
             ),
         shape = MaterialTheme.shapes.large,
         color = MaterialTheme.colorScheme.surfaceContainerLow
     ) {
-        if (onAddToFavorites != null && onAddToPlaylist != null) {
-            LibraryItemActionsMenu(
+        if (contextMenu != null) {
+            LibraryCollectionActionsMenu(
+                actions = contextMenu,
                 expanded = menuExpanded,
-                onDismiss = { menuExpanded = false },
-                onAddToFavorites = onAddToFavorites,
-                onAddToPlaylist = onAddToPlaylist
+                onDismiss = { menuExpanded = false }
             )
         }
         Column(
@@ -1773,10 +1868,8 @@ private fun LibraryAlbumDetailPage(
     onPlay: (Int) -> Unit,
     onShuffle: () -> Unit,
     onOpenArtist: () -> Unit,
-    onAddTrackToFavorites: (LibraryTrackEntity) -> Unit,
-    onAddTrackToPlaylist: (LibraryTrackEntity) -> Unit,
-    onAddAllToFavorites: () -> Unit,
-    onAddAllToPlaylist: () -> Unit
+    trackActions: (LibraryTrackEntity) -> LibraryRowContextActions,
+    albumActions: LibraryRowContextActions
 ) {
     var menuExpanded by rememberSaveable { mutableStateOf(false) }
     LazyColumn(
@@ -1870,10 +1963,15 @@ private fun LibraryAlbumDetailPage(
                                 }
                             )
                             DropdownMenuItem(
-                                text = { Text("Add album to favorites", style = MaterialTheme.typography.bodyLarge) },
+                                text = {
+                                    Text(
+                                        if (albumActions.isFavorite) "Remove album from favorites" else "Add album to favorites",
+                                        style = MaterialTheme.typography.bodyLarge
+                                    )
+                                },
                                 leadingIcon = {
                                     Icon(
-                                        imageVector = Icons.Default.Favorite,
+                                        imageVector = if (albumActions.isFavorite) Icons.Default.Star else Icons.Default.StarBorder,
                                         contentDescription = null,
                                         modifier = Modifier.size(22.dp)
                                     )
@@ -1885,7 +1983,31 @@ private fun LibraryAlbumDetailPage(
                                 ),
                                 onClick = {
                                     menuExpanded = false
-                                    onAddAllToFavorites()
+                                    albumActions.onToggleFavorite()
+                                }
+                            )
+                            DropdownMenuItem(
+                                text = {
+                                    Text(
+                                        if (albumActions.isPinned) "Unpin album from home" else "Pin album to home",
+                                        style = MaterialTheme.typography.bodyLarge
+                                    )
+                                },
+                                leadingIcon = {
+                                    Icon(
+                                        imageVector = Icons.Default.PushPin,
+                                        contentDescription = null,
+                                        modifier = Modifier.size(22.dp)
+                                    )
+                                },
+                                contentPadding = PaddingValues(start = 14.dp, end = 18.dp),
+                                colors = MenuDefaults.itemColors(
+                                    textColor = MaterialTheme.colorScheme.onSurface,
+                                    leadingIconColor = MaterialTheme.colorScheme.onSurfaceVariant
+                                ),
+                                onClick = {
+                                    menuExpanded = false
+                                    albumActions.onTogglePin()
                                 }
                             )
                             DropdownMenuItem(
@@ -1904,7 +2026,7 @@ private fun LibraryAlbumDetailPage(
                                 ),
                                 onClick = {
                                     menuExpanded = false
-                                    onAddAllToPlaylist()
+                                    albumActions.onAddToPlaylist()
                                 }
                             )
                         }
@@ -1941,8 +2063,7 @@ private fun LibraryAlbumDetailPage(
                 durationMs = track.durationMs,
                 isActive = activeSourceId != null && activeSourceId == track.path,
                 onClick = { onPlay(index) },
-                onAddToFavorites = { onAddTrackToFavorites(track) },
-                onAddToPlaylist = { onAddTrackToPlaylist(track) }
+                actions = trackActions(track)
             )
             if (index < detail.tracks.lastIndex) {
                 androidx.compose.material3.HorizontalDivider(
@@ -1955,6 +2076,76 @@ private fun LibraryAlbumDetailPage(
 }
 
 @Composable
+private fun LibraryCollectionActionsMenu(
+    actions: LibraryCollectionContextMenu,
+    expanded: Boolean,
+    onDismiss: () -> Unit
+) {
+    DropdownMenu(
+        expanded = expanded,
+        onDismissRequest = onDismiss
+    ) {
+        DropdownMenuItem(
+            text = { Text("Add ${actions.noun} to favorites", style = MaterialTheme.typography.bodyLarge) },
+            leadingIcon = {
+                Icon(
+                    imageVector = Icons.Default.StarBorder,
+                    contentDescription = null,
+                    modifier = Modifier.size(22.dp)
+                )
+            },
+            contentPadding = PaddingValues(start = 14.dp, end = 18.dp),
+            colors = MenuDefaults.itemColors(
+                textColor = MaterialTheme.colorScheme.onSurface,
+                leadingIconColor = MaterialTheme.colorScheme.onSurfaceVariant
+            ),
+            onClick = {
+                onDismiss()
+                actions.onAddToFavorites()
+            }
+        )
+        DropdownMenuItem(
+            text = { Text("Pin ${actions.noun} to home", style = MaterialTheme.typography.bodyLarge) },
+            leadingIcon = {
+                Icon(
+                    imageVector = Icons.Default.PushPin,
+                    contentDescription = null,
+                    modifier = Modifier.size(22.dp)
+                )
+            },
+            contentPadding = PaddingValues(start = 14.dp, end = 18.dp),
+            colors = MenuDefaults.itemColors(
+                textColor = MaterialTheme.colorScheme.onSurface,
+                leadingIconColor = MaterialTheme.colorScheme.onSurfaceVariant
+            ),
+            onClick = {
+                onDismiss()
+                actions.onPin()
+            }
+        )
+        DropdownMenuItem(
+            text = { Text("Add to playlist…", style = MaterialTheme.typography.bodyLarge) },
+            leadingIcon = {
+                Icon(
+                    imageVector = Icons.Default.PlaylistAdd,
+                    contentDescription = null,
+                    modifier = Modifier.size(22.dp)
+                )
+            },
+            contentPadding = PaddingValues(start = 14.dp, end = 18.dp),
+            colors = MenuDefaults.itemColors(
+                textColor = MaterialTheme.colorScheme.onSurface,
+                leadingIconColor = MaterialTheme.colorScheme.onSurfaceVariant
+            ),
+            onClick = {
+                onDismiss()
+                actions.onAddToPlaylist()
+            }
+        )
+    }
+}
+
+@Composable
 private fun LibraryTrackListRow(
     position: Int,
     title: String,
@@ -1962,8 +2153,7 @@ private fun LibraryTrackListRow(
     durationMs: Long,
     isActive: Boolean,
     onClick: () -> Unit,
-    onAddToFavorites: (() -> Unit)? = null,
-    onAddToPlaylist: (() -> Unit)? = null
+    actions: LibraryRowContextActions? = null
 ) {
     var menuExpanded by remember { mutableStateOf(false) }
     Row(
@@ -1972,20 +2162,17 @@ private fun LibraryTrackListRow(
             .clip(RoundedCornerShape(12.dp))
             .combinedClickable(
                 onClick = onClick,
-                onLongClick = if (onAddToFavorites != null && onAddToPlaylist != null) {
-                    { menuExpanded = true }
-                } else null
+                onLongClick = actions?.let { { menuExpanded = true } }
             )
             .padding(horizontal = 10.dp, vertical = 9.dp),
         horizontalArrangement = Arrangement.spacedBy(12.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        if (onAddToFavorites != null && onAddToPlaylist != null) {
+        if (actions != null) {
             LibraryItemActionsMenu(
                 expanded = menuExpanded,
                 onDismiss = { menuExpanded = false },
-                onAddToFavorites = onAddToFavorites,
-                onAddToPlaylist = onAddToPlaylist
+                actions = actions
             )
         }
         Text(
@@ -2122,8 +2309,7 @@ private fun LibraryAlbumCompactRow(
 private fun LibraryArtistCompactRow(
     artist: LibraryArtist,
     onClick: () -> Unit,
-    onAddToFavorites: (() -> Unit)? = null,
-    onAddToPlaylist: (() -> Unit)? = null
+    contextMenu: LibraryCollectionContextMenu? = null
 ) {
     var menuExpanded by remember { mutableStateOf(false) }
     Row(
@@ -2133,20 +2319,17 @@ private fun LibraryArtistCompactRow(
             .background(MaterialTheme.colorScheme.surfaceContainerLow)
             .combinedClickable(
                 onClick = onClick,
-                onLongClick = if (onAddToFavorites != null && onAddToPlaylist != null) {
-                    { menuExpanded = true }
-                } else null
+                onLongClick = contextMenu?.let { { menuExpanded = true } }
             )
             .padding(horizontal = 10.dp, vertical = 8.dp),
         horizontalArrangement = Arrangement.spacedBy(10.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        if (onAddToFavorites != null && onAddToPlaylist != null) {
-            LibraryItemActionsMenu(
+        if (contextMenu != null) {
+            LibraryCollectionActionsMenu(
+                actions = contextMenu,
                 expanded = menuExpanded,
-                onDismiss = { menuExpanded = false },
-                onAddToFavorites = onAddToFavorites,
-                onAddToPlaylist = onAddToPlaylist
+                onDismiss = { menuExpanded = false }
             )
         }
         Surface(
@@ -2222,8 +2405,7 @@ private fun AlbumArtworkBox(
 private fun AlbumLibraryListRow(
     album: LibraryAlbum,
     onClick: () -> Unit,
-    onAddToFavorites: (() -> Unit)? = null,
-    onAddToPlaylist: (() -> Unit)? = null
+    contextMenu: LibraryCollectionContextMenu? = null
 ) {
     var menuExpanded by remember { mutableStateOf(false) }
     Row(
@@ -2233,20 +2415,17 @@ private fun AlbumLibraryListRow(
             .background(MaterialTheme.colorScheme.surfaceContainerLow)
             .combinedClickable(
                 onClick = onClick,
-                onLongClick = if (onAddToFavorites != null && onAddToPlaylist != null) {
-                    { menuExpanded = true }
-                } else null
+                onLongClick = contextMenu?.let { { menuExpanded = true } }
             )
             .padding(horizontal = 10.dp, vertical = 8.dp),
         horizontalArrangement = Arrangement.spacedBy(10.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        if (onAddToFavorites != null && onAddToPlaylist != null) {
-            LibraryItemActionsMenu(
+        if (contextMenu != null) {
+            LibraryCollectionActionsMenu(
+                actions = contextMenu,
                 expanded = menuExpanded,
-                onDismiss = { menuExpanded = false },
-                onAddToFavorites = onAddToFavorites,
-                onAddToPlaylist = onAddToPlaylist
+                onDismiss = { menuExpanded = false }
             )
         }
         Surface(
@@ -2278,11 +2457,8 @@ private fun AlbumLibraryListRow(
 private fun ArtistLibraryRow(
     artist: LibraryArtist,
     onClick: () -> Unit,
-    onAddTracksToFavorites: (List<LibraryTrackEntity>) -> Unit,
-    onAddTracksToPlaylist: (List<LibraryTrackEntity>) -> Unit
+    contextMenu: LibraryCollectionContextMenu
 ) {
-    val context = LocalContext.current
-    val scope = rememberCoroutineScope()
     var menuExpanded by remember { mutableStateOf(false) }
     Row(
         modifier = Modifier
@@ -2297,19 +2473,10 @@ private fun ArtistLibraryRow(
         horizontalArrangement = Arrangement.spacedBy(10.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        LibraryItemActionsMenu(
+        LibraryCollectionActionsMenu(
+            actions = contextMenu,
             expanded = menuExpanded,
-            onDismiss = { menuExpanded = false },
-            onAddToFavorites = {
-                scope.launch {
-                    onAddTracksToFavorites(LibraryRepository.artistTracks(context, artist.name))
-                }
-            },
-            onAddToPlaylist = {
-                scope.launch {
-                    onAddTracksToPlaylist(LibraryRepository.artistTracks(context, artist.name))
-                }
-            }
+            onDismiss = { menuExpanded = false }
         )
         Surface(
             modifier = Modifier.size(46.dp),
@@ -4287,8 +4454,7 @@ private fun LibrarySearchOverlay(
     onOpenAlbum: (LibraryAlbum) -> Unit,
     onOpenArtist: (LibraryArtist) -> Unit,
     onPlayTrack: (LibraryTrackEntity, Int) -> Unit,
-    onAddTrackToFavorites: (LibraryTrackEntity) -> Unit,
-    onAddTrackToPlaylist: (LibraryTrackEntity) -> Unit
+    trackActions: (LibraryTrackEntity) -> LibraryRowContextActions
 ) {
     val focusRequester = remember { FocusRequester() }
     val keyboard = LocalSoftwareKeyboardController.current
@@ -4384,8 +4550,7 @@ private fun LibrarySearchOverlay(
                             durationMs = track.durationMs,
                             isActive = activeSourceId != null && activeSourceId == track.path,
                             onClick = { onPlayTrack(track, index) },
-                            onAddToFavorites = { onAddTrackToFavorites(track) },
-                            onAddToPlaylist = { onAddTrackToPlaylist(track) }
+                            actions = trackActions(track)
                         )
                     }
                 }
@@ -4394,22 +4559,41 @@ private fun LibrarySearchOverlay(
     }
 }
 
+private data class LibraryRowContextActions(
+    val isFavorite: Boolean,
+    val isPinned: Boolean,
+    val onToggleFavorite: () -> Unit,
+    val onTogglePin: () -> Unit,
+    val onAddToPlaylist: () -> Unit
+)
+
+private data class LibraryCollectionContextMenu(
+    val noun: String,
+    val onAddToFavorites: () -> Unit,
+    val onPin: () -> Unit,
+    val onAddToPlaylist: () -> Unit
+)
+
 @Composable
 private fun LibraryItemActionsMenu(
     expanded: Boolean,
     onDismiss: () -> Unit,
-    onAddToFavorites: () -> Unit,
-    onAddToPlaylist: () -> Unit
+    actions: LibraryRowContextActions
 ) {
     DropdownMenu(
         expanded = expanded,
         onDismissRequest = onDismiss
     ) {
         DropdownMenuItem(
-            text = { Text("Add to favorites", style = MaterialTheme.typography.bodyLarge) },
+            text = {
+                Text(
+                    if (actions.isFavorite) "Remove from favorites" else "Add to favorites",
+                    style = MaterialTheme.typography.bodyLarge
+                )
+            },
             leadingIcon = {
                 Icon(
-                    imageVector = Icons.Default.Favorite,
+                    imageVector = if (actions.isFavorite) Icons.Default.Star else Icons.Default.StarBorder,
                     contentDescription = null,
                     modifier = Modifier.size(22.dp)
                 )
@@ -4421,7 +4605,31 @@ private fun LibraryItemActionsMenu(
             ),
             onClick = {
                 onDismiss()
-                onAddToFavorites()
+                actions.onToggleFavorite()
+            }
+        )
+        DropdownMenuItem(
+            text = {
+                Text(
+                    if (actions.isPinned) "Unpin from home" else "Pin to home",
+                    style = MaterialTheme.typography.bodyLarge
+                )
+            },
+            leadingIcon = {
+                Icon(
+                    imageVector = Icons.Default.PushPin,
+                    contentDescription = null,
+                    modifier = Modifier.size(22.dp)
+                )
+            },
+            contentPadding = PaddingValues(start = 14.dp, end = 18.dp),
+            colors = MenuDefaults.itemColors(
+                textColor = MaterialTheme.colorScheme.onSurface,
+                leadingIconColor = MaterialTheme.colorScheme.onSurfaceVariant
+            ),
+            onClick = {
+                onDismiss()
+                actions.onTogglePin()
             }
         )
         DropdownMenuItem(
@@ -4440,7 +4648,7 @@ private fun LibraryItemActionsMenu(
             ),
             onClick = {
                 onDismiss()
-                onAddToPlaylist()
+                actions.onAddToPlaylist()
             }
         )
     }

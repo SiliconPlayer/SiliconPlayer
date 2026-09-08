@@ -333,7 +333,11 @@ internal fun AppNavigationPlaylistsContentSection(
     onPlayLibraryTracks: (List<LibraryTrackEntity>, Int, String) -> Unit,
     onShuffleLibraryTracks: (List<LibraryTrackEntity>, String) -> Unit,
     onAddLibraryTracksToFavorites: (List<LibraryTrackEntity>) -> Unit,
+    onRemoveLibraryTracksFromFavorites: (List<LibraryTrackEntity>) -> Unit,
     onAddLibraryTracksToPlaylist: (List<LibraryTrackEntity>, String?, String) -> Unit,
+    onPinLibraryEntries: (List<HomePinnedEntry>) -> Unit,
+    onUnpinLibraryPaths: (List<String>) -> Unit,
+    pinnedHomeEntries: List<HomePinnedEntry>,
     onFavoritesSortModeChange: (PlaylistEntrySortMode) -> Unit,
     onOpenLibrarySettings: () -> Unit,
     onOpenFavorite: (PlaylistTrackEntry) -> Unit,
@@ -370,7 +374,11 @@ internal fun AppNavigationPlaylistsContentSection(
         onPlayLibraryTracks = onPlayLibraryTracks,
         onShuffleLibraryTracks = onShuffleLibraryTracks,
         onAddLibraryTracksToFavorites = onAddLibraryTracksToFavorites,
+        onRemoveLibraryTracksFromFavorites = onRemoveLibraryTracksFromFavorites,
         onAddLibraryTracksToPlaylist = onAddLibraryTracksToPlaylist,
+        onPinLibraryEntries = onPinLibraryEntries,
+        onUnpinLibraryPaths = onUnpinLibraryPaths,
+        pinnedHomeEntries = pinnedHomeEntries,
         onFavoritesSortModeChange = onFavoritesSortModeChange,
         onOpenLibrarySettings = onOpenLibrarySettings,
         onOpenFavorite = onOpenFavorite,
@@ -600,6 +608,7 @@ internal fun AppNavigationMainContentHost(
     onPlayLibraryTracks: (List<LibraryTrackEntity>, Int, String) -> Unit,
     onShuffleLibraryTracks: (List<LibraryTrackEntity>, String) -> Unit,
     onAddLibraryTracksToFavorites: (List<LibraryTrackEntity>) -> Unit,
+    onRemoveLibraryTracksFromFavorites: (List<LibraryTrackEntity>) -> Unit,
     onAddLibraryTracksToPlaylist: (List<LibraryTrackEntity>, String?, String) -> Unit,
     context: Context,
     prefs: SharedPreferences,
@@ -796,7 +805,30 @@ internal fun AppNavigationMainContentHost(
                 onPlayLibraryTracks = onPlayLibraryTracks,
         onShuffleLibraryTracks = onShuffleLibraryTracks,
                 onAddLibraryTracksToFavorites = onAddLibraryTracksToFavorites,
+                onRemoveLibraryTracksFromFavorites = onRemoveLibraryTracksFromFavorites,
                 onAddLibraryTracksToPlaylist = onAddLibraryTracksToPlaylist,
+                onPinLibraryEntries = { entries ->
+                    val updated = entries.fold(pinnedHomeEntries) { current, entry ->
+                        buildUpdatedPinnedHomeEntries(
+                            current = current,
+                            candidate = HomePinnedEntry(
+                                path = entry.path,
+                                isFolder = false,
+                                title = entry.title,
+                                artist = entry.artist
+                            )
+                        )
+                    }
+                    onPinnedHomeEntriesChanged(updated)
+                },
+                onUnpinLibraryPaths = { paths ->
+                    val removed = paths.toSet()
+                    onPinnedHomeEntriesChanged(
+                        pinnedHomeEntries.filterNot { pinned ->
+                            removed.any { raw -> samePath(pinned.path, raw) }
+                        }
+                    )
+                },
                 onFavoritesSortModeChange = onFavoritesSortModeChange,
                 onOpenLibrarySettings = onOpenLibrarySettings,
                 onOpenFavorite = onOpenFavorite,
@@ -812,7 +844,8 @@ internal fun AppNavigationMainContentHost(
                 onOpenFavoriteTrackLocation = onOpenFavoriteTrackLocation,
                 onShareFavoriteTrack = onShareFavoriteTrack,
                 onCopyFavoriteTrackSource = onCopyFavoriteTrackSource,
-                onOpenFavoriteTrackInfo = onOpenFavoriteTrackInfo
+                onOpenFavoriteTrackInfo = onOpenFavoriteTrackInfo,
+                pinnedHomeEntries = pinnedHomeEntries
             )
         },
         networkContent = { mainPadding ->
