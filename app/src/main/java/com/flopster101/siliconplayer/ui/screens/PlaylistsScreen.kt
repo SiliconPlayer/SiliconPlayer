@@ -11,6 +11,7 @@ import android.graphics.BitmapFactory
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.FastOutLinearInEasing
 import androidx.compose.animation.core.FastOutSlowInEasing
@@ -841,8 +842,30 @@ internal fun PlaylistsScreen(
                             }
                         },
                         navigationIcon = {
-                            IconButton(
-                                onClick = {
+                            AnimatedContent(
+                                targetState = librarySearchActive && !showingPlaylistDetail,
+                                transitionSpec = {
+                                    fadeIn(animationSpec = tween(durationMillis = 180)) togetherWith
+                                        fadeOut(animationSpec = tween(durationMillis = 150))
+                                },
+                                label = "librarySearchNavigationIcon"
+                            ) { searching ->
+                                if (searching) {
+                                    IconButton(
+                                        onClick = {
+                                            librarySearchActive = false
+                                            librarySearchQuery = ""
+                                            keyboardController?.hide()
+                                        }
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.Default.Close,
+                                            contentDescription = "Close search"
+                                        )
+                                    }
+                                } else {
+                                    IconButton(
+                                        onClick = {
                                     if (showingPlaylistDetail) {
                                         favoritesEditModeEnabled = false
                                         favoritesDraggingEntryId = null
@@ -871,28 +894,24 @@ internal fun PlaylistsScreen(
                                     contentDescription = "Go back"
                                 )
                             }
-                        },
+                        }
+                    }
+                },
                         actions = {
                             if (!showingPlaylistDetail && !isWatch) {
-                                IconButton(
-                                    onClick = {
-                                        if (!librarySearchActive) {
-                                            librarySearchActive = true
-                                        } else {
-                                            librarySearchActive = false
-                                            librarySearchQuery = ""
-                                            keyboardController?.hide()
-                                        }
-                                    }
+                                AnimatedVisibility(
+                                    visible = !librarySearchActive,
+                                    enter = fadeIn(animationSpec = tween(durationMillis = 180)),
+                                    exit = fadeOut(animationSpec = tween(durationMillis = 150))
                                 ) {
-                                    Icon(
-                                        imageVector = if (librarySearchActive) {
-                                            Icons.Default.Close
-                                        } else {
-                                            Icons.Default.Search
-                                        },
-                                        contentDescription = if (librarySearchActive) "Close search" else "Search library"
-                                    )
+                                    IconButton(
+                                        onClick = { librarySearchActive = true }
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.Default.Search,
+                                            contentDescription = "Search library"
+                                        )
+                                    }
                                 }
                                 if (librarySyncState.isScanning) {
                                     Text(
@@ -1323,8 +1342,17 @@ internal fun PlaylistsScreen(
                                 }
                             }
                         }
-                    } else if (librarySearchActive) {
-                        LibrarySearchOverlay(
+                    } else {
+                        AnimatedContent(
+                            targetState = librarySearchActive,
+                            transitionSpec = {
+                                fadeIn(animationSpec = tween(durationMillis = 200)) togetherWith
+                                    fadeOut(animationSpec = tween(durationMillis = 160))
+                            },
+                            label = "librarySearchTransition"
+                        ) { searching ->
+                            if (searching) {
+                                LibrarySearchOverlay(
                             query = librarySearchQuery,
                             results = librarySearchResults,
                             modifier = Modifier
@@ -1352,9 +1380,9 @@ internal fun PlaylistsScreen(
                                 )
                             },
                             trackActions = { track -> libraryRowActions(listOf(track)) }
-                        )
-                    } else {
-                        Column(
+                                )
+                            } else {
+                                Column(
                             modifier = Modifier
                                 .fillMaxSize()
                                 .padding(actualInnerPadding)
@@ -1433,6 +1461,8 @@ internal fun PlaylistsScreen(
                                 }
                             }
                         }
+                    }
+                    }
                     }
                 }
             }
