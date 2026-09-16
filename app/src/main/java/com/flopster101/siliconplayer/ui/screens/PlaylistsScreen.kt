@@ -2604,14 +2604,22 @@ private fun LibraryAlbumCompactRow(
 private fun LibraryArtistCompactRow(
     artist: LibraryArtist,
     onClick: () -> Unit,
-    contextMenu: LibraryCollectionContextMenu? = null
+    contextMenu: LibraryCollectionContextMenu? = null,
+    flat: Boolean = false
 ) {
     var menuExpanded by remember { mutableStateOf(false) }
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(14.dp))
-            .background(MaterialTheme.colorScheme.surfaceContainerLow)
+            .then(
+                if (flat) {
+                    Modifier
+                } else {
+                    Modifier
+                        .clip(RoundedCornerShape(14.dp))
+                        .background(MaterialTheme.colorScheme.surfaceContainerLow)
+                }
+            )
             .combinedClickable(
                 onClick = onClick,
                 onLongClick = contextMenu?.let { { menuExpanded = true } }
@@ -2726,14 +2734,22 @@ private fun LibraryFallbackArtworkIcon(
 private fun AlbumLibraryListRow(
     album: LibraryAlbum,
     onClick: () -> Unit,
-    contextMenu: LibraryCollectionContextMenu? = null
+    contextMenu: LibraryCollectionContextMenu? = null,
+    flat: Boolean = false
 ) {
     var menuExpanded by remember { mutableStateOf(false) }
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(14.dp))
-            .background(MaterialTheme.colorScheme.surfaceContainerLow)
+            .then(
+                if (flat) {
+                    Modifier
+                } else {
+                    Modifier
+                        .clip(RoundedCornerShape(14.dp))
+                        .background(MaterialTheme.colorScheme.surfaceContainerLow)
+                }
+            )
             .combinedClickable(
                 onClick = onClick,
                 onLongClick = contextMenu?.let { { menuExpanded = true } }
@@ -4844,7 +4860,8 @@ private fun LibrarySearchOverlay(
                     ) { album ->
                         AlbumLibraryListRow(
                             album = album,
-                            onClick = { onOpenAlbum(album) }
+                            onClick = { onOpenAlbum(album) },
+                            flat = true
                         )
                     }
                 }
@@ -4856,7 +4873,8 @@ private fun LibrarySearchOverlay(
                     ) { artist ->
                         LibraryArtistCompactRow(
                             artist = artist,
-                            onClick = { onOpenArtist(artist) }
+                            onClick = { onOpenArtist(artist) },
+                            flat = true
                         )
                     }
                 }
