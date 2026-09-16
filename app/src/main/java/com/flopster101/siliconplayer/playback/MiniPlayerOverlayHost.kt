@@ -10,6 +10,7 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.animation.scaleIn
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
+import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.Box
@@ -34,6 +35,8 @@ import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
@@ -49,6 +52,12 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.dp
 import java.io.File
 import kotlinx.coroutines.launch
+
+private val MiniPlayerBackdropScrimHeight = 48.dp
+private val MiniPlayerBackdropScrimBrush = Brush.verticalGradient(
+    0f to Color.Transparent,
+    1f to Color.Black.copy(alpha = 0.32f)
+)
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -225,7 +234,15 @@ internal fun BoxScope.MiniPlayerOverlayHost(
                     else -> false
                 }
             }
-            .clip(MaterialTheme.shapes.large)
+            .then(
+                if (isWatch) {
+                    Modifier.clip(MaterialTheme.shapes.large)
+                } else {
+                    Modifier
+                        .padding(top = MiniPlayerBackdropScrimHeight)
+                        .background(MiniPlayerBackdropScrimBrush, MaterialTheme.shapes.large)
+                }
+            )
             .border(
                 width = (1.4f * miniPlayerFocusHighlight).dp,
                 color = MaterialTheme.colorScheme.primary.copy(alpha = 0.58f * miniPlayerFocusHighlight),
