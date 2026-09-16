@@ -12,6 +12,9 @@ import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.scaleIn
+import androidx.compose.animation.scaleOut
+import androidx.compose.material3.FloatingActionButton
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.FastOutLinearInEasing
 import androidx.compose.animation.core.FastOutSlowInEasing
@@ -500,6 +503,11 @@ internal fun PlaylistsScreen(
     onDeleteFavoriteTrack: (PlaylistTrackEntry) -> Unit,
     onMoveFavoriteTrack: (PlaylistTrackEntry, Int) -> Unit,
     onPlayFavoriteTrackAsCached: (PlaylistTrackEntry) -> Unit,
+    onCreatePlaylist: (String) -> String,
+    onDeleteStoredPlaylistEntry: (PlaylistTrackEntry, String) -> Unit,
+    onMoveStoredPlaylistEntry: (PlaylistTrackEntry, String, Int) -> Unit,
+    onDeleteAllStoredPlaylistEntries: (String) -> Unit,
+    onPlayStoredPlaylistTrackAsCached: (PlaylistTrackEntry, StoredPlaylist) -> Unit,
     onOpenFavoriteTrackLocation: (PlaylistTrackEntry) -> Unit,
     onShareFavoriteTrack: (PlaylistTrackEntry) -> Unit,
     onCopyFavoriteTrackSource: (PlaylistTrackEntry) -> Unit,
@@ -690,6 +698,16 @@ internal fun PlaylistsScreen(
     var favoritesEditModeEnabled by rememberSaveable { mutableStateOf(false) }
     var favoritesDraggingEntryId by remember { mutableStateOf<String?>(null) }
     var showDeleteAllFavoritesConfirm by rememberSaveable { mutableStateOf(false) }
+    var storedPlaylistEditModeEnabled by rememberSaveable(selectedStoredPlaylistId) {
+        mutableStateOf(false)
+    }
+    var storedPlaylistDraggingEntryId by remember(selectedStoredPlaylistId) {
+        mutableStateOf<String?>(null)
+    }
+    var showDeleteAllStoredPlaylistEntriesConfirm by rememberSaveable {
+        mutableStateOf(false)
+    }
+    var showCreatePlaylistDialog by remember { mutableStateOf(false) }
     var trackInfoDialogState by remember {
         mutableStateOf<PlaylistTrackInfoDialogState?>(null)
     }
@@ -726,6 +744,8 @@ internal fun PlaylistsScreen(
     BackHandler(enabled = backHandlingEnabled && showingPlaylistDetail) {
         favoritesEditModeEnabled = false
         favoritesDraggingEntryId = null
+        storedPlaylistEditModeEnabled = false
+        storedPlaylistDraggingEntryId = null
         selectedStoredPlaylistId = null
         if (destination == PlaylistsSurfaceDestination.AlbumDetail && albumOpenedFromArtist) {
             albumOpenedFromArtist = false
@@ -1129,14 +1149,19 @@ internal fun PlaylistsScreen(
                             emptyBody = "This playlist has no tracks.",
                             selectedSortMode = storedPlaylistSortMode,
                             onSortModeSelected = { storedPlaylistSortMode = it },
-                            isEditMode = false,
-                            onEditModeChanged = {},
+                            isEditMode = storedPlaylistEditModeEnabled,
+                            onEditModeChanged = { enabled ->
+                                storedPlaylistEditModeEnabled = enabled
+                                if (!enabled) {
+                                    storedPlaylistDraggingEntryId = null
+                                }
+                            },
                             showAddAction = false,
-                            showEditAction = false,
-                            showDeleteAllEntriesAction = false,
-                            canReorderEntries = false,
-                            draggingEntryId = null,
-                            onDraggingEntryIdChange = {},
+                            showEditAction = true,
+                            showDeleteAllEntriesAction = true,
+                            canReorderEntries = storedPlaylistSortMode == PlaylistEntrySortMode.Custom,
+                            draggingEntryId = storedPlaylistDraggingEntryId,
+                            onDraggingEntryIdChange = { storedPlaylistDraggingEntryId = it },
                             activeSourceId = currentPlaybackSourceId,
                             currentSubtuneIndex = currentSubtuneIndex,
                             onEntryClick = { entry -> onOpenStoredPlaylistEntry(entry, sortedStoredPlaylist) },
@@ -1144,15 +1169,20 @@ internal fun PlaylistsScreen(
                             onShufflePlaylist = { onShuffleStoredPlaylist(sortedStoredPlaylist) },
                             onDeletePlaylist = {},
                             canDeletePlaylist = false,
-                            onDeleteAllEntries = {},
-                            canDeleteEntries = false,
+                            onDeleteAllEntries = { showDeleteAllStoredPlaylistEntriesConfirm = true },
                             onPlayEntry = { entry -> onOpenStoredPlaylistEntry(entry, sortedStoredPlaylist) },
-                            onPlayEntryAsCached = {},
-                            onDeleteEntry = {},
-                            onMoveEntry = { _, _ -> },
-                            onOpenEntryLocation = {},
-                            onShareEntry = {},
-                            onCopyEntrySource = {},
+                            onPlayEntryAsCached = { entry ->
+                                onPlayStoredPlaylistTrackAsCached(entry, sortedStoredPlaylist)
+                            },
+                            onDeleteEntry = { entry ->
+                                onDeleteStoredPlaylistEntry(entry, selectedStoredPlaylist.id)
+                            },
+                            onMoveEntry = { entry, offset ->
+                                onMoveStoredPlaylistEntry(entry, selectedStoredPlaylist.id, offset)
+                            },
+                            onOpenEntryLocation = onOpenFavoriteTrackLocation,
+                            onShareEntry = onShareFavoriteTrack,
+                            onCopyEntrySource = onCopyFavoriteTrackSource,
                             onOpenEntryInfo = { entry ->
                                 trackInfoDialogState = buildPlaylistTrackInfoDialogState(
                                     playlistTitle = selectedStoredPlaylist.title,
@@ -1160,13 +1190,15 @@ internal fun PlaylistsScreen(
                                     networkNodes = networkNodes
                                 )
                             },
-                            showPlayAsCachedAction = false,
-                            showLocationAction = false,
-                            showShareAction = false,
-                            showCopySourceAction = false,
+                            showPlayAsCachedAction = true,
+                            showLocationAction = true,
+                            showShareAction = true,
+                            showCopySourceAction = true,
                             showInfoAction = true,
                             isWatch = isWatch,
                             onBack = {
+                                storedPlaylistEditModeEnabled = false
+                                storedPlaylistDraggingEntryId = null
                                 selectedStoredPlaylistId = null
                                 destination = PlaylistsSurfaceDestination.Library
                             }
@@ -1405,10 +1437,13 @@ internal fun PlaylistsScreen(
                                     }
                                 }
                             )
-                            HorizontalPager(
-                                state = pagerState,
+                            Box(
                                 modifier = Modifier.fillMaxSize()
-                            ) { page ->
+                            ) {
+                                HorizontalPager(
+                                    state = pagerState,
+                                    modifier = Modifier.fillMaxSize()
+                                ) { page ->
                                 when (libraryTabs[page]) {
                                     LibrarySurfaceTab.Playlists -> {
                                         PlaylistsLibraryTabPage(
@@ -1466,6 +1501,29 @@ internal fun PlaylistsScreen(
                                         )
                                     }
                                 }
+                            }
+                            androidx.compose.animation.AnimatedVisibility(
+                                visible = !isWatch &&
+                                    currentDestination == PlaylistsSurfaceDestination.Library &&
+                                    !librarySearchActive &&
+                                    libraryTabs.getOrNull(selectedTabIndex) == LibrarySurfaceTab.Playlists,
+                                enter = scaleIn() + fadeIn(),
+                                exit = scaleOut() + fadeOut(),
+                                modifier = Modifier.align(Alignment.BottomEnd)
+                            ) {
+                                FloatingActionButton(
+                                    onClick = { showCreatePlaylistDialog = true },
+                                    modifier = Modifier.padding(
+                                        end = 16.dp,
+                                        bottom = bottomContentPadding + 16.dp
+                                    )
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.Add,
+                                        contentDescription = "New playlist"
+                                    )
+                                }
+                            }
                             }
                         }
                     }
@@ -1528,12 +1586,90 @@ internal fun PlaylistsScreen(
             )
         }
     }
+    if (showDeleteAllStoredPlaylistEntriesConfirm) {
+        if (isWatch) {
+            WatchDialogContainer(
+                title = "Clear playlist?",
+                onDismissRequest = { showDeleteAllStoredPlaylistEntriesConfirm = false }
+            ) {
+                Text(
+                    text = "This will remove every track from this playlist.",
+                    style = MaterialTheme.typography.bodyMedium,
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp)
+                )
+                Button(
+                    onClick = {
+                        showDeleteAllStoredPlaylistEntriesConfirm = false
+                        selectedStoredPlaylistId?.let { onDeleteAllStoredPlaylistEntries(it) }
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error),
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(14.dp)
+                ) {
+                    Text("Clear all")
+                }
+                TextButton(
+                    onClick = { showDeleteAllStoredPlaylistEntriesConfirm = false },
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text("Cancel")
+                }
+            }
+        } else {
+            AlertDialog(
+                onDismissRequest = { showDeleteAllStoredPlaylistEntriesConfirm = false },
+                title = { Text("Clear playlist?") },
+                text = { Text("This will remove every track from this playlist.") },
+                confirmButton = {
+                    TextButton(
+                        onClick = {
+                            showDeleteAllStoredPlaylistEntriesConfirm = false
+                            selectedStoredPlaylistId?.let { onDeleteAllStoredPlaylistEntries(it) }
+                        }
+                    ) {
+                        Text("Clear all")
+                    }
+                },
+                dismissButton = {
+                    TextButton(onClick = { showDeleteAllStoredPlaylistEntriesConfirm = false }) {
+                        Text("Cancel")
+                    }
+                }
+            )
+        }
+    }
     trackInfoDialogState?.let { dialogState ->
         BrowserInfoDialog(
             title = "Track and decoder info",
             fields = dialogState.fields,
             onDismiss = { trackInfoDialogState = null }
         )
+    }
+    if (showCreatePlaylistDialog) {
+        var newPlaylistTitle by remember { mutableStateOf("") }
+        FloatingActionDialog(
+            title = "New playlist",
+            onDismiss = { showCreatePlaylistDialog = false },
+            confirmText = "Create",
+            confirmEnabled = newPlaylistTitle.isNotBlank(),
+            onConfirm = {
+                val playlistId = onCreatePlaylist(newPlaylistTitle.trim())
+                newPlaylistTitle = ""
+                showCreatePlaylistDialog = false
+                selectedStoredPlaylistId = playlistId
+                destination = PlaylistsSurfaceDestination.StoredPlaylist
+            }
+        ) {
+            DialogSectionLabel("Name")
+            OutlinedTextField(
+                value = newPlaylistTitle,
+                onValueChange = { newPlaylistTitle = it },
+                singleLine = true,
+                placeholder = { Text("Playlist name") },
+                modifier = Modifier.fillMaxWidth()
+            )
+        }
     }
     libraryContextTracks?.let { contextTracks ->
         var newPlaylistTitle by remember(contextTracks) { mutableStateOf("") }
@@ -1621,7 +1757,7 @@ private fun PlaylistsLibraryTabPage(
                 }
                 EmptySectionCard(
                     title = "No playlists yet",
-                    body = "More playlist options will show up here later."
+                    body = "Playlists you create will show up here."
                 )
             }
         } else {

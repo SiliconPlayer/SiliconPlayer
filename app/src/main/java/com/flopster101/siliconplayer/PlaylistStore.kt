@@ -102,6 +102,78 @@ internal fun removeStoredPlaylist(
     )
 }
 
+internal fun removeStoredPlaylistEntry(
+    state: PlaylistLibraryState,
+    playlistId: String,
+    entryId: String
+): PlaylistLibraryState {
+    return state.copy(
+        playlists = state.playlists.map { playlist ->
+            if (playlist.id != playlistId) {
+                playlist
+            } else {
+                playlist.copy(
+                    entries = playlist.entries.filterNot { it.id == entryId },
+                    updatedAtMs = System.currentTimeMillis()
+                )
+            }
+        }
+    )
+}
+
+internal fun moveStoredPlaylistEntry(
+    state: PlaylistLibraryState,
+    playlistId: String,
+    entryId: String,
+    offset: Int
+): PlaylistLibraryState {
+    if (offset == 0) return state
+    return state.copy(
+        playlists = state.playlists.map { playlist ->
+            if (playlist.id != playlistId) {
+                playlist
+            } else {
+                val currentIndex = playlist.entries.indexOfFirst { it.id == entryId }
+                if (currentIndex < 0 || playlist.entries.size < 2) {
+                    playlist
+                } else {
+                    val targetIndex = (currentIndex + offset).coerceIn(0, playlist.entries.lastIndex)
+                    if (targetIndex == currentIndex) {
+                        playlist
+                    } else {
+                        val reordered = playlist.entries.toMutableList().apply {
+                            val entry = removeAt(currentIndex)
+                            add(targetIndex, entry)
+                        }
+                        playlist.copy(
+                            entries = reordered,
+                            updatedAtMs = System.currentTimeMillis()
+                        )
+                    }
+                }
+            }
+        }
+    )
+}
+
+internal fun clearStoredPlaylistEntries(
+    state: PlaylistLibraryState,
+    playlistId: String
+): PlaylistLibraryState {
+    return state.copy(
+        playlists = state.playlists.map { playlist ->
+            if (playlist.id != playlistId || playlist.entries.isEmpty()) {
+                playlist
+            } else {
+                playlist.copy(
+                    entries = emptyList(),
+                    updatedAtMs = System.currentTimeMillis()
+                )
+            }
+        }
+    )
+}
+
 internal fun upsertFavoriteTrack(
     state: PlaylistLibraryState,
     track: PlaylistTrackEntry

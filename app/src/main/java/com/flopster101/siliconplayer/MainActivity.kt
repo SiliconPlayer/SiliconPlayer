@@ -4701,6 +4701,31 @@ filenameOnlyWhenTitleMissing = filenameOnlyWhenTitleMissing,
         LaunchedEffect(favoritesSortMode, playlistLibraryState.favorites, activePlaylist?.id) {
             syncActiveFavoritesContextAfterMutation(playlistLibraryState.favorites)
         }
+        val syncActiveStoredPlaylistContextAfterMutation: (String) -> Unit = { playlistId ->
+            val updatedPlaylist = playlistLibraryState.playlists.firstOrNull { it.id == playlistId }
+            if (activePlaylist?.id == playlistId && !activePlaylistShuffleActive) {
+                if (updatedPlaylist == null || updatedPlaylist.entries.isEmpty()) {
+                    activePlaylist = null
+                    activePlaylistEntryId = null
+                    activePlaylistShuffleActive = false
+                    pendingPlaylistSubtuneSelection = null
+                } else {
+                    activePlaylist = updatedPlaylist
+                    val playbackMatchedEntryId = updatedPlaylist.entries.firstOrNull { entry ->
+                        playlistEntryMatchesPlayback(
+                            entry = entry,
+                            activeSourceId = currentTrackPathOrUrl,
+                            currentSubtuneIndex = currentSubtuneIndex
+                        )
+                    }?.id
+                    val retainedEntryId = activePlaylistEntryId?.takeIf { currentId ->
+                        updatedPlaylist.entries.any { it.id == currentId }
+                    }
+                    activePlaylistEntryId =
+                        playbackMatchedEntryId ?: retainedEntryId ?: updatedPlaylist.entries.first().id
+                }
+            }
+        }
         if (shouldComposeBackgroundContent) {
             backgroundContentStateHolder.SaveableStateProvider("main_background_content") {
                 Box(modifier = Modifier.fillMaxSize()) {
@@ -4883,6 +4908,45 @@ filenameOnlyWhenTitleMissing = filenameOnlyWhenTitleMissing,
                         syncActiveFavoritesContextAfterMutation(updatedState.favorites)
                     }
                 },
+                onCreatePlaylist = { title ->
+                    val playlist = StoredPlaylist(
+                        id = java.util.UUID.randomUUID().toString(),
+                        title = title,
+                        format = PlaylistStoredFormat.Internal,
+                        sourceIdHint = null,
+                        entries = emptyList(),
+                        updatedAtMs = System.currentTimeMillis()
+                    )
+                    onPlaylistLibraryStateChanged(
+                        playlistLibraryState.copy(playlists = listOf(playlist) + playlistLibraryState.playlists)
+                    )
+                    Toast.makeText(context, "Playlist created", Toast.LENGTH_SHORT).show()
+                    playlist.id
+                },
+                onDeleteStoredPlaylistEntry = { entry, playlistId ->
+                    val updatedState = removeStoredPlaylistEntry(playlistLibraryState, playlistId, entry.id)
+                    if (updatedState != playlistLibraryState) {
+                        onPlaylistLibraryStateChanged(updatedState)
+                        syncActiveStoredPlaylistContextAfterMutation(playlistId)
+                        Toast.makeText(context, "Removed from playlist", Toast.LENGTH_SHORT).show()
+                    }
+                },
+                onMoveStoredPlaylistEntry = { entry, playlistId, offset ->
+                    val updatedState = moveStoredPlaylistEntry(playlistLibraryState, playlistId, entry.id, offset)
+                    if (updatedState != playlistLibraryState) {
+                        onPlaylistLibraryStateChanged(updatedState)
+                        syncActiveStoredPlaylistContextAfterMutation(playlistId)
+                    }
+                },
+                onDeleteAllStoredPlaylistEntries = { playlistId ->
+                    val target = playlistLibraryState.playlists.firstOrNull { it.id == playlistId }
+                    if (target != null && target.entries.isNotEmpty()) {
+                        val updatedState = clearStoredPlaylistEntries(playlistLibraryState, playlistId)
+                        onPlaylistLibraryStateChanged(updatedState)
+                        syncActiveStoredPlaylistContextAfterMutation(playlistId)
+                        Toast.makeText(context, "Playlist cleared", Toast.LENGTH_SHORT).show()
+                    }
+                },
                 onPlayFavoriteTrackAsCached = { entry ->
                     val normalizedSource = normalizeSourceIdentity(entry.source) ?: entry.source
                     val cachedFile = findExistingCachedFileForSource(
@@ -4893,6 +4957,29 @@ filenameOnlyWhenTitleMissing = filenameOnlyWhenTitleMissing,
                         Toast.makeText(context, "No cached file available", Toast.LENGTH_SHORT).show()
                     } else {
                         activePlaylist = favoritesPlaybackPlaylist
+                        activePlaylistEntryId = entry.id
+                        activePlaylistShuffleActive = false
+                        pendingPlaylistSubtuneSelection =
+                            entry.subtuneIndex?.let { PendingPlaylistSubtuneSelection(entry.source, it) }
+                        trackLoadDelegates.applyTrackSelection(
+                            file = cachedFile,
+                            autoStart = true,
+                            expandOverride = openPlayerOnTrackSelect,
+                            sourceIdOverride = entry.source,
+                            initialSubtuneIndex = entry.subtuneIndex
+                        )
+                    }
+                },
+                onPlayStoredPlaylistTrackAsCached = { entry, playlist ->
+                    val normalizedSource = normalizeSourceIdentity(entry.source) ?: entry.source
+                    val cachedFile = findExistingCachedFileForSource(
+                        cacheRoot = File(context.cacheDir, REMOTE_SOURCE_CACHE_DIR),
+                        url = normalizedSource
+                    )?.takeIf { it.exists() && it.isFile }
+                    if (cachedFile == null) {
+                        Toast.makeText(context, "No cached file available", Toast.LENGTH_SHORT).show()
+                    } else {
+                        activePlaylist = playlist
                         activePlaylistEntryId = entry.id
                         activePlaylistShuffleActive = false
                         pendingPlaylistSubtuneSelection =
