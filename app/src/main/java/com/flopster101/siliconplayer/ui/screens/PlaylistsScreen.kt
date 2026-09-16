@@ -218,6 +218,11 @@ private enum class LibrarySurfaceTab(val label: String) {
     Tracks("Tracks")
 }
 
+internal enum class ArtistContentMode(val label: String) {
+    Albums("Albums"),
+    Tracks("Tracks")
+}
+
 internal class LibrarySurfaceState {
     val destinationState = mutableStateOf(PlaylistsSurfaceDestination.Library)
     val selectedStoredPlaylistIdState = mutableStateOf<String?>(null)
@@ -235,6 +240,9 @@ internal class LibrarySurfaceState {
     val tracksListState = LazyListState()
     val albumDetailListState = LazyListState()
     val artistDetailListState = LazyListState()
+    val artistDetailTracksListState = LazyListState()
+    val artistContentModeState = mutableStateOf(ArtistContentMode.Albums)
+    val artistTracksState = mutableStateOf<List<LibraryTrackEntity>>(emptyList())
 }
 
 internal enum class AlbumCollectionLayout {
@@ -507,6 +515,13 @@ internal fun PlaylistsScreen(
     var librarySearchActive by surfaceState.searchActiveState
     var librarySearchQuery by surfaceState.searchQueryState
     var librarySearchResults by surfaceState.searchResultsState
+    var artistContentMode by surfaceState.artistContentModeState
+    LaunchedEffect(selectedArtistName, destination) {
+        val artistName = selectedArtistName
+        if (destination == PlaylistsSurfaceDestination.ArtistDetail && artistName != null) {
+            surfaceState.artistTracksState.value = LibraryRepository.artistTracks(context, artistName)
+        }
+    }
     var libraryContextTracks by remember { mutableStateOf<List<LibraryTrackEntity>?>(null) }
     val keyboardController = LocalSoftwareKeyboardController.current
     val coroutineScope = rememberCoroutineScope()
@@ -988,15 +1003,26 @@ internal fun PlaylistsScreen(
                     LibraryArtistDetailPage(
                         artist = selectedArtistName,
                         albums = libraryArtistAlbums,
+                        tracks = surfaceState.artistTracksState.value,
+                        activeSourceId = currentPlaybackSourceId,
                         modifier = Modifier
                             .fillMaxSize()
                             .padding(actualInnerPadding),
                         bottomContentPadding = bottomContentPadding,
-                        listState = surfaceState.artistDetailListState,
+                        albumsListState = surfaceState.artistDetailListState,
+                        tracksListState = surfaceState.artistDetailTracksListState,
+                        mode = artistContentMode,
+                        onModeChanged = { artistContentMode = it },
                         onOpenAlbum = { album ->
                             onOpenLibraryAlbum(album.rawName, album.rawName)
                             albumOpenedFromArtist = true
                             destination = PlaylistsSurfaceDestination.AlbumDetail
+                        },
+                        onPlayTracks = onPlayLibraryTracks,
+                        trackActions = if (isWatch) {
+                            null
+                        } else {
+                            { track -> libraryRowActions(listOf(track)) }
                         }
                     )
                 } else if (currentDestination == PlaylistsSurfaceDestination.Favorites) {
@@ -2378,46 +2404,128 @@ private fun LibraryTrackListRow(
 private fun LibraryArtistDetailPage(
     artist: String,
     albums: List<LibraryAlbum>,
+    tracks: List<LibraryTrackEntity>,
+    activeSourceId: String?,
     modifier: Modifier = Modifier,
     bottomContentPadding: Dp,
-    listState: LazyListState,
-    onOpenAlbum: (LibraryAlbum) -> Unit
+    albumsListState: LazyListState,
+    tracksListState: LazyListState,
+    mode: ArtistContentMode,
+    onModeChanged: (ArtistContentMode) -> Unit,
+    onOpenAlbum: (LibraryAlbum) -> Unit,
+    onPlayTracks: (List<LibraryTrackEntity>, Int, String) -> Unit,
+    trackActions: ((LibraryTrackEntity) -> LibraryRowContextActions)? = null
 ) {
-    LazyColumn(
-        state = listState,
-        modifier = modifier,
-        contentPadding = PaddingValues(
-            start = 16.dp,
-            top = 8.dp,
-            end = 16.dp,
-            bottom = bottomContentPadding + 16.dp
-        ),
-        verticalArrangement = Arrangement.spacedBy(4.dp)
-    ) {
-        item {
-            Column(
-                modifier = Modifier.padding(bottom = 10.dp),
-                verticalArrangement = Arrangement.spacedBy(2.dp)
-            ) {
-                Text(
-                    text = artist,
-                    style = MaterialTheme.typography.titleLarge,
-                    maxLines = 2,
-                    overflow = TextOverflow.Ellipsis
-                )
-                val totalTracks = albums.sumOf { it.trackCount }
-                Text(
-                    text = "${albums.size} albums · $totalTracks tracks",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
+    val pagerState = rememberPagerState(initialPage = mode.ordinal) { ArtistContentMode.entries.size }
+    val pagerScope = rememberCoroutineScope()
+    LaunchedEffect(pagerState.currentPage) {
+        val entry = ArtistContentMode.entries.getOrNull(pagerState.currentPage)
+        if (entry != null && entry != mode) {
+            onModeChanged(entry)
+        }
+    }
+    Column(modifier = modifier) {
+        Column(
+            modifier = Modifier.padding(start = 16.dp, top = 8.dp, end = 16.dp, bottom = 10.dp),
+            verticalArrangement = Arrangement.spacedBy(2.dp)
+        ) {
+            Text(
+                text = artist,
+                style = MaterialTheme.typography.titleLarge,
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis
+            )
+            val totalTracks = albums.sumOf { it.trackCount }
+            Text(
+                text = "${albums.size} albums · $totalTracks tracks",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
+        TabRow(
+            selectedTabIndex = mode.ordinal,
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(bottom = 6.dp)
+        ) {
+            ArtistContentMode.entries.forEachIndexed { index, entry ->
+                Tab(
+                    selected = mode == entry,
+                    onClick = {
+                        pagerScope.launch {
+                            pagerState.animateScrollToPage(index)
+                        }
+                    },
+                    text = { Text(text = entry.label) }
                 )
             }
         }
-        items(
-            items = albums,
-            key = { "${it.name}|${it.artist}" }
-        ) { album ->
-            AlbumLibraryListRow(album = album, onClick = { onOpenAlbum(album) })
+        HorizontalPager(
+            state = pagerState,
+            modifier = Modifier.weight(1f)
+        ) { page ->
+            when (ArtistContentMode.entries[page]) {
+                ArtistContentMode.Albums -> {
+                    LazyColumn(
+                        state = albumsListState,
+                        modifier = Modifier.fillMaxSize(),
+                        contentPadding = PaddingValues(
+                            start = 16.dp,
+                            top = 4.dp,
+                            end = 16.dp,
+                            bottom = bottomContentPadding + 16.dp
+                        ),
+                        verticalArrangement = Arrangement.spacedBy(4.dp)
+                    ) {
+                        items(
+                            items = albums,
+                            key = { "${it.name}|${it.artist}" }
+                        ) { album ->
+                            AlbumLibraryListRow(album = album, onClick = { onOpenAlbum(album) })
+                        }
+                    }
+                }
+                ArtistContentMode.Tracks -> {
+                    LazyColumn(
+                        state = tracksListState,
+                        modifier = Modifier.fillMaxSize(),
+                        contentPadding = PaddingValues(
+                            start = 16.dp,
+                            top = 4.dp,
+                            end = 16.dp,
+                            bottom = bottomContentPadding + 16.dp
+                        ),
+                        verticalArrangement = Arrangement.spacedBy(4.dp)
+                    ) {
+                        if (tracks.isEmpty()) {
+                            item {
+                                Text(
+                                    text = "No tracks indexed for this artist.",
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    modifier = Modifier.padding(vertical = 12.dp)
+                                )
+                            }
+                        } else {
+                            itemsIndexed(
+                                items = tracks,
+                                key = { _, track -> track.path }
+                            ) { index, track ->
+                                LibraryTrackListRow(
+                                    position = index + 1,
+                                    title = track.title,
+                                    subtitleArtist = track.artist,
+                                    durationMs = track.durationMs,
+                                    isActive = activeSourceId != null && activeSourceId == track.path,
+                                    onClick = { onPlayTracks(tracks, index, artist) },
+                                    actions = trackActions?.invoke(track),
+                                    artworkPath = track.path
+                                )
+                            }
+                        }
+                    }
+                }
+            }
         }
     }
 }
