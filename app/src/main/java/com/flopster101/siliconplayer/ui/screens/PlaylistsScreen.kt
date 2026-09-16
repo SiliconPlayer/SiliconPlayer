@@ -69,6 +69,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.automirrored.filled.ViewList
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.ArrowDownward
@@ -242,6 +243,8 @@ internal class LibrarySurfaceState {
     val albumDetailListState = LazyListState()
     val artistDetailListState = LazyListState()
     val artistDetailTracksListState = LazyListState()
+    val artistAlbumsGridState = LazyGridState()
+    val artistAlbumLayoutState = mutableStateOf(AlbumCollectionLayout.Grid)
     val artistContentModeState = mutableStateOf(ArtistContentMode.Albums)
     val artistTracksState = mutableStateOf<List<LibraryTrackEntity>>(emptyList())
 }
@@ -517,6 +520,7 @@ internal fun PlaylistsScreen(
     var librarySearchQuery by surfaceState.searchQueryState
     var librarySearchResults by surfaceState.searchResultsState
     var artistContentMode by surfaceState.artistContentModeState
+    var artistAlbumLayout by surfaceState.artistAlbumLayoutState
     LaunchedEffect(selectedArtistName, destination) {
         val artistName = selectedArtistName
         if (destination == PlaylistsSurfaceDestination.ArtistDetail && artistName != null) {
@@ -1030,6 +1034,9 @@ internal fun PlaylistsScreen(
                         bottomContentPadding = bottomContentPadding,
                         albumsListState = surfaceState.artistDetailListState,
                         tracksListState = surfaceState.artistDetailTracksListState,
+                        albumsGridState = surfaceState.artistAlbumsGridState,
+                        albumLayout = artistAlbumLayout,
+                        onAlbumLayoutChanged = { artistAlbumLayout = it },
                         mode = artistContentMode,
                         onModeChanged = { artistContentMode = it },
                         onOpenAlbum = { album ->
@@ -2431,6 +2438,42 @@ private fun LibraryTrackListRow(
 }
 
 @Composable
+private fun ArtistAlbumYearSectionHeader(
+    year: Int,
+    albumCount: Int,
+    topPadding: Dp
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(
+                start = 12.dp,
+                top = topPadding,
+                end = 12.dp,
+                bottom = 4.dp
+            ),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Text(
+            text = if (year > 0) year.toString() else "Unknown year",
+            style = MaterialTheme.typography.titleSmall,
+            color = MaterialTheme.colorScheme.primary,
+            fontWeight = FontWeight.SemiBold,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.weight(1f, fill = false)
+        )
+        Text(
+            text = "$albumCount albums",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            maxLines = 1
+        )
+    }
+}
+
+@Composable
 private fun LibraryArtistDetailPage(
     artist: String,
     albums: List<LibraryAlbum>,
@@ -2440,6 +2483,9 @@ private fun LibraryArtistDetailPage(
     bottomContentPadding: Dp,
     albumsListState: LazyListState,
     tracksListState: LazyListState,
+    albumsGridState: LazyGridState,
+    albumLayout: AlbumCollectionLayout,
+    onAlbumLayoutChanged: (AlbumCollectionLayout) -> Unit,
     mode: ArtistContentMode,
     onModeChanged: (ArtistContentMode) -> Unit,
     onOpenAlbum: (LibraryAlbum) -> Unit,
@@ -2496,6 +2542,59 @@ private fun LibraryArtistDetailPage(
         ) { page ->
             when (ArtistContentMode.entries[page]) {
                 ArtistContentMode.Albums -> {
+                    val yearGroups = remember(albums) {
+                        albums.sortedByDescending { it.year }.groupBy { it.year }.entries.toList()
+                    }
+                    Column(modifier = Modifier.fillMaxSize()) {
+                        Box(
+                            modifier = Modifier.padding(
+                                start = 16.dp,
+                                top = 4.dp,
+                                end = 16.dp
+                            )
+                        ) {
+                            AlbumLayoutToggleRow(
+                                layout = albumLayout,
+                                onLayoutChanged = onAlbumLayoutChanged
+                            )
+                        }
+                        if (albumLayout == AlbumCollectionLayout.Grid) {
+                            LazyVerticalGrid(
+                                state = albumsGridState,
+                                columns = GridCells.Adaptive(minSize = 156.dp),
+                                modifier = Modifier.fillMaxSize(),
+                                contentPadding = PaddingValues(
+                                    start = 16.dp,
+                                    top = 10.dp,
+                                    end = 16.dp,
+                                    bottom = bottomContentPadding + 16.dp
+                                ),
+                                horizontalArrangement = Arrangement.spacedBy(12.dp),
+                                verticalArrangement = Arrangement.spacedBy(12.dp)
+                            ) {
+                                yearGroups.forEachIndexed { groupIndex, (year, yearAlbums) ->
+                                    item(
+                                        key = "artist-year-grid:$year",
+                                        span = { GridItemSpan(maxLineSpan) }
+                                    ) {
+                                        ArtistAlbumYearSectionHeader(
+                                            year = year,
+                                            albumCount = yearAlbums.size,
+                                            topPadding = if (groupIndex > 0) 12.dp else 0.dp
+                                        )
+                                    }
+                                    gridItems(
+                                        yearAlbums,
+                                        key = { "grid:${it.name}|${it.artist}" }
+                                    ) { album ->
+                                        AlbumLibraryGridCard(
+                                            album = album,
+                                            onClick = { onOpenAlbum(album) }
+                                        )
+                                    }
+                                }
+                            }
+                        } else {
                     LazyColumn(
                         state = albumsListState,
                         modifier = Modifier.fillMaxSize(),
@@ -2507,15 +2606,30 @@ private fun LibraryArtistDetailPage(
                         ),
                         verticalArrangement = Arrangement.spacedBy(4.dp)
                     ) {
-                        items(
-                            items = albums,
-                            key = { "${it.name}|${it.artist}" }
-                        ) { album ->
-                            AlbumLibraryListRow(album = album, onClick = { onOpenAlbum(album) })
+                        yearGroups.forEachIndexed { groupIndex, (year, yearAlbums) ->
+                            item(key = "artist-year:$year") {
+                                ArtistAlbumYearSectionHeader(
+                                    year = year,
+                                    albumCount = yearAlbums.size,
+                                    topPadding = if (groupIndex > 0) 12.dp else 4.dp
+                                )
+                            }
+                            items(
+                                items = yearAlbums,
+                                key = { "${it.name}|${it.artist}" }
+                            ) { album ->
+                                AlbumLibraryListRow(album = album, onClick = { onOpenAlbum(album) })
+                            }
                         }
                     }
+                    }
+                }
                 }
                 ArtistContentMode.Tracks -> {
+                    val albumGroups = remember(tracks) { tracks.groupBy { it.album }.entries.toList() }
+                    val groupOffsets = remember(albumGroups) {
+                        albumGroups.runningFold(0) { offset, group -> offset + group.value.size }
+                    }
                     LazyColumn(
                         state = tracksListState,
                         modifier = Modifier.fillMaxSize(),
@@ -2537,20 +2651,77 @@ private fun LibraryArtistDetailPage(
                                 )
                             }
                         } else {
-                            itemsIndexed(
-                                items = tracks,
-                                key = { _, track -> track.path }
-                            ) { index, track ->
-                                LibraryTrackListRow(
-                                    position = index + 1,
-                                    title = track.title,
-                                    subtitleArtist = track.artist,
-                                    durationMs = track.durationMs,
-                                    isActive = activeSourceId != null && activeSourceId == track.path,
-                                    onClick = { onPlayTracks(tracks, index, artist) },
-                                    actions = trackActions?.invoke(track),
-                                    artworkPath = track.path
-                                )
+                            albumGroups.forEachIndexed { groupIndex, (groupKey, groupTracks) ->
+                                val groupAlbum = albums.find { it.rawName == groupKey }
+                                val groupName = groupKey.ifBlank { LibraryContract.UNKNOWN_ALBUM }
+                                item(key = "artist-album:$groupKey") {
+                                    Row(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .clip(RoundedCornerShape(8.dp))
+                                            .clickable(
+                                                enabled = groupAlbum != null,
+                                                onClick = { groupAlbum?.let(onOpenAlbum) }
+                                            )
+                                            .padding(
+                                                start = 12.dp,
+                                                top = if (groupIndex > 0) 12.dp else 4.dp,
+                                                end = 12.dp,
+                                                bottom = 4.dp
+                                            ),
+                                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Text(
+                                            text = groupName,
+                                            style = MaterialTheme.typography.titleSmall,
+                                            color = MaterialTheme.colorScheme.primary,
+                                            fontWeight = FontWeight.SemiBold,
+                                            maxLines = 1,
+                                            overflow = TextOverflow.Ellipsis,
+                                            modifier = Modifier.weight(1f, fill = false)
+                                        )
+                                        val groupYear = groupAlbum?.year ?: 0
+                                        Text(
+                                            text = buildString {
+                                                if (groupYear > 0) append("$groupYear · ")
+                                                append("${groupTracks.size} tracks")
+                                            },
+                                            style = MaterialTheme.typography.bodySmall,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                            maxLines = 1
+                                        )
+                                        if (groupAlbum != null) {
+                                            Icon(
+                                                imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight,
+                                                contentDescription = "Open album",
+                                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                                modifier = Modifier.size(20.dp)
+                                            )
+                                        }
+                                    }
+                                }
+                                itemsIndexed(
+                                    items = groupTracks,
+                                    key = { _, track -> track.path }
+                                ) { index, track ->
+                                    LibraryTrackListRow(
+                                        position = if (track.trackNo > 0) track.trackNo else index + 1,
+                                        title = track.title,
+                                        subtitleArtist = track.artist,
+                                        durationMs = track.durationMs,
+                                        isActive = activeSourceId != null && activeSourceId == track.path,
+                                        onClick = {
+                                            onPlayTracks(
+                                                tracks,
+                                                groupOffsets[groupIndex] + index,
+                                                artist
+                                            )
+                                        },
+                                        actions = trackActions?.invoke(track),
+                                        artworkPath = track.path
+                                    )
+                                }
                             }
                         }
                     }
