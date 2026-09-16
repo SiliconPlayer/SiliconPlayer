@@ -119,6 +119,7 @@ import org.json.JSONArray
 import com.flopster101.siliconplayer.playback.applyTrackSelectionAction
 import com.flopster101.siliconplayer.session.exportCachedFilesToTree
 import com.flopster101.siliconplayer.ui.visualization.rememberVisualizationUiState
+import com.flopster101.siliconplayer.ui.screens.LibrarySurfaceState
 import com.flopster101.siliconplayer.ui.theme.SiliconPlayerTheme
 import java.io.BufferedInputStream
 import java.io.File
@@ -1711,6 +1712,7 @@ private fun AppNavigation(
     var activePlaylist by remember { mutableStateOf<StoredPlaylist?>(null) }
     var activePlaylistEntryId by remember { mutableStateOf<String?>(null) }
     val libraryDetail = rememberLibraryDetailState(context)
+    val librarySurfaceState = remember { LibrarySurfaceState() }
     var activePlaylistShuffleActive by remember { mutableStateOf(false) }
     var lastStoppedPlaylistResume by remember { mutableStateOf<LastStoppedPlaylistResume?>(null) }
     var pendingPlaylistSubtuneSelection by remember { mutableStateOf<PendingPlaylistSubtuneSelection?>(null) }
@@ -4745,6 +4747,7 @@ filenameOnlyWhenTitleMissing = filenameOnlyWhenTitleMissing,
                         libraryAlbumDetail = libraryDetail.albumDetail,
                         libraryArtistAlbums = libraryDetail.artistAlbums,
                         selectedArtistName = libraryDetail.selectedArtistName,
+                        surfaceState = librarySurfaceState,
                         activePlaylist = activePlaylist,
                         favoritesSortMode = favoritesSortMode,
                         onOpenLibraryAlbum = { albumName, _ ->

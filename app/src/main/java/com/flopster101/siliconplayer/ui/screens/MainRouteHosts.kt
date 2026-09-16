@@ -9,6 +9,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import com.flopster101.siliconplayer.ui.screens.FileBrowserScreen
+import com.flopster101.siliconplayer.ui.screens.LibrarySurfaceState
 import com.flopster101.siliconplayer.ui.screens.HttpFileBrowserScreen
 import com.flopster101.siliconplayer.ui.screens.NetworkBrowserScreen
 import com.flopster101.siliconplayer.ui.screens.PlaylistsScreen
@@ -141,6 +142,7 @@ internal fun MainPlaylistsRouteHost(
     backHandlingEnabled: Boolean,
     libraryState: PlaylistLibraryState,
     pinnedHomeEntries: List<HomePinnedEntry>,
+    surfaceState: LibrarySurfaceState,
     activePlaylist: StoredPlaylist?,
     currentPlaybackSourceId: String?,
     currentSubtuneIndex: Int,
@@ -205,6 +207,7 @@ internal fun MainPlaylistsRouteHost(
         onPinLibraryEntries = onPinLibraryEntries,
         onUnpinLibraryPaths = onUnpinLibraryPaths,
         pinnedHomeEntries = pinnedHomeEntries,
+        surfaceState = surfaceState,
             backHandlingEnabled = backHandlingEnabled,
             onBack = onExitPlaylists,
             onFavoritesSortModeChange = onFavoritesSortModeChange,

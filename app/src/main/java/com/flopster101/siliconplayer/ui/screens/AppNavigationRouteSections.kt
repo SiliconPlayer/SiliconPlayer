@@ -22,6 +22,7 @@ import androidx.compose.ui.input.key.type
 import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.input.pointer.PointerEventType
 import androidx.compose.ui.input.pointer.pointerInput
+import com.flopster101.siliconplayer.ui.screens.LibrarySurfaceState
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.ExperimentalComposeUiApi
 import java.io.File
@@ -122,6 +123,7 @@ internal fun AppNavigationPlaylistsRouteSection(
     onPinLibraryEntries: (List<HomePinnedEntry>) -> Unit,
     onUnpinLibraryPaths: (List<String>) -> Unit,
     pinnedHomeEntries: List<HomePinnedEntry>,
+    surfaceState: LibrarySurfaceState,
     onFavoritesSortModeChange: (PlaylistEntrySortMode) -> Unit,
     onOpenLibrarySettings: () -> Unit,
     onOpenFavorite: (PlaylistTrackEntry) -> Unit,
@@ -163,6 +165,7 @@ internal fun AppNavigationPlaylistsRouteSection(
         onPinLibraryEntries = onPinLibraryEntries,
         onUnpinLibraryPaths = onUnpinLibraryPaths,
         pinnedHomeEntries = pinnedHomeEntries,
+        surfaceState = surfaceState,
         onFavoritesSortModeChange = onFavoritesSortModeChange,
         onOpenLibrarySettings = onOpenLibrarySettings,
         onOpenFavorite = onOpenFavorite,

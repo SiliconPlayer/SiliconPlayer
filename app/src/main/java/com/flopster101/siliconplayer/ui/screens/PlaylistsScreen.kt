@@ -53,10 +53,12 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.wrapContentWidth
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListScope
+import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.GridItemSpan
+import androidx.compose.foundation.lazy.grid.LazyGridState
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items as gridItems
 import android.content.pm.PackageManager
@@ -200,7 +202,7 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
-private enum class PlaylistsSurfaceDestination {
+internal enum class PlaylistsSurfaceDestination {
     Library,
     Favorites,
     StoredPlaylist,
@@ -215,7 +217,26 @@ private enum class LibrarySurfaceTab(val label: String) {
     Tracks("Tracks")
 }
 
-private enum class AlbumCollectionLayout {
+internal class LibrarySurfaceState {
+    val destinationState = mutableStateOf(PlaylistsSurfaceDestination.Library)
+    val selectedStoredPlaylistIdState = mutableStateOf<String?>(null)
+    val selectedTabIndexState = mutableIntStateOf(0)
+    val albumCollectionLayoutState = mutableStateOf(AlbumCollectionLayout.Grid)
+    val searchActiveState = mutableStateOf(false)
+    val searchQueryState = mutableStateOf("")
+    val searchResultsState = mutableStateOf(LibrarySearchResults("", emptyList(), emptyList(), emptyList()))
+    val albumOpenedFromArtistState = mutableStateOf(false)
+    val artistOpenedFromAlbumState = mutableStateOf(false)
+    val playlistsTabListState = LazyListState()
+    val albumsGridState = LazyGridState()
+    val albumsListState = LazyListState()
+    val artistsListState = LazyListState()
+    val tracksListState = LazyListState()
+    val albumDetailListState = LazyListState()
+    val artistDetailListState = LazyListState()
+}
+
+internal enum class AlbumCollectionLayout {
     Grid,
     List
 }
@@ -445,6 +466,7 @@ internal fun PlaylistsScreen(
     onPinLibraryEntries: (List<HomePinnedEntry>) -> Unit,
     onUnpinLibraryPaths: (List<String>) -> Unit,
     pinnedHomeEntries: List<HomePinnedEntry>,
+    surfaceState: LibrarySurfaceState,
     onOpenLibrarySettings: () -> Unit,
     activePlaylist: StoredPlaylist?,
     currentPlaybackSourceId: String?,
@@ -476,14 +498,14 @@ internal fun PlaylistsScreen(
     val isRound = configuration.isRoundScreenCompat || configuration.screenWidthDp == configuration.screenHeightDp
 
     val scrollBehavior = TopAppBarDefaults.exitUntilCollapsedScrollBehavior()
-    var destination by rememberSaveable { mutableStateOf(PlaylistsSurfaceDestination.Library) }
-    var selectedStoredPlaylistId by rememberSaveable { mutableStateOf<String?>(null) }
-    var selectedTabIndex by rememberSaveable { mutableIntStateOf(0) }
-    var albumCollectionLayout by rememberSaveable { mutableStateOf(AlbumCollectionLayout.Grid) }
+    var destination by surfaceState.destinationState
+    var selectedStoredPlaylistId by surfaceState.selectedStoredPlaylistIdState
+    var selectedTabIndex by surfaceState.selectedTabIndexState
+    var albumCollectionLayout by surfaceState.albumCollectionLayoutState
     val librarySyncState by LibraryRepository.scanState.collectAsState()
-    var librarySearchActive by rememberSaveable { mutableStateOf(false) }
-    var librarySearchQuery by rememberSaveable { mutableStateOf("") }
-    var librarySearchResults by remember { mutableStateOf(LibrarySearchResults("", emptyList(), emptyList(), emptyList())) }
+    var librarySearchActive by surfaceState.searchActiveState
+    var librarySearchQuery by surfaceState.searchQueryState
+    var librarySearchResults by surfaceState.searchResultsState
     var libraryContextTracks by remember { mutableStateOf<List<LibraryTrackEntity>?>(null) }
     val keyboardController = LocalSoftwareKeyboardController.current
     val coroutineScope = rememberCoroutineScope()
@@ -655,8 +677,8 @@ internal fun PlaylistsScreen(
         showingStoredPlaylistDetail -> selectedStoredPlaylist?.title
         else -> null
     }
-    var albumOpenedFromArtist by rememberSaveable { mutableStateOf(false) }
-    var artistOpenedFromAlbum by rememberSaveable { mutableStateOf(false) }
+    var albumOpenedFromArtist by surfaceState.albumOpenedFromArtistState
+    var artistOpenedFromAlbum by surfaceState.artistOpenedFromAlbumState
     val detailCollapseFraction = scrollBehavior.state.collapsedFraction.coerceIn(0f, 1f)
     val showCollapsedDetailSubtitle = detailSubtitle != null &&
         scrollBehavior.state.collapsedFraction >= 0.999f
@@ -673,6 +695,12 @@ internal fun PlaylistsScreen(
             destination = PlaylistsSurfaceDestination.Library
             selectedStoredPlaylistId = null
         }
+    }
+    BackHandler(enabled = backHandlingEnabled && librarySearchActive) {
+        librarySearchActive = false
+        librarySearchQuery = ""
+        keyboardController?.hide()
+        librarySearchResults = LibrarySearchResults("", emptyList(), emptyList(), emptyList())
     }
     BackHandler(enabled = backHandlingEnabled && showingPlaylistDetail) {
         favoritesEditModeEnabled = false
@@ -927,6 +955,7 @@ internal fun PlaylistsScreen(
                             .padding(actualInnerPadding),
                         activeSourceId = currentPlaybackSourceId,
                         bottomContentPadding = bottomContentPadding,
+                        listState = surfaceState.albumDetailListState,
                         artistKnown = libraryAlbumDetail.album.artist.isNotBlank() &&
                                 !libraryAlbumDetail.album.artist.equals(LibraryContract.UNKNOWN_ARTIST, ignoreCase = true) &&
                                 !libraryAlbumDetail.album.artist.equals(LibraryContract.VARIOUS_ARTISTS, ignoreCase = true),
@@ -962,6 +991,7 @@ internal fun PlaylistsScreen(
                             .fillMaxSize()
                             .padding(actualInnerPadding),
                         bottomContentPadding = bottomContentPadding,
+                        listState = surfaceState.artistDetailListState,
                         onOpenAlbum = { album ->
                             onOpenLibraryAlbum(album.rawName, album.rawName)
                             albumOpenedFromArtist = true
@@ -1322,6 +1352,7 @@ internal fun PlaylistsScreen(
                                         PlaylistsLibraryTabPage(
                                             libraryState = libraryState,
                                             bottomContentPadding = bottomContentPadding,
+                                            listState = surfaceState.playlistsTabListState,
                                             onOpenFavorites = { destination = PlaylistsSurfaceDestination.Favorites },
                                             onOpenPlaylist = { playlist ->
                                                 selectedStoredPlaylistId = playlist.id
@@ -1333,6 +1364,8 @@ internal fun PlaylistsScreen(
                                         AlbumsLibraryPage(
                                             albums = effectiveLibraryCollections.albums,
                                             bottomContentPadding = bottomContentPadding,
+                                            listState = surfaceState.albumsListState,
+                                            gridState = surfaceState.albumsGridState,
                                             layout = albumCollectionLayout,
                                             onLayoutChanged = { albumCollectionLayout = it },
                                             isSyncing = librarySyncState.isScanning,
@@ -1348,6 +1381,7 @@ internal fun PlaylistsScreen(
                                         ArtistsLibraryPage(
                                             artists = effectiveLibraryCollections.artists,
                                             bottomContentPadding = bottomContentPadding,
+                                            listState = surfaceState.artistsListState,
                                             isSyncing = librarySyncState.isScanning,
                                             syncState = librarySyncState,
                                             onOpenArtist = { artist ->
@@ -1361,6 +1395,7 @@ internal fun PlaylistsScreen(
                                         TracksLibraryPage(
                                             tracks = effectiveLibraryCollections.tracks,
                                             bottomContentPadding = bottomContentPadding,
+                                            listState = surfaceState.tracksListState,
                                             isSyncing = librarySyncState.isScanning,
                                             syncState = librarySyncState,
                                             activeSourceId = currentPlaybackSourceId,
@@ -1480,11 +1515,13 @@ internal fun PlaylistsScreen(
 private fun PlaylistsLibraryTabPage(
     libraryState: PlaylistLibraryState,
     bottomContentPadding: Dp,
+    listState: LazyListState,
     onOpenFavorites: () -> Unit,
     onOpenPlaylist: (StoredPlaylist) -> Unit,
     isWatch: Boolean = false
 ) {
     LazyColumn(
+        state = listState,
         modifier = Modifier.fillMaxSize(),
         contentPadding = if (isWatch) {
             PaddingValues(0.dp)
@@ -1589,6 +1626,8 @@ private fun LibraryCollectionPlaceholderPage(
 private fun AlbumsLibraryPage(
     albums: List<LibraryAlbum>,
     bottomContentPadding: Dp,
+    listState: LazyListState,
+    gridState: LazyGridState,
     layout: AlbumCollectionLayout,
     onLayoutChanged: (AlbumCollectionLayout) -> Unit,
     isSyncing: Boolean,
@@ -1635,6 +1674,7 @@ private fun AlbumsLibraryPage(
         ) { currentLayout ->
             if (currentLayout == AlbumCollectionLayout.List) {
                 LazyColumn(
+                    state = listState,
                     modifier = Modifier.fillMaxSize(),
                     contentPadding = PaddingValues(
                         start = 16.dp,
@@ -1660,6 +1700,7 @@ private fun AlbumsLibraryPage(
                 }
             } else {
                 LazyVerticalGrid(
+                    state = gridState,
                     columns = GridCells.Adaptive(minSize = 156.dp),
                     modifier = Modifier.fillMaxSize(),
                     contentPadding = PaddingValues(
@@ -1694,6 +1735,7 @@ private fun AlbumsLibraryPage(
 private fun TracksLibraryPage(
     tracks: List<LibraryTrackEntity>,
     bottomContentPadding: Dp,
+    listState: LazyListState,
     isSyncing: Boolean,
     syncState: LibrarySyncState,
     activeSourceId: String?,
@@ -1717,6 +1759,7 @@ private fun TracksLibraryPage(
             )
         }
         LazyColumn(
+            state = listState,
             modifier = Modifier.fillMaxSize(),
             contentPadding = PaddingValues(
                 start = 16.dp,
@@ -1746,6 +1789,7 @@ private fun TracksLibraryPage(
 private fun ArtistsLibraryPage(
     artists: List<LibraryArtist>,
     bottomContentPadding: Dp,
+    listState: LazyListState,
     isSyncing: Boolean,
     syncState: LibrarySyncState,
     onOpenArtist: (LibraryArtist) -> Unit,
@@ -1769,6 +1813,7 @@ private fun ArtistsLibraryPage(
             )
         }
         LazyColumn(
+        state = listState,
         modifier = Modifier.fillMaxSize(),
         contentPadding = PaddingValues(
             start = 16.dp,
@@ -1960,6 +2005,7 @@ private fun LibraryAlbumDetailPage(
     modifier: Modifier = Modifier,
     activeSourceId: String?,
     bottomContentPadding: Dp,
+    listState: LazyListState,
     artistKnown: Boolean,
     onPlay: (Int) -> Unit,
     onShuffle: () -> Unit,
@@ -1969,6 +2015,7 @@ private fun LibraryAlbumDetailPage(
 ) {
     var menuExpanded by rememberSaveable { mutableStateOf(false) }
     LazyColumn(
+        state = listState,
         modifier = modifier,
         contentPadding = PaddingValues(
             start = 16.dp,
@@ -2332,9 +2379,11 @@ private fun LibraryArtistDetailPage(
     albums: List<LibraryAlbum>,
     modifier: Modifier = Modifier,
     bottomContentPadding: Dp,
+    listState: LazyListState,
     onOpenAlbum: (LibraryAlbum) -> Unit
 ) {
     LazyColumn(
+        state = listState,
         modifier = modifier,
         contentPadding = PaddingValues(
             start = 16.dp,

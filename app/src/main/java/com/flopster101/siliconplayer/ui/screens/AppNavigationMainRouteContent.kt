@@ -13,6 +13,7 @@ import com.flopster101.siliconplayer.data.FileRepository
 import com.flopster101.siliconplayer.library.LibraryAlbum
 import com.flopster101.siliconplayer.library.LibraryAlbumDetail
 import com.flopster101.siliconplayer.library.LibraryTrackEntity
+import com.flopster101.siliconplayer.ui.screens.LibrarySurfaceState
 import java.io.File
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -338,6 +339,7 @@ internal fun AppNavigationPlaylistsContentSection(
     onPinLibraryEntries: (List<HomePinnedEntry>) -> Unit,
     onUnpinLibraryPaths: (List<String>) -> Unit,
     pinnedHomeEntries: List<HomePinnedEntry>,
+    surfaceState: LibrarySurfaceState,
     onFavoritesSortModeChange: (PlaylistEntrySortMode) -> Unit,
     onOpenLibrarySettings: () -> Unit,
     onOpenFavorite: (PlaylistTrackEntry) -> Unit,
@@ -379,6 +381,7 @@ internal fun AppNavigationPlaylistsContentSection(
         onPinLibraryEntries = onPinLibraryEntries,
         onUnpinLibraryPaths = onUnpinLibraryPaths,
         pinnedHomeEntries = pinnedHomeEntries,
+        surfaceState = surfaceState,
         onFavoritesSortModeChange = onFavoritesSortModeChange,
         onOpenLibrarySettings = onOpenLibrarySettings,
         onOpenFavorite = onOpenFavorite,
@@ -628,6 +631,7 @@ internal fun AppNavigationMainContentHost(
     libraryAlbumDetail: LibraryAlbumDetail?,
     libraryArtistAlbums: List<LibraryAlbum>?,
     selectedArtistName: String?,
+    surfaceState: LibrarySurfaceState,
     activePlaylist: StoredPlaylist?,
     favoritesSortMode: PlaylistEntrySortMode,
     networkNodes: List<NetworkNode>,
@@ -845,7 +849,8 @@ internal fun AppNavigationMainContentHost(
                 onShareFavoriteTrack = onShareFavoriteTrack,
                 onCopyFavoriteTrackSource = onCopyFavoriteTrackSource,
                 onOpenFavoriteTrackInfo = onOpenFavoriteTrackInfo,
-                pinnedHomeEntries = pinnedHomeEntries
+                pinnedHomeEntries = pinnedHomeEntries,
+                surfaceState = surfaceState
             )
         },
         networkContent = { mainPadding ->
