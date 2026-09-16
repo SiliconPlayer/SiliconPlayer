@@ -194,6 +194,7 @@ import com.flopster101.siliconplayer.library.LibrarySyncState
 import com.flopster101.siliconplayer.library.LibraryTrackEntity
 import com.flopster101.siliconplayer.loadArtworkForFile
 import androidx.compose.ui.graphics.ImageBitmap
+import com.flopster101.siliconplayer.NativeBridge
 import java.io.File
 import java.util.Locale
 import android.widget.Toast
@@ -2547,14 +2548,40 @@ private fun AlbumArtworkBox(
                 ),
             contentAlignment = Alignment.Center
         ) {
-            Icon(
-                imageVector = Icons.Default.LibraryMusic,
-                contentDescription = null,
-                modifier = Modifier.size(34.dp),
-                tint = MaterialTheme.colorScheme.onSurfaceVariant
+            LibraryFallbackArtworkIcon(
+                fileName = File(artworkPath.orEmpty()).name,
+                modifier = Modifier.size(34.dp)
             )
         }
     }
+}
+
+@Composable
+private fun LibraryFallbackArtworkIcon(
+    fileName: String,
+    modifier: Modifier = Modifier
+) {
+    val supportedExtensions = remember {
+        NativeBridge.getSupportedExtensions()
+            .asSequence()
+            .map { it.trim().lowercase(Locale.ROOT) }
+            .filter { it.isNotBlank() }
+            .toSet()
+    }
+    val decoderArtworkHints = rememberBrowserDecoderArtworkHints()
+    val visualKind = remember(fileName, supportedExtensions, decoderArtworkHints) {
+        browserRemoteEntryVisualKind(
+            name = fileName,
+            isDirectory = false,
+            supportedExtensions = supportedExtensions,
+            decoderExtensionArtworkHints = decoderArtworkHints
+        )
+    }
+    BrowserRemoteEntryIcon(
+        visualKind = visualKind,
+        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+        modifier = modifier
+    )
 }
 
 @Composable
