@@ -54,6 +54,7 @@ internal object MediaStoreLibrarySource {
                 fetched[path] = LibraryTrackEntity(
                     path = path,
                     sourceId = LibraryContract.SOURCE_MEDIASTORE,
+                    dedupKey = libraryDedupKeyForPath(path),
                     title = title,
                     artist = cursor.getString(COL_ARTIST)?.takeIf { it.isNotBlank() && it != MediaStore.UNKNOWN_STRING }
                         ?: LibraryContract.UNKNOWN_ARTIST,

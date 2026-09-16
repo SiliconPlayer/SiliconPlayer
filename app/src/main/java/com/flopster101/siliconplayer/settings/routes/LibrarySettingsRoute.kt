@@ -52,11 +52,13 @@ internal fun LibrarySettingsRouteContent(
     var sources by remember {
         mutableStateOf<List<com.flopster101.siliconplayer.library.LibrarySourceStatus>>(emptyList())
     }
+    var deduplicateSources by remember { mutableStateOf(true) }
     val librarySyncState by LibraryRepository.scanState.collectAsState()
     val isScanning = librarySyncState.isScanning
 
     LaunchedEffect(Unit) {
         sources = LibraryRepository.sourceStatuses(context)
+        deduplicateSources = LibraryRepository.deduplicateSources(context)
     }
     var scanWasRunning by remember { mutableStateOf(false) }
     LaunchedEffect(librarySyncState.isScanning) {
@@ -152,6 +154,18 @@ internal fun LibrarySettingsRouteContent(
         }
     }
     }
+
+    Spacer(modifier = Modifier.height(16.dp))
+    SettingsSectionLabel("Duplicates")
+    PlayerSettingToggleCard(
+        title = "Deduplicate tracks",
+        description = "List files found by both MediaStore and the storage scanner only once, keeping the scanner copy. Takes effect the next time the library loads.",
+        checked = deduplicateSources,
+        onCheckedChange = { checked ->
+            deduplicateSources = checked
+            coroutineScope.launch { LibraryRepository.setDeduplicateSources(context, checked) }
+        }
+    )
 
     Spacer(modifier = Modifier.height(16.dp))
     SettingsSectionLabel("Scanning")

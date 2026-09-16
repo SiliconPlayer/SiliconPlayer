@@ -59,16 +59,16 @@ object LibraryRepository {
             val db = LibraryDatabase.get(context)
             val trackDao = db.trackDao()
             ensureSourceDefaults(db.sourceDao())
-
-            val trackCount = trackDao.enabledTrackCount()
+            val dedupe = dedupeEnabled(context)
+            val trackCount = trackDao.enabledTrackCount(dedupe)
             if (trackCount == 0) {
                 LibraryCollections(albums = emptyList(), artists = emptyList(), trackCount = 0)
             } else {
                 LibraryCollections(
-                    albums = trackDao.albumRows().map { it.toLibraryAlbum() },
-                    artists = trackDao.artistRows().map { it.toLibraryArtist() },
+                    albums = trackDao.albumRows(dedupe).map { it.toLibraryAlbum() },
+                    artists = trackDao.artistRows(dedupe).map { it.toLibraryArtist() },
                     trackCount = trackCount,
-                    tracks = trackDao.allTracks()
+                    tracks = trackDao.allTracks(dedupe)
                 )
             }
         }
@@ -86,11 +86,12 @@ object LibraryRepository {
                 .replace("_", "\\_")
             val pattern = "%$escaped%"
             val db = LibraryDatabase.get(context)
+            val dedupe = dedupeEnabled(context)
             LibrarySearchResults(
                 query = query,
-                albums = db.trackDao().searchAlbumRows(pattern).map { it.toLibraryAlbum() },
-                artists = db.trackDao().searchArtistRows(pattern).map { it.toLibraryArtist() },
-                tracks = db.trackDao().searchTracks(pattern)
+                albums = db.trackDao().searchAlbumRows(pattern, dedupe).map { it.toLibraryAlbum() },
+                artists = db.trackDao().searchArtistRows(pattern, dedupe).map { it.toLibraryArtist() },
+                tracks = db.trackDao().searchTracks(pattern, dedupe)
             )
         }
 
@@ -119,7 +120,7 @@ object LibraryRepository {
         albumName: String
     ): LibraryAlbumDetail? = withContext(Dispatchers.IO) {
         val db = LibraryDatabase.get(context)
-        val tracks = db.trackDao().albumTracks(albumName)
+        val tracks = db.trackDao().albumTracks(albumName, dedupeEnabled(context))
         if (tracks.isEmpty()) return@withContext null
         // Albums group by title only, so a bucket can span artists (the unknown
         // album always does); show the shared artist or a compilation label.
@@ -146,23 +147,23 @@ object LibraryRepository {
     /** All enabled-source tracks in stable title/artist order. */
     suspend fun allTracks(context: Context): List<LibraryTrackEntity> =
         withContext(Dispatchers.IO) {
-            LibraryDatabase.get(context).trackDao().allTracks()
+            LibraryDatabase.get(context).trackDao().allTracks(dedupeEnabled(context))
         }
 
     suspend fun artistTracks(context: Context, artist: String): List<LibraryTrackEntity> =
         withContext(Dispatchers.IO) {
-            LibraryDatabase.get(context).trackDao().artistTracks(artist)
+            LibraryDatabase.get(context).trackDao().artistTracks(artist, dedupeEnabled(context))
         }
 
     suspend fun albumTracks(context: Context, albumName: String): List<LibraryTrackEntity> =
         withContext(Dispatchers.IO) {
-            LibraryDatabase.get(context).trackDao().albumTracks(albumName)
+            LibraryDatabase.get(context).trackDao().albumTracks(albumName, dedupeEnabled(context))
         }
 
     suspend fun artistAlbums(context: Context, artist: String): List<LibraryAlbum> =
         withContext(Dispatchers.IO) {
             val db = LibraryDatabase.get(context)
-            db.trackDao().artistAlbumRows(artist).map { row ->
+            db.trackDao().artistAlbumRows(artist, dedupeEnabled(context)).map { row ->
                 LibraryAlbum(
                     name = row.name.ifBlank { LibraryContract.UNKNOWN_ALBUM },
                     artist = artist,
@@ -254,6 +255,16 @@ object LibraryRepository {
     suspend fun setAutoScanEnabled(context: Context, enabled: Boolean) {
         LibraryScanRootStore.setAutoScanEnabled(context, enabled)
     }
+
+    suspend fun deduplicateSources(context: Context): Boolean =
+        LibraryScanRootStore.deduplicateSources(context)
+
+    suspend fun setDeduplicateSources(context: Context, enabled: Boolean) {
+        LibraryScanRootStore.setDeduplicateSources(context, enabled)
+    }
+
+    private fun dedupeEnabled(context: Context): Boolean =
+        LibraryScanRootStore.deduplicateSources(context)
 
     suspend fun sourceStatuses(context: Context): List<LibrarySourceStatus> =
         withContext(Dispatchers.IO) {

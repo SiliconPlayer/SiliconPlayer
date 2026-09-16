@@ -3,6 +3,7 @@ package com.flopster101.siliconplayer.library
 import androidx.room.Dao
 import androidx.room.Database
 import androidx.room.Entity
+import androidx.room.Index
 import androidx.room.Insert
 import androidx.room.OnConflictStrategy
 import androidx.room.PrimaryKey
@@ -10,11 +11,16 @@ import androidx.room.Query
 import androidx.room.Room
 import androidx.room.RoomDatabase
 import android.content.Context
+import java.util.Locale
 
-@Entity(tableName = "library_tracks")
+@Entity(
+    tableName = "library_tracks",
+    indices = [Index("dedupKey")]
+)
 data class LibraryTrackEntity(
     @PrimaryKey val path: String,
     val sourceId: String,
+    val dedupKey: String,
     val title: String,
     val artist: String,
     val albumArtist: String,
@@ -56,6 +62,41 @@ data class LibraryArtistRow(
 data class LibraryTrackSourcePair(
     val path: String,
     val sourceId: String
+)
+
+/**
+ * Display-time identity for cross-source dedup: the same file can be indexed
+ * by MediaStore and the storage scanner under textually different absolute
+ * paths (for example `/sdcard/Music/x.mp3` versus
+ * `/storage/emulated/0/Music/x.mp3`), which the path primary key alone
+ * cannot collapse. The key folds `.`/`..` segments, well-known
+ * emulated-storage aliases and case (Android media volumes are
+ * case-insensitive); it is computed at insert time and only ever read.
+ */
+internal fun libraryDedupKeyForPath(path: String): String {
+    val absolute = path.startsWith("/")
+    val segments = ArrayDeque<String>()
+    path.split('/').forEach { segment ->
+        when {
+            segment.isEmpty() || segment == "." -> Unit
+            segment == ".." -> if (segments.isNotEmpty()) segments.removeLast()
+            else -> segments.addLast(segment)
+        }
+    }
+    var normalized = (if (absolute) "/" else "") + segments.joinToString("/")
+    for ((prefix, replacement) in DEDUP_PATH_ALIASES) {
+        if (normalized.startsWith(prefix)) {
+            normalized = replacement + normalized.removePrefix(prefix)
+            break
+        }
+    }
+    return normalized.lowercase(Locale.ROOT)
+}
+
+private val DEDUP_PATH_ALIASES = listOf(
+    "/sdcard/" to "/storage/emulated/0/",
+    "/mnt/sdcard/" to "/storage/emulated/0/",
+    "/storage/emulated/legacy/" to "/storage/emulated/0/"
 )
 
 object LibraryContract {
@@ -107,8 +148,27 @@ internal interface LibraryTrackDao {
     @Query("SELECT COUNT(*) FROM library_tracks")
     suspend fun trackCount(): Int
 
-    @Query("SELECT COUNT(*) FROM library_tracks WHERE sourceId IN (SELECT id FROM library_sources WHERE enabled = 1)")
-    suspend fun enabledTrackCount(): Int
+    @Query(
+        """
+        SELECT COUNT(*) FROM library_tracks t
+        WHERE t.sourceId IN (SELECT id FROM library_sources WHERE enabled = 1)
+          AND (:dedupe = 0 OR NOT EXISTS (
+              SELECT 1 FROM library_tracks u
+              WHERE u.sourceId IN (SELECT id FROM library_sources WHERE enabled = 1)
+                AND u.dedupKey = t.dedupKey
+                AND (
+                  CASE u.sourceId WHEN 'scanner' THEN 0 ELSE 1 END <
+                      CASE t.sourceId WHEN 'scanner' THEN 0 ELSE 1 END
+                  OR (
+                    CASE u.sourceId WHEN 'scanner' THEN 0 ELSE 1 END =
+                        CASE t.sourceId WHEN 'scanner' THEN 0 ELSE 1 END
+                    AND u.path < t.path
+                  )
+              )
+          ))
+        """
+    )
+    suspend fun enabledTrackCount(dedupe: Boolean): Int
 
     @Query("SELECT COUNT(*) FROM library_tracks WHERE sourceId = :sourceId")
     suspend fun trackCountForSource(sourceId: String): Long
@@ -118,30 +178,60 @@ internal interface LibraryTrackDao {
 
     @Query(
         """
-        SELECT * FROM library_tracks
-        WHERE COALESCE(album, '') = :album
-        ORDER BY COALESCE(NULLIF(albumArtist, ''), NULLIF(artist, ''), '') ASC,
-                 discNo ASC, trackNo ASC, title COLLATE NOCASE ASC
+        SELECT t.* FROM library_tracks t
+        WHERE COALESCE(t.album, '') = :album
+          AND (:dedupe = 0 OR NOT EXISTS (
+              SELECT 1 FROM library_tracks u
+              WHERE u.sourceId IN (SELECT id FROM library_sources WHERE enabled = 1)
+                AND COALESCE(u.album, '') = :album
+                AND u.dedupKey = t.dedupKey
+                AND (
+                  CASE u.sourceId WHEN 'scanner' THEN 0 ELSE 1 END <
+                      CASE t.sourceId WHEN 'scanner' THEN 0 ELSE 1 END
+                  OR (
+                    CASE u.sourceId WHEN 'scanner' THEN 0 ELSE 1 END =
+                        CASE t.sourceId WHEN 'scanner' THEN 0 ELSE 1 END
+                    AND u.path < t.path
+                  )
+              )
+          ))
+        ORDER BY COALESCE(NULLIF(t.albumArtist, ''), NULLIF(t.artist, ''), '') ASC,
+                 t.discNo ASC, t.trackNo ASC, t.title COLLATE NOCASE ASC
         """
     )
-    suspend fun albumTracks(album: String): List<LibraryTrackEntity>
+    suspend fun albumTracks(album: String, dedupe: Boolean): List<LibraryTrackEntity>
 
     @Query(
         """
-        SELECT COALESCE(album, '') AS name,
+        SELECT COALESCE(t.album, '') AS name,
                :artist AS artist,
-               COUNT(DISTINCT COALESCE(NULLIF(albumArtist, ''), NULLIF(artist, ''), '')) AS distinctArtists,
+               COUNT(DISTINCT COALESCE(NULLIF(t.albumArtist, ''), NULLIF(t.artist, ''), '')) AS distinctArtists,
                COUNT(*) AS trackCount,
-               SUM(durationMs) AS durationMs,
-               MAX(year) AS year,
-               MIN(path) AS artworkPath
-        FROM library_tracks
-        WHERE albumArtist = :artist OR (COALESCE(albumArtist, '') = '' AND artist = :artist)
-        GROUP BY COALESCE(album, '')
+               SUM(t.durationMs) AS durationMs,
+               MAX(t.year) AS year,
+               MIN(t.path) AS artworkPath
+        FROM library_tracks t
+        WHERE t.albumArtist = :artist OR (COALESCE(t.albumArtist, '') = '' AND t.artist = :artist)
+          AND (:dedupe = 0 OR NOT EXISTS (
+              SELECT 1 FROM library_tracks u
+              WHERE u.sourceId IN (SELECT id FROM library_sources WHERE enabled = 1)
+                AND (u.albumArtist = :artist OR (COALESCE(u.albumArtist, '') = '' AND u.artist = :artist))
+                AND u.dedupKey = t.dedupKey
+                AND (
+                  CASE u.sourceId WHEN 'scanner' THEN 0 ELSE 1 END <
+                      CASE t.sourceId WHEN 'scanner' THEN 0 ELSE 1 END
+                  OR (
+                    CASE u.sourceId WHEN 'scanner' THEN 0 ELSE 1 END =
+                        CASE t.sourceId WHEN 'scanner' THEN 0 ELSE 1 END
+                    AND u.path < t.path
+                  )
+              )
+          ))
+        GROUP BY COALESCE(t.album, '')
         ORDER BY name COLLATE NOCASE ASC
         """
     )
-    suspend fun artistAlbumRows(artist: String): List<LibraryAlbumRow>
+    suspend fun artistAlbumRows(artist: String, dedupe: Boolean): List<LibraryAlbumRow>
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun upsertTracks(tracks: List<LibraryTrackEntity>)
@@ -151,104 +241,212 @@ internal interface LibraryTrackDao {
 
     @Query(
         """
-        SELECT COALESCE(album, '') AS name,
-               MIN(COALESCE(NULLIF(albumArtist, ''), NULLIF(artist, ''), '')) AS artist,
-               COUNT(DISTINCT COALESCE(NULLIF(albumArtist, ''), NULLIF(artist, ''), '')) AS distinctArtists,
+        SELECT COALESCE(t.album, '') AS name,
+               MIN(COALESCE(NULLIF(t.albumArtist, ''), NULLIF(t.artist, ''), '')) AS artist,
+               COUNT(DISTINCT COALESCE(NULLIF(t.albumArtist, ''), NULLIF(t.artist, ''), '')) AS distinctArtists,
                COUNT(*) AS trackCount,
-               SUM(durationMs) AS durationMs,
-               MAX(year) AS year,
-               MIN(path) AS artworkPath
-        FROM library_tracks
-        WHERE sourceId IN (SELECT id FROM library_sources WHERE enabled = 1)
-        GROUP BY COALESCE(album, '')
+               SUM(t.durationMs) AS durationMs,
+               MAX(t.year) AS year,
+               MIN(t.path) AS artworkPath
+        FROM library_tracks t
+        WHERE t.sourceId IN (SELECT id FROM library_sources WHERE enabled = 1)
+          AND (:dedupe = 0 OR NOT EXISTS (
+              SELECT 1 FROM library_tracks u
+              WHERE u.sourceId IN (SELECT id FROM library_sources WHERE enabled = 1)
+                AND u.dedupKey = t.dedupKey
+                AND (
+                  CASE u.sourceId WHEN 'scanner' THEN 0 ELSE 1 END <
+                      CASE t.sourceId WHEN 'scanner' THEN 0 ELSE 1 END
+                  OR (
+                    CASE u.sourceId WHEN 'scanner' THEN 0 ELSE 1 END =
+                        CASE t.sourceId WHEN 'scanner' THEN 0 ELSE 1 END
+                    AND u.path < t.path
+                  )
+              )
+          ))
+        GROUP BY COALESCE(t.album, '')
         ORDER BY name COLLATE NOCASE ASC
         """
     )
-    suspend fun albumRows(): List<LibraryAlbumRow>
+    suspend fun albumRows(dedupe: Boolean): List<LibraryAlbumRow>
 
     @Query(
         """
-        SELECT COALESCE(album, '') AS name,
-               MIN(COALESCE(NULLIF(albumArtist, ''), NULLIF(artist, ''), '')) AS artist,
-               COUNT(DISTINCT COALESCE(NULLIF(albumArtist, ''), NULLIF(artist, ''), '')) AS distinctArtists,
+        SELECT COALESCE(t.album, '') AS name,
+               MIN(COALESCE(NULLIF(t.albumArtist, ''), NULLIF(t.artist, ''), '')) AS artist,
+               COUNT(DISTINCT COALESCE(NULLIF(t.albumArtist, ''), NULLIF(t.artist, ''), '')) AS distinctArtists,
                COUNT(*) AS trackCount,
-               SUM(durationMs) AS durationMs,
-               MAX(year) AS year,
-               MIN(path) AS artworkPath
-        FROM library_tracks
-        WHERE COALESCE(album, '') LIKE :pattern ESCAPE '\'
-          AND sourceId IN (SELECT id FROM library_sources WHERE enabled = 1)
-        GROUP BY COALESCE(album, '')
+               SUM(t.durationMs) AS durationMs,
+               MAX(t.year) AS year,
+               MIN(t.path) AS artworkPath
+        FROM library_tracks t
+        WHERE COALESCE(t.album, '') LIKE :pattern ESCAPE '\'
+          AND t.sourceId IN (SELECT id FROM library_sources WHERE enabled = 1)
+          AND (:dedupe = 0 OR NOT EXISTS (
+              SELECT 1 FROM library_tracks u
+              WHERE u.sourceId IN (SELECT id FROM library_sources WHERE enabled = 1)
+                AND COALESCE(u.album, '') LIKE :pattern ESCAPE '\'
+                AND u.dedupKey = t.dedupKey
+                AND (
+                  CASE u.sourceId WHEN 'scanner' THEN 0 ELSE 1 END <
+                      CASE t.sourceId WHEN 'scanner' THEN 0 ELSE 1 END
+                  OR (
+                    CASE u.sourceId WHEN 'scanner' THEN 0 ELSE 1 END =
+                        CASE t.sourceId WHEN 'scanner' THEN 0 ELSE 1 END
+                    AND u.path < t.path
+                  )
+              )
+          ))
+        GROUP BY COALESCE(t.album, '')
         ORDER BY name COLLATE NOCASE ASC
         LIMIT 24
         """
     )
-    suspend fun searchAlbumRows(pattern: String): List<LibraryAlbumRow>
+    suspend fun searchAlbumRows(pattern: String, dedupe: Boolean): List<LibraryAlbumRow>
 
     @Query(
         """
-        SELECT artist AS name, COUNT(*) AS trackCount,
-               COUNT(DISTINCT COALESCE(album, '')) AS albumCount,
-               MIN(path) AS artworkPath
-        FROM library_tracks
-        WHERE artist != ''
-          AND artist LIKE :pattern ESCAPE '\'
-          AND sourceId IN (SELECT id FROM library_sources WHERE enabled = 1)
-        GROUP BY artist
+        SELECT t.artist AS name, COUNT(*) AS trackCount,
+               COUNT(DISTINCT COALESCE(t.album, '')) AS albumCount,
+               MIN(t.path) AS artworkPath
+        FROM library_tracks t
+        WHERE t.artist != ''
+          AND t.artist LIKE :pattern ESCAPE '\'
+          AND t.sourceId IN (SELECT id FROM library_sources WHERE enabled = 1)
+          AND (:dedupe = 0 OR NOT EXISTS (
+              SELECT 1 FROM library_tracks u
+              WHERE u.sourceId IN (SELECT id FROM library_sources WHERE enabled = 1)
+                AND u.artist != ''
+                AND u.artist LIKE :pattern ESCAPE '\'
+                AND u.dedupKey = t.dedupKey
+                AND (
+                  CASE u.sourceId WHEN 'scanner' THEN 0 ELSE 1 END <
+                      CASE t.sourceId WHEN 'scanner' THEN 0 ELSE 1 END
+                  OR (
+                    CASE u.sourceId WHEN 'scanner' THEN 0 ELSE 1 END =
+                        CASE t.sourceId WHEN 'scanner' THEN 0 ELSE 1 END
+                    AND u.path < t.path
+                  )
+              )
+          ))
+        GROUP BY t.artist
         ORDER BY name COLLATE NOCASE ASC
         LIMIT 24
         """
     )
-    suspend fun searchArtistRows(pattern: String): List<LibraryArtistRow>
+    suspend fun searchArtistRows(pattern: String, dedupe: Boolean): List<LibraryArtistRow>
 
     @Query(
         """
-        SELECT * FROM library_tracks
-        WHERE sourceId IN (SELECT id FROM library_sources WHERE enabled = 1)
+        SELECT t.* FROM library_tracks t
+        WHERE t.sourceId IN (SELECT id FROM library_sources WHERE enabled = 1)
+          AND (:dedupe = 0 OR NOT EXISTS (
+              SELECT 1 FROM library_tracks u
+              WHERE u.sourceId IN (SELECT id FROM library_sources WHERE enabled = 1)
+                AND (
+                    u.title LIKE :pattern ESCAPE '\'
+                    OR u.artist LIKE :pattern ESCAPE '\'
+                    OR COALESCE(u.album, '') LIKE :pattern ESCAPE '\'
+                )
+                AND u.dedupKey = t.dedupKey
+                AND (
+                  CASE u.sourceId WHEN 'scanner' THEN 0 ELSE 1 END <
+                      CASE t.sourceId WHEN 'scanner' THEN 0 ELSE 1 END
+                  OR (
+                    CASE u.sourceId WHEN 'scanner' THEN 0 ELSE 1 END =
+                        CASE t.sourceId WHEN 'scanner' THEN 0 ELSE 1 END
+                    AND u.path < t.path
+                  )
+              )
+          ))
           AND (
-              title LIKE :pattern ESCAPE '\'
-              OR artist LIKE :pattern ESCAPE '\'
-              OR COALESCE(album, '') LIKE :pattern ESCAPE '\'
+              t.title LIKE :pattern ESCAPE '\'
+              OR t.artist LIKE :pattern ESCAPE '\'
+              OR COALESCE(t.album, '') LIKE :pattern ESCAPE '\'
           )
-        ORDER BY title COLLATE NOCASE ASC
+        ORDER BY t.title COLLATE NOCASE ASC
         LIMIT 100
         """
     )
-    suspend fun searchTracks(pattern: String): List<LibraryTrackEntity>
+    suspend fun searchTracks(pattern: String, dedupe: Boolean): List<LibraryTrackEntity>
 
     @Query(
         """
-        SELECT * FROM library_tracks
-        WHERE sourceId IN (SELECT id FROM library_sources WHERE enabled = 1)
-        ORDER BY title COLLATE NOCASE ASC, artist COLLATE NOCASE ASC
+        SELECT t.* FROM library_tracks t
+        WHERE t.sourceId IN (SELECT id FROM library_sources WHERE enabled = 1)
+          AND (:dedupe = 0 OR NOT EXISTS (
+              SELECT 1 FROM library_tracks u
+              WHERE u.sourceId IN (SELECT id FROM library_sources WHERE enabled = 1)
+                AND u.dedupKey = t.dedupKey
+                AND (
+                  CASE u.sourceId WHEN 'scanner' THEN 0 ELSE 1 END <
+                      CASE t.sourceId WHEN 'scanner' THEN 0 ELSE 1 END
+                  OR (
+                    CASE u.sourceId WHEN 'scanner' THEN 0 ELSE 1 END =
+                        CASE t.sourceId WHEN 'scanner' THEN 0 ELSE 1 END
+                    AND u.path < t.path
+                  )
+              )
+          ))
+        ORDER BY t.title COLLATE NOCASE ASC, t.artist COLLATE NOCASE ASC
         """
     )
-    suspend fun allTracks(): List<LibraryTrackEntity>
+    suspend fun allTracks(dedupe: Boolean): List<LibraryTrackEntity>
 
     @Query(
         """
-        SELECT * FROM library_tracks
-        WHERE (albumArtist = :artist OR (COALESCE(albumArtist, '') = '' AND artist = :artist))
-          AND sourceId IN (SELECT id FROM library_sources WHERE enabled = 1)
-        ORDER BY COALESCE(album, '') COLLATE NOCASE ASC,
-                 discNo ASC, trackNo ASC, title COLLATE NOCASE ASC
+        SELECT t.* FROM library_tracks t
+        WHERE (t.albumArtist = :artist OR (COALESCE(t.albumArtist, '') = '' AND t.artist = :artist))
+          AND t.sourceId IN (SELECT id FROM library_sources WHERE enabled = 1)
+          AND (:dedupe = 0 OR NOT EXISTS (
+              SELECT 1 FROM library_tracks u
+              WHERE u.sourceId IN (SELECT id FROM library_sources WHERE enabled = 1)
+                AND (u.albumArtist = :artist OR (COALESCE(u.albumArtist, '') = '' AND u.artist = :artist))
+                AND u.dedupKey = t.dedupKey
+                AND (
+                  CASE u.sourceId WHEN 'scanner' THEN 0 ELSE 1 END <
+                      CASE t.sourceId WHEN 'scanner' THEN 0 ELSE 1 END
+                  OR (
+                    CASE u.sourceId WHEN 'scanner' THEN 0 ELSE 1 END =
+                        CASE t.sourceId WHEN 'scanner' THEN 0 ELSE 1 END
+                    AND u.path < t.path
+                  )
+              )
+          ))
+        ORDER BY COALESCE(t.album, '') COLLATE NOCASE ASC,
+                 t.discNo ASC, t.trackNo ASC, t.title COLLATE NOCASE ASC
         """
     )
-    suspend fun artistTracks(artist: String): List<LibraryTrackEntity>
+    suspend fun artistTracks(artist: String, dedupe: Boolean): List<LibraryTrackEntity>
 
     @Query(
         """
-        SELECT artist AS name, COUNT(*) AS trackCount,
-               COUNT(DISTINCT COALESCE(album, '')) AS albumCount,
-               MIN(path) AS artworkPath
-        FROM library_tracks
-        WHERE artist != ''
-          AND sourceId IN (SELECT id FROM library_sources WHERE enabled = 1)
-        GROUP BY artist
+        SELECT t.artist AS name, COUNT(*) AS trackCount,
+               COUNT(DISTINCT COALESCE(t.album, '')) AS albumCount,
+               MIN(t.path) AS artworkPath
+        FROM library_tracks t
+        WHERE t.artist != ''
+          AND t.sourceId IN (SELECT id FROM library_sources WHERE enabled = 1)
+          AND (:dedupe = 0 OR NOT EXISTS (
+              SELECT 1 FROM library_tracks u
+              WHERE u.sourceId IN (SELECT id FROM library_sources WHERE enabled = 1)
+                AND u.artist != ''
+                AND u.dedupKey = t.dedupKey
+                AND (
+                  CASE u.sourceId WHEN 'scanner' THEN 0 ELSE 1 END <
+                      CASE t.sourceId WHEN 'scanner' THEN 0 ELSE 1 END
+                  OR (
+                    CASE u.sourceId WHEN 'scanner' THEN 0 ELSE 1 END =
+                        CASE t.sourceId WHEN 'scanner' THEN 0 ELSE 1 END
+                    AND u.path < t.path
+                  )
+              )
+          ))
+        GROUP BY t.artist
         ORDER BY name COLLATE NOCASE ASC
         """
     )
-    suspend fun artistRows(): List<LibraryArtistRow>
+    suspend fun artistRows(dedupe: Boolean): List<LibraryArtistRow>
 }
 
 @Dao
@@ -271,7 +469,7 @@ internal interface LibrarySourceDao {
 
 @Database(
     entities = [LibraryTrackEntity::class, LibrarySourceEntity::class],
-    version = 2,
+    version = 3,
     exportSchema = false
 )
 internal abstract class LibraryDatabase : RoomDatabase() {

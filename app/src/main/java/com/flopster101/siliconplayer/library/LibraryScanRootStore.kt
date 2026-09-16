@@ -14,6 +14,7 @@ internal object LibraryScanRootStore {
     private const val KEY_SCAN_ROOTS = "scan_roots_json"
     private const val KEY_SCANNER_EXTENSIONS = "scanner_extensions"
     private const val KEY_AUTO_SCAN_ENABLED = "auto_scan_enabled"
+    private const val KEY_DEDUPLICATE_SOURCES = "deduplicate_sources"
 
     val DEFAULT_EXTENSIONS = setOf(
         "mp3", "flac", "wav", "ogg", "oga", "opus", "m4a", "aac",
@@ -63,5 +64,12 @@ internal object LibraryScanRootStore {
 
     fun setAutoScanEnabled(context: Context, enabled: Boolean) {
         prefs(context).edit().putBoolean(KEY_AUTO_SCAN_ENABLED, enabled).apply()
+    }
+
+    fun deduplicateSources(context: Context): Boolean =
+        prefs(context).getBoolean(KEY_DEDUPLICATE_SOURCES, true)
+
+    fun setDeduplicateSources(context: Context, enabled: Boolean) {
+        prefs(context).edit().putBoolean(KEY_DEDUPLICATE_SOURCES, enabled).apply()
     }
 }

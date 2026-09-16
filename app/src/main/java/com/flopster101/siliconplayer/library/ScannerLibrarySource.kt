@@ -71,6 +71,7 @@ internal object ScannerLibrarySource {
                     LibraryTrackEntity(
                         path = path,
                         sourceId = LibraryContract.SOURCE_SCANNER,
+                        dedupKey = libraryDedupKeyForPath(path),
                         title = metadata.title ?: file.nameWithoutExtension,
                         artist = metadata.artist ?: "",
                         albumArtist = metadata.albumArtist ?: metadata.artist ?: "",
