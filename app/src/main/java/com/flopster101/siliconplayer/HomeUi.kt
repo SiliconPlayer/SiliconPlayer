@@ -14,6 +14,7 @@ import androidx.compose.animation.core.tween
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.offset
@@ -26,6 +27,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.clickable
@@ -539,7 +541,7 @@ internal fun HomeScreen(
                                                 pinnedFolderActionTarget = pinnedEntry
                                             }
                                         )
-                                        .padding(start = 14.dp, top = 10.dp, end = 34.dp, bottom = 10.dp),
+                                        .padding(horizontal = 14.dp, vertical = 10.dp),
                                     verticalAlignment = Alignment.CenterVertically
                                 ) {
                                     val isSmbPinnedFolder = parseSmbSourceSpecFromInput(pinnedEntry.path) != null
@@ -554,7 +556,8 @@ internal fun HomeScreen(
                                             R.drawable.ic_folder_zip
                                         } else {
                                             null
-                                        }
+                                        },
+                                        isPinned = true
                                     )
                                     Spacer(modifier = Modifier.width(12.dp))
                                     Column(modifier = Modifier.weight(1f)) {
@@ -581,92 +584,105 @@ internal fun HomeScreen(
                                             )
                                         }
                                     }
+                                    Spacer(modifier = Modifier.width(4.dp))
+                                    Box(
+                                        modifier = Modifier
+                                            .size(32.dp)
+                                            .clip(CircleShape)
+                                            .clickable {
+                                                pinnedFileActionTarget = null
+                                                pinnedFolderActionTarget = pinnedEntry
+                                            },
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.Default.MoreHoriz,
+                                            contentDescription = "Options",
+                                            tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.65f),
+                                            modifier = Modifier.size(20.dp)
+                                        )
+                                        DropdownMenu(
+                                            expanded = pinnedFolderActionTarget == pinnedEntry,
+                                            onDismissRequest = { pinnedFolderActionTarget = null }
+                                        ) {
+                                            DropdownMenuItem(
+                                                text = {
+                                                    Text(
+                                                        text = "Open location",
+                                                        style = MaterialTheme.typography.bodyLarge
+                                                    )
+                                                },
+                                                leadingIcon = {
+                                                    Icon(
+                                                        imageVector = Icons.Default.Folder,
+                                                        contentDescription = null,
+                                                        modifier = Modifier.size(22.dp)
+                                                    )
+                                                },
+                                                contentPadding = PaddingValues(start = 14.dp, end = 18.dp),
+                                                colors = MenuDefaults.itemColors(
+                                                    textColor = MaterialTheme.colorScheme.onSurface,
+                                                    leadingIconColor = MaterialTheme.colorScheme.onSurfaceVariant
+                                                ),
+                                                onClick = {
+                                                    onPinnedFolderAction(pinnedEntry, FolderEntryAction.OpenInBrowser)
+                                                    pinnedFolderActionTarget = null
+                                                }
+                                            )
+                                            DropdownMenuItem(
+                                                text = {
+                                                    Text(
+                                                        text = "Unpin folder",
+                                                        style = MaterialTheme.typography.bodyLarge
+                                                    )
+                                                },
+                                                leadingIcon = {
+                                                    Icon(
+                                                        imageVector = Icons.Default.PushPin,
+                                                        contentDescription = null,
+                                                        modifier = Modifier.size(22.dp)
+                                                    )
+                                                },
+                                                contentPadding = PaddingValues(start = 14.dp, end = 18.dp),
+                                                colors = MenuDefaults.itemColors(
+                                                    textColor = MaterialTheme.colorScheme.onSurface,
+                                                    leadingIconColor = MaterialTheme.colorScheme.onSurfaceVariant
+                                                ),
+                                                onClick = {
+                                                    onPinnedFolderAction(
+                                                        pinnedEntry,
+                                                        FolderEntryAction.DeleteFromRecents
+                                                    )
+                                                    pinnedFolderActionTarget = null
+                                                }
+                                            )
+                                            DropdownMenuItem(
+                                                text = {
+                                                    Text(
+                                                        text = "Copy path",
+                                                        style = MaterialTheme.typography.bodyLarge
+                                                    )
+                                                },
+                                                leadingIcon = {
+                                                    Icon(
+                                                        imageVector = Icons.Default.ContentCopy,
+                                                        contentDescription = null,
+                                                        modifier = Modifier.size(22.dp)
+                                                    )
+                                                },
+                                                contentPadding = PaddingValues(start = 14.dp, end = 18.dp),
+                                                colors = MenuDefaults.itemColors(
+                                                    textColor = MaterialTheme.colorScheme.onSurface,
+                                                    leadingIconColor = MaterialTheme.colorScheme.onSurfaceVariant
+                                                ),
+                                                onClick = {
+                                                    onPinnedFolderAction(pinnedEntry, FolderEntryAction.CopyPath)
+                                                    pinnedFolderActionTarget = null
+                                                }
+                                            )
+                                        }
+                                    }
                                 }
-                                DropdownMenu(
-                                    expanded = pinnedFolderActionTarget == pinnedEntry,
-                                    onDismissRequest = { pinnedFolderActionTarget = null }
-                                ) {
-                                    DropdownMenuItem(
-                                        text = {
-                                            Text(
-                                                text = "Open location",
-                                                style = MaterialTheme.typography.bodyLarge
-                                            )
-                                        },
-                                        leadingIcon = {
-                                            Icon(
-                                                imageVector = Icons.Default.Folder,
-                                                contentDescription = null,
-                                                modifier = Modifier.size(22.dp)
-                                            )
-                                        },
-                                        contentPadding = PaddingValues(start = 14.dp, end = 18.dp),
-                                        colors = MenuDefaults.itemColors(
-                                            textColor = MaterialTheme.colorScheme.onSurface,
-                                            leadingIconColor = MaterialTheme.colorScheme.onSurfaceVariant
-                                        ),
-                                        onClick = {
-                                            onPinnedFolderAction(pinnedEntry, FolderEntryAction.OpenInBrowser)
-                                            pinnedFolderActionTarget = null
-                                        }
-                                    )
-                                    DropdownMenuItem(
-                                        text = {
-                                            Text(
-                                                text = "Unpin folder",
-                                                style = MaterialTheme.typography.bodyLarge
-                                            )
-                                        },
-                                        leadingIcon = {
-                                            Icon(
-                                                imageVector = Icons.Default.PushPin,
-                                                contentDescription = null,
-                                                modifier = Modifier.size(22.dp)
-                                            )
-                                        },
-                                        contentPadding = PaddingValues(start = 14.dp, end = 18.dp),
-                                        colors = MenuDefaults.itemColors(
-                                            textColor = MaterialTheme.colorScheme.onSurface,
-                                            leadingIconColor = MaterialTheme.colorScheme.onSurfaceVariant
-                                        ),
-                                        onClick = {
-                                            onPinnedFolderAction(
-                                                pinnedEntry,
-                                                FolderEntryAction.DeleteFromRecents
-                                            )
-                                            pinnedFolderActionTarget = null
-                                        }
-                                    )
-                                    DropdownMenuItem(
-                                        text = {
-                                            Text(
-                                                text = "Copy path",
-                                                style = MaterialTheme.typography.bodyLarge
-                                            )
-                                        },
-                                        leadingIcon = {
-                                            Icon(
-                                                imageVector = Icons.Default.ContentCopy,
-                                                contentDescription = null,
-                                                modifier = Modifier.size(22.dp)
-                                            )
-                                        },
-                                        contentPadding = PaddingValues(start = 14.dp, end = 18.dp),
-                                        colors = MenuDefaults.itemColors(
-                                            textColor = MaterialTheme.colorScheme.onSurface,
-                                            leadingIconColor = MaterialTheme.colorScheme.onSurfaceVariant
-                                        ),
-                                        onClick = {
-                                            onPinnedFolderAction(pinnedEntry, FolderEntryAction.CopyPath)
-                                            pinnedFolderActionTarget = null
-                                        }
-                                    )
-                                }
-                                PinnedEntryCornerBadge(
-                                    modifier = Modifier
-                                        .align(Alignment.TopEnd)
-                                        .padding(top = 8.dp, end = 10.dp)
-                                )
                             }
                         } else {
                             val recentEntry = pinnedEntry.asRecentPathEntry()
@@ -690,6 +706,7 @@ internal fun HomeScreen(
                             val storagePresentation = storagePresentationForPinnedEntry(pinnedEntry)
                             val extensionLabel = inferredPrimaryExtensionForName(trackFile.name)?.uppercase()
                                 ?: "UNKNOWN"
+                            val isCurrentlyPlayingPinnedFile = samePath(currentTrackPath, pinnedEntry.path)
                             Box(modifier = Modifier.fillMaxWidth()) {
                                 Row(
                                     modifier = Modifier
@@ -705,7 +722,7 @@ internal fun HomeScreen(
                                                 pinnedFileActionTarget = pinnedEntry
                                             }
                                         )
-                                        .padding(start = 14.dp, top = 10.dp, end = 34.dp, bottom = 10.dp),
+                                        .padding(horizontal = 14.dp, vertical = 10.dp),
                                     verticalAlignment = Alignment.CenterVertically
                                 ) {
                                     RecentTrackArtworkChip(
@@ -715,7 +732,9 @@ internal fun HomeScreen(
                                             file = trackFile,
                                             decoderName = pinnedEntry.decoderName,
                                             allowCurrentDecoderFallback = false
-                                        )
+                                        ),
+                                        isPinned = true,
+                                        isCurrentlyPlaying = isCurrentlyPlayingPinnedFile
                                     )
                                     Spacer(modifier = Modifier.width(12.dp))
                                     Column(modifier = Modifier.weight(1f)) {
@@ -725,122 +744,136 @@ internal fun HomeScreen(
                                             cachedArtist = pinnedEntry.artist.orEmpty(),
                                             storagePresentation = storagePresentation,
                                             extensionLabel = extensionLabel,
-                                            isArchiveSource = archiveSource != null
+                                            isArchiveSource = archiveSource != null,
+                                            isCurrentlyPlaying = isCurrentlyPlayingPinnedFile
                                         )
                                     }
+                                    Spacer(modifier = Modifier.width(4.dp))
+                                    Box(
+                                        modifier = Modifier
+                                            .size(32.dp)
+                                            .clip(CircleShape)
+                                            .clickable {
+                                                pinnedFolderActionTarget = null
+                                                pinnedFileActionTarget = pinnedEntry
+                                            },
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.Default.MoreHoriz,
+                                            contentDescription = "Options",
+                                            tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.65f),
+                                            modifier = Modifier.size(20.dp)
+                                        )
+                                        DropdownMenu(
+                                            expanded = pinnedFileActionTarget == pinnedEntry,
+                                            onDismissRequest = { pinnedFileActionTarget = null }
+                                        ) {
+                                            DropdownMenuItem(
+                                                text = {
+                                                    Text(
+                                                        text = "Open location",
+                                                        style = MaterialTheme.typography.bodyLarge
+                                                    )
+                                                },
+                                                leadingIcon = {
+                                                    Icon(
+                                                        imageVector = Icons.Default.Folder,
+                                                        contentDescription = null,
+                                                        modifier = Modifier.size(22.dp)
+                                                    )
+                                                },
+                                                contentPadding = PaddingValues(start = 14.dp, end = 18.dp),
+                                                colors = MenuDefaults.itemColors(
+                                                    textColor = MaterialTheme.colorScheme.onSurface,
+                                                    leadingIconColor = MaterialTheme.colorScheme.onSurfaceVariant
+                                                ),
+                                                onClick = {
+                                                    onPinnedFileAction(pinnedEntry, SourceEntryAction.OpenInBrowser)
+                                                    pinnedFileActionTarget = null
+                                                }
+                                            )
+                                            DropdownMenuItem(
+                                                text = {
+                                                    Text(
+                                                        text = "Unpin file",
+                                                        style = MaterialTheme.typography.bodyLarge
+                                                    )
+                                                },
+                                                leadingIcon = {
+                                                    Icon(
+                                                        imageVector = Icons.Default.PushPin,
+                                                        contentDescription = null,
+                                                        modifier = Modifier.size(22.dp)
+                                                    )
+                                                },
+                                                contentPadding = PaddingValues(start = 14.dp, end = 18.dp),
+                                                colors = MenuDefaults.itemColors(
+                                                    textColor = MaterialTheme.colorScheme.onSurface,
+                                                    leadingIconColor = MaterialTheme.colorScheme.onSurfaceVariant
+                                                ),
+                                                onClick = {
+                                                    onPinnedFileAction(
+                                                        pinnedEntry,
+                                                        SourceEntryAction.DeleteFromRecents
+                                                    )
+                                                    pinnedFileActionTarget = null
+                                                }
+                                            )
+                                            DropdownMenuItem(
+                                                text = {
+                                                    Text(
+                                                        text = "Share file",
+                                                        style = MaterialTheme.typography.bodyLarge
+                                                    )
+                                                },
+                                                leadingIcon = {
+                                                    Icon(
+                                                        imageVector = Icons.Default.Share,
+                                                        contentDescription = null,
+                                                        modifier = Modifier.size(22.dp)
+                                                    )
+                                                },
+                                                contentPadding = PaddingValues(start = 14.dp, end = 18.dp),
+                                                colors = MenuDefaults.itemColors(
+                                                    textColor = MaterialTheme.colorScheme.onSurface,
+                                                    leadingIconColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                                                    disabledTextColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.38f),
+                                                    disabledLeadingIconColor = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.38f)
+                                                ),
+                                                enabled = canSharePinnedFile(pinnedEntry),
+                                                onClick = {
+                                                    onPinnedFileAction(pinnedEntry, SourceEntryAction.ShareFile)
+                                                    pinnedFileActionTarget = null
+                                                }
+                                            )
+                                            DropdownMenuItem(
+                                                text = {
+                                                    Text(
+                                                        text = "Copy URL/path",
+                                                        style = MaterialTheme.typography.bodyLarge
+                                                    )
+                                                },
+                                                leadingIcon = {
+                                                    Icon(
+                                                        imageVector = Icons.Default.ContentCopy,
+                                                        contentDescription = null,
+                                                        modifier = Modifier.size(22.dp)
+                                                    )
+                                                },
+                                                contentPadding = PaddingValues(start = 14.dp, end = 18.dp),
+                                                colors = MenuDefaults.itemColors(
+                                                    textColor = MaterialTheme.colorScheme.onSurface,
+                                                    leadingIconColor = MaterialTheme.colorScheme.onSurfaceVariant
+                                                ),
+                                                onClick = {
+                                                    onPinnedFileAction(pinnedEntry, SourceEntryAction.CopySource)
+                                                    pinnedFileActionTarget = null
+                                                }
+                                            )
+                                        }
+                                    }
                                 }
-                                DropdownMenu(
-                                    expanded = pinnedFileActionTarget == pinnedEntry,
-                                    onDismissRequest = { pinnedFileActionTarget = null }
-                                ) {
-                                    DropdownMenuItem(
-                                        text = {
-                                            Text(
-                                                text = "Open location",
-                                                style = MaterialTheme.typography.bodyLarge
-                                            )
-                                        },
-                                        leadingIcon = {
-                                            Icon(
-                                                imageVector = Icons.Default.Folder,
-                                                contentDescription = null,
-                                                modifier = Modifier.size(22.dp)
-                                            )
-                                        },
-                                        contentPadding = PaddingValues(start = 14.dp, end = 18.dp),
-                                        colors = MenuDefaults.itemColors(
-                                            textColor = MaterialTheme.colorScheme.onSurface,
-                                            leadingIconColor = MaterialTheme.colorScheme.onSurfaceVariant
-                                        ),
-                                        onClick = {
-                                            onPinnedFileAction(pinnedEntry, SourceEntryAction.OpenInBrowser)
-                                            pinnedFileActionTarget = null
-                                        }
-                                    )
-                                    DropdownMenuItem(
-                                        text = {
-                                            Text(
-                                                text = "Unpin file",
-                                                style = MaterialTheme.typography.bodyLarge
-                                            )
-                                        },
-                                        leadingIcon = {
-                                            Icon(
-                                                imageVector = Icons.Default.PushPin,
-                                                contentDescription = null,
-                                                modifier = Modifier.size(22.dp)
-                                            )
-                                        },
-                                        contentPadding = PaddingValues(start = 14.dp, end = 18.dp),
-                                        colors = MenuDefaults.itemColors(
-                                            textColor = MaterialTheme.colorScheme.onSurface,
-                                            leadingIconColor = MaterialTheme.colorScheme.onSurfaceVariant
-                                        ),
-                                        onClick = {
-                                            onPinnedFileAction(
-                                                pinnedEntry,
-                                                SourceEntryAction.DeleteFromRecents
-                                            )
-                                            pinnedFileActionTarget = null
-                                        }
-                                    )
-                                    DropdownMenuItem(
-                                        text = {
-                                            Text(
-                                                text = "Share file",
-                                                style = MaterialTheme.typography.bodyLarge
-                                            )
-                                        },
-                                        leadingIcon = {
-                                            Icon(
-                                                imageVector = Icons.Default.Share,
-                                                contentDescription = null,
-                                                modifier = Modifier.size(22.dp)
-                                            )
-                                        },
-                                        contentPadding = PaddingValues(start = 14.dp, end = 18.dp),
-                                        colors = MenuDefaults.itemColors(
-                                            textColor = MaterialTheme.colorScheme.onSurface,
-                                            leadingIconColor = MaterialTheme.colorScheme.onSurfaceVariant,
-                                            disabledTextColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.38f),
-                                            disabledLeadingIconColor = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.38f)
-                                        ),
-                                        enabled = canSharePinnedFile(pinnedEntry),
-                                        onClick = {
-                                            onPinnedFileAction(pinnedEntry, SourceEntryAction.ShareFile)
-                                            pinnedFileActionTarget = null
-                                        }
-                                    )
-                                    DropdownMenuItem(
-                                        text = {
-                                            Text(
-                                                text = "Copy URL/path",
-                                                style = MaterialTheme.typography.bodyLarge
-                                            )
-                                        },
-                                        leadingIcon = {
-                                            Icon(
-                                                imageVector = Icons.Default.ContentCopy,
-                                                contentDescription = null,
-                                                modifier = Modifier.size(22.dp)
-                                            )
-                                        },
-                                        contentPadding = PaddingValues(start = 14.dp, end = 18.dp),
-                                        colors = MenuDefaults.itemColors(
-                                            textColor = MaterialTheme.colorScheme.onSurface,
-                                            leadingIconColor = MaterialTheme.colorScheme.onSurfaceVariant
-                                        ),
-                                        onClick = {
-                                            onPinnedFileAction(pinnedEntry, SourceEntryAction.CopySource)
-                                            pinnedFileActionTarget = null
-                                        }
-                                    )
-                                }
-                                PinnedEntryCornerBadge(
-                                    modifier = Modifier
-                                        .align(Alignment.TopEnd)
-                                        .padding(top = 8.dp, end = 10.dp)
-                                )
                             }
                         }
                         if (index < sortedPinnedEntries.lastIndex) {
@@ -989,110 +1022,128 @@ internal fun HomeScreen(
                                                     )
                                                 }
                                             }
-                                        }
-                                        DropdownMenu(
-                                            expanded = folderActionTargetEntry == entry,
-                                            onDismissRequest = { folderActionTargetEntry = null }
-                                        ) {
-                                            DropdownMenuItem(
-                                                text = {
-                                                    Text(
-                                                        text = "Open location",
-                                                        style = MaterialTheme.typography.bodyLarge
+                                            Spacer(modifier = Modifier.width(4.dp))
+                                            Box(
+                                                modifier = Modifier
+                                                    .size(32.dp)
+                                                    .clip(CircleShape)
+                                                    .clickable {
+                                                        fileActionTargetEntry = null
+                                                        folderActionTargetEntry = entry
+                                                    },
+                                                contentAlignment = Alignment.Center
+                                            ) {
+                                                Icon(
+                                                    imageVector = Icons.Default.MoreHoriz,
+                                                    contentDescription = "Options",
+                                                    tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.65f),
+                                                    modifier = Modifier.size(20.dp)
+                                                )
+                                                DropdownMenu(
+                                                    expanded = folderActionTargetEntry == entry,
+                                                    onDismissRequest = { folderActionTargetEntry = null }
+                                                ) {
+                                                    DropdownMenuItem(
+                                                        text = {
+                                                            Text(
+                                                                text = "Open location",
+                                                                style = MaterialTheme.typography.bodyLarge
+                                                            )
+                                                        },
+                                                        leadingIcon = {
+                                                            Icon(
+                                                                imageVector = Icons.Default.Folder,
+                                                                contentDescription = null,
+                                                                modifier = Modifier.size(22.dp)
+                                                            )
+                                                        },
+                                                        contentPadding = PaddingValues(start = 14.dp, end = 18.dp),
+                                                        colors = MenuDefaults.itemColors(
+                                                            textColor = MaterialTheme.colorScheme.onSurface,
+                                                            leadingIconColor = MaterialTheme.colorScheme.onSurfaceVariant
+                                                        ),
+                                                        onClick = {
+                                                            onRecentFolderAction(entry, FolderEntryAction.OpenInBrowser)
+                                                            folderActionTargetEntry = null
+                                                        }
                                                     )
-                                                },
-                                                leadingIcon = {
-                                                    Icon(
-                                                        imageVector = Icons.Default.Folder,
-                                                        contentDescription = null,
-                                                        modifier = Modifier.size(22.dp)
+                                                    DropdownMenuItem(
+                                                        text = {
+                                                            Text(
+                                                                text = "Delete from recents",
+                                                                style = MaterialTheme.typography.bodyLarge
+                                                            )
+                                                        },
+                                                        leadingIcon = {
+                                                            Icon(
+                                                                imageVector = Icons.Default.Delete,
+                                                                contentDescription = null,
+                                                                modifier = Modifier.size(22.dp)
+                                                            )
+                                                        },
+                                                        contentPadding = PaddingValues(start = 14.dp, end = 18.dp),
+                                                        colors = MenuDefaults.itemColors(
+                                                            textColor = MaterialTheme.colorScheme.onSurface,
+                                                            leadingIconColor = MaterialTheme.colorScheme.onSurfaceVariant
+                                                        ),
+                                                        onClick = {
+                                                            onRecentFolderAction(entry, FolderEntryAction.DeleteFromRecents)
+                                                            folderActionTargetEntry = null
+                                                        }
                                                     )
-                                                },
-                                                contentPadding = PaddingValues(start = 14.dp, end = 18.dp),
-                                                colors = MenuDefaults.itemColors(
-                                                    textColor = MaterialTheme.colorScheme.onSurface,
-                                                    leadingIconColor = MaterialTheme.colorScheme.onSurfaceVariant
-                                                ),
-                                                onClick = {
-                                                    onRecentFolderAction(entry, FolderEntryAction.OpenInBrowser)
-                                                    folderActionTargetEntry = null
-                                                }
-                                            )
-                                            DropdownMenuItem(
-                                                text = {
-                                                    Text(
-                                                        text = "Delete from recents",
-                                                        style = MaterialTheme.typography.bodyLarge
-                                                    )
-                                                },
-                                                leadingIcon = {
-                                                    Icon(
-                                                        imageVector = Icons.Default.Delete,
-                                                        contentDescription = null,
-                                                        modifier = Modifier.size(22.dp)
-                                                    )
-                                                },
-                                                contentPadding = PaddingValues(start = 14.dp, end = 18.dp),
-                                                colors = MenuDefaults.itemColors(
-                                                    textColor = MaterialTheme.colorScheme.onSurface,
-                                                    leadingIconColor = MaterialTheme.colorScheme.onSurfaceVariant
-                                                ),
-                                                onClick = {
-                                                    onRecentFolderAction(entry, FolderEntryAction.DeleteFromRecents)
-                                                    folderActionTargetEntry = null
-                                                }
-                                            )
-                                            DropdownMenuItem(
-                                                text = {
-                                                    Text(
-                                                        text = "Pin folder to home",
-                                                        style = MaterialTheme.typography.bodyLarge
-                                                    )
-                                                },
-                                                leadingIcon = {
-                                                    Icon(
-                                                        imageVector = Icons.Default.PushPin,
-                                                        contentDescription = null,
-                                                        modifier = Modifier.size(22.dp)
-                                                    )
-                                                },
-                                                contentPadding = PaddingValues(start = 14.dp, end = 18.dp),
-                                                colors = MenuDefaults.itemColors(
-                                                    textColor = MaterialTheme.colorScheme.onSurface,
-                                                    leadingIconColor = MaterialTheme.colorScheme.onSurfaceVariant
-                                                ),
-                                                onClick = {
-                                                    requestPinRecentEntry(entry, true)
-                                                    folderActionTargetEntry = null
-                                                }
-                                            )
-                                            DropdownMenuItem(
-                                                text = {
-                                                    Text(
-                                                        text = "Copy path",
-                                                        style = MaterialTheme.typography.bodyLarge
-                                                    )
-                                                },
-                                                leadingIcon = {
-                                                    Icon(
-                                                        imageVector = Icons.Default.ContentCopy,
-                                                        contentDescription = null,
-                                                        modifier = Modifier.size(22.dp)
-                                                    )
-                                                },
-                                                contentPadding = PaddingValues(start = 14.dp, end = 18.dp),
-                                                colors = MenuDefaults.itemColors(
-                                                    textColor = MaterialTheme.colorScheme.onSurface,
-                                                    leadingIconColor = MaterialTheme.colorScheme.onSurfaceVariant
-                                                ),
-                                                onClick = {
-                                                    onRecentFolderAction(entry, FolderEntryAction.CopyPath)
-                                                    folderActionTargetEntry = null
-                                                }
-                                            )
+                                                DropdownMenuItem(
+                                                    text = {
+                                                        Text(
+                                                            text = "Pin folder to home",
+                                                            style = MaterialTheme.typography.bodyLarge
+                                                        )
+                                                    },
+                                                    leadingIcon = {
+                                                        Icon(
+                                                            imageVector = Icons.Default.PushPin,
+                                                            contentDescription = null,
+                                                            modifier = Modifier.size(22.dp)
+                                                        )
+                                                    },
+                                                    contentPadding = PaddingValues(start = 14.dp, end = 18.dp),
+                                                    colors = MenuDefaults.itemColors(
+                                                        textColor = MaterialTheme.colorScheme.onSurface,
+                                                        leadingIconColor = MaterialTheme.colorScheme.onSurfaceVariant
+                                                    ),
+                                                    onClick = {
+                                                        requestPinRecentEntry(entry, true)
+                                                        folderActionTargetEntry = null
+                                                    }
+                                                )
+                                                DropdownMenuItem(
+                                                    text = {
+                                                        Text(
+                                                            text = "Copy path",
+                                                            style = MaterialTheme.typography.bodyLarge
+                                                        )
+                                                    },
+                                                    leadingIcon = {
+                                                        Icon(
+                                                            imageVector = Icons.Default.ContentCopy,
+                                                            contentDescription = null,
+                                                            modifier = Modifier.size(22.dp)
+                                                        )
+                                                    },
+                                                    contentPadding = PaddingValues(start = 14.dp, end = 18.dp),
+                                                    colors = MenuDefaults.itemColors(
+                                                        textColor = MaterialTheme.colorScheme.onSurface,
+                                                        leadingIconColor = MaterialTheme.colorScheme.onSurfaceVariant
+                                                    ),
+                                                    onClick = {
+                                                        onRecentFolderAction(entry, FolderEntryAction.CopyPath)
+                                                        folderActionTargetEntry = null
+                                                    }
+                                                )
+                                            }
                                         }
                                     }
-                                    if (index < recentFolders.lastIndex) {
+                                }
+                                if (index < recentFolders.lastIndex) {
                                         HorizontalDivider(
                                             modifier = Modifier.padding(start = 64.dp, end = 14.dp),
                                             color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.08f)
@@ -1237,7 +1288,7 @@ internal fun HomeScreen(
                                         } else {
                                             inferredPrimaryExtensionForName(trackFile.name)?.uppercase() ?: "UNKNOWN"
                                         }
-                                    val isCurrentlyPlayingEntry = index == 0 && samePath(currentTrackPath, entry.path)
+                                    val isCurrentlyPlayingEntry = samePath(currentTrackPath, entry.path)
                                     val useLiveMetadata = isCurrentlyPlayingEntry && !entry.isPlaylist
                                     val liveTitle = currentTrackTitle.trim()
                                     val liveArtist = currentTrackArtist.trim()
@@ -1325,7 +1376,9 @@ internal fun HomeScreen(
                                                 RecentTrackArtworkChip(
                                                     context = context,
                                                     artworkThumbnailCacheKey = entry.artworkThumbnailCacheKey,
-                                                    fallbackIcon = fallbackIcon
+                                                    fallbackIcon = fallbackIcon,
+                                                    isPinned = false,
+                                                    isCurrentlyPlaying = isCurrentlyPlayingEntry
                                                 )
                                                 Spacer(modifier = Modifier.width(12.dp))
                                                 Column(modifier = Modifier.weight(1f)) {
@@ -1336,23 +1389,31 @@ internal fun HomeScreen(
                                                         storagePresentation = storagePresentation,
                                                         extensionLabel = extensionLabel,
                                                         isArchiveSource = archiveSource != null,
-                                                        usePlaylistSubtitleIcon = entry.isPlaylist
+                                                        usePlaylistSubtitleIcon = entry.isPlaylist,
+                                                        isCurrentlyPlaying = isCurrentlyPlayingEntry
                                                     )
                                                 }
-                                                if (isCurrentlyPlayingEntry) {
-                                                    Spacer(modifier = Modifier.width(12.dp))
+                                                Spacer(modifier = Modifier.width(4.dp))
+                                                Box(
+                                                    modifier = Modifier
+                                                        .size(32.dp)
+                                                        .clip(CircleShape)
+                                                        .clickable {
+                                                            folderActionTargetEntry = null
+                                                            fileActionTargetEntry = entry
+                                                        },
+                                                    contentAlignment = Alignment.Center
+                                                ) {
                                                     Icon(
-                                                        imageVector = Icons.Default.PlayArrow,
-                                                        contentDescription = "Playing",
-                                                        tint = MaterialTheme.colorScheme.primary,
-                                                        modifier = Modifier.size(16.dp)
+                                                        imageVector = Icons.Default.MoreHoriz,
+                                                        contentDescription = "Options",
+                                                        tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.65f),
+                                                        modifier = Modifier.size(20.dp)
                                                     )
-                                                }
-                                            }
-                                            DropdownMenu(
-                                                expanded = fileActionTargetEntry == entry,
-                                                onDismissRequest = { fileActionTargetEntry = null }
-                                            ) {
+                                                    DropdownMenu(
+                                                        expanded = fileActionTargetEntry == entry,
+                                                        onDismissRequest = { fileActionTargetEntry = null }
+                                                    ) {
                                                 DropdownMenuItem(
                                                     text = {
                                                         Text(
@@ -1484,7 +1545,9 @@ internal fun HomeScreen(
                                                 )
                                             }
                                         }
-                                        if (index < renderedRecentPlayedFiles.lastIndex) {
+                                    }
+                                }
+                                if (index < renderedRecentPlayedFiles.lastIndex) {
                                             HorizontalDivider(
                                                 modifier = Modifier.padding(start = 64.dp, end = 14.dp),
                                                 color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.08f)
@@ -1732,53 +1795,84 @@ private fun HomeQuickActionCard(
 }
 
 @Composable
-private fun PinnedEntryCornerBadge(
-    modifier: Modifier = Modifier
-) {
-    Surface(
-        modifier = modifier.size(18.dp),
-        shape = RoundedCornerShape(999.dp),
-        color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.9f)
+private fun BoxScope.PinnedChipBadge() {
+    Box(
+        modifier = Modifier
+            .align(Alignment.TopStart)
+            .offset(x = (-2).dp, y = (-2).dp)
+            .size(16.dp)
+            .background(color = MaterialTheme.colorScheme.surfaceContainerLow, shape = CircleShape)
+            .padding(1.dp)
+            .background(color = MaterialTheme.colorScheme.primaryContainer, shape = CircleShape),
+        contentAlignment = Alignment.Center
     ) {
-        Box(contentAlignment = Alignment.Center) {
-            Icon(
-                imageVector = Icons.Default.PushPin,
-                contentDescription = "Pinned",
-                tint = MaterialTheme.colorScheme.onPrimaryContainer,
-                modifier = Modifier.size(10.dp)
-            )
-        }
+        Icon(
+            imageVector = Icons.Default.PushPin,
+            contentDescription = "Pinned",
+            tint = MaterialTheme.colorScheme.onPrimaryContainer,
+            modifier = Modifier.size(9.dp)
+        )
+    }
+}
+
+@Composable
+private fun BoxScope.PlayingChipBadge() {
+    Box(
+        modifier = Modifier
+            .align(Alignment.BottomEnd)
+            .offset(x = 2.dp, y = 2.dp)
+            .size(18.dp)
+            .background(color = MaterialTheme.colorScheme.surfaceContainerLow, shape = CircleShape)
+            .padding(1.5.dp)
+            .background(color = MaterialTheme.colorScheme.primary, shape = CircleShape),
+        contentAlignment = Alignment.Center
+    ) {
+        Icon(
+            imageVector = Icons.Default.PlayArrow,
+            contentDescription = "Currently playing",
+            tint = MaterialTheme.colorScheme.onPrimary,
+            modifier = Modifier.size(11.dp)
+        )
     }
 }
 
 @Composable
 private fun RecentIconChip(
     icon: androidx.compose.ui.graphics.vector.ImageVector,
-    iconPainterResId: Int? = null
+    iconPainterResId: Int? = null,
+    isPinned: Boolean = false
 ) {
     Box(
-        modifier = Modifier
-            .size(HomeRecentIconChipSize)
-            .background(
-                color = MaterialTheme.colorScheme.primaryContainer,
-                shape = HomeRecentIconChipShape
-            ),
+        modifier = Modifier.size(HomeRecentIconChipSize),
         contentAlignment = Alignment.Center
     ) {
-        if (iconPainterResId != null) {
-            Icon(
-                painter = painterResource(id = iconPainterResId),
-                contentDescription = null,
-                tint = MaterialTheme.colorScheme.onPrimaryContainer,
-                modifier = Modifier.size(HomeRecentIconGlyphSize)
-            )
-        } else {
-            Icon(
-                imageVector = icon,
-                contentDescription = null,
-                tint = MaterialTheme.colorScheme.onPrimaryContainer,
-                modifier = Modifier.size(HomeRecentIconGlyphSize)
-            )
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(
+                    color = MaterialTheme.colorScheme.primaryContainer,
+                    shape = HomeRecentIconChipShape
+                ),
+            contentAlignment = Alignment.Center
+        ) {
+            if (iconPainterResId != null) {
+                Icon(
+                    painter = painterResource(id = iconPainterResId),
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.onPrimaryContainer,
+                    modifier = Modifier.size(HomeRecentIconGlyphSize)
+                )
+            } else {
+                Icon(
+                    imageVector = icon,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.onPrimaryContainer,
+                    modifier = Modifier.size(HomeRecentIconGlyphSize)
+                )
+            }
+        }
+        if (isPinned) {
+            PinnedChipBadge()
         }
     }
 }
@@ -1787,7 +1881,9 @@ private fun RecentIconChip(
 private fun RecentTrackArtworkChip(
     context: android.content.Context,
     artworkThumbnailCacheKey: String?,
-    fallbackIcon: androidx.compose.ui.graphics.vector.ImageVector
+    fallbackIcon: androidx.compose.ui.graphics.vector.ImageVector,
+    isPinned: Boolean = false,
+    isCurrentlyPlaying: Boolean = false
 ) {
     val artwork = androidx.compose.runtime.produceState<androidx.compose.ui.graphics.ImageBitmap?>(
         initialValue = null,
@@ -1800,25 +1896,36 @@ private fun RecentTrackArtworkChip(
         }
     }.value
     Box(
-        modifier = Modifier
-            .size(HomeRecentIconChipSize)
-            .clip(HomeRecentIconChipShape)
-            .background(MaterialTheme.colorScheme.secondaryContainer),
+        modifier = Modifier.size(HomeRecentIconChipSize),
         contentAlignment = Alignment.Center
     ) {
-        Icon(
-            imageVector = fallbackIcon,
-            contentDescription = null,
-            tint = MaterialTheme.colorScheme.onSecondaryContainer,
-            modifier = Modifier.size(HomeRecentIconGlyphSize)
-        )
-        if (artwork != null) {
-            Image(
-                bitmap = artwork,
-                contentDescription = "Album artwork",
-                contentScale = ContentScale.Crop,
-                modifier = Modifier.fillMaxSize()
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .clip(HomeRecentIconChipShape)
+                .background(MaterialTheme.colorScheme.secondaryContainer),
+            contentAlignment = Alignment.Center
+        ) {
+            Icon(
+                imageVector = fallbackIcon,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.onSecondaryContainer,
+                modifier = Modifier.size(HomeRecentIconGlyphSize)
             )
+            if (artwork != null) {
+                Image(
+                    bitmap = artwork,
+                    contentDescription = "Album artwork",
+                    contentScale = ContentScale.Crop,
+                    modifier = Modifier.fillMaxSize()
+                )
+            }
+        }
+        if (isPinned) {
+            PinnedChipBadge()
+        }
+        if (isCurrentlyPlaying) {
+            PlayingChipBadge()
         }
     }
 }
@@ -2014,7 +2121,8 @@ internal fun RecentTrackSummaryText(
     storagePresentation: StoragePresentation,
     extensionLabel: String,
     isArchiveSource: Boolean,
-    usePlaylistSubtitleIcon: Boolean = false
+    usePlaylistSubtitleIcon: Boolean = false,
+    isCurrentlyPlaying: Boolean = false
 ) {
     val fallback = inferredDisplayTitleForName(file.name)
     val display = remember(file.absolutePath, cachedTitle, cachedArtist) {
@@ -2043,6 +2151,8 @@ internal fun RecentTrackSummaryText(
     Text(
         text = renderedDisplay.primaryText,
         style = MaterialTheme.typography.titleSmall,
+        fontWeight = if (isCurrentlyPlaying) FontWeight.Bold else FontWeight.Normal,
+        color = if (isCurrentlyPlaying) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface,
         maxLines = 1,
         overflow = TextOverflow.Ellipsis,
         modifier = Modifier.graphicsLayer { alpha = metadataAlpha.value }
