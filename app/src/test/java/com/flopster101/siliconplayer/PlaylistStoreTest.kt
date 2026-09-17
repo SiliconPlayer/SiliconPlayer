@@ -84,4 +84,46 @@ class PlaylistStoreTest {
         assertEquals(1, playlist.entries.size)
         assertEquals("e2", playlist.entries.first().id)
     }
+
+    @Test
+    fun `sortStoredPlaylists orders by recently updated`() {
+        val p1 = samplePlaylist("p1", "B").copy(updatedAtMs = 100L)
+        val p2 = samplePlaylist("p2", "A").copy(updatedAtMs = 500L)
+        val p3 = samplePlaylist("p3", "C").copy(updatedAtMs = 300L)
+
+        val sorted = sortStoredPlaylists(listOf(p1, p2, p3), PlaylistSortMode.RecentlyUpdated)
+        assertEquals(listOf("p2", "p3", "p1"), sorted.map { it.id })
+    }
+
+    @Test
+    fun `sortStoredPlaylists orders alphabetically ascending and descending`() {
+        val p1 = samplePlaylist("p1", "Banana")
+        val p2 = samplePlaylist("p2", "apple")
+        val p3 = samplePlaylist("p3", "Cherry")
+
+        val asc = sortStoredPlaylists(listOf(p1, p2, p3), PlaylistSortMode.AlphabeticalAsc)
+        assertEquals(listOf("p2", "p1", "p3"), asc.map { it.id })
+
+        val desc = sortStoredPlaylists(listOf(p1, p2, p3), PlaylistSortMode.AlphabeticalDesc)
+        assertEquals(listOf("p3", "p1", "p2"), desc.map { it.id })
+    }
+
+    @Test
+    fun `sortStoredPlaylists orders by track count`() {
+        val p1 = samplePlaylist("p1", "Few").copy(entries = emptyList())
+        val p2 = samplePlaylist("p2", "Many").copy(
+            entries = listOf(
+                PlaylistTrackEntry(id = "1", source = "s1", title = "T1"),
+                PlaylistTrackEntry(id = "2", source = "s2", title = "T2"),
+                PlaylistTrackEntry(id = "3", source = "s3", title = "T3")
+            )
+        )
+        val p3 = samplePlaylist("p3", "Medium").copy(
+            entries = listOf(PlaylistTrackEntry(id = "1", source = "s1", title = "T1"))
+        )
+
+        val sorted = sortStoredPlaylists(listOf(p1, p2, p3), PlaylistSortMode.TrackCount)
+        assertEquals(listOf("p2", "p3", "p1"), sorted.map { it.id })
+    }
 }
+

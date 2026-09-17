@@ -15,6 +15,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
@@ -30,15 +31,20 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.LibraryMusic
 import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.SwapVert
 import androidx.compose.material.icons.outlined.AddCircle
 import androidx.compose.material3.Card
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.MenuDefaults
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
@@ -52,6 +58,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -61,8 +68,10 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
+import com.flopster101.siliconplayer.PlaylistSortMode
 import com.flopster101.siliconplayer.StoredPlaylist
 import com.flopster101.siliconplayer.samePath
+import com.flopster101.siliconplayer.sortStoredPlaylists
 import com.flopster101.siliconplayer.ui.screens.PlaylistCoverArt
 
 /**
@@ -133,25 +142,29 @@ private fun AddToPlaylistSheetContent(
 ) {
     var query by remember { mutableStateOf("") }
     var showNewPlaylistDialog by remember { mutableStateOf(false) }
+    var selectedSortMode by rememberSaveable { mutableStateOf(PlaylistSortMode.RecentlyUpdated) }
+    var sortMenuExpanded by remember { mutableStateOf(false) }
     val singleSource = pendingSources.singleOrNull()
-    val savedIn = remember(playlists, singleSource) {
+    val savedIn = remember(playlists, singleSource, selectedSortMode) {
         if (singleSource == null) {
             emptyList()
         } else {
-            playlists.filter { playlist ->
+            val matching = playlists.filter { playlist ->
                 playlist.entries.any { entry ->
                     entry.subtuneIndex == null && samePath(entry.source, singleSource)
                 }
             }
+            sortStoredPlaylists(matching, selectedSortMode)
         }
     }
     val savedInIds = remember(savedIn) { savedIn.map { it.id }.toSet() }
-    val filteredPlaylists = remember(playlists, query) {
-        if (query.isBlank()) {
+    val filteredPlaylists = remember(playlists, query, selectedSortMode) {
+        val base = if (query.isBlank()) {
             playlists
         } else {
             playlists.filter { it.title.contains(query, ignoreCase = true) }
         }
+        sortStoredPlaylists(base, selectedSortMode)
     }
     val otherPlaylists = remember(filteredPlaylists, savedInIds) {
         filteredPlaylists.filter { it.id !in savedInIds }
@@ -186,33 +199,79 @@ private fun AddToPlaylistSheetContent(
                 )
             }
         }
-        OutlinedTextField(
-            value = query,
-            onValueChange = { query = it },
-            singleLine = true,
-            placeholder = { Text("Find playlist") },
-            leadingIcon = {
-                Icon(
-                    imageVector = Icons.Default.Search,
-                    contentDescription = null
-                )
-            },
-            trailingIcon = if (query.isNotEmpty()) {
-                {
-                    IconButton(onClick = { query = "" }) {
-                        Icon(
-                            imageVector = Icons.Default.Close,
-                            contentDescription = "Clear search"
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(start = 16.dp, end = 8.dp, top = 4.dp, bottom = 8.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            OutlinedTextField(
+                value = query,
+                onValueChange = { query = it },
+                singleLine = true,
+                placeholder = { Text("Find playlist") },
+                leadingIcon = {
+                    Icon(
+                        imageVector = Icons.Default.Search,
+                        contentDescription = null
+                    )
+                },
+                trailingIcon = if (query.isNotEmpty()) {
+                    {
+                        IconButton(onClick = { query = "" }) {
+                            Icon(
+                                imageVector = Icons.Default.Close,
+                                contentDescription = "Clear search"
+                            )
+                        }
+                    }
+                } else null,
+                shape = RoundedCornerShape(24.dp),
+                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
+                modifier = Modifier.weight(1f)
+            )
+            Box {
+                IconButton(onClick = { sortMenuExpanded = true }) {
+                    Icon(
+                        imageVector = Icons.Default.SwapVert,
+                        contentDescription = "Sort playlists"
+                    )
+                }
+                DropdownMenu(
+                    expanded = sortMenuExpanded,
+                    onDismissRequest = { sortMenuExpanded = false }
+                ) {
+                    PlaylistSortMode.entries.forEach { mode ->
+                        DropdownMenuItem(
+                            text = {
+                                Text(
+                                    text = mode.label,
+                                    style = MaterialTheme.typography.bodyLarge
+                                )
+                            },
+                            leadingIcon = if (mode == selectedSortMode) {
+                                {
+                                    Icon(
+                                        imageVector = Icons.Default.Check,
+                                        contentDescription = null,
+                                        modifier = Modifier.size(22.dp)
+                                    )
+                                }
+                            } else null,
+                            contentPadding = PaddingValues(start = 14.dp, end = 18.dp),
+                            colors = MenuDefaults.itemColors(
+                                textColor = MaterialTheme.colorScheme.onSurface,
+                                leadingIconColor = MaterialTheme.colorScheme.primary
+                            ),
+                            onClick = {
+                                sortMenuExpanded = false
+                                selectedSortMode = mode
+                            }
                         )
                     }
                 }
-            } else null,
-            shape = RoundedCornerShape(24.dp),
-            keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(start = 16.dp, end = 16.dp, top = 4.dp, bottom = 8.dp)
-        )
+            }
+        }
         Column(
             modifier = Modifier
                 .fillMaxWidth()

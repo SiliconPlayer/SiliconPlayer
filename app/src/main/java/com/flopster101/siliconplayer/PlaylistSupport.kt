@@ -625,3 +625,44 @@ private fun sortablePlaylistText(value: String?): String {
     val normalized = value?.trim()?.lowercase(Locale.ROOT).orEmpty()
     return if (normalized.isBlank()) "\uFFFF" else normalized
 }
+
+internal enum class PlaylistSortMode(val label: String) {
+    RecentlyUpdated("Recently updated"),
+    AlphabeticalAsc("Name (A–Z)"),
+    AlphabeticalDesc("Name (Z–A)"),
+    TrackCount("Track count")
+}
+
+internal fun sortStoredPlaylists(
+    playlists: List<StoredPlaylist>,
+    sortMode: PlaylistSortMode
+): List<StoredPlaylist> {
+    if (playlists.size <= 1) return playlists
+    val indexed = playlists.withIndex()
+    return when (sortMode) {
+        PlaylistSortMode.RecentlyUpdated -> {
+            indexed.sortedWith(
+                compareByDescending<IndexedValue<StoredPlaylist>> { it.value.updatedAtMs }
+                    .thenBy { it.index }
+            ).map { it.value }
+        }
+        PlaylistSortMode.AlphabeticalAsc -> {
+            indexed.sortedWith(
+                compareBy<IndexedValue<StoredPlaylist>> { it.value.title.lowercase(Locale.ROOT) }
+                    .thenBy { it.index }
+            ).map { it.value }
+        }
+        PlaylistSortMode.AlphabeticalDesc -> {
+            indexed.sortedWith(
+                compareByDescending<IndexedValue<StoredPlaylist>> { it.value.title.lowercase(Locale.ROOT) }
+                    .thenBy { it.index }
+            ).map { it.value }
+        }
+        PlaylistSortMode.TrackCount -> {
+            indexed.sortedWith(
+                compareByDescending<IndexedValue<StoredPlaylist>> { it.value.entries.size }
+                    .thenBy { it.index }
+            ).map { it.value }
+        }
+    }
+}
