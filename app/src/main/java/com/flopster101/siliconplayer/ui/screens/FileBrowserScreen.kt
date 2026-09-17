@@ -3255,6 +3255,7 @@ fun FileItemRow(
             ),
         verticalAlignment = Alignment.CenterVertically
     ) {
+        val isCurrentlyPlaying = isPlaying || isPlayingPlaylist
         val showIconChipBackground = item.isDirectory || showFileIconChipBackground
         val chipShape = RoundedCornerShape(chipCorner)
         val chipContainerColor = if (item.isDirectory) {
@@ -3393,8 +3394,36 @@ fun FileItemRow(
                     }
                 }
             }
+            if (isCurrentlyPlaying) {
+                val badgeSize = if (isWatch) 14.dp else 18.dp
+                val badgeIconSize = if (isWatch) 9.dp else 11.dp
+                val badgeOffset = if (isWatch) 2.dp else 3.dp
+                val badgeCutoutColor = if (isSelected || (isWatch && isCurrentlyPlaying)) {
+                    MaterialTheme.colorScheme.primaryContainer
+                } else if (isWatch) {
+                    MaterialTheme.colorScheme.surfaceContainerLow
+                } else {
+                    MaterialTheme.colorScheme.surface
+                }
+                Box(
+                    modifier = Modifier
+                        .align(Alignment.BottomEnd)
+                        .offset(x = badgeOffset, y = badgeOffset)
+                        .size(badgeSize)
+                        .background(color = badgeCutoutColor, shape = CircleShape)
+                        .padding(1.5.dp)
+                        .background(color = MaterialTheme.colorScheme.primary, shape = CircleShape),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.PlayArrow,
+                        contentDescription = "Currently playing",
+                        tint = MaterialTheme.colorScheme.onPrimary,
+                        modifier = Modifier.size(badgeIconSize)
+                    )
+                }
+            }
         }
-        val isCurrentlyPlaying = isPlaying || isPlayingPlaylist
         Spacer(modifier = Modifier.width(if (isWatch) 10.dp else 16.dp))
         Column(modifier = Modifier.weight(1f)) {
             Text(
