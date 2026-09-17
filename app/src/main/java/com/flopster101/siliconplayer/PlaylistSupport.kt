@@ -190,6 +190,27 @@ internal fun buildInternalPlaylistCopy(
     )
 }
 
+internal fun duplicateStoredPlaylist(
+    playlist: StoredPlaylist,
+    newTitle: String
+): StoredPlaylist {
+    val now = System.currentTimeMillis()
+    val duplicatedEntries = playlist.entries.mapIndexed { index, entry ->
+        entry.copy(
+            id = UUID.randomUUID().toString(),
+            addedAtMs = now + index
+        )
+    }
+    return StoredPlaylist(
+        id = UUID.randomUUID().toString(),
+        title = newTitle.trim().ifBlank { "${playlist.title} (Copy)" },
+        format = PlaylistStoredFormat.Internal,
+        sourceIdHint = null,
+        entries = duplicatedEntries,
+        updatedAtMs = now
+    )
+}
+
 internal fun buildImportedPlaylist(
     document: ParsedPlaylistDocument
 ): StoredPlaylist {

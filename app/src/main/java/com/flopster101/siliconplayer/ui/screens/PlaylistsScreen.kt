@@ -29,6 +29,7 @@ import androidx.compose.material.icons.filled.FileOpen
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import com.flopster101.siliconplayer.parsePlaylistDocumentFromUri
 import com.flopster101.siliconplayer.parsePlaylistDocument
+import com.flopster101.siliconplayer.duplicateStoredPlaylist
 import com.flopster101.siliconplayer.isSupportedPlaylistFile
 import com.flopster101.siliconplayer.ParsedPlaylistDocument
 import com.flopster101.siliconplayer.ui.dialogs.FilePickerChoiceSheet
@@ -768,6 +769,7 @@ internal fun PlaylistsScreen(
     var showCreatePlaylistDialog by remember { mutableStateOf(false) }
     var playlistPendingDelete by remember { mutableStateOf<StoredPlaylist?>(null) }
     var playlistPendingRename by remember { mutableStateOf<StoredPlaylist?>(null) }
+    var playlistPendingDuplicate by remember { mutableStateOf<StoredPlaylist?>(null) }
     var trackInfoDialogState by remember {
         mutableStateOf<PlaylistTrackInfoDialogState?>(null)
     }
@@ -1241,6 +1243,9 @@ internal fun PlaylistsScreen(
                                 onSharePlaylist = {
                                     onSharePlaylistAction(favoritesAsStoredPlaylist(libraryState.favorites))
                                 },
+                                onDuplicatePlaylist = {
+                                    playlistPendingDuplicate = favoritesAsStoredPlaylist(libraryState.favorites)
+                                },
                                 isWatch = isWatch,
                                 onBack = {
                                     favoritesEditModeEnabled = false
@@ -1326,6 +1331,7 @@ internal fun PlaylistsScreen(
                                     showInfoAction = true,
                                     onExportPlaylist = { onExportPlaylistAction(sortedStoredPlaylist) },
                                     onSharePlaylist = { onSharePlaylistAction(sortedStoredPlaylist) },
+                                    onDuplicatePlaylist = { playlistPendingDuplicate = playlist },
                                     isWatch = isWatch,
                                     onBack = {
                                         storedPlaylistEditModeEnabled = false
@@ -1408,6 +1414,9 @@ internal fun PlaylistsScreen(
                                         FavoritesCollectionRow(
                                             favoriteCount = libraryState.favorites.size,
                                             onClick = { destination = PlaylistsSurfaceDestination.Favorites },
+                                            onDuplicate = {
+                                                playlistPendingDuplicate = favoritesAsStoredPlaylist(libraryState.favorites)
+                                            },
                                             onExport = {
                                                 onExportPlaylistAction(favoritesAsStoredPlaylist(libraryState.favorites))
                                             },
@@ -1436,6 +1445,7 @@ internal fun PlaylistsScreen(
                                                     destination = PlaylistsSurfaceDestination.StoredPlaylist
                                                 },
                                                 onRename = { playlistPendingRename = playlist },
+                                                onDuplicate = { playlistPendingDuplicate = playlist },
                                                 onDelete = { playlistPendingDelete = playlist },
                                                 onExport = { onExportPlaylistAction(playlist) },
                                                 onShare = { onSharePlaylistAction(playlist) },
@@ -1600,6 +1610,7 @@ internal fun PlaylistsScreen(
                                                 destination = PlaylistsSurfaceDestination.StoredPlaylist
                                             },
                                             onRenamePlaylist = { playlist -> playlistPendingRename = playlist },
+                                            onDuplicatePlaylist = { playlist -> playlistPendingDuplicate = playlist },
                                             onDeletePlaylist = { playlist -> playlistPendingDelete = playlist },
                                             onExportPlaylist = onExportPlaylistAction,
                                             onSharePlaylist = onSharePlaylistAction
@@ -2183,6 +2194,38 @@ internal fun PlaylistsScreen(
             onDismiss = { playlistPendingRename = null }
         )
     }
+    playlistPendingDuplicate?.let { playlist ->
+        val copyCandidate = remember(playlist.title, libraryState.playlists) {
+            val base = "${playlist.title} (Copy)"
+            val titles = libraryState.playlists.map { it.title }.toSet()
+            var candidate = base
+            var suffix = 2
+            while (candidate in titles) {
+                candidate = "$base $suffix"
+                suffix += 1
+            }
+            candidate
+        }
+        NewPlaylistDialog(
+            existingTitles = remember(libraryState.playlists) {
+                libraryState.playlists.map { it.title }.toSet()
+            },
+            dialogTitle = "Duplicate playlist",
+            confirmText = "Duplicate",
+            initialTitle = copyCandidate,
+            onConfirm = { title ->
+                val duplicated = duplicateStoredPlaylist(playlist, title)
+                val playlistId = onCreatePlaylist(duplicated.title)
+                if (duplicated.entries.isNotEmpty()) {
+                    onAppendStoredPlaylistEntries(playlistId, duplicated.entries)
+                }
+                playlistPendingDuplicate = null
+                selectedStoredPlaylistId = playlistId
+                destination = PlaylistsSurfaceDestination.StoredPlaylist
+            },
+            onDismiss = { playlistPendingDuplicate = null }
+        )
+    }
     libraryContextTracks?.let { contextTracks ->
         AddToPlaylistChooserDialog(
             playlists = libraryState.playlists,
@@ -2401,6 +2444,7 @@ private fun PlaylistsLibraryTabPage(
     onOpenFavorites: () -> Unit,
     onOpenPlaylist: (StoredPlaylist) -> Unit,
     onRenamePlaylist: (StoredPlaylist) -> Unit = {},
+    onDuplicatePlaylist: (StoredPlaylist) -> Unit = {},
     onDeletePlaylist: (StoredPlaylist) -> Unit = {},
     onExportPlaylist: (StoredPlaylist) -> Unit = {},
     onSharePlaylist: (StoredPlaylist) -> Unit = {},
@@ -2425,6 +2469,7 @@ private fun PlaylistsLibraryTabPage(
             FavoritesCollectionRow(
                 favoriteCount = libraryState.favorites.size,
                 onClick = onOpenFavorites,
+                onDuplicate = { onDuplicatePlaylist(favoritesAsStoredPlaylist(libraryState.favorites)) },
                 onExport = { onExportPlaylist(favoritesAsStoredPlaylist(libraryState.favorites)) },
                 onShare = { onSharePlaylist(favoritesAsStoredPlaylist(libraryState.favorites)) },
                 isWatch = isWatch
@@ -2457,6 +2502,7 @@ private fun PlaylistsLibraryTabPage(
                     playlist = playlist,
                     onClick = { onOpenPlaylist(playlist) },
                     onRename = { onRenamePlaylist(playlist) },
+                    onDuplicate = { onDuplicatePlaylist(playlist) },
                     onDelete = { onDeletePlaylist(playlist) },
                     onExport = { onExportPlaylist(playlist) },
                     onShare = { onSharePlaylist(playlist) },
@@ -4043,6 +4089,7 @@ private fun LazyListScope.playlistDetailContent(
     showInfoAction: Boolean = true,
     onExportPlaylist: (() -> Unit)? = null,
     onSharePlaylist: (() -> Unit)? = null,
+    onDuplicatePlaylist: (() -> Unit)? = null,
     isWatch: Boolean = false,
     onBack: () -> Unit = {}
 ) {
@@ -4062,6 +4109,7 @@ private fun LazyListScope.playlistDetailContent(
                 canDeletePlaylist = canDeletePlaylist,
                 onRenamePlaylist = onRenamePlaylist,
                 canRenamePlaylist = canRenamePlaylist,
+                onDuplicatePlaylist = onDuplicatePlaylist,
                 onDeleteAllEntries = onDeleteAllEntries,
                 onExportPlaylist = onExportPlaylist,
                 onSharePlaylist = onSharePlaylist,
@@ -4087,6 +4135,7 @@ private fun LazyListScope.playlistDetailContent(
                 canDeletePlaylist = canDeletePlaylist,
                 onRenamePlaylist = onRenamePlaylist,
                 canRenamePlaylist = canRenamePlaylist,
+                onDuplicatePlaylist = onDuplicatePlaylist,
                 onDeleteAllEntries = onDeleteAllEntries,
                 onExportPlaylist = onExportPlaylist,
                 onSharePlaylist = onSharePlaylist
@@ -4215,6 +4264,7 @@ private fun WearPlaylistHeroHeader(
     canDeletePlaylist: Boolean,
     onRenamePlaylist: () -> Unit = {},
     canRenamePlaylist: Boolean = false,
+    onDuplicatePlaylist: (() -> Unit)? = null,
     onDeleteAllEntries: () -> Unit,
     onExportPlaylist: (() -> Unit)? = null,
     onSharePlaylist: (() -> Unit)? = null,
@@ -4436,6 +4486,18 @@ private fun WearPlaylistHeroHeader(
                     Text("Share playlist")
                 }
             }
+            if (onDuplicatePlaylist != null) {
+                FilledTonalButton(
+                    onClick = {
+                        showMoreActionsDialog = false
+                        onDuplicatePlaylist()
+                    },
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(14.dp)
+                ) {
+                    Text("Duplicate playlist")
+                }
+            }
             if (canDeletePlaylist) {
                 Button(
                     onClick = {
@@ -4494,7 +4556,8 @@ private fun PlaylistHeroCard(
     canRenamePlaylist: Boolean = false,
     onDeleteAllEntries: () -> Unit,
     onExportPlaylist: (() -> Unit)? = null,
-    onSharePlaylist: (() -> Unit)? = null
+    onSharePlaylist: (() -> Unit)? = null,
+    onDuplicatePlaylist: (() -> Unit)? = null
 ) {
     var menuExpanded by rememberSaveable { mutableStateOf(false) }
     var sortMenuExpanded by rememberSaveable { mutableStateOf(false) }
@@ -4622,6 +4685,32 @@ private fun PlaylistHeroCard(
                             onClick = {
                                 menuExpanded = false
                                 onSharePlaylist()
+                            }
+                        )
+                    }
+                    if (onDuplicatePlaylist != null) {
+                        DropdownMenuItem(
+                            text = {
+                                Text(
+                                    text = "Duplicate playlist",
+                                    style = MaterialTheme.typography.bodyLarge
+                                )
+                            },
+                            leadingIcon = {
+                                Icon(
+                                    imageVector = Icons.Default.ContentCopy,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(22.dp)
+                                )
+                            },
+                            contentPadding = PaddingValues(start = 14.dp, end = 18.dp),
+                            colors = MenuDefaults.itemColors(
+                                textColor = MaterialTheme.colorScheme.onSurface,
+                                leadingIconColor = MaterialTheme.colorScheme.onSurfaceVariant
+                            ),
+                            onClick = {
+                                menuExpanded = false
+                                onDuplicatePlaylist()
                             }
                         )
                     }
@@ -4929,6 +5018,7 @@ internal fun PlaylistCoverCell(
 private fun FavoritesCollectionRow(
     favoriteCount: Int,
     onClick: () -> Unit,
+    onDuplicate: (() -> Unit)? = null,
     onExport: (() -> Unit)? = null,
     onShare: (() -> Unit)? = null,
     isWatch: Boolean = false
@@ -4946,6 +5036,7 @@ private fun FavoritesCollectionRow(
         iconContainerColor = MaterialTheme.colorScheme.primaryContainer,
         iconTint = MaterialTheme.colorScheme.onPrimaryContainer,
         onClick = onClick,
+        onDuplicate = onDuplicate,
         onExport = onExport,
         onShare = onShare,
         isWatch = isWatch
@@ -5784,6 +5875,7 @@ private fun PlaylistCollectionRow(
     playlist: StoredPlaylist,
     onClick: () -> Unit,
     onRename: (() -> Unit)? = null,
+    onDuplicate: (() -> Unit)? = null,
     onDelete: (() -> Unit)? = null,
     onExport: (() -> Unit)? = null,
     onShare: (() -> Unit)? = null,
@@ -5799,6 +5891,7 @@ private fun PlaylistCollectionRow(
         iconTint = MaterialTheme.colorScheme.onSurfaceVariant,
         onClick = onClick,
         onRename = onRename,
+        onDuplicate = onDuplicate,
         onDelete = onDelete,
         onExport = onExport,
         onShare = onShare,
@@ -5816,6 +5909,7 @@ private fun PlaylistLibraryFlatRow(
     iconTint: Color,
     onClick: () -> Unit,
     onRename: (() -> Unit)? = null,
+    onDuplicate: (() -> Unit)? = null,
     onDelete: (() -> Unit)? = null,
     onExport: (() -> Unit)? = null,
     onShare: (() -> Unit)? = null,
@@ -5831,7 +5925,7 @@ private fun PlaylistLibraryFlatRow(
                 .background(MaterialTheme.colorScheme.surfaceContainerLow)
                 .combinedClickable(
                     onClick = onClick,
-                    onLongClick = if (onRename != null || onDelete != null || onExport != null || onShare != null) {
+                    onLongClick = if (onRename != null || onDuplicate != null || onDelete != null || onExport != null || onShare != null) {
                         { wearActionsOpen = true }
                     } else null
                 )
@@ -5889,6 +5983,18 @@ private fun PlaylistLibraryFlatRow(
                         shape = RoundedCornerShape(14.dp)
                     ) {
                         Text("Rename")
+                    }
+                }
+                if (onDuplicate != null) {
+                    FilledTonalButton(
+                        onClick = {
+                            wearActionsOpen = false
+                            onDuplicate()
+                        },
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(14.dp)
+                    ) {
+                        Text("Duplicate")
                     }
                 }
                 if (onExport != null) {
@@ -5977,7 +6083,7 @@ private fun PlaylistLibraryFlatRow(
                     overflow = TextOverflow.Ellipsis
                 )
             }
-            if (onRename != null || onDelete != null || onExport != null || onShare != null) {
+            if (onRename != null || onDuplicate != null || onDelete != null || onExport != null || onShare != null) {
                 Box(
                     modifier = Modifier
                         .size(28.dp)
@@ -6017,6 +6123,32 @@ private fun PlaylistLibraryFlatRow(
                                 onClick = {
                                     menuExpanded = false
                                     onRename()
+                                }
+                            )
+                        }
+                        if (onDuplicate != null) {
+                            DropdownMenuItem(
+                                text = {
+                                    Text(
+                                        text = "Duplicate",
+                                        style = MaterialTheme.typography.bodyLarge
+                                    )
+                                },
+                                leadingIcon = {
+                                    Icon(
+                                        imageVector = Icons.Default.ContentCopy,
+                                        contentDescription = null,
+                                        modifier = Modifier.size(22.dp)
+                                    )
+                                },
+                                contentPadding = PaddingValues(start = 14.dp, end = 18.dp),
+                                colors = MenuDefaults.itemColors(
+                                    textColor = MaterialTheme.colorScheme.onSurface,
+                                    leadingIconColor = MaterialTheme.colorScheme.onSurfaceVariant
+                                ),
+                                onClick = {
+                                    menuExpanded = false
+                                    onDuplicate()
                                 }
                             )
                         }

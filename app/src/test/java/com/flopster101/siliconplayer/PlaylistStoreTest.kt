@@ -417,6 +417,33 @@ class PlaylistStoreTest {
         assertTrue(resolved!!.endsWith("Music/SyncedMusic/Chips/VGM/DS/Kirby Super Star Ultra (EMU).zophar/!playlist.m3u"))
     }
 
+    @Test
+    fun `duplicateStoredPlaylist creates new playlist with fresh ids and copy title`() {
+        val original = samplePlaylist("orig-id", "Chiptunes")
+        val duplicated = duplicateStoredPlaylist(original, "Chiptunes (Copy)")
+
+        assertTrue(duplicated.id != original.id)
+        assertEquals("Chiptunes (Copy)", duplicated.title)
+        assertEquals(PlaylistStoredFormat.Internal, duplicated.format)
+        assertEquals(original.entries.size, duplicated.entries.size)
+
+        for (i in original.entries.indices) {
+            val origEntry = original.entries[i]
+            val dupEntry = duplicated.entries[i]
+            assertTrue(dupEntry.id != origEntry.id)
+            assertEquals(origEntry.source, dupEntry.source)
+            assertEquals(origEntry.title, dupEntry.title)
+        }
+    }
+
+    @Test
+    fun `duplicateStoredPlaylist falls back to default copy title when blank`() {
+        val original = samplePlaylist("orig-id", "Soundtracks")
+        val duplicated = duplicateStoredPlaylist(original, "   ")
+
+        assertEquals("Soundtracks (Copy)", duplicated.title)
+    }
+
     private class FakeSharedPreferences : android.content.SharedPreferences {
         val map = mutableMapOf<String, Any?>()
 

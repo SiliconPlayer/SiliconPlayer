@@ -19,6 +19,8 @@ import androidx.compose.ui.Modifier
 @Composable
 internal fun NewPlaylistDialog(
     existingTitles: Set<String>,
+    dialogTitle: String = "Name your playlist",
+    confirmText: String = "Create",
     initialTitle: String? = null,
     onConfirm: (String) -> Unit,
     onDismiss: () -> Unit
@@ -35,9 +37,9 @@ internal fun NewPlaylistDialog(
     }
     var title by remember(existingTitles, initialTitle) { mutableStateOf(initialTitle?.trim().orEmpty()) }
     FloatingActionDialog(
-        title = "Name your playlist",
+        title = dialogTitle,
         onDismiss = onDismiss,
-        confirmText = "Create",
+        confirmText = confirmText,
         confirmEnabled = true,
         onConfirm = { onConfirm(title.trim().ifBlank { defaultTitle }) }
     ) {
