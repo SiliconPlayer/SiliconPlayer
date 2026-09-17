@@ -1262,6 +1262,10 @@ private fun AppNavigationPlaylistEffects(
             return@LaunchedEffect
         }
         val activeSourceId = currentPlaybackSourceId ?: selectedFile?.absolutePath ?: return@LaunchedEffect
+        val currentEntry = activePlaylist?.entries?.firstOrNull { it.id == activePlaylistEntryId }
+        if (currentEntry != null && playlistEntryMatchesPlayback(currentEntry, activeSourceId, currentSubtuneIndex)) {
+            return@LaunchedEffect
+        }
         val playbackMatchedEntry = activePlaylist
             ?.entries
             ?.firstOrNull { entry ->
@@ -4734,18 +4738,26 @@ filenameOnlyWhenTitleMissing = filenameOnlyWhenTitleMissing,
                     pendingPlaylistSubtuneSelection = null
                 } else if (!activePlaylistShuffleActive) {
                     activePlaylist = buildFavoritesPlaybackPlaylist(sortedFavorites)
-                    val playbackMatchedEntryId = sortedFavorites.firstOrNull { entry ->
-                        playlistEntryMatchesPlayback(
-                            entry = entry,
-                            activeSourceId = currentTrackPathOrUrl,
-                            currentSubtuneIndex = currentSubtuneIndex
-                        )
-                    }?.id
-                    val retainedEntryId = activePlaylistEntryId?.takeIf { currentId ->
-                        sortedFavorites.any { it.id == currentId }
+                    val retainedEntry = activePlaylistEntryId?.let { currentId ->
+                        sortedFavorites.firstOrNull { it.id == currentId }
                     }
-                    activePlaylistEntryId =
-                        playbackMatchedEntryId ?: retainedEntryId ?: sortedFavorites.first().id
+                    val retainedMatches = retainedEntry != null && playlistEntryMatchesPlayback(
+                        entry = retainedEntry,
+                        activeSourceId = currentTrackPathOrUrl,
+                        currentSubtuneIndex = currentSubtuneIndex
+                    )
+                    activePlaylistEntryId = if (retainedMatches) {
+                        retainedEntry?.id
+                    } else {
+                        val playbackMatchedEntryId = sortedFavorites.firstOrNull { entry ->
+                            playlistEntryMatchesPlayback(
+                                entry = entry,
+                                activeSourceId = currentTrackPathOrUrl,
+                                currentSubtuneIndex = currentSubtuneIndex
+                            )
+                        }?.id
+                        playbackMatchedEntryId ?: retainedEntry?.id ?: sortedFavorites.first().id
+                    }
                 }
             }
         }
@@ -4762,18 +4774,26 @@ filenameOnlyWhenTitleMissing = filenameOnlyWhenTitleMissing,
                     pendingPlaylistSubtuneSelection = null
                 } else {
                     activePlaylist = updatedPlaylist
-                    val playbackMatchedEntryId = updatedPlaylist.entries.firstOrNull { entry ->
-                        playlistEntryMatchesPlayback(
-                            entry = entry,
-                            activeSourceId = currentTrackPathOrUrl,
-                            currentSubtuneIndex = currentSubtuneIndex
-                        )
-                    }?.id
-                    val retainedEntryId = activePlaylistEntryId?.takeIf { currentId ->
-                        updatedPlaylist.entries.any { it.id == currentId }
+                    val retainedEntry = activePlaylistEntryId?.let { currentId ->
+                        updatedPlaylist.entries.firstOrNull { it.id == currentId }
                     }
-                    activePlaylistEntryId =
-                        playbackMatchedEntryId ?: retainedEntryId ?: updatedPlaylist.entries.first().id
+                    val retainedMatches = retainedEntry != null && playlistEntryMatchesPlayback(
+                        entry = retainedEntry,
+                        activeSourceId = currentTrackPathOrUrl,
+                        currentSubtuneIndex = currentSubtuneIndex
+                    )
+                    activePlaylistEntryId = if (retainedMatches) {
+                        retainedEntry?.id
+                    } else {
+                        val playbackMatchedEntryId = updatedPlaylist.entries.firstOrNull { entry ->
+                            playlistEntryMatchesPlayback(
+                                entry = entry,
+                                activeSourceId = currentTrackPathOrUrl,
+                                currentSubtuneIndex = currentSubtuneIndex
+                            )
+                        }?.id
+                        playbackMatchedEntryId ?: retainedEntry?.id ?: updatedPlaylist.entries.first().id
+                    }
                 }
             }
         }
@@ -4825,6 +4845,7 @@ filenameOnlyWhenTitleMissing = filenameOnlyWhenTitleMissing,
                         selectedArtistName = libraryDetail.selectedArtistName,
                         surfaceState = librarySurfaceState,
                         activePlaylist = activePlaylist,
+                        activePlaylistEntryId = activePlaylistEntryId,
                         favoritesSortMode = favoritesSortMode,
                         onOpenLibraryAlbum = { albumName, _ ->
                             libraryDetail.selectedAlbumName = albumName

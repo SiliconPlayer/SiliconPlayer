@@ -497,6 +497,7 @@ internal fun PlaylistsScreen(
     surfaceState: LibrarySurfaceState,
     onOpenLibrarySettings: () -> Unit,
     activePlaylist: StoredPlaylist?,
+    activePlaylistEntryId: String? = null,
     currentPlaybackSourceId: String?,
     currentPlaybackTitle: String? = null,
     currentPlaybackArtist: String? = null,
@@ -1145,6 +1146,8 @@ internal fun PlaylistsScreen(
                                 canReorderEntries = favoritesSortMode == PlaylistEntrySortMode.Custom,
                                 draggingEntryId = favoritesDraggingEntryId,
                                 onDraggingEntryIdChange = { favoritesDraggingEntryId = it },
+                                isPlaylistActive = activePlaylist?.id == "__favorites__",
+                                activePlaylistEntryId = activePlaylistEntryId,
                                 activeSourceId = currentPlaybackSourceId,
                                 currentSubtuneIndex = currentSubtuneIndex,
                                 onEntryClick = onOpenFavorite,
@@ -1215,6 +1218,8 @@ internal fun PlaylistsScreen(
                                     canReorderEntries = storedPlaylistSortMode == PlaylistEntrySortMode.Custom,
                                     draggingEntryId = storedPlaylistDraggingEntryId,
                                     onDraggingEntryIdChange = { storedPlaylistDraggingEntryId = it },
+                                    isPlaylistActive = activePlaylist?.id == playlist.id,
+                                    activePlaylistEntryId = activePlaylistEntryId,
                                     activeSourceId = currentPlaybackSourceId,
                                     currentSubtuneIndex = currentSubtuneIndex,
                                     onEntryClick = { entry -> onOpenStoredPlaylistEntry(entry, sortedStoredPlaylist) },
@@ -3699,6 +3704,8 @@ private fun LazyListScope.playlistDetailContent(
     canReorderEntries: Boolean,
     draggingEntryId: String?,
     onDraggingEntryIdChange: (String?) -> Unit,
+    isPlaylistActive: Boolean = false,
+    activePlaylistEntryId: String? = null,
     activeSourceId: String?,
     currentSubtuneIndex: Int,
     onEntryClick: (PlaylistTrackEntry) -> Unit,
@@ -3816,10 +3823,16 @@ private fun LazyListScope.playlistDetailContent(
             items = entries,
             key = { _, entry -> entry.id }
         ) { index, entry ->
-            val isActive = playlistEntryMatchesPlayback(
-                entry = entry,
-                activeSourceId = activeSourceId,
-                currentSubtuneIndex = currentSubtuneIndex
+            val isActive = isPlaylistActive && !activeSourceId.isNullOrBlank() && (
+                if (!activePlaylistEntryId.isNullOrBlank()) {
+                    entry.id == activePlaylistEntryId
+                } else {
+                    playlistEntryMatchesPlayback(
+                        entry = entry,
+                        activeSourceId = activeSourceId,
+                        currentSubtuneIndex = currentSubtuneIndex
+                    )
+                }
             )
             val canMoveUp = index > 0
             val canMoveDown = index < entries.lastIndex
