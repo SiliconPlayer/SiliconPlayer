@@ -490,6 +490,49 @@ class PlaylistStoreTest {
         assertTrue(!restored!!.isPinned)
     }
 
+    @Test
+    fun `removeStoredPlaylistEntries removes matching entries and updates timestamp`() {
+        val original = PlaylistLibraryState(
+            favorites = emptyList(),
+            playlists = listOf(
+                StoredPlaylist(
+                    id = "p1",
+                    title = "Test",
+                    format = PlaylistStoredFormat.Internal,
+                    sourceIdHint = null,
+                    entries = listOf(
+                        PlaylistTrackEntry(id = "e1", source = "s1", title = "Track 1"),
+                        PlaylistTrackEntry(id = "e2", source = "s2", title = "Track 2"),
+                        PlaylistTrackEntry(id = "e3", source = "s3", title = "Track 3")
+                    ),
+                    updatedAtMs = 100L
+                )
+            )
+        )
+
+        val updated = removeStoredPlaylistEntries(original, "p1", setOf("e1", "e3"))
+        val remaining = updated.playlists.first().entries
+        assertEquals(1, remaining.size)
+        assertEquals("e2", remaining.first().id)
+        assertTrue(updated.playlists.first().updatedAtMs >= 100L)
+    }
+
+    @Test
+    fun `removeFavoriteTracks removes multiple favorite entries`() {
+        val original = PlaylistLibraryState(
+            favorites = listOf(
+                PlaylistTrackEntry(id = "f1", source = "s1", title = "Fav 1"),
+                PlaylistTrackEntry(id = "f2", source = "s2", title = "Fav 2"),
+                PlaylistTrackEntry(id = "f3", source = "s3", title = "Fav 3")
+            ),
+            playlists = emptyList()
+        )
+
+        val updated = removeFavoriteTracks(original, setOf("f1", "f2"))
+        assertEquals(1, updated.favorites.size)
+        assertEquals("f3", updated.favorites.first().id)
+    }
+
     private class FakeSharedPreferences : android.content.SharedPreferences {
         val map = mutableMapOf<String, Any?>()
 

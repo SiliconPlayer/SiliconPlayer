@@ -122,6 +122,9 @@ import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Shuffle
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.filled.SwapVert
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.material3.Checkbox
+import androidx.compose.material.icons.filled.SelectAll
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -553,7 +556,9 @@ internal fun PlaylistsScreen(
     onTogglePinStoredPlaylist: (String) -> Unit = {},
     onRenameStoredPlaylist: (String, String) -> Unit = { _, _ -> },
     onOpenBrowser: () -> Unit = {},
-    onAppendStoredPlaylistEntries: (String, List<PlaylistTrackEntry>) -> Unit = { _, _ -> }
+    onAppendStoredPlaylistEntries: (String, List<PlaylistTrackEntry>) -> Unit = { _, _ -> },
+    onDeleteFavoriteTracks: (Set<String>) -> Unit = {},
+    onDeleteStoredPlaylistEntries: (String, Set<String>) -> Unit = { _, _ -> }
 ) {
     val context = LocalContext.current
     val isWatch = remember(context) { context.packageManager.hasSystemFeature(PackageManager.FEATURE_WATCH) }
@@ -777,15 +782,23 @@ internal fun PlaylistsScreen(
         mutableStateOf(PlaylistEntrySortMode.Custom)
     }
     var favoritesEditModeEnabled by rememberSaveable { mutableStateOf(false) }
+    var favoritesSelectedEntryIds by rememberSaveable { mutableStateOf(setOf<String>()) }
     var favoritesDraggingEntryId by remember { mutableStateOf<String?>(null) }
     var showDeleteAllFavoritesConfirm by rememberSaveable { mutableStateOf(false) }
+    var showDeleteSelectedFavoritesConfirm by rememberSaveable { mutableStateOf(false) }
     var storedPlaylistEditModeEnabled by rememberSaveable(selectedStoredPlaylistId) {
         mutableStateOf(false)
+    }
+    var storedPlaylistSelectedEntryIds by rememberSaveable(selectedStoredPlaylistId) {
+        mutableStateOf(setOf<String>())
     }
     var storedPlaylistDraggingEntryId by remember(selectedStoredPlaylistId) {
         mutableStateOf<String?>(null)
     }
     var showDeleteAllStoredPlaylistEntriesConfirm by rememberSaveable {
+        mutableStateOf(false)
+    }
+    var showDeleteSelectedStoredPlaylistEntriesConfirm by rememberSaveable {
         mutableStateOf(false)
     }
     var showCreatePlaylistDialog by remember { mutableStateOf(false) }
@@ -875,9 +888,23 @@ internal fun PlaylistsScreen(
         librarySearchResults = LibrarySearchResults("", emptyList(), emptyList(), emptyList())
     }
     BackHandler(enabled = backHandlingEnabled && showingPlaylistDetail) {
+        if (destination == PlaylistsSurfaceDestination.Favorites && favoritesEditModeEnabled) {
+            favoritesEditModeEnabled = false
+            favoritesSelectedEntryIds = emptySet()
+            favoritesDraggingEntryId = null
+            return@BackHandler
+        }
+        if (destination == PlaylistsSurfaceDestination.StoredPlaylist && storedPlaylistEditModeEnabled) {
+            storedPlaylistEditModeEnabled = false
+            storedPlaylistSelectedEntryIds = emptySet()
+            storedPlaylistDraggingEntryId = null
+            return@BackHandler
+        }
         favoritesEditModeEnabled = false
+        favoritesSelectedEntryIds = emptySet()
         favoritesDraggingEntryId = null
         storedPlaylistEditModeEnabled = false
+        storedPlaylistSelectedEntryIds = emptySet()
         storedPlaylistDraggingEntryId = null
         if (destination == PlaylistsSurfaceDestination.AlbumDetail && albumOpenedFromArtist) {
             albumOpenedFromArtist = false
@@ -897,6 +924,31 @@ internal fun PlaylistsScreen(
             libraryState.favorites.none { it.id == favoritesDraggingEntryId }
         if (!favoritesEditModeEnabled || !isCustomSort || missingDraggedEntry) {
             favoritesDraggingEntryId = null
+        }
+        if (!favoritesEditModeEnabled) {
+            favoritesSelectedEntryIds = emptySet()
+        } else {
+            val currentIds = libraryState.favorites.map { it.id }.toSet()
+            if (favoritesSelectedEntryIds.any { it !in currentIds }) {
+                favoritesSelectedEntryIds = favoritesSelectedEntryIds.filter { it in currentIds }.toSet()
+            }
+        }
+    }
+    LaunchedEffect(storedPlaylistEditModeEnabled, storedPlaylistSortMode, selectedStoredPlaylist?.entries) {
+        val isCustomSort = storedPlaylistSortMode == PlaylistEntrySortMode.Custom
+        val entries = selectedStoredPlaylist?.entries.orEmpty()
+        val missingDraggedEntry = storedPlaylistDraggingEntryId != null &&
+            entries.none { it.id == storedPlaylistDraggingEntryId }
+        if (!storedPlaylistEditModeEnabled || !isCustomSort || missingDraggedEntry) {
+            storedPlaylistDraggingEntryId = null
+        }
+        if (!storedPlaylistEditModeEnabled) {
+            storedPlaylistSelectedEntryIds = emptySet()
+        } else {
+            val currentIds = entries.map { it.id }.toSet()
+            if (storedPlaylistSelectedEntryIds.any { it !in currentIds }) {
+                storedPlaylistSelectedEntryIds = storedPlaylistSelectedEntryIds.filter { it in currentIds }.toSet()
+            }
         }
     }
     val sortedFavoriteEntries = remember(libraryState.favorites, favoritesSortMode) {
@@ -1022,33 +1074,50 @@ internal fun PlaylistsScreen(
                                 } else {
                                     IconButton(
                                         onClick = {
-                                    if (showingPlaylistDetail) {
-                                        favoritesEditModeEnabled = false
-                                        favoritesDraggingEntryId = null
-                                        if (destination == PlaylistsSurfaceDestination.AlbumDetail &&
-                                            albumOpenedFromArtist
-                                        ) {
-                                            albumOpenedFromArtist = false
-                                            destination = PlaylistsSurfaceDestination.ArtistDetail
-                                        } else if (destination == PlaylistsSurfaceDestination.ArtistDetail &&
-                                            artistOpenedFromAlbum
-                                        ) {
-                                            artistOpenedFromAlbum = false
-                                            destination = PlaylistsSurfaceDestination.AlbumDetail
-                                        } else {
-                                            albumOpenedFromArtist = false
-                                            destination = PlaylistsSurfaceDestination.Library
+                                            if (showingPlaylistDetail) {
+                                                if (destination == PlaylistsSurfaceDestination.Favorites && favoritesEditModeEnabled) {
+                                                    favoritesEditModeEnabled = false
+                                                    favoritesSelectedEntryIds = emptySet()
+                                                    favoritesDraggingEntryId = null
+                                                    return@IconButton
+                                                }
+                                                if (destination == PlaylistsSurfaceDestination.StoredPlaylist && storedPlaylistEditModeEnabled) {
+                                                    storedPlaylistEditModeEnabled = false
+                                                    storedPlaylistSelectedEntryIds = emptySet()
+                                                    storedPlaylistDraggingEntryId = null
+                                                    return@IconButton
+                                                }
+                                                favoritesEditModeEnabled = false
+                                                favoritesSelectedEntryIds = emptySet()
+                                                favoritesDraggingEntryId = null
+                                                storedPlaylistEditModeEnabled = false
+                                                storedPlaylistSelectedEntryIds = emptySet()
+                                                storedPlaylistDraggingEntryId = null
+                                                if (destination == PlaylistsSurfaceDestination.AlbumDetail &&
+                                                    albumOpenedFromArtist
+                                                ) {
+                                                    albumOpenedFromArtist = false
+                                                    destination = PlaylistsSurfaceDestination.ArtistDetail
+                                                } else if (destination == PlaylistsSurfaceDestination.ArtistDetail &&
+                                                    artistOpenedFromAlbum
+                                                ) {
+                                                    artistOpenedFromAlbum = false
+                                                    destination = PlaylistsSurfaceDestination.AlbumDetail
+                                                } else {
+                                                    albumOpenedFromArtist = false
+                                                    artistOpenedFromAlbum = false
+                                                    destination = PlaylistsSurfaceDestination.Library
+                                                }
+                                            } else {
+                                                onBack()
+                                            }
                                         }
-                                    } else {
-                                        onBack()
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                                            contentDescription = "Go back"
+                                        )
                                     }
-                                }
-                            ) {
-                                Icon(
-                                    imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                                    contentDescription = "Go back"
-                                )
-                            }
                         }
                     }
                 },
@@ -1209,75 +1278,111 @@ internal fun PlaylistsScreen(
                         }
                     }
                     PlaylistsSurfaceDestination.Favorites -> {
-                        LazyColumn(
-                            modifier = Modifier
-                                .fillMaxSize()
-                                .padding(actualInnerPadding),
-                            contentPadding = watchDetailContentPadding,
-                            verticalArrangement = if (isWatch) Arrangement.spacedBy(6.dp) else Arrangement.spacedBy(0.dp)
-                        ) {
-                            playlistDetailContent(
-                                title = "Favorites",
-                                entries = sortedFavoriteEntries,
-                                heroIcon = Icons.Default.Star,
-                                emptyBody = "Your favorites will show up here.",
-                                selectedSortMode = favoritesSortMode,
-                                onSortModeSelected = onFavoritesSortModeChange,
-                                isEditMode = favoritesEditModeEnabled,
-                                onEditModeChanged = { enabled ->
-                                    favoritesEditModeEnabled = enabled
-                                    if (!enabled) {
-                                        favoritesDraggingEntryId = null
+                        Box(modifier = Modifier.fillMaxSize()) {
+                            LazyColumn(
+                                modifier = Modifier
+                                    .fillMaxSize()
+                                    .padding(actualInnerPadding),
+                                contentPadding = watchDetailContentPadding,
+                                verticalArrangement = if (isWatch) Arrangement.spacedBy(6.dp) else Arrangement.spacedBy(0.dp)
+                            ) {
+                                playlistDetailContent(
+                                    title = "Favorites",
+                                    entries = sortedFavoriteEntries,
+                                    heroIcon = Icons.Default.Star,
+                                    emptyBody = "Your favorites will show up here.",
+                                    selectedSortMode = favoritesSortMode,
+                                    onSortModeSelected = onFavoritesSortModeChange,
+                                    isEditMode = favoritesEditModeEnabled,
+                                    onEditModeChanged = { enabled ->
+                                        favoritesEditModeEnabled = enabled
+                                        if (!enabled) {
+                                            favoritesDraggingEntryId = null
+                                            favoritesSelectedEntryIds = emptySet()
+                                        }
+                                    },
+                                    selectedEntryIds = favoritesSelectedEntryIds,
+                                    onToggleSelectEntry = { entryId ->
+                                        favoritesSelectedEntryIds = if (favoritesSelectedEntryIds.contains(entryId)) {
+                                            favoritesSelectedEntryIds - entryId
+                                        } else {
+                                            favoritesSelectedEntryIds + entryId
+                                        }
+                                    },
+                                    onSelectAllEntries = {
+                                        favoritesSelectedEntryIds = sortedFavoriteEntries.map { it.id }.toSet()
+                                    },
+                                    onClearSelectedEntries = {
+                                        favoritesSelectedEntryIds = emptySet()
+                                    },
+                                    onDeleteSelectedEntries = {
+                                        if (favoritesSelectedEntryIds.isNotEmpty()) {
+                                            showDeleteSelectedFavoritesConfirm = true
+                                        }
+                                    },
+                                    canReorderEntries = favoritesSortMode == PlaylistEntrySortMode.Custom,
+                                    draggingEntryId = favoritesDraggingEntryId,
+                                    onDraggingEntryIdChange = { favoritesDraggingEntryId = it },
+                                    isPlaylistActive = activePlaylist?.id == "__favorites__",
+                                    activePlaylistEntryId = activePlaylistEntryId,
+                                    activeSourceId = currentPlaybackSourceId,
+                                    currentSubtuneIndex = currentSubtuneIndex,
+                                    onEntryClick = onOpenFavorite,
+                                    onPlayPlaylist = onPlayFavoritePlaylist,
+                                    onShufflePlaylist = onShuffleFavoritePlaylist,
+                                    onDeletePlaylist = {},
+                                    canDeletePlaylist = false,
+                                    onRenamePlaylist = {},
+                                    canRenamePlaylist = false,
+                                    onDeleteAllEntries = { showDeleteAllFavoritesConfirm = true },
+                                    onPlayEntry = onOpenFavorite,
+                                    onPlayEntryAsCached = onPlayFavoriteTrackAsCached,
+                                    onDeleteEntry = onDeleteFavoriteTrack,
+                                    onMoveEntry = onMoveFavoriteTrack,
+                                    onOpenEntryLocation = onOpenFavoriteTrackLocation,
+                                    onShareEntry = onShareFavoriteTrack,
+                                    onCopyEntrySource = onCopyFavoriteTrackSource,
+                                    onOpenEntryInfo = { entry ->
+                                        trackInfoDialogState = buildPlaylistTrackInfoDialogState(
+                                            playlistTitle = "Favorites",
+                                            entry = entry,
+                                            networkNodes = networkNodes
+                                        )
+                                    },
+                                    onExportPlaylist = {
+                                        onExportPlaylistAction(favoritesAsStoredPlaylist(libraryState.favorites))
+                                    },
+                                    onSharePlaylist = {
+                                        onSharePlaylistAction(favoritesAsStoredPlaylist(libraryState.favorites))
+                                    },
+                                    onDuplicatePlaylist = {
+                                        playlistPendingDuplicate = favoritesAsStoredPlaylist(libraryState.favorites)
+                                    },
+                                    isHomePinned = isPlaylistPinnedToHome(FAVORITES_PLAYLIST_ID),
+                                    onToggleHomePin = {
+                                        togglePlaylistHomePin(FAVORITES_PLAYLIST_ID, "Favorites")
+                                    },
+                                    isWatch = isWatch,
+                                    onBack = {
+                                        if (favoritesEditModeEnabled) {
+                                            favoritesEditModeEnabled = false
+                                            favoritesSelectedEntryIds = emptySet()
+                                            favoritesDraggingEntryId = null
+                                        } else {
+                                            favoritesEditModeEnabled = false
+                                            favoritesSelectedEntryIds = emptySet()
+                                            favoritesDraggingEntryId = null
+                                            destination = PlaylistsSurfaceDestination.Library
+                                        }
                                     }
-                                },
-                                canReorderEntries = favoritesSortMode == PlaylistEntrySortMode.Custom,
-                                draggingEntryId = favoritesDraggingEntryId,
-                                onDraggingEntryIdChange = { favoritesDraggingEntryId = it },
-                                isPlaylistActive = activePlaylist?.id == "__favorites__",
-                                activePlaylistEntryId = activePlaylistEntryId,
-                                activeSourceId = currentPlaybackSourceId,
-                                currentSubtuneIndex = currentSubtuneIndex,
-                                onEntryClick = onOpenFavorite,
-                                onPlayPlaylist = onPlayFavoritePlaylist,
-                                onShufflePlaylist = onShuffleFavoritePlaylist,
-                                onDeletePlaylist = {},
-                                canDeletePlaylist = false,
-                                onRenamePlaylist = {},
-                                canRenamePlaylist = false,
-                                onDeleteAllEntries = { showDeleteAllFavoritesConfirm = true },
-                                onPlayEntry = onOpenFavorite,
-                                onPlayEntryAsCached = onPlayFavoriteTrackAsCached,
-                                onDeleteEntry = onDeleteFavoriteTrack,
-                                onMoveEntry = onMoveFavoriteTrack,
-                                onOpenEntryLocation = onOpenFavoriteTrackLocation,
-                                onShareEntry = onShareFavoriteTrack,
-                                onCopyEntrySource = onCopyFavoriteTrackSource,
-                                onOpenEntryInfo = { entry ->
-                                    trackInfoDialogState = buildPlaylistTrackInfoDialogState(
-                                        playlistTitle = "Favorites",
-                                        entry = entry,
-                                        networkNodes = networkNodes
-                                    )
-                                },
-                                onExportPlaylist = {
-                                    onExportPlaylistAction(favoritesAsStoredPlaylist(libraryState.favorites))
-                                },
-                                onSharePlaylist = {
-                                    onSharePlaylistAction(favoritesAsStoredPlaylist(libraryState.favorites))
-                                },
-                                onDuplicatePlaylist = {
-                                    playlistPendingDuplicate = favoritesAsStoredPlaylist(libraryState.favorites)
-                                },
-                                isHomePinned = isPlaylistPinnedToHome(FAVORITES_PLAYLIST_ID),
-                                onToggleHomePin = {
-                                    togglePlaylistHomePin(FAVORITES_PLAYLIST_ID, "Favorites")
-                                },
-                                isWatch = isWatch,
-                                onBack = {
-                                    favoritesEditModeEnabled = false
-                                    favoritesDraggingEntryId = null
-                                    destination = PlaylistsSurfaceDestination.Library
-                                }
+                                )
+                            }
+                            PlaylistSelectionFloatingBar(
+                                isVisible = favoritesEditModeEnabled && favoritesSelectedEntryIds.isNotEmpty() && !isWatch,
+                                selectedCount = favoritesSelectedEntryIds.size,
+                                bottomPadding = bottomContentPadding,
+                                onDelete = { showDeleteSelectedFavoritesConfirm = true },
+                                modifier = Modifier.align(Alignment.BottomCenter)
                             )
                         }
                     }
@@ -1290,84 +1395,120 @@ internal fun PlaylistsScreen(
                                 sortMode = storedPlaylistSortMode
                             )
                             val sortedStoredPlaylist = playlist.copy(entries = sortedStoredPlaylistEntries)
-                            LazyColumn(
-                                modifier = Modifier
-                                    .fillMaxSize()
-                                    .padding(actualInnerPadding),
-                                contentPadding = watchDetailContentPadding,
-                                verticalArrangement = if (isWatch) Arrangement.spacedBy(6.dp) else Arrangement.spacedBy(0.dp)
-                            ) {
-                                playlistDetailContent(
-                                    title = playlist.title,
-                                    entries = sortedStoredPlaylistEntries,
-                                    heroIcon = Icons.Default.LibraryMusic,
-                                    emptyBody = "This playlist has no tracks.",
-                                    selectedSortMode = storedPlaylistSortMode,
-                                    onSortModeSelected = { storedPlaylistSortMode = it },
-                                    isEditMode = storedPlaylistEditModeEnabled,
-                                    onEditModeChanged = { enabled ->
-                                        storedPlaylistEditModeEnabled = enabled
-                                        if (!enabled) {
-                                            storedPlaylistDraggingEntryId = null
+                            Box(modifier = Modifier.fillMaxSize()) {
+                                LazyColumn(
+                                    modifier = Modifier
+                                        .fillMaxSize()
+                                        .padding(actualInnerPadding),
+                                    contentPadding = watchDetailContentPadding,
+                                    verticalArrangement = if (isWatch) Arrangement.spacedBy(6.dp) else Arrangement.spacedBy(0.dp)
+                                ) {
+                                    playlistDetailContent(
+                                        title = playlist.title,
+                                        entries = sortedStoredPlaylistEntries,
+                                        heroIcon = Icons.Default.LibraryMusic,
+                                        emptyBody = "This playlist has no tracks.",
+                                        selectedSortMode = storedPlaylistSortMode,
+                                        onSortModeSelected = { storedPlaylistSortMode = it },
+                                        isEditMode = storedPlaylistEditModeEnabled,
+                                        onEditModeChanged = { enabled ->
+                                            storedPlaylistEditModeEnabled = enabled
+                                            if (!enabled) {
+                                                storedPlaylistDraggingEntryId = null
+                                                storedPlaylistSelectedEntryIds = emptySet()
+                                            }
+                                        },
+                                        selectedEntryIds = storedPlaylistSelectedEntryIds,
+                                        onToggleSelectEntry = { entryId ->
+                                            storedPlaylistSelectedEntryIds = if (storedPlaylistSelectedEntryIds.contains(entryId)) {
+                                                storedPlaylistSelectedEntryIds - entryId
+                                            } else {
+                                                storedPlaylistSelectedEntryIds + entryId
+                                            }
+                                        },
+                                        onSelectAllEntries = {
+                                            storedPlaylistSelectedEntryIds = sortedStoredPlaylistEntries.map { it.id }.toSet()
+                                        },
+                                        onClearSelectedEntries = {
+                                            storedPlaylistSelectedEntryIds = emptySet()
+                                        },
+                                        onDeleteSelectedEntries = {
+                                            if (storedPlaylistSelectedEntryIds.isNotEmpty()) {
+                                                showDeleteSelectedStoredPlaylistEntriesConfirm = true
+                                            }
+                                        },
+                                        showAddAction = true,
+                                        onAddClick = { showAddTracksSourceSheet = true },
+                                        showEditAction = true,
+                                        showDeleteAllEntriesAction = true,
+                                        canReorderEntries = storedPlaylistSortMode == PlaylistEntrySortMode.Custom,
+                                        draggingEntryId = storedPlaylistDraggingEntryId,
+                                        onDraggingEntryIdChange = { storedPlaylistDraggingEntryId = it },
+                                        isPlaylistActive = activePlaylist?.id == playlist.id,
+                                        activePlaylistEntryId = activePlaylistEntryId,
+                                        activeSourceId = currentPlaybackSourceId,
+                                        currentSubtuneIndex = currentSubtuneIndex,
+                                        onEntryClick = { entry -> onOpenStoredPlaylistEntry(entry, sortedStoredPlaylist) },
+                                        onPlayPlaylist = { onPlayStoredPlaylist(sortedStoredPlaylist) },
+                                        onShufflePlaylist = { onShuffleStoredPlaylist(sortedStoredPlaylist) },
+                                        onDeletePlaylist = { playlistPendingDelete = playlist },
+                                        canDeletePlaylist = true,
+                                        onRenamePlaylist = { playlistPendingRename = playlist },
+                                        canRenamePlaylist = true,
+                                        onDeleteAllEntries = { showDeleteAllStoredPlaylistEntriesConfirm = true },
+                                        onPlayEntry = { entry -> onOpenStoredPlaylistEntry(entry, sortedStoredPlaylist) },
+                                        onPlayEntryAsCached = { entry ->
+                                            onPlayStoredPlaylistTrackAsCached(entry, sortedStoredPlaylist)
+                                        },
+                                        onDeleteEntry = { entry ->
+                                            onDeleteStoredPlaylistEntry(entry, playlist.id)
+                                        },
+                                        onMoveEntry = { entry, offset ->
+                                            onMoveStoredPlaylistEntry(entry, playlist.id, offset)
+                                        },
+                                        onOpenEntryLocation = onOpenFavoriteTrackLocation,
+                                        onShareEntry = onShareFavoriteTrack,
+                                        onCopyEntrySource = onCopyFavoriteTrackSource,
+                                        onOpenEntryInfo = { entry ->
+                                            trackInfoDialogState = buildPlaylistTrackInfoDialogState(
+                                                playlistTitle = playlist.title,
+                                                entry = entry,
+                                                networkNodes = networkNodes
+                                            )
+                                        },
+                                        showPlayAsCachedAction = true,
+                                        showLocationAction = true,
+                                        showShareAction = true,
+                                        showCopySourceAction = true,
+                                        showInfoAction = true,
+                                        onExportPlaylist = { onExportPlaylistAction(sortedStoredPlaylist) },
+                                        onSharePlaylist = { onSharePlaylistAction(sortedStoredPlaylist) },
+                                        onDuplicatePlaylist = { playlistPendingDuplicate = playlist },
+                                        isPlaylistPinned = playlist.isPinned,
+                                        onTogglePinPlaylist = { onTogglePinStoredPlaylist(playlist.id) },
+                                        isHomePinned = isPlaylistPinnedToHome(playlist.id),
+                                        onToggleHomePin = { togglePlaylistHomePin(playlist.id, playlist.title) },
+                                        isWatch = isWatch,
+                                        onBack = {
+                                            if (storedPlaylistEditModeEnabled) {
+                                                storedPlaylistEditModeEnabled = false
+                                                storedPlaylistSelectedEntryIds = emptySet()
+                                                storedPlaylistDraggingEntryId = null
+                                            } else {
+                                                storedPlaylistEditModeEnabled = false
+                                                storedPlaylistSelectedEntryIds = emptySet()
+                                                storedPlaylistDraggingEntryId = null
+                                                destination = PlaylistsSurfaceDestination.Library
+                                            }
                                         }
-                                    },
-                                    showAddAction = true,
-                                    onAddClick = { showAddTracksSourceSheet = true },
-                                    showEditAction = true,
-                                    showDeleteAllEntriesAction = true,
-                                    canReorderEntries = storedPlaylistSortMode == PlaylistEntrySortMode.Custom,
-                                    draggingEntryId = storedPlaylistDraggingEntryId,
-                                    onDraggingEntryIdChange = { storedPlaylistDraggingEntryId = it },
-                                    isPlaylistActive = activePlaylist?.id == playlist.id,
-                                    activePlaylistEntryId = activePlaylistEntryId,
-                                    activeSourceId = currentPlaybackSourceId,
-                                    currentSubtuneIndex = currentSubtuneIndex,
-                                    onEntryClick = { entry -> onOpenStoredPlaylistEntry(entry, sortedStoredPlaylist) },
-                                    onPlayPlaylist = { onPlayStoredPlaylist(sortedStoredPlaylist) },
-                                    onShufflePlaylist = { onShuffleStoredPlaylist(sortedStoredPlaylist) },
-                                    onDeletePlaylist = { playlistPendingDelete = playlist },
-                                    canDeletePlaylist = true,
-                                    onRenamePlaylist = { playlistPendingRename = playlist },
-                                    canRenamePlaylist = true,
-                                    onDeleteAllEntries = { showDeleteAllStoredPlaylistEntriesConfirm = true },
-                                    onPlayEntry = { entry -> onOpenStoredPlaylistEntry(entry, sortedStoredPlaylist) },
-                                    onPlayEntryAsCached = { entry ->
-                                        onPlayStoredPlaylistTrackAsCached(entry, sortedStoredPlaylist)
-                                    },
-                                    onDeleteEntry = { entry ->
-                                        onDeleteStoredPlaylistEntry(entry, playlist.id)
-                                    },
-                                    onMoveEntry = { entry, offset ->
-                                        onMoveStoredPlaylistEntry(entry, playlist.id, offset)
-                                    },
-                                    onOpenEntryLocation = onOpenFavoriteTrackLocation,
-                                    onShareEntry = onShareFavoriteTrack,
-                                    onCopyEntrySource = onCopyFavoriteTrackSource,
-                                    onOpenEntryInfo = { entry ->
-                                        trackInfoDialogState = buildPlaylistTrackInfoDialogState(
-                                            playlistTitle = playlist.title,
-                                            entry = entry,
-                                            networkNodes = networkNodes
-                                        )
-                                    },
-                                    showPlayAsCachedAction = true,
-                                    showLocationAction = true,
-                                    showShareAction = true,
-                                    showCopySourceAction = true,
-                                    showInfoAction = true,
-                                    onExportPlaylist = { onExportPlaylistAction(sortedStoredPlaylist) },
-                                    onSharePlaylist = { onSharePlaylistAction(sortedStoredPlaylist) },
-                                    onDuplicatePlaylist = { playlistPendingDuplicate = playlist },
-                                    isPlaylistPinned = playlist.isPinned,
-                                    onTogglePinPlaylist = { onTogglePinStoredPlaylist(playlist.id) },
-                                    isHomePinned = isPlaylistPinnedToHome(playlist.id),
-                                    onToggleHomePin = { togglePlaylistHomePin(playlist.id, playlist.title) },
-                                    isWatch = isWatch,
-                                    onBack = {
-                                        storedPlaylistEditModeEnabled = false
-                                        storedPlaylistDraggingEntryId = null
-                                        destination = PlaylistsSurfaceDestination.Library
-                                    }
+                                    )
+                                }
+                                PlaylistSelectionFloatingBar(
+                                    isVisible = storedPlaylistEditModeEnabled && storedPlaylistSelectedEntryIds.isNotEmpty() && !isWatch,
+                                    selectedCount = storedPlaylistSelectedEntryIds.size,
+                                    bottomPadding = bottomContentPadding,
+                                    onDelete = { showDeleteSelectedStoredPlaylistEntriesConfirm = true },
+                                    modifier = Modifier.align(Alignment.BottomCenter)
                                 )
                             }
                         } else {
@@ -1999,6 +2140,126 @@ internal fun PlaylistsScreen(
                 },
                 dismissButton = {
                     TextButton(onClick = { showDeleteAllStoredPlaylistEntriesConfirm = false }) {
+                        Text("Cancel")
+                    }
+                }
+            )
+        }
+    }
+    if (showDeleteSelectedFavoritesConfirm) {
+        val count = favoritesSelectedEntryIds.size
+        if (isWatch) {
+            WatchDialogContainer(
+                title = "Remove tracks?",
+                onDismissRequest = { showDeleteSelectedFavoritesConfirm = false }
+            ) {
+                Text(
+                    text = "Remove $count ${if (count == 1) "track" else "tracks"} from Favorites?",
+                    style = MaterialTheme.typography.bodyMedium,
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp)
+                )
+                Button(
+                    onClick = {
+                        showDeleteSelectedFavoritesConfirm = false
+                        val toDelete = favoritesSelectedEntryIds.toSet()
+                        favoritesSelectedEntryIds = emptySet()
+                        onDeleteFavoriteTracks(toDelete)
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error),
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(14.dp)
+                ) {
+                    Text("Remove")
+                }
+                TextButton(
+                    onClick = { showDeleteSelectedFavoritesConfirm = false },
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text("Cancel")
+                }
+            }
+        } else {
+            AlertDialog(
+                onDismissRequest = { showDeleteSelectedFavoritesConfirm = false },
+                title = { Text(if (count == 1) "Remove track from Favorites?" else "Remove $count tracks from Favorites?") },
+                text = { Text("Are you sure you want to remove ${if (count == 1) "this track" else "the selected tracks"} from Favorites?") },
+                confirmButton = {
+                    TextButton(
+                        onClick = {
+                            showDeleteSelectedFavoritesConfirm = false
+                            val toDelete = favoritesSelectedEntryIds.toSet()
+                            favoritesSelectedEntryIds = emptySet()
+                            onDeleteFavoriteTracks(toDelete)
+                        }
+                    ) {
+                        Text("Remove", color = MaterialTheme.colorScheme.error)
+                    }
+                },
+                dismissButton = {
+                    TextButton(onClick = { showDeleteSelectedFavoritesConfirm = false }) {
+                        Text("Cancel")
+                    }
+                }
+            )
+        }
+    }
+    if (showDeleteSelectedStoredPlaylistEntriesConfirm) {
+        val count = storedPlaylistSelectedEntryIds.size
+        if (isWatch) {
+            WatchDialogContainer(
+                title = "Remove tracks?",
+                onDismissRequest = { showDeleteSelectedStoredPlaylistEntriesConfirm = false }
+            ) {
+                Text(
+                    text = "Remove $count ${if (count == 1) "track" else "tracks"} from this playlist?",
+                    style = MaterialTheme.typography.bodyMedium,
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp)
+                )
+                Button(
+                    onClick = {
+                        showDeleteSelectedStoredPlaylistEntriesConfirm = false
+                        val toDelete = storedPlaylistSelectedEntryIds.toSet()
+                        storedPlaylistSelectedEntryIds = emptySet()
+                        selectedStoredPlaylistId?.let { playlistId ->
+                            onDeleteStoredPlaylistEntries(playlistId, toDelete)
+                        }
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error),
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(14.dp)
+                ) {
+                    Text("Remove")
+                }
+                TextButton(
+                    onClick = { showDeleteSelectedStoredPlaylistEntriesConfirm = false },
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text("Cancel")
+                }
+            }
+        } else {
+            AlertDialog(
+                onDismissRequest = { showDeleteSelectedStoredPlaylistEntriesConfirm = false },
+                title = { Text(if (count == 1) "Remove track from playlist?" else "Remove $count tracks from playlist?") },
+                text = { Text("Are you sure you want to remove ${if (count == 1) "this track" else "the selected tracks"} from this playlist?") },
+                confirmButton = {
+                    TextButton(
+                        onClick = {
+                            showDeleteSelectedStoredPlaylistEntriesConfirm = false
+                            val toDelete = storedPlaylistSelectedEntryIds.toSet()
+                            storedPlaylistSelectedEntryIds = emptySet()
+                            selectedStoredPlaylistId?.let { playlistId ->
+                                onDeleteStoredPlaylistEntries(playlistId, toDelete)
+                            }
+                        }
+                    ) {
+                        Text("Remove", color = MaterialTheme.colorScheme.error)
+                    }
+                },
+                dismissButton = {
+                    TextButton(onClick = { showDeleteSelectedStoredPlaylistEntriesConfirm = false }) {
                         Text("Cancel")
                     }
                 }
@@ -4116,6 +4377,11 @@ private fun LazyListScope.playlistDetailContent(
     onSortModeSelected: (PlaylistEntrySortMode) -> Unit,
     isEditMode: Boolean,
     onEditModeChanged: (Boolean) -> Unit,
+    selectedEntryIds: Set<String> = emptySet(),
+    onToggleSelectEntry: (String) -> Unit = {},
+    onSelectAllEntries: () -> Unit = {},
+    onClearSelectedEntries: () -> Unit = {},
+    onDeleteSelectedEntries: () -> Unit = {},
     showAddAction: Boolean = true,
     onAddClick: () -> Unit = {},
     showEditAction: Boolean = true,
@@ -4212,7 +4478,11 @@ private fun LazyListScope.playlistDetailContent(
                 isPlaylistPinned = isPlaylistPinned,
                 onTogglePinPlaylist = onTogglePinPlaylist,
                 isHomePinned = isHomePinned,
-                onToggleHomePin = onToggleHomePin
+                onToggleHomePin = onToggleHomePin,
+                selectedEntryIds = selectedEntryIds,
+                onSelectAll = onSelectAllEntries,
+                onClearSelection = onClearSelectedEntries,
+                onDeleteSelected = onDeleteSelectedEntries
             )
         }
     }
@@ -4281,6 +4551,8 @@ private fun LazyListScope.playlistDetailContent(
                 isActive = isActive,
                 isDragged = draggingEntryId == entry.id,
                 editModeEnabled = isEditMode,
+                isSelected = selectedEntryIds.contains(entry.id),
+                onToggleSelect = { onToggleSelectEntry(entry.id) },
                 canReorder = canReorderEntries,
                 canMoveUp = canMoveUp,
                 canMoveDown = canMoveDown,
@@ -4663,7 +4935,11 @@ private fun PlaylistHeroCard(
     isPlaylistPinned: Boolean = false,
     onTogglePinPlaylist: (() -> Unit)? = null,
     isHomePinned: Boolean = false,
-    onToggleHomePin: (() -> Unit)? = null
+    onToggleHomePin: (() -> Unit)? = null,
+    selectedEntryIds: Set<String> = emptySet(),
+    onSelectAll: () -> Unit = {},
+    onClearSelection: () -> Unit = {},
+    onDeleteSelected: () -> Unit = {}
 ) {
     var menuExpanded by rememberSaveable { mutableStateOf(false) }
     var sortMenuExpanded by rememberSaveable { mutableStateOf(false) }
@@ -4955,57 +5231,85 @@ private fun PlaylistHeroCard(
                 .horizontalScroll(rememberScrollState()),
             horizontalArrangement = Arrangement.spacedBy(8.dp)
         ) {
-            if (showAddAction) {
+            if (isEditMode) {
                 PlaylistActionPill(
-                    label = "Add",
-                    icon = Icons.Default.Add,
-                    onClick = onAddClick
+                    label = "Done",
+                    icon = Icons.Default.Check,
+                    containerColor = MaterialTheme.colorScheme.primaryContainer,
+                    contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
+                    onClick = { onEditModeChanged(false) }
                 )
-            }
-            if (showEditAction) {
-                PlaylistActionPill(
-                    label = if (isEditMode) "Done" else "Edit",
-                    icon = if (isEditMode) Icons.Default.Check else Icons.Default.Edit,
-                    onClick = { onEditModeChanged(!isEditMode) }
-                )
-            }
-            Box {
-                PlaylistActionPill(
-                    label = "Sort",
-                    icon = Icons.Default.SwapVert,
-                    onClick = { sortMenuExpanded = true }
-                )
-                DropdownMenu(
-                    expanded = sortMenuExpanded,
-                    onDismissRequest = { sortMenuExpanded = false }
-                ) {
-                    PlaylistEntrySortMode.entries.forEach { mode ->
-                        DropdownMenuItem(
-                            text = {
-                                Text(
-                                    text = mode.label,
-                                    style = MaterialTheme.typography.bodyLarge
-                                )
-                            },
-                            leadingIcon = if (mode == selectedSortMode) {
-                                {
-                                    Icon(
-                                        imageVector = Icons.Default.Check,
-                                        contentDescription = null,
-                                        modifier = Modifier.size(22.dp)
+                if (entries.isNotEmpty()) {
+                    val allSelected = selectedEntryIds.size == entries.size
+                    PlaylistActionPill(
+                        label = if (allSelected) "Deselect all" else "Select all",
+                        icon = if (allSelected) Icons.Default.Close else Icons.Default.SelectAll,
+                        onClick = {
+                            if (allSelected) onClearSelection() else onSelectAll()
+                        }
+                    )
+                    PlaylistActionPill(
+                        label = if (selectedEntryIds.isNotEmpty()) "Remove (${selectedEntryIds.size})" else "Remove",
+                        icon = Icons.Default.Delete,
+                        enabled = selectedEntryIds.isNotEmpty(),
+                        containerColor = if (selectedEntryIds.isNotEmpty()) MaterialTheme.colorScheme.errorContainer else MaterialTheme.colorScheme.surfaceContainerHigh,
+                        contentColor = if (selectedEntryIds.isNotEmpty()) MaterialTheme.colorScheme.onErrorContainer else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.38f),
+                        onClick = onDeleteSelected
+                    )
+                }
+            } else {
+                if (showAddAction) {
+                    PlaylistActionPill(
+                        label = "Add",
+                        icon = Icons.Default.Add,
+                        onClick = onAddClick
+                    )
+                }
+                if (showEditAction) {
+                    PlaylistActionPill(
+                        label = "Edit",
+                        icon = Icons.Default.Edit,
+                        onClick = { onEditModeChanged(true) }
+                    )
+                }
+                Box {
+                    PlaylistActionPill(
+                        label = "Sort",
+                        icon = Icons.Default.SwapVert,
+                        onClick = { sortMenuExpanded = true }
+                    )
+                    DropdownMenu(
+                        expanded = sortMenuExpanded,
+                        onDismissRequest = { sortMenuExpanded = false }
+                    ) {
+                        PlaylistEntrySortMode.entries.forEach { mode ->
+                            DropdownMenuItem(
+                                text = {
+                                    Text(
+                                        text = mode.label,
+                                        style = MaterialTheme.typography.bodyLarge
                                     )
+                                },
+                                leadingIcon = if (mode == selectedSortMode) {
+                                    {
+                                        Icon(
+                                            imageVector = Icons.Default.Check,
+                                            contentDescription = null,
+                                            modifier = Modifier.size(22.dp)
+                                        )
+                                    }
+                                } else null,
+                                contentPadding = PaddingValues(start = 14.dp, end = 18.dp),
+                                colors = MenuDefaults.itemColors(
+                                    textColor = MaterialTheme.colorScheme.onSurface,
+                                    leadingIconColor = MaterialTheme.colorScheme.primary
+                                ),
+                                onClick = {
+                                    sortMenuExpanded = false
+                                    onSortModeSelected(mode)
                                 }
-                            } else null,
-                            contentPadding = PaddingValues(start = 14.dp, end = 18.dp),
-                            colors = MenuDefaults.itemColors(
-                                textColor = MaterialTheme.colorScheme.onSurface,
-                                leadingIconColor = MaterialTheme.colorScheme.primary
-                            ),
-                            onClick = {
-                                sortMenuExpanded = false
-                                onSortModeSelected(mode)
-                            }
-                        )
+                            )
+                        }
                     }
                 }
             }
@@ -5017,12 +5321,17 @@ private fun PlaylistHeroCard(
 private fun PlaylistActionPill(
     label: String,
     icon: ImageVector,
-    onClick: () -> Unit
+    onClick: () -> Unit,
+    enabled: Boolean = true,
+    containerColor: androidx.compose.ui.graphics.Color = MaterialTheme.colorScheme.surfaceContainerHigh,
+    contentColor: androidx.compose.ui.graphics.Color = MaterialTheme.colorScheme.onSurface
 ) {
     val pillShape = RoundedCornerShape(18.dp)
     Surface(
-        modifier = Modifier.clip(pillShape).clickable(onClick = onClick),
-        color = MaterialTheme.colorScheme.surfaceContainerHigh,
+        modifier = Modifier
+            .clip(pillShape)
+            .let { if (enabled) it.clickable(onClick = onClick) else it },
+        color = containerColor,
         shape = pillShape
     ) {
         Row(
@@ -5033,12 +5342,66 @@ private fun PlaylistActionPill(
             Icon(
                 imageVector = icon,
                 contentDescription = null,
+                tint = contentColor,
                 modifier = Modifier.size(15.dp)
             )
             Text(
                 text = label,
+                color = contentColor,
                 style = MaterialTheme.typography.labelMedium
             )
+        }
+    }
+}
+
+@Composable
+private fun PlaylistSelectionFloatingBar(
+    isVisible: Boolean,
+    selectedCount: Int,
+    bottomPadding: androidx.compose.ui.unit.Dp,
+    onDelete: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    AnimatedVisibility(
+        visible = isVisible,
+        enter = slideInVertically { it } + fadeIn(),
+        exit = slideOutVertically { it } + fadeOut(),
+        modifier = modifier.padding(bottom = bottomPadding + 16.dp)
+    ) {
+        Surface(
+            shape = RoundedCornerShape(24.dp),
+            color = MaterialTheme.colorScheme.surfaceContainerHighest,
+            shadowElevation = 6.dp,
+            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
+        ) {
+            Row(
+                modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = if (selectedCount == 1) "1 track selected" else "$selectedCount tracks selected",
+                    style = MaterialTheme.typography.labelLarge,
+                    color = MaterialTheme.colorScheme.onSurface
+                )
+                androidx.compose.material3.FilledTonalButton(
+                    onClick = onDelete,
+                    colors = ButtonDefaults.filledTonalButtonColors(
+                        containerColor = MaterialTheme.colorScheme.errorContainer,
+                        contentColor = MaterialTheme.colorScheme.onErrorContainer
+                    ),
+                    shape = RoundedCornerShape(16.dp),
+                    contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Delete,
+                        contentDescription = null,
+                        modifier = Modifier.size(16.dp)
+                    )
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Text("Remove")
+                }
+            }
         }
     }
 }
@@ -5282,6 +5645,8 @@ private fun PlaylistTrackRow(
     isActive: Boolean,
     isDragged: Boolean,
     editModeEnabled: Boolean,
+    isSelected: Boolean = false,
+    onToggleSelect: () -> Unit = {},
     canReorder: Boolean,
     canMoveUp: Boolean,
     canMoveDown: Boolean,
@@ -5318,17 +5683,26 @@ private fun PlaylistTrackRow(
                 .fillMaxWidth()
                 .clip(RoundedCornerShape(14.dp))
                 .background(
-                    if (isActive) MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.45f)
-                    else MaterialTheme.colorScheme.surfaceContainerLow
+                    when {
+                        isActive -> MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.45f)
+                        editModeEnabled && isSelected -> MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.28f)
+                        else -> MaterialTheme.colorScheme.surfaceContainerLow
+                    }
                 )
                 .combinedClickable(
-                    onClick = onClick,
+                    onClick = if (editModeEnabled) onToggleSelect else onClick,
                     onLongClick = { wearActionSheetOpen = true }
                 )
                 .padding(horizontal = 10.dp, vertical = 8.dp),
             horizontalArrangement = Arrangement.spacedBy(10.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
+            if (editModeEnabled) {
+                Checkbox(
+                    checked = isSelected,
+                    onCheckedChange = { onToggleSelect() }
+                )
+            }
             PlaylistTrackArtworkChip(
                 entry = entry,
                 isActive = isActive,
@@ -5542,14 +5916,14 @@ private fun PlaylistTrackRow(
             }
         }
     } else {
-        val draggedHighlightColor by animateColorAsState(
-            targetValue = if (isDragged) {
-                MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.56f)
-            } else {
-                Color.Transparent
+        val rowHighlightColor by animateColorAsState(
+            targetValue = when {
+                isDragged -> MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.56f)
+                editModeEnabled && isSelected -> MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.28f)
+                else -> Color.Transparent
             },
             animationSpec = tween(durationMillis = 140, easing = LinearOutSlowInEasing),
-            label = "playlistRowDraggedHighlight"
+            label = "playlistRowHighlight"
         )
         val draggedScale by animateFloatAsState(
             targetValue = if (isDragged) 1.014f else 1f,
@@ -5569,18 +5943,24 @@ private fun PlaylistTrackRow(
                         scaleY = draggedScale
                     }
                     .clip(RoundedCornerShape(14.dp))
-                    .background(draggedHighlightColor)
+                    .background(rowHighlightColor)
                     .let { base ->
                         if (editModeEnabled) {
-                            base
+                            base.clickable(onClick = onToggleSelect)
                         } else {
                             base.clickable(onClick = onClick)
                         }
                     }
-                    .padding(start = 6.dp, top = 10.dp, end = 2.dp, bottom = 10.dp),
+                    .padding(start = if (editModeEnabled) 2.dp else 6.dp, top = 10.dp, end = 2.dp, bottom = 10.dp),
                 horizontalArrangement = Arrangement.spacedBy(12.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
+                if (editModeEnabled) {
+                    Checkbox(
+                        checked = isSelected,
+                        onCheckedChange = { onToggleSelect() }
+                    )
+                }
                 PlaylistTrackArtworkChip(
                     entry = entry,
                     isActive = isActive,

@@ -150,13 +150,22 @@ internal fun removeStoredPlaylistEntry(
     playlistId: String,
     entryId: String
 ): PlaylistLibraryState {
+    return removeStoredPlaylistEntries(state, playlistId, setOf(entryId))
+}
+
+internal fun removeStoredPlaylistEntries(
+    state: PlaylistLibraryState,
+    playlistId: String,
+    entryIds: Set<String>
+): PlaylistLibraryState {
+    if (entryIds.isEmpty()) return state
     return state.copy(
         playlists = state.playlists.map { playlist ->
             if (playlist.id != playlistId) {
                 playlist
             } else {
                 playlist.copy(
-                    entries = playlist.entries.filterNot { it.id == entryId },
+                    entries = playlist.entries.filterNot { it.id in entryIds },
                     updatedAtMs = System.currentTimeMillis()
                 )
             }
@@ -264,8 +273,16 @@ internal fun removeFavoriteTrack(
     state: PlaylistLibraryState,
     favoriteId: String
 ): PlaylistLibraryState {
+    return removeFavoriteTracks(state, setOf(favoriteId))
+}
+
+internal fun removeFavoriteTracks(
+    state: PlaylistLibraryState,
+    favoriteIds: Set<String>
+): PlaylistLibraryState {
+    if (favoriteIds.isEmpty()) return state
     return state.copy(
-        favorites = state.favorites.filterNot { it.id == favoriteId }
+        favorites = state.favorites.filterNot { it.id in favoriteIds }
     )
 }
 

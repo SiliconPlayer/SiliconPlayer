@@ -387,7 +387,9 @@ internal fun AppNavigationPlaylistsContentSection(
     onRenameStoredPlaylist: (String, String) -> Unit = { _, _ -> },
     onOpenBrowser: () -> Unit = { onCurrentViewChanged(MainView.Browser) },
     onAppendStoredPlaylistEntries: (String, List<PlaylistTrackEntry>) -> Unit = { _, _ -> },
-    onTogglePinStoredPlaylist: (String) -> Unit = {}
+    onTogglePinStoredPlaylist: (String) -> Unit = {},
+    onDeleteFavoriteTracks: (Set<String>) -> Unit = {},
+    onDeleteStoredPlaylistEntries: (String, Set<String>) -> Unit = { _, _ -> }
 ) {
     AppNavigationPlaylistsRouteSection(
         mainPadding = mainPadding,
@@ -443,7 +445,9 @@ internal fun AppNavigationPlaylistsContentSection(
         onRenameStoredPlaylist = onRenameStoredPlaylist,
         onOpenBrowser = onOpenBrowser,
         onAppendStoredPlaylistEntries = onAppendStoredPlaylistEntries,
-        onTogglePinStoredPlaylist = onTogglePinStoredPlaylist
+        onTogglePinStoredPlaylist = onTogglePinStoredPlaylist,
+        onDeleteFavoriteTracks = onDeleteFavoriteTracks,
+        onDeleteStoredPlaylistEntries = onDeleteStoredPlaylistEntries
     )
 }
 
@@ -727,6 +731,8 @@ internal fun AppNavigationMainContentHost(
     onRenameStoredPlaylist: (String, String) -> Unit = { _, _ -> },
     onAppendStoredPlaylistEntries: (String, List<PlaylistTrackEntry>) -> Unit = { _, _ -> },
     onTogglePinStoredPlaylist: (String) -> Unit = {},
+    onDeleteFavoriteTracks: (Set<String>) -> Unit = {},
+    onDeleteStoredPlaylistEntries: (String, Set<String>) -> Unit = { _, _ -> },
     onOpenBrowser: (BrowserOpenRequest) -> Unit,
     onCurrentViewChanged: (MainView) -> Unit,
     onOpenUrlOrPathDialog: () -> Unit,
@@ -998,6 +1004,8 @@ internal fun AppNavigationMainContentHost(
                 onRenameStoredPlaylist = onRenameStoredPlaylist,
                 onAppendStoredPlaylistEntries = onAppendStoredPlaylistEntries,
                 onTogglePinStoredPlaylist = onTogglePinStoredPlaylist,
+                onDeleteFavoriteTracks = onDeleteFavoriteTracks,
+                onDeleteStoredPlaylistEntries = onDeleteStoredPlaylistEntries,
                 pinnedHomeEntries = pinnedHomeEntries,
                 surfaceState = surfaceState
             )

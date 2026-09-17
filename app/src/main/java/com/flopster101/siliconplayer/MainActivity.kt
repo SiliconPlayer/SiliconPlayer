@@ -5048,6 +5048,17 @@ filenameOnlyWhenTitleMissing = filenameOnlyWhenTitleMissing,
                         Toast.makeText(context, "Removed from favorites", Toast.LENGTH_SHORT).show()
                     }
                 },
+                onDeleteFavoriteTracks = { entryIds ->
+                    if (entryIds.isNotEmpty()) {
+                        val updatedState = removeFavoriteTracks(playlistLibraryState, entryIds)
+                        if (updatedState != playlistLibraryState) {
+                            onPlaylistLibraryStateChanged(updatedState)
+                            syncActiveFavoritesContextAfterMutation(updatedState.favorites)
+                            val msg = if (entryIds.size == 1) "Removed track from favorites" else "Removed ${entryIds.size} tracks from favorites"
+                            Toast.makeText(context, msg, Toast.LENGTH_SHORT).show()
+                        }
+                    }
+                },
                 onMoveFavoriteTrack = { entry, offset ->
                     val updatedState = moveFavoriteTrack(playlistLibraryState, entry.id, offset)
                     if (updatedState != playlistLibraryState) {
@@ -5123,6 +5134,17 @@ filenameOnlyWhenTitleMissing = filenameOnlyWhenTitleMissing,
                         onPlaylistLibraryStateChanged(updatedState)
                         syncActiveStoredPlaylistContextAfterMutation(playlistId)
                         Toast.makeText(context, "Removed from playlist", Toast.LENGTH_SHORT).show()
+                    }
+                },
+                onDeleteStoredPlaylistEntries = { playlistId, entryIds ->
+                    if (entryIds.isNotEmpty()) {
+                        val updatedState = removeStoredPlaylistEntries(playlistLibraryState, playlistId, entryIds)
+                        if (updatedState != playlistLibraryState) {
+                            onPlaylistLibraryStateChanged(updatedState)
+                            syncActiveStoredPlaylistContextAfterMutation(playlistId)
+                            val msg = if (entryIds.size == 1) "Removed track from playlist" else "Removed ${entryIds.size} tracks from playlist"
+                            Toast.makeText(context, msg, Toast.LENGTH_SHORT).show()
+                        }
                     }
                 },
                 onMoveStoredPlaylistEntry = { entry, playlistId, offset ->
