@@ -156,5 +156,140 @@ class PlaylistStoreTest {
         org.junit.Assert.assertFalse(playlistContainsTrack(entries, "file:///music/multitune.sid", 3))
         org.junit.Assert.assertFalse(playlistContainsTrack(entries, "file:///music/other.mod"))
     }
+
+    @Test
+    fun `readStoredPlaylistFromJson preserves empty playlist`() {
+        val playlist = StoredPlaylist(
+            id = "empty-p1",
+            title = "Empty Playlist",
+            format = PlaylistStoredFormat.Internal,
+            sourceIdHint = null,
+            entries = emptyList(),
+            updatedAtMs = 12345L
+        )
+
+        val json = writeStoredPlaylistToJson(playlist)
+        val restored = readStoredPlaylistFromJson(json)
+
+        org.junit.Assert.assertNotNull(restored)
+        assertEquals("empty-p1", restored?.id)
+        assertEquals("Empty Playlist", restored?.title)
+        assertTrue(restored?.entries?.isEmpty() == true)
+        assertEquals(12345L, restored?.updatedAtMs)
+    }
+
+    @Test
+    fun `readStoredPlaylistFromJson rejects playlist with blank title`() {
+        val json = """{"id":"p1","title":"   ","format":"internal","entries":[]}"""
+        val restored = readStoredPlaylistFromJson(json)
+        org.junit.Assert.assertNull(restored)
+    }
+
+    @Test
+    fun `writePlaylistLibraryState and readPlaylistLibraryState preserves empty playlists`() {
+        val prefs = FakeSharedPreferences()
+        val originalState = PlaylistLibraryState(
+            favorites = emptyList(),
+            playlists = listOf(
+                StoredPlaylist(
+                    id = "empty-p1",
+                    title = "My Test Playlist",
+                    format = PlaylistStoredFormat.Internal,
+                    sourceIdHint = null,
+                    entries = emptyList(),
+                    updatedAtMs = 5000L
+                )
+            )
+        )
+
+        writePlaylistLibraryState(prefs, originalState)
+        val loadedState = readPlaylistLibraryState(prefs)
+
+        assertEquals(1, loadedState.playlists.size)
+        val loadedPlaylist = loadedState.playlists.first()
+        assertEquals("empty-p1", loadedPlaylist.id)
+        assertEquals("My Test Playlist", loadedPlaylist.title)
+        assertTrue(loadedPlaylist.entries.isEmpty())
+        assertEquals(5000L, loadedPlaylist.updatedAtMs)
+    }
+
+    @Test
+    fun `writePlaylistLibraryState and readPlaylistLibraryState round-trips favorites and playlists with tracks`() {
+        val prefs = FakeSharedPreferences()
+        val originalState = PlaylistLibraryState(
+            favorites = listOf(
+                PlaylistTrackEntry(
+                    id = "fav-1",
+                    source = "file:///music/fav.mod",
+                    title = "Favorite Song",
+                    artist = "Artist",
+                    album = "Album",
+                    subtuneIndex = 1
+                )
+            ),
+            playlists = listOf(
+                samplePlaylist("p1", "Playlist With Tracks"),
+                StoredPlaylist(
+                    id = "empty-p2",
+                    title = "Empty Playlist 2",
+                    format = PlaylistStoredFormat.Internal,
+                    sourceIdHint = null,
+                    entries = emptyList(),
+                    updatedAtMs = 2000L
+                )
+            )
+        )
+
+        writePlaylistLibraryState(prefs, originalState)
+        val loadedState = readPlaylistLibraryState(prefs)
+
+        assertEquals(1, loadedState.favorites.size)
+        assertEquals("fav-1", loadedState.favorites.first().id)
+        assertEquals("Favorite Song", loadedState.favorites.first().title)
+        assertEquals(2, loadedState.playlists.size)
+        assertEquals("p1", loadedState.playlists[0].id)
+        assertEquals(2, loadedState.playlists[0].entries.size)
+        assertEquals("empty-p2", loadedState.playlists[1].id)
+        assertTrue(loadedState.playlists[1].entries.isEmpty())
+    }
+
+    private class FakeSharedPreferences : android.content.SharedPreferences {
+        val map = mutableMapOf<String, Any?>()
+
+        override fun getAll(): MutableMap<String, *> = map.toMutableMap()
+        override fun getString(key: String?, defValue: String?): String? = map[key] as? String ?: defValue
+        @Suppress("UNCHECKED_CAST")
+        override fun getStringSet(key: String?, defValues: MutableSet<String>?): MutableSet<String>? = map[key] as? MutableSet<String> ?: defValues
+        override fun getInt(key: String?, defValue: Int): Int = map[key] as? Int ?: defValue
+        override fun getLong(key: String?, defValue: Long): Long = map[key] as? Long ?: defValue
+        override fun getFloat(key: String?, defValue: Float): Float = map[key] as? Float ?: defValue
+        override fun getBoolean(key: String?, defValue: Boolean): Boolean = map[key] as? Boolean ?: defValue
+        override fun contains(key: String?): Boolean = map.containsKey(key)
+        override fun edit(): android.content.SharedPreferences.Editor = FakeEditor(this)
+        override fun registerOnSharedPreferenceChangeListener(listener: android.content.SharedPreferences.OnSharedPreferenceChangeListener?) {}
+        override fun unregisterOnSharedPreferenceChangeListener(listener: android.content.SharedPreferences.OnSharedPreferenceChangeListener?) {}
+
+        class FakeEditor(private val prefs: FakeSharedPreferences) : android.content.SharedPreferences.Editor {
+            private val temp = mutableMapOf<String, Any?>()
+            private val removed = mutableSetOf<String>()
+            private var clear = false
+
+            override fun putString(key: String?, value: String?): android.content.SharedPreferences.Editor = apply { key?.let { temp[it] = value } }
+            override fun putStringSet(key: String?, values: MutableSet<String>?): android.content.SharedPreferences.Editor = apply { key?.let { temp[it] = values } }
+            override fun putInt(key: String?, value: Int): android.content.SharedPreferences.Editor = apply { key?.let { temp[it] = value } }
+            override fun putLong(key: String?, value: Long): android.content.SharedPreferences.Editor = apply { key?.let { temp[it] = value } }
+            override fun putFloat(key: String?, value: Float): android.content.SharedPreferences.Editor = apply { key?.let { temp[it] = value } }
+            override fun putBoolean(key: String?, value: Boolean): android.content.SharedPreferences.Editor = apply { key?.let { temp[it] = value } }
+            override fun remove(key: String?): android.content.SharedPreferences.Editor = apply { key?.let { removed.add(it) } }
+            override fun clear(): android.content.SharedPreferences.Editor = apply { clear = true }
+            override fun commit(): Boolean {
+                if (clear) prefs.map.clear()
+                removed.forEach { prefs.map.remove(it) }
+                prefs.map.putAll(temp)
+                return true
+            }
+            override fun apply() { commit() }
+        }
+    }
 }
 

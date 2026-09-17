@@ -64,7 +64,7 @@ internal fun writePlaylistLibraryState(
         )
     prefs.edit()
         .putString(AppPreferenceKeys.PLAYLIST_LIBRARY_JSON, root.toString())
-        .apply()
+        .commit()
 }
 
 internal fun upsertStoredPlaylist(
@@ -288,9 +288,9 @@ private fun readStoredPlaylists(array: JSONArray): List<StoredPlaylist> {
 
 private fun readStoredPlaylist(item: JSONObject): StoredPlaylist? {
     val title = item.optString(STORED_PLAYLIST_TITLE_KEY).trim()
-    val entriesArray = item.optJSONArray(STORED_PLAYLIST_ENTRIES_KEY) ?: return null
-    val entries = readPlaylistTrackEntries(entriesArray)
-    if (title.isBlank() || entries.isEmpty()) return null
+    if (title.isBlank()) return null
+    val entriesArray = item.optJSONArray(STORED_PLAYLIST_ENTRIES_KEY)
+    val entries = if (entriesArray != null) readPlaylistTrackEntries(entriesArray) else emptyList()
     return StoredPlaylist(
         id = item.optString(STORED_PLAYLIST_ID_KEY).trim().ifBlank { java.util.UUID.randomUUID().toString() },
         title = title,

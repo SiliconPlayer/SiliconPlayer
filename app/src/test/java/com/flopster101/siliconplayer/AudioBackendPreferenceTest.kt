@@ -47,14 +47,8 @@ class AudioBackendPreferenceTest {
 
     @Test
     fun defaultPerformanceMode_configuredAppropriately() {
-        assertEquals(AudioPerformanceMode.LowLatency, AudioBackendPreference.Auto.defaultPerformanceMode())
-        assertEquals(AudioPerformanceMode.LowLatency, AudioBackendPreference.AAudio.defaultPerformanceMode())
-        assertEquals(AudioPerformanceMode.LowLatency, AudioBackendPreference.WASAPI.defaultPerformanceMode())
-        assertEquals(AudioPerformanceMode.LowLatency, AudioBackendPreference.ALSA.defaultPerformanceMode())
-        assertEquals(AudioPerformanceMode.LowLatency, AudioBackendPreference.PulseAudio.defaultPerformanceMode())
-        assertEquals(AudioPerformanceMode.LowLatency, AudioBackendPreference.JACK.defaultPerformanceMode())
-        assertEquals(AudioPerformanceMode.LowLatency, AudioBackendPreference.CoreAudio.defaultPerformanceMode())
-        assertEquals(AudioPerformanceMode.None, AudioBackendPreference.OpenSLES.defaultPerformanceMode())
-        assertEquals(AudioPerformanceMode.None, AudioBackendPreference.NullAudio.defaultPerformanceMode())
+        AudioBackendPreference.entries.forEach { backend ->
+            assertEquals(AudioPerformanceMode.None, backend.defaultPerformanceMode())
+        }
     }
 }
