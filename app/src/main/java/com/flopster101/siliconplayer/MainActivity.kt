@@ -806,14 +806,6 @@ private fun resolveFavoriteEntryForPlayback(
     }
 }
 
-private fun sanitizePlaylistTrackRequestUrlHint(
-    source: String,
-    requestUrlHint: String?
-): String? {
-    val normalizedHint = requestUrlHint?.trim().takeUnless { it.isNullOrBlank() } ?: return null
-    return normalizedHint.takeUnless { it == source.trim() }
-}
-
 private fun buildFavoriteEntryForSource(
     context: Context,
     sourceId: String,
@@ -1179,47 +1171,6 @@ private fun createLibraryActionHandlers(
             }
         }
     )
-}
-
-private fun mergeFavoritePlaybackMetadata(
-    playlistLibraryState: PlaylistLibraryState,
-    favoriteId: String,
-    title: String,
-    artist: String?,
-    album: String?,
-    artworkThumbnailCacheKey: String?,
-    durationSecondsOverride: Double?,
-    requestUrlHint: String?
-): PlaylistLibraryState {
-    val normalizedTitle = title.trim()
-    val normalizedArtist = artist?.trim().takeUnless { it.isNullOrBlank() }
-    val normalizedAlbum = album?.trim().takeUnless { it.isNullOrBlank() }
-    val normalizedArtworkKey = artworkThumbnailCacheKey?.trim().takeUnless { it.isNullOrBlank() }
-    val normalizedDurationOverride = durationSecondsOverride?.takeIf { it.isFinite() && it > 0.0 }
-    var changed = false
-    val updatedFavorites = playlistLibraryState.favorites.map { entry ->
-        if (entry.id != favoriteId) return@map entry
-        val updatedEntry = entry.copy(
-            title = normalizedTitle.ifBlank { entry.title },
-            artist = normalizedArtist ?: entry.artist,
-            album = normalizedAlbum ?: entry.album,
-            artworkThumbnailCacheKey = normalizedArtworkKey ?: entry.artworkThumbnailCacheKey,
-            durationSecondsOverride = normalizedDurationOverride ?: entry.durationSecondsOverride,
-            requestUrlHint = sanitizePlaylistTrackRequestUrlHint(
-                source = entry.source,
-                requestUrlHint = requestUrlHint
-            ) ?: entry.requestUrlHint
-        )
-        if (updatedEntry != entry) {
-            changed = true
-        }
-        updatedEntry
-    }
-    return if (changed) {
-        playlistLibraryState.copy(favorites = updatedFavorites)
-    } else {
-        playlistLibraryState
-    }
 }
 
 @Composable
@@ -1956,6 +1907,11 @@ private fun AppNavigation(
         val listener = android.content.SharedPreferences.OnSharedPreferenceChangeListener { _, key ->
             if (key == AppPreferenceKeys.VISUALIZATION_KEEP_SCREEN_ON) {
                 visualizationKeepScreenOn = prefs.getBoolean(key, AppDefaults.Visualization.keepScreenOn)
+            } else if (key == AppPreferenceKeys.PLAYLIST_LIBRARY_JSON) {
+                val updated = readPlaylistLibraryState(prefs)
+                if (updated != playlistLibraryState) {
+                    playlistLibraryState = updated
+                }
             }
         }
         prefs.registerOnSharedPreferenceChangeListener(listener)
@@ -2378,37 +2334,36 @@ private fun AppNavigation(
 
     LaunchedEffect(
         isPlaying,
-        currentFavoriteEntry?.id,
         currentTrackPathOrUrl,
+        currentSubtuneIndex,
         effectiveMetadataTitle,
         effectiveMetadataArtist,
-        effectiveMetadataAlbum
+        effectiveMetadataAlbum,
+        effectiveDuration
     ) {
         if (!isPlaying) return@LaunchedEffect
-        val favoriteEntry = currentFavoriteEntry ?: return@LaunchedEffect
         val sourceId = currentTrackPathOrUrl ?: return@LaunchedEffect
         val resolvedArtist = effectiveMetadataArtist.trim().ifBlank {
-            favoriteEntry.artist?.trim().takeUnless { it.isNullOrBlank() } ?: "Unknown artist"
+            currentFavoriteEntry?.artist?.trim()?.takeUnless { it.isBlank() } ?: "Unknown artist"
         }
-        val artworkCacheKey = if (favoriteEntry.artworkThumbnailCacheKey.isNullOrBlank()) {
-            withContext(Dispatchers.IO) {
-                ensureRecentArtworkThumbnailCached(
-                    context = context,
-                    sourceId = sourceId,
-                    requestUrlHint = currentPlaybackRequestUrl
-                )
-            }
-        } else {
-            favoriteEntry.artworkThumbnailCacheKey
+        val artworkCacheKey = withContext(Dispatchers.IO) {
+            ensureRecentArtworkThumbnailCached(
+                context = context,
+                sourceId = sourceId,
+                requestUrlHint = currentPlaybackRequestUrl
+            )
         }
-        val updatedState = mergeFavoritePlaybackMetadata(
-            playlistLibraryState = playlistLibraryState,
-            favoriteId = favoriteEntry.id,
+        val isDurationReliable = hasReliableDuration(playbackCapabilitiesFlags)
+        val updatedState = mergeTrackPlaybackMetadata(
+            state = playlistLibraryState,
+            activeSourceId = sourceId,
+            currentSubtuneIndex = currentSubtuneIndex,
             title = effectiveMetadataTitle,
             artist = resolvedArtist,
             album = effectiveMetadataAlbum,
             artworkThumbnailCacheKey = artworkCacheKey,
-            durationSecondsOverride = playlistDurationOverride,
+            durationSecondsOverride = effectiveDuration.takeIf { isDurationReliable && it.isFinite() && it > 0.0 },
+            clearDurationIfUnreliable = !isDurationReliable,
             requestUrlHint = currentPlaybackRequestUrl
         )
         if (updatedState != playlistLibraryState) {
@@ -3017,6 +2972,7 @@ onStopEngine = { NativeBridge.releaseCurrentDecoder() }, onMetadataAlbumChanged 
     val onRemoveLibraryTracksFromFavoritesAction = libraryActions.onRemoveFavorites
     val onAddLibraryTracksToPlaylistAction = libraryActions.onAddToPlaylist
     val toggleCurrentTrackFavoriteAction: () -> Unit = {
+        val isDurationReliable = hasReliableDuration(playbackCapabilitiesFlags)
         toggleCurrentTrackFavorite(
             context = context,
             playlistLibraryState = playlistLibraryState,
@@ -3026,7 +2982,11 @@ onStopEngine = { NativeBridge.releaseCurrentDecoder() }, onMetadataAlbumChanged 
             metadataTitle = effectiveMetadataTitle,
             metadataArtist = effectiveMetadataArtist,
             metadataAlbum = effectiveMetadataAlbum,
-            durationSecondsOverride = playlistDurationOverride,
+            durationSecondsOverride = if (isDurationReliable) {
+                effectiveDuration.takeIf { it.isFinite() && it > 0.0 }
+            } else {
+                null
+            },
             subtuneCount = subtuneCount,
             currentSubtuneIndex = currentSubtuneIndex,
             onPlaylistLibraryStateChanged = onPlaylistLibraryStateChanged
@@ -4002,6 +3962,7 @@ onStopEngine = { NativeBridge.releaseCurrentDecoder() }, onMetadataAlbumChanged 
                 val activeSourceId = settingsStates.currentPlaybackSourceId.value?.takeIf { it.isNotBlank() }
                     ?: selectedFile?.absolutePath
                 if (!activeSourceId.isNullOrBlank()) {
+                    val isDurationReliable = hasReliableDuration(playbackCapabilitiesFlags)
                     val entry = buildFavoriteEntryForSource(
                         context = context,
                         sourceId = activeSourceId,
@@ -4010,7 +3971,11 @@ onStopEngine = { NativeBridge.releaseCurrentDecoder() }, onMetadataAlbumChanged 
                         metadataTitle = effectiveMetadataTitle,
                         metadataArtist = effectiveMetadataArtist,
                         metadataAlbum = effectiveMetadataAlbum,
-                        durationSecondsOverride = playlistDurationOverride,
+                        durationSecondsOverride = if (isDurationReliable) {
+                            effectiveDuration.takeIf { it.isFinite() && it > 0.0 }
+                        } else {
+                            null
+                        },
                         subtuneCount = subtuneCount,
                         currentSubtuneIndex = currentSubtuneIndex
                     )

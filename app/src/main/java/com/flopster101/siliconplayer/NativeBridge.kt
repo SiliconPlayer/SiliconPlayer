@@ -284,6 +284,23 @@ object NativeBridge {
 
     external fun setFastTrackSwitchStartupHint(enabled: Boolean)
     external fun getSupportedExtensions(): Array<String>
+    external fun probeTrackMetadata(path: String, subtuneIndex: Int): Array<String?>?
+
+    data class TrackMetadataProbeResult(
+        val title: String?,
+        val artist: String?,
+        val album: String?,
+        val durationSeconds: Double?
+    )
+
+    fun probeMetadata(path: String, subtuneIndex: Int = -1): TrackMetadataProbeResult? {
+        val result = runCatching { probeTrackMetadata(path, subtuneIndex) }.getOrNull() ?: return null
+        val title = result.getOrNull(0)?.trim()?.takeIf { it.isNotBlank() }
+        val artist = result.getOrNull(1)?.trim()?.takeIf { it.isNotBlank() }
+        val album = result.getOrNull(2)?.trim()?.takeIf { it.isNotBlank() }
+        val durationSeconds = result.getOrNull(3)?.toDoubleOrNull()?.takeIf { it.isFinite() && it > 0.0 }
+        return TrackMetadataProbeResult(title, artist, album, durationSeconds)
+    }
     external fun setLooping(enabled: Boolean)
     external fun setRepeatMode(mode: Int)
     external fun getTrackTitle(): String

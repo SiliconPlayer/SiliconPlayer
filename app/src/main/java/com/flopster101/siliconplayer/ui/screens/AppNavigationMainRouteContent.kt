@@ -389,7 +389,8 @@ internal fun AppNavigationPlaylistsContentSection(
     onAppendStoredPlaylistEntries: (String, List<PlaylistTrackEntry>) -> Unit = { _, _ -> },
     onTogglePinStoredPlaylist: (String) -> Unit = {},
     onDeleteFavoriteTracks: (Set<String>) -> Unit = {},
-    onDeleteStoredPlaylistEntries: (String, Set<String>) -> Unit = { _, _ -> }
+    onDeleteStoredPlaylistEntries: (String, Set<String>) -> Unit = { _, _ -> },
+    onPlaylistLibraryStateChanged: (PlaylistLibraryState) -> Unit = {}
 ) {
     AppNavigationPlaylistsRouteSection(
         mainPadding = mainPadding,
@@ -447,7 +448,8 @@ internal fun AppNavigationPlaylistsContentSection(
         onAppendStoredPlaylistEntries = onAppendStoredPlaylistEntries,
         onTogglePinStoredPlaylist = onTogglePinStoredPlaylist,
         onDeleteFavoriteTracks = onDeleteFavoriteTracks,
-        onDeleteStoredPlaylistEntries = onDeleteStoredPlaylistEntries
+        onDeleteStoredPlaylistEntries = onDeleteStoredPlaylistEntries,
+        onPlaylistLibraryStateChanged = onPlaylistLibraryStateChanged
     )
 }
 
@@ -1007,7 +1009,8 @@ internal fun AppNavigationMainContentHost(
                 onDeleteFavoriteTracks = onDeleteFavoriteTracks,
                 onDeleteStoredPlaylistEntries = onDeleteStoredPlaylistEntries,
                 pinnedHomeEntries = pinnedHomeEntries,
-                surfaceState = surfaceState
+                surfaceState = surfaceState,
+                onPlaylistLibraryStateChanged = onPlaylistLibraryStateChanged
             )
         },
         networkContent = { mainPadding ->

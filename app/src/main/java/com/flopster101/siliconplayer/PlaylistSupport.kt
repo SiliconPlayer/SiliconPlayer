@@ -15,6 +15,7 @@ import java.util.Locale
 import java.util.UUID
 import kotlin.math.roundToInt
 import com.flopster101.siliconplayer.library.LibraryTrackEntity
+import com.flopster101.siliconplayer.data.parseArchiveSourceId
 
 private val SUPPORTED_PLAYLIST_EXTENSIONS = setOf("m3u", "m3u8")
 
@@ -68,6 +69,7 @@ internal data class PlaylistTrackEntry(
     val source: String,
     val requestUrlHint: String? = null,
     val title: String,
+    val customTitle: String? = null,
     val artist: String? = null,
     val album: String? = null,
     val artworkThumbnailCacheKey: String? = null,
@@ -75,6 +77,31 @@ internal data class PlaylistTrackEntry(
     val durationSecondsOverride: Double? = null,
     val addedAtMs: Long = System.currentTimeMillis()
 )
+
+internal val PlaylistTrackEntry.effectiveTitle: String
+    get() = customTitle?.trim()?.takeIf { it.isNotEmpty() } ?: title
+
+internal fun sanitizePlaylistTrackRequestUrlHint(
+    source: String,
+    requestUrlHint: String?
+): String? {
+    val normalizedHint = requestUrlHint?.trim().takeUnless { it.isNullOrBlank() } ?: return null
+    return normalizedHint.takeUnless { it == source.trim() }
+}
+
+internal fun isRemotePlaylistSource(sourceId: String): Boolean {
+    val normalized = sourceId.trim()
+    if (normalized.isEmpty()) return false
+    val scheme = Uri.parse(normalized).scheme?.lowercase(Locale.ROOT)
+    if (scheme == "http" || scheme == "https" || scheme == "smb") return true
+    if (scheme == "archive") {
+        val parsed = parseArchiveSourceId(normalized) ?: return false
+        return parseHttpSourceSpecFromInput(parsed.archivePath) != null ||
+            parseSmbSourceSpecFromInput(parsed.archivePath) != null
+    }
+    return parseHttpSourceSpecFromInput(normalized) != null ||
+        parseSmbSourceSpecFromInput(normalized) != null
+}
 
 internal data class StoredPlaylist(
     val id: String = UUID.randomUUID().toString(),

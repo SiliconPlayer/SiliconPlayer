@@ -2,6 +2,7 @@
 #include <string>
 #include <cstdint>
 #include <cstring>
+#include <cmath>
 #include "AudioEngine.h"
 #include "ChannelScopeTrigger.h"
 #include "decoders/DecoderRegistry.h"
@@ -2909,4 +2910,75 @@ Java_com_flopster101_siliconplayer_NativeBridge_setDecoderEnabledExtensions(
 
     DecoderRegistry::getInstance().setDecoderEnabledExtensions(name, extVector);
     env->ReleaseStringUTFChars(decoderName, name);
+}
+
+extern "C" JNIEXPORT jobjectArray JNICALL
+Java_com_flopster101_siliconplayer_NativeBridge_probeTrackMetadata(
+        JNIEnv* env, jobject, jstring pathStr, jint subtuneIndex) {
+    if (pathStr == nullptr) {
+        return nullptr;
+    }
+    const char* path = env->GetStringUTFChars(pathStr, nullptr);
+    if (path == nullptr) {
+        return nullptr;
+    }
+
+    auto decoder = DecoderRegistry::getInstance().createDecoder(path);
+    if (!decoder || !decoder->open(path)) {
+        env->ReleaseStringUTFChars(pathStr, path);
+        return nullptr;
+    }
+
+    std::string title;
+    std::string artist;
+    std::string album = decoder->getAlbum();
+    double duration = 0.0;
+
+    int numSubtunes = decoder->getSubtuneCount();
+    if (subtuneIndex >= 0 && subtuneIndex < numSubtunes) {
+        decoder->selectSubtune(subtuneIndex);
+        title = decoder->getSubtuneTitle(subtuneIndex);
+        artist = decoder->getSubtuneArtist(subtuneIndex);
+        duration = decoder->getSubtuneDurationSeconds(subtuneIndex);
+    }
+    if (title.empty()) {
+        title = decoder->getTitle();
+    }
+    if (artist.empty()) {
+        artist = decoder->getArtist();
+    }
+    if (duration <= 0.0) {
+        duration = decoder->getDuration();
+    }
+    const bool hasReliableDuration = (decoder->getPlaybackCapabilities() & AudioDecoder::PLAYBACK_CAP_RELIABLE_DURATION) != 0;
+    if (!hasReliableDuration) {
+        duration = 0.0;
+    }
+    decoder->close();
+    env->ReleaseStringUTFChars(pathStr, path);
+
+    jclass stringClass = env->FindClass("java/lang/String");
+    jobjectArray result = env->NewObjectArray(4, stringClass, nullptr);
+    if (!title.empty()) {
+        jstring jTitle = env->NewStringUTF(title.c_str());
+        env->SetObjectArrayElement(result, 0, jTitle);
+        env->DeleteLocalRef(jTitle);
+    }
+    if (!artist.empty()) {
+        jstring jArtist = env->NewStringUTF(artist.c_str());
+        env->SetObjectArrayElement(result, 1, jArtist);
+        env->DeleteLocalRef(jArtist);
+    }
+    if (!album.empty()) {
+        jstring jAlbum = env->NewStringUTF(album.c_str());
+        env->SetObjectArrayElement(result, 2, jAlbum);
+        env->DeleteLocalRef(jAlbum);
+    }
+    if (std::isfinite(duration) && duration > 0.0) {
+        std::string durStr = std::to_string(duration);
+        jstring jDur = env->NewStringUTF(durStr.c_str());
+        env->SetObjectArrayElement(result, 3, jDur);
+        env->DeleteLocalRef(jDur);
+    }
+    return result;
 }

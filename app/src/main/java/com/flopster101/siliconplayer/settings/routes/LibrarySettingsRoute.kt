@@ -1,21 +1,33 @@
 package com.flopster101.siliconplayer.settings.routes
 
+import android.content.Intent
+import android.content.pm.PackageManager
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Error
 import androidx.compose.material.icons.filled.LibraryMusic
 import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -28,10 +40,16 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import com.flopster101.siliconplayer.PlaybackService
+import com.flopster101.siliconplayer.PlaylistMetadataRefreshStatus
+import com.flopster101.siliconplayer.PlaylistMetadataRefresher
 import com.flopster101.siliconplayer.PlayerSettingToggleCard
 import com.flopster101.siliconplayer.SettingsItemCard
 import com.flopster101.siliconplayer.SettingsRowContainer
@@ -40,6 +58,8 @@ import com.flopster101.siliconplayer.SettingsSectionLabel
 import com.flopster101.siliconplayer.library.LibraryContract
 import com.flopster101.siliconplayer.library.LibraryRepository
 import com.flopster101.siliconplayer.library.LibraryScanRoot
+import com.flopster101.siliconplayer.readPlaylistLibraryState
+import com.flopster101.siliconplayer.writePlaylistLibraryState
 import kotlinx.coroutines.launch
 
 @Composable
@@ -66,6 +86,10 @@ internal fun LibrarySettingsRouteContent(
     var deduplicateSources by remember { mutableStateOf(true) }
     val librarySyncState by LibraryRepository.scanState.collectAsState()
     val isScanning = librarySyncState.isScanning
+    val isWatch = remember(context) { context.packageManager.hasSystemFeature(PackageManager.FEATURE_WATCH) }
+    val metadataRefreshState by PlaylistMetadataRefresher.state.collectAsState()
+    var showRefreshConfirmDialog by remember { mutableStateOf(false) }
+    var refreshLocalOnlyChoice by remember { mutableStateOf(false) }
 
     LaunchedEffect(Unit) {
         sources = LibraryRepository.sourceStatuses(context)
@@ -207,6 +231,164 @@ internal fun LibrarySettingsRouteContent(
         },
         enabled = !isScanning
     )
+    SettingsRowSpacer()
+    val isRunning = metadataRefreshState.status == PlaylistMetadataRefreshStatus.Running
+    val refreshTitle = when (metadataRefreshState.status) {
+        PlaylistMetadataRefreshStatus.Running -> "Refreshing metadata…"
+        PlaylistMetadataRefreshStatus.Success -> "All metadata refreshed"
+        PlaylistMetadataRefreshStatus.PartialSuccess -> "Metadata partially refreshed"
+        PlaylistMetadataRefreshStatus.Failed -> "Metadata refresh failed"
+        PlaylistMetadataRefreshStatus.Idle -> "Refresh all metadata"
+    }
+    val refreshDesc = when (metadataRefreshState.status) {
+        PlaylistMetadataRefreshStatus.Running ->
+            if (metadataRefreshState.total > 0) "Refreshing track ${metadataRefreshState.current} of ${metadataRefreshState.total}…"
+            else "Scanning playlist tracks…"
+        PlaylistMetadataRefreshStatus.Success ->
+            "Successfully refreshed ${metadataRefreshState.succeededCount} tracks. Tap to clear."
+        PlaylistMetadataRefreshStatus.PartialSuccess ->
+            "${metadataRefreshState.succeededCount} refreshed, ${metadataRefreshState.failedCount} failed. Tap to clear."
+        PlaylistMetadataRefreshStatus.Failed ->
+            "Failed to refresh ${metadataRefreshState.failedCount} tracks. Tap to clear."
+        PlaylistMetadataRefreshStatus.Idle ->
+            "Probe and refresh tags and durations for all playlist tracks."
+    }
+    val refreshIcon = when (metadataRefreshState.status) {
+        PlaylistMetadataRefreshStatus.Success -> Icons.Default.CheckCircle
+        PlaylistMetadataRefreshStatus.PartialSuccess -> Icons.Default.Warning
+        PlaylistMetadataRefreshStatus.Failed -> Icons.Default.Error
+        else -> Icons.Default.Refresh
+    }
+    val refreshIconTint = when (metadataRefreshState.status) {
+        PlaylistMetadataRefreshStatus.Success -> Color(0xFF4CAF50)
+        PlaylistMetadataRefreshStatus.PartialSuccess -> Color(0xFFFF9800)
+        PlaylistMetadataRefreshStatus.Failed -> MaterialTheme.colorScheme.error
+        else -> null
+    }
+    SettingsItemCard(
+        title = refreshTitle,
+        description = refreshDesc,
+        icon = refreshIcon,
+        iconTint = refreshIconTint,
+        onClick = {
+            when (metadataRefreshState.status) {
+                PlaylistMetadataRefreshStatus.Running -> Unit
+                PlaylistMetadataRefreshStatus.Success,
+                PlaylistMetadataRefreshStatus.PartialSuccess,
+                PlaylistMetadataRefreshStatus.Failed -> {
+                    PlaylistMetadataRefresher.resetState()
+                }
+                PlaylistMetadataRefreshStatus.Idle -> {
+                    showRefreshConfirmDialog = true
+                }
+            }
+        },
+        enabled = !isRunning,
+        leadingContent = if (isRunning) {
+            {
+                CircularProgressIndicator(
+                    modifier = Modifier.size(if (isWatch) 20.dp else 24.dp),
+                    strokeWidth = 2.5.dp,
+                    color = MaterialTheme.colorScheme.primary
+                )
+            }
+        } else null
+    )
+
+    if (showRefreshConfirmDialog) {
+        AlertDialog(
+            onDismissRequest = { showRefreshConfirmDialog = false },
+            title = { Text("Refresh all metadata?") },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    Text(
+                        text = "Refreshing metadata probes all playlist tracks to update titles, artists, albums, and track durations. It may take a while depending on playlist size, and music playback will be stopped while it happens.",
+                        style = MaterialTheme.typography.bodyMedium
+                    )
+                    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable { refreshLocalOnlyChoice = false }
+                                .padding(vertical = 4.dp)
+                        ) {
+                            RadioButton(
+                                selected = !refreshLocalOnlyChoice,
+                                onClick = { refreshLocalOnlyChoice = false }
+                            )
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Column {
+                                Text(
+                                    text = "All tracks",
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    fontWeight = FontWeight.Medium
+                                )
+                                Text(
+                                    text = "Refreshes local tracks first, then remote streams",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                        }
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable { refreshLocalOnlyChoice = true }
+                                .padding(vertical = 4.dp)
+                        ) {
+                            RadioButton(
+                                selected = refreshLocalOnlyChoice,
+                                onClick = { refreshLocalOnlyChoice = true }
+                            )
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Column {
+                                Text(
+                                    text = "Local-only tracks",
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    fontWeight = FontWeight.Medium
+                                )
+                                Text(
+                                    text = "Skips network and remote stream tracks",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                        }
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        val localOnly = refreshLocalOnlyChoice
+                        showRefreshConfirmDialog = false
+                        coroutineScope.launch {
+                            PlaylistMetadataRefresher.refreshAllPlaylists(
+                                context = context,
+                                localOnly = localOnly,
+                                onStopPlayback = {
+                                    context.startService(
+                                        Intent(context, PlaybackService::class.java).setAction(PlaybackService.ACTION_STOP_CLEAR)
+                                    )
+                                },
+                                playlistLibraryStateProvider = { readPlaylistLibraryState(prefs) },
+                                onPlaylistLibraryStateChanged = { newState -> writePlaylistLibraryState(prefs, newState) }
+                            )
+                        }
+                    }
+                ) {
+                    Text("Refresh")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showRefreshConfirmDialog = false }) {
+                    Text("Cancel")
+                }
+            }
+        )
+    }
 }
 
 @Composable

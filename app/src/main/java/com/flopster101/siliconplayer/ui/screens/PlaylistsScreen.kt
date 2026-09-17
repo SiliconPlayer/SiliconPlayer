@@ -54,6 +54,9 @@ import com.flopster101.siliconplayer.ui.dialogs.DialogSectionLabel
 import com.flopster101.siliconplayer.ui.dialogs.DialogSelectableCard
 import com.flopster101.siliconplayer.ui.dialogs.FloatingActionDialog
 import com.flopster101.siliconplayer.FAVORITES_PLAYLIST_ID
+import com.flopster101.siliconplayer.PlaylistMetadataRefresher
+import com.flopster101.siliconplayer.isRemotePlaylistSource
+import com.flopster101.siliconplayer.resolvePlaylistEntryLocalFile
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.pager.HorizontalPager
@@ -559,7 +562,8 @@ internal fun PlaylistsScreen(
     onOpenBrowser: () -> Unit = {},
     onAppendStoredPlaylistEntries: (String, List<PlaylistTrackEntry>) -> Unit = { _, _ -> },
     onDeleteFavoriteTracks: (Set<String>) -> Unit = {},
-    onDeleteStoredPlaylistEntries: (String, Set<String>) -> Unit = { _, _ -> }
+    onDeleteStoredPlaylistEntries: (String, Set<String>) -> Unit = { _, _ -> },
+    onPlaylistLibraryStateChanged: (PlaylistLibraryState) -> Unit = {}
 ) {
     val context = LocalContext.current
     val isWatch = remember(context) { context.packageManager.hasSystemFeature(PackageManager.FEATURE_WATCH) }
@@ -598,12 +602,44 @@ internal fun PlaylistsScreen(
                 title = currentPlaybackTitle?.trim()?.takeIf { it.isNotEmpty() }
                     ?: inferredDisplayTitleForName(source.substringAfterLast('/')),
                 artist = currentPlaybackArtist?.trim()?.takeIf { it.isNotEmpty() },
-                addedAtMs = System.currentTimeMillis()
+                album = null,
+                subtuneIndex = currentSubtuneIndex.takeIf { it >= 0 }
             )
         }
     }
     val keyboardController = LocalSoftwareKeyboardController.current
     val coroutineScope = rememberCoroutineScope()
+    val refreshPlaylistMetadataAction: (String) -> Unit = { plId ->
+        coroutineScope.launch {
+            Toast.makeText(context, "Refreshing metadata…", Toast.LENGTH_SHORT).show()
+            val (succeeded, total) = PlaylistMetadataRefresher.refreshPlaylistTracks(
+                context = context,
+                playlistId = plId,
+                targetEntryIds = null,
+                playlistLibraryStateProvider = { libraryState },
+                onPlaylistLibraryStateChanged = onPlaylistLibraryStateChanged
+            )
+            val msg = when {
+                total == 0 -> "No tracks to refresh"
+                succeeded == total -> "Refreshed metadata for $total tracks"
+                succeeded > 0 -> "Refreshed $succeeded of $total tracks"
+                else -> "Failed to refresh metadata"
+            }
+            Toast.makeText(context, msg, Toast.LENGTH_SHORT).show()
+        }
+    }
+    val refreshTrackMetadataAction: (PlaylistTrackEntry) -> Unit = { entry ->
+        coroutineScope.launch {
+            val success = PlaylistMetadataRefresher.refreshSingleTrack(
+                context = context,
+                entry = entry,
+                playlistLibraryState = libraryState,
+                onPlaylistLibraryStateChanged = onPlaylistLibraryStateChanged
+            )
+            val msg = if (success) "Metadata refreshed" else "Could not refresh metadata"
+            Toast.makeText(context, msg, Toast.LENGTH_SHORT).show()
+        }
+    }
     val libraryFavoriteKeySet = remember(libraryState.favorites) {
         libraryState.favorites.asSequence()
             .mapNotNull { normalizeSourceIdentity(it.source) }
@@ -1363,6 +1399,8 @@ internal fun PlaylistsScreen(
                                     onToggleHomePin = {
                                         togglePlaylistHomePin(FAVORITES_PLAYLIST_ID, "Favorites")
                                     },
+                                    onRefreshPlaylistMetadata = { refreshPlaylistMetadataAction(FAVORITES_PLAYLIST_ID) },
+                                    onRefreshEntryMetadata = refreshTrackMetadataAction,
                                     isWatch = isWatch,
                                     onBack = {
                                         if (favoritesEditModeEnabled) {
@@ -1383,6 +1421,26 @@ internal fun PlaylistsScreen(
                                 selectedCount = favoritesSelectedEntryIds.size,
                                 bottomPadding = bottomContentPadding,
                                 onDelete = { showDeleteSelectedFavoritesConfirm = true },
+                                onRefreshMetadata = {
+                                    val targetIds = favoritesSelectedEntryIds
+                                    coroutineScope.launch {
+                                        Toast.makeText(context, "Refreshing metadata…", Toast.LENGTH_SHORT).show()
+                                        val (succeeded, total) = PlaylistMetadataRefresher.refreshPlaylistTracks(
+                                            context = context,
+                                            playlistId = FAVORITES_PLAYLIST_ID,
+                                            targetEntryIds = targetIds,
+                                            playlistLibraryStateProvider = { libraryState },
+                                            onPlaylistLibraryStateChanged = onPlaylistLibraryStateChanged
+                                        )
+                                        val msg = when {
+                                            total == 0 -> "No tracks to refresh"
+                                            succeeded == total -> "Refreshed metadata for $total tracks"
+                                            succeeded > 0 -> "Refreshed $succeeded of $total tracks"
+                                            else -> "Failed to refresh metadata"
+                                        }
+                                        Toast.makeText(context, msg, Toast.LENGTH_SHORT).show()
+                                    }
+                                },
                                 modifier = Modifier.align(Alignment.BottomCenter)
                             )
                         }
@@ -1489,6 +1547,8 @@ internal fun PlaylistsScreen(
                                         onTogglePinPlaylist = { onTogglePinStoredPlaylist(playlist.id) },
                                         isHomePinned = isPlaylistPinnedToHome(playlist.id),
                                         onToggleHomePin = { togglePlaylistHomePin(playlist.id, playlist.title) },
+                                        onRefreshPlaylistMetadata = { refreshPlaylistMetadataAction(playlist.id) },
+                                        onRefreshEntryMetadata = refreshTrackMetadataAction,
                                         isWatch = isWatch,
                                         onBack = {
                                             if (storedPlaylistEditModeEnabled) {
@@ -1509,6 +1569,27 @@ internal fun PlaylistsScreen(
                                     selectedCount = storedPlaylistSelectedEntryIds.size,
                                     bottomPadding = bottomContentPadding,
                                     onDelete = { showDeleteSelectedStoredPlaylistEntriesConfirm = true },
+                                    onRefreshMetadata = {
+                                        val targetIds = storedPlaylistSelectedEntryIds
+                                        val targetPlaylistId = playlist.id
+                                        coroutineScope.launch {
+                                            Toast.makeText(context, "Refreshing metadata…", Toast.LENGTH_SHORT).show()
+                                            val (succeeded, total) = PlaylistMetadataRefresher.refreshPlaylistTracks(
+                                                context = context,
+                                                playlistId = targetPlaylistId,
+                                                targetEntryIds = targetIds,
+                                                playlistLibraryStateProvider = { libraryState },
+                                                onPlaylistLibraryStateChanged = onPlaylistLibraryStateChanged
+                                            )
+                                            val msg = when {
+                                                total == 0 -> "No tracks to refresh"
+                                                succeeded == total -> "Refreshed metadata for $total tracks"
+                                                succeeded > 0 -> "Refreshed $succeeded of $total tracks"
+                                                else -> "Failed to refresh metadata"
+                                            }
+                                            Toast.makeText(context, msg, Toast.LENGTH_SHORT).show()
+                                        }
+                                    },
                                     modifier = Modifier.align(Alignment.BottomCenter)
                                 )
                             }
@@ -1605,6 +1686,7 @@ internal fun PlaylistsScreen(
                                             onToggleHomePin = {
                                                 togglePlaylistHomePin(FAVORITES_PLAYLIST_ID, "Favorites")
                                             },
+                                            onRefreshMetadata = { refreshPlaylistMetadataAction(FAVORITES_PLAYLIST_ID) },
                                             isWatch = true
                                         )
                                     }
@@ -1635,6 +1717,7 @@ internal fun PlaylistsScreen(
                                                 onTogglePin = { onTogglePinStoredPlaylist(playlist.id) },
                                                 isHomePinned = isPlaylistPinnedToHome(playlist.id),
                                                 onToggleHomePin = { togglePlaylistHomePin(playlist.id, playlist.title) },
+                                                onRefreshMetadata = { refreshPlaylistMetadataAction(playlist.id) },
                                                 isWatch = true
                                             )
                                         }
@@ -1802,7 +1885,8 @@ internal fun PlaylistsScreen(
                                             onSharePlaylist = onSharePlaylistAction,
                                             onTogglePinPlaylist = { playlist -> onTogglePinStoredPlaylist(playlist.id) },
                                             isPlaylistHomePinned = { playlistId -> isPlaylistPinnedToHome(playlistId) },
-                                            onTogglePlaylistHomePin = { playlistId, title -> togglePlaylistHomePin(playlistId, title) }
+                                            onTogglePlaylistHomePin = { playlistId, title -> togglePlaylistHomePin(playlistId, title) },
+                                            onRefreshPlaylistMetadata = refreshPlaylistMetadataAction
                                         )
                                     }
                                     LibrarySurfaceTab.Albums -> {
@@ -2760,6 +2844,7 @@ private fun PlaylistsLibraryTabPage(
     onTogglePinPlaylist: (StoredPlaylist) -> Unit = {},
     isPlaylistHomePinned: (String) -> Boolean = { false },
     onTogglePlaylistHomePin: (String, String) -> Unit = { _, _ -> },
+    onRefreshPlaylistMetadata: ((String) -> Unit)? = null,
     isWatch: Boolean = false
 ) {
     val sortedPlaylists = remember(libraryState.playlists) {
@@ -2792,6 +2877,7 @@ private fun PlaylistsLibraryTabPage(
                 onShare = { onSharePlaylist(favoritesAsStoredPlaylist(libraryState.favorites)) },
                 isHomePinned = isPlaylistHomePinned(FAVORITES_PLAYLIST_ID),
                 onToggleHomePin = { onTogglePlaylistHomePin(FAVORITES_PLAYLIST_ID, "Favorites") },
+                onRefreshMetadata = onRefreshPlaylistMetadata?.let { { it(FAVORITES_PLAYLIST_ID) } },
                 isWatch = isWatch
             )
         }
@@ -2830,6 +2916,7 @@ private fun PlaylistsLibraryTabPage(
                     onTogglePin = { onTogglePinPlaylist(playlist) },
                     isHomePinned = isPlaylistHomePinned(playlist.id),
                     onToggleHomePin = { onTogglePlaylistHomePin(playlist.id, playlist.title) },
+                    onRefreshMetadata = onRefreshPlaylistMetadata?.let { { it(playlist.id) } },
                     isWatch = isWatch
                 )
                 if (!isWatch) {
@@ -4423,6 +4510,8 @@ private fun LazyListScope.playlistDetailContent(
     onTogglePinPlaylist: (() -> Unit)? = null,
     isHomePinned: Boolean = false,
     onToggleHomePin: (() -> Unit)? = null,
+    onRefreshPlaylistMetadata: (() -> Unit)? = null,
+    onRefreshEntryMetadata: ((PlaylistTrackEntry) -> Unit)? = null,
     isWatch: Boolean = false,
     onBack: () -> Unit = {}
 ) {
@@ -4450,6 +4539,7 @@ private fun LazyListScope.playlistDetailContent(
                 onTogglePinPlaylist = onTogglePinPlaylist,
                 isHomePinned = isHomePinned,
                 onToggleHomePin = onToggleHomePin,
+                onRefreshPlaylistMetadata = onRefreshPlaylistMetadata,
                 onBack = onBack
             )
         } else {
@@ -4480,6 +4570,7 @@ private fun LazyListScope.playlistDetailContent(
                 onTogglePinPlaylist = onTogglePinPlaylist,
                 isHomePinned = isHomePinned,
                 onToggleHomePin = onToggleHomePin,
+                onRefreshPlaylistMetadata = onRefreshPlaylistMetadata,
                 selectedEntryIds = selectedEntryIds,
                 onSelectAll = onSelectAllEntries,
                 onClearSelection = onClearSelectedEntries,
@@ -4590,6 +4681,7 @@ private fun LazyListScope.playlistDetailContent(
                 showShareAction = showShareAction,
                 showCopySourceAction = showCopySourceAction,
                 showInfoAction = showInfoAction,
+                onRefreshMetadata = { onRefreshEntryMetadata?.invoke(entry) },
                 isWatch = isWatch
             )
         }
@@ -4619,6 +4711,7 @@ private fun WearPlaylistHeroHeader(
     onTogglePinPlaylist: (() -> Unit)? = null,
     isHomePinned: Boolean = false,
     onToggleHomePin: (() -> Unit)? = null,
+    onRefreshPlaylistMetadata: (() -> Unit)? = null,
     onBack: () -> Unit
 ) {
     var showSortDialog by rememberSaveable { mutableStateOf(false) }
@@ -4873,6 +4966,18 @@ private fun WearPlaylistHeroHeader(
                     Text("Duplicate playlist")
                 }
             }
+            if (onRefreshPlaylistMetadata != null) {
+                FilledTonalButton(
+                    onClick = {
+                        showMoreActionsDialog = false
+                        onRefreshPlaylistMetadata()
+                    },
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(14.dp)
+                ) {
+                    Text("Refresh metadata")
+                }
+            }
             if (canDeletePlaylist) {
                 Button(
                     onClick = {
@@ -4937,6 +5042,7 @@ private fun PlaylistHeroCard(
     onTogglePinPlaylist: (() -> Unit)? = null,
     isHomePinned: Boolean = false,
     onToggleHomePin: (() -> Unit)? = null,
+    onRefreshPlaylistMetadata: (() -> Unit)? = null,
     selectedEntryIds: Set<String> = emptySet(),
     onSelectAll: () -> Unit = {},
     onClearSelection: () -> Unit = {},
@@ -4969,8 +5075,9 @@ private fun PlaylistHeroCard(
         ) {
             Text(
                 text = title,
-                style = MaterialTheme.typography.headlineLarge,
-                fontWeight = FontWeight.SemiBold
+                style = MaterialTheme.typography.headlineMedium,
+                fontWeight = FontWeight.Bold,
+                textAlign = TextAlign.Center
             )
             Text(
                 text = trackCountLabel,
@@ -4993,6 +5100,32 @@ private fun PlaylistHeroCard(
                     expanded = menuExpanded,
                     onDismissRequest = { menuExpanded = false }
                 ) {
+                    if (onRefreshPlaylistMetadata != null) {
+                        DropdownMenuItem(
+                            text = {
+                                Text(
+                                    text = "Refresh metadata",
+                                    style = MaterialTheme.typography.bodyLarge
+                                )
+                            },
+                            leadingIcon = {
+                                Icon(
+                                    imageVector = Icons.Default.Refresh,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(22.dp)
+                                )
+                            },
+                            contentPadding = PaddingValues(start = 14.dp, end = 18.dp),
+                            colors = MenuDefaults.itemColors(
+                                textColor = MaterialTheme.colorScheme.onSurface,
+                                leadingIconColor = MaterialTheme.colorScheme.onSurfaceVariant
+                            ),
+                            onClick = {
+                                menuExpanded = false
+                                onRefreshPlaylistMetadata()
+                            }
+                        )
+                    }
                     if (onTogglePinPlaylist != null) {
                         DropdownMenuItem(
                             text = {
@@ -5361,6 +5494,7 @@ private fun PlaylistSelectionFloatingBar(
     selectedCount: Int,
     bottomPadding: androidx.compose.ui.unit.Dp,
     onDelete: () -> Unit,
+    onRefreshMetadata: (() -> Unit)? = null,
     modifier: Modifier = Modifier
 ) {
     AnimatedVisibility(
@@ -5385,6 +5519,21 @@ private fun PlaylistSelectionFloatingBar(
                     style = MaterialTheme.typography.labelLarge,
                     color = MaterialTheme.colorScheme.onSurface
                 )
+                if (onRefreshMetadata != null) {
+                    androidx.compose.material3.FilledTonalButton(
+                        onClick = onRefreshMetadata,
+                        shape = RoundedCornerShape(16.dp),
+                        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Refresh,
+                            contentDescription = null,
+                            modifier = Modifier.size(16.dp)
+                        )
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text("Refresh")
+                    }
+                }
                 androidx.compose.material3.FilledTonalButton(
                     onClick = onDelete,
                     colors = ButtonDefaults.filledTonalButtonColors(
@@ -5545,6 +5694,7 @@ private fun FavoritesCollectionRow(
     onShare: (() -> Unit)? = null,
     isHomePinned: Boolean = false,
     onToggleHomePin: (() -> Unit)? = null,
+    onRefreshMetadata: (() -> Unit)? = null,
     isWatch: Boolean = false
 ) {
     PlaylistLibraryFlatRow(
@@ -5565,6 +5715,7 @@ private fun FavoritesCollectionRow(
         onShare = onShare,
         isHomePinned = isHomePinned,
         onToggleHomePin = onToggleHomePin,
+        onRefreshMetadata = onRefreshMetadata,
         isWatch = isWatch
     )
 }
@@ -5665,6 +5816,7 @@ private fun PlaylistTrackRow(
     onShare: () -> Unit,
     onCopySource: () -> Unit,
     onOpenInfo: () -> Unit,
+    onRefreshMetadata: () -> Unit = {},
     showPlayAsCachedAction: Boolean,
     showLocationAction: Boolean,
     showShareAction: Boolean,
@@ -5837,6 +5989,26 @@ private fun PlaylistTrackRow(
                             )
                             Text("Open location")
                         }
+                    }
+                }
+                FilledTonalButton(
+                    onClick = {
+                        wearActionSheetOpen = false
+                        onRefreshMetadata()
+                    },
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(14.dp)
+                ) {
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Refresh,
+                            contentDescription = null,
+                            modifier = Modifier.size(16.dp)
+                        )
+                        Text("Refresh metadata")
                     }
                 }
                 if (canReorder) {
@@ -6194,6 +6366,30 @@ private fun PlaylistTrackRow(
                         DropdownMenuItem(
                             text = {
                                 Text(
+                                    text = "Refresh metadata",
+                                    style = MaterialTheme.typography.bodyLarge
+                                )
+                            },
+                            leadingIcon = {
+                                Icon(
+                                    imageVector = Icons.Default.Refresh,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(22.dp)
+                                )
+                            },
+                            contentPadding = PaddingValues(start = 14.dp, end = 18.dp),
+                            colors = MenuDefaults.itemColors(
+                                textColor = MaterialTheme.colorScheme.onSurface,
+                                leadingIconColor = MaterialTheme.colorScheme.onSurfaceVariant
+                            ),
+                            onClick = {
+                                menuExpanded = false
+                                onRefreshMetadata()
+                            }
+                        )
+                        DropdownMenuItem(
+                            text = {
+                                Text(
                                     text = "Move up",
                                     style = MaterialTheme.typography.bodyLarge
                                 )
@@ -6323,20 +6519,6 @@ private fun PlaylistTrackReorderHandle(
     }
 }
 
-private fun isRemotePlaylistSource(sourceId: String): Boolean {
-    val normalized = sourceId.trim()
-    if (normalized.isEmpty()) return false
-    val scheme = Uri.parse(normalized).scheme?.lowercase(Locale.ROOT)
-    if (scheme == "http" || scheme == "https" || scheme == "smb") return true
-    if (scheme == "archive") {
-        val parsed = parseArchiveSourceId(normalized) ?: return false
-        return parseHttpSourceSpecFromInput(parsed.archivePath) != null ||
-            parseSmbSourceSpecFromInput(parsed.archivePath) != null
-    }
-    return parseHttpSourceSpecFromInput(normalized) != null ||
-        parseSmbSourceSpecFromInput(normalized) != null
-}
-
 @Composable
 private fun PlaylistTrackArtworkChip(
     entry: PlaylistTrackEntry,
@@ -6426,6 +6608,7 @@ private fun PlaylistCollectionRow(
     onTogglePin: (() -> Unit)? = null,
     isHomePinned: Boolean = false,
     onToggleHomePin: (() -> Unit)? = null,
+    onRefreshMetadata: (() -> Unit)? = null,
     isWatch: Boolean = false
 ) {
     PlaylistLibraryFlatRow(
@@ -6450,6 +6633,7 @@ private fun PlaylistCollectionRow(
         onTogglePin = onTogglePin,
         isHomePinned = isHomePinned,
         onToggleHomePin = onToggleHomePin,
+        onRefreshMetadata = onRefreshMetadata,
         isWatch = isWatch
     )
 }
@@ -6472,6 +6656,7 @@ private fun PlaylistLibraryFlatRow(
     onTogglePin: (() -> Unit)? = null,
     isHomePinned: Boolean = false,
     onToggleHomePin: (() -> Unit)? = null,
+    onRefreshMetadata: (() -> Unit)? = null,
     isWatch: Boolean = false
 ) {
     var wearActionsOpen by rememberSaveable { mutableStateOf(false) }
@@ -6484,7 +6669,7 @@ private fun PlaylistLibraryFlatRow(
                 .background(MaterialTheme.colorScheme.surfaceContainerLow)
                 .combinedClickable(
                     onClick = onClick,
-                    onLongClick = if (onRename != null || onDuplicate != null || onDelete != null || onExport != null || onShare != null || onTogglePin != null || onToggleHomePin != null) {
+                    onLongClick = if (onRename != null || onDuplicate != null || onDelete != null || onExport != null || onShare != null || onTogglePin != null || onToggleHomePin != null || onRefreshMetadata != null) {
                         { wearActionsOpen = true }
                     } else null
                 )
@@ -6617,6 +6802,18 @@ private fun PlaylistLibraryFlatRow(
                         Text("Share")
                     }
                 }
+                if (onRefreshMetadata != null) {
+                    FilledTonalButton(
+                        onClick = {
+                            wearActionsOpen = false
+                            onRefreshMetadata()
+                        },
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(14.dp)
+                    ) {
+                        Text("Refresh metadata")
+                    }
+                }
                 if (onDelete != null) {
                     Button(
                         onClick = {
@@ -6692,7 +6889,7 @@ private fun PlaylistLibraryFlatRow(
                     overflow = TextOverflow.Ellipsis
                 )
             }
-            if (onRename != null || onDuplicate != null || onDelete != null || onExport != null || onShare != null || onTogglePin != null || onToggleHomePin != null) {
+            if (onRename != null || onDuplicate != null || onDelete != null || onExport != null || onShare != null || onTogglePin != null || onToggleHomePin != null || onRefreshMetadata != null) {
                 Box(
                     modifier = Modifier
                         .size(28.dp)
@@ -6862,6 +7059,32 @@ private fun PlaylistLibraryFlatRow(
                                 onClick = {
                                     menuExpanded = false
                                     onShare()
+                                }
+                            )
+                        }
+                        if (onRefreshMetadata != null) {
+                            DropdownMenuItem(
+                                text = {
+                                    Text(
+                                        text = "Refresh metadata",
+                                        style = MaterialTheme.typography.bodyLarge
+                                    )
+                                },
+                                leadingIcon = {
+                                    Icon(
+                                        imageVector = Icons.Default.Refresh,
+                                        contentDescription = null,
+                                        modifier = Modifier.size(22.dp)
+                                    )
+                                },
+                                contentPadding = PaddingValues(start = 14.dp, end = 18.dp),
+                                colors = MenuDefaults.itemColors(
+                                    textColor = MaterialTheme.colorScheme.onSurface,
+                                    leadingIconColor = MaterialTheme.colorScheme.onSurfaceVariant
+                                ),
+                                onClick = {
+                                    menuExpanded = false
+                                    onRefreshMetadata()
                                 }
                             )
                         }

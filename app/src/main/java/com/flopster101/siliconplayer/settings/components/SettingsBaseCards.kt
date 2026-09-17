@@ -170,19 +170,25 @@ internal fun SettingsItemCard(
     title: String,
     description: String,
     icon: ImageVector,
+    iconTint: Color? = null,
     onClick: () -> Unit,
-    enabled: Boolean = true
+    enabled: Boolean = true,
+    leadingContent: (@Composable () -> Unit)? = null
 ) {
     val context = LocalContext.current
     val isWatch = remember(context) { context.packageManager.hasSystemFeature(PackageManager.FEATURE_WATCH) }
     val contentAlpha = if (enabled) 1f else 0.38f
     SettingsRowContainer(onClick = onClick, enabled = enabled) {
-        Icon(
-            imageVector = icon,
-            contentDescription = null,
-            tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = contentAlpha),
-            modifier = if (isWatch) Modifier.size(20.dp) else Modifier.size(24.dp)
-        )
+        if (leadingContent != null) {
+            leadingContent()
+        } else {
+            Icon(
+                imageVector = icon,
+                contentDescription = null,
+                tint = iconTint ?: MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = contentAlpha),
+                modifier = if (isWatch) Modifier.size(20.dp) else Modifier.size(24.dp)
+            )
+        }
         Spacer(modifier = Modifier.width(if (isWatch) 8.dp else 12.dp))
         Column(modifier = Modifier.weight(1f)) {
             Text(

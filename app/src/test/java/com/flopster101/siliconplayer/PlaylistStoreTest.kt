@@ -533,6 +533,179 @@ class PlaylistStoreTest {
         assertEquals("f3", updated.favorites.first().id)
     }
 
+    @Test
+    fun `updateStoredPlaylistEntries and updateStoredPlaylistEntry update target entries`() {
+        val original = PlaylistLibraryState(
+            favorites = emptyList(),
+            playlists = listOf(
+                samplePlaylist("p1", "Playlist 1")
+            )
+        )
+
+        val updated = updateStoredPlaylistEntry(
+            original,
+            "p1",
+            original.playlists.first().entries.first().copy(title = "Updated Title", durationSecondsOverride = 123.4)
+        )
+        val firstEntry = updated.playlists.first().entries.first()
+        assertEquals("Updated Title", firstEntry.title)
+        assertEquals(123.4, firstEntry.durationSecondsOverride ?: 0.0, 0.001)
+    }
+
+    @Test
+    fun `updateFavoriteTracks and updateFavoriteTrack update target favorites`() {
+        val original = PlaylistLibraryState(
+            favorites = listOf(
+                PlaylistTrackEntry(id = "f1", source = "s1", title = "Fav 1")
+            ),
+            playlists = emptyList()
+        )
+
+        val updated = updateFavoriteTrack(
+            original,
+            original.favorites.first().copy(title = "Updated Fav", artist = "Artist 1", durationSecondsOverride = 45.0)
+        )
+        val firstFav = updated.favorites.first()
+        assertEquals("Updated Fav", firstFav.title)
+        assertEquals("Artist 1", firstFav.artist)
+        assertEquals(45.0, firstFav.durationSecondsOverride ?: 0.0, 0.001)
+    }
+
+    @Test
+    fun `mergeTrackPlaybackMetadata updates matching entries and preserves customTitle`() {
+        val original = PlaylistLibraryState(
+            favorites = listOf(
+                PlaylistTrackEntry(
+                    id = "f1",
+                    source = "/music/song.mp3",
+                    title = "Old Title",
+                    customTitle = "My Custom Title"
+                ),
+                PlaylistTrackEntry(
+                    id = "f2",
+                    source = "/music/other.mp3",
+                    title = "Other Song"
+                )
+            ),
+            playlists = listOf(
+                StoredPlaylist(
+                    id = "p1",
+                    title = "My Playlist",
+                    format = PlaylistStoredFormat.Internal,
+                    entries = listOf(
+                        PlaylistTrackEntry(
+                            id = "e1",
+                            source = "/music/song.mp3",
+                            title = "Raw Filename"
+                        )
+                    )
+                )
+            )
+        )
+
+        val merged = mergeTrackPlaybackMetadata(
+            state = original,
+            activeSourceId = "/music/song.mp3",
+            currentSubtuneIndex = 0,
+            title = "Probed Song Title",
+            artist = "Probed Artist",
+            album = "Probed Album",
+            artworkThumbnailCacheKey = "thumb_123",
+            durationSecondsOverride = 210.5,
+            requestUrlHint = null
+        )
+
+        val fav1 = merged.favorites.first { it.id == "f1" }
+        assertEquals("Old Title", fav1.title)
+        assertEquals("My Custom Title", fav1.customTitle)
+        assertEquals("My Custom Title", fav1.effectiveTitle)
+        assertEquals("Probed Artist", fav1.artist)
+        assertEquals("Probed Album", fav1.album)
+        assertEquals(210.5, fav1.durationSecondsOverride ?: 0.0, 0.001)
+
+        val playlistEntry = merged.playlists.first().entries.first { it.id == "e1" }
+        assertEquals("Probed Song Title", playlistEntry.title)
+        assertEquals("Probed Artist", playlistEntry.artist)
+        assertEquals(210.5, playlistEntry.durationSecondsOverride ?: 0.0, 0.001)
+
+        val otherFav = merged.favorites.first { it.id == "f2" }
+        assertEquals("Other Song", otherFav.title)
+        assertEquals(null, otherFav.durationSecondsOverride)
+    }
+
+    @Test
+    fun `mergeTrackPlaybackMetadata clears duration override when clearDurationIfUnreliable is true`() {
+        val original = PlaylistLibraryState(
+            favorites = listOf(
+                PlaylistTrackEntry(
+                    id = "f1",
+                    source = "/music/song.nsf",
+                    title = "NSF Track",
+                    durationSecondsOverride = 180.0
+                )
+            ),
+            playlists = listOf(
+                StoredPlaylist(
+                    id = "p1",
+                    title = "My Playlist",
+                    format = PlaylistStoredFormat.Internal,
+                    entries = listOf(
+                        PlaylistTrackEntry(
+                            id = "e1",
+                            source = "/music/song.nsf",
+                            title = "NSF Track",
+                            durationSecondsOverride = 180.0
+                        )
+                    )
+                )
+            )
+        )
+
+        val merged = mergeTrackPlaybackMetadata(
+            state = original,
+            activeSourceId = "/music/song.nsf",
+            currentSubtuneIndex = 0,
+            title = "NSF Track",
+            artist = "Composer",
+            album = "Game",
+            artworkThumbnailCacheKey = null,
+            durationSecondsOverride = null,
+            clearDurationIfUnreliable = true,
+            requestUrlHint = null
+        )
+
+        val fav1 = merged.favorites.first { it.id == "f1" }
+        assertEquals(null, fav1.durationSecondsOverride)
+
+        val playlistEntry = merged.playlists.first().entries.first { it.id == "e1" }
+        assertEquals(null, playlistEntry.durationSecondsOverride)
+    }
+
+    @Test
+    fun `customTitle roundtrips through JSON serialization`() {
+        val original = PlaylistLibraryState(
+            favorites = listOf(
+                PlaylistTrackEntry(
+                    id = "f1",
+                    source = "/music/song.mp3",
+                    title = "Real Title",
+                    customTitle = "User Custom Name",
+                    durationSecondsOverride = 99.5
+                )
+            ),
+            playlists = emptyList()
+        )
+        val prefs = FakeSharedPreferences()
+        writePlaylistLibraryState(prefs, original)
+
+        val restored = readPlaylistLibraryState(prefs)
+        val restoredFav = restored.favorites.first()
+        assertEquals("Real Title", restoredFav.title)
+        assertEquals("User Custom Name", restoredFav.customTitle)
+        assertEquals("User Custom Name", restoredFav.effectiveTitle)
+        assertEquals(99.5, restoredFav.durationSecondsOverride ?: 0.0, 0.001)
+    }
+
     private class FakeSharedPreferences : android.content.SharedPreferences {
         val map = mutableMapOf<String, Any?>()
 

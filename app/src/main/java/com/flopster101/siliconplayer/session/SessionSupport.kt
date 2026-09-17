@@ -31,8 +31,9 @@ private fun resolveCachedRemoteSourceId(localPath: String): String? {
 internal fun normalizeSourceIdentity(path: String?): String? {
     if (path.isNullOrBlank()) return null
     val trimmed = path.trim()
-    val uri = Uri.parse(trimmed)
-    val scheme = uri.scheme?.lowercase(Locale.ROOT)
+    val uri = runCatching { Uri.parse(trimmed) }.getOrNull()
+    val scheme = uri?.scheme?.lowercase(Locale.ROOT)
+        ?: if (trimmed.contains("://")) trimmed.substringBefore("://").lowercase(Locale.ROOT) else null
     return when (scheme) {
         "playlist" -> trimmed
         "http", "https" -> {
@@ -40,7 +41,7 @@ internal fun normalizeSourceIdentity(path: String?): String? {
             if (httpSpec != null) {
                 buildHttpSourceId(httpSpec)
             } else {
-                uri.normalizeScheme().toString()
+                uri?.normalizeScheme()?.toString() ?: trimmed
             }
         }
         "archive" -> {
@@ -57,7 +58,7 @@ internal fun normalizeSourceIdentity(path: String?): String? {
             )
         }
         "file" -> {
-            val localPath = uri.path?.takeIf { it.isNotBlank() } ?: return null
+            val localPath = (uri?.path ?: trimmed.removePrefix("file://")).takeIf { it.isNotBlank() } ?: return null
             resolveCachedRemoteSourceId(localPath)?.let { cachedSourceId ->
                 return normalizeSourceIdentity(cachedSourceId) ?: cachedSourceId
             }
@@ -109,6 +110,7 @@ private fun normalizeArchiveContainerLocation(rawArchiveLocation: String): Strin
 }
 
 internal fun samePath(a: String?, b: String?): Boolean {
+    if (a != null && a == b) return true
     val left = normalizeSourceIdentity(a) ?: return false
     val right = normalizeSourceIdentity(b) ?: return false
     return left == right

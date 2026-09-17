@@ -10,6 +10,7 @@ private const val PLAYLIST_ENTRY_ID_KEY = "id"
 private const val PLAYLIST_ENTRY_SOURCE_KEY = "source"
 private const val PLAYLIST_ENTRY_REQUEST_URL_HINT_KEY = "request_url_hint"
 private const val PLAYLIST_ENTRY_TITLE_KEY = "title"
+private const val PLAYLIST_ENTRY_CUSTOM_TITLE_KEY = "custom_title"
 private const val PLAYLIST_ENTRY_ARTIST_KEY = "artist"
 private const val PLAYLIST_ENTRY_ALBUM_KEY = "album"
 private const val PLAYLIST_ENTRY_ARTWORK_CACHE_KEY = "artworkThumbnailCacheKey"
@@ -193,6 +194,37 @@ internal fun appendStoredPlaylistEntries(
     )
 }
 
+internal fun updateStoredPlaylistEntries(
+    state: PlaylistLibraryState,
+    playlistId: String,
+    transform: (PlaylistTrackEntry) -> PlaylistTrackEntry
+): PlaylistLibraryState {
+    var changed = false
+    val updatedPlaylists = state.playlists.map { playlist ->
+        if (playlist.id != playlistId) {
+            playlist
+        } else {
+            val newEntries = playlist.entries.map { entry ->
+                val updated = transform(entry)
+                if (updated != entry) changed = true
+                updated
+            }
+            if (changed) playlist.copy(entries = newEntries, updatedAtMs = System.currentTimeMillis()) else playlist
+        }
+    }
+    return if (changed) state.copy(playlists = updatedPlaylists) else state
+}
+
+internal fun updateStoredPlaylistEntry(
+    state: PlaylistLibraryState,
+    playlistId: String,
+    updatedEntry: PlaylistTrackEntry
+): PlaylistLibraryState {
+    return updateStoredPlaylistEntries(state, playlistId) { entry ->
+        if (entry.id == updatedEntry.id) updatedEntry else entry
+    }
+}
+
 internal fun moveStoredPlaylistEntry(
     state: PlaylistLibraryState,
     playlistId: String,
@@ -303,6 +335,90 @@ internal fun moveFavoriteTrack(
     return state.copy(favorites = reorderedFavorites)
 }
 
+internal fun updateFavoriteTracks(
+    state: PlaylistLibraryState,
+    transform: (PlaylistTrackEntry) -> PlaylistTrackEntry
+): PlaylistLibraryState {
+    var changed = false
+    val newFavorites = state.favorites.map { fav ->
+        val updated = transform(fav)
+        if (updated != fav) changed = true
+        updated
+    }
+    return if (changed) state.copy(favorites = newFavorites) else state
+}
+
+internal fun updateFavoriteTrack(
+    state: PlaylistLibraryState,
+    updatedTrack: PlaylistTrackEntry
+): PlaylistLibraryState {
+    return updateFavoriteTracks(state) { fav ->
+        if (fav.id == updatedTrack.id) updatedTrack else fav
+    }
+}
+
+internal fun mergeTrackPlaybackMetadata(
+    state: PlaylistLibraryState,
+    activeSourceId: String?,
+    currentSubtuneIndex: Int,
+    title: String,
+    artist: String?,
+    album: String?,
+    artworkThumbnailCacheKey: String?,
+    durationSecondsOverride: Double?,
+    clearDurationIfUnreliable: Boolean = false,
+    requestUrlHint: String?
+): PlaylistLibraryState {
+    if (activeSourceId.isNullOrBlank()) return state
+    val normalizedTitle = title.trim()
+    val normalizedArtist = artist?.trim().takeUnless { it.isNullOrBlank() }
+    val normalizedAlbum = album?.trim().takeUnless { it.isNullOrBlank() }
+    val normalizedArtworkKey = artworkThumbnailCacheKey?.trim().takeUnless { it.isNullOrBlank() }
+    val normalizedDurationOverride = durationSecondsOverride?.takeIf { it.isFinite() && it > 0.0 }
+    var changed = false
+
+    fun updateEntry(entry: PlaylistTrackEntry): PlaylistTrackEntry {
+        if (!playlistEntryMatchesPlayback(entry, activeSourceId, currentSubtuneIndex)) return entry
+        val resolvedDurationOverride = if (clearDurationIfUnreliable) {
+            normalizedDurationOverride
+        } else {
+            normalizedDurationOverride ?: entry.durationSecondsOverride
+        }
+        val updatedEntry = entry.copy(
+            title = if (entry.customTitle == null && normalizedTitle.isNotBlank()) normalizedTitle else entry.title,
+            artist = normalizedArtist ?: entry.artist,
+            album = normalizedAlbum ?: entry.album,
+            artworkThumbnailCacheKey = normalizedArtworkKey ?: entry.artworkThumbnailCacheKey,
+            durationSecondsOverride = resolvedDurationOverride,
+            requestUrlHint = sanitizePlaylistTrackRequestUrlHint(
+                source = entry.source,
+                requestUrlHint = requestUrlHint
+            ) ?: entry.requestUrlHint
+        )
+        if (updatedEntry != entry) {
+            changed = true
+        }
+        return updatedEntry
+    }
+
+    val updatedFavorites = state.favorites.map(::updateEntry)
+    val updatedPlaylists = state.playlists.map { playlist ->
+        var playlistChanged = false
+        val newEntries = playlist.entries.map { entry ->
+            val updated = updateEntry(entry)
+            if (updated != entry) playlistChanged = true
+            updated
+        }
+        if (playlistChanged) playlist.copy(entries = newEntries, updatedAtMs = System.currentTimeMillis()) else playlist
+    }
+
+    return if (changed) {
+        state.copy(favorites = updatedFavorites, playlists = updatedPlaylists)
+    } else {
+        state
+    }
+}
+
 internal fun readStoredPlaylistFromJson(raw: String?): StoredPlaylist? {
     val normalized = raw?.trim().takeUnless { it.isNullOrBlank() } ?: return null
     return runCatching {
@@ -354,6 +470,7 @@ private fun readPlaylistTrackEntries(array: JSONArray): List<PlaylistTrackEntry>
             source = source,
             requestUrlHint = item.optString(PLAYLIST_ENTRY_REQUEST_URL_HINT_KEY).trim().ifBlank { null },
             title = title,
+            customTitle = item.optString(PLAYLIST_ENTRY_CUSTOM_TITLE_KEY).trim().ifBlank { null },
             artist = item.optString(PLAYLIST_ENTRY_ARTIST_KEY).trim().ifBlank { null },
             album = item.optString(PLAYLIST_ENTRY_ALBUM_KEY).trim().ifBlank { null },
             artworkThumbnailCacheKey = item.optString(PLAYLIST_ENTRY_ARTWORK_CACHE_KEY).trim().ifBlank { null },
@@ -391,6 +508,11 @@ private fun writePlaylistTrackEntry(entry: PlaylistTrackEntry): JSONObject {
         .put(PLAYLIST_ENTRY_SOURCE_KEY, entry.source)
         .put(PLAYLIST_ENTRY_REQUEST_URL_HINT_KEY, entry.requestUrlHint ?: "")
         .put(PLAYLIST_ENTRY_TITLE_KEY, entry.title)
+        .apply {
+            if (!entry.customTitle.isNullOrBlank()) {
+                put(PLAYLIST_ENTRY_CUSTOM_TITLE_KEY, entry.customTitle)
+            }
+        }
         .put(PLAYLIST_ENTRY_ARTIST_KEY, entry.artist ?: "")
         .put(PLAYLIST_ENTRY_ALBUM_KEY, entry.album ?: "")
         .put(PLAYLIST_ENTRY_ARTWORK_CACHE_KEY, entry.artworkThumbnailCacheKey ?: "")
