@@ -191,6 +191,7 @@ import com.flopster101.siliconplayer.appendStoredPlaylistEntries
 import com.flopster101.siliconplayer.decodePercentEncodedForDisplay
 import com.flopster101.siliconplayer.ensureRecentArtworkThumbnailCached
 import com.flopster101.siliconplayer.inferredDisplayTitleForName
+import com.flopster101.siliconplayer.miniPlayerFabLift
 import com.flopster101.siliconplayer.parseHttpSourceSpecFromInput
 import com.flopster101.siliconplayer.parseSmbSourceSpecFromInput
 import com.flopster101.siliconplayer.playlistContainsTrack
@@ -1582,7 +1583,7 @@ internal fun PlaylistsScreen(
                                     onClick = { showCreatePlaylistDialog = true },
                                     modifier = Modifier.padding(
                                         end = 16.dp,
-                                        bottom = bottomContentPadding + 16.dp
+                                        bottom = 16.dp + miniPlayerFabLift(bottomContentPadding)
                                     )
                                 ) {
                                     Icon(

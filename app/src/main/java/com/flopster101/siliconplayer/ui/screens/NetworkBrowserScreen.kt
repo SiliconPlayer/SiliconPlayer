@@ -71,6 +71,7 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import com.flopster101.siliconplayer.WatchDialogContainer
+import com.flopster101.siliconplayer.miniPlayerFabLift
 import androidx.compose.material3.ElevatedCard
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FabPosition
@@ -1566,7 +1567,9 @@ internal fun NetworkBrowserScreen(
         },
         floatingActionButton = {
             if (!isWatch) {
-                Box {
+                Box(
+                    modifier = Modifier.padding(bottom = miniPlayerFabLift(bottomContentPadding))
+                ) {
                     FloatingActionButton(
                         onClick = { showAddMenu = true }
                     ) {

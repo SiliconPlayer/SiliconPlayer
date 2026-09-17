@@ -31,3 +31,9 @@ internal fun rememberMiniPlayerListInset(
         label = "miniPlayerListInset"
     ).value
 }
+
+internal fun miniPlayerFabLift(bottomContentPadding: Dp): Dp {
+    if (bottomContentPadding <= 0.dp) return 0.dp
+    return bottomContentPadding * (70f / 108f)
+}
+
