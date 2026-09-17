@@ -3997,6 +3997,68 @@ onStopEngine = { NativeBridge.releaseCurrentDecoder() }, onMetadataAlbumChanged 
             onStopAndClear = stopAndEmptyTrack,
             onToggleFavoriteTrack = toggleCurrentTrackFavoriteAction,
             onOpenAudioEffects = openAudioEffectsDialog,
+            playlists = playlistLibraryState.playlists,
+            onAddToPlaylist = { playlistId, newTitle ->
+                val activeSourceId = settingsStates.currentPlaybackSourceId.value?.takeIf { it.isNotBlank() }
+                    ?: selectedFile?.absolutePath
+                if (!activeSourceId.isNullOrBlank()) {
+                    val entry = buildFavoriteEntryForSource(
+                        context = context,
+                        sourceId = activeSourceId,
+                        requestUrlHint = currentPlaybackRequestUrl,
+                        fallbackFile = selectedFile,
+                        metadataTitle = effectiveMetadataTitle,
+                        metadataArtist = effectiveMetadataArtist,
+                        metadataAlbum = effectiveMetadataAlbum,
+                        durationSecondsOverride = playlistDurationOverride,
+                        subtuneCount = subtuneCount,
+                        currentSubtuneIndex = currentSubtuneIndex
+                    )
+                    applyLibraryAddToPlaylist(
+                        context,
+                        emptyList(),
+                        listOf(entry),
+                        playlistId,
+                        newTitle,
+                        playlistLibraryState,
+                        onPlaylistLibraryStateChanged
+                    )
+                }
+            },
+            onRemoveFromPlaylist = { playlistId ->
+                val activeSourceId = settingsStates.currentPlaybackSourceId.value?.takeIf { it.isNotBlank() }
+                    ?: selectedFile?.absolutePath
+                if (!activeSourceId.isNullOrBlank()) {
+                    if (playlistId == FAVORITES_PLAYLIST_ID) {
+                        val matching = playlistLibraryState.favorites.filter { entry ->
+                            (entry.subtuneIndex == currentSubtuneIndex.takeIf { subtuneCount > 1 } || entry.subtuneIndex == null) &&
+                                samePath(entry.source, activeSourceId)
+                        }
+                        if (matching.isNotEmpty()) {
+                            onPlaylistLibraryStateChanged(
+                                playlistLibraryState.copy(
+                                    favorites = playlistLibraryState.favorites.filterNot { entry ->
+                                        matching.any { it.id == entry.id }
+                                    }
+                                )
+                            )
+                            Toast.makeText(context, "Removed from favorites", Toast.LENGTH_SHORT).show()
+                        }
+                    } else {
+                        val target = playlistLibraryState.playlists.firstOrNull { it.id == playlistId }
+                        val entryId = target?.entries?.firstOrNull { entry ->
+                            (entry.subtuneIndex == currentSubtuneIndex.takeIf { subtuneCount > 1 } || entry.subtuneIndex == null) &&
+                                samePath(entry.source, activeSourceId)
+                        }?.id
+                        if (entryId != null) {
+                            onPlaylistLibraryStateChanged(
+                                removeStoredPlaylistEntry(playlistLibraryState, playlistId, entryId)
+                            )
+                            Toast.makeText(context, "Removed from playlist", Toast.LENGTH_SHORT).show()
+                        }
+                    }
+                }
+            },
             onPause = {
                 pauseEngineWithPauseResumeFade {
                     isPlaying = false

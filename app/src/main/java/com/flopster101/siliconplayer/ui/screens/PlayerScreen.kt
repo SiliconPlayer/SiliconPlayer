@@ -61,7 +61,10 @@ import android.content.pm.PackageManager
 import androidx.compose.foundation.focusable
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.List
+import androidx.compose.material.icons.automirrored.filled.PlaylistAdd
 import androidx.compose.material.icons.automirrored.filled.VolumeUp
+import com.flopster101.siliconplayer.StoredPlaylist
+import com.flopster101.siliconplayer.ui.dialogs.AddToPlaylistChooserDialog
 import androidx.compose.material.icons.filled.AudioFile
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Equalizer
@@ -845,6 +848,9 @@ internal fun PlayerScreen(
     isTrackFavorited: Boolean = false,
     onToggleFavoriteTrack: () -> Unit = {},
     onOpenAudioEffects: () -> Unit,
+    playlists: List<StoredPlaylist> = emptyList(),
+    onAddToPlaylist: ((playlistId: String?, newTitle: String) -> Unit)? = null,
+    onRemoveFromPlaylist: ((playlistId: String) -> Unit)? = null,
     showAudioOutputRouteChip: Boolean = com.flopster101.siliconplayer.AppDefaults.Player.showAudioOutputRouteChip,
     filenameDisplayMode: com.flopster101.siliconplayer.FilenameDisplayMode = com.flopster101.siliconplayer.AppDefaults.Player.filenameDisplayMode,
     filenameOnlyWhenTitleMissing: Boolean = false,
@@ -863,6 +869,7 @@ internal fun PlayerScreen(
     var isDraggingDown by remember { mutableStateOf(false) }
     var collapseAnimatingOut by remember { mutableStateOf(false) }
     var showTrackInfoDialog by remember { mutableStateOf(false) }
+    var showAddToPlaylistChooser by remember { mutableStateOf(false) }
     var showVisualizationPickerDialog by remember { mutableStateOf(false) }
     var showVisualizationOptionsSheet by remember { mutableStateOf(false) }
     var showChannelControlDialog by remember { mutableStateOf(false) }
@@ -1359,6 +1366,7 @@ internal fun PlayerScreen(
                             canOpenCoreSettings = canOpenCoreSettings,
                             onOpenCoreSettings = onOpenCoreSettings,
                             onOpenTrackInfo = { showTrackInfoDialog = true },
+                            onOpenAddToPlaylist = { showAddToPlaylistChooser = true },
                             onOpenAudioEffects = onOpenAudioEffects,
                             onOpenChannelControls = { showChannelControlDialog = true },
                             showAudioOutputRouteChip = showAudioOutputRouteChip,
@@ -2048,6 +2056,22 @@ internal fun PlayerScreen(
     }
     }
     }
+    if (showAddToPlaylistChooser) {
+        val activeSource = pathOrUrl?.takeIf { it.isNotBlank() } ?: file?.absolutePath
+        if (!activeSource.isNullOrBlank()) {
+            AddToPlaylistChooserDialog(
+                playlists = playlists,
+                pendingSources = setOf(activeSource),
+                onConfirm = { playlistId, newTitle ->
+                    onAddToPlaylist?.invoke(playlistId, newTitle)
+                },
+                onRemoveFromPlaylist = { playlistId ->
+                    onRemoveFromPlaylist?.invoke(playlistId)
+                },
+                onDismiss = { showAddToPlaylistChooser = false }
+            )
+        }
+    }
     if (showTrackInfoDialog) {
         TrackInfoDetailsDialog(
             file = file,
@@ -2364,6 +2388,7 @@ private fun PlayerTopBar(
     canOpenCoreSettings: Boolean,
     onOpenCoreSettings: () -> Unit,
     onOpenTrackInfo: () -> Unit,
+    onOpenAddToPlaylist: () -> Unit = {},
     onOpenAudioEffects: () -> Unit,
     onOpenChannelControls: () -> Unit,
     showAudioOutputRouteChip: Boolean = true,
@@ -2558,6 +2583,36 @@ private fun PlayerTopBar(
                         expanded = showMoreMenu,
                         onDismissRequest = { showMoreMenu = false }
                     ) {
+                    DropdownMenuItem(
+                        text = {
+                            Text(
+                                text = "Add to playlist...",
+                                style = MaterialTheme.typography.bodyLarge
+                            )
+                        },
+                        leadingIcon = {
+                            Icon(
+                                imageVector = Icons.AutoMirrored.Filled.PlaylistAdd,
+                                contentDescription = null,
+                                modifier = Modifier.size(22.dp)
+                            )
+                        },
+                        contentPadding = PaddingValues(start = 14.dp, end = 18.dp),
+                        colors = MenuDefaults.itemColors(
+                            textColor = MaterialTheme.colorScheme.onSurface,
+                            leadingIconColor = MaterialTheme.colorScheme.onSurfaceVariant
+                        ),
+                        onClick = {
+                            showMoreMenu = false
+                            onOpenAddToPlaylist()
+                        }
+                    )
+
+                    HorizontalDivider(
+                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                        color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.6f)
+                    )
+
                     DropdownMenuItem(
                         text = {
                             Text(
