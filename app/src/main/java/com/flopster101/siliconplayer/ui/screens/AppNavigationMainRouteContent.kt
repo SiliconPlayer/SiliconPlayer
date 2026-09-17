@@ -362,7 +362,9 @@ internal fun AppNavigationPlaylistsContentSection(
     onOpenFavoriteTrackLocation: (PlaylistTrackEntry) -> Unit,
     onShareFavoriteTrack: (PlaylistTrackEntry) -> Unit,
     onCopyFavoriteTrackSource: (PlaylistTrackEntry) -> Unit,
-    onOpenFavoriteTrackInfo: (PlaylistTrackEntry) -> Unit
+    onOpenFavoriteTrackInfo: (PlaylistTrackEntry) -> Unit,
+    onDeleteStoredPlaylist: (String) -> Unit = {},
+    onRenameStoredPlaylist: (String, String) -> Unit = { _, _ -> }
 ) {
     AppNavigationPlaylistsRouteSection(
         mainPadding = mainPadding,
@@ -410,7 +412,9 @@ internal fun AppNavigationPlaylistsContentSection(
         onOpenFavoriteTrackLocation = onOpenFavoriteTrackLocation,
         onShareFavoriteTrack = onShareFavoriteTrack,
         onCopyFavoriteTrackSource = onCopyFavoriteTrackSource,
-        onOpenFavoriteTrackInfo = onOpenFavoriteTrackInfo
+        onOpenFavoriteTrackInfo = onOpenFavoriteTrackInfo,
+        onDeleteStoredPlaylist = onDeleteStoredPlaylist,
+        onRenameStoredPlaylist = onRenameStoredPlaylist
     )
 }
 
@@ -689,6 +693,8 @@ internal fun AppNavigationMainContentHost(
     onShareFavoriteTrack: (PlaylistTrackEntry) -> Unit,
     onCopyFavoriteTrackSource: (PlaylistTrackEntry) -> Unit,
     onOpenFavoriteTrackInfo: (PlaylistTrackEntry) -> Unit,
+    onDeleteStoredPlaylist: (String) -> Unit = {},
+    onRenameStoredPlaylist: (String, String) -> Unit = { _, _ -> },
     onOpenBrowser: (BrowserOpenRequest) -> Unit,
     onCurrentViewChanged: (MainView) -> Unit,
     onOpenUrlOrPathDialog: () -> Unit,
@@ -884,6 +890,8 @@ internal fun AppNavigationMainContentHost(
                 onShareFavoriteTrack = onShareFavoriteTrack,
                 onCopyFavoriteTrackSource = onCopyFavoriteTrackSource,
                 onOpenFavoriteTrackInfo = onOpenFavoriteTrackInfo,
+                onDeleteStoredPlaylist = onDeleteStoredPlaylist,
+                onRenameStoredPlaylist = onRenameStoredPlaylist,
                 pinnedHomeEntries = pinnedHomeEntries,
                 surfaceState = surfaceState
             )

@@ -104,6 +104,27 @@ internal fun removeStoredPlaylist(
     )
 }
 
+internal fun renameStoredPlaylist(
+    state: PlaylistLibraryState,
+    playlistId: String,
+    newTitle: String
+): PlaylistLibraryState {
+    val trimmed = newTitle.trim()
+    if (trimmed.isEmpty()) return state
+    return state.copy(
+        playlists = state.playlists.map { playlist ->
+            if (playlist.id != playlistId) {
+                playlist
+            } else {
+                playlist.copy(
+                    title = trimmed,
+                    updatedAtMs = System.currentTimeMillis()
+                )
+            }
+        }
+    )
+}
+
 internal fun removeStoredPlaylistEntry(
     state: PlaylistLibraryState,
     playlistId: String,

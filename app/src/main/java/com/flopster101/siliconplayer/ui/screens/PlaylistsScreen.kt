@@ -180,6 +180,7 @@ import com.flopster101.siliconplayer.PlaylistLibraryState
 import com.flopster101.siliconplayer.PlaylistTrackEntry
 import com.flopster101.siliconplayer.ui.dialogs.AddToPlaylistChooserDialog
 import com.flopster101.siliconplayer.ui.dialogs.NewPlaylistDialog
+import com.flopster101.siliconplayer.ui.dialogs.RenamePlaylistDialog
 import com.flopster101.siliconplayer.StoredPlaylist
 import com.flopster101.siliconplayer.decodePercentEncodedForDisplay
 import com.flopster101.siliconplayer.ensureRecentArtworkThumbnailCached
@@ -515,7 +516,9 @@ internal fun PlaylistsScreen(
     onOpenFavoriteTrackLocation: (PlaylistTrackEntry) -> Unit,
     onShareFavoriteTrack: (PlaylistTrackEntry) -> Unit,
     onCopyFavoriteTrackSource: (PlaylistTrackEntry) -> Unit,
-    onOpenFavoriteTrackInfo: (PlaylistTrackEntry) -> Unit
+    onOpenFavoriteTrackInfo: (PlaylistTrackEntry) -> Unit,
+    onDeleteStoredPlaylist: (String) -> Unit = {},
+    onRenameStoredPlaylist: (String, String) -> Unit = { _, _ -> }
 ) {
     val context = LocalContext.current
     val isWatch = remember(context) { context.packageManager.hasSystemFeature(PackageManager.FEATURE_WATCH) }
@@ -712,6 +715,8 @@ internal fun PlaylistsScreen(
         mutableStateOf(false)
     }
     var showCreatePlaylistDialog by remember { mutableStateOf(false) }
+    var playlistPendingDelete by remember { mutableStateOf<StoredPlaylist?>(null) }
+    var playlistPendingRename by remember { mutableStateOf<StoredPlaylist?>(null) }
     var trackInfoDialogState by remember {
         mutableStateOf<PlaylistTrackInfoDialogState?>(null)
     }
@@ -1107,6 +1112,8 @@ internal fun PlaylistsScreen(
                             onShufflePlaylist = onShuffleFavoritePlaylist,
                             onDeletePlaylist = {},
                             canDeletePlaylist = false,
+                            onRenamePlaylist = {},
+                            canRenamePlaylist = false,
                             onDeleteAllEntries = { showDeleteAllFavoritesConfirm = true },
                             onPlayEntry = onOpenFavorite,
                             onPlayEntryAsCached = onPlayFavoriteTrackAsCached,
@@ -1171,8 +1178,10 @@ internal fun PlaylistsScreen(
                             onEntryClick = { entry -> onOpenStoredPlaylistEntry(entry, sortedStoredPlaylist) },
                             onPlayPlaylist = { onPlayStoredPlaylist(sortedStoredPlaylist) },
                             onShufflePlaylist = { onShuffleStoredPlaylist(sortedStoredPlaylist) },
-                            onDeletePlaylist = {},
-                            canDeletePlaylist = false,
+                            onDeletePlaylist = { playlistPendingDelete = selectedStoredPlaylist },
+                            canDeletePlaylist = true,
+                            onRenamePlaylist = { playlistPendingRename = selectedStoredPlaylist },
+                            canRenamePlaylist = true,
                             onDeleteAllEntries = { showDeleteAllStoredPlaylistEntriesConfirm = true },
                             onPlayEntry = { entry -> onOpenStoredPlaylistEntry(entry, sortedStoredPlaylist) },
                             onPlayEntryAsCached = { entry ->
@@ -1299,6 +1308,8 @@ internal fun PlaylistsScreen(
                                                     selectedStoredPlaylistId = playlist.id
                                                     destination = PlaylistsSurfaceDestination.StoredPlaylist
                                                 },
+                                                onRename = { playlistPendingRename = playlist },
+                                                onDelete = { playlistPendingDelete = playlist },
                                                 isWatch = true
                                             )
                                         }
@@ -1458,7 +1469,9 @@ internal fun PlaylistsScreen(
                                             onOpenPlaylist = { playlist ->
                                                 selectedStoredPlaylistId = playlist.id
                                                 destination = PlaylistsSurfaceDestination.StoredPlaylist
-                                            }
+                                            },
+                                            onRenamePlaylist = { playlist -> playlistPendingRename = playlist },
+                                            onDeletePlaylist = { playlist -> playlistPendingDelete = playlist }
                                         )
                                     }
                                     LibrarySurfaceTab.Albums -> {
@@ -1664,6 +1677,75 @@ internal fun PlaylistsScreen(
             onDismiss = { showCreatePlaylistDialog = false }
         )
     }
+    playlistPendingDelete?.let { playlist ->
+        if (isWatch) {
+            WatchDialogContainer(
+                title = "Delete playlist?",
+                onDismissRequest = { playlistPendingDelete = null }
+            ) {
+                Text(
+                    text = "Are you sure you want to delete \"${playlist.title}\"?",
+                    style = MaterialTheme.typography.bodyMedium,
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp)
+                )
+                Button(
+                    onClick = {
+                        val id = playlist.id
+                        playlistPendingDelete = null
+                        if (selectedStoredPlaylistId == id) {
+                            selectedStoredPlaylistId = null
+                            destination = PlaylistsSurfaceDestination.Library
+                        }
+                        onDeleteStoredPlaylist(id)
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error),
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(14.dp)
+                ) {
+                    Text("Delete")
+                }
+                TextButton(
+                    onClick = { playlistPendingDelete = null },
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text("Cancel")
+                }
+            }
+        } else {
+            FloatingActionDialog(
+                title = "Delete playlist?",
+                onDismiss = { playlistPendingDelete = null },
+                confirmText = "Delete",
+                onConfirm = {
+                    val id = playlist.id
+                    playlistPendingDelete = null
+                    if (selectedStoredPlaylistId == id) {
+                        selectedStoredPlaylistId = null
+                        destination = PlaylistsSurfaceDestination.Library
+                    }
+                    onDeleteStoredPlaylist(id)
+                }
+            ) {
+                Text(
+                    text = "Are you sure you want to delete \"${playlist.title}\"? This cannot be undone.",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+        }
+    }
+    playlistPendingRename?.let { playlist ->
+        RenamePlaylistDialog(
+            currentTitle = playlist.title,
+            onConfirm = { newTitle ->
+                val id = playlist.id
+                playlistPendingRename = null
+                onRenameStoredPlaylist(id, newTitle)
+            },
+            onDismiss = { playlistPendingRename = null }
+        )
+    }
     libraryContextTracks?.let { contextTracks ->
         AddToPlaylistChooserDialog(
             playlists = libraryState.playlists,
@@ -1688,6 +1770,8 @@ private fun PlaylistsLibraryTabPage(
     listState: LazyListState,
     onOpenFavorites: () -> Unit,
     onOpenPlaylist: (StoredPlaylist) -> Unit,
+    onRenamePlaylist: (StoredPlaylist) -> Unit = {},
+    onDeletePlaylist: (StoredPlaylist) -> Unit = {},
     isWatch: Boolean = false
 ) {
     LazyColumn(
@@ -1738,6 +1822,8 @@ private fun PlaylistsLibraryTabPage(
                 PlaylistCollectionRow(
                     playlist = playlist,
                     onClick = { onOpenPlaylist(playlist) },
+                    onRename = { onRenamePlaylist(playlist) },
+                    onDelete = { onDeletePlaylist(playlist) },
                     isWatch = isWatch
                 )
                 if (!isWatch) {
@@ -3299,6 +3385,8 @@ private fun LazyListScope.playlistDetailContent(
     onShufflePlaylist: () -> Unit,
     onDeletePlaylist: () -> Unit,
     canDeletePlaylist: Boolean,
+    onRenamePlaylist: () -> Unit = {},
+    canRenamePlaylist: Boolean = false,
     onDeleteAllEntries: () -> Unit,
     canDeleteEntries: Boolean = true,
     onPlayEntry: (PlaylistTrackEntry) -> Unit,
@@ -3331,6 +3419,8 @@ private fun LazyListScope.playlistDetailContent(
                 onShufflePlaylist = onShufflePlaylist,
                 onDeletePlaylist = onDeletePlaylist,
                 canDeletePlaylist = canDeletePlaylist,
+                onRenamePlaylist = onRenamePlaylist,
+                canRenamePlaylist = canRenamePlaylist,
                 onDeleteAllEntries = onDeleteAllEntries,
                 onBack = onBack
             )
@@ -3351,6 +3441,8 @@ private fun LazyListScope.playlistDetailContent(
                 onShufflePlaylist = onShufflePlaylist,
                 onDeletePlaylist = onDeletePlaylist,
                 canDeletePlaylist = canDeletePlaylist,
+                onRenamePlaylist = onRenamePlaylist,
+                canRenamePlaylist = canRenamePlaylist,
                 onDeleteAllEntries = onDeleteAllEntries
             )
         }
@@ -3454,6 +3546,8 @@ private fun WearPlaylistHeroHeader(
     onShufflePlaylist: () -> Unit,
     onDeletePlaylist: () -> Unit,
     canDeletePlaylist: Boolean,
+    onRenamePlaylist: () -> Unit = {},
+    canRenamePlaylist: Boolean = false,
     onDeleteAllEntries: () -> Unit,
     onBack: () -> Unit
 ) {
@@ -3512,9 +3606,8 @@ private fun WearPlaylistHeroHeader(
         )
 
         Row(
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            modifier = Modifier.padding(top = 4.dp)
+            horizontalArrangement = Arrangement.spacedBy(10.dp),
+            verticalAlignment = Alignment.CenterVertically
         ) {
             FilledIconButton(
                 onClick = onPlayPlaylist,
@@ -3523,8 +3616,8 @@ private fun WearPlaylistHeroHeader(
             ) {
                 Icon(
                     imageVector = Icons.Default.PlayArrow,
-                    contentDescription = "Play",
-                    modifier = Modifier.size(24.dp)
+                    contentDescription = "Play all",
+                    modifier = Modifier.size(22.dp)
                 )
             }
             Surface(
@@ -3561,7 +3654,7 @@ private fun WearPlaylistHeroHeader(
                     )
                 }
             }
-            if (canDeletePlaylist || showDeleteAllEntriesAction) {
+            if (canDeletePlaylist || canRenamePlaylist || showDeleteAllEntriesAction) {
                 Surface(
                     modifier = Modifier
                         .size(42.dp)
@@ -3638,6 +3731,18 @@ private fun WearPlaylistHeroHeader(
             title = title,
             onDismissRequest = { showMoreActionsDialog = false }
         ) {
+            if (canRenamePlaylist) {
+                FilledTonalButton(
+                    onClick = {
+                        showMoreActionsDialog = false
+                        onRenamePlaylist()
+                    },
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(14.dp)
+                ) {
+                    Text("Rename playlist")
+                }
+            }
             if (canDeletePlaylist) {
                 Button(
                     onClick = {
@@ -3691,6 +3796,8 @@ private fun PlaylistHeroCard(
     onShufflePlaylist: () -> Unit,
     onDeletePlaylist: () -> Unit,
     canDeletePlaylist: Boolean,
+    onRenamePlaylist: () -> Unit = {},
+    canRenamePlaylist: Boolean = false,
     onDeleteAllEntries: () -> Unit
 ) {
     var menuExpanded by rememberSaveable { mutableStateOf(false) }
@@ -3744,33 +3851,61 @@ private fun PlaylistHeroCard(
                     expanded = menuExpanded,
                     onDismissRequest = { menuExpanded = false }
                 ) {
-                    DropdownMenuItem(
-                        text = {
-                            Text(
-                                text = "Delete playlist",
-                                style = MaterialTheme.typography.bodyLarge
-                            )
-                        },
-                        leadingIcon = {
-                            Icon(
-                                imageVector = Icons.Default.Delete,
-                                contentDescription = null,
-                                modifier = Modifier.size(22.dp)
-                            )
-                        },
-                        contentPadding = PaddingValues(start = 14.dp, end = 18.dp),
-                        colors = MenuDefaults.itemColors(
-                            textColor = MaterialTheme.colorScheme.onSurface,
-                            leadingIconColor = MaterialTheme.colorScheme.onSurfaceVariant,
-                            disabledTextColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.38f),
-                            disabledLeadingIconColor = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.38f)
-                        ),
-                        enabled = canDeletePlaylist,
-                        onClick = {
-                            menuExpanded = false
-                            onDeletePlaylist()
-                        }
-                    )
+                    if (canRenamePlaylist) {
+                        DropdownMenuItem(
+                            text = {
+                                Text(
+                                    text = "Rename playlist",
+                                    style = MaterialTheme.typography.bodyLarge
+                                )
+                            },
+                            leadingIcon = {
+                                Icon(
+                                    imageVector = Icons.Default.Edit,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(22.dp)
+                                )
+                            },
+                            contentPadding = PaddingValues(start = 14.dp, end = 18.dp),
+                            colors = MenuDefaults.itemColors(
+                                textColor = MaterialTheme.colorScheme.onSurface,
+                                leadingIconColor = MaterialTheme.colorScheme.onSurfaceVariant
+                            ),
+                            onClick = {
+                                menuExpanded = false
+                                onRenamePlaylist()
+                            }
+                        )
+                    }
+                    if (canDeletePlaylist) {
+                        DropdownMenuItem(
+                            text = {
+                                Text(
+                                    text = "Delete playlist",
+                                    style = MaterialTheme.typography.bodyLarge
+                                )
+                            },
+                            leadingIcon = {
+                                Icon(
+                                    imageVector = Icons.Default.Delete,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(22.dp)
+                                )
+                            },
+                            contentPadding = PaddingValues(start = 14.dp, end = 18.dp),
+                            colors = MenuDefaults.itemColors(
+                                textColor = MaterialTheme.colorScheme.onSurface,
+                                leadingIconColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                                disabledTextColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.38f),
+                                disabledLeadingIconColor = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.38f)
+                            ),
+                            enabled = canDeletePlaylist,
+                            onClick = {
+                                menuExpanded = false
+                                onDeletePlaylist()
+                            }
+                        )
+                    }
                     if (showDeleteAllEntriesAction) {
                         DropdownMenuItem(
                             text = {
@@ -4545,7 +4680,7 @@ private fun PlaylistTrackRow(
                             DropdownMenuItem(
                                 text = {
                                     Text(
-                                        text = "Delete",
+                                        text = "Remove from playlist",
                                         style = MaterialTheme.typography.bodyLarge
                                     )
                                 },
@@ -4896,6 +5031,8 @@ private fun PlaylistTrackArtworkChip(
 private fun PlaylistCollectionRow(
     playlist: StoredPlaylist,
     onClick: () -> Unit,
+    onRename: (() -> Unit)? = null,
+    onDelete: (() -> Unit)? = null,
     isWatch: Boolean = false
 ) {
     PlaylistLibraryFlatRow(
@@ -4907,6 +5044,8 @@ private fun PlaylistCollectionRow(
         iconContainerColor = MaterialTheme.colorScheme.surfaceContainerHighest,
         iconTint = MaterialTheme.colorScheme.onSurfaceVariant,
         onClick = onClick,
+        onRename = onRename,
+        onDelete = onDelete,
         isWatch = isWatch
     )
 }
@@ -4920,15 +5059,24 @@ private fun PlaylistLibraryFlatRow(
     iconContainerColor: Color,
     iconTint: Color,
     onClick: () -> Unit,
+    onRename: (() -> Unit)? = null,
+    onDelete: (() -> Unit)? = null,
     isWatch: Boolean = false
 ) {
+    var wearActionsOpen by rememberSaveable { mutableStateOf(false) }
+    var menuExpanded by remember { mutableStateOf(false) }
     if (isWatch) {
         Row(
             modifier = modifier
                 .fillMaxWidth()
                 .clip(RoundedCornerShape(14.dp))
                 .background(MaterialTheme.colorScheme.surfaceContainerLow)
-                .clickable(onClick = onClick)
+                .combinedClickable(
+                    onClick = onClick,
+                    onLongClick = if (onRename != null || onDelete != null) {
+                        { wearActionsOpen = true }
+                    } else null
+                )
                 .padding(horizontal = 10.dp, vertical = 8.dp),
             horizontalArrangement = Arrangement.spacedBy(10.dp),
             verticalAlignment = Alignment.CenterVertically
@@ -4965,6 +5113,45 @@ private fun PlaylistLibraryFlatRow(
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis
                 )
+            }
+        }
+
+        if (wearActionsOpen) {
+            WatchDialogContainer(
+                title = title,
+                onDismissRequest = { wearActionsOpen = false }
+            ) {
+                if (onRename != null) {
+                    FilledTonalButton(
+                        onClick = {
+                            wearActionsOpen = false
+                            onRename()
+                        },
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(14.dp)
+                    ) {
+                        Text("Rename")
+                    }
+                }
+                if (onDelete != null) {
+                    Button(
+                        onClick = {
+                            wearActionsOpen = false
+                            onDelete()
+                        },
+                        colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error),
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(14.dp)
+                    ) {
+                        Text("Delete")
+                    }
+                }
+                TextButton(
+                    onClick = { wearActionsOpen = false },
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text("Cancel")
+                }
             }
         }
     } else {
@@ -5007,6 +5194,78 @@ private fun PlaylistLibraryFlatRow(
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis
                 )
+            }
+            if (onRename != null || onDelete != null) {
+                Box(
+                    modifier = Modifier
+                        .size(28.dp)
+                        .clickable(onClick = { menuExpanded = true }),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.MoreHoriz,
+                        contentDescription = "Playlist options",
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.size(18.dp)
+                    )
+                    DropdownMenu(
+                        expanded = menuExpanded,
+                        onDismissRequest = { menuExpanded = false }
+                    ) {
+                        if (onRename != null) {
+                            DropdownMenuItem(
+                                text = {
+                                    Text(
+                                        text = "Rename",
+                                        style = MaterialTheme.typography.bodyLarge
+                                    )
+                                },
+                                leadingIcon = {
+                                    Icon(
+                                        imageVector = Icons.Default.Edit,
+                                        contentDescription = null,
+                                        modifier = Modifier.size(22.dp)
+                                    )
+                                },
+                                contentPadding = PaddingValues(start = 14.dp, end = 18.dp),
+                                colors = MenuDefaults.itemColors(
+                                    textColor = MaterialTheme.colorScheme.onSurface,
+                                    leadingIconColor = MaterialTheme.colorScheme.onSurfaceVariant
+                                ),
+                                onClick = {
+                                    menuExpanded = false
+                                    onRename()
+                                }
+                            )
+                        }
+                        if (onDelete != null) {
+                            DropdownMenuItem(
+                                text = {
+                                    Text(
+                                        text = "Delete",
+                                        style = MaterialTheme.typography.bodyLarge
+                                    )
+                                },
+                                leadingIcon = {
+                                    Icon(
+                                        imageVector = Icons.Default.Delete,
+                                        contentDescription = null,
+                                        modifier = Modifier.size(22.dp)
+                                    )
+                                },
+                                contentPadding = PaddingValues(start = 14.dp, end = 18.dp),
+                                colors = MenuDefaults.itemColors(
+                                    textColor = MaterialTheme.colorScheme.onSurface,
+                                    leadingIconColor = MaterialTheme.colorScheme.onSurfaceVariant
+                                ),
+                                onClick = {
+                                    menuExpanded = false
+                                    onDelete()
+                                }
+                            )
+                        }
+                    }
+                }
             }
         }
     }

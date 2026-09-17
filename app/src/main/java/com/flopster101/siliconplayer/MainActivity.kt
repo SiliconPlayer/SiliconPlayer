@@ -4974,6 +4974,32 @@ filenameOnlyWhenTitleMissing = filenameOnlyWhenTitleMissing,
                     Toast.makeText(context, "Playlist created", Toast.LENGTH_SHORT).show()
                     playlist.id
                 },
+                onDeleteStoredPlaylist = { playlistId ->
+                    val updatedState = removeStoredPlaylist(playlistLibraryState, playlistId)
+                    if (updatedState != playlistLibraryState) {
+                        onPlaylistLibraryStateChanged(updatedState)
+                        if (activePlaylist?.id == playlistId) {
+                            activePlaylist = null
+                            activePlaylistEntryId = null
+                            activePlaylistShuffleActive = false
+                            pendingPlaylistSubtuneSelection = null
+                        }
+                        Toast.makeText(context, "Playlist deleted", Toast.LENGTH_SHORT).show()
+                    }
+                },
+                onRenameStoredPlaylist = { playlistId, newTitle ->
+                    val updatedState = renameStoredPlaylist(playlistLibraryState, playlistId, newTitle)
+                    if (updatedState != playlistLibraryState) {
+                        onPlaylistLibraryStateChanged(updatedState)
+                        if (activePlaylist?.id == playlistId) {
+                            activePlaylist = activePlaylist?.copy(
+                                title = newTitle.trim(),
+                                updatedAtMs = System.currentTimeMillis()
+                            )
+                        }
+                        Toast.makeText(context, "Playlist renamed", Toast.LENGTH_SHORT).show()
+                    }
+                },
                 onDeleteStoredPlaylistEntry = { entry, playlistId ->
                     val updatedState = removeStoredPlaylistEntry(playlistLibraryState, playlistId, entry.id)
                     if (updatedState != playlistLibraryState) {
