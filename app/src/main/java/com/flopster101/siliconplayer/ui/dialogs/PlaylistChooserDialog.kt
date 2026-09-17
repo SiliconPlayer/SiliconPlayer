@@ -29,7 +29,9 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.LibraryMusic
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.outlined.AddCircle
@@ -39,6 +41,7 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -142,16 +145,22 @@ private fun AddToPlaylistSheetContent(
             }
         }
     }
-    val visiblePlaylists = remember(playlists, query) {
+    val savedInIds = remember(savedIn) { savedIn.map { it.id }.toSet() }
+    val filteredPlaylists = remember(playlists, query) {
         if (query.isBlank()) {
             playlists
         } else {
             playlists.filter { it.title.contains(query, ignoreCase = true) }
         }
     }
+    val otherPlaylists = remember(filteredPlaylists, savedInIds) {
+        filteredPlaylists.filter { it.id !in savedInIds }
+    }
     Column(modifier = Modifier.fillMaxWidth()) {
         Row(
-            modifier = Modifier.fillMaxWidth(),
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(start = 16.dp, end = 4.dp, top = 4.dp, bottom = 4.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
             Text(
@@ -159,17 +168,51 @@ private fun AddToPlaylistSheetContent(
                 style = MaterialTheme.typography.titleLarge,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
-                modifier = Modifier
-                    .weight(1f)
-                    .padding(start = 16.dp, end = 8.dp, top = 8.dp, bottom = 8.dp)
+                modifier = Modifier.weight(1f)
             )
-            TextButton(
-                onClick = { showNewPlaylistDialog = true },
-                modifier = Modifier.padding(end = 8.dp)
-            ) {
-                Text("New playlist")
+            TextButton(onClick = { showNewPlaylistDialog = true }) {
+                Icon(
+                    imageVector = Icons.Default.Add,
+                    contentDescription = null,
+                    modifier = Modifier.size(18.dp)
+                )
+                Spacer(modifier = Modifier.width(4.dp))
+                Text("New")
+            }
+            IconButton(onClick = onDismiss) {
+                Icon(
+                    imageVector = Icons.Default.Close,
+                    contentDescription = "Close"
+                )
             }
         }
+        OutlinedTextField(
+            value = query,
+            onValueChange = { query = it },
+            singleLine = true,
+            placeholder = { Text("Find playlist") },
+            leadingIcon = {
+                Icon(
+                    imageVector = Icons.Default.Search,
+                    contentDescription = null
+                )
+            },
+            trailingIcon = if (query.isNotEmpty()) {
+                {
+                    IconButton(onClick = { query = "" }) {
+                        Icon(
+                            imageVector = Icons.Default.Close,
+                            contentDescription = "Clear search"
+                        )
+                    }
+                }
+            } else null,
+            shape = RoundedCornerShape(24.dp),
+            keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(start = 16.dp, end = 16.dp, top = 4.dp, bottom = 8.dp)
+        )
         Column(
             modifier = Modifier
                 .fillMaxWidth()
@@ -177,62 +220,97 @@ private fun AddToPlaylistSheetContent(
                 .padding(start = 16.dp, end = 16.dp, bottom = 24.dp),
             verticalArrangement = Arrangement.spacedBy(4.dp)
         ) {
-            AnimatedVisibility(
-                visible = savedIn.isNotEmpty(),
-                enter = fadeIn(animationSpec = tween(180)) +
-                    expandVertically(animationSpec = tween(220)),
-                exit = fadeOut(animationSpec = tween(150)) +
-                    shrinkVertically(animationSpec = tween(180))
-            ) {
-                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            if (playlists.isEmpty()) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(vertical = 32.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
                     Text(
-                        text = "Saved in",
-                        style = MaterialTheme.typography.titleSmall,
-                        color = MaterialTheme.colorScheme.primary,
-                        modifier = Modifier.padding(top = 4.dp, bottom = 2.dp)
+                        text = "No playlists yet",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
-                    savedIn.forEach { playlist ->
+                }
+            } else if (query.isNotBlank()) {
+                if (filteredPlaylists.isEmpty()) {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(vertical = 24.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+                        Text(
+                            text = "No matching playlists",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                } else {
+                    filteredPlaylists.forEach { playlist ->
+                        val contained = singleSource != null && playlist.id in savedInIds
                         key(playlist.id) {
                             ChooserPlaylistRow(
                                 playlist = playlist,
-                                contained = true,
-                                onClick = { onRemoveFromPlaylist(playlist.id) }
+                                contained = contained,
+                                onClick = {
+                                    if (contained) {
+                                        onRemoveFromPlaylist(playlist.id)
+                                    } else {
+                                        onConfirm(playlist.id, "")
+                                    }
+                                }
                             )
                         }
                     }
                 }
-            }
-            OutlinedTextField(
-                value = query,
-                onValueChange = { query = it },
-                singleLine = true,
-                placeholder = { Text("Find playlist") },
-                leadingIcon = {
-                    Icon(
-                        imageVector = Icons.Default.Search,
-                        contentDescription = null
-                    )
-                },
-                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(top = 4.dp)
-            )
-            Spacer(modifier = Modifier.height(4.dp))
-            visiblePlaylists.forEach { playlist ->
-                val contained = singleSource != null && savedIn.any { it.id == playlist.id }
-                key(playlist.id) {
-                    ChooserPlaylistRow(
-                        playlist = playlist,
-                        contained = contained,
-                        onClick = {
-                            if (contained) {
-                                onRemoveFromPlaylist(playlist.id)
-                            } else {
-                                onConfirm(playlist.id, "")
+            } else {
+                AnimatedVisibility(
+                    visible = savedIn.isNotEmpty(),
+                    enter = fadeIn(animationSpec = tween(180)) +
+                        expandVertically(animationSpec = tween(220)),
+                    exit = fadeOut(animationSpec = tween(150)) +
+                        shrinkVertically(animationSpec = tween(180))
+                ) {
+                    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                        Text(
+                            text = "Saved in",
+                            style = MaterialTheme.typography.titleSmall,
+                            color = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.padding(top = 4.dp, bottom = 2.dp)
+                        )
+                        savedIn.forEach { playlist ->
+                            key(playlist.id) {
+                                ChooserPlaylistRow(
+                                    playlist = playlist,
+                                    contained = true,
+                                    onClick = { onRemoveFromPlaylist(playlist.id) }
+                                )
                             }
                         }
+                    }
+                }
+
+                if (savedIn.isNotEmpty() && otherPlaylists.isNotEmpty()) {
+                    Spacer(modifier = Modifier.height(4.dp))
+                    HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
+                    Text(
+                        text = "Other playlists",
+                        style = MaterialTheme.typography.titleSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(top = 8.dp, bottom = 2.dp)
                     )
+                }
+
+                otherPlaylists.forEach { playlist ->
+                    key(playlist.id) {
+                        ChooserPlaylistRow(
+                            playlist = playlist,
+                            contained = false,
+                            onClick = { onConfirm(playlist.id, "") }
+                        )
+                    }
                 }
             }
         }
