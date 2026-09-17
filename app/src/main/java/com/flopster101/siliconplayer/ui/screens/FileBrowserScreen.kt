@@ -1,6 +1,9 @@
 package com.flopster101.siliconplayer.ui.screens
 
 import com.flopster101.siliconplayer.isRoundScreenCompat
+import com.flopster101.siliconplayer.StoredPlaylist
+import com.flopster101.siliconplayer.inferredDisplayTitleForName
+import com.flopster101.siliconplayer.ui.dialogs.AddToPlaylistChooserDialog
 import android.app.ActivityManager
 import android.content.ClipData
 import android.content.ClipboardManager
@@ -40,6 +43,7 @@ import androidx.compose.material.icons.filled.Description
 import androidx.compose.material.icons.filled.Folder
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material.icons.filled.PlaylistAdd
 import androidx.compose.material.icons.filled.Photo
 import androidx.compose.material.icons.filled.Save
 import androidx.compose.material.icons.filled.Home
@@ -252,6 +256,9 @@ internal fun FileBrowserScreen(
     playingPlaylistFile: File? = null,
     favoriteSourcePaths: List<String> = emptyList(),
     onToggleFavoriteFile: (File) -> Unit = {},
+    playlists: List<StoredPlaylist> = emptyList(),
+    onAddSourceToPlaylist: (String, String, String?, String) -> Unit = { _, _, _, _ -> },
+    onRemoveSourceFromPlaylist: (String, String) -> Unit = { _, _ -> },
     pinnedHomeEntries: List<HomePinnedEntry> = emptyList(),
     onPinHomeEntry: (RecentPathEntry, Boolean) -> Unit = { _, _ -> }
 ) {
@@ -317,6 +324,7 @@ internal fun FileBrowserScreen(
     var pendingPinConfirmation by remember { mutableStateOf<Pair<RecentPathEntry, Boolean>?>(null) }
     var pendingPinEvictionCandidate by remember { mutableStateOf<HomePinnedEntry?>(null) }
     var watchActionTargetItem by remember { mutableStateOf<FileItem?>(null) }
+    var pendingPlaylistAddSource by remember { mutableStateOf<Pair<String, String>?>(null) }
     val folderSummaryCache = remember { mutableStateMapOf<String, String>() }
     val activityManager = remember(context) {
         context.getSystemService(Context.ACTIVITY_SERVICE) as? ActivityManager
@@ -1886,7 +1894,11 @@ internal fun FileBrowserScreen(
                                             }
                                             openFileItem(item)
                                         },
-                                        onToggleFavorite = { onToggleFavoriteFile(item.file) }
+                                        onToggleFavorite = { onToggleFavoriteFile(item.file) },
+                                        onAddToPlaylist = {
+                                            pendingPlaylistAddSource = item.file.absolutePath to
+                                                inferredDisplayTitleForName(item.file.name)
+                                        }
                                     )
                                 }
                             }
@@ -2181,6 +2193,19 @@ internal fun FileBrowserScreen(
         }
     }
 
+    pendingPlaylistAddSource?.let { (source, title) ->
+        AddToPlaylistChooserDialog(
+            playlists = playlists,
+            pendingSources = setOf(source),
+            onConfirm = { playlistId, newTitle ->
+                onAddSourceToPlaylist(source, title, playlistId, newTitle)
+            },
+            onRemoveFromPlaylist = { playlistId ->
+                onRemoveSourceFromPlaylist(source, playlistId)
+            },
+            onDismiss = { pendingPlaylistAddSource = null }
+        )
+    }
     watchActionTargetItem?.let { targetItem ->
         val isFolder = targetItem.isDirectory
         Dialog(
@@ -3018,7 +3043,8 @@ fun FileItemRow(
     onFocused: (() -> Unit)? = null,
     onLongClick: (() -> Unit)? = null,
     onClick: () -> Unit,
-    onToggleFavorite: () -> Unit = {}
+    onToggleFavorite: () -> Unit = {},
+    onAddToPlaylist: (() -> Unit)? = null
 ) {
     val context = LocalContext.current
     val isWatch = remember(context) {
@@ -3343,6 +3369,22 @@ fun FileItemRow(
                     } else {
                         "Add to favorites"
                     },
+                    tint = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.size(18.dp)
+                )
+            }
+        }
+        if (onAddToPlaylist != null && !item.isDirectory && item.kind == FileItem.Kind.AudioFile) {
+            Spacer(modifier = Modifier.width(8.dp))
+            Box(
+                modifier = Modifier
+                    .size(28.dp)
+                    .clickable(onClick = onAddToPlaylist),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(
+                    imageVector = Icons.Default.PlaylistAdd,
+                    contentDescription = "Add to playlist",
                     tint = MaterialTheme.colorScheme.primary,
                     modifier = Modifier.size(18.dp)
                 )

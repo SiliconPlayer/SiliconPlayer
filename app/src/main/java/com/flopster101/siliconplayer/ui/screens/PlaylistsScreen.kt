@@ -177,6 +177,8 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.flopster101.siliconplayer.PlaylistLibraryState
 import com.flopster101.siliconplayer.PlaylistTrackEntry
+import com.flopster101.siliconplayer.ui.dialogs.AddToPlaylistChooserDialog
+import com.flopster101.siliconplayer.ui.dialogs.NewPlaylistDialog
 import com.flopster101.siliconplayer.StoredPlaylist
 import com.flopster101.siliconplayer.decodePercentEncodedForDisplay
 import com.flopster101.siliconplayer.ensureRecentArtworkThumbnailCached
@@ -508,6 +510,7 @@ internal fun PlaylistsScreen(
     onMoveStoredPlaylistEntry: (PlaylistTrackEntry, String, Int) -> Unit,
     onDeleteAllStoredPlaylistEntries: (String) -> Unit,
     onPlayStoredPlaylistTrackAsCached: (PlaylistTrackEntry, StoredPlaylist) -> Unit,
+    onRemoveSourceFromPlaylist: (String, String) -> Unit,
     onOpenFavoriteTrackLocation: (PlaylistTrackEntry) -> Unit,
     onShareFavoriteTrack: (PlaylistTrackEntry) -> Unit,
     onCopyFavoriteTrackSource: (PlaylistTrackEntry) -> Unit,
@@ -1647,67 +1650,33 @@ internal fun PlaylistsScreen(
         )
     }
     if (showCreatePlaylistDialog) {
-        var newPlaylistTitle by remember { mutableStateOf("") }
-        FloatingActionDialog(
-            title = "New playlist",
-            onDismiss = { showCreatePlaylistDialog = false },
-            confirmText = "Create",
-            confirmEnabled = newPlaylistTitle.isNotBlank(),
-            onConfirm = {
-                val playlistId = onCreatePlaylist(newPlaylistTitle.trim())
-                newPlaylistTitle = ""
+        NewPlaylistDialog(
+            existingTitles = remember(libraryState.playlists) {
+                libraryState.playlists.map { it.title }.toSet()
+            },
+            onConfirm = { title ->
+                val playlistId = onCreatePlaylist(title)
                 showCreatePlaylistDialog = false
                 selectedStoredPlaylistId = playlistId
                 destination = PlaylistsSurfaceDestination.StoredPlaylist
-            }
-        ) {
-            DialogSectionLabel("Name")
-            OutlinedTextField(
-                value = newPlaylistTitle,
-                onValueChange = { newPlaylistTitle = it },
-                singleLine = true,
-                placeholder = { Text("Playlist name") },
-                modifier = Modifier.fillMaxWidth()
-            )
-        }
+            },
+            onDismiss = { showCreatePlaylistDialog = false }
+        )
     }
     libraryContextTracks?.let { contextTracks ->
-        var newPlaylistTitle by remember(contextTracks) { mutableStateOf("") }
-        FloatingActionDialog(
-            title = "Add to playlist",
-            onDismiss = { libraryContextTracks = null },
-            confirmText = "Create",
-            confirmEnabled = newPlaylistTitle.isNotBlank(),
-            onConfirm = {
-                onAddLibraryTracksToPlaylist(contextTracks, null, newPlaylistTitle.trim())
-                libraryContextTracks = null
-            }
-        ) {
-            DialogSectionLabel("Create new playlist")
-            OutlinedTextField(
-                value = newPlaylistTitle,
-                onValueChange = { newPlaylistTitle = it },
-                singleLine = true,
-                placeholder = { Text("Playlist name") },
-                modifier = Modifier.fillMaxWidth()
-            )
-            if (libraryState.playlists.isNotEmpty()) {
-                DialogSectionLabel("Your playlists", modifier = Modifier.padding(top = 12.dp))
-                libraryState.playlists.forEach { playlist ->
-                    DialogSelectableCard(
-                        label = playlist.title,
-                        icon = Icons.Default.PlayArrow,
-                        isSelected = false,
-                        isEnabled = true,
-                        subtitle = "${playlist.entries.size} tracks",
-                        onClick = {
-                            onAddLibraryTracksToPlaylist(contextTracks, playlist.id, "")
-                            libraryContextTracks = null
-                        }
-                    )
+        AddToPlaylistChooserDialog(
+            playlists = libraryState.playlists,
+            pendingSources = contextTracks.map { it.path }.toSet(),
+            onConfirm = { playlistId, newTitle ->
+                onAddLibraryTracksToPlaylist(contextTracks, playlistId, newTitle)
+            },
+            onRemoveFromPlaylist = { playlistId ->
+                contextTracks.singleOrNull()?.let { track ->
+                    onRemoveSourceFromPlaylist(track.path, playlistId)
                 }
-            }
-        }
+            },
+            onDismiss = { libraryContextTracks = null }
+        )
     }
 }
 
@@ -3924,7 +3893,7 @@ private fun PlaylistActionPill(
 }
 
 @Composable
-private fun PlaylistCoverArt(
+internal fun PlaylistCoverArt(
     entries: List<PlaylistTrackEntry>,
     heroIcon: ImageVector?,
     modifier: Modifier = Modifier,
@@ -3971,7 +3940,7 @@ private fun PlaylistCoverArt(
 }
 
 @Composable
-private fun PlaylistIconGrid(
+internal fun PlaylistIconGrid(
     entries: List<PlaylistTrackEntry>
 ) {
     val coverSources = playlistCoverSources(entries)
@@ -4015,7 +3984,7 @@ private fun PlaylistIconGrid(
 }
 
 @Composable
-private fun PlaylistCoverCell(
+internal fun PlaylistCoverCell(
     source: String?,
     modifier: Modifier = Modifier
 ) {
@@ -4109,7 +4078,7 @@ private fun playlistTrackCountLabel(trackCount: Int): String =
         else -> "$trackCount tracks"
     }
 
-private fun playlistCoverSources(entries: List<PlaylistTrackEntry>): List<String?> {
+internal fun playlistCoverSources(entries: List<PlaylistTrackEntry>): List<String?> {
     val distinctSources = entries
         .asSequence()
         .mapNotNull { entry -> entry.source.takeIf { it.isNotBlank() } }
@@ -4125,7 +4094,7 @@ private fun playlistCoverSources(entries: List<PlaylistTrackEntry>): List<String
     return distinctSources
 }
 
-private fun playlistCoverSourceKey(source: String): String {
+internal fun playlistCoverSourceKey(source: String): String {
     val fileName = source.substringAfterLast('/').substringAfterLast('\\')
     val extension = fileName.substringAfterLast('.', missingDelimiterValue = "").lowercase(Locale.ROOT)
     return extension.ifBlank {

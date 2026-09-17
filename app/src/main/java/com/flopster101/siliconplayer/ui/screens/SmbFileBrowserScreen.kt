@@ -1,6 +1,8 @@
 package com.flopster101.siliconplayer.ui.screens
 
 import com.flopster101.siliconplayer.isRoundScreenCompat
+import com.flopster101.siliconplayer.StoredPlaylist
+import com.flopster101.siliconplayer.ui.dialogs.AddToPlaylistChooserDialog
 import android.content.pm.PackageManager
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -43,6 +45,7 @@ import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Link
 import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material.icons.filled.PlaylistAdd
 import androidx.compose.material.icons.filled.Save
 import androidx.compose.material.icons.filled.VideoFile
 import androidx.compose.material.icons.filled.Visibility
@@ -175,6 +178,11 @@ internal fun SmbFileBrowserScreen(
     onPlaylistFileSelected: (File, String?) -> Unit = { _, _ -> },
     pinnedHomeEntries: List<HomePinnedEntry> = emptyList(),
     onPinHomeEntry: (RecentPathEntry, Boolean) -> Unit = { _, _ -> },
+    playlists: List<StoredPlaylist> = emptyList(),
+    favoriteSourceIds: Set<String> = emptySet(),
+    onToggleFavoriteSource: (String, String) -> Unit = { _, _ -> },
+    onAddSourceToPlaylist: (String, String, String?, String) -> Unit = { _, _, _, _ -> },
+    onRemoveSourceFromPlaylist: (String, String) -> Unit = { _, _ -> },
     networkNodes: List<NetworkNode> = emptyList()
 ) {
     val context = LocalContext.current
@@ -278,6 +286,9 @@ internal fun SmbFileBrowserScreen(
     var pendingPinConfirmation by remember(screenSessionKey) { mutableStateOf<Pair<RecentPathEntry, Boolean>?>(null) }
     var pendingPinEvictionCandidate by remember(screenSessionKey) { mutableStateOf<HomePinnedEntry?>(null) }
     var watchActionTargetEntry by remember(screenSessionKey) { mutableStateOf<SmbBrowserEntry?>(null) }
+    var pendingPlaylistAddSource by remember(screenSessionKey) {
+        mutableStateOf<Pair<String, String>?>(null)
+    }
 
     fun appendLoadingLog(message: String) {
         val lineNumber = loadingLogLines.size + 1
@@ -1280,6 +1291,22 @@ internal fun SmbFileBrowserScreen(
                         key = { _, entry -> "${entry.isDirectory}:${entry.name}" }
                     ) { index, entry ->
                         val entrySelectionKey = entrySelectionKeyFor(entry)
+                        val entryPlaylistSourceUri = if (
+                            !stateSharePickerMode &&
+                            !entry.isDirectory &&
+                            !isSupportedPlaylistFileName(entry.name) &&
+                            browserPreviewKindForName(entry.name) == null &&
+                            browserArchiveCapabilityForName(entry.name) == BrowserArchiveCapability.None
+                        ) {
+                            buildSmbRequestUri(
+                                buildSmbEntrySourceSpec(
+                                    credentialsSpec.copy(share = stateShare),
+                                    joinSmbRelativePath(stateSubPath, entry.name)
+                                )
+                            )
+                        } else {
+                            null
+                        }
                         val hasSelectedAbove = if (index > 0) {
                             val aboveKey = entrySelectionKeyFor(stateFilteredEntries[index - 1])
                             browserSelectionController.selectedKeys.contains(aboveKey)
@@ -1301,6 +1328,14 @@ internal fun SmbFileBrowserScreen(
                             hasSelectedBelow = hasSelectedBelow,
                             showAsShare = stateSharePickerMode,
                             isWatch = isWatch,
+                            isFavorited = entryPlaylistSourceUri != null &&
+                                favoriteSourceIds.contains(entryPlaylistSourceUri),
+                            onToggleFavorite = entryPlaylistSourceUri?.let { sourceUri ->
+                                { onToggleFavoriteSource(sourceUri, entry.name) }
+                            },
+                            onAddToPlaylist = entryPlaylistSourceUri?.let { sourceUri ->
+                                { pendingPlaylistAddSource = sourceUri to entry.name }
+                            },
                             onLongClick = {
                                 if (isWatch) {
                                     watchActionTargetEntry = entry
@@ -1763,6 +1798,19 @@ internal fun SmbFileBrowserScreen(
         }
     }
 
+    pendingPlaylistAddSource?.let { (source, title) ->
+        AddToPlaylistChooserDialog(
+            playlists = playlists,
+            pendingSources = setOf(source),
+            onConfirm = { playlistId, newTitle ->
+                onAddSourceToPlaylist(source, title, playlistId, newTitle)
+            },
+            onRemoveFromPlaylist = { playlistId ->
+                onRemoveSourceFromPlaylist(source, playlistId)
+            },
+            onDismiss = { pendingPlaylistAddSource = null }
+        )
+    }
     if (authDialogVisible) {
         val hasCredentials = authDialogUsername.trim().isNotEmpty() || authDialogPassword.trim().isNotEmpty()
         val onAuthConfirm = {
@@ -2186,6 +2234,9 @@ private fun SmbEntryRow(
     hasSelectedBelow: Boolean = false,
     showAsShare: Boolean,
     isWatch: Boolean = false,
+    isFavorited: Boolean = false,
+    onToggleFavorite: (() -> Unit)? = null,
+    onAddToPlaylist: (() -> Unit)? = null,
     onLongClick: (() -> Unit)? = null,
     onClick: () -> Unit
 ) {
@@ -2285,6 +2336,48 @@ private fun SmbEntryRow(
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis
             )
+        }
+        if (onToggleFavorite != null) {
+            Spacer(modifier = Modifier.width(8.dp))
+            Box(
+                modifier = Modifier
+                    .size(28.dp)
+                    .clickable(onClick = onToggleFavorite),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(
+                    painter = painterResource(
+                        id = if (isFavorited) {
+                            R.drawable.ic_star_filled
+                        } else {
+                            R.drawable.ic_star_outline
+                        }
+                    ),
+                    contentDescription = if (isFavorited) {
+                        "Remove from favorites"
+                    } else {
+                        "Add to favorites"
+                    },
+                    tint = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.size(18.dp)
+                )
+            }
+        }
+        if (onAddToPlaylist != null) {
+            Spacer(modifier = Modifier.width(8.dp))
+            Box(
+                modifier = Modifier
+                    .size(28.dp)
+                    .clickable(onClick = onAddToPlaylist),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(
+                    imageVector = Icons.Default.PlaylistAdd,
+                    contentDescription = "Add to playlist",
+                    tint = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.size(18.dp)
+                )
+            }
         }
     }
 }

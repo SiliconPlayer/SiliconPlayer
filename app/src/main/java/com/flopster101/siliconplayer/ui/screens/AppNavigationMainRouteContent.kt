@@ -2,6 +2,7 @@ package com.flopster101.siliconplayer
 
 import android.content.Context
 import android.content.SharedPreferences
+import android.widget.Toast
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.remember
@@ -357,6 +358,7 @@ internal fun AppNavigationPlaylistsContentSection(
     onMoveStoredPlaylistEntry: (PlaylistTrackEntry, String, Int) -> Unit,
     onDeleteAllStoredPlaylistEntries: (String) -> Unit,
     onPlayStoredPlaylistTrackAsCached: (PlaylistTrackEntry, StoredPlaylist) -> Unit,
+    onRemoveSourceFromPlaylist: (String, String) -> Unit,
     onOpenFavoriteTrackLocation: (PlaylistTrackEntry) -> Unit,
     onShareFavoriteTrack: (PlaylistTrackEntry) -> Unit,
     onCopyFavoriteTrackSource: (PlaylistTrackEntry) -> Unit,
@@ -404,6 +406,7 @@ internal fun AppNavigationPlaylistsContentSection(
         onMoveStoredPlaylistEntry = onMoveStoredPlaylistEntry,
         onDeleteAllStoredPlaylistEntries = onDeleteAllStoredPlaylistEntries,
         onPlayStoredPlaylistTrackAsCached = onPlayStoredPlaylistTrackAsCached,
+        onRemoveSourceFromPlaylist = onRemoveSourceFromPlaylist,
         onOpenFavoriteTrackLocation = onOpenFavoriteTrackLocation,
         onShareFavoriteTrack = onShareFavoriteTrack,
         onCopyFavoriteTrackSource = onCopyFavoriteTrackSource,
@@ -521,6 +524,11 @@ internal fun AppNavigationBrowserContentSection(
     onClearActivePlaylistContext: () -> Unit,
     onPlaylistFileSelected: (File, String?) -> Unit,
     onToggleFavoriteFile: (File) -> Unit,
+    playlists: List<StoredPlaylist>,
+    favoriteSourceIds: Set<String>,
+    onToggleFavoriteSource: (String, String) -> Unit,
+    onAddSourceToPlaylist: (String, String, String?, String) -> Unit,
+    onRemoveSourceFromPlaylist: (String, String) -> Unit,
     onRememberSmbCredentials: (Long?, String, String?, String?) -> Unit,
     onRememberHttpCredentials: (Long?, String, String?, String?) -> Unit
 ) {
@@ -570,6 +578,11 @@ internal fun AppNavigationBrowserContentSection(
         },
         onPlaylistFileSelected = onPlaylistFileSelected,
         onToggleFavoriteFile = onToggleFavoriteFile,
+        playlists = playlists,
+        favoriteSourceIds = favoriteSourceIds,
+        onToggleFavoriteSource = onToggleFavoriteSource,
+        onAddSourceToPlaylist = onAddSourceToPlaylist,
+        onRemoveSourceFromPlaylist = onRemoveSourceFromPlaylist,
         onOpenRemoteSource = { rawInput ->
             onClearActivePlaylistContext()
             manualOpenDelegates.applyManualInputSelection(rawInput)
@@ -671,6 +684,7 @@ internal fun AppNavigationMainContentHost(
     onMoveStoredPlaylistEntry: (PlaylistTrackEntry, String, Int) -> Unit,
     onDeleteAllStoredPlaylistEntries: (String) -> Unit,
     onPlayStoredPlaylistTrackAsCached: (PlaylistTrackEntry, StoredPlaylist) -> Unit,
+    onRemoveSourceFromPlaylist: (String, String) -> Unit,
     onOpenFavoriteTrackLocation: (PlaylistTrackEntry) -> Unit,
     onShareFavoriteTrack: (PlaylistTrackEntry) -> Unit,
     onCopyFavoriteTrackSource: (PlaylistTrackEntry) -> Unit,
@@ -865,6 +879,7 @@ internal fun AppNavigationMainContentHost(
                 onMoveStoredPlaylistEntry = onMoveStoredPlaylistEntry,
                 onDeleteAllStoredPlaylistEntries = onDeleteAllStoredPlaylistEntries,
                 onPlayStoredPlaylistTrackAsCached = onPlayStoredPlaylistTrackAsCached,
+                onRemoveSourceFromPlaylist = onRemoveSourceFromPlaylist,
                 onOpenFavoriteTrackLocation = onOpenFavoriteTrackLocation,
                 onShareFavoriteTrack = onShareFavoriteTrack,
                 onCopyFavoriteTrackSource = onCopyFavoriteTrackSource,
@@ -947,6 +962,43 @@ internal fun AppNavigationMainContentHost(
                         file = file,
                         onPlaylistLibraryStateChanged = onPlaylistLibraryStateChanged
                     )
+                },
+                playlists = playlistLibraryState.playlists,
+                favoriteSourceIds = remember(playlistLibraryState.favorites) {
+                    playlistLibraryState.favorites.map { it.source }.toSet()
+                },
+                onToggleFavoriteSource = { source, title ->
+                    toggleFavoriteForSource(
+                        context = context,
+                        playlistLibraryState = playlistLibraryState,
+                        source = source,
+                        title = title,
+                        onPlaylistLibraryStateChanged = onPlaylistLibraryStateChanged
+                    )
+                },
+                onAddSourceToPlaylist = { source, title, playlistId, newTitle ->
+                    val entry = playlistTrackEntryForBrowserSource(source, title)
+                    applyLibraryAddToPlaylist(
+                        context,
+                        emptyList(),
+                        listOf(entry),
+                        playlistId,
+                        newTitle,
+                        playlistLibraryState,
+                        onPlaylistLibraryStateChanged
+                    )
+                },
+                onRemoveSourceFromPlaylist = { source, playlistId ->
+                    val target = playlistLibraryState.playlists.firstOrNull { it.id == playlistId }
+                    val entryId = target?.entries?.firstOrNull { entry ->
+                        entry.subtuneIndex == null && samePath(entry.source, source)
+                    }?.id
+                    if (entryId != null) {
+                        onPlaylistLibraryStateChanged(
+                            removeStoredPlaylistEntry(playlistLibraryState, playlistId, entryId)
+                        )
+                        Toast.makeText(context, "Removed from playlist", Toast.LENGTH_SHORT).show()
+                    }
                 },
                 onRememberSmbCredentials = onRememberSmbCredentials,
                 onRememberHttpCredentials = onRememberHttpCredentials

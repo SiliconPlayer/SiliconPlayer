@@ -72,6 +72,8 @@ internal fun upsertStoredPlaylist(
     playlist: StoredPlaylist
 ): PlaylistLibraryState {
     val existingIndex = state.playlists.indexOfFirst { existing ->
+        existing.id == playlist.id
+    }.takeUnless { it < 0 } ?: state.playlists.indexOfFirst { existing ->
         existing.sourceIdHint != null &&
             playlist.sourceIdHint != null &&
             samePath(existing.sourceIdHint, playlist.sourceIdHint)
