@@ -550,6 +550,7 @@ internal fun PlaylistsScreen(
     onCopyFavoriteTrackSource: (PlaylistTrackEntry) -> Unit,
     onOpenFavoriteTrackInfo: (PlaylistTrackEntry) -> Unit,
     onDeleteStoredPlaylist: (String) -> Unit = {},
+    onTogglePinStoredPlaylist: (String) -> Unit = {},
     onRenameStoredPlaylist: (String, String) -> Unit = { _, _ -> },
     onOpenBrowser: () -> Unit = {},
     onAppendStoredPlaylistEntries: (String, List<PlaylistTrackEntry>) -> Unit = { _, _ -> }
@@ -633,6 +634,27 @@ internal fun PlaylistsScreen(
                 title = titleOverride ?: folder.substringAfterLast('/')
             )
         }
+    fun isPlaylistPinnedToHome(playlistId: String): Boolean {
+        val targetPath = "playlist://$playlistId"
+        return pinnedHomeEntries.any { samePath(it.path, targetPath) }
+    }
+    fun togglePlaylistHomePin(playlistId: String, title: String) {
+        val targetPath = "playlist://$playlistId"
+        if (isPlaylistPinnedToHome(playlistId)) {
+            onUnpinLibraryPaths(listOf(targetPath))
+        } else {
+            onPinLibraryEntries(
+                listOf(
+                    HomePinnedEntry(
+                        path = targetPath,
+                        isFolder = true,
+                        title = title,
+                        artist = null
+                    )
+                )
+            )
+        }
+    }
     fun libraryRowActions(tracks: List<LibraryTrackEntity>): LibraryRowContextActions {
         val keys = tracks.mapNotNull { normalizeSourceIdentity(it.path) }
         val isFavorite = keys.isNotEmpty() && keys.all { it in libraryFavoriteKeySet }
@@ -1246,6 +1268,10 @@ internal fun PlaylistsScreen(
                                 onDuplicatePlaylist = {
                                     playlistPendingDuplicate = favoritesAsStoredPlaylist(libraryState.favorites)
                                 },
+                                isHomePinned = isPlaylistPinnedToHome(FAVORITES_PLAYLIST_ID),
+                                onToggleHomePin = {
+                                    togglePlaylistHomePin(FAVORITES_PLAYLIST_ID, "Favorites")
+                                },
                                 isWatch = isWatch,
                                 onBack = {
                                     favoritesEditModeEnabled = false
@@ -1332,6 +1358,10 @@ internal fun PlaylistsScreen(
                                     onExportPlaylist = { onExportPlaylistAction(sortedStoredPlaylist) },
                                     onSharePlaylist = { onSharePlaylistAction(sortedStoredPlaylist) },
                                     onDuplicatePlaylist = { playlistPendingDuplicate = playlist },
+                                    isPlaylistPinned = playlist.isPinned,
+                                    onTogglePinPlaylist = { onTogglePinStoredPlaylist(playlist.id) },
+                                    isHomePinned = isPlaylistPinnedToHome(playlist.id),
+                                    onToggleHomePin = { togglePlaylistHomePin(playlist.id, playlist.title) },
                                     isWatch = isWatch,
                                     onBack = {
                                         storedPlaylistEditModeEnabled = false
@@ -1345,71 +1375,77 @@ internal fun PlaylistsScreen(
                         }
                     }
                     PlaylistsSurfaceDestination.Library -> {
-                    if (isWatch) {
-                        LazyColumn(
-                            modifier = Modifier
-                                .fillMaxSize()
-                                .padding(actualInnerPadding),
-                            contentPadding = watchDetailContentPadding,
-                            verticalArrangement = Arrangement.spacedBy(6.dp)
-                        ) {
-                            item {
-                                Text(
-                                    text = "Library",
-                                    style = MaterialTheme.typography.titleLarge,
-                                    fontWeight = FontWeight.Bold,
-                                    textAlign = TextAlign.Center,
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .padding(vertical = 4.dp)
-                                )
-                            }
-                            item {
-                                Row(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .padding(bottom = 4.dp),
-                                    horizontalArrangement = Arrangement.spacedBy(4.dp)
-                                ) {
-                                    libraryTabs.forEachIndexed { index, tab ->
-                                        val isSelected = selectedTabIndex == index
-                                        Surface(
-                                            modifier = Modifier
-                                                .weight(1f)
-                                                .clip(RoundedCornerShape(12.dp))
-                                                .clickable {
-                                                    selectedTabIndex = index
-                                                    coroutineScope.launch {
-                                                        pagerState.animateScrollToPage(index)
-                                                    }
-                                                },
-                                            shape = RoundedCornerShape(12.dp),
-                                            color = if (isSelected) MaterialTheme.colorScheme.primaryContainer
-                                            else MaterialTheme.colorScheme.surfaceContainerHigh
-                                        ) {
-                                            Box(
-                                                modifier = Modifier.padding(vertical = 6.dp),
-                                                contentAlignment = Alignment.Center
-                                            ) {
-                                                Text(
-                                                    text = when (tab) {
-                                                        LibrarySurfaceTab.Playlists -> "Playlists"
-                                                        LibrarySurfaceTab.Albums -> "Albums"
-                                                        LibrarySurfaceTab.Artists -> "Artists"
-                                                        LibrarySurfaceTab.Tracks -> "Tracks"
+                        val sortedPlaylists = remember(libraryState.playlists) {
+                            libraryState.playlists.sortedWith(
+                                compareByDescending<StoredPlaylist> { it.isPinned }
+                                    .thenByDescending { it.updatedAtMs }
+                            )
+                        }
+                        if (isWatch) {
+                            LazyColumn(
+                                modifier = Modifier
+                                    .fillMaxSize()
+                                    .padding(actualInnerPadding),
+                                contentPadding = watchDetailContentPadding,
+                                verticalArrangement = Arrangement.spacedBy(6.dp)
+                            ) {
+                                item {
+                                    Text(
+                                        text = "Library",
+                                        style = MaterialTheme.typography.titleLarge,
+                                        fontWeight = FontWeight.Bold,
+                                        textAlign = TextAlign.Center,
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .padding(vertical = 4.dp)
+                                    )
+                                }
+                                item {
+                                    Row(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .padding(bottom = 4.dp),
+                                        horizontalArrangement = Arrangement.spacedBy(4.dp)
+                                    ) {
+                                        libraryTabs.forEachIndexed { index, tab ->
+                                            val isSelected = selectedTabIndex == index
+                                            Surface(
+                                                modifier = Modifier
+                                                    .weight(1f)
+                                                    .clip(RoundedCornerShape(12.dp))
+                                                    .clickable {
+                                                        selectedTabIndex = index
+                                                        coroutineScope.launch {
+                                                            pagerState.animateScrollToPage(index)
+                                                        }
                                                     },
-                                                    style = MaterialTheme.typography.labelMedium,
-                                                    fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
-                                                    color = if (isSelected) MaterialTheme.colorScheme.onPrimaryContainer
-                                                    else MaterialTheme.colorScheme.onSurfaceVariant
-                                                )
+                                                shape = RoundedCornerShape(12.dp),
+                                                color = if (isSelected) MaterialTheme.colorScheme.primaryContainer
+                                                else MaterialTheme.colorScheme.surfaceContainerHigh
+                                            ) {
+                                                Box(
+                                                    modifier = Modifier.padding(vertical = 6.dp),
+                                                    contentAlignment = Alignment.Center
+                                                ) {
+                                                    Text(
+                                                        text = when (tab) {
+                                                            LibrarySurfaceTab.Playlists -> "Playlists"
+                                                            LibrarySurfaceTab.Albums -> "Albums"
+                                                            LibrarySurfaceTab.Artists -> "Artists"
+                                                            LibrarySurfaceTab.Tracks -> "Tracks"
+                                                        },
+                                                        style = MaterialTheme.typography.labelMedium,
+                                                        fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
+                                                        color = if (isSelected) MaterialTheme.colorScheme.onPrimaryContainer
+                                                        else MaterialTheme.colorScheme.onSurfaceVariant
+                                                    )
+                                                }
                                             }
                                         }
                                     }
                                 }
-                            }
-                            when (libraryTabs[selectedTabIndex]) {
-                                LibrarySurfaceTab.Playlists -> {
+                                when (libraryTabs[selectedTabIndex]) {
+                                    LibrarySurfaceTab.Playlists -> {
                                     item {
                                         FavoritesCollectionRow(
                                             favoriteCount = libraryState.favorites.size,
@@ -1423,10 +1459,14 @@ internal fun PlaylistsScreen(
                                             onShare = {
                                                 onSharePlaylistAction(favoritesAsStoredPlaylist(libraryState.favorites))
                                             },
+                                            isHomePinned = isPlaylistPinnedToHome(FAVORITES_PLAYLIST_ID),
+                                            onToggleHomePin = {
+                                                togglePlaylistHomePin(FAVORITES_PLAYLIST_ID, "Favorites")
+                                            },
                                             isWatch = true
                                         )
                                     }
-                                    if (libraryState.playlists.isEmpty()) {
+                                    if (sortedPlaylists.isEmpty()) {
                                         item {
                                             EmptySectionCard(
                                                 title = "No playlists yet",
@@ -1435,7 +1475,7 @@ internal fun PlaylistsScreen(
                                         }
                                     } else {
                                         items(
-                                            items = libraryState.playlists,
+                                            items = sortedPlaylists,
                                             key = { it.id }
                                         ) { playlist ->
                                             PlaylistCollectionRow(
@@ -1449,6 +1489,10 @@ internal fun PlaylistsScreen(
                                                 onDelete = { playlistPendingDelete = playlist },
                                                 onExport = { onExportPlaylistAction(playlist) },
                                                 onShare = { onSharePlaylistAction(playlist) },
+                                                isPinned = playlist.isPinned,
+                                                onTogglePin = { onTogglePinStoredPlaylist(playlist.id) },
+                                                isHomePinned = isPlaylistPinnedToHome(playlist.id),
+                                                onToggleHomePin = { togglePlaylistHomePin(playlist.id, playlist.title) },
                                                 isWatch = true
                                             )
                                         }
@@ -1613,7 +1657,10 @@ internal fun PlaylistsScreen(
                                             onDuplicatePlaylist = { playlist -> playlistPendingDuplicate = playlist },
                                             onDeletePlaylist = { playlist -> playlistPendingDelete = playlist },
                                             onExportPlaylist = onExportPlaylistAction,
-                                            onSharePlaylist = onSharePlaylistAction
+                                            onSharePlaylist = onSharePlaylistAction,
+                                            onTogglePinPlaylist = { playlist -> onTogglePinStoredPlaylist(playlist.id) },
+                                            isPlaylistHomePinned = { playlistId -> isPlaylistPinnedToHome(playlistId) },
+                                            onTogglePlaylistHomePin = { playlistId, title -> togglePlaylistHomePin(playlistId, title) }
                                         )
                                     }
                                     LibrarySurfaceTab.Albums -> {
@@ -2448,8 +2495,17 @@ private fun PlaylistsLibraryTabPage(
     onDeletePlaylist: (StoredPlaylist) -> Unit = {},
     onExportPlaylist: (StoredPlaylist) -> Unit = {},
     onSharePlaylist: (StoredPlaylist) -> Unit = {},
+    onTogglePinPlaylist: (StoredPlaylist) -> Unit = {},
+    isPlaylistHomePinned: (String) -> Boolean = { false },
+    onTogglePlaylistHomePin: (String, String) -> Unit = { _, _ -> },
     isWatch: Boolean = false
 ) {
+    val sortedPlaylists = remember(libraryState.playlists) {
+        libraryState.playlists.sortedWith(
+            compareByDescending<StoredPlaylist> { it.isPinned }
+                .thenByDescending { it.updatedAtMs }
+        )
+    }
     LazyColumn(
         state = listState,
         modifier = Modifier.fillMaxSize(),
@@ -2472,6 +2528,8 @@ private fun PlaylistsLibraryTabPage(
                 onDuplicate = { onDuplicatePlaylist(favoritesAsStoredPlaylist(libraryState.favorites)) },
                 onExport = { onExportPlaylist(favoritesAsStoredPlaylist(libraryState.favorites)) },
                 onShare = { onSharePlaylist(favoritesAsStoredPlaylist(libraryState.favorites)) },
+                isHomePinned = isPlaylistHomePinned(FAVORITES_PLAYLIST_ID),
+                onToggleHomePin = { onTogglePlaylistHomePin(FAVORITES_PLAYLIST_ID, "Favorites") },
                 isWatch = isWatch
             )
         }
@@ -2483,7 +2541,7 @@ private fun PlaylistsLibraryTabPage(
                 )
             }
         }
-        if (libraryState.playlists.isEmpty()) {
+        if (sortedPlaylists.isEmpty()) {
             item {
                 if (!isWatch) {
                     Spacer(modifier = Modifier.height(10.dp))
@@ -2495,7 +2553,7 @@ private fun PlaylistsLibraryTabPage(
             }
         } else {
             items(
-                items = libraryState.playlists,
+                items = sortedPlaylists,
                 key = { it.id }
             ) { playlist ->
                 PlaylistCollectionRow(
@@ -2506,6 +2564,10 @@ private fun PlaylistsLibraryTabPage(
                     onDelete = { onDeletePlaylist(playlist) },
                     onExport = { onExportPlaylist(playlist) },
                     onShare = { onSharePlaylist(playlist) },
+                    isPinned = playlist.isPinned,
+                    onTogglePin = { onTogglePinPlaylist(playlist) },
+                    isHomePinned = isPlaylistHomePinned(playlist.id),
+                    onToggleHomePin = { onTogglePlaylistHomePin(playlist.id, playlist.title) },
                     isWatch = isWatch
                 )
                 if (!isWatch) {
@@ -4090,6 +4152,10 @@ private fun LazyListScope.playlistDetailContent(
     onExportPlaylist: (() -> Unit)? = null,
     onSharePlaylist: (() -> Unit)? = null,
     onDuplicatePlaylist: (() -> Unit)? = null,
+    isPlaylistPinned: Boolean = false,
+    onTogglePinPlaylist: (() -> Unit)? = null,
+    isHomePinned: Boolean = false,
+    onToggleHomePin: (() -> Unit)? = null,
     isWatch: Boolean = false,
     onBack: () -> Unit = {}
 ) {
@@ -4113,6 +4179,10 @@ private fun LazyListScope.playlistDetailContent(
                 onDeleteAllEntries = onDeleteAllEntries,
                 onExportPlaylist = onExportPlaylist,
                 onSharePlaylist = onSharePlaylist,
+                isPlaylistPinned = isPlaylistPinned,
+                onTogglePinPlaylist = onTogglePinPlaylist,
+                isHomePinned = isHomePinned,
+                onToggleHomePin = onToggleHomePin,
                 onBack = onBack
             )
         } else {
@@ -4138,7 +4208,11 @@ private fun LazyListScope.playlistDetailContent(
                 onDuplicatePlaylist = onDuplicatePlaylist,
                 onDeleteAllEntries = onDeleteAllEntries,
                 onExportPlaylist = onExportPlaylist,
-                onSharePlaylist = onSharePlaylist
+                onSharePlaylist = onSharePlaylist,
+                isPlaylistPinned = isPlaylistPinned,
+                onTogglePinPlaylist = onTogglePinPlaylist,
+                isHomePinned = isHomePinned,
+                onToggleHomePin = onToggleHomePin
             )
         }
     }
@@ -4268,6 +4342,10 @@ private fun WearPlaylistHeroHeader(
     onDeleteAllEntries: () -> Unit,
     onExportPlaylist: (() -> Unit)? = null,
     onSharePlaylist: (() -> Unit)? = null,
+    isPlaylistPinned: Boolean = false,
+    onTogglePinPlaylist: (() -> Unit)? = null,
+    isHomePinned: Boolean = false,
+    onToggleHomePin: (() -> Unit)? = null,
     onBack: () -> Unit
 ) {
     var showSortDialog by rememberSaveable { mutableStateOf(false) }
@@ -4373,7 +4451,7 @@ private fun WearPlaylistHeroHeader(
                     )
                 }
             }
-            if (canDeletePlaylist || canRenamePlaylist || showDeleteAllEntriesAction || onExportPlaylist != null || onSharePlaylist != null) {
+            if (canDeletePlaylist || canRenamePlaylist || showDeleteAllEntriesAction || onExportPlaylist != null || onSharePlaylist != null || onTogglePinPlaylist != null || onToggleHomePin != null) {
                 Surface(
                     modifier = Modifier
                         .size(42.dp)
@@ -4450,6 +4528,30 @@ private fun WearPlaylistHeroHeader(
             title = title,
             onDismissRequest = { showMoreActionsDialog = false }
         ) {
+            if (onTogglePinPlaylist != null) {
+                FilledTonalButton(
+                    onClick = {
+                        showMoreActionsDialog = false
+                        onTogglePinPlaylist()
+                    },
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(14.dp)
+                ) {
+                    Text(if (isPlaylistPinned) "Unpin from top" else "Pin to top")
+                }
+            }
+            if (onToggleHomePin != null) {
+                FilledTonalButton(
+                    onClick = {
+                        showMoreActionsDialog = false
+                        onToggleHomePin()
+                    },
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(14.dp)
+                ) {
+                    Text(if (isHomePinned) "Unpin from home" else "Pin to home")
+                }
+            }
             if (canRenamePlaylist) {
                 FilledTonalButton(
                     onClick = {
@@ -4557,7 +4659,11 @@ private fun PlaylistHeroCard(
     onDeleteAllEntries: () -> Unit,
     onExportPlaylist: (() -> Unit)? = null,
     onSharePlaylist: (() -> Unit)? = null,
-    onDuplicatePlaylist: (() -> Unit)? = null
+    onDuplicatePlaylist: (() -> Unit)? = null,
+    isPlaylistPinned: Boolean = false,
+    onTogglePinPlaylist: (() -> Unit)? = null,
+    isHomePinned: Boolean = false,
+    onToggleHomePin: (() -> Unit)? = null
 ) {
     var menuExpanded by rememberSaveable { mutableStateOf(false) }
     var sortMenuExpanded by rememberSaveable { mutableStateOf(false) }
@@ -4610,6 +4716,58 @@ private fun PlaylistHeroCard(
                     expanded = menuExpanded,
                     onDismissRequest = { menuExpanded = false }
                 ) {
+                    if (onTogglePinPlaylist != null) {
+                        DropdownMenuItem(
+                            text = {
+                                Text(
+                                    text = if (isPlaylistPinned) "Unpin from top" else "Pin to top",
+                                    style = MaterialTheme.typography.bodyLarge
+                                )
+                            },
+                            leadingIcon = {
+                                Icon(
+                                    imageVector = Icons.Default.PushPin,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(22.dp)
+                                )
+                            },
+                            contentPadding = PaddingValues(start = 14.dp, end = 18.dp),
+                            colors = MenuDefaults.itemColors(
+                                textColor = MaterialTheme.colorScheme.onSurface,
+                                leadingIconColor = MaterialTheme.colorScheme.onSurfaceVariant
+                            ),
+                            onClick = {
+                                menuExpanded = false
+                                onTogglePinPlaylist()
+                            }
+                        )
+                    }
+                    if (onToggleHomePin != null) {
+                        DropdownMenuItem(
+                            text = {
+                                Text(
+                                    text = if (isHomePinned) "Unpin from home" else "Pin to home",
+                                    style = MaterialTheme.typography.bodyLarge
+                                )
+                            },
+                            leadingIcon = {
+                                Icon(
+                                    imageVector = Icons.Default.PushPin,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(22.dp)
+                                )
+                            },
+                            contentPadding = PaddingValues(start = 14.dp, end = 18.dp),
+                            colors = MenuDefaults.itemColors(
+                                textColor = MaterialTheme.colorScheme.onSurface,
+                                leadingIconColor = MaterialTheme.colorScheme.onSurfaceVariant
+                            ),
+                            onClick = {
+                                menuExpanded = false
+                                onToggleHomePin()
+                            }
+                        )
+                    }
                     if (canRenamePlaylist) {
                         DropdownMenuItem(
                             text = {
@@ -5021,6 +5179,8 @@ private fun FavoritesCollectionRow(
     onDuplicate: (() -> Unit)? = null,
     onExport: (() -> Unit)? = null,
     onShare: (() -> Unit)? = null,
+    isHomePinned: Boolean = false,
+    onToggleHomePin: (() -> Unit)? = null,
     isWatch: Boolean = false
 ) {
     PlaylistLibraryFlatRow(
@@ -5039,6 +5199,8 @@ private fun FavoritesCollectionRow(
         onDuplicate = onDuplicate,
         onExport = onExport,
         onShare = onShare,
+        isHomePinned = isHomePinned,
+        onToggleHomePin = onToggleHomePin,
         isWatch = isWatch
     )
 }
@@ -5879,6 +6041,10 @@ private fun PlaylistCollectionRow(
     onDelete: (() -> Unit)? = null,
     onExport: (() -> Unit)? = null,
     onShare: (() -> Unit)? = null,
+    isPinned: Boolean = false,
+    onTogglePin: (() -> Unit)? = null,
+    isHomePinned: Boolean = false,
+    onToggleHomePin: (() -> Unit)? = null,
     isWatch: Boolean = false
 ) {
     PlaylistLibraryFlatRow(
@@ -5895,6 +6061,10 @@ private fun PlaylistCollectionRow(
         onDelete = onDelete,
         onExport = onExport,
         onShare = onShare,
+        isPinned = isPinned,
+        onTogglePin = onTogglePin,
+        isHomePinned = isHomePinned,
+        onToggleHomePin = onToggleHomePin,
         isWatch = isWatch
     )
 }
@@ -5913,6 +6083,10 @@ private fun PlaylistLibraryFlatRow(
     onDelete: (() -> Unit)? = null,
     onExport: (() -> Unit)? = null,
     onShare: (() -> Unit)? = null,
+    isPinned: Boolean = false,
+    onTogglePin: (() -> Unit)? = null,
+    isHomePinned: Boolean = false,
+    onToggleHomePin: (() -> Unit)? = null,
     isWatch: Boolean = false
 ) {
     var wearActionsOpen by rememberSaveable { mutableStateOf(false) }
@@ -5925,7 +6099,7 @@ private fun PlaylistLibraryFlatRow(
                 .background(MaterialTheme.colorScheme.surfaceContainerLow)
                 .combinedClickable(
                     onClick = onClick,
-                    onLongClick = if (onRename != null || onDuplicate != null || onDelete != null || onExport != null || onShare != null) {
+                    onLongClick = if (onRename != null || onDuplicate != null || onDelete != null || onExport != null || onShare != null || onTogglePin != null || onToggleHomePin != null) {
                         { wearActionsOpen = true }
                     } else null
                 )
@@ -5951,13 +6125,26 @@ private fun PlaylistLibraryFlatRow(
                 }
             }
             Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    text = title,
-                    style = MaterialTheme.typography.bodyMedium,
-                    fontWeight = FontWeight.SemiBold,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
-                )
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(4.dp)
+                ) {
+                    if (isPinned) {
+                        Icon(
+                            imageVector = Icons.Default.PushPin,
+                            contentDescription = "Pinned",
+                            tint = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.size(12.dp)
+                        )
+                    }
+                    Text(
+                        text = title,
+                        style = MaterialTheme.typography.bodyMedium,
+                        fontWeight = FontWeight.SemiBold,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
                 Text(
                     text = subtitle,
                     style = MaterialTheme.typography.bodySmall,
@@ -5973,6 +6160,30 @@ private fun PlaylistLibraryFlatRow(
                 title = title,
                 onDismissRequest = { wearActionsOpen = false }
             ) {
+                if (onTogglePin != null) {
+                    FilledTonalButton(
+                        onClick = {
+                            wearActionsOpen = false
+                            onTogglePin()
+                        },
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(14.dp)
+                    ) {
+                        Text(if (isPinned) "Unpin from top" else "Pin to top")
+                    }
+                }
+                if (onToggleHomePin != null) {
+                    FilledTonalButton(
+                        onClick = {
+                            wearActionsOpen = false
+                            onToggleHomePin()
+                        },
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(14.dp)
+                    ) {
+                        Text(if (isHomePinned) "Unpin from home" else "Pin to home")
+                    }
+                }
                 if (onRename != null) {
                     FilledTonalButton(
                         onClick = {
@@ -6068,13 +6279,26 @@ private fun PlaylistLibraryFlatRow(
                 }
             }
             Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    text = title,
-                    style = MaterialTheme.typography.titleSmall,
-                    fontWeight = FontWeight.SemiBold,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
-                )
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(4.dp)
+                ) {
+                    if (isPinned) {
+                        Icon(
+                            imageVector = Icons.Default.PushPin,
+                            contentDescription = "Pinned",
+                            tint = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.size(14.dp)
+                        )
+                    }
+                    Text(
+                        text = title,
+                        style = MaterialTheme.typography.titleSmall,
+                        fontWeight = FontWeight.SemiBold,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
                 Text(
                     text = subtitle,
                     style = MaterialTheme.typography.bodySmall,
@@ -6083,7 +6307,7 @@ private fun PlaylistLibraryFlatRow(
                     overflow = TextOverflow.Ellipsis
                 )
             }
-            if (onRename != null || onDuplicate != null || onDelete != null || onExport != null || onShare != null) {
+            if (onRename != null || onDuplicate != null || onDelete != null || onExport != null || onShare != null || onTogglePin != null || onToggleHomePin != null) {
                 Box(
                     modifier = Modifier
                         .size(28.dp)
@@ -6100,6 +6324,58 @@ private fun PlaylistLibraryFlatRow(
                         expanded = menuExpanded,
                         onDismissRequest = { menuExpanded = false }
                     ) {
+                        if (onTogglePin != null) {
+                            DropdownMenuItem(
+                                text = {
+                                    Text(
+                                        text = if (isPinned) "Unpin from top" else "Pin to top",
+                                        style = MaterialTheme.typography.bodyLarge
+                                    )
+                                },
+                                leadingIcon = {
+                                    Icon(
+                                        imageVector = Icons.Default.PushPin,
+                                        contentDescription = null,
+                                        modifier = Modifier.size(22.dp)
+                                    )
+                                },
+                                contentPadding = PaddingValues(start = 14.dp, end = 18.dp),
+                                colors = MenuDefaults.itemColors(
+                                    textColor = MaterialTheme.colorScheme.onSurface,
+                                    leadingIconColor = MaterialTheme.colorScheme.onSurfaceVariant
+                                ),
+                                onClick = {
+                                    menuExpanded = false
+                                    onTogglePin()
+                                }
+                            )
+                        }
+                        if (onToggleHomePin != null) {
+                            DropdownMenuItem(
+                                text = {
+                                    Text(
+                                        text = if (isHomePinned) "Unpin from home" else "Pin to home",
+                                        style = MaterialTheme.typography.bodyLarge
+                                    )
+                                },
+                                leadingIcon = {
+                                    Icon(
+                                        imageVector = Icons.Default.PushPin,
+                                        contentDescription = null,
+                                        modifier = Modifier.size(22.dp)
+                                    )
+                                },
+                                contentPadding = PaddingValues(start = 14.dp, end = 18.dp),
+                                colors = MenuDefaults.itemColors(
+                                    textColor = MaterialTheme.colorScheme.onSurface,
+                                    leadingIconColor = MaterialTheme.colorScheme.onSurfaceVariant
+                                ),
+                                onClick = {
+                                    menuExpanded = false
+                                    onToggleHomePin()
+                                }
+                            )
+                        }
                         if (onRename != null) {
                             DropdownMenuItem(
                                 text = {

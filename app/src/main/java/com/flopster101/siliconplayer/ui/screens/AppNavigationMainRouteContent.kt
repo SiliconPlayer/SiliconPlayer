@@ -15,6 +15,7 @@ import com.flopster101.siliconplayer.library.LibraryAlbum
 import com.flopster101.siliconplayer.library.LibraryAlbumDetail
 import com.flopster101.siliconplayer.library.LibraryTrackEntity
 import com.flopster101.siliconplayer.ui.screens.LibrarySurfaceState
+import com.flopster101.siliconplayer.ui.screens.PlaylistsSurfaceDestination
 import java.io.File
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -54,7 +55,8 @@ internal fun AppNavigationHomeContentSection(
     onCurrentViewChanged: (MainView) -> Unit,
     onOpenPlayerSurface: () -> Unit = {},
     onOpenSettings: (() -> Unit)? = null,
-    onOpenUrlOrPath: (() -> Unit)? = null
+    onOpenUrlOrPath: (() -> Unit)? = null,
+    onOpenPinnedPlaylist: (String) -> Unit = {}
 ) {
     AppNavigationHomeRouteSection(
         mainPadding = mainPadding,
@@ -88,12 +90,17 @@ internal fun AppNavigationHomeContentSection(
             onCurrentViewChanged(MainView.Network)
         },
         onOpenPinnedFolder = { entry ->
-            onOpenRecentFolderFromEntry(
-                entry = entry.asRecentPathEntry(),
-                networkNodes = networkNodes,
-                onOpenBrowser = onOpenBrowser
-            )
-            onCurrentViewChanged(MainView.Browser)
+            if (entry.path.startsWith("playlist://")) {
+                val playlistId = entry.path.removePrefix("playlist://")
+                onOpenPinnedPlaylist(playlistId)
+            } else {
+                onOpenRecentFolderFromEntry(
+                    entry = entry.asRecentPathEntry(),
+                    networkNodes = networkNodes,
+                    onOpenBrowser = onOpenBrowser
+                )
+                onCurrentViewChanged(MainView.Browser)
+            }
         },
         onPlayPinnedFile = { entry ->
             playRecentFileEntryAction(
@@ -379,7 +386,8 @@ internal fun AppNavigationPlaylistsContentSection(
     onDeleteStoredPlaylist: (String) -> Unit = {},
     onRenameStoredPlaylist: (String, String) -> Unit = { _, _ -> },
     onOpenBrowser: () -> Unit = { onCurrentViewChanged(MainView.Browser) },
-    onAppendStoredPlaylistEntries: (String, List<PlaylistTrackEntry>) -> Unit = { _, _ -> }
+    onAppendStoredPlaylistEntries: (String, List<PlaylistTrackEntry>) -> Unit = { _, _ -> },
+    onTogglePinStoredPlaylist: (String) -> Unit = {}
 ) {
     AppNavigationPlaylistsRouteSection(
         mainPadding = mainPadding,
@@ -434,7 +442,8 @@ internal fun AppNavigationPlaylistsContentSection(
         onDeleteStoredPlaylist = onDeleteStoredPlaylist,
         onRenameStoredPlaylist = onRenameStoredPlaylist,
         onOpenBrowser = onOpenBrowser,
-        onAppendStoredPlaylistEntries = onAppendStoredPlaylistEntries
+        onAppendStoredPlaylistEntries = onAppendStoredPlaylistEntries,
+        onTogglePinStoredPlaylist = onTogglePinStoredPlaylist
     )
 }
 
@@ -717,6 +726,7 @@ internal fun AppNavigationMainContentHost(
     onDeleteStoredPlaylist: (String) -> Unit = {},
     onRenameStoredPlaylist: (String, String) -> Unit = { _, _ -> },
     onAppendStoredPlaylistEntries: (String, List<PlaylistTrackEntry>) -> Unit = { _, _ -> },
+    onTogglePinStoredPlaylist: (String) -> Unit = {},
     onOpenBrowser: (BrowserOpenRequest) -> Unit,
     onCurrentViewChanged: (MainView) -> Unit,
     onOpenUrlOrPathDialog: () -> Unit,
@@ -901,7 +911,18 @@ internal fun AppNavigationMainContentHost(
                 onCurrentViewChanged = onCurrentViewChanged,
                 onOpenPlayerSurface = onOpenPlayerSurface,
                 onOpenSettings = onSettingsRequested,
-                onOpenUrlOrPath = onOpenUrlOrPathDialog
+                onOpenUrlOrPath = onOpenUrlOrPathDialog,
+                onOpenPinnedPlaylist = { playlistId ->
+                    surfaceState.selectedTabIndexState.intValue = 0
+                    if (playlistId == FAVORITES_PLAYLIST_ID) {
+                        surfaceState.destinationState.value = PlaylistsSurfaceDestination.Favorites
+                        surfaceState.selectedStoredPlaylistIdState.value = null
+                    } else {
+                        surfaceState.destinationState.value = PlaylistsSurfaceDestination.StoredPlaylist
+                        surfaceState.selectedStoredPlaylistIdState.value = playlistId
+                    }
+                    onCurrentViewChanged(MainView.Playlists)
+                }
             )
         },
         playlistsContent = { mainPadding ->
@@ -935,7 +956,7 @@ internal fun AppNavigationMainContentHost(
                             current = current,
                             candidate = HomePinnedEntry(
                                 path = entry.path,
-                                isFolder = false,
+                                isFolder = entry.isFolder,
                                 title = entry.title,
                                 artist = entry.artist
                             )
@@ -976,6 +997,7 @@ internal fun AppNavigationMainContentHost(
                 onDeleteStoredPlaylist = onDeleteStoredPlaylist,
                 onRenameStoredPlaylist = onRenameStoredPlaylist,
                 onAppendStoredPlaylistEntries = onAppendStoredPlaylistEntries,
+                onTogglePinStoredPlaylist = onTogglePinStoredPlaylist,
                 pinnedHomeEntries = pinnedHomeEntries,
                 surfaceState = surfaceState
             )

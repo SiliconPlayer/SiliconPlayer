@@ -199,7 +199,8 @@ internal fun MainPlaylistsRouteHost(
     onDeleteStoredPlaylist: (String) -> Unit = {},
     onRenameStoredPlaylist: (String, String) -> Unit = { _, _ -> },
     onOpenBrowser: () -> Unit = {},
-    onAppendStoredPlaylistEntries: (String, List<PlaylistTrackEntry>) -> Unit = { _, _ -> }
+    onAppendStoredPlaylistEntries: (String, List<PlaylistTrackEntry>) -> Unit = { _, _ -> },
+    onTogglePinStoredPlaylist: (String) -> Unit = {}
 ) {
     val context = androidx.compose.ui.platform.LocalContext.current
     var libraryCollections by remember { mutableStateOf(LibraryCollections.Empty) }
@@ -261,7 +262,8 @@ internal fun MainPlaylistsRouteHost(
             onDeleteStoredPlaylist = onDeleteStoredPlaylist,
             onRenameStoredPlaylist = onRenameStoredPlaylist,
             onOpenBrowser = onOpenBrowser,
-            onAppendStoredPlaylistEntries = onAppendStoredPlaylistEntries
+            onAppendStoredPlaylistEntries = onAppendStoredPlaylistEntries,
+            onTogglePinStoredPlaylist = onTogglePinStoredPlaylist
         )
     }
 }

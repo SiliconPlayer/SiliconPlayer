@@ -444,6 +444,52 @@ class PlaylistStoreTest {
         assertEquals("Soundtracks (Copy)", duplicated.title)
     }
 
+    @Test
+    fun `setStoredPlaylistPinned toggles isPinned and updates timestamp`() {
+        val initial = PlaylistLibraryState(
+            favorites = emptyList(),
+            playlists = listOf(
+                samplePlaylist("p1", "Playlist 1").copy(isPinned = false, updatedAtMs = 100L)
+            )
+        )
+        val pinnedState = setStoredPlaylistPinned(initial, "p1", true)
+        val pinned = pinnedState.playlists.first()
+        assertTrue(pinned.isPinned)
+        assertTrue(pinned.updatedAtMs > 100L)
+
+        val unpinnedState = setStoredPlaylistPinned(pinnedState, "p1", false)
+        val unpinned = unpinnedState.playlists.first()
+        assertTrue(!unpinned.isPinned)
+    }
+
+    @Test
+    fun `stored playlist json serialization preserves isPinned`() {
+        val playlist = samplePlaylist("p1", "Favorite Tunes").copy(isPinned = true)
+        val json = writeStoredPlaylistToJson(playlist)
+        val restored = readStoredPlaylistFromJson(json)
+
+        assertNotNull(restored)
+        assertTrue(restored!!.isPinned)
+        assertEquals("Favorite Tunes", restored.title)
+    }
+
+    @Test
+    fun `readStoredPlaylistFromJson defaults isPinned to false when absent`() {
+        val rawJson = """
+            {
+                "id": "legacy-id",
+                "title": "Legacy Playlist",
+                "format": "internal",
+                "updated_at_ms": 500,
+                "entries": []
+            }
+        """.trimIndent()
+        val restored = readStoredPlaylistFromJson(rawJson)
+
+        assertNotNull(restored)
+        assertTrue(!restored!!.isPinned)
+    }
+
     private class FakeSharedPreferences : android.content.SharedPreferences {
         val map = mutableMapOf<String, Any?>()
 

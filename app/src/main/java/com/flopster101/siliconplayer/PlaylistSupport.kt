@@ -82,7 +82,8 @@ internal data class StoredPlaylist(
     val format: PlaylistStoredFormat,
     val sourceIdHint: String? = null,
     val entries: List<PlaylistTrackEntry>,
-    val updatedAtMs: Long = System.currentTimeMillis()
+    val updatedAtMs: Long = System.currentTimeMillis(),
+    val isPinned: Boolean = false
 )
 
 internal data class PlaylistLibraryState(

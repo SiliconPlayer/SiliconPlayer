@@ -53,6 +53,8 @@ import androidx.compose.material.icons.filled.Public
 import androidx.compose.material.icons.automirrored.filled.PlaylistAdd
 import androidx.compose.material.icons.filled.PushPin
 import androidx.compose.material.icons.filled.Share
+import androidx.compose.material.icons.filled.Star
+import com.flopster101.siliconplayer.FAVORITES_PLAYLIST_ID
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ElevatedCard
@@ -556,6 +558,8 @@ internal fun HomeScreen(
                                     val isHttpPinnedFolder = parseHttpSourceSpecFromInput(pinnedEntry.path) != null
                                     RecentIconChip(
                                         icon = when {
+                                            pinnedEntry.path == "playlist://$FAVORITES_PLAYLIST_ID" -> Icons.Default.Star
+                                            pinnedEntry.path.startsWith("playlist://") -> Icons.Default.LibraryMusic
                                             isSmbPinnedFolder -> NetworkIcons.SmbShare
                                             isHttpPinnedFolder -> NetworkIcons.WorldCode
                                             else -> Icons.Default.Folder
@@ -609,6 +613,7 @@ internal fun HomeScreen(
                                             tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.65f),
                                             modifier = Modifier.size(20.dp)
                                         )
+                                        val isPlaylistPinnedFolder = pinnedEntry.path.startsWith("playlist://")
                                         DropdownMenu(
                                             expanded = pinnedFolderActionTarget == pinnedEntry,
                                             onDismissRequest = { pinnedFolderActionTarget = null }
@@ -616,13 +621,13 @@ internal fun HomeScreen(
                                             DropdownMenuItem(
                                                 text = {
                                                     Text(
-                                                        text = "Open location",
+                                                        text = if (isPlaylistPinnedFolder) "Open playlist" else "Open location",
                                                         style = MaterialTheme.typography.bodyLarge
                                                     )
                                                 },
                                                 leadingIcon = {
                                                     Icon(
-                                                        imageVector = Icons.Default.Folder,
+                                                        imageVector = if (isPlaylistPinnedFolder) Icons.Default.LibraryMusic else Icons.Default.Folder,
                                                         contentDescription = null,
                                                         modifier = Modifier.size(22.dp)
                                                     )
@@ -633,14 +638,18 @@ internal fun HomeScreen(
                                                     leadingIconColor = MaterialTheme.colorScheme.onSurfaceVariant
                                                 ),
                                                 onClick = {
-                                                    onPinnedFolderAction(pinnedEntry, FolderEntryAction.OpenInBrowser)
+                                                    if (isPlaylistPinnedFolder) {
+                                                        onOpenPinnedFolder(pinnedEntry)
+                                                    } else {
+                                                        onPinnedFolderAction(pinnedEntry, FolderEntryAction.OpenInBrowser)
+                                                    }
                                                     pinnedFolderActionTarget = null
                                                 }
                                             )
                                             DropdownMenuItem(
                                                 text = {
                                                     Text(
-                                                        text = "Unpin folder",
+                                                        text = if (isPlaylistPinnedFolder) "Unpin playlist" else "Unpin folder",
                                                         style = MaterialTheme.typography.bodyLarge
                                                     )
                                                 },
@@ -664,30 +673,32 @@ internal fun HomeScreen(
                                                     pinnedFolderActionTarget = null
                                                 }
                                             )
-                                            DropdownMenuItem(
-                                                text = {
-                                                    Text(
-                                                        text = "Copy path",
-                                                        style = MaterialTheme.typography.bodyLarge
-                                                    )
-                                                },
-                                                leadingIcon = {
-                                                    Icon(
-                                                        imageVector = Icons.Default.ContentCopy,
-                                                        contentDescription = null,
-                                                        modifier = Modifier.size(22.dp)
-                                                    )
-                                                },
-                                                contentPadding = PaddingValues(start = 14.dp, end = 18.dp),
-                                                colors = MenuDefaults.itemColors(
-                                                    textColor = MaterialTheme.colorScheme.onSurface,
-                                                    leadingIconColor = MaterialTheme.colorScheme.onSurfaceVariant
-                                                ),
-                                                onClick = {
-                                                    onPinnedFolderAction(pinnedEntry, FolderEntryAction.CopyPath)
-                                                    pinnedFolderActionTarget = null
-                                                }
-                                            )
+                                            if (!isPlaylistPinnedFolder) {
+                                                DropdownMenuItem(
+                                                    text = {
+                                                        Text(
+                                                            text = "Copy path",
+                                                            style = MaterialTheme.typography.bodyLarge
+                                                        )
+                                                    },
+                                                    leadingIcon = {
+                                                        Icon(
+                                                            imageVector = Icons.Default.ContentCopy,
+                                                            contentDescription = null,
+                                                            modifier = Modifier.size(22.dp)
+                                                        )
+                                                    },
+                                                    contentPadding = PaddingValues(start = 14.dp, end = 18.dp),
+                                                    colors = MenuDefaults.itemColors(
+                                                        textColor = MaterialTheme.colorScheme.onSurface,
+                                                        leadingIconColor = MaterialTheme.colorScheme.onSurfaceVariant
+                                                    ),
+                                                    onClick = {
+                                                        onPinnedFolderAction(pinnedEntry, FolderEntryAction.CopyPath)
+                                                        pinnedFolderActionTarget = null
+                                                    }
+                                                )
+                                            }
                                         }
                                     }
                                 }
@@ -1866,6 +1877,9 @@ internal fun HomeScreen(
 }
 
 private fun resolvedRecentFolderTitle(entry: RecentPathEntry): String {
+    if (entry.path.startsWith("playlist://")) {
+        return entry.title?.trim()?.takeUnless { it.isEmpty() } ?: "Playlist"
+    }
     val fallback = folderTitleForDisplay(entry.path)
     val title = entry.title?.trim().takeUnless { it.isNullOrBlank() } ?: return fallback
     val smbSpec = parseSmbSourceSpecFromInput(entry.path)
@@ -2633,10 +2647,13 @@ internal fun WearHomeScreen(
                         .padding(bottom = 4.dp)
                 )
             }
+            val isPlaylistPinned = pinned.isFolder && pinned.path.startsWith("playlist://")
             Button(
                 onClick = {
                     selectedPinnedEntryForActions = null
-                    if (pinned.isFolder) {
+                    if (isPlaylistPinned) {
+                        onOpenPinnedFolder(pinned)
+                    } else if (pinned.isFolder) {
                         onPinnedFolderAction(pinned, FolderEntryAction.OpenInBrowser)
                     } else {
                         onPinnedFileAction(pinned, SourceEntryAction.OpenInBrowser)
@@ -2645,7 +2662,7 @@ internal fun WearHomeScreen(
                 modifier = Modifier.fillMaxWidth(),
                 shape = RoundedCornerShape(14.dp)
             ) {
-                Text("Open location")
+                Text(if (isPlaylistPinned) "Open playlist" else "Open location")
             }
 
             FilledTonalButton(
@@ -2660,9 +2677,8 @@ internal fun WearHomeScreen(
                 modifier = Modifier.fillMaxWidth(),
                 shape = RoundedCornerShape(14.dp)
             ) {
-                Text(if (pinned.isFolder) "Unpin folder" else "Unpin file")
+                Text(if (isPlaylistPinned) "Unpin playlist" else if (pinned.isFolder) "Unpin folder" else "Unpin file")
             }
-
             if (!pinned.isFolder && canSharePinnedFile(pinned)) {
                 FilledTonalButton(
                     onClick = {

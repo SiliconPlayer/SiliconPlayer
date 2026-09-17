@@ -5096,6 +5096,27 @@ filenameOnlyWhenTitleMissing = filenameOnlyWhenTitleMissing,
                         Toast.makeText(context, "Playlist renamed", Toast.LENGTH_SHORT).show()
                     }
                 },
+                onTogglePinStoredPlaylist = { playlistId ->
+                    val target = playlistLibraryState.playlists.firstOrNull { it.id == playlistId }
+                    if (target != null) {
+                        val newPinned = !target.isPinned
+                        val updatedState = setStoredPlaylistPinned(playlistLibraryState, playlistId, newPinned)
+                        if (updatedState != playlistLibraryState) {
+                            onPlaylistLibraryStateChanged(updatedState)
+                            if (activePlaylist?.id == playlistId) {
+                                activePlaylist = activePlaylist?.copy(
+                                    isPinned = newPinned,
+                                    updatedAtMs = System.currentTimeMillis()
+                                )
+                            }
+                            Toast.makeText(
+                                context,
+                                if (newPinned) "Pinned to top" else "Unpinned from top",
+                                Toast.LENGTH_SHORT
+                            ).show()
+                        }
+                    }
+                },
                 onDeleteStoredPlaylistEntry = { entry, playlistId ->
                     val updatedState = removeStoredPlaylistEntry(playlistLibraryState, playlistId, entry.id)
                     if (updatedState != playlistLibraryState) {

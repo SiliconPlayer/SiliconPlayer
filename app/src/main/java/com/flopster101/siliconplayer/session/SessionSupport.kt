@@ -5,6 +5,7 @@ import android.net.Uri
 import android.os.Environment
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Folder
+import androidx.compose.material.icons.filled.LibraryMusic
 import androidx.compose.material.icons.filled.PhoneAndroid
 import androidx.compose.material.icons.filled.SdCard
 import androidx.compose.material.icons.filled.TabletAndroid
@@ -33,6 +34,7 @@ internal fun normalizeSourceIdentity(path: String?): String? {
     val uri = Uri.parse(trimmed)
     val scheme = uri.scheme?.lowercase(Locale.ROOT)
     return when (scheme) {
+        "playlist" -> trimmed
         "http", "https" -> {
             val httpSpec = parseHttpSourceSpecFromInput(trimmed)
             if (httpSpec != null) {
@@ -364,6 +366,12 @@ internal fun storagePresentationForEntry(
     val normalizedPath = normalizeSourceIdentity(rawPath) ?: rawPath
     val parsed = Uri.parse(normalizedPath)
     val scheme = parsed.scheme?.lowercase(Locale.ROOT)
+    if (scheme == "playlist") {
+        return StoragePresentation(
+            label = "Playlist",
+            icon = Icons.Default.LibraryMusic
+        )
+    }
     if (scheme == "archive-dir") {
         val archivePath = parseArchiveLogicalPath(normalizedPath)?.first
             ?: parseArchiveLogicalPath(rawPath)?.first

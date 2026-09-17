@@ -252,7 +252,8 @@ internal fun applyPinnedFolderAction(
         FolderEntryAction.DeleteFromRecents -> {
             val updated = pinnedEntries.filterNot { pinned -> samePath(pinned.path, entry.path) }
             onPinnedEntriesChanged(updated)
-            Toast.makeText(context, "Folder unpinned", Toast.LENGTH_SHORT).show()
+            val isPlaylist = entry.path.startsWith("playlist://")
+            Toast.makeText(context, if (isPlaylist) "Playlist unpinned" else "Folder unpinned", Toast.LENGTH_SHORT).show()
         }
 
         FolderEntryAction.CopyPath -> {

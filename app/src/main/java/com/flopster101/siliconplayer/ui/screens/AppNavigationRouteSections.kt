@@ -162,7 +162,8 @@ internal fun AppNavigationPlaylistsRouteSection(
     onDeleteStoredPlaylist: (String) -> Unit = {},
     onRenameStoredPlaylist: (String, String) -> Unit = { _, _ -> },
     onOpenBrowser: () -> Unit = {},
-    onAppendStoredPlaylistEntries: (String, List<PlaylistTrackEntry>) -> Unit = { _, _ -> }
+    onAppendStoredPlaylistEntries: (String, List<PlaylistTrackEntry>) -> Unit = { _, _ -> },
+    onTogglePinStoredPlaylist: (String) -> Unit = {}
 ) {
     MainPlaylistsRouteHost(
         mainPadding = mainPadding,
@@ -217,7 +218,8 @@ internal fun AppNavigationPlaylistsRouteSection(
         onDeleteStoredPlaylist = onDeleteStoredPlaylist,
         onRenameStoredPlaylist = onRenameStoredPlaylist,
         onOpenBrowser = onOpenBrowser,
-        onAppendStoredPlaylistEntries = onAppendStoredPlaylistEntries
+        onAppendStoredPlaylistEntries = onAppendStoredPlaylistEntries,
+        onTogglePinStoredPlaylist = onTogglePinStoredPlaylist
     )
 }
 

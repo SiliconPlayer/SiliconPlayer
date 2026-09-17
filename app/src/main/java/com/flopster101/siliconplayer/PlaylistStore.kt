@@ -21,6 +21,7 @@ private const val STORED_PLAYLIST_TITLE_KEY = "title"
 private const val STORED_PLAYLIST_FORMAT_KEY = "format"
 private const val STORED_PLAYLIST_SOURCE_HINT_KEY = "source_id_hint"
 private const val STORED_PLAYLIST_UPDATED_AT_KEY = "updated_at_ms"
+private const val STORED_PLAYLIST_IS_PINNED_KEY = "is_pinned"
 private const val STORED_PLAYLIST_ENTRIES_KEY = "entries"
 
 internal fun readPlaylistLibraryState(prefs: SharedPreferences): PlaylistLibraryState {
@@ -118,6 +119,25 @@ internal fun renameStoredPlaylist(
             } else {
                 playlist.copy(
                     title = trimmed,
+                    updatedAtMs = System.currentTimeMillis()
+                )
+            }
+        }
+    )
+}
+
+internal fun setStoredPlaylistPinned(
+    state: PlaylistLibraryState,
+    playlistId: String,
+    isPinned: Boolean
+): PlaylistLibraryState {
+    return state.copy(
+        playlists = state.playlists.map { playlist ->
+            if (playlist.id != playlistId) {
+                playlist
+            } else {
+                playlist.copy(
+                    isPinned = isPinned,
                     updatedAtMs = System.currentTimeMillis()
                 )
             }
@@ -291,6 +311,7 @@ private fun readStoredPlaylist(item: JSONObject): StoredPlaylist? {
     if (title.isBlank()) return null
     val entriesArray = item.optJSONArray(STORED_PLAYLIST_ENTRIES_KEY)
     val entries = if (entriesArray != null) readPlaylistTrackEntries(entriesArray) else emptyList()
+    val isPinned = item.optBoolean(STORED_PLAYLIST_IS_PINNED_KEY, false)
     return StoredPlaylist(
         id = item.optString(STORED_PLAYLIST_ID_KEY).trim().ifBlank { java.util.UUID.randomUUID().toString() },
         title = title,
@@ -298,7 +319,8 @@ private fun readStoredPlaylist(item: JSONObject): StoredPlaylist? {
         sourceIdHint = item.optString(STORED_PLAYLIST_SOURCE_HINT_KEY).trim().ifBlank { null },
         entries = entries,
         updatedAtMs = item.optLong(STORED_PLAYLIST_UPDATED_AT_KEY).takeIf { it > 0L }
-            ?: System.currentTimeMillis()
+            ?: System.currentTimeMillis(),
+        isPinned = isPinned
     )
 }
 
@@ -337,6 +359,7 @@ private fun writeStoredPlaylist(playlist: StoredPlaylist): JSONObject {
         .put(STORED_PLAYLIST_FORMAT_KEY, playlist.format.storageValue)
         .put(STORED_PLAYLIST_SOURCE_HINT_KEY, playlist.sourceIdHint ?: "")
         .put(STORED_PLAYLIST_UPDATED_AT_KEY, playlist.updatedAtMs)
+        .put(STORED_PLAYLIST_IS_PINNED_KEY, playlist.isPinned)
         .put(
             STORED_PLAYLIST_ENTRIES_KEY,
             JSONArray().apply {
