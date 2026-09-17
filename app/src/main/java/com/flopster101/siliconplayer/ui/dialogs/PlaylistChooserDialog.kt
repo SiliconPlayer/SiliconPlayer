@@ -36,8 +36,14 @@ import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.LibraryMusic
 import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.filled.SwapVert
 import androidx.compose.material.icons.outlined.AddCircle
+import com.flopster101.siliconplayer.FAVORITES_PLAYLIST_ID
+import com.flopster101.siliconplayer.PlaylistTrackEntry
+import com.flopster101.siliconplayer.favoritesAsStoredPlaylist
+import com.flopster101.siliconplayer.AppPreferenceKeys
+import com.flopster101.siliconplayer.readPlaylistLibraryState
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
@@ -88,11 +94,42 @@ import com.flopster101.siliconplayer.ui.screens.PlaylistCoverArt
 @Composable
 internal fun AddToPlaylistChooserDialog(
     playlists: List<StoredPlaylist>,
+    favorites: List<PlaylistTrackEntry> = emptyList(),
+    showFavorites: Boolean = false,
     pendingSources: Set<String>,
     onConfirm: (playlistId: String?, newTitle: String) -> Unit,
     onRemoveFromPlaylist: (playlistId: String) -> Unit,
     onDismiss: () -> Unit
 ) {
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val effectiveShowFavorites = remember(showFavorites) {
+        if (showFavorites) {
+            true
+        } else {
+            val p = context.getSharedPreferences(
+                AppPreferenceKeys.PREFS_NAME,
+                android.content.Context.MODE_PRIVATE
+            )
+            p.getBoolean(
+                AppPreferenceKeys.LIBRARY_SHOW_FAVORITES_IN_PLAYLIST_CHOOSER,
+                false
+            )
+        }
+    }
+    val effectiveFavorites = remember(favorites, effectiveShowFavorites) {
+        if (!effectiveShowFavorites) {
+            emptyList()
+        } else if (favorites.isNotEmpty()) {
+            favorites
+        } else {
+            val p = context.getSharedPreferences(
+                AppPreferenceKeys.PREFS_NAME,
+                android.content.Context.MODE_PRIVATE
+            )
+            readPlaylistLibraryState(p).favorites
+        }
+    }
+
     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
         ModalBottomSheet(
             onDismissRequest = onDismiss,
@@ -100,6 +137,8 @@ internal fun AddToPlaylistChooserDialog(
         ) {
             AddToPlaylistSheetContent(
                 playlists = playlists,
+                favorites = effectiveFavorites,
+                showFavorites = effectiveShowFavorites,
                 pendingSources = pendingSources,
                 onConfirm = onConfirm,
                 onRemoveFromPlaylist = onRemoveFromPlaylist,
@@ -123,6 +162,8 @@ internal fun AddToPlaylistChooserDialog(
                 ) {
                     AddToPlaylistSheetContent(
                         playlists = playlists,
+                        favorites = effectiveFavorites,
+                        showFavorites = effectiveShowFavorites,
                         pendingSources = pendingSources,
                         onConfirm = onConfirm,
                         onRemoveFromPlaylist = onRemoveFromPlaylist,
@@ -137,6 +178,8 @@ internal fun AddToPlaylistChooserDialog(
 @Composable
 private fun AddToPlaylistSheetContent(
     playlists: List<StoredPlaylist>,
+    favorites: List<PlaylistTrackEntry>,
+    showFavorites: Boolean,
     pendingSources: Set<String>,
     onConfirm: (playlistId: String?, newTitle: String) -> Unit,
     onRemoveFromPlaylist: (playlistId: String) -> Unit,
@@ -147,27 +190,40 @@ private fun AddToPlaylistSheetContent(
     var selectedSortMode by rememberSaveable { mutableStateOf(PlaylistSortMode.RecentlyUpdated) }
     var sortMenuExpanded by remember { mutableStateOf(false) }
     var pendingDuplicateConfirmPlaylist by remember { mutableStateOf<StoredPlaylist?>(null) }
+    val effectivePlaylists = remember(playlists, favorites, showFavorites) {
+        if (showFavorites) {
+            listOf(favoritesAsStoredPlaylist(favorites)) + playlists
+        } else {
+            playlists
+        }
+    }
+    fun sortWithFavoritesFirst(list: List<StoredPlaylist>, mode: PlaylistSortMode): List<StoredPlaylist> {
+        val fav = list.firstOrNull { it.id == FAVORITES_PLAYLIST_ID }
+        val rest = list.filterNot { it.id == FAVORITES_PLAYLIST_ID }
+        val sortedRest = sortStoredPlaylists(rest, mode)
+        return if (fav != null) listOf(fav) + sortedRest else sortedRest
+    }
     val singleSource = pendingSources.singleOrNull()
-    val savedIn = remember(playlists, singleSource, selectedSortMode) {
+    val savedIn = remember(effectivePlaylists, singleSource, selectedSortMode) {
         if (singleSource == null) {
             emptyList()
         } else {
-            val matching = playlists.filter { playlist ->
+            val matching = effectivePlaylists.filter { playlist ->
                 playlist.entries.any { entry ->
                     entry.subtuneIndex == null && samePath(entry.source, singleSource)
                 }
             }
-            sortStoredPlaylists(matching, selectedSortMode)
+            sortWithFavoritesFirst(matching, selectedSortMode)
         }
     }
     val savedInIds = remember(savedIn) { savedIn.map { it.id }.toSet() }
-    val filteredPlaylists = remember(playlists, query, selectedSortMode) {
+    val filteredPlaylists = remember(effectivePlaylists, query, selectedSortMode) {
         val base = if (query.isBlank()) {
-            playlists
+            effectivePlaylists
         } else {
-            playlists.filter { it.title.contains(query, ignoreCase = true) }
+            effectivePlaylists.filter { it.title.contains(query, ignoreCase = true) }
         }
-        sortStoredPlaylists(base, selectedSortMode)
+        sortWithFavoritesFirst(base, selectedSortMode)
     }
     val otherPlaylists = remember(filteredPlaylists, savedInIds) {
         filteredPlaylists.filter { it.id !in savedInIds }
@@ -282,7 +338,7 @@ private fun AddToPlaylistSheetContent(
                 .padding(start = 16.dp, end = 16.dp, bottom = 24.dp),
             verticalArrangement = Arrangement.spacedBy(4.dp)
         ) {
-            if (playlists.isEmpty()) {
+            if (effectivePlaylists.isEmpty()) {
                 Column(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -430,7 +486,7 @@ private fun AddToPlaylistSheetContent(
     }
     if (showNewPlaylistDialog) {
         NewPlaylistDialog(
-            existingTitles = remember(playlists) { playlists.map { it.title }.toSet() },
+            existingTitles = remember(effectivePlaylists) { effectivePlaylists.map { it.title }.toSet() },
             onConfirm = { title ->
                 showNewPlaylistDialog = false
                 onConfirm(null, title)
@@ -464,7 +520,7 @@ private fun ChooserPlaylistRow(
     ) {
         PlaylistCoverArt(
             entries = playlist.entries,
-            heroIcon = Icons.Default.LibraryMusic,
+            heroIcon = if (playlist.id == FAVORITES_PLAYLIST_ID) Icons.Default.Star else Icons.Default.LibraryMusic,
             modifier = Modifier.size(56.dp),
             shape = RoundedCornerShape(12.dp),
             iconSize = 30.dp

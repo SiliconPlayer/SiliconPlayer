@@ -93,6 +93,19 @@ internal data class ParsedPlaylistDocument(
     val entries: List<PlaylistTrackEntry>
 )
 
+internal const val FAVORITES_PLAYLIST_ID = "__favorites__"
+
+internal fun favoritesAsStoredPlaylist(favorites: List<PlaylistTrackEntry>): StoredPlaylist {
+    return StoredPlaylist(
+        id = FAVORITES_PLAYLIST_ID,
+        title = "Favorites",
+        format = PlaylistStoredFormat.Internal,
+        sourceIdHint = null,
+        entries = favorites,
+        updatedAtMs = favorites.maxOfOrNull { it.addedAtMs } ?: 0L
+    )
+}
+
 internal fun emptyPlaylistLibraryState(): PlaylistLibraryState {
     return PlaylistLibraryState(
         favorites = emptyList(),

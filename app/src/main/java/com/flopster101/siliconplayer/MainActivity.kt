@@ -1021,6 +1021,15 @@ internal fun applyLibraryAddToPlaylist(
     playlistLibraryState: PlaylistLibraryState,
     onPlaylistLibraryStateChanged: (PlaylistLibraryState) -> Unit
 ) {
+    if (playlistId == FAVORITES_PLAYLIST_ID) {
+        onPlaylistLibraryStateChanged(upsertFavoriteTracks(playlistLibraryState, entries))
+        Toast.makeText(
+            context,
+            if (entries.size == 1) "Added to favorites" else "Added ${entries.size} tracks to favorites",
+            Toast.LENGTH_SHORT
+        ).show()
+        return
+    }
     val updatedState = if (playlistId != null) {
         val playlist = playlistLibraryState.playlists.firstOrNull { it.id == playlistId }
         if (playlist != null) {
@@ -5084,15 +5093,31 @@ filenameOnlyWhenTitleMissing = filenameOnlyWhenTitleMissing,
                     }
                 },
                 onRemoveSourceFromPlaylist = { source, playlistId ->
-                    val target = playlistLibraryState.playlists.firstOrNull { it.id == playlistId }
-                    val entryId = target?.entries?.firstOrNull { entry ->
-                        entry.subtuneIndex == null && samePath(entry.source, source)
-                    }?.id
-                    if (entryId != null) {
-                        val updatedState = removeStoredPlaylistEntry(playlistLibraryState, playlistId, entryId)
-                        onPlaylistLibraryStateChanged(updatedState)
-                        syncActiveStoredPlaylistContextAfterMutation(playlistId)
-                        Toast.makeText(context, "Removed from playlist", Toast.LENGTH_SHORT).show()
+                    if (playlistId == FAVORITES_PLAYLIST_ID) {
+                        val matching = playlistLibraryState.favorites.filter { entry ->
+                            entry.subtuneIndex == null && samePath(entry.source, source)
+                        }
+                        if (matching.isNotEmpty()) {
+                            val updatedState = playlistLibraryState.copy(
+                                favorites = playlistLibraryState.favorites.filterNot { entry ->
+                                    matching.any { it.id == entry.id }
+                                }
+                            )
+                            onPlaylistLibraryStateChanged(updatedState)
+                            syncActiveFavoritesContextAfterMutation(updatedState.favorites)
+                            Toast.makeText(context, "Removed from favorites", Toast.LENGTH_SHORT).show()
+                        }
+                    } else {
+                        val target = playlistLibraryState.playlists.firstOrNull { it.id == playlistId }
+                        val entryId = target?.entries?.firstOrNull { entry ->
+                            entry.subtuneIndex == null && samePath(entry.source, source)
+                        }?.id
+                        if (entryId != null) {
+                            val updatedState = removeStoredPlaylistEntry(playlistLibraryState, playlistId, entryId)
+                            onPlaylistLibraryStateChanged(updatedState)
+                            syncActiveStoredPlaylistContextAfterMutation(playlistId)
+                            Toast.makeText(context, "Removed from playlist", Toast.LENGTH_SHORT).show()
+                        }
                     }
                 },
                 onPlayStoredPlaylistTrackAsCached = { entry, playlist ->

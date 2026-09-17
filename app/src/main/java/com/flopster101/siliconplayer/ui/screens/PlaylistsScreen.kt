@@ -34,6 +34,7 @@ import androidx.compose.foundation.horizontalScroll
 import com.flopster101.siliconplayer.ui.dialogs.DialogSectionLabel
 import com.flopster101.siliconplayer.ui.dialogs.DialogSelectableCard
 import com.flopster101.siliconplayer.ui.dialogs.FloatingActionDialog
+import com.flopster101.siliconplayer.FAVORITES_PLAYLIST_ID
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.pager.HorizontalPager
@@ -1891,13 +1892,22 @@ internal fun PlaylistsScreen(
     libraryContextTracks?.let { contextTracks ->
         AddToPlaylistChooserDialog(
             playlists = libraryState.playlists,
+            favorites = libraryState.favorites,
             pendingSources = contextTracks.map { it.path }.toSet(),
             onConfirm = { playlistId, newTitle ->
-                onAddLibraryTracksToPlaylist(contextTracks, playlistId, newTitle)
+                if (playlistId == FAVORITES_PLAYLIST_ID) {
+                    onAddLibraryTracksToFavorites(contextTracks)
+                } else {
+                    onAddLibraryTracksToPlaylist(contextTracks, playlistId, newTitle)
+                }
             },
             onRemoveFromPlaylist = { playlistId ->
-                contextTracks.singleOrNull()?.let { track ->
-                    onRemoveSourceFromPlaylist(track.path, playlistId)
+                if (playlistId == FAVORITES_PLAYLIST_ID) {
+                    onRemoveLibraryTracksFromFavorites(contextTracks)
+                } else {
+                    contextTracks.singleOrNull()?.let { track ->
+                        onRemoveSourceFromPlaylist(track.path, playlistId)
+                    }
                 }
             },
             onDismiss = { libraryContextTracks = null }

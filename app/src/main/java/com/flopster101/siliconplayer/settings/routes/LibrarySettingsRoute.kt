@@ -48,6 +48,17 @@ internal fun LibrarySettingsRouteContent(
 ) {
     val context = LocalContext.current
     val coroutineScope = rememberCoroutineScope()
+    val prefs = remember(context) {
+        context.getSharedPreferences(com.flopster101.siliconplayer.AppPreferenceKeys.PREFS_NAME, android.content.Context.MODE_PRIVATE)
+    }
+    var showFavoritesInPlaylistChooser by remember {
+        mutableStateOf(
+            prefs.getBoolean(
+                com.flopster101.siliconplayer.AppPreferenceKeys.LIBRARY_SHOW_FAVORITES_IN_PLAYLIST_CHOOSER,
+                false
+            )
+        )
+    }
 
     var sources by remember {
         mutableStateOf<List<com.flopster101.siliconplayer.library.LibrarySourceStatus>>(emptyList())
@@ -164,6 +175,23 @@ internal fun LibrarySettingsRouteContent(
         onCheckedChange = { checked ->
             deduplicateSources = checked
             coroutineScope.launch { LibraryRepository.setDeduplicateSources(context, checked) }
+        }
+    )
+
+    Spacer(modifier = Modifier.height(16.dp))
+    SettingsSectionLabel("Playlists")
+    PlayerSettingToggleCard(
+        title = "Show Favorites in playlist menu",
+        description = "Include Favorites as the top entry in the Add to playlist menu.",
+        checked = showFavoritesInPlaylistChooser,
+        onCheckedChange = { checked ->
+            showFavoritesInPlaylistChooser = checked
+            prefs.edit()
+                .putBoolean(
+                    com.flopster101.siliconplayer.AppPreferenceKeys.LIBRARY_SHOW_FAVORITES_IN_PLAYLIST_CHOOSER,
+                    checked
+                )
+                .apply()
         }
     )
 

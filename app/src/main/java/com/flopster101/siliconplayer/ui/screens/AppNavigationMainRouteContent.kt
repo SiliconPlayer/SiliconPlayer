@@ -1013,15 +1013,31 @@ internal fun AppNavigationMainContentHost(
                     )
                 },
                 onRemoveSourceFromPlaylist = { source, playlistId ->
-                    val target = playlistLibraryState.playlists.firstOrNull { it.id == playlistId }
-                    val entryId = target?.entries?.firstOrNull { entry ->
-                        entry.subtuneIndex == null && samePath(entry.source, source)
-                    }?.id
-                    if (entryId != null) {
-                        onPlaylistLibraryStateChanged(
-                            removeStoredPlaylistEntry(playlistLibraryState, playlistId, entryId)
-                        )
-                        Toast.makeText(context, "Removed from playlist", Toast.LENGTH_SHORT).show()
+                    if (playlistId == FAVORITES_PLAYLIST_ID) {
+                        val matching = playlistLibraryState.favorites.filter { entry ->
+                            entry.subtuneIndex == null && samePath(entry.source, source)
+                        }
+                        if (matching.isNotEmpty()) {
+                            onPlaylistLibraryStateChanged(
+                                playlistLibraryState.copy(
+                                    favorites = playlistLibraryState.favorites.filterNot { entry ->
+                                        matching.any { it.id == entry.id }
+                                    }
+                                )
+                            )
+                            Toast.makeText(context, "Removed from favorites", Toast.LENGTH_SHORT).show()
+                        }
+                    } else {
+                        val target = playlistLibraryState.playlists.firstOrNull { it.id == playlistId }
+                        val entryId = target?.entries?.firstOrNull { entry ->
+                            entry.subtuneIndex == null && samePath(entry.source, source)
+                        }?.id
+                        if (entryId != null) {
+                            onPlaylistLibraryStateChanged(
+                                removeStoredPlaylistEntry(playlistLibraryState, playlistId, entryId)
+                            )
+                            Toast.makeText(context, "Removed from playlist", Toast.LENGTH_SHORT).show()
+                        }
                     }
                 },
                 onRememberSmbCredentials = onRememberSmbCredentials,
