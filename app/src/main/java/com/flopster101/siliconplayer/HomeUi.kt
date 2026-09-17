@@ -50,6 +50,7 @@ import androidx.compose.material.icons.filled.MoreHoriz
 import androidx.compose.material.icons.filled.MusicNote
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Public
+import androidx.compose.material.icons.automirrored.filled.PlaylistAdd
 import androidx.compose.material.icons.filled.PushPin
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.material3.DropdownMenu
@@ -57,6 +58,7 @@ import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ElevatedCard
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
+import com.flopster101.siliconplayer.ui.dialogs.AddToPlaylistChooserDialog
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MenuDefaults
 import android.widget.Toast
@@ -201,6 +203,11 @@ internal fun HomeScreen(
     storagePresentationForEntry: (RecentPathEntry) -> StoragePresentation,
     storagePresentationForPinnedEntry: (HomePinnedEntry) -> StoragePresentation,
     bottomContentPadding: Dp = 0.dp,
+    playlists: List<StoredPlaylist> = emptyList(),
+    favoriteSourcePaths: List<String> = emptyList(),
+    onToggleFavoriteSource: ((String, String) -> Unit)? = null,
+    onAddSourceToPlaylist: ((String, String, String?, String) -> Unit)? = null,
+    onRemoveSourceFromPlaylist: ((String, String) -> Unit)? = null,
     onOpenLibrary: () -> Unit,
     onOpenPlaylists: () -> Unit,
     onOpenNetwork: () -> Unit,
@@ -265,6 +272,7 @@ internal fun HomeScreen(
     var recentFoldersSectionMenuExpanded by remember { mutableStateOf(false) }
     var recentPlayedSectionMenuExpanded by remember { mutableStateOf(false) }
     var pendingBulkClearTarget by remember { mutableStateOf<HomeBulkClearTarget?>(null) }
+    var pendingPlaylistAddSource by remember { mutableStateOf<Pair<String, String>?>(null) }
     val playedEntryKey: (RecentPathEntry) -> String = { entry ->
         "${entry.locationId.orEmpty()}|${entry.path}"
     }
@@ -793,6 +801,65 @@ internal fun HomeScreen(
                                                     pinnedFileActionTarget = null
                                                 }
                                             )
+                                            if (onAddSourceToPlaylist != null) {
+                                                val resolvedTitle = pinnedEntry.title?.takeIf { it.isNotBlank() }
+                                                    ?: inferredDisplayTitleForName(trackFile.name)
+                                                DropdownMenuItem(
+                                                    text = {
+                                                        Text(
+                                                            text = "Add to playlist...",
+                                                            style = MaterialTheme.typography.bodyLarge
+                                                        )
+                                                    },
+                                                    leadingIcon = {
+                                                        Icon(
+                                                            imageVector = Icons.AutoMirrored.Filled.PlaylistAdd,
+                                                            contentDescription = null,
+                                                            modifier = Modifier.size(22.dp)
+                                                        )
+                                                    },
+                                                    contentPadding = PaddingValues(start = 14.dp, end = 18.dp),
+                                                    colors = MenuDefaults.itemColors(
+                                                        textColor = MaterialTheme.colorScheme.onSurface,
+                                                        leadingIconColor = MaterialTheme.colorScheme.onSurfaceVariant
+                                                    ),
+                                                    onClick = {
+                                                        pinnedFileActionTarget = null
+                                                        pendingPlaylistAddSource = pinnedEntry.path to resolvedTitle
+                                                    }
+                                                )
+                                            }
+                                            if (onToggleFavoriteSource != null) {
+                                                val isFavorited = favoriteSourcePaths.any { samePath(it, pinnedEntry.path) }
+                                                val resolvedTitle = pinnedEntry.title?.takeIf { it.isNotBlank() }
+                                                    ?: inferredDisplayTitleForName(trackFile.name)
+                                                DropdownMenuItem(
+                                                    text = {
+                                                        Text(
+                                                            text = if (isFavorited) "Remove from favorites" else "Add to favorites",
+                                                            style = MaterialTheme.typography.bodyLarge
+                                                        )
+                                                    },
+                                                    leadingIcon = {
+                                                        Icon(
+                                                            painter = painterResource(
+                                                                id = if (isFavorited) R.drawable.ic_star_filled else R.drawable.ic_star_outline
+                                                            ),
+                                                            contentDescription = null,
+                                                            modifier = Modifier.size(22.dp)
+                                                        )
+                                                    },
+                                                    contentPadding = PaddingValues(start = 14.dp, end = 18.dp),
+                                                    colors = MenuDefaults.itemColors(
+                                                        textColor = MaterialTheme.colorScheme.onSurface,
+                                                        leadingIconColor = MaterialTheme.colorScheme.primary
+                                                    ),
+                                                    onClick = {
+                                                        pinnedFileActionTarget = null
+                                                        onToggleFavoriteSource(pinnedEntry.path, resolvedTitle)
+                                                    }
+                                                )
+                                            }
                                             DropdownMenuItem(
                                                 text = {
                                                     Text(
@@ -1441,6 +1508,65 @@ internal fun HomeScreen(
                                                         fileActionTargetEntry = null
                                                     }
                                                 )
+                                                if (onAddSourceToPlaylist != null && !entry.isPlaylist) {
+                                                    val resolvedTitle = entry.title?.takeIf { it.isNotBlank() }
+                                                        ?: inferredDisplayTitleForName(trackFile.name)
+                                                    DropdownMenuItem(
+                                                        text = {
+                                                            Text(
+                                                                text = "Add to playlist...",
+                                                                style = MaterialTheme.typography.bodyLarge
+                                                            )
+                                                        },
+                                                        leadingIcon = {
+                                                            Icon(
+                                                                imageVector = Icons.AutoMirrored.Filled.PlaylistAdd,
+                                                                contentDescription = null,
+                                                                modifier = Modifier.size(22.dp)
+                                                            )
+                                                        },
+                                                        contentPadding = PaddingValues(start = 14.dp, end = 18.dp),
+                                                        colors = MenuDefaults.itemColors(
+                                                            textColor = MaterialTheme.colorScheme.onSurface,
+                                                            leadingIconColor = MaterialTheme.colorScheme.onSurfaceVariant
+                                                        ),
+                                                        onClick = {
+                                                            fileActionTargetEntry = null
+                                                            pendingPlaylistAddSource = entry.path to resolvedTitle
+                                                        }
+                                                    )
+                                                }
+                                                if (onToggleFavoriteSource != null && !entry.isPlaylist) {
+                                                    val isFavorited = favoriteSourcePaths.any { samePath(it, entry.path) }
+                                                    val resolvedTitle = entry.title?.takeIf { it.isNotBlank() }
+                                                        ?: inferredDisplayTitleForName(trackFile.name)
+                                                    DropdownMenuItem(
+                                                        text = {
+                                                            Text(
+                                                                text = if (isFavorited) "Remove from favorites" else "Add to favorites",
+                                                                style = MaterialTheme.typography.bodyLarge
+                                                            )
+                                                        },
+                                                        leadingIcon = {
+                                                            Icon(
+                                                                painter = painterResource(
+                                                                    id = if (isFavorited) R.drawable.ic_star_filled else R.drawable.ic_star_outline
+                                                                ),
+                                                                contentDescription = null,
+                                                                modifier = Modifier.size(22.dp)
+                                                            )
+                                                        },
+                                                        contentPadding = PaddingValues(start = 14.dp, end = 18.dp),
+                                                        colors = MenuDefaults.itemColors(
+                                                            textColor = MaterialTheme.colorScheme.onSurface,
+                                                            leadingIconColor = MaterialTheme.colorScheme.primary
+                                                        ),
+                                                        onClick = {
+                                                            fileActionTargetEntry = null
+                                                            onToggleFavoriteSource(entry.path, resolvedTitle)
+                                                        }
+                                                    )
+                                                }
                                                 DropdownMenuItem(
                                                     text = {
                                                         Text(
@@ -1724,6 +1850,19 @@ internal fun HomeScreen(
         }
     }
 
+    pendingPlaylistAddSource?.let { (source, title) ->
+        AddToPlaylistChooserDialog(
+            playlists = playlists,
+            pendingSources = setOf(source),
+            onConfirm = { playlistId, newTitle ->
+                onAddSourceToPlaylist?.invoke(source, title, playlistId, newTitle)
+            },
+            onRemoveFromPlaylist = { playlistId ->
+                onRemoveSourceFromPlaylist?.invoke(source, playlistId)
+            },
+            onDismiss = { pendingPlaylistAddSource = null }
+        )
+    }
 }
 
 private fun resolvedRecentFolderTitle(entry: RecentPathEntry): String {

@@ -36,6 +36,11 @@ internal fun AppNavigationHomeContentSection(
     networkNodes: List<NetworkNode>,
     storageDescriptors: List<StorageDescriptor>,
     bottomContentPadding: Dp,
+    playlists: List<StoredPlaylist> = emptyList(),
+    favoriteSourcePaths: List<String> = emptyList(),
+    onToggleFavoriteSource: ((String, String) -> Unit)? = null,
+    onAddSourceToPlaylist: ((String, String, String?, String) -> Unit)? = null,
+    onRemoveSourceFromPlaylist: ((String, String) -> Unit)? = null,
     openPlayerOnTrackSelect: Boolean,
     trackLoadDelegates: AppNavigationTrackLoadDelegates,
     manualOpenDelegates: AppNavigationManualOpenDelegates,
@@ -69,6 +74,11 @@ internal fun AppNavigationHomeContentSection(
             storagePresentationForEntry(context, entry.asRecentPathEntry(), storageDescriptors, networkNodes)
         },
         bottomContentPadding = bottomContentPadding,
+        playlists = playlists,
+        favoriteSourcePaths = favoriteSourcePaths,
+        onToggleFavoriteSource = onToggleFavoriteSource,
+        onAddSourceToPlaylist = onAddSourceToPlaylist,
+        onRemoveSourceFromPlaylist = onRemoveSourceFromPlaylist,
         onOpenLibrary = {
             onOpenBrowser(browserOpenRequest())
             onCurrentViewChanged(MainView.Browser)
@@ -804,6 +814,13 @@ internal fun AppNavigationMainContentHost(
         onOpenUrlOrPathRequested = onOpenUrlOrPathDialog,
         onSettingsRequested = onSettingsRequested,
         homeContent = { mainPadding ->
+            val derivedFavoriteSourcePaths = remember(playlistLibraryState.favorites) {
+                playlistLibraryState.favorites
+                    .asSequence()
+                    .filter { it.subtuneIndex == null }
+                    .map { it.source }
+                    .toList()
+            }
             AppNavigationHomeContentSection(
                 mainPadding = mainPadding,
                 context = context,
@@ -820,6 +837,57 @@ internal fun AppNavigationMainContentHost(
                 networkNodes = networkNodes,
                 storageDescriptors = storageDescriptors,
                 bottomContentPadding = miniPlayerListInset,
+                playlists = playlistLibraryState.playlists,
+                favoriteSourcePaths = derivedFavoriteSourcePaths,
+                onToggleFavoriteSource = { source, title ->
+                    toggleFavoriteForSource(
+                        context = context,
+                        playlistLibraryState = playlistLibraryState,
+                        source = source,
+                        title = title,
+                        onPlaylistLibraryStateChanged = onPlaylistLibraryStateChanged
+                    )
+                },
+                onAddSourceToPlaylist = { source, title, playlistId, newTitle ->
+                    val entry = playlistTrackEntryForBrowserSource(source, title)
+                    applyLibraryAddToPlaylist(
+                        context,
+                        emptyList(),
+                        listOf(entry),
+                        playlistId,
+                        newTitle,
+                        playlistLibraryState,
+                        onPlaylistLibraryStateChanged
+                    )
+                },
+                onRemoveSourceFromPlaylist = { source, playlistId ->
+                    if (playlistId == FAVORITES_PLAYLIST_ID) {
+                        val matching = playlistLibraryState.favorites.filter { entry ->
+                            entry.subtuneIndex == null && samePath(entry.source, source)
+                        }
+                        if (matching.isNotEmpty()) {
+                            onPlaylistLibraryStateChanged(
+                                playlistLibraryState.copy(
+                                    favorites = playlistLibraryState.favorites.filterNot { entry ->
+                                        matching.any { it.id == entry.id }
+                                    }
+                                )
+                            )
+                            Toast.makeText(context, "Removed from favorites", Toast.LENGTH_SHORT).show()
+                        }
+                    } else {
+                        val target = playlistLibraryState.playlists.firstOrNull { it.id == playlistId }
+                        val entryId = target?.entries?.firstOrNull { entry ->
+                            entry.subtuneIndex == null && samePath(entry.source, source)
+                        }?.id
+                        if (entryId != null) {
+                            onPlaylistLibraryStateChanged(
+                                removeStoredPlaylistEntry(playlistLibraryState, playlistId, entryId)
+                            )
+                            Toast.makeText(context, "Removed from playlist", Toast.LENGTH_SHORT).show()
+                        }
+                    }
+                },
                 openPlayerOnTrackSelect = openPlayerOnTrackSelect,
                 trackLoadDelegates = trackLoadDelegates,
                 manualOpenDelegates = manualOpenDelegates,
