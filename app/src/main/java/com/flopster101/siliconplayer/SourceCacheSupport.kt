@@ -77,9 +77,8 @@ internal fun sanitizeRemoteCachedMetadataTitle(
 }
 
 internal fun stripUrlFragment(url: String): String {
-    val parsed = Uri.parse(url)
-    if (parsed.fragment.isNullOrBlank()) return url
-    return parsed.buildUpon().fragment(null).build().toString()
+    val fragmentIndex = url.indexOf('#')
+    return if (fragmentIndex >= 0) url.substring(0, fragmentIndex) else url
 }
 
 internal fun remoteFilenameHintFromUri(uri: Uri): String? {

@@ -9,6 +9,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -24,6 +25,8 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Checkbox
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
@@ -37,7 +40,11 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.MoreVert
+import androidx.compose.material.icons.filled.PlaylistAdd
 import androidx.compose.material.icons.filled.Shuffle
+import androidx.compose.material.icons.filled.Star
+import androidx.compose.material.icons.filled.StarBorder
 import androidx.compose.material.icons.filled.WarningAmber
 import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material.icons.filled.VisibilityOff
@@ -47,6 +54,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.Alignment
@@ -886,7 +894,11 @@ internal fun PlaylistSelectorDialog(
     entries: List<PlaylistTrackEntry>,
     currentEntryId: String?,
     onSelectEntry: (PlaylistTrackEntry) -> Unit,
-    onDismiss: () -> Unit
+    onDismiss: () -> Unit,
+    onSaveAsPlaylist: (() -> Unit)? = null,
+    onEntryAddTrackToPlaylist: ((PlaylistTrackEntry) -> Unit)? = null,
+    onEntryToggleFavorite: ((PlaylistTrackEntry) -> Unit)? = null,
+    isEntryFavorite: ((PlaylistTrackEntry) -> Boolean)? = null
 ) {
     val resolvedPrimaryTitle = subtitle
         ?.trim()
@@ -988,6 +1000,19 @@ internal fun PlaylistSelectorDialog(
                 }
             }
             Spacer(modifier = Modifier.height(4.dp))
+            if (onSaveAsPlaylist != null) {
+                FilledTonalButton(
+                    onClick = {
+                        onSaveAsPlaylist()
+                        onDismiss()
+                    },
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(14.dp)
+                ) {
+                    Text("Save playlist")
+                }
+                Spacer(modifier = Modifier.height(4.dp))
+            }
             Button(
                 onClick = onDismiss,
                 modifier = Modifier.fillMaxWidth(),
@@ -1113,15 +1138,74 @@ internal fun PlaylistSelectorDialog(
                                                     overflow = TextOverflow.Ellipsis
                                                 )
                                             }
-                                            Text(
-                                                text = "${index + 1}",
-                                                style = MaterialTheme.typography.labelLarge,
-                                                color = if (isCurrent) {
-                                                    MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.72f)
-                                                } else {
-                                                    MaterialTheme.colorScheme.onSurfaceVariant
+                                            Row(
+                                                verticalAlignment = Alignment.CenterVertically,
+                                                horizontalArrangement = Arrangement.spacedBy(2.dp)
+                                            ) {
+                                                Text(
+                                                    text = "${index + 1}",
+                                                    style = MaterialTheme.typography.labelLarge,
+                                                    color = if (isCurrent) {
+                                                        MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.72f)
+                                                    } else {
+                                                        MaterialTheme.colorScheme.onSurfaceVariant
+                                                    }
+                                                )
+                                                if (onEntryAddTrackToPlaylist != null || onEntryToggleFavorite != null) {
+                                                    var rowMenuExpanded by remember { mutableStateOf(false) }
+                                                    Box {
+                                                        IconButton(
+                                                            onClick = { rowMenuExpanded = true },
+                                                            modifier = Modifier.size(32.dp)
+                                                        ) {
+                                                            Icon(
+                                                                imageVector = Icons.Default.MoreVert,
+                                                                contentDescription = "Track options",
+                                                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                                                modifier = Modifier.size(18.dp)
+                                                            )
+                                                        }
+                                                        DropdownMenu(
+                                                            expanded = rowMenuExpanded,
+                                                            onDismissRequest = { rowMenuExpanded = false }
+                                                        ) {
+                                                            if (onEntryAddTrackToPlaylist != null) {
+                                                                DropdownMenuItem(
+                                                                    text = { Text("Add to playlist…") },
+                                                                    leadingIcon = {
+                                                                        Icon(
+                                                                            imageVector = Icons.Default.PlaylistAdd,
+                                                                            contentDescription = null,
+                                                                            modifier = Modifier.size(20.dp)
+                                                                        )
+                                                                    },
+                                                                    onClick = {
+                                                                        rowMenuExpanded = false
+                                                                        onEntryAddTrackToPlaylist(entry)
+                                                                    }
+                                                                )
+                                                            }
+                                                            if (onEntryToggleFavorite != null) {
+                                                                val isFav = isEntryFavorite?.invoke(entry) == true
+                                                                DropdownMenuItem(
+                                                                    text = { Text(if (isFav) "Remove from favorites" else "Add to favorites") },
+                                                                    leadingIcon = {
+                                                                        Icon(
+                                                                            imageVector = if (isFav) Icons.Default.Star else Icons.Default.StarBorder,
+                                                                            contentDescription = null,
+                                                                            modifier = Modifier.size(20.dp)
+                                                                        )
+                                                                    },
+                                                                    onClick = {
+                                                                        rowMenuExpanded = false
+                                                                        onEntryToggleFavorite(entry)
+                                                                    }
+                                                                )
+                                                            }
+                                                        }
+                                                    }
                                                 }
-                                            )
+                                            }
                                         }
                                         if (index < entries.lastIndex) {
                                             HorizontalDivider(
@@ -1164,8 +1248,24 @@ internal fun PlaylistSelectorDialog(
                 }
             },
             confirmButton = {
-                TextButton(onClick = onDismiss) {
-                    Text("Close")
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    if (onSaveAsPlaylist != null) {
+                        FilledTonalButton(
+                            onClick = onSaveAsPlaylist,
+                            contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.PlaylistAdd,
+                                contentDescription = null,
+                                modifier = Modifier.size(18.dp)
+                            )
+                            Spacer(Modifier.width(6.dp))
+                            Text("Save playlist")
+                        }
+                    }
+                    TextButton(onClick = onDismiss) {
+                        Text("Close")
+                    }
                 }
             }
         )
@@ -1270,7 +1370,8 @@ internal fun PlaylistOpenActionDialog(
     entryCount: Int,
     onPlayNow: () -> Unit,
     onBrowseEntries: () -> Unit,
-    onDismiss: () -> Unit
+    onDismiss: () -> Unit,
+    onSaveAsPlaylist: (() -> Unit)? = null
 ) {
     val message = if (entryCount == 1) {
         "This playlist contains 1 entry. You can play it immediately or inspect its tracks first."
@@ -1297,6 +1398,18 @@ internal fun PlaylistOpenActionDialog(
                 shape = RoundedCornerShape(14.dp)
             ) {
                 Text("Play")
+            }
+            if (onSaveAsPlaylist != null) {
+                FilledTonalButton(
+                    onClick = {
+                        onSaveAsPlaylist()
+                        onDismiss()
+                    },
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(14.dp)
+                ) {
+                    Text("Save as playlist")
+                }
             }
             FilledTonalButton(
                 onClick = {
@@ -1331,6 +1444,11 @@ internal fun PlaylistOpenActionDialog(
             },
             dismissButton = {
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    if (onSaveAsPlaylist != null) {
+                        TextButton(onClick = onSaveAsPlaylist) {
+                            Text("Save")
+                        }
+                    }
                     TextButton(onClick = onBrowseEntries) {
                         Text("List tracks")
                     }

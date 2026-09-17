@@ -1,6 +1,9 @@
 package com.flopster101.siliconplayer
 
+import android.content.Context
+import android.content.ContentResolver
 import android.net.Uri
+import android.provider.OpenableColumns
 import java.io.File
 import java.net.URI
 import java.nio.ByteBuffer
@@ -10,6 +13,7 @@ import java.nio.charset.CodingErrorAction
 import java.nio.charset.Charset
 import java.util.Locale
 import java.util.UUID
+import kotlin.math.roundToInt
 import com.flopster101.siliconplayer.library.LibraryTrackEntity
 
 private val SUPPORTED_PLAYLIST_EXTENSIONS = setOf("m3u", "m3u8")
@@ -124,18 +128,23 @@ internal fun isSupportedPlaylistFile(file: File?): Boolean {
 
 internal fun parsePlaylistDocument(
     file: File,
-    sourceIdHint: String? = null
+    sourceIdHint: String? = null,
+    allowUnresolvedFiles: Boolean = true
 ): ParsedPlaylistDocument? {
     if (!file.exists() || !file.isFile) return null
     return when (inferredPrimaryExtensionForName(file.name)?.lowercase(Locale.ROOT)) {
-        "m3u" -> parseM3uPlaylist(file, sourceIdHint, PlaylistStoredFormat.M3u)
-        "m3u8" -> parseM3uPlaylist(file, sourceIdHint, PlaylistStoredFormat.M3u8)
+        "m3u" -> parseM3uPlaylist(file, sourceIdHint, PlaylistStoredFormat.M3u, allowUnresolvedFiles)
+        "m3u8" -> parseM3uPlaylist(file, sourceIdHint, PlaylistStoredFormat.M3u8, allowUnresolvedFiles)
         else -> null
     }
 }
 
 internal fun resolvePlaylistEntryLocalFile(source: String): File? {
-    if (parseHttpSourceSpecFromInput(source) != null || parseSmbSourceSpecFromInput(source) != null) {
+    if (parseHttpSourceSpecFromInput(source) != null ||
+        parseSmbSourceSpecFromInput(source) != null ||
+        source.startsWith("content:", ignoreCase = true) ||
+        (source.contains("://") && !source.startsWith("file://", ignoreCase = true))
+    ) {
         return null
     }
     val localPath = if (source.startsWith("file://", ignoreCase = true)) {
@@ -245,12 +254,14 @@ private data class PlaylistTargetResolution(
     val subtuneIndex: Int?
 )
 
-private fun parseM3uPlaylist(
-    file: File,
-    sourceIdHint: String?,
-    format: PlaylistStoredFormat
+internal fun parseM3uPlaylistLines(
+    lines: List<String>,
+    title: String,
+    baseFile: File? = null,
+    sourceIdHint: String? = null,
+    format: PlaylistStoredFormat = PlaylistStoredFormat.M3u8,
+    allowUnresolvedFiles: Boolean = false
 ): ParsedPlaylistDocument? {
-    val lines = readPlaylistLines(file)
     if (lines.isEmpty()) return null
     var pendingMetadata: PendingM3uMetadata? = null
     val pendingEntries = buildList {
@@ -266,8 +277,9 @@ private fun parseM3uPlaylist(
             val playlistTarget = embeddedMetadata?.rawTarget ?: line
             val resolved = resolvePlaylistTarget(
                 rawEntry = playlistTarget,
-                playlistFile = file,
-                sourceIdHint = sourceIdHint
+                playlistFile = baseFile,
+                sourceIdHint = sourceIdHint,
+                allowUnresolvedFiles = allowUnresolvedFiles
             ) ?: return@forEachIndexed
             val metadata = pendingMetadata
             pendingMetadata = null
@@ -305,11 +317,99 @@ private fun parseM3uPlaylist(
         )
     }
     return ParsedPlaylistDocument(
-        title = file.nameWithoutExtension.ifBlank { file.name },
+        title = title,
         format = format,
         sourceIdHint = sourceIdHint,
         entries = entries
     )
+}
+
+private fun parseM3uPlaylist(
+    file: File,
+    sourceIdHint: String?,
+    format: PlaylistStoredFormat,
+    allowUnresolvedFiles: Boolean = true
+): ParsedPlaylistDocument? {
+    val lines = readPlaylistLines(file)
+    val rawTitle = file.nameWithoutExtension.ifBlank { file.name }
+    val title = if (
+        (rawTitle.equals("!playlist", ignoreCase = true) || rawTitle.equals("playlist", ignoreCase = true)) &&
+        !file.parentFile?.name.isNullOrBlank()
+    ) {
+        file.parentFile?.name ?: rawTitle
+    } else {
+        rawTitle
+    }
+    return parseM3uPlaylistLines(
+        lines = lines,
+        title = title,
+        baseFile = file,
+        sourceIdHint = sourceIdHint,
+        format = format,
+        allowUnresolvedFiles = allowUnresolvedFiles
+    )
+}
+
+internal fun parsePlaylistDocumentFromUri(
+    context: Context,
+    uri: Uri
+): ParsedPlaylistDocument? {
+    val contentResolver = context.contentResolver
+    val displayName = queryDisplayNameFromUri(contentResolver, uri)
+    val baseFile = resolveBaseFileFromUri(context, uri)
+
+    val rawTitle = displayName
+        ?.substringBeforeLast('.')
+        ?.ifBlank { null }
+        ?: uri.lastPathSegment?.substringAfterLast('/')?.substringBeforeLast('.')?.ifBlank { null }
+        ?: "Imported Playlist"
+
+    val title = if (
+        (rawTitle.equals("!playlist", ignoreCase = true) || rawTitle.equals("playlist", ignoreCase = true)) &&
+        !baseFile?.parentFile?.name.isNullOrBlank()
+    ) {
+        baseFile?.parentFile?.name ?: rawTitle
+    } else {
+        rawTitle
+    }
+
+    val bytes = runCatching {
+        contentResolver.openInputStream(uri)?.use { it.readBytes() }
+    }.getOrNull() ?: return null
+
+    val text = decodePlaylistText(bytes)
+    val lines = text.replace("\uFEFF", "").lineSequence().toList()
+    if (lines.isEmpty()) return null
+
+    return parseM3uPlaylistLines(
+        lines = lines,
+        title = title,
+        baseFile = baseFile,
+        sourceIdHint = null,
+        format = PlaylistStoredFormat.M3u8,
+        allowUnresolvedFiles = true
+    )
+}
+
+internal fun resolveBaseFileFromUri(context: Context, uri: Uri): File? {
+    val realPath = queryRealPathFromUri(context, uri)
+    val candidate = when {
+        uri.scheme == "file" -> File(uri.path ?: "")
+        realPath != null -> File(realPath)
+        else -> null
+    }
+    return candidate?.takeIf { it.exists() }
+}
+
+private fun queryDisplayNameFromUri(contentResolver: ContentResolver, uri: Uri): String? {
+    return runCatching {
+        contentResolver.query(uri, arrayOf(OpenableColumns.DISPLAY_NAME), null, null, null)?.use { cursor ->
+            if (cursor.moveToFirst()) {
+                val index = cursor.getColumnIndex(OpenableColumns.DISPLAY_NAME)
+                if (index >= 0) cursor.getString(index) else null
+            } else null
+        }
+    }.getOrNull()
 }
 
 private fun readPlaylistLines(file: File): List<String> {
@@ -350,11 +450,45 @@ private fun parseExtInfMetadata(line: String): PendingM3uMetadata? {
     val artist = payload.substringBefore(" - ", missingDelimiterValue = "")
         .trim()
         .takeIf { it.isNotBlank() }
+    val title = if (payload.contains(" - ")) {
+        payload.substringAfter(" - ").trim().ifBlank { payload }
+    } else {
+        payload
+    }
     return PendingM3uMetadata(
-        title = payload,
+        title = title,
         artist = artist,
         durationSecondsOverride = durationSecondsOverride
     )
+}
+
+internal fun serializePlaylistToM3u(playlist: StoredPlaylist): String {
+    return buildString {
+        appendLine("#EXTM3U")
+        for (entry in playlist.entries) {
+            val durationSeconds = entry.durationSecondsOverride?.let {
+                if (it > 0) it.roundToInt() else -1
+            } ?: -1
+            val titlePart = if (!entry.artist.isNullOrBlank()) {
+                "${entry.artist.trim()} - ${entry.title.trim()}"
+            } else {
+                entry.title.trim()
+            }
+            appendLine("#EXTINF:$durationSeconds,$titlePart")
+            val target = buildString {
+                val localFile = resolvePlaylistEntryLocalFile(entry.source)
+                if (localFile != null) {
+                    append(localFile.absolutePath)
+                } else {
+                    append(entry.requestUrlHint?.takeIf { it.isNotBlank() } ?: entry.source)
+                }
+                if (entry.subtuneIndex != null) {
+                    append("#subtune=${entry.subtuneIndex + 1}")
+                }
+            }
+            appendLine(target)
+        }
+    }
 }
 
 private fun parseEmbeddedM3uEntryMetadata(rawEntry: String): EmbeddedM3uEntryMetadata? {
@@ -430,8 +564,9 @@ private fun splitEscapedPlaylistFields(payload: String): List<String> {
 
 private fun resolvePlaylistTarget(
     rawEntry: String,
-    playlistFile: File,
-    sourceIdHint: String?
+    playlistFile: File?,
+    sourceIdHint: String?,
+    allowUnresolvedFiles: Boolean = false
 ): PlaylistTargetResolution? {
     val stripped = stripRecognizedPlaylistFragment(rawEntry)
     val normalized = stripped.first.trim()
@@ -451,11 +586,18 @@ private fun resolvePlaylistTarget(
             subtuneIndex = fragmentSubtune
         )
     }
+    if (normalized.startsWith("content://", ignoreCase = true)) {
+        return PlaylistTargetResolution(
+            source = normalized,
+            requestUrlHint = null,
+            subtuneIndex = fragmentSubtune
+        )
+    }
     if (normalized.startsWith("file://", ignoreCase = true)) {
         val fileUri = Uri.parse(normalized)
         val localPath = fileUri.path?.takeIf { it.isNotBlank() } ?: return null
         val resolved = File(localPath)
-        if (!resolved.exists() || !resolved.isFile) return null
+        if (!allowUnresolvedFiles && (!resolved.exists() || !resolved.isFile)) return null
         return PlaylistTargetResolution(
             source = resolved.absolutePath,
             requestUrlHint = null,
@@ -486,11 +628,18 @@ private fun resolvePlaylistTarget(
     }
     val candidate = if (File(normalized).isAbsolute || WINDOWS_ABSOLUTE_PATH_REGEX.matches(normalized)) {
         File(normalized)
+    } else if (playlistFile != null) {
+        val parent = if (playlistFile.isDirectory) {
+            playlistFile
+        } else {
+            playlistFile.parentFile ?: playlistFile.absoluteFile.parentFile ?: File("/")
+        }
+        File(parent, normalized.replace('\\', '/'))
     } else {
-        File(playlistFile.parentFile ?: playlistFile.absoluteFile.parentFile ?: File("/"), normalized)
+        File(normalized.replace('\\', '/'))
     }
     val normalizedFile = runCatching { candidate.canonicalFile }.getOrElse { candidate.absoluteFile.normalize() }
-    if (!normalizedFile.exists() || !normalizedFile.isFile) return null
+    if (!allowUnresolvedFiles && (!normalizedFile.exists() || !normalizedFile.isFile)) return null
     return PlaylistTargetResolution(
         source = normalizedFile.absolutePath,
         requestUrlHint = null,

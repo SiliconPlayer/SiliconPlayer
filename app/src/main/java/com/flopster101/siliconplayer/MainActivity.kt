@@ -335,7 +335,7 @@ class MainActivity : ComponentActivity() {
         if (shouldOpenPlayerFromNotification(intent)) {
             notificationOpenPlayerSignal++
         }
-        resolveInitialFileToOpen(contentResolver, intent)?.let { file ->
+        resolveInitialFileToOpen(this, intent)?.let { file ->
             initialFileToOpen = file
             initialFileFromExternalIntent = true
         }
@@ -408,7 +408,7 @@ class MainActivity : ComponentActivity() {
         if (shouldOpenPlayerFromNotification(intent)) {
             notificationOpenPlayerSignal++
         }
-        resolveInitialFileToOpen(contentResolver, intent)?.let { file ->
+        resolveInitialFileToOpen(this, intent)?.let { file ->
             initialFileToOpen = file
             initialFileFromExternalIntent = true
         }
@@ -4165,6 +4165,9 @@ onStopEngine = { NativeBridge.releaseCurrentDecoder() }, onMetadataAlbumChanged 
             currentPlaylistEntryId = activePlaylistEntryId,
             onShowPlaylistSelectorDialogChanged = { showPlaylistSelectorDialog = it },
             onSelectPlaylistEntry = { playPlaylistEntryAction(it, activePlaylist, isPlayerExpanded) },
+            playlistLibraryState = playlistLibraryState,
+            onPlaylistLibraryStateChanged = onPlaylistLibraryStateChanged,
+            activePlaylist = activePlaylist,
             showPlaylistOpenActionDialog = showPlaylistOpenActionDialog,
             playlistOpenActionTitle = pendingBrowserPlaylistDocument?.title ?: "Playlist",
             playlistOpenActionEntryCount = pendingBrowserPlaylistDocument?.entries?.size ?: 0,
@@ -4172,6 +4175,7 @@ onStopEngine = { NativeBridge.releaseCurrentDecoder() }, onMetadataAlbumChanged 
             onDismissPlaylistOpenActionDialog = dismissPendingBrowserPlaylistAction,
             onPlayPlaylistFromFile = playPendingBrowserPlaylistAction,
             onBrowsePlaylistFromFile = browsePendingBrowserPlaylistAction,
+            pendingBrowserPlaylistDocument = pendingBrowserPlaylistDocument,
             showPlaylistPreviewDialog = showPlaylistPreviewDialog,
             playlistPreviewTitle = "Playlist",
             playlistPreviewSubtitle = pendingBrowserPlaylistDocument?.title,

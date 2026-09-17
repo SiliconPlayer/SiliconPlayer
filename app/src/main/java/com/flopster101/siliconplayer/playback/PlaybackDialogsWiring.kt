@@ -1,6 +1,9 @@
 package com.flopster101.siliconplayer
 
+import android.content.Context
 import android.content.SharedPreferences
+import android.widget.Toast
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.SideEffect
@@ -11,6 +14,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.key
 import java.io.File
+import com.flopster101.siliconplayer.ui.dialogs.AddToPlaylistChooserDialog
 import com.flopster101.siliconplayer.ui.dialogs.ManualHttpAuthenticationDialog
 import com.flopster101.siliconplayer.ui.dialogs.ManualSmbAuthenticationDialog
 
@@ -204,6 +208,9 @@ internal fun AppNavigationPlaybackDialogsSection(
     currentPlaylistEntryId: String?,
     onShowPlaylistSelectorDialogChanged: (Boolean) -> Unit,
     onSelectPlaylistEntry: (PlaylistTrackEntry) -> Unit,
+    playlistLibraryState: PlaylistLibraryState,
+    onPlaylistLibraryStateChanged: (PlaylistLibraryState) -> Unit,
+    activePlaylist: StoredPlaylist?,
     showPlaylistOpenActionDialog: Boolean,
     playlistOpenActionTitle: String,
     playlistOpenActionEntryCount: Int,
@@ -211,6 +218,7 @@ internal fun AppNavigationPlaybackDialogsSection(
     onDismissPlaylistOpenActionDialog: () -> Unit,
     onPlayPlaylistFromFile: () -> Unit,
     onBrowsePlaylistFromFile: () -> Unit,
+    pendingBrowserPlaylistDocument: ParsedPlaylistDocument?,
     showPlaylistPreviewDialog: Boolean,
     playlistPreviewTitle: String,
     playlistPreviewSubtitle: String?,
@@ -242,6 +250,65 @@ internal fun AppNavigationPlaybackDialogsSection(
 ) {
     SideEffect {
         RemoteLoadUiStateHolder.current = remoteLoadUiState
+    }
+
+    val context = LocalContext.current
+    var pendingPlaylistImportEntries by remember { mutableStateOf<List<PlaylistTrackEntry>?>(null) }
+    var pendingPlaylistImportTitle by remember { mutableStateOf<String?>(null) }
+    var pendingPlaylistImportDialogTitle by remember { mutableStateOf("Add to playlist") }
+
+    val onSaveActivePlaylist: (() -> Unit)? = activePlaylist?.takeIf { it.entries.isNotEmpty() }?.let { active ->
+        {
+            pendingPlaylistImportDialogTitle = "Save playlist"
+            pendingPlaylistImportTitle = active.title
+            pendingPlaylistImportEntries = active.entries
+        }
+    }
+    val onActivePlaylistEntryAddTrackToPlaylist: (PlaylistTrackEntry) -> Unit = { entry ->
+        pendingPlaylistImportDialogTitle = "Add to playlist"
+        pendingPlaylistImportTitle = null
+        pendingPlaylistImportEntries = listOf(entry)
+    }
+    val onActivePlaylistEntryToggleFavorite: (PlaylistTrackEntry) -> Unit = { entry ->
+        toggleEntryFavorite(
+            context = context,
+            playlistLibraryState = playlistLibraryState,
+            entry = entry,
+            onPlaylistLibraryStateChanged = onPlaylistLibraryStateChanged
+        )
+    }
+    val isActivePlaylistEntryFavorite: (PlaylistTrackEntry) -> Boolean = { entry ->
+        playlistContainsTrack(playlistLibraryState.favorites, entry.source, entry.subtuneIndex)
+    }
+    val onSavePlaylistFromFile: () -> Unit = {
+        pendingBrowserPlaylistDocument?.let { doc ->
+            pendingPlaylistImportDialogTitle = "Save playlist"
+            pendingPlaylistImportTitle = doc.title
+            pendingPlaylistImportEntries = doc.entries
+        }
+    }
+    val onSavePlaylistFromPreview: () -> Unit = {
+        pendingBrowserPlaylistDocument?.let { doc ->
+            pendingPlaylistImportDialogTitle = "Save playlist"
+            pendingPlaylistImportTitle = doc.title
+            pendingPlaylistImportEntries = doc.entries
+        }
+    }
+    val onPlaylistPreviewEntryAddTrackToPlaylist: (PlaylistTrackEntry) -> Unit = { entry ->
+        pendingPlaylistImportDialogTitle = "Add to playlist"
+        pendingPlaylistImportTitle = null
+        pendingPlaylistImportEntries = listOf(entry)
+    }
+    val onPlaylistPreviewEntryToggleFavorite: (PlaylistTrackEntry) -> Unit = { entry ->
+        toggleEntryFavorite(
+            context = context,
+            playlistLibraryState = playlistLibraryState,
+            entry = entry,
+            onPlaylistLibraryStateChanged = onPlaylistLibraryStateChanged
+        )
+    }
+    val isPlaylistPreviewEntryFavorite: (PlaylistTrackEntry) -> Boolean = { entry ->
+        playlistContainsTrack(playlistLibraryState.favorites, entry.source, entry.subtuneIndex)
     }
 
     var globalDspSettings by remember { mutableStateOf(readGlobalDspSettings(prefs)) }
@@ -364,6 +431,15 @@ internal fun AppNavigationPlaybackDialogsSection(
             onShowPlaylistSelectorDialogChanged(false)
         },
         onDismissPlaylistSelector = { onShowPlaylistSelectorDialogChanged(false) },
+        onSaveActivePlaylist = onSaveActivePlaylist?.let { action ->
+            {
+                onShowPlaylistSelectorDialogChanged(false)
+                action()
+            }
+        },
+        onActivePlaylistEntryAddTrackToPlaylist = onActivePlaylistEntryAddTrackToPlaylist,
+        onActivePlaylistEntryToggleFavorite = onActivePlaylistEntryToggleFavorite,
+        isActivePlaylistEntryFavorite = isActivePlaylistEntryFavorite,
         showPlaylistOpenActionDialog = showPlaylistOpenActionDialog,
         playlistOpenActionTitle = playlistOpenActionTitle,
         playlistOpenActionEntryCount = playlistOpenActionEntryCount,
@@ -376,6 +452,12 @@ internal fun AppNavigationPlaybackDialogsSection(
             onShowPlaylistPreviewDialogChanged(true)
             onBrowsePlaylistFromFile()
         },
+        onSavePlaylistFromFile = onSavePlaylistFromFile?.let { action ->
+            {
+                onShowPlaylistOpenActionDialogChanged(false)
+                action()
+            }
+        },
         onDismissPlaylistOpenAction = onDismissPlaylistOpenActionDialog,
         showPlaylistPreviewDialog = showPlaylistPreviewDialog,
         playlistPreviewTitle = playlistPreviewTitle,
@@ -385,6 +467,15 @@ internal fun AppNavigationPlaybackDialogsSection(
             onSelectPlaylistPreviewEntry(it)
             onShowPlaylistPreviewDialogChanged(false)
         },
+        onSavePlaylistFromPreview = onSavePlaylistFromPreview?.let { action ->
+            {
+                onShowPlaylistPreviewDialogChanged(false)
+                action()
+            }
+        },
+        onPlaylistPreviewEntryAddTrackToPlaylist = onPlaylistPreviewEntryAddTrackToPlaylist,
+        onPlaylistPreviewEntryToggleFavorite = onPlaylistPreviewEntryToggleFavorite,
+        isPlaylistPreviewEntryFavorite = isPlaylistPreviewEntryFavorite,
         onDismissPlaylistPreview = onDismissPlaylistPreviewDialog,
         showAudioEffectsDialog = showAudioEffectsDialog,
         tempMasterVolumeDb = tempMasterVolumeDb,
@@ -627,6 +718,56 @@ internal fun AppNavigationPlaybackDialogsSection(
         }
     )
 
+    pendingPlaylistImportEntries?.let { entries ->
+        AddToPlaylistChooserDialog(
+            dialogTitle = pendingPlaylistImportDialogTitle,
+            initialNewPlaylistTitle = pendingPlaylistImportTitle,
+            playlists = playlistLibraryState.playlists,
+            pendingSources = entries.map { it.source }.toSet(),
+            onConfirm = { playlistId, newTitle ->
+                applyLibraryAddToPlaylist(
+                    context = context,
+                    tracks = emptyList(),
+                    entries = entries,
+                    playlistId = playlistId,
+                    newTitle = newTitle,
+                    playlistLibraryState = playlistLibraryState,
+                    onPlaylistLibraryStateChanged = onPlaylistLibraryStateChanged
+                )
+                pendingPlaylistImportEntries = null
+                pendingPlaylistImportTitle = null
+            },
+            onRemoveFromPlaylist = { playlistId ->
+                if (playlistId == FAVORITES_PLAYLIST_ID) {
+                    val matchingSources = entries.map { it.source to it.subtuneIndex }.toSet()
+                    val filteredFavorites = playlistLibraryState.favorites.filterNot { fav ->
+                        (fav.source to fav.subtuneIndex) in matchingSources
+                    }
+                    if (filteredFavorites.size != playlistLibraryState.favorites.size) {
+                        onPlaylistLibraryStateChanged(
+                            playlistLibraryState.copy(favorites = filteredFavorites)
+                        )
+                    }
+                } else {
+                    val target = playlistLibraryState.playlists.firstOrNull { it.id == playlistId }
+                    if (target != null) {
+                        val matchingSources = entries.map { it.source to it.subtuneIndex }.toSet()
+                        val matching = target.entries.filter { (it.source to it.subtuneIndex) in matchingSources }
+                        var updatedState = playlistLibraryState
+                        matching.forEach { match ->
+                            updatedState = removeStoredPlaylistEntry(updatedState, playlistId, match.id)
+                        }
+                        onPlaylistLibraryStateChanged(updatedState)
+                    }
+                }
+            },
+            onDismiss = {
+                pendingPlaylistImportEntries = null
+                pendingPlaylistImportTitle = null
+            }
+        )
+    }
+
     ManualSmbAuthCoordinator.pendingPrompt?.let { prompt ->
         key(prompt.resolved.sourceId, prompt.host, prompt.share, prompt.failureMessage) {
             var username by remember(prompt.initialUsername) { mutableStateOf(prompt.initialUsername.orEmpty()) }
@@ -722,5 +863,23 @@ internal fun AppNavigationPlaybackDialogsSection(
                 }
             )
         }
+    }
+}
+
+private fun toggleEntryFavorite(
+    context: Context,
+    playlistLibraryState: PlaylistLibraryState,
+    entry: PlaylistTrackEntry,
+    onPlaylistLibraryStateChanged: (PlaylistLibraryState) -> Unit
+) {
+    val existingFavorite = playlistLibraryState.favorites.firstOrNull { fav ->
+        samePath(fav.source, entry.source) && (fav.subtuneIndex ?: -1) == (entry.subtuneIndex ?: -1)
+    }
+    if (existingFavorite != null) {
+        onPlaylistLibraryStateChanged(removeFavoriteTrack(playlistLibraryState, existingFavorite.id))
+        Toast.makeText(context, "Removed from favorites", Toast.LENGTH_SHORT).show()
+    } else {
+        onPlaylistLibraryStateChanged(upsertFavoriteTrack(playlistLibraryState, entry))
+        Toast.makeText(context, "Added to favorites", Toast.LENGTH_SHORT).show()
     }
 }

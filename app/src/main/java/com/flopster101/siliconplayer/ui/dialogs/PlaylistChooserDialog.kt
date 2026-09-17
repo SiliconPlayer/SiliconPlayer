@@ -97,6 +97,8 @@ internal fun AddToPlaylistChooserDialog(
     favorites: List<PlaylistTrackEntry> = emptyList(),
     showFavorites: Boolean = false,
     pendingSources: Set<String>,
+    dialogTitle: String = "Add to playlist",
+    initialNewPlaylistTitle: String? = null,
     onConfirm: (playlistId: String?, newTitle: String) -> Unit,
     onRemoveFromPlaylist: (playlistId: String) -> Unit,
     onDismiss: () -> Unit
@@ -140,6 +142,8 @@ internal fun AddToPlaylistChooserDialog(
                 favorites = effectiveFavorites,
                 showFavorites = effectiveShowFavorites,
                 pendingSources = pendingSources,
+                dialogTitle = dialogTitle,
+                initialNewPlaylistTitle = initialNewPlaylistTitle,
                 onConfirm = onConfirm,
                 onRemoveFromPlaylist = onRemoveFromPlaylist,
                 onDismiss = onDismiss
@@ -165,6 +169,8 @@ internal fun AddToPlaylistChooserDialog(
                         favorites = effectiveFavorites,
                         showFavorites = effectiveShowFavorites,
                         pendingSources = pendingSources,
+                        dialogTitle = dialogTitle,
+                        initialNewPlaylistTitle = initialNewPlaylistTitle,
                         onConfirm = onConfirm,
                         onRemoveFromPlaylist = onRemoveFromPlaylist,
                         onDismiss = onDismiss
@@ -181,6 +187,8 @@ private fun AddToPlaylistSheetContent(
     favorites: List<PlaylistTrackEntry>,
     showFavorites: Boolean,
     pendingSources: Set<String>,
+    dialogTitle: String = "Add to playlist",
+    initialNewPlaylistTitle: String? = null,
     onConfirm: (playlistId: String?, newTitle: String) -> Unit,
     onRemoveFromPlaylist: (playlistId: String) -> Unit,
     onDismiss: () -> Unit

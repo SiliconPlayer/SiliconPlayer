@@ -1,6 +1,7 @@
 package com.flopster101.siliconplayer
 
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -251,6 +252,169 @@ class PlaylistStoreTest {
         assertEquals(2, loadedState.playlists[0].entries.size)
         assertEquals("empty-p2", loadedState.playlists[1].id)
         assertTrue(loadedState.playlists[1].entries.isEmpty())
+    }
+
+    @Test
+    fun `serializePlaylistToM3u exports valid M3U format with EXTINF and subtunes`() {
+        val playlist = StoredPlaylist(
+            id = "test-export",
+            title = "My Synth Hits",
+            format = PlaylistStoredFormat.Internal,
+            entries = listOf(
+                PlaylistTrackEntry(
+                    id = "e1",
+                    source = "/storage/emulated/0/Music/track1.mp3",
+                    title = "Around The World",
+                    artist = "Daft Punk",
+                    durationSecondsOverride = 185.4
+                ),
+                PlaylistTrackEntry(
+                    id = "e2",
+                    source = "https://example.com/audio/chip.sid",
+                    title = "Commando",
+                    artist = "Rob Hubbard",
+                    subtuneIndex = 2,
+                    durationSecondsOverride = null
+                ),
+                PlaylistTrackEntry(
+                    id = "e3",
+                    source = "content://com.android.providers.media.documents/document/audio%3A123",
+                    title = "Untitled Track",
+                    artist = null,
+                    durationSecondsOverride = 60.0
+                )
+            )
+        )
+
+        val exported = serializePlaylistToM3u(playlist)
+        val lines = exported.lines().filter { it.isNotBlank() }
+
+        assertEquals("#EXTM3U", lines[0])
+        assertEquals("#EXTINF:185,Daft Punk - Around The World", lines[1])
+        assertEquals("/storage/emulated/0/Music/track1.mp3", lines[2])
+        assertEquals("#EXTINF:-1,Rob Hubbard - Commando", lines[3])
+        assertEquals("https://example.com/audio/chip.sid#subtune=3", lines[4])
+        assertEquals("#EXTINF:60,Untitled Track", lines[5])
+        assertEquals("content://com.android.providers.media.documents/document/audio%3A123", lines[6])
+    }
+
+    @Test
+    fun `serializePlaylistToM3u handles empty playlist`() {
+        val playlist = StoredPlaylist(
+            id = "empty",
+            title = "Empty",
+            format = PlaylistStoredFormat.Internal,
+            entries = emptyList()
+        )
+        val exported = serializePlaylistToM3u(playlist)
+        assertEquals("#EXTM3U\n", exported)
+    }
+
+    @Test
+    fun `suggestedPlaylistExportFileName sanitizes invalid characters`() {
+        val playlist = StoredPlaylist(
+            id = "p1",
+            title = "Cool: Hits / Tracks? *Yes*",
+            format = PlaylistStoredFormat.Internal,
+            entries = emptyList()
+        )
+        val fileName = suggestedPlaylistExportFileName(playlist, PlaylistExportFormat.M3U8)
+        assertEquals("Cool_ Hits _ Tracks_ _Yes_.m3u8", fileName)
+    }
+
+    @Test
+    fun `PlaylistExportRegistry resolves exporters correctly`() {
+        val m3u8Exporter = PlaylistExportRegistry.exporterFor(PlaylistExportFormat.M3U8)
+        assertEquals(PlaylistExportFormat.M3U8, m3u8Exporter.format)
+        val m3uExporter = PlaylistExportRegistry.exporterFor(PlaylistExportFormat.M3U)
+        assertEquals(PlaylistExportFormat.M3U, m3uExporter.format)
+        assertEquals(m3u8Exporter, PlaylistExportRegistry.defaultExporter())
+    }
+
+    @Test
+    fun `parseM3uPlaylistLines parses metadata subtunes and content URIs`() {
+        val lines = listOf(
+            "#EXTM3U",
+            "#EXTINF:120,Artist One - Song One",
+            "content://media/external/audio/media/42#subtune=3",
+            "#EXTINF:60,Song Two",
+            "http://example.com/music/tune.mod"
+        )
+        val doc = parseM3uPlaylistLines(
+            lines = lines,
+            title = "Test Import",
+            allowUnresolvedFiles = true
+        )
+        assertNotNull(doc)
+        assertEquals("Test Import", doc!!.title)
+        assertEquals(2, doc.entries.size)
+
+        val first = doc.entries[0]
+        assertEquals("content://media/external/audio/media/42", first.source)
+        assertEquals("Artist One", first.artist)
+        assertEquals("Song One", first.title)
+        assertEquals(2, first.subtuneIndex)
+        assertEquals(120.0, first.durationSecondsOverride)
+
+        val second = doc.entries[1]
+        assertEquals("http://example.com/music/tune.mod", second.source)
+        assertEquals(null, second.artist)
+        assertEquals("Song Two", second.title)
+        assertEquals(null, second.subtuneIndex)
+        assertEquals(60.0, second.durationSecondsOverride)
+    }
+
+    @Test
+    fun `parseM3uPlaylistLines with allowUnresolvedFiles preserves non-existent files`() {
+        val lines = listOf(
+            "#EXTM3U",
+            "#EXTINF:-1,Nonexistent Song",
+            "/some/unmounted/storage/path/song.xm"
+        )
+        val doc = parseM3uPlaylistLines(
+            lines = lines,
+            title = "Import With Unresolved",
+            allowUnresolvedFiles = true
+        )
+        assertNotNull(doc)
+        assertEquals(1, doc!!.entries.size)
+        assertEquals("/some/unmounted/storage/path/song.xm", doc.entries[0].source)
+        assertEquals("Nonexistent Song", doc.entries[0].title)
+    }
+
+    @Test
+    fun `parseM3uPlaylistLines with baseFile resolves relative entries to absolute paths matching base directory`() {
+        val lines = listOf(
+            "#EXTM3U",
+            "001 Grand Opening.mini2sf",
+            "sub\\002 Track.mini2sf"
+        )
+        val baseFile = java.io.File("/storage/emulated/0/Music/SyncedMusic/Chips/VGM/DS/Kirby Super Star Ultra (EMU).zophar/!playlist.m3u")
+        val doc = parseM3uPlaylistLines(
+            lines = lines,
+            title = "Kirby",
+            baseFile = baseFile,
+            allowUnresolvedFiles = true
+        )
+        assertNotNull(doc)
+        assertEquals(2, doc!!.entries.size)
+        assertEquals(
+            "/storage/emulated/0/Music/SyncedMusic/Chips/VGM/DS/Kirby Super Star Ultra (EMU).zophar/001 Grand Opening.mini2sf",
+            doc.entries[0].source
+        )
+        assertEquals("001 Grand Opening", doc.entries[0].title)
+        assertEquals(
+            "/storage/emulated/0/Music/SyncedMusic/Chips/VGM/DS/Kirby Super Star Ultra (EMU).zophar/sub/002 Track.mini2sf",
+            doc.entries[1].source
+        )
+    }
+
+    @Test
+    fun `resolveExternalStorageDocId resolves primary volume document id correctly`() {
+        val docId = "primary:Music/SyncedMusic/Chips/VGM/DS/Kirby Super Star Ultra (EMU).zophar/!playlist.m3u"
+        val resolved = resolveExternalStorageDocId(null, docId)
+        assertNotNull(resolved)
+        assertTrue(resolved!!.endsWith("Music/SyncedMusic/Chips/VGM/DS/Kirby Super Star Ultra (EMU).zophar/!playlist.m3u"))
     }
 
     private class FakeSharedPreferences : android.content.SharedPreferences {

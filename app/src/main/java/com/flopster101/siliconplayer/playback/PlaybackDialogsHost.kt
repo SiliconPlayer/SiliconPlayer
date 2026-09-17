@@ -33,17 +33,26 @@ internal fun PlaybackDialogsHost(
     currentPlaylistEntryId: String?,
     onSelectPlaylistEntry: (PlaylistTrackEntry) -> Unit,
     onDismissPlaylistSelector: () -> Unit,
+    onSaveActivePlaylist: (() -> Unit)? = null,
+    onActivePlaylistEntryAddTrackToPlaylist: ((PlaylistTrackEntry) -> Unit)? = null,
+    onActivePlaylistEntryToggleFavorite: ((PlaylistTrackEntry) -> Unit)? = null,
+    isActivePlaylistEntryFavorite: ((PlaylistTrackEntry) -> Boolean)? = null,
     showPlaylistOpenActionDialog: Boolean,
     playlistOpenActionTitle: String,
     playlistOpenActionEntryCount: Int,
     onPlayPlaylistFromFile: () -> Unit,
     onBrowsePlaylistFromFile: () -> Unit,
+    onSavePlaylistFromFile: (() -> Unit)? = null,
     onDismissPlaylistOpenAction: () -> Unit,
     showPlaylistPreviewDialog: Boolean,
     playlistPreviewTitle: String,
     playlistPreviewSubtitle: String?,
     playlistPreviewEntries: List<PlaylistTrackEntry>,
     onSelectPlaylistPreviewEntry: (PlaylistTrackEntry) -> Unit,
+    onSavePlaylistFromPreview: (() -> Unit)? = null,
+    onPlaylistPreviewEntryAddTrackToPlaylist: ((PlaylistTrackEntry) -> Unit)? = null,
+    onPlaylistPreviewEntryToggleFavorite: ((PlaylistTrackEntry) -> Unit)? = null,
+    isPlaylistPreviewEntryFavorite: ((PlaylistTrackEntry) -> Boolean)? = null,
     onDismissPlaylistPreview: () -> Unit,
     showAudioEffectsDialog: Boolean,
     tempMasterVolumeDb: Float,
@@ -123,7 +132,11 @@ internal fun PlaybackDialogsHost(
             entries = playlistEntries,
             currentEntryId = currentPlaylistEntryId,
             onSelectEntry = onSelectPlaylistEntry,
-            onDismiss = onDismissPlaylistSelector
+            onDismiss = onDismissPlaylistSelector,
+            onSaveAsPlaylist = onSaveActivePlaylist,
+            onEntryAddTrackToPlaylist = onActivePlaylistEntryAddTrackToPlaylist,
+            onEntryToggleFavorite = onActivePlaylistEntryToggleFavorite,
+            isEntryFavorite = isActivePlaylistEntryFavorite
         )
     }
 
@@ -133,7 +146,8 @@ internal fun PlaybackDialogsHost(
             entryCount = playlistOpenActionEntryCount,
             onPlayNow = onPlayPlaylistFromFile,
             onBrowseEntries = onBrowsePlaylistFromFile,
-            onDismiss = onDismissPlaylistOpenAction
+            onDismiss = onDismissPlaylistOpenAction,
+            onSaveAsPlaylist = onSavePlaylistFromFile
         )
     }
 
@@ -145,7 +159,11 @@ internal fun PlaybackDialogsHost(
             entries = playlistPreviewEntries,
             currentEntryId = null,
             onSelectEntry = onSelectPlaylistPreviewEntry,
-            onDismiss = onDismissPlaylistPreview
+            onDismiss = onDismissPlaylistPreview,
+            onSaveAsPlaylist = onSavePlaylistFromPreview,
+            onEntryAddTrackToPlaylist = onPlaylistPreviewEntryAddTrackToPlaylist,
+            onEntryToggleFavorite = onPlaylistPreviewEntryToggleFavorite,
+            isEntryFavorite = isPlaylistPreviewEntryFavorite
         )
     }
 

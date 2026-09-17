@@ -310,7 +310,7 @@ internal data class StoragePresentation(
     val qualifier: String? = null
 )
 
-private fun resolveStorageRootFromAppDir(appSpecificDir: File): File? {
+internal fun resolveStorageRootFromAppDir(appSpecificDir: File): File? {
     val marker = "/Android/"
     val absolutePath = appSpecificDir.absolutePath
     val markerIndex = absolutePath.indexOf(marker)

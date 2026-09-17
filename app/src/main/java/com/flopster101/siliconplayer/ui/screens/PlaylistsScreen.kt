@@ -9,12 +9,30 @@ import com.flopster101.siliconplayer.isRoundScreenCompat
 import android.net.Uri
 import android.graphics.BitmapFactory
 import androidx.activity.compose.BackHandler
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import com.flopster101.siliconplayer.exportPlaylistToUri
+import com.flopster101.siliconplayer.favoritesAsStoredPlaylist
+import com.flopster101.siliconplayer.sharePlaylist
+import com.flopster101.siliconplayer.suggestedPlaylistExportFileName
+import androidx.compose.material.icons.filled.Save
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.scaleIn
 import androidx.compose.animation.scaleOut
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutVertically
 import androidx.compose.material3.FloatingActionButton
+import androidx.compose.material3.SmallFloatingActionButton
+import androidx.compose.material.icons.filled.FileOpen
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import com.flopster101.siliconplayer.parsePlaylistDocumentFromUri
+import com.flopster101.siliconplayer.parsePlaylistDocument
+import com.flopster101.siliconplayer.isSupportedPlaylistFile
+import com.flopster101.siliconplayer.ParsedPlaylistDocument
+import com.flopster101.siliconplayer.ui.dialogs.FilePickerChoiceSheet
+import com.flopster101.siliconplayer.ui.dialogs.StorageFilePickerSheet
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.FastOutLinearInEasing
 import androidx.compose.animation.core.FastOutSlowInEasing
@@ -753,6 +771,44 @@ internal fun PlaylistsScreen(
     var trackInfoDialogState by remember {
         mutableStateOf<PlaylistTrackInfoDialogState?>(null)
     }
+    var pendingExportPlaylist by remember { mutableStateOf<StoredPlaylist?>(null) }
+    val exportPlaylistLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.CreateDocument("audio/x-mpegurl")
+    ) { targetUri ->
+        val playlist = pendingExportPlaylist
+        pendingExportPlaylist = null
+        if (targetUri != null && playlist != null) {
+            val success = exportPlaylistToUri(context, targetUri, playlist)
+            if (success) {
+                Toast.makeText(context, "Exported ${playlist.title}", Toast.LENGTH_SHORT).show()
+            } else {
+                Toast.makeText(context, "Failed to export playlist", Toast.LENGTH_SHORT).show()
+            }
+        }
+    }
+    val onExportPlaylistAction: (StoredPlaylist) -> Unit = { playlist ->
+        pendingExportPlaylist = playlist
+        exportPlaylistLauncher.launch(suggestedPlaylistExportFileName(playlist))
+    }
+    val onSharePlaylistAction: (StoredPlaylist) -> Unit = { playlist ->
+        sharePlaylist(context, playlist)
+    }
+    var playlistFabExpanded by remember { mutableStateOf(false) }
+    var pendingImportPlaylistDocument by remember { mutableStateOf<ParsedPlaylistDocument?>(null) }
+    var showImportPickerChoiceSheet by remember { mutableStateOf(false) }
+    var showBuiltInPlaylistPicker by remember { mutableStateOf(false) }
+    val importPlaylistLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.OpenDocument()
+    ) { targetUri ->
+        if (targetUri != null) {
+            val doc = parsePlaylistDocumentFromUri(context, targetUri)
+            if (doc != null && doc.entries.isNotEmpty()) {
+                pendingImportPlaylistDocument = doc
+            } else {
+                Toast.makeText(context, "No valid tracks found in playlist", Toast.LENGTH_SHORT).show()
+            }
+        }
+    }
     val detailSubtitle = when {
         showingFavoritesDetail -> "Favorites"
         showingStoredPlaylistDetail -> selectedStoredPlaylist?.title
@@ -767,6 +823,7 @@ internal fun PlaylistsScreen(
         if (selectedTabIndex != pagerState.currentPage) {
             selectedTabIndex = pagerState.currentPage
         }
+        playlistFabExpanded = false
     }
     LaunchedEffect(destination, selectedStoredPlaylistId, libraryState.playlists) {
         if (
@@ -779,9 +836,13 @@ internal fun PlaylistsScreen(
         }
     }
     LaunchedEffect(destination) {
+        playlistFabExpanded = false
         if (destination == PlaylistsSurfaceDestination.Library) {
             selectedStoredPlaylistId = null
         }
+    }
+    BackHandler(enabled = backHandlingEnabled && playlistFabExpanded) {
+        playlistFabExpanded = false
     }
     BackHandler(enabled = backHandlingEnabled && librarySearchActive) {
         librarySearchActive = false
@@ -1174,6 +1235,12 @@ internal fun PlaylistsScreen(
                                         networkNodes = networkNodes
                                     )
                                 },
+                                onExportPlaylist = {
+                                    onExportPlaylistAction(favoritesAsStoredPlaylist(libraryState.favorites))
+                                },
+                                onSharePlaylist = {
+                                    onSharePlaylistAction(favoritesAsStoredPlaylist(libraryState.favorites))
+                                },
                                 isWatch = isWatch,
                                 onBack = {
                                     favoritesEditModeEnabled = false
@@ -1257,6 +1324,8 @@ internal fun PlaylistsScreen(
                                     showShareAction = true,
                                     showCopySourceAction = true,
                                     showInfoAction = true,
+                                    onExportPlaylist = { onExportPlaylistAction(sortedStoredPlaylist) },
+                                    onSharePlaylist = { onSharePlaylistAction(sortedStoredPlaylist) },
                                     isWatch = isWatch,
                                     onBack = {
                                         storedPlaylistEditModeEnabled = false
@@ -1339,6 +1408,12 @@ internal fun PlaylistsScreen(
                                         FavoritesCollectionRow(
                                             favoriteCount = libraryState.favorites.size,
                                             onClick = { destination = PlaylistsSurfaceDestination.Favorites },
+                                            onExport = {
+                                                onExportPlaylistAction(favoritesAsStoredPlaylist(libraryState.favorites))
+                                            },
+                                            onShare = {
+                                                onSharePlaylistAction(favoritesAsStoredPlaylist(libraryState.favorites))
+                                            },
                                             isWatch = true
                                         )
                                     }
@@ -1362,6 +1437,8 @@ internal fun PlaylistsScreen(
                                                 },
                                                 onRename = { playlistPendingRename = playlist },
                                                 onDelete = { playlistPendingDelete = playlist },
+                                                onExport = { onExportPlaylistAction(playlist) },
+                                                onShare = { onSharePlaylistAction(playlist) },
                                                 isWatch = true
                                             )
                                         }
@@ -1513,7 +1590,7 @@ internal fun PlaylistsScreen(
                                 ) { page ->
                                 when (libraryTabs[page]) {
                                     LibrarySurfaceTab.Playlists -> {
-                                        PlaylistsLibraryTabPage(
+                                         PlaylistsLibraryTabPage(
                                             libraryState = libraryState,
                                             bottomContentPadding = bottomContentPadding,
                                             listState = surfaceState.playlistsTabListState,
@@ -1523,7 +1600,9 @@ internal fun PlaylistsScreen(
                                                 destination = PlaylistsSurfaceDestination.StoredPlaylist
                                             },
                                             onRenamePlaylist = { playlist -> playlistPendingRename = playlist },
-                                            onDeletePlaylist = { playlist -> playlistPendingDelete = playlist }
+                                            onDeletePlaylist = { playlist -> playlistPendingDelete = playlist },
+                                            onExportPlaylist = onExportPlaylistAction,
+                                            onSharePlaylist = onSharePlaylistAction
                                         )
                                     }
                                     LibrarySurfaceTab.Albums -> {
@@ -1571,6 +1650,20 @@ internal fun PlaylistsScreen(
                                     }
                                 }
                             }
+                            if (!isWatch && playlistFabExpanded &&
+                                currentDestination == PlaylistsSurfaceDestination.Library &&
+                                !librarySearchActive &&
+                                libraryTabs.getOrNull(selectedTabIndex) == LibrarySurfaceTab.Playlists
+                            ) {
+                                Box(
+                                    modifier = Modifier
+                                        .fillMaxSize()
+                                        .clickable(
+                                            interactionSource = remember { MutableInteractionSource() },
+                                            indication = null
+                                        ) { playlistFabExpanded = false }
+                                )
+                            }
                             androidx.compose.animation.AnimatedVisibility(
                                 visible = !isWatch &&
                                     currentDestination == PlaylistsSurfaceDestination.Library &&
@@ -1580,17 +1673,162 @@ internal fun PlaylistsScreen(
                                 exit = scaleOut() + fadeOut(),
                                 modifier = Modifier.align(Alignment.BottomEnd)
                             ) {
-                                FloatingActionButton(
-                                    onClick = { showCreatePlaylistDialog = true },
+                                Column(
+                                    horizontalAlignment = Alignment.End,
+                                    verticalArrangement = Arrangement.spacedBy(16.dp),
                                     modifier = Modifier.padding(
                                         end = 16.dp,
                                         bottom = 16.dp + miniPlayerFabLift(bottomContentPadding)
                                     )
                                 ) {
-                                    Icon(
-                                        imageVector = Icons.Default.Add,
-                                        contentDescription = "New playlist"
+                                    val item1Progress by animateFloatAsState(
+                                        targetValue = if (playlistFabExpanded) 1f else 0f,
+                                        animationSpec = if (playlistFabExpanded) {
+                                            tween(durationMillis = 180, easing = FastOutSlowInEasing)
+                                        } else {
+                                            tween(durationMillis = 120, easing = FastOutLinearInEasing)
+                                        },
+                                        label = "item1_progress"
                                     )
+                                    val item2Progress by animateFloatAsState(
+                                        targetValue = if (playlistFabExpanded) 1f else 0f,
+                                        animationSpec = if (playlistFabExpanded) {
+                                            tween(durationMillis = 220, delayMillis = 35, easing = FastOutSlowInEasing)
+                                        } else {
+                                            tween(durationMillis = 100, easing = FastOutLinearInEasing)
+                                        },
+                                        label = "item2_progress"
+                                    )
+
+                                    if (item2Progress > 0f) {
+                                        Row(
+                                            verticalAlignment = Alignment.CenterVertically,
+                                            horizontalArrangement = Arrangement.End,
+                                            modifier = Modifier.clickable(
+                                                interactionSource = remember { MutableInteractionSource() },
+                                                indication = null,
+                                                enabled = playlistFabExpanded
+                                             ) {
+                                                playlistFabExpanded = false
+                                                showImportPickerChoiceSheet = true
+                                            }
+                                        ) {
+                                            Surface(
+                                                shape = RoundedCornerShape(8.dp),
+                                                color = MaterialTheme.colorScheme.surfaceContainerHigh,
+                                                tonalElevation = 3.dp,
+                                                shadowElevation = 3.dp,
+                                                modifier = Modifier.graphicsLayer {
+                                                    alpha = item2Progress
+                                                    translationX = (1f - item2Progress) * 16.dp.toPx()
+                                                }
+                                            ) {
+                                                Text(
+                                                    text = "Import playlist",
+                                                    style = MaterialTheme.typography.labelLarge,
+                                                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp)
+                                                )
+                                            }
+                                            Spacer(modifier = Modifier.width(12.dp))
+                                            Box(
+                                                modifier = Modifier.width(56.dp),
+                                                contentAlignment = Alignment.Center
+                                            ) {
+                                                SmallFloatingActionButton(
+                                                    onClick = {
+                                                        playlistFabExpanded = false
+                                                        showImportPickerChoiceSheet = true
+                                                    },
+                                                    containerColor = MaterialTheme.colorScheme.secondaryContainer,
+                                                    contentColor = MaterialTheme.colorScheme.onSecondaryContainer,
+                                                    modifier = Modifier.graphicsLayer {
+                                                        alpha = item2Progress
+                                                        scaleX = item2Progress
+                                                        scaleY = item2Progress
+                                                        translationY = (1f - item2Progress) * 24.dp.toPx()
+                                                    }
+                                                ) {
+                                                    Icon(
+                                                        imageVector = Icons.Default.FileOpen,
+                                                        contentDescription = "Import playlist"
+                                                    )
+                                                }
+                                            }
+                                        }
+                                    }
+
+                                    if (item1Progress > 0f) {
+                                        Row(
+                                            verticalAlignment = Alignment.CenterVertically,
+                                            horizontalArrangement = Arrangement.End,
+                                            modifier = Modifier.clickable(
+                                                interactionSource = remember { MutableInteractionSource() },
+                                                indication = null,
+                                                enabled = playlistFabExpanded
+                                            ) {
+                                                playlistFabExpanded = false
+                                                showCreatePlaylistDialog = true
+                                            }
+                                        ) {
+                                            Surface(
+                                                shape = RoundedCornerShape(8.dp),
+                                                color = MaterialTheme.colorScheme.surfaceContainerHigh,
+                                                tonalElevation = 3.dp,
+                                                shadowElevation = 3.dp,
+                                                modifier = Modifier.graphicsLayer {
+                                                    alpha = item1Progress
+                                                    translationX = (1f - item1Progress) * 16.dp.toPx()
+                                                }
+                                            ) {
+                                                Text(
+                                                    text = "Create playlist",
+                                                    style = MaterialTheme.typography.labelLarge,
+                                                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp)
+                                                )
+                                            }
+                                            Spacer(modifier = Modifier.width(12.dp))
+                                            Box(
+                                                modifier = Modifier.width(56.dp),
+                                                contentAlignment = Alignment.Center
+                                            ) {
+                                                SmallFloatingActionButton(
+                                                    onClick = {
+                                                        playlistFabExpanded = false
+                                                        showCreatePlaylistDialog = true
+                                                    },
+                                                    containerColor = MaterialTheme.colorScheme.secondaryContainer,
+                                                    contentColor = MaterialTheme.colorScheme.onSecondaryContainer,
+                                                    modifier = Modifier.graphicsLayer {
+                                                        alpha = item1Progress
+                                                        scaleX = item1Progress
+                                                        scaleY = item1Progress
+                                                        translationY = (1f - item1Progress) * 24.dp.toPx()
+                                                    }
+                                                ) {
+                                                    Icon(
+                                                        imageVector = Icons.Default.Add,
+                                                        contentDescription = "Create playlist"
+                                                    )
+                                                }
+                                            }
+                                        }
+                                    }
+
+                                    FloatingActionButton(
+                                        onClick = { playlistFabExpanded = !playlistFabExpanded },
+                                        containerColor = if (playlistFabExpanded) MaterialTheme.colorScheme.secondaryContainer else MaterialTheme.colorScheme.primaryContainer,
+                                        contentColor = if (playlistFabExpanded) MaterialTheme.colorScheme.onSecondaryContainer else MaterialTheme.colorScheme.onPrimaryContainer
+                                    ) {
+                                        val rotation by animateFloatAsState(
+                                            targetValue = if (playlistFabExpanded) 45f else 0f,
+                                            label = "fab_rotation"
+                                        )
+                                        Icon(
+                                            imageVector = Icons.Default.Add,
+                                            contentDescription = if (playlistFabExpanded) "Close" else "Add playlist",
+                                            modifier = Modifier.graphicsLayer { rotationZ = rotation }
+                                        )
+                                    }
                                 }
                             }
                             }
@@ -1817,6 +2055,62 @@ internal fun PlaylistsScreen(
                 destination = PlaylistsSurfaceDestination.StoredPlaylist
             },
             onDismiss = { showCreatePlaylistDialog = false }
+        )
+    }
+    if (showImportPickerChoiceSheet) {
+        FilePickerChoiceSheet(
+            title = "Import playlist",
+            subtitle = "Choose how to browse for playlist files",
+            onSelectSaf = {
+                showImportPickerChoiceSheet = false
+                importPlaylistLauncher.launch(arrayOf("*/*"))
+            },
+            onSelectBuiltIn = {
+                showImportPickerChoiceSheet = false
+                showBuiltInPlaylistPicker = true
+            },
+            onDismiss = { showImportPickerChoiceSheet = false }
+        )
+    }
+    if (showBuiltInPlaylistPicker) {
+        StorageFilePickerSheet(
+            title = "Import playlist",
+            singleSelect = true,
+            fileFilter = { isSupportedPlaylistFile(it) },
+            fileIcon = Icons.Default.LibraryMusic,
+            emptyText = "No folders or playlist files (.m3u, .m3u8)",
+            onConfirmFiles = { files ->
+                showBuiltInPlaylistPicker = false
+                val file = files.firstOrNull() ?: return@StorageFilePickerSheet
+                val doc = parsePlaylistDocument(file, allowUnresolvedFiles = true)
+                if (doc != null && doc.entries.isNotEmpty()) {
+                    pendingImportPlaylistDocument = doc
+                } else {
+                    Toast.makeText(context, "No valid tracks found in playlist", Toast.LENGTH_SHORT).show()
+                }
+            },
+            onDismiss = { showBuiltInPlaylistPicker = false }
+        )
+    }
+    pendingImportPlaylistDocument?.let { doc ->
+        NewPlaylistDialog(
+            existingTitles = remember(libraryState.playlists) {
+                libraryState.playlists.map { it.title }.toSet()
+            },
+            initialTitle = doc.title,
+            onConfirm = { title ->
+                val playlistId = onCreatePlaylist(title)
+                onAppendStoredPlaylistEntries(playlistId, doc.entries)
+                pendingImportPlaylistDocument = null
+                selectedStoredPlaylistId = playlistId
+                destination = PlaylistsSurfaceDestination.StoredPlaylist
+                Toast.makeText(
+                    context,
+                    "Imported ${doc.entries.size} tracks into $title",
+                    Toast.LENGTH_SHORT
+                ).show()
+            },
+            onDismiss = { pendingImportPlaylistDocument = null }
         )
     }
     playlistPendingDelete?.let { playlist ->
@@ -2108,6 +2402,8 @@ private fun PlaylistsLibraryTabPage(
     onOpenPlaylist: (StoredPlaylist) -> Unit,
     onRenamePlaylist: (StoredPlaylist) -> Unit = {},
     onDeletePlaylist: (StoredPlaylist) -> Unit = {},
+    onExportPlaylist: (StoredPlaylist) -> Unit = {},
+    onSharePlaylist: (StoredPlaylist) -> Unit = {},
     isWatch: Boolean = false
 ) {
     LazyColumn(
@@ -2129,6 +2425,8 @@ private fun PlaylistsLibraryTabPage(
             FavoritesCollectionRow(
                 favoriteCount = libraryState.favorites.size,
                 onClick = onOpenFavorites,
+                onExport = { onExportPlaylist(favoritesAsStoredPlaylist(libraryState.favorites)) },
+                onShare = { onSharePlaylist(favoritesAsStoredPlaylist(libraryState.favorites)) },
                 isWatch = isWatch
             )
         }
@@ -2160,6 +2458,8 @@ private fun PlaylistsLibraryTabPage(
                     onClick = { onOpenPlaylist(playlist) },
                     onRename = { onRenamePlaylist(playlist) },
                     onDelete = { onDeletePlaylist(playlist) },
+                    onExport = { onExportPlaylist(playlist) },
+                    onShare = { onSharePlaylist(playlist) },
                     isWatch = isWatch
                 )
                 if (!isWatch) {
@@ -3741,6 +4041,8 @@ private fun LazyListScope.playlistDetailContent(
     showShareAction: Boolean = true,
     showCopySourceAction: Boolean = true,
     showInfoAction: Boolean = true,
+    onExportPlaylist: (() -> Unit)? = null,
+    onSharePlaylist: (() -> Unit)? = null,
     isWatch: Boolean = false,
     onBack: () -> Unit = {}
 ) {
@@ -3761,6 +4063,8 @@ private fun LazyListScope.playlistDetailContent(
                 onRenamePlaylist = onRenamePlaylist,
                 canRenamePlaylist = canRenamePlaylist,
                 onDeleteAllEntries = onDeleteAllEntries,
+                onExportPlaylist = onExportPlaylist,
+                onSharePlaylist = onSharePlaylist,
                 onBack = onBack
             )
         } else {
@@ -3783,7 +4087,9 @@ private fun LazyListScope.playlistDetailContent(
                 canDeletePlaylist = canDeletePlaylist,
                 onRenamePlaylist = onRenamePlaylist,
                 canRenamePlaylist = canRenamePlaylist,
-                onDeleteAllEntries = onDeleteAllEntries
+                onDeleteAllEntries = onDeleteAllEntries,
+                onExportPlaylist = onExportPlaylist,
+                onSharePlaylist = onSharePlaylist
             )
         }
     }
@@ -3910,6 +4216,8 @@ private fun WearPlaylistHeroHeader(
     onRenamePlaylist: () -> Unit = {},
     canRenamePlaylist: Boolean = false,
     onDeleteAllEntries: () -> Unit,
+    onExportPlaylist: (() -> Unit)? = null,
+    onSharePlaylist: (() -> Unit)? = null,
     onBack: () -> Unit
 ) {
     var showSortDialog by rememberSaveable { mutableStateOf(false) }
@@ -4015,7 +4323,7 @@ private fun WearPlaylistHeroHeader(
                     )
                 }
             }
-            if (canDeletePlaylist || canRenamePlaylist || showDeleteAllEntriesAction) {
+            if (canDeletePlaylist || canRenamePlaylist || showDeleteAllEntriesAction || onExportPlaylist != null || onSharePlaylist != null) {
                 Surface(
                     modifier = Modifier
                         .size(42.dp)
@@ -4104,6 +4412,30 @@ private fun WearPlaylistHeroHeader(
                     Text("Rename playlist")
                 }
             }
+            if (onExportPlaylist != null) {
+                FilledTonalButton(
+                    onClick = {
+                        showMoreActionsDialog = false
+                        onExportPlaylist()
+                    },
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(14.dp)
+                ) {
+                    Text("Export to file")
+                }
+            }
+            if (onSharePlaylist != null) {
+                FilledTonalButton(
+                    onClick = {
+                        showMoreActionsDialog = false
+                        onSharePlaylist()
+                    },
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(14.dp)
+                ) {
+                    Text("Share playlist")
+                }
+            }
             if (canDeletePlaylist) {
                 Button(
                     onClick = {
@@ -4160,7 +4492,9 @@ private fun PlaylistHeroCard(
     canDeletePlaylist: Boolean,
     onRenamePlaylist: () -> Unit = {},
     canRenamePlaylist: Boolean = false,
-    onDeleteAllEntries: () -> Unit
+    onDeleteAllEntries: () -> Unit,
+    onExportPlaylist: (() -> Unit)? = null,
+    onSharePlaylist: (() -> Unit)? = null
 ) {
     var menuExpanded by rememberSaveable { mutableStateOf(false) }
     var sortMenuExpanded by rememberSaveable { mutableStateOf(false) }
@@ -4236,6 +4570,58 @@ private fun PlaylistHeroCard(
                             onClick = {
                                 menuExpanded = false
                                 onRenamePlaylist()
+                            }
+                        )
+                    }
+                    if (onExportPlaylist != null) {
+                        DropdownMenuItem(
+                            text = {
+                                Text(
+                                    text = "Export to file\u2026",
+                                    style = MaterialTheme.typography.bodyLarge
+                                )
+                            },
+                            leadingIcon = {
+                                Icon(
+                                    imageVector = Icons.Default.Save,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(22.dp)
+                                )
+                            },
+                            contentPadding = PaddingValues(start = 14.dp, end = 18.dp),
+                            colors = MenuDefaults.itemColors(
+                                textColor = MaterialTheme.colorScheme.onSurface,
+                                leadingIconColor = MaterialTheme.colorScheme.onSurfaceVariant
+                            ),
+                            onClick = {
+                                menuExpanded = false
+                                onExportPlaylist()
+                            }
+                        )
+                    }
+                    if (onSharePlaylist != null) {
+                        DropdownMenuItem(
+                            text = {
+                                Text(
+                                    text = "Share playlist\u2026",
+                                    style = MaterialTheme.typography.bodyLarge
+                                )
+                            },
+                            leadingIcon = {
+                                Icon(
+                                    imageVector = Icons.Default.Share,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(22.dp)
+                                )
+                            },
+                            contentPadding = PaddingValues(start = 14.dp, end = 18.dp),
+                            colors = MenuDefaults.itemColors(
+                                textColor = MaterialTheme.colorScheme.onSurface,
+                                leadingIconColor = MaterialTheme.colorScheme.onSurfaceVariant
+                            ),
+                            onClick = {
+                                menuExpanded = false
+                                onSharePlaylist()
                             }
                         )
                     }
@@ -4543,6 +4929,8 @@ internal fun PlaylistCoverCell(
 private fun FavoritesCollectionRow(
     favoriteCount: Int,
     onClick: () -> Unit,
+    onExport: (() -> Unit)? = null,
+    onShare: (() -> Unit)? = null,
     isWatch: Boolean = false
 ) {
     PlaylistLibraryFlatRow(
@@ -4558,6 +4946,8 @@ private fun FavoritesCollectionRow(
         iconContainerColor = MaterialTheme.colorScheme.primaryContainer,
         iconTint = MaterialTheme.colorScheme.onPrimaryContainer,
         onClick = onClick,
+        onExport = onExport,
+        onShare = onShare,
         isWatch = isWatch
     )
 }
@@ -5395,6 +5785,8 @@ private fun PlaylistCollectionRow(
     onClick: () -> Unit,
     onRename: (() -> Unit)? = null,
     onDelete: (() -> Unit)? = null,
+    onExport: (() -> Unit)? = null,
+    onShare: (() -> Unit)? = null,
     isWatch: Boolean = false
 ) {
     PlaylistLibraryFlatRow(
@@ -5408,6 +5800,8 @@ private fun PlaylistCollectionRow(
         onClick = onClick,
         onRename = onRename,
         onDelete = onDelete,
+        onExport = onExport,
+        onShare = onShare,
         isWatch = isWatch
     )
 }
@@ -5423,6 +5817,8 @@ private fun PlaylistLibraryFlatRow(
     onClick: () -> Unit,
     onRename: (() -> Unit)? = null,
     onDelete: (() -> Unit)? = null,
+    onExport: (() -> Unit)? = null,
+    onShare: (() -> Unit)? = null,
     isWatch: Boolean = false
 ) {
     var wearActionsOpen by rememberSaveable { mutableStateOf(false) }
@@ -5435,7 +5831,7 @@ private fun PlaylistLibraryFlatRow(
                 .background(MaterialTheme.colorScheme.surfaceContainerLow)
                 .combinedClickable(
                     onClick = onClick,
-                    onLongClick = if (onRename != null || onDelete != null) {
+                    onLongClick = if (onRename != null || onDelete != null || onExport != null || onShare != null) {
                         { wearActionsOpen = true }
                     } else null
                 )
@@ -5493,6 +5889,30 @@ private fun PlaylistLibraryFlatRow(
                         shape = RoundedCornerShape(14.dp)
                     ) {
                         Text("Rename")
+                    }
+                }
+                if (onExport != null) {
+                    FilledTonalButton(
+                        onClick = {
+                            wearActionsOpen = false
+                            onExport()
+                        },
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(14.dp)
+                    ) {
+                        Text("Export")
+                    }
+                }
+                if (onShare != null) {
+                    FilledTonalButton(
+                        onClick = {
+                            wearActionsOpen = false
+                            onShare()
+                        },
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(14.dp)
+                    ) {
+                        Text("Share")
                     }
                 }
                 if (onDelete != null) {
@@ -5557,7 +5977,7 @@ private fun PlaylistLibraryFlatRow(
                     overflow = TextOverflow.Ellipsis
                 )
             }
-            if (onRename != null || onDelete != null) {
+            if (onRename != null || onDelete != null || onExport != null || onShare != null) {
                 Box(
                     modifier = Modifier
                         .size(28.dp)
@@ -5597,6 +6017,58 @@ private fun PlaylistLibraryFlatRow(
                                 onClick = {
                                     menuExpanded = false
                                     onRename()
+                                }
+                            )
+                        }
+                        if (onExport != null) {
+                            DropdownMenuItem(
+                                text = {
+                                    Text(
+                                        text = "Export to file\u2026",
+                                        style = MaterialTheme.typography.bodyLarge
+                                    )
+                                },
+                                leadingIcon = {
+                                    Icon(
+                                        imageVector = Icons.Default.Save,
+                                        contentDescription = null,
+                                        modifier = Modifier.size(22.dp)
+                                    )
+                                },
+                                contentPadding = PaddingValues(start = 14.dp, end = 18.dp),
+                                colors = MenuDefaults.itemColors(
+                                    textColor = MaterialTheme.colorScheme.onSurface,
+                                    leadingIconColor = MaterialTheme.colorScheme.onSurfaceVariant
+                                ),
+                                onClick = {
+                                    menuExpanded = false
+                                    onExport()
+                                }
+                            )
+                        }
+                        if (onShare != null) {
+                            DropdownMenuItem(
+                                text = {
+                                    Text(
+                                        text = "Share playlist\u2026",
+                                        style = MaterialTheme.typography.bodyLarge
+                                    )
+                                },
+                                leadingIcon = {
+                                    Icon(
+                                        imageVector = Icons.Default.Share,
+                                        contentDescription = null,
+                                        modifier = Modifier.size(22.dp)
+                                    )
+                                },
+                                contentPadding = PaddingValues(start = 14.dp, end = 18.dp),
+                                colors = MenuDefaults.itemColors(
+                                    textColor = MaterialTheme.colorScheme.onSurface,
+                                    leadingIconColor = MaterialTheme.colorScheme.onSurfaceVariant
+                                ),
+                                onClick = {
+                                    menuExpanded = false
+                                    onShare()
                                 }
                             )
                         }

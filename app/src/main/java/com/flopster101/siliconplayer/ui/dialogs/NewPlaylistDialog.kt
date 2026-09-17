@@ -19,19 +19,21 @@ import androidx.compose.ui.Modifier
 @Composable
 internal fun NewPlaylistDialog(
     existingTitles: Set<String>,
+    initialTitle: String? = null,
     onConfirm: (String) -> Unit,
     onDismiss: () -> Unit
 ) {
-    val defaultTitle = remember(existingTitles) {
-        var candidate = "My Playlist"
+    val defaultTitle = remember(existingTitles, initialTitle) {
+        val base = initialTitle?.trim()?.takeIf { it.isNotBlank() } ?: "My Playlist"
+        var candidate = base
         var suffix = 2
         while (candidate in existingTitles) {
-            candidate = "My Playlist $suffix"
+            candidate = "$base $suffix"
             suffix += 1
         }
         candidate
     }
-    var title by remember(existingTitles) { mutableStateOf("") }
+    var title by remember(existingTitles, initialTitle) { mutableStateOf(initialTitle?.trim().orEmpty()) }
     FloatingActionDialog(
         title = "Name your playlist",
         onDismiss = onDismiss,
