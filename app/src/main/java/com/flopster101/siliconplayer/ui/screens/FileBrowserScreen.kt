@@ -29,6 +29,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -37,10 +38,12 @@ import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AudioFile
+import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Description
 import androidx.compose.material.icons.filled.Folder
+import androidx.compose.material.icons.filled.FolderOpen
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.PlaylistAdd
@@ -48,6 +51,7 @@ import androidx.compose.material.icons.filled.Photo
 import androidx.compose.material.icons.filled.Save
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.LibraryMusic
+import androidx.compose.material.icons.filled.MoreHoriz
 import androidx.compose.material.icons.filled.SdCard
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Storage
@@ -841,6 +845,55 @@ internal fun FileBrowserScreen(
             } ?: "Unknown"
         )
         showBrowserInfoDialog = true
+    }
+
+    fun showItemInfoDialog(item: FileItem) {
+        val storageLabel = selectedLocation?.let { location ->
+            "${location.typeLabel} (${location.name})"
+        } ?: "Unknown"
+        browserInfoFields = buildBrowserInfoFields(
+            entries = listOf(
+                BrowserInfoEntry(
+                    name = item.name,
+                    isDirectory = item.isDirectory,
+                    sizeBytes = if (item.isDirectory) null else item.size
+                )
+            ),
+            path = item.file.absolutePath,
+            storageOrHostLabel = "Storage",
+            storageOrHost = storageLabel
+        )
+        showBrowserInfoDialog = true
+    }
+
+    fun pinItemToHome(item: FileItem) {
+        val isFolder = item.isDirectory
+        val recentEntry = RecentPathEntry(
+            path = item.file.absolutePath,
+            locationId = selectedLocationId,
+            title = if (isFolder) item.name else null
+        )
+        val preview = previewPinnedHomeEntryInsertion(
+            current = pinnedHomeEntries,
+            candidate = HomePinnedEntry(
+                path = recentEntry.path,
+                isFolder = isFolder,
+                locationId = recentEntry.locationId,
+                title = recentEntry.title
+            ),
+            maxItems = PINNED_HOME_ENTRIES_LIMIT
+        )
+        if (preview.requiresConfirmation) {
+            pendingPinEvictionCandidate = preview.evictionCandidate
+            pendingPinConfirmation = recentEntry to isFolder
+        } else {
+            onPinHomeEntry(recentEntry, isFolder)
+            Toast.makeText(
+                context,
+                if (isFolder) "Pinned folder to home" else "Pinned file to home",
+                Toast.LENGTH_SHORT
+            ).show()
+        }
     }
 
     fun openFileItem(item: FileItem) {
@@ -1898,6 +1951,14 @@ internal fun FileBrowserScreen(
                                         onAddToPlaylist = {
                                             pendingPlaylistAddSource = item.file.absolutePath to
                                                 inferredDisplayTitleForName(item.file.name)
+                                        },
+                                        onPinToHome = { pinItemToHome(item) },
+                                        onShowInfo = { showItemInfoDialog(item) },
+                                        onSelect = { browserSelectionController.enterSelectionWith(entryKey) },
+                                        onDelete = if (!item.isDirectory && !item.isArchive) {
+                                            { pendingDeleteFilePaths = listOf(item.file.absolutePath) }
+                                        } else {
+                                            null
                                         }
                                     )
                                 }
@@ -3044,7 +3105,11 @@ fun FileItemRow(
     onLongClick: (() -> Unit)? = null,
     onClick: () -> Unit,
     onToggleFavorite: () -> Unit = {},
-    onAddToPlaylist: (() -> Unit)? = null
+    onAddToPlaylist: (() -> Unit)? = null,
+    onPinToHome: (() -> Unit)? = null,
+    onShowInfo: (() -> Unit)? = null,
+    onSelect: (() -> Unit)? = null,
+    onDelete: (() -> Unit)? = null
 ) {
     val context = LocalContext.current
     val isWatch = remember(context) {
@@ -3329,11 +3394,14 @@ fun FileItemRow(
                 }
             }
         }
+        val isCurrentlyPlaying = isPlaying || isPlayingPlaylist
         Spacer(modifier = Modifier.width(if (isWatch) 10.dp else 16.dp))
         Column(modifier = Modifier.weight(1f)) {
             Text(
                 text = item.name,
                 style = if (isWatch) MaterialTheme.typography.titleSmall else MaterialTheme.typography.bodyLarge,
+                fontWeight = if (isCurrentlyPlaying) FontWeight.Bold else FontWeight.Normal,
+                color = if (isCurrentlyPlaying) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis
             )
@@ -3373,15 +3441,210 @@ fun FileItemRow(
                     modifier = Modifier.size(18.dp)
                 )
             }
-        }
-        if (isPlayingPlaylist || isPlaying) {
-            Spacer(modifier = Modifier.width(12.dp))
-            Icon(
-                imageVector = if (isPlayingPlaylist) Icons.Default.LibraryMusic else Icons.Default.PlayArrow,
-                contentDescription = if (isPlayingPlaylist) "Playing playlist" else "Playing",
-                tint = MaterialTheme.colorScheme.primary,
-                modifier = Modifier.size(16.dp)
-            )
+        } else if (!isWatch && !showFavoriteToggle) {
+            var menuExpanded by remember { mutableStateOf(false) }
+            Spacer(modifier = Modifier.width(4.dp))
+            Box(
+                modifier = Modifier
+                    .size(32.dp)
+                    .clip(CircleShape)
+                    .clickable(onClick = { menuExpanded = true }),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(
+                    imageVector = Icons.Default.MoreHoriz,
+                    contentDescription = "Options",
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.65f),
+                    modifier = Modifier.size(20.dp)
+                )
+                DropdownMenu(
+                    expanded = menuExpanded,
+                    onDismissRequest = { menuExpanded = false }
+                ) {
+                    DropdownMenuItem(
+                        text = {
+                            Text(
+                                text = if (item.isDirectory) "Open" else "Play",
+                                style = MaterialTheme.typography.bodyLarge
+                            )
+                        },
+                        leadingIcon = {
+                            Icon(
+                                imageVector = if (item.isDirectory) Icons.Default.FolderOpen else Icons.Default.PlayArrow,
+                                contentDescription = null,
+                                modifier = Modifier.size(22.dp)
+                            )
+                        },
+                        contentPadding = PaddingValues(start = 14.dp, end = 18.dp),
+                        colors = MenuDefaults.itemColors(
+                            textColor = MaterialTheme.colorScheme.onSurface,
+                            leadingIconColor = MaterialTheme.colorScheme.onSurfaceVariant
+                        ),
+                        onClick = {
+                            menuExpanded = false
+                            onClick()
+                        }
+                    )
+                    if (onAddToPlaylist != null && !item.isDirectory && item.kind == FileItem.Kind.AudioFile) {
+                        DropdownMenuItem(
+                            text = {
+                                Text(
+                                    text = "Add to playlist...",
+                                    style = MaterialTheme.typography.bodyLarge
+                                )
+                            },
+                            leadingIcon = {
+                                Icon(
+                                    imageVector = Icons.Default.PlaylistAdd,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(22.dp)
+                                )
+                            },
+                            contentPadding = PaddingValues(start = 14.dp, end = 18.dp),
+                            colors = MenuDefaults.itemColors(
+                                textColor = MaterialTheme.colorScheme.onSurface,
+                                leadingIconColor = MaterialTheme.colorScheme.onSurfaceVariant
+                            ),
+                            onClick = {
+                                menuExpanded = false
+                                onAddToPlaylist()
+                            }
+                        )
+                    }
+                    if (!item.isDirectory && item.kind == FileItem.Kind.AudioFile) {
+                        DropdownMenuItem(
+                            text = {
+                                Text(
+                                    text = if (isFavorited) "Remove from favorites" else "Add to favorites",
+                                    style = MaterialTheme.typography.bodyLarge
+                                )
+                            },
+                            leadingIcon = {
+                                Icon(
+                                    painter = painterResource(
+                                        id = if (isFavorited) R.drawable.ic_star_filled else R.drawable.ic_star_outline
+                                    ),
+                                    contentDescription = null,
+                                    modifier = Modifier.size(22.dp)
+                                )
+                            },
+                            contentPadding = PaddingValues(start = 14.dp, end = 18.dp),
+                            colors = MenuDefaults.itemColors(
+                                textColor = MaterialTheme.colorScheme.onSurface,
+                                leadingIconColor = MaterialTheme.colorScheme.primary
+                            ),
+                            onClick = {
+                                menuExpanded = false
+                                onToggleFavorite()
+                            }
+                        )
+                    }
+                    if (onPinToHome != null) {
+                        DropdownMenuItem(
+                            text = {
+                                Text(
+                                    text = if (item.isDirectory) "Pin folder to home" else "Pin file to home",
+                                    style = MaterialTheme.typography.bodyLarge
+                                )
+                            },
+                            leadingIcon = {
+                                Icon(
+                                    imageVector = Icons.Default.Home,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(22.dp)
+                                )
+                            },
+                            contentPadding = PaddingValues(start = 14.dp, end = 18.dp),
+                            colors = MenuDefaults.itemColors(
+                                textColor = MaterialTheme.colorScheme.onSurface,
+                                leadingIconColor = MaterialTheme.colorScheme.onSurfaceVariant
+                            ),
+                            onClick = {
+                                menuExpanded = false
+                                onPinToHome()
+                            }
+                        )
+                    }
+                    if (onShowInfo != null) {
+                        DropdownMenuItem(
+                            text = {
+                                Text(
+                                    text = "Details",
+                                    style = MaterialTheme.typography.bodyLarge
+                                )
+                            },
+                            leadingIcon = {
+                                Icon(
+                                    imageVector = Icons.Default.Info,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(22.dp)
+                                )
+                            },
+                            contentPadding = PaddingValues(start = 14.dp, end = 18.dp),
+                            colors = MenuDefaults.itemColors(
+                                textColor = MaterialTheme.colorScheme.onSurface,
+                                leadingIconColor = MaterialTheme.colorScheme.onSurfaceVariant
+                            ),
+                            onClick = {
+                                menuExpanded = false
+                                onShowInfo()
+                            }
+                        )
+                    }
+                    if (onSelect != null) {
+                        DropdownMenuItem(
+                            text = {
+                                Text(
+                                    text = "Select",
+                                    style = MaterialTheme.typography.bodyLarge
+                                )
+                            },
+                            leadingIcon = {
+                                Icon(
+                                    imageVector = Icons.Default.CheckCircle,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(22.dp)
+                                )
+                            },
+                            contentPadding = PaddingValues(start = 14.dp, end = 18.dp),
+                            colors = MenuDefaults.itemColors(
+                                textColor = MaterialTheme.colorScheme.onSurface,
+                                leadingIconColor = MaterialTheme.colorScheme.onSurfaceVariant
+                            ),
+                            onClick = {
+                                menuExpanded = false
+                                onSelect()
+                            }
+                        )
+                    }
+                    if (onDelete != null && !item.isDirectory) {
+                        DropdownMenuItem(
+                            text = {
+                                Text(
+                                    text = "Delete",
+                                    style = MaterialTheme.typography.bodyLarge
+                                )
+                            },
+                            leadingIcon = {
+                                Icon(
+                                    imageVector = Icons.Default.Delete,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(22.dp)
+                                )
+                            },
+                            contentPadding = PaddingValues(start = 14.dp, end = 18.dp),
+                            colors = MenuDefaults.itemColors(
+                                textColor = MaterialTheme.colorScheme.error,
+                                leadingIconColor = MaterialTheme.colorScheme.error
+                            ),
+                            onClick = {
+                                menuExpanded = false
+                                onDelete()
+                            }
+                        )
+                    }
+                }
+            }
         }
     }
 }
