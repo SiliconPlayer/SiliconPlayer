@@ -766,9 +766,15 @@ internal fun PlaylistsScreen(
     LaunchedEffect(destination, selectedStoredPlaylistId, libraryState.playlists) {
         if (
             destination == PlaylistsSurfaceDestination.StoredPlaylist &&
+            selectedStoredPlaylistId != null &&
             selectedStoredPlaylist == null
         ) {
             destination = PlaylistsSurfaceDestination.Library
+            selectedStoredPlaylistId = null
+        }
+    }
+    LaunchedEffect(destination) {
+        if (destination == PlaylistsSurfaceDestination.Library) {
             selectedStoredPlaylistId = null
         }
     }
@@ -783,7 +789,6 @@ internal fun PlaylistsScreen(
         favoritesDraggingEntryId = null
         storedPlaylistEditModeEnabled = false
         storedPlaylistDraggingEntryId = null
-        selectedStoredPlaylistId = null
         if (destination == PlaylistsSurfaceDestination.AlbumDetail && albumOpenedFromArtist) {
             albumOpenedFromArtist = false
             destination = PlaylistsSurfaceDestination.ArtistDetail
@@ -930,7 +935,6 @@ internal fun PlaylistsScreen(
                                     if (showingPlaylistDetail) {
                                         favoritesEditModeEnabled = false
                                         favoritesDraggingEntryId = null
-                                        selectedStoredPlaylistId = null
                                         if (destination == PlaylistsSurfaceDestination.AlbumDetail &&
                                             albumOpenedFromArtist
                                         ) {
@@ -1041,212 +1045,222 @@ internal fun PlaylistsScreen(
                 label = "playlistsSurfaceTransition",
                 modifier = Modifier.fillMaxSize()
             ) { currentDestination ->
-                if (currentDestination == PlaylistsSurfaceDestination.AlbumDetail &&
-                    libraryAlbumDetail != null
-                ) {
-                    LibraryAlbumDetailPage(
-                        detail = libraryAlbumDetail,
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .padding(actualInnerPadding),
-                        activeSourceId = currentPlaybackSourceId,
-                        bottomContentPadding = bottomContentPadding,
-                        listState = surfaceState.albumDetailListState,
-                        artistKnown = libraryAlbumDetail.album.artist.isNotBlank() &&
-                                !libraryAlbumDetail.album.artist.equals(LibraryContract.UNKNOWN_ARTIST, ignoreCase = true) &&
-                                !libraryAlbumDetail.album.artist.equals(LibraryContract.VARIOUS_ARTISTS, ignoreCase = true),
-                        onPlay = { index ->
-                            onPlayLibraryTracks(
-                                libraryAlbumDetail.tracks,
-                                index,
-                                libraryAlbumDetail.album.name
+                when (currentDestination) {
+                    PlaylistsSurfaceDestination.AlbumDetail -> {
+                        if (libraryAlbumDetail != null) {
+                            LibraryAlbumDetailPage(
+                                detail = libraryAlbumDetail,
+                                modifier = Modifier
+                                    .fillMaxSize()
+                                    .padding(actualInnerPadding),
+                                activeSourceId = currentPlaybackSourceId,
+                                bottomContentPadding = bottomContentPadding,
+                                listState = surfaceState.albumDetailListState,
+                                artistKnown = libraryAlbumDetail.album.artist.isNotBlank() &&
+                                        !libraryAlbumDetail.album.artist.equals(LibraryContract.UNKNOWN_ARTIST, ignoreCase = true) &&
+                                        !libraryAlbumDetail.album.artist.equals(LibraryContract.VARIOUS_ARTISTS, ignoreCase = true),
+                                onPlay = { index ->
+                                    onPlayLibraryTracks(
+                                        libraryAlbumDetail.tracks,
+                                        index,
+                                        libraryAlbumDetail.album.name
+                                    )
+                                },
+                                onShuffle = {
+                                    onShuffleLibraryTracks(
+                                        libraryAlbumDetail.tracks,
+                                        libraryAlbumDetail.album.name
+                                    )
+                                },
+                                onOpenArtist = {
+                                    onOpenLibraryArtist(libraryAlbumDetail.album.artist)
+                                    artistOpenedFromAlbum = true
+                                    destination = PlaylistsSurfaceDestination.ArtistDetail
+                                },
+                                trackActions = { track -> libraryRowActions(listOf(track)) },
+                                albumActions = libraryRowActions(libraryAlbumDetail.tracks)
                             )
-                        },
-                        onShuffle = {
-                            onShuffleLibraryTracks(
-                                libraryAlbumDetail.tracks,
-                                libraryAlbumDetail.album.name
-                            )
-                        },
-                        onOpenArtist = {
-                            onOpenLibraryArtist(libraryAlbumDetail.album.artist)
-                            artistOpenedFromAlbum = true
-                            destination = PlaylistsSurfaceDestination.ArtistDetail
-                        },
-                        trackActions = { track -> libraryRowActions(listOf(track)) },
-                        albumActions = libraryRowActions(libraryAlbumDetail.tracks)
-                    )
-                } else if (currentDestination == PlaylistsSurfaceDestination.ArtistDetail &&
-                    selectedArtistName != null &&
-                    libraryArtistAlbums != null
-                ) {
-                    LibraryArtistDetailPage(
-                        artist = selectedArtistName,
-                        albums = libraryArtistAlbums,
-                        tracks = surfaceState.artistTracksState.value,
-                        activeSourceId = currentPlaybackSourceId,
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .padding(actualInnerPadding),
-                        bottomContentPadding = bottomContentPadding,
-                        albumsListState = surfaceState.artistDetailListState,
-                        tracksListState = surfaceState.artistDetailTracksListState,
-                        albumsGridState = surfaceState.artistAlbumsGridState,
-                        albumLayout = artistAlbumLayout,
-                        onAlbumLayoutChanged = { artistAlbumLayout = it },
-                        mode = artistContentMode,
-                        onModeChanged = { artistContentMode = it },
-                        onOpenAlbum = { album ->
-                            onOpenLibraryAlbum(album.rawName, album.rawName)
-                            albumOpenedFromArtist = true
-                            destination = PlaylistsSurfaceDestination.AlbumDetail
-                        },
-                        onPlayTracks = onPlayLibraryTracks,
-                        trackActions = if (isWatch) {
-                            null
                         } else {
-                            { track -> libraryRowActions(listOf(track)) }
+                            Box(modifier = Modifier.fillMaxSize())
                         }
-                    )
-                } else if (currentDestination == PlaylistsSurfaceDestination.Favorites) {
-                    LazyColumn(
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .padding(actualInnerPadding),
-                        contentPadding = watchDetailContentPadding,
-                        verticalArrangement = if (isWatch) Arrangement.spacedBy(6.dp) else Arrangement.spacedBy(0.dp)
-                    ) {
-                        playlistDetailContent(
-                            title = "Favorites",
-                            entries = sortedFavoriteEntries,
-                            heroIcon = Icons.Default.Star,
-                            emptyBody = "Your favorites will show up here.",
-                            selectedSortMode = favoritesSortMode,
-                            onSortModeSelected = onFavoritesSortModeChange,
-                            isEditMode = favoritesEditModeEnabled,
-                            onEditModeChanged = { enabled ->
-                                favoritesEditModeEnabled = enabled
-                                if (!enabled) {
+                    }
+                    PlaylistsSurfaceDestination.ArtistDetail -> {
+                        if (selectedArtistName != null && libraryArtistAlbums != null) {
+                            LibraryArtistDetailPage(
+                                artist = selectedArtistName,
+                                albums = libraryArtistAlbums,
+                                tracks = surfaceState.artistTracksState.value,
+                                activeSourceId = currentPlaybackSourceId,
+                                modifier = Modifier
+                                    .fillMaxSize()
+                                    .padding(actualInnerPadding),
+                                bottomContentPadding = bottomContentPadding,
+                                albumsListState = surfaceState.artistDetailListState,
+                                tracksListState = surfaceState.artistDetailTracksListState,
+                                albumsGridState = surfaceState.artistAlbumsGridState,
+                                albumLayout = artistAlbumLayout,
+                                onAlbumLayoutChanged = { artistAlbumLayout = it },
+                                mode = artistContentMode,
+                                onModeChanged = { artistContentMode = it },
+                                onOpenAlbum = { album ->
+                                    onOpenLibraryAlbum(album.rawName, album.rawName)
+                                    albumOpenedFromArtist = true
+                                    destination = PlaylistsSurfaceDestination.AlbumDetail
+                                },
+                                onPlayTracks = onPlayLibraryTracks,
+                                trackActions = if (isWatch) {
+                                    null
+                                } else {
+                                    { track -> libraryRowActions(listOf(track)) }
+                                }
+                            )
+                        } else {
+                            Box(modifier = Modifier.fillMaxSize())
+                        }
+                    }
+                    PlaylistsSurfaceDestination.Favorites -> {
+                        LazyColumn(
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .padding(actualInnerPadding),
+                            contentPadding = watchDetailContentPadding,
+                            verticalArrangement = if (isWatch) Arrangement.spacedBy(6.dp) else Arrangement.spacedBy(0.dp)
+                        ) {
+                            playlistDetailContent(
+                                title = "Favorites",
+                                entries = sortedFavoriteEntries,
+                                heroIcon = Icons.Default.Star,
+                                emptyBody = "Your favorites will show up here.",
+                                selectedSortMode = favoritesSortMode,
+                                onSortModeSelected = onFavoritesSortModeChange,
+                                isEditMode = favoritesEditModeEnabled,
+                                onEditModeChanged = { enabled ->
+                                    favoritesEditModeEnabled = enabled
+                                    if (!enabled) {
+                                        favoritesDraggingEntryId = null
+                                    }
+                                },
+                                canReorderEntries = favoritesSortMode == PlaylistEntrySortMode.Custom,
+                                draggingEntryId = favoritesDraggingEntryId,
+                                onDraggingEntryIdChange = { favoritesDraggingEntryId = it },
+                                activeSourceId = currentPlaybackSourceId,
+                                currentSubtuneIndex = currentSubtuneIndex,
+                                onEntryClick = onOpenFavorite,
+                                onPlayPlaylist = onPlayFavoritePlaylist,
+                                onShufflePlaylist = onShuffleFavoritePlaylist,
+                                onDeletePlaylist = {},
+                                canDeletePlaylist = false,
+                                onRenamePlaylist = {},
+                                canRenamePlaylist = false,
+                                onDeleteAllEntries = { showDeleteAllFavoritesConfirm = true },
+                                onPlayEntry = onOpenFavorite,
+                                onPlayEntryAsCached = onPlayFavoriteTrackAsCached,
+                                onDeleteEntry = onDeleteFavoriteTrack,
+                                onMoveEntry = onMoveFavoriteTrack,
+                                onOpenEntryLocation = onOpenFavoriteTrackLocation,
+                                onShareEntry = onShareFavoriteTrack,
+                                onCopyEntrySource = onCopyFavoriteTrackSource,
+                                onOpenEntryInfo = { entry ->
+                                    trackInfoDialogState = buildPlaylistTrackInfoDialogState(
+                                        playlistTitle = "Favorites",
+                                        entry = entry,
+                                        networkNodes = networkNodes
+                                    )
+                                },
+                                isWatch = isWatch,
+                                onBack = {
+                                    favoritesEditModeEnabled = false
                                     favoritesDraggingEntryId = null
+                                    destination = PlaylistsSurfaceDestination.Library
                                 }
-                            },
-                            canReorderEntries = favoritesSortMode == PlaylistEntrySortMode.Custom,
-                            draggingEntryId = favoritesDraggingEntryId,
-                            onDraggingEntryIdChange = { favoritesDraggingEntryId = it },
-                            activeSourceId = currentPlaybackSourceId,
-                            currentSubtuneIndex = currentSubtuneIndex,
-                            onEntryClick = onOpenFavorite,
-                            onPlayPlaylist = onPlayFavoritePlaylist,
-                            onShufflePlaylist = onShuffleFavoritePlaylist,
-                            onDeletePlaylist = {},
-                            canDeletePlaylist = false,
-                            onRenamePlaylist = {},
-                            canRenamePlaylist = false,
-                            onDeleteAllEntries = { showDeleteAllFavoritesConfirm = true },
-                            onPlayEntry = onOpenFavorite,
-                            onPlayEntryAsCached = onPlayFavoriteTrackAsCached,
-                            onDeleteEntry = onDeleteFavoriteTrack,
-                            onMoveEntry = onMoveFavoriteTrack,
-                            onOpenEntryLocation = onOpenFavoriteTrackLocation,
-                            onShareEntry = onShareFavoriteTrack,
-                            onCopyEntrySource = onCopyFavoriteTrackSource,
-                            onOpenEntryInfo = { entry ->
-                                trackInfoDialogState = buildPlaylistTrackInfoDialogState(
-                                    playlistTitle = "Favorites",
-                                    entry = entry,
-                                    networkNodes = networkNodes
-                                )
-                            },
-                            isWatch = isWatch,
-                            onBack = {
-                                favoritesEditModeEnabled = false
-                                favoritesDraggingEntryId = null
-                                destination = PlaylistsSurfaceDestination.Library
-                            }
-                        )
+                            )
+                        }
                     }
-                } else if (
-                    currentDestination == PlaylistsSurfaceDestination.StoredPlaylist &&
-                    selectedStoredPlaylist != null
-                ) {
-                    val sortedStoredPlaylistEntries = sortPlaylistEntries(
-                        entries = selectedStoredPlaylist.entries,
-                        sortMode = storedPlaylistSortMode
-                    )
-                    val sortedStoredPlaylist = selectedStoredPlaylist.copy(entries = sortedStoredPlaylistEntries)
-                    LazyColumn(
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .padding(actualInnerPadding),
-                        contentPadding = watchDetailContentPadding,
-                        verticalArrangement = if (isWatch) Arrangement.spacedBy(6.dp) else Arrangement.spacedBy(0.dp)
-                    ) {
-                        playlistDetailContent(
-                            title = selectedStoredPlaylist.title,
-                            entries = sortedStoredPlaylistEntries,
-                            heroIcon = Icons.Default.LibraryMusic,
-                            emptyBody = "This playlist has no tracks.",
-                            selectedSortMode = storedPlaylistSortMode,
-                            onSortModeSelected = { storedPlaylistSortMode = it },
-                            isEditMode = storedPlaylistEditModeEnabled,
-                            onEditModeChanged = { enabled ->
-                                storedPlaylistEditModeEnabled = enabled
-                                if (!enabled) {
-                                    storedPlaylistDraggingEntryId = null
-                                }
-                            },
-                            showAddAction = true,
-                            onAddClick = { showAddTracksSourceSheet = true },
-                            showEditAction = true,
-                            showDeleteAllEntriesAction = true,
-                            canReorderEntries = storedPlaylistSortMode == PlaylistEntrySortMode.Custom,
-                            draggingEntryId = storedPlaylistDraggingEntryId,
-                            onDraggingEntryIdChange = { storedPlaylistDraggingEntryId = it },
-                            activeSourceId = currentPlaybackSourceId,
-                            currentSubtuneIndex = currentSubtuneIndex,
-                            onEntryClick = { entry -> onOpenStoredPlaylistEntry(entry, sortedStoredPlaylist) },
-                            onPlayPlaylist = { onPlayStoredPlaylist(sortedStoredPlaylist) },
-                            onShufflePlaylist = { onShuffleStoredPlaylist(sortedStoredPlaylist) },
-                            onDeletePlaylist = { playlistPendingDelete = selectedStoredPlaylist },
-                            canDeletePlaylist = true,
-                            onRenamePlaylist = { playlistPendingRename = selectedStoredPlaylist },
-                            canRenamePlaylist = true,
-                            onDeleteAllEntries = { showDeleteAllStoredPlaylistEntriesConfirm = true },
-                            onPlayEntry = { entry -> onOpenStoredPlaylistEntry(entry, sortedStoredPlaylist) },
-                            onPlayEntryAsCached = { entry ->
-                                onPlayStoredPlaylistTrackAsCached(entry, sortedStoredPlaylist)
-                            },
-                            onDeleteEntry = { entry ->
-                                onDeleteStoredPlaylistEntry(entry, selectedStoredPlaylist.id)
-                            },
-                            onMoveEntry = { entry, offset ->
-                                onMoveStoredPlaylistEntry(entry, selectedStoredPlaylist.id, offset)
-                            },
-                            onOpenEntryLocation = onOpenFavoriteTrackLocation,
-                            onShareEntry = onShareFavoriteTrack,
-                            onCopyEntrySource = onCopyFavoriteTrackSource,
-                            onOpenEntryInfo = { entry ->
-                                trackInfoDialogState = buildPlaylistTrackInfoDialogState(
-                                    playlistTitle = selectedStoredPlaylist.title,
-                                    entry = entry,
-                                    networkNodes = networkNodes
+                    PlaylistsSurfaceDestination.StoredPlaylist -> {
+                        val playlist = selectedStoredPlaylist
+                            ?: libraryState.playlists.firstOrNull { it.id == selectedStoredPlaylistId }
+                        if (playlist != null) {
+                            val sortedStoredPlaylistEntries = sortPlaylistEntries(
+                                entries = playlist.entries,
+                                sortMode = storedPlaylistSortMode
+                            )
+                            val sortedStoredPlaylist = playlist.copy(entries = sortedStoredPlaylistEntries)
+                            LazyColumn(
+                                modifier = Modifier
+                                    .fillMaxSize()
+                                    .padding(actualInnerPadding),
+                                contentPadding = watchDetailContentPadding,
+                                verticalArrangement = if (isWatch) Arrangement.spacedBy(6.dp) else Arrangement.spacedBy(0.dp)
+                            ) {
+                                playlistDetailContent(
+                                    title = playlist.title,
+                                    entries = sortedStoredPlaylistEntries,
+                                    heroIcon = Icons.Default.LibraryMusic,
+                                    emptyBody = "This playlist has no tracks.",
+                                    selectedSortMode = storedPlaylistSortMode,
+                                    onSortModeSelected = { storedPlaylistSortMode = it },
+                                    isEditMode = storedPlaylistEditModeEnabled,
+                                    onEditModeChanged = { enabled ->
+                                        storedPlaylistEditModeEnabled = enabled
+                                        if (!enabled) {
+                                            storedPlaylistDraggingEntryId = null
+                                        }
+                                    },
+                                    showAddAction = true,
+                                    onAddClick = { showAddTracksSourceSheet = true },
+                                    showEditAction = true,
+                                    showDeleteAllEntriesAction = true,
+                                    canReorderEntries = storedPlaylistSortMode == PlaylistEntrySortMode.Custom,
+                                    draggingEntryId = storedPlaylistDraggingEntryId,
+                                    onDraggingEntryIdChange = { storedPlaylistDraggingEntryId = it },
+                                    activeSourceId = currentPlaybackSourceId,
+                                    currentSubtuneIndex = currentSubtuneIndex,
+                                    onEntryClick = { entry -> onOpenStoredPlaylistEntry(entry, sortedStoredPlaylist) },
+                                    onPlayPlaylist = { onPlayStoredPlaylist(sortedStoredPlaylist) },
+                                    onShufflePlaylist = { onShuffleStoredPlaylist(sortedStoredPlaylist) },
+                                    onDeletePlaylist = { playlistPendingDelete = playlist },
+                                    canDeletePlaylist = true,
+                                    onRenamePlaylist = { playlistPendingRename = playlist },
+                                    canRenamePlaylist = true,
+                                    onDeleteAllEntries = { showDeleteAllStoredPlaylistEntriesConfirm = true },
+                                    onPlayEntry = { entry -> onOpenStoredPlaylistEntry(entry, sortedStoredPlaylist) },
+                                    onPlayEntryAsCached = { entry ->
+                                        onPlayStoredPlaylistTrackAsCached(entry, sortedStoredPlaylist)
+                                    },
+                                    onDeleteEntry = { entry ->
+                                        onDeleteStoredPlaylistEntry(entry, playlist.id)
+                                    },
+                                    onMoveEntry = { entry, offset ->
+                                        onMoveStoredPlaylistEntry(entry, playlist.id, offset)
+                                    },
+                                    onOpenEntryLocation = onOpenFavoriteTrackLocation,
+                                    onShareEntry = onShareFavoriteTrack,
+                                    onCopyEntrySource = onCopyFavoriteTrackSource,
+                                    onOpenEntryInfo = { entry ->
+                                        trackInfoDialogState = buildPlaylistTrackInfoDialogState(
+                                            playlistTitle = playlist.title,
+                                            entry = entry,
+                                            networkNodes = networkNodes
+                                        )
+                                    },
+                                    showPlayAsCachedAction = true,
+                                    showLocationAction = true,
+                                    showShareAction = true,
+                                    showCopySourceAction = true,
+                                    showInfoAction = true,
+                                    isWatch = isWatch,
+                                    onBack = {
+                                        storedPlaylistEditModeEnabled = false
+                                        storedPlaylistDraggingEntryId = null
+                                        destination = PlaylistsSurfaceDestination.Library
+                                    }
                                 )
-                            },
-                            showPlayAsCachedAction = true,
-                            showLocationAction = true,
-                            showShareAction = true,
-                            showCopySourceAction = true,
-                            showInfoAction = true,
-                            isWatch = isWatch,
-                            onBack = {
-                                storedPlaylistEditModeEnabled = false
-                                storedPlaylistDraggingEntryId = null
-                                selectedStoredPlaylistId = null
-                                destination = PlaylistsSurfaceDestination.Library
                             }
-                        )
+                        } else {
+                            Box(modifier = Modifier.fillMaxSize())
+                        }
                     }
-                } else {
+                    PlaylistsSurfaceDestination.Library -> {
                     if (isWatch) {
                         LazyColumn(
                             modifier = Modifier
@@ -1579,6 +1593,7 @@ internal fun PlaylistsScreen(
             }
         }
     }
+}
     if (showDeleteAllFavoritesConfirm) {
         if (isWatch) {
             WatchDialogContainer(
