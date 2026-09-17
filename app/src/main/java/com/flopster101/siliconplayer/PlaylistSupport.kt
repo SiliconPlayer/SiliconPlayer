@@ -143,6 +143,19 @@ internal fun playlistEntryMatchesPlayback(
     return entrySubtune == currentSubtuneIndex
 }
 
+internal fun playlistContainsTrack(
+    entries: List<PlaylistTrackEntry>,
+    source: String?,
+    subtuneIndex: Int? = null
+): Boolean {
+    if (source.isNullOrBlank()) return false
+    return entries.any { entry ->
+        val pathMatches = entry.source == source ||
+            runCatching { samePath(entry.source, source) }.getOrDefault(false)
+        pathMatches && (subtuneIndex == null || entry.subtuneIndex == null || entry.subtuneIndex == subtuneIndex)
+    }
+}
+
 internal fun buildInternalPlaylistCopy(
     title: String,
     entries: List<PlaylistTrackEntry>

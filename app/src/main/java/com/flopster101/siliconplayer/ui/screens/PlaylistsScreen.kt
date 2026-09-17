@@ -193,6 +193,7 @@ import com.flopster101.siliconplayer.ensureRecentArtworkThumbnailCached
 import com.flopster101.siliconplayer.inferredDisplayTitleForName
 import com.flopster101.siliconplayer.parseHttpSourceSpecFromInput
 import com.flopster101.siliconplayer.parseSmbSourceSpecFromInput
+import com.flopster101.siliconplayer.playlistContainsTrack
 import com.flopster101.siliconplayer.playlistEntryMatchesPlayback
 import com.flopster101.siliconplayer.placeholderArtworkIconForFile
 import com.flopster101.siliconplayer.recentArtworkThumbnailFile
@@ -559,6 +560,7 @@ internal fun PlaylistsScreen(
     var showAddFromStorageSheet by remember { mutableStateOf(false) }
     var showAddFromNetworkSheet by remember { mutableStateOf(false) }
     var showAddDirectUrlDialog by remember { mutableStateOf(false) }
+    var duplicateTrackPromptState by remember { mutableStateOf<DuplicateTrackPromptState?>(null) }
     val currentQueuedTrack = remember(currentPlaybackSourceId, currentPlaybackTitle, currentPlaybackArtist) {
         currentPlaybackSourceId?.trim()?.takeIf { it.isNotEmpty() }?.let { source ->
             PlaylistTrackEntry(
@@ -1700,6 +1702,95 @@ internal fun PlaylistsScreen(
             )
         }
     }
+    duplicateTrackPromptState?.let { prompt ->
+        val isSingle = prompt.totalCount == 1
+        val isAllDuplicates = prompt.duplicateCount == prompt.totalCount
+        val dialogTitle = if (isSingle || isAllDuplicates) "Already in playlist" else "Duplicate tracks"
+        val dialogBody = when {
+            isSingle -> "\"${prompt.firstDuplicateTitle ?: "This track"}\" is already in this playlist. Do you want to add it again?"
+            isAllDuplicates -> "All ${prompt.duplicateCount} selected tracks are already in this playlist. Do you want to add them again?"
+            else -> "${prompt.duplicateCount} of the ${prompt.totalCount} selected tracks are already in this playlist. Do you want to add them anyway, or skip duplicates?"
+        }
+        if (isWatch) {
+            WatchDialogContainer(
+                title = dialogTitle,
+                onDismissRequest = { duplicateTrackPromptState = null }
+            ) {
+                Text(
+                    text = dialogBody,
+                    style = MaterialTheme.typography.bodyMedium,
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp)
+                )
+                Button(
+                    onClick = {
+                        val action = prompt.onAddAnyway
+                        duplicateTrackPromptState = null
+                        action()
+                    },
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(14.dp)
+                ) {
+                    Text("Add anyway")
+                }
+                if (prompt.onSkipDuplicates != null) {
+                    Spacer(modifier = Modifier.height(4.dp))
+                    FilledTonalButton(
+                        onClick = {
+                            val action = prompt.onSkipDuplicates
+                            duplicateTrackPromptState = null
+                            action()
+                        },
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(14.dp)
+                    ) {
+                        Text("Skip duplicates")
+                    }
+                }
+                TextButton(
+                    onClick = { duplicateTrackPromptState = null },
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text("Cancel")
+                }
+            }
+        } else {
+            AlertDialog(
+                onDismissRequest = { duplicateTrackPromptState = null },
+                title = { Text(dialogTitle) },
+                text = { Text(dialogBody) },
+                confirmButton = {
+                    Button(
+                        onClick = {
+                            val action = prompt.onAddAnyway
+                            duplicateTrackPromptState = null
+                            action()
+                        }
+                    ) {
+                        Text("Add anyway")
+                    }
+                },
+                dismissButton = {
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        TextButton(onClick = { duplicateTrackPromptState = null }) {
+                            Text("Cancel")
+                        }
+                        if (prompt.onSkipDuplicates != null) {
+                            FilledTonalButton(
+                                onClick = {
+                                    val action = prompt.onSkipDuplicates
+                                    duplicateTrackPromptState = null
+                                    action()
+                                }
+                            ) {
+                                Text("Skip duplicates")
+                            }
+                        }
+                    }
+                }
+            )
+        }
+    }
     trackInfoDialogState?.let { dialogState ->
         BrowserInfoDialog(
             title = "Track and decoder info",
@@ -1814,12 +1905,30 @@ internal fun PlaylistsScreen(
             currentTrack = currentQueuedTrack,
             onAddCurrentTrack = {
                 currentQueuedTrack?.let { track ->
-                    val entryToAdd = track.copy(
-                        id = java.util.UUID.randomUUID().toString(),
-                        addedAtMs = System.currentTimeMillis()
+                    val isDuplicate = playlistContainsTrack(
+                        entries = targetPlaylist.entries,
+                        source = track.source,
+                        subtuneIndex = track.subtuneIndex
                     )
-                    onAppendStoredPlaylistEntries(targetPlaylistId, listOf(entryToAdd))
-                    Toast.makeText(context, "Added to ${targetPlaylist.title}", Toast.LENGTH_SHORT).show()
+                    val addAction = {
+                        val entryToAdd = track.copy(
+                            id = java.util.UUID.randomUUID().toString(),
+                            addedAtMs = System.currentTimeMillis()
+                        )
+                        onAppendStoredPlaylistEntries(targetPlaylistId, listOf(entryToAdd))
+                        Toast.makeText(context, "Added to ${targetPlaylist.title}", Toast.LENGTH_SHORT).show()
+                    }
+                    if (isDuplicate) {
+                        duplicateTrackPromptState = DuplicateTrackPromptState(
+                            playlistTitle = targetPlaylist.title,
+                            duplicateCount = 1,
+                            firstDuplicateTitle = track.title.ifBlank { "This track" },
+                            totalCount = 1,
+                            onAddAnyway = addAction
+                        )
+                    } else {
+                        addAction()
+                    }
                 }
             },
             onSelectLibrary = { showAddFromLibrarySheet = true },
@@ -1830,17 +1939,43 @@ internal fun PlaylistsScreen(
         )
     }
     if (showAddFromLibrarySheet && selectedStoredPlaylist != null) {
-        val targetPlaylistId = selectedStoredPlaylist.id
+        val targetPlaylist = selectedStoredPlaylist
+        val targetPlaylistId = targetPlaylist.id
         AddFromLibraryPickerSheet(
             onConfirm = { selectedTracks ->
                 showAddFromLibrarySheet = false
-                onAddLibraryTracksToPlaylist(selectedTracks, targetPlaylistId, "")
+                val duplicates = selectedTracks.filter { track ->
+                    playlistContainsTrack(targetPlaylist.entries, track.path)
+                }
+                val addAllAction = {
+                    onAddLibraryTracksToPlaylist(selectedTracks, targetPlaylistId, "")
+                }
+                if (duplicates.isNotEmpty()) {
+                    val nonDuplicates = selectedTracks.filterNot { track ->
+                        playlistContainsTrack(targetPlaylist.entries, track.path)
+                    }
+                    duplicateTrackPromptState = DuplicateTrackPromptState(
+                        playlistTitle = targetPlaylist.title,
+                        duplicateCount = duplicates.size,
+                        firstDuplicateTitle = duplicates.firstOrNull()?.title?.ifBlank {
+                            duplicates.firstOrNull()?.path?.substringAfterLast('/')
+                        },
+                        totalCount = selectedTracks.size,
+                        onAddAnyway = addAllAction,
+                        onSkipDuplicates = if (nonDuplicates.isNotEmpty()) {
+                            { onAddLibraryTracksToPlaylist(nonDuplicates, targetPlaylistId, "") }
+                        } else null
+                    )
+                } else {
+                    addAllAction()
+                }
             },
             onDismiss = { showAddFromLibrarySheet = false }
         )
     }
     if (showAddFromStorageSheet && selectedStoredPlaylist != null) {
-        val targetPlaylistId = selectedStoredPlaylist.id
+        val targetPlaylist = selectedStoredPlaylist
+        val targetPlaylistId = targetPlaylist.id
         AddFromStoragePickerSheet(
             onConfirm = { selectedFiles ->
                 showAddFromStorageSheet = false
@@ -1852,24 +1987,70 @@ internal fun PlaylistsScreen(
                         addedAtMs = System.currentTimeMillis()
                     )
                 }
-                onAppendStoredPlaylistEntries(targetPlaylistId, newEntries)
+                val duplicates = newEntries.filter { entry ->
+                    playlistContainsTrack(targetPlaylist.entries, entry.source)
+                }
+                val addAllAction = {
+                    onAppendStoredPlaylistEntries(targetPlaylistId, newEntries)
+                }
+                if (duplicates.isNotEmpty()) {
+                    val nonDuplicates = newEntries.filterNot { entry ->
+                        playlistContainsTrack(targetPlaylist.entries, entry.source)
+                    }
+                    duplicateTrackPromptState = DuplicateTrackPromptState(
+                        playlistTitle = targetPlaylist.title,
+                        duplicateCount = duplicates.size,
+                        firstDuplicateTitle = duplicates.firstOrNull()?.title,
+                        totalCount = newEntries.size,
+                        onAddAnyway = addAllAction,
+                        onSkipDuplicates = if (nonDuplicates.isNotEmpty()) {
+                            { onAppendStoredPlaylistEntries(targetPlaylistId, nonDuplicates) }
+                        } else null
+                    )
+                } else {
+                    addAllAction()
+                }
             },
             onDismiss = { showAddFromStorageSheet = false }
         )
     }
     if (showAddFromNetworkSheet && selectedStoredPlaylist != null) {
-        val targetPlaylistId = selectedStoredPlaylist.id
+        val targetPlaylist = selectedStoredPlaylist
+        val targetPlaylistId = targetPlaylist.id
         AddFromNetworkPickerSheet(
             networkNodes = networkNodes,
             onConfirm = { selectedTracks ->
                 showAddFromNetworkSheet = false
-                onAppendStoredPlaylistEntries(targetPlaylistId, selectedTracks)
+                val duplicates = selectedTracks.filter { entry ->
+                    playlistContainsTrack(targetPlaylist.entries, entry.source, entry.subtuneIndex)
+                }
+                val addAllAction = {
+                    onAppendStoredPlaylistEntries(targetPlaylistId, selectedTracks)
+                }
+                if (duplicates.isNotEmpty()) {
+                    val nonDuplicates = selectedTracks.filterNot { entry ->
+                        playlistContainsTrack(targetPlaylist.entries, entry.source, entry.subtuneIndex)
+                    }
+                    duplicateTrackPromptState = DuplicateTrackPromptState(
+                        playlistTitle = targetPlaylist.title,
+                        duplicateCount = duplicates.size,
+                        firstDuplicateTitle = duplicates.firstOrNull()?.title,
+                        totalCount = selectedTracks.size,
+                        onAddAnyway = addAllAction,
+                        onSkipDuplicates = if (nonDuplicates.isNotEmpty()) {
+                            { onAppendStoredPlaylistEntries(targetPlaylistId, nonDuplicates) }
+                        } else null
+                    )
+                } else {
+                    addAllAction()
+                }
             },
             onDismiss = { showAddFromNetworkSheet = false }
         )
     }
     if (showAddDirectUrlDialog && selectedStoredPlaylist != null) {
-        val targetPlaylistId = selectedStoredPlaylist.id
+        val targetPlaylist = selectedStoredPlaylist
+        val targetPlaylistId = targetPlaylist.id
         AddDirectUrlDialog(
             onConfirm = { url, title, artist ->
                 showAddDirectUrlDialog = false
@@ -1881,7 +2062,21 @@ internal fun PlaylistsScreen(
                     artist = artist,
                     addedAtMs = System.currentTimeMillis()
                 )
-                onAppendStoredPlaylistEntries(targetPlaylistId, listOf(newEntry))
+                val isDuplicate = playlistContainsTrack(targetPlaylist.entries, url)
+                val addAction = {
+                    onAppendStoredPlaylistEntries(targetPlaylistId, listOf(newEntry))
+                }
+                if (isDuplicate) {
+                    duplicateTrackPromptState = DuplicateTrackPromptState(
+                        playlistTitle = targetPlaylist.title,
+                        duplicateCount = 1,
+                        firstDuplicateTitle = entryTitle,
+                        totalCount = 1,
+                        onAddAnyway = addAction
+                    )
+                } else {
+                    addAction()
+                }
             },
             onDismiss = { showAddDirectUrlDialog = false }
         )
@@ -5725,3 +5920,13 @@ private fun LibrarySearchSectionHeader(text: String) {
         modifier = Modifier.padding(start = 12.dp, top = 16.dp, bottom = 4.dp)
     )
 }
+
+private data class DuplicateTrackPromptState(
+    val playlistTitle: String,
+    val duplicateCount: Int,
+    val firstDuplicateTitle: String?,
+    val totalCount: Int,
+    val onAddAnyway: () -> Unit,
+    val onSkipDuplicates: (() -> Unit)? = null
+)
+

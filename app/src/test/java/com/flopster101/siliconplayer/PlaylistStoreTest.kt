@@ -141,5 +141,20 @@ class PlaylistStoreTest {
         val sorted = sortStoredPlaylists(listOf(p1, p2, p3), PlaylistSortMode.TrackCount)
         assertEquals(listOf("p2", "p3", "p1"), sorted.map { it.id })
     }
+
+    @Test
+    fun `playlistContainsTrack detects existing tracks by path and subtune`() {
+        val entries = listOf(
+            PlaylistTrackEntry(id = "1", source = "file:///music/song.mod", title = "Song", subtuneIndex = null),
+            PlaylistTrackEntry(id = "2", source = "file:///music/multitune.sid", title = "Sid 1", subtuneIndex = 1),
+            PlaylistTrackEntry(id = "3", source = "file:///music/multitune.sid", title = "Sid 2", subtuneIndex = 2)
+        )
+
+        assertTrue(playlistContainsTrack(entries, "file:///music/song.mod"))
+        assertTrue(playlistContainsTrack(entries, "file:///music/multitune.sid", 1))
+        assertTrue(playlistContainsTrack(entries, "file:///music/multitune.sid", 2))
+        org.junit.Assert.assertFalse(playlistContainsTrack(entries, "file:///music/multitune.sid", 3))
+        org.junit.Assert.assertFalse(playlistContainsTrack(entries, "file:///music/other.mod"))
+    }
 }
 

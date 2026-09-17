@@ -38,6 +38,8 @@ import androidx.compose.material.icons.filled.LibraryMusic
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.SwapVert
 import androidx.compose.material.icons.outlined.AddCircle
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
@@ -144,6 +146,7 @@ private fun AddToPlaylistSheetContent(
     var showNewPlaylistDialog by remember { mutableStateOf(false) }
     var selectedSortMode by rememberSaveable { mutableStateOf(PlaylistSortMode.RecentlyUpdated) }
     var sortMenuExpanded by remember { mutableStateOf(false) }
+    var pendingDuplicateConfirmPlaylist by remember { mutableStateOf<StoredPlaylist?>(null) }
     val singleSource = pendingSources.singleOrNull()
     val savedIn = remember(playlists, singleSource, selectedSortMode) {
         if (singleSource == null) {
@@ -317,7 +320,14 @@ private fun AddToPlaylistSheetContent(
                                     if (contained) {
                                         onRemoveFromPlaylist(playlist.id)
                                     } else {
-                                        onConfirm(playlist.id, "")
+                                        val hasDuplicates = playlist.entries.any { entry ->
+                                            pendingSources.any { samePath(entry.source, it) }
+                                        }
+                                        if (hasDuplicates) {
+                                            pendingDuplicateConfirmPlaylist = playlist
+                                        } else {
+                                            onConfirm(playlist.id, "")
+                                        }
                                     }
                                 }
                             )
@@ -367,12 +377,56 @@ private fun AddToPlaylistSheetContent(
                         ChooserPlaylistRow(
                             playlist = playlist,
                             contained = false,
-                            onClick = { onConfirm(playlist.id, "") }
+                            onClick = {
+                                val hasDuplicates = playlist.entries.any { entry ->
+                                    pendingSources.any { samePath(entry.source, it) }
+                                }
+                                if (hasDuplicates) {
+                                    pendingDuplicateConfirmPlaylist = playlist
+                                } else {
+                                    onConfirm(playlist.id, "")
+                                }
+                            }
                         )
                     }
                 }
             }
         }
+    }
+    pendingDuplicateConfirmPlaylist?.let { targetPlaylist ->
+        val duplicates = targetPlaylist.entries.filter { entry ->
+            pendingSources.any { samePath(entry.source, it) }
+        }
+        val isSingle = pendingSources.size == 1
+        AlertDialog(
+            onDismissRequest = { pendingDuplicateConfirmPlaylist = null },
+            title = { Text(if (isSingle) "Already in playlist" else "Duplicate tracks") },
+            text = {
+                Text(
+                    if (isSingle) {
+                        "This track is already in \"${targetPlaylist.title}\". Do you want to add it again?"
+                    } else {
+                        "${duplicates.size} of the ${pendingSources.size} tracks are already in \"${targetPlaylist.title}\". Do you want to add them anyway?"
+                    }
+                )
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        val playlistId = targetPlaylist.id
+                        pendingDuplicateConfirmPlaylist = null
+                        onConfirm(playlistId, "")
+                    }
+                ) {
+                    Text("Add anyway")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { pendingDuplicateConfirmPlaylist = null }) {
+                    Text("Cancel")
+                }
+            }
+        )
     }
     if (showNewPlaylistDialog) {
         NewPlaylistDialog(
