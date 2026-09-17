@@ -5024,6 +5024,21 @@ filenameOnlyWhenTitleMissing = filenameOnlyWhenTitleMissing,
                         Toast.makeText(context, "Playlist cleared", Toast.LENGTH_SHORT).show()
                     }
                 },
+                onAppendStoredPlaylistEntries = { playlistId, newEntries ->
+                    if (newEntries.isNotEmpty()) {
+                        val target = playlistLibraryState.playlists.firstOrNull { it.id == playlistId }
+                        if (target != null) {
+                            val updatedState = appendStoredPlaylistEntries(playlistLibraryState, playlistId, newEntries)
+                            onPlaylistLibraryStateChanged(updatedState)
+                            syncActiveStoredPlaylistContextAfterMutation(playlistId)
+                            Toast.makeText(
+                                context,
+                                if (newEntries.size == 1) "Added track to playlist" else "Added ${newEntries.size} tracks to playlist",
+                                Toast.LENGTH_SHORT
+                            ).show()
+                        }
+                    }
+                },
                 onPlayFavoriteTrackAsCached = { entry ->
                     val normalizedSource = normalizeSourceIdentity(entry.source) ?: entry.source
                     val cachedFile = findExistingCachedFileForSource(

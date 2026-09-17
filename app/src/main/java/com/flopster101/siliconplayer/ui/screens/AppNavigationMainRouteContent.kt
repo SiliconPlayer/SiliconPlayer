@@ -326,6 +326,8 @@ internal fun AppNavigationPlaylistsContentSection(
     selectedArtistName: String?,
     activePlaylist: StoredPlaylist?,
     currentPlaybackSourceId: String?,
+    currentPlaybackTitle: String? = null,
+    currentPlaybackArtist: String? = null,
     currentSubtuneIndex: Int,
     favoritesSortMode: PlaylistEntrySortMode,
     networkNodes: List<NetworkNode> = emptyList(),
@@ -364,7 +366,9 @@ internal fun AppNavigationPlaylistsContentSection(
     onCopyFavoriteTrackSource: (PlaylistTrackEntry) -> Unit,
     onOpenFavoriteTrackInfo: (PlaylistTrackEntry) -> Unit,
     onDeleteStoredPlaylist: (String) -> Unit = {},
-    onRenameStoredPlaylist: (String, String) -> Unit = { _, _ -> }
+    onRenameStoredPlaylist: (String, String) -> Unit = { _, _ -> },
+    onOpenBrowser: () -> Unit = { onCurrentViewChanged(MainView.Browser) },
+    onAppendStoredPlaylistEntries: (String, List<PlaylistTrackEntry>) -> Unit = { _, _ -> }
 ) {
     AppNavigationPlaylistsRouteSection(
         mainPadding = mainPadding,
@@ -376,6 +380,8 @@ internal fun AppNavigationPlaylistsContentSection(
         selectedArtistName = selectedArtistName,
         activePlaylist = activePlaylist,
         currentPlaybackSourceId = currentPlaybackSourceId,
+        currentPlaybackTitle = currentPlaybackTitle,
+        currentPlaybackArtist = currentPlaybackArtist,
         currentSubtuneIndex = currentSubtuneIndex,
         favoritesSortMode = favoritesSortMode,
         networkNodes = networkNodes,
@@ -414,7 +420,9 @@ internal fun AppNavigationPlaylistsContentSection(
         onCopyFavoriteTrackSource = onCopyFavoriteTrackSource,
         onOpenFavoriteTrackInfo = onOpenFavoriteTrackInfo,
         onDeleteStoredPlaylist = onDeleteStoredPlaylist,
-        onRenameStoredPlaylist = onRenameStoredPlaylist
+        onRenameStoredPlaylist = onRenameStoredPlaylist,
+        onOpenBrowser = onOpenBrowser,
+        onAppendStoredPlaylistEntries = onAppendStoredPlaylistEntries
     )
 }
 
@@ -695,6 +703,7 @@ internal fun AppNavigationMainContentHost(
     onOpenFavoriteTrackInfo: (PlaylistTrackEntry) -> Unit,
     onDeleteStoredPlaylist: (String) -> Unit = {},
     onRenameStoredPlaylist: (String, String) -> Unit = { _, _ -> },
+    onAppendStoredPlaylistEntries: (String, List<PlaylistTrackEntry>) -> Unit = { _, _ -> },
     onOpenBrowser: (BrowserOpenRequest) -> Unit,
     onCurrentViewChanged: (MainView) -> Unit,
     onOpenUrlOrPathDialog: () -> Unit,
@@ -834,7 +843,9 @@ internal fun AppNavigationMainContentHost(
                 libraryArtistAlbums = libraryArtistAlbums,
                 selectedArtistName = selectedArtistName,
                 activePlaylist = activePlaylist,
-                currentPlaybackSourceId = currentPlaybackSourceId ?: selectedFile?.absolutePath,
+                currentPlaybackSourceId = playingPlaylistFile?.absolutePath ?: currentPlaybackSourceId ?: selectedFile?.absolutePath,
+                currentPlaybackTitle = metadataTitle.takeIf { it.isNotBlank() },
+                currentPlaybackArtist = metadataArtist.takeIf { it.isNotBlank() },
                 currentSubtuneIndex = currentSubtuneIndex,
                 favoritesSortMode = favoritesSortMode,
                 networkNodes = networkNodes,
@@ -892,6 +903,7 @@ internal fun AppNavigationMainContentHost(
                 onOpenFavoriteTrackInfo = onOpenFavoriteTrackInfo,
                 onDeleteStoredPlaylist = onDeleteStoredPlaylist,
                 onRenameStoredPlaylist = onRenameStoredPlaylist,
+                onAppendStoredPlaylistEntries = onAppendStoredPlaylistEntries,
                 pinnedHomeEntries = pinnedHomeEntries,
                 surfaceState = surfaceState
             )

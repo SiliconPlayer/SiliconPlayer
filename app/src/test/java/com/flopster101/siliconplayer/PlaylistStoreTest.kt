@@ -86,6 +86,22 @@ class PlaylistStoreTest {
     }
 
     @Test
+    fun `appendStoredPlaylistEntries appends new tracks and updates timestamp`() {
+        val initial = PlaylistLibraryState(
+            favorites = emptyList(),
+            playlists = listOf(
+                samplePlaylist("p1", "Playlist 1").copy(updatedAtMs = 50L)
+            )
+        )
+        val newTrack = PlaylistTrackEntry(id = "e3", source = "file:///music/track3.mod", title = "Track 3")
+        val updated = appendStoredPlaylistEntries(initial, "p1", listOf(newTrack))
+        val playlist = updated.playlists.first()
+        assertEquals(3, playlist.entries.size)
+        assertEquals("e3", playlist.entries.last().id)
+        assertTrue(playlist.updatedAtMs > 50L)
+    }
+
+    @Test
     fun `sortStoredPlaylists orders by recently updated`() {
         val p1 = samplePlaylist("p1", "B").copy(updatedAtMs = 100L)
         val p2 = samplePlaylist("p2", "A").copy(updatedAtMs = 500L)

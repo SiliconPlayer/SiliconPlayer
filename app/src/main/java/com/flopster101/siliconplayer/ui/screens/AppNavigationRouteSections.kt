@@ -106,6 +106,8 @@ internal fun AppNavigationPlaylistsRouteSection(
     libraryState: PlaylistLibraryState,
     activePlaylist: StoredPlaylist?,
     currentPlaybackSourceId: String?,
+    currentPlaybackTitle: String? = null,
+    currentPlaybackArtist: String? = null,
     currentSubtuneIndex: Int,
     favoritesSortMode: PlaylistEntrySortMode,
     networkNodes: List<NetworkNode> = emptyList(),
@@ -147,7 +149,9 @@ internal fun AppNavigationPlaylistsRouteSection(
     onCopyFavoriteTrackSource: (PlaylistTrackEntry) -> Unit,
     onOpenFavoriteTrackInfo: (PlaylistTrackEntry) -> Unit,
     onDeleteStoredPlaylist: (String) -> Unit = {},
-    onRenameStoredPlaylist: (String, String) -> Unit = { _, _ -> }
+    onRenameStoredPlaylist: (String, String) -> Unit = { _, _ -> },
+    onOpenBrowser: () -> Unit = {},
+    onAppendStoredPlaylistEntries: (String, List<PlaylistTrackEntry>) -> Unit = { _, _ -> }
 ) {
     MainPlaylistsRouteHost(
         mainPadding = mainPadding,
@@ -156,6 +160,8 @@ internal fun AppNavigationPlaylistsRouteSection(
         libraryState = libraryState,
         activePlaylist = activePlaylist,
         currentPlaybackSourceId = currentPlaybackSourceId,
+        currentPlaybackTitle = currentPlaybackTitle,
+        currentPlaybackArtist = currentPlaybackArtist,
         currentSubtuneIndex = currentSubtuneIndex,
         favoritesSortMode = favoritesSortMode,
         networkNodes = networkNodes,
@@ -197,7 +203,9 @@ internal fun AppNavigationPlaylistsRouteSection(
         onCopyFavoriteTrackSource = onCopyFavoriteTrackSource,
         onOpenFavoriteTrackInfo = onOpenFavoriteTrackInfo,
         onDeleteStoredPlaylist = onDeleteStoredPlaylist,
-        onRenameStoredPlaylist = onRenameStoredPlaylist
+        onRenameStoredPlaylist = onRenameStoredPlaylist,
+        onOpenBrowser = onOpenBrowser,
+        onAppendStoredPlaylistEntries = onAppendStoredPlaylistEntries
     )
 }
 

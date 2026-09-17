@@ -179,11 +179,18 @@ import androidx.compose.ui.unit.dp
 import com.flopster101.siliconplayer.PlaylistLibraryState
 import com.flopster101.siliconplayer.PlaylistTrackEntry
 import com.flopster101.siliconplayer.ui.dialogs.AddToPlaylistChooserDialog
+import com.flopster101.siliconplayer.ui.dialogs.AddTracksSourceSheet
+import com.flopster101.siliconplayer.ui.dialogs.AddDirectUrlDialog
+import com.flopster101.siliconplayer.ui.dialogs.AddFromLibraryPickerSheet
+import com.flopster101.siliconplayer.ui.dialogs.AddFromStoragePickerSheet
+import com.flopster101.siliconplayer.ui.dialogs.AddFromNetworkPickerSheet
 import com.flopster101.siliconplayer.ui.dialogs.NewPlaylistDialog
 import com.flopster101.siliconplayer.ui.dialogs.RenamePlaylistDialog
 import com.flopster101.siliconplayer.StoredPlaylist
+import com.flopster101.siliconplayer.appendStoredPlaylistEntries
 import com.flopster101.siliconplayer.decodePercentEncodedForDisplay
 import com.flopster101.siliconplayer.ensureRecentArtworkThumbnailCached
+import com.flopster101.siliconplayer.inferredDisplayTitleForName
 import com.flopster101.siliconplayer.parseHttpSourceSpecFromInput
 import com.flopster101.siliconplayer.parseSmbSourceSpecFromInput
 import com.flopster101.siliconplayer.playlistEntryMatchesPlayback
@@ -490,6 +497,8 @@ internal fun PlaylistsScreen(
     onOpenLibrarySettings: () -> Unit,
     activePlaylist: StoredPlaylist?,
     currentPlaybackSourceId: String?,
+    currentPlaybackTitle: String? = null,
+    currentPlaybackArtist: String? = null,
     currentSubtuneIndex: Int,
     bottomContentPadding: Dp,
     favoritesSortMode: PlaylistEntrySortMode,
@@ -518,7 +527,9 @@ internal fun PlaylistsScreen(
     onCopyFavoriteTrackSource: (PlaylistTrackEntry) -> Unit,
     onOpenFavoriteTrackInfo: (PlaylistTrackEntry) -> Unit,
     onDeleteStoredPlaylist: (String) -> Unit = {},
-    onRenameStoredPlaylist: (String, String) -> Unit = { _, _ -> }
+    onRenameStoredPlaylist: (String, String) -> Unit = { _, _ -> },
+    onOpenBrowser: () -> Unit = {},
+    onAppendStoredPlaylistEntries: (String, List<PlaylistTrackEntry>) -> Unit = { _, _ -> }
 ) {
     val context = LocalContext.current
     val isWatch = remember(context) { context.packageManager.hasSystemFeature(PackageManager.FEATURE_WATCH) }
@@ -543,6 +554,23 @@ internal fun PlaylistsScreen(
         }
     }
     var libraryContextTracks by remember { mutableStateOf<List<LibraryTrackEntity>?>(null) }
+    var showAddTracksSourceSheet by remember { mutableStateOf(false) }
+    var showAddFromLibrarySheet by remember { mutableStateOf(false) }
+    var showAddFromStorageSheet by remember { mutableStateOf(false) }
+    var showAddFromNetworkSheet by remember { mutableStateOf(false) }
+    var showAddDirectUrlDialog by remember { mutableStateOf(false) }
+    val currentQueuedTrack = remember(currentPlaybackSourceId, currentPlaybackTitle, currentPlaybackArtist) {
+        currentPlaybackSourceId?.trim()?.takeIf { it.isNotEmpty() }?.let { source ->
+            PlaylistTrackEntry(
+                id = java.util.UUID.randomUUID().toString(),
+                source = source,
+                title = currentPlaybackTitle?.trim()?.takeIf { it.isNotEmpty() }
+                    ?: inferredDisplayTitleForName(source.substringAfterLast('/')),
+                artist = currentPlaybackArtist?.trim()?.takeIf { it.isNotEmpty() },
+                addedAtMs = System.currentTimeMillis()
+            )
+        }
+    }
     val keyboardController = LocalSoftwareKeyboardController.current
     val coroutineScope = rememberCoroutineScope()
     val libraryFavoriteKeySet = remember(libraryState.favorites) {
@@ -1167,7 +1195,8 @@ internal fun PlaylistsScreen(
                                     storedPlaylistDraggingEntryId = null
                                 }
                             },
-                            showAddAction = false,
+                            showAddAction = true,
+                            onAddClick = { showAddTracksSourceSheet = true },
                             showEditAction = true,
                             showDeleteAllEntriesAction = true,
                             canReorderEntries = storedPlaylistSortMode == PlaylistEntrySortMode.Custom,
@@ -1760,6 +1789,86 @@ internal fun PlaylistsScreen(
                 }
             },
             onDismiss = { libraryContextTracks = null }
+        )
+    }
+    if (showAddTracksSourceSheet && selectedStoredPlaylist != null) {
+        val targetPlaylist = selectedStoredPlaylist
+        val targetPlaylistId = targetPlaylist.id
+        AddTracksSourceSheet(
+            playlistTitle = targetPlaylist.title,
+            currentTrack = currentQueuedTrack,
+            onAddCurrentTrack = {
+                currentQueuedTrack?.let { track ->
+                    val entryToAdd = track.copy(
+                        id = java.util.UUID.randomUUID().toString(),
+                        addedAtMs = System.currentTimeMillis()
+                    )
+                    onAppendStoredPlaylistEntries(targetPlaylistId, listOf(entryToAdd))
+                    Toast.makeText(context, "Added to ${targetPlaylist.title}", Toast.LENGTH_SHORT).show()
+                }
+            },
+            onSelectLibrary = { showAddFromLibrarySheet = true },
+            onSelectStorage = { showAddFromStorageSheet = true },
+            onSelectNetwork = { showAddFromNetworkSheet = true },
+            onSelectDirectUrl = { showAddDirectUrlDialog = true },
+            onDismiss = { showAddTracksSourceSheet = false }
+        )
+    }
+    if (showAddFromLibrarySheet && selectedStoredPlaylist != null) {
+        val targetPlaylistId = selectedStoredPlaylist.id
+        AddFromLibraryPickerSheet(
+            onConfirm = { selectedTracks ->
+                showAddFromLibrarySheet = false
+                onAddLibraryTracksToPlaylist(selectedTracks, targetPlaylistId, "")
+            },
+            onDismiss = { showAddFromLibrarySheet = false }
+        )
+    }
+    if (showAddFromStorageSheet && selectedStoredPlaylist != null) {
+        val targetPlaylistId = selectedStoredPlaylist.id
+        AddFromStoragePickerSheet(
+            onConfirm = { selectedFiles ->
+                showAddFromStorageSheet = false
+                val newEntries = selectedFiles.map { file ->
+                    PlaylistTrackEntry(
+                        id = java.util.UUID.randomUUID().toString(),
+                        source = file.absolutePath,
+                        title = inferredDisplayTitleForName(file.name),
+                        addedAtMs = System.currentTimeMillis()
+                    )
+                }
+                onAppendStoredPlaylistEntries(targetPlaylistId, newEntries)
+            },
+            onDismiss = { showAddFromStorageSheet = false }
+        )
+    }
+    if (showAddFromNetworkSheet && selectedStoredPlaylist != null) {
+        val targetPlaylistId = selectedStoredPlaylist.id
+        AddFromNetworkPickerSheet(
+            networkNodes = networkNodes,
+            onConfirm = { selectedTracks ->
+                showAddFromNetworkSheet = false
+                onAppendStoredPlaylistEntries(targetPlaylistId, selectedTracks)
+            },
+            onDismiss = { showAddFromNetworkSheet = false }
+        )
+    }
+    if (showAddDirectUrlDialog && selectedStoredPlaylist != null) {
+        val targetPlaylistId = selectedStoredPlaylist.id
+        AddDirectUrlDialog(
+            onConfirm = { url, title, artist ->
+                showAddDirectUrlDialog = false
+                val entryTitle = title ?: url.substringAfterLast('/').substringBefore('?').ifBlank { "Network Stream" }
+                val newEntry = PlaylistTrackEntry(
+                    id = java.util.UUID.randomUUID().toString(),
+                    source = url,
+                    title = entryTitle,
+                    artist = artist,
+                    addedAtMs = System.currentTimeMillis()
+                )
+                onAppendStoredPlaylistEntries(targetPlaylistId, listOf(newEntry))
+            },
+            onDismiss = { showAddDirectUrlDialog = false }
         )
     }
 }
@@ -3374,6 +3483,7 @@ private fun LazyListScope.playlistDetailContent(
     isEditMode: Boolean,
     onEditModeChanged: (Boolean) -> Unit,
     showAddAction: Boolean = true,
+    onAddClick: () -> Unit = {},
     showEditAction: Boolean = true,
     showDeleteAllEntriesAction: Boolean = true,
     canReorderEntries: Boolean,
@@ -3436,6 +3546,7 @@ private fun LazyListScope.playlistDetailContent(
                 isEditMode = isEditMode,
                 onEditModeChanged = onEditModeChanged,
                 showAddAction = showAddAction,
+                onAddClick = onAddClick,
                 showEditAction = showEditAction,
                 showDeleteAllEntriesAction = showDeleteAllEntriesAction,
                 onPlayPlaylist = onPlayPlaylist,
@@ -3473,6 +3584,21 @@ private fun LazyListScope.playlistDetailContent(
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     textAlign = if (isWatch) TextAlign.Center else TextAlign.Start
                 )
+                if (showAddAction) {
+                    Spacer(modifier = Modifier.height(8.dp))
+                    FilledTonalButton(
+                        onClick = onAddClick,
+                        shape = RoundedCornerShape(18.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Add,
+                            contentDescription = null,
+                            modifier = Modifier.size(18.dp)
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text("Add tracks")
+                    }
+                }
             }
         }
     } else {
@@ -3791,6 +3917,7 @@ private fun PlaylistHeroCard(
     isEditMode: Boolean,
     onEditModeChanged: (Boolean) -> Unit,
     showAddAction: Boolean,
+    onAddClick: () -> Unit = {},
     showEditAction: Boolean,
     showDeleteAllEntriesAction: Boolean,
     onPlayPlaylist: () -> Unit,
@@ -3965,7 +4092,7 @@ private fun PlaylistHeroCard(
                 PlaylistActionPill(
                     label = "Add",
                     icon = Icons.Default.Add,
-                    onClick = {}
+                    onClick = onAddClick
                 )
             }
             if (showEditAction) {

@@ -144,6 +144,26 @@ internal fun removeStoredPlaylistEntry(
     )
 }
 
+internal fun appendStoredPlaylistEntries(
+    state: PlaylistLibraryState,
+    playlistId: String,
+    newEntries: List<PlaylistTrackEntry>
+): PlaylistLibraryState {
+    if (newEntries.isEmpty()) return state
+    return state.copy(
+        playlists = state.playlists.map { playlist ->
+            if (playlist.id != playlistId) {
+                playlist
+            } else {
+                playlist.copy(
+                    entries = playlist.entries + newEntries,
+                    updatedAtMs = System.currentTimeMillis()
+                )
+            }
+        }
+    )
+}
+
 internal fun moveStoredPlaylistEntry(
     state: PlaylistLibraryState,
     playlistId: String,

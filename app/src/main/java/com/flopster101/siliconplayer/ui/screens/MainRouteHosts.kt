@@ -145,6 +145,8 @@ internal fun MainPlaylistsRouteHost(
     surfaceState: LibrarySurfaceState,
     activePlaylist: StoredPlaylist?,
     currentPlaybackSourceId: String?,
+    currentPlaybackTitle: String? = null,
+    currentPlaybackArtist: String? = null,
     currentSubtuneIndex: Int,
     favoritesSortMode: PlaylistEntrySortMode,
     networkNodes: List<NetworkNode> = emptyList(),
@@ -184,7 +186,9 @@ internal fun MainPlaylistsRouteHost(
     onCopyFavoriteTrackSource: (PlaylistTrackEntry) -> Unit,
     onOpenFavoriteTrackInfo: (PlaylistTrackEntry) -> Unit,
     onDeleteStoredPlaylist: (String) -> Unit = {},
-    onRenameStoredPlaylist: (String, String) -> Unit = { _, _ -> }
+    onRenameStoredPlaylist: (String, String) -> Unit = { _, _ -> },
+    onOpenBrowser: () -> Unit = {},
+    onAppendStoredPlaylistEntries: (String, List<PlaylistTrackEntry>) -> Unit = { _, _ -> }
 ) {
     val context = androidx.compose.ui.platform.LocalContext.current
     var libraryCollections by remember { mutableStateOf(LibraryCollections.Empty) }
@@ -201,6 +205,8 @@ internal fun MainPlaylistsRouteHost(
             selectedArtistName = selectedArtistName,
             activePlaylist = activePlaylist,
             currentPlaybackSourceId = currentPlaybackSourceId,
+            currentPlaybackTitle = currentPlaybackTitle,
+            currentPlaybackArtist = currentPlaybackArtist,
             currentSubtuneIndex = currentSubtuneIndex,
             bottomContentPadding = bottomContentPadding,
             favoritesSortMode = favoritesSortMode,
@@ -241,7 +247,9 @@ internal fun MainPlaylistsRouteHost(
             onCopyFavoriteTrackSource = onCopyFavoriteTrackSource,
             onOpenFavoriteTrackInfo = onOpenFavoriteTrackInfo,
             onDeleteStoredPlaylist = onDeleteStoredPlaylist,
-            onRenameStoredPlaylist = onRenameStoredPlaylist
+            onRenameStoredPlaylist = onRenameStoredPlaylist,
+            onOpenBrowser = onOpenBrowser,
+            onAppendStoredPlaylistEntries = onAppendStoredPlaylistEntries
         )
     }
 }

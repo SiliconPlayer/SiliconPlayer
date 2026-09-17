@@ -2363,22 +2363,6 @@ private fun SmbEntryRow(
                 )
             }
         }
-        if (onAddToPlaylist != null) {
-            Spacer(modifier = Modifier.width(8.dp))
-            Box(
-                modifier = Modifier
-                    .size(28.dp)
-                    .clickable(onClick = onAddToPlaylist),
-                contentAlignment = Alignment.Center
-            ) {
-                Icon(
-                    imageVector = Icons.Default.PlaylistAdd,
-                    contentDescription = "Add to playlist",
-                    tint = MaterialTheme.colorScheme.primary,
-                    modifier = Modifier.size(18.dp)
-                )
-            }
-        }
     }
 }
 
