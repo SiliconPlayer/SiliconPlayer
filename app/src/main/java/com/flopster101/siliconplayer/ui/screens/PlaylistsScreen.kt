@@ -200,6 +200,7 @@ import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.flopster101.siliconplayer.PlaylistLibraryState
+import com.flopster101.siliconplayer.PlaylistStoredFormat
 import com.flopster101.siliconplayer.PlaylistTrackEntry
 import com.flopster101.siliconplayer.ui.dialogs.AddToPlaylistChooserDialog
 import com.flopster101.siliconplayer.ui.dialogs.AddTracksSourceSheet
@@ -6431,7 +6432,11 @@ private fun PlaylistCollectionRow(
         modifier = Modifier
             .fillMaxWidth(),
         title = playlist.title,
-        subtitle = "${playlistTrackCountLabel(playlist.entries.size)} • ${playlist.format.label}",
+        subtitle = if (playlist.format == PlaylistStoredFormat.Internal) {
+            playlistTrackCountLabel(playlist.entries.size)
+        } else {
+            "${playlistTrackCountLabel(playlist.entries.size)} • ${playlist.format.label}"
+        },
         icon = Icons.Default.LibraryMusic,
         iconContainerColor = MaterialTheme.colorScheme.surfaceContainerHighest,
         iconTint = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -6894,16 +6899,31 @@ private fun PlaylistLibraryFlatRow(
 }
 
 private fun playlistPageTrackSubtitle(entry: PlaylistTrackEntry): String {
-    val artist = entry.artist?.trim()?.takeIf { it.isNotBlank() }
-    return if (
-        artist.isNullOrBlank() ||
-        artist.equals("Unknown artist", ignoreCase = true) ||
-        artist.equals("No metadata yet", ignoreCase = true)
-    ) {
-        "Unknown Artist"
-    } else {
-        artist
+    val parts = mutableListOf<String>()
+
+    val durationText = entry.durationSecondsOverride
+        ?.takeIf { it.isFinite() && it > 0.0 }
+        ?.let { seconds -> formatPlaylistInfoDuration(seconds) }
+        ?: "-:--"
+    parts += durationText
+
+    val rawArtist = entry.artist?.trim()?.takeIf { it.isNotBlank() }
+    val hasValidArtist = !rawArtist.isNullOrBlank() &&
+        !rawArtist.equals("Unknown artist", ignoreCase = true) &&
+        !rawArtist.equals("No metadata yet", ignoreCase = true)
+
+    val rawAlbum = entry.album?.trim()?.takeIf { it.isNotBlank() }
+    val hasValidAlbum = !rawAlbum.isNullOrBlank() &&
+        !rawAlbum.equals("Unknown album", ignoreCase = true)
+
+    val artistText = if (hasValidArtist) rawArtist else "Unknown Artist"
+    parts += artistText
+
+    if (hasValidAlbum) {
+        parts += rawAlbum
     }
+
+    return parts.joinToString(" • ")
 }
 
 private data class PlaylistTrackInfoDialogState(
