@@ -5400,7 +5400,16 @@ private fun PlaylistLibraryFlatRow(
 }
 
 private fun playlistPageTrackSubtitle(entry: PlaylistTrackEntry): String {
-    return entry.artist?.trim()?.takeIf { it.isNotBlank() } ?: "No metadata yet"
+    val artist = entry.artist?.trim()?.takeIf { it.isNotBlank() }
+    return if (
+        artist.isNullOrBlank() ||
+        artist.equals("Unknown artist", ignoreCase = true) ||
+        artist.equals("No metadata yet", ignoreCase = true)
+    ) {
+        "Unknown Artist"
+    } else {
+        artist
+    }
 }
 
 private data class PlaylistTrackInfoDialogState(
