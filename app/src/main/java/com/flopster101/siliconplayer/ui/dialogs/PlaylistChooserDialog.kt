@@ -30,6 +30,7 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.LibraryMusic
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.outlined.AddCircle
 import androidx.compose.material3.Card
@@ -272,8 +273,10 @@ private fun ChooserPlaylistRow(
     ) {
         PlaylistCoverArt(
             entries = playlist.entries,
-            heroIcon = null,
-            modifier = Modifier.size(56.dp)
+            heroIcon = Icons.Default.LibraryMusic,
+            modifier = Modifier.size(56.dp),
+            shape = RoundedCornerShape(12.dp),
+            iconSize = 30.dp
         )
         Column(modifier = Modifier.weight(1f)) {
             Text(

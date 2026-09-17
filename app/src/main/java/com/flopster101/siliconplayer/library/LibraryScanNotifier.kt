@@ -45,7 +45,7 @@ internal object LibraryScanNotifier {
                 .setContentTitle("Scanning library")
                 .setContentText(
                     buildString {
-                        append("${state.indexedTracks} tracks indexed")
+                        append(if (state.indexedTracks == 1) "1 track indexed" else "${state.indexedTracks} tracks indexed")
                         if (currentFile != null && currentFile.isNotBlank()) {
                             append(" — ")
                             append(currentFile)

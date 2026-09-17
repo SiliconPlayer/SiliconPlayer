@@ -70,6 +70,7 @@ import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.ui.graphics.Shape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
@@ -1148,7 +1149,7 @@ internal fun PlaylistsScreen(
                         playlistDetailContent(
                             title = selectedStoredPlaylist.title,
                             entries = sortedStoredPlaylistEntries,
-                            heroIcon = null,
+                            heroIcon = Icons.Default.LibraryMusic,
                             emptyBody = "This playlist has no tracks.",
                             selectedSortMode = storedPlaylistSortMode,
                             onSortModeSelected = { storedPlaylistSortMode = it },
@@ -1750,6 +1751,12 @@ private fun PlaylistsLibraryTabPage(
     }
 }
 
+private fun libraryTrackCountLabel(count: Int): String =
+    if (count == 1) "1 track" else "$count tracks"
+
+private fun libraryAlbumCountLabel(count: Int): String =
+    if (count == 1) "1 album" else "$count albums"
+
 @Composable
 private fun LibraryCollectionPlaceholderPage(
     title: String,
@@ -2026,8 +2033,10 @@ private fun LibraryScanProgressRow(
                 text = "Scanning library…",
                 style = MaterialTheme.typography.bodyMedium
             )
+            val filesLabel = if (syncState.scannedFiles == 1) "1 file checked" else "${syncState.scannedFiles} files checked"
+            val tracksLabel = if (syncState.indexedTracks == 1) "1 track indexed" else "${syncState.indexedTracks} tracks indexed"
             Text(
-                text = "${syncState.scannedFiles} files checked · ${syncState.indexedTracks} tracks indexed",
+                text = "$filesLabel · $tracksLabel",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 maxLines = 1,
@@ -2157,7 +2166,11 @@ private fun AlbumLibraryGridCard(
                     overflow = TextOverflow.Ellipsis
                 )
                 Text(
-                    text = if (album.artist.isBlank()) "${album.trackCount} tracks" else "${album.artist} · ${album.trackCount} tracks",
+                    text = if (album.artist.isBlank()) {
+                        libraryTrackCountLabel(album.trackCount)
+                    } else {
+                        "${album.artist} · ${libraryTrackCountLabel(album.trackCount)}"
+                    },
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     maxLines = 1,
@@ -2570,7 +2583,7 @@ private fun ArtistAlbumYearSectionHeader(
             modifier = Modifier.weight(1f, fill = false)
         )
         Text(
-            text = "$albumCount albums",
+            text = libraryAlbumCountLabel(albumCount),
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             maxLines = 1
@@ -2618,7 +2631,7 @@ private fun LibraryArtistDetailPage(
             )
             val totalTracks = albums.sumOf { it.trackCount }
             Text(
-                text = "${albums.size} albums · $totalTracks tracks",
+                text = "${libraryAlbumCountLabel(albums.size)} · ${libraryTrackCountLabel(totalTracks)}",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
@@ -2790,7 +2803,7 @@ private fun LibraryArtistDetailPage(
                                         Text(
                                             text = buildString {
                                                 if (groupYear > 0) append("$groupYear · ")
-                                                append("${groupTracks.size} tracks")
+                                                append(libraryTrackCountLabel(groupTracks.size))
                                             },
                                             style = MaterialTheme.typography.bodySmall,
                                             color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -2866,7 +2879,11 @@ private fun LibraryAlbumCompactRow(
                 overflow = TextOverflow.Ellipsis
             )
             Text(
-                text = if (album.artist.isBlank()) "${album.trackCount} tracks" else "${album.artist} · ${album.trackCount} tracks",
+                text = if (album.artist.isBlank()) {
+                    libraryTrackCountLabel(album.trackCount)
+                } else {
+                    "${album.artist} · ${libraryTrackCountLabel(album.trackCount)}"
+                },
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 maxLines = 1,
@@ -2926,7 +2943,7 @@ private fun LibraryArtistCompactRow(
                 overflow = TextOverflow.Ellipsis
             )
             Text(
-                text = "${artist.albumCount} albums · ${artist.trackCount} tracks",
+                text = "${libraryAlbumCountLabel(artist.albumCount)} · ${libraryTrackCountLabel(artist.trackCount)}",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 maxLines = 1,
@@ -3056,7 +3073,11 @@ private fun AlbumLibraryListRow(
                 overflow = TextOverflow.Ellipsis
             )
             Text(
-                text = if (album.artist.isBlank()) "${album.trackCount} tracks" else "${album.artist} · ${album.trackCount} tracks",
+                text = if (album.artist.isBlank()) {
+                    libraryTrackCountLabel(album.trackCount)
+                } else {
+                    "${album.artist} · ${libraryTrackCountLabel(album.trackCount)}"
+                },
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 maxLines = 1,
@@ -3106,7 +3127,7 @@ private fun ArtistLibraryRow(
                 overflow = TextOverflow.Ellipsis
             )
             Text(
-                text = "${artist.albumCount} albums · ${artist.trackCount} tracks",
+                text = "${libraryAlbumCountLabel(artist.albumCount)} · ${libraryTrackCountLabel(artist.trackCount)}",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 maxLines = 1,
@@ -3178,7 +3199,7 @@ private fun LibraryPlaceholderRow(
         ) {
             Surface(
                 modifier = Modifier.size(54.dp),
-                shape = MaterialTheme.shapes.large,
+                shape = RoundedCornerShape(12.dp),
                 color = MaterialTheme.colorScheme.surfaceContainerHighest
             ) {
                 Box(
@@ -3895,16 +3916,18 @@ private fun PlaylistActionPill(
 @Composable
 internal fun PlaylistCoverArt(
     entries: List<PlaylistTrackEntry>,
-    heroIcon: ImageVector?,
+    heroIcon: ImageVector? = Icons.Default.LibraryMusic,
     modifier: Modifier = Modifier,
+    shape: Shape = MaterialTheme.shapes.extraLarge,
     iconSize: Dp = 36.dp
 ) {
+    val icon = heroIcon ?: Icons.Default.LibraryMusic
     Surface(
         modifier = modifier,
-        shape = MaterialTheme.shapes.extraLarge,
-        color = MaterialTheme.colorScheme.secondaryContainer
+        shape = shape,
+        color = MaterialTheme.colorScheme.surfaceContainerHighest
     ) {
-        if (heroIcon != null) {
+        if (iconSize > 32.dp) {
             Box(
                 modifier = Modifier
                     .fillMaxSize()
@@ -3926,7 +3949,7 @@ internal fun PlaylistCoverArt(
                     contentAlignment = Alignment.Center
                 ) {
                     Icon(
-                        imageVector = heroIcon,
+                        imageVector = icon,
                         contentDescription = null,
                         tint = MaterialTheme.colorScheme.primary,
                         modifier = Modifier.size(iconSize)
@@ -3934,7 +3957,17 @@ internal fun PlaylistCoverArt(
                 }
             }
         } else {
-            PlaylistIconGrid(entries = entries)
+            Box(
+                modifier = Modifier.fillMaxSize(),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(
+                    imageVector = icon,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.size(iconSize)
+                )
+            }
         }
     }
 }
@@ -4826,7 +4859,7 @@ private fun PlaylistTrackArtworkChip(
     val iconSize = if (isWatch) 18.dp else 28.dp
     Surface(
         modifier = Modifier.size(chipSize),
-        shape = if (isWatch) RoundedCornerShape(10.dp) else MaterialTheme.shapes.large,
+        shape = RoundedCornerShape(10.dp),
         color = if (isActive) {
             MaterialTheme.colorScheme.secondaryContainer
         } else {
@@ -4869,7 +4902,7 @@ private fun PlaylistCollectionRow(
         modifier = Modifier
             .fillMaxWidth(),
         title = playlist.title,
-        subtitle = "${playlist.entries.size} tracks • ${playlist.format.label}",
+        subtitle = "${playlistTrackCountLabel(playlist.entries.size)} • ${playlist.format.label}",
         icon = Icons.Default.LibraryMusic,
         iconContainerColor = MaterialTheme.colorScheme.surfaceContainerHighest,
         iconTint = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -4944,7 +4977,7 @@ private fun PlaylistLibraryFlatRow(
         ) {
             Surface(
                 modifier = Modifier.size(56.dp),
-                shape = MaterialTheme.shapes.large,
+                shape = RoundedCornerShape(12.dp),
                 color = iconContainerColor
             ) {
                 Box(
