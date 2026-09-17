@@ -33,6 +33,8 @@ import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Remove
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.FilledTonalButton
@@ -84,7 +86,9 @@ internal fun FloatingActionDialog(
     confirmText: String? = null,
     confirmIcon: ImageVector? = null,
     confirmEnabled: Boolean = true,
+    confirmIsDestructive: Boolean = false,
     onConfirm: (() -> Unit)? = null,
+    dismissText: String? = if (confirmText != null && confirmText != "Done") "Cancel" else null,
     bodyMaxHeight: Dp = 460.dp,
     content: @Composable ColumnScope.() -> Unit
 ) {
@@ -157,23 +161,62 @@ internal fun FloatingActionDialog(
                     }
                 }
                 if (confirmText != null && onConfirm != null) {
-                    FilledTonalButton(
-                        onClick = onConfirm,
-                        enabled = confirmEnabled,
+                    Row(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(start = 20.dp, end = 20.dp, top = 4.dp, bottom = 16.dp),
-                        shape = RoundedCornerShape(14.dp)
+                            .padding(start = 24.dp, end = 24.dp, top = 8.dp, bottom = 18.dp),
+                        horizontalArrangement = Arrangement.End,
+                        verticalAlignment = Alignment.CenterVertically
                     ) {
-                        if (confirmIcon != null) {
-                            Icon(
-                                imageVector = confirmIcon,
-                                contentDescription = null,
-                                modifier = Modifier.size(18.dp)
-                            )
+                        if (dismissText != null) {
+                            TextButton(
+                                onClick = onDismiss,
+                                shape = RoundedCornerShape(12.dp)
+                            ) {
+                                Text(
+                                    text = dismissText,
+                                    style = MaterialTheme.typography.labelLarge
+                                )
+                            }
                             Spacer(modifier = Modifier.width(8.dp))
                         }
-                        Text(text = confirmText, style = MaterialTheme.typography.labelLarge)
+                        if (confirmIsDestructive) {
+                            Button(
+                                onClick = onConfirm,
+                                enabled = confirmEnabled,
+                                shape = RoundedCornerShape(12.dp),
+                                colors = ButtonDefaults.buttonColors(
+                                    containerColor = MaterialTheme.colorScheme.error,
+                                    contentColor = MaterialTheme.colorScheme.onError
+                                )
+                            ) {
+                                if (confirmIcon != null) {
+                                    Icon(
+                                        imageVector = confirmIcon,
+                                        contentDescription = null,
+                                        modifier = Modifier.size(18.dp)
+                                    )
+                                    Spacer(modifier = Modifier.width(8.dp))
+                                }
+                                Text(text = confirmText, style = MaterialTheme.typography.labelLarge)
+                            }
+                        } else {
+                            FilledTonalButton(
+                                onClick = onConfirm,
+                                enabled = confirmEnabled,
+                                shape = RoundedCornerShape(12.dp)
+                            ) {
+                                if (confirmIcon != null) {
+                                    Icon(
+                                        imageVector = confirmIcon,
+                                        contentDescription = null,
+                                        modifier = Modifier.size(18.dp)
+                                    )
+                                    Spacer(modifier = Modifier.width(8.dp))
+                                }
+                                Text(text = confirmText, style = MaterialTheme.typography.labelLarge)
+                            }
+                        }
                     }
                 }
             }

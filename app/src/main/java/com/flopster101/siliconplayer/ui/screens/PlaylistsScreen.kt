@@ -1717,6 +1717,7 @@ internal fun PlaylistsScreen(
                 title = "Delete playlist?",
                 onDismiss = { playlistPendingDelete = null },
                 confirmText = "Delete",
+                confirmIsDestructive = true,
                 onConfirm = {
                     val id = playlist.id
                     playlistPendingDelete = null
