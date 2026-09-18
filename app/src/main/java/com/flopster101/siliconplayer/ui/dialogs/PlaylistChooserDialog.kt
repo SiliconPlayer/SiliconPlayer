@@ -218,7 +218,7 @@ private fun AddToPlaylistSheetContent(
         } else {
             val matching = effectivePlaylists.filter { playlist ->
                 playlist.entries.any { entry ->
-                    entry.subtuneIndex == null && samePath(entry.source, singleSource)
+                    samePath(entry.source, singleSource)
                 }
             }
             sortWithFavoritesFirst(matching, selectedSortMode)

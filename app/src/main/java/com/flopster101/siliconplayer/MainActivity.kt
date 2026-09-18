@@ -96,6 +96,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.graphics.ImageBitmap
+import androidx.compose.ui.graphics.asAndroidBitmap
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
@@ -816,7 +817,8 @@ private fun buildFavoriteEntryForSource(
     metadataAlbum: String,
     durationSecondsOverride: Double?,
     subtuneCount: Int,
-    currentSubtuneIndex: Int
+    currentSubtuneIndex: Int,
+    artworkBitmap: Bitmap? = null
 ): PlaylistTrackEntry {
     val derivedTitle = metadataTitle.trim().ifBlank {
         fallbackFile
@@ -824,17 +826,27 @@ private fun buildFavoriteEntryForSource(
             ?.takeIf { it.isNotBlank() }
             ?: sourceId.substringAfterLast('/').ifBlank { "Track" }
     }
+    val artworkKey = if (artworkBitmap != null && !artworkBitmap.isRecycled) {
+        saveBitmapToRecentArtworkCache(
+            context = context,
+            sourceId = sourceId,
+            bitmap = artworkBitmap,
+            recycleSource = false
+        )
+    } else {
+        ensureRecentArtworkThumbnailCached(
+            context = context,
+            sourceId = sourceId,
+            requestUrlHint = requestUrlHint
+        )
+    }
     return PlaylistTrackEntry(
         source = sourceId,
         requestUrlHint = sanitizePlaylistTrackRequestUrlHint(sourceId, requestUrlHint),
         title = derivedTitle,
         artist = metadataArtist.trim().takeIf { it.isNotBlank() },
         album = metadataAlbum.trim().takeIf { it.isNotBlank() },
-        artworkThumbnailCacheKey = ensureRecentArtworkThumbnailCached(
-            context = context,
-            sourceId = sourceId,
-            requestUrlHint = requestUrlHint
-        ),
+        artworkThumbnailCacheKey = artworkKey,
         durationSecondsOverride = durationSecondsOverride
             ?.takeIf { it.isFinite() && it > 0.0 },
         subtuneIndex = if (subtuneCount > 1) currentSubtuneIndex else null
@@ -853,6 +865,7 @@ private fun toggleCurrentTrackFavorite(
     durationSecondsOverride: Double?,
     subtuneCount: Int,
     currentSubtuneIndex: Int,
+    artworkBitmap: Bitmap? = null,
     onPlaylistLibraryStateChanged: (PlaylistLibraryState) -> Unit
 ) {
     val sourceId = currentPlaybackSourceId ?: selectedFile?.absolutePath
@@ -880,7 +893,8 @@ private fun toggleCurrentTrackFavorite(
                 metadataAlbum = metadataAlbum,
                 durationSecondsOverride = durationSecondsOverride,
                 subtuneCount = subtuneCount,
-                currentSubtuneIndex = currentSubtuneIndex
+                currentSubtuneIndex = currentSubtuneIndex,
+                artworkBitmap = artworkBitmap
             )
         )
     )
@@ -2340,7 +2354,8 @@ private fun AppNavigation(
         effectiveMetadataTitle,
         effectiveMetadataArtist,
         effectiveMetadataAlbum,
-        effectiveDuration
+        effectiveDuration,
+        artworkBitmap
     ) {
         if (!isPlaying) return@LaunchedEffect
         val sourceId = currentTrackPathOrUrl ?: return@LaunchedEffect
@@ -2348,11 +2363,21 @@ private fun AppNavigation(
             currentFavoriteEntry?.artist?.trim()?.takeUnless { it.isBlank() } ?: "Unknown artist"
         }
         val artworkCacheKey = withContext(Dispatchers.IO) {
-            ensureRecentArtworkThumbnailCached(
-                context = context,
-                sourceId = sourceId,
-                requestUrlHint = currentPlaybackRequestUrl
-            )
+            val currentBitmap = artworkBitmap?.asAndroidBitmap()
+            if (currentBitmap != null && !currentBitmap.isRecycled) {
+                saveBitmapToRecentArtworkCache(
+                    context = context,
+                    sourceId = sourceId,
+                    bitmap = currentBitmap,
+                    recycleSource = false
+                )
+            } else {
+                ensureRecentArtworkThumbnailCached(
+                    context = context,
+                    sourceId = sourceId,
+                    requestUrlHint = currentPlaybackRequestUrl
+                )
+            }
         }
         val isDurationReliable = hasReliableDuration(playbackCapabilitiesFlags)
         val updatedState = mergeTrackPlaybackMetadata(
@@ -2990,6 +3015,7 @@ onStopEngine = { NativeBridge.releaseCurrentDecoder() }, onMetadataAlbumChanged 
             },
             subtuneCount = subtuneCount,
             currentSubtuneIndex = currentSubtuneIndex,
+            artworkBitmap = displayedArtworkBitmap?.asAndroidBitmap(),
             onPlaylistLibraryStateChanged = onPlaylistLibraryStateChanged
         )
     }
@@ -3877,6 +3903,7 @@ onStopEngine = { NativeBridge.releaseCurrentDecoder() }, onMetadataAlbumChanged 
             decoderName = activeCoreNameForUi,
             playbackSourceLabel = playbackSourceLabel,
             pathOrUrl = displayTrackPathOrUrl,
+            playbackSourceId = currentTrackPathOrUrl,
             playlistTitle = trackInfoPlaylistTitle,
             playlistFormatLabel = trackInfoPlaylistFormatLabel,
             playlistTrackCount = trackInfoPlaylistTrackCount,
@@ -3978,7 +4005,8 @@ onStopEngine = { NativeBridge.releaseCurrentDecoder() }, onMetadataAlbumChanged 
                             null
                         },
                         subtuneCount = subtuneCount,
-                        currentSubtuneIndex = currentSubtuneIndex
+                        currentSubtuneIndex = currentSubtuneIndex,
+                        artworkBitmap = displayedArtworkBitmap?.asAndroidBitmap()
                     )
                     applyLibraryAddToPlaylist(
                         context,
@@ -3999,6 +4027,10 @@ onStopEngine = { NativeBridge.releaseCurrentDecoder() }, onMetadataAlbumChanged 
                         val matching = playlistLibraryState.favorites.filter { entry ->
                             (entry.subtuneIndex == currentSubtuneIndex.takeIf { subtuneCount > 1 } || entry.subtuneIndex == null) &&
                                 samePath(entry.source, activeSourceId)
+                        }.ifEmpty {
+                            playlistLibraryState.favorites.filter { entry ->
+                                samePath(entry.source, activeSourceId)
+                            }
                         }
                         if (matching.isNotEmpty()) {
                             onPlaylistLibraryStateChanged(
@@ -4015,6 +4047,8 @@ onStopEngine = { NativeBridge.releaseCurrentDecoder() }, onMetadataAlbumChanged 
                         val entryId = target?.entries?.firstOrNull { entry ->
                             (entry.subtuneIndex == currentSubtuneIndex.takeIf { subtuneCount > 1 } || entry.subtuneIndex == null) &&
                                 samePath(entry.source, activeSourceId)
+                        }?.id ?: target?.entries?.firstOrNull { entry ->
+                            samePath(entry.source, activeSourceId)
                         }?.id
                         if (entryId != null) {
                             onPlaylistLibraryStateChanged(

@@ -39,6 +39,11 @@ internal data class NetworkNode(
     val metadataArtist: String? = null
 )
 
+internal object NetworkNodesHolder {
+    @Volatile
+    var current: List<NetworkNode> = emptyList()
+}
+
 internal fun nextNetworkNodeId(nodes: List<NetworkNode>): Long {
     return (nodes.maxOfOrNull { it.id } ?: 0L) + 1L
 }
@@ -150,7 +155,9 @@ internal fun readNetworkNodes(prefs: SharedPreferences): List<NetworkNode> {
             }
         }
         val validIds = parsed.mapTo(HashSet(parsed.size)) { it.id }
-        parsed.filter { node -> node.parentId == null || validIds.contains(node.parentId) }
+        val result = parsed.filter { node -> node.parentId == null || validIds.contains(node.parentId) }
+        NetworkNodesHolder.current = result
+        result
     } catch (_: Exception) {
         emptyList()
     }
@@ -160,6 +167,7 @@ internal fun writeNetworkNodes(
     prefs: SharedPreferences,
     nodes: List<NetworkNode>
 ) {
+    NetworkNodesHolder.current = nodes
     val array = JSONArray()
     nodes.forEach { node ->
         val objectValue = JSONObject()

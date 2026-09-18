@@ -258,6 +258,7 @@ import com.flopster101.siliconplayer.parseSmbSourceSpecFromInput
 import com.flopster101.siliconplayer.playlistContainsTrack
 import com.flopster101.siliconplayer.playlistEntryMatchesPlayback
 import com.flopster101.siliconplayer.placeholderArtworkIconForFile
+import com.flopster101.siliconplayer.peekCachedArtworkBitmapForSource
 import com.flopster101.siliconplayer.recentArtworkThumbnailFile
 import com.flopster101.siliconplayer.recentArtworkFile
 import com.flopster101.siliconplayer.resolvePlaylistEntryLocalFile
@@ -7795,7 +7796,8 @@ private fun PlaylistTrackArtworkChip(
         value = withContext(Dispatchers.IO) {
             ensureRecentArtworkThumbnailCached(
                 context = context,
-                sourceId = entry.source
+                sourceId = entry.source,
+                requestUrlHint = entry.requestUrlHint
             )
         }
     }.value
@@ -7805,8 +7807,15 @@ private fun PlaylistTrackArtworkChip(
     ) {
         value = withContext(Dispatchers.IO) {
             val artworkFile = recentArtworkThumbnailFile(context, artworkThumbnailCacheKey)
-                ?: return@withContext null
-            BitmapFactory.decodeFile(artworkFile.absolutePath)?.asImageBitmap()
+            if (artworkFile != null) {
+                BitmapFactory.decodeFile(artworkFile.absolutePath)?.asImageBitmap()
+            } else {
+                peekCachedArtworkBitmapForSource(
+                    displayFile = null,
+                    sourceId = entry.source,
+                    requestUrl = entry.requestUrlHint
+                )?.asImageBitmap()
+            }
         }
     }.value
     val chipSize = if (isWatch) 32.dp else 46.dp

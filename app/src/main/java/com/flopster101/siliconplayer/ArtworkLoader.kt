@@ -46,13 +46,26 @@ internal fun peekCachedArtworkBitmapForSource(
     sourceId: String?,
     requestUrl: String? = null
 ): Bitmap? {
-    val cacheKey = artworkCacheKeyForSource(
-        displayFile = displayFile,
-        sourceId = sourceId,
-        requestUrl = requestUrl
-    ) ?: return null
+    val keys = mutableListOf<String>()
+    artworkCacheKeyForSource(displayFile, sourceId, requestUrl)?.let { keys.add(it) }
+    sourceId?.trim()?.takeUnless { it.isBlank() }?.let {
+        keys.add(it)
+        normalizeSourceIdentity(it)?.let { norm -> keys.add(norm) }
+    }
+    requestUrl?.trim()?.takeUnless { it.isBlank() }?.let {
+        keys.add(it)
+        normalizeSourceIdentity(it)?.let { norm -> keys.add(norm) }
+    }
+    displayFile?.absolutePath?.trim()?.takeUnless { it.isBlank() }?.let { keys.add(it) }
+
     return synchronized(ArtworkBitmapMemoryCache) {
-        ArtworkBitmapMemoryCache.get(cacheKey)?.takeUnless { it.isRecycled }
+        for (key in keys) {
+            val bitmap = ArtworkBitmapMemoryCache.get(key)
+            if (bitmap != null && !bitmap.isRecycled) {
+                return@synchronized bitmap
+            }
+        }
+        null
     }
 }
 
@@ -62,14 +75,23 @@ private fun cacheArtworkBitmapForSource(
     requestUrl: String? = null,
     bitmap: Bitmap?
 ) {
-    val cacheKey = artworkCacheKeyForSource(
-        displayFile = displayFile,
-        sourceId = sourceId,
-        requestUrl = requestUrl
-    ) ?: return
     val stableBitmap = bitmap?.takeUnless { it.isRecycled } ?: return
+    val keys = mutableSetOf<String>()
+    artworkCacheKeyForSource(displayFile, sourceId, requestUrl)?.let { keys.add(it) }
+    sourceId?.trim()?.takeUnless { it.isBlank() }?.let {
+        keys.add(it)
+        normalizeSourceIdentity(it)?.let { norm -> keys.add(norm) }
+    }
+    requestUrl?.trim()?.takeUnless { it.isBlank() }?.let {
+        keys.add(it)
+        normalizeSourceIdentity(it)?.let { norm -> keys.add(norm) }
+    }
+    displayFile?.absolutePath?.trim()?.takeUnless { it.isBlank() }?.let { keys.add(it) }
+
     synchronized(ArtworkBitmapMemoryCache) {
-        ArtworkBitmapMemoryCache.put(cacheKey, stableBitmap)
+        for (key in keys) {
+            ArtworkBitmapMemoryCache.put(key, stableBitmap)
+        }
     }
 }
 
@@ -135,15 +157,22 @@ internal fun loadArtworkBitmapForSource(
     }
     val isRemote = scheme == "http" || scheme == "https" || scheme == "smb"
 
+    fun onBitmapLoaded(bitmap: Bitmap): Bitmap {
+        cacheArtworkBitmapForSource(displayFile, sourceId, requestUrl, bitmap)
+        val persistSource = sourceId ?: requestUrl ?: displayFile?.absolutePath
+        if (!persistSource.isNullOrBlank()) {
+            saveBitmapToRecentArtworkCache(context, persistSource, bitmap, recycleSource = false)
+        }
+        return bitmap
+    }
+
     displayFile?.takeIf { it.exists() && it.isFile }?.let { local ->
         loadEmbeddedArtwork(local)?.let {
-            cacheArtworkBitmapForSource(displayFile, sourceId, requestUrl, it)
-            return it
+            return onBitmapLoaded(it)
         }
         findFolderArtworkFile(local)?.let { folderImage ->
             decodeScaledBitmapFromFile(folderImage)?.let {
-                cacheArtworkBitmapForSource(displayFile, sourceId, requestUrl, it)
-                return it
+                return onBitmapLoaded(it)
             }
         }
     }
@@ -151,39 +180,33 @@ internal fun loadArtworkBitmapForSource(
     if (isRemote && !normalized.isNullOrBlank()) {
         if ((scheme == "http" || scheme == "https") && !artworkRequestUrl.isNullOrBlank()) {
             loadEmbeddedArtworkFromRemote(artworkRequestUrl)?.let {
-                cacheArtworkBitmapForSource(displayFile, sourceId, requestUrl, it)
-                return it
+                return onBitmapLoaded(it)
             }
         }
         val cacheRoot = File(context.cacheDir, REMOTE_SOURCE_CACHE_DIR)
         findExistingCachedFileForSource(cacheRoot, normalized)?.let { cached ->
             loadEmbeddedArtwork(cached)?.let {
-                cacheArtworkBitmapForSource(displayFile, sourceId, requestUrl, it)
-                return it
+                return onBitmapLoaded(it)
             }
             findFolderArtworkFile(cached)?.let { folderImage ->
                 decodeScaledBitmapFromFile(folderImage)?.let {
-                    cacheArtworkBitmapForSource(displayFile, sourceId, requestUrl, it)
-                    return it
+                    return onBitmapLoaded(it)
                 }
             }
         }
         if ((scheme == "http" || scheme == "https") && !artworkRequestUrl.isNullOrBlank()) {
             loadFolderArtworkFromHttpSource(artworkRequestUrl)?.let {
-                cacheArtworkBitmapForSource(displayFile, sourceId, requestUrl, it)
-                return it
+                return onBitmapLoaded(it)
             }
         }
         if (scheme == "smb" && !artworkRequestUrl.isNullOrBlank()) {
             loadEmbeddedArtworkFromSmb(artworkRequestUrl)?.let {
-                cacheArtworkBitmapForSource(displayFile, sourceId, requestUrl, it)
-                return it
+                return onBitmapLoaded(it)
             }
         }
         if (scheme == "smb" && !artworkRequestUrl.isNullOrBlank()) {
             loadFolderArtworkFromSmb(artworkRequestUrl)?.let {
-                cacheArtworkBitmapForSource(displayFile, sourceId, requestUrl, it)
-                return it
+                return onBitmapLoaded(it)
             }
         }
     }

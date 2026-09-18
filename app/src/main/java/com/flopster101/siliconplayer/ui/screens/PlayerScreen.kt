@@ -790,6 +790,7 @@ internal fun PlayerScreen(
     decoderName: String?,
     playbackSourceLabel: String? = null,
     pathOrUrl: String? = null,
+    playbackSourceId: String? = null,
     playlistTitle: String? = null,
     playlistFormatLabel: String? = null,
     playlistTrackCount: Int = 0,
@@ -2057,7 +2058,9 @@ internal fun PlayerScreen(
     }
     }
     if (showAddToPlaylistChooser) {
-        val activeSource = pathOrUrl?.takeIf { it.isNotBlank() } ?: file?.absolutePath
+        val activeSource = playbackSourceId?.takeIf { it.isNotBlank() }
+            ?: pathOrUrl?.takeIf { it.isNotBlank() }
+            ?: file?.absolutePath
         if (!activeSource.isNullOrBlank()) {
             AddToPlaylistChooserDialog(
                 playlists = playlists,
@@ -2281,8 +2284,8 @@ internal fun PlayerScreen(
         AudioOutputDetailsDialog(
             routeInfo = outputRouteInfo,
             displayFile = file,
-            sourceId = pathOrUrl,
-            requestUrl = pathOrUrl,
+            sourceId = playbackSourceId ?: pathOrUrl,
+            requestUrl = playbackSourceId ?: pathOrUrl,
             decoderName = decoderName,
             trackSampleRateHz = sampleRateHz,
             channelCount = channelCount,

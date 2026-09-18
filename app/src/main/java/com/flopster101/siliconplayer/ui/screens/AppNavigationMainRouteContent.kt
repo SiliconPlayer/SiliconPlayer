@@ -881,7 +881,7 @@ internal fun AppNavigationMainContentHost(
                 onRemoveSourceFromPlaylist = { source, playlistId ->
                     if (playlistId == FAVORITES_PLAYLIST_ID) {
                         val matching = playlistLibraryState.favorites.filter { entry ->
-                            entry.subtuneIndex == null && samePath(entry.source, source)
+                            samePath(entry.source, source)
                         }
                         if (matching.isNotEmpty()) {
                             onPlaylistLibraryStateChanged(
@@ -896,7 +896,7 @@ internal fun AppNavigationMainContentHost(
                     } else {
                         val target = playlistLibraryState.playlists.firstOrNull { it.id == playlistId }
                         val entryId = target?.entries?.firstOrNull { entry ->
-                            entry.subtuneIndex == null && samePath(entry.source, source)
+                            samePath(entry.source, source)
                         }?.id
                         if (entryId != null) {
                             onPlaylistLibraryStateChanged(

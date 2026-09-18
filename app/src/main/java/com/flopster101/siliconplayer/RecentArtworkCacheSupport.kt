@@ -24,6 +24,77 @@ internal fun ensureRecentArtworkThumbnailCached(
     requireLarge = false
 )
 
+internal fun saveBitmapToRecentArtworkCache(
+    context: Context,
+    sourceId: String,
+    bitmap: Bitmap,
+    recycleSource: Boolean = false
+): String? {
+    if (bitmap.isRecycled) return null
+    val normalizedSource = normalizeSourceIdentity(sourceId)?.trim().orEmpty()
+    if (normalizedSource.isBlank()) return null
+    val cacheRoot = File(context.cacheDir, RECENT_ARTWORK_CACHE_DIR)
+    if (!cacheRoot.exists() && !cacheRoot.mkdirs()) return null
+    val cacheKey = "${sha1Hex(normalizedSource)}.jpg"
+    val largeKey = "${sha1Hex(normalizedSource)}_large.jpg"
+    val cacheFile = File(cacheRoot, cacheKey)
+    val largeFile = File(cacheRoot, largeKey)
+
+    val largeExists = largeFile.exists() && largeFile.isFile && largeFile.length() > 0L
+    if (!largeExists) {
+        val largeScaled = scaleBitmapForRecentThumb(bitmap, RECENT_ARTWORK_LARGE_MAX_SIZE_PX)
+        val tempLargeFile = File(cacheRoot, "$largeKey.tmp")
+        try {
+            FileOutputStream(tempLargeFile).use { output ->
+                if (largeScaled.compress(Bitmap.CompressFormat.JPEG, 88, output)) {
+                    output.fd.sync()
+                }
+            }
+            if (tempLargeFile.length() > 0L) {
+                tempLargeFile.renameTo(largeFile)
+            } else {
+                tempLargeFile.delete()
+            }
+        } catch (_: Throwable) {
+            tempLargeFile.delete()
+        } finally {
+            if (largeScaled !== bitmap && !largeScaled.isRecycled) {
+                largeScaled.recycle()
+            }
+        }
+    }
+
+    val thumbExists = cacheFile.exists() && cacheFile.isFile && cacheFile.length() > 0L
+    if (!thumbExists) {
+        val thumbScaled = scaleBitmapForRecentThumb(bitmap, RECENT_ARTWORK_THUMB_MAX_SIZE_PX)
+        val tempThumbFile = File(cacheRoot, "$cacheKey.tmp")
+        try {
+            FileOutputStream(tempThumbFile).use { output ->
+                if (thumbScaled.compress(Bitmap.CompressFormat.JPEG, 82, output)) {
+                    output.fd.sync()
+                }
+            }
+            if (tempThumbFile.length() > 0L) {
+                tempThumbFile.renameTo(cacheFile)
+            } else {
+                tempThumbFile.delete()
+            }
+        } catch (_: Throwable) {
+            tempThumbFile.delete()
+        } finally {
+            if (thumbScaled !== bitmap && !thumbScaled.isRecycled) {
+                thumbScaled.recycle()
+            }
+        }
+    }
+
+    if (recycleSource && !bitmap.isRecycled) {
+        bitmap.recycle()
+    }
+
+    return if (cacheFile.exists() && cacheFile.length() > 0L) cacheKey else if (largeFile.exists() && largeFile.length() > 0L) cacheKey else null
+}
+
 internal fun ensureRecentArtworkCached(
     context: Context,
     sourceId: String,
@@ -48,63 +119,53 @@ internal fun ensureRecentArtworkCached(
         if (thumbExists) return cacheKey
     }
 
+    val memoryBitmap = peekCachedArtworkBitmapForSource(
+        displayFile = null,
+        sourceId = normalizedSource,
+        requestUrl = requestUrlHint
+    ) ?: peekCachedArtworkBitmapForSource(
+        displayFile = null,
+        sourceId = sourceId,
+        requestUrl = requestUrlHint
+    )
+    if (memoryBitmap != null && !memoryBitmap.isRecycled) {
+        return saveBitmapToRecentArtworkCache(
+            context = context,
+            sourceId = normalizedSource,
+            bitmap = memoryBitmap,
+            recycleSource = false
+        )
+    }
+
     val sourceFile = resolveRecentArtworkSourceFile(context, normalizedSource)
-    val bitmap = when {
-        sourceFile != null -> loadRecentArtworkBitmap(sourceFile)
-        else -> loadRemoteEmbeddedArtworkBitmap(
+    val loadedBitmap = loadArtworkBitmapForSource(
+        context = context,
+        displayFile = sourceFile,
+        sourceId = normalizedSource,
+        requestUrl = requestUrlHint
+    ) ?: (if (sourceId != normalizedSource) {
+        loadArtworkBitmapForSource(
+            context = context,
+            displayFile = sourceFile,
+            sourceId = sourceId,
+            requestUrl = requestUrlHint
+        )
+    } else null) ?: (if (sourceFile != null) {
+        loadRecentArtworkBitmap(sourceFile)
+    } else {
+        loadRemoteEmbeddedArtworkBitmap(
             sourceId = normalizedSource,
             requestUrlHint = requestUrlHint
         )
-    } ?: return if (thumbExists) cacheKey else null
+    })
 
-    if (!largeExists) {
-        val largeScaled = scaleBitmapForRecentThumb(bitmap, RECENT_ARTWORK_LARGE_MAX_SIZE_PX)
-        val tempLargeFile = File(cacheRoot, "$largeKey.tmp")
-        try {
-            FileOutputStream(tempLargeFile).use { output ->
-                if (largeScaled.compress(Bitmap.CompressFormat.JPEG, 88, output)) {
-                    output.fd.sync()
-                }
-            }
-            if (tempLargeFile.length() > 0L) {
-                tempLargeFile.renameTo(largeFile)
-            } else {
-                tempLargeFile.delete()
-            }
-        } catch (_: Throwable) {
-            tempLargeFile.delete()
-        } finally {
-            if (largeScaled !== bitmap && !largeScaled.isRecycled) {
-                largeScaled.recycle()
-            }
-        }
-    }
-
-    if (!thumbExists) {
-        val thumbScaled = scaleBitmapForRecentThumb(bitmap, RECENT_ARTWORK_THUMB_MAX_SIZE_PX)
-        val tempThumbFile = File(cacheRoot, "$cacheKey.tmp")
-        try {
-            FileOutputStream(tempThumbFile).use { output ->
-                if (thumbScaled.compress(Bitmap.CompressFormat.JPEG, 82, output)) {
-                    output.fd.sync()
-                }
-            }
-            if (tempThumbFile.length() > 0L) {
-                tempThumbFile.renameTo(cacheFile)
-            } else {
-                tempThumbFile.delete()
-            }
-        } catch (_: Throwable) {
-            tempThumbFile.delete()
-        } finally {
-            if (thumbScaled !== bitmap && !thumbScaled.isRecycled) {
-                thumbScaled.recycle()
-            }
-        }
-    }
-
-    if (!bitmap.isRecycled) {
-        bitmap.recycle()
+    if (loadedBitmap != null && !loadedBitmap.isRecycled) {
+        return saveBitmapToRecentArtworkCache(
+            context = context,
+            sourceId = normalizedSource,
+            bitmap = loadedBitmap,
+            recycleSource = false
+        )
     }
 
     return if (cacheFile.exists() && cacheFile.length() > 0L) cacheKey else if (largeFile.exists() && largeFile.length() > 0L) cacheKey else null

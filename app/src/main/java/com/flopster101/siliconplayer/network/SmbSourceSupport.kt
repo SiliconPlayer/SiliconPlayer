@@ -109,6 +109,23 @@ internal fun resolveSmbDisplayHost(
     return trimmedHost
 }
 
+internal fun resolveSmbCanonicalHost(
+    host: String,
+    networkNodes: List<NetworkNode> = NetworkNodesHolder.current
+): String {
+    val trimmedHost = host.trim().removePrefix("[").removeSuffix("]").trim()
+    if (trimmedHost.isBlank()) return host
+    val node = networkNodes.firstOrNull { node ->
+        node.type == NetworkNodeType.RemoteSource &&
+            node.sourceKind == NetworkSourceKind.Smb &&
+            (node.title?.trim().equals(trimmedHost, ignoreCase = true) ||
+                node.smbDiscoveredHostName?.trim().equals(trimmedHost, ignoreCase = true))
+    }
+    val canonical = node?.smbHost?.trim().takeUnless { it.isNullOrBlank() }
+        ?: node?.source?.let(::parseSmbSourceSpecFromInput)?.host?.trim()
+    return canonical ?: trimmedHost
+}
+
 internal fun buildSmbDisplayUri(
     spec: SmbSourceSpec,
     networkNodes: List<NetworkNode> = emptyList()

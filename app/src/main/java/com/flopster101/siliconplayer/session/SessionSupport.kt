@@ -30,7 +30,7 @@ private fun resolveCachedRemoteSourceId(localPath: String): String? {
 
 internal fun normalizeSourceIdentity(path: String?): String? {
     if (path.isNullOrBlank()) return null
-    val trimmed = path.trim()
+    val trimmed = path.trim().substringBefore("#subtune=")
     val uri = runCatching { Uri.parse(trimmed) }.getOrNull()
     val scheme = uri?.scheme?.lowercase(Locale.ROOT)
         ?: if (trimmed.contains("://")) trimmed.substringBefore("://").lowercase(Locale.ROOT) else null
@@ -71,7 +71,8 @@ internal fun normalizeSourceIdentity(path: String?): String? {
 
         "smb" -> {
             val smbSpec = parseSmbSourceSpecFromInput(trimmed) ?: return null
-            buildSmbSourceId(smbSpec)
+            val canonicalHost = resolveSmbCanonicalHost(smbSpec.host)
+            buildSmbSourceId(smbSpec.copy(host = canonicalHost))
         }
 
         else -> {
