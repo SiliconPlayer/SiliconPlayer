@@ -144,7 +144,8 @@ internal data class StoredPlaylist(
     val isPinned: Boolean = false,
     val folderId: String? = null,
     val customArtworkUri: String? = null,
-    val iconTintArgb: Long? = null
+    val iconTintArgb: Long? = null,
+    val autoGenerateCover: Boolean = true
 )
 
 internal data class PlaylistLibraryState(

@@ -47,6 +47,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import com.flopster101.siliconplayer.ChoiceDialogOption
 import com.flopster101.siliconplayer.PlaybackService
 import com.flopster101.siliconplayer.PlaylistMetadataRefreshStatus
 import com.flopster101.siliconplayer.PlaylistMetadataRefresher
@@ -55,10 +56,15 @@ import com.flopster101.siliconplayer.SettingsItemCard
 import com.flopster101.siliconplayer.SettingsRowContainer
 import com.flopster101.siliconplayer.SettingsRowSpacer
 import com.flopster101.siliconplayer.SettingsSectionLabel
+import com.flopster101.siliconplayer.SettingsSingleChoiceDialog
+import com.flopster101.siliconplayer.SettingsValuePickerCard
 import com.flopster101.siliconplayer.library.LibraryContract
 import com.flopster101.siliconplayer.library.LibraryRepository
 import com.flopster101.siliconplayer.library.LibraryScanRoot
 import com.flopster101.siliconplayer.readPlaylistLibraryState
+import com.flopster101.siliconplayer.PlaylistCoverGenerationMode
+import com.flopster101.siliconplayer.readPlaylistCoverGenerationMode
+import com.flopster101.siliconplayer.savePlaylistCoverGenerationMode
 import com.flopster101.siliconplayer.writePlaylistLibraryState
 import kotlinx.coroutines.launch
 
@@ -79,14 +85,10 @@ internal fun LibrarySettingsRouteContent(
             )
         )
     }
-    var autoGenerateMosaics by remember {
-        mutableStateOf(
-            prefs.getBoolean(
-                com.flopster101.siliconplayer.AppPreferenceKeys.PLAYLIST_AUTO_MOSAIC,
-                true
-            )
-        )
+    var coverGenerationMode by remember {
+        mutableStateOf(readPlaylistCoverGenerationMode(prefs))
     }
+    var showCoverGenerationDialog by remember { mutableStateOf(false) }
 
     var sources by remember {
         mutableStateOf<List<com.flopster101.siliconplayer.library.LibrarySourceStatus>>(emptyList())
@@ -227,20 +229,31 @@ internal fun LibrarySettingsRouteContent(
         }
     )
     SettingsRowSpacer()
-    PlayerSettingToggleCard(
-        title = "Auto-generate playlist mosaics",
-        description = "Create 2x2 cover collages for playlists with album artwork.",
-        checked = autoGenerateMosaics,
-        onCheckedChange = { checked ->
-            autoGenerateMosaics = checked
-            prefs.edit()
-                .putBoolean(
-                    com.flopster101.siliconplayer.AppPreferenceKeys.PLAYLIST_AUTO_MOSAIC,
-                    checked
-                )
-                .apply()
-        }
+    SettingsValuePickerCard(
+        title = "Auto-generate playlist covers",
+        description = "Requirements for generating cover collages from album artwork.",
+        value = coverGenerationMode.label,
+        onClick = { showCoverGenerationDialog = true }
     )
+
+    if (showCoverGenerationDialog) {
+        SettingsSingleChoiceDialog(
+            title = "Auto-generate playlist covers",
+            selectedValue = coverGenerationMode,
+            options = PlaylistCoverGenerationMode.entries.map {
+                ChoiceDialogOption(
+                    value = it,
+                    label = it.label
+                )
+            },
+            onSelected = { mode ->
+                coverGenerationMode = mode
+                savePlaylistCoverGenerationMode(prefs, mode)
+                showCoverGenerationDialog = false
+            },
+            onDismiss = { showCoverGenerationDialog = false }
+        )
+    }
 
     Spacer(modifier = Modifier.height(16.dp))
     SettingsSectionLabel("Scanning")

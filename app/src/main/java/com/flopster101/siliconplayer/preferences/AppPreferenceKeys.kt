@@ -9,6 +9,7 @@ internal object AppPreferenceKeys {
     const val PLAYLIST_WRAP_NAVIGATION = "playlist_wrap_navigation"
     const val LIBRARY_PLAYLIST_SORT_MODE = "library_playlist_sort_mode"
     const val PLAYLIST_AUTO_MOSAIC = "playlist_auto_mosaic"
+    const val PLAYLIST_COVER_GENERATION_MODE = "playlist_cover_generation_mode"
     const val PREVIOUS_RESTART_AFTER_THRESHOLD = "previous_restart_after_threshold"
     const val REMEMBER_BROWSER_LOCATION = "remember_browser_location"
     const val BROWSER_SHOW_PARENT_DIRECTORY_ENTRY = "browser_show_parent_directory_entry"

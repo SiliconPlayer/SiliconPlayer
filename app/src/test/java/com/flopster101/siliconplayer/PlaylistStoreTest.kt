@@ -1033,6 +1033,71 @@ class PlaylistStoreTest {
         }
     }
 
+    @Test
+    fun `updateStoredPlaylistCover updates autoGenerateCover`() {
+        val initial = PlaylistLibraryState(
+            favorites = emptyList(),
+            playlists = listOf(
+                samplePlaylist("p1", "Playlist 1").copy(autoGenerateCover = true)
+            )
+        )
+        val updated = updateStoredPlaylistCover(
+            state = initial,
+            playlistId = "p1",
+            customArtworkUri = null,
+            iconTintArgb = null,
+            autoGenerateCover = false
+        )
+        assertFalse(updated.playlists.first().autoGenerateCover)
+
+        val updatedBack = updateStoredPlaylistCover(
+            state = updated,
+            playlistId = "p1",
+            customArtworkUri = null,
+            iconTintArgb = null,
+            autoGenerateCover = true
+        )
+        assertTrue(updatedBack.playlists.first().autoGenerateCover)
+    }
+
+    @Test
+    fun `playlist library state roundtrip preserves autoGenerateCover`() {
+        val prefs = FakeSharedPreferences()
+        val initial = PlaylistLibraryState(
+            favorites = emptyList(),
+            playlists = listOf(
+                samplePlaylist("p1", "Playlist 1").copy(autoGenerateCover = false),
+                samplePlaylist("p2", "Playlist 2").copy(autoGenerateCover = true)
+            )
+        )
+        writePlaylistLibraryState(prefs, initial)
+        val restored = readPlaylistLibraryState(prefs)
+        assertEquals(2, restored.playlists.size)
+        assertFalse(restored.playlists[0].autoGenerateCover)
+        assertTrue(restored.playlists[1].autoGenerateCover)
+    }
+
+    @Test
+    fun `playlist cover generation mode preference roundtrip and fallback`() {
+        val prefs = FakeSharedPreferences()
+        assertEquals(PlaylistCoverGenerationMode.AtLeastFour, readPlaylistCoverGenerationMode(prefs))
+
+        savePlaylistCoverGenerationMode(prefs, PlaylistCoverGenerationMode.AtLeastOne)
+        assertEquals(PlaylistCoverGenerationMode.AtLeastOne, readPlaylistCoverGenerationMode(prefs))
+        assertTrue(prefs.getBoolean(AppPreferenceKeys.PLAYLIST_AUTO_MOSAIC, false))
+
+        savePlaylistCoverGenerationMode(prefs, PlaylistCoverGenerationMode.Never)
+        assertEquals(PlaylistCoverGenerationMode.Never, readPlaylistCoverGenerationMode(prefs))
+        assertFalse(prefs.getBoolean(AppPreferenceKeys.PLAYLIST_AUTO_MOSAIC, true))
+
+        prefs.edit().remove(AppPreferenceKeys.PLAYLIST_COVER_GENERATION_MODE).apply()
+        prefs.edit().putBoolean(AppPreferenceKeys.PLAYLIST_AUTO_MOSAIC, false).apply()
+        assertEquals(PlaylistCoverGenerationMode.Never, readPlaylistCoverGenerationMode(prefs))
+
+        prefs.edit().putBoolean(AppPreferenceKeys.PLAYLIST_AUTO_MOSAIC, true).apply()
+        assertEquals(PlaylistCoverGenerationMode.AtLeastFour, readPlaylistCoverGenerationMode(prefs))
+    }
+
     private class FakeSharedPreferences : android.content.SharedPreferences {
         val map = mutableMapOf<String, Any?>()
 

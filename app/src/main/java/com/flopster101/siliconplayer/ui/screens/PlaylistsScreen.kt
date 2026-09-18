@@ -6,6 +6,9 @@ import com.flopster101.siliconplayer.PlaylistSortMode
 import com.flopster101.siliconplayer.formatSourceIdForDisplay
 import com.flopster101.siliconplayer.moveStoredPlaylist
 import com.flopster101.siliconplayer.AppPreferenceKeys
+import androidx.compose.material3.Switch
+import com.flopster101.siliconplayer.PlaylistCoverGenerationMode
+import com.flopster101.siliconplayer.readPlaylistCoverGenerationMode
 import com.flopster101.siliconplayer.sortStoredPlaylists
 import com.flopster101.siliconplayer.NetworkNode
 import com.flopster101.siliconplayer.resolveSmbDisplayHost
@@ -637,13 +640,14 @@ internal fun PlaylistsScreen(
             )
         )
     }
-    var autoGenerateMosaics by remember {
-        mutableStateOf(prefs.getBoolean(AppPreferenceKeys.PLAYLIST_AUTO_MOSAIC, true))
+    var coverGenerationMode by remember {
+        mutableStateOf(readPlaylistCoverGenerationMode(prefs))
     }
+    val autoGenerateMosaics = coverGenerationMode != PlaylistCoverGenerationMode.Never
     DisposableEffect(prefs) {
         val listener = SharedPreferences.OnSharedPreferenceChangeListener { _, key ->
-            if (key == AppPreferenceKeys.PLAYLIST_AUTO_MOSAIC) {
-                autoGenerateMosaics = prefs.getBoolean(AppPreferenceKeys.PLAYLIST_AUTO_MOSAIC, true)
+            if (key == AppPreferenceKeys.PLAYLIST_COVER_GENERATION_MODE || key == AppPreferenceKeys.PLAYLIST_AUTO_MOSAIC) {
+                coverGenerationMode = readPlaylistCoverGenerationMode(prefs)
             }
         }
         prefs.registerOnSharedPreferenceChangeListener(listener)
@@ -1527,6 +1531,7 @@ internal fun PlaylistsScreen(
                                     onRefreshEntryMetadata = refreshTrackMetadataAction,
                                     isWatch = isWatch,
                                     autoMosaicEnabled = autoGenerateMosaics,
+                                    coverGenerationMode = coverGenerationMode,
                                     onBack = {
                                         if (favoritesEditModeEnabled) {
                                             favoritesEditModeEnabled = false
@@ -1677,7 +1682,8 @@ internal fun PlaylistsScreen(
                                         isWatch = isWatch,
                                         customArtworkUri = playlist.customArtworkUri,
                                         iconTintArgb = playlist.iconTintArgb,
-                                        autoMosaicEnabled = autoGenerateMosaics,
+                                        autoMosaicEnabled = autoGenerateMosaics && playlist.autoGenerateCover,
+                                        coverGenerationMode = coverGenerationMode,
                                         onChangeCover = { playlistPendingCoverCustomization = playlist },
                                         onBack = {
                                             if (storedPlaylistEditModeEnabled) {
@@ -1818,7 +1824,8 @@ internal fun PlaylistsScreen(
                                             onRefreshMetadata = { refreshPlaylistMetadataAction(FAVORITES_PLAYLIST_ID) },
                                             isWatch = true,
                                             favorites = libraryState.favorites,
-                                            autoMosaicEnabled = autoGenerateMosaics
+                                            autoMosaicEnabled = autoGenerateMosaics,
+                                            coverGenerationMode = coverGenerationMode
                                         )
                                     }
                                     if (sortedPlaylists.isEmpty()) {
@@ -1849,7 +1856,8 @@ internal fun PlaylistsScreen(
                                                 isHomePinned = isPlaylistPinnedToHome(playlist.id),
                                                 onToggleHomePin = { togglePlaylistHomePin(playlist.id, playlist.title) },
                                                 onRefreshMetadata = { refreshPlaylistMetadataAction(playlist.id) },
-                                                autoMosaicEnabled = autoGenerateMosaics,
+                                                autoMosaicEnabled = autoGenerateMosaics && playlist.autoGenerateCover,
+                                                coverGenerationMode = coverGenerationMode,
                                                 onChangeCover = { playlistPendingCoverCustomization = playlist },
                                                 isWatch = true
                                             )
@@ -2060,6 +2068,7 @@ internal fun PlaylistsScreen(
                                              onTogglePlaylistHomePin = { playlistId, title -> togglePlaylistHomePin(playlistId, title) },
                                              onRefreshPlaylistMetadata = refreshPlaylistMetadataAction,
                                              autoMosaicEnabled = autoGenerateMosaics,
+                                             coverGenerationMode = coverGenerationMode,
                                              onChangePlaylistCover = { playlist -> playlistPendingCoverCustomization = playlist }
                                          )
                                     }
@@ -3050,12 +3059,25 @@ internal fun PlaylistsScreen(
                     state = libraryState,
                     playlistId = playlist.id,
                     customArtworkUri = playlist.customArtworkUri,
-                    iconTintArgb = tintArgb
+                    iconTintArgb = tintArgb,
+                    autoGenerateCover = playlist.autoGenerateCover
+                )
+                onPlaylistLibraryStateChanged(updated)
+                playlistPendingCoverCustomization = updated.playlists.firstOrNull { it.id == playlist.id }
+            },
+            onToggleAutoGenerateCover = { enabled ->
+                val updated = updateStoredPlaylistCover(
+                    state = libraryState,
+                    playlistId = playlist.id,
+                    customArtworkUri = playlist.customArtworkUri,
+                    iconTintArgb = playlist.iconTintArgb,
+                    autoGenerateCover = enabled
                 )
                 onPlaylistLibraryStateChanged(updated)
                 playlistPendingCoverCustomization = updated.playlists.firstOrNull { it.id == playlist.id }
             },
             autoMosaicEnabled = autoGenerateMosaics,
+            coverGenerationMode = coverGenerationMode,
             isWatch = isWatch
         )
     }
@@ -3301,6 +3323,7 @@ private fun PlaylistsLibraryTabPage(
     onTogglePlaylistHomePin: (String, String) -> Unit = { _, _ -> },
     onRefreshPlaylistMetadata: ((String) -> Unit)? = null,
     autoMosaicEnabled: Boolean = true,
+    coverGenerationMode: PlaylistCoverGenerationMode = PlaylistCoverGenerationMode.AtLeastFour,
     onChangePlaylistCover: ((StoredPlaylist) -> Unit)? = null,
     isWatch: Boolean = false
 ) {
@@ -3351,6 +3374,7 @@ private fun PlaylistsLibraryTabPage(
                     onRefreshMetadata = onRefreshPlaylistMetadata?.let { { it(FAVORITES_PLAYLIST_ID) } },
                     favorites = libraryState.favorites,
                     autoMosaicEnabled = autoMosaicEnabled,
+                    coverGenerationMode = coverGenerationMode,
                     isWatch = isWatch
                 )
             }
@@ -3491,7 +3515,8 @@ private fun PlaylistsLibraryTabPage(
                         }
                     },
                     onDragEnd = { onDraggingPlaylistIdChange(null) },
-                    autoMosaicEnabled = autoMosaicEnabled,
+                    autoMosaicEnabled = autoMosaicEnabled && playlist.autoGenerateCover,
+                    coverGenerationMode = coverGenerationMode,
                     onChangeCover = onChangePlaylistCover?.let { { it(playlist) } },
                     isWatch = isWatch
                 )
@@ -5187,6 +5212,7 @@ private fun LazyListScope.playlistDetailContent(
     customArtworkUri: String? = null,
     iconTintArgb: Long? = null,
     autoMosaicEnabled: Boolean = true,
+    coverGenerationMode: PlaylistCoverGenerationMode = PlaylistCoverGenerationMode.AtLeastFour,
     onChangeCover: (() -> Unit)? = null,
     onBack: () -> Unit = {}
 ) {
@@ -5218,6 +5244,7 @@ private fun LazyListScope.playlistDetailContent(
                 customArtworkUri = customArtworkUri,
                 iconTintArgb = iconTintArgb,
                 autoMosaicEnabled = autoMosaicEnabled,
+                coverGenerationMode = coverGenerationMode,
                 onChangeCover = onChangeCover,
                 onBack = onBack
             )
@@ -5257,6 +5284,7 @@ private fun LazyListScope.playlistDetailContent(
                 customArtworkUri = customArtworkUri,
                 iconTintArgb = iconTintArgb,
                 autoMosaicEnabled = autoMosaicEnabled,
+                coverGenerationMode = coverGenerationMode,
                 onChangeCover = onChangeCover
             )
         }
@@ -5399,6 +5427,7 @@ private fun WearPlaylistHeroHeader(
     customArtworkUri: String? = null,
     iconTintArgb: Long? = null,
     autoMosaicEnabled: Boolean = true,
+    coverGenerationMode: PlaylistCoverGenerationMode = PlaylistCoverGenerationMode.AtLeastFour,
     onChangeCover: (() -> Unit)? = null
 ) {
     var showSortDialog by rememberSaveable { mutableStateOf(false) }
@@ -5441,7 +5470,8 @@ private fun WearPlaylistHeroHeader(
             heroIcon = heroIcon,
             modifier = Modifier.size(48.dp),
             iconSize = 24.dp,
-            autoMosaicEnabled = autoMosaicEnabled
+            autoMosaicEnabled = autoMosaicEnabled,
+            coverGenerationMode = coverGenerationMode
         )
         Text(
             text = title,
@@ -5752,6 +5782,7 @@ private fun PlaylistHeroCard(
     customArtworkUri: String? = null,
     iconTintArgb: Long? = null,
     autoMosaicEnabled: Boolean = true,
+    coverGenerationMode: PlaylistCoverGenerationMode = PlaylistCoverGenerationMode.AtLeastFour,
     onChangeCover: (() -> Unit)? = null
 ) {
     var menuExpanded by rememberSaveable { mutableStateOf(false) }
@@ -5776,6 +5807,7 @@ private fun PlaylistHeroCard(
             modifier = Modifier.size(220.dp),
             iconSize = 68.dp,
             autoMosaicEnabled = autoMosaicEnabled,
+            coverGenerationMode = coverGenerationMode,
             isLarge = true
         )
         Column(
@@ -6421,7 +6453,9 @@ internal fun PlaylistCoverCustomizerDialog(
     onRotateImage: () -> Unit,
     onRemoveImage: () -> Unit,
     onSelectTint: (Long?) -> Unit,
+    onToggleAutoGenerateCover: (Boolean) -> Unit = {},
     autoMosaicEnabled: Boolean,
+    coverGenerationMode: PlaylistCoverGenerationMode = PlaylistCoverGenerationMode.AtLeastFour,
     isWatch: Boolean = false
 ) {
     var showCustomColorPicker by remember { mutableStateOf(false) }
@@ -6457,6 +6491,24 @@ internal fun PlaylistCoverCustomizerDialog(
                     Text("Remove image")
                 }
             }
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable { onToggleAutoGenerateCover(!playlist.autoGenerateCover) }
+                    .padding(vertical = 4.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Text(
+                    text = "Generate cover",
+                    style = MaterialTheme.typography.bodySmall,
+                    modifier = Modifier.weight(1f)
+                )
+                Switch(
+                    checked = playlist.autoGenerateCover,
+                    onCheckedChange = onToggleAutoGenerateCover
+                )
+            }
             TextButton(
                 onClick = onDismissRequest,
                 modifier = Modifier.fillMaxWidth()
@@ -6490,7 +6542,8 @@ internal fun PlaylistCoverCustomizerDialog(
                     modifier = Modifier.size(130.dp),
                     shape = RoundedCornerShape(16.dp),
                     iconSize = 48.dp,
-                    autoMosaicEnabled = autoMosaicEnabled,
+                    autoMosaicEnabled = autoMosaicEnabled && playlist.autoGenerateCover,
+                    coverGenerationMode = coverGenerationMode,
                     coverRevision = playlist.updatedAtMs,
                     isLarge = true
                 )
@@ -6534,6 +6587,34 @@ internal fun PlaylistCoverCustomizerDialog(
                             )
                         }
                     }
+                }
+
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(12.dp))
+                        .clickable { onToggleAutoGenerateCover(!playlist.autoGenerateCover) }
+                        .padding(horizontal = 4.dp, vertical = 6.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = "Auto-generate cover",
+                            style = MaterialTheme.typography.bodyMedium,
+                            fontWeight = FontWeight.SemiBold
+                        )
+                        Text(
+                            text = "Generate cover artwork from playlist tracks",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                    Spacer(modifier = Modifier.width(12.dp))
+                    Switch(
+                        checked = playlist.autoGenerateCover,
+                        onCheckedChange = onToggleAutoGenerateCover
+                    )
                 }
 
                 Column(
@@ -6628,6 +6709,7 @@ internal fun PlaylistCoverArt(
     shape: Shape = MaterialTheme.shapes.extraLarge,
     iconSize: Dp = 36.dp,
     autoMosaicEnabled: Boolean = true,
+    coverGenerationMode: PlaylistCoverGenerationMode = PlaylistCoverGenerationMode.AtLeastFour,
     coverRevision: Long = 0L,
     isLarge: Boolean = false
 ) {
@@ -6661,14 +6743,14 @@ internal fun PlaylistCoverArt(
     val entryKeys = remember(entries) {
         entries.take(30).map { it.id to (it.artworkThumbnailCacheKey ?: it.source) }
     }
-    val mosaicStateKey = remember(customArtworkUri, autoMosaicEnabled, isLarge, entryKeys) {
-        listOf(customArtworkUri, autoMosaicEnabled, isLarge, entryKeys)
+    val mosaicStateKey = remember(customArtworkUri, autoMosaicEnabled, coverGenerationMode, isLarge, entryKeys) {
+        listOf(customArtworkUri, autoMosaicEnabled, coverGenerationMode, isLarge, entryKeys)
     }
     val mosaicArtworks = produceState<List<ImageBitmap>>(
         initialValue = emptyList(),
         key1 = mosaicStateKey
     ) {
-        if (!customArtworkUri.isNullOrBlank() || !autoMosaicEnabled || entries.isEmpty()) {
+        if (!customArtworkUri.isNullOrBlank() || !autoMosaicEnabled || coverGenerationMode == PlaylistCoverGenerationMode.Never || entries.isEmpty()) {
             value = emptyList()
             return@produceState
         }
@@ -6685,8 +6767,13 @@ internal fun PlaylistCoverArt(
     val commonIcon = resolveCommonPlaylistFormatIcon(entries)
     val fallbackIcon = commonIcon ?: (heroIcon ?: Icons.Default.LibraryMusic)
     val customTint = iconTintArgb?.let { Color(it) }
+    val hasGeneratedCover = autoMosaicEnabled && when (coverGenerationMode) {
+        PlaylistCoverGenerationMode.Never -> false
+        PlaylistCoverGenerationMode.AtLeastFour -> mosaicArtworks.size >= 4
+        PlaylistCoverGenerationMode.AtLeastOne -> mosaicArtworks.isNotEmpty()
+    }
     val containerColor = when {
-        customBitmap != null || mosaicArtworks.isNotEmpty() -> MaterialTheme.colorScheme.surfaceContainerHighest
+        customBitmap != null || hasGeneratedCover -> MaterialTheme.colorScheme.surfaceContainerHighest
         customTint != null -> customTint.copy(alpha = 0.18f)
         else -> MaterialTheme.colorScheme.surfaceContainerHighest
     }
@@ -6706,7 +6793,7 @@ internal fun PlaylistCoverArt(
                     modifier = Modifier.fillMaxSize()
                 )
             }
-            mosaicArtworks.size >= 4 -> {
+            autoMosaicEnabled && coverGenerationMode != PlaylistCoverGenerationMode.Never && mosaicArtworks.size >= 4 -> {
                 Column(modifier = Modifier.fillMaxSize()) {
                     Row(
                         modifier = Modifier
@@ -6776,7 +6863,7 @@ internal fun PlaylistCoverArt(
                     }
                 }
             }
-            mosaicArtworks.isNotEmpty() -> {
+            autoMosaicEnabled && coverGenerationMode == PlaylistCoverGenerationMode.AtLeastOne && mosaicArtworks.isNotEmpty() -> {
                 Image(
                     bitmap = mosaicArtworks[0],
                     contentDescription = "Playlist cover",
@@ -6961,6 +7048,7 @@ private fun FavoritesCollectionRow(
     onRefreshMetadata: (() -> Unit)? = null,
     favorites: List<PlaylistTrackEntry> = emptyList(),
     autoMosaicEnabled: Boolean = true,
+    coverGenerationMode: PlaylistCoverGenerationMode = PlaylistCoverGenerationMode.AtLeastFour,
     isWatch: Boolean = false
 ) {
     PlaylistLibraryFlatRow(
@@ -6982,7 +7070,8 @@ private fun FavoritesCollectionRow(
                 modifier = Modifier.size(if (isWatch) 34.dp else 56.dp),
                 shape = RoundedCornerShape(if (isWatch) 10.dp else 12.dp),
                 iconSize = if (isWatch) 18.dp else 30.dp,
-                autoMosaicEnabled = autoMosaicEnabled
+                autoMosaicEnabled = autoMosaicEnabled,
+                coverGenerationMode = coverGenerationMode
             )
         },
         onClick = onClick,
@@ -7876,6 +7965,7 @@ private fun PlaylistCollectionRow(
     onDragStep: ((Int) -> Unit)? = null,
     onDragEnd: (() -> Unit)? = null,
     autoMosaicEnabled: Boolean = true,
+    coverGenerationMode: PlaylistCoverGenerationMode = PlaylistCoverGenerationMode.AtLeastFour,
     onChangeCover: (() -> Unit)? = null,
     isWatch: Boolean = false
 ) {
@@ -7900,7 +7990,8 @@ private fun PlaylistCollectionRow(
                 modifier = Modifier.size(if (isWatch) 34.dp else 56.dp),
                 shape = RoundedCornerShape(if (isWatch) 10.dp else 12.dp),
                 iconSize = if (isWatch) 18.dp else 30.dp,
-                autoMosaicEnabled = autoMosaicEnabled
+                autoMosaicEnabled = autoMosaicEnabled && playlist.autoGenerateCover,
+                coverGenerationMode = coverGenerationMode
             )
         },
         onClick = onClick,

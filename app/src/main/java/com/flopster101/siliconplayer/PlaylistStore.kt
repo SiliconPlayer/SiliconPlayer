@@ -27,6 +27,7 @@ private const val STORED_PLAYLIST_IS_PINNED_KEY = "is_pinned"
 private const val STORED_PLAYLIST_FOLDER_ID_KEY = "folder_id"
 private const val STORED_PLAYLIST_CUSTOM_ARTWORK_URI_KEY = "custom_artwork_uri"
 private const val STORED_PLAYLIST_ICON_TINT_KEY = "icon_tint"
+private const val STORED_PLAYLIST_AUTO_GENERATE_COVER_KEY = "auto_generate_cover"
 private const val STORED_PLAYLIST_ENTRIES_KEY = "entries"
 
 private const val PLAYLIST_LIBRARY_FOLDERS_KEY = "folders"
@@ -505,6 +506,7 @@ private fun readStoredPlaylist(item: JSONObject): StoredPlaylist? {
     val folderId = item.optString(STORED_PLAYLIST_FOLDER_ID_KEY).trim().ifBlank { null }
     val customArtworkUri = item.optString(STORED_PLAYLIST_CUSTOM_ARTWORK_URI_KEY).trim().ifBlank { null }
     val iconTintArgb = if (item.has(STORED_PLAYLIST_ICON_TINT_KEY)) item.optLong(STORED_PLAYLIST_ICON_TINT_KEY) else null
+    val autoGenerateCover = item.optBoolean(STORED_PLAYLIST_AUTO_GENERATE_COVER_KEY, true)
     return StoredPlaylist(
         id = item.optString(STORED_PLAYLIST_ID_KEY).trim().ifBlank { java.util.UUID.randomUUID().toString() },
         title = title,
@@ -516,7 +518,8 @@ private fun readStoredPlaylist(item: JSONObject): StoredPlaylist? {
         isPinned = isPinned,
         folderId = folderId,
         customArtworkUri = customArtworkUri,
-        iconTintArgb = iconTintArgb
+        iconTintArgb = iconTintArgb,
+        autoGenerateCover = autoGenerateCover
     )
 }
 
@@ -597,6 +600,7 @@ private fun writeStoredPlaylist(playlist: StoredPlaylist): JSONObject {
             if (playlist.iconTintArgb != null) {
                 put(STORED_PLAYLIST_ICON_TINT_KEY, playlist.iconTintArgb)
             }
+            put(STORED_PLAYLIST_AUTO_GENERATE_COVER_KEY, playlist.autoGenerateCover)
         }
         .put(
             STORED_PLAYLIST_ENTRIES_KEY,
@@ -610,7 +614,8 @@ internal fun updateStoredPlaylistCover(
     state: PlaylistLibraryState,
     playlistId: String,
     customArtworkUri: String?,
-    iconTintArgb: Long?
+    iconTintArgb: Long?,
+    autoGenerateCover: Boolean? = null
 ): PlaylistLibraryState {
     val updatedPlaylists = state.playlists.map { playlist ->
         if (playlist.id != playlistId) {
@@ -619,6 +624,7 @@ internal fun updateStoredPlaylistCover(
             playlist.copy(
                 customArtworkUri = customArtworkUri,
                 iconTintArgb = iconTintArgb,
+                autoGenerateCover = autoGenerateCover ?: playlist.autoGenerateCover,
                 updatedAtMs = System.currentTimeMillis()
             )
         }

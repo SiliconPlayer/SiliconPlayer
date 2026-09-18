@@ -528,10 +528,13 @@ private fun ChooserPlaylistRow(
     ) {
         PlaylistCoverArt(
             entries = playlist.entries,
+            customArtworkUri = playlist.customArtworkUri,
+            iconTintArgb = playlist.iconTintArgb,
             heroIcon = if (playlist.id == FAVORITES_PLAYLIST_ID) Icons.Default.Star else Icons.Default.LibraryMusic,
             modifier = Modifier.size(56.dp),
             shape = RoundedCornerShape(12.dp),
-            iconSize = 30.dp
+            iconSize = 30.dp,
+            autoMosaicEnabled = playlist.autoGenerateCover
         )
         Column(modifier = Modifier.weight(1f)) {
             Text(

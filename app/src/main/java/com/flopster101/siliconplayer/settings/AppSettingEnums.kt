@@ -368,3 +368,56 @@ fun resolveEffectiveVisualizationPerformanceMode(
         }
     }
 }
+
+enum class PlaylistCoverGenerationMode(val storageValue: String, val label: String) {
+    Never("never", "Never"),
+    AtLeastFour("four_tracks", "At least 4 tracks"),
+    AtLeastOne("one_track", "At least 1 track");
+
+    companion object {
+        fun fromStorage(value: String?): PlaylistCoverGenerationMode {
+            return when (value) {
+                "never", "false" -> Never
+                "four_tracks", "4", "four" -> AtLeastFour
+                "one_track", "1", "one" -> AtLeastOne
+                "true" -> AtLeastFour
+                else -> AtLeastFour
+            }
+        }
+    }
+}
+
+fun readPlaylistCoverGenerationMode(prefs: android.content.SharedPreferences): PlaylistCoverGenerationMode {
+    val rawString = try {
+        prefs.getString(AppPreferenceKeys.PLAYLIST_COVER_GENERATION_MODE, null)
+    } catch (_: ClassCastException) {
+        null
+    }
+    if (rawString != null) {
+        return PlaylistCoverGenerationMode.fromStorage(rawString)
+    }
+    val legacyBoolean = try {
+        if (prefs.contains(AppPreferenceKeys.PLAYLIST_AUTO_MOSAIC)) {
+            prefs.getBoolean(AppPreferenceKeys.PLAYLIST_AUTO_MOSAIC, true)
+        } else {
+            null
+        }
+    } catch (_: Exception) {
+        null
+    }
+    return when (legacyBoolean) {
+        false -> PlaylistCoverGenerationMode.Never
+        true -> PlaylistCoverGenerationMode.AtLeastFour
+        null -> PlaylistCoverGenerationMode.AtLeastFour
+    }
+}
+
+fun savePlaylistCoverGenerationMode(
+    prefs: android.content.SharedPreferences,
+    mode: PlaylistCoverGenerationMode
+) {
+    prefs.edit()
+        .putString(AppPreferenceKeys.PLAYLIST_COVER_GENERATION_MODE, mode.storageValue)
+        .putBoolean(AppPreferenceKeys.PLAYLIST_AUTO_MOSAIC, mode != PlaylistCoverGenerationMode.Never)
+        .apply()
+}
