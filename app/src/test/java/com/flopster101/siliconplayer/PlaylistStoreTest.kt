@@ -144,6 +144,73 @@ class PlaylistStoreTest {
     }
 
     @Test
+    fun `sortStoredPlaylists preserves list order in Custom mode`() {
+        val p1 = samplePlaylist("p1", "Banana").copy(updatedAtMs = 100L)
+        val p2 = samplePlaylist("p2", "Apple").copy(updatedAtMs = 500L)
+        val p3 = samplePlaylist("p3", "Cherry").copy(updatedAtMs = 300L)
+
+        val custom = sortStoredPlaylists(listOf(p1, p2, p3), PlaylistSortMode.Custom)
+        assertEquals(listOf("p1", "p2", "p3"), custom.map { it.id })
+    }
+
+    @Test
+    fun `moveStoredPlaylist reorders playlists in root folder`() {
+        val p1 = samplePlaylist("p1", "P1")
+        val p2 = samplePlaylist("p2", "P2")
+        val p3 = samplePlaylist("p3", "P3")
+        val initial = PlaylistLibraryState(
+            favorites = emptyList(),
+            playlists = listOf(p1, p2, p3)
+        )
+
+        val movedDown = moveStoredPlaylist(initial, "p1", 1)
+        assertEquals(listOf("p2", "p1", "p3"), movedDown.playlists.map { it.id })
+
+        val movedToBottom = moveStoredPlaylist(initial, "p1", 2)
+        assertEquals(listOf("p2", "p3", "p1"), movedToBottom.playlists.map { it.id })
+
+        val movedUp = moveStoredPlaylist(movedToBottom, "p1", -1)
+        assertEquals(listOf("p2", "p1", "p3"), movedUp.playlists.map { it.id })
+    }
+
+    @Test
+    fun `moveStoredPlaylist reorders playlists within specific folder`() {
+        val p1 = samplePlaylist("p1", "P1").copy(folderId = "f1")
+        val p2 = samplePlaylist("p2", "P2").copy(folderId = "f2")
+        val p3 = samplePlaylist("p3", "P3").copy(folderId = "f1")
+        val initial = PlaylistLibraryState(
+            favorites = emptyList(),
+            playlists = listOf(p1, p2, p3)
+        )
+
+        val moved = moveStoredPlaylist(initial, "p1", 1)
+        val f1Playlists = moved.playlists.filter { it.folderId == "f1" }
+        assertEquals(listOf("p3", "p1"), f1Playlists.map { it.id })
+        assertTrue(moved.playlists.any { it.id == "p2" && it.folderId == "f2" })
+    }
+
+    @Test
+    fun `moveStoredPlaylist isolates pinned from unpinned playlists`() {
+        val p1Pinned = samplePlaylist("p1", "P1").copy(isPinned = true)
+        val p2Pinned = samplePlaylist("p2", "P2").copy(isPinned = true)
+        val p3Unpinned = samplePlaylist("p3", "P3").copy(isPinned = false)
+        val p4Unpinned = samplePlaylist("p4", "P4").copy(isPinned = false)
+        val initial = PlaylistLibraryState(
+            favorites = emptyList(),
+            playlists = listOf(p1Pinned, p2Pinned, p3Unpinned, p4Unpinned)
+        )
+
+        val movedPinned = moveStoredPlaylist(initial, "p1", 1)
+        assertEquals(listOf("p2", "p1", "p3", "p4"), movedPinned.playlists.map { it.id })
+
+        val cantCrossDown = moveStoredPlaylist(movedPinned, "p1", 1)
+        assertEquals(listOf("p2", "p1", "p3", "p4"), cantCrossDown.playlists.map { it.id })
+
+        val cantCrossUp = moveStoredPlaylist(initial, "p3", -1)
+        assertEquals(listOf("p1", "p2", "p3", "p4"), cantCrossUp.playlists.map { it.id })
+    }
+
+    @Test
     fun `playlistContainsTrack detects existing tracks by path and subtune`() {
         val entries = listOf(
             PlaylistTrackEntry(id = "1", source = "file:///music/song.mod", title = "Song", subtuneIndex = null),

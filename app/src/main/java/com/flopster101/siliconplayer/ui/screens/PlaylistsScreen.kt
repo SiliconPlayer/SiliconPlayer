@@ -1,7 +1,12 @@
 package com.flopster101.siliconplayer.ui.screens
 
+import android.content.Context
 import com.flopster101.siliconplayer.PlaylistEntrySortMode
+import com.flopster101.siliconplayer.PlaylistSortMode
 import com.flopster101.siliconplayer.formatSourceIdForDisplay
+import com.flopster101.siliconplayer.moveStoredPlaylist
+import com.flopster101.siliconplayer.AppPreferenceKeys
+import com.flopster101.siliconplayer.sortStoredPlaylists
 import com.flopster101.siliconplayer.NetworkNode
 import com.flopster101.siliconplayer.resolveSmbDisplayHost
 import com.flopster101.siliconplayer.sortPlaylistEntries
@@ -599,6 +604,18 @@ internal fun PlaylistsScreen(
     var librarySearchResults by surfaceState.searchResultsState
     var artistContentMode by surfaceState.artistContentModeState
     var artistAlbumLayout by surfaceState.artistAlbumLayoutState
+    val prefs = remember(context) {
+        context.getSharedPreferences(AppPreferenceKeys.PREFS_NAME, Context.MODE_PRIVATE)
+    }
+    var libraryPlaylistSortMode by remember {
+        mutableStateOf(
+            PlaylistSortMode.fromStorage(
+                prefs.getString(AppPreferenceKeys.LIBRARY_PLAYLIST_SORT_MODE, PlaylistSortMode.RecentlyUpdated.storageValue)
+            )
+        )
+    }
+    var playlistsEditModeEnabled by rememberSaveable { mutableStateOf(false) }
+    var playlistsDraggingId by remember { mutableStateOf<String?>(null) }
     LaunchedEffect(selectedArtistName, destination) {
         val artistName = selectedArtistName
         if (destination == PlaylistsSurfaceDestination.ArtistDetail && artistName != null) {
@@ -946,6 +963,16 @@ internal fun PlaylistsScreen(
         librarySearchQuery = ""
         keyboardController?.hide()
         librarySearchResults = LibrarySearchResults("", emptyList(), emptyList(), emptyList())
+    }
+    BackHandler(
+        enabled = backHandlingEnabled &&
+            destination == PlaylistsSurfaceDestination.Library &&
+            playlistsEditModeEnabled &&
+            !playlistFabExpanded &&
+            !librarySearchActive
+    ) {
+        playlistsEditModeEnabled = false
+        playlistsDraggingId = null
     }
     BackHandler(
         enabled = backHandlingEnabled &&
@@ -1905,12 +1932,37 @@ internal fun PlaylistsScreen(
                                 ) { page ->
                                 when (libraryTabs[page]) {
                                     LibrarySurfaceTab.Playlists -> {
-                                          PlaylistsLibraryTabPage(
-                                             libraryState = libraryState,
-                                             currentFolderId = selectedPlaylistFolderId,
-                                             bottomContentPadding = bottomContentPadding,
-                                             listState = surfaceState.playlistsTabListState,
-                                             onOpenFavorites = { destination = PlaylistsSurfaceDestination.Favorites },
+                                           PlaylistsLibraryTabPage(
+                                              libraryState = libraryState,
+                                              currentFolderId = selectedPlaylistFolderId,
+                                              bottomContentPadding = bottomContentPadding,
+                                              listState = surfaceState.playlistsTabListState,
+                                              sortMode = libraryPlaylistSortMode,
+                                              onSortModeSelected = { mode ->
+                                                  libraryPlaylistSortMode = mode
+                                                  prefs.edit().putString(AppPreferenceKeys.LIBRARY_PLAYLIST_SORT_MODE, mode.storageValue).apply()
+                                                  if (mode != PlaylistSortMode.Custom) {
+                                                      playlistsEditModeEnabled = false
+                                                  }
+                                              },
+                                              editModeEnabled = playlistsEditModeEnabled,
+                                              onEditModeEnabledChange = { enabled ->
+                                                  playlistsEditModeEnabled = enabled
+                                                  if (!enabled) playlistsDraggingId = null
+                                              },
+                                              draggingPlaylistId = playlistsDraggingId,
+                                              onDraggingPlaylistIdChange = { playlistsDraggingId = it },
+                                              onMoveStoredPlaylist = { playlist, offset ->
+                                                  onPlaylistLibraryStateChanged(
+                                                      moveStoredPlaylist(
+                                                          state = libraryState,
+                                                          playlistId = playlist.id,
+                                                          offset = offset,
+                                                          targetFolderId = selectedPlaylistFolderId
+                                                      )
+                                                  )
+                                              },
+                                              onOpenFavorites = { destination = PlaylistsSurfaceDestination.Favorites },
                                              onOpenPlaylist = { playlist ->
                                                  selectedStoredPlaylistId = playlist.id
                                                  destination = PlaylistsSurfaceDestination.StoredPlaylist
@@ -3100,6 +3152,13 @@ private fun PlaylistsLibraryTabPage(
     currentFolderId: String? = null,
     bottomContentPadding: Dp,
     listState: LazyListState,
+    sortMode: PlaylistSortMode = PlaylistSortMode.RecentlyUpdated,
+    onSortModeSelected: (PlaylistSortMode) -> Unit = {},
+    editModeEnabled: Boolean = false,
+    onEditModeEnabledChange: (Boolean) -> Unit = {},
+    draggingPlaylistId: String? = null,
+    onDraggingPlaylistIdChange: (String?) -> Unit = {},
+    onMoveStoredPlaylist: (StoredPlaylist, Int) -> Unit = { _, _ -> },
     onOpenFavorites: () -> Unit,
     onOpenPlaylist: (StoredPlaylist) -> Unit,
     onOpenFolder: (PlaylistFolder) -> Unit = {},
@@ -3128,13 +3187,13 @@ private fun PlaylistsLibraryTabPage(
                     .thenBy { it.title.lowercase() }
             )
     }
-    val currentPlaylists = remember(libraryState.playlists, currentFolderId) {
-        libraryState.playlists
-            .filter { it.folderId == currentFolderId }
-            .sortedWith(
-                compareByDescending<StoredPlaylist> { it.isPinned }
-                    .thenByDescending { it.updatedAtMs }
-            )
+    val currentPlaylists = remember(libraryState.playlists, currentFolderId, sortMode) {
+        val scoped = libraryState.playlists.filter { it.folderId == currentFolderId }
+        val pinned = scoped.filter { it.isPinned }
+        val unpinned = scoped.filter { !it.isPinned }
+        val sortedPinned = if (sortMode == PlaylistSortMode.Custom) pinned else sortStoredPlaylists(pinned, sortMode)
+        val sortedUnpinned = sortStoredPlaylists(unpinned, sortMode)
+        sortedPinned + sortedUnpinned
     }
     val folderPath = remember(libraryState.folders, currentFolderId) {
         resolveFolderPath(libraryState.folders, currentFolderId)
@@ -3229,6 +3288,19 @@ private fun PlaylistsLibraryTabPage(
                 }
             }
         }
+        if (!isWatch && (currentFolders.isNotEmpty() || currentPlaylists.isNotEmpty())) {
+            item {
+                PlaylistsLibraryHeaderRow(
+                    playlistCount = currentPlaylists.size,
+                    folderCount = currentFolders.size,
+                    sortMode = sortMode,
+                    onSortModeSelected = onSortModeSelected,
+                    editModeEnabled = editModeEnabled,
+                    onEditModeEnabledChange = onEditModeEnabledChange,
+                    modifier = Modifier.padding(horizontal = 4.dp, vertical = 6.dp)
+                )
+            }
+        }
         if (currentFolders.isEmpty() && currentPlaylists.isEmpty()) {
             item {
                 if (!isWatch) {
@@ -3281,6 +3353,17 @@ private fun PlaylistsLibraryTabPage(
                     isHomePinned = isPlaylistHomePinned(playlist.id),
                     onToggleHomePin = { onTogglePlaylistHomePin(playlist.id, playlist.title) },
                     onRefreshMetadata = onRefreshPlaylistMetadata?.let { { it(playlist.id) } },
+                    reorderEnabled = editModeEnabled && sortMode == PlaylistSortMode.Custom,
+                    isDragged = draggingPlaylistId == playlist.id,
+                    onDragStart = { onDraggingPlaylistIdChange(playlist.id) },
+                    onDragStep = { direction ->
+                        if (direction > 0) {
+                            onMoveStoredPlaylist(playlist, 1)
+                        } else if (direction < 0) {
+                            onMoveStoredPlaylist(playlist, -1)
+                        }
+                    },
+                    onDragEnd = { onDraggingPlaylistIdChange(null) },
                     isWatch = isWatch
                 )
                 if (!isWatch) {
@@ -3288,6 +3371,101 @@ private fun PlaylistsLibraryTabPage(
                         modifier = Modifier.padding(start = 74.dp),
                         color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.45f)
                     )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun PlaylistsLibraryHeaderRow(
+    playlistCount: Int,
+    folderCount: Int,
+    sortMode: PlaylistSortMode,
+    onSortModeSelected: (PlaylistSortMode) -> Unit,
+    editModeEnabled: Boolean,
+    onEditModeEnabledChange: (Boolean) -> Unit,
+    modifier: Modifier = Modifier
+) {
+    var sortMenuExpanded by remember { mutableStateOf(false) }
+    val countText = remember(playlistCount, folderCount) {
+        val parts = mutableListOf<String>()
+        if (folderCount > 0) {
+            parts += if (folderCount == 1) "1 folder" else "$folderCount folders"
+        }
+        if (playlistCount > 0) {
+            parts += if (playlistCount == 1) "1 playlist" else "$playlistCount playlists"
+        }
+        if (parts.isEmpty()) "0 playlists" else parts.joinToString(" • ")
+    }
+
+    Row(
+        modifier = modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Text(
+            text = countText,
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+        Row(
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            if (editModeEnabled) {
+                PlaylistActionPill(
+                    label = "Done",
+                    icon = Icons.Default.Check,
+                    containerColor = MaterialTheme.colorScheme.primaryContainer,
+                    contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
+                    onClick = { onEditModeEnabledChange(false) }
+                )
+            } else if (sortMode == PlaylistSortMode.Custom && playlistCount > 1) {
+                PlaylistActionPill(
+                    label = "Reorder",
+                    icon = Icons.Default.DragIndicator,
+                    onClick = { onEditModeEnabledChange(true) }
+                )
+            }
+            Box {
+                PlaylistActionPill(
+                    label = "Sort",
+                    icon = Icons.Default.SwapVert,
+                    onClick = { sortMenuExpanded = true }
+                )
+                DropdownMenu(
+                    expanded = sortMenuExpanded,
+                    onDismissRequest = { sortMenuExpanded = false }
+                ) {
+                    PlaylistSortMode.entries.forEach { mode ->
+                        DropdownMenuItem(
+                            text = {
+                                Text(
+                                    text = mode.label,
+                                    style = MaterialTheme.typography.bodyLarge
+                                )
+                            },
+                            leadingIcon = if (mode == sortMode) {
+                                {
+                                    Icon(
+                                        imageVector = Icons.Default.Check,
+                                        contentDescription = null,
+                                        modifier = Modifier.size(22.dp)
+                                    )
+                                }
+                            } else null,
+                            contentPadding = PaddingValues(start = 14.dp, end = 18.dp),
+                            colors = MenuDefaults.itemColors(
+                                textColor = MaterialTheme.colorScheme.onSurface,
+                                leadingIconColor = MaterialTheme.colorScheme.primary
+                            ),
+                            onClick = {
+                                sortMenuExpanded = false
+                                onSortModeSelected(mode)
+                            }
+                        )
+                    }
                 }
             }
         }
@@ -6974,6 +7152,11 @@ private fun PlaylistCollectionRow(
     isHomePinned: Boolean = false,
     onToggleHomePin: (() -> Unit)? = null,
     onRefreshMetadata: (() -> Unit)? = null,
+    reorderEnabled: Boolean = false,
+    isDragged: Boolean = false,
+    onDragStart: (() -> Unit)? = null,
+    onDragStep: ((Int) -> Unit)? = null,
+    onDragEnd: (() -> Unit)? = null,
     isWatch: Boolean = false
 ) {
     PlaylistLibraryFlatRow(
@@ -7000,6 +7183,11 @@ private fun PlaylistCollectionRow(
         isHomePinned = isHomePinned,
         onToggleHomePin = onToggleHomePin,
         onRefreshMetadata = onRefreshMetadata,
+        reorderEnabled = reorderEnabled,
+        isDragged = isDragged,
+        onDragStart = onDragStart,
+        onDragStep = onDragStep,
+        onDragEnd = onDragEnd,
         isWatch = isWatch
     )
 }
@@ -7064,6 +7252,11 @@ private fun PlaylistLibraryFlatRow(
     isHomePinned: Boolean = false,
     onToggleHomePin: (() -> Unit)? = null,
     onRefreshMetadata: (() -> Unit)? = null,
+    reorderEnabled: Boolean = false,
+    isDragged: Boolean = false,
+    onDragStart: (() -> Unit)? = null,
+    onDragStep: ((Int) -> Unit)? = null,
+    onDragEnd: (() -> Unit)? = null,
     isWatch: Boolean = false
 ) {
     var wearActionsOpen by rememberSaveable { mutableStateOf(false) }
@@ -7257,6 +7450,7 @@ private fun PlaylistLibraryFlatRow(
     } else {
         Row(
             modifier = modifier
+                .let { if (isDragged) it.background(MaterialTheme.colorScheme.surfaceContainerHigh, shape = RoundedCornerShape(12.dp)) else it }
                 .clickable(onClick = onClick)
                 .padding(start = 6.dp, top = 10.dp, end = 2.dp, bottom = 10.dp),
             horizontalArrangement = Arrangement.spacedBy(12.dp),
@@ -7306,6 +7500,15 @@ private fun PlaylistLibraryFlatRow(
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis
+                )
+            }
+            if (reorderEnabled && onDragStart != null && onDragStep != null && onDragEnd != null) {
+                PlaylistTrackReorderHandle(
+                    reorderEnabled = true,
+                    isDragged = isDragged,
+                    onDragStart = onDragStart,
+                    onDragStep = onDragStep,
+                    onDragEnd = onDragEnd
                 )
             }
             if (onRename != null || onDuplicate != null || onDelete != null || onExport != null || onShare != null || onTogglePin != null || onToggleHomePin != null || onRefreshMetadata != null || onMoveToFolder != null) {

@@ -891,11 +891,22 @@ private fun sortablePlaylistText(value: String?): String {
     return if (normalized.isBlank()) "\uFFFF" else normalized
 }
 
-internal enum class PlaylistSortMode(val label: String) {
-    RecentlyUpdated("Recently updated"),
-    AlphabeticalAsc("Name (A–Z)"),
-    AlphabeticalDesc("Name (Z–A)"),
-    TrackCount("Track count")
+internal enum class PlaylistSortMode(
+    val storageValue: String,
+    val label: String
+) {
+    Custom("custom", "Custom"),
+    RecentlyUpdated("recently_updated", "Recently updated"),
+    AlphabeticalAsc("alphabetical_asc", "Name (A–Z)"),
+    AlphabeticalDesc("alphabetical_desc", "Name (Z–A)"),
+    TrackCount("track_count", "Track count");
+
+    companion object {
+        fun fromStorage(value: String?): PlaylistSortMode {
+            return entries.firstOrNull { it.storageValue == value || it.name.equals(value, ignoreCase = true) }
+                ?: RecentlyUpdated
+        }
+    }
 }
 
 internal fun sortStoredPlaylists(
@@ -903,27 +914,31 @@ internal fun sortStoredPlaylists(
     sortMode: PlaylistSortMode
 ): List<StoredPlaylist> {
     if (playlists.size <= 1) return playlists
-    val indexed = playlists.withIndex()
     return when (sortMode) {
+        PlaylistSortMode.Custom -> playlists
         PlaylistSortMode.RecentlyUpdated -> {
+            val indexed = playlists.withIndex()
             indexed.sortedWith(
                 compareByDescending<IndexedValue<StoredPlaylist>> { it.value.updatedAtMs }
                     .thenBy { it.index }
             ).map { it.value }
         }
         PlaylistSortMode.AlphabeticalAsc -> {
+            val indexed = playlists.withIndex()
             indexed.sortedWith(
                 compareBy<IndexedValue<StoredPlaylist>> { it.value.title.lowercase(Locale.ROOT) }
                     .thenBy { it.index }
             ).map { it.value }
         }
         PlaylistSortMode.AlphabeticalDesc -> {
+            val indexed = playlists.withIndex()
             indexed.sortedWith(
                 compareByDescending<IndexedValue<StoredPlaylist>> { it.value.title.lowercase(Locale.ROOT) }
                     .thenBy { it.index }
             ).map { it.value }
         }
         PlaylistSortMode.TrackCount -> {
+            val indexed = playlists.withIndex()
             indexed.sortedWith(
                 compareByDescending<IndexedValue<StoredPlaylist>> { it.value.entries.size }
                     .thenBy { it.index }

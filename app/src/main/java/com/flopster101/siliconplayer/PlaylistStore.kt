@@ -278,6 +278,33 @@ internal fun moveStoredPlaylistEntry(
     )
 }
 
+internal fun moveStoredPlaylist(
+    state: PlaylistLibraryState,
+    playlistId: String,
+    offset: Int,
+    targetFolderId: String? = null
+): PlaylistLibraryState {
+    if (offset == 0) return state
+    val targetPlaylist = state.playlists.firstOrNull { it.id == playlistId } ?: return state
+    val folderId = targetFolderId ?: targetPlaylist.folderId
+    val scopedPlaylists = state.playlists.filter {
+        it.folderId == folderId && it.isPinned == targetPlaylist.isPinned
+    }
+    val currentIndex = scopedPlaylists.indexOfFirst { it.id == playlistId }
+    if (currentIndex < 0 || scopedPlaylists.size < 2) return state
+    val targetIndex = (currentIndex + offset).coerceIn(0, scopedPlaylists.lastIndex)
+    if (targetIndex == currentIndex) return state
+
+    val targetSwapPartner = scopedPlaylists[targetIndex]
+    val all = state.playlists.toMutableList()
+    val fromPos = all.indexOfFirst { it.id == playlistId }
+    val toPos = all.indexOfFirst { it.id == targetSwapPartner.id }
+    if (fromPos < 0 || toPos < 0) return state
+    val item = all.removeAt(fromPos)
+    all.add(toPos, item)
+    return state.copy(playlists = all)
+}
+
 internal fun clearStoredPlaylistEntries(
     state: PlaylistLibraryState,
     playlistId: String
