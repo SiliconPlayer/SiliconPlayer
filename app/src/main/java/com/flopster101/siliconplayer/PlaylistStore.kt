@@ -23,7 +23,15 @@ private const val STORED_PLAYLIST_FORMAT_KEY = "format"
 private const val STORED_PLAYLIST_SOURCE_HINT_KEY = "source_id_hint"
 private const val STORED_PLAYLIST_UPDATED_AT_KEY = "updated_at_ms"
 private const val STORED_PLAYLIST_IS_PINNED_KEY = "is_pinned"
+private const val STORED_PLAYLIST_FOLDER_ID_KEY = "folder_id"
 private const val STORED_PLAYLIST_ENTRIES_KEY = "entries"
+
+private const val PLAYLIST_LIBRARY_FOLDERS_KEY = "folders"
+private const val FOLDER_ID_KEY = "id"
+private const val FOLDER_TITLE_KEY = "title"
+private const val FOLDER_PARENT_ID_KEY = "parent_folder_id"
+private const val FOLDER_CREATED_AT_KEY = "created_at_ms"
+private const val FOLDER_IS_PINNED_KEY = "is_pinned"
 
 internal fun readPlaylistLibraryState(prefs: SharedPreferences): PlaylistLibraryState {
     val raw = prefs.getString(AppPreferenceKeys.PLAYLIST_LIBRARY_JSON, null)
@@ -38,9 +46,13 @@ internal fun readPlaylistLibraryState(prefs: SharedPreferences): PlaylistLibrary
         val playlists = root.optJSONArray(PLAYLIST_LIBRARY_PLAYLISTS_KEY)
             ?.let(::readStoredPlaylists)
             .orEmpty()
+        val folders = root.optJSONArray(PLAYLIST_LIBRARY_FOLDERS_KEY)
+            ?.let(::readPlaylistFolders)
+            .orEmpty()
         PlaylistLibraryState(
             favorites = favorites,
-            playlists = playlists
+            playlists = playlists,
+            folders = folders
         )
     }.getOrElse {
         emptyPlaylistLibraryState()
@@ -62,6 +74,12 @@ internal fun writePlaylistLibraryState(
             PLAYLIST_LIBRARY_PLAYLISTS_KEY,
             JSONArray().apply {
                 state.playlists.forEach { put(writeStoredPlaylist(it)) }
+            }
+        )
+        .put(
+            PLAYLIST_LIBRARY_FOLDERS_KEY,
+            JSONArray().apply {
+                state.folders.forEach { put(writePlaylistFolder(it)) }
             }
         )
     prefs.edit()
@@ -445,6 +463,7 @@ private fun readStoredPlaylist(item: JSONObject): StoredPlaylist? {
     val entriesArray = item.optJSONArray(STORED_PLAYLIST_ENTRIES_KEY)
     val entries = if (entriesArray != null) readPlaylistTrackEntries(entriesArray) else emptyList()
     val isPinned = item.optBoolean(STORED_PLAYLIST_IS_PINNED_KEY, false)
+    val folderId = item.optString(STORED_PLAYLIST_FOLDER_ID_KEY).trim().ifBlank { null }
     return StoredPlaylist(
         id = item.optString(STORED_PLAYLIST_ID_KEY).trim().ifBlank { java.util.UUID.randomUUID().toString() },
         title = title,
@@ -453,8 +472,39 @@ private fun readStoredPlaylist(item: JSONObject): StoredPlaylist? {
         entries = entries,
         updatedAtMs = item.optLong(STORED_PLAYLIST_UPDATED_AT_KEY).takeIf { it > 0L }
             ?: System.currentTimeMillis(),
-        isPinned = isPinned
+        isPinned = isPinned,
+        folderId = folderId
     )
+}
+
+private fun readPlaylistFolders(array: JSONArray): List<PlaylistFolder> {
+    val folders = mutableListOf<PlaylistFolder>()
+    for (index in 0 until array.length()) {
+        val item = array.optJSONObject(index) ?: continue
+        readPlaylistFolder(item)?.let { folders += it }
+    }
+    return folders
+}
+
+private fun readPlaylistFolder(item: JSONObject): PlaylistFolder? {
+    val title = item.optString(FOLDER_TITLE_KEY).trim()
+    if (title.isBlank()) return null
+    return PlaylistFolder(
+        id = item.optString(FOLDER_ID_KEY).trim().ifBlank { java.util.UUID.randomUUID().toString() },
+        title = title,
+        parentFolderId = item.optString(FOLDER_PARENT_ID_KEY).trim().ifBlank { null },
+        createdAtMs = item.optLong(FOLDER_CREATED_AT_KEY).takeIf { it > 0L } ?: System.currentTimeMillis(),
+        isPinned = item.optBoolean(FOLDER_IS_PINNED_KEY, false)
+    )
+}
+
+private fun writePlaylistFolder(folder: PlaylistFolder): JSONObject {
+    return JSONObject()
+        .put(FOLDER_ID_KEY, folder.id)
+        .put(FOLDER_TITLE_KEY, folder.title)
+        .put(FOLDER_PARENT_ID_KEY, folder.parentFolderId ?: "")
+        .put(FOLDER_CREATED_AT_KEY, folder.createdAtMs)
+        .put(FOLDER_IS_PINNED_KEY, folder.isPinned)
 }
 
 private fun readPlaylistTrackEntries(array: JSONArray): List<PlaylistTrackEntry> {
@@ -494,6 +544,11 @@ private fun writeStoredPlaylist(playlist: StoredPlaylist): JSONObject {
         .put(STORED_PLAYLIST_SOURCE_HINT_KEY, playlist.sourceIdHint ?: "")
         .put(STORED_PLAYLIST_UPDATED_AT_KEY, playlist.updatedAtMs)
         .put(STORED_PLAYLIST_IS_PINNED_KEY, playlist.isPinned)
+        .apply {
+            if (!playlist.folderId.isNullOrBlank()) {
+                put(STORED_PLAYLIST_FOLDER_ID_KEY, playlist.folderId)
+            }
+        }
         .put(
             STORED_PLAYLIST_ENTRIES_KEY,
             JSONArray().apply {
@@ -523,4 +578,105 @@ private fun writePlaylistTrackEntry(entry: PlaylistTrackEntry): JSONObject {
                 ?.takeIf { it.isFinite() && it > 0.0 }
                 ?.let { put(PLAYLIST_ENTRY_DURATION_OVERRIDE_KEY, it) }
         }
+}
+
+internal fun createPlaylistFolder(
+    state: PlaylistLibraryState,
+    title: String,
+    parentFolderId: String? = null
+): Pair<PlaylistLibraryState, PlaylistFolder> {
+    val normalizedTitle = title.trim().ifBlank { "New Folder" }
+    val newFolder = PlaylistFolder(
+        id = java.util.UUID.randomUUID().toString(),
+        title = normalizedTitle,
+        parentFolderId = parentFolderId?.trim()?.ifBlank { null }
+    )
+    val updatedState = state.copy(folders = state.folders + newFolder)
+    return updatedState to newFolder
+}
+
+internal fun renamePlaylistFolder(
+    state: PlaylistLibraryState,
+    folderId: String,
+    newTitle: String
+): PlaylistLibraryState {
+    val trimmed = newTitle.trim()
+    if (trimmed.isBlank()) return state
+    val updatedFolders = state.folders.map { folder ->
+        if (folder.id == folderId) folder.copy(title = trimmed) else folder
+    }
+    return state.copy(folders = updatedFolders)
+}
+
+internal fun togglePinPlaylistFolder(
+    state: PlaylistLibraryState,
+    folderId: String
+): PlaylistLibraryState {
+    val updatedFolders = state.folders.map { folder ->
+        if (folder.id == folderId) folder.copy(isPinned = !folder.isPinned) else folder
+    }
+    return state.copy(folders = updatedFolders)
+}
+
+internal fun movePlaylistFolder(
+    state: PlaylistLibraryState,
+    folderId: String,
+    targetParentFolderId: String?
+): PlaylistLibraryState {
+    val normalizedTarget = targetParentFolderId?.trim()?.ifBlank { null }
+    if (folderId == normalizedTarget) return state
+    val descendantIds = getDescendantFolderIds(state.folders, folderId)
+    if (normalizedTarget != null && normalizedTarget in descendantIds) {
+        return state
+    }
+    val updatedFolders = state.folders.map { folder ->
+        if (folder.id == folderId) folder.copy(parentFolderId = normalizedTarget) else folder
+    }
+    return state.copy(folders = updatedFolders)
+}
+
+internal fun movePlaylistToFolder(
+    state: PlaylistLibraryState,
+    playlistId: String,
+    targetFolderId: String?
+): PlaylistLibraryState {
+    val normalizedTarget = targetFolderId?.trim()?.ifBlank { null }
+    val updatedPlaylists = state.playlists.map { playlist ->
+        if (playlist.id == playlistId) {
+            playlist.copy(
+                folderId = normalizedTarget,
+                updatedAtMs = System.currentTimeMillis()
+            )
+        } else {
+            playlist
+        }
+    }
+    return state.copy(playlists = updatedPlaylists)
+}
+
+internal fun deletePlaylistFolder(
+    state: PlaylistLibraryState,
+    folderId: String,
+    deletePlaylists: Boolean
+): PlaylistLibraryState {
+    val targetFolder = state.folders.firstOrNull { it.id == folderId } ?: return state
+    val allDeletedFolderIds = setOf(folderId) + getDescendantFolderIds(state.folders, folderId)
+    val remainingFolders = state.folders.filterNot { it.id in allDeletedFolderIds }
+
+    val updatedPlaylists = if (deletePlaylists) {
+        state.playlists.filterNot { it.folderId in allDeletedFolderIds }
+    } else {
+        val fallbackParentId = targetFolder.parentFolderId?.takeUnless { it in allDeletedFolderIds }
+        state.playlists.map { playlist ->
+            if (playlist.folderId in allDeletedFolderIds) {
+                playlist.copy(
+                    folderId = fallbackParentId,
+                    updatedAtMs = System.currentTimeMillis()
+                )
+            } else {
+                playlist
+            }
+        }
+    }
+    return state.copy(folders = remainingFolders, playlists = updatedPlaylists)
 }

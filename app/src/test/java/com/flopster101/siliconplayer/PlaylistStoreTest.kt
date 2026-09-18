@@ -706,6 +706,129 @@ class PlaylistStoreTest {
         assertEquals(99.5, restoredFav.durationSecondsOverride ?: 0.0, 0.001)
     }
 
+    @Test
+    fun `createPlaylistFolder adds folder with correct parent`() {
+        val initial = PlaylistLibraryState()
+        val (updated, folder) = createPlaylistFolder(initial, "Chiptunes", null)
+        assertEquals(1, updated.folders.size)
+        assertEquals("Chiptunes", folder.title)
+        org.junit.Assert.assertNull(folder.parentFolderId)
+
+        val (subState, subFolder) = createPlaylistFolder(updated, "Amiga", folder.id)
+        assertEquals(2, subState.folders.size)
+        assertEquals(folder.id, subFolder.parentFolderId)
+    }
+
+    @Test
+    fun `renamePlaylistFolder updates title`() {
+        val initial = PlaylistLibraryState(
+            folders = listOf(PlaylistFolder(id = "f1", title = "Old", parentFolderId = null))
+        )
+        val updated = renamePlaylistFolder(initial, "f1", "New Title")
+        assertEquals("New Title", updated.folders.first().title)
+    }
+
+    @Test
+    fun `togglePinPlaylistFolder toggles pinned status`() {
+        val initial = PlaylistLibraryState(
+            folders = listOf(PlaylistFolder(id = "f1", title = "Folder", parentFolderId = null, isPinned = false))
+        )
+        val pinned = togglePinPlaylistFolder(initial, "f1")
+        assertTrue(pinned.folders.first().isPinned)
+
+        val unpinned = togglePinPlaylistFolder(pinned, "f1")
+        org.junit.Assert.assertFalse(unpinned.folders.first().isPinned)
+    }
+
+    @Test
+    fun `movePlaylistFolder updates parent and prevents circular move`() {
+        val f1 = PlaylistFolder(id = "f1", title = "Parent", parentFolderId = null)
+        val f2 = PlaylistFolder(id = "f2", title = "Child", parentFolderId = "f1")
+        val f3 = PlaylistFolder(id = "f3", title = "Grandchild", parentFolderId = "f2")
+        val state = PlaylistLibraryState(folders = listOf(f1, f2, f3))
+
+        // Moving f3 to root
+        val moved = movePlaylistFolder(state, "f3", null)
+        org.junit.Assert.assertNull(moved.folders.first { it.id == "f3" }.parentFolderId)
+
+        // Attempting circular move: move f1 into its descendant f2 should be ignored
+        val circular = movePlaylistFolder(state, "f1", "f2")
+        assertEquals(null, circular.folders.first { it.id == "f1" }.parentFolderId)
+
+        // Attempting self move: move f1 into f1 should be ignored
+        val self = movePlaylistFolder(state, "f1", "f1")
+        assertEquals(null, self.folders.first { it.id == "f1" }.parentFolderId)
+    }
+
+    @Test
+    fun `movePlaylistToFolder updates folderId on playlist`() {
+        val p1 = samplePlaylist("p1", "Playlist 1")
+        val state = PlaylistLibraryState(
+            playlists = listOf(p1),
+            folders = listOf(PlaylistFolder(id = "f1", title = "Folder", parentFolderId = null))
+        )
+        val moved = movePlaylistToFolder(state, "p1", "f1")
+        assertEquals("f1", moved.playlists.first().folderId)
+
+        val movedToRoot = movePlaylistToFolder(moved, "p1", null)
+        org.junit.Assert.assertNull(movedToRoot.playlists.first().folderId)
+    }
+
+    @Test
+    fun `deletePlaylistFolder without deleting playlists moves them to parent`() {
+        val f1 = PlaylistFolder(id = "f1", title = "Parent", parentFolderId = null)
+        val f2 = PlaylistFolder(id = "f2", title = "Child", parentFolderId = "f1")
+        val p1 = samplePlaylist("p1", "P1").copy(folderId = "f2")
+        val state = PlaylistLibraryState(folders = listOf(f1, f2), playlists = listOf(p1))
+
+        val updated = deletePlaylistFolder(state, "f2", deletePlaylists = false)
+        assertEquals(1, updated.folders.size)
+        assertEquals("f1", updated.folders.first().id)
+        // Playlist in f2 moved to f2's parent which is f1
+        assertEquals(1, updated.playlists.size)
+        assertEquals("f1", updated.playlists.first().folderId)
+    }
+
+    @Test
+    fun `deletePlaylistFolder with deletePlaylists deletes folder and its contents`() {
+        val f1 = PlaylistFolder(id = "f1", title = "Parent", parentFolderId = null)
+        val f2 = PlaylistFolder(id = "f2", title = "Child", parentFolderId = "f1")
+        val p1 = samplePlaylist("p1", "P1").copy(folderId = "f2")
+        val state = PlaylistLibraryState(folders = listOf(f1, f2), playlists = listOf(p1))
+
+        val updated = deletePlaylistFolder(state, "f1", deletePlaylists = true)
+        assertTrue(updated.folders.isEmpty())
+        assertTrue(updated.playlists.isEmpty())
+    }
+
+    @Test
+    fun `writePlaylistLibraryState and readPlaylistLibraryState preserves folders and playlist folderId`() {
+        val prefs = FakeSharedPreferences()
+        val original = PlaylistLibraryState(
+            folders = listOf(
+                PlaylistFolder(id = "f1", title = "VGM", parentFolderId = null, isPinned = true),
+                PlaylistFolder(id = "f2", title = "NES", parentFolderId = "f1", isPinned = false)
+            ),
+            playlists = listOf(
+                samplePlaylist("p1", "Megaman").copy(folderId = "f2")
+            )
+        )
+        writePlaylistLibraryState(prefs, original)
+
+        val restored = readPlaylistLibraryState(prefs)
+        assertEquals(2, restored.folders.size)
+        val rF1 = restored.folders.first { it.id == "f1" }
+        assertEquals("VGM", rF1.title)
+        assertTrue(rF1.isPinned)
+        org.junit.Assert.assertNull(rF1.parentFolderId)
+
+        val rF2 = restored.folders.first { it.id == "f2" }
+        assertEquals("NES", rF2.title)
+        assertEquals("f1", rF2.parentFolderId)
+
+        assertEquals("f2", restored.playlists.first().folderId)
+    }
+
     private class FakeSharedPreferences : android.content.SharedPreferences {
         val map = mutableMapOf<String, Any?>()
 

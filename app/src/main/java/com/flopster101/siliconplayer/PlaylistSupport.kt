@@ -103,6 +103,14 @@ internal fun isRemotePlaylistSource(sourceId: String): Boolean {
         parseSmbSourceSpecFromInput(normalized) != null
 }
 
+internal data class PlaylistFolder(
+    val id: String = UUID.randomUUID().toString(),
+    val title: String,
+    val parentFolderId: String? = null,
+    val createdAtMs: Long = System.currentTimeMillis(),
+    val isPinned: Boolean = false
+)
+
 internal data class StoredPlaylist(
     val id: String = UUID.randomUUID().toString(),
     val title: String,
@@ -110,12 +118,14 @@ internal data class StoredPlaylist(
     val sourceIdHint: String? = null,
     val entries: List<PlaylistTrackEntry>,
     val updatedAtMs: Long = System.currentTimeMillis(),
-    val isPinned: Boolean = false
+    val isPinned: Boolean = false,
+    val folderId: String? = null
 )
 
 internal data class PlaylistLibraryState(
-    val favorites: List<PlaylistTrackEntry>,
-    val playlists: List<StoredPlaylist>
+    val favorites: List<PlaylistTrackEntry> = emptyList(),
+    val playlists: List<StoredPlaylist> = emptyList(),
+    val folders: List<PlaylistFolder> = emptyList()
 )
 
 internal data class ParsedPlaylistDocument(
@@ -141,8 +151,38 @@ internal fun favoritesAsStoredPlaylist(favorites: List<PlaylistTrackEntry>): Sto
 internal fun emptyPlaylistLibraryState(): PlaylistLibraryState {
     return PlaylistLibraryState(
         favorites = emptyList(),
-        playlists = emptyList()
+        playlists = emptyList(),
+        folders = emptyList()
     )
+}
+
+internal fun resolveFolderPath(folders: List<PlaylistFolder>, folderId: String?): List<PlaylistFolder> {
+    if (folderId.isNullOrBlank()) return emptyList()
+    val folderMap = folders.associateBy { it.id }
+    val path = mutableListOf<PlaylistFolder>()
+    var current = folderMap[folderId]
+    val visited = mutableSetOf<String>()
+    while (current != null && visited.add(current.id)) {
+        path.add(0, current)
+        current = current.parentFolderId?.let { folderMap[it] }
+    }
+    return path
+}
+
+internal fun getDescendantFolderIds(folders: List<PlaylistFolder>, folderId: String): Set<String> {
+    val descendants = mutableSetOf<String>()
+    val queue = ArrayDeque<String>()
+    queue.add(folderId)
+    while (queue.isNotEmpty()) {
+        val currentId = queue.removeFirst()
+        val children = folders.filter { it.parentFolderId == currentId }
+        for (child in children) {
+            if (descendants.add(child.id)) {
+                queue.add(child.id)
+            }
+        }
+    }
+    return descendants
 }
 
 internal fun isSupportedPlaylistFileName(name: String): Boolean {
@@ -235,7 +275,8 @@ internal fun duplicateStoredPlaylist(
         format = PlaylistStoredFormat.Internal,
         sourceIdHint = null,
         entries = duplicatedEntries,
-        updatedAtMs = now
+        updatedAtMs = now,
+        folderId = playlist.folderId
     )
 }
 

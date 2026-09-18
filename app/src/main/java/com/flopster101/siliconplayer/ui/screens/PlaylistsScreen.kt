@@ -213,6 +213,22 @@ import com.flopster101.siliconplayer.ui.dialogs.AddFromStoragePickerSheet
 import com.flopster101.siliconplayer.ui.dialogs.AddFromNetworkPickerSheet
 import com.flopster101.siliconplayer.ui.dialogs.NewPlaylistDialog
 import com.flopster101.siliconplayer.ui.dialogs.RenamePlaylistDialog
+import com.flopster101.siliconplayer.ui.dialogs.NewFolderDialog
+import com.flopster101.siliconplayer.ui.dialogs.RenameFolderDialog
+import com.flopster101.siliconplayer.ui.dialogs.DeleteFolderDialog
+import com.flopster101.siliconplayer.ui.dialogs.MoveToFolderDialog
+import androidx.compose.material.icons.automirrored.filled.DriveFileMove
+import androidx.compose.material.icons.filled.CreateNewFolder
+import androidx.compose.material.icons.filled.Folder
+import com.flopster101.siliconplayer.PlaylistFolder
+import com.flopster101.siliconplayer.createPlaylistFolder
+import com.flopster101.siliconplayer.renamePlaylistFolder
+import com.flopster101.siliconplayer.togglePinPlaylistFolder
+import com.flopster101.siliconplayer.movePlaylistFolder
+import com.flopster101.siliconplayer.movePlaylistToFolder
+import com.flopster101.siliconplayer.deletePlaylistFolder
+import com.flopster101.siliconplayer.resolveFolderPath
+import com.flopster101.siliconplayer.getDescendantFolderIds
 import com.flopster101.siliconplayer.StoredPlaylist
 import com.flopster101.siliconplayer.appendStoredPlaylistEntries
 import com.flopster101.siliconplayer.decodePercentEncodedForDisplay
@@ -271,6 +287,7 @@ internal enum class ArtistContentMode(val label: String) {
 internal class LibrarySurfaceState {
     val destinationState = mutableStateOf(PlaylistsSurfaceDestination.Library)
     val selectedStoredPlaylistIdState = mutableStateOf<String?>(null)
+    val selectedPlaylistFolderIdState = mutableStateOf<String?>(null)
     val selectedTabIndexState = mutableIntStateOf(0)
     val albumCollectionLayoutState = mutableStateOf(AlbumCollectionLayout.Grid)
     val searchActiveState = mutableStateOf(false)
@@ -573,6 +590,7 @@ internal fun PlaylistsScreen(
     val scrollBehavior = TopAppBarDefaults.exitUntilCollapsedScrollBehavior()
     var destination by surfaceState.destinationState
     var selectedStoredPlaylistId by surfaceState.selectedStoredPlaylistIdState
+    var selectedPlaylistFolderId by surfaceState.selectedPlaylistFolderIdState
     var selectedTabIndex by surfaceState.selectedTabIndexState
     var albumCollectionLayout by surfaceState.albumCollectionLayoutState
     val librarySyncState by LibraryRepository.scanState.collectAsState()
@@ -839,9 +857,14 @@ internal fun PlaylistsScreen(
         mutableStateOf(false)
     }
     var showCreatePlaylistDialog by remember { mutableStateOf(false) }
+    var showCreateFolderDialog by remember { mutableStateOf(false) }
     var playlistPendingDelete by remember { mutableStateOf<StoredPlaylist?>(null) }
     var playlistPendingRename by remember { mutableStateOf<StoredPlaylist?>(null) }
     var playlistPendingDuplicate by remember { mutableStateOf<StoredPlaylist?>(null) }
+    var playlistPendingMove by remember { mutableStateOf<StoredPlaylist?>(null) }
+    var folderPendingRename by remember { mutableStateOf<PlaylistFolder?>(null) }
+    var folderPendingDelete by remember { mutableStateOf<PlaylistFolder?>(null) }
+    var folderPendingMove by remember { mutableStateOf<PlaylistFolder?>(null) }
     var trackInfoDialogState by remember {
         mutableStateOf<PlaylistTrackInfoDialogState?>(null)
     }
@@ -923,6 +946,16 @@ internal fun PlaylistsScreen(
         librarySearchQuery = ""
         keyboardController?.hide()
         librarySearchResults = LibrarySearchResults("", emptyList(), emptyList(), emptyList())
+    }
+    BackHandler(
+        enabled = backHandlingEnabled &&
+            destination == PlaylistsSurfaceDestination.Library &&
+            selectedPlaylistFolderId != null &&
+            !playlistFabExpanded &&
+            !librarySearchActive
+    ) {
+        val currentFolder = libraryState.folders.firstOrNull { it.id == selectedPlaylistFolderId }
+        selectedPlaylistFolderId = currentFolder?.parentFolderId
     }
     BackHandler(enabled = backHandlingEnabled && showingPlaylistDetail) {
         if (destination == PlaylistsSurfaceDestination.Favorites && favoritesEditModeEnabled) {
@@ -1145,6 +1178,9 @@ internal fun PlaylistsScreen(
                                                     artistOpenedFromAlbum = false
                                                     destination = PlaylistsSurfaceDestination.Library
                                                 }
+                                            } else if (selectedPlaylistFolderId != null) {
+                                                val currentFolder = libraryState.folders.firstOrNull { it.id == selectedPlaylistFolderId }
+                                                selectedPlaylistFolderId = currentFolder?.parentFolderId
                                             } else {
                                                 onBack()
                                             }
@@ -1869,25 +1905,39 @@ internal fun PlaylistsScreen(
                                 ) { page ->
                                 when (libraryTabs[page]) {
                                     LibrarySurfaceTab.Playlists -> {
-                                         PlaylistsLibraryTabPage(
-                                            libraryState = libraryState,
-                                            bottomContentPadding = bottomContentPadding,
-                                            listState = surfaceState.playlistsTabListState,
-                                            onOpenFavorites = { destination = PlaylistsSurfaceDestination.Favorites },
-                                            onOpenPlaylist = { playlist ->
-                                                selectedStoredPlaylistId = playlist.id
-                                                destination = PlaylistsSurfaceDestination.StoredPlaylist
-                                            },
-                                            onRenamePlaylist = { playlist -> playlistPendingRename = playlist },
-                                            onDuplicatePlaylist = { playlist -> playlistPendingDuplicate = playlist },
-                                            onDeletePlaylist = { playlist -> playlistPendingDelete = playlist },
-                                            onExportPlaylist = onExportPlaylistAction,
-                                            onSharePlaylist = onSharePlaylistAction,
-                                            onTogglePinPlaylist = { playlist -> onTogglePinStoredPlaylist(playlist.id) },
-                                            isPlaylistHomePinned = { playlistId -> isPlaylistPinnedToHome(playlistId) },
-                                            onTogglePlaylistHomePin = { playlistId, title -> togglePlaylistHomePin(playlistId, title) },
-                                            onRefreshPlaylistMetadata = refreshPlaylistMetadataAction
-                                        )
+                                          PlaylistsLibraryTabPage(
+                                             libraryState = libraryState,
+                                             currentFolderId = selectedPlaylistFolderId,
+                                             bottomContentPadding = bottomContentPadding,
+                                             listState = surfaceState.playlistsTabListState,
+                                             onOpenFavorites = { destination = PlaylistsSurfaceDestination.Favorites },
+                                             onOpenPlaylist = { playlist ->
+                                                 selectedStoredPlaylistId = playlist.id
+                                                 destination = PlaylistsSurfaceDestination.StoredPlaylist
+                                             },
+                                             onOpenFolder = { folder ->
+                                                 selectedPlaylistFolderId = folder.id
+                                             },
+                                             onNavigateToFolder = { folderId ->
+                                                 selectedPlaylistFolderId = folderId
+                                             },
+                                             onRenameFolder = { folder -> folderPendingRename = folder },
+                                             onDeleteFolder = { folder -> folderPendingDelete = folder },
+                                             onMoveFolder = { folder -> folderPendingMove = folder },
+                                             onTogglePinFolder = { folder ->
+                                                 onPlaylistLibraryStateChanged(togglePinPlaylistFolder(libraryState, folder.id))
+                                             },
+                                             onRenamePlaylist = { playlist -> playlistPendingRename = playlist },
+                                             onDuplicatePlaylist = { playlist -> playlistPendingDuplicate = playlist },
+                                             onDeletePlaylist = { playlist -> playlistPendingDelete = playlist },
+                                             onMovePlaylist = { playlist -> playlistPendingMove = playlist },
+                                             onExportPlaylist = onExportPlaylistAction,
+                                             onSharePlaylist = onSharePlaylistAction,
+                                             onTogglePinPlaylist = { playlist -> onTogglePinStoredPlaylist(playlist.id) },
+                                             isPlaylistHomePinned = { playlistId -> isPlaylistPinnedToHome(playlistId) },
+                                             onTogglePlaylistHomePin = { playlistId, title -> togglePlaylistHomePin(playlistId, title) },
+                                             onRefreshPlaylistMetadata = refreshPlaylistMetadataAction
+                                         )
                                     }
                                     LibrarySurfaceTab.Albums -> {
                                         AlbumsLibraryPage(
@@ -1983,8 +2033,17 @@ internal fun PlaylistsScreen(
                                         },
                                         label = "item2_progress"
                                     )
+                                    val item3Progress by animateFloatAsState(
+                                        targetValue = if (playlistFabExpanded) 1f else 0f,
+                                        animationSpec = if (playlistFabExpanded) {
+                                            tween(durationMillis = 260, delayMillis = 70, easing = FastOutSlowInEasing)
+                                        } else {
+                                            tween(durationMillis = 80, easing = FastOutLinearInEasing)
+                                        },
+                                        label = "item3_progress"
+                                    )
 
-                                    if (item2Progress > 0f) {
+                                    if (item3Progress > 0f) {
                                         Row(
                                             verticalAlignment = Alignment.CenterVertically,
                                             horizontalArrangement = Arrangement.End,
@@ -1992,7 +2051,7 @@ internal fun PlaylistsScreen(
                                                 interactionSource = remember { MutableInteractionSource() },
                                                 indication = null,
                                                 enabled = playlistFabExpanded
-                                             ) {
+                                            ) {
                                                 playlistFabExpanded = false
                                                 showImportPickerChoiceSheet = true
                                             }
@@ -2003,8 +2062,8 @@ internal fun PlaylistsScreen(
                                                 tonalElevation = 3.dp,
                                                 shadowElevation = 3.dp,
                                                 modifier = Modifier.graphicsLayer {
-                                                    alpha = item2Progress
-                                                    translationX = (1f - item2Progress) * 16.dp.toPx()
+                                                    alpha = item3Progress
+                                                    translationX = (1f - item3Progress) * 16.dp.toPx()
                                                 }
                                             ) {
                                                 Text(
@@ -2026,6 +2085,63 @@ internal fun PlaylistsScreen(
                                                     containerColor = MaterialTheme.colorScheme.secondaryContainer,
                                                     contentColor = MaterialTheme.colorScheme.onSecondaryContainer,
                                                     modifier = Modifier.graphicsLayer {
+                                                        alpha = item3Progress
+                                                        scaleX = item3Progress
+                                                        scaleY = item3Progress
+                                                        translationY = (1f - item3Progress) * 24.dp.toPx()
+                                                    }
+                                                ) {
+                                                    Icon(
+                                                        imageVector = Icons.Default.FileOpen,
+                                                        contentDescription = "Import playlist"
+                                                    )
+                                                }
+                                            }
+                                        }
+                                    }
+
+                                    if (item2Progress > 0f) {
+                                        Row(
+                                            verticalAlignment = Alignment.CenterVertically,
+                                            horizontalArrangement = Arrangement.End,
+                                            modifier = Modifier.clickable(
+                                                interactionSource = remember { MutableInteractionSource() },
+                                                indication = null,
+                                                enabled = playlistFabExpanded
+                                            ) {
+                                                playlistFabExpanded = false
+                                                showCreateFolderDialog = true
+                                            }
+                                        ) {
+                                            Surface(
+                                                shape = RoundedCornerShape(8.dp),
+                                                color = MaterialTheme.colorScheme.surfaceContainerHigh,
+                                                tonalElevation = 3.dp,
+                                                shadowElevation = 3.dp,
+                                                modifier = Modifier.graphicsLayer {
+                                                    alpha = item2Progress
+                                                    translationX = (1f - item2Progress) * 16.dp.toPx()
+                                                }
+                                            ) {
+                                                Text(
+                                                    text = "New folder",
+                                                    style = MaterialTheme.typography.labelLarge,
+                                                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp)
+                                                )
+                                            }
+                                            Spacer(modifier = Modifier.width(12.dp))
+                                            Box(
+                                                modifier = Modifier.width(56.dp),
+                                                contentAlignment = Alignment.Center
+                                            ) {
+                                                SmallFloatingActionButton(
+                                                    onClick = {
+                                                        playlistFabExpanded = false
+                                                        showCreateFolderDialog = true
+                                                    },
+                                                    containerColor = MaterialTheme.colorScheme.secondaryContainer,
+                                                    contentColor = MaterialTheme.colorScheme.onSecondaryContainer,
+                                                    modifier = Modifier.graphicsLayer {
                                                         alpha = item2Progress
                                                         scaleX = item2Progress
                                                         scaleY = item2Progress
@@ -2033,8 +2149,8 @@ internal fun PlaylistsScreen(
                                                     }
                                                 ) {
                                                     Icon(
-                                                        imageVector = Icons.Default.FileOpen,
-                                                        contentDescription = "Import playlist"
+                                                        imageVector = Icons.Default.CreateNewFolder,
+                                                        contentDescription = "New folder"
                                                     )
                                                 }
                                             }
@@ -2454,6 +2570,28 @@ internal fun PlaylistsScreen(
             },
             onConfirm = { title ->
                 val playlistId = onCreatePlaylist(title)
+                selectedPlaylistFolderId?.let { folderId ->
+                    onPlaylistLibraryStateChanged(
+                        movePlaylistToFolder(
+                            if (libraryState.playlists.none { it.id == playlistId }) {
+                                libraryState.copy(
+                                    playlists = listOf(
+                                        StoredPlaylist(
+                                            id = playlistId,
+                                            title = title,
+                                            format = PlaylistStoredFormat.Internal,
+                                            sourceIdHint = null,
+                                            entries = emptyList(),
+                                            updatedAtMs = System.currentTimeMillis()
+                                        )
+                                    ) + libraryState.playlists
+                                )
+                            } else libraryState,
+                            playlistId,
+                            folderId
+                        )
+                    )
+                }
                 showCreatePlaylistDialog = false
                 selectedStoredPlaylistId = playlistId
                 destination = PlaylistsSurfaceDestination.StoredPlaylist
@@ -2505,6 +2643,28 @@ internal fun PlaylistsScreen(
             onConfirm = { title ->
                 val playlistId = onCreatePlaylist(title)
                 onAppendStoredPlaylistEntries(playlistId, doc.entries)
+                selectedPlaylistFolderId?.let { folderId ->
+                    onPlaylistLibraryStateChanged(
+                        movePlaylistToFolder(
+                            if (libraryState.playlists.none { it.id == playlistId }) {
+                                libraryState.copy(
+                                    playlists = listOf(
+                                        StoredPlaylist(
+                                            id = playlistId,
+                                            title = title,
+                                            format = PlaylistStoredFormat.Internal,
+                                            sourceIdHint = null,
+                                            entries = emptyList(),
+                                            updatedAtMs = System.currentTimeMillis()
+                                        )
+                                    ) + libraryState.playlists
+                                )
+                            } else libraryState,
+                            playlistId,
+                            folderId
+                        )
+                    )
+                }
                 pendingImportPlaylistDocument = null
                 selectedStoredPlaylistId = playlistId
                 destination = PlaylistsSurfaceDestination.StoredPlaylist
@@ -2612,11 +2772,116 @@ internal fun PlaylistsScreen(
                 if (duplicated.entries.isNotEmpty()) {
                     onAppendStoredPlaylistEntries(playlistId, duplicated.entries)
                 }
+                duplicated.folderId?.let { folderId ->
+                    onPlaylistLibraryStateChanged(
+                        movePlaylistToFolder(
+                            if (libraryState.playlists.none { it.id == playlistId }) {
+                                libraryState.copy(
+                                    playlists = listOf(
+                                        StoredPlaylist(
+                                            id = playlistId,
+                                            title = duplicated.title,
+                                            format = duplicated.format,
+                                            sourceIdHint = duplicated.sourceIdHint,
+                                            entries = duplicated.entries,
+                                            updatedAtMs = System.currentTimeMillis()
+                                        )
+                                    ) + libraryState.playlists
+                                )
+                            } else libraryState,
+                            playlistId,
+                            folderId
+                        )
+                    )
+                }
                 playlistPendingDuplicate = null
                 selectedStoredPlaylistId = playlistId
                 destination = PlaylistsSurfaceDestination.StoredPlaylist
             },
             onDismiss = { playlistPendingDuplicate = null }
+        )
+    }
+    if (showCreateFolderDialog) {
+        NewFolderDialog(
+            existingTitles = remember(libraryState.folders, selectedPlaylistFolderId) {
+                libraryState.folders
+                    .filter { it.parentFolderId == selectedPlaylistFolderId }
+                    .map { it.title }
+                    .toSet()
+            },
+            onConfirm = { name ->
+                showCreateFolderDialog = false
+                val (updatedState, _) = createPlaylistFolder(libraryState, name, selectedPlaylistFolderId)
+                onPlaylistLibraryStateChanged(updatedState)
+            },
+            onDismiss = { showCreateFolderDialog = false }
+        )
+    }
+    folderPendingRename?.let { folder ->
+        RenameFolderDialog(
+            currentTitle = folder.title,
+            onConfirm = { newName ->
+                val targetId = folder.id
+                folderPendingRename = null
+                val updatedState = renamePlaylistFolder(libraryState, targetId, newName)
+                onPlaylistLibraryStateChanged(updatedState)
+            },
+            onDismiss = { folderPendingRename = null }
+        )
+    }
+    folderPendingDelete?.let { folder ->
+        val childPlaylistsCount = remember(libraryState.playlists, libraryState.folders, folder.id) {
+            val descendantFolderIds = getDescendantFolderIds(libraryState.folders, folder.id)
+            libraryState.playlists.count { it.folderId in descendantFolderIds }
+        }
+        DeleteFolderDialog(
+            folderTitle = folder.title,
+            hasContents = childPlaylistsCount > 0,
+            onConfirm = { deletePlaylists ->
+                val targetId = folder.id
+                folderPendingDelete = null
+                if (selectedPlaylistFolderId == targetId ||
+                    (selectedPlaylistFolderId != null &&
+                        targetId in resolveFolderPath(libraryState.folders, selectedPlaylistFolderId).map { it.id })
+                ) {
+                    selectedPlaylistFolderId = folder.parentFolderId
+                }
+                val updatedState = deletePlaylistFolder(libraryState, targetId, deletePlaylists)
+                onPlaylistLibraryStateChanged(updatedState)
+            },
+            onDismiss = { folderPendingDelete = null }
+        )
+    }
+    playlistPendingMove?.let { playlist ->
+        MoveToFolderDialog(
+            itemTitle = playlist.title,
+            currentFolderId = playlist.folderId,
+            allFolders = libraryState.folders,
+            onSelectFolder = { targetFolderId ->
+                val playlistId = playlist.id
+                playlistPendingMove = null
+                val updatedState = movePlaylistToFolder(libraryState, playlistId, targetFolderId)
+                onPlaylistLibraryStateChanged(updatedState)
+            },
+            onDismiss = { playlistPendingMove = null }
+        )
+    }
+    folderPendingMove?.let { folder ->
+        val disallowed = remember(folder.id, libraryState.folders) {
+            getDescendantFolderIds(libraryState.folders, folder.id) + folder.id
+        }
+        MoveToFolderDialog(
+            itemTitle = folder.title,
+            currentFolderId = folder.parentFolderId,
+            allFolders = libraryState.folders,
+            disallowedFolderIds = disallowed,
+            onSelectFolder = { targetFolderId ->
+                val folderId = folder.id
+                folderPendingMove = null
+                val updatedState = movePlaylistFolder(libraryState, folderId, targetFolderId)
+                onPlaylistLibraryStateChanged(updatedState)
+            },
+            onDismiss = { folderPendingMove = null }
         )
     }
     libraryContextTracks?.let { contextTracks ->
@@ -2832,13 +3097,21 @@ internal fun PlaylistsScreen(
 @Composable
 private fun PlaylistsLibraryTabPage(
     libraryState: PlaylistLibraryState,
+    currentFolderId: String? = null,
     bottomContentPadding: Dp,
     listState: LazyListState,
     onOpenFavorites: () -> Unit,
     onOpenPlaylist: (StoredPlaylist) -> Unit,
+    onOpenFolder: (PlaylistFolder) -> Unit = {},
+    onNavigateToFolder: (String?) -> Unit = {},
+    onRenameFolder: (PlaylistFolder) -> Unit = {},
+    onDeleteFolder: (PlaylistFolder) -> Unit = {},
+    onMoveFolder: (PlaylistFolder) -> Unit = {},
+    onTogglePinFolder: (PlaylistFolder) -> Unit = {},
     onRenamePlaylist: (StoredPlaylist) -> Unit = {},
     onDuplicatePlaylist: (StoredPlaylist) -> Unit = {},
     onDeletePlaylist: (StoredPlaylist) -> Unit = {},
+    onMovePlaylist: (StoredPlaylist) -> Unit = {},
     onExportPlaylist: (StoredPlaylist) -> Unit = {},
     onSharePlaylist: (StoredPlaylist) -> Unit = {},
     onTogglePinPlaylist: (StoredPlaylist) -> Unit = {},
@@ -2847,11 +3120,24 @@ private fun PlaylistsLibraryTabPage(
     onRefreshPlaylistMetadata: ((String) -> Unit)? = null,
     isWatch: Boolean = false
 ) {
-    val sortedPlaylists = remember(libraryState.playlists) {
-        libraryState.playlists.sortedWith(
-            compareByDescending<StoredPlaylist> { it.isPinned }
-                .thenByDescending { it.updatedAtMs }
-        )
+    val currentFolders = remember(libraryState.folders, currentFolderId) {
+        libraryState.folders
+            .filter { it.parentFolderId == currentFolderId }
+            .sortedWith(
+                compareByDescending<PlaylistFolder> { it.isPinned }
+                    .thenBy { it.title.lowercase() }
+            )
+    }
+    val currentPlaylists = remember(libraryState.playlists, currentFolderId) {
+        libraryState.playlists
+            .filter { it.folderId == currentFolderId }
+            .sortedWith(
+                compareByDescending<StoredPlaylist> { it.isPinned }
+                    .thenByDescending { it.updatedAtMs }
+            )
+    }
+    val folderPath = remember(libraryState.folders, currentFolderId) {
+        resolveFolderPath(libraryState.folders, currentFolderId)
     }
     LazyColumn(
         state = listState,
@@ -2868,41 +3154,118 @@ private fun PlaylistsLibraryTabPage(
         },
         verticalArrangement = if (isWatch) Arrangement.spacedBy(6.dp) else Arrangement.spacedBy(0.dp)
     ) {
-        item {
-            FavoritesCollectionRow(
-                favoriteCount = libraryState.favorites.size,
-                onClick = onOpenFavorites,
-                onDuplicate = { onDuplicatePlaylist(favoritesAsStoredPlaylist(libraryState.favorites)) },
-                onExport = { onExportPlaylist(favoritesAsStoredPlaylist(libraryState.favorites)) },
-                onShare = { onSharePlaylist(favoritesAsStoredPlaylist(libraryState.favorites)) },
-                isHomePinned = isPlaylistHomePinned(FAVORITES_PLAYLIST_ID),
-                onToggleHomePin = { onTogglePlaylistHomePin(FAVORITES_PLAYLIST_ID, "Favorites") },
-                onRefreshMetadata = onRefreshPlaylistMetadata?.let { { it(FAVORITES_PLAYLIST_ID) } },
-                isWatch = isWatch
-            )
-        }
-        if (!isWatch) {
+        if (currentFolderId == null) {
             item {
-                androidx.compose.material3.HorizontalDivider(
-                    modifier = Modifier.padding(start = 74.dp),
-                    color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.45f)
+                FavoritesCollectionRow(
+                    favoriteCount = libraryState.favorites.size,
+                    onClick = onOpenFavorites,
+                    onDuplicate = { onDuplicatePlaylist(favoritesAsStoredPlaylist(libraryState.favorites)) },
+                    onExport = { onExportPlaylist(favoritesAsStoredPlaylist(libraryState.favorites)) },
+                    onShare = { onSharePlaylist(favoritesAsStoredPlaylist(libraryState.favorites)) },
+                    isHomePinned = isPlaylistHomePinned(FAVORITES_PLAYLIST_ID),
+                    onToggleHomePin = { onTogglePlaylistHomePin(FAVORITES_PLAYLIST_ID, "Favorites") },
+                    onRefreshMetadata = onRefreshPlaylistMetadata?.let { { it(FAVORITES_PLAYLIST_ID) } },
+                    isWatch = isWatch
                 )
             }
+            if (!isWatch) {
+                item {
+                    androidx.compose.material3.HorizontalDivider(
+                        modifier = Modifier.padding(start = 74.dp),
+                        color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.45f)
+                    )
+                }
+            }
+        } else {
+            item {
+                Surface(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(bottom = 6.dp),
+                    shape = RoundedCornerShape(12.dp),
+                    color = MaterialTheme.colorScheme.surfaceContainerLow
+                ) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .horizontalScroll(rememberScrollState())
+                            .padding(horizontal = 8.dp, vertical = 4.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        TextButton(
+                            onClick = { onNavigateToFolder(null) },
+                            contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Folder,
+                                contentDescription = null,
+                                modifier = Modifier.size(16.dp)
+                            )
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text("All Playlists", style = MaterialTheme.typography.labelMedium)
+                        }
+                        for (folder in folderPath) {
+                            Icon(
+                                imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight,
+                                contentDescription = null,
+                                modifier = Modifier.size(14.dp),
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                            val isCurrent = folder.id == currentFolderId
+                            TextButton(
+                                onClick = { if (!isCurrent) onNavigateToFolder(folder.id) },
+                                enabled = !isCurrent,
+                                contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp)
+                            ) {
+                                Text(
+                                    text = folder.title,
+                                    style = MaterialTheme.typography.labelMedium,
+                                    fontWeight = if (isCurrent) FontWeight.Bold else FontWeight.Normal,
+                                    color = if (isCurrent) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface
+                                )
+                            }
+                        }
+                    }
+                }
+            }
         }
-        if (sortedPlaylists.isEmpty()) {
+        if (currentFolders.isEmpty() && currentPlaylists.isEmpty()) {
             item {
                 if (!isWatch) {
                     Spacer(modifier = Modifier.height(10.dp))
                 }
                 EmptySectionCard(
-                    title = "No playlists yet",
-                    body = "Playlists you create will show up here."
+                    title = if (currentFolderId == null) "No playlists yet" else "Empty folder",
+                    body = if (currentFolderId == null) "Playlists you create will show up here." else "Add playlists or subfolders here using the + button."
                 )
             }
         } else {
             items(
-                items = sortedPlaylists,
-                key = { it.id }
+                items = currentFolders,
+                key = { "folder_${it.id}" }
+            ) { folder ->
+                FolderCollectionRow(
+                    folder = folder,
+                    playlistCount = libraryState.playlists.count { it.folderId == folder.id },
+                    subfolderCount = libraryState.folders.count { it.parentFolderId == folder.id },
+                    onClick = { onOpenFolder(folder) },
+                    onRename = { onRenameFolder(folder) },
+                    onDelete = { onDeleteFolder(folder) },
+                    onMove = { onMoveFolder(folder) },
+                    isPinned = folder.isPinned,
+                    onTogglePin = { onTogglePinFolder(folder) },
+                    isWatch = isWatch
+                )
+                if (!isWatch) {
+                    androidx.compose.material3.HorizontalDivider(
+                        modifier = Modifier.padding(start = 74.dp),
+                        color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.45f)
+                    )
+                }
+            }
+            items(
+                items = currentPlaylists,
+                key = { "playlist_${it.id}" }
             ) { playlist ->
                 PlaylistCollectionRow(
                     playlist = playlist,
@@ -2912,6 +3275,7 @@ private fun PlaylistsLibraryTabPage(
                     onDelete = { onDeletePlaylist(playlist) },
                     onExport = { onExportPlaylist(playlist) },
                     onShare = { onSharePlaylist(playlist) },
+                    onMoveToFolder = { onMovePlaylist(playlist) },
                     isPinned = playlist.isPinned,
                     onTogglePin = { onTogglePinPlaylist(playlist) },
                     isHomePinned = isPlaylistHomePinned(playlist.id),
@@ -6604,6 +6968,7 @@ private fun PlaylistCollectionRow(
     onDelete: (() -> Unit)? = null,
     onExport: (() -> Unit)? = null,
     onShare: (() -> Unit)? = null,
+    onMoveToFolder: (() -> Unit)? = null,
     isPinned: Boolean = false,
     onTogglePin: (() -> Unit)? = null,
     isHomePinned: Boolean = false,
@@ -6629,11 +6994,52 @@ private fun PlaylistCollectionRow(
         onDelete = onDelete,
         onExport = onExport,
         onShare = onShare,
+        onMoveToFolder = onMoveToFolder,
         isPinned = isPinned,
         onTogglePin = onTogglePin,
         isHomePinned = isHomePinned,
         onToggleHomePin = onToggleHomePin,
         onRefreshMetadata = onRefreshMetadata,
+        isWatch = isWatch
+    )
+}
+
+@Composable
+private fun FolderCollectionRow(
+    folder: PlaylistFolder,
+    playlistCount: Int,
+    subfolderCount: Int,
+    onClick: () -> Unit,
+    onRename: (() -> Unit)? = null,
+    onDelete: (() -> Unit)? = null,
+    onMove: (() -> Unit)? = null,
+    isPinned: Boolean = false,
+    onTogglePin: (() -> Unit)? = null,
+    isWatch: Boolean = false
+) {
+    val subtitle = remember(playlistCount, subfolderCount) {
+        val parts = mutableListOf<String>()
+        if (subfolderCount > 0) {
+            parts += if (subfolderCount == 1) "1 folder" else "$subfolderCount folders"
+        }
+        if (playlistCount > 0) {
+            parts += if (playlistCount == 1) "1 playlist" else "$playlistCount playlists"
+        }
+        if (parts.isEmpty()) "Empty folder" else parts.joinToString(" • ")
+    }
+    PlaylistLibraryFlatRow(
+        modifier = Modifier.fillMaxWidth(),
+        title = folder.title,
+        subtitle = subtitle,
+        icon = Icons.Default.Folder,
+        iconContainerColor = MaterialTheme.colorScheme.secondaryContainer,
+        iconTint = MaterialTheme.colorScheme.onSecondaryContainer,
+        onClick = onClick,
+        onRename = onRename,
+        onDelete = onDelete,
+        onMoveToFolder = onMove,
+        isPinned = isPinned,
+        onTogglePin = onTogglePin,
         isWatch = isWatch
     )
 }
@@ -6652,6 +7058,7 @@ private fun PlaylistLibraryFlatRow(
     onDelete: (() -> Unit)? = null,
     onExport: (() -> Unit)? = null,
     onShare: (() -> Unit)? = null,
+    onMoveToFolder: (() -> Unit)? = null,
     isPinned: Boolean = false,
     onTogglePin: (() -> Unit)? = null,
     isHomePinned: Boolean = false,
@@ -6669,7 +7076,7 @@ private fun PlaylistLibraryFlatRow(
                 .background(MaterialTheme.colorScheme.surfaceContainerLow)
                 .combinedClickable(
                     onClick = onClick,
-                    onLongClick = if (onRename != null || onDuplicate != null || onDelete != null || onExport != null || onShare != null || onTogglePin != null || onToggleHomePin != null || onRefreshMetadata != null) {
+                    onLongClick = if (onRename != null || onDuplicate != null || onDelete != null || onExport != null || onShare != null || onTogglePin != null || onToggleHomePin != null || onRefreshMetadata != null || onMoveToFolder != null) {
                         { wearActionsOpen = true }
                     } else null
                 )
@@ -6814,6 +7221,18 @@ private fun PlaylistLibraryFlatRow(
                         Text("Refresh metadata")
                     }
                 }
+                if (onMoveToFolder != null) {
+                    FilledTonalButton(
+                        onClick = {
+                            wearActionsOpen = false
+                            onMoveToFolder()
+                        },
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(14.dp)
+                    ) {
+                        Text("Move to folder…")
+                    }
+                }
                 if (onDelete != null) {
                     Button(
                         onClick = {
@@ -6889,7 +7308,7 @@ private fun PlaylistLibraryFlatRow(
                     overflow = TextOverflow.Ellipsis
                 )
             }
-            if (onRename != null || onDuplicate != null || onDelete != null || onExport != null || onShare != null || onTogglePin != null || onToggleHomePin != null || onRefreshMetadata != null) {
+            if (onRename != null || onDuplicate != null || onDelete != null || onExport != null || onShare != null || onTogglePin != null || onToggleHomePin != null || onRefreshMetadata != null || onMoveToFolder != null) {
                 Box(
                     modifier = Modifier
                         .size(28.dp)
@@ -7085,6 +7504,32 @@ private fun PlaylistLibraryFlatRow(
                                 onClick = {
                                     menuExpanded = false
                                     onRefreshMetadata()
+                                }
+                            )
+                        }
+                        if (onMoveToFolder != null) {
+                            DropdownMenuItem(
+                                text = {
+                                    Text(
+                                        text = "Move to folder…",
+                                        style = MaterialTheme.typography.bodyLarge
+                                    )
+                                },
+                                leadingIcon = {
+                                    Icon(
+                                        imageVector = Icons.AutoMirrored.Filled.DriveFileMove,
+                                        contentDescription = null,
+                                        modifier = Modifier.size(22.dp)
+                                    )
+                                },
+                                contentPadding = PaddingValues(start = 14.dp, end = 18.dp),
+                                colors = MenuDefaults.itemColors(
+                                    textColor = MaterialTheme.colorScheme.onSurface,
+                                    leadingIconColor = MaterialTheme.colorScheme.onSurfaceVariant
+                                ),
+                                onClick = {
+                                    menuExpanded = false
+                                    onMoveToFolder()
                                 }
                             )
                         }
