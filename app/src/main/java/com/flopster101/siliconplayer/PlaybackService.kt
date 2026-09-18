@@ -1503,7 +1503,7 @@ class PlaybackService : Service() {
 
         fun refreshSettings(context: Context) {
             val intent = Intent(context, PlaybackService::class.java).setAction(ACTION_REFRESH_SETTINGS)
-            context.startService(intent)
+            startServiceSafely(context, intent)
         }
 
         fun isPlaybackServiceAlive(): Boolean = isServiceAlive
