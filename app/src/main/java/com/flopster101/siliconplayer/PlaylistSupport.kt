@@ -20,6 +20,7 @@ import java.util.Locale
 import java.util.UUID
 import kotlin.math.roundToInt
 import com.flopster101.siliconplayer.library.LibraryTrackEntity
+import com.flopster101.siliconplayer.data.buildArchiveSourceId
 import com.flopster101.siliconplayer.data.parseArchiveSourceId
 
 private val SUPPORTED_PLAYLIST_EXTENSIONS = setOf("m3u", "m3u8")
@@ -106,6 +107,23 @@ internal fun isRemotePlaylistSource(sourceId: String): Boolean {
     }
     return parseHttpSourceSpecFromInput(normalized) != null ||
         parseSmbSourceSpecFromInput(normalized) != null
+}
+
+internal fun stripCredentialsFromUri(uriString: String): String {
+    val trimmed = uriString.trim()
+    if (trimmed.startsWith("archive://", ignoreCase = true)) {
+        parseArchiveSourceId(trimmed)?.let { parsed ->
+            val cleanArchivePath = stripCredentialsFromUri(parsed.archivePath)
+            return buildArchiveSourceId(cleanArchivePath, parsed.entryPath)
+        }
+    }
+    parseSmbSourceSpecFromInput(trimmed)?.let { smbSpec ->
+        return buildSmbSourceId(smbSpec)
+    }
+    parseHttpSourceSpecFromInput(trimmed)?.let { httpSpec ->
+        return buildHttpSourceId(httpSpec)
+    }
+    return trimmed
 }
 
 internal data class PlaylistFolder(
@@ -692,7 +710,8 @@ internal fun serializePlaylistToM3u(playlist: StoredPlaylist): String {
                 if (localFile != null) {
                     append(localFile.absolutePath)
                 } else {
-                    append(entry.requestUrlHint?.takeIf { it.isNotBlank() } ?: entry.source)
+                    val rawTarget = entry.requestUrlHint?.takeIf { it.isNotBlank() } ?: entry.source
+                    append(stripCredentialsFromUri(rawTarget))
                 }
                 if (entry.subtuneIndex != null) {
                     append("#subtune=${entry.subtuneIndex + 1}")

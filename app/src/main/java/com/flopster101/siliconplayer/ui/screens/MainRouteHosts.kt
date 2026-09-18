@@ -374,7 +374,13 @@ internal fun MainBrowserRouteHost(
                 onBrowserLocationChanged = onBrowserLocationChanged,
                 onPlaylistFileSelected = onPlaylistFileSelected,
                 pinnedHomeEntries = pinnedHomeEntries,
-                onPinHomeEntry = onPinHomeEntry
+                onPinHomeEntry = onPinHomeEntry,
+                playlists = playlists,
+                favoriteSourceIds = favoriteSourcePaths.toSet(),
+                onToggleFavoriteSource = onToggleFavoriteSource,
+                onAddSourceToPlaylist = onAddSourceToPlaylist,
+                onRemoveSourceFromPlaylist = onRemoveSourceFromPlaylist,
+                networkNodes = networkNodes
             )
         } else {
             LaunchedEffect(routeResolution.requestedLocalLocationId, routeResolution.requestedLocalDirectoryPath) {

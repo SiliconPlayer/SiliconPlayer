@@ -35,6 +35,7 @@ import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.pullrefresh.PullRefreshIndicator
 import androidx.compose.material.ExperimentalMaterialApi
@@ -42,11 +43,15 @@ import androidx.compose.material.pullrefresh.pullRefresh
 import androidx.compose.material.pullrefresh.rememberPullRefreshState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AudioFile
+import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Folder
+import androidx.compose.material.icons.filled.FolderOpen
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Link
+import androidx.compose.material.icons.filled.MoreHoriz
 import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material.icons.filled.PlaylistAdd
 import androidx.compose.material.icons.filled.Save
 import androidx.compose.material.icons.filled.VideoFile
 import androidx.compose.material.icons.filled.Visibility
@@ -61,6 +66,7 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.MenuDefaults
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Scaffold
@@ -101,6 +107,9 @@ import com.flopster101.siliconplayer.HomePinnedEntry
 import com.flopster101.siliconplayer.tvKeyLongPress
 import com.flopster101.siliconplayer.PINNED_HOME_ENTRIES_LIMIT
 import com.flopster101.siliconplayer.RecentPathEntry
+import com.flopster101.siliconplayer.StoredPlaylist
+import com.flopster101.siliconplayer.NetworkNode
+import com.flopster101.siliconplayer.ui.dialogs.AddToPlaylistChooserDialog
 import com.flopster101.siliconplayer.ManualSmbAuthCoordinator
 import com.flopster101.siliconplayer.buildHttpDisplayUri
 import com.flopster101.siliconplayer.buildHttpRequestUri
@@ -181,7 +190,13 @@ internal fun HttpFileBrowserScreen(
     onBrowserLocationChanged: (BrowserLaunchState) -> Unit,
     onPlaylistFileSelected: (File, String?) -> Unit = { _, _ -> },
     pinnedHomeEntries: List<HomePinnedEntry> = emptyList(),
-    onPinHomeEntry: (RecentPathEntry, Boolean) -> Unit = { _, _ -> }
+    onPinHomeEntry: (RecentPathEntry, Boolean) -> Unit = { _, _ -> },
+    playlists: List<StoredPlaylist> = emptyList(),
+    favoriteSourceIds: Set<String> = emptySet(),
+    onToggleFavoriteSource: (String, String) -> Unit = { _, _ -> },
+    onAddSourceToPlaylist: (String, String, String?, String) -> Unit = { _, _, _, _ -> },
+    onRemoveSourceFromPlaylist: (String, String) -> Unit = { _, _ -> },
+    networkNodes: List<NetworkNode> = emptyList()
 ) {
     val context = LocalContext.current
     val isWatch = remember(context) { context.packageManager.hasSystemFeature(PackageManager.FEATURE_WATCH) }
@@ -280,6 +295,9 @@ internal fun HttpFileBrowserScreen(
     var pendingPinConfirmation by remember(screenSessionKey) { mutableStateOf<Pair<RecentPathEntry, Boolean>?>(null) }
     var pendingPinEvictionCandidate by remember(screenSessionKey) { mutableStateOf<HomePinnedEntry?>(null) }
     var watchActionTargetEntry by remember(screenSessionKey) { mutableStateOf<HttpBrowserEntry?>(null) }
+    var pendingPlaylistAddSource by remember(screenSessionKey) {
+        mutableStateOf<Pair<String, String>?>(null)
+    }
 
     fun updatePlayableRemoteSources(entriesForNavigation: List<HttpBrowserEntry>) {
         RemotePlayableSourceIdsHolder.current = entriesForNavigation
@@ -940,6 +958,66 @@ internal fun HttpFileBrowserScreen(
         showBrowserInfoDialog = true
     }
 
+    fun showEntryInfoDialog(entry: HttpBrowserEntry) {
+        val infoEntries = listOf(
+            BrowserInfoEntry(
+                name = entry.name,
+                isDirectory = entry.isDirectory,
+                sizeBytes = null
+            )
+        )
+        val spec = browserSpec()
+        val hostLabel = buildString {
+            append(spec.host)
+            spec.port?.let { port ->
+                if (port > 0) append(":$port")
+            }
+        }
+        val pathLabel = appendHttpDisplayNameFragment(
+            sourceUrl = entry.requestUrl,
+            displayName = entry.name
+        )
+        browserInfoFields = buildBrowserInfoFields(
+            entries = infoEntries,
+            path = pathLabel,
+            storageOrHostLabel = "Host",
+            storageOrHost = hostLabel
+        )
+        showBrowserInfoDialog = true
+    }
+
+    val onPinEntry = { entry: HttpBrowserEntry ->
+        val isFolder = entry.isDirectory
+        val recentEntry = RecentPathEntry(
+            path = entry.sourceId,
+            locationId = null,
+            title = entry.name.takeIf { isFolder },
+            sourceNodeId = sourceNodeId
+        )
+        val preview = previewPinnedHomeEntryInsertion(
+            current = pinnedHomeEntries,
+            candidate = HomePinnedEntry(
+                path = recentEntry.path,
+                isFolder = isFolder,
+                locationId = recentEntry.locationId,
+                title = recentEntry.title,
+                sourceNodeId = recentEntry.sourceNodeId
+            ),
+            maxItems = PINNED_HOME_ENTRIES_LIMIT
+        )
+        if (preview.requiresConfirmation) {
+            pendingPinEvictionCandidate = preview.evictionCandidate
+            pendingPinConfirmation = recentEntry to isFolder
+        } else {
+            onPinHomeEntry(recentEntry, isFolder)
+            Toast.makeText(
+                context,
+                if (isFolder) "Pinned folder to home" else "Pinned file to home",
+                Toast.LENGTH_SHORT
+            ).show()
+        }
+    }
+
     suspend fun requestExportConflictDecision(
         conflict: ExportNameConflict
     ): ExportConflictDecision = withContext(Dispatchers.Main.immediate) {
@@ -1250,6 +1328,16 @@ internal fun HttpFileBrowserScreen(
                         key = { _, entry -> entry.sourceId }
                     ) { index, entry ->
                         val entrySelectionKey = entrySelectionKeyFor(entry)
+                        val entryPlaylistSourceUri = if (
+                            !entry.isDirectory &&
+                            !isSupportedPlaylistFileName(entry.name) &&
+                            browserPreviewKindForName(entry.name) == null &&
+                            browserArchiveCapabilityForName(entry.name) == BrowserArchiveCapability.None
+                        ) {
+                            entry.sourceId
+                        } else {
+                            null
+                        }
                         val hasSelectedAbove = if (index > 0) {
                             val aboveKey = entrySelectionKeyFor(stateFilteredEntries[index - 1])
                             browserSelectionController.selectedKeys.contains(aboveKey)
@@ -1269,7 +1357,21 @@ internal fun HttpFileBrowserScreen(
                             isSelected = browserSelectionController.selectedKeys.contains(entrySelectionKey),
                             hasSelectedAbove = hasSelectedAbove,
                             hasSelectedBelow = hasSelectedBelow,
+                            showFavoriteToggle = browserSelectionController.isSelectionMode,
                             isWatch = isWatch,
+                            isFavorited = entryPlaylistSourceUri != null &&
+                                favoriteSourceIds.contains(entryPlaylistSourceUri),
+                            onToggleFavorite = entryPlaylistSourceUri?.let { sourceUri ->
+                                { onToggleFavoriteSource(sourceUri, entry.name) }
+                            },
+                            onAddToPlaylist = entryPlaylistSourceUri?.let { sourceUri ->
+                                { pendingPlaylistAddSource = sourceUri to entry.name }
+                            },
+                            onPinToHome = { onPinEntry(entry) },
+                            onShowInfo = { showEntryInfoDialog(entry) },
+                            onSelect = {
+                                browserSelectionController.enterSelectionWith(entrySelectionKey)
+                            },
                             onLongClick = {
                                 if (isWatch) {
                                     watchActionTargetEntry = entry
@@ -1641,35 +1743,7 @@ internal fun HttpFileBrowserScreen(
                                 .background(MaterialTheme.colorScheme.surfaceContainerLow)
                                 .clickable {
                                     watchActionTargetEntry = null
-                                    val isFolder = entry.isDirectory
-                                    val recentEntry = RecentPathEntry(
-                                        path = entry.sourceId,
-                                        locationId = null,
-                                        title = entry.name.takeIf { isFolder },
-                                        sourceNodeId = sourceNodeId
-                                    )
-                                    val preview = previewPinnedHomeEntryInsertion(
-                                        current = pinnedHomeEntries,
-                                        candidate = HomePinnedEntry(
-                                            path = recentEntry.path,
-                                            isFolder = isFolder,
-                                            locationId = recentEntry.locationId,
-                                            title = recentEntry.title,
-                                            sourceNodeId = recentEntry.sourceNodeId
-                                        ),
-                                        maxItems = PINNED_HOME_ENTRIES_LIMIT
-                                    )
-                                    if (preview.requiresConfirmation) {
-                                        pendingPinEvictionCandidate = preview.evictionCandidate
-                                        pendingPinConfirmation = recentEntry to isFolder
-                                    } else {
-                                        onPinHomeEntry(recentEntry, isFolder)
-                                        Toast.makeText(
-                                            context,
-                                            if (isFolder) "Pinned folder to home" else "Pinned file to home",
-                                            Toast.LENGTH_SHORT
-                                        ).show()
-                                    }
+                                    onPinEntry(entry)
                                 }
                                 .padding(horizontal = 12.dp, vertical = 8.dp),
                             verticalAlignment = Alignment.CenterVertically
@@ -1695,24 +1769,7 @@ internal fun HttpFileBrowserScreen(
                                 .background(MaterialTheme.colorScheme.surfaceContainerLow)
                                 .clickable {
                                     watchActionTargetEntry = null
-                                    val infoEntries = listOf(
-                                        BrowserInfoEntry(
-                                            name = entry.name,
-                                            isDirectory = entry.isDirectory,
-                                            sizeBytes = null
-                                        )
-                                    )
-                                    val pathLabel = appendHttpDisplayNameFragment(
-                                        sourceUrl = entry.requestUrl,
-                                        displayName = entry.name
-                                    )
-                                    browserInfoFields = buildBrowserInfoFields(
-                                        entries = infoEntries,
-                                        path = pathLabel,
-                                        storageOrHostLabel = "Host",
-                                        storageOrHost = currentSpec.host
-                                    )
-                                    showBrowserInfoDialog = true
+                                    showEntryInfoDialog(entry)
                                 }
                                 .padding(horizontal = 12.dp, vertical = 8.dp),
                             verticalAlignment = Alignment.CenterVertically
@@ -1730,6 +1787,20 @@ internal fun HttpFileBrowserScreen(
                 }
             }
         }
+    }
+
+    pendingPlaylistAddSource?.let { (source, title) ->
+        AddToPlaylistChooserDialog(
+            playlists = playlists,
+            pendingSources = setOf(source),
+            onConfirm = { playlistId, newTitle ->
+                onAddSourceToPlaylist(source, title, playlistId, newTitle)
+            },
+            onRemoveFromPlaylist = { playlistId ->
+                onRemoveSourceFromPlaylist(source, playlistId)
+            },
+            onDismiss = { pendingPlaylistAddSource = null }
+        )
     }
 
     if (authDialogVisible) {
@@ -2158,7 +2229,14 @@ private fun HttpEntryRow(
     isSelected: Boolean,
     hasSelectedAbove: Boolean = false,
     hasSelectedBelow: Boolean = false,
+    showFavoriteToggle: Boolean = false,
     isWatch: Boolean = false,
+    isFavorited: Boolean = false,
+    onToggleFavorite: (() -> Unit)? = null,
+    onAddToPlaylist: (() -> Unit)? = null,
+    onPinToHome: (() -> Unit)? = null,
+    onShowInfo: (() -> Unit)? = null,
+    onSelect: (() -> Unit)? = null,
     onLongClick: (() -> Unit)? = null,
     onClick: () -> Unit
 ) {
@@ -2168,6 +2246,8 @@ private fun HttpEntryRow(
         supportedExtensions = supportedExtensions,
         decoderExtensionArtworkHints = decoderExtensionArtworkHints
     )
+    val isArchive = browserArchiveCapabilityForName(entry.name) != BrowserArchiveCapability.None
+    val treatAsContainer = entry.isDirectory || isArchive
     val selectionShape = if (isWatch) {
         RoundedCornerShape(14.dp)
     } else {
@@ -2242,6 +2322,213 @@ private fun HttpEntryRow(
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis
             )
+        }
+        val canShowFavoriteToggle = showFavoriteToggle &&
+            onToggleFavorite != null &&
+            !entry.isDirectory
+        if (canShowFavoriteToggle) {
+            Spacer(modifier = Modifier.width(8.dp))
+            Box(
+                modifier = Modifier
+                    .size(28.dp)
+                    .clickable(onClick = onToggleFavorite),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(
+                    painter = painterResource(
+                        id = if (isFavorited) {
+                            R.drawable.ic_star_filled
+                        } else {
+                            R.drawable.ic_star_outline
+                        }
+                    ),
+                    contentDescription = if (isFavorited) {
+                        "Remove from favorites"
+                    } else {
+                        "Add to favorites"
+                    },
+                    tint = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.size(18.dp)
+                )
+            }
+        } else if (!isWatch && !showFavoriteToggle) {
+            var menuExpanded by remember { mutableStateOf(false) }
+            Spacer(modifier = Modifier.width(4.dp))
+            Box(
+                modifier = Modifier
+                    .size(32.dp)
+                    .clip(CircleShape)
+                    .clickable(onClick = { menuExpanded = true }),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(
+                    imageVector = Icons.Default.MoreHoriz,
+                    contentDescription = "Options",
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.65f),
+                    modifier = Modifier.size(20.dp)
+                )
+                DropdownMenu(
+                    expanded = menuExpanded,
+                    onDismissRequest = { menuExpanded = false }
+                ) {
+                    DropdownMenuItem(
+                        text = {
+                            Text(
+                                text = if (treatAsContainer) "Open" else "Play",
+                                style = MaterialTheme.typography.bodyLarge
+                            )
+                        },
+                        leadingIcon = {
+                            Icon(
+                                imageVector = if (treatAsContainer) Icons.Default.FolderOpen else Icons.Default.PlayArrow,
+                                contentDescription = null,
+                                modifier = Modifier.size(22.dp)
+                            )
+                        },
+                        contentPadding = PaddingValues(start = 14.dp, end = 18.dp),
+                        colors = MenuDefaults.itemColors(
+                            textColor = MaterialTheme.colorScheme.onSurface,
+                            leadingIconColor = MaterialTheme.colorScheme.onSurfaceVariant
+                        ),
+                        onClick = {
+                            menuExpanded = false
+                            onClick()
+                        }
+                    )
+                    if (onAddToPlaylist != null && !treatAsContainer) {
+                        DropdownMenuItem(
+                            text = {
+                                Text(
+                                    text = "Add to playlist...",
+                                    style = MaterialTheme.typography.bodyLarge
+                                )
+                            },
+                            leadingIcon = {
+                                Icon(
+                                    imageVector = Icons.Default.PlaylistAdd,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(22.dp)
+                                )
+                            },
+                            contentPadding = PaddingValues(start = 14.dp, end = 18.dp),
+                            colors = MenuDefaults.itemColors(
+                                textColor = MaterialTheme.colorScheme.onSurface,
+                                leadingIconColor = MaterialTheme.colorScheme.onSurfaceVariant
+                            ),
+                            onClick = {
+                                menuExpanded = false
+                                onAddToPlaylist()
+                            }
+                        )
+                    }
+                    if (onToggleFavorite != null && !treatAsContainer) {
+                        DropdownMenuItem(
+                            text = {
+                                Text(
+                                    text = if (isFavorited) "Remove from favorites" else "Add to favorites",
+                                    style = MaterialTheme.typography.bodyLarge
+                                )
+                            },
+                            leadingIcon = {
+                                Icon(
+                                    painter = painterResource(
+                                        id = if (isFavorited) R.drawable.ic_star_filled else R.drawable.ic_star_outline
+                                    ),
+                                    contentDescription = null,
+                                    modifier = Modifier.size(22.dp)
+                                )
+                            },
+                            contentPadding = PaddingValues(start = 14.dp, end = 18.dp),
+                            colors = MenuDefaults.itemColors(
+                                textColor = MaterialTheme.colorScheme.onSurface,
+                                leadingIconColor = MaterialTheme.colorScheme.primary
+                            ),
+                            onClick = {
+                                menuExpanded = false
+                                onToggleFavorite()
+                            }
+                        )
+                    }
+                    if (onPinToHome != null) {
+                        DropdownMenuItem(
+                            text = {
+                                Text(
+                                    text = if (treatAsContainer) "Pin folder to home" else "Pin file to home",
+                                    style = MaterialTheme.typography.bodyLarge
+                                )
+                            },
+                            leadingIcon = {
+                                Icon(
+                                    imageVector = Icons.Default.Home,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(22.dp)
+                                )
+                            },
+                            contentPadding = PaddingValues(start = 14.dp, end = 18.dp),
+                            colors = MenuDefaults.itemColors(
+                                textColor = MaterialTheme.colorScheme.onSurface,
+                                leadingIconColor = MaterialTheme.colorScheme.onSurfaceVariant
+                            ),
+                            onClick = {
+                                menuExpanded = false
+                                onPinToHome()
+                            }
+                        )
+                    }
+                    if (onShowInfo != null) {
+                        DropdownMenuItem(
+                            text = {
+                                Text(
+                                    text = "Details",
+                                    style = MaterialTheme.typography.bodyLarge
+                                )
+                            },
+                            leadingIcon = {
+                                Icon(
+                                    imageVector = Icons.Default.Info,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(22.dp)
+                                )
+                            },
+                            contentPadding = PaddingValues(start = 14.dp, end = 18.dp),
+                            colors = MenuDefaults.itemColors(
+                                textColor = MaterialTheme.colorScheme.onSurface,
+                                leadingIconColor = MaterialTheme.colorScheme.onSurfaceVariant
+                            ),
+                            onClick = {
+                                menuExpanded = false
+                                onShowInfo()
+                            }
+                        )
+                    }
+                    if (onSelect != null) {
+                        DropdownMenuItem(
+                            text = {
+                                Text(
+                                    text = "Select",
+                                    style = MaterialTheme.typography.bodyLarge
+                                )
+                            },
+                            leadingIcon = {
+                                Icon(
+                                    imageVector = Icons.Default.CheckCircle,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(22.dp)
+                                )
+                            },
+                            contentPadding = PaddingValues(start = 14.dp, end = 18.dp),
+                            colors = MenuDefaults.itemColors(
+                                textColor = MaterialTheme.colorScheme.onSurface,
+                                leadingIconColor = MaterialTheme.colorScheme.onSurfaceVariant
+                            ),
+                            onClick = {
+                                menuExpanded = false
+                                onSelect()
+                            }
+                        )
+                    }
+                }
+            }
         }
     }
 }

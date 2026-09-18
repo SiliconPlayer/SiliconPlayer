@@ -894,8 +894,9 @@ internal fun toggleFavoriteForSource(
     title: String,
     onPlaylistLibraryStateChanged: (PlaylistLibraryState) -> Unit
 ) {
+    val cleanSource = stripCredentialsFromUri(source)
     val matchingFavorites = playlistLibraryState.favorites.filter { entry ->
-        samePath(entry.source, source) && entry.subtuneIndex == null
+        (samePath(entry.source, source) || samePath(entry.source, cleanSource)) && entry.subtuneIndex == null
     }
     if (matchingFavorites.isNotEmpty()) {
         onPlaylistLibraryStateChanged(
@@ -912,7 +913,7 @@ internal fun toggleFavoriteForSource(
         upsertFavoriteTrack(
             state = playlistLibraryState,
             track = PlaylistTrackEntry(
-                source = source,
+                source = cleanSource,
                 title = title,
                 artist = null,
                 album = null,
@@ -929,7 +930,7 @@ internal fun playlistTrackEntryForBrowserSource(
     title: String
 ): PlaylistTrackEntry {
     return PlaylistTrackEntry(
-        source = source,
+        source = stripCredentialsFromUri(source),
         title = title,
         artist = null,
         album = null,

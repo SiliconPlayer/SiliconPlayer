@@ -37,13 +37,17 @@ import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AudioFile
+import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Folder
+import androidx.compose.material.icons.filled.FolderOpen
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Link
+import androidx.compose.material.icons.filled.MoreHoriz
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.PlaylistAdd
 import androidx.compose.material.icons.filled.Save
@@ -61,6 +65,7 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.MenuDefaults
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Scaffold
@@ -976,6 +981,74 @@ internal fun SmbFileBrowserScreen(
         showBrowserInfoDialog = true
     }
 
+    fun showEntryInfoDialog(entry: SmbBrowserEntry) {
+        val isDir = entry.isDirectory
+        val infoEntries = listOf(
+            BrowserInfoEntry(
+                name = entry.name,
+                isDirectory = isDir,
+                sizeBytes = if (isDir) null else entry.sizeBytes
+            )
+        )
+        val displayHost = resolveSmbDisplayHost(credentialsSpec.host, networkNodes)
+        val pathLabel = buildSmbDisplayUri(
+            credentialsSpec.copy(
+                share = currentShare,
+                path = joinSmbRelativePath(effectivePath().orEmpty(), entry.name)
+            ),
+            networkNodes
+        )
+        val hostLabel = buildString {
+            append(displayHost)
+            if (currentShare.isNotBlank()) {
+                append('/')
+                append(decodePercentEncodedForDisplay(currentShare) ?: currentShare)
+            }
+        }
+        browserInfoFields = buildBrowserInfoFields(
+            entries = infoEntries,
+            path = pathLabel,
+            storageOrHostLabel = "Host",
+            storageOrHost = hostLabel
+        )
+        showBrowserInfoDialog = true
+    }
+
+    val onPinEntry = { entry: SmbBrowserEntry, isDir: Boolean ->
+        val targetSpec = buildSmbEntrySourceSpec(
+            credentialsSpec.copy(share = currentShare),
+            joinSmbRelativePath(effectivePath().orEmpty(), entry.name)
+        )
+        val recentEntry = RecentPathEntry(
+            path = buildSmbSourceId(targetSpec),
+            locationId = null,
+            title = entry.name.takeIf { isDir },
+            sourceNodeId = sourceNodeId
+        )
+        val preview = previewPinnedHomeEntryInsertion(
+            current = pinnedHomeEntries,
+            candidate = HomePinnedEntry(
+                path = recentEntry.path,
+                isFolder = isDir,
+                locationId = recentEntry.locationId,
+                title = recentEntry.title,
+                sourceNodeId = recentEntry.sourceNodeId
+            ),
+            maxItems = PINNED_HOME_ENTRIES_LIMIT
+        )
+        if (preview.requiresConfirmation) {
+            pendingPinEvictionCandidate = preview.evictionCandidate
+            pendingPinConfirmation = recentEntry to isDir
+        } else {
+            onPinHomeEntry(recentEntry, isDir)
+            Toast.makeText(
+                context,
+                if (isDir) "Pinned folder to home" else "Pinned file to home",
+                Toast.LENGTH_SHORT
+            ).show()
+        }
+    }
+
     suspend fun requestExportConflictDecision(
         conflict: ExportNameConflict
     ): ExportConflictDecision = withContext(Dispatchers.Main.immediate) {
@@ -1291,19 +1364,22 @@ internal fun SmbFileBrowserScreen(
                         key = { _, entry -> "${entry.isDirectory}:${entry.name}" }
                     ) { index, entry ->
                         val entrySelectionKey = entrySelectionKeyFor(entry)
+                        val entrySourceSpec = if (!stateSharePickerMode) {
+                            buildSmbEntrySourceSpec(
+                                credentialsSpec.copy(share = stateShare),
+                                joinSmbRelativePath(stateSubPath, entry.name)
+                            )
+                        } else {
+                            null
+                        }
                         val entryPlaylistSourceUri = if (
-                            !stateSharePickerMode &&
+                            entrySourceSpec != null &&
                             !entry.isDirectory &&
                             !isSupportedPlaylistFileName(entry.name) &&
                             browserPreviewKindForName(entry.name) == null &&
                             browserArchiveCapabilityForName(entry.name) == BrowserArchiveCapability.None
                         ) {
-                            buildSmbRequestUri(
-                                buildSmbEntrySourceSpec(
-                                    credentialsSpec.copy(share = stateShare),
-                                    joinSmbRelativePath(stateSubPath, entry.name)
-                                )
-                            )
+                            buildSmbSourceId(entrySourceSpec)
                         } else {
                             null
                         }
@@ -1327,6 +1403,7 @@ internal fun SmbFileBrowserScreen(
                             hasSelectedAbove = hasSelectedAbove,
                             hasSelectedBelow = hasSelectedBelow,
                             showAsShare = stateSharePickerMode,
+                            showFavoriteToggle = browserSelectionController.isSelectionMode,
                             isWatch = isWatch,
                             isFavorited = entryPlaylistSourceUri != null &&
                                 favoriteSourceIds.contains(entryPlaylistSourceUri),
@@ -1335,6 +1412,15 @@ internal fun SmbFileBrowserScreen(
                             },
                             onAddToPlaylist = entryPlaylistSourceUri?.let { sourceUri ->
                                 { pendingPlaylistAddSource = sourceUri to entry.name }
+                            },
+                            onPinToHome = if (!stateSharePickerMode) {
+                                { onPinEntry(entry, entry.isDirectory) }
+                            } else null,
+                            onShowInfo = if (!stateSharePickerMode) {
+                                { showEntryInfoDialog(entry) }
+                            } else null,
+                            onSelect = {
+                                browserSelectionController.enterSelectionWith(entrySelectionKey)
                             },
                             onLongClick = {
                                 if (isWatch) {
@@ -1697,34 +1783,7 @@ internal fun SmbFileBrowserScreen(
                                 .background(MaterialTheme.colorScheme.surfaceContainerLow)
                                 .clickable {
                                     watchActionTargetEntry = null
-                                    val recentEntry = RecentPathEntry(
-                                        path = buildSmbSourceId(targetSpec),
-                                        locationId = null,
-                                        title = entry.name.takeIf { isDir },
-                                        sourceNodeId = sourceNodeId
-                                    )
-                                    val preview = previewPinnedHomeEntryInsertion(
-                                        current = pinnedHomeEntries,
-                                        candidate = HomePinnedEntry(
-                                            path = recentEntry.path,
-                                            isFolder = isDir,
-                                            locationId = recentEntry.locationId,
-                                            title = recentEntry.title,
-                                            sourceNodeId = recentEntry.sourceNodeId
-                                        ),
-                                        maxItems = PINNED_HOME_ENTRIES_LIMIT
-                                    )
-                                    if (preview.requiresConfirmation) {
-                                        pendingPinEvictionCandidate = preview.evictionCandidate
-                                        pendingPinConfirmation = recentEntry to isDir
-                                    } else {
-                                        onPinHomeEntry(recentEntry, isDir)
-                                        Toast.makeText(
-                                            context,
-                                            if (isDir) "Pinned folder to home" else "Pinned file to home",
-                                            Toast.LENGTH_SHORT
-                                        ).show()
-                                    }
+                                    onPinEntry(entry, isDir)
                                 }
                                 .padding(horizontal = 12.dp, vertical = 8.dp),
                             verticalAlignment = Alignment.CenterVertically
@@ -1750,35 +1809,7 @@ internal fun SmbFileBrowserScreen(
                                 .background(MaterialTheme.colorScheme.surfaceContainerLow)
                                 .clickable {
                                     watchActionTargetEntry = null
-                                    val infoEntries = listOf(
-                                        BrowserInfoEntry(
-                                            name = entry.name,
-                                            isDirectory = isDir,
-                                            sizeBytes = if (isDir) null else entry.sizeBytes
-                                        )
-                                    )
-                                    val displayHost = resolveSmbDisplayHost(credentialsSpec.host, networkNodes)
-                                    val pathLabel = buildSmbDisplayUri(
-                                        credentialsSpec.copy(
-                                            share = currentShare,
-                                            path = effectivePath()
-                                        ),
-                                        networkNodes
-                                    )
-                                    val hostLabel = buildString {
-                                        append(displayHost)
-                                        if (currentShare.isNotBlank()) {
-                                            append('/')
-                                            append(decodePercentEncodedForDisplay(currentShare) ?: currentShare)
-                                        }
-                                    }
-                                    browserInfoFields = buildBrowserInfoFields(
-                                        entries = infoEntries,
-                                        path = pathLabel,
-                                        storageOrHostLabel = "Host",
-                                        storageOrHost = hostLabel
-                                    )
-                                    showBrowserInfoDialog = true
+                                    showEntryInfoDialog(entry)
                                 }
                                 .padding(horizontal = 12.dp, vertical = 8.dp),
                             verticalAlignment = Alignment.CenterVertically
@@ -2233,10 +2264,14 @@ private fun SmbEntryRow(
     hasSelectedAbove: Boolean = false,
     hasSelectedBelow: Boolean = false,
     showAsShare: Boolean,
+    showFavoriteToggle: Boolean = false,
     isWatch: Boolean = false,
     isFavorited: Boolean = false,
     onToggleFavorite: (() -> Unit)? = null,
     onAddToPlaylist: (() -> Unit)? = null,
+    onPinToHome: (() -> Unit)? = null,
+    onShowInfo: (() -> Unit)? = null,
+    onSelect: (() -> Unit)? = null,
     onLongClick: (() -> Unit)? = null,
     onClick: () -> Unit
 ) {
@@ -2337,7 +2372,11 @@ private fun SmbEntryRow(
                 overflow = TextOverflow.Ellipsis
             )
         }
-        if (onToggleFavorite != null) {
+        val canShowFavoriteToggle = showFavoriteToggle &&
+            onToggleFavorite != null &&
+            !showAsShare &&
+            !entry.isDirectory
+        if (canShowFavoriteToggle) {
             Spacer(modifier = Modifier.width(8.dp))
             Box(
                 modifier = Modifier
@@ -2361,6 +2400,184 @@ private fun SmbEntryRow(
                     tint = MaterialTheme.colorScheme.primary,
                     modifier = Modifier.size(18.dp)
                 )
+            }
+        } else if (!isWatch && !showFavoriteToggle) {
+            var menuExpanded by remember { mutableStateOf(false) }
+            Spacer(modifier = Modifier.width(4.dp))
+            Box(
+                modifier = Modifier
+                    .size(32.dp)
+                    .clip(CircleShape)
+                    .clickable(onClick = { menuExpanded = true }),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(
+                    imageVector = Icons.Default.MoreHoriz,
+                    contentDescription = "Options",
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.65f),
+                    modifier = Modifier.size(20.dp)
+                )
+                DropdownMenu(
+                    expanded = menuExpanded,
+                    onDismissRequest = { menuExpanded = false }
+                ) {
+                    DropdownMenuItem(
+                        text = {
+                            Text(
+                                text = if (treatAsContainer) "Open" else "Play",
+                                style = MaterialTheme.typography.bodyLarge
+                            )
+                        },
+                        leadingIcon = {
+                            Icon(
+                                imageVector = if (treatAsContainer) Icons.Default.FolderOpen else Icons.Default.PlayArrow,
+                                contentDescription = null,
+                                modifier = Modifier.size(22.dp)
+                            )
+                        },
+                        contentPadding = PaddingValues(start = 14.dp, end = 18.dp),
+                        colors = MenuDefaults.itemColors(
+                            textColor = MaterialTheme.colorScheme.onSurface,
+                            leadingIconColor = MaterialTheme.colorScheme.onSurfaceVariant
+                        ),
+                        onClick = {
+                            menuExpanded = false
+                            onClick()
+                        }
+                    )
+                    if (onAddToPlaylist != null && !treatAsContainer) {
+                        DropdownMenuItem(
+                            text = {
+                                Text(
+                                    text = "Add to playlist...",
+                                    style = MaterialTheme.typography.bodyLarge
+                                )
+                            },
+                            leadingIcon = {
+                                Icon(
+                                    imageVector = Icons.Default.PlaylistAdd,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(22.dp)
+                                )
+                            },
+                            contentPadding = PaddingValues(start = 14.dp, end = 18.dp),
+                            colors = MenuDefaults.itemColors(
+                                textColor = MaterialTheme.colorScheme.onSurface,
+                                leadingIconColor = MaterialTheme.colorScheme.onSurfaceVariant
+                            ),
+                            onClick = {
+                                menuExpanded = false
+                                onAddToPlaylist()
+                            }
+                        )
+                    }
+                    if (onToggleFavorite != null && !treatAsContainer) {
+                        DropdownMenuItem(
+                            text = {
+                                Text(
+                                    text = if (isFavorited) "Remove from favorites" else "Add to favorites",
+                                    style = MaterialTheme.typography.bodyLarge
+                                )
+                            },
+                            leadingIcon = {
+                                Icon(
+                                    painter = painterResource(
+                                        id = if (isFavorited) R.drawable.ic_star_filled else R.drawable.ic_star_outline
+                                    ),
+                                    contentDescription = null,
+                                    modifier = Modifier.size(22.dp)
+                                )
+                            },
+                            contentPadding = PaddingValues(start = 14.dp, end = 18.dp),
+                            colors = MenuDefaults.itemColors(
+                                textColor = MaterialTheme.colorScheme.onSurface,
+                                leadingIconColor = MaterialTheme.colorScheme.primary
+                            ),
+                            onClick = {
+                                menuExpanded = false
+                                onToggleFavorite()
+                            }
+                        )
+                    }
+                    if (onPinToHome != null) {
+                        DropdownMenuItem(
+                            text = {
+                                Text(
+                                    text = if (treatAsContainer) "Pin folder to home" else "Pin file to home",
+                                    style = MaterialTheme.typography.bodyLarge
+                                )
+                            },
+                            leadingIcon = {
+                                Icon(
+                                    imageVector = Icons.Default.Home,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(22.dp)
+                                )
+                            },
+                            contentPadding = PaddingValues(start = 14.dp, end = 18.dp),
+                            colors = MenuDefaults.itemColors(
+                                textColor = MaterialTheme.colorScheme.onSurface,
+                                leadingIconColor = MaterialTheme.colorScheme.onSurfaceVariant
+                            ),
+                            onClick = {
+                                menuExpanded = false
+                                onPinToHome()
+                            }
+                        )
+                    }
+                    if (onShowInfo != null) {
+                        DropdownMenuItem(
+                            text = {
+                                Text(
+                                    text = "Details",
+                                    style = MaterialTheme.typography.bodyLarge
+                                )
+                            },
+                            leadingIcon = {
+                                Icon(
+                                    imageVector = Icons.Default.Info,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(22.dp)
+                                )
+                            },
+                            contentPadding = PaddingValues(start = 14.dp, end = 18.dp),
+                            colors = MenuDefaults.itemColors(
+                                textColor = MaterialTheme.colorScheme.onSurface,
+                                leadingIconColor = MaterialTheme.colorScheme.onSurfaceVariant
+                            ),
+                            onClick = {
+                                menuExpanded = false
+                                onShowInfo()
+                            }
+                        )
+                    }
+                    if (onSelect != null) {
+                        DropdownMenuItem(
+                            text = {
+                                Text(
+                                    text = "Select",
+                                    style = MaterialTheme.typography.bodyLarge
+                                )
+                            },
+                            leadingIcon = {
+                                Icon(
+                                    imageVector = Icons.Default.CheckCircle,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(22.dp)
+                                )
+                            },
+                            contentPadding = PaddingValues(start = 14.dp, end = 18.dp),
+                            colors = MenuDefaults.itemColors(
+                                textColor = MaterialTheme.colorScheme.onSurface,
+                                leadingIconColor = MaterialTheme.colorScheme.onSurfaceVariant
+                            ),
+                            onClick = {
+                                menuExpanded = false
+                                onSelect()
+                            }
+                        )
+                    }
+                }
             }
         }
     }
