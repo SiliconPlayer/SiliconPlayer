@@ -2,6 +2,7 @@ package com.flopster101.siliconplayer
 
 import com.flopster101.siliconplayer.onGloballyPositionedDeferred
 import com.flopster101.siliconplayer.onSizeChangedDeferred
+import com.flopster101.siliconplayer.ui.dialogs.ColorPickerDialog
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
@@ -1338,110 +1339,10 @@ internal fun VisualizationRgbColorPickerDialog(
     onDismiss: () -> Unit,
     onConfirm: (Int) -> Unit
 ) {
-    var red by remember { mutableIntStateOf((initialArgb shr 16) and 0xFF) }
-    var green by remember { mutableIntStateOf((initialArgb shr 8) and 0xFF) }
-    var blue by remember { mutableIntStateOf(initialArgb and 0xFF) }
-
-    fun asArgbInt(r: Int, g: Int, b: Int): Int {
-        return (0xFF shl 24) or ((r and 0xFF) shl 16) or ((g and 0xFF) shl 8) or (b and 0xFF)
-    }
-
-    val previewColor = Color(asArgbInt(red, green, blue))
-    val hex = String.format(Locale.US, "#%02X%02X%02X", red, green, blue)
-
-    if (isWatchDevice()) {
-        WatchDialogContainer(
-            title = title,
-            onDismissRequest = onDismiss
-        ) {
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(32.dp)
-                    .clip(RoundedCornerShape(10.dp))
-                    .background(previewColor)
-            )
-            Text(text = hex, style = MaterialTheme.typography.titleMedium, textAlign = TextAlign.Center)
-            Text("Red: $red", style = MaterialTheme.typography.bodySmall)
-            Slider(
-                value = red.toFloat(),
-                onValueChange = { red = it.roundToInt().coerceIn(0, 255) },
-                valueRange = 0f..255f
-            )
-            Text("Green: $green", style = MaterialTheme.typography.bodySmall)
-            Slider(
-                value = green.toFloat(),
-                onValueChange = { green = it.roundToInt().coerceIn(0, 255) },
-                valueRange = 0f..255f
-            )
-            Text("Blue: $blue", style = MaterialTheme.typography.bodySmall)
-            Slider(
-                value = blue.toFloat(),
-                onValueChange = { blue = it.roundToInt().coerceIn(0, 255) },
-                valueRange = 0f..255f
-            )
-            Spacer(modifier = Modifier.height(4.dp))
-            Button(
-                onClick = {
-                    onConfirm(asArgbInt(red, green, blue))
-                    onDismiss()
-                },
-                modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(14.dp)
-            ) {
-                Text("Save")
-            }
-            TextButton(onClick = onDismiss, modifier = Modifier.fillMaxWidth()) {
-                Text("Cancel")
-            }
-        }
-    } else {
-        AlertDialog(
-            modifier = adaptiveDialogModifier(),
-            properties = adaptiveDialogProperties(),
-            onDismissRequest = onDismiss,
-            title = { Text(title) },
-            text = {
-                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                    Box(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(36.dp)
-                            .clip(MaterialTheme.shapes.medium)
-                            .background(previewColor)
-                    )
-                    Text(text = hex, style = MaterialTheme.typography.titleMedium)
-
-                    Text("Red: $red", style = MaterialTheme.typography.bodySmall)
-                    Slider(
-                        value = red.toFloat(),
-                        onValueChange = { red = it.roundToInt().coerceIn(0, 255) },
-                        valueRange = 0f..255f
-                    )
-                    Text("Green: $green", style = MaterialTheme.typography.bodySmall)
-                    Slider(
-                        value = green.toFloat(),
-                        onValueChange = { green = it.roundToInt().coerceIn(0, 255) },
-                        valueRange = 0f..255f
-                    )
-                    Text("Blue: $blue", style = MaterialTheme.typography.bodySmall)
-                    Slider(
-                        value = blue.toFloat(),
-                        onValueChange = { blue = it.roundToInt().coerceIn(0, 255) },
-                        valueRange = 0f..255f
-                    )
-                }
-            },
-            dismissButton = {
-                TextButton(onClick = onDismiss) {
-                    Text("Cancel")
-                }
-            },
-            confirmButton = {
-                TextButton(onClick = { onConfirm(asArgbInt(red, green, blue)) }) {
-                    Text("Save")
-                }
-            }
-        )
-    }
+    ColorPickerDialog(
+        title = title,
+        initialArgb = initialArgb,
+        onDismiss = onDismiss,
+        onConfirm = onConfirm
+    )
 }

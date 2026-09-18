@@ -39,7 +39,7 @@ import com.flopster101.siliconplayer.parsePlaylistDocument
 import com.flopster101.siliconplayer.duplicateStoredPlaylist
 import com.flopster101.siliconplayer.saveNormalizedPlaylistCover
 import com.flopster101.siliconplayer.rotatePlaylistCoverFile
-import com.flopster101.siliconplayer.VisualizationRgbColorPickerDialog
+import com.flopster101.siliconplayer.ui.dialogs.ColorPickerDialog
 import com.flopster101.siliconplayer.isSupportedPlaylistFile
 import com.flopster101.siliconplayer.ParsedPlaylistDocument
 import com.flopster101.siliconplayer.ui.dialogs.FilePickerChoiceSheet
@@ -6604,7 +6604,7 @@ internal fun PlaylistCoverCustomizerDialog(
 
     if (showCustomColorPicker) {
         val initialInt = playlist.iconTintArgb?.toInt() ?: 0xFF4A5FBE.toInt()
-        VisualizationRgbColorPickerDialog(
+        ColorPickerDialog(
             title = "Custom icon tint",
             initialArgb = initialInt,
             onDismiss = { showCustomColorPicker = false },
