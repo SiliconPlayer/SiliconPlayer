@@ -22,13 +22,15 @@ import java.net.HttpURLConnection
 import java.net.URL
 import java.util.Locale
 
-private const val ARTWORK_MEMORY_CACHE_MAX_KB = 12 * 1024
+private const val ARTWORK_MEMORY_CACHE_MAX_KB = 24 * 1024
 
 private object ArtworkBitmapMemoryCache : LruCache<String, Bitmap>(ARTWORK_MEMORY_CACHE_MAX_KB) {
     override fun sizeOf(key: String, value: Bitmap): Int {
         return (value.byteCount / 1024).coerceAtLeast(1)
     }
 }
+
+private object LocalFileNoArtworkCache : LruCache<String, Boolean>(1000)
 
 internal fun artworkCacheKeyForSource(
     displayFile: File?,
@@ -96,6 +98,7 @@ private fun cacheArtworkBitmapForSource(
 }
 
 internal fun loadArtworkForFile(file: File): ImageBitmap? {
+    if (LocalFileNoArtworkCache.get(file.absolutePath) == true) return null
     peekCachedArtworkBitmapForSource(
         displayFile = file,
         sourceId = file.absolutePath
@@ -118,6 +121,7 @@ internal fun loadArtworkForFile(file: File): ImageBitmap? {
             return it.asImageBitmap()
         }
     }
+    LocalFileNoArtworkCache.put(file.absolutePath, true)
     return null
 }
 

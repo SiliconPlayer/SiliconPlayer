@@ -277,6 +277,8 @@ import com.flopster101.siliconplayer.library.LibrarySearchResults
 import com.flopster101.siliconplayer.library.LibrarySyncState
 import com.flopster101.siliconplayer.library.LibraryTrackEntity
 import com.flopster101.siliconplayer.loadArtworkForFile
+import com.flopster101.siliconplayer.loadLibraryThumbnail
+import com.flopster101.siliconplayer.peekLibraryThumbnail
 import androidx.compose.ui.graphics.ImageBitmap
 import com.flopster101.siliconplayer.NativeBridge
 import java.io.File
@@ -4833,11 +4835,15 @@ private fun AlbumArtworkBox(
     artworkPath: String?,
     modifier: Modifier = Modifier
 ) {
-    var bitmap by remember(artworkPath) { mutableStateOf<ImageBitmap?>(null) }
+    val context = LocalContext.current
+    var bitmap by remember(artworkPath) {
+        mutableStateOf(peekLibraryThumbnail(artworkPath))
+    }
     LaunchedEffect(artworkPath) {
+        if (bitmap != null) return@LaunchedEffect
         val path = artworkPath ?: return@LaunchedEffect
         bitmap = withContext(Dispatchers.IO) {
-            loadArtworkForFile(File(path))
+            loadLibraryThumbnail(context, path)
         }
     }
     val artwork = bitmap

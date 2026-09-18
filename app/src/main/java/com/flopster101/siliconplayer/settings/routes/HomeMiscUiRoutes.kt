@@ -262,10 +262,10 @@ internal fun FileBrowserRouteContent(
     SettingsRowSpacer()
     SettingsItemCard(
         title = "Clear thumbnail preview cache",
-        description = "Delete cached local file browser artwork thumbnails.",
+        description = "Delete cached local file browser and library artwork thumbnails.",
         icon = Icons.Default.DeleteForever,
         onClick = {
-            val deleted = clearLocalBrowserThumbnailCache(context)
+            val deleted = clearLocalBrowserThumbnailCache(context) + clearLibraryArtworkThumbnailCache(context)
             Toast.makeText(
                 context,
                 if (deleted > 0) "Cleared $deleted thumbnail previews" else "Thumbnail preview cache is already empty",
