@@ -266,6 +266,7 @@ internal fun clearPlaybackMetadataStateAction(
     onSeekRequestedAtMsChanged: (Long) -> Unit,
     onMetadataTitleChanged: (String) -> Unit,
     onMetadataArtistChanged: (String) -> Unit,
+    onMetadataAlbumChanged: (String) -> Unit,
     onMetadataSampleRateChanged: (Int) -> Unit,
     onMetadataChannelCountChanged: (Int) -> Unit,
     onMetadataBitDepthLabelChanged: (String) -> Unit,
@@ -290,6 +291,7 @@ internal fun clearPlaybackMetadataStateAction(
     onSeekRequestedAtMsChanged(cleared.seekRequestedAtMs)
     onMetadataTitleChanged(cleared.metadataTitle)
     onMetadataArtistChanged(cleared.metadataArtist)
+    onMetadataAlbumChanged(cleared.metadataAlbum)
     onMetadataSampleRateChanged(cleared.metadataSampleRate)
     onMetadataChannelCountChanged(cleared.metadataChannelCount)
     onMetadataBitDepthLabelChanged(cleared.metadataBitDepthLabel)

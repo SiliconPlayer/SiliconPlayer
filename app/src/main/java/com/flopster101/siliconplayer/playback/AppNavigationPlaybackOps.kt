@@ -128,6 +128,7 @@ internal data class ClearedPlaybackState(
     val seekRequestedAtMs: Long = 0L,
     val metadataTitle: String = "",
     val metadataArtist: String = "",
+    val metadataAlbum: String = "",
     val metadataSampleRate: Int = 0,
     val metadataChannelCount: Int = 0,
     val metadataBitDepthLabel: String = "Unknown",

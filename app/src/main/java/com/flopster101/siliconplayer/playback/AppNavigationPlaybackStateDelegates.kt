@@ -137,6 +137,7 @@ internal class AppNavigationPlaybackStateDelegates(
             onSeekRequestedAtMsChanged = onSeekRequestedAtMsChanged,
             onMetadataTitleChanged = onMetadataTitleChanged,
             onMetadataArtistChanged = onMetadataArtistChanged,
+            onMetadataAlbumChanged = onMetadataAlbumChanged,
             onMetadataSampleRateChanged = onMetadataSampleRateChanged,
             onMetadataChannelCountChanged = onMetadataChannelCountChanged,
             onMetadataBitDepthLabelChanged = onMetadataBitDepthLabelChanged,

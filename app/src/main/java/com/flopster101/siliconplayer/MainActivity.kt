@@ -2699,7 +2699,8 @@ private fun AppNavigation(
             lastStoppedFile = file
             lastStoppedSourceId = sourceId
         },
-onStopEngine = { NativeBridge.releaseCurrentDecoder() }, onMetadataAlbumChanged = {},
+        onStopEngine = { NativeBridge.releaseCurrentDecoder() },
+        onMetadataAlbumChanged = { metadataAlbum = it },
     )
 
     val trackLoadDelegates = AppNavigationTrackLoadDelegates(
