@@ -915,6 +915,8 @@ internal fun PlayerScreen(
     val canvasGestureScope = rememberCoroutineScope()
 
     val latestPositionSeconds by rememberUpdatedState(positionSeconds)
+    val transportPositionState = rememberUpdatedState(positionSeconds)
+    val transportPositionProvider = remember { { transportPositionState.value } }
     val latestDurationSeconds by rememberUpdatedState(durationSeconds)
     val latestCanSeek by rememberUpdatedState(canSeek)
     val latestCanvasTapToSeekSeconds by rememberUpdatedState(canvasTapToSeekSeconds)
@@ -1709,7 +1711,7 @@ internal fun PlayerScreen(
                                     playbackStartInProgress = playbackStartInProgress,
                                     remoteLoadUiState = remoteLoadUiState,
                                     seekInProgress = seekInProgress,
-                                    positionSeconds = positionSeconds,
+                                    positionSecondsProvider = transportPositionProvider,
                                     previousRestartsAfterThreshold = previousRestartsAfterThreshold,
                                     onRestartCurrentSelection = { onSeek(0.0) },
                                     canPreviousTrack = canPreviousTrack,
@@ -2016,7 +2018,7 @@ internal fun PlayerScreen(
                                         playbackStartInProgress = playbackStartInProgress,
                                         remoteLoadUiState = remoteLoadUiState,
                                         seekInProgress = seekInProgress,
-                                        positionSeconds = positionSeconds,
+                                        positionSecondsProvider = transportPositionProvider,
                                         previousRestartsAfterThreshold = previousRestartsAfterThreshold,
                                         onRestartCurrentSelection = { onSeek(0.0) },
                                         canPreviousTrack = canPreviousTrack,
@@ -4351,7 +4353,7 @@ private fun TransportControls(
     playbackStartInProgress: Boolean,
     remoteLoadUiState: RemoteLoadUiState?,
     seekInProgress: Boolean,
-    positionSeconds: Double,
+    positionSecondsProvider: () -> Double,
     previousRestartsAfterThreshold: Boolean,
     onRestartCurrentSelection: () -> Unit,
     canPreviousTrack: Boolean,
@@ -4387,15 +4389,19 @@ private fun TransportControls(
     val useSubtuneTransport = subtuneCount > 1
     val hasSubtuneBefore = useSubtuneTransport && currentSubtuneIndex > 0 && canPreviousSubtune
     val hasSubtuneAfter = useSubtuneTransport && currentSubtuneIndex < (subtuneCount - 1) && canNextSubtune
-    val restartCurrentBeforePrevious = useSubtuneTransport && shouldRestartCurrentTrackOnPrevious(
-        previousRestartsAfterThreshold = previousRestartsAfterThreshold,
-        hasTrackLoaded = hasTrack,
-        positionSeconds = positionSeconds
-    )
-    val previousTransportTapAction = when {
-        restartCurrentBeforePrevious -> onRestartCurrentSelection
-        hasSubtuneBefore -> onPreviousSubtune
-        else -> onPreviousTrack
+    val latestPositionProvider by rememberUpdatedState(positionSecondsProvider)
+    val previousTransportTapAction: () -> Unit = {
+        val pos = latestPositionProvider()
+        val restart = useSubtuneTransport && shouldRestartCurrentTrackOnPrevious(
+            previousRestartsAfterThreshold = previousRestartsAfterThreshold,
+            hasTrackLoaded = hasTrack,
+            positionSeconds = pos
+        )
+        when {
+            restart -> onRestartCurrentSelection()
+            hasSubtuneBefore -> onPreviousSubtune()
+            else -> onPreviousTrack()
+        }
     }
     val nextTransportTapAction = if (hasSubtuneAfter) onNextSubtune else onNextTrack
     val previousTransportEnabled = if (useSubtuneTransport) hasTrack else hasTrack && canPreviousTrack
