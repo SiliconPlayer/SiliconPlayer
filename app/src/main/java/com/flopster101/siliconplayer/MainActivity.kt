@@ -2283,25 +2283,49 @@ private fun AppNavigation(
                 .apply()
         }
     }
-    val effectiveMetadataTitle = activePlaylistMetadataEntry
-        ?.title
-        ?.trim()
-        ?.takeIf { it.isNotBlank() }
-        ?: metadataTitle
-    val effectiveMetadataArtist = activePlaylistMetadataEntry
-        ?.artist
-        ?.trim()
-        ?.takeIf { it.isNotBlank() }
-        ?: metadataArtist
-    val effectiveMetadataAlbum = activePlaylistMetadataEntry
-        ?.album
-        ?.trim()
-        ?.takeIf { it.isNotBlank() }
-        ?: metadataAlbum
+    fun currentEffectiveTitle(): String {
+        val entry = resolveActivePlaylistMetadataEntry(
+            activePlaylist = activePlaylist,
+            activePlaylistEntryId = activePlaylistEntryId,
+            activeSourceId = settingsStates.currentPlaybackSourceId.value ?: selectedFile?.absolutePath,
+            currentSubtuneIndex = currentSubtuneIndex
+        ) ?: pendingPlaylistEntry
+        return entry?.title?.trim()?.takeIf { it.isNotBlank() } ?: metadataTitle
+    }
+    fun currentEffectiveArtist(): String {
+        val entry = resolveActivePlaylistMetadataEntry(
+            activePlaylist = activePlaylist,
+            activePlaylistEntryId = activePlaylistEntryId,
+            activeSourceId = settingsStates.currentPlaybackSourceId.value ?: selectedFile?.absolutePath,
+            currentSubtuneIndex = currentSubtuneIndex
+        ) ?: pendingPlaylistEntry
+        return entry?.artist?.trim()?.takeIf { it.isNotBlank() } ?: metadataArtist
+    }
+    fun currentEffectiveAlbum(): String {
+        val entry = resolveActivePlaylistMetadataEntry(
+            activePlaylist = activePlaylist,
+            activePlaylistEntryId = activePlaylistEntryId,
+            activeSourceId = settingsStates.currentPlaybackSourceId.value ?: selectedFile?.absolutePath,
+            currentSubtuneIndex = currentSubtuneIndex
+        ) ?: pendingPlaylistEntry
+        return entry?.album?.trim()?.takeIf { it.isNotBlank() } ?: metadataAlbum
+    }
+    fun currentEffectiveDuration(): Double {
+        val entry = resolveActivePlaylistMetadataEntry(
+            activePlaylist = activePlaylist,
+            activePlaylistEntryId = activePlaylistEntryId,
+            activeSourceId = settingsStates.currentPlaybackSourceId.value ?: selectedFile?.absolutePath,
+            currentSubtuneIndex = currentSubtuneIndex
+        ) ?: pendingPlaylistEntry
+        return entry?.durationSecondsOverride?.takeIf { it.isFinite() && it > 0.0 } ?: duration
+    }
+    val effectiveMetadataTitle = currentEffectiveTitle()
+    val effectiveMetadataArtist = currentEffectiveArtist()
+    val effectiveMetadataAlbum = currentEffectiveAlbum()
     val playlistDurationOverride = activePlaylistMetadataEntry
         ?.durationSecondsOverride
         ?.takeIf { it.isFinite() && it > 0.0 }
-    val effectiveDuration = playlistDurationOverride ?: duration
+    val effectiveDuration = currentEffectiveDuration()
     val pinnedPlaylistSubtune = activePlaylistMetadataEntry?.subtuneIndex != null
     val titleSubtuneCount = subtuneCount
     val titleCurrentSubtuneIndex = currentSubtuneIndex
@@ -2509,9 +2533,9 @@ private fun AppNavigation(
         selectedFileProvider = { selectedFile },
         currentPlaybackSourceIdProvider = { settingsStates.currentPlaybackSourceId.value },
         currentPlaybackRequestUrlProvider = { currentPlaybackRequestUrl },
-        metadataTitleProvider = { effectiveMetadataTitle },
-        metadataArtistProvider = { effectiveMetadataArtist },
-        durationProvider = { effectiveDuration },
+        metadataTitleProvider = { currentEffectiveTitle() },
+        metadataArtistProvider = { currentEffectiveArtist() },
+        durationProvider = { currentEffectiveDuration() },
         positionProvider = { position },
         isPlayingProvider = { isPlaying },
         subtuneCountProvider = { subtuneCount },
@@ -2653,8 +2677,8 @@ private fun AppNavigation(
         isPlayingProvider = { isPlaying },
         lastBrowserLocationIdProvider = { lastBrowserLocationId },
         isLocalPlayableFile = isLocalPlayableFile,
-        metadataTitleProvider = { effectiveMetadataTitle },
-        metadataArtistProvider = { effectiveMetadataArtist },
+        metadataTitleProvider = { currentEffectiveTitle() },
+        metadataArtistProvider = { currentEffectiveArtist() },
         refreshRepeatModeForTrack = { runtimeDelegates.refreshRepeatModeForTrack() },
         refreshSubtuneState = { runtimeDelegates.refreshSubtuneState() },
         addRecentPlayedTrack = { path, locationId, title, artist ->
@@ -2751,8 +2775,8 @@ private fun AppNavigation(
         onAddRecentPlayedTrack = { path, locationId, title, artist ->
             addRecentPlayedTrackFromPlaybackContext(path, locationId, title, artist)
         },
-        metadataTitleProvider = { effectiveMetadataTitle },
-        metadataArtistProvider = { effectiveMetadataArtist },
+        metadataTitleProvider = { currentEffectiveTitle() },
+        metadataArtistProvider = { currentEffectiveArtist() },
         onStartEngine = { NativeBridge.startEngine() },
         scheduleRecentTrackMetadataRefresh = { sourceId, locationId ->
             scheduleRecentTrackMetadataRefreshFromPlaybackContext(sourceId, locationId)
@@ -2852,8 +2876,8 @@ private fun AppNavigation(
         onAddRecentPlayedTrack = { path, locationId, title, artist ->
             addRecentPlayedTrackFromPlaybackContext(path, locationId, title, artist)
         },
-        metadataTitleProvider = { effectiveMetadataTitle },
-        metadataArtistProvider = { effectiveMetadataArtist },
+        metadataTitleProvider = { currentEffectiveTitle() },
+        metadataArtistProvider = { currentEffectiveArtist() },
         applyRepeatModeToNative = { mode -> applyRepeatModeToNative(mode) },
         onStartEngine = { NativeBridge.startEngine() },
         onIsPlayingChanged = { isPlaying = it },
@@ -3790,8 +3814,8 @@ private fun AppNavigation(
             selectedFileProvider = { selectedFile },
             currentPlaybackSourceIdProvider = { settingsStates.currentPlaybackSourceId.value },
             lastBrowserLocationIdProvider = { lastBrowserLocationId },
-            metadataTitleProvider = { effectiveMetadataTitle },
-            metadataArtistProvider = { effectiveMetadataArtist },
+            metadataTitleProvider = { currentEffectiveTitle() },
+            metadataArtistProvider = { currentEffectiveArtist() },
             activeRepeatModeProvider = { activeRepeatMode },
             isLocalPlayableFile = isLocalPlayableFile,
             addRecentPlayedTrack = { path, locationId, title, artist ->

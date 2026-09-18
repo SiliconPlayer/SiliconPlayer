@@ -1094,13 +1094,19 @@ class PlaybackService : Service() {
             mediaSession?.setMetadata(
                 android.media.MediaMetadata.Builder().apply {
                     putString(android.media.MediaMetadata.METADATA_KEY_TITLE, currentTitle)
+                    putString(android.media.MediaMetadata.METADATA_KEY_DISPLAY_TITLE, currentTitle)
                     putString(android.media.MediaMetadata.METADATA_KEY_ARTIST, currentArtist)
+                    putString(android.media.MediaMetadata.METADATA_KEY_DISPLAY_SUBTITLE, currentArtist)
                     putLong(
                         android.media.MediaMetadata.METADATA_KEY_DURATION,
                         (durationSeconds * 1000.0).toLong()
                     )
                     val art = currentArtwork ?: fallbackIconBitmap()
-                    putBitmap(android.media.MediaMetadata.METADATA_KEY_ALBUM_ART, art)
+                    if (art != null) {
+                        putBitmap(android.media.MediaMetadata.METADATA_KEY_ALBUM_ART, art)
+                        putBitmap(android.media.MediaMetadata.METADATA_KEY_ART, art)
+                        putBitmap(android.media.MediaMetadata.METADATA_KEY_DISPLAY_ICON, art)
+                    }
                 }.build()
             )
             lastMediaSessionMetadataPath = currentPath
@@ -1147,6 +1153,7 @@ class PlaybackService : Service() {
         try {
             startForeground(NOTIFICATION_ID, notification)
             isForegroundNotificationShown = true
+            notificationManager.notify(NOTIFICATION_ID, notification)
         } catch (error: RuntimeException) {
             val blockedForegroundStart =
                 Build.VERSION.SDK_INT >= Build.VERSION_CODES.S &&

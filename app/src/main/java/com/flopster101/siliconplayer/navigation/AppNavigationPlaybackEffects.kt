@@ -220,7 +220,7 @@ internal fun AppNavigationPlaybackEffects(
     }
 
     LaunchedEffect(selectedFile, currentPlaybackSourceId, isPlaying, metadataTitle, metadataArtist, duration) {
-        if (selectedFile != null) {
+        if (selectedFile != null || !currentPlaybackSourceId.isNullOrBlank()) {
             syncPlaybackService()
         }
     }
