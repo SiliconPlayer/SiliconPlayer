@@ -1,6 +1,7 @@
 package com.flopster101.siliconplayer
 
 import android.content.SharedPreferences
+import java.io.File
 import org.json.JSONArray
 import org.json.JSONObject
 
@@ -24,6 +25,8 @@ private const val STORED_PLAYLIST_SOURCE_HINT_KEY = "source_id_hint"
 private const val STORED_PLAYLIST_UPDATED_AT_KEY = "updated_at_ms"
 private const val STORED_PLAYLIST_IS_PINNED_KEY = "is_pinned"
 private const val STORED_PLAYLIST_FOLDER_ID_KEY = "folder_id"
+private const val STORED_PLAYLIST_CUSTOM_ARTWORK_URI_KEY = "custom_artwork_uri"
+private const val STORED_PLAYLIST_ICON_TINT_KEY = "icon_tint"
 private const val STORED_PLAYLIST_ENTRIES_KEY = "entries"
 
 private const val PLAYLIST_LIBRARY_FOLDERS_KEY = "folders"
@@ -119,6 +122,15 @@ internal fun removeStoredPlaylist(
     state: PlaylistLibraryState,
     playlistId: String
 ): PlaylistLibraryState {
+    val target = state.playlists.firstOrNull { it.id == playlistId }
+    if (!target?.customArtworkUri.isNullOrBlank()) {
+        try {
+            val file = File(target.customArtworkUri)
+            if (file.exists() && file.isFile) {
+                file.delete()
+            }
+        } catch (_: Throwable) {}
+    }
     return state.copy(
         playlists = state.playlists.filterNot { it.id == playlistId }
     )
@@ -491,6 +503,8 @@ private fun readStoredPlaylist(item: JSONObject): StoredPlaylist? {
     val entries = if (entriesArray != null) readPlaylistTrackEntries(entriesArray) else emptyList()
     val isPinned = item.optBoolean(STORED_PLAYLIST_IS_PINNED_KEY, false)
     val folderId = item.optString(STORED_PLAYLIST_FOLDER_ID_KEY).trim().ifBlank { null }
+    val customArtworkUri = item.optString(STORED_PLAYLIST_CUSTOM_ARTWORK_URI_KEY).trim().ifBlank { null }
+    val iconTintArgb = if (item.has(STORED_PLAYLIST_ICON_TINT_KEY)) item.optLong(STORED_PLAYLIST_ICON_TINT_KEY) else null
     return StoredPlaylist(
         id = item.optString(STORED_PLAYLIST_ID_KEY).trim().ifBlank { java.util.UUID.randomUUID().toString() },
         title = title,
@@ -500,7 +514,9 @@ private fun readStoredPlaylist(item: JSONObject): StoredPlaylist? {
         updatedAtMs = item.optLong(STORED_PLAYLIST_UPDATED_AT_KEY).takeIf { it > 0L }
             ?: System.currentTimeMillis(),
         isPinned = isPinned,
-        folderId = folderId
+        folderId = folderId,
+        customArtworkUri = customArtworkUri,
+        iconTintArgb = iconTintArgb
     )
 }
 
@@ -575,6 +591,12 @@ private fun writeStoredPlaylist(playlist: StoredPlaylist): JSONObject {
             if (!playlist.folderId.isNullOrBlank()) {
                 put(STORED_PLAYLIST_FOLDER_ID_KEY, playlist.folderId)
             }
+            if (!playlist.customArtworkUri.isNullOrBlank()) {
+                put(STORED_PLAYLIST_CUSTOM_ARTWORK_URI_KEY, playlist.customArtworkUri)
+            }
+            if (playlist.iconTintArgb != null) {
+                put(STORED_PLAYLIST_ICON_TINT_KEY, playlist.iconTintArgb)
+            }
         }
         .put(
             STORED_PLAYLIST_ENTRIES_KEY,
@@ -582,6 +604,26 @@ private fun writeStoredPlaylist(playlist: StoredPlaylist): JSONObject {
                 playlist.entries.forEach { put(writePlaylistTrackEntry(it)) }
             }
         )
+}
+
+internal fun updateStoredPlaylistCover(
+    state: PlaylistLibraryState,
+    playlistId: String,
+    customArtworkUri: String?,
+    iconTintArgb: Long?
+): PlaylistLibraryState {
+    val updatedPlaylists = state.playlists.map { playlist ->
+        if (playlist.id != playlistId) {
+            playlist
+        } else {
+            playlist.copy(
+                customArtworkUri = customArtworkUri,
+                iconTintArgb = iconTintArgb,
+                updatedAtMs = System.currentTimeMillis()
+            )
+        }
+    }
+    return state.copy(playlists = updatedPlaylists)
 }
 
 private fun writePlaylistTrackEntry(entry: PlaylistTrackEntry): JSONObject {

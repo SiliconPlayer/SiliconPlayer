@@ -79,6 +79,14 @@ internal fun LibrarySettingsRouteContent(
             )
         )
     }
+    var autoGenerateMosaics by remember {
+        mutableStateOf(
+            prefs.getBoolean(
+                com.flopster101.siliconplayer.AppPreferenceKeys.PLAYLIST_AUTO_MOSAIC,
+                true
+            )
+        )
+    }
 
     var sources by remember {
         mutableStateOf<List<com.flopster101.siliconplayer.library.LibrarySourceStatus>>(emptyList())
@@ -213,6 +221,21 @@ internal fun LibrarySettingsRouteContent(
             prefs.edit()
                 .putBoolean(
                     com.flopster101.siliconplayer.AppPreferenceKeys.LIBRARY_SHOW_FAVORITES_IN_PLAYLIST_CHOOSER,
+                    checked
+                )
+                .apply()
+        }
+    )
+    SettingsRowSpacer()
+    PlayerSettingToggleCard(
+        title = "Auto-generate playlist mosaics",
+        description = "Create 2x2 cover collages for playlists with album artwork.",
+        checked = autoGenerateMosaics,
+        onCheckedChange = { checked ->
+            autoGenerateMosaics = checked
+            prefs.edit()
+                .putBoolean(
+                    com.flopster101.siliconplayer.AppPreferenceKeys.PLAYLIST_AUTO_MOSAIC,
                     checked
                 )
                 .apply()

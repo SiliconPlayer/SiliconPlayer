@@ -30,11 +30,16 @@ import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.SmallFloatingActionButton
+import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.OutlinedIconButton
 import androidx.compose.material.icons.filled.FileOpen
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import com.flopster101.siliconplayer.parsePlaylistDocumentFromUri
 import com.flopster101.siliconplayer.parsePlaylistDocument
 import com.flopster101.siliconplayer.duplicateStoredPlaylist
+import com.flopster101.siliconplayer.saveNormalizedPlaylistCover
+import com.flopster101.siliconplayer.rotatePlaylistCoverFile
+import com.flopster101.siliconplayer.VisualizationRgbColorPickerDialog
 import com.flopster101.siliconplayer.isSupportedPlaylistFile
 import com.flopster101.siliconplayer.ParsedPlaylistDocument
 import com.flopster101.siliconplayer.ui.dialogs.FilePickerChoiceSheet
@@ -95,6 +100,8 @@ import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items as gridItems
 import android.content.pm.PackageManager
 import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.border
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -125,6 +132,8 @@ import androidx.compose.material.icons.filled.PushPin
 import androidx.compose.material.icons.filled.StarBorder
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material.icons.filled.RotateRight
+import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Shuffle
@@ -163,7 +172,9 @@ import com.flopster101.siliconplayer.samePath
 import com.flopster101.siliconplayer.normalizeSourceIdentity
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.produceState
 import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.State
 import androidx.compose.runtime.collectAsState
@@ -190,6 +201,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.graphics.FilterQuality
 import androidx.compose.ui.graphics.CompositingStrategy
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.nestedscroll.nestedScroll
@@ -238,6 +250,7 @@ import com.flopster101.siliconplayer.StoredPlaylist
 import com.flopster101.siliconplayer.appendStoredPlaylistEntries
 import com.flopster101.siliconplayer.decodePercentEncodedForDisplay
 import com.flopster101.siliconplayer.ensureRecentArtworkThumbnailCached
+import com.flopster101.siliconplayer.ensureRecentArtworkCached
 import com.flopster101.siliconplayer.inferredDisplayTitleForName
 import com.flopster101.siliconplayer.miniPlayerFabLift
 import com.flopster101.siliconplayer.parseHttpSourceSpecFromInput
@@ -246,6 +259,7 @@ import com.flopster101.siliconplayer.playlistContainsTrack
 import com.flopster101.siliconplayer.playlistEntryMatchesPlayback
 import com.flopster101.siliconplayer.placeholderArtworkIconForFile
 import com.flopster101.siliconplayer.recentArtworkThumbnailFile
+import com.flopster101.siliconplayer.recentArtworkFile
 import com.flopster101.siliconplayer.resolvePlaylistEntryLocalFile
 import com.flopster101.siliconplayer.sourceLeafNameForDisplay
 import com.flopster101.siliconplayer.data.parseArchiveSourceId
@@ -268,6 +282,14 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import android.content.SharedPreferences
+import androidx.compose.material.icons.filled.Palette
+import androidx.compose.material.icons.filled.Image
+import androidx.compose.ui.graphics.luminance
+import com.flopster101.siliconplayer.RECENT_ARTWORK_CACHE_DIR
+import com.flopster101.siliconplayer.sha1Hex
+import com.flopster101.siliconplayer.updateStoredPlaylistCover
+import java.io.FileOutputStream
 
 internal enum class PlaylistsSurfaceDestination {
     Library,
@@ -614,6 +636,20 @@ internal fun PlaylistsScreen(
             )
         )
     }
+    var autoGenerateMosaics by remember {
+        mutableStateOf(prefs.getBoolean(AppPreferenceKeys.PLAYLIST_AUTO_MOSAIC, true))
+    }
+    DisposableEffect(prefs) {
+        val listener = SharedPreferences.OnSharedPreferenceChangeListener { _, key ->
+            if (key == AppPreferenceKeys.PLAYLIST_AUTO_MOSAIC) {
+                autoGenerateMosaics = prefs.getBoolean(AppPreferenceKeys.PLAYLIST_AUTO_MOSAIC, true)
+            }
+        }
+        prefs.registerOnSharedPreferenceChangeListener(listener)
+        onDispose {
+            prefs.unregisterOnSharedPreferenceChangeListener(listener)
+        }
+    }
     var playlistsEditModeEnabled by rememberSaveable { mutableStateOf(false) }
     var playlistsDraggingId by remember { mutableStateOf<String?>(null) }
     LaunchedEffect(selectedArtistName, destination) {
@@ -882,6 +918,30 @@ internal fun PlaylistsScreen(
     var folderPendingRename by remember { mutableStateOf<PlaylistFolder?>(null) }
     var folderPendingDelete by remember { mutableStateOf<PlaylistFolder?>(null) }
     var folderPendingMove by remember { mutableStateOf<PlaylistFolder?>(null) }
+    var playlistPendingCoverCustomization by remember { mutableStateOf<StoredPlaylist?>(null) }
+    val coverImagePickerLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.OpenDocument()
+    ) { targetUri ->
+        val playlist = playlistPendingCoverCustomization ?: return@rememberLauncherForActivityResult
+        if (targetUri != null) {
+            val coversDir = File(context.filesDir, "playlist_covers")
+            if (!coversDir.exists()) coversDir.mkdirs()
+            val targetFile = File(coversDir, "${playlist.id}.jpg")
+            val success = saveNormalizedPlaylistCover(context, targetUri, targetFile)
+            if (success) {
+                val updatedState = updateStoredPlaylistCover(
+                    state = libraryState,
+                    playlistId = playlist.id,
+                    customArtworkUri = targetFile.absolutePath,
+                    iconTintArgb = playlist.iconTintArgb
+                )
+                onPlaylistLibraryStateChanged(updatedState)
+                playlistPendingCoverCustomization = updatedState.playlists.firstOrNull { it.id == playlist.id }
+            } else {
+                Toast.makeText(context, "Failed to load image", Toast.LENGTH_SHORT).show()
+            }
+        }
+    }
     var trackInfoDialogState by remember {
         mutableStateOf<PlaylistTrackInfoDialogState?>(null)
     }
@@ -1465,6 +1525,7 @@ internal fun PlaylistsScreen(
                                     onRefreshPlaylistMetadata = { refreshPlaylistMetadataAction(FAVORITES_PLAYLIST_ID) },
                                     onRefreshEntryMetadata = refreshTrackMetadataAction,
                                     isWatch = isWatch,
+                                    autoMosaicEnabled = autoGenerateMosaics,
                                     onBack = {
                                         if (favoritesEditModeEnabled) {
                                             favoritesEditModeEnabled = false
@@ -1613,6 +1674,10 @@ internal fun PlaylistsScreen(
                                         onRefreshPlaylistMetadata = { refreshPlaylistMetadataAction(playlist.id) },
                                         onRefreshEntryMetadata = refreshTrackMetadataAction,
                                         isWatch = isWatch,
+                                        customArtworkUri = playlist.customArtworkUri,
+                                        iconTintArgb = playlist.iconTintArgb,
+                                        autoMosaicEnabled = autoGenerateMosaics,
+                                        onChangeCover = { playlistPendingCoverCustomization = playlist },
                                         onBack = {
                                             if (storedPlaylistEditModeEnabled) {
                                                 storedPlaylistEditModeEnabled = false
@@ -1750,7 +1815,9 @@ internal fun PlaylistsScreen(
                                                 togglePlaylistHomePin(FAVORITES_PLAYLIST_ID, "Favorites")
                                             },
                                             onRefreshMetadata = { refreshPlaylistMetadataAction(FAVORITES_PLAYLIST_ID) },
-                                            isWatch = true
+                                            isWatch = true,
+                                            favorites = libraryState.favorites,
+                                            autoMosaicEnabled = autoGenerateMosaics
                                         )
                                     }
                                     if (sortedPlaylists.isEmpty()) {
@@ -1781,6 +1848,8 @@ internal fun PlaylistsScreen(
                                                 isHomePinned = isPlaylistPinnedToHome(playlist.id),
                                                 onToggleHomePin = { togglePlaylistHomePin(playlist.id, playlist.title) },
                                                 onRefreshMetadata = { refreshPlaylistMetadataAction(playlist.id) },
+                                                autoMosaicEnabled = autoGenerateMosaics,
+                                                onChangeCover = { playlistPendingCoverCustomization = playlist },
                                                 isWatch = true
                                             )
                                         }
@@ -1988,7 +2057,9 @@ internal fun PlaylistsScreen(
                                              onTogglePinPlaylist = { playlist -> onTogglePinStoredPlaylist(playlist.id) },
                                              isPlaylistHomePinned = { playlistId -> isPlaylistPinnedToHome(playlistId) },
                                              onTogglePlaylistHomePin = { playlistId, title -> togglePlaylistHomePin(playlistId, title) },
-                                             onRefreshPlaylistMetadata = refreshPlaylistMetadataAction
+                                             onRefreshPlaylistMetadata = refreshPlaylistMetadataAction,
+                                             autoMosaicEnabled = autoGenerateMosaics,
+                                             onChangePlaylistCover = { playlist -> playlistPendingCoverCustomization = playlist }
                                          )
                                     }
                                     LibrarySurfaceTab.Albums -> {
@@ -2936,6 +3007,57 @@ internal fun PlaylistsScreen(
             onDismiss = { folderPendingMove = null }
         )
     }
+    playlistPendingCoverCustomization?.let { playlist ->
+        PlaylistCoverCustomizerDialog(
+            playlist = playlist,
+            onDismissRequest = { playlistPendingCoverCustomization = null },
+            onPickImage = {
+                coverImagePickerLauncher.launch(arrayOf("image/*"))
+            },
+            onRotateImage = {
+                if (!playlist.customArtworkUri.isNullOrBlank()) {
+                    val file = File(playlist.customArtworkUri)
+                    if (rotatePlaylistCoverFile(file, 90f)) {
+                        val updated = updateStoredPlaylistCover(
+                            state = libraryState,
+                            playlistId = playlist.id,
+                            customArtworkUri = playlist.customArtworkUri,
+                            iconTintArgb = playlist.iconTintArgb
+                        )
+                        onPlaylistLibraryStateChanged(updated)
+                        playlistPendingCoverCustomization = updated.playlists.firstOrNull { it.id == playlist.id }
+                    }
+                }
+            },
+            onRemoveImage = {
+                if (!playlist.customArtworkUri.isNullOrBlank()) {
+                    try {
+                        File(playlist.customArtworkUri).delete()
+                    } catch (_: Throwable) {}
+                }
+                val updated = updateStoredPlaylistCover(
+                    state = libraryState,
+                    playlistId = playlist.id,
+                    customArtworkUri = null,
+                    iconTintArgb = playlist.iconTintArgb
+                )
+                onPlaylistLibraryStateChanged(updated)
+                playlistPendingCoverCustomization = updated.playlists.firstOrNull { it.id == playlist.id }
+            },
+            onSelectTint = { tintArgb ->
+                val updated = updateStoredPlaylistCover(
+                    state = libraryState,
+                    playlistId = playlist.id,
+                    customArtworkUri = playlist.customArtworkUri,
+                    iconTintArgb = tintArgb
+                )
+                onPlaylistLibraryStateChanged(updated)
+                playlistPendingCoverCustomization = updated.playlists.firstOrNull { it.id == playlist.id }
+            },
+            autoMosaicEnabled = autoGenerateMosaics,
+            isWatch = isWatch
+        )
+    }
     libraryContextTracks?.let { contextTracks ->
         AddToPlaylistChooserDialog(
             playlists = libraryState.playlists,
@@ -3177,6 +3299,8 @@ private fun PlaylistsLibraryTabPage(
     isPlaylistHomePinned: (String) -> Boolean = { false },
     onTogglePlaylistHomePin: (String, String) -> Unit = { _, _ -> },
     onRefreshPlaylistMetadata: ((String) -> Unit)? = null,
+    autoMosaicEnabled: Boolean = true,
+    onChangePlaylistCover: ((StoredPlaylist) -> Unit)? = null,
     isWatch: Boolean = false
 ) {
     val currentFolders = remember(libraryState.folders, currentFolderId) {
@@ -3224,6 +3348,8 @@ private fun PlaylistsLibraryTabPage(
                     isHomePinned = isPlaylistHomePinned(FAVORITES_PLAYLIST_ID),
                     onToggleHomePin = { onTogglePlaylistHomePin(FAVORITES_PLAYLIST_ID, "Favorites") },
                     onRefreshMetadata = onRefreshPlaylistMetadata?.let { { it(FAVORITES_PLAYLIST_ID) } },
+                    favorites = libraryState.favorites,
+                    autoMosaicEnabled = autoMosaicEnabled,
                     isWatch = isWatch
                 )
             }
@@ -3364,6 +3490,8 @@ private fun PlaylistsLibraryTabPage(
                         }
                     },
                     onDragEnd = { onDraggingPlaylistIdChange(null) },
+                    autoMosaicEnabled = autoMosaicEnabled,
+                    onChangeCover = onChangePlaylistCover?.let { { it(playlist) } },
                     isWatch = isWatch
                 )
                 if (!isWatch) {
@@ -5055,6 +5183,10 @@ private fun LazyListScope.playlistDetailContent(
     onRefreshPlaylistMetadata: (() -> Unit)? = null,
     onRefreshEntryMetadata: ((PlaylistTrackEntry) -> Unit)? = null,
     isWatch: Boolean = false,
+    customArtworkUri: String? = null,
+    iconTintArgb: Long? = null,
+    autoMosaicEnabled: Boolean = true,
+    onChangeCover: (() -> Unit)? = null,
     onBack: () -> Unit = {}
 ) {
     item {
@@ -5082,6 +5214,10 @@ private fun LazyListScope.playlistDetailContent(
                 isHomePinned = isHomePinned,
                 onToggleHomePin = onToggleHomePin,
                 onRefreshPlaylistMetadata = onRefreshPlaylistMetadata,
+                customArtworkUri = customArtworkUri,
+                iconTintArgb = iconTintArgb,
+                autoMosaicEnabled = autoMosaicEnabled,
+                onChangeCover = onChangeCover,
                 onBack = onBack
             )
         } else {
@@ -5116,7 +5252,11 @@ private fun LazyListScope.playlistDetailContent(
                 selectedEntryIds = selectedEntryIds,
                 onSelectAll = onSelectAllEntries,
                 onClearSelection = onClearSelectedEntries,
-                onDeleteSelected = onDeleteSelectedEntries
+                onDeleteSelected = onDeleteSelectedEntries,
+                customArtworkUri = customArtworkUri,
+                iconTintArgb = iconTintArgb,
+                autoMosaicEnabled = autoMosaicEnabled,
+                onChangeCover = onChangeCover
             )
         }
     }
@@ -5254,7 +5394,11 @@ private fun WearPlaylistHeroHeader(
     isHomePinned: Boolean = false,
     onToggleHomePin: (() -> Unit)? = null,
     onRefreshPlaylistMetadata: (() -> Unit)? = null,
-    onBack: () -> Unit
+    onBack: () -> Unit,
+    customArtworkUri: String? = null,
+    iconTintArgb: Long? = null,
+    autoMosaicEnabled: Boolean = true,
+    onChangeCover: (() -> Unit)? = null
 ) {
     var showSortDialog by rememberSaveable { mutableStateOf(false) }
     var showMoreActionsDialog by rememberSaveable { mutableStateOf(false) }
@@ -5291,9 +5435,12 @@ private fun WearPlaylistHeroHeader(
 
         PlaylistCoverArt(
             entries = entries,
+            customArtworkUri = customArtworkUri,
+            iconTintArgb = iconTintArgb,
             heroIcon = heroIcon,
             modifier = Modifier.size(48.dp),
-            iconSize = 24.dp
+            iconSize = 24.dp,
+            autoMosaicEnabled = autoMosaicEnabled
         )
         Text(
             text = title,
@@ -5359,7 +5506,7 @@ private fun WearPlaylistHeroHeader(
                     )
                 }
             }
-            if (canDeletePlaylist || canRenamePlaylist || showDeleteAllEntriesAction || onExportPlaylist != null || onSharePlaylist != null || onTogglePinPlaylist != null || onToggleHomePin != null) {
+            if (canDeletePlaylist || canRenamePlaylist || showDeleteAllEntriesAction || onExportPlaylist != null || onSharePlaylist != null || onTogglePinPlaylist != null || onToggleHomePin != null || onChangeCover != null) {
                 Surface(
                     modifier = Modifier
                         .size(42.dp)
@@ -5520,6 +5667,18 @@ private fun WearPlaylistHeroHeader(
                     Text("Refresh metadata")
                 }
             }
+            if (onChangeCover != null) {
+                FilledTonalButton(
+                    onClick = {
+                        showMoreActionsDialog = false
+                        onChangeCover()
+                    },
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(14.dp)
+                ) {
+                    Text("Change cover…")
+                }
+            }
             if (canDeletePlaylist) {
                 Button(
                     onClick = {
@@ -5588,7 +5747,11 @@ private fun PlaylistHeroCard(
     selectedEntryIds: Set<String> = emptySet(),
     onSelectAll: () -> Unit = {},
     onClearSelection: () -> Unit = {},
-    onDeleteSelected: () -> Unit = {}
+    onDeleteSelected: () -> Unit = {},
+    customArtworkUri: String? = null,
+    iconTintArgb: Long? = null,
+    autoMosaicEnabled: Boolean = true,
+    onChangeCover: (() -> Unit)? = null
 ) {
     var menuExpanded by rememberSaveable { mutableStateOf(false) }
     var sortMenuExpanded by rememberSaveable { mutableStateOf(false) }
@@ -5606,9 +5769,13 @@ private fun PlaylistHeroCard(
     ) {
         PlaylistCoverArt(
             entries = entries,
+            customArtworkUri = customArtworkUri,
+            iconTintArgb = iconTintArgb,
             heroIcon = heroIcon,
             modifier = Modifier.size(220.dp),
-            iconSize = 68.dp
+            iconSize = 68.dp,
+            autoMosaicEnabled = autoMosaicEnabled,
+            isLarge = true
         )
         Column(
             modifier = Modifier.fillMaxWidth(),
@@ -5642,6 +5809,32 @@ private fun PlaylistHeroCard(
                     expanded = menuExpanded,
                     onDismissRequest = { menuExpanded = false }
                 ) {
+                    if (onChangeCover != null) {
+                        DropdownMenuItem(
+                            text = {
+                                Text(
+                                    text = "Change cover…",
+                                    style = MaterialTheme.typography.bodyLarge
+                                )
+                            },
+                            leadingIcon = {
+                                Icon(
+                                    imageVector = Icons.Default.Palette,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(22.dp)
+                                )
+                            },
+                            contentPadding = PaddingValues(start = 14.dp, end = 18.dp),
+                            colors = MenuDefaults.itemColors(
+                                textColor = MaterialTheme.colorScheme.onSurface,
+                                leadingIconColor = MaterialTheme.colorScheme.onSurfaceVariant
+                            ),
+                            onClick = {
+                                menuExpanded = false
+                                onChangeCover()
+                            }
+                        )
+                    }
                     if (onRefreshPlaylistMetadata != null) {
                         DropdownMenuItem(
                             text = {
@@ -6098,59 +6291,121 @@ private fun PlaylistSelectionFloatingBar(
     }
 }
 
+internal val PLAYLIST_COVER_TINT_PALETTE: List<Long?> = listOf(
+    null,
+    0xFFE53935L,
+    0xFFF4511EL,
+    0xFFFB8C00L,
+    0xFFFFB300L,
+    0xFF7CB342L,
+    0xFF43A047L,
+    0xFF00897BL,
+    0xFF00ACC1L,
+    0xFF1E88E5L,
+    0xFF5E35B1L,
+    0xFF8E24AAL,
+    0xFFD81B60L,
+    0xFF546E7AL
+)
+
 @Composable
-internal fun PlaylistCoverArt(
-    entries: List<PlaylistTrackEntry>,
-    heroIcon: ImageVector? = Icons.Default.LibraryMusic,
-    modifier: Modifier = Modifier,
-    shape: Shape = MaterialTheme.shapes.extraLarge,
-    iconSize: Dp = 36.dp
+private fun PlaylistCoverTintSwatch(
+    tintArgb: Long?,
+    isSelected: Boolean,
+    onClick: () -> Unit
 ) {
-    val icon = heroIcon ?: Icons.Default.LibraryMusic
-    Surface(
-        modifier = modifier,
-        shape = shape,
-        color = MaterialTheme.colorScheme.surfaceContainerHighest
+    val swatchColor = tintArgb?.let { Color(it) } ?: MaterialTheme.colorScheme.surfaceVariant
+    val borderColor = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)
+    val borderWidth = if (isSelected) 2.5.dp else 1.dp
+    Box(
+        modifier = Modifier
+            .size(38.dp)
+            .clip(CircleShape)
+            .background(swatchColor)
+            .border(borderWidth, borderColor, CircleShape)
+            .clickable(onClick = onClick),
+        contentAlignment = Alignment.Center
     ) {
-        if (iconSize > 32.dp) {
+        if (tintArgb == null) {
+            Icon(
+                imageVector = if (isSelected) Icons.Default.Check else Icons.Default.Palette,
+                contentDescription = "Default tint",
+                tint = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.size(18.dp)
+            )
+        } else if (isSelected) {
+            val iconTint = if (swatchColor.luminance() > 0.5f) Color.Black else Color.White
+            Icon(
+                imageVector = Icons.Default.Check,
+                contentDescription = "Selected",
+                tint = iconTint,
+                modifier = Modifier.size(18.dp)
+            )
+        }
+    }
+}
+
+@Composable
+private fun PlaylistCoverCustomTintSwatch(
+    customArgb: Long?,
+    isSelected: Boolean,
+    onClick: () -> Unit
+) {
+    val rainbowBrush = remember {
+        Brush.sweepGradient(
+            listOf(
+                Color(0xFFE53935),
+                Color(0xFFFFB300),
+                Color(0xFF43A047),
+                Color(0xFF00ACC1),
+                Color(0xFF1E88E5),
+                Color(0xFF8E24AA),
+                Color(0xFFE53935)
+            )
+        )
+    }
+    val borderColor = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)
+    val borderWidth = if (isSelected) 2.5.dp else 1.dp
+    Box(
+        modifier = Modifier
+            .size(38.dp)
+            .clip(CircleShape)
+            .background(rainbowBrush)
+            .border(borderWidth, borderColor, CircleShape)
+            .clickable(onClick = onClick),
+        contentAlignment = Alignment.Center
+    ) {
+        if (isSelected && customArgb != null) {
+            val customColor = Color(customArgb)
+            val iconTint = if (customColor.luminance() > 0.5f) Color.Black else Color.White
             Box(
                 modifier = Modifier
-                    .fillMaxSize()
-                    .background(
-                        brush = Brush.radialGradient(
-                            colors = listOf(
-                                MaterialTheme.colorScheme.primary.copy(alpha = 0.28f),
-                                MaterialTheme.colorScheme.surfaceVariant
-                            )
-                        )
-                    ),
-                contentAlignment = Alignment.Center
-            ) {
-                Box(
-                    modifier = Modifier
-                        .size(iconSize * 1.65f)
-                        .clip(CircleShape)
-                        .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.14f)),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Icon(
-                        imageVector = icon,
-                        contentDescription = null,
-                        tint = MaterialTheme.colorScheme.primary,
-                        modifier = Modifier.size(iconSize)
-                    )
-                }
-            }
-        } else {
-            Box(
-                modifier = Modifier.fillMaxSize(),
+                    .size(24.dp)
+                    .clip(CircleShape)
+                    .background(customColor)
+                    .border(1.dp, Color.White.copy(alpha = 0.6f), CircleShape),
                 contentAlignment = Alignment.Center
             ) {
                 Icon(
-                    imageVector = icon,
-                    contentDescription = null,
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.size(iconSize)
+                    imageVector = Icons.Default.Check,
+                    contentDescription = "Custom tint selected",
+                    tint = iconTint,
+                    modifier = Modifier.size(15.dp)
+                )
+            }
+        } else {
+            Box(
+                modifier = Modifier
+                    .size(22.dp)
+                    .clip(CircleShape)
+                    .background(Color.Black.copy(alpha = 0.35f)),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(
+                    imageVector = Icons.Default.Tune,
+                    contentDescription = "Custom tint",
+                    tint = Color.White,
+                    modifier = Modifier.size(14.dp)
                 )
             }
         }
@@ -6158,73 +6413,539 @@ internal fun PlaylistCoverArt(
 }
 
 @Composable
-internal fun PlaylistIconGrid(
-    entries: List<PlaylistTrackEntry>
+internal fun PlaylistCoverCustomizerDialog(
+    playlist: StoredPlaylist,
+    onDismissRequest: () -> Unit,
+    onPickImage: () -> Unit,
+    onRotateImage: () -> Unit,
+    onRemoveImage: () -> Unit,
+    onSelectTint: (Long?) -> Unit,
+    autoMosaicEnabled: Boolean,
+    isWatch: Boolean = false
 ) {
-    val coverSources = playlistCoverSources(entries)
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .padding(4.dp),
-        verticalArrangement = Arrangement.spacedBy(4.dp)
-    ) {
-        Row(
-            modifier = Modifier
-                .weight(1f)
-                .fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(4.dp)
+    var showCustomColorPicker by remember { mutableStateOf(false) }
+
+    if (isWatch) {
+        WatchDialogContainer(
+            title = "Playlist cover",
+            onDismissRequest = onDismissRequest
         ) {
-            PlaylistCoverCell(
-                source = coverSources[0],
-                modifier = Modifier.weight(1f)
-            )
-            PlaylistCoverCell(
-                source = coverSources[1],
-                modifier = Modifier.weight(1f)
-            )
+            FilledTonalButton(
+                onClick = {
+                    onDismissRequest()
+                    onPickImage()
+                },
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(14.dp)
+            ) {
+                Text(if (playlist.customArtworkUri != null) "Change image" else "Choose image")
+            }
+            if (playlist.customArtworkUri != null) {
+                FilledTonalButton(
+                    onClick = onRotateImage,
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(14.dp)
+                ) {
+                    Text("Rotate image")
+                }
+                FilledTonalButton(
+                    onClick = onRemoveImage,
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(14.dp)
+                ) {
+                    Text("Remove image")
+                }
+            }
+            TextButton(
+                onClick = onDismissRequest,
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Text("Close")
+            }
         }
-        Row(
-            modifier = Modifier
-                .weight(1f)
-                .fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(4.dp)
-        ) {
-            PlaylistCoverCell(
-                source = coverSources[2],
-                modifier = Modifier.weight(1f)
+        return
+    }
+
+    androidx.compose.material3.AlertDialog(
+        onDismissRequest = onDismissRequest,
+        title = {
+            Text(
+                text = "Playlist cover",
+                style = MaterialTheme.typography.titleLarge
             )
-            PlaylistCoverCell(
-                source = coverSources[3],
-                modifier = Modifier.weight(1f)
-            )
+        },
+        text = {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .verticalScroll(rememberScrollState()),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.spacedBy(16.dp)
+            ) {
+                PlaylistCoverArt(
+                    entries = playlist.entries,
+                    customArtworkUri = playlist.customArtworkUri,
+                    iconTintArgb = playlist.iconTintArgb,
+                    modifier = Modifier.size(130.dp),
+                    shape = RoundedCornerShape(16.dp),
+                    iconSize = 48.dp,
+                    autoMosaicEnabled = autoMosaicEnabled,
+                    coverRevision = playlist.updatedAtMs,
+                    isLarge = true
+                )
+
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    FilledTonalButton(
+                        onClick = onPickImage,
+                        shape = RoundedCornerShape(12.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Image,
+                            contentDescription = null,
+                            modifier = Modifier.size(18.dp)
+                        )
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text("Image")
+                    }
+                    if (playlist.customArtworkUri != null) {
+                        OutlinedIconButton(
+                            onClick = onRotateImage,
+                            shape = RoundedCornerShape(12.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.RotateRight,
+                                contentDescription = "Rotate image",
+                                modifier = Modifier.size(20.dp)
+                            )
+                        }
+                        OutlinedIconButton(
+                            onClick = onRemoveImage,
+                            shape = RoundedCornerShape(12.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Delete,
+                                contentDescription = "Remove image",
+                                tint = MaterialTheme.colorScheme.error,
+                                modifier = Modifier.size(20.dp)
+                            )
+                        }
+                    }
+                }
+
+                Column(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    Text(
+                        text = "Icon tint",
+                        style = MaterialTheme.typography.titleSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    val row1 = remember { PLAYLIST_COVER_TINT_PALETTE.take(5) }
+                    val row2 = remember { PLAYLIST_COVER_TINT_PALETTE.slice(5 until 10) }
+                    val row3 = remember { PLAYLIST_COVER_TINT_PALETTE.drop(10) }
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        row1.forEach { tintValue ->
+                            PlaylistCoverTintSwatch(
+                                tintArgb = tintValue,
+                                isSelected = playlist.iconTintArgb == tintValue,
+                                onClick = { onSelectTint(tintValue) }
+                            )
+                        }
+                    }
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        row2.forEach { tintValue ->
+                            PlaylistCoverTintSwatch(
+                                tintArgb = tintValue,
+                                isSelected = playlist.iconTintArgb == tintValue,
+                                onClick = { onSelectTint(tintValue) }
+                            )
+                        }
+                    }
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        row3.forEach { tintValue ->
+                            PlaylistCoverTintSwatch(
+                                tintArgb = tintValue,
+                                isSelected = playlist.iconTintArgb == tintValue,
+                                onClick = { onSelectTint(tintValue) }
+                            )
+                        }
+                        val isCustomSelected = playlist.iconTintArgb != null && playlist.iconTintArgb !in PLAYLIST_COVER_TINT_PALETTE
+                        PlaylistCoverCustomTintSwatch(
+                            customArgb = if (isCustomSelected) playlist.iconTintArgb else null,
+                            isSelected = isCustomSelected,
+                            onClick = { showCustomColorPicker = true }
+                        )
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = onDismissRequest) {
+                Text("Done")
+            }
         }
+    )
+
+    if (showCustomColorPicker) {
+        val initialInt = playlist.iconTintArgb?.toInt() ?: 0xFF4A5FBE.toInt()
+        VisualizationRgbColorPickerDialog(
+            title = "Custom icon tint",
+            initialArgb = initialInt,
+            onDismiss = { showCustomColorPicker = false },
+            onConfirm = { chosenArgb ->
+                showCustomColorPicker = false
+                val chosenLong = chosenArgb.toLong() and 0xFFFFFFFFL
+                onSelectTint(chosenLong)
+            }
+        )
     }
 }
 
 @Composable
-internal fun PlaylistCoverCell(
-    source: String?,
-    modifier: Modifier = Modifier
+internal fun PlaylistCoverArt(
+    entries: List<PlaylistTrackEntry>,
+    customArtworkUri: String? = null,
+    iconTintArgb: Long? = null,
+    heroIcon: ImageVector? = Icons.Default.LibraryMusic,
+    modifier: Modifier = Modifier,
+    shape: Shape = MaterialTheme.shapes.extraLarge,
+    iconSize: Dp = 36.dp,
+    autoMosaicEnabled: Boolean = true,
+    coverRevision: Long = 0L,
+    isLarge: Boolean = false
 ) {
-    val icon = placeholderArtworkIconForFile(
-        file = source?.let(::File),
+    val context = LocalContext.current
+
+    val customBitmap = produceState<ImageBitmap?>(
+        initialValue = null,
+        key1 = customArtworkUri,
+        key2 = coverRevision
+    ) {
+        if (customArtworkUri.isNullOrBlank()) {
+            value = null
+            return@produceState
+        }
+        value = withContext(Dispatchers.IO) {
+            try {
+                val file = File(customArtworkUri)
+                if (file.exists() && file.isFile && file.length() > 0L) {
+                    BitmapFactory.decodeFile(file.absolutePath)?.apply {
+                        setHasMipMap(true)
+                    }?.asImageBitmap()
+                } else {
+                    null
+                }
+            } catch (_: Throwable) {
+                null
+            }
+        }
+    }.value
+
+    val entryKeys = remember(entries) {
+        entries.take(30).map { it.id to (it.artworkThumbnailCacheKey ?: it.source) }
+    }
+    val mosaicStateKey = remember(customArtworkUri, autoMosaicEnabled, isLarge, entryKeys) {
+        listOf(customArtworkUri, autoMosaicEnabled, isLarge, entryKeys)
+    }
+    val mosaicArtworks = produceState<List<ImageBitmap>>(
+        initialValue = emptyList(),
+        key1 = mosaicStateKey
+    ) {
+        if (!customArtworkUri.isNullOrBlank() || !autoMosaicEnabled || entries.isEmpty()) {
+            value = emptyList()
+            return@produceState
+        }
+        value = withContext(Dispatchers.IO) {
+            resolvePlaylistCoverArtworks(
+                context = context,
+                entries = entries,
+                maxCount = 4,
+                preferLarge = isLarge
+            )
+        }
+    }.value
+
+    val commonIcon = resolveCommonPlaylistFormatIcon(entries)
+    val fallbackIcon = commonIcon ?: (heroIcon ?: Icons.Default.LibraryMusic)
+    val customTint = iconTintArgb?.let { Color(it) }
+    val containerColor = when {
+        customBitmap != null || mosaicArtworks.isNotEmpty() -> MaterialTheme.colorScheme.surfaceContainerHighest
+        customTint != null -> customTint.copy(alpha = 0.18f)
+        else -> MaterialTheme.colorScheme.surfaceContainerHighest
+    }
+
+    Surface(
+        modifier = modifier,
+        shape = shape,
+        color = containerColor
+    ) {
+        when {
+            customBitmap != null -> {
+                Image(
+                    bitmap = customBitmap,
+                    contentDescription = "Playlist cover",
+                    contentScale = ContentScale.Crop,
+                    filterQuality = FilterQuality.Medium,
+                    modifier = Modifier.fillMaxSize()
+                )
+            }
+            mosaicArtworks.size >= 4 -> {
+                Column(modifier = Modifier.fillMaxSize()) {
+                    Row(
+                        modifier = Modifier
+                            .weight(1f)
+                            .fillMaxWidth()
+                    ) {
+                        Image(
+                            bitmap = mosaicArtworks[0],
+                            contentDescription = null,
+                            contentScale = ContentScale.Crop,
+                            filterQuality = FilterQuality.Medium,
+                            modifier = Modifier
+                                .weight(1f)
+                                .fillMaxHeight()
+                        )
+                        Spacer(
+                            modifier = Modifier
+                                .width(1.dp)
+                                .fillMaxHeight()
+                                .background(MaterialTheme.colorScheme.surface)
+                        )
+                        Image(
+                            bitmap = mosaicArtworks[1],
+                            contentDescription = null,
+                            contentScale = ContentScale.Crop,
+                            filterQuality = FilterQuality.Medium,
+                            modifier = Modifier
+                                .weight(1f)
+                                .fillMaxHeight()
+                        )
+                    }
+                    Spacer(
+                        modifier = Modifier
+                            .height(1.dp)
+                            .fillMaxWidth()
+                            .background(MaterialTheme.colorScheme.surface)
+                    )
+                    Row(
+                        modifier = Modifier
+                            .weight(1f)
+                            .fillMaxWidth()
+                    ) {
+                        Image(
+                            bitmap = mosaicArtworks[2],
+                            contentDescription = null,
+                            contentScale = ContentScale.Crop,
+                            filterQuality = FilterQuality.Medium,
+                            modifier = Modifier
+                                .weight(1f)
+                                .fillMaxHeight()
+                        )
+                        Spacer(
+                            modifier = Modifier
+                                .width(1.dp)
+                                .fillMaxHeight()
+                                .background(MaterialTheme.colorScheme.surface)
+                        )
+                        Image(
+                            bitmap = mosaicArtworks[3],
+                            contentDescription = null,
+                            contentScale = ContentScale.Crop,
+                            filterQuality = FilterQuality.Medium,
+                            modifier = Modifier
+                                .weight(1f)
+                                .fillMaxHeight()
+                        )
+                    }
+                }
+            }
+            mosaicArtworks.isNotEmpty() -> {
+                Image(
+                    bitmap = mosaicArtworks[0],
+                    contentDescription = "Playlist cover",
+                    contentScale = ContentScale.Crop,
+                    filterQuality = FilterQuality.Medium,
+                    modifier = Modifier.fillMaxSize()
+                )
+            }
+            customTint != null -> {
+                Box(
+                    modifier = Modifier.fillMaxSize(),
+                    contentAlignment = Alignment.Center
+                ) {
+                    if (iconSize > 32.dp) {
+                        Box(
+                            modifier = Modifier
+                                .size(iconSize * 1.65f)
+                                .clip(CircleShape)
+                                .background(customTint.copy(alpha = 0.22f)),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(
+                                imageVector = fallbackIcon,
+                                contentDescription = null,
+                                tint = customTint,
+                                modifier = Modifier.size(iconSize)
+                            )
+                        }
+                    } else {
+                        Icon(
+                            imageVector = fallbackIcon,
+                            contentDescription = null,
+                            tint = customTint,
+                            modifier = Modifier.size(iconSize)
+                        )
+                    }
+                }
+            }
+            iconSize > 32.dp -> {
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .background(
+                            brush = Brush.radialGradient(
+                                colors = listOf(
+                                    MaterialTheme.colorScheme.primary.copy(alpha = 0.28f),
+                                    MaterialTheme.colorScheme.surfaceVariant
+                                )
+                            )
+                        ),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .size(iconSize * 1.65f)
+                            .clip(CircleShape)
+                            .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.14f)),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            imageVector = fallbackIcon,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.size(iconSize)
+                        )
+                    }
+                }
+            }
+            else -> {
+                Box(
+                    modifier = Modifier.fillMaxSize(),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        imageVector = fallbackIcon,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.size(iconSize)
+                    )
+                }
+            }
+        }
+    }
+}
+
+internal fun resolvePlaylistCoverArtworks(
+    context: Context,
+    entries: List<PlaylistTrackEntry>,
+    maxCount: Int = 4,
+    preferLarge: Boolean = false
+): List<ImageBitmap> {
+    val results = mutableListOf<ImageBitmap>()
+    val seenArtworkKeys = mutableSetOf<String>()
+    val cacheRoot = File(context.cacheDir, RECENT_ARTWORK_CACHE_DIR)
+
+    var checkedCount = 0
+    for (entry in entries) {
+        if (entry.source.isBlank()) continue
+        checkedCount++
+        if (checkedCount > 40 && results.size < 4) {
+            break
+        }
+        val cacheKey = entry.artworkThumbnailCacheKey?.takeIf { it.isNotBlank() }
+            ?: run {
+                val normalized = normalizeSourceIdentity(entry.source)?.trim().orEmpty()
+                if (normalized.isNotBlank()) {
+                    val key = "${sha1Hex(normalized)}.jpg"
+                    if (File(cacheRoot, key).exists()) key else null
+                } else null
+            }
+        val effectiveKey = cacheKey ?: run {
+            if (results.size < maxCount) {
+                ensureRecentArtworkCached(
+                    context = context,
+                    sourceId = entry.source,
+                    requireLarge = preferLarge
+                )
+            } else null
+        } ?: continue
+
+        if (!seenArtworkKeys.add(effectiveKey)) continue
+
+        val file = recentArtworkFile(context, effectiveKey, preferLarge = preferLarge)
+            ?: if (preferLarge) {
+                ensureRecentArtworkCached(
+                    context = context,
+                    sourceId = entry.source,
+                    requireLarge = true
+                )
+                recentArtworkFile(context, effectiveKey, preferLarge = true)
+            } else null
+
+        if (file != null && file.exists() && file.isFile && file.length() > 0L) {
+            try {
+                val bitmap = BitmapFactory.decodeFile(file.absolutePath)?.apply {
+                    setHasMipMap(true)
+                }
+                if (bitmap != null) {
+                    results.add(bitmap.asImageBitmap())
+                    if (results.size >= maxCount) {
+                        break
+                    }
+                }
+            } catch (_: Throwable) {}
+        }
+    }
+    return results
+}
+
+@Composable
+internal fun resolveCommonPlaylistFormatIcon(entries: List<PlaylistTrackEntry>): ImageVector? {
+    if (entries.isEmpty()) return null
+    val firstSource = entries.firstOrNull { it.source.isNotBlank() }?.source ?: return null
+    val firstExt = playlistEntrySourceExtension(firstSource)
+    if (firstExt.isBlank()) return null
+    val allSame = entries.all { entry ->
+        if (entry.source.isBlank()) true
+        else playlistEntrySourceExtension(entry.source).equals(firstExt, ignoreCase = true)
+    }
+    if (!allSame) return null
+    return placeholderArtworkIconForFile(
+        file = File("dummy.$firstExt"),
         decoderName = null,
         allowCurrentDecoderFallback = false
     )
-    Box(
-        modifier = modifier
-            .fillMaxHeight()
-            .clip(MaterialTheme.shapes.large)
-            .background(MaterialTheme.colorScheme.surfaceContainerHighest),
-        contentAlignment = Alignment.Center
-    ) {
-        Icon(
-            imageVector = icon,
-            contentDescription = null,
-            tint = MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier.size(28.dp)
-        )
-    }
+}
+
+internal fun playlistEntrySourceExtension(source: String): String {
+    val leaf = source.substringAfterLast('/').substringAfterLast('\\')
+    return leaf.substringAfterLast('.', missingDelimiterValue = "").trim().lowercase(Locale.ROOT)
 }
 
 @Composable
@@ -6237,6 +6958,8 @@ private fun FavoritesCollectionRow(
     isHomePinned: Boolean = false,
     onToggleHomePin: (() -> Unit)? = null,
     onRefreshMetadata: (() -> Unit)? = null,
+    favorites: List<PlaylistTrackEntry> = emptyList(),
+    autoMosaicEnabled: Boolean = true,
     isWatch: Boolean = false
 ) {
     PlaylistLibraryFlatRow(
@@ -6251,6 +6974,16 @@ private fun FavoritesCollectionRow(
         icon = Icons.Default.Star,
         iconContainerColor = MaterialTheme.colorScheme.primaryContainer,
         iconTint = MaterialTheme.colorScheme.onPrimaryContainer,
+        leadingContent = {
+            PlaylistCoverArt(
+                entries = favorites,
+                heroIcon = Icons.Default.Star,
+                modifier = Modifier.size(if (isWatch) 34.dp else 56.dp),
+                shape = RoundedCornerShape(if (isWatch) 10.dp else 12.dp),
+                iconSize = if (isWatch) 18.dp else 30.dp,
+                autoMosaicEnabled = autoMosaicEnabled
+            )
+        },
         onClick = onClick,
         onDuplicate = onDuplicate,
         onExport = onExport,
@@ -6307,30 +7040,6 @@ private fun playlistTrackCountLabel(trackCount: Int): String =
         1 -> "1 track"
         else -> "$trackCount tracks"
     }
-
-internal fun playlistCoverSources(entries: List<PlaylistTrackEntry>): List<String?> {
-    val distinctSources = entries
-        .asSequence()
-        .mapNotNull { entry -> entry.source.takeIf { it.isNotBlank() } }
-        .distinctBy { source -> playlistCoverSourceKey(source) }
-        .take(4)
-        .toMutableList()
-    if (distinctSources.isEmpty()) {
-        distinctSources += ""
-    }
-    while (distinctSources.size < 4) {
-        distinctSources += distinctSources.last()
-    }
-    return distinctSources
-}
-
-internal fun playlistCoverSourceKey(source: String): String {
-    val fileName = source.substringAfterLast('/').substringAfterLast('\\')
-    val extension = fileName.substringAfterLast('.', missingDelimiterValue = "").lowercase(Locale.ROOT)
-    return extension.ifBlank {
-        fileName.lowercase(Locale.ROOT)
-    }
-}
 
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
@@ -7157,6 +7866,8 @@ private fun PlaylistCollectionRow(
     onDragStart: (() -> Unit)? = null,
     onDragStep: ((Int) -> Unit)? = null,
     onDragEnd: (() -> Unit)? = null,
+    autoMosaicEnabled: Boolean = true,
+    onChangeCover: (() -> Unit)? = null,
     isWatch: Boolean = false
 ) {
     PlaylistLibraryFlatRow(
@@ -7171,6 +7882,18 @@ private fun PlaylistCollectionRow(
         icon = Icons.Default.LibraryMusic,
         iconContainerColor = MaterialTheme.colorScheme.surfaceContainerHighest,
         iconTint = MaterialTheme.colorScheme.onSurfaceVariant,
+        leadingContent = {
+            PlaylistCoverArt(
+                entries = playlist.entries,
+                customArtworkUri = playlist.customArtworkUri,
+                iconTintArgb = playlist.iconTintArgb,
+                heroIcon = Icons.Default.LibraryMusic,
+                modifier = Modifier.size(if (isWatch) 34.dp else 56.dp),
+                shape = RoundedCornerShape(if (isWatch) 10.dp else 12.dp),
+                iconSize = if (isWatch) 18.dp else 30.dp,
+                autoMosaicEnabled = autoMosaicEnabled
+            )
+        },
         onClick = onClick,
         onRename = onRename,
         onDuplicate = onDuplicate,
@@ -7188,6 +7911,7 @@ private fun PlaylistCollectionRow(
         onDragStart = onDragStart,
         onDragStep = onDragStep,
         onDragEnd = onDragEnd,
+        onChangeCover = onChangeCover,
         isWatch = isWatch
     )
 }
@@ -7240,6 +7964,7 @@ private fun PlaylistLibraryFlatRow(
     icon: ImageVector,
     iconContainerColor: Color,
     iconTint: Color,
+    leadingContent: (@Composable () -> Unit)? = null,
     onClick: () -> Unit,
     onRename: (() -> Unit)? = null,
     onDuplicate: (() -> Unit)? = null,
@@ -7257,6 +7982,7 @@ private fun PlaylistLibraryFlatRow(
     onDragStart: (() -> Unit)? = null,
     onDragStep: ((Int) -> Unit)? = null,
     onDragEnd: (() -> Unit)? = null,
+    onChangeCover: (() -> Unit)? = null,
     isWatch: Boolean = false
 ) {
     var wearActionsOpen by rememberSaveable { mutableStateOf(false) }
@@ -7269,7 +7995,7 @@ private fun PlaylistLibraryFlatRow(
                 .background(MaterialTheme.colorScheme.surfaceContainerLow)
                 .combinedClickable(
                     onClick = onClick,
-                    onLongClick = if (onRename != null || onDuplicate != null || onDelete != null || onExport != null || onShare != null || onTogglePin != null || onToggleHomePin != null || onRefreshMetadata != null || onMoveToFolder != null) {
+                    onLongClick = if (onRename != null || onDuplicate != null || onDelete != null || onExport != null || onShare != null || onTogglePin != null || onToggleHomePin != null || onRefreshMetadata != null || onMoveToFolder != null || onChangeCover != null) {
                         { wearActionsOpen = true }
                     } else null
                 )
@@ -7277,21 +8003,25 @@ private fun PlaylistLibraryFlatRow(
             horizontalArrangement = Arrangement.spacedBy(10.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Surface(
-                modifier = Modifier.size(34.dp),
-                shape = RoundedCornerShape(10.dp),
-                color = iconContainerColor
-            ) {
-                Box(
-                    modifier = Modifier.fillMaxSize(),
-                    contentAlignment = Alignment.Center
+            if (leadingContent != null) {
+                leadingContent()
+            } else {
+                Surface(
+                    modifier = Modifier.size(34.dp),
+                    shape = RoundedCornerShape(10.dp),
+                    color = iconContainerColor
                 ) {
-                    Icon(
-                        imageVector = icon,
-                        contentDescription = null,
-                        tint = iconTint,
-                        modifier = Modifier.size(18.dp)
-                    )
+                    Box(
+                        modifier = Modifier.fillMaxSize(),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            imageVector = icon,
+                            contentDescription = null,
+                            tint = iconTint,
+                            modifier = Modifier.size(18.dp)
+                        )
+                    }
                 }
             }
             Column(modifier = Modifier.weight(1f)) {
@@ -7330,6 +8060,18 @@ private fun PlaylistLibraryFlatRow(
                 title = title,
                 onDismissRequest = { wearActionsOpen = false }
             ) {
+                if (onChangeCover != null) {
+                    FilledTonalButton(
+                        onClick = {
+                            wearActionsOpen = false
+                            onChangeCover()
+                        },
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(14.dp)
+                    ) {
+                        Text("Change cover…")
+                    }
+                }
                 if (onTogglePin != null) {
                     FilledTonalButton(
                         onClick = {
@@ -7456,21 +8198,25 @@ private fun PlaylistLibraryFlatRow(
             horizontalArrangement = Arrangement.spacedBy(12.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Surface(
-                modifier = Modifier.size(56.dp),
-                shape = RoundedCornerShape(12.dp),
-                color = iconContainerColor
-            ) {
-                Box(
-                    modifier = Modifier.fillMaxSize(),
-                    contentAlignment = Alignment.Center
+            if (leadingContent != null) {
+                leadingContent()
+            } else {
+                Surface(
+                    modifier = Modifier.size(56.dp),
+                    shape = RoundedCornerShape(12.dp),
+                    color = iconContainerColor
                 ) {
-                    Icon(
-                        imageVector = icon,
-                        contentDescription = null,
-                        tint = iconTint,
-                        modifier = Modifier.size(30.dp)
-                    )
+                    Box(
+                        modifier = Modifier.fillMaxSize(),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            imageVector = icon,
+                            contentDescription = null,
+                            tint = iconTint,
+                            modifier = Modifier.size(30.dp)
+                        )
+                    }
                 }
             }
             Column(modifier = Modifier.weight(1f)) {
@@ -7511,7 +8257,7 @@ private fun PlaylistLibraryFlatRow(
                     onDragEnd = onDragEnd
                 )
             }
-            if (onRename != null || onDuplicate != null || onDelete != null || onExport != null || onShare != null || onTogglePin != null || onToggleHomePin != null || onRefreshMetadata != null || onMoveToFolder != null) {
+            if (onRename != null || onDuplicate != null || onDelete != null || onExport != null || onShare != null || onTogglePin != null || onToggleHomePin != null || onRefreshMetadata != null || onMoveToFolder != null || onChangeCover != null) {
                 Box(
                     modifier = Modifier
                         .size(28.dp)
@@ -7528,6 +8274,32 @@ private fun PlaylistLibraryFlatRow(
                         expanded = menuExpanded,
                         onDismissRequest = { menuExpanded = false }
                     ) {
+                        if (onChangeCover != null) {
+                            DropdownMenuItem(
+                                text = {
+                                    Text(
+                                        text = "Change cover…",
+                                        style = MaterialTheme.typography.bodyLarge
+                                    )
+                                },
+                                leadingIcon = {
+                                    Icon(
+                                        imageVector = Icons.Default.Palette,
+                                        contentDescription = null,
+                                        modifier = Modifier.size(22.dp)
+                                    )
+                                },
+                                contentPadding = PaddingValues(start = 14.dp, end = 18.dp),
+                                colors = MenuDefaults.itemColors(
+                                    textColor = MaterialTheme.colorScheme.onSurface,
+                                    leadingIconColor = MaterialTheme.colorScheme.onSurfaceVariant
+                                ),
+                                onClick = {
+                                    menuExpanded = false
+                                    onChangeCover()
+                                }
+                            )
+                        }
                         if (onTogglePin != null) {
                             DropdownMenuItem(
                                 text = {

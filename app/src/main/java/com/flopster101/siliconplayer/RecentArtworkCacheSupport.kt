@@ -10,25 +10,42 @@ import java.io.FileOutputStream
 import java.util.Locale
 
 internal const val RECENT_ARTWORK_CACHE_DIR = "recent_artwork"
-private const val RECENT_ARTWORK_THUMB_MAX_SIZE_PX = 180
+private const val RECENT_ARTWORK_THUMB_MAX_SIZE_PX = 240
+private const val RECENT_ARTWORK_LARGE_MAX_SIZE_PX = 1024
 
 internal fun ensureRecentArtworkThumbnailCached(
     context: Context,
     sourceId: String,
     requestUrlHint: String? = null
+): String? = ensureRecentArtworkCached(
+    context = context,
+    sourceId = sourceId,
+    requestUrlHint = requestUrlHint,
+    requireLarge = false
+)
+
+internal fun ensureRecentArtworkCached(
+    context: Context,
+    sourceId: String,
+    requestUrlHint: String? = null,
+    requireLarge: Boolean = false
 ): String? {
     val normalizedSource = normalizeSourceIdentity(sourceId)?.trim().orEmpty()
     if (normalizedSource.isBlank()) return null
     val cacheRoot = File(context.cacheDir, RECENT_ARTWORK_CACHE_DIR)
     if (!cacheRoot.exists() && !cacheRoot.mkdirs()) return null
     val cacheKey = "${sha1Hex(normalizedSource)}.jpg"
+    val largeKey = "${sha1Hex(normalizedSource)}_large.jpg"
     val cacheFile = File(cacheRoot, cacheKey)
-    if (cacheFile.exists() && cacheFile.isFile && cacheFile.length() > 0L) {
-        return cacheKey
-    }
-    val tempCacheFile = File(cacheRoot, "$cacheKey.tmp")
-    if (tempCacheFile.exists()) {
-        tempCacheFile.delete()
+    val largeFile = File(cacheRoot, largeKey)
+
+    val thumbExists = cacheFile.exists() && cacheFile.isFile && cacheFile.length() > 0L
+    val largeExists = largeFile.exists() && largeFile.isFile && largeFile.length() > 0L
+
+    if (requireLarge) {
+        if (largeExists) return cacheKey
+    } else {
+        if (thumbExists) return cacheKey
     }
 
     val sourceFile = resolveRecentArtworkSourceFile(context, normalizedSource)
@@ -38,46 +55,84 @@ internal fun ensureRecentArtworkThumbnailCached(
             sourceId = normalizedSource,
             requestUrlHint = requestUrlHint
         )
-    } ?: return null
-    val scaled = scaleBitmapForRecentThumb(bitmap, RECENT_ARTWORK_THUMB_MAX_SIZE_PX)
-    return try {
-        FileOutputStream(tempCacheFile).use { output ->
-            if (!scaled.compress(Bitmap.CompressFormat.JPEG, 82, output)) {
-                return null
+    } ?: return if (thumbExists) cacheKey else null
+
+    if (!largeExists) {
+        val largeScaled = scaleBitmapForRecentThumb(bitmap, RECENT_ARTWORK_LARGE_MAX_SIZE_PX)
+        val tempLargeFile = File(cacheRoot, "$largeKey.tmp")
+        try {
+            FileOutputStream(tempLargeFile).use { output ->
+                if (largeScaled.compress(Bitmap.CompressFormat.JPEG, 88, output)) {
+                    output.fd.sync()
+                }
             }
-            output.fd.sync()
-        }
-        if (tempCacheFile.length() <= 0L) {
-            tempCacheFile.delete()
-            null
-        } else if (!tempCacheFile.renameTo(cacheFile)) {
-            tempCacheFile.delete()
-            null
-        } else {
-            cacheKey
-        }
-    } catch (_: Throwable) {
-        tempCacheFile.delete()
-        cacheFile.delete()
-        null
-    } finally {
-        if (scaled !== bitmap && !scaled.isRecycled) {
-            scaled.recycle()
-        }
-        if (!bitmap.isRecycled) {
-            bitmap.recycle()
+            if (tempLargeFile.length() > 0L) {
+                tempLargeFile.renameTo(largeFile)
+            } else {
+                tempLargeFile.delete()
+            }
+        } catch (_: Throwable) {
+            tempLargeFile.delete()
+        } finally {
+            if (largeScaled !== bitmap && !largeScaled.isRecycled) {
+                largeScaled.recycle()
+            }
         }
     }
+
+    if (!thumbExists) {
+        val thumbScaled = scaleBitmapForRecentThumb(bitmap, RECENT_ARTWORK_THUMB_MAX_SIZE_PX)
+        val tempThumbFile = File(cacheRoot, "$cacheKey.tmp")
+        try {
+            FileOutputStream(tempThumbFile).use { output ->
+                if (thumbScaled.compress(Bitmap.CompressFormat.JPEG, 82, output)) {
+                    output.fd.sync()
+                }
+            }
+            if (tempThumbFile.length() > 0L) {
+                tempThumbFile.renameTo(cacheFile)
+            } else {
+                tempThumbFile.delete()
+            }
+        } catch (_: Throwable) {
+            tempThumbFile.delete()
+        } finally {
+            if (thumbScaled !== bitmap && !thumbScaled.isRecycled) {
+                thumbScaled.recycle()
+            }
+        }
+    }
+
+    if (!bitmap.isRecycled) {
+        bitmap.recycle()
+    }
+
+    return if (cacheFile.exists() && cacheFile.length() > 0L) cacheKey else if (largeFile.exists() && largeFile.length() > 0L) cacheKey else null
+}
+
+internal fun recentArtworkFile(
+    context: Context,
+    cacheKey: String?,
+    preferLarge: Boolean = false
+): File? {
+    val normalizedKey = cacheKey?.trim().takeUnless { it.isNullOrBlank() } ?: return null
+    val cacheDir = File(context.cacheDir, RECENT_ARTWORK_CACHE_DIR)
+    if (preferLarge) {
+        val baseName = normalizedKey.substringBeforeLast('.')
+        val ext = normalizedKey.substringAfterLast('.', "jpg")
+        val largeFile = File(cacheDir, "${baseName}_large.$ext")
+        if (largeFile.exists() && largeFile.isFile && largeFile.length() > 0L) {
+            return largeFile
+        }
+    }
+    val file = File(cacheDir, normalizedKey)
+    return file.takeIf { it.exists() && it.isFile && it.length() > 0L }
 }
 
 internal fun recentArtworkThumbnailFile(
     context: Context,
     cacheKey: String?
-): File? {
-    val normalizedKey = cacheKey?.trim().takeUnless { it.isNullOrBlank() } ?: return null
-    val file = File(File(context.cacheDir, RECENT_ARTWORK_CACHE_DIR), normalizedKey)
-    return file.takeIf { it.exists() && it.isFile && it.length() > 0L }
-}
+): File? = recentArtworkFile(context, cacheKey, preferLarge = false)
 
 private fun resolveRecentArtworkSourceFile(context: Context, sourceId: String): File? {
     val uri = Uri.parse(sourceId)

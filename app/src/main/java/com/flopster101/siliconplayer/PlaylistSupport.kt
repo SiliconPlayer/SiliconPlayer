@@ -2,9 +2,14 @@ package com.flopster101.siliconplayer
 
 import android.content.Context
 import android.content.ContentResolver
+import android.graphics.Bitmap
+import android.graphics.BitmapFactory
+import android.graphics.Matrix
+import android.media.ExifInterface
 import android.net.Uri
 import android.provider.OpenableColumns
 import java.io.File
+import java.io.FileOutputStream
 import java.net.URI
 import java.nio.ByteBuffer
 import java.nio.charset.StandardCharsets
@@ -119,7 +124,9 @@ internal data class StoredPlaylist(
     val entries: List<PlaylistTrackEntry>,
     val updatedAtMs: Long = System.currentTimeMillis(),
     val isPinned: Boolean = false,
-    val folderId: String? = null
+    val folderId: String? = null,
+    val customArtworkUri: String? = null,
+    val iconTintArgb: Long? = null
 )
 
 internal data class PlaylistLibraryState(
@@ -263,21 +270,136 @@ internal fun duplicateStoredPlaylist(
     newTitle: String
 ): StoredPlaylist {
     val now = System.currentTimeMillis()
+    val newId = UUID.randomUUID().toString()
     val duplicatedEntries = playlist.entries.mapIndexed { index, entry ->
         entry.copy(
             id = UUID.randomUUID().toString(),
             addedAtMs = now + index
         )
     }
+    var copiedArtworkUri: String? = null
+    if (!playlist.customArtworkUri.isNullOrBlank()) {
+        try {
+            val srcFile = File(playlist.customArtworkUri)
+            if (srcFile.exists() && srcFile.isFile) {
+                val parent = srcFile.parentFile
+                if (parent != null) {
+                    val destFile = File(parent, "$newId.jpg")
+                    srcFile.copyTo(destFile, overwrite = true)
+                    copiedArtworkUri = destFile.absolutePath
+                }
+            }
+        } catch (_: Throwable) {
+            copiedArtworkUri = playlist.customArtworkUri
+        }
+    }
     return StoredPlaylist(
-        id = UUID.randomUUID().toString(),
+        id = newId,
         title = newTitle.trim().ifBlank { "${playlist.title} (Copy)" },
         format = PlaylistStoredFormat.Internal,
         sourceIdHint = null,
         entries = duplicatedEntries,
         updatedAtMs = now,
-        folderId = playlist.folderId
+        folderId = playlist.folderId,
+        customArtworkUri = copiedArtworkUri ?: playlist.customArtworkUri,
+        iconTintArgb = playlist.iconTintArgb
     )
+}
+
+internal fun saveNormalizedPlaylistCover(context: Context, sourceUri: Uri, destFile: File): Boolean {
+    val tempFile = File(destFile.parentFile ?: context.cacheDir, "temp_cover_${UUID.randomUUID()}.tmp")
+    return try {
+        context.contentResolver.openInputStream(sourceUri)?.use { input ->
+            FileOutputStream(tempFile).use { output ->
+                input.copyTo(output)
+            }
+        } ?: return false
+        if (!tempFile.exists() || tempFile.length() == 0L) return false
+
+        val exif = try {
+            ExifInterface(tempFile.absolutePath)
+        } catch (_: Throwable) {
+            null
+        }
+        val orientation = exif?.getAttributeInt(
+            ExifInterface.TAG_ORIENTATION,
+            ExifInterface.ORIENTATION_NORMAL
+        ) ?: ExifInterface.ORIENTATION_NORMAL
+        val rotationDegrees = when (orientation) {
+            ExifInterface.ORIENTATION_ROTATE_90 -> 90f
+            ExifInterface.ORIENTATION_ROTATE_180 -> 180f
+            ExifInterface.ORIENTATION_ROTATE_270 -> 270f
+            else -> 0f
+        }
+
+        val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+        BitmapFactory.decodeFile(tempFile.absolutePath, bounds)
+        val maxDim = maxOf(bounds.outWidth, bounds.outHeight)
+        val needsScale = maxDim > 1024
+        val needsRotation = rotationDegrees != 0f
+
+        var sampleSize = 1
+        if (needsScale) {
+            while (maxDim / (sampleSize * 2) >= 1024) {
+                sampleSize *= 2
+            }
+        }
+        val decodeOptions = BitmapFactory.Options().apply { inSampleSize = sampleSize }
+        val bitmap = BitmapFactory.decodeFile(tempFile.absolutePath, decodeOptions) ?: return false
+
+        val matrix = Matrix()
+        if (needsRotation) {
+            matrix.postRotate(rotationDegrees)
+        }
+        val scale = if (needsScale) {
+            1024f / maxOf(bitmap.width, bitmap.height).coerceAtLeast(1)
+        } else {
+            1f
+        }
+        if (scale < 1f) {
+            matrix.postScale(scale, scale)
+        }
+
+        val finalBitmap = if (needsRotation || scale < 1f) {
+            Bitmap.createBitmap(bitmap, 0, 0, bitmap.width, bitmap.height, matrix, true)
+        } else {
+            bitmap
+        }
+
+        FileOutputStream(destFile).use { out ->
+            finalBitmap.compress(Bitmap.CompressFormat.JPEG, 92, out)
+        }
+        if (finalBitmap != bitmap) {
+            finalBitmap.recycle()
+        }
+        bitmap.recycle()
+        destFile.exists() && destFile.length() > 0L
+    } catch (_: Throwable) {
+        false
+    } finally {
+        if (tempFile.exists()) {
+            tempFile.delete()
+        }
+    }
+}
+
+internal fun rotatePlaylistCoverFile(file: File, degrees: Float = 90f): Boolean {
+    if (!file.exists() || !file.isFile || file.length() == 0L) return false
+    return try {
+        val bitmap = BitmapFactory.decodeFile(file.absolutePath) ?: return false
+        val matrix = Matrix().apply { postRotate(degrees) }
+        val rotated = Bitmap.createBitmap(bitmap, 0, 0, bitmap.width, bitmap.height, matrix, true)
+        FileOutputStream(file).use { out ->
+            rotated.compress(Bitmap.CompressFormat.JPEG, 92, out)
+        }
+        if (rotated != bitmap) {
+            rotated.recycle()
+        }
+        bitmap.recycle()
+        true
+    } catch (_: Throwable) {
+        false
+    }
 }
 
 internal fun buildImportedPlaylist(

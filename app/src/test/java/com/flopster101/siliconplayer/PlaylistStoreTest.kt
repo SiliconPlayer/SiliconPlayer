@@ -1,9 +1,13 @@
 package com.flopster101.siliconplayer
 
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import java.io.File
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.toArgb
 
 class PlaylistStoreTest {
 
@@ -894,6 +898,139 @@ class PlaylistStoreTest {
         assertEquals("f1", rF2.parentFolderId)
 
         assertEquals("f2", restored.playlists.first().folderId)
+    }
+
+    @Test
+    fun `writePlaylistLibraryState and readPlaylistLibraryState preserves customArtworkUri and iconTintArgb`() {
+        val prefs = FakeSharedPreferences()
+        val original = PlaylistLibraryState(
+            favorites = emptyList(),
+            playlists = listOf(
+                samplePlaylist("p1", "VGM Mix").copy(
+                    customArtworkUri = "/data/user/0/com.flopster101/files/playlist_covers/p1.jpg",
+                    iconTintArgb = 0xFF4285F4L
+                )
+            )
+        )
+        writePlaylistLibraryState(prefs, original)
+
+        val restored = readPlaylistLibraryState(prefs)
+        assertEquals(1, restored.playlists.size)
+        val p1 = restored.playlists.first()
+        assertEquals("/data/user/0/com.flopster101/files/playlist_covers/p1.jpg", p1.customArtworkUri)
+        assertEquals(0xFF4285F4L, p1.iconTintArgb)
+    }
+
+    @Test
+    fun `updateStoredPlaylistCover updates artwork uri and icon tint and bumps timestamp`() {
+        val initial = PlaylistLibraryState(
+            favorites = emptyList(),
+            playlists = listOf(
+                samplePlaylist("p1", "Playlist 1").copy(updatedAtMs = 50L)
+            )
+        )
+
+        val updated = updateStoredPlaylistCover(
+            state = initial,
+            playlistId = "p1",
+            customArtworkUri = "/covers/custom.jpg",
+            iconTintArgb = 0xFF00FF00L
+        )
+        val playlist = updated.playlists.first()
+        assertEquals("/covers/custom.jpg", playlist.customArtworkUri)
+        assertEquals(0xFF00FF00L, playlist.iconTintArgb)
+        assertTrue(playlist.updatedAtMs > 50L)
+    }
+
+    @Test
+    fun `removeStoredPlaylist deletes local custom artwork file`() {
+        val tempCover = File.createTempFile("playlist_cover_test", ".jpg")
+        try {
+            tempCover.writeText("test cover data")
+            assertTrue(tempCover.exists())
+
+            val initial = PlaylistLibraryState(
+                favorites = emptyList(),
+                playlists = listOf(
+                    samplePlaylist("p1", "Playlist 1").copy(customArtworkUri = tempCover.absolutePath)
+                )
+            )
+
+            val updated = removeStoredPlaylist(initial, "p1")
+            assertEquals(0, updated.playlists.size)
+            assertFalse(tempCover.exists())
+        } finally {
+            if (tempCover.exists()) {
+                tempCover.delete()
+            }
+        }
+    }
+
+    @Test
+    fun `duplicateStoredPlaylist copies icon tint and clones custom artwork file`() {
+        val tempCover = File.createTempFile("playlist_cover_src", ".jpg")
+        var clonedFile: File? = null
+        try {
+            tempCover.writeText("sample artwork binary data")
+            val original = samplePlaylist("orig", "Original").copy(
+                customArtworkUri = tempCover.absolutePath,
+                iconTintArgb = 0xFF123456L
+            )
+
+            val duplicated = duplicateStoredPlaylist(original, "Duplicated")
+            assertEquals(0xFF123456L, duplicated.iconTintArgb)
+            assertNotNull(duplicated.customArtworkUri)
+            org.junit.Assert.assertNotEquals(tempCover.absolutePath, duplicated.customArtworkUri)
+
+            clonedFile = File(duplicated.customArtworkUri!!)
+            assertTrue(clonedFile.exists())
+            assertEquals("sample artwork binary data", clonedFile.readText())
+        } finally {
+            if (tempCover.exists()) tempCover.delete()
+            clonedFile?.let { if (it.exists()) it.delete() }
+        }
+    }
+
+    @Test
+    fun `playlist tint palette entries convert to compose Color and toArgb without crash`() {
+        val palette = listOf(
+            0xFFE53935L,
+            0xFFF4511EL,
+            0xFFFB8C00L,
+            0xFFFFB300L,
+            0xFFFDD835L,
+            0xFFC0CA33L,
+            0xFF7CB342L,
+            0xFF43A047L,
+            0xFF00897BL,
+            0xFF00ACC1L,
+            0xFF039BE5L,
+            0xFF1E88E5L,
+            0xFF3949ABL,
+            0xFF5E35B1L,
+            0xFF8E24AAL,
+            0xFFD81B60L,
+            0xFF6D4C41L,
+            0xFF546E7AL
+        )
+        for (tint in palette) {
+            val color = Color(tint)
+            val argb = color.toArgb()
+            assertEquals(tint.toInt(), argb)
+        }
+    }
+
+    @Test
+    fun `rotatePlaylistCoverFile returns false for non existent or empty file`() {
+        val nonExistent = File("/invalid/path/cover.jpg")
+        assertFalse(rotatePlaylistCoverFile(nonExistent, 90f))
+
+        val emptyFile = File.createTempFile("empty_cover", ".jpg")
+        try {
+            assertFalse(rotatePlaylistCoverFile(emptyFile, 90f))
+        } finally {
+            if (emptyFile.exists()) emptyFile.delete()
+        }
     }
 
     private class FakeSharedPreferences : android.content.SharedPreferences {
