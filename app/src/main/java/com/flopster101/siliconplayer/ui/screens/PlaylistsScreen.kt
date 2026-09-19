@@ -4414,17 +4414,38 @@ private fun LibraryTrackListRow(
         }
         if (artworkPath != null) {
             Box(
-                modifier = Modifier
-                    .size(48.dp)
-                    .clip(RoundedCornerShape(8.dp))
+                modifier = Modifier.size(48.dp),
+                contentAlignment = Alignment.Center
             ) {
-                AlbumArtworkBox(artworkPath = artworkPath)
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .clip(RoundedCornerShape(8.dp))
+                ) {
+                    AlbumArtworkBox(artworkPath = artworkPath)
+                }
+                if (isActive) {
+                    PlaylistPlayingBadge(
+                        isWatch = false,
+                        modifier = Modifier.align(Alignment.BottomEnd)
+                    )
+                }
+            }
+        } else if (isActive) {
+            // No artwork: the track number slot carries the playing badge,
+            // centered like the (now centered) track number.
+            Box(
+                modifier = Modifier.width(28.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                PlaylistPlayingBadge(isWatch = false, cornerOffset = false)
             }
         } else {
             Text(
                 text = position.toString(),
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
+                textAlign = TextAlign.Center,
                 modifier = Modifier.width(28.dp)
             )
         }
@@ -7990,13 +8011,14 @@ private fun PlaylistTrackArtworkChip(
 @Composable
 private fun PlaylistPlayingBadge(
     isWatch: Boolean,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    cornerOffset: Boolean = true
 ) {
     val badgeSize = if (isWatch) 13.dp else 17.dp
     val badgeIconSize = if (isWatch) 8.dp else 11.dp
     Box(
         modifier = modifier
-            .offset(x = 3.dp, y = 3.dp)
+            .then(if (cornerOffset) Modifier.offset(x = 3.dp, y = 3.dp) else Modifier)
             .size(badgeSize)
             .background(color = MaterialTheme.colorScheme.surface, shape = CircleShape)
             .padding(1.5.dp)
