@@ -109,7 +109,6 @@ internal fun SettingsScaffoldShell(
             val topTitle = settingsSecondaryTitle(targetRoute, selectedPluginName) ?: "Settings"
             Text(
                 text = topTitle,
-                style = if (isWatch) MaterialTheme.typography.titleMedium else MaterialTheme.typography.headlineMedium,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis
             )
@@ -236,6 +235,10 @@ internal fun SettingsScaffoldShell(
                     title = titleContent,
                     navigationIcon = navigationIconContent,
                     actions = actionsContent,
+                    colors = TopAppBarDefaults.largeTopAppBarColors(
+                        containerColor = MaterialTheme.colorScheme.background,
+                        scrolledContainerColor = MaterialTheme.colorScheme.background
+                    ),
                     scrollBehavior = scrollBehavior
                 )
             }

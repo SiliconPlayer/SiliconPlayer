@@ -1342,6 +1342,10 @@ internal fun PlaylistsScreen(
                                 }
                             }
                         },
+                        colors = TopAppBarDefaults.largeTopAppBarColors(
+                            containerColor = MaterialTheme.colorScheme.background,
+                            scrolledContainerColor = MaterialTheme.colorScheme.background
+                        ),
                         scrollBehavior = scrollBehavior
                     )
                 }

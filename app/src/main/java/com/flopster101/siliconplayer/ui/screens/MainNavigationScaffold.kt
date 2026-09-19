@@ -29,6 +29,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.LargeTopAppBar
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
@@ -170,6 +171,10 @@ internal fun MainNavigationScaffold(
                                     }
                                 }
                             },
+                            colors = TopAppBarDefaults.largeTopAppBarColors(
+                                containerColor = MaterialTheme.colorScheme.background,
+                                scrolledContainerColor = MaterialTheme.colorScheme.background
+                            ),
                             scrollBehavior = homeScrollBehavior
                         )
                     } else {
@@ -179,6 +184,10 @@ internal fun MainNavigationScaffold(
                                     onClick = onOpenPlayerSurface
                                 )
                             },
+                            colors = TopAppBarDefaults.topAppBarColors(
+                                containerColor = MaterialTheme.colorScheme.background,
+                                scrolledContainerColor = MaterialTheme.colorScheme.background
+                            ),
                             actions = {
                                 AnimatedVisibility(
                                     visible = shouldShowBrowserHomeAction,
