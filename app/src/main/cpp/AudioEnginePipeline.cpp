@@ -98,6 +98,15 @@ void AudioEngine::updateRenderQueueTuning() {
     if (targetFrames < chunkFrames * 2) {
         targetFrames = chunkFrames * 2;
     }
+    // Ring capacity stays keyed to the preset (memory unchanged), while chunk
+    // and fill target scale with the stream rate to keep wall-clock periods.
+    const int capacityFrames = std::max(targetFrames * 6, 16384);
+    const int tuningRate = streamSampleRate > 0 ? streamSampleRate : 48000;
+    if (tuningRate > 48000) {
+        const int rateScale = std::max(1, (tuningRate + 47999) / 48000);
+        chunkFrames *= rateScale;
+        targetFrames *= rateScale;
+    }
     renderWorkerChunkFrames.store(chunkFrames, std::memory_order_relaxed);
     renderWorkerTargetFrames.store(targetFrames, std::memory_order_relaxed);
     {
@@ -106,7 +115,6 @@ void AudioEngine::updateRenderQueueTuning() {
         // the engine can open, or the capacity in frames shrinks with the
         // channel count and background fill targets exceed it forever.
         constexpr int kMaxOutputStreamChannels = 12;
-        const int capacityFrames = std::max(targetFrames * 6, 16384);
         ensureRenderQueueCapacityLocked(
                 static_cast<size_t>(capacityFrames) * static_cast<size_t>(kMaxOutputStreamChannels)
         );

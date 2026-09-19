@@ -809,7 +809,12 @@ void AudioEngine::updateVisualizationDataFromOutputCallback(
     if (needsChannelCount) {
         visualizationChannelCount.store(channels, std::memory_order_relaxed);
     }
-    visualizationLastCallbackFrames = numFrames;
+    if (callbackNowNs - visualizationLastCallbackNs > kVisBurstBoundaryNs) {
+        visualizationScopeBurstFrames = numFrames;
+    } else {
+        visualizationScopeBurstFrames += numFrames;
+    }
+    visualizationLastCallbackFrames = std::min(visualizationScopeBurstFrames, 8192);
     visualizationLastCallbackNs = callbackNowNs;
 }
 
@@ -859,10 +864,16 @@ void AudioEngine::pushExternalVisualizationSamples(
         visualizationVuLevels = { level, level };
     }
     visualizationChannelCount.store(2, std::memory_order_relaxed);
-    visualizationLastCallbackFrames = count;
-    visualizationLastCallbackNs = std::chrono::duration_cast<std::chrono::nanoseconds>(
+    const int64_t nowNs = std::chrono::duration_cast<std::chrono::nanoseconds>(
             std::chrono::steady_clock::now().time_since_epoch()
     ).count();
+    if (nowNs - visualizationLastCallbackNs > kVisBurstBoundaryNs) {
+        visualizationScopeBurstFrames = count;
+    } else {
+        visualizationScopeBurstFrames += count;
+    }
+    visualizationLastCallbackFrames = std::min(visualizationScopeBurstFrames, 8192);
+    visualizationLastCallbackNs = nowNs;
 }
 
 void AudioEngine::markVisualizationRequested(uint32_t features) const {

@@ -217,6 +217,11 @@ bool AudioEngine::createMiniaudioStream() {
     const int periodFrames = miniaudioPeriodFramesForPreset(outputBufferPreset);
     deviceConfig.periodSizeInFrames = static_cast<ma_uint32>(periodFrames);
     deviceConfig.periods = 2;
+    // The legacy AAudio path otherwise hands us ~220 ms callbacks, so the
+    // visualizers only refresh that often. The fast path is left untouched.
+    if (deviceConfig.performanceProfile != ma_performance_profile_low_latency) {
+        deviceConfig.aaudio.allowSetBufferCapacity = true;
+    }
 
     result = ma_device_init(&miniaudioContext, &deviceConfig, &miniaudioDevice);
     if (result != MA_SUCCESS && (deviceConfig.playback.shareMode == ma_share_mode_exclusive || deviceConfig.sampleRate != 0)) {
@@ -253,12 +258,14 @@ bool AudioEngine::createMiniaudioStream() {
     outputStreamReady.store(true, std::memory_order_relaxed);
     activeOutputBackend.store(static_cast<int>(miniaudioContext.backend) + 1, std::memory_order_relaxed);
 
-    LOGD("Miniaudio stream opened: backend=%s(%d), sampleRate=%d, channels=%d, bufferFrames=%d, perfProfile=%d, allowFallback=%d",
+    LOGD("Miniaudio stream opened: backend=%s(%d), sampleRate=%d, channels=%d, bufferFrames=%d, periodFrames=%d, periods=%d, perfProfile=%d, allowFallback=%d",
          ma_get_backend_name(activeMiniaudioBackend),
          static_cast<int>(activeMiniaudioBackend),
          streamSampleRate,
          streamChannelCount,
          miniaudioBufferFrames,
+         static_cast<int>(miniaudioDevice.playback.internalPeriodSizeInFrames),
+         static_cast<int>(miniaudioDevice.playback.internalPeriods),
          static_cast<int>(deviceConfig.performanceProfile),
          outputAllowFallback ? 1 : 0);
 
@@ -284,6 +291,8 @@ void AudioEngine::closeMiniaudioStream() {
 void AudioEngine::createStream() {
     std::lock_guard<std::mutex> lock(deviceMutex);
     createMiniaudioStream();
+    // Re-derive the queue tuning now that the negotiated rate is known.
+    updateRenderQueueTuning();
     auto& uac = siliconplayer::usb::getUacDriverInstance();
     if (uacFifoChannels > 0 &&
         uac.currentFormat().sampleRateHz != uacFifoRate) {
@@ -310,6 +319,7 @@ void AudioEngine::syncUacStreamRate(int sampleRateHz, int channels) {
         clearRenderQueue();
         streamSampleRate = sampleRateHz;
         streamChannelCount = channels > 0 ? channels : 2;
+        updateRenderQueueTuning();
         if (decoder) {
             const bool supportsLiveRateChange =
                     (decoder->getPlaybackCapabilities() & AudioDecoder::PLAYBACK_CAP_LIVE_SAMPLE_RATE_CHANGE) != 0;
@@ -845,7 +855,8 @@ bool AudioEngine::renderOutputCallbackFrames(float* outputData, int32_t numFrame
             const uint64_t underrunFrames = renderQueueUnderrunFrames.load(std::memory_order_relaxed);
             const uint64_t callbacks = renderQueueCallbackCount.load(std::memory_order_relaxed);
             LOGD(
-                    "Render queue underrun: missing=%llu callbacks=%llu underruns=%llu totalMissingFrames=%llu bufferedFrames=%d",
+                    "Render queue underrun: requested=%d missing=%llu callbacks=%llu underruns=%llu totalMissingFrames=%llu bufferedFrames=%d",
+                    numFrames,
                     static_cast<unsigned long long>(missingFrames),
                     static_cast<unsigned long long>(callbacks),
                     static_cast<unsigned long long>(underruns),

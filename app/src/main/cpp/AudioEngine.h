@@ -425,6 +425,11 @@ private:
     std::array<float, 16384> visualizationMonoHistory {};
     int visualizationMonoWriteIndex = 0;
     int visualizationLastCallbackFrames = 0;
+    // Frames handed to the ring since the last callback gap longer than
+    // kVisBurstBoundaryNs; the playhead sweeps that whole span, which rides
+    // out AAudio's bursty delivery. Bounded to half the history ring.
+    int visualizationScopeBurstFrames = 0;
+    static constexpr int64_t kVisBurstBoundaryNs = 20'000'000;
     int64_t visualizationLastCallbackNs = 0;
     // Scope compensation ratchet: base bounded per callback, decays uncapped
     // across the interval so the window slides on large-period transports.
