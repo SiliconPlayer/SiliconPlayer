@@ -786,6 +786,7 @@ void AudioEngine::updateVisualizationDataFromOutputCallback(
             wIndex = (wIndex + 1) & kHistoryMask;
         }
         visualizationScopeWriteIndex = wIndex;
+        visualizationScopeWrittenFrames += numFrames;
     }
     if (needsBars) {
         int mIndex = visualizationMonoWriteIndex;
@@ -926,6 +927,20 @@ bool AudioEngine::getNewPcmMono(int32_t maxFrames, std::vector<float>& out) {
     return true;
 }
 
+int64_t AudioEngine::visualizationScopePlayheadBehindFrames(int extractFrames) const {
+    if (visualizationScopeWrittenFrames <= 0) {
+        return -1;
+    }
+    const int64_t deviceRead = visualizationDeviceFramesRead();
+    if (deviceRead <= 0) {
+        return -1;
+    }
+    // Keep the whole read window inside written data.
+    const int64_t maxBehind = std::max(0, 16384 - std::max(extractFrames, 1));
+    return std::clamp(visualizationScopeWrittenFrames - deviceRead,
+            static_cast<int64_t>(0), static_cast<int64_t>(maxBehind));
+}
+
 std::vector<float> AudioEngine::getVisualizationWaveformScope(
         int channelIndex,
         int windowMs,
@@ -942,23 +957,28 @@ std::vector<float> AudioEngine::getVisualizationWaveformScope(
     std::vector<float> localWindow(extractFrames, 0.0f);
     {
         std::lock_guard<std::mutex> lock(visualizationMutex);
-        const int callbackFrames = std::max(visualizationLastCallbackFrames, 1);
-        const int64_t callbackNs = visualizationLastCallbackNs;
-        const int64_t nowNs = std::chrono::duration_cast<std::chrono::nanoseconds>(
-                std::chrono::steady_clock::now().time_since_epoch()
-        ).count();
-        const int64_t elapsedNs = std::max<int64_t>(0, nowNs - callbackNs);
-        const double elapsedFrames = (static_cast<double>(elapsedNs) * static_cast<double>(sampleRate)) / 1.0e9;
-        const int playOffset = std::clamp(
-                static_cast<int>(std::floor(elapsedFrames)),
-                0,
-                callbackFrames
-        );
+        // Prefer the consumed-frame counter, exact on bursty delivery; sweep from
+        // the last callback when the backend cannot report it.
+        int64_t behind = visualizationScopePlayheadBehindFrames(extractFrames);
+        if (behind < 0) {
+            const int callbackFrames = std::max(visualizationLastCallbackFrames, 1);
+            const int64_t callbackNs = visualizationLastCallbackNs;
+            const int64_t nowNs = std::chrono::duration_cast<std::chrono::nanoseconds>(
+                    std::chrono::steady_clock::now().time_since_epoch()
+            ).count();
+            const int64_t elapsedNs = std::max<int64_t>(0, nowNs - callbackNs);
+            const double elapsedFrames = (static_cast<double>(elapsedNs) * static_cast<double>(sampleRate)) / 1.0e9;
+            behind = static_cast<int64_t>(callbackFrames) - std::clamp(
+                    static_cast<int64_t>(std::floor(elapsedFrames)),
+                    static_cast<int64_t>(0),
+                    static_cast<int64_t>(callbackFrames)
+            );
+        }
 
         const auto& history = channelIndex == 1 ? visualizationScopeHistoryRight : visualizationScopeHistoryLeft;
         constexpr int kHistoryMask = 16384 - 1;
-        const int callbackStart = (visualizationScopeWriteIndex - callbackFrames + 16384) & kHistoryMask;
-        const int currentPlayHead = (callbackStart + playOffset) & kHistoryMask;
+        const int currentPlayHead = static_cast<int>(
+                (visualizationScopeWriteIndex - behind + 16384) & kHistoryMask);
         const int rawStart = (currentPlayHead - extractFrames + 16384) & kHistoryMask;
         for (int i = 0; i < extractFrames; ++i) {
             localWindow[i] = history[(rawStart + i) & kHistoryMask];
@@ -1035,22 +1055,26 @@ std::vector<float> AudioEngine::getVisualizationBars() const {
     {
         std::lock_guard<std::mutex> lock(visualizationMutex);
         sampleRate = std::max(streamSampleRate, 8000);
-        const int callbackFrames = std::max(visualizationLastCallbackFrames, 1);
-        const int64_t callbackNs = visualizationLastCallbackNs;
-        const int64_t nowNs = std::chrono::duration_cast<std::chrono::nanoseconds>(
-                std::chrono::steady_clock::now().time_since_epoch()
-        ).count();
-        const int64_t elapsedNs = std::max<int64_t>(0, nowNs - callbackNs);
-        const double elapsedFrames = (static_cast<double>(elapsedNs) * static_cast<double>(sampleRate)) / 1.0e9;
-        const int playOffset = std::clamp(
-                static_cast<int>(std::floor(elapsedFrames)),
-                0,
-                callbackFrames
-        );
+        int64_t behind = visualizationScopePlayheadBehindFrames(kVisualizationFftSize);
+        if (behind < 0) {
+            const int callbackFrames = std::max(visualizationLastCallbackFrames, 1);
+            const int64_t callbackNs = visualizationLastCallbackNs;
+            const int64_t nowNs = std::chrono::duration_cast<std::chrono::nanoseconds>(
+                    std::chrono::steady_clock::now().time_since_epoch()
+            ).count();
+            const int64_t elapsedNs = std::max<int64_t>(0, nowNs - callbackNs);
+            const double elapsedFrames = (static_cast<double>(elapsedNs) * static_cast<double>(sampleRate)) / 1.0e9;
+            behind = static_cast<int64_t>(callbackFrames) - std::clamp(
+                    static_cast<int64_t>(std::floor(elapsedFrames)),
+                    static_cast<int64_t>(0),
+                    static_cast<int64_t>(callbackFrames)
+            );
+        }
+        behind = std::clamp<int64_t>(behind, kVisualizationFftSize, 8192);
 
         constexpr int kHistoryMask = 16384 - 1;
-        const int callbackStart = (visualizationMonoWriteIndex - callbackFrames + 16384) & kHistoryMask;
-        const int currentPlayHead = (callbackStart + playOffset) & kHistoryMask;
+        const int currentPlayHead = static_cast<int>(
+                (visualizationMonoWriteIndex - behind + 16384) & kHistoryMask);
         const int startIdx = (currentPlayHead - kVisualizationFftSize + 16384) & kHistoryMask;
         for (int i = 0; i < kVisualizationFftSize; ++i) {
             localMono[i] = visualizationMonoHistory[(startIdx + i) & kHistoryMask];
@@ -1070,26 +1094,30 @@ std::vector<float> AudioEngine::getVisualizationVuLevels() const {
     int sampleRate = 48000;
     {
         std::lock_guard<std::mutex> lock(visualizationMutex);
-        sampleRate = std::max(streamSampleRate, 8000);
-        const int callbackFrames = std::max(visualizationLastCallbackFrames, 1);
-        const int64_t callbackNs = visualizationLastCallbackNs;
-        const int64_t nowNs = std::chrono::duration_cast<std::chrono::nanoseconds>(
-                std::chrono::steady_clock::now().time_since_epoch()
-        ).count();
-        const int64_t elapsedNs = std::max<int64_t>(0, nowNs - callbackNs);
-        const double elapsedFrames = (static_cast<double>(elapsedNs) * static_cast<double>(sampleRate)) / 1.0e9;
-        const int playOffset = std::clamp(
-                static_cast<int>(std::floor(elapsedFrames)),
-                0,
-                callbackFrames
-        );
+        constexpr int kWindowSize = 512;
+        int64_t behind = visualizationScopePlayheadBehindFrames(kWindowSize);
+        if (behind < 0) {
+            const int callbackFrames = std::max(visualizationLastCallbackFrames, 1);
+            const int64_t callbackNs = visualizationLastCallbackNs;
+            const int64_t nowNs = std::chrono::duration_cast<std::chrono::nanoseconds>(
+                    std::chrono::steady_clock::now().time_since_epoch()
+            ).count();
+            const int64_t elapsedNs = std::max<int64_t>(0, nowNs - callbackNs);
+            const double elapsedFrames = (static_cast<double>(elapsedNs) * static_cast<double>(sampleRate)) / 1.0e9;
+            behind = static_cast<int64_t>(callbackFrames) - std::clamp(
+                    static_cast<int64_t>(std::floor(elapsedFrames)),
+                    static_cast<int64_t>(0),
+                    static_cast<int64_t>(callbackFrames)
+            );
+        }
+        behind = std::clamp<int64_t>(behind, kWindowSize, 8192);
 
         constexpr int kHistoryMask = 16384 - 1;
-        constexpr int kVuWindowSize = 512;
-        const int callbackStart = (visualizationScopeWriteIndex - callbackFrames + 16384) & kHistoryMask;
-        const int currentPlayHead = (callbackStart + playOffset) & kHistoryMask;
-        const int startIdx = (currentPlayHead - kVuWindowSize + 16384) & kHistoryMask;
-        for (int i = 0; i < kVuWindowSize; ++i) {
+        constexpr int kVuWindow = 512;
+        const int currentPlayHead = static_cast<int>(
+                (visualizationScopeWriteIndex - behind + 16384) & kHistoryMask);
+        const int startIdx = (currentPlayHead - kVuWindow + 16384) & kHistoryMask;
+        for (int i = 0; i < kVuWindow; ++i) {
             const int idx = (startIdx + i) & kHistoryMask;
             localL[i] = visualizationScopeHistoryLeft[idx];
             localR[i] = visualizationScopeHistoryRight[idx];

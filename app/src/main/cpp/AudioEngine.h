@@ -431,6 +431,9 @@ private:
     int visualizationScopeBurstFrames = 0;
     static constexpr int64_t kVisBurstBoundaryNs = 20'000'000;
     int64_t visualizationLastCallbackNs = 0;
+    // Monotonic frames handed to the ring since the stream opened; paired with
+    // the device's consumed-frame counter to derive the exact play position.
+    int64_t visualizationScopeWrittenFrames = 0;
     // Scope compensation ratchet: base bounded per callback, decays uncapped
     // across the interval so the window slides on large-period transports.
     mutable std::atomic<double> visScopeCompBase { 0.0 };
@@ -511,6 +514,10 @@ private:
     void updateVisualizationDataFromOutputCallback(const float* buffer, int numFrames, int channels, uint32_t requestedFeatures);
     void markVisualizationRequested(uint32_t features) const;
     bool shouldUpdateVisualization(uint32_t* outFeatures) const;
+    // Frames behind the newest ring sample at "now"; -1 when the backend cannot
+    // report its consumed-frame position. extractFrames bounds the read window.
+    int64_t visualizationScopePlayheadBehindFrames(int extractFrames) const;
+    int64_t visualizationDeviceFramesRead() const;
 
     // Callback
     static void miniaudioDataCallback(

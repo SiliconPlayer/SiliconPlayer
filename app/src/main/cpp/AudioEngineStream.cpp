@@ -254,6 +254,12 @@ bool AudioEngine::createMiniaudioStream() {
     miniaudioBufferFrames = miniaudioDevice.playback.internalPeriodSizeInFrames > 0
             ? static_cast<int>(miniaudioDevice.playback.internalPeriodSizeInFrames)
             : periodFrames;
+    {
+        // The device's consumed-frame counter restarts with the stream, so the
+        // ring's own counter must restart with it for the offset to be exact.
+        std::lock_guard<std::mutex> lock(visualizationMutex);
+        visualizationScopeWrittenFrames = 0;
+    }
     streamStartupPrerollPending = true;
     outputStreamReady.store(true, std::memory_order_relaxed);
     activeOutputBackend.store(static_cast<int>(miniaudioContext.backend) + 1, std::memory_order_relaxed);
@@ -946,6 +952,34 @@ bool AudioEngine::renderOutputCallbackFrames(float* outputData, int32_t numFrame
         }
     }
     return false;
+}
+
+int64_t AudioEngine::visualizationDeviceFramesRead() const {
+#if defined(MA_SUPPORT_AAUDIO)
+    if (!miniaudioContextInitialized || !outputStreamReady.load() ||
+        activeMiniaudioBackend != ma_backend_aaudio) {
+        return -1;
+    }
+    void* stream = miniaudioDevice.aaudio.pStreamPlayback;
+    if (!stream) {
+        return -1;
+    }
+    typedef int64_t (*PFN_AAudioStream_getFramesRead)(void* stream);
+    static PFN_AAudioStream_getFramesRead pfn_getFramesRead = nullptr;
+    static bool resolved = false;
+    if (!resolved) {
+        pfn_getFramesRead = reinterpret_cast<PFN_AAudioStream_getFramesRead>(
+            dlsym(RTLD_DEFAULT, "AAudioStream_getFramesRead")
+        );
+        resolved = true;
+    }
+    if (!pfn_getFramesRead) {
+        return -1;
+    }
+    return pfn_getFramesRead(stream);
+#else
+    return -1;
+#endif
 }
 
 int AudioEngine::getAudioSessionId() const {
