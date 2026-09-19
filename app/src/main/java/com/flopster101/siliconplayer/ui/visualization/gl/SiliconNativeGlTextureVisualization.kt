@@ -309,7 +309,8 @@ private class SiliconNativeGlTextureView(
 
     private fun startRenderThread(surfaceTexture: SurfaceTexture?, width: Int, height: Int) {
         if (surfaceTexture == null) return
-        stopRenderThread()
+        // One render thread per surface; skip if the previous outlived the join.
+        if (!stopRenderThread()) return
         SiliconNativeGlDataSink.register(this)
         val surface = Surface(surfaceTexture)
         val thread = SiliconNativeTextureRenderThread(
@@ -327,11 +328,18 @@ private class SiliconNativeGlTextureView(
         latestFrame?.let { thread.setFrameData(it) }
     }
 
-    private fun stopRenderThread() {
-        val thread = renderThread ?: return
+    /** Stops the render thread; false if it outlived the join. */
+    private fun stopRenderThread(): Boolean {
+        val thread = renderThread ?: return true
         renderThread = null
         thread.requestStop()
-        runCatching { thread.join(350L) }
+        // Must exit before a replacement starts: both share the SurfaceTexture.
+        runCatching { thread.join(2000L) }
+        if (thread.isAlive) {
+            android.util.Log.w("SiliconVis", "Render thread still alive after join")
+            return false
+        }
+        return true
     }
 
     override fun onAttachedToWindow() {
