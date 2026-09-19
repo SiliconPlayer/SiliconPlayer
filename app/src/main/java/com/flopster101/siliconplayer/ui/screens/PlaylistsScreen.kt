@@ -1862,6 +1862,7 @@ internal fun PlaylistsScreen(
                                                 autoMosaicEnabled = autoGenerateMosaics && playlist.autoGenerateCover,
                                                 coverGenerationMode = coverGenerationMode,
                                                 onChangeCover = { playlistPendingCoverCustomization = playlist },
+                                                isPlaying = activePlaylist?.id != null && activePlaylist.id == playlist.id,
                                                 isWatch = true
                                             )
                                         }
@@ -2072,7 +2073,8 @@ internal fun PlaylistsScreen(
                                              onRefreshPlaylistMetadata = refreshPlaylistMetadataAction,
                                              autoMosaicEnabled = autoGenerateMosaics,
                                              coverGenerationMode = coverGenerationMode,
-                                             onChangePlaylistCover = { playlist -> playlistPendingCoverCustomization = playlist }
+                                             onChangePlaylistCover = { playlist -> playlistPendingCoverCustomization = playlist },
+                                             activePlaylistId = activePlaylist?.id
                                          )
                                     }
                                     LibrarySurfaceTab.Albums -> {
@@ -3328,6 +3330,7 @@ private fun PlaylistsLibraryTabPage(
     autoMosaicEnabled: Boolean = true,
     coverGenerationMode: PlaylistCoverGenerationMode = PlaylistCoverGenerationMode.AtLeastFour,
     onChangePlaylistCover: ((StoredPlaylist) -> Unit)? = null,
+    activePlaylistId: String? = null,
     isWatch: Boolean = false
 ) {
     val currentFolders = remember(libraryState.folders, currentFolderId) {
@@ -3521,6 +3524,7 @@ private fun PlaylistsLibraryTabPage(
                     autoMosaicEnabled = autoMosaicEnabled && playlist.autoGenerateCover,
                     coverGenerationMode = coverGenerationMode,
                     onChangeCover = onChangePlaylistCover?.let { { it(playlist) } },
+                    isPlaying = activePlaylistId != null && activePlaylistId == playlist.id,
                     isWatch = isWatch
                 )
                 if (!isWatch) {
@@ -7954,26 +7958,37 @@ private fun PlaylistTrackArtworkChip(
             }
         }
         if (isActive) {
-            val badgeSize = if (isWatch) 13.dp else 17.dp
-            val badgeIconSize = if (isWatch) 8.dp else 11.dp
-            Box(
-                modifier = Modifier
-                    .align(Alignment.BottomEnd)
-                    .offset(x = 3.dp, y = 3.dp)
-                    .size(badgeSize)
-                    .background(color = MaterialTheme.colorScheme.surface, shape = CircleShape)
-                    .padding(1.5.dp)
-                    .background(color = MaterialTheme.colorScheme.primary, shape = CircleShape),
-                contentAlignment = Alignment.Center
-            ) {
-                Icon(
-                    imageVector = Icons.Default.PlayArrow,
-                    contentDescription = "Currently playing",
-                    tint = MaterialTheme.colorScheme.onPrimary,
-                    modifier = Modifier.size(badgeIconSize)
-                )
-            }
+            PlaylistPlayingBadge(
+                isWatch = isWatch,
+                modifier = Modifier.align(Alignment.BottomEnd)
+            )
         }
+    }
+}
+
+/** Playback arrow badge overlaid on a playlist/track leading chip. Caller positions it. */
+@Composable
+private fun PlaylistPlayingBadge(
+    isWatch: Boolean,
+    modifier: Modifier = Modifier
+) {
+    val badgeSize = if (isWatch) 13.dp else 17.dp
+    val badgeIconSize = if (isWatch) 8.dp else 11.dp
+    Box(
+        modifier = modifier
+            .offset(x = 3.dp, y = 3.dp)
+            .size(badgeSize)
+            .background(color = MaterialTheme.colorScheme.surface, shape = CircleShape)
+            .padding(1.5.dp)
+            .background(color = MaterialTheme.colorScheme.primary, shape = CircleShape),
+        contentAlignment = Alignment.Center
+    ) {
+        Icon(
+            imageVector = Icons.Default.PlayArrow,
+            contentDescription = "Currently playing",
+            tint = MaterialTheme.colorScheme.onPrimary,
+            modifier = Modifier.size(badgeIconSize)
+        )
     }
 }
 
@@ -8000,6 +8015,7 @@ private fun PlaylistCollectionRow(
     autoMosaicEnabled: Boolean = true,
     coverGenerationMode: PlaylistCoverGenerationMode = PlaylistCoverGenerationMode.AtLeastFour,
     onChangeCover: (() -> Unit)? = null,
+    isPlaying: Boolean = false,
     isWatch: Boolean = false
 ) {
     PlaylistLibraryFlatRow(
@@ -8045,6 +8061,7 @@ private fun PlaylistCollectionRow(
         onDragStep = onDragStep,
         onDragEnd = onDragEnd,
         onChangeCover = onChangeCover,
+        isPlaying = isPlaying,
         isWatch = isWatch
     )
 }
@@ -8116,6 +8133,7 @@ private fun PlaylistLibraryFlatRow(
     onDragStep: ((Int) -> Unit)? = null,
     onDragEnd: (() -> Unit)? = null,
     onChangeCover: (() -> Unit)? = null,
+    isPlaying: Boolean = false,
     isWatch: Boolean = false
 ) {
     var wearActionsOpen by rememberSaveable { mutableStateOf(false) }
@@ -8136,25 +8154,33 @@ private fun PlaylistLibraryFlatRow(
             horizontalArrangement = Arrangement.spacedBy(10.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            if (leadingContent != null) {
-                leadingContent()
-            } else {
-                Surface(
-                    modifier = Modifier.size(34.dp),
-                    shape = RoundedCornerShape(10.dp),
-                    color = iconContainerColor
-                ) {
-                    Box(
-                        modifier = Modifier.fillMaxSize(),
-                        contentAlignment = Alignment.Center
+            Box(contentAlignment = Alignment.Center) {
+                if (leadingContent != null) {
+                    leadingContent()
+                } else {
+                    Surface(
+                        modifier = Modifier.size(34.dp),
+                        shape = RoundedCornerShape(10.dp),
+                        color = iconContainerColor
                     ) {
-                        Icon(
-                            imageVector = icon,
-                            contentDescription = null,
-                            tint = iconTint,
-                            modifier = Modifier.size(18.dp)
-                        )
+                        Box(
+                            modifier = Modifier.fillMaxSize(),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(
+                                imageVector = icon,
+                                contentDescription = null,
+                                tint = iconTint,
+                                modifier = Modifier.size(18.dp)
+                            )
+                        }
                     }
+                }
+                if (isPlaying) {
+                    PlaylistPlayingBadge(
+                        isWatch = true,
+                        modifier = Modifier.align(Alignment.BottomEnd)
+                    )
                 }
             }
             Column(modifier = Modifier.weight(1f)) {
@@ -8174,6 +8200,11 @@ private fun PlaylistLibraryFlatRow(
                         text = title,
                         style = MaterialTheme.typography.bodyMedium,
                         fontWeight = FontWeight.SemiBold,
+                        color = if (isPlaying) {
+                            MaterialTheme.colorScheme.primary
+                        } else {
+                            Color.Unspecified
+                        },
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis
                     )
@@ -8331,25 +8362,33 @@ private fun PlaylistLibraryFlatRow(
             horizontalArrangement = Arrangement.spacedBy(12.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            if (leadingContent != null) {
-                leadingContent()
-            } else {
-                Surface(
-                    modifier = Modifier.size(56.dp),
-                    shape = RoundedCornerShape(12.dp),
-                    color = iconContainerColor
-                ) {
-                    Box(
-                        modifier = Modifier.fillMaxSize(),
-                        contentAlignment = Alignment.Center
+            Box(contentAlignment = Alignment.Center) {
+                if (leadingContent != null) {
+                    leadingContent()
+                } else {
+                    Surface(
+                        modifier = Modifier.size(56.dp),
+                        shape = RoundedCornerShape(12.dp),
+                        color = iconContainerColor
                     ) {
-                        Icon(
-                            imageVector = icon,
-                            contentDescription = null,
-                            tint = iconTint,
-                            modifier = Modifier.size(30.dp)
-                        )
+                        Box(
+                            modifier = Modifier.fillMaxSize(),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(
+                                imageVector = icon,
+                                contentDescription = null,
+                                tint = iconTint,
+                                modifier = Modifier.size(30.dp)
+                            )
+                        }
                     }
+                }
+                if (isPlaying) {
+                    PlaylistPlayingBadge(
+                        isWatch = false,
+                        modifier = Modifier.align(Alignment.BottomEnd)
+                    )
                 }
             }
             Column(modifier = Modifier.weight(1f)) {
@@ -8369,6 +8408,11 @@ private fun PlaylistLibraryFlatRow(
                         text = title,
                         style = MaterialTheme.typography.titleSmall,
                         fontWeight = FontWeight.SemiBold,
+                        color = if (isPlaying) {
+                            MaterialTheme.colorScheme.primary
+                        } else {
+                            Color.Unspecified
+                        },
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis
                     )
