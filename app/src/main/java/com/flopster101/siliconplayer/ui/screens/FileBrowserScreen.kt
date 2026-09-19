@@ -4,6 +4,7 @@ import com.flopster101.siliconplayer.isRoundScreenCompat
 import com.flopster101.siliconplayer.StoredPlaylist
 import com.flopster101.siliconplayer.inferredDisplayTitleForName
 import com.flopster101.siliconplayer.ui.dialogs.AddToPlaylistChooserDialog
+import com.flopster101.siliconplayer.ui.dialogs.DirectoryTreeSheet
 import android.app.ActivityManager
 import android.content.ClipData
 import android.content.ClipboardManager
@@ -301,6 +302,7 @@ internal fun FileBrowserScreen(
     var fileList by rememberSaveable(stateSaver = LocalBrowserFileListSaver) { mutableStateOf(emptyList<FileItem>()) }
     var selectorExpanded by remember { mutableStateOf(false) }
     var currentFolderMenuExpanded by remember { mutableStateOf(false) }
+    var directoryTreeOpen by remember { mutableStateOf(false) }
     var browserNavDirection by remember { mutableStateOf(BrowserPageNavDirection.Forward) }
     var isLoadingDirectory by remember { mutableStateOf(false) }
     var lastCompletedDirectoryPath by rememberSaveable { mutableStateOf<String?>(null) }
@@ -1358,9 +1360,18 @@ internal fun FileBrowserScreen(
                                                 modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
                                             )
                                             DropdownMenuItem(
-                                                text = { Text("Coming soon") },
-                                                enabled = false,
-                                                onClick = {}
+                                                text = { Text("Browse directory tree…") },
+                                                leadingIcon = {
+                                                    Icon(
+                                                        imageVector = Icons.Default.Folder,
+                                                        contentDescription = null
+                                                    )
+                                                },
+                                                enabled = currentDirectory != null,
+                                                onClick = {
+                                                    selectorExpanded = false
+                                                    directoryTreeOpen = true
+                                                }
                                             )
                                         } else {
                                             val contextLabel = archiveToolbarContext
@@ -2460,6 +2471,16 @@ internal fun FileBrowserScreen(
             title = "Info",
             fields = browserInfoFields,
             onDismiss = { showBrowserInfoDialog = false }
+        )
+    }
+    val treeRoot = selectedLocation?.directory
+    val treeCurrent = currentDirectory
+    if (directoryTreeOpen && treeRoot != null && treeCurrent != null) {
+        DirectoryTreeSheet(
+            root = treeRoot,
+            currentDirectory = treeCurrent,
+            onNavigate = { target -> navigateTo(target) },
+            onDismiss = { directoryTreeOpen = false }
         )
     }
     textPreviewDialogState?.let { (fileName, textContent) ->
