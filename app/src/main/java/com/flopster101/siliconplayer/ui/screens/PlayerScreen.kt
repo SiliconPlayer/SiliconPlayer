@@ -34,6 +34,8 @@ import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
+import androidx.compose.runtime.snapshotFlow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import androidx.compose.foundation.background
@@ -219,6 +221,7 @@ import androidx.compose.foundation.text.selection.SelectionContainer
 
 internal val LocalPlayerFocusIndicatorsEnabled = compositionLocalOf { true }
 private val LocalPlayerMarqueeClockState = compositionLocalOf<State<Long>> { mutableLongStateOf(0L) }
+private var marqueeActiveCount by mutableIntStateOf(0)
 
 private const val PREF_KEY_VIS_OSC_WINDOW_MS = "visualization_osc_window_ms"
 private const val PREF_KEY_VIS_OSC_TRIGGER_MODE = "visualization_osc_trigger_mode"
@@ -643,9 +646,15 @@ private fun rememberPlayerVisualizationPreferenceState(
 private fun rememberPlayerMarqueeClockState(resetKey: Any?): State<Long> {
     val clockState = remember { mutableLongStateOf(0L) }
     LaunchedEffect(resetKey) {
-        val startTimeMs = withFrameMillis { it }
+        var startTimeMs = withFrameMillis { it }
         clockState.longValue = 0L
         while (true) {
+            if (marqueeActiveCount <= 0) {
+                snapshotFlow { marqueeActiveCount }.first { it > 0 }
+                startTimeMs = withFrameMillis { it }
+                clockState.longValue = 0L
+                continue
+            }
             clockState.longValue = withFrameMillis { it - startTimeMs }
         }
     }
@@ -781,6 +790,7 @@ internal fun PlayerScreen(
     canNextTrack: Boolean,
     durationSeconds: Double,
     positionSeconds: Double,
+    positionSecondsProvider: () -> Double = { positionSeconds },
     title: String,
     artist: String,
     album: String,
@@ -914,7 +924,10 @@ internal fun PlayerScreen(
     var feedbackToken by remember { mutableLongStateOf(0L) }
     val canvasGestureScope = rememberCoroutineScope()
 
-    val latestPositionSeconds by rememberUpdatedState(positionSeconds)
+    val stablePositionProviderState = rememberUpdatedState(positionSecondsProvider)
+    val stablePositionProvider = remember { { stablePositionProviderState.value() } }
+    val latestPositionSecondsForCanvasProvider = stablePositionProvider
+    val transportPositionProvider = stablePositionProvider
     val latestDurationSeconds by rememberUpdatedState(durationSeconds)
     val latestCanSeek by rememberUpdatedState(canSeek)
     val latestCanvasTapToSeekSeconds by rememberUpdatedState(canvasTapToSeekSeconds)
@@ -965,7 +978,7 @@ internal fun PlayerScreen(
                         accumulatedSeekSeconds = currentAccum
 
                         val delta = if (side == CanvasSeekSide.Backward) -seekStep.toDouble() else seekStep.toDouble()
-                        val currentPlaybackPos = if (latestIsSeeking) sliderPosition else latestPositionSeconds
+                        val currentPlaybackPos = if (latestIsSeeking) sliderPosition else latestPositionSecondsForCanvasProvider()
                         val basePos = activeSeekTargetPosition ?: currentPlaybackPos
                         val maxDuration = latestDurationSeconds.coerceAtLeast(0.0)
                         val targetPos = if (maxDuration > 0.0) {
@@ -1104,11 +1117,6 @@ internal fun PlayerScreen(
         }
     }
 
-    LaunchedEffect(positionSeconds, isSeeking) {
-        if (!isSeeking) {
-            sliderPosition = positionSeconds.coerceIn(0.0, durationSeconds.coerceAtLeast(0.0))
-        }
-    }
     val panelOffsetAnim = remember { Animatable(0f) }
     LaunchedEffect(isDraggingDown, downwardDragPx) {
         if (isDraggingDown) {
@@ -1671,32 +1679,19 @@ internal fun PlayerScreen(
 
                                 Spacer(Modifier.height(lerpDp(12.dp, 16.dp, landscapeLayoutScale)))
 
-                                TimelineSection(
-                                    sliderPosition = if (isSeeking) sliderPosition else positionSeconds,
-                                    elapsedPositionSeconds = if (isSeeking) sliderPosition else positionSeconds,
+                                PlayerTimelineHost(
+                                    positionSecondsProvider = positionSecondsProvider,
                                     durationSeconds = durationSeconds,
-                                    showRemainingTime = showRemainingTime,
                                     canSeek = canSeek,
                                     hasReliableDuration = hasReliableDuration,
                                     seekInProgress = seekInProgress,
+                                    showRemainingTime = showRemainingTime,
+                                    onToggleRemaining = { showRemainingTime = !showRemainingTime },
+                                    onSeek = onSeek,
+                                    onSeekInteractionChanged = { isTimelineTouchActive = it },
                                     focusRequester = primaryContentFocusRequester,
                                     upFocusRequester = topArrowFocusRequester,
-                                    layoutScale = landscapeLayoutScale,
-                                    onToggleDurationDisplayMode = {
-                                        showRemainingTime = !showRemainingTime
-                                    },
-                                    onSeekInteractionChanged = { isTimelineTouchActive = it },
-                                    onSliderValueChange = { value ->
-                                        isSeeking = true
-                                        val sliderMax = durationSeconds.coerceAtLeast(0.0)
-                                        sliderPosition = value.toDouble().coerceIn(0.0, sliderMax)
-                                    },
-                                    onSliderValueChangeFinished = {
-                                        isSeeking = false
-                                        if (canSeek && durationSeconds > 0.0) {
-                                            onSeek(sliderPosition)
-                                        }
-                                    }
+                                    layoutScale = landscapeLayoutScale
                                 )
 
                                 Spacer(Modifier.height(lerpDp(16.dp, 20.dp, landscapeLayoutScale)))
@@ -1709,7 +1704,7 @@ internal fun PlayerScreen(
                                     playbackStartInProgress = playbackStartInProgress,
                                     remoteLoadUiState = remoteLoadUiState,
                                     seekInProgress = seekInProgress,
-                                    positionSeconds = positionSeconds,
+                                    positionSecondsProvider = transportPositionProvider,
                                     previousRestartsAfterThreshold = previousRestartsAfterThreshold,
                                     onRestartCurrentSelection = { onSeek(0.0) },
                                     canPreviousTrack = canPreviousTrack,
@@ -1979,32 +1974,19 @@ internal fun PlayerScreen(
                                         modifier = Modifier.fillMaxWidth(),
                                         contentAlignment = Alignment.Center
                                     ) {
-                                        TimelineSection(
-                                            sliderPosition = if (isSeeking) sliderPosition else positionSeconds,
-                                            elapsedPositionSeconds = if (isSeeking) sliderPosition else positionSeconds,
+                                        PlayerTimelineHost(
+                                            positionSecondsProvider = positionSecondsProvider,
                                             durationSeconds = durationSeconds,
-                                            showRemainingTime = showRemainingTime,
                                             canSeek = canSeek,
                                             hasReliableDuration = hasReliableDuration,
                                             seekInProgress = seekInProgress,
+                                            showRemainingTime = showRemainingTime,
+                                            onToggleRemaining = { showRemainingTime = !showRemainingTime },
+                                            onSeek = onSeek,
+                                            onSeekInteractionChanged = { isTimelineTouchActive = it },
                                             focusRequester = primaryContentFocusRequester,
                                             upFocusRequester = topArrowFocusRequester,
-                                            layoutScale = portraitTimelineScale,
-                                            onToggleDurationDisplayMode = {
-                                                showRemainingTime = !showRemainingTime
-                                            },
-                                            onSeekInteractionChanged = { isTimelineTouchActive = it },
-                                            onSliderValueChange = { value ->
-                                                isSeeking = true
-                                                val sliderMax = durationSeconds.coerceAtLeast(0.0)
-                                                sliderPosition = value.toDouble().coerceIn(0.0, sliderMax)
-                                            },
-                                            onSliderValueChangeFinished = {
-                                                isSeeking = false
-                                                if (canSeek && durationSeconds > 0.0) {
-                                                    onSeek(sliderPosition)
-                                                }
-                                            }
+                                            layoutScale = portraitTimelineScale
                                         )
                                     }
                                     Spacer(modifier = Modifier.height(lerpDp(12.dp, 16.dp, portraitSectionSpacingScale)))
@@ -2016,7 +1998,7 @@ internal fun PlayerScreen(
                                         playbackStartInProgress = playbackStartInProgress,
                                         remoteLoadUiState = remoteLoadUiState,
                                         seekInProgress = seekInProgress,
-                                        positionSeconds = positionSeconds,
+                                        positionSecondsProvider = transportPositionProvider,
                                         previousRestartsAfterThreshold = previousRestartsAfterThreshold,
                                         onRestartCurrentSelection = { onSeek(0.0) },
                                         canPreviousTrack = canPreviousTrack,
@@ -3605,170 +3587,198 @@ private fun PlayerMarqueeText(
         val marqueeTrailingGapPx = with(density) { marqueeTrailingGap.roundToPx() }
         val marqueeEdgeFadePx = with(density) { marqueeEdgeFade.toPx() }
         val overflowPx = (measuredText.size.width - maxWidthPx).coerceAtLeast(0)
-        val sharedTimeMs = LocalPlayerMarqueeClockState.current.value
-        val marqueeInstanceStartMs = remember(text, style, expandToAvailableWidth) {
-            mutableLongStateOf(Long.MIN_VALUE)
-        }
-        SideEffect {
-            if (marqueeInstanceStartMs.longValue == Long.MIN_VALUE) {
-                marqueeInstanceStartMs.longValue = sharedTimeMs
-            }
-        }
-        val instanceElapsedMs = if (marqueeInstanceStartMs.longValue == Long.MIN_VALUE) {
-            0L
-        } else {
-            (sharedTimeMs - marqueeInstanceStartMs.longValue).coerceAtLeast(0L)
-        }
-        val startPauseMs = 1450
-        val turnaroundPauseMs = 1050
-        val resetPauseMs = 1850
-        val fadeInMs = 180
-        val fadeOutMs = 260
-        val travelDistancePx = (overflowPx + marqueeTrailingGapPx).coerceAtLeast(0)
-        val marqueeSpeedDpPerSecond = 56.dp
-        val marqueeSpeedPxPerSecond = with(density) { marqueeSpeedDpPerSecond.toPx() }.coerceAtLeast(1f)
-        val travelDurationMs = if (travelDistancePx > 0) {
-            ((travelDistancePx / marqueeSpeedPxPerSecond) * 1000f).toInt().coerceAtLeast(1)
-        } else {
-            0
-        }
-        val forwardDurationMs = travelDurationMs
-        val returnDurationMs = travelDurationMs
-        val targetOffset = if (overflowPx > 0) -travelDistancePx.toFloat() else 0f
-        val cycleDurationMs = startPauseMs + forwardDurationMs + turnaroundPauseMs + returnDurationMs + resetPauseMs
-        val cyclePositionMs = if (overflowPx > 0 && cycleDurationMs > 0) {
-            (instanceElapsedMs % cycleDurationMs.toLong()).toInt()
-        } else {
-            0
-        }
-        val marqueeOffsetPx = when {
-            overflowPx <= 0 -> 0f
-            cyclePositionMs < startPauseMs -> 0f
-            cyclePositionMs < startPauseMs + forwardDurationMs -> {
-                val forwardElapsedMs = cyclePositionMs - startPauseMs
-                val forwardProgress = (forwardElapsedMs.toFloat() / forwardDurationMs).coerceIn(0f, 1f)
-                targetOffset * forwardProgress
-            }
-            cyclePositionMs < startPauseMs + forwardDurationMs + turnaroundPauseMs -> targetOffset
-            cyclePositionMs < startPauseMs + forwardDurationMs + turnaroundPauseMs + returnDurationMs -> {
-                val returnElapsedMs = cyclePositionMs - startPauseMs - forwardDurationMs - turnaroundPauseMs
-                val returnProgress = (returnElapsedMs.toFloat() / returnDurationMs).coerceIn(0f, 1f)
-                targetOffset * (1f - returnProgress)
-            }
-            else -> 0f
-        }
-        val marqueeFadeAlpha = when {
-            overflowPx <= 0 -> 0f
-            cyclePositionMs < startPauseMs -> 0f
-            cyclePositionMs < startPauseMs + forwardDurationMs -> {
-                val forwardElapsedMs = cyclePositionMs - startPauseMs
-                playerMarqueeMotionFadeAlpha(
-                    elapsedMs = forwardElapsedMs,
-                    segmentDurationMs = forwardDurationMs,
-                    fadeInMs = fadeInMs,
-                    fadeOutMs = fadeOutMs
-                )
-            }
-            cyclePositionMs < startPauseMs + forwardDurationMs + turnaroundPauseMs -> 0f
-            cyclePositionMs < startPauseMs + forwardDurationMs + turnaroundPauseMs + returnDurationMs -> {
-                val returnElapsedMs = cyclePositionMs - startPauseMs - forwardDurationMs - turnaroundPauseMs
-                playerMarqueeMotionFadeAlpha(
-                    elapsedMs = returnElapsedMs,
-                    segmentDurationMs = returnDurationMs,
-                    fadeInMs = fadeInMs,
-                    fadeOutMs = fadeOutMs
-                )
-            }
-            else -> 0f
-        }
-
-        Box(
-            modifier = Modifier
-                .then(
-                    if (expandToAvailableWidth) {
-                        Modifier.fillMaxWidth()
-                    } else {
-                        Modifier
-                    }
-                )
-                .clipToBounds()
-                .then(
-                    if (overflowPx > 0 && marqueeFadeAlpha > 0f) {
-                        Modifier
-                            .graphicsLayer {
-                                compositingStrategy = CompositingStrategy.Offscreen
-                            }
-                            .drawWithContent {
-                                drawContent()
-                                val fadeWidthPx = marqueeEdgeFadePx.coerceAtMost(size.width / 2f)
-                                if (fadeWidthPx > 0f) {
-                                    val opaqueMaskAlpha = 1f - marqueeFadeAlpha
-                                    drawRect(
-                                        brush = Brush.horizontalGradient(
-                                            colors = listOf(
-                                                Color.Black.copy(alpha = opaqueMaskAlpha),
-                                                Color.Black
-                                            ),
-                                            startX = 0f,
-                                            endX = fadeWidthPx
-                                        ),
-                                        topLeft = Offset.Zero,
-                                        size = Size(fadeWidthPx, size.height),
-                                        blendMode = BlendMode.DstIn
-                                    )
-                                    drawRect(
-                                        brush = Brush.horizontalGradient(
-                                            colors = listOf(
-                                                Color.Black,
-                                                Color.Black.copy(alpha = opaqueMaskAlpha)
-                                            ),
-                                            startX = size.width - fadeWidthPx,
-                                            endX = size.width
-                                        ),
-                                        topLeft = Offset(size.width - fadeWidthPx, 0f),
-                                        size = Size(fadeWidthPx, size.height),
-                                        blendMode = BlendMode.DstIn
-                                    )
-                                }
-                            }
-                    } else {
-                        Modifier
-                    }
-                )
-        ) {
-            if (overflowPx > 0) {
-                Row(
-                    modifier = Modifier
-                        .wrapContentWidth(align = Alignment.Start, unbounded = true)
-                        .graphicsLayer { translationX = marqueeOffsetPx }
-                ) {
-                    Text(
-                        text = text,
-                        style = style,
-                        color = color,
-                        maxLines = 1,
-                        softWrap = false,
-                        overflow = TextOverflow.Clip,
-                        textAlign = TextAlign.Start
-                    )
-                    Spacer(Modifier.width(marqueeTrailingGap))
+        if (overflowPx <= 0) {
+            Text(
+                text = text,
+                style = style,
+                color = color,
+                maxLines = 1,
+                softWrap = false,
+                overflow = TextOverflow.Ellipsis,
+                textAlign = textAlign,
+                modifier = if (expandToAvailableWidth) {
+                    Modifier.fillMaxWidth()
+                } else {
+                    Modifier
                 }
-            } else {
-                Text(
-                    text = text,
-                    style = style,
-                    color = color,
-                    maxLines = 1,
-                    softWrap = false,
-                    overflow = TextOverflow.Ellipsis,
-                    textAlign = textAlign,
-                    modifier = if (expandToAvailableWidth) {
-                        Modifier.fillMaxWidth()
-                    } else {
-                        Modifier
-                    }
-                )
-            }
+            )
+            return@BoxWithConstraints
+        }
+        PlayerMarqueeScrollingContent(
+            text = text,
+            style = style,
+            color = color,
+            overflowPx = overflowPx,
+            marqueeTrailingGap = marqueeTrailingGap,
+            marqueeTrailingGapPx = marqueeTrailingGapPx,
+            marqueeEdgeFadePx = marqueeEdgeFadePx,
+            expandToAvailableWidth = expandToAvailableWidth
+        )
+    }
+}
+
+@Composable
+private fun PlayerMarqueeScrollingContent(
+    text: String,
+    style: TextStyle,
+    color: Color,
+    overflowPx: Int,
+    marqueeTrailingGap: Dp,
+    marqueeTrailingGapPx: Int,
+    marqueeEdgeFadePx: Float,
+    expandToAvailableWidth: Boolean
+) {
+    DisposableEffect(Unit) {
+        marqueeActiveCount++
+        onDispose { marqueeActiveCount-- }
+    }
+    val density = LocalDensity.current
+    val sharedTimeMs = LocalPlayerMarqueeClockState.current.value
+    val marqueeInstanceStartMs = remember(text, style, expandToAvailableWidth) {
+        mutableLongStateOf(Long.MIN_VALUE)
+    }
+    SideEffect {
+        if (marqueeInstanceStartMs.longValue == Long.MIN_VALUE) {
+            marqueeInstanceStartMs.longValue = sharedTimeMs
+        }
+    }
+    val instanceElapsedMs = if (marqueeInstanceStartMs.longValue == Long.MIN_VALUE) {
+        0L
+    } else {
+        (sharedTimeMs - marqueeInstanceStartMs.longValue).coerceAtLeast(0L)
+    }
+    val startPauseMs = 1450
+    val turnaroundPauseMs = 1050
+    val resetPauseMs = 1850
+    val fadeInMs = 180
+    val fadeOutMs = 260
+    val travelDistancePx = (overflowPx + marqueeTrailingGapPx).coerceAtLeast(0)
+    val marqueeSpeedDpPerSecond = 56.dp
+    val marqueeSpeedPxPerSecond = with(density) { marqueeSpeedDpPerSecond.toPx() }.coerceAtLeast(1f)
+    val travelDurationMs = if (travelDistancePx > 0) {
+        ((travelDistancePx / marqueeSpeedPxPerSecond) * 1000f).toInt().coerceAtLeast(1)
+    } else {
+        0
+    }
+    val forwardDurationMs = travelDurationMs
+    val returnDurationMs = travelDurationMs
+    val targetOffset = if (overflowPx > 0) -travelDistancePx.toFloat() else 0f
+    val cycleDurationMs = startPauseMs + forwardDurationMs + turnaroundPauseMs + returnDurationMs + resetPauseMs
+    val cyclePositionMs = if (overflowPx > 0 && cycleDurationMs > 0) {
+        (instanceElapsedMs % cycleDurationMs.toLong()).toInt()
+    } else {
+        0
+    }
+    val marqueeOffsetPx = when {
+        overflowPx <= 0 -> 0f
+        cyclePositionMs < startPauseMs -> 0f
+        cyclePositionMs < startPauseMs + forwardDurationMs -> {
+            val forwardElapsedMs = cyclePositionMs - startPauseMs
+            val forwardProgress = (forwardElapsedMs.toFloat() / forwardDurationMs).coerceIn(0f, 1f)
+            targetOffset * forwardProgress
+        }
+        cyclePositionMs < startPauseMs + forwardDurationMs + turnaroundPauseMs -> targetOffset
+        cyclePositionMs < startPauseMs + forwardDurationMs + turnaroundPauseMs + returnDurationMs -> {
+            val returnElapsedMs = cyclePositionMs - startPauseMs - forwardDurationMs - turnaroundPauseMs
+            val returnProgress = (returnElapsedMs.toFloat() / returnDurationMs).coerceIn(0f, 1f)
+            targetOffset * (1f - returnProgress)
+        }
+        else -> 0f
+    }
+    val marqueeFadeAlpha = when {
+        overflowPx <= 0 -> 0f
+        cyclePositionMs < startPauseMs -> 0f
+        cyclePositionMs < startPauseMs + forwardDurationMs -> {
+            val forwardElapsedMs = cyclePositionMs - startPauseMs
+            playerMarqueeMotionFadeAlpha(
+                elapsedMs = forwardElapsedMs,
+                segmentDurationMs = forwardDurationMs,
+                fadeInMs = fadeInMs,
+                fadeOutMs = fadeOutMs
+            )
+        }
+        cyclePositionMs < startPauseMs + forwardDurationMs + turnaroundPauseMs -> 0f
+        cyclePositionMs < startPauseMs + forwardDurationMs + turnaroundPauseMs + returnDurationMs -> {
+            val returnElapsedMs = cyclePositionMs - startPauseMs - forwardDurationMs - turnaroundPauseMs
+            playerMarqueeMotionFadeAlpha(
+                elapsedMs = returnElapsedMs,
+                segmentDurationMs = returnDurationMs,
+                fadeInMs = fadeInMs,
+                fadeOutMs = fadeOutMs
+            )
+        }
+        else -> 0f
+    }
+
+    Box(
+        modifier = Modifier
+            .then(
+                if (expandToAvailableWidth) {
+                    Modifier.fillMaxWidth()
+                } else {
+                    Modifier
+                }
+            )
+            .clipToBounds()
+            .then(
+                if (overflowPx > 0 && marqueeFadeAlpha > 0f) {
+                    Modifier
+                        .graphicsLayer {
+                            compositingStrategy = CompositingStrategy.Offscreen
+                        }
+                        .drawWithContent {
+                            drawContent()
+                            val fadeWidthPx = marqueeEdgeFadePx.coerceAtMost(size.width / 2f)
+                            if (fadeWidthPx > 0f) {
+                                val opaqueMaskAlpha = 1f - marqueeFadeAlpha
+                                drawRect(
+                                    brush = Brush.horizontalGradient(
+                                        colors = listOf(
+                                            Color.Black.copy(alpha = opaqueMaskAlpha),
+                                            Color.Black
+                                        ),
+                                        startX = 0f,
+                                        endX = fadeWidthPx
+                                    ),
+                                    topLeft = Offset.Zero,
+                                    size = Size(fadeWidthPx, size.height),
+                                    blendMode = BlendMode.DstIn
+                                )
+                                drawRect(
+                                    brush = Brush.horizontalGradient(
+                                        colors = listOf(
+                                            Color.Black,
+                                            Color.Black.copy(alpha = opaqueMaskAlpha)
+                                        ),
+                                        startX = size.width - fadeWidthPx,
+                                        endX = size.width
+                                    ),
+                                    topLeft = Offset(size.width - fadeWidthPx, 0f),
+                                    size = Size(fadeWidthPx, size.height),
+                                    blendMode = BlendMode.DstIn
+                                )
+                            }
+                        }
+                } else {
+                    Modifier
+                }
+            )
+    ) {
+        Row(
+            modifier = Modifier
+                .wrapContentWidth(align = Alignment.Start, unbounded = true)
+                .graphicsLayer { translationX = marqueeOffsetPx }
+        ) {
+            Text(
+                text = text,
+                style = style,
+                color = color,
+                maxLines = 1,
+                softWrap = false,
+                overflow = TextOverflow.Clip,
+                textAlign = TextAlign.Start
+            )
+            Spacer(Modifier.width(marqueeTrailingGap))
         }
     }
 }
@@ -4351,7 +4361,7 @@ private fun TransportControls(
     playbackStartInProgress: Boolean,
     remoteLoadUiState: RemoteLoadUiState?,
     seekInProgress: Boolean,
-    positionSeconds: Double,
+    positionSecondsProvider: () -> Double,
     previousRestartsAfterThreshold: Boolean,
     onRestartCurrentSelection: () -> Unit,
     canPreviousTrack: Boolean,
@@ -4387,15 +4397,19 @@ private fun TransportControls(
     val useSubtuneTransport = subtuneCount > 1
     val hasSubtuneBefore = useSubtuneTransport && currentSubtuneIndex > 0 && canPreviousSubtune
     val hasSubtuneAfter = useSubtuneTransport && currentSubtuneIndex < (subtuneCount - 1) && canNextSubtune
-    val restartCurrentBeforePrevious = useSubtuneTransport && shouldRestartCurrentTrackOnPrevious(
-        previousRestartsAfterThreshold = previousRestartsAfterThreshold,
-        hasTrackLoaded = hasTrack,
-        positionSeconds = positionSeconds
-    )
-    val previousTransportTapAction = when {
-        restartCurrentBeforePrevious -> onRestartCurrentSelection
-        hasSubtuneBefore -> onPreviousSubtune
-        else -> onPreviousTrack
+    val latestPositionProvider by rememberUpdatedState(positionSecondsProvider)
+    val previousTransportTapAction: () -> Unit = {
+        val pos = latestPositionProvider()
+        val restart = useSubtuneTransport && shouldRestartCurrentTrackOnPrevious(
+            previousRestartsAfterThreshold = previousRestartsAfterThreshold,
+            hasTrackLoaded = hasTrack,
+            positionSeconds = pos
+        )
+        when {
+            restart -> onRestartCurrentSelection()
+            hasSubtuneBefore -> onPreviousSubtune()
+            else -> onPreviousTrack()
+        }
     }
     val nextTransportTapAction = if (hasSubtuneAfter) onNextSubtune else onNextTrack
     val previousTransportEnabled = if (useSubtuneTransport) hasTrack else hasTrack && canPreviousTrack
@@ -5450,6 +5464,56 @@ private fun TimelineSection(
             )
         }
     }
+}
+
+@Composable
+private fun PlayerTimelineHost(
+    positionSecondsProvider: () -> Double,
+    durationSeconds: Double,
+    canSeek: Boolean,
+    hasReliableDuration: Boolean,
+    seekInProgress: Boolean,
+    showRemainingTime: Boolean,
+    onToggleRemaining: () -> Unit,
+    onSeek: (Double) -> Unit,
+    onSeekInteractionChanged: (Boolean) -> Unit,
+    focusRequester: FocusRequester?,
+    upFocusRequester: FocusRequester?,
+    layoutScale: Float
+) {
+    var isSeeking by remember { mutableStateOf(false) }
+    var sliderPosition by remember(durationSeconds) {
+        mutableDoubleStateOf(positionSecondsProvider().coerceIn(0.0, durationSeconds.coerceAtLeast(0.0)))
+    }
+    val pos = positionSecondsProvider()
+    val effectiveSlider = if (isSeeking) sliderPosition else pos.coerceIn(0.0, durationSeconds.coerceAtLeast(0.0))
+    TimelineSection(
+        sliderPosition = effectiveSlider,
+        elapsedPositionSeconds = effectiveSlider,
+        durationSeconds = durationSeconds,
+        showRemainingTime = showRemainingTime,
+        canSeek = canSeek,
+        hasReliableDuration = hasReliableDuration,
+        seekInProgress = seekInProgress,
+        focusRequester = focusRequester,
+        upFocusRequester = upFocusRequester,
+        layoutScale = layoutScale,
+        onToggleDurationDisplayMode = onToggleRemaining,
+        onSeekInteractionChanged = { v ->
+            isSeeking = v
+            onSeekInteractionChanged(v)
+        },
+        onSliderValueChange = { v ->
+            isSeeking = true
+            onSeekInteractionChanged(true)
+            sliderPosition = v.toDouble().coerceIn(0.0, durationSeconds.coerceAtLeast(0.0))
+        },
+        onSliderValueChangeFinished = {
+            isSeeking = false
+            onSeekInteractionChanged(false)
+            onSeek(sliderPosition)
+        }
+    )
 }
 
 @Composable
