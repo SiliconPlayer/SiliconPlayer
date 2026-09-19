@@ -146,6 +146,9 @@ object NativeBridge {
             return
         }
         if (PlatformDolbyPlayer.redirectPlay()) return
+        // A Dolby track can miss arming at load on transient gate state;
+        // re-check so first play matches a stop->play replay.
+        PlatformDolbyPlayer.reArmIfEligible(lastLoadedPath)
         PlatformDolbyPlayer.activateIfEligibleAndPlay(lastLoadedPath)
         if (PlatformDolbyPlayer.isActive()) {
             startShadowRenderIfEnabled()
@@ -163,6 +166,7 @@ object NativeBridge {
             return
         }
         if (PlatformDolbyPlayer.redirectPlay()) return
+        PlatformDolbyPlayer.reArmIfEligible(lastLoadedPath)
         PlatformDolbyPlayer.activateIfEligibleAndPlay(lastLoadedPath)
         if (PlatformDolbyPlayer.isActive()) {
             startShadowRenderIfEnabled()

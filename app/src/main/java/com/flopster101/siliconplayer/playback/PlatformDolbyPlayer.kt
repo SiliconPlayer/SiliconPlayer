@@ -51,6 +51,10 @@ internal object PlatformDolbyPlayer {
     @Volatile
     private var codecName: String? = null
 
+    // Cached per mime so a transient MediaCodecList hiccup cannot flip
+    // routing between loads of the same track.
+    private val dolbyComponentByMime = HashMap<String, String>()
+
     private var handlerThread: HandlerThread? = null
     private var handler: Handler? = null
     private var player: MediaPlayer? = null
@@ -90,6 +94,21 @@ internal object PlatformDolbyPlayer {
             return
         }
         deactivate()
+        if (!shouldUsePlatform(path)) {
+            Log.i(TAG, "not routed to platform core: $path")
+            return
+        }
+        activate(path, pendingStart = false)
+    }
+
+    /**
+     * Re-check a loaded track that did not arm the core at load (transient
+     * gate state). pendingStart stays false: the track is only armed, never
+     * auto-started; an active transport start redirects into it.
+     */
+    @JvmStatic
+    fun reArmIfEligible(path: String?) {
+        if (path == null || active) return
         if (!shouldUsePlatform(path)) return
         activate(path, pendingStart = false)
     }
@@ -459,15 +478,19 @@ internal object PlatformDolbyPlayer {
     }
 
     private fun resolvePlatformDolbyDecoder(mime: String): String? = try {
-        MediaCodecList(MediaCodecList.REGULAR_CODECS).codecInfos.firstOrNull { info ->
-            !info.isEncoder &&
-                (info.name.startsWith("c2.dolby") || info.name.startsWith("OMX.dolby")) &&
-                try {
-                    info.supportedTypes.contains(mime)
-                } catch (t: Throwable) {
-                    false
-                }
-        }?.name
+        dolbyComponentByMime[mime] ?: run {
+            val found = MediaCodecList(MediaCodecList.REGULAR_CODECS).codecInfos.firstOrNull { info ->
+                !info.isEncoder &&
+                    (info.name.startsWith("c2.dolby") || info.name.startsWith("OMX.dolby")) &&
+                    try {
+                        info.supportedTypes.contains(mime)
+                    } catch (t: Throwable) {
+                        false
+                    }
+            }?.name
+            if (found != null) dolbyComponentByMime[mime] = found
+            found
+        }
     } catch (t: Throwable) {
         null
     }
