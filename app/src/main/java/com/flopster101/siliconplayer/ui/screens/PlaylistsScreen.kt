@@ -87,6 +87,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -7915,35 +7916,61 @@ private fun PlaylistTrackArtworkChip(
     }.value
     val chipSize = if (isWatch) 32.dp else 46.dp
     val iconSize = if (isWatch) 18.dp else 28.dp
-    Surface(
+    Box(
         modifier = Modifier.size(chipSize),
-        shape = RoundedCornerShape(10.dp),
-        color = if (isActive) {
-            MaterialTheme.colorScheme.secondaryContainer
-        } else {
-            MaterialTheme.colorScheme.surfaceContainerHighest
-        }
+        contentAlignment = Alignment.Center
     ) {
-        Box(
+        Surface(
             modifier = Modifier.fillMaxSize(),
-            contentAlignment = Alignment.Center
+            shape = RoundedCornerShape(10.dp),
+            color = if (isActive) {
+                MaterialTheme.colorScheme.secondaryContainer
+            } else {
+                MaterialTheme.colorScheme.surfaceContainerHighest
+            }
         ) {
-            Icon(
-                imageVector = fallbackIcon,
-                contentDescription = null,
-                tint = if (isActive) {
-                    MaterialTheme.colorScheme.onSecondaryContainer
-                } else {
-                    MaterialTheme.colorScheme.onSurfaceVariant
-                },
-                modifier = Modifier.size(iconSize)
-            )
-            if (artwork != null) {
-                Image(
-                    bitmap = artwork,
-                    contentDescription = "Album artwork",
-                    contentScale = ContentScale.Crop,
-                    modifier = Modifier.fillMaxSize()
+            Box(
+                modifier = Modifier.fillMaxSize(),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(
+                    imageVector = fallbackIcon,
+                    contentDescription = null,
+                    tint = if (isActive) {
+                        MaterialTheme.colorScheme.onSecondaryContainer
+                    } else {
+                        MaterialTheme.colorScheme.onSurfaceVariant
+                    },
+                    modifier = Modifier.size(iconSize)
+                )
+                if (artwork != null) {
+                    Image(
+                        bitmap = artwork,
+                        contentDescription = "Album artwork",
+                        contentScale = ContentScale.Crop,
+                        modifier = Modifier.fillMaxSize()
+                    )
+                }
+            }
+        }
+        if (isActive) {
+            val badgeSize = if (isWatch) 13.dp else 17.dp
+            val badgeIconSize = if (isWatch) 8.dp else 11.dp
+            Box(
+                modifier = Modifier
+                    .align(Alignment.BottomEnd)
+                    .offset(x = 3.dp, y = 3.dp)
+                    .size(badgeSize)
+                    .background(color = MaterialTheme.colorScheme.surface, shape = CircleShape)
+                    .padding(1.5.dp)
+                    .background(color = MaterialTheme.colorScheme.primary, shape = CircleShape),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(
+                    imageVector = Icons.Default.PlayArrow,
+                    contentDescription = "Currently playing",
+                    tint = MaterialTheme.colorScheme.onPrimary,
+                    modifier = Modifier.size(badgeIconSize)
                 )
             }
         }
