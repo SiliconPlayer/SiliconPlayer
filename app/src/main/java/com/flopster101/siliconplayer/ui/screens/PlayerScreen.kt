@@ -781,6 +781,7 @@ internal fun PlayerScreen(
     canNextTrack: Boolean,
     durationSeconds: Double,
     positionSeconds: Double,
+    positionSecondsProvider: () -> Double = { positionSeconds },
     title: String,
     artist: String,
     album: String,
@@ -914,9 +915,10 @@ internal fun PlayerScreen(
     var feedbackToken by remember { mutableLongStateOf(0L) }
     val canvasGestureScope = rememberCoroutineScope()
 
-    val latestPositionSeconds by rememberUpdatedState(positionSeconds)
-    val transportPositionState = rememberUpdatedState(positionSeconds)
-    val transportPositionProvider = remember { { transportPositionState.value } }
+    val stablePositionProviderState = rememberUpdatedState(positionSecondsProvider)
+    val stablePositionProvider = remember { { stablePositionProviderState.value() } }
+    val latestPositionSecondsForCanvasProvider = stablePositionProvider
+    val transportPositionProvider = stablePositionProvider
     val latestDurationSeconds by rememberUpdatedState(durationSeconds)
     val latestCanSeek by rememberUpdatedState(canSeek)
     val latestCanvasTapToSeekSeconds by rememberUpdatedState(canvasTapToSeekSeconds)
@@ -967,7 +969,7 @@ internal fun PlayerScreen(
                         accumulatedSeekSeconds = currentAccum
 
                         val delta = if (side == CanvasSeekSide.Backward) -seekStep.toDouble() else seekStep.toDouble()
-                        val currentPlaybackPos = if (latestIsSeeking) sliderPosition else latestPositionSeconds
+                        val currentPlaybackPos = if (latestIsSeeking) sliderPosition else latestPositionSecondsForCanvasProvider()
                         val basePos = activeSeekTargetPosition ?: currentPlaybackPos
                         val maxDuration = latestDurationSeconds.coerceAtLeast(0.0)
                         val targetPos = if (maxDuration > 0.0) {
@@ -1106,11 +1108,6 @@ internal fun PlayerScreen(
         }
     }
 
-    LaunchedEffect(positionSeconds, isSeeking) {
-        if (!isSeeking) {
-            sliderPosition = positionSeconds.coerceIn(0.0, durationSeconds.coerceAtLeast(0.0))
-        }
-    }
     val panelOffsetAnim = remember { Animatable(0f) }
     LaunchedEffect(isDraggingDown, downwardDragPx) {
         if (isDraggingDown) {
@@ -1673,32 +1670,19 @@ internal fun PlayerScreen(
 
                                 Spacer(Modifier.height(lerpDp(12.dp, 16.dp, landscapeLayoutScale)))
 
-                                TimelineSection(
-                                    sliderPosition = if (isSeeking) sliderPosition else positionSeconds,
-                                    elapsedPositionSeconds = if (isSeeking) sliderPosition else positionSeconds,
+                                PlayerTimelineHost(
+                                    positionSecondsProvider = positionSecondsProvider,
                                     durationSeconds = durationSeconds,
-                                    showRemainingTime = showRemainingTime,
                                     canSeek = canSeek,
                                     hasReliableDuration = hasReliableDuration,
                                     seekInProgress = seekInProgress,
+                                    showRemainingTime = showRemainingTime,
+                                    onToggleRemaining = { showRemainingTime = !showRemainingTime },
+                                    onSeek = onSeek,
+                                    onSeekInteractionChanged = { isTimelineTouchActive = it },
                                     focusRequester = primaryContentFocusRequester,
                                     upFocusRequester = topArrowFocusRequester,
-                                    layoutScale = landscapeLayoutScale,
-                                    onToggleDurationDisplayMode = {
-                                        showRemainingTime = !showRemainingTime
-                                    },
-                                    onSeekInteractionChanged = { isTimelineTouchActive = it },
-                                    onSliderValueChange = { value ->
-                                        isSeeking = true
-                                        val sliderMax = durationSeconds.coerceAtLeast(0.0)
-                                        sliderPosition = value.toDouble().coerceIn(0.0, sliderMax)
-                                    },
-                                    onSliderValueChangeFinished = {
-                                        isSeeking = false
-                                        if (canSeek && durationSeconds > 0.0) {
-                                            onSeek(sliderPosition)
-                                        }
-                                    }
+                                    layoutScale = landscapeLayoutScale
                                 )
 
                                 Spacer(Modifier.height(lerpDp(16.dp, 20.dp, landscapeLayoutScale)))
@@ -1981,32 +1965,19 @@ internal fun PlayerScreen(
                                         modifier = Modifier.fillMaxWidth(),
                                         contentAlignment = Alignment.Center
                                     ) {
-                                        TimelineSection(
-                                            sliderPosition = if (isSeeking) sliderPosition else positionSeconds,
-                                            elapsedPositionSeconds = if (isSeeking) sliderPosition else positionSeconds,
+                                        PlayerTimelineHost(
+                                            positionSecondsProvider = positionSecondsProvider,
                                             durationSeconds = durationSeconds,
-                                            showRemainingTime = showRemainingTime,
                                             canSeek = canSeek,
                                             hasReliableDuration = hasReliableDuration,
                                             seekInProgress = seekInProgress,
+                                            showRemainingTime = showRemainingTime,
+                                            onToggleRemaining = { showRemainingTime = !showRemainingTime },
+                                            onSeek = onSeek,
+                                            onSeekInteractionChanged = { isTimelineTouchActive = it },
                                             focusRequester = primaryContentFocusRequester,
                                             upFocusRequester = topArrowFocusRequester,
-                                            layoutScale = portraitTimelineScale,
-                                            onToggleDurationDisplayMode = {
-                                                showRemainingTime = !showRemainingTime
-                                            },
-                                            onSeekInteractionChanged = { isTimelineTouchActive = it },
-                                            onSliderValueChange = { value ->
-                                                isSeeking = true
-                                                val sliderMax = durationSeconds.coerceAtLeast(0.0)
-                                                sliderPosition = value.toDouble().coerceIn(0.0, sliderMax)
-                                            },
-                                            onSliderValueChangeFinished = {
-                                                isSeeking = false
-                                                if (canSeek && durationSeconds > 0.0) {
-                                                    onSeek(sliderPosition)
-                                                }
-                                            }
+                                            layoutScale = portraitTimelineScale
                                         )
                                     }
                                     Spacer(modifier = Modifier.height(lerpDp(12.dp, 16.dp, portraitSectionSpacingScale)))
@@ -5456,6 +5427,56 @@ private fun TimelineSection(
             )
         }
     }
+}
+
+@Composable
+private fun PlayerTimelineHost(
+    positionSecondsProvider: () -> Double,
+    durationSeconds: Double,
+    canSeek: Boolean,
+    hasReliableDuration: Boolean,
+    seekInProgress: Boolean,
+    showRemainingTime: Boolean,
+    onToggleRemaining: () -> Unit,
+    onSeek: (Double) -> Unit,
+    onSeekInteractionChanged: (Boolean) -> Unit,
+    focusRequester: FocusRequester?,
+    upFocusRequester: FocusRequester?,
+    layoutScale: Float
+) {
+    var isSeeking by remember { mutableStateOf(false) }
+    var sliderPosition by remember(durationSeconds) {
+        mutableDoubleStateOf(positionSecondsProvider().coerceIn(0.0, durationSeconds.coerceAtLeast(0.0)))
+    }
+    val pos = positionSecondsProvider()
+    val effectiveSlider = if (isSeeking) sliderPosition else pos.coerceIn(0.0, durationSeconds.coerceAtLeast(0.0))
+    TimelineSection(
+        sliderPosition = effectiveSlider,
+        elapsedPositionSeconds = effectiveSlider,
+        durationSeconds = durationSeconds,
+        showRemainingTime = showRemainingTime,
+        canSeek = canSeek,
+        hasReliableDuration = hasReliableDuration,
+        seekInProgress = seekInProgress,
+        focusRequester = focusRequester,
+        upFocusRequester = upFocusRequester,
+        layoutScale = layoutScale,
+        onToggleDurationDisplayMode = onToggleRemaining,
+        onSeekInteractionChanged = { v ->
+            isSeeking = v
+            onSeekInteractionChanged(v)
+        },
+        onSliderValueChange = { v ->
+            isSeeking = true
+            onSeekInteractionChanged(true)
+            sliderPosition = v.toDouble().coerceIn(0.0, durationSeconds.coerceAtLeast(0.0))
+        },
+        onSliderValueChangeFinished = {
+            isSeeking = false
+            onSeekInteractionChanged(false)
+            onSeek(sliderPosition)
+        }
+    )
 }
 
 @Composable
