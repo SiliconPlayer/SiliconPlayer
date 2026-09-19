@@ -267,9 +267,10 @@ internal fun ExpandedPlayerOverlayHost(
                     onPause = if (expandedOverlayVisible) onPause else noOp,
                     onStopAndClear = if (expandedOverlayVisible) onStopAndClear else noOp,
                     durationSeconds = durationSeconds,
-                    // Read inside AnimatedVisibility so this host only subscribes
-                    // to position updates while the expanded overlay is composing.
-                    positionSeconds = positionSecondsState.value,
+                    // Host does not subscribe to position ticks; leaf reads provider
+                    // while the expanded overlay is composing.
+                    positionSeconds = 0.0,
+                    positionSecondsProvider = remember { { positionSecondsState.value } },
                     canPreviousTrack = canPreviousTrack,
                     canNextTrack = canNextTrack,
                     title = title,
