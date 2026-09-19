@@ -28,6 +28,11 @@ namespace {
     // the slider's depth, with room for the compensation to span one BT-sized
     // callback interval (~12k frames on some transports).
     constexpr int kScopeVisibleMaxQueueTargetFrames = 8192;
+    // Same budget as the frame count above, but rate-scaled so high-rate
+    // transports keep the same wall-clock headroom.
+    constexpr int kScopeVisibleMaxQueueBudgetMs = 170;
+    // Recovery headroom must stay within what the scope's delay estimator spans.
+    constexpr int kScopeVisibleRecoveryMaxQueueFrames = 14000;
 
     pid_t currentThreadId() {
 #ifdef SYS_gettid
@@ -700,10 +705,17 @@ void AudioEngine::renderWorkerLoop() {
                 (visualizationDemand && !recoveryBoostActive && !backgroundHeadroomActive)
                 ? std::max(baseChunkFrames * 8, 2048) : 0;
         int effectiveTarget = targetFrames + visualizationHeadroom;
-        // Boost/headroom inflate buffered-ahead past the slider depth; cap
-        // only while the scope is actually being watched.
+        // Rate-scaled ceiling while the scope is watched; recovery may exceed
+        // it, but stays within what the delay estimator can span.
         if (visualizationDemand) {
-            effectiveTarget = std::min(effectiveTarget, kScopeVisibleMaxQueueTargetFrames);
+            const int budgetRate = streamSampleRate > 0 ? streamSampleRate : 48000;
+            const int steadyCeiling = std::max(
+                    kScopeVisibleMaxQueueTargetFrames,
+                    (budgetRate * kScopeVisibleMaxQueueBudgetMs) / 1000);
+            const int scopeCeiling = recoveryBoostActive
+                    ? std::max(steadyCeiling, kScopeVisibleRecoveryMaxQueueFrames)
+                    : steadyCeiling;
+            effectiveTarget = std::min(effectiveTarget, scopeCeiling);
         }
         {
             std::unique_lock<std::mutex> lock(renderQueueMutex);
