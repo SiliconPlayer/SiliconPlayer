@@ -34,6 +34,8 @@ import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
+import androidx.compose.runtime.snapshotFlow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import androidx.compose.foundation.background
@@ -219,6 +221,7 @@ import androidx.compose.foundation.text.selection.SelectionContainer
 
 internal val LocalPlayerFocusIndicatorsEnabled = compositionLocalOf { true }
 private val LocalPlayerMarqueeClockState = compositionLocalOf<State<Long>> { mutableLongStateOf(0L) }
+private var marqueeActiveCount by mutableIntStateOf(0)
 
 private const val PREF_KEY_VIS_OSC_WINDOW_MS = "visualization_osc_window_ms"
 private const val PREF_KEY_VIS_OSC_TRIGGER_MODE = "visualization_osc_trigger_mode"
@@ -643,9 +646,15 @@ private fun rememberPlayerVisualizationPreferenceState(
 private fun rememberPlayerMarqueeClockState(resetKey: Any?): State<Long> {
     val clockState = remember { mutableLongStateOf(0L) }
     LaunchedEffect(resetKey) {
-        val startTimeMs = withFrameMillis { it }
+        var startTimeMs = withFrameMillis { it }
         clockState.longValue = 0L
         while (true) {
+            if (marqueeActiveCount <= 0) {
+                snapshotFlow { marqueeActiveCount }.first { it > 0 }
+                startTimeMs = withFrameMillis { it }
+                clockState.longValue = 0L
+                continue
+            }
             clockState.longValue = withFrameMillis { it - startTimeMs }
         }
     }
@@ -3619,6 +3628,10 @@ private fun PlayerMarqueeScrollingContent(
     marqueeEdgeFadePx: Float,
     expandToAvailableWidth: Boolean
 ) {
+    DisposableEffect(Unit) {
+        marqueeActiveCount++
+        onDispose { marqueeActiveCount-- }
+    }
     val density = LocalDensity.current
     val sharedTimeMs = LocalPlayerMarqueeClockState.current.value
     val marqueeInstanceStartMs = remember(text, style, expandToAvailableWidth) {
