@@ -329,6 +329,9 @@ internal class LibrarySurfaceState {
     val searchResultsState = mutableStateOf(LibrarySearchResults("", emptyList(), emptyList(), emptyList()))
     val albumOpenedFromArtistState = mutableStateOf(false)
     val artistOpenedFromAlbumState = mutableStateOf(false)
+    // Navigation history for transition direction. Tracks the page stack so a
+    // forward push (list -> artist -> album) differs from a back pop.
+    val destinationBackStackState = mutableStateOf(listOf(PlaylistsSurfaceDestination.Library))
     val playlistsTabListState = LazyListState()
     val albumsGridState = LazyGridState()
     val albumsListState = LazyListState()
@@ -1022,6 +1025,14 @@ internal fun PlaylistsScreen(
         if (destination == PlaylistsSurfaceDestination.Library) {
             selectedStoredPlaylistId = null
         }
+        // Sync the nav history: pop back to an already-open page, else push.
+        val stack = surfaceState.destinationBackStackState.value
+        val existingIndex = stack.indexOf(destination)
+        surfaceState.destinationBackStackState.value = if (existingIndex >= 0) {
+            stack.subList(0, existingIndex + 1)
+        } else {
+            stack + destination
+        }
     }
     BackHandler(enabled = backHandlingEnabled && playlistFabExpanded) {
         playlistFabExpanded = false
@@ -1340,23 +1351,41 @@ internal fun PlaylistsScreen(
             AnimatedContent(
                 targetState = destination,
                 transitionSpec = {
-                    val forward = playlistsSurfaceDestinationOrder(targetState) >=
-                        playlistsSurfaceDestinationOrder(initialState)
-                    val enter = slideInHorizontally(
-                        initialOffsetX = { fullWidth -> if (forward) fullWidth else -fullWidth / 4 },
-                        animationSpec = tween(
-                            durationMillis = PLAYLISTS_PAGE_NAV_DURATION_MS,
-                            easing = FastOutSlowInEasing
+                    // Forward = pushing a page not already open; backward = a
+                    // pop back to an earlier page (the target is already in the
+                    // history at this point, since the sync effect has not run
+                    // yet for the new destination).
+                    val stack = surfaceState.destinationBackStackState.value
+                    val forward = !stack.contains(targetState)
+                    val enter = if (forward) {
+                        slideInHorizontally(
+                            initialOffsetX = { fullWidth -> fullWidth },
+                            animationSpec = tween(
+                                durationMillis = PLAYLISTS_PAGE_NAV_DURATION_MS,
+                                easing = FastOutSlowInEasing
+                            )
+                        ) + fadeIn(
+                            animationSpec = tween(
+                                durationMillis = 210,
+                                delayMillis = 40,
+                                easing = LinearOutSlowInEasing
+                            )
                         )
-                    ) + fadeIn(
-                        animationSpec = tween(
-                            durationMillis = 210,
-                            delayMillis = 40,
-                            easing = LinearOutSlowInEasing
+                    } else {
+                        // Returning to a page: fade back in place; it does not
+                        // slide, so its appearance is not animated.
+                        fadeIn(
+                            animationSpec = tween(
+                                durationMillis = 210,
+                                delayMillis = 40,
+                                easing = LinearOutSlowInEasing
+                            )
                         )
-                    )
+                    }
+                    // The page behind never travels: it only fades, so a back
+                    // navigation does not replay that page's entrance.
                     val exit = slideOutHorizontally(
-                        targetOffsetX = { fullWidth -> if (forward) -fullWidth / 4 else fullWidth / 4 },
+                        targetOffsetX = { fullWidth -> if (forward) -fullWidth / 4 else fullWidth },
                         animationSpec = tween(
                             durationMillis = PLAYLISTS_PAGE_NAV_DURATION_MS,
                             easing = FastOutSlowInEasing
@@ -7125,15 +7154,6 @@ private fun EmptySectionCard(
         }
     }
 }
-
-private fun playlistsSurfaceDestinationOrder(destination: PlaylistsSurfaceDestination): Int =
-    when (destination) {
-        PlaylistsSurfaceDestination.Library -> 0
-        PlaylistsSurfaceDestination.Favorites -> 1
-        PlaylistsSurfaceDestination.StoredPlaylist -> 1
-        PlaylistsSurfaceDestination.AlbumDetail -> 1
-        PlaylistsSurfaceDestination.ArtistDetail -> 1
-    }
 
 private fun playlistTrackCountLabel(trackCount: Int): String =
     when (trackCount) {
