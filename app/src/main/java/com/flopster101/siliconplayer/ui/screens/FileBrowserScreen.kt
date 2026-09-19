@@ -1233,6 +1233,10 @@ internal fun FileBrowserScreen(
                                     fontWeight = FontWeight.Bold
                                 )
                             },
+                            colors = TopAppBarDefaults.topAppBarColors(
+                                containerColor = MaterialTheme.colorScheme.background,
+                                scrolledContainerColor = MaterialTheme.colorScheme.background
+                            ),
                             actions = {
                                 onExitBrowser?.let { exitBrowser ->
                                     IconButton(onClick = exitBrowser) {

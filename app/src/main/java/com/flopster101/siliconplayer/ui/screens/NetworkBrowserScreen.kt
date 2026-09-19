@@ -1561,6 +1561,10 @@ internal fun NetworkBrowserScreen(
                             }
                         }
                     },
+                    colors = TopAppBarDefaults.largeTopAppBarColors(
+                        containerColor = MaterialTheme.colorScheme.background,
+                        scrolledContainerColor = MaterialTheme.colorScheme.background
+                    ),
                     scrollBehavior = networkScrollBehavior
                 )
             }
