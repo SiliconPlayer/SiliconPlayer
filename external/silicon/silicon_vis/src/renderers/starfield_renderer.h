@@ -68,6 +68,7 @@ private:
     float energySmooth_ = 0.0f;
     float fast_ = 0.0f;
     float slow_ = 0.0f;
+    float driveSmooth_ = 0.0f;
     float bass_ = 0.0f;
 
     int32_t starCount_ = 350;

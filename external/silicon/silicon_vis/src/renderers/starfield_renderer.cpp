@@ -563,9 +563,9 @@ void StarfieldRenderer::render() {
             slow_ = target;
             fast_ = target;
         } else {
-            // Floor tracker: falls to quiet gaps but only creeps up, so a
-            // steady beat train never lifts the reference and dulls novelty.
-            const float slowRate = (target < slow_) ? dt * 0.5f : dt * 0.05f;
+            // Floor tracker: adapts up within a phrase so a sustained loud
+            // section re-zeros the reference; falls faster to quiet gaps.
+            const float slowRate = (target < slow_) ? dt * 0.5f : dt * 0.4f;
             slow_ += (target - slow_) * std::min(1.0f, slowRate);
         }
     } else {
@@ -573,8 +573,10 @@ void StarfieldRenderer::render() {
         slow_ = target;
     }
     const float energy = beatFollow_ ? std::pow(energySmooth_, 0.75f) : 0.0f;
+    // Relative to the local floor: a kick on a loud master moves the
+    // absolute level little but still reads as a hit.
     const float novelty = beatFollow_
-        ? std::clamp((fast_ - slow_) * 7.0f, 0.0f, 1.0f) : 0.0f;
+        ? std::clamp((fast_ - slow_) / std::max(slow_, 0.15f) * 5.0f, 0.0f, 1.0f) : 0.0f;
     ensureStars(starCount_);
     const int32_t count = static_cast<int32_t>(starX_.size());
     if (count <= 0) return;
@@ -582,9 +584,16 @@ void StarfieldRenderer::render() {
     // The pause fade doubles as a brake: speed eases with visibility.
     const float vt = std::clamp(alpha_, 0.0f, 1.0f);
     const float brake = vt * vt * (3.0f - 2.0f * vt);
-    // Expander curve: mids duck, peaks pass. Keeps the loud cruise
-    // while restoring the full punch of each hit.
-    const float reactTerm = std::pow(std::max(energy * 0.5f, novelty), 1.3f);
+    // Cruise rides sustained energy at full drive; kicks add on top
+    // instead of maxing into the same ceiling.
+    float drive = energy * 0.85f + novelty * 0.6f;
+    if (drive > driveSmooth_) {
+        driveSmooth_ = drive;
+    } else if (dt > 0.0f) {
+        driveSmooth_ += (drive - driveSmooth_) * std::min(1.0f, dt * 8.0f);
+    }
+    drive = std::min(1.15f, driveSmooth_);
+    const float reactTerm = std::pow(drive, 1.2f);
     const float spd = speed_ * (1.0f + reactSpeed_ * reactTerm) * brake;
     const float flashBoost = 1.0f + flash_ * std::max(energy, novelty) * 1.5f;
     float driftX = 0.0f;
