@@ -38,8 +38,12 @@ import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.material.icons.filled.ExpandLess
 import androidx.compose.material.icons.filled.ExpandMore
+import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Remove
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.Slider
+import androidx.compose.material3.SliderDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedIconButton
 import androidx.compose.material3.OutlinedTextField
@@ -50,6 +54,7 @@ import com.flopster101.siliconplayer.AppDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -64,6 +69,11 @@ import android.os.Build
 import androidx.compose.ui.platform.LocalContext
 import com.flopster101.siliconplayer.AppPreferenceKeys
 import com.flopster101.siliconplayer.ChoiceDialogOption
+import com.flopster101.siliconplayer.StarfieldPreset
+import com.flopster101.siliconplayer.ui.screens.starfieldActivePreset
+import com.flopster101.siliconplayer.ui.screens.starfieldKeysFor
+import com.flopster101.siliconplayer.ui.screens.starfieldPresetTuneFor
+import java.util.Locale
 import com.flopster101.siliconplayer.SettingsSingleChoiceDialog
 import com.flopster101.siliconplayer.SettingsValuePickerCard
 import com.flopster101.siliconplayer.VisualizationChannelScopeWaveRenderMode
@@ -104,14 +114,15 @@ internal fun VisualizationOptionsSheet(
     onProjectMPresetSelected: (String) -> Unit,
     presetSetLabels: Map<String, String>,
     onResetDefaults: () -> Unit,
-    onDismiss: () -> Unit
+    onDismiss: () -> Unit,
+    resetNonce: Int = 0
 ) {
     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
         ModalBottomSheet(
             onDismissRequest = onDismiss,
             sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = false)
         ) {
-            OptionsSheetContent(mode, globalInputGain, onGlobalInputGainChange, trackInputGain, onTrackInputGainChange, showChannelLabels, onShowChannelLabelsChange, savedProjectMPreset, onProjectMPresetSelected, presetSetLabels, onResetDefaults)
+            OptionsSheetContent(mode, globalInputGain, onGlobalInputGainChange, trackInputGain, onTrackInputGainChange, showChannelLabels, onShowChannelLabelsChange, savedProjectMPreset, onProjectMPresetSelected, presetSetLabels, onResetDefaults, resetNonce)
         }
     } else {
         Dialog(
@@ -143,7 +154,7 @@ internal fun VisualizationOptionsSheet(
                 ) {
                     Column(modifier = Modifier.fillMaxWidth().padding(top = 12.dp)) {
                         Box(modifier = Modifier.align(Alignment.CenterHorizontally).padding(bottom = 8.dp).size(width = 36.dp, height = 4.dp).background(MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f), RoundedCornerShape(2.dp)))
-                        OptionsSheetContent(mode, globalInputGain, onGlobalInputGainChange, trackInputGain, onTrackInputGainChange, showChannelLabels, onShowChannelLabelsChange, savedProjectMPreset, onProjectMPresetSelected, presetSetLabels, onResetDefaults)
+                        OptionsSheetContent(mode, globalInputGain, onGlobalInputGainChange, trackInputGain, onTrackInputGainChange, showChannelLabels, onShowChannelLabelsChange, savedProjectMPreset, onProjectMPresetSelected, presetSetLabels, onResetDefaults, resetNonce)
                     }
                 }
             }
@@ -163,7 +174,8 @@ private fun OptionsSheetContent(
     savedProjectMPreset: String?,
     onProjectMPresetSelected: (String) -> Unit,
     presetSetLabels: Map<String, String>,
-    onResetDefaults: () -> Unit
+    onResetDefaults: () -> Unit,
+    resetNonce: Int = 0
 ) {
         Column(
             modifier = Modifier
@@ -204,6 +216,9 @@ private fun OptionsSheetContent(
                         savedPreset = savedProjectMPreset,
                         onPresetSelected = onProjectMPresetSelected,
                         setLabels = presetSetLabels
+                    )
+                    VisualizationMode.Starfield -> StarfieldOptionsContent(
+                        resetNonce = resetNonce
                     )
                     else -> Unit
                 }
@@ -292,6 +307,194 @@ private fun ChannelScopeOptionsContent(
                 ).apply()
             },
             onDismiss = { showWaveRenderModeDialog = false }
+        )
+    }
+}
+
+@Composable
+private fun StarfieldSheetSliderRow(
+    title: String,
+    displayValue: String,
+    value: Int,
+    valueRange: IntRange,
+    step: Int = 1,
+    dragSnap: Int = 1,
+    onValueChange: (Int) -> Unit
+) {
+    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween
+        ) {
+            Text(
+                text = title,
+                style = MaterialTheme.typography.bodySmall,
+                fontWeight = FontWeight.Medium,
+                color = MaterialTheme.colorScheme.onSurface
+            )
+            Text(
+                text = displayValue,
+                style = MaterialTheme.typography.labelMedium,
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.primary
+            )
+        }
+
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            OutlinedIconButton(
+                onClick = { onValueChange((value - step).coerceIn(valueRange)) },
+                enabled = value > valueRange.first,
+                modifier = Modifier.size(32.dp),
+                shape = RoundedCornerShape(8.dp)
+            ) {
+                Icon(
+                    imageVector = Icons.Default.Remove,
+                    contentDescription = "Decrease",
+                    modifier = Modifier.size(16.dp)
+                )
+            }
+
+            Slider(
+                value = value.toFloat().coerceIn(valueRange.first.toFloat(), valueRange.last.toFloat()),
+                onValueChange = { floatVal ->
+                    onValueChange(snapSheetSliderToStep(floatVal, valueRange, dragSnap))
+                },
+                valueRange = valueRange.first.toFloat()..valueRange.last.toFloat(),
+                modifier = Modifier.weight(1f),
+                colors = SliderDefaults.colors(
+                    thumbColor = MaterialTheme.colorScheme.primary,
+                    activeTrackColor = MaterialTheme.colorScheme.primary,
+                    inactiveTrackColor = MaterialTheme.colorScheme.surfaceContainerHighest
+                )
+            )
+
+            OutlinedIconButton(
+                onClick = { onValueChange((value + step).coerceIn(valueRange)) },
+                enabled = value < valueRange.last,
+                modifier = Modifier.size(32.dp),
+                shape = RoundedCornerShape(8.dp)
+            ) {
+                Icon(
+                    imageVector = Icons.Default.Add,
+                    contentDescription = "Increase",
+                    modifier = Modifier.size(16.dp)
+                )
+            }
+        }
+    }
+}
+
+private fun snapSheetSliderToStep(floatVal: Float, valueRange: IntRange, snap: Int): Int {
+    val clamped = floatVal.toInt().coerceIn(valueRange.first, valueRange.last)
+    if (snap <= 1) return clamped
+    val offset = clamped - valueRange.first
+    val snappedOffset = ((offset + (snap / 2)) / snap) * snap
+    return (valueRange.first + snappedOffset).coerceIn(valueRange.first, valueRange.last)
+}
+
+@Composable
+private fun StarfieldOptionsContent(resetNonce: Int) {
+    val context = LocalContext.current
+    val prefs = remember(context) { context.getSharedPreferences(AppPreferenceKeys.PREFS_NAME, Context.MODE_PRIVATE) }
+    val d = AppDefaults.Visualization.Starfield
+    var activePreset by remember(resetNonce) { mutableStateOf(starfieldActivePreset(prefs)) }
+    val tune = starfieldPresetTuneFor(activePreset)
+    val keys = starfieldKeysFor(activePreset)
+    var beatFollowEnabled by remember(resetNonce) {
+        mutableStateOf(prefs.getBoolean(AppPreferenceKeys.VISUALIZATION_STARFIELD_BEAT_FOLLOW_ENABLED, d.beatFollowEnabled))
+    }
+    var speedCenti by remember(activePreset, resetNonce) {
+        mutableIntStateOf(prefs.getInt(keys.speedCenti, tune.speedCenti)
+            .coerceIn(d.speedRangeCenti.first, d.speedRangeCenti.last))
+    }
+    var reactSpeedCenti by remember(activePreset, resetNonce) {
+        mutableIntStateOf(prefs.getInt(keys.reactSpeedCenti, tune.reactSpeedCenti)
+            .coerceIn(d.reactSpeedRangeCenti.first, d.reactSpeedRangeCenti.last))
+    }
+    var flashPercent by remember(activePreset, resetNonce) {
+        mutableIntStateOf(prefs.getInt(keys.flashPercent, tune.flashPercent)
+            .coerceIn(d.percentRange.first, d.percentRange.last))
+    }
+    var showPresetDialog by remember { mutableStateOf(false) }
+
+    Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
+        SettingsValuePickerCard(
+            title = "Flight preset",
+            description = "Preset slot under edit. Tuning below rewrites it.",
+            value = activePreset.label,
+            onClick = { showPresetDialog = true }
+        )
+        DialogToggleRow(
+            title = "Follow the beat",
+            subtitle = "Ride beat energy for speed and glow. Off by default.",
+            checked = beatFollowEnabled,
+            onCheckedChange = { enabled ->
+                beatFollowEnabled = enabled
+                prefs.edit().putBoolean(AppPreferenceKeys.VISUALIZATION_STARFIELD_BEAT_FOLLOW_ENABLED, enabled).apply()
+            }
+        )
+        StarfieldSheetSliderRow(
+            title = "Flight speed",
+            displayValue = String.format(Locale.US, "%.2f", speedCenti / 100f),
+            value = speedCenti,
+            valueRange = d.speedRangeCenti,
+            step = 1,
+            dragSnap = 2,
+            onValueChange = { value ->
+                val clamped = value.coerceIn(d.speedRangeCenti.first, d.speedRangeCenti.last)
+                speedCenti = clamped
+                prefs.edit().putInt(keys.speedCenti, clamped).apply()
+            }
+        )
+        StarfieldSheetSliderRow(
+            title = "Speed reaction",
+            displayValue = String.format(Locale.US, "%.2f×", reactSpeedCenti / 100f),
+            value = reactSpeedCenti,
+            valueRange = d.reactSpeedRangeCenti,
+            step = 5,
+            dragSnap = 5,
+            onValueChange = { value ->
+                val clamped = value.coerceIn(d.reactSpeedRangeCenti.first, d.reactSpeedRangeCenti.last)
+                reactSpeedCenti = clamped
+                prefs.edit().putInt(keys.reactSpeedCenti, clamped).apply()
+            }
+        )
+        StarfieldSheetSliderRow(
+            title = "Brightness flash",
+            displayValue = "$flashPercent%",
+            value = flashPercent,
+            valueRange = d.percentRange,
+            step = 1,
+            dragSnap = 1,
+            onValueChange = { value ->
+                val clamped = value.coerceIn(d.percentRange.first, d.percentRange.last)
+                flashPercent = clamped
+                prefs.edit().putInt(keys.flashPercent, clamped).apply()
+            }
+        )
+    }
+
+    if (showPresetDialog) {
+        SettingsSingleChoiceDialog(
+            title = "Flight preset",
+            selectedValue = activePreset,
+            options = StarfieldPreset.entries.map { preset ->
+                ChoiceDialogOption(value = preset, label = preset.label)
+            },
+            onSelected = { preset ->
+                activePreset = preset
+                prefs.edit().putString(
+                    AppPreferenceKeys.VISUALIZATION_STARFIELD_ACTIVE_PRESET,
+                    preset.storageValue
+                ).apply()
+                showPresetDialog = false
+            },
+            onDismiss = { showPresetDialog = false }
         )
     }
 }

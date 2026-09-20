@@ -2195,6 +2195,7 @@ internal fun PlayerScreen(
         var savedProjectMPreset by remember {
             mutableStateOf(prefs.getString(AppPreferenceKeys.VISUALIZATION_PROJECTM_PRESET, null))
         }
+        var starfieldOptionsResetNonce by remember { mutableIntStateOf(0) }
         VisualizationOptionsSheet(
             mode = visualizationMode,
             globalInputGain = channelScopePrefs.gainPercent,
@@ -2247,13 +2248,18 @@ internal fun PlayerScreen(
                         prefs.edit().remove(AppPreferenceKeys.VISUALIZATION_PROJECTM_PRESET).apply()
                         savedProjectMPreset = null
                     }
+                    VisualizationMode.Starfield -> {
+                        writeStarfieldFactoryTune(prefs, starfieldActivePreset(prefs))
+                        starfieldOptionsResetNonce++
+                    }
                     else -> Unit
                 }
             },
             onDismiss = {
                 showVisualizationOptionsSheet = false
                 showVisualizationPickerDialog = true
-            }
+            },
+            resetNonce = starfieldOptionsResetNonce
         )
     }
     if (showChannelControlDialog) {

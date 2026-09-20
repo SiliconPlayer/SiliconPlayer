@@ -1916,6 +1916,37 @@ internal fun starfieldPresetTuneFor(preset: StarfieldPreset): AppDefaults.Visual
         else -> AppDefaults.Visualization.Starfield.classic
     }
 
+internal fun writeStarfieldFactoryTune(
+    sharedPrefs: android.content.SharedPreferences,
+    preset: StarfieldPreset
+) {
+    val factory = starfieldPresetTuneFor(preset)
+    val slotKeys = starfieldKeysFor(preset)
+    sharedPrefs.edit()
+        .putInt(slotKeys.starCount, factory.starCount)
+        .putInt(slotKeys.speedCenti, factory.speedCenti)
+        .putInt(slotKeys.fovCenti, factory.fovCenti)
+        .putInt(slotKeys.nearMilli, factory.nearMilli)
+        .putInt(slotKeys.starColorArgb, factory.starColorArgb)
+        .putInt(slotKeys.baseSizeDeci, factory.baseSizeDeci)
+        .putInt(slotKeys.sizeGrowthCenti, factory.sizeGrowthCenti)
+        .putInt(slotKeys.farDimPercent, factory.farDimPercent)
+        .putInt(slotKeys.softnessPercent, factory.softnessPercent)
+        .putInt(slotKeys.beatGlowPercent, factory.beatGlowPercent)
+        .putInt(slotKeys.glowSizeDeci, factory.glowSizeDeci)
+        .putInt(slotKeys.trailPercent, factory.trailPercent)
+        .putBoolean(slotKeys.streaksEnabled, factory.streaksEnabled)
+        .putBoolean(slotKeys.squareEnabled, factory.squarePixelsEnabled)
+        .putInt(slotKeys.streakLengthCenti, factory.streakLengthCenti)
+        .putInt(slotKeys.centerXCenti, factory.centerXCenti)
+        .putInt(slotKeys.centerYCenti, factory.centerYCenti)
+        .putBoolean(slotKeys.autoDriftEnabled, factory.autoDriftEnabled)
+        .putInt(slotKeys.reactSpeedCenti, factory.reactSpeedCenti)
+        .putInt(slotKeys.flashPercent, factory.flashPercent)
+        .putBoolean(slotKeys.contrastBackdropEnabled, factory.contrastBackdropEnabled)
+        .apply()
+}
+
 internal fun starfieldActivePreset(sharedPrefs: android.content.SharedPreferences): StarfieldPreset {
     return StarfieldPreset.fromStorage(
         sharedPrefs.getString(

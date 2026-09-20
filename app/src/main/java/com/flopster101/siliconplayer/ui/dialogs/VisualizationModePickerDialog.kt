@@ -421,6 +421,7 @@ private fun PickerSheetContent(
                 val hasQuickOptions = when (selectedMode) {
                     VisualizationMode.ChannelScope -> availableModes.contains(VisualizationMode.ChannelScope)
                     VisualizationMode.ProjectM -> true
+                    VisualizationMode.Starfield -> availableModes.contains(VisualizationMode.Starfield)
                     else -> false
                 }
                 if (hasQuickOptions) {
