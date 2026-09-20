@@ -1,0 +1,45 @@
+# SiliconPlayer UI jank trace config.
+# Usage:
+#   adb push tools/siliconplayer_config.pbtxt /data/local/tmp/
+#   adb shell perfetto -c /data/local/tmp/siliconplayer_config.pbtxt --txt \
+#     -o /data/misc/perfetto-traces/siliconplayer.pftrace
+#   adb pull /data/misc/perfetto-traces/siliconplayer.pftrace
+
+buffers: { size_kb: 65536 fill_policy: RING_BUFFER }
+buffers: { size_kb: 4096  fill_policy: RING_BUFFER }
+
+duration_ms: 60000
+write_into_file: true
+flush_period_ms: 2000
+file_write_period_ms: 1000
+max_file_size_bytes: 500000000
+
+data_sources: {
+  config {
+    name: "linux.ftrace"
+    ftrace_config {
+      buffer_size_kb: 16384
+      drain_period_ms: 250
+      atrace_categories: "view"           # Choreographer, doFrame, traversal
+      atrace_categories: "res"            # resource loading
+      atrace_categories: "sched"          # thread scheduling
+      atrace_categories: "freq"           # CPU frequency ramps
+      atrace_categories: "binder_driver"  # binder transactions
+      atrace_categories: "dalvik"         # ART / Compose internals
+      atrace_categories: "gfx"            # graphics pipeline
+      atrace_categories: "disk"           # I/O stalls
+      atrace_categories: "wm"             # window manager
+      atrace_categories: "am"             # activity manager
+      atrace_apps: "com.flopster101.siliconplayer"
+    }
+  }
+}
+
+data_sources: { config { name: "android.surfaceflinger.frametimeline" } }
+
+data_sources: {
+  config {
+    name: "android.packages_list"
+    packages_list_config { package_name_filter: "com.flopster101.siliconplayer" }
+  }
+}

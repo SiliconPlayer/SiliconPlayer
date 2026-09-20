@@ -313,6 +313,8 @@ extensions.configure<com.android.build.api.dsl.ApplicationExtension>("android") 
             initWith(getByName("release"))
             // Keep debug signing so it can replace/debug-install like normal debug builds.
             signingConfig = signingConfigs.getByName("debug")
+            // Allow shell Perfetto to read app atrace sections without a debuggable build.
+            isProfileable = true
             // Make it clear on-device which build is installed.
             versionNameSuffix = "-optdebug"
             matchingFallbacks += listOf("release")
