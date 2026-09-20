@@ -5,9 +5,19 @@ import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.media.MediaMetadataRetriever
 import android.net.Uri
+import android.util.LruCache
+import androidx.compose.ui.graphics.ImageBitmap
+import androidx.compose.ui.graphics.asAndroidBitmap
+import androidx.compose.ui.graphics.asImageBitmap
 import java.io.File
 import java.io.FileOutputStream
 import java.util.Locale
+import java.util.concurrent.ConcurrentHashMap
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Deferred
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.async
 
 internal const val RECENT_ARTWORK_CACHE_DIR = "recent_artwork"
 private const val RECENT_ARTWORK_THUMB_MAX_SIZE_PX = 240
@@ -194,6 +204,81 @@ internal fun recentArtworkThumbnailFile(
     context: Context,
     cacheKey: String?
 ): File? = recentArtworkFile(context, cacheKey, preferLarge = false)
+
+// In-memory cache for decoded recents chips: without it every chip
+// recomposition/scroll re-decoded the JPEG and allocated a fresh native
+// bitmap, which kept the NativeAlloc GC churning on the home screen.
+private const val RECENT_THUMB_MEMORY_CACHE_MAX_KB = 8 * 1024
+private const val RECENT_THUMB_NO_ART_CACHE_MAX_ENTRIES = 1000
+
+private object RecentThumbMemoryCache : LruCache<String, ImageBitmap>(RECENT_THUMB_MEMORY_CACHE_MAX_KB) {
+    override fun sizeOf(key: String, value: ImageBitmap): Int {
+        return (value.asAndroidBitmap().byteCount / 1024).coerceAtLeast(1)
+    }
+}
+
+// Cache file mtimes so a rewritten thumbnail (new artwork for the same
+// source) invalidates the decoded bitmap.
+private val RecentThumbFileMtimes = ConcurrentHashMap<String, Long>()
+
+private object RecentThumbNoArtworkCache : LruCache<String, Boolean>(RECENT_THUMB_NO_ART_CACHE_MAX_ENTRIES)
+
+private val RecentThumbInFlightLoads = ConcurrentHashMap<String, Deferred<ImageBitmap?>>()
+private val RecentThumbLoadScope = CoroutineScope(Dispatchers.IO + SupervisorJob())
+
+internal fun peekRecentArtworkThumbnail(context: Context, cacheKey: String?): ImageBitmap? {
+    val key = cacheKey?.trim()?.takeUnless { it.isBlank() } ?: return null
+    if (RecentThumbNoArtworkCache.get(key) == true) return null
+    val cached = synchronized(RecentThumbMemoryCache) {
+        RecentThumbMemoryCache.get(key)
+    }?.takeUnless { it.asAndroidBitmap().isRecycled } ?: return null
+    val fileMtime = recentArtworkThumbnailFile(context, key)?.lastModified() ?: 0L
+    if (fileMtime != RecentThumbFileMtimes[key]) {
+        synchronized(RecentThumbMemoryCache) {
+            RecentThumbMemoryCache.remove(key)
+        }
+        RecentThumbFileMtimes.remove(key)
+        return null
+    }
+    return cached
+}
+
+internal suspend fun loadRecentArtworkThumbnail(
+    context: Context,
+    cacheKey: String?
+): ImageBitmap? {
+    val key = cacheKey?.trim()?.takeUnless { it.isBlank() } ?: return null
+    peekRecentArtworkThumbnail(context, key)?.let { return it }
+    if (RecentThumbNoArtworkCache.get(key) == true) return null
+
+    val deferred = synchronized(RecentThumbInFlightLoads) {
+        RecentThumbInFlightLoads[key]?.let { return@synchronized it }
+        val newDeferred = RecentThumbLoadScope.async {
+            try {
+                val file = recentArtworkThumbnailFile(context, key)
+                val decoded = file?.let { BitmapFactory.decodeFile(it.absolutePath) }?.asImageBitmap()
+                if (decoded != null) {
+                    RecentThumbFileMtimes[key] = file?.lastModified() ?: 0L
+                    synchronized(RecentThumbMemoryCache) {
+                        RecentThumbMemoryCache.put(key, decoded)
+                    }
+                } else {
+                    RecentThumbNoArtworkCache.put(key, true)
+                }
+                decoded
+            } finally {
+                RecentThumbInFlightLoads.remove(key)
+            }
+        }
+        RecentThumbInFlightLoads[key] = newDeferred
+        newDeferred
+    }
+    return try {
+        deferred.await()
+    } catch (_: Throwable) {
+        null
+    }
+}
 
 private fun resolveRecentArtworkSourceFile(context: Context, sourceId: String): File? {
     val uri = Uri.parse(sourceId)

@@ -75,6 +75,8 @@ import com.flopster101.siliconplayer.isWatchDevice
 import com.flopster101.siliconplayer.adaptiveDialogModifier
 import com.flopster101.siliconplayer.adaptiveDialogProperties
 import com.flopster101.siliconplayer.ensureRecentArtworkThumbnailCached
+import com.flopster101.siliconplayer.loadRecentArtworkThumbnail
+import com.flopster101.siliconplayer.peekRecentArtworkThumbnail
 import com.flopster101.siliconplayer.formatByteCount
 import com.flopster101.siliconplayer.formatShortDuration
 import com.flopster101.siliconplayer.placeholderArtworkIconForFile
@@ -1320,13 +1322,12 @@ private fun PlaylistSelectorArtworkChip(
         }
     }
     val artwork by produceState<ImageBitmap?>(
-        initialValue = null,
+        initialValue = peekRecentArtworkThumbnail(context, artworkThumbnailCacheKey),
         key1 = artworkThumbnailCacheKey
     ) {
-        value = withContext(Dispatchers.IO) {
-            val artworkFile = recentArtworkThumbnailFile(context, artworkThumbnailCacheKey)
-                ?: return@withContext null
-            BitmapFactory.decodeFile(artworkFile.absolutePath)?.asImageBitmap()
+        val loaded = loadRecentArtworkThumbnail(context, artworkThumbnailCacheKey)
+        if (loaded != null) {
+            value = loaded
         }
     }
     Surface(

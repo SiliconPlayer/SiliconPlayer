@@ -2039,13 +2039,12 @@ private fun RecentTrackArtworkChip(
     isCurrentlyPlaying: Boolean = false
 ) {
     val artwork = androidx.compose.runtime.produceState<androidx.compose.ui.graphics.ImageBitmap?>(
-        initialValue = null,
+        initialValue = peekRecentArtworkThumbnail(context, artworkThumbnailCacheKey),
         key1 = artworkThumbnailCacheKey
     ) {
-        value = withContext(Dispatchers.IO) {
-            val artworkFile = recentArtworkThumbnailFile(context, artworkThumbnailCacheKey)
-                ?: return@withContext null
-            BitmapFactory.decodeFile(artworkFile.absolutePath)?.asImageBitmap()
+        val loaded = loadRecentArtworkThumbnail(context, artworkThumbnailCacheKey)
+        if (loaded != null) {
+            value = loaded
         }
     }.value
     Box(
