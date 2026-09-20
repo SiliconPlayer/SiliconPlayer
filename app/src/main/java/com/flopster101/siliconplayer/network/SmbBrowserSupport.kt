@@ -8,6 +8,7 @@ import com.rapid7.client.dcerpc.mssrvs.ServerService
 import com.rapid7.client.dcerpc.transport.SMBTransportFactories
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeoutOrNull
 import java.net.DatagramPacket
 import java.net.DatagramSocket
 import java.net.Inet4Address
@@ -20,7 +21,15 @@ import java.util.Locale
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.Deferred
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.asCoroutineDispatcher
+import java.util.concurrent.ConcurrentHashMap
+import java.util.concurrent.Executors
+import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.Semaphore
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.sync.withPermit
 
 internal data class SmbBrowserEntry(
@@ -113,41 +122,74 @@ internal suspend fun listSmbHostShareEntries(
     }
 }
 
+// Serializes SMB display-name resolution onto a single background thread so blocking
+// DNS + NBNS lookups never occupy multiple Dispatchers.IO workers at once (Android's
+// InetAddress cache is process-wide synchronized, so concurrent lookups serialize on a
+// monitor anyway — running them on IO just starved the shared dispatcher). Per-host
+// single-flight below collapses concurrent requests for the same host into one lookup.
+private const val SMB_HOST_RESOLVE_TIMEOUT_MS = 4000L
+private val smbHostResolveDispatcher =
+    Executors.newSingleThreadExecutor { runnable ->
+        Thread(runnable, "SmbHostResolve").apply { isDaemon = true }
+    }.asCoroutineDispatcher()
+private val smbHostResolveScope = CoroutineScope(SupervisorJob() + smbHostResolveDispatcher)
+private val smbHostResolveInFlight = ConcurrentHashMap<String, Deferred<Result<String?>>>()
+private val smbHostResolveMutex = Mutex()
+
+private suspend fun resolveSmbHostDisplayNameUncached(spec: SmbSourceSpec): Result<String?> =
+    withContext(smbHostResolveDispatcher) {
+        runCatching {
+            val dnsHost = runCatching { InetAddress.getByName(spec.host) }.getOrNull()
+            val candidates = linkedSetOf<String>()
+
+            val remoteAddressForNbns = resolveIpv4Address(spec.host)
+                ?: dnsHost?.hostAddress
+                ?: spec.host
+            queryNetBiosNodeStatusName(remoteAddressForNbns)?.let(candidates::add)
+            sequenceOf(
+                dnsHost?.hostName,
+                dnsHost?.canonicalHostName,
+                spec.host
+            ).forEach { raw ->
+                normalizeDiscoveredHostCandidate(raw)?.let(candidates::add)
+            }
+
+            runCatching {
+                withAppSmbSession(spec) { session ->
+                    val connection = session.connection
+                    val context = connection.connectionContext
+                    sequenceOf(
+                        context.serverName,
+                        context.netBiosName,
+                        connection.remoteHostname
+                    ).forEach { raw ->
+                        normalizeDiscoveredHostCandidate(raw)?.let(candidates::add)
+                    }
+                    querySrvsvcCanonicalHostName(session, spec)?.let(candidates::add)
+                }
+            }
+            candidates.firstOrNull()
+        }
+    }
+
 internal suspend fun resolveSmbHostDisplayName(
     spec: SmbSourceSpec
-): Result<String?> = withContext(Dispatchers.IO) {
-    runCatching {
-        val dnsHost = runCatching { InetAddress.getByName(spec.host) }.getOrNull()
-        val candidates = linkedSetOf<String>()
-
-        val remoteAddressForNbns = resolveIpv4Address(spec.host)
-            ?: dnsHost?.hostAddress
-            ?: spec.host
-        queryNetBiosNodeStatusName(remoteAddressForNbns)?.let(candidates::add)
-        sequenceOf(
-            dnsHost?.hostName,
-            dnsHost?.canonicalHostName,
-            spec.host
-        ).forEach { raw ->
-            normalizeDiscoveredHostCandidate(raw)?.let(candidates::add)
+): Result<String?> {
+    val key = spec.host.trim().lowercase(Locale.ROOT)
+    if (key.isBlank()) return runCatching { null }
+    val deferred = smbHostResolveMutex.withLock {
+        smbHostResolveInFlight.getOrPut(key) {
+            smbHostResolveScope.async { resolveSmbHostDisplayNameUncached(spec) }
         }
-
-        runCatching {
-            withAppSmbSession(spec) { session ->
-                val connection = session.connection
-                val context = connection.connectionContext
-                sequenceOf(
-                    context.serverName,
-                    context.netBiosName,
-                    connection.remoteHostname
-                ).forEach { raw ->
-                    normalizeDiscoveredHostCandidate(raw)?.let(candidates::add)
-                }
-                querySrvsvcCanonicalHostName(session, spec)?.let(candidates::add)
-            }
-        }
-        candidates.firstOrNull()
     }
+    val result = withTimeoutOrNull(SMB_HOST_RESOLVE_TIMEOUT_MS) { deferred.await() }
+    // Remove our entry only if it's still the same one (a new caller may have replaced it).
+    smbHostResolveMutex.withLock {
+        if (smbHostResolveInFlight[key] === deferred) {
+            smbHostResolveInFlight.remove(key)
+        }
+    }
+    return result ?: runCatching { null }
 }
 
 internal suspend fun discoverSmbHostsOnLocalNetwork(
