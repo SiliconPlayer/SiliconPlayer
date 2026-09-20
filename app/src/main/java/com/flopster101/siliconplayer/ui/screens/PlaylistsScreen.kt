@@ -2,6 +2,8 @@ package com.flopster101.siliconplayer.ui.screens
 
 import android.content.Context
 import com.flopster101.siliconplayer.PlaylistEntrySortMode
+import com.flopster101.siliconplayer.loadRecentArtworkThumbnail
+import com.flopster101.siliconplayer.peekRecentArtworkThumbnail
 import com.flopster101.siliconplayer.PlaylistSortMode
 import com.flopster101.siliconplayer.formatSourceIdForDisplay
 import com.flopster101.siliconplayer.moveStoredPlaylist
@@ -407,19 +409,13 @@ private fun PlaylistsTopBarMarqueeText(
         val marqueeTrailingGapPx = with(density) { marqueeTrailingGap.roundToPx() }
         val marqueeEdgeFadePx = with(density) { marqueeEdgeFade.toPx() }
         val overflowPx = (measuredText.size.width - maxWidthPx).coerceAtLeast(0)
-        val sharedTimeMs = LocalPlaylistsTitleMarqueeClockState.current.value
+        val clockState = LocalPlaylistsTitleMarqueeClockState.current
         val marqueeInstanceStartMs = remember(text, style) {
             mutableLongStateOf(Long.MIN_VALUE)
         }
-        SideEffect {
-            if (marqueeInstanceStartMs.longValue == Long.MIN_VALUE) {
-                marqueeInstanceStartMs.longValue = sharedTimeMs
-            }
-        }
-        val instanceElapsedMs = if (marqueeInstanceStartMs.longValue == Long.MIN_VALUE) {
-            0L
-        } else {
-            (sharedTimeMs - marqueeInstanceStartMs.longValue).coerceAtLeast(0L)
+        LaunchedEffect(text, style) {
+            // Anchor once; composition must not subscribe to the per-frame clock.
+            marqueeInstanceStartMs.longValue = clockState.value
         }
         val startPauseMs = 1450
         val turnaroundPauseMs = 1050
@@ -435,101 +431,111 @@ private fun PlaylistsTopBarMarqueeText(
         }
         val targetOffset = if (overflowPx > 0) -travelDistancePx.toFloat() else 0f
         val cycleDurationMs = startPauseMs + travelDurationMs + turnaroundPauseMs + travelDurationMs + resetPauseMs
-        val cyclePositionMs = if (overflowPx > 0 && cycleDurationMs > 0) {
-            (instanceElapsedMs % cycleDurationMs.toLong()).toInt()
-        } else {
-            0
-        }
-        val marqueeOffsetPx = when {
-            overflowPx <= 0 -> 0f
-            cyclePositionMs < startPauseMs -> 0f
-            cyclePositionMs < startPauseMs + travelDurationMs -> {
-                val progress = ((cyclePositionMs - startPauseMs).toFloat() / travelDurationMs).coerceIn(0f, 1f)
-                targetOffset * progress
+
+        // Per-frame offset/fade computed in draw-phase lambdas so the marquee
+        // clock (ticking every vsync) does not recompose this subtree.
+        val offsetState = remember { mutableFloatStateOf(0f) }
+        val fadeState = remember { mutableFloatStateOf(0f) }
+        fun updateMarqueeFrame() {
+            val startMs = marqueeInstanceStartMs.longValue
+            val instanceElapsedMs = if (startMs == Long.MIN_VALUE) {
+                0L
+            } else {
+                (clockState.value - startMs).coerceAtLeast(0L)
             }
-            cyclePositionMs < startPauseMs + travelDurationMs + turnaroundPauseMs -> targetOffset
-            cyclePositionMs < startPauseMs + travelDurationMs + turnaroundPauseMs + travelDurationMs -> {
-                val elapsed = cyclePositionMs - startPauseMs - travelDurationMs - turnaroundPauseMs
-                val progress = (elapsed.toFloat() / travelDurationMs).coerceIn(0f, 1f)
-                targetOffset * (1f - progress)
+            val cyclePositionMs = if (overflowPx > 0 && cycleDurationMs > 0) {
+                (instanceElapsedMs % cycleDurationMs.toLong()).toInt()
+            } else {
+                0
             }
-            else -> 0f
-        }
-        val marqueeFadeAlpha = when {
-            overflowPx <= 0 -> 0f
-            cyclePositionMs < startPauseMs -> 0f
-            cyclePositionMs < startPauseMs + travelDurationMs -> {
-                playlistsTitleMarqueeMotionFadeAlpha(
-                    elapsedMs = cyclePositionMs - startPauseMs,
-                    segmentDurationMs = travelDurationMs,
-                    fadeInMs = fadeInMs,
-                    fadeOutMs = fadeOutMs
-                )
+            offsetState.floatValue = when {
+                overflowPx <= 0 -> 0f
+                cyclePositionMs < startPauseMs -> 0f
+                cyclePositionMs < startPauseMs + travelDurationMs -> {
+                    val progress = ((cyclePositionMs - startPauseMs).toFloat() / travelDurationMs).coerceIn(0f, 1f)
+                    targetOffset * progress
+                }
+                cyclePositionMs < startPauseMs + travelDurationMs + turnaroundPauseMs -> targetOffset
+                cyclePositionMs < startPauseMs + travelDurationMs + turnaroundPauseMs + travelDurationMs -> {
+                    val elapsed = cyclePositionMs - startPauseMs - travelDurationMs - turnaroundPauseMs
+                    val progress = (elapsed.toFloat() / travelDurationMs).coerceIn(0f, 1f)
+                    targetOffset * (1f - progress)
+                }
+                else -> 0f
             }
-            cyclePositionMs < startPauseMs + travelDurationMs + turnaroundPauseMs -> 0f
-            cyclePositionMs < startPauseMs + travelDurationMs + turnaroundPauseMs + travelDurationMs -> {
-                playlistsTitleMarqueeMotionFadeAlpha(
-                    elapsedMs = cyclePositionMs - startPauseMs - travelDurationMs - turnaroundPauseMs,
-                    segmentDurationMs = travelDurationMs,
-                    fadeInMs = fadeInMs,
-                    fadeOutMs = fadeOutMs
-                )
+            fadeState.floatValue = when {
+                overflowPx <= 0 -> 0f
+                cyclePositionMs < startPauseMs -> 0f
+                cyclePositionMs < startPauseMs + travelDurationMs -> {
+                    playlistsTitleMarqueeMotionFadeAlpha(
+                        elapsedMs = cyclePositionMs - startPauseMs,
+                        segmentDurationMs = travelDurationMs,
+                        fadeInMs = fadeInMs,
+                        fadeOutMs = fadeOutMs
+                    )
+                }
+                cyclePositionMs < startPauseMs + travelDurationMs + turnaroundPauseMs -> 0f
+                cyclePositionMs < startPauseMs + travelDurationMs + turnaroundPauseMs + travelDurationMs -> {
+                    playlistsTitleMarqueeMotionFadeAlpha(
+                        elapsedMs = cyclePositionMs - startPauseMs - travelDurationMs - turnaroundPauseMs,
+                        segmentDurationMs = travelDurationMs,
+                        fadeInMs = fadeInMs,
+                        fadeOutMs = fadeOutMs
+                    )
+                }
+                else -> 0f
             }
-            else -> 0f
         }
         Box(
             modifier = Modifier
                 .fillMaxWidth()
                 .clipToBounds()
-                .then(
+                .graphicsLayer {
+                    compositingStrategy = CompositingStrategy.Offscreen
+                }
+                .drawWithContent {
+                    updateMarqueeFrame()
+                    drawContent()
+                    val marqueeFadeAlpha = fadeState.floatValue
                     if (overflowPx > 0 && marqueeFadeAlpha > 0f) {
-                        Modifier
-                            .graphicsLayer {
-                                compositingStrategy = CompositingStrategy.Offscreen
-                            }
-                            .drawWithContent {
-                                drawContent()
-                                val fadeWidthPx = marqueeEdgeFadePx.coerceAtMost(size.width / 2f)
-                                if (fadeWidthPx > 0f) {
-                                    val opaqueMaskAlpha = 1f - marqueeFadeAlpha
-                                    drawRect(
-                                        brush = Brush.horizontalGradient(
-                                            colors = listOf(
-                                                Color.Black.copy(alpha = opaqueMaskAlpha),
-                                                Color.Black
-                                            ),
-                                            startX = 0f,
-                                            endX = fadeWidthPx
-                                        ),
-                                        topLeft = Offset.Zero,
-                                        size = Size(fadeWidthPx, size.height),
-                                        blendMode = BlendMode.DstIn
-                                    )
-                                    drawRect(
-                                        brush = Brush.horizontalGradient(
-                                            colors = listOf(
-                                                Color.Black,
-                                                Color.Black.copy(alpha = opaqueMaskAlpha)
-                                            ),
-                                            startX = size.width - fadeWidthPx,
-                                            endX = size.width
-                                        ),
-                                        topLeft = Offset(size.width - fadeWidthPx, 0f),
-                                        size = Size(fadeWidthPx, size.height),
-                                        blendMode = BlendMode.DstIn
-                                    )
-                                }
-                            }
-                    } else {
-                        Modifier
+                        val fadeWidthPx = marqueeEdgeFadePx.coerceAtMost(size.width / 2f)
+                        if (fadeWidthPx > 0f) {
+                            val opaqueMaskAlpha = 1f - marqueeFadeAlpha
+                            drawRect(
+                                brush = Brush.horizontalGradient(
+                                    colors = listOf(
+                                        Color.Black.copy(alpha = opaqueMaskAlpha),
+                                        Color.Black
+                                    ),
+                                    startX = 0f,
+                                    endX = fadeWidthPx
+                                ),
+                                topLeft = Offset.Zero,
+                                size = Size(fadeWidthPx, size.height),
+                                blendMode = BlendMode.DstIn
+                            )
+                            drawRect(
+                                brush = Brush.horizontalGradient(
+                                    colors = listOf(
+                                        Color.Black,
+                                        Color.Black.copy(alpha = opaqueMaskAlpha)
+                                    ),
+                                    startX = size.width - fadeWidthPx,
+                                    endX = size.width
+                                ),
+                                topLeft = Offset(size.width - fadeWidthPx, 0f),
+                                size = Size(fadeWidthPx, size.height),
+                                blendMode = BlendMode.DstIn
+                            )
+                        }
                     }
-                )
+                }
         ) {
             if (overflowPx > 0) {
                 Row(
                     modifier = Modifier
                         .wrapContentWidth(align = Alignment.Start, unbounded = true)
-                        .graphicsLayer { translationX = marqueeOffsetPx }
+                        .graphicsLayer { translationX = offsetState.floatValue }
                 ) {
                     Text(
                         text = text,
@@ -7947,20 +7953,20 @@ private fun PlaylistTrackArtworkChip(
         }
     }.value
     val artwork = androidx.compose.runtime.produceState<androidx.compose.ui.graphics.ImageBitmap?>(
-        initialValue = null,
+        initialValue = peekRecentArtworkThumbnail(context, artworkThumbnailCacheKey),
         key1 = artworkThumbnailCacheKey
     ) {
+        val loaded = loadRecentArtworkThumbnail(context, artworkThumbnailCacheKey)
+        if (loaded != null) {
+            value = loaded
+            return@produceState
+        }
         value = withContext(Dispatchers.IO) {
-            val artworkFile = recentArtworkThumbnailFile(context, artworkThumbnailCacheKey)
-            if (artworkFile != null) {
-                BitmapFactory.decodeFile(artworkFile.absolutePath)?.asImageBitmap()
-            } else {
-                peekCachedArtworkBitmapForSource(
-                    displayFile = null,
-                    sourceId = entry.source,
-                    requestUrl = entry.requestUrlHint
-                )?.asImageBitmap()
-            }
+            peekCachedArtworkBitmapForSource(
+                displayFile = null,
+                sourceId = entry.source,
+                requestUrl = entry.requestUrlHint
+            )?.asImageBitmap()
         }
     }.value
     val chipSize = if (isWatch) 32.dp else 46.dp

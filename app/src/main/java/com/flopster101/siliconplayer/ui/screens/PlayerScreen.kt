@@ -3644,19 +3644,14 @@ private fun PlayerMarqueeScrollingContent(
         onDispose { marqueeActiveCount-- }
     }
     val density = LocalDensity.current
-    val sharedTimeMs = LocalPlayerMarqueeClockState.current.value
+    val clockState = LocalPlayerMarqueeClockState.current
     val marqueeInstanceStartMs = remember(text, style, expandToAvailableWidth) {
         mutableLongStateOf(Long.MIN_VALUE)
     }
-    SideEffect {
-        if (marqueeInstanceStartMs.longValue == Long.MIN_VALUE) {
-            marqueeInstanceStartMs.longValue = sharedTimeMs
-        }
-    }
-    val instanceElapsedMs = if (marqueeInstanceStartMs.longValue == Long.MIN_VALUE) {
-        0L
-    } else {
-        (sharedTimeMs - marqueeInstanceStartMs.longValue).coerceAtLeast(0L)
+    LaunchedEffect(text, style, expandToAvailableWidth) {
+        // Anchor once from the shared clock; a single composition-time read is
+        // fine here (no per-frame invalidation after anchoring).
+        marqueeInstanceStartMs.longValue = clockState.value
     }
     val startPauseMs = 1450
     val turnaroundPauseMs = 1050
@@ -3675,50 +3670,63 @@ private fun PlayerMarqueeScrollingContent(
     val returnDurationMs = travelDurationMs
     val targetOffset = if (overflowPx > 0) -travelDistancePx.toFloat() else 0f
     val cycleDurationMs = startPauseMs + forwardDurationMs + turnaroundPauseMs + returnDurationMs + resetPauseMs
-    val cyclePositionMs = if (overflowPx > 0 && cycleDurationMs > 0) {
-        (instanceElapsedMs % cycleDurationMs.toLong()).toInt()
-    } else {
-        0
-    }
-    val marqueeOffsetPx = when {
-        overflowPx <= 0 -> 0f
-        cyclePositionMs < startPauseMs -> 0f
-        cyclePositionMs < startPauseMs + forwardDurationMs -> {
-            val forwardElapsedMs = cyclePositionMs - startPauseMs
-            val forwardProgress = (forwardElapsedMs.toFloat() / forwardDurationMs).coerceIn(0f, 1f)
-            targetOffset * forwardProgress
+
+    // Per-frame offset/fade are computed in draw-phase lambdas so the marquee
+    // clock (which ticks every vsync) does not recompose this subtree.
+    val offsetState = remember { mutableFloatStateOf(0f) }
+    val fadeState = remember { mutableFloatStateOf(0f) }
+    fun updateMarqueeFrame() {
+        val startMs = marqueeInstanceStartMs.longValue
+        val instanceElapsedMs = if (startMs == Long.MIN_VALUE) {
+            0L
+        } else {
+            (clockState.value - startMs).coerceAtLeast(0L)
         }
-        cyclePositionMs < startPauseMs + forwardDurationMs + turnaroundPauseMs -> targetOffset
-        cyclePositionMs < startPauseMs + forwardDurationMs + turnaroundPauseMs + returnDurationMs -> {
-            val returnElapsedMs = cyclePositionMs - startPauseMs - forwardDurationMs - turnaroundPauseMs
-            val returnProgress = (returnElapsedMs.toFloat() / returnDurationMs).coerceIn(0f, 1f)
-            targetOffset * (1f - returnProgress)
+        val cyclePositionMs = if (overflowPx > 0 && cycleDurationMs > 0) {
+            (instanceElapsedMs % cycleDurationMs.toLong()).toInt()
+        } else {
+            0
         }
-        else -> 0f
-    }
-    val marqueeFadeAlpha = when {
-        overflowPx <= 0 -> 0f
-        cyclePositionMs < startPauseMs -> 0f
-        cyclePositionMs < startPauseMs + forwardDurationMs -> {
-            val forwardElapsedMs = cyclePositionMs - startPauseMs
-            playerMarqueeMotionFadeAlpha(
-                elapsedMs = forwardElapsedMs,
-                segmentDurationMs = forwardDurationMs,
-                fadeInMs = fadeInMs,
-                fadeOutMs = fadeOutMs
-            )
+        offsetState.floatValue = when {
+            overflowPx <= 0 -> 0f
+            cyclePositionMs < startPauseMs -> 0f
+            cyclePositionMs < startPauseMs + forwardDurationMs -> {
+                val forwardElapsedMs = cyclePositionMs - startPauseMs
+                val forwardProgress = (forwardElapsedMs.toFloat() / forwardDurationMs).coerceIn(0f, 1f)
+                targetOffset * forwardProgress
+            }
+            cyclePositionMs < startPauseMs + forwardDurationMs + turnaroundPauseMs -> targetOffset
+            cyclePositionMs < startPauseMs + forwardDurationMs + turnaroundPauseMs + returnDurationMs -> {
+                val returnElapsedMs = cyclePositionMs - startPauseMs - forwardDurationMs - turnaroundPauseMs
+                val returnProgress = (returnElapsedMs.toFloat() / returnDurationMs).coerceIn(0f, 1f)
+                targetOffset * (1f - returnProgress)
+            }
+            else -> 0f
         }
-        cyclePositionMs < startPauseMs + forwardDurationMs + turnaroundPauseMs -> 0f
-        cyclePositionMs < startPauseMs + forwardDurationMs + turnaroundPauseMs + returnDurationMs -> {
-            val returnElapsedMs = cyclePositionMs - startPauseMs - forwardDurationMs - turnaroundPauseMs
-            playerMarqueeMotionFadeAlpha(
-                elapsedMs = returnElapsedMs,
-                segmentDurationMs = returnDurationMs,
-                fadeInMs = fadeInMs,
-                fadeOutMs = fadeOutMs
-            )
+        fadeState.floatValue = when {
+            overflowPx <= 0 -> 0f
+            cyclePositionMs < startPauseMs -> 0f
+            cyclePositionMs < startPauseMs + forwardDurationMs -> {
+                val forwardElapsedMs = cyclePositionMs - startPauseMs
+                playerMarqueeMotionFadeAlpha(
+                    elapsedMs = forwardElapsedMs,
+                    segmentDurationMs = forwardDurationMs,
+                    fadeInMs = fadeInMs,
+                    fadeOutMs = fadeOutMs
+                )
+            }
+            cyclePositionMs < startPauseMs + forwardDurationMs + turnaroundPauseMs -> 0f
+            cyclePositionMs < startPauseMs + forwardDurationMs + turnaroundPauseMs + returnDurationMs -> {
+                val returnElapsedMs = cyclePositionMs - startPauseMs - forwardDurationMs - turnaroundPauseMs
+                playerMarqueeMotionFadeAlpha(
+                    elapsedMs = returnElapsedMs,
+                    segmentDurationMs = returnDurationMs,
+                    fadeInMs = fadeInMs,
+                    fadeOutMs = fadeOutMs
+                )
+            }
+            else -> 0f
         }
-        else -> 0f
     }
 
     Box(
@@ -3731,54 +3739,51 @@ private fun PlayerMarqueeScrollingContent(
                 }
             )
             .clipToBounds()
-            .then(
+            .graphicsLayer {
+                compositingStrategy = CompositingStrategy.Offscreen
+            }
+            .drawWithContent {
+                updateMarqueeFrame()
+                drawContent()
+                val marqueeFadeAlpha = fadeState.floatValue
                 if (overflowPx > 0 && marqueeFadeAlpha > 0f) {
-                    Modifier
-                        .graphicsLayer {
-                            compositingStrategy = CompositingStrategy.Offscreen
-                        }
-                        .drawWithContent {
-                            drawContent()
-                            val fadeWidthPx = marqueeEdgeFadePx.coerceAtMost(size.width / 2f)
-                            if (fadeWidthPx > 0f) {
-                                val opaqueMaskAlpha = 1f - marqueeFadeAlpha
-                                drawRect(
-                                    brush = Brush.horizontalGradient(
-                                        colors = listOf(
-                                            Color.Black.copy(alpha = opaqueMaskAlpha),
-                                            Color.Black
-                                        ),
-                                        startX = 0f,
-                                        endX = fadeWidthPx
-                                    ),
-                                    topLeft = Offset.Zero,
-                                    size = Size(fadeWidthPx, size.height),
-                                    blendMode = BlendMode.DstIn
-                                )
-                                drawRect(
-                                    brush = Brush.horizontalGradient(
-                                        colors = listOf(
-                                            Color.Black,
-                                            Color.Black.copy(alpha = opaqueMaskAlpha)
-                                        ),
-                                        startX = size.width - fadeWidthPx,
-                                        endX = size.width
-                                    ),
-                                    topLeft = Offset(size.width - fadeWidthPx, 0f),
-                                    size = Size(fadeWidthPx, size.height),
-                                    blendMode = BlendMode.DstIn
-                                )
-                            }
-                        }
-                } else {
-                    Modifier
+                    val fadeWidthPx = marqueeEdgeFadePx.coerceAtMost(size.width / 2f)
+                    if (fadeWidthPx > 0f) {
+                        val opaqueMaskAlpha = 1f - marqueeFadeAlpha
+                        drawRect(
+                            brush = Brush.horizontalGradient(
+                                colors = listOf(
+                                    Color.Black.copy(alpha = opaqueMaskAlpha),
+                                    Color.Black
+                                ),
+                                startX = 0f,
+                                endX = fadeWidthPx
+                            ),
+                            topLeft = Offset.Zero,
+                            size = Size(fadeWidthPx, size.height),
+                            blendMode = BlendMode.DstIn
+                        )
+                        drawRect(
+                            brush = Brush.horizontalGradient(
+                                colors = listOf(
+                                    Color.Black,
+                                    Color.Black.copy(alpha = opaqueMaskAlpha)
+                                ),
+                                startX = size.width - fadeWidthPx,
+                                endX = size.width
+                            ),
+                            topLeft = Offset(size.width - fadeWidthPx, 0f),
+                            size = Size(fadeWidthPx, size.height),
+                            blendMode = BlendMode.DstIn
+                        )
+                    }
                 }
-            )
+            }
     ) {
         Row(
             modifier = Modifier
                 .wrapContentWidth(align = Alignment.Start, unbounded = true)
-                .graphicsLayer { translationX = marqueeOffsetPx }
+                .graphicsLayer { translationX = offsetState.floatValue }
         ) {
             Text(
                 text = text,
