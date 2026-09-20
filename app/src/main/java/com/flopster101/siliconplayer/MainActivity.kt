@@ -4387,6 +4387,9 @@ filenameOnlyWhenTitleMissing = filenameOnlyWhenTitleMissing,
                                     onOpenVisualizationAdvancedChannelScope = {
                             openSettingsRoute(SettingsRoute.VisualizationAdvancedChannelScope, false)
                         },
+                                    onOpenVisualizationAdvancedStarfield = {
+                            openSettingsRoute(SettingsRoute.VisualizationAdvancedStarfield, false)
+                        },
                                     onOpenVisualizationAdvancedProjectM = {
                             openSettingsRoute(SettingsRoute.VisualizationAdvancedProjectM, false)
                         },

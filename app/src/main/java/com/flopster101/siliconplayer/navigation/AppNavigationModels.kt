@@ -32,6 +32,7 @@ enum class SettingsRoute {
     VisualizationBasicVuMeters,
     VisualizationAdvanced,
     VisualizationAdvancedChannelScope,
+    VisualizationAdvancedStarfield,
     VisualizationAdvancedProjectM,
     VisualizationAdvancedProjectMPacks,
     Misc,
@@ -71,6 +72,7 @@ internal fun settingsRouteOrder(route: SettingsRoute): Int = when (route) {
     SettingsRoute.VisualizationBasicVuMeters -> 3
     SettingsRoute.VisualizationAdvanced -> 2
     SettingsRoute.VisualizationAdvancedChannelScope -> 3
+    SettingsRoute.VisualizationAdvancedStarfield -> 3
     SettingsRoute.VisualizationAdvancedProjectM -> 3
     SettingsRoute.VisualizationAdvancedProjectMPacks -> 4
     SettingsRoute.Misc -> 1

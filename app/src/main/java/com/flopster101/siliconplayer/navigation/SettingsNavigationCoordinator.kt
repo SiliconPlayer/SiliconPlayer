@@ -100,6 +100,13 @@ internal fun buildSettingsNavigationCoordinator(
         setPlayerExpanded(false)
     }
 
+    val openVisualizationStarfieldSettings: () -> Unit = {
+        setSettingsReturnView(resolvedSettingsReturnView)
+        openSettingsRoute(SettingsRoute.VisualizationAdvancedStarfield, true)
+        setCurrentView(MainView.Settings)
+        setPlayerExpanded(false)
+    }
+
     val openVisualizationProjectMSettings: () -> Unit = {
         setSettingsReturnView(resolvedSettingsReturnView)
         openSettingsRoute(SettingsRoute.VisualizationAdvancedProjectM, true)
@@ -113,6 +120,7 @@ internal fun buildSettingsNavigationCoordinator(
             VisualizationMode.Oscilloscope -> openVisualizationOscilloscopeSettings()
             VisualizationMode.VuMeters -> openVisualizationVuMetersSettings()
             VisualizationMode.ChannelScope -> openVisualizationChannelScopeSettings()
+            VisualizationMode.Starfield -> openVisualizationStarfieldSettings()
             VisualizationMode.ProjectM -> openVisualizationProjectMSettings()
             VisualizationMode.Off -> Unit
         }

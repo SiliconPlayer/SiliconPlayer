@@ -182,5 +182,82 @@ object AppDefaults {
                 return if (isWatch || CpuHardwareDetector.info.isLegacyOrConstrained) 32 else meshSize
             }
         }
+
+        data class StarfieldPresetTune(
+            val starCount: Int,
+            val speedCenti: Int,
+            val fovCenti: Int,
+            val nearMilli: Int,
+            val starColorArgb: Int,
+            val baseSizeDeci: Int,
+            val sizeGrowthCenti: Int,
+            val farDimPercent: Int,
+            val softnessPercent: Int,
+            val beatGlowPercent: Int,
+            val glowSizeDeci: Int,
+            val trailPercent: Int,
+            val streaksEnabled: Boolean,
+            val streakLengthCenti: Int,
+            val centerXCenti: Int,
+            val centerYCenti: Int,
+            val autoDriftEnabled: Boolean,
+            val reactSpeedCenti: Int,
+            val flashPercent: Int,
+            val contrastBackdropEnabled: Boolean,
+            val squarePixelsEnabled: Boolean
+        )
+
+        object Starfield {
+            val starCountRange = 10..2000
+            val speedRangeCenti = 2..150
+            val fovRangeCenti = 40..250
+            val nearRangeMilli = 10..300
+            val baseSizeRangeDeci = 5..100
+            val sizeGrowthRangeCenti = 0..400
+            val percentRange = 0..100
+            val glowSizeRangeDeci = 10..60
+            val trailRangePercent = 0..98
+            val streakLengthRangeCenti = 10..300
+            val centerRangeCenti = -50..50
+            val reactSpeedRangeCenti = 0..500
+            const val beatFollowEnabled = false
+
+            val classic = StarfieldPresetTune(
+                starCount = 70, speedCenti = 30, fovCenti = 100, nearMilli = 60,
+                starColorArgb = 0xFFFFFFFF.toInt(), baseSizeDeci = 45, sizeGrowthCenti = 120,
+                farDimPercent = 60, softnessPercent = 25, beatGlowPercent = 25, glowSizeDeci = 25,
+                trailPercent = 55, streaksEnabled = false, streakLengthCenti = 100,
+                centerXCenti = 0, centerYCenti = 0, autoDriftEnabled = false,
+                reactSpeedCenti = 150, flashPercent = 50, contrastBackdropEnabled = true,
+                squarePixelsEnabled = true
+            )
+            val warp = StarfieldPresetTune(
+                starCount = 50, speedCenti = 50, fovCenti = 130, nearMilli = 30,
+                starColorArgb = 0xFFFFFFFF.toInt(), baseSizeDeci = 70, sizeGrowthCenti = 220,
+                farDimPercent = 45, softnessPercent = 35, beatGlowPercent = 20, glowSizeDeci = 30,
+                trailPercent = 75, streaksEnabled = true, streakLengthCenti = 100,
+                centerXCenti = 0, centerYCenti = 0, autoDriftEnabled = false,
+                reactSpeedCenti = 140, flashPercent = 20, contrastBackdropEnabled = true,
+                squarePixelsEnabled = false
+            )
+            val snow = StarfieldPresetTune(
+                starCount = 120, speedCenti = 15, fovCenti = 70, nearMilli = 100,
+                starColorArgb = 0xFFCFE4FF.toInt(), baseSizeDeci = 80, sizeGrowthCenti = 40,
+                farDimPercent = 30, softnessPercent = 80, beatGlowPercent = 50, glowSizeDeci = 40,
+                trailPercent = 70, streaksEnabled = false, streakLengthCenti = 100,
+                centerXCenti = 0, centerYCenti = 0, autoDriftEnabled = true,
+                reactSpeedCenti = 80, flashPercent = 20, contrastBackdropEnabled = true,
+                squarePixelsEnabled = false
+            )
+            val beatRider = StarfieldPresetTune(
+                starCount = 120, speedCenti = 20, fovCenti = 110, nearMilli = 60,
+                starColorArgb = 0xFFFFFFFF.toInt(), baseSizeDeci = 65, sizeGrowthCenti = 160,
+                farDimPercent = 55, softnessPercent = 35, beatGlowPercent = 100, glowSizeDeci = 40,
+                trailPercent = 50, streaksEnabled = false, streakLengthCenti = 100,
+                centerXCenti = 0, centerYCenti = 0, autoDriftEnabled = false,
+                reactSpeedCenti = 300, flashPercent = 85, contrastBackdropEnabled = true,
+                squarePixelsEnabled = false
+            )
+        }
     }
 }

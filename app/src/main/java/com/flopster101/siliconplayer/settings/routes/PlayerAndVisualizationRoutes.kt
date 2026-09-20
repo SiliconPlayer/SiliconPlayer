@@ -14,6 +14,7 @@ import androidx.compose.material.icons.filled.Fullscreen
 import androidx.compose.material.icons.filled.GraphicEq
 import androidx.compose.material.icons.filled.MonitorHeart
 import androidx.compose.material.icons.filled.MoreHoriz
+import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.filled.Tune
 import androidx.compose.runtime.remember
 import androidx.compose.ui.platform.LocalContext
@@ -71,6 +72,12 @@ private fun advancedVisualizationSettingsPages(): List<VisualizationSettingsPage
         mode = VisualizationMode.ChannelScope,
         title = "Channel scope",
         description = "Per-channel scope-style visualization for supported cores."
+    ),
+    VisualizationSettingsPageItem(
+        route = SettingsRoute.VisualizationAdvancedStarfield,
+        mode = VisualizationMode.Starfield,
+        title = "Starfield",
+        description = "Hyperspace flight with beat follow and trails."
     ),
     VisualizationSettingsPageItem(
         route = SettingsRoute.VisualizationAdvancedProjectM,
@@ -150,6 +157,7 @@ internal data class VisualizationBasicRouteActions(
 
 internal data class VisualizationAdvancedRouteActions(
     val onOpenVisualizationAdvancedChannelScope: () -> Unit,
+    val onOpenVisualizationAdvancedStarfield: () -> Unit,
     val onOpenVisualizationAdvancedProjectM: () -> Unit
 )
 
@@ -695,6 +703,7 @@ internal fun VisualizationAdvancedRouteContent(
     actions: VisualizationAdvancedRouteActions
 ) {
     val onOpenVisualizationAdvancedChannelScope = actions.onOpenVisualizationAdvancedChannelScope
+    val onOpenVisualizationAdvancedStarfield = actions.onOpenVisualizationAdvancedStarfield
     val onOpenVisualizationAdvancedProjectM = actions.onOpenVisualizationAdvancedProjectM
 
     val advancedPages = remember { advancedVisualizationSettingsPages() }
@@ -704,6 +713,7 @@ internal fun VisualizationAdvancedRouteContent(
     advancedPages.forEachIndexed { index, page ->
         val icon = when (page.mode) {
             VisualizationMode.ChannelScope -> Icons.Default.MonitorHeart
+            VisualizationMode.Starfield -> Icons.Default.Star
             VisualizationMode.ProjectM -> Icons.Default.AutoAwesome
             else -> Icons.Default.Tune
         }
@@ -723,6 +733,7 @@ internal fun VisualizationAdvancedRouteContent(
                 onClick = {
                     when (page.route) {
                         SettingsRoute.VisualizationAdvancedChannelScope -> onOpenVisualizationAdvancedChannelScope()
+                        SettingsRoute.VisualizationAdvancedStarfield -> onOpenVisualizationAdvancedStarfield()
                         SettingsRoute.VisualizationAdvancedProjectM -> onOpenVisualizationAdvancedProjectM()
                         else -> Unit
                     }

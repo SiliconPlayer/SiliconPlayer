@@ -1056,6 +1056,7 @@ internal fun PlayerScreen(
         defaultVuRenderBackend = visualizationVuRenderBackend
     )
     val channelScopePrefs = rememberChannelScopePrefs(prefs)
+    val starfieldPrefs = rememberStarfieldPrefs(prefs)
     val onVisualizerAction: () -> Unit = {
         when (visualizationMode) {
             VisualizationMode.ProjectM ->
@@ -1456,6 +1457,7 @@ internal fun PlayerScreen(
                     visualizationVuAnchor = visualizationVuAnchor,
                     visualizationVuUseThemeColor = visualizationVuUseThemeColor,
                     channelScopePrefs = effectiveChannelScopePrefs,
+                    starfieldPrefs = starfieldPrefs,
                     artworkCornerRadiusDp = artworkCornerRadiusDp,
                     availableVisualizationModes = availableVisualizationModes,
                     onSelectVisualizationMode = onSelectVisualizationMode,
@@ -1560,6 +1562,7 @@ internal fun PlayerScreen(
                                 vuContrastBackdropEnabled = visualizationPrefsState.vuContrastBackdropEnabled,
                                 barContrastBackdropEnabled = visualizationPrefsState.barContrastBackdropEnabled,
                                 channelScopePrefs = effectiveChannelScopePrefs,
+                                starfieldPrefs = starfieldPrefs,
                                 artworkCornerRadiusDp = artworkCornerRadiusDp,
                                 onSwipePreviousTrack = onForcePreviousTrack,
                                 onSwipeNextTrack = onNextTrack,
@@ -1862,6 +1865,7 @@ internal fun PlayerScreen(
                                         vuContrastBackdropEnabled = visualizationPrefsState.vuContrastBackdropEnabled,
                                         barContrastBackdropEnabled = visualizationPrefsState.barContrastBackdropEnabled,
                                         channelScopePrefs = effectiveChannelScopePrefs,
+                                        starfieldPrefs = starfieldPrefs,
                                         artworkCornerRadiusDp = artworkCornerRadiusDp,
                                         onSwipePreviousTrack = onForcePreviousTrack,
                                         onSwipeNextTrack = onNextTrack,
@@ -2165,6 +2169,7 @@ internal fun PlayerScreen(
                 vuCustomColorArgb = visualizationPrefsState.vuCustomColorArgb,
                 vuContrastBackdropEnabled = visualizationPrefsState.vuContrastBackdropEnabled,
                 channelScopePrefs = effectiveChannelScopePrefs,
+                starfieldPrefs = starfieldPrefs,
                 artworkCornerRadiusDp = 0,
                 enableSwipe = false,
                 modifier = Modifier.fillMaxSize()
@@ -5881,6 +5886,7 @@ private fun WearPlayerContent(
     visualizationVuAnchor: VisualizationVuAnchor,
     visualizationVuUseThemeColor: Boolean,
     channelScopePrefs: ChannelScopePrefs,
+    starfieldPrefs: StarfieldPrefs,
     artworkCornerRadiusDp: Int,
     availableVisualizationModes: List<VisualizationMode> = emptyList(),
     onSelectVisualizationMode: (VisualizationMode) -> Unit = {},
@@ -6324,6 +6330,7 @@ private fun WearPlayerContent(
                             vuContrastBackdropEnabled = visualizationPrefsState.vuContrastBackdropEnabled,
                             barContrastBackdropEnabled = visualizationPrefsState.barContrastBackdropEnabled,
                             channelScopePrefs = channelScopePrefs,
+                            starfieldPrefs = starfieldPrefs,
                             artworkCornerRadiusDp = artworkCornerRadiusDp,
                             onSwipePreviousTrack = {},
                             onSwipeNextTrack = {},

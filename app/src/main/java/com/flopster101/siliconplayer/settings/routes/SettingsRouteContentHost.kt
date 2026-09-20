@@ -385,6 +385,7 @@ internal fun SettingsRouteContentHost(
                         VisualizationAdvancedRouteContent(
                             actions = VisualizationAdvancedRouteActions(
                                 onOpenVisualizationAdvancedChannelScope = actions.onOpenVisualizationAdvancedChannelScope,
+                                onOpenVisualizationAdvancedStarfield = actions.onOpenVisualizationAdvancedStarfield,
                                 onOpenVisualizationAdvancedProjectM = actions.onOpenVisualizationAdvancedProjectM
                             )
                         )
@@ -437,6 +438,10 @@ internal fun SettingsRouteContentHost(
 
                     SettingsRoute.VisualizationAdvancedChannelScope -> {
                         VisualizationAdvancedChannelScopeRouteContent()
+                    }
+
+                    SettingsRoute.VisualizationAdvancedStarfield -> {
+                        VisualizationAdvancedStarfieldRouteContent()
                     }
 
                     SettingsRoute.VisualizationAdvancedProjectM -> {
@@ -549,6 +554,7 @@ internal fun settingsSecondaryTitle(route: SettingsRoute, selectedPluginName: St
         SettingsRoute.VisualizationBasicVuMeters -> "VU meters settings"
         SettingsRoute.VisualizationAdvanced -> "Advanced visualizations"
         SettingsRoute.VisualizationAdvancedChannelScope -> "Channel scope settings"
+        SettingsRoute.VisualizationAdvancedStarfield -> "Starfield settings"
         SettingsRoute.VisualizationAdvancedProjectM -> "projectM settings"
         SettingsRoute.VisualizationAdvancedProjectMPacks -> "Preset packs"
         SettingsRoute.Misc -> "Misc settings"

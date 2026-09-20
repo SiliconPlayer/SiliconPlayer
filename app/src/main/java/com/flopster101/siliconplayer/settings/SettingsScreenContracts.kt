@@ -262,6 +262,7 @@ internal data class SettingsScreenActions(
     val onOpenVisualizationBasicVuMeters: () -> Unit,
     val onOpenVisualizationAdvanced: () -> Unit,
     val onOpenVisualizationAdvancedChannelScope: () -> Unit,
+    val onOpenVisualizationAdvancedStarfield: () -> Unit,
     val onOpenVisualizationAdvancedProjectM: () -> Unit,
     val onOpenVisualizationProjectMPacks: () -> Unit,
     val onOpenMisc: () -> Unit,

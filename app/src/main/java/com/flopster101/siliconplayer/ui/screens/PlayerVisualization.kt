@@ -35,6 +35,7 @@ import androidx.compose.material.icons.filled.Equalizer
 import androidx.compose.material.icons.filled.GraphicEq
 import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.MonitorHeart
+import androidx.compose.material.icons.filled.Star
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ElevatedCard
 import androidx.compose.material3.Icon
@@ -77,6 +78,7 @@ import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
 import com.flopster101.siliconplayer.ArtworkSwipePreviewState
 import com.flopster101.siliconplayer.AppDefaults
+import com.flopster101.siliconplayer.AppPreferenceKeys
 import com.flopster101.siliconplayer.ChannelScopeVisibleElementId
 import com.flopster101.siliconplayer.DecoderNames
 import com.flopster101.siliconplayer.NativeBridge
@@ -87,6 +89,7 @@ import com.flopster101.siliconplayer.VisualizationChannelScopeTextColorMode
 import com.flopster101.siliconplayer.VisualizationChannelScopeTextFont
 import com.flopster101.siliconplayer.VisualizationChannelScopeTriggerAlgorithm
 import com.flopster101.siliconplayer.VisualizationChannelScopeWaveRenderMode
+import com.flopster101.siliconplayer.StarfieldPreset
 import com.flopster101.siliconplayer.VisualizationMode
 import com.flopster101.siliconplayer.VisualizationNoteNameFormat
 import com.flopster101.siliconplayer.VisualizationOscColorMode
@@ -249,6 +252,7 @@ private fun VisualizationModeBadge(
                     VisualizationMode.Oscilloscope -> Icons.Default.MonitorHeart
                     VisualizationMode.VuMeters -> Icons.Default.Equalizer
                     VisualizationMode.ChannelScope -> Icons.Default.MonitorHeart
+                    VisualizationMode.Starfield -> Icons.Default.Star
                     VisualizationMode.ProjectM -> Icons.Default.AutoAwesome
                 },
                 contentDescription = null,
@@ -637,6 +641,7 @@ private fun snapshotSourceSignature(
             hash = mixSignature(hash, sampledIntArraySignature(snapshot.channelScopeTextRaw, maxSamples = 32))
             hash
         }
+        VisualizationMode.Starfield -> null
         VisualizationMode.ProjectM -> null
     }
 }
@@ -990,6 +995,7 @@ private fun readVisualizationSnapshot(
             }
         }
         VisualizationMode.ProjectM -> VisualizationSnapshot()
+        VisualizationMode.Starfield -> VisualizationSnapshot()
         VisualizationMode.Off -> VisualizationSnapshot()
     }
 }
@@ -1783,6 +1789,240 @@ internal fun rememberChannelScopePrefs(
     return state
 }
 
+internal data class StarfieldModeKeys(
+    val starCount: String,
+    val speedCenti: String,
+    val fovCenti: String,
+    val nearMilli: String,
+    val starColorArgb: String,
+    val baseSizeDeci: String,
+    val sizeGrowthCenti: String,
+    val farDimPercent: String,
+    val softnessPercent: String,
+    val beatGlowPercent: String,
+    val glowSizeDeci: String,
+    val trailPercent: String,
+    val streaksEnabled: String,
+    val streakLengthCenti: String,
+    val centerXCenti: String,
+    val centerYCenti: String,
+    val autoDriftEnabled: String,
+    val reactSpeedCenti: String,
+    val flashPercent: String,
+    val contrastBackdropEnabled: String,
+    val squareEnabled: String
+)
+
+internal fun starfieldKeysFor(preset: StarfieldPreset): StarfieldModeKeys = when (preset) {
+    StarfieldPreset.Warp -> StarfieldModeKeys(
+        starCount = AppPreferenceKeys.VISUALIZATION_STARFIELD_WARP_STAR_COUNT,
+        speedCenti = AppPreferenceKeys.VISUALIZATION_STARFIELD_WARP_SPEED_CENTI,
+        fovCenti = AppPreferenceKeys.VISUALIZATION_STARFIELD_WARP_FOV_CENTI,
+        nearMilli = AppPreferenceKeys.VISUALIZATION_STARFIELD_WARP_NEAR_MILLI,
+        starColorArgb = AppPreferenceKeys.VISUALIZATION_STARFIELD_WARP_STAR_COLOR_ARGB,
+        baseSizeDeci = AppPreferenceKeys.VISUALIZATION_STARFIELD_WARP_BASE_SIZE_DECI,
+        sizeGrowthCenti = AppPreferenceKeys.VISUALIZATION_STARFIELD_WARP_SIZE_GROWTH_CENTI,
+        farDimPercent = AppPreferenceKeys.VISUALIZATION_STARFIELD_WARP_FAR_DIM_PERCENT,
+        softnessPercent = AppPreferenceKeys.VISUALIZATION_STARFIELD_WARP_SOFTNESS_PERCENT,
+        beatGlowPercent = AppPreferenceKeys.VISUALIZATION_STARFIELD_WARP_BEAT_GLOW_PERCENT,
+        glowSizeDeci = AppPreferenceKeys.VISUALIZATION_STARFIELD_WARP_GLOW_SIZE_DECI,
+        trailPercent = AppPreferenceKeys.VISUALIZATION_STARFIELD_WARP_TRAIL_PERCENT,
+        streaksEnabled = AppPreferenceKeys.VISUALIZATION_STARFIELD_WARP_STREAKS_ENABLED,
+        streakLengthCenti = AppPreferenceKeys.VISUALIZATION_STARFIELD_WARP_STREAK_LENGTH_CENTI,
+        centerXCenti = AppPreferenceKeys.VISUALIZATION_STARFIELD_WARP_CENTER_X_CENTI,
+        centerYCenti = AppPreferenceKeys.VISUALIZATION_STARFIELD_WARP_CENTER_Y_CENTI,
+        autoDriftEnabled = AppPreferenceKeys.VISUALIZATION_STARFIELD_WARP_AUTO_DRIFT_ENABLED,
+        reactSpeedCenti = AppPreferenceKeys.VISUALIZATION_STARFIELD_WARP_REACT_SPEED_CENTI,
+        flashPercent = AppPreferenceKeys.VISUALIZATION_STARFIELD_WARP_FLASH_PERCENT,
+        contrastBackdropEnabled = AppPreferenceKeys.VISUALIZATION_STARFIELD_WARP_CONTRAST_BACKDROP_ENABLED,
+        squareEnabled = AppPreferenceKeys.VISUALIZATION_STARFIELD_WARP_SQUARE_ENABLED
+    )
+    StarfieldPreset.SnowDrift -> StarfieldModeKeys(
+        starCount = AppPreferenceKeys.VISUALIZATION_STARFIELD_SNOW_STAR_COUNT,
+        speedCenti = AppPreferenceKeys.VISUALIZATION_STARFIELD_SNOW_SPEED_CENTI,
+        fovCenti = AppPreferenceKeys.VISUALIZATION_STARFIELD_SNOW_FOV_CENTI,
+        nearMilli = AppPreferenceKeys.VISUALIZATION_STARFIELD_SNOW_NEAR_MILLI,
+        starColorArgb = AppPreferenceKeys.VISUALIZATION_STARFIELD_SNOW_STAR_COLOR_ARGB,
+        baseSizeDeci = AppPreferenceKeys.VISUALIZATION_STARFIELD_SNOW_BASE_SIZE_DECI,
+        sizeGrowthCenti = AppPreferenceKeys.VISUALIZATION_STARFIELD_SNOW_SIZE_GROWTH_CENTI,
+        farDimPercent = AppPreferenceKeys.VISUALIZATION_STARFIELD_SNOW_FAR_DIM_PERCENT,
+        softnessPercent = AppPreferenceKeys.VISUALIZATION_STARFIELD_SNOW_SOFTNESS_PERCENT,
+        beatGlowPercent = AppPreferenceKeys.VISUALIZATION_STARFIELD_SNOW_BEAT_GLOW_PERCENT,
+        glowSizeDeci = AppPreferenceKeys.VISUALIZATION_STARFIELD_SNOW_GLOW_SIZE_DECI,
+        trailPercent = AppPreferenceKeys.VISUALIZATION_STARFIELD_SNOW_TRAIL_PERCENT,
+        streaksEnabled = AppPreferenceKeys.VISUALIZATION_STARFIELD_SNOW_STREAKS_ENABLED,
+        streakLengthCenti = AppPreferenceKeys.VISUALIZATION_STARFIELD_SNOW_STREAK_LENGTH_CENTI,
+        centerXCenti = AppPreferenceKeys.VISUALIZATION_STARFIELD_SNOW_CENTER_X_CENTI,
+        centerYCenti = AppPreferenceKeys.VISUALIZATION_STARFIELD_SNOW_CENTER_Y_CENTI,
+        autoDriftEnabled = AppPreferenceKeys.VISUALIZATION_STARFIELD_SNOW_AUTO_DRIFT_ENABLED,
+        reactSpeedCenti = AppPreferenceKeys.VISUALIZATION_STARFIELD_SNOW_REACT_SPEED_CENTI,
+        flashPercent = AppPreferenceKeys.VISUALIZATION_STARFIELD_SNOW_FLASH_PERCENT,
+        contrastBackdropEnabled = AppPreferenceKeys.VISUALIZATION_STARFIELD_SNOW_CONTRAST_BACKDROP_ENABLED,
+        squareEnabled = AppPreferenceKeys.VISUALIZATION_STARFIELD_SNOW_SQUARE_ENABLED
+    )
+    StarfieldPreset.BeatRider -> StarfieldModeKeys(
+        starCount = AppPreferenceKeys.VISUALIZATION_STARFIELD_BEAT_STAR_COUNT,
+        speedCenti = AppPreferenceKeys.VISUALIZATION_STARFIELD_BEAT_SPEED_CENTI,
+        fovCenti = AppPreferenceKeys.VISUALIZATION_STARFIELD_BEAT_FOV_CENTI,
+        nearMilli = AppPreferenceKeys.VISUALIZATION_STARFIELD_BEAT_NEAR_MILLI,
+        starColorArgb = AppPreferenceKeys.VISUALIZATION_STARFIELD_BEAT_STAR_COLOR_ARGB,
+        baseSizeDeci = AppPreferenceKeys.VISUALIZATION_STARFIELD_BEAT_BASE_SIZE_DECI,
+        sizeGrowthCenti = AppPreferenceKeys.VISUALIZATION_STARFIELD_BEAT_SIZE_GROWTH_CENTI,
+        farDimPercent = AppPreferenceKeys.VISUALIZATION_STARFIELD_BEAT_FAR_DIM_PERCENT,
+        softnessPercent = AppPreferenceKeys.VISUALIZATION_STARFIELD_BEAT_SOFTNESS_PERCENT,
+        beatGlowPercent = AppPreferenceKeys.VISUALIZATION_STARFIELD_BEAT_BEAT_GLOW_PERCENT,
+        glowSizeDeci = AppPreferenceKeys.VISUALIZATION_STARFIELD_BEAT_GLOW_SIZE_DECI,
+        trailPercent = AppPreferenceKeys.VISUALIZATION_STARFIELD_BEAT_TRAIL_PERCENT,
+        streaksEnabled = AppPreferenceKeys.VISUALIZATION_STARFIELD_BEAT_STREAKS_ENABLED,
+        streakLengthCenti = AppPreferenceKeys.VISUALIZATION_STARFIELD_BEAT_STREAK_LENGTH_CENTI,
+        centerXCenti = AppPreferenceKeys.VISUALIZATION_STARFIELD_BEAT_CENTER_X_CENTI,
+        centerYCenti = AppPreferenceKeys.VISUALIZATION_STARFIELD_BEAT_CENTER_Y_CENTI,
+        autoDriftEnabled = AppPreferenceKeys.VISUALIZATION_STARFIELD_BEAT_AUTO_DRIFT_ENABLED,
+        reactSpeedCenti = AppPreferenceKeys.VISUALIZATION_STARFIELD_BEAT_REACT_SPEED_CENTI,
+        flashPercent = AppPreferenceKeys.VISUALIZATION_STARFIELD_BEAT_FLASH_PERCENT,
+        contrastBackdropEnabled = AppPreferenceKeys.VISUALIZATION_STARFIELD_BEAT_CONTRAST_BACKDROP_ENABLED,
+        squareEnabled = AppPreferenceKeys.VISUALIZATION_STARFIELD_BEAT_SQUARE_ENABLED
+    )
+    else -> StarfieldModeKeys(
+        starCount = AppPreferenceKeys.VISUALIZATION_STARFIELD_STAR_COUNT,
+        speedCenti = AppPreferenceKeys.VISUALIZATION_STARFIELD_SPEED_CENTI,
+        fovCenti = AppPreferenceKeys.VISUALIZATION_STARFIELD_FOV_CENTI,
+        nearMilli = AppPreferenceKeys.VISUALIZATION_STARFIELD_NEAR_MILLI,
+        starColorArgb = AppPreferenceKeys.VISUALIZATION_STARFIELD_STAR_COLOR_ARGB,
+        baseSizeDeci = AppPreferenceKeys.VISUALIZATION_STARFIELD_BASE_SIZE_DECI,
+        sizeGrowthCenti = AppPreferenceKeys.VISUALIZATION_STARFIELD_SIZE_GROWTH_CENTI,
+        farDimPercent = AppPreferenceKeys.VISUALIZATION_STARFIELD_FAR_DIM_PERCENT,
+        softnessPercent = AppPreferenceKeys.VISUALIZATION_STARFIELD_SOFTNESS_PERCENT,
+        beatGlowPercent = AppPreferenceKeys.VISUALIZATION_STARFIELD_BEAT_GLOW_PERCENT,
+        glowSizeDeci = AppPreferenceKeys.VISUALIZATION_STARFIELD_GLOW_SIZE_DECI,
+        trailPercent = AppPreferenceKeys.VISUALIZATION_STARFIELD_TRAIL_PERCENT,
+        streaksEnabled = AppPreferenceKeys.VISUALIZATION_STARFIELD_STREAKS_ENABLED,
+        streakLengthCenti = AppPreferenceKeys.VISUALIZATION_STARFIELD_STREAK_LENGTH_CENTI,
+        centerXCenti = AppPreferenceKeys.VISUALIZATION_STARFIELD_CENTER_X_CENTI,
+        centerYCenti = AppPreferenceKeys.VISUALIZATION_STARFIELD_CENTER_Y_CENTI,
+        autoDriftEnabled = AppPreferenceKeys.VISUALIZATION_STARFIELD_AUTO_DRIFT_ENABLED,
+        reactSpeedCenti = AppPreferenceKeys.VISUALIZATION_STARFIELD_REACT_SPEED_CENTI,
+        flashPercent = AppPreferenceKeys.VISUALIZATION_STARFIELD_FLASH_PERCENT,
+        contrastBackdropEnabled = AppPreferenceKeys.VISUALIZATION_STARFIELD_CONTRAST_BACKDROP_ENABLED,
+        squareEnabled = AppPreferenceKeys.VISUALIZATION_STARFIELD_SQUARE_ENABLED
+    )
+}
+
+internal fun starfieldPresetTuneFor(preset: StarfieldPreset): AppDefaults.Visualization.StarfieldPresetTune =
+    when (preset) {
+        StarfieldPreset.Warp -> AppDefaults.Visualization.Starfield.warp
+        StarfieldPreset.SnowDrift -> AppDefaults.Visualization.Starfield.snow
+        StarfieldPreset.BeatRider -> AppDefaults.Visualization.Starfield.beatRider
+        else -> AppDefaults.Visualization.Starfield.classic
+    }
+
+internal fun starfieldActivePreset(sharedPrefs: android.content.SharedPreferences): StarfieldPreset {
+    return StarfieldPreset.fromStorage(
+        sharedPrefs.getString(
+            AppPreferenceKeys.VISUALIZATION_STARFIELD_ACTIVE_PRESET,
+            StarfieldPreset.ClassicAmiga.storageValue
+        )
+    )
+}
+
+
+internal data class StarfieldPrefs(
+    val starCount: Int,
+    val speed: Float,
+    val fov: Float,
+    val nearPlane: Float,
+    val starColorArgb: Int,
+    val baseSizePx: Float,
+    val sizeGrowth: Float,
+    val farDim: Float,
+    val softness: Float,
+    val beatGlow: Float,
+    val glowSize: Float,
+    val trailPersistence: Float,
+    val streaks: Boolean,
+    val streakLength: Float,
+    val centerX: Float,
+    val centerY: Float,
+    val autoDrift: Boolean,
+    val beatFollow: Boolean,
+    val reactSpeed: Float,
+    val flash: Float,
+    val contrastBackdropEnabled: Boolean,
+    val square: Boolean
+) {
+    companion object {
+        fun from(sharedPrefs: android.content.SharedPreferences): StarfieldPrefs {
+            val d = AppDefaults.Visualization.Starfield
+            val t = starfieldPresetTuneFor(starfieldActivePreset(sharedPrefs))
+            val k = starfieldKeysFor(starfieldActivePreset(sharedPrefs))
+            return StarfieldPrefs(
+                starCount = sharedPrefs.getInt(k.starCount, t.starCount)
+                    .coerceIn(d.starCountRange.first, d.starCountRange.last),
+                speed = sharedPrefs.getInt(k.speedCenti, t.speedCenti)
+                    .coerceIn(d.speedRangeCenti.first, d.speedRangeCenti.last) / 100f,
+                fov = sharedPrefs.getInt(k.fovCenti, t.fovCenti)
+                    .coerceIn(d.fovRangeCenti.first, d.fovRangeCenti.last) / 100f,
+                nearPlane = sharedPrefs.getInt(k.nearMilli, t.nearMilli)
+                    .coerceIn(d.nearRangeMilli.first, d.nearRangeMilli.last) / 1000f,
+                starColorArgb = sharedPrefs.getInt(k.starColorArgb, t.starColorArgb),
+                baseSizePx = sharedPrefs.getInt(k.baseSizeDeci, t.baseSizeDeci)
+                    .coerceIn(d.baseSizeRangeDeci.first, d.baseSizeRangeDeci.last) / 10f,
+                sizeGrowth = sharedPrefs.getInt(k.sizeGrowthCenti, t.sizeGrowthCenti)
+                    .coerceIn(d.sizeGrowthRangeCenti.first, d.sizeGrowthRangeCenti.last) / 100f,
+                farDim = sharedPrefs.getInt(k.farDimPercent, t.farDimPercent)
+                    .coerceIn(d.percentRange.first, d.percentRange.last) / 100f,
+                softness = sharedPrefs.getInt(k.softnessPercent, t.softnessPercent)
+                    .coerceIn(d.percentRange.first, d.percentRange.last) / 100f,
+                beatGlow = sharedPrefs.getInt(k.beatGlowPercent, t.beatGlowPercent)
+                    .coerceIn(d.percentRange.first, d.percentRange.last) / 100f,
+                glowSize = sharedPrefs.getInt(k.glowSizeDeci, t.glowSizeDeci)
+                    .coerceIn(d.glowSizeRangeDeci.first, d.glowSizeRangeDeci.last) / 10f,
+                trailPersistence = sharedPrefs.getInt(k.trailPercent, t.trailPercent)
+                    .coerceIn(d.trailRangePercent.first, d.trailRangePercent.last) / 100f,
+                streaks = sharedPrefs.getBoolean(k.streaksEnabled, t.streaksEnabled),
+                streakLength = sharedPrefs.getInt(k.streakLengthCenti, t.streakLengthCenti)
+                    .coerceIn(d.streakLengthRangeCenti.first, d.streakLengthRangeCenti.last) / 100f,
+                centerX = sharedPrefs.getInt(k.centerXCenti, t.centerXCenti)
+                    .coerceIn(d.centerRangeCenti.first, d.centerRangeCenti.last) / 100f,
+                centerY = sharedPrefs.getInt(k.centerYCenti, t.centerYCenti)
+                    .coerceIn(d.centerRangeCenti.first, d.centerRangeCenti.last) / 100f,
+                autoDrift = sharedPrefs.getBoolean(k.autoDriftEnabled, t.autoDriftEnabled),
+                beatFollow = sharedPrefs.getBoolean(AppPreferenceKeys.VISUALIZATION_STARFIELD_BEAT_FOLLOW_ENABLED, d.beatFollowEnabled),
+                reactSpeed = sharedPrefs.getInt(k.reactSpeedCenti, t.reactSpeedCenti)
+                    .coerceIn(d.reactSpeedRangeCenti.first, d.reactSpeedRangeCenti.last) / 100f,
+                flash = sharedPrefs.getInt(k.flashPercent, t.flashPercent)
+                    .coerceIn(d.percentRange.first, d.percentRange.last) / 100f,
+                contrastBackdropEnabled = sharedPrefs.getBoolean(k.contrastBackdropEnabled, t.contrastBackdropEnabled),
+                square = sharedPrefs.getBoolean(k.squareEnabled, t.squarePixelsEnabled)
+            )
+        }
+
+
+        fun isStarfieldKey(key: String?): Boolean {
+            return key?.startsWith("visualization_starfield_") == true
+        }
+    }
+}
+
+@Composable
+internal fun rememberStarfieldPrefs(
+    sharedPrefs: android.content.SharedPreferences
+): StarfieldPrefs {
+    var state by remember(sharedPrefs) { mutableStateOf(StarfieldPrefs.from(sharedPrefs)) }
+    DisposableEffect(sharedPrefs) {
+        val listener = android.content.SharedPreferences.OnSharedPreferenceChangeListener { prefs, key ->
+            if (StarfieldPrefs.isStarfieldKey(key)) {
+                state = StarfieldPrefs.from(prefs)
+            }
+        }
+        sharedPrefs.registerOnSharedPreferenceChangeListener(listener)
+        onDispose {
+            sharedPrefs.unregisterOnSharedPreferenceChangeListener(listener)
+        }
+    }
+    return state
+}
+
 private data class ChannelScopeVisualState(
     val channelHistories: List<FloatArray>,
     val channelTextStates: List<ChannelScopeChannelTextState>,
@@ -1879,6 +2119,7 @@ internal fun AlbumArtPlaceholder(
     vuCustomColorArgb: Int,
     vuContrastBackdropEnabled: Boolean,
     channelScopePrefs: ChannelScopePrefs,
+    starfieldPrefs: StarfieldPrefs,
     artworkCornerRadiusDp: Int = AppDefaults.Player.artworkCornerRadiusDp,
     enableSwipe: Boolean = true,
     onSwipePreviousTrack: () -> Unit = {},
@@ -2109,6 +2350,7 @@ internal fun AlbumArtPlaceholder(
         VisualizationMode.Oscilloscope -> visualizationOscRenderBackend != VisualizationRenderBackend.Compose
         VisualizationMode.VuMeters -> vuRenderBackend != VisualizationRenderBackend.Compose
         VisualizationMode.ChannelScope -> channelScopePrefs.renderBackend != VisualizationRenderBackend.Compose
+        VisualizationMode.Starfield -> true
         VisualizationMode.ProjectM -> true
     }
     val emptyFloatArray = remember { FloatArray(0) }
@@ -2673,6 +2915,7 @@ internal fun AlbumArtPlaceholder(
                 VisualizationMode.Oscilloscope -> visualizationOscRenderBackend != VisualizationRenderBackend.Compose
                 VisualizationMode.VuMeters -> vuRenderBackend != VisualizationRenderBackend.Compose
                 VisualizationMode.ChannelScope -> channelScopeState.renderBackend != VisualizationRenderBackend.Compose
+                VisualizationMode.Starfield -> true
                 VisualizationMode.ProjectM -> true
             }
 
@@ -2713,6 +2956,28 @@ internal fun AlbumArtPlaceholder(
                     waveformRight = if (isGlBackendActive) emptyFloatArray else visWaveRight,
                     vuLevels = if (isGlBackendActive) emptyFloatArray else visVuSmoothed,
                     channelCount = visChannelCount,
+                    starfieldStarCount = starfieldPrefs.starCount,
+                    starfieldSpeed = starfieldPrefs.speed,
+                    starfieldFov = starfieldPrefs.fov,
+                    starfieldNearPlane = starfieldPrefs.nearPlane,
+                    starfieldStarColorArgb = starfieldPrefs.starColorArgb,
+                    starfieldBaseSizePx = starfieldPrefs.baseSizePx,
+                    starfieldSizeGrowth = starfieldPrefs.sizeGrowth,
+                    starfieldFarDim = starfieldPrefs.farDim,
+                    starfieldSoftness = starfieldPrefs.softness,
+                    starfieldBeatGlow = starfieldPrefs.beatGlow,
+                    starfieldGlowSize = starfieldPrefs.glowSize,
+                    starfieldTrailPersistence = starfieldPrefs.trailPersistence,
+                    starfieldSquarePixels = starfieldPrefs.square,
+                    starfieldStreaks = starfieldPrefs.streaks,
+                    starfieldStreakLength = starfieldPrefs.streakLength,
+                    starfieldCenterX = starfieldPrefs.centerX,
+                    starfieldCenterY = starfieldPrefs.centerY,
+                    starfieldAutoDrift = starfieldPrefs.autoDrift,
+                    starfieldBeatFollow = starfieldPrefs.beatFollow,
+                    starfieldReactSpeed = starfieldPrefs.reactSpeed,
+                    starfieldFlash = starfieldPrefs.flash,
+                    starfieldContrastBackdropEnabled = starfieldPrefs.contrastBackdropEnabled,
                     barCount = barCount,
                     barRoundnessDp = barRoundnessDp,
                     barOverlayArtwork = barOverlayArtwork,
