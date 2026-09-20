@@ -81,7 +81,7 @@ private object VisualizerWarmCache {
 }
 
 data class SiliconNativeGlFrame(
-    val mode: Int, // 1=Bars, 2=Osc, 3=VU, 4=ChannelScope, 100=projectM plugin
+    val mode: Int, // 1=Bars, 2=Osc, 3=VU, 4=ChannelScope, 5=Starfield, 100=projectM plugin
     val isPlaying: Boolean = true,
     val trackKey: String? = null,
     val pcm: FloatArray? = null,
@@ -171,7 +171,29 @@ data class SiliconNativeGlFrame(
     val vuSmoothingPercent: Int = 50,
     val vuFillColorArgb: Int = 0xFF76FF03.toInt(),
     val vuTrackColorArgb: Int = 0x40FFFFFF,
-    val vuLabelColorArgb: Int = 0xFFCCCCCC.toInt()
+    val vuLabelColorArgb: Int = 0xFFCCCCCC.toInt(),
+    // Starfield options (Classic Amiga preset defaults)
+    val starfieldStarCount: Int = 350,
+    val starfieldSpeed: Float = 0.30f,
+    val starfieldFov: Float = 1.0f,
+    val starfieldNearPlane: Float = 0.06f,
+    val starfieldStarColorArgb: Int = 0xFFFFFFFF.toInt(),
+    val starfieldBaseSizePx: Float = 6.0f,
+    val starfieldSizeGrowth: Float = 1.2f,
+    val starfieldFarDim: Float = 0.6f,
+    val starfieldSoftness: Float = 0.25f,
+    val starfieldBeatGlow: Float = 0.0f,
+    val starfieldGlowSize: Float = 3.0f,
+    val starfieldTrailPersistence: Float = 0.55f,
+    val starfieldStreaks: Boolean = false,
+    val starfieldStreakLength: Float = 1.0f,
+    val starfieldCenterX: Float = 0f,
+    val starfieldCenterY: Float = 0f,
+    val starfieldAutoDrift: Boolean = false,
+    val starfieldBeatFollow: Boolean = false,
+    val starfieldReactSpeed: Float = 0.6f,
+    val starfieldFlash: Float = 0.1f,
+    val starfieldSquarePixels: Boolean = false
 )
 
 data class SiliconNativeGlDynamicData(
@@ -561,7 +583,7 @@ private class SiliconNativeTextureRenderThread(
             // re-render while that settles, then hold the frame once faded.
             // Channel scope / projectM ignore the alpha and keep their own
             // pause handling (hold the first paused frame).
-            val isFadeMode = frame.mode == 1 || frame.mode == 2 || frame.mode == 3
+            val isFadeMode = frame.mode == 1 || frame.mode == 2 || frame.mode == 3 || frame.mode == 5
             val fadeSettled = !isFadeMode || frame.visualAlpha <= 0.001f
             if (pausedFrameRendered && !state.surfaceSizeChanged && fadeSettled) {
                 return
@@ -830,6 +852,32 @@ private class SiliconNativeTextureRenderThread(
                                 fillColorArgb = frame.vuFillColorArgb,
                                 trackColorArgb = frame.vuTrackColorArgb,
                                 labelColorArgb = frame.vuLabelColorArgb
+                            )
+                        }
+                        5 -> { // Starfield
+                            SiliconVisNativeBridge.nativeSetStarfieldOptions(
+                                handle = visHandle,
+                                starCount = frame.starfieldStarCount,
+                                speed = frame.starfieldSpeed,
+                                fov = frame.starfieldFov,
+                                nearPlane = frame.starfieldNearPlane,
+                                starColorArgb = frame.starfieldStarColorArgb,
+                                baseSizePx = frame.starfieldBaseSizePx,
+                                sizeGrowth = frame.starfieldSizeGrowth,
+                                farDim = frame.starfieldFarDim,
+                                softness = frame.starfieldSoftness,
+                                beatGlow = frame.starfieldBeatGlow,
+                                glowSize = frame.starfieldGlowSize,
+                                trailPersistence = frame.starfieldTrailPersistence,
+                                streaks = frame.starfieldStreaks,
+                                streakLength = frame.starfieldStreakLength,
+                                centerX = frame.starfieldCenterX,
+                                centerY = frame.starfieldCenterY,
+                                autoDrift = frame.starfieldAutoDrift,
+                                beatFollow = frame.starfieldBeatFollow,
+                                reactSpeed = frame.starfieldReactSpeed,
+                                flash = frame.starfieldFlash,
+                                squareStars = frame.starfieldSquarePixels
                             )
                         }
                     }

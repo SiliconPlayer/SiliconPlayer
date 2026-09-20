@@ -40,6 +40,7 @@ import androidx.compose.material.icons.filled.FullscreenExit
 import androidx.compose.material.icons.filled.GraphicEq
 import androidx.compose.material.icons.filled.Loop
 import androidx.compose.material.icons.filled.MonitorHeart
+import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.SkipNext
@@ -92,6 +93,7 @@ private fun visualizationModeIcon(mode: VisualizationMode): ImageVector {
         VisualizationMode.Oscilloscope -> Icons.Default.MonitorHeart
         VisualizationMode.VuMeters -> Icons.Default.Equalizer
         VisualizationMode.ChannelScope -> Icons.Default.MonitorHeart
+        VisualizationMode.Starfield -> Icons.Default.Star
         VisualizationMode.ProjectM -> Icons.Default.AutoAwesome
     }
 }

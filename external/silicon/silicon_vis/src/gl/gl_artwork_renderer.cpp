@@ -116,6 +116,8 @@ static const char* CONTRAST_FRAGMENT_SHADER = R"(
             alpha = mix(0.55, 0.0, clamp(btmDist, 0.0, 1.0));
         } else if (uMode == 6) { // Channel Scope
             alpha = 0.28;
+        } else if (uMode == 7) { // Starfield
+            alpha = 0.32;
         }
 
         gl_FragColor = vec4(uScrimColor.rgb, uScrimColor.a * alpha);

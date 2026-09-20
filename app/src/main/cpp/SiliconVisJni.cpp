@@ -805,6 +805,60 @@ Java_com_flopster101_siliconplayer_ui_visualization_gl_SiliconVisNativeBridge_na
 }
 
 JNIEXPORT void JNICALL
+Java_com_flopster101_siliconplayer_ui_visualization_gl_SiliconVisNativeBridge_nativeSetStarfieldOptions(
+    JNIEnv* env,
+    jobject /* thiz */,
+    jlong handle,
+    jint starCount,
+    jfloat speed,
+    jfloat fov,
+    jfloat nearPlane,
+    jint starColorArgb,
+    jfloat baseSizePx,
+    jfloat sizeGrowth,
+    jfloat farDim,
+    jfloat softness,
+    jfloat beatGlow,
+    jfloat glowSize,
+    jfloat trailPersistence,
+    jboolean streaks,
+    jfloat streakLength,
+    jfloat centerX,
+    jfloat centerY,
+    jboolean autoDrift,
+    jboolean beatFollow,
+    jfloat reactSpeed,
+    jfloat flash,
+    jboolean squareStars
+) {
+    if (!handle) return;
+    silicon_vis_set_starfield_options(
+        reinterpret_cast<SiliconVisHandle>(handle),
+        starCount,
+        speed,
+        fov,
+        nearPlane,
+        static_cast<uint32_t>(starColorArgb),
+        baseSizePx,
+        sizeGrowth,
+        farDim,
+        softness,
+        beatGlow,
+        glowSize,
+        trailPersistence,
+        streaks,
+        streakLength,
+        centerX,
+        centerY,
+        autoDrift,
+        beatFollow,
+        reactSpeed,
+        flash,
+        squareStars
+    );
+}
+
+JNIEXPORT void JNICALL
 Java_com_flopster101_siliconplayer_ui_visualization_gl_SiliconVisNativeBridge_nativeRender(
     JNIEnv* env,
     jobject /* thiz */,

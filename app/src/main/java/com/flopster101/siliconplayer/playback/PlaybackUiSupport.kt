@@ -67,6 +67,7 @@ internal val selectableVisualizationModes: List<VisualizationMode> = listOf(
     VisualizationMode.Oscilloscope,
     VisualizationMode.VuMeters,
     VisualizationMode.ChannelScope,
+    VisualizationMode.Starfield,
     VisualizationMode.ProjectM
 )
 
@@ -81,6 +82,11 @@ private val visualizationModeStorageAliases: Map<String, VisualizationMode> = bu
     put("vumeters", VisualizationMode.VuMeters)
     put("vu", VisualizationMode.VuMeters)
     put("channelscope", VisualizationMode.ChannelScope)
+    // Legacy aliases: the short-lived per-mode split maps back to Starfield.
+    put("starfield_classic", VisualizationMode.Starfield)
+    put("starfield_warp", VisualizationMode.Starfield)
+    put("starfield_snow", VisualizationMode.Starfield)
+    put("starfield_beat", VisualizationMode.Starfield)
 }
 private val visualizationModeAliasStripPattern = Regex("[^a-z0-9_]")
 

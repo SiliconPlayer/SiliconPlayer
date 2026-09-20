@@ -131,5 +131,30 @@ object SiliconVisNativeBridge {
         labelColorArgb: Int
     )
 
+    external fun nativeSetStarfieldOptions(
+        handle: Long,
+        starCount: Int,
+        speed: Float,
+        fov: Float,
+        nearPlane: Float,
+        starColorArgb: Int,
+        baseSizePx: Float,
+        sizeGrowth: Float,
+        farDim: Float,
+        softness: Float,
+        beatGlow: Float,
+        glowSize: Float,
+        trailPersistence: Float,
+        streaks: Boolean,
+        streakLength: Float,
+        centerX: Float,
+        centerY: Float,
+        autoDrift: Boolean,
+        beatFollow: Boolean,
+        reactSpeed: Float,
+        flash: Float,
+        squareStars: Boolean
+    )
+
     external fun nativeRender(handle: Long)
 }

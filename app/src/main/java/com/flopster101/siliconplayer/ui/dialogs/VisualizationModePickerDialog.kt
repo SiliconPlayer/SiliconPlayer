@@ -23,6 +23,7 @@ import androidx.compose.material.icons.filled.Equalizer
 import androidx.compose.material.icons.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.MonitorHeart
 import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material.icons.filled.VisibilityOff
 import androidx.compose.material.icons.filled.GraphicEq
@@ -396,6 +397,24 @@ private fun PickerSheetContent(
                                 modifier = Modifier.weight(1f)
                             )
                         }
+                    }
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        DialogSelectableCard(
+                            label = "Starfield",
+                            icon = Icons.Default.Star,
+                            isSelected = selectedMode == VisualizationMode.Starfield,
+                            isEnabled = availableModes.contains(VisualizationMode.Starfield),
+                            subtitle = "Hyperspace flight",
+                            onClick = {
+                                if (availableModes.contains(VisualizationMode.Starfield)) {
+                                    onSelectMode(VisualizationMode.Starfield)
+                                }
+                            },
+                            modifier = Modifier.weight(1f)
+                        )
                     }
                 }
 

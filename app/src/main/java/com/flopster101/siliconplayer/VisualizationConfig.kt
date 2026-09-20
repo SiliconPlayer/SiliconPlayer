@@ -12,6 +12,7 @@ enum class VisualizationMode(
     Oscilloscope("oscilloscope", "Oscilloscope"),
     VuMeters("vu_meters", "VU meters"),
     ChannelScope("channel_scope", "Channel scope"),
+    Starfield("starfield", "Starfield"),
     ProjectM("projectm", "projectM");
 
     companion object {
@@ -32,6 +33,7 @@ val VisualizationMode.category: VisualizationModeCategory?
         VisualizationMode.Oscilloscope,
         VisualizationMode.VuMeters -> VisualizationModeCategory.Basic
         VisualizationMode.ChannelScope,
+        VisualizationMode.Starfield,
         VisualizationMode.ProjectM -> VisualizationModeCategory.Advanced
         VisualizationMode.Off -> null
     }
@@ -41,6 +43,19 @@ fun VisualizationMode.isBasicVisualizationMode(): Boolean =
 
 fun VisualizationMode.isAdvancedVisualizationMode(): Boolean =
     category == VisualizationModeCategory.Advanced
+
+enum class StarfieldPreset(val storageValue: String, val label: String) {
+    ClassicAmiga("classic", "Classic Amiga"),
+    Warp("warp", "Warp"),
+    SnowDrift("snow", "Snow drift"),
+    BeatRider("beat", "Beat rider");
+
+    companion object {
+        fun fromStorage(value: String?): StarfieldPreset {
+            return entries.firstOrNull { it.storageValue == value } ?: ClassicAmiga
+        }
+    }
+}
 
 enum class VisualizationRenderBackend(
     val storageValue: String,
@@ -69,6 +84,7 @@ fun visualizationRenderBackendForMode(mode: VisualizationMode): VisualizationRen
         VisualizationMode.Oscilloscope -> VisualizationRenderBackend.OpenGlTexture
         VisualizationMode.VuMeters -> VisualizationRenderBackend.OpenGlTexture
         VisualizationMode.ChannelScope -> VisualizationRenderBackend.OpenGlTexture
+        VisualizationMode.Starfield -> VisualizationRenderBackend.OpenGlTexture
         VisualizationMode.ProjectM -> VisualizationRenderBackend.OpenGlTexture
         VisualizationMode.Off -> VisualizationRenderBackend.Compose
     }

@@ -64,17 +64,26 @@ internal fun rememberVisualizationSelectionState(
             prefs.getString(AppPreferenceKeys.VISUALIZATION_ENABLED_MODES, null)
         )
         // One-time migration: enable newly added modes for existing installs.
-        val migrated = if (prefs.getBoolean(
-                AppPreferenceKeys.VISUALIZATION_ENABLED_MODES_PROJECTM_MIGRATED,
-                false
-            )
-        ) {
-            parsed
-        } else {
-            prefs.edit()
-                .putBoolean(AppPreferenceKeys.VISUALIZATION_ENABLED_MODES_PROJECTM_MIGRATED, true)
-                .apply()
-            parsed + VisualizationMode.ProjectM
+        val projectMMigrated = prefs.getBoolean(
+            AppPreferenceKeys.VISUALIZATION_ENABLED_MODES_PROJECTM_MIGRATED,
+            false
+        )
+        val starfieldMigrated = prefs.getBoolean(
+            AppPreferenceKeys.VISUALIZATION_ENABLED_MODES_STARFIELD_MIGRATED,
+            false
+        )
+        val migrated = when {
+            projectMMigrated && starfieldMigrated -> parsed
+            else -> {
+                prefs.edit()
+                    .putBoolean(AppPreferenceKeys.VISUALIZATION_ENABLED_MODES_PROJECTM_MIGRATED, true)
+                    .putBoolean(AppPreferenceKeys.VISUALIZATION_ENABLED_MODES_STARFIELD_MIGRATED, true)
+                    .apply()
+                var result = parsed
+                if (!projectMMigrated) result = result + VisualizationMode.ProjectM
+                if (!starfieldMigrated) result = result + VisualizationMode.Starfield
+                result
+            }
         }
         mutableStateOf(migrated)
     }

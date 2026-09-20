@@ -1,5 +1,7 @@
 package com.flopster101.siliconplayer.ui.visualization.basic
 
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Row
@@ -11,6 +13,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.Canvas
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -153,6 +156,28 @@ fun BasicVisualizationOverlay(
     channelScopeTextVuColorMode: VisualizationChannelScopeTextColorMode,
     channelScopeTextVuCustomColorArgb: Int,
     channelScopeCornerRadiusDp: Int = 0,
+    starfieldStarCount: Int = 350,
+    starfieldSpeed: Float = 0.30f,
+    starfieldFov: Float = 1.0f,
+    starfieldNearPlane: Float = 0.06f,
+    starfieldStarColorArgb: Int = 0xFFFFFFFF.toInt(),
+    starfieldSquarePixels: Boolean = false,
+    starfieldBaseSizePx: Float = 6.0f,
+    starfieldSizeGrowth: Float = 1.2f,
+    starfieldFarDim: Float = 0.6f,
+    starfieldSoftness: Float = 0.25f,
+    starfieldBeatGlow: Float = 0.0f,
+    starfieldGlowSize: Float = 3.0f,
+    starfieldTrailPersistence: Float = 0.55f,
+    starfieldStreaks: Boolean = false,
+    starfieldStreakLength: Float = 1.0f,
+    starfieldCenterX: Float = 0f,
+    starfieldCenterY: Float = 0f,
+    starfieldAutoDrift: Boolean = false,
+    starfieldBeatFollow: Boolean = false,
+    starfieldReactSpeed: Float = 0.6f,
+    starfieldFlash: Float = 0.1f,
+    starfieldContrastBackdropEnabled: Boolean = true,
     placeholderIcon: androidx.compose.ui.graphics.vector.ImageVector = androidx.compose.material.icons.Icons.Default.MusicNote,
     placeholderIconResId: Int = R.drawable.ic_placeholder_music_note,
     showArtworkBackground: Boolean = true,
@@ -614,6 +639,47 @@ fun BasicVisualizationOverlay(
                 mode = 100,
                 contrastMode = 0,
                 showArtworkBackground = false
+            )
+            com.flopster101.siliconplayer.ui.visualization.gl.SiliconNativeGlTextureVisualization(
+                frame = nativeFrame,
+                onFrameStats = channelScopeOnFrameStats,
+                modifier = modifier
+            )
+        }
+
+        VisualizationMode.Starfield -> {
+            val starfieldAlpha by animateFloatAsState(
+                targetValue = if (isPlaying) 1f else 0f,
+                animationSpec = tween(durationMillis = 450),
+                label = "starfieldPauseFade"
+            )
+            val nativeFrame = baseNativeFrame.copy(
+                mode = 5,
+                contrastMode = if (starfieldContrastBackdropEnabled) 7 else 0,
+                contrastScrimColorArgb = 0xFF000000.toInt(),
+                showArtworkBackground = true,
+                visualAlpha = starfieldAlpha,
+                starfieldStarCount = starfieldStarCount,
+                starfieldSpeed = starfieldSpeed,
+                starfieldFov = starfieldFov,
+                starfieldNearPlane = starfieldNearPlane,
+                starfieldStarColorArgb = starfieldStarColorArgb,
+                starfieldSquarePixels = starfieldSquarePixels,
+                starfieldBaseSizePx = starfieldBaseSizePx,
+                starfieldSizeGrowth = starfieldSizeGrowth,
+                starfieldFarDim = starfieldFarDim,
+                starfieldSoftness = starfieldSoftness,
+                starfieldBeatGlow = starfieldBeatGlow,
+                starfieldGlowSize = starfieldGlowSize,
+                starfieldTrailPersistence = starfieldTrailPersistence,
+                starfieldStreaks = starfieldStreaks,
+                starfieldStreakLength = starfieldStreakLength,
+                starfieldCenterX = starfieldCenterX,
+                starfieldCenterY = starfieldCenterY,
+                starfieldAutoDrift = starfieldAutoDrift,
+                starfieldBeatFollow = starfieldBeatFollow,
+                starfieldReactSpeed = starfieldReactSpeed,
+                starfieldFlash = starfieldFlash
             )
             com.flopster101.siliconplayer.ui.visualization.gl.SiliconNativeGlTextureVisualization(
                 frame = nativeFrame,
