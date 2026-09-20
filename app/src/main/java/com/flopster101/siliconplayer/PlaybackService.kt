@@ -26,6 +26,7 @@ import android.os.Handler
 import android.os.IBinder
 import android.os.Looper
 import android.os.PowerManager
+import android.os.SystemClock
 import android.net.wifi.WifiManager
 import androidx.core.app.NotificationManagerCompat
 import androidx.core.content.ContextCompat
@@ -65,6 +66,7 @@ class PlaybackService : Service() {
 
     private var mediaSession: MediaSession? = null
     private var audioFocusRequest: AudioFocusRequest? = null // For Android O+
+    private var audioFocusHeld = false
     private var resumeOnFocusGain = false
     private var isDucked = false
     private var originalMasterVolume = 0f
@@ -203,6 +205,12 @@ class PlaybackService : Service() {
 
     private val handler = Handler(Looper.getMainLooper())
     private val serviceScope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
+    private var pendingSyncIntent: Intent? = null
+    private val syncDeliveryRunnable = Runnable { deliverPendingSync() }
+    private val mediaSessionSyncRunnable = Runnable {
+        updateMediaSessionState()
+        pushNotification()
+    }
     private var artworkLoadGeneration = 0L
     private val ticker = object : Runnable {
         override fun run() {
@@ -376,6 +384,9 @@ class PlaybackService : Service() {
         super.onDestroy()
         isServiceAlive = false
         handler.removeCallbacks(ticker)
+        handler.removeCallbacks(syncDeliveryRunnable)
+        handler.removeCallbacks(mediaSessionSyncRunnable)
+        pendingSyncIntent = null
         serviceScope.cancel()
         releaseSmbWifiLockIfHeld()
         releaseWakeLock()
@@ -397,7 +408,7 @@ class PlaybackService : Service() {
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         when (intent?.action) {
-            ACTION_SYNC -> syncFromIntent(intent)
+            ACTION_SYNC -> enqueueSyncFromIntent(intent)
             ACTION_PLAY -> playPlayback()
             ACTION_PAUSE -> pausePlayback()
             ACTION_TOGGLE -> if (isPlaying) pausePlayback() else playPlayback()
@@ -457,6 +468,18 @@ class PlaybackService : Service() {
             else -> restorePersistedSessionIfAvailable()
         }
         return START_STICKY
+    }
+
+    private fun enqueueSyncFromIntent(intent: Intent) {
+        pendingSyncIntent = intent
+        handler.removeCallbacks(syncDeliveryRunnable)
+        handler.postDelayed(syncDeliveryRunnable, SYNC_DEBOUNCE_MS)
+    }
+
+    private fun deliverPendingSync() {
+        val intent = pendingSyncIntent ?: return
+        pendingSyncIntent = null
+        syncFromIntent(intent)
     }
 
     private fun syncFromIntent(intent: Intent) {
@@ -536,8 +559,12 @@ class PlaybackService : Service() {
             return
         }
         persistCurrentRepeatMode()
-        updateMediaSessionState()
-        pushNotification()
+        // Keep the binder-critical onStartCommand window short: the session +
+        // notification push (several binder calls, bitmap parceling) can slip
+        // one frame without user-visible lag, and coalesces with follow-up
+        // SYNCs during track-start metadata refinement.
+        handler.removeCallbacks(mediaSessionSyncRunnable)
+        handler.post(mediaSessionSyncRunnable)
         handler.removeCallbacks(ticker)
         if (currentPath != null) {
             handler.post(ticker)
@@ -620,6 +647,9 @@ class PlaybackService : Service() {
     }
 
     private fun stopAndClear() {
+        handler.removeCallbacks(syncDeliveryRunnable)
+        pendingSyncIntent = null
+        handler.removeCallbacks(mediaSessionSyncRunnable)
         abandonAudioFocus()
         resumeOnFocusGain = false
         closeAudioEffectControlSession()
@@ -1347,6 +1377,9 @@ class PlaybackService : Service() {
     }
 
     private fun requestAudioFocus(): Boolean {
+        // The binder call is ~5-20ms on the main thread; skip when already held
+        // (playPlayback re-requests on every unpause otherwise).
+        if (audioFocusHeld) return true
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             val request = AudioFocusRequest.Builder(AudioManager.AUDIOFOCUS_GAIN)
                 .setAudioAttributes(
@@ -1359,7 +1392,8 @@ class PlaybackService : Service() {
                 .build()
             audioFocusRequest = request
             val result = audioManager.requestAudioFocus(request)
-            return result == AudioManager.AUDIOFOCUS_REQUEST_GRANTED
+            audioFocusHeld = result == AudioManager.AUDIOFOCUS_REQUEST_GRANTED
+            return audioFocusHeld
         } else {
             @Suppress("DEPRECATION")
             val result = audioManager.requestAudioFocus(
@@ -1367,11 +1401,13 @@ class PlaybackService : Service() {
                 AudioManager.STREAM_MUSIC,
                 AudioManager.AUDIOFOCUS_GAIN
             )
-            return result == AudioManager.AUDIOFOCUS_REQUEST_GRANTED
+            audioFocusHeld = result == AudioManager.AUDIOFOCUS_REQUEST_GRANTED
+            return audioFocusHeld
         }
     }
 
     private fun abandonAudioFocus() {
+        audioFocusHeld = false
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             audioFocusRequest?.let { audioManager.abandonAudioFocusRequest(it) }
             audioFocusRequest = null
@@ -1403,6 +1439,9 @@ class PlaybackService : Service() {
     companion object {
         private const val CHANNEL_ID = "silicon_player_playback"
         private const val NOTIFICATION_ID = 1101
+        // UI metadata updates arrive in bursts at track start (initial load,
+        // metadata refinement, isPlaying flip); coalesce to one delivery.
+        private const val SYNC_DEBOUNCE_MS = 100L
 
         private const val PREFS_NAME = "silicon_player_settings"
         private const val PREF_RESPOND_MEDIA_BUTTONS = "respond_headphone_media_buttons"
