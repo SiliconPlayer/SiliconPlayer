@@ -15,6 +15,7 @@ set(SILICON_VIS_SOURCES
     src/renderers/channel_scope_renderer.cpp
     src/renderers/oscilloscope_renderer.cpp
     src/renderers/bars_renderer.cpp
+    src/renderers/starfield_renderer.cpp
     src/renderers/vu_meters_renderer.cpp
 )
 

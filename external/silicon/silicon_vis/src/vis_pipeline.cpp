@@ -16,6 +16,7 @@ bool SiliconVisPipeline::initGl() {
     if (!channelScope_.initGl()) return false;
     if (!oscilloscope_.initGl()) return false;
     if (!bars_.initGl()) return false;
+    if (!starfield_.initGl()) return false;
     if (!vuMeters_.initGl()) return false;
 
     for (auto& [modeId, renderer] : pluginRenderers_) {
@@ -33,6 +34,7 @@ void SiliconVisPipeline::releaseGl() {
     channelScope_.releaseGl();
     oscilloscope_.releaseGl();
     bars_.releaseGl();
+    starfield_.releaseGl();
     vuMeters_.releaseGl();
 
     for (auto& [modeId, renderer] : pluginRenderers_) {
@@ -52,6 +54,7 @@ void SiliconVisPipeline::resize(int32_t widthPx, int32_t heightPx, float density
     channelScope_.resize(widthPx_, heightPx_, density_);
     oscilloscope_.resize(widthPx_, heightPx_, density_);
     bars_.resize(widthPx_, heightPx_, density_);
+    starfield_.resize(widthPx_, heightPx_, density_);
     vuMeters_.resize(widthPx_, heightPx_, density_);
 
     for (auto& [modeId, renderer] : pluginRenderers_) {
@@ -151,6 +154,8 @@ IVisualizerRenderer* SiliconVisPipeline::getActiveRenderer() {
             return &oscilloscope_;
         case SILICON_VIS_MODE_BARS:
             return &bars_;
+        case SILICON_VIS_MODE_STARFIELD:
+            return &starfield_;
         case SILICON_VIS_MODE_VU_METERS:
             return &vuMeters_;
         case SILICON_VIS_MODE_NONE:
@@ -257,6 +262,19 @@ void SiliconVisPipeline::render() {
                 float left = 0.0f, right = 0.0f;
                 audioProvider_->getVuLevels(left, right);
                 vuMeters_.setVuLevels(left, right);
+                break;
+            }
+            case SILICON_VIS_MODE_STARFIELD: {
+                float left = 0.0f, right = 0.0f;
+                audioProvider_->getVuLevels(left, right);
+                starfield_.setEnergy(std::max(left, right));
+                // Kicks live in the low end: feed the lowest spectrum
+                // bins so bass punches through above broadband RMS.
+                audioProvider_->getFftBars(nativeFftBars_);
+                float bass = 0.0f;
+                const size_t bassBins = std::min(nativeFftBars_.size(), size_t{48});
+                for (size_t i = 0; i < bassBins; ++i) bass = std::max(bass, nativeFftBars_[i]);
+                starfield_.setBassLevel(bass);
                 break;
             }
             case SILICON_VIS_MODE_CHANNEL_SCOPE: {

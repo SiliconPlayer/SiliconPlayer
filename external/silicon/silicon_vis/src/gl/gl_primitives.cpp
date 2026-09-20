@@ -1,4 +1,5 @@
 #include "gl_primitives.h"
+#include <algorithm>
 #include <cmath>
 
 namespace silicon::vis::gl {

@@ -128,6 +128,31 @@ SILICON_VIS_API void silicon_vis_set_vu_meters_options(
     uint32_t labelColorArgb
 );
 
+SILICON_VIS_API void silicon_vis_set_starfield_options(
+    SiliconVisHandle handle,
+    int32_t starCount,
+    float speed,
+    float fov,
+    float nearPlane,
+    uint32_t starColorArgb,
+    float baseSizePx,
+    float sizeGrowth,
+    float farDim,
+    float softness,
+    float beatGlow,
+    float glowSize,
+    float trailPersistence,
+    bool streaks,
+    float streakLength,
+    float centerX,
+    float centerY,
+    bool autoDrift,
+    bool beatFollow,
+    float reactSpeed,
+    float flash,
+    bool squareStars
+);
+
 // Render frame (calls active visualizer + background inside current GL context)
 SILICON_VIS_API void silicon_vis_render(SiliconVisHandle handle);
 

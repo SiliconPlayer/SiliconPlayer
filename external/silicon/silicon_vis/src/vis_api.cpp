@@ -252,6 +252,40 @@ void silicon_vis_set_vu_meters_options(
     );
 }
 
+void silicon_vis_set_starfield_options(
+    SiliconVisHandle handle,
+    int32_t starCount,
+    float speed,
+    float fov,
+    float nearPlane,
+    uint32_t starColorArgb,
+    float baseSizePx,
+    float sizeGrowth,
+    float farDim,
+    float softness,
+    float beatGlow,
+    float glowSize,
+    float trailPersistence,
+    bool streaks,
+    float streakLength,
+    float centerX,
+    float centerY,
+    bool autoDrift,
+    bool beatFollow,
+    float reactSpeed,
+    float flash,
+    bool squareStars
+) {
+    if (!handle) return;
+    auto* pipeline = static_cast<SiliconVisPipeline*>(handle);
+    pipeline->getStarfieldRenderer().setOptions(
+        starCount, speed, fov, nearPlane, starColorArgb, baseSizePx,
+        sizeGrowth, farDim, softness, beatGlow, glowSize, trailPersistence,
+        streaks, streakLength, centerX, centerY, autoDrift, beatFollow,
+        reactSpeed, flash, squareStars
+    );
+}
+
 void silicon_vis_render(SiliconVisHandle handle) {
     if (!handle) return;
     auto* pipeline = static_cast<SiliconVisPipeline*>(handle);

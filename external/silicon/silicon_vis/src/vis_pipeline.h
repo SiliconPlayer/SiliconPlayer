@@ -8,6 +8,7 @@
 #include "renderers/channel_scope_renderer.h"
 #include "renderers/oscilloscope_renderer.h"
 #include "renderers/bars_renderer.h"
+#include "renderers/starfield_renderer.h"
 #include "renderers/vu_meters_renderer.h"
 #include <memory>
 #include <unordered_map>
@@ -67,6 +68,7 @@ public:
     ChannelScopeRenderer& getChannelScopeRenderer() { return channelScope_; }
     OscilloscopeRenderer& getOscilloscopeRenderer() { return oscilloscope_; }
     BarsRenderer& getBarsRenderer() { return bars_; }
+    StarfieldRenderer& getStarfieldRenderer() { return starfield_; }
     VuMetersRenderer& getVuMetersRenderer() { return vuMeters_; }
 
     void render();
@@ -110,6 +112,7 @@ private:
     ChannelScopeRenderer channelScope_;
     OscilloscopeRenderer oscilloscope_;
     BarsRenderer bars_;
+    StarfieldRenderer starfield_;
     VuMetersRenderer vuMeters_;
 
     std::unordered_map<int32_t, VisualizerRendererPtr> pluginRenderers_;
