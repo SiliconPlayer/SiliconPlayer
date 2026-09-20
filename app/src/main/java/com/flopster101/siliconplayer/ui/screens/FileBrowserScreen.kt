@@ -2775,8 +2775,10 @@ private fun AnimatedFileBrowserEntry(
 
     Box(
         modifier = Modifier
-            .offset(y = offsetY)
-            .alpha(alpha)
+            .graphicsLayer {
+                translationY = offsetY.toPx()
+                this.alpha = alpha
+            }
     ) {
         content()
     }

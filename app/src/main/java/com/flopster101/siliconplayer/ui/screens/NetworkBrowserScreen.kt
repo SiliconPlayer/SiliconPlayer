@@ -101,6 +101,7 @@ import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.focus.FocusRequester
@@ -3486,8 +3487,10 @@ private fun AnimatedNetworkEntry(
 
     Box(
         modifier = Modifier
-            .offset(y = offsetY)
-            .alpha(alpha)
+            .graphicsLayer {
+                translationY = offsetY.toPx()
+                this.alpha = alpha
+            }
     ) {
         content()
     }
