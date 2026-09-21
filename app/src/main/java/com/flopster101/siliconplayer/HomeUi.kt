@@ -73,6 +73,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
 import androidx.compose.runtime.LaunchedEffect
@@ -2038,9 +2039,11 @@ private fun RecentTrackArtworkChip(
     isPinned: Boolean = false,
     isCurrentlyPlaying: Boolean = false
 ) {
+    val cacheRevision by recentArtworkCacheRevision.collectAsState()
     val artwork = androidx.compose.runtime.produceState<androidx.compose.ui.graphics.ImageBitmap?>(
         initialValue = peekRecentArtworkThumbnail(context, artworkThumbnailCacheKey),
-        key1 = artworkThumbnailCacheKey
+        key1 = artworkThumbnailCacheKey,
+        key2 = cacheRevision
     ) {
         val loaded = loadRecentArtworkThumbnail(context, artworkThumbnailCacheKey)
         if (loaded != null) {

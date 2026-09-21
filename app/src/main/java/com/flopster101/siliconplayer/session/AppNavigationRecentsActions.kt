@@ -174,15 +174,24 @@ internal fun scheduleRecentPlayedArtworkCacheBackfill(
     existingJob?.cancel()
     recentArtworkCacheJobs[normalizedSourceId] = scope.launch(Dispatchers.IO) {
         try {
-            val thumbnailCacheKey = ensureRecentArtworkThumbnailCached(
-                context = context,
-                sourceId = normalizedSourceId,
-                requestUrlHint = requestUrlHint
-            ) ?: return@launch
+            // The artwork may still be resolving (e.g. a contended remote fetch),
+            // so retry briefly; a single miss used to leave the entry key null and
+            // the chip stuck on its fallback until the track was re-selected.
+            var thumbnailCacheKey: String? = null
+            for (attempt in 0 until 10) {
+                thumbnailCacheKey = ensureRecentArtworkThumbnailCached(
+                    context = context,
+                    sourceId = normalizedSourceId,
+                    requestUrlHint = requestUrlHint
+                )
+                if (thumbnailCacheKey != null) break
+                delay(400L)
+            }
+            val resolvedCacheKey = thumbnailCacheKey ?: return@launch
             val merged = mergeRecentPlayedTrackArtworkCacheKey(
                 current = currentProvider(),
                 path = normalizedSourceId,
-                artworkThumbnailCacheKey = thumbnailCacheKey
+                artworkThumbnailCacheKey = resolvedCacheKey
             )
             if (merged == currentProvider()) return@launch
             val limit = limitProvider().coerceAtLeast(1)

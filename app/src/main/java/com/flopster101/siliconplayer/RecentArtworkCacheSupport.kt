@@ -18,10 +18,15 @@ import kotlinx.coroutines.Deferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.async
+import kotlinx.coroutines.flow.MutableStateFlow
 
 internal const val RECENT_ARTWORK_CACHE_DIR = "recent_artwork"
 private const val RECENT_ARTWORK_THUMB_MAX_SIZE_PX = 240
 private const val RECENT_ARTWORK_LARGE_MAX_SIZE_PX = 1024
+
+// Bumped whenever a recents thumbnail file is newly written, so chips already on
+// screen re-peek instead of showing the fallback until the list itself changes.
+internal val recentArtworkCacheRevision = MutableStateFlow(0L)
 
 internal fun ensureRecentArtworkThumbnailCached(
     context: Context,
@@ -98,11 +103,23 @@ internal fun saveBitmapToRecentArtworkCache(
         }
     }
 
+    val thumbReady = cacheFile.exists() && cacheFile.isFile && cacheFile.length() > 0L
+    if (thumbReady && !thumbExists) {
+        // A fresh thumbnail appeared for this source: drop stale negative/memory
+        // hits and nudge on-screen chips to re-peek.
+        RecentThumbNoArtworkCache.remove(cacheKey)
+        synchronized(RecentThumbMemoryCache) {
+            RecentThumbMemoryCache.remove(cacheKey)
+        }
+        RecentThumbFileMtimes.remove(cacheKey)
+        recentArtworkCacheRevision.value = recentArtworkCacheRevision.value + 1L
+    }
+
     if (recycleSource && !bitmap.isRecycled) {
         bitmap.recycle()
     }
 
-    return if (cacheFile.exists() && cacheFile.length() > 0L) cacheKey else if (largeFile.exists() && largeFile.length() > 0L) cacheKey else null
+    return if (thumbReady) cacheKey else if (largeFile.exists() && largeFile.length() > 0L) cacheKey else null
 }
 
 internal fun ensureRecentArtworkCached(

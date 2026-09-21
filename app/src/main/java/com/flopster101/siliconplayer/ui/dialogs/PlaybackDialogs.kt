@@ -49,6 +49,7 @@ import androidx.compose.material.icons.filled.WarningAmber
 import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material.icons.filled.VisibilityOff
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -81,6 +82,7 @@ import com.flopster101.siliconplayer.formatByteCount
 import com.flopster101.siliconplayer.formatShortDuration
 import com.flopster101.siliconplayer.placeholderArtworkIconForFile
 import com.flopster101.siliconplayer.recentArtworkThumbnailFile
+import com.flopster101.siliconplayer.recentArtworkCacheRevision
 import com.flopster101.siliconplayer.rememberDialogLazyListScrollbarAlpha
 import com.flopster101.siliconplayer.resolvePlaylistEntryLocalFile
 import com.flopster101.siliconplayer.ui.screens.BrowserLazyListScrollbar
@@ -1321,9 +1323,11 @@ private fun PlaylistSelectorArtworkChip(
             )
         }
     }
+    val cacheRevision by recentArtworkCacheRevision.collectAsState()
     val artwork by produceState<ImageBitmap?>(
         initialValue = peekRecentArtworkThumbnail(context, artworkThumbnailCacheKey),
-        key1 = artworkThumbnailCacheKey
+        key1 = artworkThumbnailCacheKey,
+        key2 = cacheRevision
     ) {
         val loaded = loadRecentArtworkThumbnail(context, artworkThumbnailCacheKey)
         if (loaded != null) {

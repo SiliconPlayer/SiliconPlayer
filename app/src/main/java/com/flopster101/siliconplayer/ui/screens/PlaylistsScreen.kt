@@ -4,6 +4,7 @@ import android.content.Context
 import com.flopster101.siliconplayer.PlaylistEntrySortMode
 import com.flopster101.siliconplayer.loadRecentArtworkThumbnail
 import com.flopster101.siliconplayer.peekRecentArtworkThumbnail
+import com.flopster101.siliconplayer.recentArtworkCacheRevision
 import com.flopster101.siliconplayer.PlaylistSortMode
 import com.flopster101.siliconplayer.formatSourceIdForDisplay
 import com.flopster101.siliconplayer.moveStoredPlaylist
@@ -7934,11 +7935,12 @@ private fun PlaylistTrackArtworkChip(
         decoderName = null,
         allowCurrentDecoderFallback = false
     )
+    val cacheRevision by recentArtworkCacheRevision.collectAsState()
     val artworkThumbnailCacheKey = androidx.compose.runtime.produceState<String?>(
         initialValue = entry.artworkThumbnailCacheKey,
         key1 = entry.id,
         key2 = entry.source,
-        key3 = entry.artworkThumbnailCacheKey
+        key3 = entry.artworkThumbnailCacheKey to cacheRevision
     ) {
         if (!entry.artworkThumbnailCacheKey.isNullOrBlank()) {
             value = entry.artworkThumbnailCacheKey
@@ -7954,7 +7956,8 @@ private fun PlaylistTrackArtworkChip(
     }.value
     val artwork = androidx.compose.runtime.produceState<androidx.compose.ui.graphics.ImageBitmap?>(
         initialValue = peekRecentArtworkThumbnail(context, artworkThumbnailCacheKey),
-        key1 = artworkThumbnailCacheKey
+        key1 = artworkThumbnailCacheKey,
+        key2 = cacheRevision
     ) {
         val loaded = loadRecentArtworkThumbnail(context, artworkThumbnailCacheKey)
         if (loaded != null) {
