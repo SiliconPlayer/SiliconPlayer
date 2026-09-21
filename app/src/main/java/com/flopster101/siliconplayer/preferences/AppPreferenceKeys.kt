@@ -212,6 +212,7 @@ internal object AppPreferenceKeys {
     const val VISUALIZATION_CHANNEL_SCOPE_TEXT_VU_ANCHOR = "visualization_channel_scope_text_vu_anchor"
     const val VISUALIZATION_CHANNEL_SCOPE_TEXT_VU_COLOR_MODE = "visualization_channel_scope_text_vu_color_mode"
     const val VISUALIZATION_CHANNEL_SCOPE_TEXT_VU_CUSTOM_COLOR_ARGB = "visualization_channel_scope_text_vu_custom_color_argb"
+    const val VISUALIZATION_STARFIELD_RENDER_BACKEND = "visualization_starfield_render_backend"
     const val VISUALIZATION_STARFIELD_STAR_COUNT = "visualization_starfield_star_count"
     const val VISUALIZATION_STARFIELD_SPEED_CENTI = "visualization_starfield_speed_centi"
     const val VISUALIZATION_STARFIELD_FOV_CENTI = "visualization_starfield_fov_centi"

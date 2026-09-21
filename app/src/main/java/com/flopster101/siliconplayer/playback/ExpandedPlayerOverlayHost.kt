@@ -4,10 +4,12 @@ import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.EnterTransition
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
-import androidx.compose.animation.scaleIn
-import androidx.compose.animation.slideInVertically
-import androidx.compose.animation.slideOutVertically
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.CubicBezierEasing
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.LinearOutSlowInEasing
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.core.MutableTransitionState
 import androidx.compose.foundation.layout.Box
@@ -17,7 +19,12 @@ import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.State
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.graphicsLayer
@@ -145,6 +152,20 @@ internal fun ExpandedPlayerOverlayHost(
     val noOpVisualizationModeSelect: (VisualizationMode) -> Unit = {}
     val expandedVisibilityState = remember { MutableTransitionState(false) }
 
+    // Latches that the overlay was fully expanded, so a preview that never
+    // got there does not earn the sequenced slide on its way out.
+    var overlayWasExpanded by remember { mutableStateOf(false) }
+    LaunchedEffect(expandedOverlayVisible) {
+        if (expandedOverlayVisible) overlayWasExpanded = true
+    }
+    LaunchedEffect(expandedVisibilityState.currentState, overlayVisible) {
+        if (!expandedVisibilityState.currentState && !overlayVisible) overlayWasExpanded = false
+    }
+
+    // No hold and no content fade: the back exit veils the vis, then
+    // slides the fully opaque panel off-screen. The exit transition below
+    // only keeps the composition alive until the slide has parked the
+    // surface past the display edge.
     LaunchedEffect(overlayVisible) {
         expandedVisibilityState.targetState = overlayVisible
     }
@@ -177,33 +198,103 @@ internal fun ExpandedPlayerOverlayHost(
         }
     }
 
+    // Drives the vis veil and the surface's own dimmer. The exit fall
+    // spans most of the slide so the vis flattens gradually as the panel
+    // travels instead of snapping to the veil color up front.
+    val overlayVisibilityForVis = animateFloatAsState(
+        targetValue = if (overlayVisible) 1f else 0f,
+        animationSpec = if (overlayVisible) {
+            tween(durationMillis = 250, easing = FastOutSlowInEasing)
+        } else {
+            tween(durationMillis = 180, easing = LinearEasing)
+        },
+        label = "playerOverlayVisibilityForVis"
+    )
+    val overlayVisibleAtoms = rememberUpdatedState(
+        Triple(dragPreviewVisible, expandedOverlayVisible, miniExpandPreviewProgress.coerceIn(0f, 1f))
+    )
+    // Exit slide, in units of a third of the screen height; the panel is
+    // fully below the display at 3. The bezier launches at roughly the
+    // enter's launch speed so the gesture answers instantly, then keeps
+    // accelerating gently past the display edge, so the exit's end still
+    // releases the surface off-screen, where a released layer cannot
+    // linger in the compositor and show its last buffer.
+    val exitSlideArmed = overlayWasExpanded &&
+        run {
+            val (atomPreview, atomExpanded, _) = overlayVisibleAtoms.value
+            !atomPreview && !atomExpanded
+        }
+    val exitSlideClock = remember { Animatable(0f) }
+    LaunchedEffect(exitSlideArmed) {
+        if (exitSlideArmed) {
+            exitSlideClock.animateTo(
+                4f,
+                tween(
+                    durationMillis = 280,
+                    easing = CubicBezierEasing(0.2f, 0.15f, 0.7f, 0.6f)
+                )
+            )
+        } else {
+            exitSlideClock.snapTo(0f)
+        }
+    }
+    val exitSlideFraction = if (exitSlideArmed) exitSlideClock.value else 0f
+    val previewProgress = miniExpandPreviewProgress.coerceIn(0f, 1f)
+    val previewMode = !expandedOverlayVisible && previewProgress > 0f
+    val previewOffsetPx = (1f - previewProgress) * screenHeightPx
+    // The enter slide runs on a local clock instead of slideInVertically,
+    // keeping it a plain translation on the host layer below: an embedded
+    // surface follows layer translations through the interop offset, but
+    // it could never follow the old scaleIn, so the scale is gone too.
+    val enterSlideClock = remember { Animatable(1f) }
+    val enterFromDrag = expandFromMiniDrag || dragPreviewVisible
+    LaunchedEffect(overlayVisible, enterFromDrag) {
+        if (overlayVisible && enterFromDrag) {
+            enterSlideClock.snapTo(0f)
+        } else if (overlayVisible && enterSlideClock.value > 0f) {
+            enterSlideClock.animateTo(
+                0f,
+                animationSpec = tween(durationMillis = 320, easing = LinearOutSlowInEasing)
+            )
+        }
+    }
+    // Rearm only once fully hidden: during the exit the clock holds 0 so
+    // the sequenced slide inside the player owns the travel alone.
+    LaunchedEffect(expandedVisibilityState.currentState) {
+        if (!expandedVisibilityState.currentState) enterSlideClock.snapTo(1f)
+    }
+    // Preview travel of the content, applied on the host layer below.
+    // No scrim: the exit fades over the real content behind the player.
+    // Stable instance: a fresh lambda per recomposition would re-trigger every reader.
+    val overlayVisibilityProvider = remember(overlayVisibilityForVis) {
+        {
+            val (previewVisible, expandedVisible, previewProgress) = overlayVisibleAtoms.value
+            if (previewVisible && !expandedVisible) previewProgress else overlayVisibilityForVis.value
+        }
+    }
+
     AnimatedVisibility(
         visibleState = expandedVisibilityState,
         enter = if (expandFromMiniDrag || dragPreviewVisible) {
             EnterTransition.None
         } else {
-            slideInVertically(
-                initialOffsetY = { it / 3 },
-                animationSpec = tween(durationMillis = 320, easing = LinearOutSlowInEasing)
-            ) + fadeIn(animationSpec = tween(durationMillis = 240)) + scaleIn(
-                initialScale = 0.96f,
-                animationSpec = tween(durationMillis = 320, easing = LinearOutSlowInEasing)
-            )
+            fadeIn(animationSpec = tween(durationMillis = 240))
         },
         exit = if (collapseFromSwipe) {
             fadeOut(animationSpec = tween(1))
         } else if (dragPreviewVisible) {
             fadeOut(animationSpec = tween(1))
         } else {
-            slideOutVertically(
-                targetOffsetY = { it / 4 },
-                animationSpec = tween(durationMillis = 320, easing = LinearOutSlowInEasing)
-            ) + fadeOut(animationSpec = tween(durationMillis = 250))
+            // No fade: the panel slides off fully opaque. The near-unity
+            // target alpha only stretches the transition across the slide
+            // so disposal (and the surface release with it) happens once
+            // the panel has left the display.
+            fadeOut(
+                animationSpec = tween(durationMillis = 380, easing = LinearEasing),
+                targetAlpha = 0.999f
+            )
         }
     ) {
-        val previewProgress = miniExpandPreviewProgress.coerceIn(0f, 1f)
-        val previewMode = !expandedOverlayVisible && previewProgress > 0f
-        val previewOffsetPx = (1f - previewProgress) * screenHeightPx
         Box(
             modifier = Modifier
                 .fillMaxSize()
@@ -211,6 +302,8 @@ internal fun ExpandedPlayerOverlayHost(
                     if (previewMode) {
                         translationY = previewOffsetPx
                         alpha = previewProgress
+                    } else {
+                        translationY = enterSlideClock.value * screenHeightPx / 3f
                     }
                 }
                 .pointerInteropFilter { event ->
@@ -238,7 +331,11 @@ internal fun ExpandedPlayerOverlayHost(
                     false
                 }
         ) {
-            CompositionLocalProvider(LocalPlayerFocusIndicatorsEnabled provides showFocusIndicators) {
+            CompositionLocalProvider(
+                LocalPlayerFocusIndicatorsEnabled provides showFocusIndicators,
+                LocalPlayerOverlayVisibility provides overlayVisibilityProvider,
+                LocalPlayerExitSlideFraction provides exitSlideFraction
+            ) {
                 PlayerScreen(
                     file = selectedFile,
                     onBack = if (expandedOverlayVisible) {

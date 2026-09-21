@@ -167,6 +167,18 @@ internal fun VisualizationAdvancedStarfieldRouteContent() {
         )
     }
 
+    var starfieldRenderBackend by remember {
+        mutableStateOf(
+            VisualizationRenderBackend.fromStorage(
+                prefs.getString(
+                    AppPreferenceKeys.VISUALIZATION_STARFIELD_RENDER_BACKEND,
+                    d.renderBackend.storageValue
+                ),
+                d.renderBackend
+            )
+        )
+    }
+    var showRenderBackendDialog by remember { mutableStateOf(false) }
     var showPresetDialog by remember { mutableStateOf(false) }
     var showStarCountDialog by remember { mutableStateOf(false) }
     var showSpeedDialog by remember { mutableStateOf(false) }
@@ -211,7 +223,8 @@ internal fun VisualizationAdvancedStarfieldRouteContent() {
             keys.reactSpeedCenti,
             keys.flashPercent,
             keys.contrastBackdropEnabled,
-            AppPreferenceKeys.VISUALIZATION_STARFIELD_ACTIVE_PRESET
+            AppPreferenceKeys.VISUALIZATION_STARFIELD_ACTIVE_PRESET,
+            AppPreferenceKeys.VISUALIZATION_STARFIELD_RENDER_BACKEND
         )
     ) {
         starCount = prefs.getInt(keys.starCount, tune.starCount)
@@ -253,6 +266,13 @@ internal fun VisualizationAdvancedStarfieldRouteContent() {
             .coerceIn(d.percentRange.first, d.percentRange.last)
         contrastBackdropEnabled = prefs.getBoolean(
             keys.contrastBackdropEnabled, tune.contrastBackdropEnabled)
+        starfieldRenderBackend = VisualizationRenderBackend.fromStorage(
+            prefs.getString(
+                AppPreferenceKeys.VISUALIZATION_STARFIELD_RENDER_BACKEND,
+                d.renderBackend.storageValue
+            ),
+            d.renderBackend
+        )
         activePreset = StarfieldPreset.fromStorage(
             prefs.getString(
                 AppPreferenceKeys.VISUALIZATION_STARFIELD_ACTIVE_PRESET,
@@ -511,9 +531,39 @@ internal fun VisualizationAdvancedStarfieldRouteContent() {
             }
         )
         Spacer(modifier = Modifier.height(16.dp))
+        SettingsSectionLabel("Renderer")
+        SettingsValuePickerCard(
+            title = "Renderer backend",
+            description = "TextureView composites inside the UI view tree; " +
+                "SurfaceView renders in its own layer.",
+            value = starfieldRenderBackend.label,
+            onClick = { showRenderBackendDialog = true }
+        )
+        Spacer(modifier = Modifier.height(16.dp))
     }
 
 
+    if (showRenderBackendDialog) {
+        SettingsSingleChoiceDialog(
+            title = "Starfield renderer backend",
+            selectedValue = starfieldRenderBackend,
+            options = listOf(
+                VisualizationRenderBackend.OpenGlTexture,
+                VisualizationRenderBackend.OpenGlSurface
+            ).map { backend ->
+                ChoiceDialogOption(value = backend, label = backend.label)
+            },
+            onSelected = { backend ->
+                starfieldRenderBackend = backend
+                prefs.edit().putString(
+                    AppPreferenceKeys.VISUALIZATION_STARFIELD_RENDER_BACKEND,
+                    backend.storageValue
+                ).apply()
+                showRenderBackendDialog = false
+            },
+            onDismiss = { showRenderBackendDialog = false }
+        )
+    }
     if (showPresetDialog) {
         SettingsSingleChoiceDialog(
             title = "Flight preset",

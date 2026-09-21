@@ -208,6 +208,9 @@ object AppDefaults {
         )
 
         object Starfield {
+            // SurfaceView keeps the vis out of the app window's display list;
+            // the cost is one extra composition layer.
+            val renderBackend = VisualizationRenderBackend.OpenGlSurface
             val starCountRange = 10..2000
             val speedRangeCenti = 2..150
             val fovRangeCenti = 40..250

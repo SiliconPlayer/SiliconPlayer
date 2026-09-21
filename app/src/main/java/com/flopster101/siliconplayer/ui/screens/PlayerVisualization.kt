@@ -1958,6 +1958,7 @@ internal fun starfieldActivePreset(sharedPrefs: android.content.SharedPreference
 
 
 internal data class StarfieldPrefs(
+    val renderBackend: VisualizationRenderBackend,
     val starCount: Int,
     val speed: Float,
     val fov: Float,
@@ -1987,6 +1988,13 @@ internal data class StarfieldPrefs(
             val t = starfieldPresetTuneFor(starfieldActivePreset(sharedPrefs))
             val k = starfieldKeysFor(starfieldActivePreset(sharedPrefs))
             return StarfieldPrefs(
+                renderBackend = VisualizationRenderBackend.fromStorage(
+                    sharedPrefs.getString(
+                        AppPreferenceKeys.VISUALIZATION_STARFIELD_RENDER_BACKEND,
+                        d.renderBackend.storageValue
+                    ),
+                    d.renderBackend
+                ),
                 starCount = sharedPrefs.getInt(k.starCount, t.starCount)
                     .coerceIn(d.starCountRange.first, d.starCountRange.last),
                 speed = sharedPrefs.getInt(k.speedCenti, t.speedCenti)
@@ -2987,6 +2995,9 @@ internal fun AlbumArtPlaceholder(
                     waveformRight = if (isGlBackendActive) emptyFloatArray else visWaveRight,
                     vuLevels = if (isGlBackendActive) emptyFloatArray else visVuSmoothed,
                     channelCount = visChannelCount,
+                    visCornerRadiusDp = artworkCornerRadiusDp,
+                    surfaceVeilColor = MaterialTheme.colorScheme.background,
+                    starfieldRenderBackend = starfieldPrefs.renderBackend,
                     starfieldStarCount = starfieldPrefs.starCount,
                     starfieldSpeed = starfieldPrefs.speed,
                     starfieldFov = starfieldPrefs.fov,

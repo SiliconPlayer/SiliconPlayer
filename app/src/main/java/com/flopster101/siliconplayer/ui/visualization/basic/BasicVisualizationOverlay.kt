@@ -156,6 +156,7 @@ fun BasicVisualizationOverlay(
     channelScopeTextVuColorMode: VisualizationChannelScopeTextColorMode,
     channelScopeTextVuCustomColorArgb: Int,
     channelScopeCornerRadiusDp: Int = 0,
+    starfieldRenderBackend: VisualizationRenderBackend = VisualizationRenderBackend.OpenGlTexture,
     starfieldStarCount: Int = 350,
     starfieldSpeed: Float = 0.30f,
     starfieldFov: Float = 1.0f,
@@ -178,6 +179,11 @@ fun BasicVisualizationOverlay(
     starfieldReactSpeed: Float = 0.6f,
     starfieldFlash: Float = 0.1f,
     starfieldContrastBackdropEnabled: Boolean = true,
+    // A SurfaceView is its own layer, so the artwork card's Compose clip does
+    // not reach it; the backend masks its corners in GL instead.
+    visCornerRadiusDp: Int = 0,
+    // Backdrop the Surface backend cross-fades against while the overlay fades.
+    surfaceVeilColor: Color = Color.Black,
     placeholderIcon: androidx.compose.ui.graphics.vector.ImageVector = androidx.compose.material.icons.Icons.Default.MusicNote,
     placeholderIconResId: Int = R.drawable.ic_placeholder_music_note,
     showArtworkBackground: Boolean = true,
@@ -681,11 +687,21 @@ fun BasicVisualizationOverlay(
                 starfieldReactSpeed = starfieldReactSpeed,
                 starfieldFlash = starfieldFlash
             )
-            com.flopster101.siliconplayer.ui.visualization.gl.SiliconNativeGlTextureVisualization(
-                frame = nativeFrame,
-                onFrameStats = channelScopeOnFrameStats,
-                modifier = modifier
-            )
+            if (starfieldRenderBackend == VisualizationRenderBackend.OpenGlSurface) {
+                com.flopster101.siliconplayer.ui.visualization.gl.SiliconNativeGlSurfaceVisualization(
+                    frame = nativeFrame,
+                    cornerRadiusDp = visCornerRadiusDp,
+                    veilColor = surfaceVeilColor,
+                    onFrameStats = channelScopeOnFrameStats,
+                    modifier = modifier
+                )
+            } else {
+                com.flopster101.siliconplayer.ui.visualization.gl.SiliconNativeGlTextureVisualization(
+                    frame = nativeFrame,
+                    onFrameStats = channelScopeOnFrameStats,
+                    modifier = modifier
+                )
+            }
         }
 
         VisualizationMode.Off -> Unit

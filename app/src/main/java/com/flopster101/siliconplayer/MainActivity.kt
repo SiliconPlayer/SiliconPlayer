@@ -4797,8 +4797,11 @@ filenameOnlyWhenTitleMissing = filenameOnlyWhenTitleMissing,
                         browserLaunchDirectory.startsWith("http://", ignoreCase = true) ||
                         browserLaunchDirectory.startsWith("https://", ignoreCase = true)
                     )
+        // Keep home mounted for the whole expanded session: (re)mounting it
+        // at drag/exit start drops frames mid-gesture.
         val shouldComposeBackgroundContent =
             keepRemoteBrowserComposed ||
+                isPlayerExpanded ||
                 playerTransition.collapseDragInProgress ||
                 !playerTransition.expandedOverlayCurrentVisible ||
                 !playerTransition.expandedOverlaySettledVisible

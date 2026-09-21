@@ -3,6 +3,8 @@ package com.flopster101.siliconplayer.ui.screens
 import com.flopster101.siliconplayer.onGloballyPositionedDeferred
 import com.flopster101.siliconplayer.onSizeChangedDeferred
 import com.flopster101.siliconplayer.isRoundScreenCompat
+import com.flopster101.siliconplayer.LocalPlayerExitSlideFraction
+import com.flopster101.siliconplayer.LocalPlayerOverlayVisibility
 import com.flopster101.siliconplayer.VisualizationPerformanceMode
 import com.flopster101.siliconplayer.VerticalScrollbarTrack
 import android.content.Context
@@ -1124,7 +1126,11 @@ internal fun PlayerScreen(
             panelOffsetAnim.snapTo(downwardDragPx)
         }
     }
-    val panelFadeDenom = collapseThresholdPx * 1.4f
+    val incomingOverlayVisibility = LocalPlayerOverlayVisibility.current
+    // Sequenced exit travel from the host: 0 until the veil covers the
+    // surface behind the window, then down. Drags add their own offset.
+    val exitSlideFraction = LocalPlayerExitSlideFraction.current
+    val overlayVisibilityProvider = incomingOverlayVisibility
     val topArrowFocusRequester = remember { FocusRequester() }
     val primaryContentFocusRequester = remember { FocusRequester() }
     var showRemainingTime by rememberSaveable { mutableStateOf(false) }
@@ -1260,11 +1266,11 @@ internal fun PlayerScreen(
                     onStopAndClear = onStopAndClear
                 )
             }
+            // No fade with the drag here: window alpha cannot reach the
+            // surface layer, so the canvas would stay at full brightness
+            // against a dimmed hole and punch through the veil.
             .graphicsLayer {
-                val px = panelOffsetAnim.value
-                translationY = px
-                val drag = (px / panelFadeDenom).coerceIn(0f, 1f)
-                alpha = 1f - (0.22f * drag)
+                translationY = panelOffsetAnim.value + exitSlideFraction * screenHeightPx / 3f
             }
             .then(
                 if (enableCollapseGesture) {
@@ -1351,7 +1357,10 @@ internal fun PlayerScreen(
                 }
             )
     ) {
-        CompositionLocalProvider(LocalPlayerMarqueeClockState provides playerMarqueeClockState) {
+        CompositionLocalProvider(
+            LocalPlayerMarqueeClockState provides playerMarqueeClockState,
+            LocalPlayerOverlayVisibility provides overlayVisibilityProvider
+        ) {
             val isWatchDevice = remember(context) {
                 context.packageManager.hasSystemFeature(PackageManager.FEATURE_WATCH)
             }

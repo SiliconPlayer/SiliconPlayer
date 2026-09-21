@@ -13,6 +13,7 @@ import android.opengl.EGLConfig
 import android.opengl.EGLContext
 import android.opengl.EGLDisplay
 import android.opengl.EGLSurface
+import android.opengl.GLES20
 import android.os.Looper
 import android.view.Choreographer
 import android.view.Surface
@@ -375,18 +376,22 @@ private class SiliconNativeGlTextureView(
     }
 }
 
-private class SiliconNativeTextureRenderThread(
+internal class SiliconNativeTextureRenderThread(
     private val context: Context,
     private val outputSurface: Surface,
     initialWidth: Int,
     initialHeight: Int,
     private val density: Float,
+    cornerRadiusPx: Float = 0f,
     private val onFrameStats: (fps: Int, frameMs: Int) -> Unit
 ) : Thread("SiliconNativeTextureRenderThread") {
     private val lock = Object()
 
     @Volatile
     private var running = true
+
+    @Volatile
+    private var blankFrameOnStop = false
     private var frameData: SiliconNativeGlFrame? = null
     private var dynamicData: SiliconNativeGlDynamicData? = null
     private var frameSequence: Long = 0L
@@ -425,6 +430,42 @@ private class SiliconNativeTextureRenderThread(
     private var projectMSawStopped = false
     private var projectMStoppedTrackEmpty = false
 
+    // SurfaceView only: the window can't clip a surface that is composited on
+    // top of it, so the rounded artwork shape is cut into the GL frame instead.
+    @Volatile
+    private var clipCornerRadiusPx = cornerRadiusPx
+    private val roundedClipMask = GlRoundedClipMask()
+
+    // Master dimmer for overlay fades: this surface lives behind the window,
+    // so a fading window re-exposes whatever the surface holds. Dimming the
+    // pixels here keeps any such leak at the veil color instead of full-bright.
+    @Volatile
+    private var masterDim = 0f
+
+    @Volatile
+    private var dimRed = 0f
+
+    @Volatile
+    private var dimGreen = 0f
+
+    @Volatile
+    private var dimBlue = 0f
+    private val dimQuad = GlDimQuad()
+
+    fun setMasterDim(dim: Float) {
+        masterDim = dim
+    }
+
+    fun setDimColor(red: Float, green: Float, blue: Float) {
+        dimRed = red
+        dimGreen = green
+        dimBlue = blue
+    }
+
+    fun setCornerRadius(radiusPx: Float) {
+        clipCornerRadiusPx = radiusPx
+    }
+
     // projectM frame-rate throttle (render thread only). The Choreographer loop
     // fires at vsync, so projectM must skip renders to honor the configured FPS;
     // projectm_set_fps only feeds the ctx.fps uniform and never gates rendering.
@@ -460,6 +501,10 @@ private class SiliconNativeTextureRenderThread(
     private val frameCallback = object : Choreographer.FrameCallback {
         override fun doFrame(frameTimeNanos: Long) {
             if (!running) {
+                if (blankFrameOnStop) {
+                    blankFrameOnStop = false
+                    renderBlankFrame()
+                }
                 Looper.myLooper()?.quitSafely()
                 return
             }
@@ -935,6 +980,19 @@ private class SiliconNativeTextureRenderThread(
                     latestFrameMs = frameMs
                 }
 
+                if (clipCornerRadiusPx > 0f) {
+                    roundedClipMask.draw(
+                        state.width.toFloat(),
+                        state.height.toFloat(),
+                        clipCornerRadiusPx
+                    )
+                }
+
+                val dim = masterDim
+                if (dim > 0.001f) {
+                    dimQuad.draw(dim, dimRed, dimGreen, dimBlue)
+                }
+
                 EGL14.eglSwapBuffers(eglDisplay, eglSurface)
                 val nowNs = System.nanoTime()
                 drawFrameCount += 1
@@ -960,6 +1018,26 @@ private class SiliconNativeTextureRenderThread(
 
     fun requestStop() {
         running = false
+    }
+
+    /**
+     * Stops after presenting one fully transparent frame, so a released
+     * surface holds nothing visible no matter how the compositor treats
+     * its layer during teardown.
+     */
+    fun requestStopWithBlankFrame() {
+        blankFrameOnStop = true
+        running = false
+    }
+
+    private fun renderBlankFrame() {
+        if (eglSurface == EGL14.EGL_NO_SURFACE) return
+        runCatching {
+            GLES20.glDisable(GLES20.GL_SCISSOR_TEST)
+            GLES20.glClearColor(0f, 0f, 0f, 0f)
+            GLES20.glClear(GLES20.GL_COLOR_BUFFER_BIT)
+            EGL14.eglSwapBuffers(eglDisplay, eglSurface)
+        }
     }
 
     private fun initEgl(): Boolean {
