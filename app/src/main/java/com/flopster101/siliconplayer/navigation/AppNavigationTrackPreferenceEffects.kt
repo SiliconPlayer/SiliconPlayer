@@ -9,7 +9,6 @@ import java.io.File
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
-
 @Composable
 internal fun AppNavigationTrackPreferenceEffects(
     context: Context,
@@ -51,17 +50,29 @@ internal fun AppNavigationTrackPreferenceEffects(
             onArtworkResolvedTrackKeyChanged(null)
             return@LaunchedEffect
         }
-        peekCachedArtworkBitmapForSource(
-            displayFile = selectedFile,
-            sourceId = currentPlaybackSourceId,
-            requestUrl = currentPlaybackRequestUrl
-        )?.let { cachedArtwork ->
-            onArtworkBitmapChanged(cachedArtwork.asImageBitmap())
+        fun peekCached(): androidx.compose.ui.graphics.ImageBitmap? =
+            peekCachedArtworkBitmapForSource(
+                displayFile = selectedFile,
+                sourceId = currentPlaybackSourceId,
+                requestUrl = currentPlaybackRequestUrl
+            )?.asImageBitmap()
+
+        peekCached()?.let { cachedArtwork ->
+            onArtworkBitmapChanged(cachedArtwork)
             onArtworkResolvedTrackKeyChanged(artworkTrackKey)
             return@LaunchedEffect
         }
+
+        // Retry full loads with backoff, then keep re-peeking for a while so art a
+        // background fetch (notification / recents chip) landed still shows without
+        // needing a track switch. peekCached() runs before each load so a cache fill
+        // short-circuits the expensive SMB path.
         var resolvedArtwork: androidx.compose.ui.graphics.ImageBitmap? = null
-        repeat(8) { attempt ->
+        repeat(12) { attempt ->
+            peekCached()?.let { cached ->
+                resolvedArtwork = cached
+                return@repeat
+            }
             resolvedArtwork = withContext(Dispatchers.IO) {
                 loadArtworkForSource(
                     context = context,
@@ -71,8 +82,16 @@ internal fun AppNavigationTrackPreferenceEffects(
                 )
             }
             if (resolvedArtwork != null) return@repeat
-            if (attempt < 7) {
-                delay(130L)
+            if (attempt < 11) {
+                delay((130L + attempt * 60L).coerceAtMost(500L))
+            }
+        }
+        if (resolvedArtwork == null) {
+            var waited = 0L
+            while (resolvedArtwork == null && waited < 4000L) {
+                delay(400L)
+                waited += 400L
+                resolvedArtwork = peekCached()
             }
         }
         onArtworkBitmapChanged(resolvedArtwork)
