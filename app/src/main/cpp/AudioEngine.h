@@ -239,6 +239,7 @@ public:
     bool isTrackVBR();
     std::string getAudioBackendLabel() const;
     int getStreamBurstFrames() const;
+    int getStreamBurstPeriods() const;
     void setBitPerfectMode(bool enabled);
     bool isBitPerfectModeEnabled() const { return bitPerfectModeEnabled; }
     void setUacSettlePilotTone(bool enabled) { uacSettlePilotToneEnabled.store(enabled, std::memory_order_release); }
@@ -568,9 +569,8 @@ private:
     std::atomic<uint64_t> renderQueueUnderrunCount { 0 };
     std::atomic<uint64_t> renderQueueUnderrunFrames { 0 };
     std::atomic<uint64_t> renderQueueCallbackCount { 0 };
-#ifndef NDEBUG
     std::atomic<int64_t> renderQueueLastUnderrunLogNs { 0 };
-#endif
+    std::atomic<int64_t> lastAudibleStreamStartNs { 0 };
     bool renderWorkerStop = false;
     std::atomic<bool> renderTerminalStopPending { false };
     std::atomic<bool> pendingResumeFadeOnStart { false };

@@ -382,6 +382,13 @@ int AudioEngine::getStreamBurstFrames() const {
     return miniaudioBufferFrames;
 }
 
+int AudioEngine::getStreamBurstPeriods() const {
+    if (miniaudioDeviceInitialized && miniaudioDevice.playback.internalPeriods > 0) {
+        return static_cast<int>(miniaudioDevice.playback.internalPeriods);
+    }
+    return 4;
+}
+
 std::string AudioEngine::getAudioBackendLabel() const {
     if (!isPlaying.load(std::memory_order_relaxed)) {
         return "(inactive)";
@@ -460,6 +467,10 @@ void AudioEngine::reconfigureStream(bool resumePlayback) {
     if (requestStreamStart()) {
         streamStartupPrerollPending = false;
         playbackStreamStarted.store(true, std::memory_order_release);
+        lastAudibleStreamStartNs.store(
+                std::chrono::duration_cast<std::chrono::nanoseconds>(
+                        std::chrono::steady_clock::now().time_since_epoch()).count(),
+                std::memory_order_relaxed);
         renderWorkerCv.notify_all();
         return;
     }
@@ -854,9 +865,12 @@ bool AudioEngine::renderOutputCallbackFrames(float* outputData, int32_t numFrame
         );
         renderQueueUnderrunCount.fetch_add(1, std::memory_order_relaxed);
         renderQueueUnderrunFrames.fetch_add(missingFrames, std::memory_order_relaxed);
-#ifndef NDEBUG
+        // Startup gaps only reproduce on-device, so this stays on in all
+        // builds: full train for 1.5 s after each start, throttled after.
         const int64_t previousLogNs = renderQueueLastUnderrunLogNs.load(std::memory_order_relaxed);
-        if (nowNs - previousLogNs > 1000000000LL) {
+        const bool startupTrain =
+                nowNs - lastAudibleStreamStartNs.load(std::memory_order_relaxed) < 1500000000LL;
+        if (startupTrain || nowNs - previousLogNs > 1000000000LL) {
             const uint64_t underruns = renderQueueUnderrunCount.load(std::memory_order_relaxed);
             const uint64_t underrunFrames = renderQueueUnderrunFrames.load(std::memory_order_relaxed);
             const uint64_t callbacks = renderQueueCallbackCount.load(std::memory_order_relaxed);
@@ -871,7 +885,6 @@ bool AudioEngine::renderOutputCallbackFrames(float* outputData, int32_t numFrame
             );
             renderQueueLastUnderrunLogNs.store(nowNs, std::memory_order_relaxed);
         }
-#endif
         std::memset(
                 outputData + (static_cast<size_t>(framesCopied) * static_cast<size_t>(channels)),
                 0,

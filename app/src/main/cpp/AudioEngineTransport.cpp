@@ -128,14 +128,18 @@ bool AudioEngine::start() {
         isPlaying = true;
         naturalEndPending.store(false);
         const int startupChunkFrames = std::max(256, renderWorkerChunkFrames.load(std::memory_order_relaxed));
-        int startupBaseTargetFrames = std::max(
-                startupChunkFrames * 2,
-                std::min(renderWorkerTargetFrames.load(std::memory_order_relaxed), 4096)
-        );
         const int burstFrames = getStreamBurstFrames();
-        if (burstFrames > 0) {
-            startupBaseTargetFrames = std::max(startupBaseTargetFrames, burstFrames * 2);
-        }
+        const int burstPeriods = getStreamBurstPeriods();
+        // Cover the startup burst: the framework pulls a full device buffer
+        // as fast as callbacks return before real-time pacing settles.
+        // Anything short of that opens an audible hole ~200 ms in.
+        const int burstCoverFrames =
+                (burstFrames > 0 && burstPeriods > 0) ? burstFrames * burstPeriods : 0;
+        int startupBaseTargetFrames = std::max({
+                startupChunkFrames * 2,
+                std::min(renderWorkerTargetFrames.load(std::memory_order_relaxed), 4096),
+                burstCoverFrames
+        });
         int startupPrerollFrames = 0;
         if (streamStartupPrerollPending && !isBitPerfectModeEnabled()) {
             const int prerollFrames = burstFrames > 0 ? burstFrames : startupChunkFrames;
@@ -146,6 +150,12 @@ bool AudioEngine::start() {
             LOGD("Applying one-time startup preroll: %d frames (ch=%zu)", startupPrerollFrames, ch);
         }
         const int startupTargetFrames = startupBaseTargetFrames + startupPrerollFrames;
+        // Let the worker overfill past its steady/scope-capped targets, or
+        // the prefill below stalls to the deadline without covering the burst.
+        renderQueueRecoveryBoostUntilNs.store(
+                std::chrono::duration_cast<std::chrono::nanoseconds>(
+                        std::chrono::steady_clock::now().time_since_epoch()).count() + 2500000000LL,
+                std::memory_order_relaxed);
         renderWorkerCv.notify_one();
         const auto prefillDeadline = std::chrono::steady_clock::now() + std::chrono::milliseconds(kStartupPrefillDeadlineMs);
         while (renderQueueFrames() < startupTargetFrames &&
@@ -153,6 +163,9 @@ bool AudioEngine::start() {
             std::this_thread::sleep_for(std::chrono::milliseconds(kStartupPrefillPollIntervalMs));
             renderWorkerCv.notify_one();
         }
+        LOGD("Track start prefill: queued=%d target=%d preroll=%d hitDeadline=%d",
+             renderQueueFrames(), startupTargetFrames, startupPrerollFrames,
+             renderQueueFrames() < startupTargetFrames ? 1 : 0);
 
         if (!requestStreamStart()) {
             closeStream();
@@ -170,6 +183,10 @@ bool AudioEngine::start() {
         }
         streamStartupPrerollPending = false;
         playbackStreamStarted.store(true, std::memory_order_release);
+        lastAudibleStreamStartNs.store(
+                std::chrono::duration_cast<std::chrono::nanoseconds>(
+                        std::chrono::steady_clock::now().time_since_epoch()).count(),
+                std::memory_order_relaxed);
         renderWorkerCv.notify_all();
         return true;
     }
