@@ -267,19 +267,18 @@ void AyflyDecoder::captureChannelScopeSnapshotLocked() {
     scratchRaw.assign(static_cast<size_t>(totalChannels) * maxSamples, 0.0f);
     scratchVu.assign(static_cast<size_t>(totalChannels), 0.0f);
 
-    const int vuWindow = std::min(maxSamples, 2048);
     for (int ch = 0; ch < totalChannels; ++ch) {
         float* dest = scratchRaw.data() + static_cast<size_t>(ch) * maxSamples;
         ay_getchannelscope(song, static_cast<unsigned char>(ch),
                            dest, static_cast<unsigned long>(maxSamples));
-        float peak = 0.0f;
+        // Taps arrive pre-centered from the core; VU reads the DAC level.
+        scratchVu[static_cast<size_t>(ch)] = std::clamp(
+                ay_getchannellevel(song, static_cast<unsigned char>(ch)) * kAyTapFullScale,
+                0.0f, 1.0f);
         for (int i = 0; i < maxSamples; ++i) {
-            // VU stays chip-relative; only the waveform gets display headroom.
-            const float full = dest[i] * kAyTapFullScale;
-            dest[i] = std::clamp(full * kAyScopeHeadroom, 0.0f, 1.0f);
-            if (i >= maxSamples - vuWindow) peak = std::max(peak, full);
+            dest[i] = std::clamp(dest[i] * kAyTapFullScale * kAyScopeHeadroom,
+                                 -1.0f, 1.0f);
         }
-        scratchVu[static_cast<size_t>(ch)] = peak;
     }
 
     channelScopeState->publish(scratchRaw, scratchVu, totalChannels,
