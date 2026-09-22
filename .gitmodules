@@ -103,5 +103,5 @@
 	ignore = dirty
 [submodule "external/ayfly"]
 	path = external/ayfly
-	url = https://github.com/l29ah/ayfly
+	url = https://github.com/SiliconPlayer/ayfly
 	ignore = dirty
