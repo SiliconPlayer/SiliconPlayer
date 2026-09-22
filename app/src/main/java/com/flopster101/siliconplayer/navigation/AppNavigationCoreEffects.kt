@@ -26,7 +26,7 @@ internal fun AppNavigationCoreEffects(
     xmpInterpolation: Int,
     xmpStereoSeparationPercent: Int,
     xmpAmigaStereoSeparationPercent: Int,
-    xmpAmigaMixing: Boolean,
+    xmpAmigaModel: Int,
     lazyUsf2UseHleAudio: Boolean,
     vio2sfInterpolationQuality: Int,
     sc68SamplingRateHz: Int,
@@ -206,14 +206,15 @@ internal fun AppNavigationCoreEffects(
         )
     }
 
-    LaunchedEffect(xmpAmigaMixing) {
-        prefs.edit().putBoolean(CorePreferenceKeys.XMP_AMIGA_MIXING, xmpAmigaMixing).apply()
+    LaunchedEffect(xmpAmigaModel) {
+        val normalized = xmpAmigaModel.coerceIn(0, 2)
+        prefs.edit().putInt(CorePreferenceKeys.XMP_AMIGA_MODEL, normalized).apply()
         applyCoreOptionWithPolicy(
             coreName = DecoderNames.LIBXMP,
-            optionName = XmpOptionKeys.AMIGA_MIXING,
-            optionValue = xmpAmigaMixing.toString(),
+            optionName = XmpOptionKeys.AMIGA_MODEL,
+            optionValue = normalized.toString(),
             policy = CoreOptionApplyPolicy.Live,
-            optionLabel = "Amiga 500 mixing"
+            optionLabel = "Amiga mixing"
         )
     }
 
@@ -1073,7 +1074,7 @@ internal fun AppNavigationCoreEffectsFromSettingsStates(
         xmpInterpolation = settingsStates.xmpInterpolation.intValue,
         xmpStereoSeparationPercent = settingsStates.xmpStereoSeparationPercent.intValue,
         xmpAmigaStereoSeparationPercent = settingsStates.xmpAmigaStereoSeparationPercent.intValue,
-        xmpAmigaMixing = settingsStates.xmpAmigaMixing.value,
+        xmpAmigaModel = settingsStates.xmpAmigaModel.intValue,
         lazyUsf2UseHleAudio = settingsStates.lazyUsf2UseHleAudio.value,
         vio2sfInterpolationQuality = settingsStates.vio2sfInterpolationQuality.intValue,
         sc68SamplingRateHz = settingsStates.sc68SamplingRateHz.intValue,

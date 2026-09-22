@@ -101,7 +101,7 @@ internal fun clearAllSettingsFromMainAction(
         xmpInterpolation = pluginCoreState.xmpInterpolation,
         xmpStereoSeparationPercent = pluginCoreState.xmpStereoSeparationPercent,
         xmpAmigaStereoSeparationPercent = pluginCoreState.xmpAmigaStereoSeparationPercent,
-        xmpAmigaMixing = pluginCoreState.xmpAmigaMixing,
+        xmpAmigaModel = pluginCoreState.xmpAmigaModel,
         vio2sfInterpolationQuality = pluginCoreState.vio2sfInterpolationQuality,
         sc68SamplingRateHz = pluginCoreState.sc68SamplingRateHz,
         sc68Asid = pluginCoreState.sc68Asid,
@@ -260,7 +260,7 @@ internal fun clearAllSettingsFromMainAction(
         onXmpInterpolationChanged = pluginCoreActions.onXmpInterpolationChanged,
         onXmpStereoSeparationPercentChanged = pluginCoreActions.onXmpStereoSeparationPercentChanged,
         onXmpAmigaStereoSeparationPercentChanged = pluginCoreActions.onXmpAmigaStereoSeparationPercentChanged,
-        onXmpAmigaMixingChanged = pluginCoreActions.onXmpAmigaMixingChanged,
+        onXmpAmigaModelChanged = pluginCoreActions.onXmpAmigaModelChanged,
     )
 }
 
@@ -283,7 +283,7 @@ internal fun clearAllPluginSettingsFromMainAction(
         onXmpInterpolationChanged = pluginCoreActions.onXmpInterpolationChanged,
         onXmpStereoSeparationPercentChanged = pluginCoreActions.onXmpStereoSeparationPercentChanged,
         onXmpAmigaStereoSeparationPercentChanged = pluginCoreActions.onXmpAmigaStereoSeparationPercentChanged,
-        onXmpAmigaMixingChanged = pluginCoreActions.onXmpAmigaMixingChanged,
+        onXmpAmigaModelChanged = pluginCoreActions.onXmpAmigaModelChanged,
         onLazyUsf2CoreSampleRateHzChanged = pluginCoreActions.onLazyUsf2SampleRateChanged,
         onAdPlugCoreSampleRateHzChanged = pluginCoreActions.onAdPlugSampleRateChanged,
         onHivelyTrackerCoreSampleRateHzChanged = pluginCoreActions.onHivelyTrackerSampleRateChanged,
@@ -387,7 +387,7 @@ internal fun resetPluginSettingsFromMainAction(
         onXmpInterpolationChanged = pluginCoreActions.onXmpInterpolationChanged,
         onXmpStereoSeparationPercentChanged = pluginCoreActions.onXmpStereoSeparationPercentChanged,
         onXmpAmigaStereoSeparationPercentChanged = pluginCoreActions.onXmpAmigaStereoSeparationPercentChanged,
-        onXmpAmigaMixingChanged = pluginCoreActions.onXmpAmigaMixingChanged,
+        onXmpAmigaModelChanged = pluginCoreActions.onXmpAmigaModelChanged,
         onVgmPlayCoreSampleRateHzChanged = pluginCoreActions.onVgmPlaySampleRateChanged,
         onVgmPlayLoopCountChanged = pluginCoreActions.onVgmPlayLoopCountChanged,
         onVgmPlayAllowNonLoopingLoopChanged = pluginCoreActions.onVgmPlayAllowNonLoopingLoopChanged,

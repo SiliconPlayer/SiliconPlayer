@@ -3,18 +3,17 @@ package com.flopster101.siliconplayer.pluginsettings
 import androidx.compose.runtime.Composable
 import com.flopster101.siliconplayer.CoreChoiceSelectorCard
 import com.flopster101.siliconplayer.CoreDialogSliderCard
-import com.flopster101.siliconplayer.PlayerSettingToggleCard
 import com.flopster101.siliconplayer.XmpConfig
 
 internal class XmpSettings(
     private val interpolation: Int,
     private val stereoSeparationPercent: Int,
     private val amigaStereoSeparationPercent: Int,
-    private val amigaMixing: Boolean,
+    private val amigaModel: Int,
     private val onInterpolationChanged: (Int) -> Unit,
     private val onStereoSeparationPercentChanged: (Int) -> Unit,
     private val onAmigaStereoSeparationPercentChanged: (Int) -> Unit,
-    private val onAmigaMixingChanged: (Boolean) -> Unit
+    private val onAmigaModelChanged: (Int) -> Unit
 ) : PluginSettings {
 
     @Composable
@@ -43,11 +42,12 @@ internal class XmpSettings(
             }
             spacer()
             custom {
-                PlayerSettingToggleCard(
-                    title = "Amiga 500 mixing",
-                    description = "Uses the Amiga 500 Paula mixer model for Amiga MODs, including the LED lowpass filter when the module enables it.",
-                    checked = amigaMixing,
-                    onCheckedChange = onAmigaMixingChanged
+                CoreChoiceSelectorCard(
+                    title = "Amiga mixing",
+                    description = "Paula mixer model used for Amiga MODs. The A500 has the fixed 6 kHz filter, the A1200 the lighter leakage filter, and both follow the LED filter when the module enables it.",
+                    selectedValue = amigaModel,
+                    options = XmpConfig.amigaModelChoices,
+                    onSelected = onAmigaModelChanged
                 )
             }
             spacer()

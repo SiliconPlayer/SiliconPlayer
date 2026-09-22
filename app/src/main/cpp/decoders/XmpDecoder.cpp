@@ -174,7 +174,8 @@ bool XmpDecoder::startPlayerLocked() {
     isAmigaModule = false;
     const int savedFlags = xmp_get_player(context, XMP_PLAYER_CFLAGS);
     if (savedFlags >= 0) {
-        xmp_set_player(context, XMP_PLAYER_CFLAGS, savedFlags | XMP_FLAGS_A500);
+        const int probeFlags = (savedFlags | XMP_FLAGS_A500) & ~XMP_FLAGS_A1200;
+        xmp_set_player(context, XMP_PLAYER_CFLAGS, probeFlags);
         isAmigaModule = xmp_get_player(context, XMP_PLAYER_MIXER_TYPE) != XMP_MIXER_STANDARD;
         xmp_set_player(context, XMP_PLAYER_CFLAGS, savedFlags);
     }
@@ -192,10 +193,11 @@ void XmpDecoder::applyOptionsLocked() {
     xmp_set_player(context, XMP_PLAYER_MIX,
                    isAmigaModule ? amigaStereoSeparationPercent : stereoSeparationPercent);
     int flags = xmp_get_player(context, XMP_PLAYER_CFLAGS);
-    if (amigaMixingEnabled) {
+    flags &= ~(XMP_FLAGS_A500 | XMP_FLAGS_A1200);
+    if (amigaModel == 1) {
         flags |= XMP_FLAGS_A500;
-    } else {
-        flags &= ~XMP_FLAGS_A500;
+    } else if (amigaModel == 2) {
+        flags |= XMP_FLAGS_A1200;
     }
     xmp_set_player(context, XMP_PLAYER_CFLAGS, flags);
 }
@@ -393,9 +395,8 @@ void XmpDecoder::setOption(const char* name, const char* value) {
         stereoSeparationPercent = std::clamp(parseIntString(value, 100), -100, 100);
     } else if (key == "xmp.amiga_stereo_separation") {
         amigaStereoSeparationPercent = std::clamp(parseIntString(value, 100), -100, 100);
-    } else if (key == "xmp.amiga_mixing") {
-        const std::string flag(value);
-        amigaMixingEnabled = flag == "true" || flag == "1";
+    } else if (key == "xmp.amiga_model") {
+        amigaModel = std::clamp(parseIntString(value, 0), 0, 2);
     } else {
         return;
     }

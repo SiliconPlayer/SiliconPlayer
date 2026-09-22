@@ -734,7 +734,7 @@ internal fun clearAllSettingsAction(
     xmpInterpolation: Int,
     xmpStereoSeparationPercent: Int,
     xmpAmigaStereoSeparationPercent: Int,
-    xmpAmigaMixing: Boolean,
+    xmpAmigaModel: Int,
     vio2sfInterpolationQuality: Int,
     sc68SamplingRateHz: Int,
     sc68Asid: Int,
@@ -893,7 +893,7 @@ internal fun clearAllSettingsAction(
     onXmpInterpolationChanged: (Int) -> Unit,
     onXmpStereoSeparationPercentChanged: (Int) -> Unit,
     onXmpAmigaStereoSeparationPercentChanged: (Int) -> Unit,
-    onXmpAmigaMixingChanged: (Boolean) -> Unit,
+    onXmpAmigaModelChanged: (Int) -> Unit,
 ) {
     val pluginSnapshot = mapOf(
         CorePreferenceKeys.CORE_RATE_FFMPEG to ffmpegCoreSampleRateHz,
@@ -958,7 +958,8 @@ internal fun clearAllSettingsAction(
         CorePreferenceKeys.OPENMPT_INTERPOLATION_FILTER_LENGTH to openMptInterpolationFilterLength,
         CorePreferenceKeys.OPENMPT_AMIGA_RESAMPLER_MODE to openMptAmigaResamplerMode,
         CorePreferenceKeys.OPENMPT_VOLUME_RAMPING_STRENGTH to openMptVolumeRampingStrength,
-        CorePreferenceKeys.OPENMPT_MASTER_GAIN_MILLIBEL to openMptMasterGainMilliBel
+        CorePreferenceKeys.OPENMPT_MASTER_GAIN_MILLIBEL to openMptMasterGainMilliBel,
+        CorePreferenceKeys.XMP_AMIGA_MODEL to xmpAmigaModel
     )
     val pluginBooleanSnapshot = mapOf(
         CorePreferenceKeys.VGMPLAY_ALLOW_NON_LOOPING_LOOP to vgmPlayAllowNonLoopingLoop,
@@ -976,8 +977,7 @@ internal fun clearAllSettingsAction(
         CorePreferenceKeys.SIDPLAYFP_RESIDFP_FAST_SAMPLING to sidPlayFpReSidFpFastSampling,
         CorePreferenceKeys.OPENMPT_AMIGA_RESAMPLER_APPLY_ALL_MODULES to openMptAmigaResamplerApplyAllModules,
         CorePreferenceKeys.OPENMPT_FT2_XM_VOLUME_RAMPING to openMptFt2XmVolumeRamping,
-        CorePreferenceKeys.OPENMPT_SURROUND_ENABLED to openMptSurroundEnabled,
-        CorePreferenceKeys.XMP_AMIGA_MIXING to xmpAmigaMixing
+        CorePreferenceKeys.OPENMPT_SURROUND_ENABLED to openMptSurroundEnabled
     )
     val vgmChipCoreSnapshot = vgmPlayChipCoreSelections
 
@@ -1042,7 +1042,7 @@ internal fun clearAllSettingsAction(
     onXmpInterpolationChanged(XmpDefaults.interpolation)
     onXmpStereoSeparationPercentChanged(XmpDefaults.stereoSeparationPercent)
     onXmpAmigaStereoSeparationPercentChanged(XmpDefaults.amigaStereoSeparationPercent)
-    onXmpAmigaMixingChanged(XmpDefaults.amigaMixing)
+    onXmpAmigaModelChanged(XmpDefaults.amigaModel)
     onSc68SamplingRateHzChanged(Sc68Defaults.coreSampleRateHz)
     onSc68AsidChanged(Sc68Defaults.asid)
     onSc68DefaultTimeSecondsChanged(Sc68Defaults.defaultTimeSeconds)
@@ -1191,7 +1191,7 @@ internal fun clearAllPluginSettingsAction(
     onXmpInterpolationChanged: (Int) -> Unit,
     onXmpStereoSeparationPercentChanged: (Int) -> Unit,
     onXmpAmigaStereoSeparationPercentChanged: (Int) -> Unit,
-    onXmpAmigaMixingChanged: (Boolean) -> Unit
+    onXmpAmigaModelChanged: (Int) -> Unit
 ) {
     onFfmpegCoreSampleRateHzChanged(0)
     onFfmpegGaplessRepeatTrackChanged(FfmpegDefaults.gaplessRepeatTrack)
@@ -1211,7 +1211,7 @@ internal fun clearAllPluginSettingsAction(
     onXmpInterpolationChanged(XmpDefaults.interpolation)
     onXmpStereoSeparationPercentChanged(XmpDefaults.stereoSeparationPercent)
     onXmpAmigaStereoSeparationPercentChanged(XmpDefaults.amigaStereoSeparationPercent)
-    onXmpAmigaMixingChanged(XmpDefaults.amigaMixing)
+    onXmpAmigaModelChanged(XmpDefaults.amigaModel)
     onLazyUsf2UseHleAudioChanged(LazyUsf2Defaults.useHleAudio)
     onVio2sfInterpolationQualityChanged(Vio2sfDefaults.interpolationQuality)
     onSc68SamplingRateHzChanged(Sc68Defaults.coreSampleRateHz)
@@ -1446,7 +1446,7 @@ internal fun resetPluginSettingsAction(
     onXmpInterpolationChanged: (Int) -> Unit,
     onXmpStereoSeparationPercentChanged: (Int) -> Unit,
     onXmpAmigaStereoSeparationPercentChanged: (Int) -> Unit,
-    onXmpAmigaMixingChanged: (Boolean) -> Unit
+    onXmpAmigaModelChanged: (Int) -> Unit
 ) {
     val optionNamesForReset = when (pluginName) {
         DecoderNames.FFMPEG -> listOf(
@@ -1518,7 +1518,7 @@ internal fun resetPluginSettingsAction(
             XmpOptionKeys.INTERPOLATION,
             XmpOptionKeys.STEREO_SEPARATION,
             XmpOptionKeys.AMIGA_STEREO_SEPARATION,
-            XmpOptionKeys.AMIGA_MIXING
+            XmpOptionKeys.AMIGA_MODEL
         )
 
         DecoderNames.VIO2_SF -> listOf(
@@ -1694,13 +1694,13 @@ internal fun resetPluginSettingsAction(
             onXmpInterpolationChanged(XmpDefaults.interpolation)
             onXmpStereoSeparationPercentChanged(XmpDefaults.stereoSeparationPercent)
             onXmpAmigaStereoSeparationPercentChanged(XmpDefaults.amigaStereoSeparationPercent)
-            onXmpAmigaMixingChanged(XmpDefaults.amigaMixing)
+            onXmpAmigaModelChanged(XmpDefaults.amigaModel)
             prefs.edit()
                 .remove(CorePreferenceKeys.CORE_RATE_XMP)
                 .remove(CorePreferenceKeys.XMP_INTERPOLATION)
                 .remove(CorePreferenceKeys.XMP_STEREO_SEPARATION_PERCENT)
                 .remove(CorePreferenceKeys.XMP_AMIGA_STEREO_SEPARATION_PERCENT)
-                .remove(CorePreferenceKeys.XMP_AMIGA_MIXING)
+                .remove(CorePreferenceKeys.XMP_AMIGA_MODEL)
                 .apply()
         }
 

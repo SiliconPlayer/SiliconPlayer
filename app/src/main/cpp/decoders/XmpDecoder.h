@@ -72,7 +72,7 @@ private:
     int interpolationMode = XMP_INTERP_LINEAR;
     int stereoSeparationPercent = 100;
     int amigaStereoSeparationPercent = 100;
-    bool amigaMixingEnabled = false;
+    int amigaModel = 0; // 0 Off, 1 Amiga 500, 2 Amiga 1200
     bool isAmigaModule = false;
     int readEventType = XMP_READ_EVENT_MOD;
     std::string title;

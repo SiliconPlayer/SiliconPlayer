@@ -56,7 +56,7 @@ internal data class PluginDetailRouteState(
     val xmpInterpolation: Int,
     val xmpStereoSeparationPercent: Int,
     val xmpAmigaStereoSeparationPercent: Int,
-    val xmpAmigaMixing: Boolean,
+    val xmpAmigaModel: Int,
     val openMptStereoSeparationPercent: Int,
     val openMptStereoSeparationAmigaPercent: Int,
     val openMptInterpolationFilterLength: Int,
@@ -142,7 +142,7 @@ internal data class PluginDetailRouteActions(
     val onXmpInterpolationChanged: (Int) -> Unit,
     val onXmpStereoSeparationPercentChanged: (Int) -> Unit,
     val onXmpAmigaStereoSeparationPercentChanged: (Int) -> Unit,
-    val onXmpAmigaMixingChanged: (Boolean) -> Unit,
+    val onXmpAmigaModelChanged: (Int) -> Unit,
     val onOpenMptStereoSeparationPercentChanged: (Int) -> Unit,
     val onOpenMptStereoSeparationAmigaPercentChanged: (Int) -> Unit,
     val onOpenMptInterpolationFilterLengthChanged: (Int) -> Unit,
@@ -447,11 +447,11 @@ internal fun PluginDetailRouteContent(
             interpolation = state.xmpInterpolation,
             stereoSeparationPercent = state.xmpStereoSeparationPercent,
             amigaStereoSeparationPercent = state.xmpAmigaStereoSeparationPercent,
-            amigaMixing = state.xmpAmigaMixing,
+            amigaModel = state.xmpAmigaModel,
             onInterpolationChanged = actions.onXmpInterpolationChanged,
             onStereoSeparationPercentChanged = actions.onXmpStereoSeparationPercentChanged,
             onAmigaStereoSeparationPercentChanged = actions.onXmpAmigaStereoSeparationPercentChanged,
-            onAmigaMixingChanged = actions.onXmpAmigaMixingChanged
+            onAmigaModelChanged = actions.onXmpAmigaModelChanged
         )
 
         DecoderNames.VIO2_SF -> Vio2sfSettings(

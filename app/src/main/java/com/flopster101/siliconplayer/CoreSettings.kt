@@ -81,7 +81,7 @@ object CorePreferenceKeys {
     const val XMP_INTERPOLATION = "xmp_interpolation"
     const val XMP_STEREO_SEPARATION_PERCENT = "xmp_stereo_separation_percent"
     const val XMP_AMIGA_STEREO_SEPARATION_PERCENT = "xmp_amiga_stereo_separation_percent"
-    const val XMP_AMIGA_MIXING = "xmp_amiga_mixing"
+    const val XMP_AMIGA_MODEL = "xmp_amiga_model"
     fun vgmPlayChipCoreKey(chipKey: String) = "vgmplay_chip_core_$chipKey"
 }
 
@@ -165,7 +165,7 @@ object XmpDefaults {
     const val interpolation = 1 // 0 Nearest, 1 Linear, 2 Spline
     const val stereoSeparationPercent = 100
     const val amigaStereoSeparationPercent = 65
-    const val amigaMixing = true
+    const val amigaModel = 2 // 0 Off, 1 Amiga 500, 2 Amiga 1200
 }
 
 object HivelyTrackerDefaults {

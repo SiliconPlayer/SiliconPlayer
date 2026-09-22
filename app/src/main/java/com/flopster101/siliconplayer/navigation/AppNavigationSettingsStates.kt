@@ -33,7 +33,7 @@ internal data class AppNavigationSettingsStates(
     val xmpInterpolation: MutableIntState,
     val xmpStereoSeparationPercent: MutableIntState,
     val xmpAmigaStereoSeparationPercent: MutableIntState,
-    val xmpAmigaMixing: MutableState<Boolean>,
+    val xmpAmigaModel: MutableIntState,
     val lazyUsf2UseHleAudio: MutableState<Boolean>,
     val vio2sfInterpolationQuality: MutableIntState,
     val sc68SamplingRateHz: MutableIntState,
@@ -207,8 +207,8 @@ internal fun rememberAppNavigationSettingsStates(
     val xmpAmigaStereoSeparationPercent = remember {
         mutableIntStateOf(prefs.getInt(CorePreferenceKeys.XMP_AMIGA_STEREO_SEPARATION_PERCENT, XmpDefaults.amigaStereoSeparationPercent))
     }
-    val xmpAmigaMixing = remember {
-        mutableStateOf(prefs.getBoolean(CorePreferenceKeys.XMP_AMIGA_MIXING, XmpDefaults.amigaMixing))
+    val xmpAmigaModel = remember {
+        mutableIntStateOf(prefs.getInt(CorePreferenceKeys.XMP_AMIGA_MODEL, XmpDefaults.amigaModel))
     }
     val lazyUsf2UseHleAudio = remember {
         mutableStateOf(prefs.getBoolean(CorePreferenceKeys.LAZYUSF2_USE_HLE_AUDIO, LazyUsf2Defaults.useHleAudio))
@@ -652,7 +652,7 @@ internal fun rememberAppNavigationSettingsStates(
         xmpInterpolation = xmpInterpolation,
         xmpStereoSeparationPercent = xmpStereoSeparationPercent,
         xmpAmigaStereoSeparationPercent = xmpAmigaStereoSeparationPercent,
-        xmpAmigaMixing = xmpAmigaMixing,
+        xmpAmigaModel = xmpAmigaModel,
         lazyUsf2UseHleAudio = lazyUsf2UseHleAudio,
         vio2sfInterpolationQuality = vio2sfInterpolationQuality,
         sc68SamplingRateHz = sc68SamplingRateHz,
