@@ -360,6 +360,26 @@ object NativeBridge {
     external fun getOpenMptSampleNames(): String
     external fun getXmpInstrumentNames(): String
     external fun getXmpSampleNames(): String
+    external fun getXmpFormatName(): String
+    external fun getXmpSongMessage(): String
+    external fun getXmpModuleMd5(): String
+    external fun getXmpMixerName(): String
+    external fun getXmpChannelCount(): Int
+    external fun getXmpOrderCount(): Int
+    external fun getXmpPatternCount(): Int
+    external fun getXmpTrackCount(): Int
+    external fun getXmpInstrumentCount(): Int
+    external fun getXmpSampleCount(): Int
+    external fun getXmpInitialSpeed(): Int
+    external fun getXmpInitialBpm(): Int
+    external fun getXmpRestartPosition(): Int
+    external fun getXmpCurrentOrder(): Int
+    external fun getXmpCurrentPattern(): Int
+    external fun getXmpCurrentRow(): Int
+    external fun getXmpCurrentTick(): Int
+    external fun getXmpCurrentSpeed(): Int
+    external fun getXmpCurrentBpm(): Int
+    external fun getXmpLoopCount(): Int
     external fun getOpenMptChannelVuLevels(): FloatArray
     external fun getChannelScopeSamples(samplesPerChannel: Int): FloatArray
     external fun getChannelScopeTextState(maxChannels: Int): IntArray

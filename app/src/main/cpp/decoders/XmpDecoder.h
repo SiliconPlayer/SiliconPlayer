@@ -48,6 +48,7 @@ public:
     bool getToggleChannelMuted(int channelIndex) const override;
     void clearToggleChannelMutes() override;
     std::string getCoreStringInfo(const char* name) override;
+    int getCoreIntInfo(const char* name, int fallback) override;
     std::shared_ptr<ChannelScopeSharedState> getChannelScopeSharedState() const override {
         return channelScopeState;
     }
@@ -67,6 +68,12 @@ private:
     int moduleChannels = 0;
     int moduleInstruments = 0;
     int moduleSamples = 0;
+    int moduleOrders = 0;
+    int modulePatterns = 0;
+    int moduleTracks = 0;
+    int initialSpeed = 0;
+    int initialBpm = 0;
+    int restartPosition = 0;
     int repeatMode = 0;
     bool ended = false;
     int interpolationMode = XMP_INTERP_LINEAR;
@@ -80,6 +87,7 @@ private:
     std::string comment;
     std::string instrumentNames;
     std::string sampleNames;
+    std::string moduleMd5;
 
     std::vector<std::string> toggleChannelNames;
     std::vector<bool> toggleChannelMuted;
@@ -92,6 +100,7 @@ private:
     void closeLocked();
     bool startPlayerLocked();
     void applyOptionsLocked();
+    std::string mixerNameLocked();
     void captureChannelScopeSnapshotLocked();
 };
 

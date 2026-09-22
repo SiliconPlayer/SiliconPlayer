@@ -26,6 +26,31 @@ internal data class OpenMptMetadata(
     val sampleNames: String = ""
 )
 
+internal data class XmpMetadata(
+    val formatName: String = "",
+    val channelCount: Int = 0,
+    val orderCount: Int = 0,
+    val patternCount: Int = 0,
+    val trackCount: Int = 0,
+    val instrumentCount: Int = 0,
+    val sampleCount: Int = 0,
+    val initialSpeed: Int = 0,
+    val initialBpm: Int = 0,
+    val restartPosition: Int = -1,
+    val songMessage: String = "",
+    val moduleMd5: String = "",
+    val currentOrder: Int = -1,
+    val currentPattern: Int = -1,
+    val currentRow: Int = -1,
+    val currentTick: Int = -1,
+    val currentSpeed: Int = 0,
+    val currentBpm: Int = 0,
+    val loopCount: Int = -1,
+    val mixerName: String = "",
+    val instrumentNames: String = "",
+    val sampleNames: String = ""
+)
+
 internal data class VgmPlayMetadata(
     val gameName: String = "",
     val systemName: String = "",
@@ -210,6 +235,7 @@ internal data class TrackInfoLiveMetadata(
     val copyrightText: String = "",
     val comment: String = "",
     val openMpt: OpenMptMetadata = OpenMptMetadata(),
+    val xmp: XmpMetadata = XmpMetadata(),
     val vgmPlay: VgmPlayMetadata = VgmPlayMetadata(),
     val ffmpeg: FfmpegMetadata = FfmpegMetadata(),
     val platformDolby: PlatformDolbyMetadata = PlatformDolbyMetadata(),
@@ -275,6 +301,33 @@ private fun queryTrackInfoLiveMetadata(decoderName: String?): TrackInfoLiveMetad
                 sampleCount = NativeBridge.getOpenMptSampleCount(),
                 instrumentNames = NativeBridge.getOpenMptInstrumentNames(),
                 sampleNames = NativeBridge.getOpenMptSampleNames()
+            )
+        )
+
+        decoderName.equals(DecoderNames.LIBXMP, ignoreCase = true) -> common.copy(
+            xmp = XmpMetadata(
+                formatName = NativeBridge.getXmpFormatName(),
+                channelCount = NativeBridge.getXmpChannelCount(),
+                orderCount = NativeBridge.getXmpOrderCount(),
+                patternCount = NativeBridge.getXmpPatternCount(),
+                trackCount = NativeBridge.getXmpTrackCount(),
+                instrumentCount = NativeBridge.getXmpInstrumentCount(),
+                sampleCount = NativeBridge.getXmpSampleCount(),
+                initialSpeed = NativeBridge.getXmpInitialSpeed(),
+                initialBpm = NativeBridge.getXmpInitialBpm(),
+                restartPosition = NativeBridge.getXmpRestartPosition(),
+                songMessage = NativeBridge.getXmpSongMessage(),
+                moduleMd5 = NativeBridge.getXmpModuleMd5(),
+                currentOrder = NativeBridge.getXmpCurrentOrder(),
+                currentPattern = NativeBridge.getXmpCurrentPattern(),
+                currentRow = NativeBridge.getXmpCurrentRow(),
+                currentTick = NativeBridge.getXmpCurrentTick(),
+                currentSpeed = NativeBridge.getXmpCurrentSpeed(),
+                currentBpm = NativeBridge.getXmpCurrentBpm(),
+                loopCount = NativeBridge.getXmpLoopCount(),
+                mixerName = NativeBridge.getXmpMixerName(),
+                instrumentNames = NativeBridge.getXmpInstrumentNames(),
+                sampleNames = NativeBridge.getXmpSampleNames()
             )
         )
 

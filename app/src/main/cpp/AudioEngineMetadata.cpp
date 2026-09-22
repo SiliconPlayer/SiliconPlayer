@@ -263,6 +263,126 @@ std::string AudioEngine::getXmpSampleNames() {
     return decoder->getCoreStringInfo("sampleNames");
 }
 
+std::string AudioEngine::getXmpFormatName() {
+    std::lock_guard<std::mutex> lock(decoderMutex);
+    if (!decoder) return "";
+    return decoder->getCoreStringInfo("moduleTypeLong");
+}
+
+std::string AudioEngine::getXmpSongMessage() {
+    std::lock_guard<std::mutex> lock(decoderMutex);
+    if (!decoder) return "";
+    return decoder->getCoreStringInfo("songMessage");
+}
+
+std::string AudioEngine::getXmpModuleMd5() {
+    std::lock_guard<std::mutex> lock(decoderMutex);
+    if (!decoder) return "";
+    return decoder->getCoreStringInfo("moduleMd5");
+}
+
+std::string AudioEngine::getXmpMixerName() {
+    std::lock_guard<std::mutex> lock(decoderMutex);
+    if (!decoder) return "";
+    return decoder->getCoreStringInfo("mixerName");
+}
+
+int AudioEngine::getXmpChannelCount() {
+    std::lock_guard<std::mutex> lock(decoderMutex);
+    if (!decoder) return 0;
+    return decoder->getCoreIntInfo("channelCount", 0);
+}
+
+int AudioEngine::getXmpOrderCount() {
+    std::lock_guard<std::mutex> lock(decoderMutex);
+    if (!decoder) return 0;
+    return decoder->getCoreIntInfo("orderCount", 0);
+}
+
+int AudioEngine::getXmpPatternCount() {
+    std::lock_guard<std::mutex> lock(decoderMutex);
+    if (!decoder) return 0;
+    return decoder->getCoreIntInfo("patternCount", 0);
+}
+
+int AudioEngine::getXmpTrackCount() {
+    std::lock_guard<std::mutex> lock(decoderMutex);
+    if (!decoder) return 0;
+    return decoder->getCoreIntInfo("trackCount", 0);
+}
+
+int AudioEngine::getXmpInstrumentCount() {
+    std::lock_guard<std::mutex> lock(decoderMutex);
+    if (!decoder) return 0;
+    return decoder->getCoreIntInfo("instrumentCount", 0);
+}
+
+int AudioEngine::getXmpSampleCount() {
+    std::lock_guard<std::mutex> lock(decoderMutex);
+    if (!decoder) return 0;
+    return decoder->getCoreIntInfo("sampleCount", 0);
+}
+
+int AudioEngine::getXmpInitialSpeed() {
+    std::lock_guard<std::mutex> lock(decoderMutex);
+    if (!decoder) return 0;
+    return decoder->getCoreIntInfo("initialSpeed", 0);
+}
+
+int AudioEngine::getXmpInitialBpm() {
+    std::lock_guard<std::mutex> lock(decoderMutex);
+    if (!decoder) return 0;
+    return decoder->getCoreIntInfo("initialBpm", 0);
+}
+
+int AudioEngine::getXmpRestartPosition() {
+    std::lock_guard<std::mutex> lock(decoderMutex);
+    if (!decoder) return 0;
+    return decoder->getCoreIntInfo("restartPosition", 0);
+}
+
+int AudioEngine::getXmpCurrentOrder() {
+    std::lock_guard<std::mutex> lock(decoderMutex);
+    if (!decoder) return 0;
+    return decoder->getCoreIntInfo("currentOrder", 0);
+}
+
+int AudioEngine::getXmpCurrentPattern() {
+    std::lock_guard<std::mutex> lock(decoderMutex);
+    if (!decoder) return 0;
+    return decoder->getCoreIntInfo("currentPattern", 0);
+}
+
+int AudioEngine::getXmpCurrentRow() {
+    std::lock_guard<std::mutex> lock(decoderMutex);
+    if (!decoder) return 0;
+    return decoder->getCoreIntInfo("currentRow", 0);
+}
+
+int AudioEngine::getXmpCurrentTick() {
+    std::lock_guard<std::mutex> lock(decoderMutex);
+    if (!decoder) return 0;
+    return decoder->getCoreIntInfo("currentTick", 0);
+}
+
+int AudioEngine::getXmpCurrentSpeed() {
+    std::lock_guard<std::mutex> lock(decoderMutex);
+    if (!decoder) return 0;
+    return decoder->getCoreIntInfo("currentSpeed", 0);
+}
+
+int AudioEngine::getXmpCurrentBpm() {
+    std::lock_guard<std::mutex> lock(decoderMutex);
+    if (!decoder) return 0;
+    return decoder->getCoreIntInfo("currentBpm", 0);
+}
+
+int AudioEngine::getXmpLoopCount() {
+    std::lock_guard<std::mutex> lock(decoderMutex);
+    if (!decoder) return 0;
+    return decoder->getCoreIntInfo("loopCount", 0);
+}
+
 std::vector<float> AudioEngine::getOpenMptChannelVuLevels() {
     std::lock_guard<std::mutex> lock(decoderMutex);
     if (!decoder) return {};

@@ -49,6 +49,32 @@ internal fun TrackInfoCoreSections(
             if (metadata.openMpt.sampleNames.isNotBlank()) TrackInfoDetailsRow("Sample names", metadata.openMpt.sampleNames)
         }
 
+        decoderName.equals(DecoderNames.LIBXMP, ignoreCase = true) -> {
+            TrackInfoSectionHeader(DecoderNames.LIBXMP)
+            if (metadata.xmp.formatName.isNotBlank()) TrackInfoDetailsRow("Format", metadata.xmp.formatName)
+            if (metadata.xmp.channelCount > 0) TrackInfoDetailsRow("Channels", metadata.xmp.channelCount.toString())
+            if (metadata.xmp.orderCount > 0) TrackInfoDetailsRow("Orders", metadata.xmp.orderCount.toString())
+            if (metadata.xmp.patternCount > 0) TrackInfoDetailsRow("Patterns", metadata.xmp.patternCount.toString())
+            if (metadata.xmp.trackCount > 0) TrackInfoDetailsRow("Tracks", metadata.xmp.trackCount.toString())
+            if (metadata.xmp.instrumentCount > 0) TrackInfoDetailsRow("Instruments", metadata.xmp.instrumentCount.toString())
+            if (metadata.xmp.sampleCount > 0) TrackInfoDetailsRow("Samples", metadata.xmp.sampleCount.toString())
+            if (metadata.xmp.initialSpeed > 0) TrackInfoDetailsRow("Initial speed", metadata.xmp.initialSpeed.toString())
+            if (metadata.xmp.initialBpm > 0) TrackInfoDetailsRow("Initial tempo", "${metadata.xmp.initialBpm} BPM")
+            if (metadata.xmp.restartPosition > 0) TrackInfoDetailsRow("Restart position", metadata.xmp.restartPosition.toString())
+            if (metadata.xmp.currentOrder >= 0) TrackInfoDetailsRow("Current order", metadata.xmp.currentOrder.toString())
+            if (metadata.xmp.currentPattern >= 0) TrackInfoDetailsRow("Current pattern", metadata.xmp.currentPattern.toString())
+            if (metadata.xmp.currentRow >= 0) TrackInfoDetailsRow("Current row", metadata.xmp.currentRow.toString())
+            if (metadata.xmp.currentTick >= 0) TrackInfoDetailsRow("Current tick", metadata.xmp.currentTick.toString())
+            if (metadata.xmp.currentSpeed > 0) TrackInfoDetailsRow("Current speed", metadata.xmp.currentSpeed.toString())
+            if (metadata.xmp.currentBpm > 0) TrackInfoDetailsRow("Current tempo", "${metadata.xmp.currentBpm} BPM")
+            if (metadata.xmp.loopCount > 0) TrackInfoDetailsRow("Loops", metadata.xmp.loopCount.toString())
+            if (metadata.xmp.mixerName.isNotBlank()) TrackInfoDetailsRow("Mixer", metadata.xmp.mixerName)
+            if (metadata.xmp.songMessage.isNotBlank()) TrackInfoDetailsRow("Message", metadata.xmp.songMessage)
+            if (metadata.xmp.moduleMd5.isNotBlank()) TrackInfoDetailsRow("MD5", metadata.xmp.moduleMd5)
+            if (metadata.xmp.instrumentNames.isNotBlank()) TrackInfoDetailsRow("Instrument names", metadata.xmp.instrumentNames)
+            if (metadata.xmp.sampleNames.isNotBlank()) TrackInfoDetailsRow("Sample names", metadata.xmp.sampleNames)
+        }
+
         decoderName.equals(DecoderNames.VGM_PLAY, ignoreCase = true) -> {
             TrackInfoSectionHeader(DecoderNames.VGM_PLAY)
             if (metadata.vgmPlay.gameName.isNotBlank()) TrackInfoDetailsRow("Game", metadata.vgmPlay.gameName)
@@ -266,6 +292,32 @@ internal fun appendCoreTrackInfoCopyRows(
             if (metadata.openMpt.songMessage.isNotBlank()) row("Message", metadata.openMpt.songMessage)
             if (metadata.openMpt.instrumentNames.isNotBlank()) row("Instrument names", metadata.openMpt.instrumentNames)
             if (metadata.openMpt.sampleNames.isNotBlank()) row("Sample names", metadata.openMpt.sampleNames)
+        }
+
+        decoderName.equals(DecoderNames.LIBXMP, ignoreCase = true) -> {
+            builder.append('\n').append("[libxmp]").append('\n')
+            if (metadata.xmp.formatName.isNotBlank()) row("Format", metadata.xmp.formatName)
+            if (metadata.xmp.channelCount > 0) row("Channels", metadata.xmp.channelCount.toString())
+            if (metadata.xmp.orderCount > 0) row("Orders", metadata.xmp.orderCount.toString())
+            if (metadata.xmp.patternCount > 0) row("Patterns", metadata.xmp.patternCount.toString())
+            if (metadata.xmp.trackCount > 0) row("Tracks", metadata.xmp.trackCount.toString())
+            if (metadata.xmp.instrumentCount > 0) row("Instruments", metadata.xmp.instrumentCount.toString())
+            if (metadata.xmp.sampleCount > 0) row("Samples", metadata.xmp.sampleCount.toString())
+            if (metadata.xmp.initialSpeed > 0) row("Initial speed", metadata.xmp.initialSpeed.toString())
+            if (metadata.xmp.initialBpm > 0) row("Initial tempo", "${metadata.xmp.initialBpm} BPM")
+            if (metadata.xmp.restartPosition > 0) row("Restart position", metadata.xmp.restartPosition.toString())
+            if (metadata.xmp.currentOrder >= 0) row("Current order", metadata.xmp.currentOrder.toString())
+            if (metadata.xmp.currentPattern >= 0) row("Current pattern", metadata.xmp.currentPattern.toString())
+            if (metadata.xmp.currentRow >= 0) row("Current row", metadata.xmp.currentRow.toString())
+            if (metadata.xmp.currentTick >= 0) row("Current tick", metadata.xmp.currentTick.toString())
+            if (metadata.xmp.currentSpeed > 0) row("Current speed", metadata.xmp.currentSpeed.toString())
+            if (metadata.xmp.currentBpm > 0) row("Current tempo", "${metadata.xmp.currentBpm} BPM")
+            if (metadata.xmp.loopCount > 0) row("Loops", metadata.xmp.loopCount.toString())
+            if (metadata.xmp.mixerName.isNotBlank()) row("Mixer", metadata.xmp.mixerName)
+            if (metadata.xmp.songMessage.isNotBlank()) row("Message", metadata.xmp.songMessage)
+            if (metadata.xmp.moduleMd5.isNotBlank()) row("MD5", metadata.xmp.moduleMd5)
+            if (metadata.xmp.instrumentNames.isNotBlank()) row("Instrument names", metadata.xmp.instrumentNames)
+            if (metadata.xmp.sampleNames.isNotBlank()) row("Sample names", metadata.xmp.sampleNames)
         }
 
         decoderName.equals(DecoderNames.VGM_PLAY, ignoreCase = true) -> {

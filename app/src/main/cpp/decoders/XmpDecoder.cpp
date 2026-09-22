@@ -23,6 +23,17 @@ int parseIntString(const std::string& value, int fallback) {
     }
 }
 
+std::string toHexLower(const unsigned char* bytes, size_t count) {
+    static const char kDigits[] = "0123456789abcdef";
+    std::string out;
+    out.reserve(count * 2);
+    for (size_t i = 0; i < count; ++i) {
+        out.push_back(kDigits[bytes[i] >> 4]);
+        out.push_back(kDigits[bytes[i] & 0x0f]);
+    }
+    return out;
+}
+
 // "N. name" per entry, 1-based, as consumed by the channel scope overlay.
 template <typename T>
 std::string joinIndexedNames(const T* entries, int count) {
@@ -131,6 +142,13 @@ bool XmpDecoder::open(const char* path) {
     comment = mi.comment != nullptr ? mi.comment : "";
     instrumentNames = joinIndexedNames(mi.mod->xxi, mi.mod->ins);
     sampleNames = joinIndexedNames(mi.mod->xxs, mi.mod->smp);
+    moduleOrders = mi.mod->len;
+    modulePatterns = mi.mod->pat;
+    moduleTracks = mi.mod->trk;
+    initialSpeed = mi.mod->spd;
+    initialBpm = mi.mod->bpm;
+    restartPosition = mi.mod->rst;
+    moduleMd5 = toHexLower(mi.md5, sizeof(mi.md5));
 
     xmp_scan_module(context);
     xmp_get_module_info(context, &mi);
@@ -226,6 +244,13 @@ void XmpDecoder::closeLocked() {
     comment.clear();
     instrumentNames.clear();
     sampleNames.clear();
+    moduleMd5.clear();
+    moduleOrders = 0;
+    modulePatterns = 0;
+    moduleTracks = 0;
+    initialSpeed = 0;
+    initialBpm = 0;
+    restartPosition = 0;
     toggleChannelNames.clear();
     toggleChannelMuted.clear();
     isAmigaModule = false;
@@ -439,7 +464,57 @@ std::string XmpDecoder::getCoreStringInfo(const char* name) {
     if (key == "songMessage") return comment;
     if (key == "instrumentNames") return instrumentNames;
     if (key == "sampleNames") return sampleNames;
+    if (key == "moduleMd5") return moduleMd5;
+    if (key == "mixerName") return mixerNameLocked();
     return "";
+}
+
+int XmpDecoder::getCoreIntInfo(const char* name, int fallback) {
+    if (name == nullptr) return fallback;
+    std::lock_guard<std::mutex> lock(decodeMutex);
+    if (context == nullptr) return fallback;
+    const std::string key(name);
+    if (key == "channelCount") return moduleChannels;
+    if (key == "orderCount") return moduleOrders;
+    if (key == "patternCount") return modulePatterns;
+    if (key == "trackCount") return moduleTracks;
+    if (key == "instrumentCount") return moduleInstruments;
+    if (key == "sampleCount") return moduleSamples;
+    if (key == "initialSpeed") return initialSpeed;
+    if (key == "initialBpm") return initialBpm;
+    if (key == "restartPosition") return restartPosition;
+
+    // The remaining values only exist while a module plays.
+    if (xmp_get_player(context, XMP_PLAYER_STATE) < XMP_STATE_PLAYING) return -1;
+
+    struct xmp_frame_info fi;
+    xmp_get_frame_info(context, &fi);
+    if (key == "currentOrder") return fi.pos;
+    if (key == "currentPattern") return fi.pattern;
+    if (key == "currentRow") return fi.row;
+    if (key == "currentTick") return fi.frame;
+    if (key == "currentSpeed") return fi.speed;
+    if (key == "currentBpm") return fi.bpm;
+    if (key == "loopCount") return fi.loop_count;
+    return fallback;
+}
+
+std::string XmpDecoder::mixerNameLocked() {
+    if (context == nullptr) return "";
+    if (xmp_get_player(context, XMP_PLAYER_STATE) < XMP_STATE_PLAYING) return "";
+
+    switch (xmp_get_player(context, XMP_PLAYER_MIXER_TYPE)) {
+    case XMP_MIXER_A500:
+        return "Amiga 500";
+    case XMP_MIXER_A500F:
+        return "Amiga 500 (LED filter)";
+    case XMP_MIXER_A1200:
+        return "Amiga 1200";
+    case XMP_MIXER_A1200F:
+        return "Amiga 1200 (LED filter)";
+    default:
+        return "Standard";
+    }
 }
 
 std::vector<int32_t> XmpDecoder::getChannelScopeTextState(int maxChannels) {
