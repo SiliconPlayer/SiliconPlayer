@@ -101,3 +101,7 @@
 	path = external/libxmp
 	url = https://github.com/SiliconPlayer/libxmp
 	ignore = dirty
+[submodule "external/ayfly"]
+	path = external/ayfly
+	url = https://github.com/l29ah/ayfly
+	ignore = dirty
