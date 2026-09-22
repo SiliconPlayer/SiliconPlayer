@@ -15,7 +15,6 @@
 
 namespace {
 constexpr int kBytesPerFrame = 4; // 16-bit stereo
-constexpr double kTicksPerSecond = 50.0;
 
 static_assert(std::is_same<AY_CHAR, wchar_t>::value,
               "ayfly must be compiled with UNICODE/_UNICODE like the library");
@@ -45,6 +44,14 @@ std::string ayTextToUtf8(const wchar_t* text) {
         }
     }
     return out;
+}
+
+int parseIntString(const std::string& value, int fallback) {
+    try {
+        return std::stoi(value);
+    } catch (...) {
+        return fallback;
+    }
 }
 
 int clampRenderRate(int sampleRateHz) {
@@ -129,11 +136,12 @@ bool AyflyDecoder::createSongLocked(const char* path) {
             nullptr,
             typeHint.empty() ? nullptr : typeHint.c_str());
     if (song == nullptr) return false;
+    applyOptionsLocked();
 
     title = ayTextToUtf8(ay_getsongname(song));
     artist = ayTextToUtf8(ay_getsongauthor(song));
     const unsigned long lengthTicks = ay_getsonglength(song);
-    duration = lengthTicks > 0 ? static_cast<double>(lengthTicks) / kTicksPerSecond : 0.0;
+    duration = lengthTicks > 0 ? static_cast<double>(lengthTicks) / tickRate : 0.0;
     sourceChannels = ay_ists(song) ? 6 : 3;
     formatName = normalizeFormatName(ay_getsongformat(song));
     subsongCount = static_cast<int>(ay_getsubsongcount(song));
@@ -147,7 +155,7 @@ bool AyflyDecoder::createSongLocked(const char* path) {
             if (!ay_setsubsong(song, static_cast<unsigned long>(i))) continue;
             subsongTitles[static_cast<size_t>(i)] = ayTextToUtf8(ay_getsongname(song));
             subsongDurations[static_cast<size_t>(i)] =
-                    static_cast<double>(ay_getsonglength(song)) / kTicksPerSecond;
+                    static_cast<double>(ay_getsonglength(song)) / tickRate;
         }
         ay_setsubsong(song, static_cast<unsigned long>(currentSubsong));
     }
@@ -206,6 +214,7 @@ int AyflyDecoder::read(float* buffer, int numFrames) {
             if (repeatMode == 2 && !resumedAfterStop) {
                 resumedAfterStop = true;
                 ay_seeksong(song, static_cast<long>(ay_getsongloop(song)));
+                applyOptionsLocked();
                 continue;
             }
             ended = true;
@@ -229,8 +238,9 @@ void AyflyDecoder::seek(double seconds) {
     if (duration > 0.0) {
         target = std::min(target, duration);
     }
-    // Positions are 1/50s ticks; the library re-executes ticks to the target.
-    ay_seeksong(song, static_cast<long>(std::llround(target * kTicksPerSecond)));
+    // Positions are tick counts; the library re-executes ticks to the target.
+    ay_seeksong(song, static_cast<long>(std::llround(target * tickRate)));
+    applyOptionsLocked(); // rewindsong may reinit the song's default parameters
     ended = false;
 }
 
@@ -276,10 +286,11 @@ bool AyflyDecoder::selectSubtune(int index) {
     if (song == nullptr || index < 0 || index >= subsongCount) return false;
     if (index == currentSubsong) return true;
     if (!ay_setsubsong(song, static_cast<unsigned long>(index))) return false;
+    applyOptionsLocked();
     currentSubsong = index;
     title = ayTextToUtf8(ay_getsongname(song));
     const unsigned long lengthTicks = ay_getsonglength(song);
-    duration = lengthTicks > 0 ? static_cast<double>(lengthTicks) / kTicksPerSecond : 0.0;
+    duration = lengthTicks > 0 ? static_cast<double>(lengthTicks) / tickRate : 0.0;
     ended = false;
     return true;
 }
@@ -336,9 +347,50 @@ int AyflyDecoder::getCoreIntInfo(const char* name, int fallback) {
     if (key == "currentSubsong") return currentSubsong;
     if (key == "loopPointMs") {
         const unsigned long loop = ay_getsongloop(song);
-        return loop > 0 ? static_cast<int>(loop * 20UL) : 0;
+        return loop > 0 ? static_cast<int>(static_cast<double>(loop) * 1000.0 / tickRate) : 0;
     }
     return fallback;
+}
+
+void AyflyDecoder::applyOptionsLocked() {
+    if (song == nullptr) return;
+    ay_setoversample(song, static_cast<unsigned long>(oversample));
+    if (chipType >= 0) ay_setchiptype(song, static_cast<unsigned char>(chipType));
+    if (mixType >= 0) ay_setmixtype(song, static_cast<AYMixTypes>(mixType));
+    if (intFreqHz > 0) ay_setintfreq(song, static_cast<float>(intFreqHz));
+    refreshTickRateLocked();
+}
+
+void AyflyDecoder::refreshTickRateLocked() {
+    tickRate = intFreqHz > 0 ? static_cast<double>(intFreqHz)
+                             : (song != nullptr ? static_cast<double>(ay_getintfreq(song)) : 50.0);
+}
+
+void AyflyDecoder::setOption(const char* name, const char* value) {
+    if (name == nullptr || value == nullptr) return;
+    std::lock_guard<std::mutex> lock(decodeMutex);
+    const std::string key(name);
+    const double previousTickRate = tickRate;
+    if (key == "ayfly.oversample") {
+        oversample = std::clamp(parseIntString(value, 1), 1, 8);
+    } else if (key == "ayfly.chip_type") {
+        chipType = std::clamp(parseIntString(value, -1), -1, 1);
+    } else if (key == "ayfly.mix_type") {
+        mixType = std::clamp(parseIntString(value, -1), -1, 5);
+    } else if (key == "ayfly.int_freq") {
+        intFreqHz = std::clamp(parseIntString(value, 0), 0, 1000);
+    } else {
+        return;
+    }
+    applyOptionsLocked();
+    if (tickRate != previousTickRate && song != nullptr) {
+        // Durations are tick counts; only the seconds divisor changed.
+        const unsigned long lengthTicks = ay_getsonglength(song);
+        duration = lengthTicks > 0 ? static_cast<double>(lengthTicks) / tickRate : 0.0;
+        for (double& cached : subsongDurations) {
+            cached = cached * previousTickRate / tickRate;
+        }
+    }
 }
 
 std::string AyflyDecoder::getTitle() {
@@ -369,5 +421,5 @@ void AyflyDecoder::setRepeatMode(int mode) {
 double AyflyDecoder::getPlaybackPositionSeconds() {
     std::lock_guard<std::mutex> lock(decodeMutex);
     if (song == nullptr) return -1.0;
-    return static_cast<double>(ay_getelapsedtime(song)) / kTicksPerSecond;
+    return static_cast<double>(ay_getelapsedtime(song)) / tickRate;
 }

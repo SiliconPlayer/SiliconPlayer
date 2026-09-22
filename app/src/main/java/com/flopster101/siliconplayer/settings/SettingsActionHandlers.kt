@@ -735,6 +735,11 @@ internal fun clearAllSettingsAction(
     xmpStereoSeparationPercent: Int,
     xmpAmigaStereoSeparationPercent: Int,
     xmpAmigaModel: Int,
+    ayflyCoreSampleRateHz: Int,
+    ayflyOversample: Int,
+    ayflyChipType: Int,
+    ayflyMixType: Int,
+    ayflyIntFreq: Int,
     vio2sfInterpolationQuality: Int,
     sc68SamplingRateHz: Int,
     sc68Asid: Int,
@@ -894,6 +899,11 @@ internal fun clearAllSettingsAction(
     onXmpStereoSeparationPercentChanged: (Int) -> Unit,
     onXmpAmigaStereoSeparationPercentChanged: (Int) -> Unit,
     onXmpAmigaModelChanged: (Int) -> Unit,
+    onAyflyCoreSampleRateHzChanged: (Int) -> Unit,
+    onAyflyOversampleChanged: (Int) -> Unit,
+    onAyflyChipTypeChanged: (Int) -> Unit,
+    onAyflyMixTypeChanged: (Int) -> Unit,
+    onAyflyIntFreqChanged: (Int) -> Unit,
 ) {
     val pluginSnapshot = mapOf(
         CorePreferenceKeys.CORE_RATE_FFMPEG to ffmpegCoreSampleRateHz,
@@ -914,6 +924,11 @@ internal fun clearAllSettingsAction(
         CorePreferenceKeys.XMP_INTERPOLATION to xmpInterpolation,
         CorePreferenceKeys.XMP_STEREO_SEPARATION_PERCENT to xmpStereoSeparationPercent,
         CorePreferenceKeys.XMP_AMIGA_STEREO_SEPARATION_PERCENT to xmpAmigaStereoSeparationPercent,
+        CorePreferenceKeys.CORE_RATE_AYFLY to ayflyCoreSampleRateHz,
+        CorePreferenceKeys.AYFLY_OVERSAMPLE to ayflyOversample,
+        CorePreferenceKeys.AYFLY_CHIP_TYPE to ayflyChipType,
+        CorePreferenceKeys.AYFLY_MIX_TYPE to ayflyMixType,
+        CorePreferenceKeys.AYFLY_INT_FREQ to ayflyIntFreq,
         CorePreferenceKeys.CORE_RATE_SC68 to sc68SamplingRateHz,
         CorePreferenceKeys.SC68_ASID to sc68Asid,
         CorePreferenceKeys.SC68_DEFAULT_TIME_SECONDS to sc68DefaultTimeSeconds,
@@ -1043,6 +1058,11 @@ internal fun clearAllSettingsAction(
     onXmpStereoSeparationPercentChanged(XmpDefaults.stereoSeparationPercent)
     onXmpAmigaStereoSeparationPercentChanged(XmpDefaults.amigaStereoSeparationPercent)
     onXmpAmigaModelChanged(XmpDefaults.amigaModel)
+    onAyflyCoreSampleRateHzChanged(AyflyDefaults.coreSampleRateHz)
+    onAyflyOversampleChanged(AyflyDefaults.oversample)
+    onAyflyChipTypeChanged(AyflyDefaults.chipType)
+    onAyflyMixTypeChanged(AyflyDefaults.mixType)
+    onAyflyIntFreqChanged(AyflyDefaults.intFreq)
     onSc68SamplingRateHzChanged(Sc68Defaults.coreSampleRateHz)
     onSc68AsidChanged(Sc68Defaults.asid)
     onSc68DefaultTimeSecondsChanged(Sc68Defaults.defaultTimeSeconds)
@@ -1191,7 +1211,12 @@ internal fun clearAllPluginSettingsAction(
     onXmpInterpolationChanged: (Int) -> Unit,
     onXmpStereoSeparationPercentChanged: (Int) -> Unit,
     onXmpAmigaStereoSeparationPercentChanged: (Int) -> Unit,
-    onXmpAmigaModelChanged: (Int) -> Unit
+    onXmpAmigaModelChanged: (Int) -> Unit,
+    onAyflyCoreSampleRateHzChanged: (Int) -> Unit,
+    onAyflyOversampleChanged: (Int) -> Unit,
+    onAyflyChipTypeChanged: (Int) -> Unit,
+    onAyflyMixTypeChanged: (Int) -> Unit,
+    onAyflyIntFreqChanged: (Int) -> Unit
 ) {
     onFfmpegCoreSampleRateHzChanged(0)
     onFfmpegGaplessRepeatTrackChanged(FfmpegDefaults.gaplessRepeatTrack)
@@ -1212,6 +1237,11 @@ internal fun clearAllPluginSettingsAction(
     onXmpStereoSeparationPercentChanged(XmpDefaults.stereoSeparationPercent)
     onXmpAmigaStereoSeparationPercentChanged(XmpDefaults.amigaStereoSeparationPercent)
     onXmpAmigaModelChanged(XmpDefaults.amigaModel)
+    onAyflyCoreSampleRateHzChanged(AyflyDefaults.coreSampleRateHz)
+    onAyflyOversampleChanged(AyflyDefaults.oversample)
+    onAyflyChipTypeChanged(AyflyDefaults.chipType)
+    onAyflyMixTypeChanged(AyflyDefaults.mixType)
+    onAyflyIntFreqChanged(AyflyDefaults.intFreq)
     onLazyUsf2UseHleAudioChanged(LazyUsf2Defaults.useHleAudio)
     onVio2sfInterpolationQualityChanged(Vio2sfDefaults.interpolationQuality)
     onSc68SamplingRateHzChanged(Sc68Defaults.coreSampleRateHz)
@@ -1446,7 +1476,12 @@ internal fun resetPluginSettingsAction(
     onXmpInterpolationChanged: (Int) -> Unit,
     onXmpStereoSeparationPercentChanged: (Int) -> Unit,
     onXmpAmigaStereoSeparationPercentChanged: (Int) -> Unit,
-    onXmpAmigaModelChanged: (Int) -> Unit
+    onXmpAmigaModelChanged: (Int) -> Unit,
+    onAyflyCoreSampleRateHzChanged: (Int) -> Unit,
+    onAyflyOversampleChanged: (Int) -> Unit,
+    onAyflyChipTypeChanged: (Int) -> Unit,
+    onAyflyMixTypeChanged: (Int) -> Unit,
+    onAyflyIntFreqChanged: (Int) -> Unit
 ) {
     val optionNamesForReset = when (pluginName) {
         DecoderNames.FFMPEG -> listOf(
@@ -1519,6 +1554,13 @@ internal fun resetPluginSettingsAction(
             XmpOptionKeys.STEREO_SEPARATION,
             XmpOptionKeys.AMIGA_STEREO_SEPARATION,
             XmpOptionKeys.AMIGA_MODEL
+        )
+
+        DecoderNames.AYFLY -> listOf(
+            AyflyOptionKeys.OVERSAMPLE,
+            AyflyOptionKeys.CHIP_TYPE,
+            AyflyOptionKeys.MIX_TYPE,
+            AyflyOptionKeys.INT_FREQ
         )
 
         DecoderNames.VIO2_SF -> listOf(
@@ -1701,6 +1743,21 @@ internal fun resetPluginSettingsAction(
                 .remove(CorePreferenceKeys.XMP_STEREO_SEPARATION_PERCENT)
                 .remove(CorePreferenceKeys.XMP_AMIGA_STEREO_SEPARATION_PERCENT)
                 .remove(CorePreferenceKeys.XMP_AMIGA_MODEL)
+                .apply()
+        }
+
+        DecoderNames.AYFLY -> {
+            onAyflyCoreSampleRateHzChanged(AyflyDefaults.coreSampleRateHz)
+            onAyflyOversampleChanged(AyflyDefaults.oversample)
+            onAyflyChipTypeChanged(AyflyDefaults.chipType)
+            onAyflyMixTypeChanged(AyflyDefaults.mixType)
+            onAyflyIntFreqChanged(AyflyDefaults.intFreq)
+            prefs.edit()
+                .remove(CorePreferenceKeys.CORE_RATE_AYFLY)
+                .remove(CorePreferenceKeys.AYFLY_OVERSAMPLE)
+                .remove(CorePreferenceKeys.AYFLY_CHIP_TYPE)
+                .remove(CorePreferenceKeys.AYFLY_MIX_TYPE)
+                .remove(CorePreferenceKeys.AYFLY_INT_FREQ)
                 .apply()
         }
 

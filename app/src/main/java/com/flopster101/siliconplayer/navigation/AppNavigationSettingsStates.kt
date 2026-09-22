@@ -34,6 +34,11 @@ internal data class AppNavigationSettingsStates(
     val xmpStereoSeparationPercent: MutableIntState,
     val xmpAmigaStereoSeparationPercent: MutableIntState,
     val xmpAmigaModel: MutableIntState,
+    val ayflyCoreSampleRateHz: MutableIntState,
+    val ayflyOversample: MutableIntState,
+    val ayflyChipType: MutableIntState,
+    val ayflyMixType: MutableIntState,
+    val ayflyIntFreq: MutableIntState,
     val lazyUsf2UseHleAudio: MutableState<Boolean>,
     val vio2sfInterpolationQuality: MutableIntState,
     val sc68SamplingRateHz: MutableIntState,
@@ -209,6 +214,21 @@ internal fun rememberAppNavigationSettingsStates(
     }
     val xmpAmigaModel = remember {
         mutableIntStateOf(prefs.getInt(CorePreferenceKeys.XMP_AMIGA_MODEL, XmpDefaults.amigaModel))
+    }
+    val ayflyCoreSampleRateHz = remember {
+        mutableIntStateOf(prefs.getInt(CorePreferenceKeys.CORE_RATE_AYFLY, AyflyDefaults.coreSampleRateHz))
+    }
+    val ayflyOversample = remember {
+        mutableIntStateOf(prefs.getInt(CorePreferenceKeys.AYFLY_OVERSAMPLE, AyflyDefaults.oversample))
+    }
+    val ayflyChipType = remember {
+        mutableIntStateOf(prefs.getInt(CorePreferenceKeys.AYFLY_CHIP_TYPE, AyflyDefaults.chipType))
+    }
+    val ayflyMixType = remember {
+        mutableIntStateOf(prefs.getInt(CorePreferenceKeys.AYFLY_MIX_TYPE, AyflyDefaults.mixType))
+    }
+    val ayflyIntFreq = remember {
+        mutableIntStateOf(prefs.getInt(CorePreferenceKeys.AYFLY_INT_FREQ, AyflyDefaults.intFreq))
     }
     val lazyUsf2UseHleAudio = remember {
         mutableStateOf(prefs.getBoolean(CorePreferenceKeys.LAZYUSF2_USE_HLE_AUDIO, LazyUsf2Defaults.useHleAudio))
@@ -653,6 +673,11 @@ internal fun rememberAppNavigationSettingsStates(
         xmpStereoSeparationPercent = xmpStereoSeparationPercent,
         xmpAmigaStereoSeparationPercent = xmpAmigaStereoSeparationPercent,
         xmpAmigaModel = xmpAmigaModel,
+        ayflyCoreSampleRateHz = ayflyCoreSampleRateHz,
+        ayflyOversample = ayflyOversample,
+        ayflyChipType = ayflyChipType,
+        ayflyMixType = ayflyMixType,
+        ayflyIntFreq = ayflyIntFreq,
         lazyUsf2UseHleAudio = lazyUsf2UseHleAudio,
         vio2sfInterpolationQuality = vio2sfInterpolationQuality,
         sc68SamplingRateHz = sc68SamplingRateHz,

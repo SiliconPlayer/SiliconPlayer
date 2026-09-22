@@ -16,6 +16,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.flopster101.siliconplayer.IntChoice
 import com.flopster101.siliconplayer.pluginsettings.AdPlugSettings
+import com.flopster101.siliconplayer.pluginsettings.AyflySettings
 import com.flopster101.siliconplayer.pluginsettings.CrsidSettings
 import com.flopster101.siliconplayer.pluginsettings.FfmpegSettings
 import com.flopster101.siliconplayer.pluginsettings.FurnaceSettings
@@ -57,6 +58,11 @@ internal data class PluginDetailRouteState(
     val xmpStereoSeparationPercent: Int,
     val xmpAmigaStereoSeparationPercent: Int,
     val xmpAmigaModel: Int,
+    val ayflyCoreSampleRateHz: Int,
+    val ayflyOversample: Int,
+    val ayflyChipType: Int,
+    val ayflyMixType: Int,
+    val ayflyIntFreq: Int,
     val openMptStereoSeparationPercent: Int,
     val openMptStereoSeparationAmigaPercent: Int,
     val openMptInterpolationFilterLength: Int,
@@ -143,6 +149,11 @@ internal data class PluginDetailRouteActions(
     val onXmpStereoSeparationPercentChanged: (Int) -> Unit,
     val onXmpAmigaStereoSeparationPercentChanged: (Int) -> Unit,
     val onXmpAmigaModelChanged: (Int) -> Unit,
+    val onAyflyCoreSampleRateHzChanged: (Int) -> Unit,
+    val onAyflyOversampleChanged: (Int) -> Unit,
+    val onAyflyChipTypeChanged: (Int) -> Unit,
+    val onAyflyMixTypeChanged: (Int) -> Unit,
+    val onAyflyIntFreqChanged: (Int) -> Unit,
     val onOpenMptStereoSeparationPercentChanged: (Int) -> Unit,
     val onOpenMptStereoSeparationAmigaPercentChanged: (Int) -> Unit,
     val onOpenMptInterpolationFilterLengthChanged: (Int) -> Unit,
@@ -293,6 +304,7 @@ internal fun PluginDetailRouteContent(
         DecoderNames.FURNACE -> state.furnaceSampleRateHz
         DecoderNames.UADE -> state.uadeSampleRateHz
         DecoderNames.LIBXMP -> state.xmpSampleRateHz
+        DecoderNames.AYFLY -> state.ayflyCoreSampleRateHz
         DecoderNames.SC68 -> state.sc68SamplingRateHz
         else -> fixedSampleRateHz
     }
@@ -311,6 +323,7 @@ internal fun PluginDetailRouteContent(
         DecoderNames.UADE -> actions.onUadeSampleRateChanged
         DecoderNames.SC68 -> actions.onSc68SamplingRateHzChanged
         DecoderNames.LIBXMP -> actions.onXmpSampleRateChanged
+        DecoderNames.AYFLY -> actions.onAyflyCoreSampleRateHzChanged
         else -> null
     }
     val fixedRateLabel = if (fixedSampleRateHz > 0) {
@@ -452,6 +465,16 @@ internal fun PluginDetailRouteContent(
             onStereoSeparationPercentChanged = actions.onXmpStereoSeparationPercentChanged,
             onAmigaStereoSeparationPercentChanged = actions.onXmpAmigaStereoSeparationPercentChanged,
             onAmigaModelChanged = actions.onXmpAmigaModelChanged
+        )
+        DecoderNames.AYFLY -> AyflySettings(
+            oversample = state.ayflyOversample,
+            chipType = state.ayflyChipType,
+            mixType = state.ayflyMixType,
+            intFreq = state.ayflyIntFreq,
+            onOversampleChanged = actions.onAyflyOversampleChanged,
+            onChipTypeChanged = actions.onAyflyChipTypeChanged,
+            onMixTypeChanged = actions.onAyflyMixTypeChanged,
+            onIntFreqChanged = actions.onAyflyIntFreqChanged
         )
 
         DecoderNames.VIO2_SF -> Vio2sfSettings(

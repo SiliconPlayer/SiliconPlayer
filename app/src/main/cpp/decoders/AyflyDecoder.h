@@ -47,6 +47,7 @@ public:
 
     std::string getCoreStringInfo(const char* name) override;
     int getCoreIntInfo(const char* name, int fallback) override;
+    void setOption(const char* name, const char* value) override;
 
     const char* getName() const override { return "ayfly"; }
 
@@ -72,9 +73,18 @@ private:
     int currentSubsong = 0;
     std::vector<std::string> subsongTitles;
     std::vector<double> subsongDurations;
+    // Core options; -1 (chip/mix) and 0 (int freq) mean auto: keep the
+    // song/library value. tickRate converts tick-based times to seconds.
+    int oversample = 1;
+    int chipType = -1;
+    int mixType = -1;
+    int intFreqHz = 0;
+    double tickRate = 50.0;
 
     void closeLocked();
     bool createSongLocked(const char* path);
+    void applyOptionsLocked();
+    void refreshTickRateLocked();
     static bool onSongElapsed(void* arg);
 };
 

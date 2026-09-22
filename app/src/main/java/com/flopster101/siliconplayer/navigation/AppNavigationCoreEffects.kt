@@ -27,6 +27,11 @@ internal fun AppNavigationCoreEffects(
     xmpStereoSeparationPercent: Int,
     xmpAmigaStereoSeparationPercent: Int,
     xmpAmigaModel: Int,
+    ayflyCoreSampleRateHz: Int,
+    ayflyOversample: Int,
+    ayflyChipType: Int,
+    ayflyMixType: Int,
+    ayflyIntFreq: Int,
     lazyUsf2UseHleAudio: Boolean,
     vio2sfInterpolationQuality: Int,
     sc68SamplingRateHz: Int,
@@ -215,6 +220,60 @@ internal fun AppNavigationCoreEffects(
             optionValue = normalized.toString(),
             policy = CoreOptionApplyPolicy.Live,
             optionLabel = "Amiga mixing"
+        )
+    }
+
+    LaunchedEffect(ayflyCoreSampleRateHz) {
+        val normalized = if (ayflyCoreSampleRateHz <= 0) 0 else ayflyCoreSampleRateHz.coerceIn(8000, 192000)
+        prefs.edit().putInt(CorePreferenceKeys.CORE_RATE_AYFLY, normalized).apply()
+        NativeBridge.setCoreOutputSampleRate(DecoderNames.AYFLY, normalized)
+    }
+
+    LaunchedEffect(ayflyOversample) {
+        val normalized = ayflyOversample.coerceIn(1, 8)
+        prefs.edit().putInt(CorePreferenceKeys.AYFLY_OVERSAMPLE, normalized).apply()
+        applyCoreOptionWithPolicy(
+            coreName = DecoderNames.AYFLY,
+            optionName = AyflyOptionKeys.OVERSAMPLE,
+            optionValue = normalized.toString(),
+            policy = CoreOptionApplyPolicy.Live,
+            optionLabel = "Oversampling"
+        )
+    }
+
+    LaunchedEffect(ayflyChipType) {
+        val normalized = ayflyChipType.coerceIn(-1, 1)
+        prefs.edit().putInt(CorePreferenceKeys.AYFLY_CHIP_TYPE, normalized).apply()
+        applyCoreOptionWithPolicy(
+            coreName = DecoderNames.AYFLY,
+            optionName = AyflyOptionKeys.CHIP_TYPE,
+            optionValue = normalized.toString(),
+            policy = CoreOptionApplyPolicy.Live,
+            optionLabel = "Chip model"
+        )
+    }
+
+    LaunchedEffect(ayflyMixType) {
+        val normalized = ayflyMixType.coerceIn(-1, 5)
+        prefs.edit().putInt(CorePreferenceKeys.AYFLY_MIX_TYPE, normalized).apply()
+        applyCoreOptionWithPolicy(
+            coreName = DecoderNames.AYFLY,
+            optionName = AyflyOptionKeys.MIX_TYPE,
+            optionValue = normalized.toString(),
+            policy = CoreOptionApplyPolicy.Live,
+            optionLabel = "Stereo mix order"
+        )
+    }
+
+    LaunchedEffect(ayflyIntFreq) {
+        val normalized = ayflyIntFreq.coerceIn(0, 1000)
+        prefs.edit().putInt(CorePreferenceKeys.AYFLY_INT_FREQ, normalized).apply()
+        applyCoreOptionWithPolicy(
+            coreName = DecoderNames.AYFLY,
+            optionName = AyflyOptionKeys.INT_FREQ,
+            optionValue = normalized.toString(),
+            policy = CoreOptionApplyPolicy.Live,
+            optionLabel = "Interrupt frequency"
         )
     }
 
@@ -1075,6 +1134,11 @@ internal fun AppNavigationCoreEffectsFromSettingsStates(
         xmpStereoSeparationPercent = settingsStates.xmpStereoSeparationPercent.intValue,
         xmpAmigaStereoSeparationPercent = settingsStates.xmpAmigaStereoSeparationPercent.intValue,
         xmpAmigaModel = settingsStates.xmpAmigaModel.intValue,
+        ayflyCoreSampleRateHz = settingsStates.ayflyCoreSampleRateHz.intValue,
+        ayflyOversample = settingsStates.ayflyOversample.intValue,
+        ayflyChipType = settingsStates.ayflyChipType.intValue,
+        ayflyMixType = settingsStates.ayflyMixType.intValue,
+        ayflyIntFreq = settingsStates.ayflyIntFreq.intValue,
         lazyUsf2UseHleAudio = settingsStates.lazyUsf2UseHleAudio.value,
         vio2sfInterpolationQuality = settingsStates.vio2sfInterpolationQuality.intValue,
         sc68SamplingRateHz = settingsStates.sc68SamplingRateHz.intValue,

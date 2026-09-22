@@ -82,6 +82,11 @@ object CorePreferenceKeys {
     const val XMP_STEREO_SEPARATION_PERCENT = "xmp_stereo_separation_percent"
     const val XMP_AMIGA_STEREO_SEPARATION_PERCENT = "xmp_amiga_stereo_separation_percent"
     const val XMP_AMIGA_MODEL = "xmp_amiga_model"
+    const val CORE_RATE_AYFLY = "core_rate_ayfly"
+    const val AYFLY_OVERSAMPLE = "ayfly_oversample"
+    const val AYFLY_CHIP_TYPE = "ayfly_chip_type"
+    const val AYFLY_MIX_TYPE = "ayfly_mix_type"
+    const val AYFLY_INT_FREQ = "ayfly_int_freq"
     fun vgmPlayChipCoreKey(chipKey: String) = "vgmplay_chip_core_$chipKey"
 }
 
@@ -166,6 +171,14 @@ object XmpDefaults {
     const val stereoSeparationPercent = 100
     const val amigaStereoSeparationPercent = 65
     const val amigaModel = 2 // 0 Off, 1 Amiga 500, 2 Amiga 1200
+}
+
+object AyflyDefaults {
+    const val coreSampleRateHz = 0
+    const val oversample = 1
+    const val chipType = -1 // -1 Auto, 0 AY-3-8910, 1 YM2149
+    const val mixType = -1 // -1 Auto, 0 ABC .. 5 CBA
+    const val intFreq = 0 // 0 Auto (follows the library value, 50 Hz)
 }
 
 object HivelyTrackerDefaults {
