@@ -77,6 +77,11 @@ object CorePreferenceKeys {
     const val FURNACE_DSID_QUALITY = "furnace_dsid_quality"
     const val FURNACE_AY_CORE = "furnace_ay_core"
     const val ADPLUG_OPL_ENGINE = "adplug_opl_engine"
+    const val CORE_RATE_XMP = "core_rate_xmp"
+    const val XMP_INTERPOLATION = "xmp_interpolation"
+    const val XMP_STEREO_SEPARATION_PERCENT = "xmp_stereo_separation_percent"
+    const val XMP_AMIGA_STEREO_SEPARATION_PERCENT = "xmp_amiga_stereo_separation_percent"
+    const val XMP_AMIGA_MIXING = "xmp_amiga_mixing"
     fun vgmPlayChipCoreKey(chipKey: String) = "vgmplay_chip_core_$chipKey"
 }
 
@@ -153,6 +158,14 @@ object LazyUsf2Defaults {
 object AdPlugDefaults {
     const val coreSampleRateHz = 0
     const val oplEngine = 2
+}
+
+object XmpDefaults {
+    const val coreSampleRateHz = 0
+    const val interpolation = 1 // 0 Nearest, 1 Linear, 2 Spline
+    const val stereoSeparationPercent = 100
+    const val amigaStereoSeparationPercent = 65
+    const val amigaMixing = true
 }
 
 object HivelyTrackerDefaults {

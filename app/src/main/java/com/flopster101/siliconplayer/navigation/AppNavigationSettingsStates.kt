@@ -28,7 +28,12 @@ internal data class AppNavigationSettingsStates(
     val klystrackCoreSampleRateHz: MutableIntState,
     val furnaceCoreSampleRateHz: MutableIntState,
     val uadeCoreSampleRateHz: MutableIntState,
+    val xmpCoreSampleRateHz: MutableIntState,
     val adPlugOplEngine: MutableIntState,
+    val xmpInterpolation: MutableIntState,
+    val xmpStereoSeparationPercent: MutableIntState,
+    val xmpAmigaStereoSeparationPercent: MutableIntState,
+    val xmpAmigaMixing: MutableState<Boolean>,
     val lazyUsf2UseHleAudio: MutableState<Boolean>,
     val vio2sfInterpolationQuality: MutableIntState,
     val sc68SamplingRateHz: MutableIntState,
@@ -189,6 +194,21 @@ internal fun rememberAppNavigationSettingsStates(
     }
     val adPlugOplEngine = remember {
         mutableIntStateOf(prefs.getInt(CorePreferenceKeys.ADPLUG_OPL_ENGINE, AdPlugDefaults.oplEngine))
+    }
+    val xmpCoreSampleRateHz = remember {
+        mutableIntStateOf(prefs.getInt(CorePreferenceKeys.CORE_RATE_XMP, XmpDefaults.coreSampleRateHz))
+    }
+    val xmpInterpolation = remember {
+        mutableIntStateOf(prefs.getInt(CorePreferenceKeys.XMP_INTERPOLATION, XmpDefaults.interpolation))
+    }
+    val xmpStereoSeparationPercent = remember {
+        mutableIntStateOf(prefs.getInt(CorePreferenceKeys.XMP_STEREO_SEPARATION_PERCENT, XmpDefaults.stereoSeparationPercent))
+    }
+    val xmpAmigaStereoSeparationPercent = remember {
+        mutableIntStateOf(prefs.getInt(CorePreferenceKeys.XMP_AMIGA_STEREO_SEPARATION_PERCENT, XmpDefaults.amigaStereoSeparationPercent))
+    }
+    val xmpAmigaMixing = remember {
+        mutableStateOf(prefs.getBoolean(CorePreferenceKeys.XMP_AMIGA_MIXING, XmpDefaults.amigaMixing))
     }
     val lazyUsf2UseHleAudio = remember {
         mutableStateOf(prefs.getBoolean(CorePreferenceKeys.LAZYUSF2_USE_HLE_AUDIO, LazyUsf2Defaults.useHleAudio))
@@ -627,7 +647,12 @@ internal fun rememberAppNavigationSettingsStates(
         klystrackCoreSampleRateHz = klystrackCoreSampleRateHz,
         furnaceCoreSampleRateHz = furnaceCoreSampleRateHz,
         uadeCoreSampleRateHz = uadeCoreSampleRateHz,
+        xmpCoreSampleRateHz = xmpCoreSampleRateHz,
         adPlugOplEngine = adPlugOplEngine,
+        xmpInterpolation = xmpInterpolation,
+        xmpStereoSeparationPercent = xmpStereoSeparationPercent,
+        xmpAmigaStereoSeparationPercent = xmpAmigaStereoSeparationPercent,
+        xmpAmigaMixing = xmpAmigaMixing,
         lazyUsf2UseHleAudio = lazyUsf2UseHleAudio,
         vio2sfInterpolationQuality = vio2sfInterpolationQuality,
         sc68SamplingRateHz = sc68SamplingRateHz,

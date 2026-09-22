@@ -31,6 +31,7 @@ import com.flopster101.siliconplayer.pluginsettings.SidPlayFpSettings
 import com.flopster101.siliconplayer.pluginsettings.UadeSettings
 import com.flopster101.siliconplayer.pluginsettings.Vio2sfSettings
 import com.flopster101.siliconplayer.pluginsettings.VgmPlaySettings
+import com.flopster101.siliconplayer.pluginsettings.XmpSettings
 import java.util.Locale
 
 internal data class PluginDetailRouteState(
@@ -50,7 +51,12 @@ internal data class PluginDetailRouteState(
     val klystrackSampleRateHz: Int,
     val furnaceSampleRateHz: Int,
     val uadeSampleRateHz: Int,
+    val xmpSampleRateHz: Int,
     val adPlugOplEngine: Int,
+    val xmpInterpolation: Int,
+    val xmpStereoSeparationPercent: Int,
+    val xmpAmigaStereoSeparationPercent: Int,
+    val xmpAmigaMixing: Boolean,
     val openMptStereoSeparationPercent: Int,
     val openMptStereoSeparationAmigaPercent: Int,
     val openMptInterpolationFilterLength: Int,
@@ -131,7 +137,12 @@ internal data class PluginDetailRouteActions(
     val onKlystrackSampleRateChanged: (Int) -> Unit,
     val onFurnaceSampleRateChanged: (Int) -> Unit,
     val onUadeSampleRateChanged: (Int) -> Unit,
+    val onXmpSampleRateChanged: (Int) -> Unit,
     val onAdPlugOplEngineChanged: (Int) -> Unit,
+    val onXmpInterpolationChanged: (Int) -> Unit,
+    val onXmpStereoSeparationPercentChanged: (Int) -> Unit,
+    val onXmpAmigaStereoSeparationPercentChanged: (Int) -> Unit,
+    val onXmpAmigaMixingChanged: (Boolean) -> Unit,
     val onOpenMptStereoSeparationPercentChanged: (Int) -> Unit,
     val onOpenMptStereoSeparationAmigaPercentChanged: (Int) -> Unit,
     val onOpenMptInterpolationFilterLengthChanged: (Int) -> Unit,
@@ -281,6 +292,7 @@ internal fun PluginDetailRouteContent(
         DecoderNames.KLYSTRACK -> state.klystrackSampleRateHz
         DecoderNames.FURNACE -> state.furnaceSampleRateHz
         DecoderNames.UADE -> state.uadeSampleRateHz
+        DecoderNames.LIBXMP -> state.xmpSampleRateHz
         DecoderNames.SC68 -> state.sc68SamplingRateHz
         else -> fixedSampleRateHz
     }
@@ -298,6 +310,7 @@ internal fun PluginDetailRouteContent(
         DecoderNames.FURNACE -> actions.onFurnaceSampleRateChanged
         DecoderNames.UADE -> actions.onUadeSampleRateChanged
         DecoderNames.SC68 -> actions.onSc68SamplingRateHzChanged
+        DecoderNames.LIBXMP -> actions.onXmpSampleRateChanged
         else -> null
     }
     val fixedRateLabel = if (fixedSampleRateHz > 0) {
@@ -428,6 +441,17 @@ internal fun PluginDetailRouteContent(
         DecoderNames.AD_PLUG -> AdPlugSettings(
             oplEngine = state.adPlugOplEngine,
             onOplEngineChanged = actions.onAdPlugOplEngineChanged
+        )
+
+        DecoderNames.LIBXMP -> XmpSettings(
+            interpolation = state.xmpInterpolation,
+            stereoSeparationPercent = state.xmpStereoSeparationPercent,
+            amigaStereoSeparationPercent = state.xmpAmigaStereoSeparationPercent,
+            amigaMixing = state.xmpAmigaMixing,
+            onInterpolationChanged = actions.onXmpInterpolationChanged,
+            onStereoSeparationPercentChanged = actions.onXmpStereoSeparationPercentChanged,
+            onAmigaStereoSeparationPercentChanged = actions.onXmpAmigaStereoSeparationPercentChanged,
+            onAmigaMixingChanged = actions.onXmpAmigaMixingChanged
         )
 
         DecoderNames.VIO2_SF -> Vio2sfSettings(

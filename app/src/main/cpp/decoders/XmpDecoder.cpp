@@ -60,6 +60,13 @@ bool XmpDecoder::open(const char* path) {
         return false;
     }
 
+    // Probe the internal Amiga check through the public API: with A500 forced,
+    // the reported mixer is non-standard only for Amiga MODs.
+    const int savedFlags = xmp_get_player(context, XMP_PLAYER_CFLAGS);
+    xmp_set_player(context, XMP_PLAYER_CFLAGS, savedFlags | XMP_FLAGS_A500);
+    isAmigaModule = xmp_get_player(context, XMP_PLAYER_MIXER_TYPE) != XMP_MIXER_STANDARD;
+    xmp_set_player(context, XMP_PLAYER_CFLAGS, savedFlags);
+
     struct xmp_module_info mi;
     xmp_get_module_info(context, &mi);
     moduleChannels = mi.mod->chn;
@@ -110,9 +117,15 @@ bool XmpDecoder::startPlayerLocked() {
 void XmpDecoder::applyOptionsLocked() {
     if (context == nullptr) return;
     xmp_set_player(context, XMP_PLAYER_INTERP, interpolationMode);
-    if (stereoSeparationPercent >= 0) {
-        xmp_set_player(context, XMP_PLAYER_MIX, stereoSeparationPercent);
+    xmp_set_player(context, XMP_PLAYER_MIX,
+                   isAmigaModule ? amigaStereoSeparationPercent : stereoSeparationPercent);
+    int flags = xmp_get_player(context, XMP_PLAYER_CFLAGS);
+    if (amigaMixingEnabled) {
+        flags |= XMP_FLAGS_A500;
+    } else {
+        flags &= ~XMP_FLAGS_A500;
     }
+    xmp_set_player(context, XMP_PLAYER_CFLAGS, flags);
 }
 
 void XmpDecoder::close() {
@@ -256,8 +269,12 @@ void XmpDecoder::setOption(const char* name, const char* value) {
             interpolationMode = XMP_INTERP_LINEAR;
         }
     } else if (key == "xmp.stereo_separation") {
-        const int percent = std::clamp(parseIntString(value, -1), -100, 100);
-        stereoSeparationPercent = percent;
+        stereoSeparationPercent = std::clamp(parseIntString(value, 100), -100, 100);
+    } else if (key == "xmp.amiga_stereo_separation") {
+        amigaStereoSeparationPercent = std::clamp(parseIntString(value, 100), -100, 100);
+    } else if (key == "xmp.amiga_mixing") {
+        const std::string flag(value);
+        amigaMixingEnabled = flag == "true" || flag == "1";
     } else {
         return;
     }

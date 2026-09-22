@@ -62,7 +62,10 @@ private:
     int repeatMode = 0;
     bool ended = false;
     int interpolationMode = XMP_INTERP_LINEAR;
-    int stereoSeparationPercent = -1; // -1: keep the library default
+    int stereoSeparationPercent = 100;
+    int amigaStereoSeparationPercent = 100;
+    bool amigaMixingEnabled = false;
+    bool isAmigaModule = false;
     std::string title;
     std::string moduleType;
     std::string comment;

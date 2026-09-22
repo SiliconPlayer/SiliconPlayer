@@ -21,7 +21,12 @@ internal fun AppNavigationCoreEffects(
     klystrackCoreSampleRateHz: Int,
     furnaceCoreSampleRateHz: Int,
     uadeCoreSampleRateHz: Int,
+    xmpCoreSampleRateHz: Int,
     adPlugOplEngine: Int,
+    xmpInterpolation: Int,
+    xmpStereoSeparationPercent: Int,
+    xmpAmigaStereoSeparationPercent: Int,
+    xmpAmigaMixing: Boolean,
     lazyUsf2UseHleAudio: Boolean,
     vio2sfInterpolationQuality: Int,
     sc68SamplingRateHz: Int,
@@ -157,6 +162,59 @@ internal fun AppNavigationCoreEffects(
         val normalized = if (adPlugCoreSampleRateHz <= 0) 0 else adPlugCoreSampleRateHz.coerceIn(8000, 192000)
         prefs.edit().putInt(CorePreferenceKeys.CORE_RATE_ADPLUG, normalized).apply()
         NativeBridge.setCoreOutputSampleRate(DecoderNames.AD_PLUG, normalized)
+    }
+
+    LaunchedEffect(xmpCoreSampleRateHz) {
+        val normalized = if (xmpCoreSampleRateHz <= 0) 0 else xmpCoreSampleRateHz.coerceIn(8000, 192000)
+        prefs.edit().putInt(CorePreferenceKeys.CORE_RATE_XMP, normalized).apply()
+        NativeBridge.setCoreOutputSampleRate(DecoderNames.LIBXMP, normalized)
+    }
+
+    LaunchedEffect(xmpInterpolation) {
+        val normalized = xmpInterpolation.coerceIn(0, 2)
+        prefs.edit().putInt(CorePreferenceKeys.XMP_INTERPOLATION, normalized).apply()
+        applyCoreOptionWithPolicy(
+            coreName = DecoderNames.LIBXMP,
+            optionName = XmpOptionKeys.INTERPOLATION,
+            optionValue = XmpConfig.interpolationOptionValue(normalized),
+            policy = CoreOptionApplyPolicy.Live,
+            optionLabel = "Interpolation"
+        )
+    }
+
+    LaunchedEffect(xmpStereoSeparationPercent) {
+        val normalized = xmpStereoSeparationPercent.coerceIn(-100, 100)
+        prefs.edit().putInt(CorePreferenceKeys.XMP_STEREO_SEPARATION_PERCENT, normalized).apply()
+        applyCoreOptionWithPolicy(
+            coreName = DecoderNames.LIBXMP,
+            optionName = XmpOptionKeys.STEREO_SEPARATION,
+            optionValue = normalized.toString(),
+            policy = CoreOptionApplyPolicy.Live,
+            optionLabel = "Stereo separation"
+        )
+    }
+
+    LaunchedEffect(xmpAmigaStereoSeparationPercent) {
+        val normalized = xmpAmigaStereoSeparationPercent.coerceIn(-100, 100)
+        prefs.edit().putInt(CorePreferenceKeys.XMP_AMIGA_STEREO_SEPARATION_PERCENT, normalized).apply()
+        applyCoreOptionWithPolicy(
+            coreName = DecoderNames.LIBXMP,
+            optionName = XmpOptionKeys.AMIGA_STEREO_SEPARATION,
+            optionValue = normalized.toString(),
+            policy = CoreOptionApplyPolicy.Live,
+            optionLabel = "Amiga stereo separation"
+        )
+    }
+
+    LaunchedEffect(xmpAmigaMixing) {
+        prefs.edit().putBoolean(CorePreferenceKeys.XMP_AMIGA_MIXING, xmpAmigaMixing).apply()
+        applyCoreOptionWithPolicy(
+            coreName = DecoderNames.LIBXMP,
+            optionName = XmpOptionKeys.AMIGA_MIXING,
+            optionValue = xmpAmigaMixing.toString(),
+            policy = CoreOptionApplyPolicy.Live,
+            optionLabel = "Amiga 500 mixing"
+        )
     }
 
     LaunchedEffect(hivelyTrackerCoreSampleRateHz) {
@@ -1010,7 +1068,12 @@ internal fun AppNavigationCoreEffectsFromSettingsStates(
         klystrackCoreSampleRateHz = settingsStates.klystrackCoreSampleRateHz.intValue,
         furnaceCoreSampleRateHz = settingsStates.furnaceCoreSampleRateHz.intValue,
         uadeCoreSampleRateHz = settingsStates.uadeCoreSampleRateHz.intValue,
+        xmpCoreSampleRateHz = settingsStates.xmpCoreSampleRateHz.intValue,
         adPlugOplEngine = settingsStates.adPlugOplEngine.intValue,
+        xmpInterpolation = settingsStates.xmpInterpolation.intValue,
+        xmpStereoSeparationPercent = settingsStates.xmpStereoSeparationPercent.intValue,
+        xmpAmigaStereoSeparationPercent = settingsStates.xmpAmigaStereoSeparationPercent.intValue,
+        xmpAmigaMixing = settingsStates.xmpAmigaMixing.value,
         lazyUsf2UseHleAudio = settingsStates.lazyUsf2UseHleAudio.value,
         vio2sfInterpolationQuality = settingsStates.vio2sfInterpolationQuality.intValue,
         sc68SamplingRateHz = settingsStates.sc68SamplingRateHz.intValue,
