@@ -130,6 +130,7 @@ internal fun supportsChannelScopeVisualization(coreNameForUi: String?): Boolean 
     return when (pluginNameForCoreName(coreNameForUi)) {
         DecoderNames.LIB_OPEN_MPT,
         DecoderNames.LIBXMP,
+        DecoderNames.AYFLY,
         DecoderNames.C_RSID,
         DecoderNames.LIB_SID_PLAY_FP,
         DecoderNames.FURNACE,

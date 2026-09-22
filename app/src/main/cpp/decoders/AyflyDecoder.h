@@ -2,6 +2,7 @@
 #define SILICONPLAYER_AYFLYDECODER_H
 
 #include "AudioDecoder.h"
+#include "../ChannelScopeSharedState.h"
 #include <cstdint>
 #include <mutex>
 #include <string>
@@ -48,6 +49,15 @@ public:
     std::string getCoreStringInfo(const char* name) override;
     int getCoreIntInfo(const char* name, int fallback) override;
     void setOption(const char* name, const char* value) override;
+    std::vector<std::string> getToggleChannelNames() override;
+    std::vector<uint8_t> getToggleChannelAvailability() override;
+    void setToggleChannelMuted(int channelIndex, bool enabled) override;
+    bool getToggleChannelMuted(int channelIndex) const override;
+    void clearToggleChannelMutes() override;
+    std::shared_ptr<ChannelScopeSharedState> getChannelScopeSharedState() const override {
+        return channelScopeState;
+    }
+    std::vector<int32_t> getChannelScopeTextState(int maxChannels) override;
 
     const char* getName() const override { return "ayfly"; }
 
@@ -81,10 +91,19 @@ private:
     int intFreqHz = 0;
     double tickRate = 50.0;
 
+    std::vector<std::string> toggleChannelNames;
+    std::vector<uint8_t> toggleChannelMuted;
+    std::shared_ptr<ChannelScopeSharedState> channelScopeState =
+            std::make_shared<ChannelScopeSharedState>();
+    uint64_t channelScopeSourceSerial = 0;
+    int64_t channelScopeLastReadNs = 0;
+
     void closeLocked();
     bool createSongLocked(const char* path);
     void applyOptionsLocked();
     void refreshTickRateLocked();
+    void captureChannelScopeSnapshotLocked();
+    void applyToggleChannelMutesLocked();
     static bool onSongElapsed(void* arg);
 };
 

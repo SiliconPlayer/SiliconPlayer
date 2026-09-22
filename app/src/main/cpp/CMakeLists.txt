@@ -358,6 +358,7 @@ include_directories(${CMAKE_CURRENT_BINARY_DIR}/libusb_gen)
             SHARED
             decoders/AyflyDecoder.cpp
             decoders/AyflyDecoderPlugin.cpp
+            ChannelScopeSharedState.cpp
     )
     # Matches the library build, see external/build_deps.sh.
     target_compile_definitions(

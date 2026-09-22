@@ -2,6 +2,7 @@
 
 #include <android/log.h>
 #include <algorithm>
+#include <chrono>
 #include <cmath>
 #include <filesystem>
 #include <fstream>
@@ -15,6 +16,11 @@
 
 namespace {
 constexpr int kBytesPerFrame = 4; // 16-bit stereo
+// Chip DAC full scale: init_levels[15] / 6, AY and YM agree (65535/6).
+constexpr float kAyTapFullScale = 1.0f / 10922.5f;
+// Full-volume channels reach full scale; 40% keeps the default 240% scope
+// gain under the ceiling (peak x gain = 0.96) with DC removal disabled.
+constexpr float kAyScopeHeadroom = 0.4f;
 
 static_assert(std::is_same<AY_CHAR, wchar_t>::value,
               "ayfly must be compiled with UNICODE/_UNICODE like the library");
@@ -143,6 +149,9 @@ bool AyflyDecoder::createSongLocked(const char* path) {
     const unsigned long lengthTicks = ay_getsonglength(song);
     duration = lengthTicks > 0 ? static_cast<double>(lengthTicks) / tickRate : 0.0;
     sourceChannels = ay_ists(song) ? 6 : 3;
+    static const char* kChannelLabels[6] = {"A", "B", "C", "A2", "B2", "C2"};
+    toggleChannelNames.assign(kChannelLabels, kChannelLabels + sourceChannels);
+    toggleChannelMuted.assign(static_cast<size_t>(sourceChannels), 0);
     formatName = normalizeFormatName(ay_getsongformat(song));
     subsongCount = static_cast<int>(ay_getsubsongcount(song));
     currentSubsong = static_cast<int>(ay_getsubsong(song));
@@ -187,6 +196,13 @@ void AyflyDecoder::closeLocked() {
     currentSubsong = 0;
     subsongTitles.clear();
     subsongDurations.clear();
+    toggleChannelNames.clear();
+    toggleChannelMuted.clear();
+    channelScopeSourceSerial = 0;
+    channelScopeLastReadNs = 0;
+    if (channelScopeState) {
+        channelScopeState->clear();
+    }
 }
 
 int AyflyDecoder::read(float* buffer, int numFrames) {
@@ -228,7 +244,46 @@ int AyflyDecoder::read(float* buffer, int numFrames) {
     for (int i = 0; i < samples; ++i) {
         buffer[i] = static_cast<float>(in[i]) / 32768.0f;
     }
+
+    channelScopeLastReadNs = std::chrono::duration_cast<std::chrono::nanoseconds>(
+            std::chrono::steady_clock::now().time_since_epoch()
+    ).count();
+    if (!channelScopeState ||
+        channelScopeState->tryBeginCapture(channelScopeLastReadNs, sourceChannels)) {
+        channelScopeSourceSerial++;
+        captureChannelScopeSnapshotLocked();
+    }
     return framesFilled;
+}
+
+void AyflyDecoder::captureChannelScopeSnapshotLocked() {
+    if (!channelScopeState || song == nullptr) return;
+    const int totalChannels = std::clamp(sourceChannels, 0, 6);
+    if (totalChannels <= 0) return;
+
+    const int maxSamples = ChannelScopeSharedState::kMaxSamples;
+    thread_local std::vector<float> scratchRaw;
+    thread_local std::vector<float> scratchVu;
+    scratchRaw.assign(static_cast<size_t>(totalChannels) * maxSamples, 0.0f);
+    scratchVu.assign(static_cast<size_t>(totalChannels), 0.0f);
+
+    const int vuWindow = std::min(maxSamples, 2048);
+    for (int ch = 0; ch < totalChannels; ++ch) {
+        float* dest = scratchRaw.data() + static_cast<size_t>(ch) * maxSamples;
+        ay_getchannelscope(song, static_cast<unsigned char>(ch),
+                           dest, static_cast<unsigned long>(maxSamples));
+        float peak = 0.0f;
+        for (int i = 0; i < maxSamples; ++i) {
+            // VU stays chip-relative; only the waveform gets display headroom.
+            const float full = dest[i] * kAyTapFullScale;
+            dest[i] = std::clamp(full * kAyScopeHeadroom, 0.0f, 1.0f);
+            if (i >= maxSamples - vuWindow) peak = std::max(peak, full);
+        }
+        scratchVu[static_cast<size_t>(ch)] = peak;
+    }
+
+    channelScopeState->publish(scratchRaw, scratchVu, totalChannels,
+                               channelScopeSourceSerial, true);
 }
 
 void AyflyDecoder::seek(double seconds) {
@@ -363,6 +418,7 @@ void AyflyDecoder::applyOptionsLocked() {
     if (mixType >= 0) ay_setmixtype(song, static_cast<AYMixTypes>(mixType));
     if (intFreqHz > 0) ay_setintfreq(song, static_cast<float>(intFreqHz));
     refreshTickRateLocked();
+    applyToggleChannelMutesLocked(); // seeks reinit chip state
 }
 
 void AyflyDecoder::refreshTickRateLocked() {
@@ -426,4 +482,76 @@ double AyflyDecoder::getPlaybackPositionSeconds() {
     std::lock_guard<std::mutex> lock(decodeMutex);
     if (song == nullptr) return -1.0;
     return static_cast<double>(ay_getelapsedtime(song)) / tickRate;
+}
+
+std::vector<std::string> AyflyDecoder::getToggleChannelNames() {
+    std::lock_guard<std::mutex> lock(decodeMutex);
+    return toggleChannelNames;
+}
+
+std::vector<uint8_t> AyflyDecoder::getToggleChannelAvailability() {
+    std::lock_guard<std::mutex> lock(decodeMutex);
+    return std::vector<uint8_t>(toggleChannelNames.size(), 1);
+}
+
+void AyflyDecoder::setToggleChannelMuted(int channelIndex, bool enabled) {
+    std::lock_guard<std::mutex> lock(decodeMutex);
+    if (channelIndex < 0 || channelIndex >= static_cast<int>(toggleChannelMuted.size())) {
+        return;
+    }
+    toggleChannelMuted[static_cast<size_t>(channelIndex)] = enabled ? 1 : 0;
+    applyToggleChannelMutesLocked();
+}
+
+bool AyflyDecoder::getToggleChannelMuted(int channelIndex) const {
+    std::lock_guard<std::mutex> lock(decodeMutex);
+    if (channelIndex < 0 || channelIndex >= static_cast<int>(toggleChannelMuted.size())) {
+        return false;
+    }
+    return toggleChannelMuted[static_cast<size_t>(channelIndex)] != 0;
+}
+
+void AyflyDecoder::clearToggleChannelMutes() {
+    std::lock_guard<std::mutex> lock(decodeMutex);
+    std::fill(toggleChannelMuted.begin(), toggleChannelMuted.end(), 0);
+    applyToggleChannelMutesLocked();
+}
+
+void AyflyDecoder::applyToggleChannelMutesLocked() {
+    if (song == nullptr) return;
+    for (size_t i = 0; i < toggleChannelMuted.size(); ++i) {
+        ay_chnlmute(song, static_cast<unsigned long>(i % 3),
+                    toggleChannelMuted[i] != 0,
+                    static_cast<unsigned char>(i / 3));
+    }
+}
+
+std::vector<int32_t> AyflyDecoder::getChannelScopeTextState(int maxChannels) {
+    std::lock_guard<std::mutex> lock(decodeMutex);
+    if (!channelScopeState) return {};
+    const std::vector<float> vu = channelScopeState->publishedVu();
+    const int totalChannels = std::min(static_cast<int>(vu.size()),
+                                       std::clamp(maxChannels, 1, 6));
+    if (totalChannels <= 0) return {};
+
+    constexpr int kTextStride = 10;
+    constexpr int kFlagActive = 1 << 0;
+    std::vector<int32_t> flat(static_cast<size_t>(totalChannels) * kTextStride, -1);
+    for (int ch = 0; ch < totalChannels; ++ch) {
+        const float recentPeak = vu[static_cast<size_t>(ch)];
+        const size_t base = static_cast<size_t>(ch) * kTextStride;
+        int flags = 0;
+        if (recentPeak > 0.0015f) flags |= kFlagActive;
+        flat[base + 0] = ch;
+        flat[base + 1] = -1; // AY players expose no pattern events
+        flat[base + 2] = std::clamp(static_cast<int>(std::lround(recentPeak * 64.0f)), 0, 64);
+        flat[base + 3] = 0;
+        flat[base + 4] = -1;
+        flat[base + 5] = 0;
+        flat[base + 6] = -1;
+        flat[base + 7] = -1;
+        flat[base + 8] = -1;
+        flat[base + 9] = flags;
+    }
+    return flat;
 }

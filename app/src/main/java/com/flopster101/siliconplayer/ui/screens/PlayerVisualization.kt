@@ -2295,6 +2295,14 @@ internal fun AlbumArtPlaceholder(
                     parseIndexedNames(NativeBridge.getXmpSampleNames())
                 visChannelScopeChipNamesByChannelIndex = emptyMap()
             }
+            DecoderNames.AYFLY -> {
+                visChannelScopeInstrumentNamesByIndex = emptyMap()
+                visChannelScopeSampleNamesByIndex = emptyMap()
+                visChannelScopeChipNamesByChannelIndex =
+                    NativeBridge.getDecoderToggleChannelNames()
+                        .mapIndexed { index, name -> index to name }
+                        .toMap()
+            }
             DecoderNames.FURNACE -> {
                 visChannelScopeInstrumentNamesByIndex =
                     parseIndexedNames(NativeBridge.getFurnaceInstrumentNames())
