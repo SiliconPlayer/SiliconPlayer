@@ -31,6 +31,17 @@ namespace {
         return extensions;
     }
 
+    const std::vector<std::string>& getStaticXmpExtensions() {
+        static const std::vector<std::string> extensions = {
+                "669", "amf", "dbm", "digi", "dtm", "far", "fnk", "gdm",
+                "ice", "imf", "it", "j2b", "liq", "m15", "mdl", "med",
+                "mgt", "mod", "mtm", "okt", "psm", "ptm", "rtm", "s3m",
+                "sfx", "stim", "stm", "stx", "ult", "umx", "wow", "xm",
+                "xmf"
+        };
+        return extensions;
+    }
+
     struct DecoderRegistration {
         DecoderRegistration() {
             DecoderStaticInfo ffmpegStaticInfo;
@@ -81,6 +92,29 @@ namespace {
             DecoderRegistry::getInstance().registerDecoder("LibOpenMPT", getStaticOpenMptExtensions(), []() {
                 return DecoderPluginLoader::getInstance().createDecoder("libsiliconplayer_openmpt_decoder.so");
             }, 10, std::move(openMptStaticInfo));
+
+            DecoderStaticInfo xmpStaticInfo;
+            xmpStaticInfo.hasPlaybackCapabilities = true;
+            xmpStaticInfo.playbackCapabilities =
+                    AudioDecoder::PLAYBACK_CAP_SEEK |
+                    AudioDecoder::PLAYBACK_CAP_RELIABLE_DURATION |
+                    AudioDecoder::PLAYBACK_CAP_LIVE_REPEAT_MODE |
+                    AudioDecoder::PLAYBACK_CAP_CUSTOM_SAMPLE_RATE |
+                    AudioDecoder::PLAYBACK_CAP_DIRECT_SEEK;
+            xmpStaticInfo.hasRepeatModeCapabilities = true;
+            xmpStaticInfo.repeatModeCapabilities =
+                    AudioDecoder::REPEAT_CAP_TRACK |
+                    AudioDecoder::REPEAT_CAP_LOOP_POINT;
+            xmpStaticInfo.hasTimelineMode = true;
+            xmpStaticInfo.timelineMode = AudioDecoder::TimelineMode::Discontinuous;
+            xmpStaticInfo.hasFixedSampleRateHz = true;
+            xmpStaticInfo.fixedSampleRateHz = 0;
+            xmpStaticInfo.optionApplyPolicy = [](const char*) {
+                return AudioDecoder::OPTION_APPLY_LIVE;
+            };
+            DecoderRegistry::getInstance().registerDecoder("libxmp", getStaticXmpExtensions(), []() {
+                return DecoderPluginLoader::getInstance().createDecoder("libsiliconplayer_xmp_decoder.so");
+            }, 11, std::move(xmpStaticInfo));
 
             DecoderStaticInfo vgmStaticInfo;
             vgmStaticInfo.hasPlaybackCapabilities = true;
@@ -288,7 +322,7 @@ namespace {
             };
             DecoderRegistry::getInstance().registerDecoder("SC68", {"sc68", "sndh"}, []() {
                 return DecoderPluginLoader::getInstance().createDecoder("libsiliconplayer_sc68_decoder.so");
-            }, 11, std::move(sc68StaticInfo));
+            }, 12, std::move(sc68StaticInfo));
 
             DecoderStaticInfo adplugStaticInfo;
             adplugStaticInfo.hasPlaybackCapabilities = true;
@@ -320,7 +354,7 @@ namespace {
                     "vgm", "vgz", "sop", "hsq", "sqx", "sdb", "agd", "ha2"
             }, []() {
                 return DecoderPluginLoader::getInstance().createDecoder("libsiliconplayer_adplug_decoder.so");
-            }, 12, std::move(adplugStaticInfo));
+            }, 13, std::move(adplugStaticInfo));
 
             DecoderStaticInfo uadeStaticInfo;
             uadeStaticInfo.hasPlaybackCapabilities = true;
@@ -350,7 +384,7 @@ namespace {
             };
             DecoderRegistry::getInstance().registerDecoder("UADE", getUadeSupportedExtensions(), []() {
                 return DecoderPluginLoader::getInstance().createDecoder("libsiliconplayer_uade_decoder.so");
-            }, 14, std::move(uadeStaticInfo));
+            }, 15, std::move(uadeStaticInfo));
 
             DecoderStaticInfo hivelyStaticInfo;
             hivelyStaticInfo.hasPlaybackCapabilities = true;
@@ -371,7 +405,7 @@ namespace {
             };
             DecoderRegistry::getInstance().registerDecoder("HivelyTracker", {"ahx", "hvl"}, []() {
                 return DecoderPluginLoader::getInstance().createDecoder("libsiliconplayer_hivelytracker_decoder.so");
-            }, 13, std::move(hivelyStaticInfo));
+            }, 14, std::move(hivelyStaticInfo));
 
             DecoderStaticInfo klystrackStaticInfo;
             klystrackStaticInfo.hasPlaybackCapabilities = true;
@@ -392,7 +426,7 @@ namespace {
             };
             DecoderRegistry::getInstance().registerDecoder("Klystrack-plus", {"kt"}, []() {
                 return DecoderPluginLoader::getInstance().createDecoder("libsiliconplayer_klystrack_decoder.so");
-            }, 15, std::move(klystrackStaticInfo));
+            }, 16, std::move(klystrackStaticInfo));
 
             DecoderStaticInfo furnaceStaticInfo;
             furnaceStaticInfo.hasPlaybackCapabilities = true;
@@ -431,7 +465,7 @@ namespace {
                     "mod", "xm", "s3m", "it"
             }, []() {
                 return DecoderPluginLoader::getInstance().createDecoder("libsiliconplayer_furnace_decoder.so");
-            }, 16, std::move(furnaceStaticInfo));
+            }, 17, std::move(furnaceStaticInfo));
         }
     };
 
