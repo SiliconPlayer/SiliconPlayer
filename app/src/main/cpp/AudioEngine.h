@@ -113,6 +113,14 @@ public:
     int getXmpCurrentSpeed();
     int getXmpCurrentBpm();
     int getXmpLoopCount();
+    std::string getAyflyFormatName();
+    std::string getAyflyChipName();
+    std::string getAyflyPlayerName();
+    std::string getAyflyMixerName();
+    int getAyflyChannelCount();
+    int getAyflyLoopPointMs();
+    int getAyflySubsongCount();
+    int getAyflyCurrentSubsong();
     std::vector<float> getOpenMptChannelVuLevels();
     std::vector<float> getChannelScopeSamples(int samplesPerChannel);
     void getChannelScopeSamples(int samplesPerChannel, std::vector<float>& outFlat);

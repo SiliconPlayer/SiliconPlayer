@@ -50,6 +50,15 @@ std::string ayTextToUtf8(const wchar_t* text) {
 int clampRenderRate(int sampleRateHz) {
     return std::clamp(sampleRateHz, 8000, 192000);
 }
+
+std::string normalizeFormatName(const wchar_t* format) {
+    std::string out = ayTextToUtf8(format);
+    if (!out.empty() && out[0] == '.') out.erase(0, 1);
+    for (char& c : out) {
+        if (c >= 'a' && c <= 'z') c = static_cast<char>(c - 'a' + 'A');
+    }
+    return out;
+}
 }
 
 AyflyDecoder::AyflyDecoder() = default;
@@ -126,6 +135,22 @@ bool AyflyDecoder::createSongLocked(const char* path) {
     const unsigned long lengthTicks = ay_getsonglength(song);
     duration = lengthTicks > 0 ? static_cast<double>(lengthTicks) / kTicksPerSecond : 0.0;
     sourceChannels = ay_ists(song) ? 6 : 3;
+    formatName = normalizeFormatName(ay_getsongformat(song));
+    subsongCount = static_cast<int>(ay_getsubsongcount(song));
+    currentSubsong = static_cast<int>(ay_getsubsong(song));
+    if (subsongCount > 1) {
+        // Name and length only follow the selected subsong, so visit every
+        // subsong once here and return to the default selection afterwards.
+        subsongTitles.resize(static_cast<size_t>(subsongCount));
+        subsongDurations.resize(static_cast<size_t>(subsongCount));
+        for (int i = 0; i < subsongCount; ++i) {
+            if (!ay_setsubsong(song, static_cast<unsigned long>(i))) continue;
+            subsongTitles[static_cast<size_t>(i)] = ayTextToUtf8(ay_getsongname(song));
+            subsongDurations[static_cast<size_t>(i)] =
+                    static_cast<double>(ay_getsonglength(song)) / kTicksPerSecond;
+        }
+        ay_setsubsong(song, static_cast<unsigned long>(currentSubsong));
+    }
     ended = false;
     ay_setelapsedcallback(song, &AyflyDecoder::onSongElapsed, this);
     return true;
@@ -149,6 +174,11 @@ void AyflyDecoder::closeLocked() {
     ended = false;
     title.clear();
     artist.clear();
+    formatName.clear();
+    subsongCount = 1;
+    currentSubsong = 0;
+    subsongTitles.clear();
+    subsongDurations.clear();
 }
 
 int AyflyDecoder::read(float* buffer, int numFrames) {
@@ -229,6 +259,86 @@ int AyflyDecoder::getChannelCount() {
 int AyflyDecoder::getSourceChannelCount() {
     std::lock_guard<std::mutex> lock(decodeMutex);
     return sourceChannels > 0 ? sourceChannels : 3;
+}
+
+int AyflyDecoder::getSubtuneCount() const {
+    std::lock_guard<std::mutex> lock(decodeMutex);
+    return subsongCount;
+}
+
+int AyflyDecoder::getCurrentSubtuneIndex() const {
+    std::lock_guard<std::mutex> lock(decodeMutex);
+    return currentSubsong;
+}
+
+bool AyflyDecoder::selectSubtune(int index) {
+    std::lock_guard<std::mutex> lock(decodeMutex);
+    if (song == nullptr || index < 0 || index >= subsongCount) return false;
+    if (index == currentSubsong) return true;
+    if (!ay_setsubsong(song, static_cast<unsigned long>(index))) return false;
+    currentSubsong = index;
+    title = ayTextToUtf8(ay_getsongname(song));
+    const unsigned long lengthTicks = ay_getsonglength(song);
+    duration = lengthTicks > 0 ? static_cast<double>(lengthTicks) / kTicksPerSecond : 0.0;
+    ended = false;
+    return true;
+}
+
+std::string AyflyDecoder::getSubtuneTitle(int index) {
+    std::lock_guard<std::mutex> lock(decodeMutex);
+    if (index < 0 || index >= static_cast<int>(subsongTitles.size())) return "";
+    return subsongTitles[static_cast<size_t>(index)];
+}
+
+std::string AyflyDecoder::getSubtuneArtist(int index) {
+    std::lock_guard<std::mutex> lock(decodeMutex);
+    if (index < 0 || index >= subsongCount) return "";
+    return artist;
+}
+
+double AyflyDecoder::getSubtuneDurationSeconds(int index) {
+    std::lock_guard<std::mutex> lock(decodeMutex);
+    if (index < 0 || index >= static_cast<int>(subsongDurations.size())) return 0.0;
+    return subsongDurations[static_cast<size_t>(index)];
+}
+
+std::string AyflyDecoder::getCoreStringInfo(const char* name) {
+    if (name == nullptr) return "";
+    std::lock_guard<std::mutex> lock(decodeMutex);
+    if (song == nullptr) return "";
+    const std::string key(name);
+    if (key == "formatName") return formatName;
+    if (key == "chipName") return ay_getchiptype(song) != 0 ? "YM2149" : "AY-3-8910";
+    if (key == "playerName") {
+        return static_cast<const AYSongInfo*>(song)->is_z80 ? "Z80" : "Software";
+    }
+    if (key == "mixerName") {
+        switch (ay_getmixtype(song)) {
+        case AY_ABC: return "ABC";
+        case AY_ACB: return "ACB";
+        case AY_BAC: return "BAC";
+        case AY_BCA: return "BCA";
+        case AY_CAB: return "CAB";
+        case AY_CBA: return "CBA";
+        default: return "";
+        }
+    }
+    return "";
+}
+
+int AyflyDecoder::getCoreIntInfo(const char* name, int fallback) {
+    if (name == nullptr) return fallback;
+    std::lock_guard<std::mutex> lock(decodeMutex);
+    if (song == nullptr) return fallback;
+    const std::string key(name);
+    if (key == "channelCount") return sourceChannels > 0 ? sourceChannels : 3;
+    if (key == "subsongCount") return subsongCount;
+    if (key == "currentSubsong") return currentSubsong;
+    if (key == "loopPointMs") {
+        const unsigned long loop = ay_getsongloop(song);
+        return loop > 0 ? static_cast<int>(loop * 20UL) : 0;
+    }
+    return fallback;
 }
 
 std::string AyflyDecoder::getTitle() {

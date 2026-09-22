@@ -380,6 +380,14 @@ object NativeBridge {
     external fun getXmpCurrentSpeed(): Int
     external fun getXmpCurrentBpm(): Int
     external fun getXmpLoopCount(): Int
+    external fun getAyflyFormatName(): String
+    external fun getAyflyChipName(): String
+    external fun getAyflyPlayerName(): String
+    external fun getAyflyMixerName(): String
+    external fun getAyflyChannelCount(): Int
+    external fun getAyflyLoopPointMs(): Int
+    external fun getAyflySubsongCount(): Int
+    external fun getAyflyCurrentSubsong(): Int
     external fun getOpenMptChannelVuLevels(): FloatArray
     external fun getChannelScopeSamples(samplesPerChannel: Int): FloatArray
     external fun getChannelScopeTextState(maxChannels: Int): IntArray

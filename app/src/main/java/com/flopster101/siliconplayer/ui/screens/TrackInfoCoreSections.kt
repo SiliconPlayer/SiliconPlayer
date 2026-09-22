@@ -75,6 +75,20 @@ internal fun TrackInfoCoreSections(
             if (metadata.xmp.sampleNames.isNotBlank()) TrackInfoDetailsRow("Sample names", metadata.xmp.sampleNames)
         }
 
+        decoderName.equals(DecoderNames.AYFLY, ignoreCase = true) -> {
+            TrackInfoSectionHeader(DecoderNames.AYFLY)
+            if (metadata.ayfly.formatName.isNotBlank()) TrackInfoDetailsRow("Format", metadata.ayfly.formatName)
+            if (metadata.ayfly.channelCount > 0) TrackInfoDetailsRow("Channels", metadata.ayfly.channelCount.toString())
+            if (metadata.ayfly.chipName.isNotBlank()) TrackInfoDetailsRow("Chip", metadata.ayfly.chipName)
+            if (metadata.ayfly.playerName.isNotBlank()) TrackInfoDetailsRow("Player", metadata.ayfly.playerName)
+            if (metadata.ayfly.mixerName.isNotBlank()) TrackInfoDetailsRow("Mixer", metadata.ayfly.mixerName)
+            if (metadata.ayfly.loopPointMs > 0) TrackInfoDetailsRow("Loop start", formatTime(metadata.ayfly.loopPointMs / 1000.0))
+            if (metadata.ayfly.subsongCount > 1) {
+                TrackInfoDetailsRow("Subsongs", metadata.ayfly.subsongCount.toString())
+                TrackInfoDetailsRow("Current subsong", metadata.ayfly.currentSubsong.toString())
+            }
+        }
+
         decoderName.equals(DecoderNames.VGM_PLAY, ignoreCase = true) -> {
             TrackInfoSectionHeader(DecoderNames.VGM_PLAY)
             if (metadata.vgmPlay.gameName.isNotBlank()) TrackInfoDetailsRow("Game", metadata.vgmPlay.gameName)
@@ -318,6 +332,20 @@ internal fun appendCoreTrackInfoCopyRows(
             if (metadata.xmp.moduleMd5.isNotBlank()) row("MD5", metadata.xmp.moduleMd5)
             if (metadata.xmp.instrumentNames.isNotBlank()) row("Instrument names", metadata.xmp.instrumentNames)
             if (metadata.xmp.sampleNames.isNotBlank()) row("Sample names", metadata.xmp.sampleNames)
+        }
+
+        decoderName.equals(DecoderNames.AYFLY, ignoreCase = true) -> {
+            builder.append('\n').append("[ayfly]").append('\n')
+            if (metadata.ayfly.formatName.isNotBlank()) row("Format", metadata.ayfly.formatName)
+            if (metadata.ayfly.channelCount > 0) row("Channels", metadata.ayfly.channelCount.toString())
+            if (metadata.ayfly.chipName.isNotBlank()) row("Chip", metadata.ayfly.chipName)
+            if (metadata.ayfly.playerName.isNotBlank()) row("Player", metadata.ayfly.playerName)
+            if (metadata.ayfly.mixerName.isNotBlank()) row("Mixer", metadata.ayfly.mixerName)
+            if (metadata.ayfly.loopPointMs > 0) row("Loop start", formatTime(metadata.ayfly.loopPointMs / 1000.0))
+            if (metadata.ayfly.subsongCount > 1) {
+                row("Subsongs", metadata.ayfly.subsongCount.toString())
+                row("Current subsong", metadata.ayfly.currentSubsong.toString())
+            }
         }
 
         decoderName.equals(DecoderNames.VGM_PLAY, ignoreCase = true) -> {

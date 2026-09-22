@@ -22,6 +22,12 @@ public:
     std::string getBitDepthLabel() override;
     int getChannelCount() override;
     int getSourceChannelCount() override;
+    int getSubtuneCount() const override;
+    int getCurrentSubtuneIndex() const override;
+    bool selectSubtune(int index) override;
+    std::string getSubtuneTitle(int index) override;
+    std::string getSubtuneArtist(int index) override;
+    double getSubtuneDurationSeconds(int index) override;
     std::string getTitle() override;
     std::string getArtist() override;
     void setOutputSampleRate(int sampleRate) override;
@@ -38,6 +44,9 @@ public:
     }
     double getPlaybackPositionSeconds() override;
     TimelineMode getTimelineMode() const override { return TimelineMode::Discontinuous; }
+
+    std::string getCoreStringInfo(const char* name) override;
+    int getCoreIntInfo(const char* name, int fallback) override;
 
     const char* getName() const override { return "ayfly"; }
 
@@ -58,6 +67,11 @@ private:
     bool ended = false;
     std::string title;
     std::string artist;
+    std::string formatName;
+    int subsongCount = 1;
+    int currentSubsong = 0;
+    std::vector<std::string> subsongTitles;
+    std::vector<double> subsongDurations;
 
     void closeLocked();
     bool createSongLocked(const char* path);

@@ -51,6 +51,17 @@ internal data class XmpMetadata(
     val sampleNames: String = ""
 )
 
+internal data class AyflyMetadata(
+    val formatName: String = "",
+    val chipName: String = "",
+    val playerName: String = "",
+    val mixerName: String = "",
+    val channelCount: Int = 0,
+    val loopPointMs: Int = 0,
+    val subsongCount: Int = 0,
+    val currentSubsong: Int = 0
+)
+
 internal data class VgmPlayMetadata(
     val gameName: String = "",
     val systemName: String = "",
@@ -236,6 +247,7 @@ internal data class TrackInfoLiveMetadata(
     val comment: String = "",
     val openMpt: OpenMptMetadata = OpenMptMetadata(),
     val xmp: XmpMetadata = XmpMetadata(),
+    val ayfly: AyflyMetadata = AyflyMetadata(),
     val vgmPlay: VgmPlayMetadata = VgmPlayMetadata(),
     val ffmpeg: FfmpegMetadata = FfmpegMetadata(),
     val platformDolby: PlatformDolbyMetadata = PlatformDolbyMetadata(),
@@ -328,6 +340,19 @@ private fun queryTrackInfoLiveMetadata(decoderName: String?): TrackInfoLiveMetad
                 mixerName = NativeBridge.getXmpMixerName(),
                 instrumentNames = NativeBridge.getXmpInstrumentNames(),
                 sampleNames = NativeBridge.getXmpSampleNames()
+            )
+        )
+
+        decoderName.equals(DecoderNames.AYFLY, ignoreCase = true) -> common.copy(
+            ayfly = AyflyMetadata(
+                formatName = NativeBridge.getAyflyFormatName(),
+                chipName = NativeBridge.getAyflyChipName(),
+                playerName = NativeBridge.getAyflyPlayerName(),
+                mixerName = NativeBridge.getAyflyMixerName(),
+                channelCount = NativeBridge.getAyflyChannelCount(),
+                loopPointMs = NativeBridge.getAyflyLoopPointMs(),
+                subsongCount = NativeBridge.getAyflySubsongCount(),
+                currentSubsong = NativeBridge.getAyflyCurrentSubsong() + 1
             )
         )
 

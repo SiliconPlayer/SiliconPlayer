@@ -1302,6 +1302,70 @@ Java_com_flopster101_siliconplayer_NativeBridge_getXmpLoopCount(JNIEnv*, jobject
     return static_cast<jint>(audioEngine->getXmpLoopCount());
 }
 
+extern "C" JNIEXPORT jstring JNICALL
+Java_com_flopster101_siliconplayer_NativeBridge_getAyflyFormatName(JNIEnv* env, jobject) {
+    if (audioEngine == nullptr) {
+        return toJString(env, "");
+    }
+    return toJString(env, audioEngine->getAyflyFormatName());
+}
+
+extern "C" JNIEXPORT jstring JNICALL
+Java_com_flopster101_siliconplayer_NativeBridge_getAyflyChipName(JNIEnv* env, jobject) {
+    if (audioEngine == nullptr) {
+        return toJString(env, "");
+    }
+    return toJString(env, audioEngine->getAyflyChipName());
+}
+
+extern "C" JNIEXPORT jstring JNICALL
+Java_com_flopster101_siliconplayer_NativeBridge_getAyflyPlayerName(JNIEnv* env, jobject) {
+    if (audioEngine == nullptr) {
+        return toJString(env, "");
+    }
+    return toJString(env, audioEngine->getAyflyPlayerName());
+}
+
+extern "C" JNIEXPORT jstring JNICALL
+Java_com_flopster101_siliconplayer_NativeBridge_getAyflyMixerName(JNIEnv* env, jobject) {
+    if (audioEngine == nullptr) {
+        return toJString(env, "");
+    }
+    return toJString(env, audioEngine->getAyflyMixerName());
+}
+
+extern "C" JNIEXPORT jint JNICALL
+Java_com_flopster101_siliconplayer_NativeBridge_getAyflyChannelCount(JNIEnv*, jobject) {
+    if (audioEngine == nullptr) {
+        return 0;
+    }
+    return static_cast<jint>(audioEngine->getAyflyChannelCount());
+}
+
+extern "C" JNIEXPORT jint JNICALL
+Java_com_flopster101_siliconplayer_NativeBridge_getAyflyLoopPointMs(JNIEnv*, jobject) {
+    if (audioEngine == nullptr) {
+        return 0;
+    }
+    return static_cast<jint>(audioEngine->getAyflyLoopPointMs());
+}
+
+extern "C" JNIEXPORT jint JNICALL
+Java_com_flopster101_siliconplayer_NativeBridge_getAyflySubsongCount(JNIEnv*, jobject) {
+    if (audioEngine == nullptr) {
+        return 0;
+    }
+    return static_cast<jint>(audioEngine->getAyflySubsongCount());
+}
+
+extern "C" JNIEXPORT jint JNICALL
+Java_com_flopster101_siliconplayer_NativeBridge_getAyflyCurrentSubsong(JNIEnv*, jobject) {
+    if (audioEngine == nullptr) {
+        return 0;
+    }
+    return static_cast<jint>(audioEngine->getAyflyCurrentSubsong());
+}
+
 extern "C" JNIEXPORT jfloatArray JNICALL
 Java_com_flopster101_siliconplayer_NativeBridge_getOpenMptChannelVuLevels(JNIEnv* env, jobject) {
     if (audioEngine == nullptr) {

@@ -383,6 +383,54 @@ int AudioEngine::getXmpLoopCount() {
     return decoder->getCoreIntInfo("loopCount", 0);
 }
 
+std::string AudioEngine::getAyflyFormatName() {
+    std::lock_guard<std::mutex> lock(decoderMutex);
+    if (!decoder) return "";
+    return decoder->getCoreStringInfo("formatName");
+}
+
+std::string AudioEngine::getAyflyChipName() {
+    std::lock_guard<std::mutex> lock(decoderMutex);
+    if (!decoder) return "";
+    return decoder->getCoreStringInfo("chipName");
+}
+
+std::string AudioEngine::getAyflyPlayerName() {
+    std::lock_guard<std::mutex> lock(decoderMutex);
+    if (!decoder) return "";
+    return decoder->getCoreStringInfo("playerName");
+}
+
+std::string AudioEngine::getAyflyMixerName() {
+    std::lock_guard<std::mutex> lock(decoderMutex);
+    if (!decoder) return "";
+    return decoder->getCoreStringInfo("mixerName");
+}
+
+int AudioEngine::getAyflyChannelCount() {
+    std::lock_guard<std::mutex> lock(decoderMutex);
+    if (!decoder) return 0;
+    return decoder->getCoreIntInfo("channelCount", 0);
+}
+
+int AudioEngine::getAyflyLoopPointMs() {
+    std::lock_guard<std::mutex> lock(decoderMutex);
+    if (!decoder) return 0;
+    return decoder->getCoreIntInfo("loopPointMs", 0);
+}
+
+int AudioEngine::getAyflySubsongCount() {
+    std::lock_guard<std::mutex> lock(decoderMutex);
+    if (!decoder) return 0;
+    return decoder->getCoreIntInfo("subsongCount", 0);
+}
+
+int AudioEngine::getAyflyCurrentSubsong() {
+    std::lock_guard<std::mutex> lock(decoderMutex);
+    if (!decoder) return 0;
+    return decoder->getCoreIntInfo("currentSubsong", 0);
+}
+
 std::vector<float> AudioEngine::getOpenMptChannelVuLevels() {
     std::lock_guard<std::mutex> lock(decoderMutex);
     if (!decoder) return {};
