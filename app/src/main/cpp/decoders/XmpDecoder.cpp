@@ -60,13 +60,6 @@ bool XmpDecoder::open(const char* path) {
         return false;
     }
 
-    // Probe the internal Amiga check through the public API: with A500 forced,
-    // the reported mixer is non-standard only for Amiga MODs.
-    const int savedFlags = xmp_get_player(context, XMP_PLAYER_CFLAGS);
-    xmp_set_player(context, XMP_PLAYER_CFLAGS, savedFlags | XMP_FLAGS_A500);
-    isAmigaModule = xmp_get_player(context, XMP_PLAYER_MIXER_TYPE) != XMP_MIXER_STANDARD;
-    xmp_set_player(context, XMP_PLAYER_CFLAGS, savedFlags);
-
     struct xmp_module_info mi;
     xmp_get_module_info(context, &mi);
     moduleChannels = mi.mod->chn;
@@ -108,6 +101,17 @@ bool XmpDecoder::startPlayerLocked() {
     if (xmp_start_player(context, renderSampleRate, XMP_FORMAT_32BIT) != 0) {
         LOGE("xmp_start_player failed");
         return false;
+    }
+
+    // Probe the internal Amiga check through the public API: with A500 forced,
+    // the reported mixer is non-standard only for Amiga MODs. Most player
+    // params reject calls before the playing state, so probe only here.
+    isAmigaModule = false;
+    const int savedFlags = xmp_get_player(context, XMP_PLAYER_CFLAGS);
+    if (savedFlags >= 0) {
+        xmp_set_player(context, XMP_PLAYER_CFLAGS, savedFlags | XMP_FLAGS_A500);
+        isAmigaModule = xmp_get_player(context, XMP_PLAYER_MIXER_TYPE) != XMP_MIXER_STANDARD;
+        xmp_set_player(context, XMP_PLAYER_CFLAGS, savedFlags);
     }
     applyOptionsLocked();
     ended = false;
