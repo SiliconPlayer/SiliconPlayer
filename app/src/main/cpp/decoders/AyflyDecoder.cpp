@@ -321,6 +321,11 @@ int AyflyDecoder::getChannelCount() {
     return 2;
 }
 
+int AyflyDecoder::getDisplayChannelCount() {
+    std::lock_guard<std::mutex> lock(decodeMutex);
+    return sourceChannels;
+}
+
 int AyflyDecoder::getSourceChannelCount() {
     std::lock_guard<std::mutex> lock(decodeMutex);
     return sourceChannels > 0 ? sourceChannels : 3;
