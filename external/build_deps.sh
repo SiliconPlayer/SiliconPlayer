@@ -748,7 +748,7 @@ build_ayfly() {
     cd - >/dev/null
     cp "$BUILD_DIR/libayfly.so" "$INSTALL_DIR/lib/libayfly.so"
 
-    # ayfly.h pulls in the SDL driver unless DISABLE_AUDIO is set, matching
+    # Consumers have to define DISABLE_AUDIO and UNICODE/_UNICODE to match
     # how the library itself is compiled here.
     cp "$PROJECT_PATH/src/libayfly/ayfly.h" \
        "$PROJECT_PATH/src/libayfly/ayflyString.h" \
