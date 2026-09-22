@@ -364,6 +364,10 @@ int XmpDecoder::getChannelCount() {
     return 2;
 }
 
+int XmpDecoder::getDisplayChannelCount() {
+    return getSourceChannelCount();
+}
+
 int XmpDecoder::getSourceChannelCount() {
     return moduleChannels > 0 ? moduleChannels : 2;
 }
