@@ -657,6 +657,109 @@ build_libxmp() {
 }
 
 # -----------------------------------------------------------------------------
+# Function: Build libayfly
+# -----------------------------------------------------------------------------
+build_ayfly() {
+    local ABI=$1
+    echo "Building libayfly for $ABI..."
+
+    local INSTALL_DIR="$ABSOLUTE_PATH/../app/src/main/cpp/prebuilt/$ABI"
+    local PROJECT_PATH="$ABSOLUTE_PATH/ayfly"
+    local BUILD_DIR="$PROJECT_PATH/build_android_${ABI}"
+    local CONFIGURE_HOST=""
+
+    if [ ! -d "$PROJECT_PATH" ]; then
+        echo "libayfly source not found at $PROJECT_PATH (skipping)."
+        return 0
+    fi
+
+    case "$ABI" in
+        "arm64-v8a")
+            CONFIGURE_HOST="aarch64-linux-android"
+            ;;
+        "armeabi-v7a")
+            CONFIGURE_HOST="arm-linux-androideabi"
+            ;;
+        "x86_64")
+            CONFIGURE_HOST="x86_64-linux-android"
+            ;;
+        "x86")
+            CONFIGURE_HOST="i686-linux-android"
+            ;;
+        *)
+            echo "Unsupported ABI for libayfly: $ABI"
+            return 1
+            ;;
+    esac
+
+    if [ ! -f "$PROJECT_PATH/configure" ]; then
+        if ! command -v autoreconf >/dev/null 2>&1; then
+            echo "Error: libayfly needs autotools bootstrap, but 'autoreconf' is missing."
+            return 1
+        fi
+
+        echo "Bootstrapping libayfly with autoreconf..."
+        (cd "$PROJECT_PATH" && autoreconf -vfi) || {
+            echo "Error: libayfly autoreconf failed."
+            return 1
+        }
+    fi
+
+    rm -rf "$BUILD_DIR"
+    mkdir -p "$BUILD_DIR" "$INSTALL_DIR/lib" "$INSTALL_DIR/include/ayfly"
+
+    (
+        cd "$BUILD_DIR"
+        # The GUI and audio drivers need wxWidgets and SDL; only the core
+        # library is used here.
+        "$PROJECT_PATH/configure" \
+            --host="$CONFIGURE_HOST" \
+            --without-gui \
+            --without-audio \
+            CC="$TOOLCHAIN/bin/${TRIPLE}${ANDROID_API}-clang" \
+            CXX="$TOOLCHAIN/bin/${TRIPLE}${ANDROID_API}-clang++" \
+            AR="$TOOLCHAIN/bin/llvm-ar" \
+            RANLIB="$TOOLCHAIN/bin/llvm-ranlib" \
+            STRIP="$TOOLCHAIN/bin/llvm-strip" \
+            CFLAGS="-fPIC $DEP_OPT_FLAGS" \
+            CXXFLAGS="-fPIC $DEP_OPT_FLAGS"
+
+        # The converter and dumper programs (always built by the top level
+        # Makefile) are not needed, so only recurse into the library.
+        make --no-print-directory V=0 -j"$NPROC" -C src/libayfly
+    )
+
+    local static_lib
+    static_lib="$(find "$BUILD_DIR" -type f -name 'libayfly.a' | head -n 1)"
+    if [ -z "$static_lib" ]; then
+        echo "Error: libayfly static archive not found after build."
+        return 1
+    fi
+
+    # ayfly only builds a static archive; link a shared library from it.
+    mkdir -p "$BUILD_DIR/.so_work"
+    cd "$BUILD_DIR/.so_work"
+    "$TOOLCHAIN/bin/llvm-ar" x "$static_lib"
+    "$TOOLCHAIN/bin/${TRIPLE}${ANDROID_API}-clang++" -shared \
+        -o "$BUILD_DIR/libayfly.so" \
+        -Wl,-soname -Wl,libayfly.so \
+        -fPIC $DEP_OPT_FLAGS \
+        ./*.o
+    cd - >/dev/null
+    cp "$BUILD_DIR/libayfly.so" "$INSTALL_DIR/lib/libayfly.so"
+
+    # ayfly.h pulls in the SDL driver unless DISABLE_AUDIO is set, matching
+    # how the library itself is compiled here.
+    cp "$PROJECT_PATH/src/libayfly/ayfly.h" \
+       "$PROJECT_PATH/src/libayfly/ayflyString.h" \
+       "$PROJECT_PATH/src/libayfly/Filter3.h" \
+       "$PROJECT_PATH/src/libayfly/ay.h" \
+       "$PROJECT_PATH/src/libayfly/AbstractAudio.h" \
+       "$INSTALL_DIR/include/ayfly/" 2>/dev/null || true
+    cp "$PROJECT_PATH/src/libayfly/z80ex/include/"*.h "$INSTALL_DIR/include/ayfly/" 2>/dev/null || true
+}
+
+# -----------------------------------------------------------------------------
 # Function: Build libvgm
 # -----------------------------------------------------------------------------
 build_libvgm() {
@@ -2524,9 +2627,9 @@ build_projectm() {
 usage() {
     echo "Usage: $0 <abi|all> <lib|all[,lib2,...]> [clean]"
     echo "  ABI: all, all_legacy, arm64-v8a, armeabi-v7a, x86_64 (x86 supported explicitly or via all_legacy)"
-    echo "  LIB: all, libsoxr, openssl, ffmpeg, libopenmpt, libxmp, libvgm, libgme, libresid, libresidfp, libsidplayfp, crsid, lazyusf2, psflib, vio2sf, fluidsynth, sc68, libbinio, adplug, libzakalwe, bencodetools, vasm, uade, hivelytracker, klystrack, furnace, projectm"
+    echo "  LIB: all, libsoxr, openssl, ffmpeg, libopenmpt, libxmp, libayfly, libvgm, libgme, libresid, libresidfp, libsidplayfp, crsid, lazyusf2, psflib, vio2sf, fluidsynth, sc68, libbinio, adplug, libzakalwe, bencodetools, vasm, uade, hivelytracker, klystrack, furnace, projectm"
     echo "  clean (optional): force rebuild (bypass already-built skip checks)"
-    echo "  Aliases: sox/soxr, gme, xmp, resid/residfp, sid/sidplayfp, crsid/cRSID/libcrsid, usf/lazyusf, psf, 2sf/twosf, fluid/libfluidsynth, libsc68, binio, libadplug, zakalwe, bencode, assembler/vasm, libuade, hvl/hively, kly/kt, fur"
+    echo "  Aliases: sox/soxr, gme, xmp, ayfly, resid/residfp, sid/sidplayfp, crsid/cRSID/libcrsid, usf/lazyusf, psf, 2sf/twosf, fluid/libfluidsynth, libsc68, binio, libadplug, zakalwe, bencode, assembler/vasm, libuade, hvl/hively, kly/kt, fur"
 }
 
 if [ "$#" -eq 1 ]; then
@@ -2572,6 +2675,9 @@ normalize_lib_name() {
             ;;
         xmp)
             echo "libxmp"
+            ;;
+        ayfly|libayfly)
+            echo "libayfly"
             ;;
         resid)
             echo "libresid"
@@ -2671,7 +2777,7 @@ is_valid_abi() {
 is_valid_lib() {
     local lib="$1"
     case "$lib" in
-        all|libsoxr|openssl|ffmpeg|libopenmpt|libxmp|libvgm|libgme|libresid|libresidfp|libsidplayfp|crsid|lazyusf2|psflib|vio2sf|fluidsynth|sc68|libbinio|adplug|libzakalwe|bencodetools|vasm|uade|hivelytracker|klystrack|furnace|projectm)
+        all|libsoxr|openssl|ffmpeg|libopenmpt|libxmp|libayfly|libvgm|libgme|libresid|libresidfp|libsidplayfp|crsid|lazyusf2|psflib|vio2sf|fluidsynth|sc68|libbinio|adplug|libzakalwe|bencodetools|vasm|uade|hivelytracker|klystrack|furnace|projectm)
             return 0
             ;;
         *)
@@ -2716,7 +2822,7 @@ clean_target_artifacts() {
 
     # Resolve lib list
     if [ "$TARGET_LIB" = "all" ]; then
-            lib_list=(libsoxr openssl ffmpeg libopenmpt libxmp libvgm libgme libresid libresidfp libsidplayfp crsid lazyusf2 psflib vio2sf fluidsynth sc68 libbinio adplug libzakalwe bencodetools vasm uade hivelytracker klystrack furnace projectm)
+            lib_list=(libsoxr openssl ffmpeg libopenmpt libxmp libayfly libvgm libgme libresid libresidfp libsidplayfp crsid lazyusf2 psflib vio2sf fluidsynth sc68 libbinio adplug libzakalwe bencodetools vasm uade hivelytracker klystrack furnace projectm)
     else
         IFS=',' read -r -a requested <<< "$TARGET_LIB"
         for raw in "${requested[@]}"; do
@@ -2737,6 +2843,7 @@ clean_target_artifacts() {
             ffmpeg)         PROJ="$ABSOLUTE_PATH/ffmpeg" ;;
             libopenmpt)     PROJ="$ABSOLUTE_PATH/libopenmpt" ;;
             libxmp)         PROJ="$ABSOLUTE_PATH/libxmp"; CMAKE=1 ;;
+            libayfly)       PROJ="$ABSOLUTE_PATH/ayfly"; CMAKE=1 ;;
             libvgm)         PROJ="$ABSOLUTE_PATH/libvgm"; CMAKE=1 ;;
             libgme)         PROJ="$ABSOLUTE_PATH/libgme"; CMAKE=1 ;;
             libresid)       PROJ="$ABSOLUTE_PATH/resid"; CMAKE=1 ;;
@@ -2823,6 +2930,7 @@ clean_target_artifacts() {
                 libvgm)    rm -f "$inst/lib/libvgm.so" 2>/dev/null || true; rm -rf "$inst/include/libvgm" 2>/dev/null || true ;;
                 libgme)    rm -f "$inst/lib/libgme.so" 2>/dev/null || true; rm -rf "$inst/include/libgme" 2>/dev/null || true ;;
                 libxmp)    rm -f "$inst/lib/libxmp.so" 2>/dev/null || true; rm -f "$inst/include/xmp.h" 2>/dev/null || true ;;
+                ayfly)     rm -f "$inst/lib/libayfly.so" "$inst/lib/libayfly.a" 2>/dev/null || true; rm -rf "$inst/include/ayfly" 2>/dev/null || true ;;
                 libresid)  rm -f "$inst/lib/libresid.so" 2>/dev/null || true; rm -rf "$inst/include/resid" 2>/dev/null || true ;;
                 libresidfp) rm -f "$inst/lib/libresidfp.so" 2>/dev/null || true; rm -rf "$inst/include/libresidfp" 2>/dev/null || true ;;
                 libsidplayfp) rm -f "$inst/lib/libsidplayfp.so" 2>/dev/null || true; rm -rf "$inst/include/libsidplayfp" 2>/dev/null || true ;;
@@ -3015,6 +3123,10 @@ for ABI in "${ABIS[@]}"; do
 
     if target_has_lib "libxmp"; then
         build_libxmp "$ABI"
+    fi
+
+    if target_has_lib "libayfly"; then
+        build_ayfly "$ABI"
     fi
 
     if target_has_lib "libvgm"; then
