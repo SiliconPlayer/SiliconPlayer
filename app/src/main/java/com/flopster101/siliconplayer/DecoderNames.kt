@@ -5,6 +5,7 @@ internal object DecoderNames {
     const val PLATFORM_DOLBY = "System Dolby"
     const val LIB_OPEN_MPT = "LibOpenMPT"
     const val LIBXMP = "libxmp"
+    const val AYFLY = "ayfly"
     const val VGM_PLAY = "VGMPlay"
     const val GAME_MUSIC_EMU = "Game Music Emu"
     const val C_RSID = "cRSID"
@@ -21,6 +22,7 @@ internal object DecoderNames {
     val trackedFileDecoders: Set<String> = setOf(
         LIB_OPEN_MPT,
         LIBXMP,
+        AYFLY,
         VGM_PLAY,
         C_RSID,
         LIB_SID_PLAY_FP,
@@ -44,6 +46,7 @@ internal fun canonicalDecoderNameForAlias(coreName: String?): String? {
         "ffmpeg" -> DecoderNames.FFMPEG
         "libopenmpt", "openmpt" -> DecoderNames.LIB_OPEN_MPT
         "libxmp", "xmp" -> DecoderNames.LIBXMP
+        "ayfly", "libayfly" -> DecoderNames.AYFLY
         "vgmplay" -> DecoderNames.VGM_PLAY
         "game music emu", "libgme", "gme" -> DecoderNames.GAME_MUSIC_EMU
         "crsid", "c-rsid", "c rsid", "sid" -> DecoderNames.C_RSID

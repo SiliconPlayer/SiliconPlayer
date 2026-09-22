@@ -42,6 +42,14 @@ namespace {
         return extensions;
     }
 
+    const std::vector<std::string>& getStaticAyflyExtensions() {
+        static const std::vector<std::string> extensions = {
+                "asc", "ay", "psg", "psc", "pt1", "pt2", "pt3",
+                "sqt", "stc", "stp", "vtx", "ym"
+        };
+        return extensions;
+    }
+
     struct DecoderRegistration {
         DecoderRegistration() {
             DecoderStaticInfo ffmpegStaticInfo;
@@ -115,6 +123,29 @@ namespace {
             DecoderRegistry::getInstance().registerDecoder("libxmp", getStaticXmpExtensions(), []() {
                 return DecoderPluginLoader::getInstance().createDecoder("libsiliconplayer_xmp_decoder.so");
             }, 11, std::move(xmpStaticInfo));
+
+            DecoderStaticInfo ayflyStaticInfo;
+            ayflyStaticInfo.hasPlaybackCapabilities = true;
+            ayflyStaticInfo.playbackCapabilities =
+                    AudioDecoder::PLAYBACK_CAP_SEEK |
+                    AudioDecoder::PLAYBACK_CAP_RELIABLE_DURATION |
+                    AudioDecoder::PLAYBACK_CAP_LIVE_REPEAT_MODE |
+                    AudioDecoder::PLAYBACK_CAP_CUSTOM_SAMPLE_RATE |
+                    AudioDecoder::PLAYBACK_CAP_DIRECT_SEEK;
+            ayflyStaticInfo.hasRepeatModeCapabilities = true;
+            ayflyStaticInfo.repeatModeCapabilities =
+                    AudioDecoder::REPEAT_CAP_TRACK |
+                    AudioDecoder::REPEAT_CAP_LOOP_POINT;
+            ayflyStaticInfo.hasTimelineMode = true;
+            ayflyStaticInfo.timelineMode = AudioDecoder::TimelineMode::Discontinuous;
+            ayflyStaticInfo.hasFixedSampleRateHz = true;
+            ayflyStaticInfo.fixedSampleRateHz = 0;
+            ayflyStaticInfo.optionApplyPolicy = [](const char*) {
+                return AudioDecoder::OPTION_APPLY_LIVE;
+            };
+            DecoderRegistry::getInstance().registerDecoder("ayfly", getStaticAyflyExtensions(), []() {
+                return DecoderPluginLoader::getInstance().createDecoder("libsiliconplayer_ayfly_decoder.so");
+            }, 5, std::move(ayflyStaticInfo));
 
             DecoderStaticInfo vgmStaticInfo;
             vgmStaticInfo.hasPlaybackCapabilities = true;

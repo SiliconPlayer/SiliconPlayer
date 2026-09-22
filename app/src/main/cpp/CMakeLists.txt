@@ -164,6 +164,10 @@ include_directories(${CMAKE_CURRENT_BINARY_DIR}/libusb_gen)
     add_library(libxmp SHARED IMPORTED)
     set_target_properties(libxmp PROPERTIES IMPORTED_LOCATION "${PREBUILT_DIR}/lib/libxmp.so")
 
+    # Import ayfly (Shared)
+    add_library(libayfly SHARED IMPORTED)
+    set_target_properties(libayfly PROPERTIES IMPORTED_LOCATION "${PREBUILT_DIR}/lib/libayfly.so")
+
     # Import lazyusf2 (Static)
     add_library(liblazyusf2 STATIC IMPORTED)
     set_target_properties(liblazyusf2 PROPERTIES IMPORTED_LOCATION "${PREBUILT_DIR}/lib/liblazyusf2.a")
@@ -345,6 +349,41 @@ include_directories(${CMAKE_CURRENT_BINARY_DIR}/libusb_gen)
     target_link_libraries(
             siliconplayer_xmp_decoder
             libxmp
+            ${log-lib}
+            m
+    )
+
+    add_library(
+            siliconplayer_ayfly_decoder
+            SHARED
+            decoders/AyflyDecoder.cpp
+            decoders/AyflyDecoderPlugin.cpp
+    )
+    # Matches the library build, see external/build_deps.sh.
+    target_compile_definitions(
+            siliconplayer_ayfly_decoder
+            PRIVATE
+            DISABLE_AUDIO
+            _UNICODE
+            UNICODE
+    )
+    if (ANDROID)
+        target_compile_options(
+                siliconplayer_ayfly_decoder
+                PRIVATE
+                "-fvisibility=hidden"
+                "-fvisibility-inlines-hidden"
+        )
+        target_link_options(
+                siliconplayer_ayfly_decoder
+                PRIVATE
+                "-Wl,-z,max-page-size=16384"
+                "-Wl,-z,common-page-size=16384"
+        )
+    endif()
+    target_link_libraries(
+            siliconplayer_ayfly_decoder
+            libayfly
             ${log-lib}
             m
     )
