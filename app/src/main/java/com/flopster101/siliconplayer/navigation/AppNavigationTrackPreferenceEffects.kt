@@ -63,12 +63,20 @@ internal fun AppNavigationTrackPreferenceEffects(
             return@LaunchedEffect
         }
 
+        // Chip-format extensions rarely embed art; one attempt then resolve so
+        // the previous cover drops instead of riding the retry schedule.
+        val artName = currentPlaybackRequestUrl?.substringAfterLast('/')
+            ?: artworkTrackKey?.substringAfterLast('/')
+        val artUnlikely = artName != null &&
+            resolveDecoderArtworkHintForFileName(artName, buildDecoderExtensionArtworkHintMap()) != null
+
         // Retry full loads with backoff, then keep re-peeking for a while so art a
         // background fetch (notification / recents chip) landed still shows without
         // needing a track switch. peekCached() runs before each load so a cache fill
         // short-circuits the expensive SMB path.
+        val maxAttempts = if (artUnlikely) 1 else 12
         var resolvedArtwork: androidx.compose.ui.graphics.ImageBitmap? = null
-        repeat(12) { attempt ->
+        repeat(maxAttempts) { attempt ->
             peekCached()?.let { cached ->
                 resolvedArtwork = cached
                 return@repeat
@@ -82,11 +90,11 @@ internal fun AppNavigationTrackPreferenceEffects(
                 )
             }
             if (resolvedArtwork != null) return@repeat
-            if (attempt < 11) {
+            if (attempt < maxAttempts - 1) {
                 delay((130L + attempt * 60L).coerceAtMost(500L))
             }
         }
-        if (resolvedArtwork == null) {
+        if (resolvedArtwork == null && !artUnlikely) {
             var waited = 0L
             while (resolvedArtwork == null && waited < 4000L) {
                 delay(400L)
