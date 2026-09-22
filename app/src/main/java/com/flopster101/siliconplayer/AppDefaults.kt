@@ -223,7 +223,7 @@ object AppDefaults {
             val streakLengthRangeCenti = 10..300
             val centerRangeCenti = -50..50
             val reactSpeedRangeCenti = 0..500
-            const val beatFollowEnabled = false
+            const val beatFollowEnabled = true
 
             val classic = StarfieldPresetTune(
                 starCount = 70, speedCenti = 30, fovCenti = 100, nearMilli = 60,
