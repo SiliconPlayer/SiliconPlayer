@@ -616,6 +616,47 @@ build_libopenmpt() {
 }
 
 # -----------------------------------------------------------------------------
+# Function: Build libxmp
+# -----------------------------------------------------------------------------
+build_libxmp() {
+    local ABI=$1
+    echo "Building libxmp for $ABI..."
+
+    local INSTALL_DIR="$ABSOLUTE_PATH/../app/src/main/cpp/prebuilt/$ABI"
+    local PROJECT_PATH="$ABSOLUTE_PATH/libxmp"
+    local BUILD_DIR="$PROJECT_PATH/build_android_${ABI}"
+
+    if [ ! -d "$PROJECT_PATH" ]; then
+        echo "libxmp source not found at $PROJECT_PATH (skipping)."
+        return 0
+    fi
+
+    rm -rf "$BUILD_DIR"
+    mkdir -p "$BUILD_DIR" "$INSTALL_DIR"
+
+    # Clang accepts the __symver__ attribute but emits no versioned symbol;
+    # force the inline-asm .symver path instead.
+    cmake -Wno-dev -Wno-deprecated \
+        -S "$PROJECT_PATH" \
+        -B "$BUILD_DIR" \
+        -DCMAKE_TOOLCHAIN_FILE="$ANDROID_NDK_HOME/build/cmake/android.toolchain.cmake" \
+        -DCMAKE_POLICY_VERSION_MINIMUM=3.5 \
+        -DANDROID_ABI="$ABI" \
+        -DANDROID_PLATFORM="android-$ANDROID_API" \
+        -DCMAKE_C_FLAGS="$DEP_OPT_FLAGS" \
+        -DCMAKE_C_FLAGS_RELEASE="$DEP_OPT_FLAGS -DNDEBUG" \
+        -DCMAKE_BUILD_TYPE=Release \
+        -DBUILD_SHARED=ON \
+        -DBUILD_STATIC=OFF \
+        -DBUILD_LITE=OFF \
+        -DHAVE_ATTRIBUTE_SYMVER=OFF \
+        -DCMAKE_INSTALL_PREFIX="$INSTALL_DIR"
+
+    cmake --build "$BUILD_DIR" -j"$NPROC"
+    cmake --install "$BUILD_DIR"
+}
+
+# -----------------------------------------------------------------------------
 # Function: Build libvgm
 # -----------------------------------------------------------------------------
 build_libvgm() {
@@ -2483,9 +2524,9 @@ build_projectm() {
 usage() {
     echo "Usage: $0 <abi|all> <lib|all[,lib2,...]> [clean]"
     echo "  ABI: all, all_legacy, arm64-v8a, armeabi-v7a, x86_64 (x86 supported explicitly or via all_legacy)"
-    echo "  LIB: all, libsoxr, openssl, ffmpeg, libopenmpt, libvgm, libgme, libresid, libresidfp, libsidplayfp, crsid, lazyusf2, psflib, vio2sf, fluidsynth, sc68, libbinio, adplug, libzakalwe, bencodetools, vasm, uade, hivelytracker, klystrack, furnace, projectm"
+    echo "  LIB: all, libsoxr, openssl, ffmpeg, libopenmpt, libxmp, libvgm, libgme, libresid, libresidfp, libsidplayfp, crsid, lazyusf2, psflib, vio2sf, fluidsynth, sc68, libbinio, adplug, libzakalwe, bencodetools, vasm, uade, hivelytracker, klystrack, furnace, projectm"
     echo "  clean (optional): force rebuild (bypass already-built skip checks)"
-    echo "  Aliases: sox/soxr, gme, resid/residfp, sid/sidplayfp, crsid/cRSID/libcrsid, usf/lazyusf, psf, 2sf/twosf, fluid/libfluidsynth, libsc68, binio, libadplug, zakalwe, bencode, assembler/vasm, libuade, hvl/hively, kly/kt, fur"
+    echo "  Aliases: sox/soxr, gme, xmp, resid/residfp, sid/sidplayfp, crsid/cRSID/libcrsid, usf/lazyusf, psf, 2sf/twosf, fluid/libfluidsynth, libsc68, binio, libadplug, zakalwe, bencode, assembler/vasm, libuade, hvl/hively, kly/kt, fur"
 }
 
 if [ "$#" -eq 1 ]; then
@@ -2528,6 +2569,9 @@ normalize_lib_name() {
             ;;
         gme)
             echo "libgme"
+            ;;
+        xmp)
+            echo "libxmp"
             ;;
         resid)
             echo "libresid"
@@ -2627,7 +2671,7 @@ is_valid_abi() {
 is_valid_lib() {
     local lib="$1"
     case "$lib" in
-        all|libsoxr|openssl|ffmpeg|libopenmpt|libvgm|libgme|libresid|libresidfp|libsidplayfp|crsid|lazyusf2|psflib|vio2sf|fluidsynth|sc68|libbinio|adplug|libzakalwe|bencodetools|vasm|uade|hivelytracker|klystrack|furnace|projectm)
+        all|libsoxr|openssl|ffmpeg|libopenmpt|libxmp|libvgm|libgme|libresid|libresidfp|libsidplayfp|crsid|lazyusf2|psflib|vio2sf|fluidsynth|sc68|libbinio|adplug|libzakalwe|bencodetools|vasm|uade|hivelytracker|klystrack|furnace|projectm)
             return 0
             ;;
         *)
@@ -2672,7 +2716,7 @@ clean_target_artifacts() {
 
     # Resolve lib list
     if [ "$TARGET_LIB" = "all" ]; then
-            lib_list=(libsoxr openssl ffmpeg libopenmpt libvgm libgme libresid libresidfp libsidplayfp crsid lazyusf2 psflib vio2sf fluidsynth sc68 libbinio adplug libzakalwe bencodetools vasm uade hivelytracker klystrack furnace projectm)
+            lib_list=(libsoxr openssl ffmpeg libopenmpt libxmp libvgm libgme libresid libresidfp libsidplayfp crsid lazyusf2 psflib vio2sf fluidsynth sc68 libbinio adplug libzakalwe bencodetools vasm uade hivelytracker klystrack furnace projectm)
     else
         IFS=',' read -r -a requested <<< "$TARGET_LIB"
         for raw in "${requested[@]}"; do
@@ -2692,6 +2736,7 @@ clean_target_artifacts() {
             openssl)        PROJ="$OPENSSL_DIR"; CMAKE=1 ;;
             ffmpeg)         PROJ="$ABSOLUTE_PATH/ffmpeg" ;;
             libopenmpt)     PROJ="$ABSOLUTE_PATH/libopenmpt" ;;
+            libxmp)         PROJ="$ABSOLUTE_PATH/libxmp"; CMAKE=1 ;;
             libvgm)         PROJ="$ABSOLUTE_PATH/libvgm"; CMAKE=1 ;;
             libgme)         PROJ="$ABSOLUTE_PATH/libgme"; CMAKE=1 ;;
             libresid)       PROJ="$ABSOLUTE_PATH/resid"; CMAKE=1 ;;
@@ -2777,6 +2822,7 @@ clean_target_artifacts() {
                     rm -f "$inst/lib/.libopenmpt_build_stamp" 2>/dev/null || true ;;
                 libvgm)    rm -f "$inst/lib/libvgm.so" 2>/dev/null || true; rm -rf "$inst/include/libvgm" 2>/dev/null || true ;;
                 libgme)    rm -f "$inst/lib/libgme.so" 2>/dev/null || true; rm -rf "$inst/include/libgme" 2>/dev/null || true ;;
+                libxmp)    rm -f "$inst/lib/libxmp.so" 2>/dev/null || true; rm -f "$inst/include/xmp.h" 2>/dev/null || true ;;
                 libresid)  rm -f "$inst/lib/libresid.so" 2>/dev/null || true; rm -rf "$inst/include/resid" 2>/dev/null || true ;;
                 libresidfp) rm -f "$inst/lib/libresidfp.so" 2>/dev/null || true; rm -rf "$inst/include/libresidfp" 2>/dev/null || true ;;
                 libsidplayfp) rm -f "$inst/lib/libsidplayfp.so" 2>/dev/null || true; rm -rf "$inst/include/libsidplayfp" 2>/dev/null || true ;;
@@ -2965,6 +3011,10 @@ for ABI in "${ABIS[@]}"; do
 
     if target_has_lib "libopenmpt"; then
         build_libopenmpt "$ABI"
+    fi
+
+    if target_has_lib "libxmp"; then
+        build_libxmp "$ABI"
     fi
 
     if target_has_lib "libvgm"; then
