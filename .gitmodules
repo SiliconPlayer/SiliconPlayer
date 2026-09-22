@@ -97,3 +97,7 @@
 	path = external/libusb
 	url = https://github.com/libusb/libusb
 	ignore = dirty
+[submodule "external/libxmp"]
+	path = external/libxmp
+	url = https://github.com/libxmp/libxmp
+	ignore = dirty
