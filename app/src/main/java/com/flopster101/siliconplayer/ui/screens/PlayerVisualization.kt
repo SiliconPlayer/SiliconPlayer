@@ -2288,6 +2288,13 @@ internal fun AlbumArtPlaceholder(
                     parseIndexedNames(NativeBridge.getOpenMptSampleNames())
                 visChannelScopeChipNamesByChannelIndex = emptyMap()
             }
+            DecoderNames.LIBXMP -> {
+                visChannelScopeInstrumentNamesByIndex =
+                    parseIndexedNames(NativeBridge.getXmpInstrumentNames())
+                visChannelScopeSampleNamesByIndex =
+                    parseIndexedNames(NativeBridge.getXmpSampleNames())
+                visChannelScopeChipNamesByChannelIndex = emptyMap()
+            }
             DecoderNames.FURNACE -> {
                 visChannelScopeInstrumentNamesByIndex =
                     parseIndexedNames(NativeBridge.getFurnaceInstrumentNames())

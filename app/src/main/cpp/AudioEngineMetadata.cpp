@@ -251,6 +251,18 @@ std::string AudioEngine::getOpenMptSampleNames() {
     return decoder->getCoreStringInfo("sampleNames");
 }
 
+std::string AudioEngine::getXmpInstrumentNames() {
+    std::lock_guard<std::mutex> lock(decoderMutex);
+    if (!decoder) return "";
+    return decoder->getCoreStringInfo("instrumentNames");
+}
+
+std::string AudioEngine::getXmpSampleNames() {
+    std::lock_guard<std::mutex> lock(decoderMutex);
+    if (!decoder) return "";
+    return decoder->getCoreStringInfo("sampleNames");
+}
+
 std::vector<float> AudioEngine::getOpenMptChannelVuLevels() {
     std::lock_guard<std::mutex> lock(decoderMutex);
     if (!decoder) return {};

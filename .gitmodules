@@ -99,5 +99,5 @@
 	ignore = dirty
 [submodule "external/libxmp"]
 	path = external/libxmp
-	url = https://github.com/libxmp/libxmp
+	url = https://github.com/SiliconPlayer/libxmp
 	ignore = dirty

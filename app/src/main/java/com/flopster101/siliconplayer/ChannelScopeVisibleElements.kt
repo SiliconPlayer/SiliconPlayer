@@ -48,6 +48,26 @@ internal fun channelScopeVisibleElementOptions(): List<ChannelScopeVisibleElemen
             elementId = ChannelScopeVisibleElementId.Sample
         ),
         ChannelScopeVisibleElementOption(
+            coreId = "libxmp",
+            coreLabel = "libxmp",
+            elementId = ChannelScopeVisibleElementId.Volume
+        ),
+        ChannelScopeVisibleElementOption(
+            coreId = "libxmp",
+            coreLabel = "libxmp",
+            elementId = ChannelScopeVisibleElementId.EffectPrimary
+        ),
+        ChannelScopeVisibleElementOption(
+            coreId = "libxmp",
+            coreLabel = "libxmp",
+            elementId = ChannelScopeVisibleElementId.Instrument
+        ),
+        ChannelScopeVisibleElementOption(
+            coreId = "libxmp",
+            coreLabel = "libxmp",
+            elementId = ChannelScopeVisibleElementId.Sample
+        ),
+        ChannelScopeVisibleElementOption(
             coreId = "furnace",
             coreLabel = "Furnace",
             elementId = ChannelScopeVisibleElementId.Volume
@@ -176,6 +196,7 @@ internal fun channelScopeVisibleElementsSummary(selectedStorageKeys: Set<String>
 internal fun channelScopeCoreIdForDecoderName(decoderName: String?): String? {
     return when (pluginNameForCoreName(decoderName)) {
         DecoderNames.LIB_OPEN_MPT -> "openmpt"
+        DecoderNames.LIBXMP -> "libxmp"
         DecoderNames.FURNACE -> "furnace"
         DecoderNames.GAME_MUSIC_EMU -> "gme"
         DecoderNames.C_RSID -> "crsid"

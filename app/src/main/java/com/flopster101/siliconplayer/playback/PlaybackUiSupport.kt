@@ -129,6 +129,7 @@ internal fun isVisualizationModeSupported(
 internal fun supportsChannelScopeVisualization(coreNameForUi: String?): Boolean {
     return when (pluginNameForCoreName(coreNameForUi)) {
         DecoderNames.LIB_OPEN_MPT,
+        DecoderNames.LIBXMP,
         DecoderNames.C_RSID,
         DecoderNames.LIB_SID_PLAY_FP,
         DecoderNames.FURNACE,
@@ -146,6 +147,7 @@ internal fun supportsChannelScopeVisualization(coreNameForUi: String?): Boolean 
 internal fun supportsChannelScopeNoteText(coreNameForUi: String?): Boolean {
     return when (pluginNameForCoreName(coreNameForUi)) {
         DecoderNames.LIB_OPEN_MPT,
+        DecoderNames.LIBXMP,
         DecoderNames.FURNACE,
         DecoderNames.KLYSTRACK,
         DecoderNames.HIVELY_TRACKER -> true

@@ -91,6 +91,8 @@ public:
     int getOpenMptSampleCount();
     std::string getOpenMptInstrumentNames();
     std::string getOpenMptSampleNames();
+    std::string getXmpInstrumentNames();
+    std::string getXmpSampleNames();
     std::vector<float> getOpenMptChannelVuLevels();
     std::vector<float> getChannelScopeSamples(int samplesPerChannel);
     void getChannelScopeSamples(int samplesPerChannel, std::vector<float>& outFlat);

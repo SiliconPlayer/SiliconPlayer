@@ -1126,6 +1126,22 @@ Java_com_flopster101_siliconplayer_NativeBridge_getOpenMptSampleNames(JNIEnv* en
     return toJString(env, value);
 }
 
+extern "C" JNIEXPORT jstring JNICALL
+Java_com_flopster101_siliconplayer_NativeBridge_getXmpInstrumentNames(JNIEnv* env, jobject) {
+    if (audioEngine == nullptr) {
+        return toJString(env, "");
+    }
+    return toJString(env, audioEngine->getXmpInstrumentNames());
+}
+
+extern "C" JNIEXPORT jstring JNICALL
+Java_com_flopster101_siliconplayer_NativeBridge_getXmpSampleNames(JNIEnv* env, jobject) {
+    if (audioEngine == nullptr) {
+        return toJString(env, "");
+    }
+    return toJString(env, audioEngine->getXmpSampleNames());
+}
+
 extern "C" JNIEXPORT jfloatArray JNICALL
 Java_com_flopster101_siliconplayer_NativeBridge_getOpenMptChannelVuLevels(JNIEnv* env, jobject) {
     if (audioEngine == nullptr) {

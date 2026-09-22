@@ -358,6 +358,8 @@ object NativeBridge {
     external fun getOpenMptSampleCount(): Int
     external fun getOpenMptInstrumentNames(): String
     external fun getOpenMptSampleNames(): String
+    external fun getXmpInstrumentNames(): String
+    external fun getXmpSampleNames(): String
     external fun getOpenMptChannelVuLevels(): FloatArray
     external fun getChannelScopeSamples(samplesPerChannel: Int): FloatArray
     external fun getChannelScopeTextState(maxChannels: Int): IntArray
