@@ -70,6 +70,9 @@ void ChannelScopeSharedState::getProcessedSamples(
         int presentationDelayFrames,
         std::vector<float>& outFlat
 ) {
+    // clear() and fellow consumers mutate local* under this same mutex;
+    // locks nest consumer -> publish only, never in reverse.
+    std::lock_guard<std::mutex> consumerLock(mutex);
     // Steal the newest published buffers under the short publish lock.
     {
         std::lock_guard<std::mutex> pullLock(publishMutex);
