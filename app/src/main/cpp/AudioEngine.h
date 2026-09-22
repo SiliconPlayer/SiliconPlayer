@@ -121,6 +121,7 @@ public:
     int getAyflyLoopPointMs();
     int getAyflySubsongCount();
     int getAyflyCurrentSubsong();
+    int getAyflyInterruptHz();
     std::vector<float> getOpenMptChannelVuLevels();
     std::vector<float> getChannelScopeSamples(int samplesPerChannel);
     void getChannelScopeSamples(int samplesPerChannel, std::vector<float>& outFlat);

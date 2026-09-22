@@ -1366,6 +1366,14 @@ Java_com_flopster101_siliconplayer_NativeBridge_getAyflyCurrentSubsong(JNIEnv*, 
     return static_cast<jint>(audioEngine->getAyflyCurrentSubsong());
 }
 
+extern "C" JNIEXPORT jint JNICALL
+Java_com_flopster101_siliconplayer_NativeBridge_getAyflyInterruptHz(JNIEnv*, jobject) {
+    if (audioEngine == nullptr) {
+        return 0;
+    }
+    return static_cast<jint>(audioEngine->getAyflyInterruptHz());
+}
+
 extern "C" JNIEXPORT jfloatArray JNICALL
 Java_com_flopster101_siliconplayer_NativeBridge_getOpenMptChannelVuLevels(JNIEnv* env, jobject) {
     if (audioEngine == nullptr) {

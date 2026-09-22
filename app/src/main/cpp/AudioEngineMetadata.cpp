@@ -431,6 +431,12 @@ int AudioEngine::getAyflyCurrentSubsong() {
     return decoder->getCoreIntInfo("currentSubsong", 0);
 }
 
+int AudioEngine::getAyflyInterruptHz() {
+    std::lock_guard<std::mutex> lock(decoderMutex);
+    if (!decoder) return 0;
+    return decoder->getCoreIntInfo("interruptHz", 0);
+}
+
 std::vector<float> AudioEngine::getOpenMptChannelVuLevels() {
     std::lock_guard<std::mutex> lock(decoderMutex);
     if (!decoder) return {};

@@ -349,6 +349,10 @@ int AyflyDecoder::getCoreIntInfo(const char* name, int fallback) {
         const unsigned long loop = ay_getsongloop(song);
         return loop > 0 ? static_cast<int>(static_cast<double>(loop) * 1000.0 / tickRate) : 0;
     }
+    if (key == "interruptHz") {
+        const double hz = ay_getintfreq(song);
+        return hz > 0.0 ? static_cast<int>(hz + 0.5) : fallback;
+    }
     return fallback;
 }
 

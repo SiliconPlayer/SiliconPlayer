@@ -59,7 +59,8 @@ internal data class AyflyMetadata(
     val channelCount: Int = 0,
     val loopPointMs: Int = 0,
     val subsongCount: Int = 0,
-    val currentSubsong: Int = 0
+    val currentSubsong: Int = 0,
+    val interruptHz: Int = 0
 )
 
 internal data class VgmPlayMetadata(
@@ -352,7 +353,8 @@ private fun queryTrackInfoLiveMetadata(decoderName: String?): TrackInfoLiveMetad
                 channelCount = NativeBridge.getAyflyChannelCount(),
                 loopPointMs = NativeBridge.getAyflyLoopPointMs(),
                 subsongCount = NativeBridge.getAyflySubsongCount(),
-                currentSubsong = NativeBridge.getAyflyCurrentSubsong() + 1
+                currentSubsong = NativeBridge.getAyflyCurrentSubsong() + 1,
+                interruptHz = NativeBridge.getAyflyInterruptHz()
             )
         )
 

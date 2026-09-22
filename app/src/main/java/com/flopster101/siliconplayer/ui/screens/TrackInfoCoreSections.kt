@@ -82,6 +82,7 @@ internal fun TrackInfoCoreSections(
             if (metadata.ayfly.chipName.isNotBlank()) TrackInfoDetailsRow("Chip", metadata.ayfly.chipName)
             if (metadata.ayfly.playerName.isNotBlank()) TrackInfoDetailsRow("Player", metadata.ayfly.playerName)
             if (metadata.ayfly.mixerName.isNotBlank()) TrackInfoDetailsRow("Mixer", metadata.ayfly.mixerName)
+            if (metadata.ayfly.interruptHz > 0) TrackInfoDetailsRow("Interrupt", "${metadata.ayfly.interruptHz} Hz")
             if (metadata.ayfly.loopPointMs > 0) TrackInfoDetailsRow("Loop start", formatTime(metadata.ayfly.loopPointMs / 1000.0))
             if (metadata.ayfly.subsongCount > 1) {
                 TrackInfoDetailsRow("Subsongs", metadata.ayfly.subsongCount.toString())
@@ -341,6 +342,7 @@ internal fun appendCoreTrackInfoCopyRows(
             if (metadata.ayfly.chipName.isNotBlank()) row("Chip", metadata.ayfly.chipName)
             if (metadata.ayfly.playerName.isNotBlank()) row("Player", metadata.ayfly.playerName)
             if (metadata.ayfly.mixerName.isNotBlank()) row("Mixer", metadata.ayfly.mixerName)
+            if (metadata.ayfly.interruptHz > 0) row("Interrupt", "${metadata.ayfly.interruptHz} Hz")
             if (metadata.ayfly.loopPointMs > 0) row("Loop start", formatTime(metadata.ayfly.loopPointMs / 1000.0))
             if (metadata.ayfly.subsongCount > 1) {
                 row("Subsongs", metadata.ayfly.subsongCount.toString())

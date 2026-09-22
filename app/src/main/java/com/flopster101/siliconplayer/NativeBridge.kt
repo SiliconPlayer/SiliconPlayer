@@ -388,6 +388,7 @@ object NativeBridge {
     external fun getAyflyLoopPointMs(): Int
     external fun getAyflySubsongCount(): Int
     external fun getAyflyCurrentSubsong(): Int
+    external fun getAyflyInterruptHz(): Int
     external fun getOpenMptChannelVuLevels(): FloatArray
     external fun getChannelScopeSamples(samplesPerChannel: Int): FloatArray
     external fun getChannelScopeTextState(maxChannels: Int): IntArray
