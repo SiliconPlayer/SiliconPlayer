@@ -149,6 +149,8 @@ data class SiliconNativeGlFrame(
     val channelScopeDcRemovalEnabled: Boolean = true,
     val channelScopeTriggerMode: Int = 0,
     val channelScopeWaveRenderMode: Int = 1,
+    // Track transition: 0 instant, 1 slide-fade reveal, 2 crossfade
+    val channelScopeTrackTransition: Int = 1,
     // Oscilloscope options
     val oscStereo: Boolean = false,
     val oscWindowMs: Int = 30,
@@ -431,6 +433,23 @@ internal class SiliconNativeTextureRenderThread(
     private var projectMSawStopped = false
     private var projectMStoppedTrackEmpty = false
 
+    // Track-change handling: keep presenting through artwork fades / scope
+    // transitions even while paused, and arm the channel-scope snapshot
+    // transition (the snapshot still holds the previous song's last frame).
+    private var lastRenderedTrackKey: String? = null
+    private var forceRenderUntilNs = 0L
+    private val transitionSnapshot = GlTransitionSnapshot()
+    private var transitionActive = false
+    private var transitionStartNs = 0L
+    // Pending = holding the old song's frame until the new song's data shows.
+    private var transitionPending = false
+    private var transitionPendingSinceNs = 0L
+    private var pendingDataSerial = -1L
+    private var dataSerial = -1L
+    private var capturedSerial = -1L
+    private var dataChannelsAlive = false
+    private var lastDataAlivePollNs = 0L
+
     // SurfaceView only: the window can't clip a surface that is composited on
     // top of it, so the rounded artwork shape is cut into the GL frame instead.
     @Volatile
@@ -624,6 +643,59 @@ internal class SiliconNativeTextureRenderThread(
             lastProjectMRenderNs = nowNs
         }
 
+        // Track change detection runs before the paused early-return: a
+        // paused track change must still present the artwork fade / scope
+        // transition instead of holding the old song's frame forever.
+        val frameTrackKey = frame.trackKey
+        val trackDetectNowNs = System.nanoTime()
+        if (frame.mode == 4) {
+            // Engine-side data identity: flips the moment a decoder swap
+            // begins, unlike the Compose trackKey which lags/leads it.
+            dataSerial = com.flopster101.siliconplayer.NativeBridge.getChannelScopeDataSerial()
+            if (trackDetectNowNs - lastDataAlivePollNs >= 30_000_000L) {
+                lastDataAlivePollNs = trackDetectNowNs
+                dataChannelsAlive = runCatching {
+                    com.flopster101.siliconplayer.NativeBridge.getChannelScopeTextState(1).isNotEmpty()
+                }.getOrDefault(false)
+            }
+        }
+        val uiTrackFlipped = frameTrackKey != lastRenderedTrackKey
+        val hadRenderedTrack = lastRenderedTrackKey != null
+        if (uiTrackFlipped) {
+            if (frameTrackKey != null) {
+                lastRenderedTrackKey = frameTrackKey
+            }
+            if (frameTrackKey != null && hadRenderedTrack) {
+                forceRenderUntilNs = trackDetectNowNs + 1_600_000_000L
+            }
+        }
+        // Channel-scope track transition: hold the previous song's last frame
+        // as soon as either side flips, and only start the animation once the
+        // new song's channels are actually available (or a timeout passes).
+        if (
+            frame.mode == 4 &&
+            frame.channelScopeTrackTransition != 0 &&
+            transitionSnapshot.hasContent
+        ) {
+            if (!transitionActive && !transitionPending && frameTrackKey != null) {
+                val dataFlipped = capturedSerial >= 0L && dataSerial != capturedSerial
+                if (dataFlipped || (uiTrackFlipped && hadRenderedTrack)) {
+                    transitionPending = true
+                    transitionPendingSinceNs = trackDetectNowNs
+                    pendingDataSerial = capturedSerial
+                    forceRenderUntilNs = trackDetectNowNs + 1_600_000_000L
+                }
+            }
+            if (transitionPending) {
+                val newDataAlive = dataSerial != pendingDataSerial && dataChannelsAlive
+                if (newDataAlive || trackDetectNowNs - transitionPendingSinceNs > 1_500_000_000L) {
+                    transitionPending = false
+                    transitionActive = true
+                    transitionStartNs = trackDetectNowNs
+                }
+            }
+        }
+
         if (!frame.isPlaying) {
             // Bars/osc/VU fade out while paused via the visualization alpha;
             // re-render while that settles, then hold the frame once faded.
@@ -631,7 +703,9 @@ internal class SiliconNativeTextureRenderThread(
             // pause handling (hold the first paused frame).
             val isFadeMode = frame.mode == 1 || frame.mode == 2 || frame.mode == 3 || frame.mode == 5
             val fadeSettled = !isFadeMode || frame.visualAlpha <= 0.001f
-            if (pausedFrameRendered && !state.surfaceSizeChanged && fadeSettled) {
+            val transitionRendering =
+                System.nanoTime() < forceRenderUntilNs || transitionActive || transitionPending
+            if (pausedFrameRendered && !state.surfaceSizeChanged && fadeSettled && !transitionRendering) {
                 return
             }
             pausedFrameRendered = true
@@ -736,6 +810,9 @@ internal class SiliconNativeTextureRenderThread(
                     val art = frame.artworkBitmap
                     if (art !== lastArtworkBitmap) {
                         lastArtworkBitmap = art
+                        // Artwork swaps crossfade natively; keep presenting
+                        // through the fade even when paused.
+                        forceRenderUntilNs = System.nanoTime() + 600_000_000L
                         if (art != null && !art.isRecycled) {
                             runCatching {
                                 val safeArt = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O &&
@@ -982,6 +1059,64 @@ internal class SiliconNativeTextureRenderThread(
                     latestFrameMs = frameMs
                 }
 
+                // Channel-scope track transition: every presented frame is
+                // copied into a snapshot texture; on track change the previous
+                // song's layout slides/fades out over the live new one.
+                if (frame.mode == 4 && frame.channelScopeTrackTransition != 0) {
+                    if (transitionActive) {
+                        if (
+                            transitionSnapshot.widthPx != state.width ||
+                            transitionSnapshot.heightPx != state.height
+                        ) {
+                            transitionActive = false
+                            capturedSerial = dataSerial
+                        } else {
+                            val p = ((System.nanoTime() - transitionStartNs) / 750_000_000f).coerceIn(0f, 1f)
+                            if (p >= 1f) {
+                                transitionActive = false
+                                // Snapshot consumed: it belongs to the old
+                                // decoder generation.
+                                capturedSerial = dataSerial
+                            } else {
+                                val eased = p * p * (3f - 2f * p)
+                                val offsetX = if (frame.channelScopeTrackTransition == 1) {
+                                    -eased * state.width.toFloat()
+                                } else {
+                                    0f
+                                }
+                                transitionSnapshot.draw(state.width, state.height, offsetX, 1f - eased)
+                            }
+                        }
+                    } else if (transitionPending) {
+                        // Hold the previous song's last frame until the new
+                        // song's channels show up.
+                        if (
+                            transitionSnapshot.widthPx == state.width &&
+                            transitionSnapshot.heightPx == state.height
+                        ) {
+                            transitionSnapshot.draw(state.width, state.height, 0f, 1f)
+                        } else {
+                            transitionPending = false
+                            capturedSerial = dataSerial
+                        }
+                    } else {
+                        // Steady state: capture each presented frame and
+                        // remember which decoder generation it belongs to.
+                        // Skip while no track is loaded: engine teardown
+                        // would overwrite the snapshot with blank frames
+                        // right before a playlist/folder wrap.
+                        if (frameTrackKey != null) {
+                            transitionSnapshot.capture(state.width, state.height)
+                            capturedSerial = dataSerial
+                        }
+                    }
+                } else if (transitionActive || transitionPending) {
+                    // Leaving the scope mid-animation cancels to an instant snap.
+                    transitionActive = false
+                    transitionPending = false
+                    capturedSerial = dataSerial
+                }
+
                 if (clipCornerRadiusPx > 0f) {
                     roundedClipMask.draw(
                         state.width.toFloat(),
@@ -1092,6 +1227,7 @@ internal class SiliconNativeTextureRenderThread(
 
     private fun releaseEgl() {
         textRenderer.release()
+        transitionSnapshot.release()
         if (eglDisplay != EGL14.EGL_NO_DISPLAY) {
             EGL14.eglMakeCurrent(eglDisplay, EGL14.EGL_NO_SURFACE, EGL14.EGL_NO_SURFACE, EGL14.EGL_NO_CONTEXT)
             if (eglSurface != EGL14.EGL_NO_SURFACE) {

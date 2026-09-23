@@ -131,6 +131,8 @@ public:
             int outputSampleRate,
             int samplesPerChannel) const;
     std::vector<int32_t> getChannelScopeTextState(int maxChannels);
+    // Decoder generation; flips before every decoder swap (any thread).
+    uint64_t getDecoderSerial() const { return decoderSerial.load(std::memory_order_relaxed); }
     std::vector<std::string> getDecoderToggleChannelNames();
     std::vector<uint8_t> getDecoderToggleChannelAvailability();
     void setDecoderToggleChannelMuted(int channelIndex, bool enabled);

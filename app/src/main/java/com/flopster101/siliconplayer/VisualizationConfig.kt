@@ -166,6 +166,22 @@ enum class VisualizationChannelScopeWaveRenderMode(
     }
 }
 
+enum class VisualizationChannelScopeTrackTransition(
+    val storageValue: String,
+    val label: String,
+    val nativeValue: Int
+) {
+    Instant("instant", "Instant", 0),
+    SlideFade("slide_fade", "Slide-fade reveal", 1),
+    Crossfade("crossfade", "Crossfade", 2);
+
+    companion object {
+        fun fromStorage(value: String?): VisualizationChannelScopeTrackTransition {
+            return entries.firstOrNull { it.storageValue == value } ?: Crossfade
+        }
+    }
+}
+
 enum class VisualizationOscColorMode(
     val storageValue: String,
     val label: String

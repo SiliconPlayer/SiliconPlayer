@@ -89,6 +89,7 @@ import com.flopster101.siliconplayer.VisualizationChannelScopeTextColorMode
 import com.flopster101.siliconplayer.VisualizationChannelScopeTextFont
 import com.flopster101.siliconplayer.VisualizationChannelScopeTriggerAlgorithm
 import com.flopster101.siliconplayer.VisualizationChannelScopeWaveRenderMode
+import com.flopster101.siliconplayer.VisualizationChannelScopeTrackTransition
 import com.flopster101.siliconplayer.StarfieldPreset
 import com.flopster101.siliconplayer.VisualizationMode
 import com.flopster101.siliconplayer.VisualizationNoteNameFormat
@@ -117,6 +118,7 @@ import kotlinx.coroutines.ExecutorCoroutineDispatcher
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.asCoroutineDispatcher
 import kotlinx.coroutines.ensureActive
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
@@ -1468,6 +1470,7 @@ internal data class ChannelScopePrefs(
     val triggerModeNative: Int,
     val triggerAlgorithmNative: Int,
     val waveRenderMode: VisualizationChannelScopeWaveRenderMode,
+    val trackTransition: VisualizationChannelScopeTrackTransition,
     val fpsMode: VisualizationOscFpsMode,
     val lineWidthDp: Int,
     val gridWidthDp: Int,
@@ -1510,6 +1513,7 @@ internal data class ChannelScopePrefs(
         private const val KEY_TRIGGER_MODE = "visualization_channel_scope_trigger_mode"
         private const val KEY_TRIGGER_ALGORITHM = "visualization_channel_scope_trigger_algorithm"
         private const val KEY_WAVE_RENDER_MODE = "visualization_channel_scope_wave_render_mode"
+        private const val KEY_TRACK_TRANSITION = "visualization_channel_scope_track_transition"
         private const val KEY_FPS_MODE = "visualization_channel_scope_fps_mode"
         private const val KEY_LINE_WIDTH_DP = "visualization_channel_scope_line_width_dp"
         private const val KEY_GRID_WIDTH_DP = "visualization_channel_scope_grid_width_dp"
@@ -1561,6 +1565,12 @@ internal data class ChannelScopePrefs(
                     AppDefaults.Visualization.ChannelScope.waveRenderMode.storageValue
                 )
             )
+            val trackTransition = VisualizationChannelScopeTrackTransition.fromStorage(
+                sharedPrefs.getString(
+                    KEY_TRACK_TRANSITION,
+                    AppDefaults.Visualization.ChannelScope.trackTransition.storageValue
+                )
+            )
             return ChannelScopePrefs(
                 windowMs = sharedPrefs.getInt(
                     KEY_WINDOW_MS,
@@ -1594,6 +1604,7 @@ internal data class ChannelScopePrefs(
                 triggerModeNative = triggerModeNative,
                 triggerAlgorithmNative = triggerAlgorithmNative,
                 waveRenderMode = waveRenderMode,
+                trackTransition = trackTransition,
                 fpsMode = VisualizationOscFpsMode.fromStorage(
                     sharedPrefs.getString(
                         KEY_FPS_MODE,
@@ -2188,16 +2199,29 @@ internal fun AlbumArtPlaceholder(
     } else {
         placeholderIcon
     }
-    var hasStartedPlaybackForTrack by remember(file?.absolutePath) { mutableStateOf(false) }
+    // Sticky on purpose: once playback started, the visualizer stays mounted
+    // across track changes so renderers keep their state (seamless transition).
+    var hasStartedPlaybackForTrack by remember { mutableStateOf(false) }
     LaunchedEffect(isPlaying) {
         if (isPlaying) {
             hasStartedPlaybackForTrack = true
         }
     }
+    // Playlist/folder wrap briefly nulls the file; keep the visualizer
+    // mounted through that gap instead of tearing down and restarting.
+    var fileNullSettled by remember { mutableStateOf(file == null) }
+    LaunchedEffect(file == null) {
+        if (file == null) {
+            delay(800)
+            fileNullSettled = true
+        } else {
+            fileNullSettled = false
+        }
+    }
 
     if (
         visualizationMode == VisualizationMode.Off ||
-            file == null ||
+            (file == null && fileNullSettled) ||
             !hasStartedPlaybackForTrack
     ) {
         SwipeableArtworkContainer(
@@ -3084,6 +3108,7 @@ internal fun AlbumArtPlaceholder(
                     channelScopeChipNamesByChannelIndex = channelScopeState.chipNamesByChannelIndex,
                     channelScopeTriggerModeNative = channelScopePrefs.triggerModeNative,
                     channelScopeWaveRenderModeNative = channelScopePrefs.waveRenderMode.nativeValue,
+                    channelScopeTrackTransition = channelScopePrefs.trackTransition.nativeValue,
                     channelScopeTriggerIndices = channelScopeState.triggerIndices,
                     channelScopeWindowMs = channelScopePrefs.windowMs,
                     channelScopeGainPercent = channelScopePrefs.gainPercent,

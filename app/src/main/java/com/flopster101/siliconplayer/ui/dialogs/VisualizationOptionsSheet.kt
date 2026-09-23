@@ -76,6 +76,7 @@ import com.flopster101.siliconplayer.ui.screens.starfieldPresetTuneFor
 import java.util.Locale
 import com.flopster101.siliconplayer.SettingsSingleChoiceDialog
 import com.flopster101.siliconplayer.SettingsValuePickerCard
+import com.flopster101.siliconplayer.VisualizationChannelScopeTrackTransition
 import com.flopster101.siliconplayer.VisualizationChannelScopeWaveRenderMode
 import com.flopster101.siliconplayer.VisualizationMode
 import com.flopster101.siliconplayer.ui.visualization.gl.ProjectMPresetSets
@@ -258,6 +259,17 @@ private fun ChannelScopeOptionsContent(
         )
     }
     var showWaveRenderModeDialog by remember { mutableStateOf(false) }
+    var trackTransition by remember {
+        mutableStateOf(
+            VisualizationChannelScopeTrackTransition.fromStorage(
+                prefs.getString(
+                    AppPreferenceKeys.VISUALIZATION_CHANNEL_SCOPE_TRACK_TRANSITION,
+                    AppDefaults.Visualization.ChannelScope.trackTransition.storageValue
+                )
+            )
+        )
+    }
+    var showTrackTransitionDialog by remember { mutableStateOf(false) }
 
     Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
         DialogIntSliderRow(
@@ -290,6 +302,12 @@ private fun ChannelScopeOptionsContent(
             value = waveRenderMode.label,
             onClick = { showWaveRenderModeDialog = true }
         )
+        SettingsValuePickerCard(
+            title = "Track transition",
+            description = "How the previous song's layout leaves when the track changes.",
+            value = trackTransition.label,
+            onClick = { showTrackTransitionDialog = true }
+        )
     }
 
     if (showWaveRenderModeDialog) {
@@ -307,6 +325,23 @@ private fun ChannelScopeOptionsContent(
                 ).apply()
             },
             onDismiss = { showWaveRenderModeDialog = false }
+        )
+    }
+    if (showTrackTransitionDialog) {
+        SettingsSingleChoiceDialog(
+            title = "Track transition",
+            selectedValue = trackTransition,
+            options = VisualizationChannelScopeTrackTransition.entries.map { transition ->
+                ChoiceDialogOption(value = transition, label = transition.label)
+            },
+            onSelected = { transition ->
+                trackTransition = transition
+                prefs.edit().putString(
+                    AppPreferenceKeys.VISUALIZATION_CHANNEL_SCOPE_TRACK_TRANSITION,
+                    transition.storageValue
+                ).apply()
+            },
+            onDismiss = { showTrackTransitionDialog = false }
         )
     }
 }

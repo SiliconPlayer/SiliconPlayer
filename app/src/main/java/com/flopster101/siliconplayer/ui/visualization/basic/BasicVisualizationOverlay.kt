@@ -1,5 +1,7 @@
 package com.flopster101.siliconplayer.ui.visualization.basic
 
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.LinearOutSlowInEasing
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.layout.Box
@@ -13,8 +15,11 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.Canvas
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -25,6 +30,7 @@ import androidx.compose.ui.graphics.asAndroidBitmap
 import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.graphics.Shadow
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.toPixelMap
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.platform.LocalDensity
@@ -58,6 +64,7 @@ import kotlin.math.floor
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.flopster101.siliconplayer.NativeBridge
+import kotlinx.coroutines.delay
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.font.Font
@@ -115,6 +122,8 @@ fun BasicVisualizationOverlay(
     channelScopeChipNamesByChannelIndex: Map<Int, String>,
     channelScopeTriggerModeNative: Int,
     channelScopeWaveRenderModeNative: Int = 1,
+    // Track transition: 0 instant, 1 slide-fade reveal, 2 crossfade
+    channelScopeTrackTransition: Int = 1,
     channelScopeTriggerIndices: IntArray,
     channelScopeWindowMs: Int = 30,
     channelScopeGainPercent: Int = 100,
@@ -516,6 +525,47 @@ fun BasicVisualizationOverlay(
                 }
                 val vuAnchorInt = if (channelScopeTextVuAnchor == VisualizationVuAnchor.Top) 0 else 1
 
+                // Track-change transition (Compose backend): the previous
+                // song's layout stays held and slides/fades out while the new
+                // one already plays live underneath.
+                val scopeTransitionAnim = remember { Animatable(1f) }
+                var scopeTransitionSnapshot by remember {
+                    mutableStateOf<ChannelScopeComposeSnapshot?>(null)
+                }
+                var lastScopeTrackKey by remember { mutableStateOf(trackKey) }
+                if (!isGlBackend && trackKey != lastScopeTrackKey) {
+                    val hadTrack = !lastScopeTrackKey.isNullOrEmpty()
+                    lastScopeTrackKey = trackKey
+                    scopeTransitionSnapshot = if (
+                        channelScopeTrackTransition != 0 &&
+                        hadTrack &&
+                        !trackKey.isNullOrEmpty() &&
+                        channelScopeHistories.isNotEmpty()
+                    ) {
+                        ChannelScopeComposeSnapshot(
+                            histories = channelScopeHistories,
+                            triggerIndices = channelScopeTriggerIndices,
+                            textStates = channelScopeTextStates,
+                            instrumentNames = channelScopeInstrumentNamesByIndex,
+                            sampleNames = channelScopeSampleNamesByIndex,
+                            chipNames = channelScopeChipNamesByChannelIndex,
+                            layout = channelScopeLayout
+                        )
+                    } else {
+                        null
+                    }
+                }
+                LaunchedEffect(scopeTransitionSnapshot) {
+                    if (scopeTransitionSnapshot != null) {
+                        scopeTransitionAnim.snapTo(0f)
+                        scopeTransitionAnim.animateTo(
+                            1f,
+                            animationSpec = tween(750, easing = LinearOutSlowInEasing)
+                        )
+                        scopeTransitionSnapshot = null
+                    }
+                }
+
                 when (channelScopeRenderBackend) {
                     VisualizationRenderBackend.Compose -> {
                         ChannelScopeVisualization(
@@ -596,7 +646,8 @@ fun BasicVisualizationOverlay(
                             channelScopeGainPercent = channelScopeGainPercent,
                             channelScopeDcRemovalEnabled = channelScopeDcRemovalEnabled,
                             channelScopeTriggerMode = channelScopeTriggerModeNative,
-                            channelScopeWaveRenderMode = channelScopeWaveRenderModeNative
+                            channelScopeWaveRenderMode = channelScopeWaveRenderModeNative,
+                            channelScopeTrackTransition = channelScopeTrackTransition
                         )
                         com.flopster101.siliconplayer.ui.visualization.gl.SiliconNativeGlTextureVisualization(
                             frame = nativeFrame,
@@ -637,6 +688,66 @@ fun BasicVisualizationOverlay(
                         modifier = Modifier.fillMaxSize()
                     )
                 }
+                val heldScopeSnapshot = if (isGlBackend) null else scopeTransitionSnapshot
+                if (heldScopeSnapshot != null) {
+                    val transitionP = scopeTransitionAnim.value
+                    Box(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .graphicsLayer {
+                                alpha = 1f - transitionP
+                                if (channelScopeTrackTransition == 1) {
+                                    translationX = -transitionP * size.width
+                                }
+                            }
+                    ) {
+                        ChannelScopeVisualization(
+                            channelHistories = heldScopeSnapshot.histories,
+                            lineColor = channelScopeLineColor,
+                            gridColor = channelScopeGridColor,
+                            lineWidthPx = channelScopeLineWidthDp.toFloat(),
+                            gridWidthPx = channelScopeGridWidthDp.toFloat(),
+                            showVerticalGrid = channelScopeVerticalGridEnabled,
+                            showCenterLine = channelScopeCenterLineEnabled,
+                            triggerModeNative = channelScopeTriggerModeNative,
+                            triggerIndices = heldScopeSnapshot.triggerIndices,
+                            layoutStrategy = heldScopeSnapshot.layout,
+                            outerCornerRadiusPx = channelScopeCornerRadiusPx,
+                            modifier = Modifier.fillMaxSize()
+                        )
+                        if (channelScopeTextEnabled || channelScopeTextVuEnabled) {
+                            ChannelScopeTextOverlay(
+                                channelHistories = heldScopeSnapshot.histories,
+                                channelTextStates = heldScopeSnapshot.textStates,
+                                instrumentNamesByIndex = heldScopeSnapshot.instrumentNames,
+                                sampleNamesByIndex = heldScopeSnapshot.sampleNames,
+                                chipNamesByChannelIndex = heldScopeSnapshot.chipNames,
+                                layoutStrategy = heldScopeSnapshot.layout,
+                                anchor = channelScopeTextAnchor,
+                                paddingDp = channelScopeTextPaddingDp,
+                                textSizeSp = channelScopeTextSizeSp,
+                                hideWhenOverflow = channelScopeTextHideWhenOverflow,
+                                textShadowEnabled = channelScopeTextShadowEnabled,
+                                textFont = channelScopeTextFont,
+                                noteFormat = channelScopeTextNoteFormat,
+                                showChannel = channelScopeTextEnabled && channelScopeTextShowChannel,
+                                showNote = channelScopeTextEnabled && channelScopeTextShowNote,
+                                showVolume = channelScopeTextEnabled && channelScopeTextShowVolume,
+                                showEffectPrimary = channelScopeTextEnabled && channelScopeTextShowEffectPrimary,
+                                showEffectSecondary = channelScopeTextEnabled && channelScopeTextShowEffectSecondary,
+                                showChip = channelScopeTextEnabled && channelScopeTextShowChip,
+                                showInstrument = channelScopeTextEnabled && channelScopeTextShowInstrument,
+                                showSample = channelScopeTextEnabled && channelScopeTextShowSample,
+                                vuEnabled = channelScopeTextVuEnabled,
+                                vuAnchor = channelScopeTextVuAnchor,
+                                vuColor = channelScopeVuColor,
+                                vuInsetPx = channelScopeGridWidthDp.toFloat().coerceAtLeast(1f),
+                                textPalette = channelScopeTextPalette,
+                                modifier = Modifier.fillMaxSize()
+                            )
+                        }
+                    }
+                }
             }
         }
 
@@ -655,8 +766,19 @@ fun BasicVisualizationOverlay(
         }
 
         VisualizationMode.Starfield -> {
+            // Track changes dip isPlaying briefly; only a real pause holds it
+            // off long enough to earn the dim/themed fade.
+            var starfieldPlaybackActive by remember { mutableStateOf(isPlaying) }
+            LaunchedEffect(isPlaying) {
+                if (isPlaying) {
+                    starfieldPlaybackActive = true
+                } else {
+                    delay(700)
+                    starfieldPlaybackActive = false
+                }
+            }
             val starfieldAlpha by animateFloatAsState(
-                targetValue = if (isPlaying) 1f else 0f,
+                targetValue = if (starfieldPlaybackActive) 1f else 0f,
                 animationSpec = tween(durationMillis = 450),
                 label = "starfieldPauseFade"
             )
@@ -665,7 +787,7 @@ fun BasicVisualizationOverlay(
                 contrastMode = if (starfieldContrastBackdropEnabled) 7 else 0,
                 contrastScrimColorArgb = 0xFF000000.toInt(),
                 showArtworkBackground = true,
-                monochromeBackdrop = starfieldMonochromeBackdrop && isPlaying,
+                monochromeBackdrop = starfieldMonochromeBackdrop && starfieldPlaybackActive,
                 visualAlpha = starfieldAlpha,
                 starfieldStarCount = starfieldStarCount,
                 starfieldSpeed = starfieldSpeed,
@@ -709,6 +831,16 @@ fun BasicVisualizationOverlay(
         VisualizationMode.Off -> Unit
     }
 }
+
+private class ChannelScopeComposeSnapshot(
+    val histories: List<FloatArray>,
+    val triggerIndices: IntArray,
+    val textStates: List<ChannelScopeChannelTextState>,
+    val instrumentNames: Map<Int, String>,
+    val sampleNames: Map<Int, String>,
+    val chipNames: Map<Int, String>,
+    val layout: VisualizationChannelScopeLayout
+)
 
 private data class ChannelScopeTextPalette(
     val channel: Color,

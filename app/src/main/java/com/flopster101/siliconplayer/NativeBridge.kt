@@ -409,6 +409,8 @@ object NativeBridge {
     external fun getOpenMptChannelVuLevels(): FloatArray
     external fun getChannelScopeSamples(samplesPerChannel: Int): FloatArray
     external fun getChannelScopeTextState(maxChannels: Int): IntArray
+    // Decoder generation; flips before every decoder swap.
+    external fun getChannelScopeDataSerial(): Long
     external fun computeChannelScopeTriggers(
         flatScopeData: FloatArray,
         samplesPerChannel: Int,

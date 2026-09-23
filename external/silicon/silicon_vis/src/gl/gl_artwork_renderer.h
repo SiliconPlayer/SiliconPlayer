@@ -29,12 +29,39 @@ public:
 
 private:
     void drawSolidBackground(uint32_t colorArgb);
-    void drawGradientBackground(float surfaceWidth, float surfaceHeight, float density, bool drawCircle, float monoMix);
-    void drawArtworkOrFallback(float surfaceWidth, float surfaceHeight, float density);
     void drawContrastBackdrop(float surfaceWidth, float surfaceHeight);
 
     void ensureArtworkTexture();
     void ensureIconTexture();
+
+    // Previous-content crossfade: artwork/icon/theme swaps keep the old
+    // content on top at (1 - progress) alpha until the fade completes.
+    struct ContentState {
+        GLuint artworkTexture = 0;
+        int32_t artworkW = 0;
+        int32_t artworkH = 0;
+        GLuint iconTexture = 0;
+        int32_t iconW = 0;
+        int32_t iconH = 0;
+        uint32_t primaryArgb = 0xFFFFFFFF;
+        uint32_t surfaceArgb = 0xFF121212;
+        // prev_ shares a texture with the live state when its channel did not
+        // change in the swap; only owned textures are released afterwards.
+        bool ownsArtwork = false;
+        bool ownsIcon = false;
+    };
+
+    ContentState currentState() const;
+    void releasePrevState();
+    void drawArtworkOrFallback(const ContentState& state, float surfaceWidth, float surfaceHeight, float density, float alpha);
+    void drawGradientBackground(const ContentState& state, float surfaceWidth, float surfaceHeight, float density, bool drawCircle, float monoMix, float alpha);
+
+    ContentState prev_;
+    long long fadeStartNs_ = -1;
+    bool themeDirty_ = false;
+    uint32_t pendingPrimaryColorArgb_ = 0xFFFFFFFF;
+    uint32_t pendingSurfaceColorArgb_ = 0xFF121212;
+    int32_t pendingPlaceholderIconType_ = 1;
 
     GlProgram bgProgram_;
     GLint bgResLoc_ = -1;
@@ -42,6 +69,7 @@ private:
     GLint bgEdgeColorLoc_ = -1;
     GLint bgCircleColorLoc_ = -1;
     GLint bgCircleRadiusLoc_ = -1;
+    GLint bgAlphaLoc_ = -1;
     GLint bgPosLoc_ = -1;
 
     GlProgram texProgram_;

@@ -361,7 +361,12 @@ internal fun AppNavigationPlaybackPollEffects(
                     onMetadataSampleRateChanged(trackSnapshot.sampleRateHz)
                     onMetadataChannelCountChanged(trackSnapshot.channelCount)
                     onMetadataBitDepthLabelChanged(trackSnapshot.bitDepthLabel)
-                    onLastUsedCoreNameChanged(trackSnapshot.decoderName)
+                    // Blank/missing name = decoder mid-swap: keep the
+                    // previous core so the visualization mode doesn't
+                    // bounce to the fallback (VU) and back on slow loads.
+                    trackSnapshot.decoderName?.trim()?.takeIf { it.isNotEmpty() }?.let {
+                        onLastUsedCoreNameChanged(it)
+                    }
                     onSubtuneCountChanged(trackSnapshot.subtuneCount)
                     onCurrentSubtuneIndexChanged(trackSnapshot.currentSubtuneIndex)
                     onRepeatModeCapabilitiesFlagsChanged(trackSnapshot.repeatModeCapabilitiesFlags)

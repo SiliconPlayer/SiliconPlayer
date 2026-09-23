@@ -177,6 +177,7 @@ internal object AppPreferenceKeys {
     const val VISUALIZATION_CHANNEL_SCOPE_TRIGGER_MODE = "visualization_channel_scope_trigger_mode"
     const val VISUALIZATION_CHANNEL_SCOPE_TRIGGER_ALGORITHM = "visualization_channel_scope_trigger_algorithm"
     const val VISUALIZATION_CHANNEL_SCOPE_WAVE_RENDER_MODE = "visualization_channel_scope_wave_render_mode"
+    const val VISUALIZATION_CHANNEL_SCOPE_TRACK_TRANSITION = "visualization_channel_scope_track_transition"
     const val VISUALIZATION_CHANNEL_SCOPE_FPS_MODE = "visualization_channel_scope_fps_mode"
     const val VISUALIZATION_CHANNEL_SCOPE_LINE_WIDTH_DP = "visualization_channel_scope_line_width_dp"
     const val VISUALIZATION_CHANNEL_SCOPE_GRID_WIDTH_DP = "visualization_channel_scope_grid_width_dp"

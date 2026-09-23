@@ -34,6 +34,7 @@ internal fun VisualizationAdvancedChannelScopeRouteContent() {
                         val scopeTriggerKey = "visualization_channel_scope_trigger_mode"
                         val scopeTriggerAlgorithmKey = "visualization_channel_scope_trigger_algorithm"
                         val scopeWaveRenderModeKey = "visualization_channel_scope_wave_render_mode"
+                        val scopeTrackTransitionKey = "visualization_channel_scope_track_transition"
                         val scopeFpsModeKey = "visualization_channel_scope_fps_mode"
                         val scopeLineWidthKey = "visualization_channel_scope_line_width_dp"
                         val scopeGridWidthKey = "visualization_channel_scope_grid_width_dp"
@@ -106,6 +107,16 @@ internal fun VisualizationAdvancedChannelScopeRouteContent() {
                                     prefs.getString(
                                         scopeWaveRenderModeKey,
                                         AppDefaults.Visualization.ChannelScope.waveRenderMode.storageValue
+                                    )
+                                )
+                            )
+                        }
+                        var scopeTrackTransition by remember {
+                            mutableStateOf(
+                                VisualizationChannelScopeTrackTransition.fromStorage(
+                                    prefs.getString(
+                                        scopeTrackTransitionKey,
+                                        AppDefaults.Visualization.ChannelScope.trackTransition.storageValue
                                     )
                                 )
                             )
@@ -448,6 +459,7 @@ internal fun VisualizationAdvancedChannelScopeRouteContent() {
                         var showTriggerDialog by remember { mutableStateOf(false) }
                         var showTriggerAlgorithmDialog by remember { mutableStateOf(false) }
                         var showWaveRenderModeDialog by remember { mutableStateOf(false) }
+                        var showTrackTransitionDialog by remember { mutableStateOf(false) }
                         var showFpsModeDialog by remember { mutableStateOf(false) }
                         var showLineWidthDialog by remember { mutableStateOf(false) }
                         var showGridWidthDialog by remember { mutableStateOf(false) }
@@ -482,6 +494,7 @@ internal fun VisualizationAdvancedChannelScopeRouteContent() {
                                 scopeContrastBackdropEnabledKey,
                                 scopeTriggerKey,
                                 scopeTriggerAlgorithmKey,
+                                scopeTrackTransitionKey,
                                 scopeFpsModeKey,
                                 scopeLineWidthKey,
                                 scopeGridWidthKey,
@@ -539,6 +552,12 @@ internal fun VisualizationAdvancedChannelScopeRouteContent() {
                                 prefs.getString(
                                     scopeWaveRenderModeKey,
                                     AppDefaults.Visualization.ChannelScope.waveRenderMode.storageValue
+                                )
+                            )
+                            scopeTrackTransition = VisualizationChannelScopeTrackTransition.fromStorage(
+                                prefs.getString(
+                                    scopeTrackTransitionKey,
+                                    AppDefaults.Visualization.ChannelScope.trackTransition.storageValue
                                 )
                             )
                             scopeRenderBackend = VisualizationRenderBackend.fromStorage(
@@ -776,6 +795,13 @@ internal fun VisualizationAdvancedChannelScopeRouteContent() {
                             description = "Antialiased smooths trace edges. CRT renders steep transitions softer and dimmer, like a phosphor screen.",
                             value = scopeWaveRenderMode.label,
                             onClick = { showWaveRenderModeDialog = true }
+                        )
+                        SettingsRowSpacer()
+                        SettingsValuePickerCard(
+                            title = "Track transition",
+                            description = "How the previous song's layout leaves when the track changes.",
+                            value = scopeTrackTransition.label,
+                            onClick = { showTrackTransitionDialog = true }
                         )
                         SettingsRowSpacer()
                         SettingsValuePickerCard(
@@ -1171,6 +1197,20 @@ internal fun VisualizationAdvancedChannelScopeRouteContent() {
                                     prefs.edit().putString(scopeWaveRenderModeKey, mode.storageValue).apply()
                                 },
                                 onDismiss = { showWaveRenderModeDialog = false }
+                            )
+                        }
+                        if (showTrackTransitionDialog) {
+                            SettingsSingleChoiceDialog(
+                                title = "Track transition",
+                                selectedValue = scopeTrackTransition,
+                                options = VisualizationChannelScopeTrackTransition.entries.map { transition ->
+                                    ChoiceDialogOption(value = transition, label = transition.label)
+                                },
+                                onSelected = { transition ->
+                                    scopeTrackTransition = transition
+                                    prefs.edit().putString(scopeTrackTransitionKey, transition.storageValue).apply()
+                                },
+                                onDismiss = { showTrackTransitionDialog = false }
                             )
                         }
                         if (showBackgroundModeDialog) {

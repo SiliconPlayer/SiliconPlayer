@@ -1420,6 +1420,11 @@ Java_com_flopster101_siliconplayer_NativeBridge_getChannelScopeTextState(JNIEnv*
     return toJIntArray(env, audioEngine->getChannelScopeTextState(static_cast<int>(maxChannels)));
 }
 
+extern "C" JNIEXPORT jlong JNICALL
+Java_com_flopster101_siliconplayer_NativeBridge_getChannelScopeDataSerial(JNIEnv*, jobject) {
+    return audioEngine == nullptr ? 0L : static_cast<jlong>(audioEngine->getDecoderSerial());
+}
+
 extern "C" JNIEXPORT jintArray JNICALL
 Java_com_flopster101_siliconplayer_NativeBridge_computeChannelScopeTriggers(
     JNIEnv* env, jobject,

@@ -123,6 +123,7 @@ object AppDefaults {
             val triggerMode = VisualizationOscTriggerMode.Rising
             val triggerAlgorithm = VisualizationChannelScopeTriggerAlgorithm.Fast
             val waveRenderMode = VisualizationChannelScopeWaveRenderMode.Off
+            val trackTransition = VisualizationChannelScopeTrackTransition.Crossfade
             val fpsMode = VisualizationOscFpsMode.Default
             const val lineWidthDp = 3
             const val gridWidthDp = 2

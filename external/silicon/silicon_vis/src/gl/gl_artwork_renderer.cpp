@@ -28,6 +28,7 @@ static const char* BG_FRAGMENT_SHADER = R"(
     uniform vec4 uEdgeColor;
     uniform vec4 uCircleColor;
     uniform float uCircleRadius;
+    uniform float uAlpha;
 
     void main() {
         vec2 center = uResolution * 0.5;
@@ -36,13 +37,15 @@ static const char* BG_FRAGMENT_SHADER = R"(
         float t = clamp(dist / max(maxDist, 1.0), 0.0, 1.0);
         vec4 bg = mix(uCenterColor, uEdgeColor, t * t);
 
+        vec4 col;
         if (dist <= uCircleRadius) {
             float edgeDist = uCircleRadius - dist;
             float alpha = clamp(edgeDist / 1.5, 0.0, 1.0) * uCircleColor.a;
-            gl_FragColor = mix(bg, vec4(uCircleColor.rgb, 1.0), alpha);
+            col = mix(bg, vec4(uCircleColor.rgb, 1.0), alpha);
         } else {
-            gl_FragColor = bg;
+            col = bg;
         }
+        gl_FragColor = vec4(col.rgb, col.a * uAlpha);
     }
 )";
 
@@ -134,6 +137,7 @@ bool GlArtworkRenderer::init() {
     bgEdgeColorLoc_ = bgProgram_.getUniformLoc("uEdgeColor");
     bgCircleColorLoc_ = bgProgram_.getUniformLoc("uCircleColor");
     bgCircleRadiusLoc_ = bgProgram_.getUniformLoc("uCircleRadius");
+    bgAlphaLoc_ = bgProgram_.getUniformLoc("uAlpha");
     bgPosLoc_ = bgProgram_.getAttribLoc("aPosition");
 
     if (!texProgram_.compileAndLink(TEX_VERTEX_SHADER, TEX_FRAGMENT_SHADER)) return false;
@@ -155,6 +159,8 @@ bool GlArtworkRenderer::init() {
 }
 
 void GlArtworkRenderer::release() {
+    releasePrevState();
+    fadeStartNs_ = -1;
     if (artworkTextureId_ != 0) {
         glDeleteTextures(1, &artworkTextureId_);
         artworkTextureId_ = 0;
@@ -205,9 +211,15 @@ void GlArtworkRenderer::clearIcon() {
 }
 
 void GlArtworkRenderer::setTheme(uint32_t primaryColorArgb, uint32_t surfaceColorArgb, int32_t placeholderIconType) {
-    primaryColorArgb_ = primaryColorArgb;
-    surfaceColorArgb_ = surfaceColorArgb;
-    placeholderIconType_ = placeholderIconType;
+    if (primaryColorArgb == primaryColorArgb_ &&
+        surfaceColorArgb == surfaceColorArgb_ &&
+        placeholderIconType == placeholderIconType_) {
+        return;
+    }
+    pendingPrimaryColorArgb_ = primaryColorArgb;
+    pendingSurfaceColorArgb_ = surfaceColorArgb;
+    pendingPlaceholderIconType_ = placeholderIconType;
+    themeDirty_ = true;
 }
 
 void GlArtworkRenderer::setContrastMode(SiliconVisContrastMode mode) {
@@ -262,6 +274,34 @@ void GlArtworkRenderer::drawSolidBackground(uint32_t colorArgb) {
     glClear(GL_COLOR_BUFFER_BIT);
 }
 
+GlArtworkRenderer::ContentState GlArtworkRenderer::currentState() const {
+    ContentState s;
+    s.artworkTexture = artworkTextureId_;
+    s.artworkW = artworkWidth_;
+    s.artworkH = artworkHeight_;
+    s.iconTexture = iconTextureId_;
+    s.iconW = iconWidth_;
+    s.iconH = iconHeight_;
+    s.primaryArgb = primaryColorArgb_;
+    s.surfaceArgb = surfaceColorArgb_;
+    return s;
+}
+
+void GlArtworkRenderer::releasePrevState() {
+    if (prev_.ownsArtwork && prev_.artworkTexture != 0) {
+        glDeleteTextures(1, &prev_.artworkTexture);
+    }
+    if (prev_.ownsIcon && prev_.iconTexture != 0) {
+        glDeleteTextures(1, &prev_.iconTexture);
+    }
+    prev_.artworkTexture = 0;
+    prev_.iconTexture = 0;
+    prev_.ownsArtwork = false;
+    prev_.ownsIcon = false;
+    prev_.artworkW = prev_.artworkH = 0;
+    prev_.iconW = prev_.iconH = 0;
+}
+
 void GlArtworkRenderer::draw(float surfaceWidth, float surfaceHeight, float density) {
     // Ease the monochrome mix each drawn frame; dt is clamped so a stalled
     // loop resumes the fade instead of snapping it.
@@ -276,18 +316,70 @@ void GlArtworkRenderer::draw(float surfaceWidth, float surfaceHeight, float dens
         : std::max(0.0f, monoMix_ - step);
 
     if (!showArtworkBackground_) {
+        // Solid path has no crossfade; apply the pending theme immediately or
+        // the clear color goes stale.
+        if (themeDirty_) {
+            themeDirty_ = false;
+            primaryColorArgb_ = pendingPrimaryColorArgb_;
+            surfaceColorArgb_ = pendingSurfaceColorArgb_;
+            placeholderIconType_ = pendingPlaceholderIconType_;
+        }
+        releasePrevState();
+        fadeStartNs_ = -1;
         drawSolidBackground(surfaceColorArgb_);
         return;
     }
+
+    // Content swap: park the outgoing artwork/icon/theme into prev_ so it can
+    // fade out over the incoming content below. Only dirty channels hand over
+    // their texture; unchanged ones are shared with the live state.
+    if (artworkTextureDirty_ || iconTextureDirty_ || themeDirty_) {
+        releasePrevState();
+        prev_ = currentState();
+        if (artworkTextureDirty_) {
+            prev_.ownsArtwork = true;
+            artworkTextureId_ = 0;
+        }
+        if (iconTextureDirty_) {
+            prev_.ownsIcon = true;
+            iconTextureId_ = 0;
+        }
+        if (themeDirty_) {
+            themeDirty_ = false;
+            primaryColorArgb_ = pendingPrimaryColorArgb_;
+            surfaceColorArgb_ = pendingSurfaceColorArgb_;
+            placeholderIconType_ = pendingPlaceholderIconType_;
+        }
+        if (prev_.artworkTexture == 0 && prev_.iconTexture == 0) {
+            // Nothing visible to fade from (first mount, empty fallback).
+            fadeStartNs_ = -1;
+        } else {
+            fadeStartNs_ = nowNs;
+        }
+    }
+
     ensureArtworkTexture();
     ensureIconTexture();
-    drawArtworkOrFallback(surfaceWidth, surfaceHeight, density);
+
+    drawArtworkOrFallback(currentState(), surfaceWidth, surfaceHeight, density, 1.0f);
+
+    constexpr float kFadeSeconds = 0.35f;
+    if (fadeStartNs_ >= 0) {
+        const float p = static_cast<float>(nowNs - fadeStartNs_) * 1e-9f / kFadeSeconds;
+        if (p >= 1.0f) {
+            fadeStartNs_ = -1;
+            releasePrevState();
+        } else {
+            const float eased = p * p * (3.0f - 2.0f * p);
+            drawArtworkOrFallback(prev_, surfaceWidth, surfaceHeight, density, 1.0f - eased);
+        }
+    }
     drawContrastBackdrop(surfaceWidth, surfaceHeight);
 }
 
-void GlArtworkRenderer::drawGradientBackground(float surfaceWidth, float surfaceHeight, float density, bool drawCircle, float monoMix) {
-    Color4f prim = argbToColor4f(primaryColorArgb_);
-    Color4f surf = argbToColor4f(surfaceColorArgb_);
+void GlArtworkRenderer::drawGradientBackground(const ContentState& state, float surfaceWidth, float surfaceHeight, float density, bool drawCircle, float monoMix, float alpha) {
+    Color4f prim = argbToColor4f(state.primaryArgb);
+    Color4f surf = argbToColor4f(state.surfaceArgb);
 
     // monoMix: gradient collapses to solid black; the disc lerps to white.
     const float k = 1.0f - monoMix;
@@ -312,6 +404,7 @@ void GlArtworkRenderer::drawGradientBackground(float surfaceWidth, float surface
     const float discB = prim.b + (1.0f - prim.b) * monoMix;
     glUniform4f(bgCircleColorLoc_, discR, discG, discB, drawCircle ? 0.14f : 0.0f);
     glUniform1f(bgCircleRadiusLoc_, circleRadiusPx);
+    glUniform1f(bgAlphaLoc_, alpha);
 
     float fullQuad[12] = {
         0.0f, 0.0f,
@@ -329,24 +422,25 @@ void GlArtworkRenderer::drawGradientBackground(float surfaceWidth, float surface
     glDisableVertexAttribArray(bgPosLoc_);
 }
 
-void GlArtworkRenderer::drawArtworkOrFallback(float surfaceWidth, float surfaceHeight, float density) {
-    if (artworkTextureId_ != 0 && artworkWidth_ > 0 && artworkHeight_ > 0) {
-        drawGradientBackground(surfaceWidth, surfaceHeight, density, /*drawCircle=*/false, 0.0f);
+void GlArtworkRenderer::drawArtworkOrFallback(const ContentState& state, float surfaceWidth, float surfaceHeight, float density, float alpha) {
+    if (alpha <= 0.001f) return;
+    if (state.artworkTexture != 0 && state.artworkW > 0 && state.artworkH > 0) {
+        drawGradientBackground(state, surfaceWidth, surfaceHeight, density, /*drawCircle=*/false, 0.0f, alpha);
         // Draw real artwork textured quad (aspect fit, centered)
         glEnable(GL_BLEND);
         glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 
         texProgram_.use();
         glUniform2f(texResLoc_, surfaceWidth, surfaceHeight);
-        glUniform4f(texColorLoc_, 1.0f, 1.0f, 1.0f, 1.0f);
+        glUniform4f(texColorLoc_, 1.0f, 1.0f, 1.0f, alpha);
         glUniform1f(texMonoLoc_, 0.0f);
         glUniform1i(texSamplerLoc_, 0);
 
         glActiveTexture(GL_TEXTURE0);
-        glBindTexture(GL_TEXTURE_2D, artworkTextureId_);
+        glBindTexture(GL_TEXTURE_2D, state.artworkTexture);
 
-        float imgW = static_cast<float>(artworkWidth_);
-        float imgH = static_cast<float>(artworkHeight_);
+        float imgW = static_cast<float>(state.artworkW);
+        float imgH = static_cast<float>(state.artworkH);
         float scale = std::min(surfaceWidth / imgW, surfaceHeight / imgH);
         float dstW = imgW * scale;
         float dstH = imgH * scale;
@@ -369,22 +463,22 @@ void GlArtworkRenderer::drawArtworkOrFallback(float surfaceWidth, float surfaceH
         glDisableVertexAttribArray(texCoordLoc_);
         glBindTexture(GL_TEXTURE_2D, 0);
     } else {
-        drawGradientBackground(surfaceWidth, surfaceHeight, density, /*drawCircle=*/true, monoMix_);
+        drawGradientBackground(state, surfaceWidth, surfaceHeight, density, /*drawCircle=*/true, monoMix_, alpha);
         // Draw centered placeholder icon inside the circle disc if available
         float circleRadiusPx = std::min(60.0f * std::max(1.0f, density), std::min(surfaceWidth, surfaceHeight) * 0.35f);
-        if (iconTextureId_ != 0 && iconWidth_ > 0 && iconHeight_ > 0) {
+        if (state.iconTexture != 0 && state.iconW > 0 && state.iconH > 0) {
             float iconSizePx = std::min(72.0f * std::max(1.0f, density), circleRadiusPx * 1.25f);
             float iconX = (surfaceWidth - iconSizePx) * 0.5f;
             float iconY = (surfaceHeight - iconSizePx) * 0.5f;
 
             texProgram_.use();
             glUniform2f(texResLoc_, surfaceWidth, surfaceHeight);
-            glUniform4f(texColorLoc_, 1.0f, 1.0f, 1.0f, 1.0f);
+            glUniform4f(texColorLoc_, 1.0f, 1.0f, 1.0f, alpha);
             glUniform1f(texMonoLoc_, monoMix_);
             glUniform1i(texSamplerLoc_, 0);
 
             glActiveTexture(GL_TEXTURE0);
-            glBindTexture(GL_TEXTURE_2D, iconTextureId_);
+            glBindTexture(GL_TEXTURE_2D, state.iconTexture);
 
             float iconQuad[24];
             GlPrimitives::generateTexturedQuad(iconX, iconY, iconSizePx, iconSizePx, 0.0f, 0.0f, 1.0f, 1.0f, iconQuad);
