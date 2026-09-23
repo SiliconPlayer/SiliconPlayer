@@ -4,6 +4,7 @@ import android.content.Context
 import android.graphics.PixelFormat
 import android.opengl.GLES20
 import android.os.Build
+import android.view.Choreographer
 import android.view.Surface
 import android.view.SurfaceHolder
 import android.view.SurfaceView
@@ -28,6 +29,7 @@ import androidx.compose.ui.viewinterop.AndroidView
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import com.flopster101.siliconplayer.LocalPlayerOverlayVisibility
+import kotlinx.coroutines.delay
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
 import java.nio.FloatBuffer
@@ -67,6 +69,15 @@ fun SiliconNativeGlSurfaceVisualization(
     var glView by remember { mutableStateOf<SiliconNativeGlSurfaceView?>(null) }
     val overlayVisibility = LocalPlayerOverlayVisibility.current
 
+    // Mount the embedded surface only once the enter animations have settled:
+    // a surface created mid-animation can latch that transient geometry into
+    // its layer crop and never let it go. The veil covers the wait.
+    var surfaceMountAllowed by remember { mutableStateOf(false) }
+    LaunchedEffect(Unit) {
+        delay(450)
+        surfaceMountAllowed = true
+    }
+
     LaunchedEffect(overlayVisibility) {
         snapshotFlow { overlayVisibility() }.collect { v ->
             // The surface fades itself out in lockstep with the veil: the
@@ -81,6 +92,11 @@ fun SiliconNativeGlSurfaceVisualization(
     Box(
         modifier = modifier.drawWithContent {
             drawContent()
+            if (!surfaceMountAllowed) {
+                // No surface yet: keep the area on the veil, no punch hole.
+                drawRect(veilColor)
+                return@drawWithContent
+            }
             val visibility = overlayVisibility().coerceIn(0f, 1f)
             // The window composites above the surface, so its pixels here
             // have to go or the card behind the vis would cover it. The
@@ -94,19 +110,21 @@ fun SiliconNativeGlSurfaceVisualization(
             }
         }
     ) {
-        AndroidView(
-            modifier = Modifier.fillMaxSize(),
-            factory = { context ->
-                SiliconNativeGlSurfaceView(context, density, cornerRadiusPx).also { view ->
-                    glView = view
+        if (surfaceMountAllowed) {
+            AndroidView(
+                modifier = Modifier.fillMaxSize(),
+                factory = { context ->
+                    SiliconNativeGlSurfaceView(context, density, cornerRadiusPx).also { view ->
+                        glView = view
+                    }
+                },
+                update = { view ->
+                    view.cornerRadiusPx = cornerRadiusPx
+                    view.onFrameStats = onFrameStats
+                    view.updateFrame(frame)
                 }
-            },
-            update = { view ->
-                view.cornerRadiusPx = cornerRadiusPx
-                view.onFrameStats = onFrameStats
-                view.updateFrame(frame)
-            }
-        )
+            )
+        }
     }
 
     DisposableEffect(lifecycleOwner) {
@@ -172,12 +190,78 @@ private class SiliconNativeGlSurfaceView(
         renderThread?.setDimColor(red, green, blue)
     }
 
+    private var lastLifecyclePauseUptimeMs = 0L
+    private var recreatedSincePause = false
+    private var resizedSinceAttach = false
+    private var recreateInFlight = false
+    private var lastRecreateUptimeMs = 0L
+
+    override fun onSizeChanged(w: Int, h: Int, oldw: Int, oldh: Int) {
+        super.onSizeChanged(w, h, oldw, oldh)
+        // A mid-enter layout growth can leave the container crop at the old
+        // size while the buffer follows; that latch needs a recreate. Resizes
+        // caused by our own recreate do not count.
+        if (recreateInFlight) return
+        if (android.os.SystemClock.uptimeMillis() - lastRecreateUptimeMs < 800L) return
+        if (oldw > 0 && oldh > 0 && (oldw != w || oldh != h)) resizedSinceAttach = true
+    }
+
     fun setLifecyclePaused(paused: Boolean) {
         lifecyclePaused = paused
         if (paused) {
+            lastLifecyclePauseUptimeMs = android.os.SystemClock.uptimeMillis()
+            recreatedSincePause = false
             stopRenderThread()
         } else if (holder.surface.isValid) {
             startRenderThread(holder, width, height)
+            // The return zoom can latch the container crop; rebuild once it settles.
+            postDelayed({ resyncSurfaceGeometry() }, 600)
+        }
+    }
+
+    /** Rebuilds the surface, throttled, and only when a crop latch is plausible. */
+    private fun resyncSurfaceGeometry(force: Boolean = false) {
+        if (lifecyclePaused || !isAttachedToWindow || width <= 0 || height <= 0) return
+        val now = android.os.SystemClock.uptimeMillis()
+        if (now - lastRecreateUptimeMs < 800L) return
+        // Latches come from a resume-time window zoom or a mid-enter resize;
+        // surfaces created clean at their final size skip the recreate blink.
+        val recentlyResumed = now - lastLifecyclePauseUptimeMs <= 5_000L
+        if (!force && !resizedSinceAttach && !(recentlyResumed && !recreatedSincePause)) return
+        resizedSinceAttach = false
+        if (recentlyResumed) recreatedSincePause = true
+        lastRecreateUptimeMs = now
+        recreateInFlight = true
+        scaleX = 1f
+        scaleY = 1f
+        visibility = GONE
+        post { if (isAttachedToWindow) visibility = VISIBLE }
+    }
+
+    // Self-heal for the latched container crop: if the frame the surface was
+    // issued at disagrees with the laid-out size, force a rebuild. Costs two
+    // int compares per check while everything agrees.
+    private var geometryCheckFrameCounter = 0
+    private var geometryMismatchStreak = 0
+
+    private val geometryWatchdog = object : Choreographer.FrameCallback {
+        override fun doFrame(frameTimeNanos: Long) {
+            if (!isAttachedToWindow) return
+            if (++geometryCheckFrameCounter >= 20) {
+                geometryCheckFrameCounter = 0
+                val frame = holder.surfaceFrame
+                if (!lifecyclePaused && width > 0 && height > 0 && holder.surface.isValid &&
+                    (frame.width() != width || frame.height() != height)
+                ) {
+                    if (++geometryMismatchStreak >= 2) {
+                        geometryMismatchStreak = 0
+                        resyncSurfaceGeometry(force = true)
+                    }
+                } else {
+                    geometryMismatchStreak = 0
+                }
+            }
+            Choreographer.getInstance().postFrameCallback(this)
         }
     }
 
@@ -192,6 +276,15 @@ private class SiliconNativeGlSurfaceView(
     override fun surfaceCreated(holder: SurfaceHolder) {
         if (!lifecyclePaused) {
             startRenderThread(holder, width, height)
+            // A resume recreates the surface while the return zoom may still
+            // scale the window, latching the container crop; the resync below
+            // re-derives it once the zoom settled. Never reschedule from a
+            // recreate we caused ourselves: that loop compounds.
+            if (!recreateInFlight) {
+                postDelayed({ resyncSurfaceGeometry() }, 600)
+                postDelayed({ resyncSurfaceGeometry() }, 1600)
+            }
+            recreateInFlight = false
         }
     }
 
@@ -273,9 +366,11 @@ private class SiliconNativeGlSurfaceView(
     override fun onAttachedToWindow() {
         super.onAttachedToWindow()
         SiliconNativeGlDataSink.register(this)
+        Choreographer.getInstance().postFrameCallback(geometryWatchdog)
     }
 
     override fun onDetachedFromWindow() {
+        Choreographer.getInstance().removeFrameCallback(geometryWatchdog)
         shutdown()
         super.onDetachedFromWindow()
     }
