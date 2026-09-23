@@ -116,7 +116,7 @@ object AppDefaults {
 
         object ChannelScope {
             const val windowMs = 30
-            val renderBackend = VisualizationRenderBackend.OpenGlTexture
+            val renderBackend = VisualizationRenderBackend.OpenGlSurface
             const val dcRemovalEnabled = true
             const val gainPercent = 240
             const val contrastBackdropEnabled = true

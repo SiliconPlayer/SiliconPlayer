@@ -649,11 +649,21 @@ fun BasicVisualizationOverlay(
                             channelScopeWaveRenderMode = channelScopeWaveRenderModeNative,
                             channelScopeTrackTransition = channelScopeTrackTransition
                         )
-                        com.flopster101.siliconplayer.ui.visualization.gl.SiliconNativeGlTextureVisualization(
-                            frame = nativeFrame,
-                            onFrameStats = channelScopeOnFrameStats,
-                            modifier = Modifier.fillMaxSize()
-                        )
+                        if (channelScopeRenderBackend == VisualizationRenderBackend.OpenGlSurface) {
+                            com.flopster101.siliconplayer.ui.visualization.gl.SiliconNativeGlSurfaceVisualization(
+                                frame = nativeFrame,
+                                cornerRadiusDp = channelScopeCornerRadiusDp,
+                                veilColor = surfaceVeilColor,
+                                onFrameStats = channelScopeOnFrameStats,
+                                modifier = Modifier.fillMaxSize()
+                            )
+                        } else {
+                            com.flopster101.siliconplayer.ui.visualization.gl.SiliconNativeGlTextureVisualization(
+                                frame = nativeFrame,
+                                onFrameStats = channelScopeOnFrameStats,
+                                modifier = Modifier.fillMaxSize()
+                            )
+                        }
                     }
                 }
                 val needComposeOverlay = !isGlBackend && (channelScopeTextEnabled || channelScopeTextVuEnabled) && channelScopeHistories.isNotEmpty()
