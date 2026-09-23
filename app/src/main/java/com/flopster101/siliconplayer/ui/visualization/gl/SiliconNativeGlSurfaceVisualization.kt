@@ -30,6 +30,8 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import com.flopster101.siliconplayer.LocalPlayerOverlayVisibility
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.withTimeoutOrNull
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
 import java.nio.FloatBuffer
@@ -74,7 +76,13 @@ fun SiliconNativeGlSurfaceVisualization(
     // its layer crop and never let it go. The veil covers the wait.
     var surfaceMountAllowed by remember { mutableStateOf(false) }
     LaunchedEffect(Unit) {
-        delay(450)
+        if (overlayVisibility() < 0.999f) {
+            withTimeoutOrNull(1500) {
+                snapshotFlow { overlayVisibility() }.first { it >= 0.999f }
+            }
+            // The panel slide outlasts the visibility tween slightly; let it land.
+            delay(120)
+        }
         surfaceMountAllowed = true
     }
 
