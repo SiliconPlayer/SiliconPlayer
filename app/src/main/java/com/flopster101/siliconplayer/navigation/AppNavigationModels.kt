@@ -26,6 +26,7 @@ enum class SettingsRoute {
     Network,
     Player,
     Visualization,
+    VisualizationTrackTicker,
     VisualizationBasic,
     VisualizationBasicBars,
     VisualizationBasicOscilloscope,
@@ -66,6 +67,7 @@ internal fun settingsRouteOrder(route: SettingsRoute): Int = when (route) {
     SettingsRoute.Network -> 1
     SettingsRoute.Player -> 1
     SettingsRoute.Visualization -> 1
+    SettingsRoute.VisualizationTrackTicker -> 2
     SettingsRoute.VisualizationBasic -> 2
     SettingsRoute.VisualizationBasicBars -> 3
     SettingsRoute.VisualizationBasicOscilloscope -> 3

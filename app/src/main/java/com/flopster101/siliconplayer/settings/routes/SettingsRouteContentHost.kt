@@ -366,9 +366,14 @@ internal fun SettingsRouteContentHost(
                                 onVisualizationShowDebugInfoChanged = actions.onVisualizationShowDebugInfoChanged,
                                 onVisualizationKeepScreenOnChanged = actions.onVisualizationKeepScreenOnChanged,
                                 onOpenVisualizationBasic = actions.onOpenVisualizationBasic,
-                                onOpenVisualizationAdvanced = actions.onOpenVisualizationAdvanced
+                                onOpenVisualizationAdvanced = actions.onOpenVisualizationAdvanced,
+                                onOpenVisualizationTrackTicker = actions.onOpenVisualizationTrackTicker
                             )
                         )
+                    }
+
+                    SettingsRoute.VisualizationTrackTicker -> {
+                        VisualizationTrackTickerRouteContent()
                     }
 
                     SettingsRoute.VisualizationBasic -> {
@@ -548,6 +553,7 @@ internal fun settingsSecondaryTitle(route: SettingsRoute, selectedPluginName: St
         SettingsRoute.Network -> "Network settings"
         SettingsRoute.Player -> "Player settings"
         SettingsRoute.Visualization -> "Visualization settings"
+        SettingsRoute.VisualizationTrackTicker -> "Track ticker"
         SettingsRoute.VisualizationBasic -> "Basic visualizations"
         SettingsRoute.VisualizationBasicBars -> "Bars settings"
         SettingsRoute.VisualizationBasicOscilloscope -> "Oscilloscope settings"

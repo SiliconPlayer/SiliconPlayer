@@ -277,6 +277,7 @@ internal data class SettingsScreenActions(
     val onOpenPlayer: () -> Unit,
     val onOpenVisualization: () -> Unit,
     val onOpenVisualizationBasic: () -> Unit,
+    val onOpenVisualizationTrackTicker: () -> Unit,
     val onOpenVisualizationBasicBars: () -> Unit,
     val onOpenVisualizationBasicOscilloscope: () -> Unit,
     val onOpenVisualizationBasicVuMeters: () -> Unit,

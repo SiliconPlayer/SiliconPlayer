@@ -1077,6 +1077,7 @@ internal fun PlayerScreen(
     )
     val channelScopePrefs = rememberChannelScopePrefs(prefs)
     val starfieldPrefs = rememberStarfieldPrefs(prefs)
+    val tickerPrefs = rememberFullscreenTickerPrefs(prefs)
     val onVisualizerAction: () -> Unit = {
         when (visualizationMode) {
             VisualizationMode.ProjectM ->
@@ -1186,6 +1187,19 @@ internal fun PlayerScreen(
     }
     val displayAlbum = album.ifBlank { if (hasTrack) "Unknown Album" else "" }
     val displayFilename = file?.let { toDisplayFilename(it) }.orEmpty()
+    val tickerTrackKey = file?.absolutePath ?: pathOrUrl?.takeIf { it.isNotBlank() }
+    val tickerFormatLabel = remember(file?.absolutePath, pathOrUrl) {
+        val rawName = file?.name
+            ?: pathOrUrl
+                ?.substringAfterLast('/')
+                ?.substringAfterLast('\\')
+                ?.substringBefore('?')
+                ?.substringBefore('#')
+        rawName
+            ?.takeIf { it.isNotBlank() }
+            ?.let(::inferredPrimaryExtensionForName)
+            ?.uppercase()
+    }
     val fileSizeBytes = file?.length() ?: 0L
     val formatLabel by produceState<String>(
         initialValue = file?.name?.let(::inferredPrimaryExtensionForName)?.uppercase() ?: "EMPTY",
@@ -2158,6 +2172,11 @@ internal fun PlayerScreen(
         onSelectVisualizationMode = onSelectVisualizationMode,
         onVisualizerAction = onVisualizerAction,
         fullscreenModePref = fullscreenModePref,
+        hasReliableDuration = hasReliableDuration,
+        tickerEnabled = tickerPrefs.isEnabledFor(visualizationMode),
+        tickerDurationSeconds = tickerPrefs.durationSeconds,
+        tickerTrackKey = tickerTrackKey,
+        tickerFormatLabel = tickerFormatLabel,
         visualizationContent = {
             AlbumArtPlaceholder(
                 file = file,

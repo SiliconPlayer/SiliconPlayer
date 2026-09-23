@@ -1781,6 +1781,57 @@ internal data class ChannelScopePrefs(
     }
 }
 
+internal data class FullscreenTickerPrefs(
+    val masterEnabled: Boolean,
+    val durationSeconds: Int,
+    val perModeEnabled: Map<VisualizationMode, Boolean>
+) {
+    fun isEnabledFor(mode: VisualizationMode): Boolean {
+        return masterEnabled && (perModeEnabled[mode] ?: true)
+    }
+
+    companion object {
+        fun from(prefs: android.content.SharedPreferences): FullscreenTickerPrefs {
+            val perMode = mapOf(
+                VisualizationMode.Bars to prefs.getBoolean(AppPreferenceKeys.VISUALIZATION_TICKER_ENABLED_BARS, true),
+                VisualizationMode.Oscilloscope to prefs.getBoolean(AppPreferenceKeys.VISUALIZATION_TICKER_ENABLED_OSCILLOSCOPE, true),
+                VisualizationMode.VuMeters to prefs.getBoolean(AppPreferenceKeys.VISUALIZATION_TICKER_ENABLED_VU_METERS, true),
+                VisualizationMode.ChannelScope to prefs.getBoolean(AppPreferenceKeys.VISUALIZATION_TICKER_ENABLED_CHANNEL_SCOPE, true),
+                VisualizationMode.Starfield to prefs.getBoolean(AppPreferenceKeys.VISUALIZATION_TICKER_ENABLED_STARFIELD, true),
+                VisualizationMode.ProjectM to prefs.getBoolean(AppPreferenceKeys.VISUALIZATION_TICKER_ENABLED_PROJECTM, true)
+            )
+            return FullscreenTickerPrefs(
+                masterEnabled = prefs.getBoolean(AppPreferenceKeys.VISUALIZATION_TICKER_ENABLED, true),
+                durationSeconds = prefs.getInt(AppPreferenceKeys.VISUALIZATION_TICKER_DURATION_SECONDS, 5),
+                perModeEnabled = perMode
+            )
+        }
+
+        fun isTickerKey(key: String?): Boolean {
+            return key?.startsWith("visualization_ticker_") == true
+        }
+    }
+}
+
+@Composable
+internal fun rememberFullscreenTickerPrefs(
+    sharedPrefs: android.content.SharedPreferences
+): FullscreenTickerPrefs {
+    var state by remember(sharedPrefs) { mutableStateOf(FullscreenTickerPrefs.from(sharedPrefs)) }
+    DisposableEffect(sharedPrefs) {
+        val listener = android.content.SharedPreferences.OnSharedPreferenceChangeListener { prefs, key ->
+            if (FullscreenTickerPrefs.isTickerKey(key)) {
+                state = FullscreenTickerPrefs.from(prefs)
+            }
+        }
+        sharedPrefs.registerOnSharedPreferenceChangeListener(listener)
+        onDispose {
+            sharedPrefs.unregisterOnSharedPreferenceChangeListener(listener)
+        }
+    }
+    return state
+}
+
 @Composable
 internal fun rememberChannelScopePrefs(
     sharedPrefs: android.content.SharedPreferences

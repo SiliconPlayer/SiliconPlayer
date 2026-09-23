@@ -9,6 +9,7 @@ import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInVertically
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -28,6 +29,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -648,6 +650,95 @@ private fun FullscreenBottomControls(
 }
 
 @Composable
+private fun FullscreenTrackTicker(
+    trackKey: String?,
+    title: String,
+    artist: String,
+    formatLabel: String?,
+    trackDurationSeconds: Double,
+    trackDurationReliable: Boolean,
+    holdSeconds: Int,
+    enabled: Boolean,
+    modifier: Modifier = Modifier
+) {
+    var visible by remember { mutableStateOf(false) }
+    LaunchedEffect(trackKey, enabled, holdSeconds) {
+        visible = false
+        if (enabled && trackKey != null) {
+            visible = true
+            delay(holdSeconds.coerceIn(2, 15) * 1000L)
+            visible = false
+        }
+    }
+    AnimatedVisibility(
+        visible = visible,
+        enter = fadeIn() + slideInVertically { -it / 2 },
+        exit = fadeOut(),
+        modifier = modifier
+    ) {
+        Surface(
+            shape = RoundedCornerShape(12.dp),
+            color = Color.Black.copy(alpha = 0.45f),
+            contentColor = Color.White
+        ) {
+            Column(
+                modifier = Modifier
+                    .widthIn(max = 420.dp)
+                    .padding(horizontal = 14.dp, vertical = 10.dp)
+            ) {
+                Text(
+                    text = title,
+                    style = MaterialTheme.typography.titleMedium,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+                if (artist.isNotBlank()) {
+                    Text(
+                        text = artist,
+                        color = Color.White.copy(alpha = 0.80f),
+                        style = MaterialTheme.typography.bodySmall,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
+                if (!formatLabel.isNullOrBlank() || trackDurationSeconds > 0.0 || !trackDurationReliable) {
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        if (!formatLabel.isNullOrBlank()) {
+                            Surface(
+                                shape = RoundedCornerShape(6.dp),
+                                color = Color.White.copy(alpha = 0.16f),
+                                contentColor = Color.White
+                            ) {
+                                Text(
+                                    text = formatLabel,
+                                    style = MaterialTheme.typography.labelSmall,
+                                    maxLines = 1,
+                                    modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                                )
+                            }
+                        }
+                        if (trackDurationSeconds > 0.0 || !trackDurationReliable) {
+                            if (!formatLabel.isNullOrBlank()) Spacer(modifier = Modifier.width(6.dp))
+                            Text(
+                                text = if (trackDurationReliable) {
+                                    formatTime(trackDurationSeconds)
+                                } else {
+                                    "${formatTime(trackDurationSeconds)}?"
+                                },
+                                color = Color.White.copy(alpha = 0.70f),
+                                style = MaterialTheme.typography.labelSmall,
+                                maxLines = 1
+                            )
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
 internal fun FullscreenVisualizationOverlay(
     isFullscreen: Boolean,
     onExitFullscreen: () -> Unit,
@@ -675,6 +766,11 @@ internal fun FullscreenVisualizationOverlay(
     onSelectVisualizationMode: (VisualizationMode) -> Unit = {},
     onVisualizerAction: () -> Unit = {},
     fullscreenModePref: VisualizationFullscreenMode,
+    hasReliableDuration: Boolean = true,
+    tickerEnabled: Boolean = false,
+    tickerDurationSeconds: Int = 5,
+    tickerTrackKey: String? = null,
+    tickerFormatLabel: String? = null,
     modifier: Modifier = Modifier
 ) {
     if (!isFullscreen) return
@@ -757,6 +853,21 @@ internal fun FullscreenVisualizationOverlay(
         Box(modifier = Modifier.fillMaxSize()) {
             visualizationContent()
         }
+
+        FullscreenTrackTicker(
+            trackKey = tickerTrackKey,
+            title = displayTitle,
+            artist = displayArtist,
+            formatLabel = tickerFormatLabel,
+            trackDurationSeconds = durationSeconds,
+            trackDurationReliable = hasReliableDuration,
+            holdSeconds = tickerDurationSeconds,
+            enabled = tickerEnabled && !isWatch,
+            modifier = Modifier
+                .align(Alignment.TopStart)
+                .statusBarsPadding()
+                .padding(12.dp)
+        )
 
         AnimatedVisibility(
             visible = controlsVisible,

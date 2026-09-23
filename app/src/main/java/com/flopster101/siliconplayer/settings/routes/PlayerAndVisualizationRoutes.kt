@@ -146,7 +146,8 @@ internal data class VisualizationRouteActions(
     val onVisualizationShowDebugInfoChanged: (Boolean) -> Unit,
     val onVisualizationKeepScreenOnChanged: (Boolean) -> Unit,
     val onOpenVisualizationBasic: () -> Unit,
-    val onOpenVisualizationAdvanced: () -> Unit
+    val onOpenVisualizationAdvanced: () -> Unit,
+    val onOpenVisualizationTrackTicker: () -> Unit
 )
 
 internal data class VisualizationBasicRouteActions(
@@ -493,6 +494,7 @@ internal fun VisualizationRouteContent(
     val onVisualizationKeepScreenOnChanged = actions.onVisualizationKeepScreenOnChanged
     val onOpenVisualizationBasic = actions.onOpenVisualizationBasic
     val onOpenVisualizationAdvanced = actions.onOpenVisualizationAdvanced
+    val onOpenVisualizationTrackTicker = actions.onOpenVisualizationTrackTicker
 
     val context = LocalContext.current
     var showModeDialog by remember { mutableStateOf(false) }
@@ -587,6 +589,15 @@ internal fun VisualizationRouteContent(
         description = "Configure Bars, Oscilloscope, and VU meters.",
         icon = Icons.Default.GraphicEq,
         onClick = onOpenVisualizationBasic
+    )
+    Spacer(modifier = Modifier.height(16.dp))
+    SettingsSectionLabel("Fullscreen")
+    SettingsRowSpacer()
+    SettingsItemCard(
+        title = "Track ticker",
+        description = "Show the new track's title, artist and format on song change in fullscreen.",
+        icon = Icons.Default.Fullscreen,
+        onClick = onOpenVisualizationTrackTicker
     )
     Spacer(modifier = Modifier.height(16.dp))
     SettingsSectionLabel("Advanced visualizations")
