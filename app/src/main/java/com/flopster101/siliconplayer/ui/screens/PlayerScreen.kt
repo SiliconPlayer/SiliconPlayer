@@ -2144,7 +2144,7 @@ internal fun PlayerScreen(
         onNextTrack = onNextTrack,
         canPreviousTrack = canPreviousTrack,
         canNextTrack = canNextTrack,
-        positionSeconds = positionSeconds,
+        positionSecondsProvider = stablePositionProvider,
         durationSeconds = durationSeconds,
         canSeek = canSeek && durationSeconds > 0.0,
         onSeek = onSeek,

@@ -390,13 +390,16 @@ internal fun FullscreenVisualizerSwitcher(
 
 @Composable
 private fun FullscreenSeekBar(
-    positionSeconds: Double,
+    positionSecondsProvider: () -> Double,
     durationSeconds: Double,
     canSeek: Boolean,
     onSeek: (Double) -> Unit,
     modifier: Modifier = Modifier
 ) {
     if (durationSeconds <= 0.0) return
+    // Read the live position here so only the seekbar scope recomposes on
+    // each position poll tick.
+    val positionSeconds = positionSecondsProvider()
     if (!canSeek) {
         val progress = (positionSeconds / durationSeconds).toFloat().coerceIn(0f, 1f)
         LinearProgressIndicator(
@@ -408,7 +411,7 @@ private fun FullscreenSeekBar(
         return
     }
 
-    var sliderPosition by remember(positionSeconds, durationSeconds) { mutableStateOf(positionSeconds) }
+    var sliderPosition by remember(durationSeconds) { mutableStateOf(positionSeconds) }
     var isSeeking by remember { mutableStateOf(false) }
     val displayPos = if (isSeeking) sliderPosition else positionSeconds
     LineageStyleSeekBar(
@@ -445,7 +448,7 @@ private fun FullscreenBottomControls(
     onNextTrack: () -> Unit,
     canPreviousTrack: Boolean,
     canNextTrack: Boolean,
-    positionSeconds: Double,
+    positionSecondsProvider: () -> Double,
     durationSeconds: Double,
     canSeek: Boolean,
     onSeek: (Double) -> Unit,
@@ -489,7 +492,7 @@ private fun FullscreenBottomControls(
                     modifier = Modifier.fillMaxWidth()
                 )
                 if (durationSeconds > 0.0) {
-                    val progress = (positionSeconds / durationSeconds).toFloat().coerceIn(0f, 1f)
+                    val progress = (positionSecondsProvider() / durationSeconds).toFloat().coerceIn(0f, 1f)
                     LinearProgressIndicator(
                         progress = { progress },
                         modifier = Modifier.fillMaxWidth().padding(top = 4.dp),
@@ -535,7 +538,7 @@ private fun FullscreenBottomControls(
                 }
                 Spacer(modifier = Modifier.height(8.dp))
                 FullscreenSeekBar(
-                    positionSeconds = positionSeconds,
+                    positionSecondsProvider = positionSecondsProvider,
                     durationSeconds = durationSeconds,
                     canSeek = canSeek,
                     onSeek = onSeek
@@ -575,7 +578,7 @@ internal fun FullscreenVisualizationOverlay(
     onNextTrack: () -> Unit,
     canPreviousTrack: Boolean,
     canNextTrack: Boolean,
-    positionSeconds: Double,
+    positionSecondsProvider: () -> Double,
     durationSeconds: Double,
     canSeek: Boolean = true,
     onSeek: (Double) -> Unit = {},
@@ -744,7 +747,7 @@ internal fun FullscreenVisualizationOverlay(
                             onNextTrack = onNextTrack,
                             canPreviousTrack = canPreviousTrack,
                             canNextTrack = canNextTrack,
-                            positionSeconds = positionSeconds,
+                            positionSecondsProvider = positionSecondsProvider,
                             durationSeconds = durationSeconds,
                             canSeek = canSeek,
                             onSeek = onSeek,
