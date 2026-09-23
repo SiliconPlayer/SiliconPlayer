@@ -998,7 +998,7 @@ private fun ChannelScopeTextOverlay(
         val vuStripHeightDp = with(LocalDensity.current) {
             floor(2.dp.toPx()).coerceAtLeast(1f).toDp()
         }
-        val selectedTextSizeSp = textSizeSp.coerceIn(6, 22)
+        val selectedTextSizeSp = textSizeSp.coerceIn(6, 32)
         val textFontFamily = remember(textFont) { resolveChannelScopeTextFontFamily(textFont) }
         val minimumAutoTextSizeSp = (selectedTextSizeSp - 6).coerceAtLeast(6)
         val effectiveTextSizeSp = computeAutoChannelScopeTextSizeSp(
@@ -1427,7 +1427,7 @@ private fun computeAutoChannelScopeTextSizeSp(
     showInstrument: Boolean,
     showSample: Boolean
 ): Int {
-    val selected = selectedTextSizeSp.coerceIn(6, 22)
+    val selected = selectedTextSizeSp.coerceIn(6, 32)
     val minimum = minimumTextSizeSp.coerceAtMost(selected).coerceAtLeast(6)
     val availableWidth = cellWidthDp.coerceAtLeast(0f)
     if (

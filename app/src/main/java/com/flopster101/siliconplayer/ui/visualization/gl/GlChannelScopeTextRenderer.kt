@@ -152,7 +152,7 @@ internal class GlChannelScopeTextRenderer(private val context: Context) {
         val density = frame.density.coerceAtLeast(1f)
         val cellWidthDp = cellWidth / density
         val paddingDp = (frame.paddingPx / density).coerceAtLeast(2f)
-        val selectedTextSizeSp = frame.textSizeSp.coerceIn(6, 22)
+        val selectedTextSizeSp = frame.textSizeSp.coerceIn(6, 32)
         val minimumAutoTextSizeSp = (selectedTextSizeSp - 6).coerceAtLeast(6)
         val effectSlotCount = listOf(frame.showEffectPrimary, frame.showEffectSecondary).count { it }
         val effectiveTextSizeSp = computeAutoChannelScopeTextSizeSp(
@@ -611,7 +611,7 @@ internal class GlChannelScopeTextRenderer(private val context: Context) {
         showInstrument: Boolean,
         showSample: Boolean
     ): Int {
-        val selected = selectedTextSizeSp.coerceIn(6, 22)
+        val selected = selectedTextSizeSp.coerceIn(6, 32)
         val minimum = minimumTextSizeSp.coerceAtMost(selected).coerceAtLeast(6)
         val availableWidth = cellWidthDp.coerceAtLeast(0f)
         if (

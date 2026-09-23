@@ -487,7 +487,7 @@ void ChannelScopeRenderer::drawText() {
     float cellH = static_cast<float>(heightPx_) / static_cast<float>(rows);
 
     float cellWidthDp = cellW / density_;
-    int selectedSp = std::clamp(textSizeSp_, 6, 22);
+    int selectedSp = std::clamp(textSizeSp_, 6, 32);
     int minSp = std::max(6, selectedSp - 6);
 
     // Fixed padding swallows narrow cells at high channel counts; cap it per axis.

@@ -1105,6 +1105,19 @@ internal fun PlayerScreen(
         channelScopePrefs.copy(gainPercent = effectiveChannelScopeGainPercent)
     }
     val configuration = LocalConfiguration.current
+    // Fullscreen stretches cells far beyond the player card; scale the labels
+    // up with the display so they stay readable.
+    val fullscreenChannelScopePrefs = remember(
+        effectiveChannelScopePrefs,
+        configuration.screenWidthDp,
+        configuration.screenHeightDp
+    ) {
+        val scale = (minOf(configuration.screenWidthDp, configuration.screenHeightDp) / 360f)
+            .coerceIn(1.2f, 2.0f)
+        effectiveChannelScopePrefs.copy(
+            textSizeSp = (effectiveChannelScopePrefs.textSizeSp * scale).roundToInt().coerceIn(6, 32)
+        )
+    }
     val density = LocalDensity.current
     val isLandscape = configuration.screenWidthDp > configuration.screenHeightDp
     val isTabletLike = configuration.smallestScreenWidthDp >= 600
@@ -2197,7 +2210,7 @@ internal fun PlayerScreen(
                 vuColorModeWithArtwork = visualizationPrefsState.vuColorModeWithArtwork,
                 vuCustomColorArgb = visualizationPrefsState.vuCustomColorArgb,
                 vuContrastBackdropEnabled = visualizationPrefsState.vuContrastBackdropEnabled,
-                channelScopePrefs = effectiveChannelScopePrefs,
+                channelScopePrefs = fullscreenChannelScopePrefs,
                 starfieldPrefs = starfieldPrefs,
                 artworkCornerRadiusDp = 0,
                 enableSwipe = false,
