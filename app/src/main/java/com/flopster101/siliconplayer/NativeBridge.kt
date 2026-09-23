@@ -82,30 +82,68 @@ object NativeBridge {
         forcedDecoderOneShot = decoderName
     }
 
+    // Crash guard: armed synchronously around every decoder load, so it only
+    // survives when the process died mid-load. A guarded path is skipped once
+    // instead of re-crashing on every auto-restore.
+    private fun crashGuardPrefs() = appContext?.getSharedPreferences(
+        AppPreferenceKeys.PREFS_NAME,
+        Context.MODE_PRIVATE
+    )
+
+    @JvmStatic
+    fun isLoadCrashGuarded(path: String): Boolean {
+        return crashGuardPrefs()?.getString(
+            AppPreferenceKeys.SESSION_LOAD_CRASH_GUARD_PATH,
+            null
+        ) == path
+    }
+
+    @JvmStatic
+    fun clearLoadCrashGuard() {
+        crashGuardPrefs()?.edit()
+            ?.remove(AppPreferenceKeys.SESSION_LOAD_CRASH_GUARD_PATH)
+            ?.apply()
+    }
+
+    private fun armLoadCrashGuard(path: String) {
+        crashGuardPrefs()?.edit()
+            ?.putString(AppPreferenceKeys.SESSION_LOAD_CRASH_GUARD_PATH, path)
+            ?.commit()
+    }
+
     fun replaceCurrentAudio(path: String) {
-        val forcedDecoder = forcedDecoderOneShot
-        forcedDecoderOneShot = null
-        cancelActiveSmbAvioHandles()
-        lastLoadedPath = path
-        if (forcedDecoder == null && PlatformDolbyPlayer.consumeHandoffIfMatches(path)) {
-            // Platform player already audible; reload the decoder only.
-            loadAudio(path)
-            PlatformDolbyPlayer.onNativeTrackLoaded(path)
-            shadowRenderActive = false
-            startShadowRenderIfEnabled()
+        if (isLoadCrashGuarded(path)) {
+            clearLoadCrashGuard()
             return
         }
-        PlatformDolbyPlayer.onNativeTrackUnloaded()
-        if (forcedDecoder != null) {
-            // Forced core takes over; disarm the armed platform handoff.
-            preparePlatformHandoff(null)
-            loadAudioWithDecoder(path, forcedDecoder)
-        } else {
-            loadAudio(path)
+        armLoadCrashGuard(path)
+        try {
+            val forcedDecoder = forcedDecoderOneShot
+            forcedDecoderOneShot = null
+            cancelActiveSmbAvioHandles()
+            lastLoadedPath = path
+            if (forcedDecoder == null && PlatformDolbyPlayer.consumeHandoffIfMatches(path)) {
+                // Platform player already audible; reload the decoder only.
+                loadAudio(path)
+                PlatformDolbyPlayer.onNativeTrackLoaded(path)
+                shadowRenderActive = false
+                startShadowRenderIfEnabled()
+                return
+            }
+            PlatformDolbyPlayer.onNativeTrackUnloaded()
+            if (forcedDecoder != null) {
+                // Forced core takes over; disarm the armed platform handoff.
+                preparePlatformHandoff(null)
+                loadAudioWithDecoder(path, forcedDecoder)
+            } else {
+                loadAudio(path)
+            }
+            // Probe after the decoder opens the file so the FFmpeg codec name
+            // reflects the NEW track.
+            PlatformDolbyPlayer.onNativeTrackLoaded(path)
+        } finally {
+            clearLoadCrashGuard()
         }
-        // Probe after the decoder opens the file so the FFmpeg codec name
-        // reflects the NEW track.
-        PlatformDolbyPlayer.onNativeTrackLoaded(path)
     }
 
     /** Gapless hint: platform core pre-prepares this track (null disarms). */

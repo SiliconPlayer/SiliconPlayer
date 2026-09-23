@@ -46,6 +46,7 @@ internal object AppPreferenceKeys {
     const val SESSION_CURRENT_REPEAT_MODE = "session_current_repeat_mode"
     const val SESSION_CURRENT_PATH = "session_current_path"
     const val SESSION_CURRENT_REQUEST_URL = "session_current_request_url"
+    const val SESSION_LOAD_CRASH_GUARD_PATH = "session_load_crash_guard_path"
     const val SESSION_REMOTE_PLAYABLE_SOURCE_IDS_JSON = "session_remote_playable_source_ids_json"
     const val SESSION_RESUME_SOURCE_ID = "session_resume_source_id"
     const val SESSION_RESUME_POSITION_SECONDS = "session_resume_position_seconds"

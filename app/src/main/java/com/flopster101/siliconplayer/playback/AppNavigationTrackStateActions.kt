@@ -355,6 +355,21 @@ internal suspend fun restorePlayerStateFromSessionAndNativeAction(
         rawSessionRequestUrl = prefs.getString(AppPreferenceKeys.SESSION_CURRENT_REQUEST_URL, null),
         cacheRoot = cacheRoot
     ) ?: return
+    val sourceScheme = Uri.parse(restoreTarget.sourceId).scheme?.lowercase(Locale.ROOT)
+    val restoreOpenPath = when (sourceScheme) {
+        "http", "https", "smb" -> restoreTarget.requestUrl
+        else -> restoreTarget.displayFile.absolutePath
+    }
+    if (!restoreOpenPath.isNullOrBlank() && NativeBridge.isLoadCrashGuarded(restoreOpenPath)) {
+        // Previous process died loading this track; drop the session instead
+        // of crashing again on every launch.
+        NativeBridge.clearLoadCrashGuard()
+        prefs.edit()
+            .remove(AppPreferenceKeys.SESSION_CURRENT_PATH)
+            .remove(AppPreferenceKeys.SESSION_CURRENT_REQUEST_URL)
+            .apply()
+        return
+    }
     val playlistContext = readSessionResumePlaylistContextForSource(prefs, restoreTarget.sourceId)
     onSelectedFileChanged(restoreTarget.displayFile)
     onCurrentPlaybackSourceIdChanged(restoreTarget.sourceId)
@@ -370,11 +385,6 @@ internal suspend fun restorePlayerStateFromSessionAndNativeAction(
         restoreTarget.sourceId,
         restoredPlaylistEntry?.subtuneIndex
     )
-    val sourceScheme = Uri.parse(restoreTarget.sourceId).scheme?.lowercase(Locale.ROOT)
-    val restoreOpenPath = when (sourceScheme) {
-        "http", "https", "smb" -> restoreTarget.requestUrl
-        else -> restoreTarget.displayFile.absolutePath
-    }
     val restoredContextualPlayableFiles = if (
         sourceScheme == "http" ||
         sourceScheme == "https" ||
