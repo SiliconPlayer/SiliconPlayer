@@ -1,5 +1,7 @@
 #include <jni.h>
+#include <android/log.h>
 #include <string>
+#include <exception>
 #include <cstdint>
 #include <cstring>
 #include <cmath>
@@ -14,6 +16,9 @@
 #include <mutex>
 static AudioEngine *audioEngine = nullptr;
 static std::mutex engineMutex;
+
+#define LOG_TAG "SiliconPlayerNative"
+#define LOGE(...) __android_log_print(ANDROID_LOG_ERROR, LOG_TAG, __VA_ARGS__)
 
 AudioEngine* getGlobalAudioEngine() {
     std::lock_guard<std::mutex> lock(engineMutex);
@@ -678,7 +683,15 @@ extern "C" JNIEXPORT void JNICALL
 Java_com_flopster101_siliconplayer_MainActivity_loadAudio(JNIEnv* env, jobject, jstring path) {
     ensureEngine();
     const char *nativePath = env->GetStringUTFChars(path, 0);
-    audioEngine->setUrl(nativePath);
+    // A decoder throwing (e.g. bad_alloc on a corrupt file) must not abort
+    // the process; a failed open leaves no decoder loaded.
+    try {
+        audioEngine->setUrl(nativePath);
+    } catch (const std::exception& e) {
+        LOGE("loadAudio: decoder threw: %s", e.what());
+    } catch (...) {
+        LOGE("loadAudio: decoder threw unknown exception");
+    }
     env->ReleaseStringUTFChars(path, nativePath);
 }
 
@@ -2334,7 +2347,13 @@ Java_com_flopster101_siliconplayer_NativeBridge_loadAudioWithDecoder(
     ensureEngine();
     const char* nativePath = env->GetStringUTFChars(path, 0);
     const char* nativeDecoder = env->GetStringUTFChars(decoderName, 0);
-    audioEngine->setUrl(nativePath, nativeDecoder);
+    try {
+        audioEngine->setUrl(nativePath, nativeDecoder);
+    } catch (const std::exception& e) {
+        LOGE("loadAudioWithDecoder: decoder threw: %s", e.what());
+    } catch (...) {
+        LOGE("loadAudioWithDecoder: decoder threw unknown exception");
+    }
     env->ReleaseStringUTFChars(decoderName, nativeDecoder);
     env->ReleaseStringUTFChars(path, nativePath);
 }

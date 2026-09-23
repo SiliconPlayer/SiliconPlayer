@@ -153,6 +153,11 @@ bool AyflyDecoder::createSongLocked(const char* path) {
     toggleChannelNames.assign(kChannelLabels, kChannelLabels + sourceChannels);
     toggleChannelMuted.assign(static_cast<size_t>(sourceChannels), 0);
     formatName = normalizeFormatName(ay_getsongformat(song));
+    if (formatName == "VTX" && lengthTicks == 0) {
+        // Corrupt VTX files are zeroed out at init; fail the open instead
+        // of loading a silent endless track.
+        return false;
+    }
     subsongCount = static_cast<int>(ay_getsubsongcount(song));
     currentSubsong = static_cast<int>(ay_getsubsong(song));
     if (subsongCount > 1) {
