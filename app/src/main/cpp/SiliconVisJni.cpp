@@ -489,6 +489,17 @@ Java_com_flopster101_siliconplayer_ui_visualization_gl_SiliconVisNativeBridge_na
 }
 
 JNIEXPORT void JNICALL
+Java_com_flopster101_siliconplayer_ui_visualization_gl_SiliconVisNativeBridge_nativeSetRenderTargetFbo(
+    JNIEnv* env,
+    jobject /* thiz */,
+    jlong handle,
+    jint fbo
+) {
+    if (!handle) return;
+    silicon_vis_set_render_target_fbo(reinterpret_cast<SiliconVisHandle>(handle), static_cast<uint32_t>(fbo));
+}
+
+JNIEXPORT void JNICALL
 Java_com_flopster101_siliconplayer_ui_visualization_gl_SiliconVisNativeBridge_nativeSetContrastScrim(
     JNIEnv* env,
     jobject /* thiz */,

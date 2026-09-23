@@ -586,10 +586,11 @@ internal class GlRoundedClipMask {
 }
 
 /**
- * Channel-scope track transition helper: copies each presented frame into a
- * texture so the previous song's layout can slide/fade out over the live new
- * one. glCopyTexSubImage2D reads the default framebuffer pre-swap; texcoords
- * are stored with v flipped so the snapshot draws upright.
+ * Channel-scope track transition helper: holds the previous song's last
+ * presented frame so it can slide/fade out over the live new one. The texture
+ * is adopted from the scene target by ownership — the per-frame
+ * glCopyTexSubImage2D this replaced leaked GPU memory on ANGLE/Vulkan.
+ * Texcoords are stored with v flipped so the snapshot draws upright.
  */
 internal class GlTransitionSnapshot {
     private var textureId = 0
@@ -613,30 +614,13 @@ internal class GlTransitionSnapshot {
         .order(ByteOrder.nativeOrder())
         .asFloatBuffer()
 
-    fun capture(width: Int, height: Int) {
-        if (width <= 0 || height <= 0) return
-        if (textureId == 0 || widthPx != width || heightPx != height) {
-            releaseTexture()
-            val ids = IntArray(1)
-            GLES20.glGenTextures(1, ids, 0)
-            textureId = ids[0]
-            if (textureId == 0) return
-            GLES20.glBindTexture(GLES20.GL_TEXTURE_2D, textureId)
-            GLES20.glTexParameteri(GLES20.GL_TEXTURE_2D, GLES20.GL_TEXTURE_MIN_FILTER, GLES20.GL_LINEAR)
-            GLES20.glTexParameteri(GLES20.GL_TEXTURE_2D, GLES20.GL_TEXTURE_MAG_FILTER, GLES20.GL_LINEAR)
-            GLES20.glTexParameteri(GLES20.GL_TEXTURE_2D, GLES20.GL_TEXTURE_WRAP_S, GLES20.GL_CLAMP_TO_EDGE)
-            GLES20.glTexParameteri(GLES20.GL_TEXTURE_2D, GLES20.GL_TEXTURE_WRAP_T, GLES20.GL_CLAMP_TO_EDGE)
-            GLES20.glTexImage2D(
-                GLES20.GL_TEXTURE_2D, 0, GLES20.GL_RGBA, width, height, 0,
-                GLES20.GL_RGBA, GLES20.GL_UNSIGNED_BYTE, null
-            )
-            widthPx = width
-            heightPx = height
-        } else {
-            GLES20.glBindTexture(GLES20.GL_TEXTURE_2D, textureId)
-        }
-        GLES20.glCopyTexSubImage2D(GLES20.GL_TEXTURE_2D, 0, 0, 0, 0, 0, width, height)
-        GLES20.glBindTexture(GLES20.GL_TEXTURE_2D, 0)
+    // Takes ownership of a texture holding the last presented frame; the
+    // caller must not use or delete it afterwards.
+    fun adopt(newTextureId: Int, width: Int, height: Int) {
+        releaseTexture()
+        textureId = newTextureId
+        widthPx = width
+        heightPx = height
     }
 
     fun draw(surfaceWidth: Int, surfaceHeight: Int, offsetXPx: Float, alpha: Float) {
@@ -770,5 +754,249 @@ internal class GlTransitionSnapshot {
                 gl_FragColor = vec4(tex.rgb, tex.a * uAlpha);
             }
         """
+    }
+}
+
+/**
+ * Fullscreen textured-quad blitter used to present the channel-scope scene
+ * target. Same v-flipped texcoord convention as the transition snapshot.
+ */
+internal class GlTextureBlitter {
+    private var program = 0
+    private var positionLoc = -1
+    private var texCoordLoc = -1
+    private var resolutionLoc = -1
+    private var offsetLoc = -1
+    private var alphaLoc = -1
+    private var samplerLoc = -1
+
+    private val quad: FloatBuffer = ByteBuffer
+        .allocateDirect(24 * Float.SIZE_BYTES)
+        .order(ByteOrder.nativeOrder())
+        .asFloatBuffer()
+
+    fun draw(textureId: Int, surfaceWidth: Int, surfaceHeight: Int, offsetXPx: Float, alpha: Float) {
+        if (textureId == 0 || alpha <= 0.001f) return
+        if (!ensureProgram()) return
+
+        val w = surfaceWidth.toFloat()
+        val h = surfaceHeight.toFloat()
+        // Positions in px, top-left origin; v flipped (source content is
+        // bottom-left origin).
+        val verts = floatArrayOf(
+            0f, 0f, 0f, 1f,
+            w, 0f, 1f, 1f,
+            0f, h, 0f, 0f,
+            w, 0f, 1f, 1f,
+            w, h, 1f, 0f,
+            0f, h, 0f, 0f
+        )
+        quad.clear()
+        quad.put(verts)
+        quad.position(0)
+
+        GLES20.glUseProgram(program)
+        GLES20.glDisable(GLES20.GL_SCISSOR_TEST)
+        GLES20.glUniform2f(resolutionLoc, w, h)
+        GLES20.glUniform1f(offsetLoc, offsetXPx)
+        GLES20.glUniform1f(alphaLoc, alpha.coerceIn(0f, 1f))
+        GLES20.glUniform1i(samplerLoc, 0)
+        GLES20.glActiveTexture(GLES20.GL_TEXTURE0)
+        GLES20.glBindTexture(GLES20.GL_TEXTURE_2D, textureId)
+        GLES20.glEnableVertexAttribArray(positionLoc)
+        GLES20.glVertexAttribPointer(positionLoc, 2, GLES20.GL_FLOAT, false, 16, quad)
+        quad.position(2)
+        GLES20.glEnableVertexAttribArray(texCoordLoc)
+        GLES20.glVertexAttribPointer(texCoordLoc, 2, GLES20.GL_FLOAT, false, 16, quad)
+        GLES20.glEnable(GLES20.GL_BLEND)
+        GLES20.glBlendFunc(GLES20.GL_SRC_ALPHA, GLES20.GL_ONE_MINUS_SRC_ALPHA)
+        GLES20.glDrawArrays(GLES20.GL_TRIANGLES, 0, 6)
+        GLES20.glDisable(GLES20.GL_BLEND)
+        GLES20.glDisableVertexAttribArray(positionLoc)
+        GLES20.glDisableVertexAttribArray(texCoordLoc)
+        GLES20.glBindTexture(GLES20.GL_TEXTURE_2D, 0)
+        GLES20.glUseProgram(0)
+    }
+
+    fun release() {
+        if (program != 0) {
+            GLES20.glDeleteProgram(program)
+            program = 0
+        }
+    }
+
+    private fun ensureProgram(): Boolean {
+        if (program != 0) return true
+        val vertexShader = compile(GLES20.GL_VERTEX_SHADER, VERTEX_SHADER)
+        val fragmentShader = compile(GLES20.GL_FRAGMENT_SHADER, FRAGMENT_SHADER)
+        if (vertexShader == 0 || fragmentShader == 0) {
+            if (vertexShader != 0) GLES20.glDeleteShader(vertexShader)
+            if (fragmentShader != 0) GLES20.glDeleteShader(fragmentShader)
+            return false
+        }
+        val created = GLES20.glCreateProgram()
+        GLES20.glAttachShader(created, vertexShader)
+        GLES20.glAttachShader(created, fragmentShader)
+        GLES20.glLinkProgram(created)
+        GLES20.glDeleteShader(vertexShader)
+        GLES20.glDeleteShader(fragmentShader)
+        val status = IntArray(1)
+        GLES20.glGetProgramiv(created, GLES20.GL_LINK_STATUS, status, 0)
+        if (status[0] == 0) {
+            GLES20.glDeleteProgram(created)
+            return false
+        }
+        positionLoc = GLES20.glGetAttribLocation(created, "aPosition")
+        texCoordLoc = GLES20.glGetAttribLocation(created, "aTexCoord")
+        resolutionLoc = GLES20.glGetUniformLocation(created, "uResolution")
+        offsetLoc = GLES20.glGetUniformLocation(created, "uOffsetX")
+        alphaLoc = GLES20.glGetUniformLocation(created, "uAlpha")
+        samplerLoc = GLES20.glGetUniformLocation(created, "uSampler")
+        program = created
+        return positionLoc >= 0 && texCoordLoc >= 0
+    }
+
+    private fun compile(type: Int, source: String): Int {
+        val shader = GLES20.glCreateShader(type)
+        if (shader == 0) return 0
+        GLES20.glShaderSource(shader, source)
+        GLES20.glCompileShader(shader)
+        val status = IntArray(1)
+        GLES20.glGetShaderiv(shader, GLES20.GL_COMPILE_STATUS, status, 0)
+        if (status[0] == 0) {
+            GLES20.glDeleteShader(shader)
+            return 0
+        }
+        return shader
+    }
+
+    private companion object {
+        const val VERTEX_SHADER = """
+            attribute vec2 aPosition;
+            attribute vec2 aTexCoord;
+            uniform vec2 uResolution;
+            uniform float uOffsetX;
+            varying vec2 vTexCoord;
+            void main() {
+                vec2 pos = aPosition + vec2(uOffsetX, 0.0);
+                vec2 zeroToOne = pos / uResolution;
+                vec2 clipSpace = zeroToOne * 2.0 - 1.0;
+                gl_Position = vec4(clipSpace.x, -clipSpace.y, 0.0, 1.0);
+                vTexCoord = aTexCoord;
+            }
+        """
+
+        const val FRAGMENT_SHADER = """
+            precision mediump float;
+            varying vec2 vTexCoord;
+            uniform sampler2D uSampler;
+            uniform float uAlpha;
+            void main() {
+                vec4 tex = texture2D(uSampler, vTexCoord);
+                gl_FragColor = vec4(tex.rgb, tex.a * uAlpha);
+            }
+        """
+    }
+}
+
+/**
+ * Offscreen color target the channel scope renders into while track
+ * transitions are enabled. On a track change the current texture is handed
+ * to the transition snapshot and a fresh one is attached, so the render
+ * thread never copies the framebuffer.
+ */
+internal class GlSceneTarget {
+    var fboId = 0
+        private set
+    var textureId = 0
+        private set
+    var widthPx = 0
+        private set
+    var heightPx = 0
+        private set
+
+    val hasContent: Boolean
+        get() = fboId != 0 && textureId != 0 && widthPx > 0 && heightPx > 0
+
+    fun ensure(width: Int, height: Int): Boolean {
+        if (width <= 0 || height <= 0) return false
+        if (hasContent && widthPx == width && heightPx == height) return true
+        release()
+        if (!attachFreshTexture(width, height)) return false
+        val fbos = IntArray(1)
+        GLES20.glGenFramebuffers(1, fbos, 0)
+        fboId = fbos[0]
+        if (fboId == 0) {
+            release()
+            return false
+        }
+        GLES20.glBindFramebuffer(GLES20.GL_FRAMEBUFFER, fboId)
+        GLES20.glFramebufferTexture2D(
+            GLES20.GL_FRAMEBUFFER, GLES20.GL_COLOR_ATTACHMENT0,
+            GLES20.GL_TEXTURE_2D, textureId, 0
+        )
+        val status = GLES20.glCheckFramebufferStatus(GLES20.GL_FRAMEBUFFER)
+        GLES20.glBindFramebuffer(GLES20.GL_FRAMEBUFFER, 0)
+        if (status != GLES20.GL_FRAMEBUFFER_COMPLETE) {
+            release()
+            return false
+        }
+        widthPx = width
+        heightPx = height
+        return true
+    }
+
+    fun bind() {
+        if (fboId != 0) GLES20.glBindFramebuffer(GLES20.GL_FRAMEBUFFER, fboId)
+    }
+
+    // Detaches the color texture and returns it (ownership moves to the
+    // caller); a fresh empty texture takes its place for the next frames.
+    fun takeTexture(): Int {
+        val taken = textureId
+        textureId = 0
+        if (fboId != 0 && widthPx > 0 && heightPx > 0) {
+            attachFreshTexture(widthPx, heightPx)
+            GLES20.glBindFramebuffer(GLES20.GL_FRAMEBUFFER, fboId)
+            // textureId is 0 on allocation failure: detach rather than leave
+            // the FBO referencing a texture the caller now owns.
+            GLES20.glFramebufferTexture2D(
+                GLES20.GL_FRAMEBUFFER, GLES20.GL_COLOR_ATTACHMENT0,
+                GLES20.GL_TEXTURE_2D, textureId, 0
+            )
+            GLES20.glBindFramebuffer(GLES20.GL_FRAMEBUFFER, 0)
+        }
+        return taken
+    }
+
+    fun release() {
+        if (textureId != 0) {
+            GLES20.glDeleteTextures(1, intArrayOf(textureId), 0)
+            textureId = 0
+        }
+        if (fboId != 0) {
+            GLES20.glDeleteFramebuffers(1, intArrayOf(fboId), 0)
+            fboId = 0
+        }
+        widthPx = 0
+        heightPx = 0
+    }
+
+    private fun attachFreshTexture(width: Int, height: Int): Boolean {
+        val ids = IntArray(1)
+        GLES20.glGenTextures(1, ids, 0)
+        textureId = ids[0]
+        if (textureId == 0) return false
+        GLES20.glBindTexture(GLES20.GL_TEXTURE_2D, textureId)
+        GLES20.glTexParameteri(GLES20.GL_TEXTURE_2D, GLES20.GL_TEXTURE_MIN_FILTER, GLES20.GL_LINEAR)
+        GLES20.glTexParameteri(GLES20.GL_TEXTURE_2D, GLES20.GL_TEXTURE_MAG_FILTER, GLES20.GL_LINEAR)
+        GLES20.glTexParameteri(GLES20.GL_TEXTURE_2D, GLES20.GL_TEXTURE_WRAP_S, GLES20.GL_CLAMP_TO_EDGE)
+        GLES20.glTexParameteri(GLES20.GL_TEXTURE_2D, GLES20.GL_TEXTURE_WRAP_T, GLES20.GL_CLAMP_TO_EDGE)
+        GLES20.glTexImage2D(
+            GLES20.GL_TEXTURE_2D, 0, GLES20.GL_RGBA, width, height, 0,
+            GLES20.GL_RGBA, GLES20.GL_UNSIGNED_BYTE, null
+        )
+        GLES20.glBindTexture(GLES20.GL_TEXTURE_2D, 0)
+        return true
     }
 }

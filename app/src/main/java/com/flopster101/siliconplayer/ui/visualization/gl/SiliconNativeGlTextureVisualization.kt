@@ -439,6 +439,8 @@ internal class SiliconNativeTextureRenderThread(
     private var lastRenderedTrackKey: String? = null
     private var forceRenderUntilNs = 0L
     private val transitionSnapshot = GlTransitionSnapshot()
+    private val sceneTarget = GlSceneTarget()
+    private val sceneBlitter = GlTextureBlitter()
     private var transitionActive = false
     private var transitionStartNs = 0L
     // Pending = holding the old song's frame until the new song's data shows.
@@ -675,7 +677,7 @@ internal class SiliconNativeTextureRenderThread(
         if (
             frame.mode == 4 &&
             frame.channelScopeTrackTransition != 0 &&
-            transitionSnapshot.hasContent
+            sceneTarget.hasContent
         ) {
             if (!transitionActive && !transitionPending && frameTrackKey != null) {
                 val dataFlipped = capturedSerial >= 0L && dataSerial != capturedSerial
@@ -684,6 +686,13 @@ internal class SiliconNativeTextureRenderThread(
                     transitionPendingSinceNs = trackDetectNowNs
                     pendingDataSerial = capturedSerial
                     forceRenderUntilNs = trackDetectNowNs + 1_600_000_000L
+                    // The scene texture holds the old song's last frame; the
+                    // snapshot takes it and the scene gets a fresh texture.
+                    transitionSnapshot.adopt(
+                        sceneTarget.takeTexture(),
+                        sceneTarget.widthPx,
+                        sceneTarget.heightPx
+                    )
                 }
             }
             if (transitionPending) {
@@ -1007,7 +1016,20 @@ internal class SiliconNativeTextureRenderThread(
                     }
 
                     // 4. Render
+                    // Channel scope renders into a scene texture while track
+                    // transitions are on: a track change hands its last frame
+                    // to the snapshot by ownership, because copying the
+                    // default framebuffer every frame leaks GPU memory on
+                    // ANGLE/Vulkan.
                     val drawStartNs = System.nanoTime()
+                    val sceneActive = frame.mode == 4 &&
+                        frame.channelScopeTrackTransition != 0 &&
+                        sceneTarget.ensure(state.width, state.height)
+                    SiliconVisNativeBridge.nativeSetRenderTargetFbo(
+                        visHandle,
+                        if (sceneActive) sceneTarget.fboId else 0
+                    )
+                    if (sceneActive) sceneTarget.bind()
                     SiliconVisNativeBridge.nativeRender(visHandle)
 
                     // 4b. Draw GL Channel Scope text directly in OpenGL ES (100% GLES, zero Compose overlays!)
@@ -1054,13 +1076,18 @@ internal class SiliconNativeTextureRenderThread(
                         }
                     }
 
+                    if (sceneActive) {
+                        GLES20.glBindFramebuffer(GLES20.GL_FRAMEBUFFER, 0)
+                        sceneBlitter.draw(sceneTarget.textureId, state.width, state.height, 0f, 1f)
+                    }
+
                     val drawEndNs = System.nanoTime()
                     val frameMs = ((drawEndNs - drawStartNs) / 1_000_000L).toInt().coerceAtLeast(0)
                     latestFrameMs = frameMs
                 }
 
-                // Channel-scope track transition: every presented frame is
-                // copied into a snapshot texture; on track change the previous
+                // Channel-scope track transition: on track change the scene
+                // target's texture becomes the previous song's snapshot, which
                 // song's layout slides/fades out over the live new one.
                 if (frame.mode == 4 && frame.channelScopeTrackTransition != 0) {
                     if (transitionActive) {
@@ -1100,13 +1127,12 @@ internal class SiliconNativeTextureRenderThread(
                             capturedSerial = dataSerial
                         }
                     } else {
-                        // Steady state: capture each presented frame and
-                        // remember which decoder generation it belongs to.
-                        // Skip while no track is loaded: engine teardown
-                        // would overwrite the snapshot with blank frames
-                        // right before a playlist/folder wrap.
+                        // Steady state: the scene texture already holds the
+                        // last frame, so only the decoder-generation tag
+                        // needs tracking. Skip tagging while no track is
+                        // loaded: teardown would arm a blank transition right
+                        // before a playlist/folder wrap.
                         if (frameTrackKey != null) {
-                            transitionSnapshot.capture(state.width, state.height)
                             capturedSerial = dataSerial
                         }
                     }
@@ -1228,6 +1254,8 @@ internal class SiliconNativeTextureRenderThread(
     private fun releaseEgl() {
         textRenderer.release()
         transitionSnapshot.release()
+        sceneTarget.release()
+        sceneBlitter.release()
         if (eglDisplay != EGL14.EGL_NO_DISPLAY) {
             EGL14.eglMakeCurrent(eglDisplay, EGL14.EGL_NO_SURFACE, EGL14.EGL_NO_SURFACE, EGL14.EGL_NO_CONTEXT)
             if (eglSurface != EGL14.EGL_NO_SURFACE) {

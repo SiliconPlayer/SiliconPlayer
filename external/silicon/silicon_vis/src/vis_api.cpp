@@ -88,6 +88,12 @@ void silicon_vis_set_contrast_mode(SiliconVisHandle handle, SiliconVisContrastMo
     pipeline->setContrastMode(contrastMode);
 }
 
+void silicon_vis_set_render_target_fbo(SiliconVisHandle handle, uint32_t fbo) {
+    if (!handle) return;
+    auto* pipeline = static_cast<SiliconVisPipeline*>(handle);
+    pipeline->setRenderTargetFbo(static_cast<GLuint>(fbo));
+}
+
 void silicon_vis_set_contrast_scrim(SiliconVisHandle handle, uint32_t argb) {
     if (!handle) return;
     auto* pipeline = static_cast<SiliconVisPipeline*>(handle);

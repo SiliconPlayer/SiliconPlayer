@@ -315,13 +315,13 @@ void SiliconVisPipeline::render() {
     }
 
     if (useMsaa) {
-        glBindFramebuffer(GL_DRAW_FRAMEBUFFER, 0);
+        glBindFramebuffer(GL_DRAW_FRAMEBUFFER, static_cast<GLuint>(targetFbo_));
         glBindFramebuffer(GL_READ_FRAMEBUFFER, msaaFbo_);
         glBlitFramebuffer(
                 0, 0, msaaWidth_, msaaHeight_,
                 0, 0, widthPx_, heightPx_,
                 GL_COLOR_BUFFER_BIT, GL_NEAREST);
-        glBindFramebuffer(GL_FRAMEBUFFER, 0);
+        glBindFramebuffer(GL_FRAMEBUFFER, static_cast<GLuint>(targetFbo_));
     }
 }
 

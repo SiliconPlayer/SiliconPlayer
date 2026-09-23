@@ -43,6 +43,9 @@ public:
     void setContrastScrim(uint32_t argb) { artworkRenderer_.setContrastScrim(argb); }
     void setShowArtworkBackground(bool show) { artworkRenderer_.setShowArtworkBackground(show); }
     void setBackdropMonochrome(bool enabled) { artworkRenderer_.setMonochromeTarget(enabled); }
+    // Offscreen FBO the frame resolves into instead of the window surface
+    // (0 = window). Hosts the channel-scope transition's scene texture.
+    void setRenderTargetFbo(GLuint fbo) { targetFbo_ = fbo; }
 
     // Font Atlas
     void setFontAtlas(
@@ -85,6 +88,7 @@ private:
     float density_ = 1.0f;
     bool glInitialized_ = false;
     float visualAlpha_ = 1.0f;
+    GLuint targetFbo_ = 0;
 
     // Multisampled offscreen target for the AA wave render mode. Only used
     // when the active renderer opts in; other modes render straight to the
