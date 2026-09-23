@@ -2324,6 +2324,37 @@ Java_com_flopster101_siliconplayer_NativeBridge_loadAudio(JNIEnv* env, jobject t
 }
 
 extern "C" JNIEXPORT void JNICALL
+Java_com_flopster101_siliconplayer_NativeBridge_loadAudioWithDecoder(
+        JNIEnv* env, jobject, jstring path, jstring decoderName) {
+    ensureEngine();
+    const char* nativePath = env->GetStringUTFChars(path, 0);
+    const char* nativeDecoder = env->GetStringUTFChars(decoderName, 0);
+    audioEngine->setUrl(nativePath, nativeDecoder);
+    env->ReleaseStringUTFChars(decoderName, nativeDecoder);
+    env->ReleaseStringUTFChars(path, nativePath);
+}
+
+extern "C" JNIEXPORT jobjectArray JNICALL
+Java_com_flopster101_siliconplayer_NativeBridge_getDecoderClaimantsForFile(
+        JNIEnv* env, jobject, jstring pathStr) {
+    if (pathStr == nullptr) {
+        return nullptr;
+    }
+    const char* path = env->GetStringUTFChars(pathStr, nullptr);
+    std::vector<std::string> claimants = DecoderRegistry::getInstance().getDecoderClaimants(path);
+    env->ReleaseStringUTFChars(pathStr, path);
+
+    jclass stringClass = env->FindClass("java/lang/String");
+    jobjectArray result = env->NewObjectArray(claimants.size(), stringClass, nullptr);
+    for (size_t i = 0; i < claimants.size(); ++i) {
+        jstring item = env->NewStringUTF(claimants[i].c_str());
+        env->SetObjectArrayElement(result, i, item);
+        env->DeleteLocalRef(item);
+    }
+    return result;
+}
+
+extern "C" JNIEXPORT void JNICALL
 Java_com_flopster101_siliconplayer_NativeBridge_setFastTrackSwitchStartupHint(
         JNIEnv*,
         jobject,

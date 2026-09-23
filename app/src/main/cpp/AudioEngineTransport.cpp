@@ -299,7 +299,7 @@ bool AudioEngine::isEnginePlaying() const {
     return isPlaying.load();
 }
 
-void AudioEngine::setUrl(const char* url) {
+void AudioEngine::setUrl(const char* url, const char* forcedDecoder) {
     std::lock_guard<std::mutex> lifecycleLock(lifecycleMutex);
     LOGD("URL set to: %s", url);
     std::string previousDecoderName;
@@ -349,7 +349,14 @@ void AudioEngine::setUrl(const char* url) {
         stopStreamAfterSeek.store(false);
     }
 
-    auto newDecoder = DecoderRegistry::getInstance().createDecoder(url);
+    std::unique_ptr<AudioDecoder> newDecoder;
+    if (forcedDecoder && forcedDecoder[0] != '\0' &&
+        DecoderRegistry::getInstance().isDecoderEnabled(forcedDecoder)) {
+        newDecoder = DecoderRegistry::getInstance().createDecoderByName(forcedDecoder);
+    }
+    if (!newDecoder) {
+        newDecoder = DecoderRegistry::getInstance().createDecoder(url);
+    }
     if (newDecoder) {
         const std::string newDecoderName = newDecoder->getName();
         fastTrackSwitchStartupHint.store(false, std::memory_order_relaxed);

@@ -3,8 +3,10 @@ package com.flopster101.siliconplayer.ui.screens
 import com.flopster101.siliconplayer.isRoundScreenCompat
 import com.flopster101.siliconplayer.StoredPlaylist
 import com.flopster101.siliconplayer.inferredDisplayTitleForName
+import com.flopster101.siliconplayer.isSupportedPlaylistFileName
 import com.flopster101.siliconplayer.ui.dialogs.AddToPlaylistChooserDialog
 import com.flopster101.siliconplayer.ui.dialogs.DirectoryTreeSheet
+import com.flopster101.siliconplayer.ui.dialogs.PlayWithDialog
 import android.app.ActivityManager
 import android.content.ClipData
 import android.content.ClipboardManager
@@ -48,6 +50,7 @@ import androidx.compose.material.icons.filled.FolderOpen
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.PlaylistAdd
+import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material.icons.filled.Photo
 import androidx.compose.material.icons.filled.Save
 import androidx.compose.material.icons.filled.Home
@@ -3145,6 +3148,21 @@ fun FileItemRow(
     val iconBoxSize = if (isWatch) 32.dp else FILE_ICON_BOX_SIZE
     val iconGlyphSize = if (isWatch) 16.dp else FILE_ICON_GLYPH_SIZE
     val chipCorner = if (isWatch) 8.dp else 11.dp
+    var showPlayWith by remember { mutableStateOf(false) }
+    val playWithPrefs = remember(context) {
+        context.getSharedPreferences(AppPreferenceKeys.PREFS_NAME, Context.MODE_PRIVATE)
+    }
+    if (showPlayWith) {
+        PlayWithDialog(
+            file = item.file,
+            prefs = playWithPrefs,
+            onPlay = {
+                showPlayWith = false
+                onClick()
+            },
+            onDismiss = { showPlayWith = false }
+        )
+    }
     // Cache per-row derived values that depend only on the FileItem identity.
     // Without these `remember`s, every row recomposition (e.g. when scroll
     // start/stop flips allowThumbnailPreviewLoads) re-ran filename parsing,
@@ -3541,6 +3559,32 @@ fun FileItemRow(
                             onClick()
                         }
                     )
+                    if (!item.isDirectory && !isVideoFile && !isSupportedPlaylistFileName(item.name)) {
+                        DropdownMenuItem(
+                            text = {
+                                Text(
+                                    text = "Play with...",
+                                    style = MaterialTheme.typography.bodyLarge
+                                )
+                            },
+                            leadingIcon = {
+                                Icon(
+                                    imageVector = Icons.Default.Tune,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(22.dp)
+                                )
+                            },
+                            contentPadding = PaddingValues(start = 14.dp, end = 18.dp),
+                            colors = MenuDefaults.itemColors(
+                                textColor = MaterialTheme.colorScheme.onSurface,
+                                leadingIconColor = MaterialTheme.colorScheme.onSurfaceVariant
+                            ),
+                            onClick = {
+                                menuExpanded = false
+                                showPlayWith = true
+                            }
+                        )
+                    }
                     if (onAddToPlaylist != null && !item.isDirectory && item.kind == FileItem.Kind.AudioFile) {
                         DropdownMenuItem(
                             text = {

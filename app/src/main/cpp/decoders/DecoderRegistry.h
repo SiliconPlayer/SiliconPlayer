@@ -46,6 +46,8 @@ public:
 
     std::unique_ptr<AudioDecoder> createDecoder(const char* path);
     std::unique_ptr<AudioDecoder> createDecoderByName(const std::string& name);
+    // Enabled decoders claiming the path's extensions, in pick order.
+    std::vector<std::string> getDecoderClaimants(const char* path);
 
     // List supported extensions (only from enabled decoders with enabled extensions)
     std::vector<std::string> getSupportedExtensions();

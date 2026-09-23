@@ -166,6 +166,13 @@ internal fun PlayerRouteContent(
     state: PlayerRouteState,
     actions: PlayerRouteActions
 ) {
+    val appContext = LocalContext.current
+    val appPrefs = remember(appContext) {
+        appContext.getSharedPreferences(AppPreferenceKeys.PREFS_NAME, android.content.Context.MODE_PRIVATE)
+    }
+    var playWithExternalOpenDialog by remember(appPrefs) {
+        mutableStateOf(appPrefs.getBoolean(AppPreferenceKeys.PLAY_WITH_EXTERNAL_OPEN_DIALOG, true))
+    }
     val unknownTrackDurationSeconds = state.unknownTrackDurationSeconds
     val onUnknownTrackDurationSecondsChanged = actions.onUnknownTrackDurationSecondsChanged
     val endFadeDurationMs = state.endFadeDurationMs
@@ -312,6 +319,18 @@ internal fun PlayerRouteContent(
         description = "Open full player when selecting a file. Disable to keep mini-player only.",
         checked = openPlayerOnTrackSelect,
         onCheckedChange = onOpenPlayerOnTrackSelectChanged
+    )
+    SettingsRowSpacer()
+    PlayerSettingToggleCard(
+        title = "Play with... on external open",
+        description = "Ask which core when a file is opened from another app. Off uses the winner core.",
+        checked = playWithExternalOpenDialog,
+        onCheckedChange = { enabled ->
+            playWithExternalOpenDialog = enabled
+            appPrefs.edit()
+                .putBoolean(AppPreferenceKeys.PLAY_WITH_EXTERNAL_OPEN_DIALOG, enabled)
+                .apply()
+        }
     )
     SettingsRowSpacer()
     PlayerSettingToggleCard(

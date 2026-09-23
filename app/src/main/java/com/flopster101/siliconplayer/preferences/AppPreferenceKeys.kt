@@ -3,6 +3,7 @@ package com.flopster101.siliconplayer
 internal object AppPreferenceKeys {
     const val PREFS_NAME = "silicon_player_settings"
     const val AUTO_PLAY_ON_TRACK_SELECT = "auto_play_on_track_select"
+    const val PLAY_WITH_EXTERNAL_OPEN_DIALOG = "play_with_external_open_dialog_enabled"
     const val OPEN_PLAYER_ON_TRACK_SELECT = "open_player_on_track_select"
     const val AUTO_PLAY_NEXT_TRACK_ON_END = "auto_play_next_track_on_end"
     const val PRELOAD_NEXT_CACHED_REMOTE_TRACK = "preload_next_cached_remote_track"

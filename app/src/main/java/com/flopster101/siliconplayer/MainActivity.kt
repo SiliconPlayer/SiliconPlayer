@@ -412,6 +412,8 @@ class MainActivity : ComponentActivity() {
         resolveInitialFileToOpen(this, intent)?.let { file ->
             initialFileToOpen = file
             initialFileFromExternalIntent = true
+            externalFileToOpen = file
+            externalFileSignal++
         }
     }
 
@@ -467,6 +469,11 @@ class MainActivity : ComponentActivity() {
 
     companion object {
         var notificationOpenPlayerSignal by mutableIntStateOf(0)
+
+        // singleTop VIEW intents arrive in onNewIntent after composition
+        // consumed the onCreate fields; push the file through here.
+        var externalFileSignal by mutableIntStateOf(0)
+        var externalFileToOpen: File? = null
 
         init {
             System.loadLibrary("siliconplayer")
@@ -1918,6 +1925,8 @@ private fun AppNavigation(
             prefs.getBoolean(AppPreferenceKeys.VISUALIZATION_KEEP_SCREEN_ON, AppDefaults.Visualization.keepScreenOn)
         )
     }
+    var decoderIconHintsVersion by remember { mutableIntStateOf(0) }
+
     androidx.compose.runtime.DisposableEffect(prefs) {
         val listener = android.content.SharedPreferences.OnSharedPreferenceChangeListener { _, key ->
             if (key == AppPreferenceKeys.VISUALIZATION_KEEP_SCREEN_ON) {
@@ -1927,6 +1936,9 @@ private fun AppNavigation(
                 if (updated != playlistLibraryState) {
                     playlistLibraryState = updated
                 }
+            } else if (key != null && key.startsWith("decoder_") && key.endsWith("_priority")) {
+                // Reorders move extension winners; refresh the icon hints.
+                decoderIconHintsVersion++
             }
         }
         prefs.registerOnSharedPreferenceChangeListener(listener)
@@ -2431,7 +2443,6 @@ private fun AppNavigation(
             nameSortMode = browserNameSortMode
         )
     }
-    var decoderIconHintsVersion by remember { mutableIntStateOf(0) }
     val decoderExtensionArtworkHints by produceState<Map<String, DecoderArtworkHint>>(
         initialValue = emptyMap(),
         key1 = decoderIconHintsVersion

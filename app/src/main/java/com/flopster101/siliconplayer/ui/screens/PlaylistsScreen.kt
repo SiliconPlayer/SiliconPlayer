@@ -49,6 +49,7 @@ import com.flopster101.siliconplayer.ui.dialogs.ColorPickerDialog
 import com.flopster101.siliconplayer.isSupportedPlaylistFile
 import com.flopster101.siliconplayer.ParsedPlaylistDocument
 import com.flopster101.siliconplayer.ui.dialogs.FilePickerChoiceSheet
+import com.flopster101.siliconplayer.ui.dialogs.PlayWithDialog
 import com.flopster101.siliconplayer.ui.dialogs.StorageFilePickerSheet
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.FastOutLinearInEasing
@@ -7233,6 +7234,22 @@ private fun PlaylistTrackRow(
     val isRemoteSource = remember(entry.source) { isRemotePlaylistSource(entry.source) }
     val localEntryFile = remember(entry.source) { resolvePlaylistEntryLocalFile(entry.source) }
     val canOpenLocalLocation = localEntryFile?.exists() == true
+    var showPlayWith by rememberSaveable(entry.id) { mutableStateOf(false) }
+    val playWithContext = LocalContext.current
+    val playWithPrefs = remember(playWithContext) {
+        playWithContext.getSharedPreferences(AppPreferenceKeys.PREFS_NAME, Context.MODE_PRIVATE)
+    }
+    if (showPlayWith) {
+        PlayWithDialog(
+            file = localEntryFile ?: File(entry.source),
+            prefs = playWithPrefs,
+            onPlay = {
+                showPlayWith = false
+                onPlay()
+            },
+            onDismiss = { showPlayWith = false }
+        )
+    }
 
     if (isWatch) {
         Row(
@@ -7610,6 +7627,30 @@ private fun PlaylistTrackRow(
                             onClick = {
                                 menuExpanded = false
                                 onPlay()
+                            }
+                        )
+                        DropdownMenuItem(
+                            text = {
+                                Text(
+                                    text = "Play with...",
+                                    style = MaterialTheme.typography.bodyLarge
+                                )
+                            },
+                            leadingIcon = {
+                                Icon(
+                                    imageVector = Icons.Default.Tune,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(22.dp)
+                                )
+                            },
+                            contentPadding = PaddingValues(start = 14.dp, end = 18.dp),
+                            colors = MenuDefaults.itemColors(
+                                textColor = MaterialTheme.colorScheme.onSurface,
+                                leadingIconColor = MaterialTheme.colorScheme.onSurfaceVariant
+                            ),
+                            onClick = {
+                                menuExpanded = false
+                                showPlayWith = true
                             }
                         )
                         if (showPlayAsCachedAction && isRemoteSource) {

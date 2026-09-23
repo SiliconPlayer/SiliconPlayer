@@ -52,6 +52,7 @@ import androidx.compose.material.icons.filled.Link
 import androidx.compose.material.icons.filled.MoreHoriz
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.PlaylistAdd
+import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material.icons.filled.Save
 import androidx.compose.material.icons.filled.VideoFile
 import androidx.compose.material.icons.filled.Visibility
@@ -110,6 +111,7 @@ import com.flopster101.siliconplayer.RecentPathEntry
 import com.flopster101.siliconplayer.StoredPlaylist
 import com.flopster101.siliconplayer.NetworkNode
 import com.flopster101.siliconplayer.ui.dialogs.AddToPlaylistChooserDialog
+import com.flopster101.siliconplayer.ui.dialogs.PlayWithDialog
 import com.flopster101.siliconplayer.ManualSmbAuthCoordinator
 import com.flopster101.siliconplayer.buildHttpDisplayUri
 import com.flopster101.siliconplayer.buildHttpRequestUri
@@ -2248,6 +2250,25 @@ private fun HttpEntryRow(
     )
     val isArchive = browserArchiveCapabilityForName(entry.name) != BrowserArchiveCapability.None
     val treatAsContainer = entry.isDirectory || isArchive
+    val playWithContext = LocalContext.current
+    var showPlayWith by remember { mutableStateOf(false) }
+    val playWithPrefs = remember(playWithContext) {
+        playWithContext.getSharedPreferences(
+            AppPreferenceKeys.PREFS_NAME,
+            android.content.Context.MODE_PRIVATE
+        )
+    }
+    if (showPlayWith) {
+        PlayWithDialog(
+            file = File(entry.name),
+            prefs = playWithPrefs,
+            onPlay = {
+                showPlayWith = false
+                onClick()
+            },
+            onDismiss = { showPlayWith = false }
+        )
+    }
     val selectionShape = if (isWatch) {
         RoundedCornerShape(14.dp)
     } else {
@@ -2395,6 +2416,32 @@ private fun HttpEntryRow(
                             onClick()
                         }
                     )
+                    if (!treatAsContainer && !isSupportedPlaylistFileName(entry.name)) {
+                        DropdownMenuItem(
+                            text = {
+                                Text(
+                                    text = "Play with...",
+                                    style = MaterialTheme.typography.bodyLarge
+                                )
+                            },
+                            leadingIcon = {
+                                Icon(
+                                    imageVector = Icons.Default.Tune,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(22.dp)
+                                )
+                            },
+                            contentPadding = PaddingValues(start = 14.dp, end = 18.dp),
+                            colors = MenuDefaults.itemColors(
+                                textColor = MaterialTheme.colorScheme.onSurface,
+                                leadingIconColor = MaterialTheme.colorScheme.onSurfaceVariant
+                            ),
+                            onClick = {
+                                menuExpanded = false
+                                showPlayWith = true
+                            }
+                        )
+                    }
                     if (onAddToPlaylist != null && !treatAsContainer) {
                         DropdownMenuItem(
                             text = {

@@ -68,15 +68,26 @@ object NativeBridge {
 
     external fun reconfigureStream(resumePlayback: Boolean = true)
     external fun loadAudio(path: String)
+    external fun loadAudioWithDecoder(path: String, decoderName: String)
 
     // Path of the track currently loaded in the native decoder; used to
     // re-arm the platform core when transport starts without a fresh load.
     private var lastLoadedPath: String? = null
 
+    // One-shot core override, consumed by the next replaceCurrentAudio.
+    @Volatile
+    private var forcedDecoderOneShot: String? = null
+
+    fun prioritizeNextOpenWith(decoderName: String) {
+        forcedDecoderOneShot = decoderName
+    }
+
     fun replaceCurrentAudio(path: String) {
+        val forcedDecoder = forcedDecoderOneShot
+        forcedDecoderOneShot = null
         cancelActiveSmbAvioHandles()
         lastLoadedPath = path
-        if (PlatformDolbyPlayer.consumeHandoffIfMatches(path)) {
+        if (forcedDecoder == null && PlatformDolbyPlayer.consumeHandoffIfMatches(path)) {
             // Platform player already audible; reload the decoder only.
             loadAudio(path)
             PlatformDolbyPlayer.onNativeTrackLoaded(path)
@@ -85,7 +96,13 @@ object NativeBridge {
             return
         }
         PlatformDolbyPlayer.onNativeTrackUnloaded()
-        loadAudio(path)
+        if (forcedDecoder != null) {
+            // Forced core takes over; disarm the armed platform handoff.
+            preparePlatformHandoff(null)
+            loadAudioWithDecoder(path, forcedDecoder)
+        } else {
+            loadAudio(path)
+        }
         // Probe after the decoder opens the file so the FFmpeg codec name
         // reflects the NEW track.
         PlatformDolbyPlayer.onNativeTrackLoaded(path)
@@ -605,6 +622,7 @@ object NativeBridge {
 
     // Decoder Registry management methods
     external fun getRegisteredDecoderNames(): Array<String>
+    external fun getDecoderClaimantsForFile(path: String): Array<String>
     external fun setDecoderEnabled(decoderName: String, enabled: Boolean)
     external fun isDecoderEnabled(decoderName: String): Boolean
     external fun setDecoderPriority(decoderName: String, priority: Int)

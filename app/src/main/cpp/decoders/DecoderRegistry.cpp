@@ -142,6 +142,21 @@ std::unique_ptr<AudioDecoder> DecoderRegistry::createDecoderByName(const std::st
     return nullptr;
 }
 
+std::vector<std::string> DecoderRegistry::getDecoderClaimants(const char* path) {
+    if (!path) return {};
+    const std::vector<std::string> extensionCandidates = buildExtensionCandidates(path);
+    std::vector<std::string> claimants;
+    std::unordered_set<std::string> seen;
+    for (const auto& extension : extensionCandidates) {
+        for (const auto& info : decoders) {
+            if (!info.enabled) continue;
+            if (!decoderSupportsExtension(info, extension)) continue;
+            if (seen.insert(info.name).second) claimants.push_back(info.name);
+        }
+    }
+    return claimants;
+}
+
 std::vector<std::string> DecoderRegistry::getSupportedExtensions() {
     std::vector<std::string> allExtensions;
     for (const auto& info : decoders) {

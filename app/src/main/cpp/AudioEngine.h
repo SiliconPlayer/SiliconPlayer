@@ -35,7 +35,7 @@ public:
     void releaseCurrentDecoder();
     bool isEnginePlaying() const;
     void restart();
-    void setUrl(const char* url);
+    void setUrl(const char* url, const char* forcedDecoder = nullptr);
     double getDurationSeconds();
     double getPositionSeconds();
     void seekToSeconds(double seconds);
