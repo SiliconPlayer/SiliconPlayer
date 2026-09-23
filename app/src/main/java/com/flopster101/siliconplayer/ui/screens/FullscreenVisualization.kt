@@ -27,6 +27,7 @@ import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -67,6 +68,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalConfiguration
@@ -85,6 +87,13 @@ import com.flopster101.siliconplayer.resolveEffectiveVisualizationFullscreenMode
 import kotlinx.coroutines.delay
 
 private val FullscreenScrim = Color.Black.copy(alpha = 0.28f)
+// Steep ramp: the band's first content sits right at its top edge, so the
+// gradient must reach a legible alpha within the first third.
+private val FullscreenBottomScrimBrush = Brush.verticalGradient(
+    0.0f to Color.Transparent,
+    0.3f to Color.Black.copy(alpha = 0.38f),
+    1.0f to Color.Black.copy(alpha = 0.65f)
+)
 
 private fun visualizationModeIcon(mode: VisualizationMode): ImageVector {
     return when (mode) {
@@ -414,27 +423,45 @@ private fun FullscreenSeekBar(
     var sliderPosition by remember(durationSeconds) { mutableStateOf(positionSeconds) }
     var isSeeking by remember { mutableStateOf(false) }
     val displayPos = if (isSeeking) sliderPosition else positionSeconds
-    LineageStyleSeekBar(
-        value = displayPos.toFloat(),
-        maxValue = durationSeconds.toFloat(),
-        enabled = true,
-        seekInProgress = isSeeking,
-        layoutScale = 0.9f,
-        activeColor = Color.White,
-        inactiveColor = Color.White.copy(alpha = 0.30f),
-        thumbColor = Color.White,
-        forceMonochromeWhite = true,
-        onSeekInteractionChanged = {},
-        onValueChange = { v ->
-            isSeeking = true
-            sliderPosition = v.toDouble()
-        },
-        onValueChangeFinished = {
-            isSeeking = false
-            onSeek(sliderPosition)
-        },
-        modifier = modifier.fillMaxWidth().height(36.dp)
-    )
+    Row(
+        modifier = modifier.fillMaxWidth(),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Text(
+            text = formatTime(displayPos),
+            color = Color.White.copy(alpha = 0.80f),
+            style = MaterialTheme.typography.labelSmall
+        )
+        LineageStyleSeekBar(
+            value = displayPos.toFloat(),
+            maxValue = durationSeconds.toFloat(),
+            enabled = true,
+            seekInProgress = isSeeking,
+            layoutScale = 0.9f,
+            activeColor = Color.White,
+            inactiveColor = Color.White.copy(alpha = 0.30f),
+            thumbColor = Color.White,
+            forceMonochromeWhite = true,
+            onSeekInteractionChanged = {},
+            onValueChange = { v ->
+                isSeeking = true
+                sliderPosition = v.toDouble()
+            },
+            onValueChangeFinished = {
+                isSeeking = false
+                onSeek(sliderPosition)
+            },
+            modifier = Modifier
+                .weight(1f)
+                .padding(horizontal = 12.dp)
+                .height(36.dp)
+        )
+        Text(
+            text = formatTime(durationSeconds),
+            color = Color.White.copy(alpha = 0.80f),
+            style = MaterialTheme.typography.labelSmall
+        )
+    }
 }
 
 @Composable
@@ -456,11 +483,12 @@ private fun FullscreenBottomControls(
     onStopAndClear: () -> Unit,
     onCycleRepeatMode: () -> Unit,
     canCycleRepeatMode: Boolean,
-    effectiveMode: VisualizationFullscreenMode
+    effectiveMode: VisualizationFullscreenMode,
+    switcherContent: (@Composable () -> Unit)? = null
 ) {
     val scrimModifier = Modifier
         .fillMaxWidth()
-        .background(FullscreenScrim)
+        .background(FullscreenBottomScrimBrush)
         .navigationBarsPadding()
         .padding(horizontal = 16.dp, vertical = 12.dp)
 
@@ -473,6 +501,14 @@ private fun FullscreenBottomControls(
                 horizontalAlignment = Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
+                if (switcherContent != null) {
+                    Box(
+                        modifier = Modifier.fillMaxWidth(),
+                        contentAlignment = Alignment.CenterStart
+                    ) {
+                        switcherContent()
+                    }
+                }
                 Text(
                     text = if (displayArtist.isNotBlank()) "$displayArtist — $displayTitle" else displayTitle,
                     color = Color.White,
@@ -509,15 +545,62 @@ private fun FullscreenBottomControls(
                 modifier = scrimModifier,
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
+                if (switcherContent != null) {
+                    Box(
+                        modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp),
+                        contentAlignment = if (isLandscape) Alignment.CenterStart else Alignment.Center
+                    ) {
+                        switcherContent()
+                    }
+                }
                 if (isLandscape) {
-                    Text(
-                        text = if (displayArtist.isNotBlank()) "$displayArtist — $displayTitle" else displayTitle,
-                        color = Color.White,
-                        style = MaterialTheme.typography.titleSmall,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                        modifier = Modifier.fillMaxWidth()
+                    // Wide screens: seekbar on top, then metadata opposite the
+                    // transport so the band stays one row shorter.
+                    FullscreenSeekBar(
+                        positionSecondsProvider = positionSecondsProvider,
+                        durationSeconds = durationSeconds,
+                        canSeek = canSeek,
+                        onSeek = onSeek
                     )
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = displayTitle,
+                                color = Color.White,
+                                style = MaterialTheme.typography.titleMedium,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                            if (displayArtist.isNotBlank()) {
+                                Text(
+                                    text = displayArtist,
+                                    color = Color.White.copy(alpha = 0.80f),
+                                    style = MaterialTheme.typography.bodySmall,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
+                                )
+                            }
+                        }
+                        Spacer(modifier = Modifier.width(16.dp))
+                        FullscreenTransportControls(
+                            isPlaying = isPlaying,
+                            onPlay = onPlay,
+                            onPause = onPause,
+                            onPreviousTrack = onPreviousTrack,
+                            onNextTrack = onNextTrack,
+                            canPreviousTrack = canPreviousTrack,
+                            canNextTrack = canNextTrack,
+                            showExtras = true,
+                            repeatMode = repeatMode,
+                            onStopAndClear = onStopAndClear,
+                            onCycleRepeatMode = onCycleRepeatMode,
+                            canCycleRepeatMode = canCycleRepeatMode
+                        )
+                    }
                 } else {
                     Text(
                         text = displayTitle,
@@ -535,30 +618,30 @@ private fun FullscreenBottomControls(
                             overflow = TextOverflow.Ellipsis
                         )
                     }
+                    Spacer(modifier = Modifier.height(8.dp))
+                    FullscreenSeekBar(
+                        positionSecondsProvider = positionSecondsProvider,
+                        durationSeconds = durationSeconds,
+                        canSeek = canSeek,
+                        onSeek = onSeek
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+                    FullscreenTransportControls(
+                        isPlaying = isPlaying,
+                        onPlay = onPlay,
+                        onPause = onPause,
+                        onPreviousTrack = onPreviousTrack,
+                        onNextTrack = onNextTrack,
+                        canPreviousTrack = canPreviousTrack,
+                        canNextTrack = canNextTrack,
+                        modifier = Modifier.fillMaxWidth(),
+                        showExtras = true,
+                        repeatMode = repeatMode,
+                        onStopAndClear = onStopAndClear,
+                        onCycleRepeatMode = onCycleRepeatMode,
+                        canCycleRepeatMode = canCycleRepeatMode
+                    )
                 }
-                Spacer(modifier = Modifier.height(8.dp))
-                FullscreenSeekBar(
-                    positionSecondsProvider = positionSecondsProvider,
-                    durationSeconds = durationSeconds,
-                    canSeek = canSeek,
-                    onSeek = onSeek
-                )
-                Spacer(modifier = Modifier.height(8.dp))
-                FullscreenTransportControls(
-                    isPlaying = isPlaying,
-                    onPlay = onPlay,
-                    onPause = onPause,
-                    onPreviousTrack = onPreviousTrack,
-                    onNextTrack = onNextTrack,
-                    canPreviousTrack = canPreviousTrack,
-                    canNextTrack = canNextTrack,
-                    modifier = Modifier.fillMaxWidth(),
-                    showExtras = true,
-                    repeatMode = repeatMode,
-                    onStopAndClear = onStopAndClear,
-                    onCycleRepeatMode = onCycleRepeatMode,
-                    canCycleRepeatMode = canCycleRepeatMode
-                )
             }
         }
     }
@@ -716,48 +799,44 @@ internal fun FullscreenVisualizationOverlay(
                         canNextTrack = canNextTrack,
                         modifier = Modifier
                             .fillMaxWidth()
-                            .background(FullscreenScrim)
+                            .background(FullscreenBottomScrimBrush)
                             .navigationBarsPadding()
                             .padding(horizontal = 12.dp, vertical = 10.dp)
                     )
                 }
                 VisualizationFullscreenMode.Compact,
                 VisualizationFullscreenMode.Complete -> {
-                    Column(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalAlignment = Alignment.CenterHorizontally
-                    ) {
-                        FullscreenVisualizerSwitcher(
-                            visualizationMode = visualizationMode,
-                            availableVisualizationModes = availableVisualizationModes,
-                            onCycleVisualizationMode = onCycleVisualizationMode,
-                            onSelectVisualizationMode = onSelectVisualizationMode,
-                            onVisualizerAction = onVisualizerAction,
-                            onInteraction = { controlsInteractionTick++ },
-                            compact = effectiveMode == VisualizationFullscreenMode.Compact,
-                            modifier = Modifier.padding(bottom = 12.dp)
-                        )
-                        FullscreenBottomControls(
-                            displayTitle = displayTitle,
-                            displayArtist = displayArtist,
-                            isPlaying = isPlaying,
-                            onPlay = onPlay,
-                            onPause = onPause,
-                            onPreviousTrack = onPreviousTrack,
-                            onNextTrack = onNextTrack,
-                            canPreviousTrack = canPreviousTrack,
-                            canNextTrack = canNextTrack,
-                            positionSecondsProvider = positionSecondsProvider,
-                            durationSeconds = durationSeconds,
-                            canSeek = canSeek,
-                            onSeek = onSeek,
-                            repeatMode = repeatMode,
-                            onStopAndClear = onStopAndClear,
-                            onCycleRepeatMode = onCycleRepeatMode,
-                            canCycleRepeatMode = canCycleRepeatMode,
-                            effectiveMode = effectiveMode
-                        )
-                    }
+                    FullscreenBottomControls(
+                        displayTitle = displayTitle,
+                        displayArtist = displayArtist,
+                        isPlaying = isPlaying,
+                        onPlay = onPlay,
+                        onPause = onPause,
+                        onPreviousTrack = onPreviousTrack,
+                        onNextTrack = onNextTrack,
+                        canPreviousTrack = canPreviousTrack,
+                        canNextTrack = canNextTrack,
+                        positionSecondsProvider = positionSecondsProvider,
+                        durationSeconds = durationSeconds,
+                        canSeek = canSeek,
+                        onSeek = onSeek,
+                        repeatMode = repeatMode,
+                        onStopAndClear = onStopAndClear,
+                        onCycleRepeatMode = onCycleRepeatMode,
+                        canCycleRepeatMode = canCycleRepeatMode,
+                        effectiveMode = effectiveMode,
+                        switcherContent = {
+                            FullscreenVisualizerSwitcher(
+                                visualizationMode = visualizationMode,
+                                availableVisualizationModes = availableVisualizationModes,
+                                onCycleVisualizationMode = onCycleVisualizationMode,
+                                onSelectVisualizationMode = onSelectVisualizationMode,
+                                onVisualizerAction = onVisualizerAction,
+                                onInteraction = { controlsInteractionTick++ },
+                                compact = effectiveMode == VisualizationFullscreenMode.Compact
+                            )
+                        }
+                    )
                 }
             }
         }
