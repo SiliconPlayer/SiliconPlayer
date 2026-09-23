@@ -100,6 +100,12 @@ void silicon_vis_set_show_artwork_background(SiliconVisHandle handle, bool show)
     pipeline->setShowArtworkBackground(show);
 }
 
+void silicon_vis_set_backdrop_monochrome(SiliconVisHandle handle, bool enabled) {
+    if (!handle) return;
+    auto* pipeline = static_cast<SiliconVisPipeline*>(handle);
+    pipeline->setBackdropMonochrome(enabled);
+}
+
 void silicon_vis_set_visual_alpha(SiliconVisHandle handle, float alpha) {
     if (!handle) return;
     auto* pipeline = static_cast<SiliconVisPipeline*>(handle);

@@ -179,6 +179,7 @@ fun BasicVisualizationOverlay(
     starfieldReactSpeed: Float = 0.6f,
     starfieldFlash: Float = 0.1f,
     starfieldContrastBackdropEnabled: Boolean = true,
+    starfieldMonochromeBackdrop: Boolean = true,
     // A SurfaceView is its own layer, so the artwork card's Compose clip does
     // not reach it; the backend masks its corners in GL instead.
     visCornerRadiusDp: Int = 0,
@@ -664,6 +665,7 @@ fun BasicVisualizationOverlay(
                 contrastMode = if (starfieldContrastBackdropEnabled) 7 else 0,
                 contrastScrimColorArgb = 0xFF000000.toInt(),
                 showArtworkBackground = true,
+                monochromeBackdrop = starfieldMonochromeBackdrop && isPlaying,
                 visualAlpha = starfieldAlpha,
                 starfieldStarCount = starfieldStarCount,
                 starfieldSpeed = starfieldSpeed,

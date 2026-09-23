@@ -517,6 +517,20 @@ Java_com_flopster101_siliconplayer_ui_visualization_gl_SiliconVisNativeBridge_na
 }
 
 JNIEXPORT void JNICALL
+Java_com_flopster101_siliconplayer_ui_visualization_gl_SiliconVisNativeBridge_nativeSetBackdropMonochrome(
+    JNIEnv* env,
+    jobject /* thiz */,
+    jlong handle,
+    jboolean enabled
+) {
+    if (!handle) return;
+    silicon_vis_set_backdrop_monochrome(
+        reinterpret_cast<SiliconVisHandle>(handle),
+        enabled ? true : false
+    );
+}
+
+JNIEXPORT void JNICALL
 Java_com_flopster101_siliconplayer_ui_visualization_gl_SiliconVisNativeBridge_nativePushPcm(
     JNIEnv* env,
     jobject /* thiz */,

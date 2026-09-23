@@ -101,6 +101,7 @@ data class SiliconNativeGlFrame(
     val artworkBitmap: Bitmap? = null,
     val placeholderIconResId: Int = 0,
     val showArtworkBackground: Boolean = true,
+    val monochromeBackdrop: Boolean = false,
     val visualAlpha: Float = 1f,
     val primaryColorArgb: Int = 0xFFFFFFFF.toInt(),
     val surfaceColorArgb: Int = 0xFF121212.toInt(),
@@ -654,6 +655,7 @@ internal class SiliconNativeTextureRenderThread(
                     SiliconVisNativeBridge.nativeSetContrastMode(visHandle, frame.contrastMode)
                     SiliconVisNativeBridge.nativeSetContrastScrim(visHandle, frame.contrastScrimColorArgb)
                     SiliconVisNativeBridge.nativeSetShowArtworkBackground(visHandle, frame.showArtworkBackground)
+                    SiliconVisNativeBridge.nativeSetBackdropMonochrome(visHandle, frame.monochromeBackdrop)
                     SiliconVisNativeBridge.nativeSetVisualAlpha(visHandle, frame.visualAlpha)
 
                     if (frame.mode == 100 && !projectMAttached) {

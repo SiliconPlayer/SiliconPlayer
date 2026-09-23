@@ -48,6 +48,8 @@ SILICON_VIS_API void silicon_vis_set_artwork_theme(SiliconVisHandle handle, uint
 SILICON_VIS_API void silicon_vis_set_contrast_mode(SiliconVisHandle handle, SiliconVisContrastMode contrastMode);
 SILICON_VIS_API void silicon_vis_set_contrast_scrim(SiliconVisHandle handle, uint32_t argb);
 SILICON_VIS_API void silicon_vis_set_show_artwork_background(SiliconVisHandle handle, bool show);
+// Target state for the monochrome fallback backdrop; the renderer eases toward it.
+SILICON_VIS_API void silicon_vis_set_backdrop_monochrome(SiliconVisHandle handle, bool enabled);
 SILICON_VIS_API void silicon_vis_set_visual_alpha(SiliconVisHandle handle, float alpha);
 
 // Font Atlas

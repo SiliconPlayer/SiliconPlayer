@@ -408,6 +408,9 @@ private fun StarfieldOptionsContent(resetNonce: Int) {
     var beatFollowEnabled by remember(resetNonce) {
         mutableStateOf(prefs.getBoolean(AppPreferenceKeys.VISUALIZATION_STARFIELD_BEAT_FOLLOW_ENABLED, d.beatFollowEnabled))
     }
+    var monochromeBackdropEnabled by remember(resetNonce) {
+        mutableStateOf(prefs.getBoolean(AppPreferenceKeys.VISUALIZATION_STARFIELD_MONOCHROME_BACKDROP_ENABLED, d.monochromeBackdropEnabled))
+    }
     var speedCenti by remember(activePreset, resetNonce) {
         mutableIntStateOf(prefs.getInt(keys.speedCenti, tune.speedCenti)
             .coerceIn(d.speedRangeCenti.first, d.speedRangeCenti.last))
@@ -431,11 +434,20 @@ private fun StarfieldOptionsContent(resetNonce: Int) {
         )
         DialogToggleRow(
             title = "Follow the beat",
-            subtitle = "Ride beat energy for speed and glow. Off by default.",
+            subtitle = "Ride beat energy for speed and glow.",
             checked = beatFollowEnabled,
             onCheckedChange = { enabled ->
                 beatFollowEnabled = enabled
                 prefs.edit().putBoolean(AppPreferenceKeys.VISUALIZATION_STARFIELD_BEAT_FOLLOW_ENABLED, enabled).apply()
+            }
+        )
+        DialogToggleRow(
+            title = "Monochrome backdrop",
+            subtitle = "Fade fallback art to black and white while playing.",
+            checked = monochromeBackdropEnabled,
+            onCheckedChange = { enabled ->
+                monochromeBackdropEnabled = enabled
+                prefs.edit().putBoolean(AppPreferenceKeys.VISUALIZATION_STARFIELD_MONOCHROME_BACKDROP_ENABLED, enabled).apply()
             }
         )
         StarfieldSheetSliderRow(

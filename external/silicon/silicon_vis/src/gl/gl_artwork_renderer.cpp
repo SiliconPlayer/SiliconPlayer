@@ -1,6 +1,7 @@
 #include "gl_artwork_renderer.h"
 #include "gl_primitives.h"
 #include <algorithm>
+#include <chrono>
 #include <cmath>
 
 namespace silicon::vis::gl {
@@ -65,9 +66,11 @@ static const char* TEX_FRAGMENT_SHADER = R"(
     varying vec2 vTexCoord;
     uniform sampler2D uSampler;
     uniform vec4 uColor;
+    uniform float uMono;
     void main() {
         vec4 tex = texture2D(uSampler, vTexCoord);
-        gl_FragColor = tex * uColor;
+        vec3 rgb = mix(tex.rgb * uColor.rgb, vec3(1.0), uMono);
+        gl_FragColor = vec4(rgb, tex.a * uColor.a);
     }
 )";
 
@@ -136,6 +139,7 @@ bool GlArtworkRenderer::init() {
     if (!texProgram_.compileAndLink(TEX_VERTEX_SHADER, TEX_FRAGMENT_SHADER)) return false;
     texResLoc_ = texProgram_.getUniformLoc("uResolution");
     texColorLoc_ = texProgram_.getUniformLoc("uColor");
+    texMonoLoc_ = texProgram_.getUniformLoc("uMono");
     texSamplerLoc_ = texProgram_.getUniformLoc("uSampler");
     texPosLoc_ = texProgram_.getAttribLoc("aPosition");
     texCoordLoc_ = texProgram_.getAttribLoc("aTexCoord");
@@ -259,6 +263,18 @@ void GlArtworkRenderer::drawSolidBackground(uint32_t colorArgb) {
 }
 
 void GlArtworkRenderer::draw(float surfaceWidth, float surfaceHeight, float density) {
+    // Ease the monochrome mix each drawn frame; dt is clamped so a stalled
+    // loop resumes the fade instead of snapping it.
+    const long long nowNs = std::chrono::duration_cast<std::chrono::nanoseconds>(
+        std::chrono::steady_clock::now().time_since_epoch()).count();
+    const float dt = monoLastNs_ == 0 ? 0.0f
+        : std::min(static_cast<float>(nowNs - monoLastNs_) * 1e-9f, 0.1f);
+    monoLastNs_ = nowNs;
+    const float step = dt / 0.4f;
+    monoMix_ = monoTarget_
+        ? std::min(1.0f, monoMix_ + step)
+        : std::max(0.0f, monoMix_ - step);
+
     if (!showArtworkBackground_) {
         drawSolidBackground(surfaceColorArgb_);
         return;
@@ -269,13 +285,18 @@ void GlArtworkRenderer::draw(float surfaceWidth, float surfaceHeight, float dens
     drawContrastBackdrop(surfaceWidth, surfaceHeight);
 }
 
-void GlArtworkRenderer::drawGradientBackground(float surfaceWidth, float surfaceHeight, float density, bool drawCircle) {
+void GlArtworkRenderer::drawGradientBackground(float surfaceWidth, float surfaceHeight, float density, bool drawCircle, float monoMix) {
     Color4f prim = argbToColor4f(primaryColorArgb_);
     Color4f surf = argbToColor4f(surfaceColorArgb_);
 
-    float centerR = (surf.r * 0.72f) + (prim.r * 0.28f);
-    float centerG = (surf.g * 0.72f) + (prim.g * 0.28f);
-    float centerB = (surf.b * 0.72f) + (prim.b * 0.28f);
+    // monoMix: gradient collapses to solid black; the disc lerps to white.
+    const float k = 1.0f - monoMix;
+    float centerR = ((surf.r * 0.72f) + (prim.r * 0.28f)) * k;
+    float centerG = ((surf.g * 0.72f) + (prim.g * 0.28f)) * k;
+    float centerB = ((surf.b * 0.72f) + (prim.b * 0.28f)) * k;
+    float edgeR = surf.r * k;
+    float edgeG = surf.g * k;
+    float edgeB = surf.b * k;
 
     float circleRadiusPx = std::min(60.0f * std::max(1.0f, density), std::min(surfaceWidth, surfaceHeight) * 0.35f);
 
@@ -285,8 +306,11 @@ void GlArtworkRenderer::drawGradientBackground(float surfaceWidth, float surface
     bgProgram_.use();
     glUniform2f(bgResLoc_, surfaceWidth, surfaceHeight);
     glUniform4f(bgCenterColorLoc_, centerR, centerG, centerB, 1.0f);
-    glUniform4f(bgEdgeColorLoc_, surf.r, surf.g, surf.b, 1.0f);
-    glUniform4f(bgCircleColorLoc_, prim.r, prim.g, prim.b, drawCircle ? 0.14f : 0.0f);
+    glUniform4f(bgEdgeColorLoc_, edgeR, edgeG, edgeB, 1.0f);
+    const float discR = prim.r + (1.0f - prim.r) * monoMix;
+    const float discG = prim.g + (1.0f - prim.g) * monoMix;
+    const float discB = prim.b + (1.0f - prim.b) * monoMix;
+    glUniform4f(bgCircleColorLoc_, discR, discG, discB, drawCircle ? 0.14f : 0.0f);
     glUniform1f(bgCircleRadiusLoc_, circleRadiusPx);
 
     float fullQuad[12] = {
@@ -307,7 +331,7 @@ void GlArtworkRenderer::drawGradientBackground(float surfaceWidth, float surface
 
 void GlArtworkRenderer::drawArtworkOrFallback(float surfaceWidth, float surfaceHeight, float density) {
     if (artworkTextureId_ != 0 && artworkWidth_ > 0 && artworkHeight_ > 0) {
-        drawGradientBackground(surfaceWidth, surfaceHeight, density, /*drawCircle=*/false);
+        drawGradientBackground(surfaceWidth, surfaceHeight, density, /*drawCircle=*/false, 0.0f);
         // Draw real artwork textured quad (aspect fit, centered)
         glEnable(GL_BLEND);
         glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
@@ -315,6 +339,7 @@ void GlArtworkRenderer::drawArtworkOrFallback(float surfaceWidth, float surfaceH
         texProgram_.use();
         glUniform2f(texResLoc_, surfaceWidth, surfaceHeight);
         glUniform4f(texColorLoc_, 1.0f, 1.0f, 1.0f, 1.0f);
+        glUniform1f(texMonoLoc_, 0.0f);
         glUniform1i(texSamplerLoc_, 0);
 
         glActiveTexture(GL_TEXTURE0);
@@ -344,7 +369,7 @@ void GlArtworkRenderer::drawArtworkOrFallback(float surfaceWidth, float surfaceH
         glDisableVertexAttribArray(texCoordLoc_);
         glBindTexture(GL_TEXTURE_2D, 0);
     } else {
-        drawGradientBackground(surfaceWidth, surfaceHeight, density, /*drawCircle=*/true);
+        drawGradientBackground(surfaceWidth, surfaceHeight, density, /*drawCircle=*/true, monoMix_);
         // Draw centered placeholder icon inside the circle disc if available
         float circleRadiusPx = std::min(60.0f * std::max(1.0f, density), std::min(surfaceWidth, surfaceHeight) * 0.35f);
         if (iconTextureId_ != 0 && iconWidth_ > 0 && iconHeight_ > 0) {
@@ -355,6 +380,7 @@ void GlArtworkRenderer::drawArtworkOrFallback(float surfaceWidth, float surfaceH
             texProgram_.use();
             glUniform2f(texResLoc_, surfaceWidth, surfaceHeight);
             glUniform4f(texColorLoc_, 1.0f, 1.0f, 1.0f, 1.0f);
+            glUniform1f(texMonoLoc_, monoMix_);
             glUniform1i(texSamplerLoc_, 0);
 
             glActiveTexture(GL_TEXTURE0);

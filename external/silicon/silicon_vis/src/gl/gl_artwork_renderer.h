@@ -23,12 +23,13 @@ public:
     void setContrastMode(SiliconVisContrastMode mode);
     void setContrastScrim(uint32_t argb) { contrastScrimArgb_ = argb; }
     void setShowArtworkBackground(bool show) { showArtworkBackground_ = show; }
+    void setMonochromeTarget(bool enabled) { monoTarget_ = enabled; }
 
     void draw(float surfaceWidth, float surfaceHeight, float density);
 
 private:
     void drawSolidBackground(uint32_t colorArgb);
-    void drawGradientBackground(float surfaceWidth, float surfaceHeight, float density, bool drawCircle);
+    void drawGradientBackground(float surfaceWidth, float surfaceHeight, float density, bool drawCircle, float monoMix);
     void drawArtworkOrFallback(float surfaceWidth, float surfaceHeight, float density);
     void drawContrastBackdrop(float surfaceWidth, float surfaceHeight);
 
@@ -46,6 +47,7 @@ private:
     GlProgram texProgram_;
     GLint texResLoc_ = -1;
     GLint texColorLoc_ = -1;
+    GLint texMonoLoc_ = -1;
     GLint texSamplerLoc_ = -1;
     GLint texPosLoc_ = -1;
     GLint texCoordLoc_ = -1;
@@ -75,6 +77,10 @@ private:
     SiliconVisContrastMode contrastMode_ = SILICON_VIS_CONTRAST_NONE;
     uint32_t contrastScrimArgb_ = 0xFF000000;
     bool showArtworkBackground_ = true;
+    // Monochrome fallback backdrop: eased 0..1 toward monoTarget_.
+    bool monoTarget_ = false;
+    float monoMix_ = 0.0f;
+    long long monoLastNs_ = 0;
 };
 
 } // namespace silicon::vis::gl

@@ -224,6 +224,7 @@ object AppDefaults {
             val centerRangeCenti = -50..50
             val reactSpeedRangeCenti = 0..500
             const val beatFollowEnabled = true
+            const val monochromeBackdropEnabled = true
 
             val classic = StarfieldPresetTune(
                 starCount = 70, speedCenti = 30, fovCenti = 100, nearMilli = 60,

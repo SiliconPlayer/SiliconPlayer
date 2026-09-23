@@ -231,6 +231,7 @@ internal object AppPreferenceKeys {
     const val VISUALIZATION_STARFIELD_CENTER_Y_CENTI = "visualization_starfield_center_y_centi"
     const val VISUALIZATION_STARFIELD_AUTO_DRIFT_ENABLED = "visualization_starfield_auto_drift_enabled"
     const val VISUALIZATION_STARFIELD_BEAT_FOLLOW_ENABLED = "visualization_starfield_beat_follow_enabled"
+    const val VISUALIZATION_STARFIELD_MONOCHROME_BACKDROP_ENABLED = "visualization_starfield_monochrome_backdrop_enabled"
     const val VISUALIZATION_STARFIELD_REACT_SPEED_CENTI = "visualization_starfield_react_speed_centi"
     const val VISUALIZATION_STARFIELD_FLASH_PERCENT = "visualization_starfield_flash_percent"
     const val VISUALIZATION_STARFIELD_CONTRAST_BACKDROP_ENABLED = "visualization_starfield_contrast_backdrop_enabled"

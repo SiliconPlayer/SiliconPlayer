@@ -42,6 +42,7 @@ public:
     void setContrastMode(SiliconVisContrastMode contrastMode);
     void setContrastScrim(uint32_t argb) { artworkRenderer_.setContrastScrim(argb); }
     void setShowArtworkBackground(bool show) { artworkRenderer_.setShowArtworkBackground(show); }
+    void setBackdropMonochrome(bool enabled) { artworkRenderer_.setMonochromeTarget(enabled); }
 
     // Font Atlas
     void setFontAtlas(

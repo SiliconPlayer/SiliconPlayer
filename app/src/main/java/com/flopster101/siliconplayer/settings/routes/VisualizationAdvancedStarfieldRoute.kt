@@ -149,6 +149,11 @@ internal fun VisualizationAdvancedStarfieldRouteContent() {
             prefs.getBoolean(AppPreferenceKeys.VISUALIZATION_STARFIELD_BEAT_FOLLOW_ENABLED, d.beatFollowEnabled)
         )
     }
+    var monochromeBackdropEnabled by remember {
+        mutableStateOf(
+            prefs.getBoolean(AppPreferenceKeys.VISUALIZATION_STARFIELD_MONOCHROME_BACKDROP_ENABLED, d.monochromeBackdropEnabled)
+        )
+    }
     var reactSpeedCenti by remember {
         mutableIntStateOf(
             prefs.getInt(keys.reactSpeedCenti, tune.reactSpeedCenti)
@@ -220,6 +225,7 @@ internal fun VisualizationAdvancedStarfieldRouteContent() {
             keys.centerYCenti,
             keys.autoDriftEnabled,
             AppPreferenceKeys.VISUALIZATION_STARFIELD_BEAT_FOLLOW_ENABLED,
+            AppPreferenceKeys.VISUALIZATION_STARFIELD_MONOCHROME_BACKDROP_ENABLED,
             keys.reactSpeedCenti,
             keys.flashPercent,
             keys.contrastBackdropEnabled,
@@ -260,6 +266,7 @@ internal fun VisualizationAdvancedStarfieldRouteContent() {
             .coerceIn(d.centerRangeCenti.first, d.centerRangeCenti.last)
         autoDriftEnabled = prefs.getBoolean(keys.autoDriftEnabled, tune.autoDriftEnabled)
         beatFollowEnabled = prefs.getBoolean(AppPreferenceKeys.VISUALIZATION_STARFIELD_BEAT_FOLLOW_ENABLED, d.beatFollowEnabled)
+        monochromeBackdropEnabled = prefs.getBoolean(AppPreferenceKeys.VISUALIZATION_STARFIELD_MONOCHROME_BACKDROP_ENABLED, d.monochromeBackdropEnabled)
         reactSpeedCenti = prefs.getInt(keys.reactSpeedCenti, tune.reactSpeedCenti)
             .coerceIn(d.reactSpeedRangeCenti.first, d.reactSpeedRangeCenti.last)
         flashPercent = prefs.getInt(keys.flashPercent, tune.flashPercent)
@@ -497,7 +504,7 @@ internal fun VisualizationAdvancedStarfieldRouteContent() {
         SettingsSectionLabel("Beat follow")
         PlayerSettingToggleCard(
             title = "Follow the beat",
-            description = "Ride beat energy for speed and glow. Off by default.",
+            description = "Ride beat energy for speed and glow.",
             checked = beatFollowEnabled,
             onCheckedChange = { enabled ->
                 beatFollowEnabled = enabled
@@ -517,6 +524,18 @@ internal fun VisualizationAdvancedStarfieldRouteContent() {
             description = "How much the beat lifts star brightness.",
             value = "$flashPercent%",
             onClick = { showFlashDialog = true }
+        )
+
+        Spacer(modifier = Modifier.height(16.dp))
+        SettingsSectionLabel("Monochrome backdrop")
+        PlayerSettingToggleCard(
+            title = "Monochrome backdrop",
+            description = "Fade fallback art to black and white while playing.",
+            checked = monochromeBackdropEnabled,
+            onCheckedChange = { enabled ->
+                monochromeBackdropEnabled = enabled
+                prefs.edit().putBoolean(AppPreferenceKeys.VISUALIZATION_STARFIELD_MONOCHROME_BACKDROP_ENABLED, enabled).apply()
+            }
         )
 
         Spacer(modifier = Modifier.height(16.dp))

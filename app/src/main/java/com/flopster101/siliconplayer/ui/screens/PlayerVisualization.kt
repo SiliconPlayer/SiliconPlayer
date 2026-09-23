@@ -1980,6 +1980,7 @@ internal data class StarfieldPrefs(
     val reactSpeed: Float,
     val flash: Float,
     val contrastBackdropEnabled: Boolean,
+    val monochromeBackdrop: Boolean,
     val square: Boolean
 ) {
     companion object {
@@ -2032,6 +2033,10 @@ internal data class StarfieldPrefs(
                 flash = sharedPrefs.getInt(k.flashPercent, t.flashPercent)
                     .coerceIn(d.percentRange.first, d.percentRange.last) / 100f,
                 contrastBackdropEnabled = sharedPrefs.getBoolean(k.contrastBackdropEnabled, t.contrastBackdropEnabled),
+                monochromeBackdrop = sharedPrefs.getBoolean(
+                    AppPreferenceKeys.VISUALIZATION_STARFIELD_MONOCHROME_BACKDROP_ENABLED,
+                    d.monochromeBackdropEnabled
+                ),
                 square = sharedPrefs.getBoolean(k.squareEnabled, t.squarePixelsEnabled)
             )
         }
@@ -3035,6 +3040,7 @@ internal fun AlbumArtPlaceholder(
                     starfieldReactSpeed = starfieldPrefs.reactSpeed,
                     starfieldFlash = starfieldPrefs.flash,
                     starfieldContrastBackdropEnabled = starfieldPrefs.contrastBackdropEnabled,
+                    starfieldMonochromeBackdrop = starfieldPrefs.monochromeBackdrop,
                     barCount = barCount,
                     barRoundnessDp = barRoundnessDp,
                     barOverlayArtwork = barOverlayArtwork,
