@@ -166,6 +166,7 @@ fun BasicVisualizationOverlay(
     channelScopeTextVuCustomColorArgb: Int,
     channelScopeCornerRadiusDp: Int = 0,
     starfieldRenderBackend: VisualizationRenderBackend = VisualizationRenderBackend.OpenGlTexture,
+    projectMRenderBackend: VisualizationRenderBackend = VisualizationRenderBackend.OpenGlTexture,
     starfieldStarCount: Int = 350,
     starfieldSpeed: Float = 0.30f,
     starfieldFov: Float = 1.0f,
@@ -368,11 +369,21 @@ fun BasicVisualizationOverlay(
                             contrastMode = barContrastMode,
                             showArtworkBackground = barOverlayArtwork
                         )
-                        com.flopster101.siliconplayer.ui.visualization.gl.SiliconNativeGlTextureVisualization(
-                            frame = nativeFrame,
-                            onFrameStats = channelScopeOnFrameStats,
-                            modifier = Modifier.fillMaxSize()
-                        )
+                        if (barRenderBackend == VisualizationRenderBackend.OpenGlSurface) {
+                            com.flopster101.siliconplayer.ui.visualization.gl.SiliconNativeGlSurfaceVisualization(
+                                frame = nativeFrame,
+                                cornerRadiusDp = visCornerRadiusDp,
+                                veilColor = surfaceVeilColor,
+                                onFrameStats = channelScopeOnFrameStats,
+                                modifier = Modifier.fillMaxSize()
+                            )
+                        } else {
+                            com.flopster101.siliconplayer.ui.visualization.gl.SiliconNativeGlTextureVisualization(
+                                frame = nativeFrame,
+                                onFrameStats = channelScopeOnFrameStats,
+                                modifier = Modifier.fillMaxSize()
+                            )
+                        }
                     }
                     else -> {
                         BarsVisualization(
@@ -428,11 +439,21 @@ fun BasicVisualizationOverlay(
                         contrastMode = oscContrastMode,
                         showArtworkBackground = true
                     )
-                    com.flopster101.siliconplayer.ui.visualization.gl.SiliconNativeGlTextureVisualization(
-                        frame = nativeFrame,
-                        onFrameStats = channelScopeOnFrameStats,
-                        modifier = modifier
-                    )
+                    if (oscRenderBackend == VisualizationRenderBackend.OpenGlSurface) {
+                        com.flopster101.siliconplayer.ui.visualization.gl.SiliconNativeGlSurfaceVisualization(
+                            frame = nativeFrame,
+                            cornerRadiusDp = visCornerRadiusDp,
+                            veilColor = surfaceVeilColor,
+                            onFrameStats = channelScopeOnFrameStats,
+                            modifier = modifier
+                        )
+                    } else {
+                        com.flopster101.siliconplayer.ui.visualization.gl.SiliconNativeGlTextureVisualization(
+                            frame = nativeFrame,
+                            onFrameStats = channelScopeOnFrameStats,
+                            modifier = modifier
+                        )
+                    }
                 }
                 else -> {
                     OscilloscopeVisualization(
@@ -483,11 +504,21 @@ fun BasicVisualizationOverlay(
                         contrastMode = vuContrastMode,
                         showArtworkBackground = true
                     )
-                    com.flopster101.siliconplayer.ui.visualization.gl.SiliconNativeGlTextureVisualization(
-                        frame = nativeFrame,
-                        onFrameStats = channelScopeOnFrameStats,
-                        modifier = modifier
-                    )
+                    if (vuRenderBackend == VisualizationRenderBackend.OpenGlSurface) {
+                        com.flopster101.siliconplayer.ui.visualization.gl.SiliconNativeGlSurfaceVisualization(
+                            frame = nativeFrame,
+                            cornerRadiusDp = visCornerRadiusDp,
+                            veilColor = surfaceVeilColor,
+                            onFrameStats = channelScopeOnFrameStats,
+                            modifier = modifier
+                        )
+                    } else {
+                        com.flopster101.siliconplayer.ui.visualization.gl.SiliconNativeGlTextureVisualization(
+                            frame = nativeFrame,
+                            onFrameStats = channelScopeOnFrameStats,
+                            modifier = modifier
+                        )
+                    }
                 }
                 else -> {
                     VuMetersVisualization(
@@ -768,11 +799,21 @@ fun BasicVisualizationOverlay(
                 contrastMode = 0,
                 showArtworkBackground = false
             )
-            com.flopster101.siliconplayer.ui.visualization.gl.SiliconNativeGlTextureVisualization(
-                frame = nativeFrame,
-                onFrameStats = channelScopeOnFrameStats,
-                modifier = modifier
-            )
+            if (projectMRenderBackend == VisualizationRenderBackend.OpenGlSurface) {
+                com.flopster101.siliconplayer.ui.visualization.gl.SiliconNativeGlSurfaceVisualization(
+                    frame = nativeFrame,
+                    cornerRadiusDp = visCornerRadiusDp,
+                    veilColor = surfaceVeilColor,
+                    onFrameStats = channelScopeOnFrameStats,
+                    modifier = modifier
+                )
+            } else {
+                com.flopster101.siliconplayer.ui.visualization.gl.SiliconNativeGlTextureVisualization(
+                    frame = nativeFrame,
+                    onFrameStats = channelScopeOnFrameStats,
+                    modifier = modifier
+                )
+            }
         }
 
         VisualizationMode.Starfield -> {

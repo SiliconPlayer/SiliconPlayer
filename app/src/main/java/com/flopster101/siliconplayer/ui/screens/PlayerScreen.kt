@@ -282,7 +282,8 @@ private class PlayerVisualizationPreferenceState(
     vuCustomColorArgb: Int,
     vuContrastBackdropEnabled: Boolean,
     vuFpsMode: VisualizationOscFpsMode,
-    vuRuntimeRenderBackend: VisualizationRenderBackend
+    vuRuntimeRenderBackend: VisualizationRenderBackend,
+    projectMRenderBackend: VisualizationRenderBackend
 ) {
     var oscWindowMs by mutableIntStateOf(oscWindowMs)
     var oscTriggerModeNative by mutableIntStateOf(oscTriggerModeNative)
@@ -312,6 +313,7 @@ private class PlayerVisualizationPreferenceState(
     var vuContrastBackdropEnabled by mutableStateOf(vuContrastBackdropEnabled)
     var vuFpsMode by mutableStateOf(vuFpsMode)
     var vuRuntimeRenderBackend by mutableStateOf(vuRuntimeRenderBackend)
+    var projectMRenderBackend by mutableStateOf(projectMRenderBackend)
 }
 
 private fun parseOscTriggerModeNative(value: String?): Int {
@@ -443,6 +445,13 @@ private fun rememberPlayerVisualizationPreferenceState(
             vuRuntimeRenderBackend = VisualizationRenderBackend.fromStorage(
                 prefs.getString(PREF_KEY_VIS_VU_RENDER_BACKEND, defaultVuRenderBackend.storageValue),
                 defaultVuRenderBackend
+            ),
+            projectMRenderBackend = VisualizationRenderBackend.fromStorage(
+                prefs.getString(
+                    AppPreferenceKeys.VISUALIZATION_PROJECTM_RENDER_BACKEND,
+                    AppDefaults.Visualization.ProjectM.renderBackend.storageValue
+                ),
+                AppDefaults.Visualization.ProjectM.renderBackend
             )
         )
     }
@@ -632,6 +641,15 @@ private fun rememberPlayerVisualizationPreferenceState(
                             defaultVuRenderBackend.storageValue
                         ),
                         defaultVuRenderBackend
+                    )
+                }
+                AppPreferenceKeys.VISUALIZATION_PROJECTM_RENDER_BACKEND -> {
+                    state.projectMRenderBackend = VisualizationRenderBackend.fromStorage(
+                        sharedPrefs.getString(
+                            AppPreferenceKeys.VISUALIZATION_PROJECTM_RENDER_BACKEND,
+                            AppDefaults.Visualization.ProjectM.renderBackend.storageValue
+                        ),
+                        AppDefaults.Visualization.ProjectM.renderBackend
                     )
                 }
             }
@@ -1539,6 +1557,7 @@ internal fun PlayerScreen(
                                 visualizationBarFpsMode = visualizationPrefsState.barFpsMode,
                                 visualizationVuFpsMode = visualizationPrefsState.vuFpsMode,
                                 visualizationOscRenderBackend = visualizationPrefsState.oscRenderBackend,
+                                projectMRenderBackend = visualizationPrefsState.projectMRenderBackend,
                                 visualizationBarSmoothingPercent = visualizationBarSmoothingPercent,
                                 visualizationVuSmoothingPercent = visualizationVuSmoothingPercent,
                                 barCount = visualizationBarCount,
@@ -2146,6 +2165,7 @@ internal fun PlayerScreen(
                 visualizationBarFpsMode = visualizationPrefsState.barFpsMode,
                 visualizationVuFpsMode = visualizationPrefsState.vuFpsMode,
                 visualizationOscRenderBackend = visualizationPrefsState.oscRenderBackend,
+                projectMRenderBackend = visualizationPrefsState.projectMRenderBackend,
                 visualizationBarSmoothingPercent = visualizationBarSmoothingPercent,
                 visualizationVuSmoothingPercent = visualizationVuSmoothingPercent,
                 barCount = visualizationBarCount,
@@ -6318,6 +6338,7 @@ private fun WearPlayerContent(
                             visualizationBarFpsMode = visualizationPrefsState.barFpsMode,
                             visualizationVuFpsMode = visualizationPrefsState.vuFpsMode,
                             visualizationOscRenderBackend = visualizationPrefsState.oscRenderBackend,
+                            projectMRenderBackend = visualizationPrefsState.projectMRenderBackend,
                             visualizationBarSmoothingPercent = visualizationBarSmoothingPercent,
                             visualizationVuSmoothingPercent = visualizationVuSmoothingPercent,
                             barCount = visualizationBarCount,

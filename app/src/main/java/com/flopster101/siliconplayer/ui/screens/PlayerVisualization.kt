@@ -2175,6 +2175,7 @@ internal fun AlbumArtPlaceholder(
     vuContrastBackdropEnabled: Boolean,
     channelScopePrefs: ChannelScopePrefs,
     starfieldPrefs: StarfieldPrefs,
+    projectMRenderBackend: VisualizationRenderBackend = AppDefaults.Visualization.ProjectM.renderBackend,
     artworkCornerRadiusDp: Int = AppDefaults.Player.artworkCornerRadiusDp,
     enableSwipe: Boolean = true,
     onSwipePreviousTrack: () -> Unit = {},
@@ -2840,6 +2841,8 @@ internal fun AlbumArtPlaceholder(
         barRenderBackend
     } else if (visualizationMode == VisualizationMode.VuMeters) {
         vuRenderBackend
+    } else if (visualizationMode == VisualizationMode.ProjectM) {
+        projectMRenderBackend
     } else {
         visualizationRenderBackendForMode(visualizationMode)
     }
@@ -3043,6 +3046,7 @@ internal fun AlbumArtPlaceholder(
                     surfaceVeilColor = MaterialTheme.colorScheme.background,
                     starfieldRenderBackend = starfieldPrefs.renderBackend,
                     starfieldStarCount = starfieldPrefs.starCount,
+                    projectMRenderBackend = projectMRenderBackend,
                     starfieldSpeed = starfieldPrefs.speed,
                     starfieldFov = starfieldPrefs.fov,
                     starfieldNearPlane = starfieldPrefs.nearPlane,

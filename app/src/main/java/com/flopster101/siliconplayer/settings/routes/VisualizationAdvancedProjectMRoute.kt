@@ -78,11 +78,20 @@ internal fun VisualizationAdvancedProjectMRouteContent(
     var aspectCorrection by remember { mutableStateOf(prefs.getBoolean(AppPreferenceKeys.VISUALIZATION_PROJECTM_ASPECT_CORRECTION, AppDefaults.Visualization.ProjectM.aspectCorrection)) }
     var fpsMode by remember { mutableStateOf(VisualizationOscFpsMode.fromStorage(prefs.getString(AppPreferenceKeys.VISUALIZATION_PROJECTM_FPS_MODE, AppDefaults.Visualization.ProjectM.fpsMode.storageValue))) }
     var renderResolution by remember { mutableStateOf(VisualizationProjectMResolutionMode.fromStorage(prefs.getString(AppPreferenceKeys.VISUALIZATION_PROJECTM_RENDER_RESOLUTION, AppDefaults.Visualization.ProjectM.renderResolution.storageValue))) }
+    var renderBackend by remember {
+        mutableStateOf(
+            VisualizationRenderBackend.fromStorage(
+                prefs.getString(AppPreferenceKeys.VISUALIZATION_PROJECTM_RENDER_BACKEND, AppDefaults.Visualization.ProjectM.renderBackend.storageValue),
+                AppDefaults.Visualization.ProjectM.renderBackend
+            )
+        )
+    }
     var showDurationDialog by remember { mutableStateOf(false) }
     var showSensitivityDialog by remember { mutableStateOf(false) }
     var showMeshDialog by remember { mutableStateOf(false) }
     var showFpsDialog by remember { mutableStateOf(false) }
     var showRenderResolutionDialog by remember { mutableStateOf(false) }
+    var showRenderBackendDialog by remember { mutableStateOf(false) }
     var showDownloadPrompt by remember { mutableStateOf(false) }
     var pendingDownloadPack by remember { mutableStateOf<ProjectMPack?>(null) }
     var pendingRemovePack by remember { mutableStateOf<ProjectMPack?>(null) }
@@ -389,6 +398,13 @@ internal fun VisualizationAdvancedProjectMRouteContent(
             value = renderResolution.label,
             onClick = { showRenderResolutionDialog = true }
         )
+        SettingsRowSpacer()
+        SettingsValuePickerCard(
+            title = "Renderer backend",
+            description = "Rendering backend used for projectM drawing.",
+            value = renderBackend.label,
+            onClick = { showRenderBackendDialog = true }
+        )
     }
     if (showDurationDialog) {
         SteppedIntSliderDialog(
@@ -469,6 +485,22 @@ internal fun VisualizationAdvancedProjectMRouteContent(
                 showRenderResolutionDialog = false
             },
             onDismiss = { showRenderResolutionDialog = false }
+        )
+    }
+    if (showRenderBackendDialog) {
+        SettingsSingleChoiceDialog(
+            title = "Renderer backend",
+            selectedValue = renderBackend,
+            options = listOf(
+                VisualizationRenderBackend.OpenGlTexture,
+                VisualizationRenderBackend.OpenGlSurface
+            ).map { b -> ChoiceDialogOption(value = b, label = b.label) },
+            onSelected = { b ->
+                renderBackend = b
+                prefs.edit().putString(AppPreferenceKeys.VISUALIZATION_PROJECTM_RENDER_BACKEND, b.storageValue).apply()
+                showRenderBackendDialog = false
+            },
+            onDismiss = { showRenderBackendDialog = false }
         )
     }
     pendingDownloadPack?.let { pack ->

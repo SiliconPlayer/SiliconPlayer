@@ -175,6 +175,7 @@ object AppDefaults {
             const val rotationRandom = true
             const val meshSize = 48
             const val aspectCorrection = true
+            val renderBackend = VisualizationRenderBackend.OpenGlTexture
             val fpsMode = VisualizationOscFpsMode.Default
             val renderResolution = VisualizationProjectMResolutionMode.P720
 
