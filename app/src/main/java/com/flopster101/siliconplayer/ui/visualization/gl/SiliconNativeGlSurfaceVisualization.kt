@@ -200,19 +200,8 @@ private class SiliconNativeGlSurfaceView(
 
     private var lastLifecyclePauseUptimeMs = 0L
     private var recreatedSincePause = false
-    private var resizedSinceAttach = false
     private var recreateInFlight = false
     private var lastRecreateUptimeMs = 0L
-
-    override fun onSizeChanged(w: Int, h: Int, oldw: Int, oldh: Int) {
-        super.onSizeChanged(w, h, oldw, oldh)
-        // A mid-enter layout growth can leave the container crop at the old
-        // size while the buffer follows; that latch needs a recreate. Resizes
-        // caused by our own recreate do not count.
-        if (recreateInFlight) return
-        if (android.os.SystemClock.uptimeMillis() - lastRecreateUptimeMs < 800L) return
-        if (oldw > 0 && oldh > 0 && (oldw != w || oldh != h)) resizedSinceAttach = true
-    }
 
     fun setLifecyclePaused(paused: Boolean) {
         lifecyclePaused = paused
@@ -232,11 +221,11 @@ private class SiliconNativeGlSurfaceView(
         if (lifecyclePaused || !isAttachedToWindow || width <= 0 || height <= 0) return
         val now = android.os.SystemClock.uptimeMillis()
         if (now - lastRecreateUptimeMs < 800L) return
-        // Latches come from a resume-time window zoom or a mid-enter resize;
-        // surfaces created clean at their final size skip the recreate blink.
+        // Latches come from a resume-time window zoom; surfaces created clean
+        // at their final size skip the recreate blink, and a real crop latch
+        // is left for the frame watchdog to prove before forcing one.
         val recentlyResumed = now - lastLifecyclePauseUptimeMs <= 5_000L
-        if (!force && !resizedSinceAttach && !(recentlyResumed && !recreatedSincePause)) return
-        resizedSinceAttach = false
+        if (!force && !(recentlyResumed && !recreatedSincePause)) return
         if (recentlyResumed) recreatedSincePause = true
         lastRecreateUptimeMs = now
         recreateInFlight = true
