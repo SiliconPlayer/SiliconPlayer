@@ -14,6 +14,7 @@ import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -64,6 +65,7 @@ import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -74,6 +76,8 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -750,6 +754,7 @@ internal fun FullscreenVisualizationOverlay(
     onPause: () -> Unit,
     onPreviousTrack: () -> Unit,
     onNextTrack: () -> Unit,
+    onSwipePreviousTrack: () -> Unit = onPreviousTrack,
     canPreviousTrack: Boolean,
     canNextTrack: Boolean,
     positionSecondsProvider: () -> Double,
@@ -779,6 +784,10 @@ internal fun FullscreenVisualizationOverlay(
     val effectiveMode = resolveEffectiveVisualizationFullscreenMode(fullscreenModePref, isWatch)
     var controlsVisible by remember { mutableStateOf(true) }
     var controlsInteractionTick by remember { mutableIntStateOf(0) }
+    var fullscreenSwipeDelta by remember { mutableFloatStateOf(0f) }
+    val fullscreenSwipeThresholdPx = with(LocalDensity.current) {
+        (LocalConfiguration.current.screenWidthDp * 0.32f).dp.toPx()
+    }
 
     LaunchedEffect(controlsVisible, isFullscreen, controlsInteractionTick) {
         if (controlsVisible && isFullscreen) {
@@ -845,6 +854,27 @@ internal fun FullscreenVisualizationOverlay(
         modifier = modifier
             .fillMaxSize()
             .background(Color.Black)
+            .pointerInput(canPreviousTrack, canNextTrack, onSwipePreviousTrack, onNextTrack) {
+                detectHorizontalDragGestures(
+                    onDragStart = { fullscreenSwipeDelta = 0f },
+                    onHorizontalDrag = { change, dragAmount ->
+                        fullscreenSwipeDelta += dragAmount
+                        change.consume()
+                    },
+                    onDragEnd = {
+                        when {
+                            fullscreenSwipeDelta <= -fullscreenSwipeThresholdPx && canNextTrack -> {
+                                onNextTrack()
+                            }
+                            fullscreenSwipeDelta >= fullscreenSwipeThresholdPx && canPreviousTrack -> {
+                                onSwipePreviousTrack()
+                            }
+                        }
+                        fullscreenSwipeDelta = 0f
+                    },
+                    onDragCancel = { fullscreenSwipeDelta = 0f }
+                )
+            }
             .clickable(
                 interactionSource = remember { MutableInteractionSource() },
                 indication = null

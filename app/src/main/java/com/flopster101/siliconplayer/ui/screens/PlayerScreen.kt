@@ -2156,6 +2156,7 @@ internal fun PlayerScreen(
         onPause = onPause,
         onPreviousTrack = onPreviousTrack,
         onNextTrack = onNextTrack,
+        onSwipePreviousTrack = onForcePreviousTrack,
         canPreviousTrack = canPreviousTrack,
         canNextTrack = canNextTrack,
         positionSecondsProvider = stablePositionProvider,
