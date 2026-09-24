@@ -262,7 +262,8 @@ build_ufmod() {
     done
 
     "$AR" rcs "$INSTALL_DIR/lib/libufmod.a" "${objects[@]}"
-    cp "$PROJECT_PATH/include/ufmod.h" "$INSTALL_DIR/include/ufmod.h"
+    cp "$PROJECT_PATH/include/ufmod.h" "$PROJECT_PATH/include/ufmod_config.h" \
+       "$INSTALL_DIR/include/"
     touch "$INSTALL_DIR/lib/.ufmod_build_stamp"
 }
 
@@ -2876,7 +2877,7 @@ clean_target_artifacts() {
                 libgme)    rm -f "$inst/lib/libgme.so" 2>/dev/null || true; rm -rf "$inst/include/libgme" 2>/dev/null || true ;;
                 libxmp)    rm -f "$inst/lib/libxmp.so" 2>/dev/null || true; rm -f "$inst/include/xmp.h" 2>/dev/null || true ;;
                 ayfly)     rm -f "$inst/lib/libayfly.so" "$inst/lib/libayfly.a" 2>/dev/null || true; rm -rf "$inst/include/ayfly" 2>/dev/null || true ;;
-                ufmod)     rm -f "$inst/lib/libufmod.a" 2>/dev/null || true; rm -f "$inst/include/ufmod.h" 2>/dev/null || true; rm -f "$inst/lib/.ufmod_build_stamp" 2>/dev/null || true ;;
+                ufmod)     rm -f "$inst/lib/libufmod.a" 2>/dev/null || true; rm -f "$inst/include/ufmod.h" "$inst/include/ufmod_config.h" 2>/dev/null || true; rm -f "$inst/lib/.ufmod_build_stamp" 2>/dev/null || true ;;
                 libresid)  rm -f "$inst/lib/libresid.so" 2>/dev/null || true; rm -rf "$inst/include/resid" 2>/dev/null || true ;;
                 libresidfp) rm -f "$inst/lib/libresidfp.so" 2>/dev/null || true; rm -rf "$inst/include/libresidfp" 2>/dev/null || true ;;
                 libsidplayfp) rm -f "$inst/lib/libsidplayfp.so" 2>/dev/null || true; rm -rf "$inst/include/libsidplayfp" 2>/dev/null || true ;;

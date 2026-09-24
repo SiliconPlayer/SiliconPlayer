@@ -164,6 +164,10 @@ include_directories(${CMAKE_CURRENT_BINARY_DIR}/libusb_gen)
     add_library(libxmp SHARED IMPORTED)
     set_target_properties(libxmp PROPERTIES IMPORTED_LOCATION "${PREBUILT_DIR}/lib/libxmp.so")
 
+    # Import uFMOD (Static)
+    add_library(libufmod STATIC IMPORTED)
+    set_target_properties(libufmod PROPERTIES IMPORTED_LOCATION "${PREBUILT_DIR}/lib/libufmod.a")
+
     # Import ayfly (Shared)
     add_library(libayfly SHARED IMPORTED)
     set_target_properties(libayfly PROPERTIES IMPORTED_LOCATION "${PREBUILT_DIR}/lib/libayfly.so")
@@ -337,6 +341,37 @@ include_directories(${CMAKE_CURRENT_BINARY_DIR}/libusb_gen)
             libxmp
             ${log-lib}
             m
+    )
+
+    add_library(
+            siliconplayer_ufmod_decoder
+            SHARED
+            decoders/UfmodDecoder.cpp
+            decoders/UfmodDecoderPlugin.cpp
+    )
+    if (ANDROID)
+        target_compile_options(
+                siliconplayer_ufmod_decoder
+                PRIVATE
+                "-fvisibility=hidden"
+                "-fvisibility-inlines-hidden"
+        )
+        target_link_options(
+                siliconplayer_ufmod_decoder
+                PRIVATE
+                "-Wl,-z,max-page-size=16384"
+                "-Wl,-z,common-page-size=16384"
+        )
+    endif()
+    target_include_directories(
+            siliconplayer_ufmod_decoder
+            PRIVATE
+            "${PREBUILT_DIR}/include"
+    )
+    target_link_libraries(
+            siliconplayer_ufmod_decoder
+            libufmod
+            ${log-lib}
     )
 
     add_library(

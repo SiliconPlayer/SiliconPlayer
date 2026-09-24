@@ -42,6 +42,11 @@ namespace {
         return extensions;
     }
 
+    const std::vector<std::string>& getStaticUfmodExtensions() {
+        static const std::vector<std::string> extensions = {"xm"};
+        return extensions;
+    }
+
     const std::vector<std::string>& getStaticAyflyExtensions() {
         static const std::vector<std::string> extensions = {
                 "asc", "ay", "psg", "psc", "pt1", "pt2", "pt3",
@@ -123,6 +128,23 @@ namespace {
             DecoderRegistry::getInstance().registerDecoder("libxmp", getStaticXmpExtensions(), []() {
                 return DecoderPluginLoader::getInstance().createDecoder("libsiliconplayer_xmp_decoder.so");
             }, 11, std::move(xmpStaticInfo));
+
+            DecoderStaticInfo ufmodStaticInfo;
+            ufmodStaticInfo.hasPlaybackCapabilities = true;
+            ufmodStaticInfo.playbackCapabilities =
+                    AudioDecoder::PLAYBACK_CAP_CUSTOM_SAMPLE_RATE;
+            ufmodStaticInfo.hasRepeatModeCapabilities = true;
+            ufmodStaticInfo.repeatModeCapabilities = AudioDecoder::REPEAT_CAP_TRACK;
+            ufmodStaticInfo.hasTimelineMode = true;
+            ufmodStaticInfo.timelineMode = AudioDecoder::TimelineMode::Discontinuous;
+            ufmodStaticInfo.hasFixedSampleRateHz = true;
+            ufmodStaticInfo.fixedSampleRateHz = 0;
+            ufmodStaticInfo.optionApplyPolicy = [](const char*) {
+                return AudioDecoder::OPTION_APPLY_REQUIRES_PLAYBACK_RESTART;
+            };
+            DecoderRegistry::getInstance().registerDecoder("uFMOD", getStaticUfmodExtensions(), []() {
+                return DecoderPluginLoader::getInstance().createDecoder("libsiliconplayer_ufmod_decoder.so");
+            }, 9, std::move(ufmodStaticInfo));
 
             DecoderStaticInfo ayflyStaticInfo;
             ayflyStaticInfo.hasPlaybackCapabilities = true;
