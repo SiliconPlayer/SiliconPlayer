@@ -28,7 +28,9 @@ public:
     std::string getArtist() override;
     void setOutputSampleRate(int sampleRate) override;
     void setRepeatMode(int mode) override;
-    int getRepeatModeCapabilities() const override { return REPEAT_CAP_TRACK; }
+    int getRepeatModeCapabilities() const override {
+        return REPEAT_CAP_TRACK | REPEAT_CAP_LOOP_POINT;
+    }
     double getPlaybackPositionSeconds() override;
     TimelineMode getTimelineMode() const override { return TimelineMode::Discontinuous; }
     int getPlaybackCapabilities() const override {

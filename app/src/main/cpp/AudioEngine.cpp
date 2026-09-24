@@ -136,7 +136,8 @@ namespace {
                     AudioDecoder::PLAYBACK_CAP_RELIABLE_DURATION |
                     AudioDecoder::PLAYBACK_CAP_CUSTOM_SAMPLE_RATE;
             ufmodStaticInfo.hasRepeatModeCapabilities = true;
-            ufmodStaticInfo.repeatModeCapabilities = AudioDecoder::REPEAT_CAP_TRACK;
+            ufmodStaticInfo.repeatModeCapabilities =
+                    AudioDecoder::REPEAT_CAP_TRACK | AudioDecoder::REPEAT_CAP_LOOP_POINT;
             ufmodStaticInfo.hasTimelineMode = true;
             ufmodStaticInfo.timelineMode = AudioDecoder::TimelineMode::Discontinuous;
             ufmodStaticInfo.hasFixedSampleRateHz = true;
