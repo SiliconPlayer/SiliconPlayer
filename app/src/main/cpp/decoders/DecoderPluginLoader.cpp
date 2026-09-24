@@ -2,6 +2,7 @@
 
 #include <android/log.h>
 #include <algorithm>
+#include <atomic>
 #include <chrono>
 #include <condition_variable>
 #include <dlfcn.h>
@@ -19,6 +20,10 @@ using CreateDecoderFn = AudioDecoder* (*)();
 using Clock = std::chrono::steady_clock;
 constexpr auto kUnloadDelay = std::chrono::seconds(5);
 
+// Once static teardown starts, plugins must stay mapped: other destructors may
+// still release plugin-allocated objects through vtables that live in them.
+std::atomic<bool> gRetainLibraries { false };
+
 struct LoadedPlugin {
     std::string libraryName;
     void* handle = nullptr;
@@ -26,6 +31,10 @@ struct LoadedPlugin {
 
     ~LoadedPlugin() {
         if (handle != nullptr) {
+            if (gRetainLibraries.load(std::memory_order_relaxed)) {
+                LOGD("Retaining decoder plugin (teardown): %s", libraryName.c_str());
+                return;
+            }
             LOGD("Unloading decoder plugin: %s", libraryName.c_str());
             dlclose(handle);
         }
@@ -60,6 +69,7 @@ public:
         {
             std::lock_guard<std::mutex> lock(mutex);
             stopping = true;
+            gRetainLibraries.store(true, std::memory_order_relaxed);
         }
         cv.notify_one();
         if (worker.joinable()) {
@@ -167,7 +177,8 @@ private:
 
             for (auto it = plugins.begin(); it != plugins.end();) {
                 const auto& slot = it->second;
-                if (slot.activeLeases == 0 && slot.unloadAfter <= now) {
+                if (slot.activeLeases == 0 && slot.unloadAfter <= now &&
+                    !gRetainLibraries.load(std::memory_order_relaxed)) {
                     LOGD("Decoder plugin unload delay elapsed: %s", it->first.c_str());
                     it = plugins.erase(it);
                 } else {

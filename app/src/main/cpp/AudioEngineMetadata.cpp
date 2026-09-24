@@ -449,6 +449,14 @@ std::vector<float> AudioEngine::getChannelScopeSamples(int samplesPerChannel) {
     return flat;
 }
 
+// Plugin-allocated scope state releases through a shared_ptr vtable that is
+// unmapped once the plugin is dlclose'd, so the cache must not outlive it.
+void AudioEngine::resetScopeStateCacheLocked() {
+    std::lock_guard<std::mutex> lock(scopeStateCacheMutex);
+    scopeStateCacheValid = false;
+    scopeStateCache.reset();
+}
+
 void AudioEngine::getChannelScopeSamples(int samplesPerChannel, std::vector<float>& outFlat) {
     // Declare vis demand so the render worker bumps the snapshot serial
     // frequently and keeps `visualizationLastCallbackNs` fresh.
@@ -524,9 +532,7 @@ bool AudioEngine::tryGetChannelScopeSamples(int samplesPerChannel, std::vector<f
             return false;
         }
         if (!decoder) {
-            std::lock_guard<std::mutex> cacheLock(scopeStateCacheMutex);
-            scopeStateCacheValid = false;
-            scopeStateCache.reset();
+            resetScopeStateCacheLocked();
             outFlat.clear();
             return true;
         }

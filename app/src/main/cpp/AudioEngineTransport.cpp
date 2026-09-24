@@ -282,6 +282,7 @@ void AudioEngine::releaseCurrentDecoder() {
     renderWorkerCv.notify_all();
 
     std::lock_guard<std::mutex> lock(decoderMutex);
+    resetScopeStateCacheLocked();
     decoder.reset();
     cachedDurationSeconds.store(0.0);
     resetResamplerStateLocked();
@@ -328,6 +329,7 @@ void AudioEngine::setUrl(const char* url, const char* forcedDecoder) {
         if (decoder) {
             previousDecoderName = decoder->getName();
         }
+        resetScopeStateCacheLocked();
         decoder.reset();
         cachedDurationSeconds.store(0.0);
         resetResamplerStateLocked();

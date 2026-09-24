@@ -487,6 +487,9 @@ private:
     int resolveOutputStreamChannelsForTrackLocked() const;
     void applyStreamBufferPreset();
     void resetResamplerStateLocked(bool preserveBuffer = false);
+    // Callers must hold decoderMutex, which also orders it before the decoder
+    // can be destroyed and its plugin unloaded.
+    void resetScopeStateCacheLocked();
     bool ensureOutputSoxrContextLocked(int channels, int inputRate, int outputRate);
     void freeOutputSoxrContextLocked();
     int readFromDecoderLocked(float* buffer, int numFrames, int channels, bool& reachedEnd);
@@ -569,6 +572,7 @@ private:
     // Scope pulls run on the GL thread without the decoder mutex; this cache
     // is refreshed whenever a scope call holds the mutex and validated
     // against decoderSerial so a decoder swap never serves a dead state.
+    // Holds plugin-owned state, so it must be dropped before the decoder is.
     mutable std::mutex scopeStateCacheMutex;
     mutable std::shared_ptr<ChannelScopeSharedState> scopeStateCache;
     mutable int scopeStateCacheDecoderRate = 0;
