@@ -153,6 +153,11 @@ bool AyflyDecoder::createSongLocked(const char* path) {
     toggleChannelNames.assign(kChannelLabels, kChannelLabels + sourceChannels);
     toggleChannelMuted.assign(static_cast<size_t>(sourceChannels), 0);
     formatName = normalizeFormatName(ay_getsongformat(song));
+    if (formatName == "AY" && !ay_ists(song)) {
+        sourceChannels = 4;
+        toggleChannelNames = {"A", "B", "C", "Beeper"};
+        toggleChannelMuted.assign(static_cast<size_t>(sourceChannels), 0);
+    }
     if (formatName == "VTX" && lengthTicks == 0) {
         // Corrupt VTX files are zeroed out at init; fail the open instead
         // of loading a silent endless track.
@@ -274,12 +279,19 @@ void AyflyDecoder::captureChannelScopeSnapshotLocked() {
 
     for (int ch = 0; ch < totalChannels; ++ch) {
         float* dest = scratchRaw.data() + static_cast<size_t>(ch) * maxSamples;
-        ay_getchannelscope(song, static_cast<unsigned char>(ch),
-                           dest, static_cast<unsigned long>(maxSamples));
-        // Taps arrive pre-centered from the core; VU reads the DAC level.
-        scratchVu[static_cast<size_t>(ch)] = std::clamp(
-                ay_getchannellevel(song, static_cast<unsigned char>(ch)) * kAyTapFullScale,
-                0.0f, 1.0f);
+        const bool isBeeper = formatName == "AY" && !ay_ists(song) && ch == 3;
+        if (isBeeper) {
+            ay_getbeeperscope(song, dest, static_cast<unsigned long>(maxSamples));
+            scratchVu[static_cast<size_t>(ch)] = std::clamp(
+                    ay_getbeeperlevel(song) * kAyTapFullScale, 0.0f, 1.0f);
+        } else {
+            ay_getchannelscope(song, static_cast<unsigned char>(ch),
+                               dest, static_cast<unsigned long>(maxSamples));
+            // Taps arrive pre-centered from the core; VU reads the DAC level.
+            scratchVu[static_cast<size_t>(ch)] = std::clamp(
+                    ay_getchannellevel(song, static_cast<unsigned char>(ch)) * kAyTapFullScale,
+                    0.0f, 1.0f);
+        }
         for (int i = 0; i < maxSamples; ++i) {
             dest[i] = std::clamp(dest[i] * kAyTapFullScale * kAyScopeHeadroom,
                                  -1.0f, 1.0f);
@@ -529,9 +541,13 @@ void AyflyDecoder::clearToggleChannelMutes() {
 void AyflyDecoder::applyToggleChannelMutesLocked() {
     if (song == nullptr) return;
     for (size_t i = 0; i < toggleChannelMuted.size(); ++i) {
-        ay_chnlmute(song, static_cast<unsigned long>(i % 3),
-                    toggleChannelMuted[i] != 0,
-                    static_cast<unsigned char>(i / 3));
+        if (formatName == "AY" && i == 3) {
+            ay_setbeepermuted(song, toggleChannelMuted[i] != 0);
+        } else {
+            ay_chnlmute(song, static_cast<unsigned long>(i % 3),
+                        toggleChannelMuted[i] != 0,
+                        static_cast<unsigned char>(i / 3));
+        }
     }
 }
 
