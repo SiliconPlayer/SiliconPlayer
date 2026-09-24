@@ -18,10 +18,6 @@
 	path = external/libgme
 	url = https://github.com/SiliconPlayer/game-music-emu
 	ignore = dirty
-[submodule "external/openssl"]
-	path = external/openssl
-	url = https://github.com/openssl/openssl
-	ignore = dirty
 [submodule "external/libsidplayfp"]
 	path = external/libsidplayfp
 	url = https://github.com/libsidplayfp/libsidplayfp
@@ -104,4 +100,8 @@
 [submodule "external/ayfly"]
 	path = external/ayfly
 	url = https://github.com/SiliconPlayer/ayfly
+	ignore = dirty
+[submodule "external/mbedtls"]
+	path = external/mbedtls
+	url = https://github.com/Mbed-TLS/mbedtls.git
 	ignore = dirty

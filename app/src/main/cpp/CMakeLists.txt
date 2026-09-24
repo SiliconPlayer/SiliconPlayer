@@ -235,16 +235,6 @@ include_directories(${CMAKE_CURRENT_BINARY_DIR}/libusb_gen)
     add_library(libcRSID SHARED IMPORTED)
     set_target_properties(libcRSID PROPERTIES IMPORTED_LOCATION "${PREBUILT_DIR}/lib/libcRSID.so")
 
-    set(HAS_OPENSSL_PREBUILT FALSE)
-    if (EXISTS "${PREBUILT_DIR}/lib/libsiliconplayer_ssl.so" AND EXISTS "${PREBUILT_DIR}/lib/libsiliconplayer_crypto.so")
-        add_library(libssl SHARED IMPORTED)
-        set_target_properties(libssl PROPERTIES IMPORTED_LOCATION "${PREBUILT_DIR}/lib/libsiliconplayer_ssl.so")
-
-        add_library(libcrypto SHARED IMPORTED)
-        set_target_properties(libcrypto PROPERTIES IMPORTED_LOCATION "${PREBUILT_DIR}/lib/libsiliconplayer_crypto.so")
-        set(HAS_OPENSSL_PREBUILT TRUE)
-    endif()
-
     # Link libraries
     target_link_libraries(
             siliconplayer
@@ -261,10 +251,6 @@ include_directories(${CMAKE_CURRENT_BINARY_DIR}/libusb_gen)
             usb1.0
             ${dl-lib}
     )
-
-    if (HAS_OPENSSL_PREBUILT)
-        target_link_libraries(siliconplayer libssl libcrypto)
-    endif()
 
     add_library(
             siliconplayer_ffmpeg_decoder

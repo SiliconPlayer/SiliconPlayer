@@ -154,9 +154,9 @@ val aboutVersionSources = linkedMapOf(
     "core.furnace" to "external/furnace",
     "lib.psflib" to "external/psflib",
     "lib.libsoxr" to "external/libsoxr",
+    "lib.mbedtls" to "external/mbedtls",
     "lib.libresidfp" to "external/libresidfp",
     "lib.resid" to "external/resid",
-    "lib.openssl" to "external/openssl",
     "lib.libbinio" to "external/libbinio",
     "lib.miniaudio" to "external/miniaudio"
 )
