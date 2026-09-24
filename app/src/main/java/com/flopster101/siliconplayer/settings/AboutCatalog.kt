@@ -219,6 +219,18 @@ internal object AboutCatalog {
             )
         ),
         AboutEntity(
+            id = "lib.mbedtls",
+            kind = AboutEntityKind.Library,
+            name = "mbedTLS",
+            description = "Lightweight cryptographic and SSL/TLS library.",
+            author = "Arm Limited and contributors",
+            license = "Apache-2.0",
+            links = listOf(
+                AboutEntityLink("Project", "https://www.trustedfirmware.org/projects/mbed-tls/"),
+                AboutEntityLink("Source", "https://github.com/Mbed-TLS/mbedtls")
+            )
+        ),
+        AboutEntity(
             id = "lib.libsoxr",
             kind = AboutEntityKind.Library,
             name = "libsoxr",
@@ -258,17 +270,6 @@ internal object AboutCatalog {
             ),
             integrationNotes = listOf(
                 "Bundled as part of SID backend support for libsidplayfp integration."
-            )
-        ),
-        AboutEntity(
-            id = "lib.openssl",
-            kind = AboutEntityKind.Library,
-            name = "OpenSSL",
-            description = "General-purpose cryptography and TLS toolkit.",
-            author = "The OpenSSL Project Authors",
-            license = "Apache-2.0",
-            links = listOf(
-                AboutEntityLink("Source", "https://github.com/openssl/openssl")
             )
         ),
         AboutEntity(

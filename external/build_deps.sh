@@ -45,7 +45,7 @@ SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )"
 ABSOLUTE_PATH="$SCRIPT_DIR"
 PATCHES_DIR_VIO2SF="$ABSOLUTE_PATH/patches/vio2sf"
 PATCHES_DIR_LIBSIDPLAYFP="$ABSOLUTE_PATH/patches/libsidplayfp"
-OPENSSL_DIR="$ABSOLUTE_PATH/openssl"
+MBEDTLS_DIR="$ABSOLUTE_PATH/mbedtls"
 
 # -----------------------------------------------------------------------------
 # Functions: Generic system dependency installation helpers
@@ -296,127 +296,50 @@ build_libsoxr() {
 }
 
 # -----------------------------------------------------------------------------
-# Function: Build OpenSSL (required for FFmpeg HTTPS/TLS)
+# Function: Build mbedTLS (required for FFmpeg HTTPS/TLS)
 # -----------------------------------------------------------------------------
-build_openssl() {
+build_mbedtls() {
     local ABI=$1
-    local PROJECT_PATH="$OPENSSL_DIR"
+    local PROJECT_PATH="$MBEDTLS_DIR"
     local INSTALL_DIR="$ABSOLUTE_PATH/../app/src/main/cpp/prebuilt/$ABI"
     local BUILD_DIR="$PROJECT_PATH/build_android_${ABI}"
-    local OPENSSL_TARGET=""
-    local OPENSSL_CROSS_PREFIX=""
-    local OPENSSL_CLANG_BIN=""
-    local OPENSSL_BUILD_SIGNATURE="openssl-android-shared-pic-noasm-v2"
-    local OPENSSL_STAMP_FILE="$INSTALL_DIR/lib/.openssl_build_signature"
+    local MBEDTLS_STAMP="$INSTALL_DIR/lib/.mbedtls_build_stamp"
+    local MBEDTLS_STAMP_EXPECTED="v3.6.0-api$ANDROID_API"
 
     if [ ! -d "$PROJECT_PATH" ]; then
-        echo "OpenSSL source not found at $PROJECT_PATH."
-        echo "Clone it first: git clone https://github.com/openssl/openssl.git $PROJECT_PATH"
-        return 1
+        echo "mbedTLS source not found at $PROJECT_PATH (skipping)."
+        return 0
     fi
 
-    if [ "$FORCE_CLEAN" -ne 1 ] && [ -f "$INSTALL_DIR/lib/libssl.so" ] && [ -f "$INSTALL_DIR/lib/libcrypto.so" ] && [ -f "$INSTALL_DIR/include/openssl/ssl.h" ] && [ -f "$OPENSSL_STAMP_FILE" ]; then
-        if [ "$(cat "$OPENSSL_STAMP_FILE")" = "$OPENSSL_BUILD_SIGNATURE" ]; then
-            echo "OpenSSL already built for $ABI -> skipping"
-            return 0
-        fi
+    if [ "$FORCE_CLEAN" -ne 1 ] && [ -f "$INSTALL_DIR/lib/libmbedtls.a" ] && [ -f "$INSTALL_DIR/include/mbedtls/ssl.h" ] && \
+       [ -f "$MBEDTLS_STAMP" ] && [ "$(cat "$MBEDTLS_STAMP" 2>/dev/null)" = "$MBEDTLS_STAMP_EXPECTED" ]; then
+        echo "mbedTLS already built for $ABI -> skipping"
+        return 0
     fi
 
-    case "$ABI" in
-        "arm64-v8a")
-            OPENSSL_TARGET="android-arm64"
-            OPENSSL_CROSS_PREFIX="aarch64-linux-android-"
-            OPENSSL_CLANG_BIN="$TOOLCHAIN/bin/aarch64-linux-android${ANDROID_API}-clang"
-            ;;
-        "armeabi-v7a")
-            OPENSSL_TARGET="android-arm"
-            OPENSSL_CROSS_PREFIX="arm-linux-androideabi-"
-            OPENSSL_CLANG_BIN="$TOOLCHAIN/bin/armv7a-linux-androideabi${ANDROID_API}-clang"
-            ;;
-        "x86_64")
-            OPENSSL_TARGET="android-x86_64"
-            OPENSSL_CROSS_PREFIX="x86_64-linux-android-"
-            OPENSSL_CLANG_BIN="$TOOLCHAIN/bin/x86_64-linux-android${ANDROID_API}-clang"
-            ;;
-        "x86")
-            OPENSSL_TARGET="android-x86"
-            OPENSSL_CROSS_PREFIX="i686-linux-android-"
-            OPENSSL_CLANG_BIN="$TOOLCHAIN/bin/i686-linux-android${ANDROID_API}-clang"
-            ;;
-        *)
-            echo "Unsupported ABI for OpenSSL: $ABI"
-            return 1
-            ;;
-    esac
-
-    echo "Building OpenSSL for $ABI ($OPENSSL_TARGET)..."
-    if [ ! -x "$OPENSSL_CLANG_BIN" ]; then
-        echo "Error: expected clang not found for OpenSSL: $OPENSSL_CLANG_BIN"
-        return 1
-    fi
-
-    mkdir -p "$INSTALL_DIR"
+    echo "Building mbedTLS for $ABI..."
     rm -rf "$BUILD_DIR"
-    mkdir -p "$BUILD_DIR"
+    mkdir -p "$BUILD_DIR" "$INSTALL_DIR"
 
-    cd "$PROJECT_PATH"
+    cmake -Wno-dev \
+        -S "$PROJECT_PATH" \
+        -B "$BUILD_DIR" \
+        -DCMAKE_TOOLCHAIN_FILE="$ANDROID_NDK_HOME/build/cmake/android.toolchain.cmake" \
+        -DANDROID_ABI="$ABI" \
+        -DANDROID_PLATFORM="android-$ANDROID_API" \
+        -DCMAKE_C_FLAGS="-fPIC $DEP_OPT_FLAGS" \
+        -DCMAKE_BUILD_TYPE=Release \
+        -DENABLE_PROGRAMS=OFF \
+        -DENABLE_TESTING=OFF \
+        -DUSE_SHARED_MBEDTLS_LIBRARY=OFF \
+        -DUSE_STATIC_MBEDTLS_LIBRARY=ON \
+        -DMBEDTLS_FATAL_WARNINGS=OFF \
+        -DCMAKE_INSTALL_PREFIX="$INSTALL_DIR"
 
-    make clean >/dev/null 2>&1 || true
-    rm -f configdata.pm
+    cmake --build "$BUILD_DIR" -j"$NPROC"
+    cmake --install "$BUILD_DIR"
 
-    # OpenSSL Android Configure probing is sensitive to env vars and legacy tool names.
-    # Export canonical Android vars and provide compat wrappers in an ABI-local PATH prefix.
-    local OPENSSL_COMPAT_BIN="$BUILD_DIR/ndk-compat-bin"
-    mkdir -p "$OPENSSL_COMPAT_BIN"
-
-    cat > "$OPENSSL_COMPAT_BIN/${OPENSSL_CROSS_PREFIX}gcc" <<EOF
-#!/usr/bin/env bash
-exec "$OPENSSL_CLANG_BIN" "\$@"
-EOF
-    cat > "$OPENSSL_COMPAT_BIN/${OPENSSL_CROSS_PREFIX}clang" <<EOF
-#!/usr/bin/env bash
-exec "$OPENSSL_CLANG_BIN" "\$@"
-EOF
-    chmod +x "$OPENSSL_COMPAT_BIN/${OPENSSL_CROSS_PREFIX}gcc" "$OPENSSL_COMPAT_BIN/${OPENSSL_CROSS_PREFIX}clang"
-
-    export ANDROID_NDK_ROOT="$ANDROID_NDK_HOME"
-    export ANDROID_NDK="$ANDROID_NDK_HOME"
-    export ANDROID_API="$ANDROID_API"
-    export PATH="$OPENSSL_COMPAT_BIN:$TOOLCHAIN/bin:$PATH"
-
-    local OPENSSL_API21_COMPAT_FLAGS=""
-    if [ "$ANDROID_API" -le 21 ]; then
-        # Keep OpenSSL static libs linkable against old bionic (API 21) where
-        # stdio globals are exposed via __sF instead of stderr/stdout symbols.
-        OPENSSL_API21_COMPAT_FLAGS="-U_FORTIFY_SOURCE -D_FORTIFY_SOURCE=0 -Dstderr=__sF+2 -Dstdout=__sF+1"
-    fi
-
-    export CFLAGS="-fPIC $DEP_OPT_FLAGS $OPENSSL_API21_COMPAT_FLAGS"
-    export CXXFLAGS="-fPIC $DEP_OPT_FLAGS $OPENSSL_API21_COMPAT_FLAGS"
-
-    perl ./Configure "$OPENSSL_TARGET" \
-        --cross-compile-prefix="$OPENSSL_CROSS_PREFIX" \
-        no-tests \
-        no-asm \
-        shared \
-        no-module \
-        no-engine \
-        no-apps \
-        no-docs \
-        no-ui-console \
-        --prefix="$INSTALL_DIR" \
-        --openssldir="$INSTALL_DIR/ssl" \
-        -D__ANDROID_API__="$ANDROID_API" || {
-            echo "Error: OpenSSL configure failed!"
-            exit 1
-        }
-
-    make -s -j"$NPROC"
-    make -s install_sw
-    mkdir -p "$INSTALL_DIR/lib"
-    echo "$OPENSSL_BUILD_SIGNATURE" > "$OPENSSL_STAMP_FILE"
-
-    cd "$ABSOLUTE_PATH"
+    echo "$MBEDTLS_STAMP_EXPECTED" > "$MBEDTLS_STAMP"
 }
 
 # -----------------------------------------------------------------------------
@@ -431,10 +354,10 @@ build_ffmpeg() {
     local SOXR_LDFLAGS=""
     local SOXR_EXTRA_LIBS=""
     local SOXR_ENABLE_FLAG=""
-    local OPENSSL_CFLAGS=""
-    local OPENSSL_LDFLAGS=""
-    local OPENSSL_EXTRA_LIBS=""
-    local OPENSSL_ENABLE_FLAG=""
+    local MBEDTLS_CFLAGS=""
+    local MBEDTLS_LDFLAGS=""
+    local MBEDTLS_EXTRA_LIBS=""
+    local MBEDTLS_ENABLE_FLAG=""
     local FFMPEG_EXTRA_CFLAGS="-fPIC $DEP_OPT_FLAGS"
     local FFMPEG_AUDIO_DECODERS=""
     local FFMPEG_AUDIO_DEMUXERS=""
@@ -484,15 +407,15 @@ build_ffmpeg() {
         echo "libsoxr not available for $ABI -> FFmpeg will use built-in swr resampler only"
     fi
 
-    if [ -f "$BUILD_DIR/lib/libssl.so" ] && [ -f "$BUILD_DIR/lib/libcrypto.so" ] && [ -f "$BUILD_DIR/include/openssl/ssl.h" ]; then
-        echo "OpenSSL detected for $ABI -> enabling FFmpeg HTTPS/TLS support"
-        OPENSSL_ENABLE_FLAG="--enable-openssl"
-        OPENSSL_CFLAGS="-I$BUILD_DIR/include"
-        OPENSSL_LDFLAGS="-L$BUILD_DIR/lib"
-        OPENSSL_EXTRA_LIBS="-lssl -lcrypto -ldl -lz"
-        FFMPEG_EXTRA_CFLAGS="$FFMPEG_EXTRA_CFLAGS $OPENSSL_CFLAGS"
+    if [ -f "$BUILD_DIR/lib/libmbedtls.a" ] && [ -f "$BUILD_DIR/include/mbedtls/ssl.h" ]; then
+        echo "mbedTLS detected for $ABI -> enabling FFmpeg HTTPS/TLS support"
+        MBEDTLS_ENABLE_FLAG="--enable-mbedtls --enable-version3"
+        MBEDTLS_CFLAGS="-I$BUILD_DIR/include"
+        MBEDTLS_LDFLAGS="-L$BUILD_DIR/lib"
+        MBEDTLS_EXTRA_LIBS="-lmbedtls -lmbedx509 -lmbedcrypto -lp256m -leverest"
+        FFMPEG_EXTRA_CFLAGS="$FFMPEG_EXTRA_CFLAGS $MBEDTLS_CFLAGS"
     else
-        echo "OpenSSL not available for $ABI -> FFmpeg HTTPS/TLS protocols will be unavailable"
+        echo "mbedTLS not available for $ABI -> FFmpeg HTTPS/TLS protocols will be unavailable"
     fi
 
     ./configure \
@@ -534,11 +457,11 @@ build_ffmpeg() {
         --enable-protocol="$FFMPEG_PROTOCOLS" \
         --enable-swresample \
         $SOXR_ENABLE_FLAG \
-        $OPENSSL_ENABLE_FLAG \
+        $MBEDTLS_ENABLE_FLAG \
         --enable-jni \
         --extra-cflags="$FFMPEG_EXTRA_CFLAGS" \
-        --extra-ldflags="$SOXR_LDFLAGS $OPENSSL_LDFLAGS" \
-        --extra-libs="$SOXR_EXTRA_LIBS $OPENSSL_EXTRA_LIBS" \
+        --extra-ldflags="$SOXR_LDFLAGS $MBEDTLS_LDFLAGS -Wl,-z,max-page-size=16384" \
+        --extra-libs="$SOXR_EXTRA_LIBS $MBEDTLS_EXTRA_LIBS" \
         $EXTRA_FLAGS || { echo "Error: FFmpeg configure failed!"; exit 1; }
 
     make -s -j"$NPROC"
@@ -2627,7 +2550,7 @@ build_projectm() {
 usage() {
     echo "Usage: $0 <abi|all> <lib|all[,lib2,...]> [clean]"
     echo "  ABI: all, all_legacy, arm64-v8a, armeabi-v7a, x86_64 (x86 supported explicitly or via all_legacy)"
-    echo "  LIB: all, libsoxr, openssl, ffmpeg, libopenmpt, libxmp, libayfly, libvgm, libgme, libresid, libresidfp, libsidplayfp, crsid, lazyusf2, psflib, vio2sf, fluidsynth, sc68, libbinio, adplug, libzakalwe, bencodetools, vasm, uade, hivelytracker, klystrack, furnace, projectm"
+    echo "  LIB: all, libsoxr, mbedtls, ffmpeg, libopenmpt, libxmp, libayfly, libvgm, libgme, libresid, libresidfp, libsidplayfp, crsid, lazyusf2, psflib, vio2sf, fluidsynth, sc68, libbinio, adplug, libzakalwe, bencodetools, vasm, uade, hivelytracker, klystrack, furnace, projectm"
     echo "  clean (optional): force rebuild (bypass already-built skip checks)"
     echo "  Aliases: sox/soxr, gme, xmp, ayfly, resid/residfp, sid/sidplayfp, crsid/cRSID/libcrsid, usf/lazyusf, psf, 2sf/twosf, fluid/libfluidsynth, libsc68, binio, libadplug, zakalwe, bencode, assembler/vasm, libuade, hvl/hively, kly/kt, fur"
 }
@@ -2664,8 +2587,8 @@ fi
 normalize_lib_name() {
     local lib="$1"
     case "$lib" in
-        openssl)
-            echo "openssl"
+        mbedtls|libmbedtls)
+            echo "mbedtls"
             ;;
         sox|soxr)
             echo "libsoxr"
@@ -2777,7 +2700,7 @@ is_valid_abi() {
 is_valid_lib() {
     local lib="$1"
     case "$lib" in
-        all|libsoxr|openssl|ffmpeg|libopenmpt|libxmp|libayfly|libvgm|libgme|libresid|libresidfp|libsidplayfp|crsid|lazyusf2|psflib|vio2sf|fluidsynth|sc68|libbinio|adplug|libzakalwe|bencodetools|vasm|uade|hivelytracker|klystrack|furnace|projectm)
+        all|libsoxr|mbedtls|ffmpeg|libopenmpt|libxmp|libayfly|libvgm|libgme|libresid|libresidfp|libsidplayfp|crsid|lazyusf2|psflib|vio2sf|fluidsynth|sc68|libbinio|adplug|libzakalwe|bencodetools|vasm|uade|hivelytracker|klystrack|furnace|projectm)
             return 0
             ;;
         *)
@@ -2822,7 +2745,7 @@ clean_target_artifacts() {
 
     # Resolve lib list
     if [ "$TARGET_LIB" = "all" ]; then
-            lib_list=(libsoxr openssl ffmpeg libopenmpt libxmp libayfly libvgm libgme libresid libresidfp libsidplayfp crsid lazyusf2 psflib vio2sf fluidsynth sc68 libbinio adplug libzakalwe bencodetools vasm uade hivelytracker klystrack furnace projectm)
+            lib_list=(libsoxr mbedtls ffmpeg libopenmpt libxmp libayfly libvgm libgme libresid libresidfp libsidplayfp crsid lazyusf2 psflib vio2sf fluidsynth sc68 libbinio adplug libzakalwe bencodetools vasm uade hivelytracker klystrack furnace projectm)
     else
         IFS=',' read -r -a requested <<< "$TARGET_LIB"
         for raw in "${requested[@]}"; do
@@ -2839,7 +2762,7 @@ clean_target_artifacts() {
 
         case "$lib" in
             libsoxr)        PROJ="$ABSOLUTE_PATH/libsoxr"; CMAKE=1 ;;
-            openssl)        PROJ="$OPENSSL_DIR"; CMAKE=1 ;;
+            mbedtls)        PROJ="$MBEDTLS_DIR"; CMAKE=1 ;;
             ffmpeg)         PROJ="$ABSOLUTE_PATH/ffmpeg" ;;
             libopenmpt)     PROJ="$ABSOLUTE_PATH/libopenmpt" ;;
             libxmp)         PROJ="$ABSOLUTE_PATH/libxmp"; CMAKE=1 ;;
@@ -2915,9 +2838,10 @@ clean_target_artifacts() {
                 libsoxr)
                     rm -f "$inst/lib/libsoxr.so" 2>/dev/null || true
                     rm -rf "$inst/include/soxr"* 2>/dev/null || true ;;
-                openssl)
-                    rm -f "$inst/lib/libssl.so" "$inst/lib/libcrypto.so" 2>/dev/null || true
-                    rm -rf "$inst/include/openssl" 2>/dev/null || true ;;
+                mbedtls)
+                    rm -f "$inst/lib"/libmbed*.a "$inst/lib"/libp256m.a "$inst/lib"/libeverest.a 2>/dev/null || true
+                    rm -rf "$inst/include/mbedtls" "$inst/include/psa" "$inst/include/everest" 2>/dev/null || true
+                    rm -f "$inst/lib/.mbedtls_build_stamp" 2>/dev/null || true ;;
                 ffmpeg)
                     rm -f "$inst/lib"/libav{codec,format,util,device,filter,swresample,swscale}.so 2>/dev/null || true
                     for inc in libavcodec libavformat libavutil libswresample; do
@@ -3022,38 +2946,6 @@ ensure_libm_dt_needed() {
 }
 
 # -----------------------------------------------------------------------------
-# Function: Rename bundled OpenSSL libs (avoid system libcrypto clash)
-# -----------------------------------------------------------------------------
-# On Android 5.x Conscrypt loads the system libcrypto.so/libssl.so, and the
-# pre-M linker resolves DT_NEEDED entries by soname against already-loaded
-# libraries, so bundled OpenSSL libs clash with the system ones (missing
-# 1.1+ symbols like BIO_read_ex). Give them app-unique sonames.
-rename_bundled_openssl() {
-    command -v patchelf >/dev/null 2>&1 || return 0
-    local PREBUILT_BASE="$ABSOLUTE_PATH/../app/src/main/cpp/prebuilt"
-    local abi so
-    for abi in arm64-v8a armeabi-v7a x86_64 x86; do
-        [ -d "$PREBUILT_BASE/$abi/lib" ] || continue
-        if [ -f "$PREBUILT_BASE/$abi/lib/libcrypto.so" ]; then
-            patchelf --set-soname libsiliconplayer_crypto.so "$PREBUILT_BASE/$abi/lib/libcrypto.so"
-            mv "$PREBUILT_BASE/$abi/lib/libcrypto.so" "$PREBUILT_BASE/$abi/lib/libsiliconplayer_crypto.so"
-        fi
-        if [ -f "$PREBUILT_BASE/$abi/lib/libssl.so" ]; then
-            patchelf --set-soname libsiliconplayer_ssl.so "$PREBUILT_BASE/$abi/lib/libssl.so"
-            mv "$PREBUILT_BASE/$abi/lib/libssl.so" "$PREBUILT_BASE/$abi/lib/libsiliconplayer_ssl.so"
-        fi
-        for so in "$PREBUILT_BASE/$abi/lib"/*.so; do
-            if readelf -d "$so" 2>/dev/null | grep -q 'NEEDED.*\[libcrypto\.so\]'; then
-                patchelf --replace-needed libcrypto.so libsiliconplayer_crypto.so "$so"
-            fi
-            if readelf -d "$so" 2>/dev/null | grep -q 'NEEDED.*\[libssl\.so\]'; then
-                patchelf --replace-needed libssl.so libsiliconplayer_ssl.so "$so"
-            fi
-        done
-    done
-}
-
-# -----------------------------------------------------------------------------
 # Main Loop
 # -----------------------------------------------------------------------------
 processed_abis=0
@@ -3109,8 +3001,8 @@ for ABI in "${ABIS[@]}"; do
         build_libsoxr "$ABI"
     fi
 
-    if target_has_lib "openssl"; then
-        build_openssl "$ABI"
+    if target_has_lib "mbedtls"; then
+        build_mbedtls "$ABI"
     fi
 
     if target_has_lib "ffmpeg"; then
@@ -3216,6 +3108,5 @@ if [ "$processed_abis" -eq 0 ]; then
 fi
 
 ensure_libm_dt_needed
-rename_bundled_openssl
 
 echo "Build complete!"
