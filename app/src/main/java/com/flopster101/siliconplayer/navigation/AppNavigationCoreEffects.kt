@@ -22,6 +22,7 @@ internal fun AppNavigationCoreEffects(
     furnaceCoreSampleRateHz: Int,
     uadeCoreSampleRateHz: Int,
     xmpCoreSampleRateHz: Int,
+    ufmodCoreSampleRateHz: Int,
     adPlugOplEngine: Int,
     xmpInterpolation: Int,
     xmpStereoSeparationPercent: Int,
@@ -173,6 +174,12 @@ internal fun AppNavigationCoreEffects(
         val normalized = if (xmpCoreSampleRateHz <= 0) 0 else xmpCoreSampleRateHz.coerceIn(8000, 192000)
         prefs.edit().putInt(CorePreferenceKeys.CORE_RATE_XMP, normalized).apply()
         NativeBridge.setCoreOutputSampleRate(DecoderNames.LIBXMP, normalized)
+    }
+
+    LaunchedEffect(ufmodCoreSampleRateHz) {
+        val normalized = if (ufmodCoreSampleRateHz <= 0) 0 else ufmodCoreSampleRateHz.coerceIn(8000, 192000)
+        prefs.edit().putInt(CorePreferenceKeys.CORE_RATE_UFMOD, normalized).apply()
+        NativeBridge.setCoreOutputSampleRate(DecoderNames.UFMOD, normalized)
     }
 
     LaunchedEffect(xmpInterpolation) {
@@ -1129,6 +1136,7 @@ internal fun AppNavigationCoreEffectsFromSettingsStates(
         furnaceCoreSampleRateHz = settingsStates.furnaceCoreSampleRateHz.intValue,
         uadeCoreSampleRateHz = settingsStates.uadeCoreSampleRateHz.intValue,
         xmpCoreSampleRateHz = settingsStates.xmpCoreSampleRateHz.intValue,
+        ufmodCoreSampleRateHz = settingsStates.ufmodCoreSampleRateHz.intValue,
         adPlugOplEngine = settingsStates.adPlugOplEngine.intValue,
         xmpInterpolation = settingsStates.xmpInterpolation.intValue,
         xmpStereoSeparationPercent = settingsStates.xmpStereoSeparationPercent.intValue,

@@ -53,6 +53,7 @@ internal data class PluginDetailRouteState(
     val furnaceSampleRateHz: Int,
     val uadeSampleRateHz: Int,
     val xmpSampleRateHz: Int,
+    val ufmodSampleRateHz: Int,
     val adPlugOplEngine: Int,
     val xmpInterpolation: Int,
     val xmpStereoSeparationPercent: Int,
@@ -144,6 +145,7 @@ internal data class PluginDetailRouteActions(
     val onFurnaceSampleRateChanged: (Int) -> Unit,
     val onUadeSampleRateChanged: (Int) -> Unit,
     val onXmpSampleRateChanged: (Int) -> Unit,
+    val onUfmodSampleRateChanged: (Int) -> Unit,
     val onAdPlugOplEngineChanged: (Int) -> Unit,
     val onXmpInterpolationChanged: (Int) -> Unit,
     val onXmpStereoSeparationPercentChanged: (Int) -> Unit,
@@ -304,6 +306,7 @@ internal fun PluginDetailRouteContent(
         DecoderNames.FURNACE -> state.furnaceSampleRateHz
         DecoderNames.UADE -> state.uadeSampleRateHz
         DecoderNames.LIBXMP -> state.xmpSampleRateHz
+        DecoderNames.UFMOD -> state.ufmodSampleRateHz
         DecoderNames.AYFLY -> state.ayflyCoreSampleRateHz
         DecoderNames.SC68 -> state.sc68SamplingRateHz
         else -> fixedSampleRateHz
@@ -323,6 +326,7 @@ internal fun PluginDetailRouteContent(
         DecoderNames.UADE -> actions.onUadeSampleRateChanged
         DecoderNames.SC68 -> actions.onSc68SamplingRateHzChanged
         DecoderNames.LIBXMP -> actions.onXmpSampleRateChanged
+        DecoderNames.UFMOD -> actions.onUfmodSampleRateChanged
         DecoderNames.AYFLY -> actions.onAyflyCoreSampleRateHzChanged
         else -> null
     }

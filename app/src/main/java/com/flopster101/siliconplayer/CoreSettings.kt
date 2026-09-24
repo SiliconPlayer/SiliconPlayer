@@ -78,6 +78,7 @@ object CorePreferenceKeys {
     const val FURNACE_AY_CORE = "furnace_ay_core"
     const val ADPLUG_OPL_ENGINE = "adplug_opl_engine"
     const val CORE_RATE_XMP = "core_rate_xmp"
+    const val CORE_RATE_UFMOD = "core_rate_ufmod"
     const val XMP_INTERPOLATION = "xmp_interpolation"
     const val XMP_STEREO_SEPARATION_PERCENT = "xmp_stereo_separation_percent"
     const val XMP_AMIGA_STEREO_SEPARATION_PERCENT = "xmp_amiga_stereo_separation_percent"
@@ -163,6 +164,10 @@ object LazyUsf2Defaults {
 object AdPlugDefaults {
     const val coreSampleRateHz = 0
     const val oplEngine = 2
+}
+
+object UfmodDefaults {
+    const val coreSampleRateHz = 0
 }
 
 object XmpDefaults {

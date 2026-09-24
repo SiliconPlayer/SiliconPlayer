@@ -29,6 +29,7 @@ internal data class AppNavigationSettingsStates(
     val furnaceCoreSampleRateHz: MutableIntState,
     val uadeCoreSampleRateHz: MutableIntState,
     val xmpCoreSampleRateHz: MutableIntState,
+    val ufmodCoreSampleRateHz: MutableIntState,
     val adPlugOplEngine: MutableIntState,
     val xmpInterpolation: MutableIntState,
     val xmpStereoSeparationPercent: MutableIntState,
@@ -202,6 +203,9 @@ internal fun rememberAppNavigationSettingsStates(
     }
     val xmpCoreSampleRateHz = remember {
         mutableIntStateOf(prefs.getInt(CorePreferenceKeys.CORE_RATE_XMP, XmpDefaults.coreSampleRateHz))
+    }
+    val ufmodCoreSampleRateHz = remember {
+        mutableIntStateOf(prefs.getInt(CorePreferenceKeys.CORE_RATE_UFMOD, UfmodDefaults.coreSampleRateHz))
     }
     val xmpInterpolation = remember {
         mutableIntStateOf(prefs.getInt(CorePreferenceKeys.XMP_INTERPOLATION, XmpDefaults.interpolation))
@@ -668,6 +672,7 @@ internal fun rememberAppNavigationSettingsStates(
         furnaceCoreSampleRateHz = furnaceCoreSampleRateHz,
         uadeCoreSampleRateHz = uadeCoreSampleRateHz,
         xmpCoreSampleRateHz = xmpCoreSampleRateHz,
+        ufmodCoreSampleRateHz = ufmodCoreSampleRateHz,
         adPlugOplEngine = adPlugOplEngine,
         xmpInterpolation = xmpInterpolation,
         xmpStereoSeparationPercent = xmpStereoSeparationPercent,

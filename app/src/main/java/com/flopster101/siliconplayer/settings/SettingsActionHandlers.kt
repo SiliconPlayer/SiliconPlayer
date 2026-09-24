@@ -730,6 +730,7 @@ internal fun clearAllSettingsAction(
     furnaceCoreSampleRateHz: Int,
     uadeCoreSampleRateHz: Int,
     xmpCoreSampleRateHz: Int,
+    ufmodCoreSampleRateHz: Int,
     adPlugOplEngine: Int,
     xmpInterpolation: Int,
     xmpStereoSeparationPercent: Int,
@@ -895,6 +896,7 @@ internal fun clearAllSettingsAction(
     onAdPlugCoreSampleRateHzChanged: (Int) -> Unit,
     onAdPlugOplEngineChanged: (Int) -> Unit,
     onXmpCoreSampleRateHzChanged: (Int) -> Unit,
+    onUfmodCoreSampleRateHzChanged: (Int) -> Unit,
     onXmpInterpolationChanged: (Int) -> Unit,
     onXmpStereoSeparationPercentChanged: (Int) -> Unit,
     onXmpAmigaStereoSeparationPercentChanged: (Int) -> Unit,
@@ -921,6 +923,7 @@ internal fun clearAllSettingsAction(
         CorePreferenceKeys.VIO2SF_INTERPOLATION_QUALITY to vio2sfInterpolationQuality,
         CorePreferenceKeys.ADPLUG_OPL_ENGINE to adPlugOplEngine,
         CorePreferenceKeys.CORE_RATE_XMP to xmpCoreSampleRateHz,
+        CorePreferenceKeys.CORE_RATE_UFMOD to ufmodCoreSampleRateHz,
         CorePreferenceKeys.XMP_INTERPOLATION to xmpInterpolation,
         CorePreferenceKeys.XMP_STEREO_SEPARATION_PERCENT to xmpStereoSeparationPercent,
         CorePreferenceKeys.XMP_AMIGA_STEREO_SEPARATION_PERCENT to xmpAmigaStereoSeparationPercent,
@@ -1208,6 +1211,7 @@ internal fun clearAllPluginSettingsAction(
     onOpenMptMasterGainMilliBelChanged: (Int) -> Unit,
     onOpenMptSurroundEnabledChanged: (Boolean) -> Unit,
     onXmpCoreSampleRateHzChanged: (Int) -> Unit,
+    onUfmodCoreSampleRateHzChanged: (Int) -> Unit,
     onXmpInterpolationChanged: (Int) -> Unit,
     onXmpStereoSeparationPercentChanged: (Int) -> Unit,
     onXmpAmigaStereoSeparationPercentChanged: (Int) -> Unit,
@@ -1473,6 +1477,7 @@ internal fun resetPluginSettingsAction(
     onSidPlayFpReSidFpFastSamplingChanged: (Boolean) -> Unit,
     onSidPlayFpReSidFpCombinedWaveformsStrengthChanged: (Int) -> Unit,
     onXmpCoreSampleRateHzChanged: (Int) -> Unit,
+    onUfmodCoreSampleRateHzChanged: (Int) -> Unit,
     onXmpInterpolationChanged: (Int) -> Unit,
     onXmpStereoSeparationPercentChanged: (Int) -> Unit,
     onXmpAmigaStereoSeparationPercentChanged: (Int) -> Unit,
@@ -1739,6 +1744,7 @@ internal fun resetPluginSettingsAction(
             onXmpAmigaModelChanged(XmpDefaults.amigaModel)
             prefs.edit()
                 .remove(CorePreferenceKeys.CORE_RATE_XMP)
+            .remove(CorePreferenceKeys.CORE_RATE_UFMOD)
                 .remove(CorePreferenceKeys.XMP_INTERPOLATION)
                 .remove(CorePreferenceKeys.XMP_STEREO_SEPARATION_PERCENT)
                 .remove(CorePreferenceKeys.XMP_AMIGA_STEREO_SEPARATION_PERCENT)
