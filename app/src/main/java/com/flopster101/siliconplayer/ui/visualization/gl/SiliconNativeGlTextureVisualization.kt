@@ -704,12 +704,18 @@ internal class SiliconNativeTextureRenderThread(
             }
             if (transitionPending) {
                 val newDataAlive = dataSerial != pendingDataSerial && dataChannelsAlive
-                // Bounded bridge: waiting on the decoder would hold the frame
-                // for the whole load, which reads as a freeze.
-                if (newDataAlive || trackDetectNowNs - transitionPendingSinceNs > 250_000_000L) {
+                if (newDataAlive) {
                     transitionPending = false
                     transitionActive = true
                     transitionStartNs = trackDetectNowNs
+                } else if (trackDetectNowNs - transitionPendingSinceNs > 250_000_000L) {
+                    // Nothing arrived to dissolve into (a stop, or a load that
+                    // never lands). Cancel instead of animating the snapshot
+                    // out: as a full-alpha overlay it would hold the frame
+                    // until new data appears, i.e. until the next play.
+                    transitionPending = false
+                    transitionSnapshot.release()
+                    capturedSerial = dataSerial
                 }
             }
         }

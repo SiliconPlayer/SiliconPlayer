@@ -2273,7 +2273,7 @@ internal fun AlbumArtPlaceholder(
 
     if (
         visualizationMode == VisualizationMode.Off ||
-            (file == null && fileNullSettled) ||
+            (file == null && (fileNullSettled || !isPlaying)) ||
             !hasStartedPlaybackForTrack
     ) {
         SwipeableArtworkContainer(
