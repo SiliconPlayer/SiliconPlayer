@@ -3559,7 +3559,9 @@ fun FileItemRow(
                             onClick()
                         }
                     )
-                    if (!item.isDirectory && !isVideoFile && !isSupportedPlaylistFileName(item.name)) {
+                    if (!item.isDirectory &&
+                        (item.kind == FileItem.Kind.AudioFile || isSupportedPlaylistFileName(item.name))
+                    ) {
                         DropdownMenuItem(
                             text = {
                                 Text(
