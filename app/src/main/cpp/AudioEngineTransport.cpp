@@ -166,6 +166,13 @@ bool AudioEngine::start() {
         LOGD("Track start prefill: queued=%d target=%d preroll=%d hitDeadline=%d",
              renderQueueFrames(), startupTargetFrames, startupPrerollFrames,
              renderQueueFrames() < startupTargetFrames ? 1 : 0);
+        if (renderQueueFrames() >= startupTargetFrames) {
+            // The cushion the burst needs is already queued, so drop the 4x
+            // multiplier now instead of overfilling for the rest of its window:
+            // a deep queue saturates the channel scope's delay estimate, which
+            // then pins the rendered window until the queue drains back.
+            renderQueueRecoveryBoostUntilNs.store(0, std::memory_order_relaxed);
+        }
 
         if (!requestStreamStart()) {
             closeStream();
@@ -199,6 +206,13 @@ void AudioEngine::setFastTrackSwitchStartupHint(bool enabled) {
 
 void AudioEngine::setOutputShadowMuted(bool muted) {
     outputShadowMuted.store(muted, std::memory_order_relaxed);
+}
+
+void AudioEngine::setChannelScopeVisualizerActive(bool active) {
+    const bool previous = channelScopeVisualizerActive.exchange(active, std::memory_order_relaxed);
+    if (previous != active) {
+        LOGD("Channel scope visualizer %s", active ? "mounted" : "unmounted");
+    }
 }
 
 void AudioEngine::stop() {

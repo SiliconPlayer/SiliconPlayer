@@ -716,6 +716,13 @@ void AudioEngine::renderWorkerLoop() {
                     ? std::max(steadyCeiling, kScopeVisibleRecoveryMaxQueueFrames)
                     : steadyCeiling;
             effectiveTarget = std::min(effectiveTarget, scopeCeiling);
+        } else if (channelScopeVisualizerActive.load(std::memory_order_relaxed)) {
+            // Mounted but not pulling. Without a ceiling the recovery boost
+            // fills the ring outright and this worker then idles for the whole
+            // drain, so the decoder stops being read and the scope's history
+            // freezes on an early frame. Keeping the fill small enough that
+            // the delay estimate never saturates keeps the history advancing.
+            effectiveTarget = std::min(effectiveTarget, kScopeVisibleRecoveryMaxQueueFrames);
         }
         {
             std::unique_lock<std::mutex> lock(renderQueueMutex);

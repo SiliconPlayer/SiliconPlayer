@@ -50,6 +50,11 @@ public:
     void setCoreOption(const std::string& coreName, const std::string& optionName, const std::string& optionValue);
     void setFastTrackSwitchStartupHint(bool enabled);
     void setOutputShadowMuted(bool muted);
+    // Whether channel scope is mounted on screen. Its queue ceiling must hold
+    // then, not only while it is actively pulling: a paused scope stops
+    // pulling, and the next start would otherwise fill past what the scope's
+    // presentation-delay estimate can span.
+    void setChannelScopeVisualizerActive(bool active);
     int getCoreOptionApplyPolicy(const std::string& coreName, const std::string& optionName);
     int getCoreCapabilities(const std::string& coreName);
     int getCoreRepeatModeCapabilities(const std::string& coreName);
@@ -601,6 +606,7 @@ private:
     std::atomic<int> renderWorkerChunkFrames { 256 };
     std::atomic<int> renderWorkerTargetFrames { 16384 };
     std::atomic<bool> backgroundPlaybackMode { false };
+    std::atomic<bool> channelScopeVisualizerActive { false };
     std::atomic<int64_t> renderQueueRecoveryBoostUntilNs { 0 };
     std::atomic<int64_t> lastFillDecodeNs { 0 };
     std::atomic<uint64_t> renderQueueUnderrunCount { 0 };

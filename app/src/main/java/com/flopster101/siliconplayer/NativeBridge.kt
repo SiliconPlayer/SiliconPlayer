@@ -615,6 +615,7 @@ object NativeBridge {
     external fun getVisualizationVuLevels(): FloatArray
     external fun getVisualizationChannelCount(): Int
     external fun attachAudioEngineToVisualizer(visHandle: Long)
+    external fun setChannelScopeVisualizerActive(active: Boolean)
 
     // Gain control methods
     external fun setMasterGain(gainDb: Float)

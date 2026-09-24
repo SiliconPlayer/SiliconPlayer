@@ -451,6 +451,9 @@ internal class SiliconNativeTextureRenderThread(
     private var capturedSerial = -1L
     private var dataChannelsAlive = false
     private var lastDataAlivePollNs = 0L
+    // Whether the scene texture has presented real scope data since the mode
+    // was entered; transitions stay off until it has.
+    private var scopeSceneHasLiveData = false
 
     // SurfaceView only: the window can't clip a surface that is composited on
     // top of it, so the rounded artwork shape is cut into the GL frame instead.
@@ -660,6 +663,8 @@ internal class SiliconNativeTextureRenderThread(
                     com.flopster101.siliconplayer.NativeBridge.getChannelScopeTextState(1).isNotEmpty()
                 }.getOrDefault(false)
             }
+        } else {
+            scopeSceneHasLiveData = false
         }
         val uiTrackFlipped = frameTrackKey != lastRenderedTrackKey
         val hadRenderedTrack = lastRenderedTrackKey != null
@@ -673,7 +678,7 @@ internal class SiliconNativeTextureRenderThread(
         }
         // Channel-scope track transition: hold the previous song's last frame
         // as soon as either side flips, and only start the animation once the
-        // new song's channels are actually available (or a timeout passes).
+        // new song's channels are actually available.
         if (
             frame.mode == 4 &&
             frame.channelScopeTrackTransition != 0 &&
@@ -681,7 +686,9 @@ internal class SiliconNativeTextureRenderThread(
         ) {
             if (!transitionActive && !transitionPending && frameTrackKey != null) {
                 val dataFlipped = capturedSerial >= 0L && dataSerial != capturedSerial
-                if (dataFlipped || (uiTrackFlipped && hadRenderedTrack)) {
+                // Only dissolve from a frame that held real scope data: a scene
+                // that never got any would freeze an empty backdrop on screen.
+                if ((dataFlipped || (uiTrackFlipped && hadRenderedTrack)) && scopeSceneHasLiveData) {
                     transitionPending = true
                     transitionPendingSinceNs = trackDetectNowNs
                     pendingDataSerial = capturedSerial
@@ -697,7 +704,9 @@ internal class SiliconNativeTextureRenderThread(
             }
             if (transitionPending) {
                 val newDataAlive = dataSerial != pendingDataSerial && dataChannelsAlive
-                if (newDataAlive || trackDetectNowNs - transitionPendingSinceNs > 1_500_000_000L) {
+                // Bounded bridge: waiting on the decoder would hold the frame
+                // for the whole load, which reads as a freeze.
+                if (newDataAlive || trackDetectNowNs - transitionPendingSinceNs > 250_000_000L) {
                     transitionPending = false
                     transitionActive = true
                     transitionStartNs = trackDetectNowNs
@@ -1134,6 +1143,7 @@ internal class SiliconNativeTextureRenderThread(
                         // before a playlist/folder wrap.
                         if (frameTrackKey != null) {
                             capturedSerial = dataSerial
+                            scopeSceneHasLiveData = dataChannelsAlive
                         }
                     }
                 } else if (transitionActive || transitionPending) {

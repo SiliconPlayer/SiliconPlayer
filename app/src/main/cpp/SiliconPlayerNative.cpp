@@ -2683,6 +2683,14 @@ Java_com_flopster101_siliconplayer_NativeBridge_attachAudioEngineToVisualizer(
 }
 
 extern "C" JNIEXPORT void JNICALL
+Java_com_flopster101_siliconplayer_NativeBridge_setChannelScopeVisualizerActive(
+        JNIEnv*, jobject, jboolean active) {
+    std::lock_guard<std::mutex> lock(engineMutex);
+    if (!audioEngine) return;
+    audioEngine->setChannelScopeVisualizerActive(active == JNI_TRUE);
+}
+
+extern "C" JNIEXPORT void JNICALL
 Java_com_flopster101_siliconplayer_NativeBridge_setCoreOutputSampleRate(
         JNIEnv* env, jobject thiz, jstring coreName, jint sampleRateHz) {
     Java_com_flopster101_siliconplayer_MainActivity_setCoreOutputSampleRate(

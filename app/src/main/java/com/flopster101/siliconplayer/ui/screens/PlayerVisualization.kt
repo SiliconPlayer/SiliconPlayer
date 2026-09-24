@@ -2492,6 +2492,18 @@ internal fun AlbumArtPlaceholder(
     val emptyHistories = remember { emptyList<FloatArray>() }
     val emptyTextStates = remember { emptyList<ChannelScopeChannelTextState>() }
 
+    // The engine's channel-scope queue ceiling is keyed on a 750 ms pull-demand
+    // window, so a scope that stops pulling (paused, or idle between tracks)
+    // stops declaring it. Publish the mount instead: otherwise the next start
+    // fills to the recovery target, past what the scope's delay estimate spans.
+    DisposableEffect(visualizationMode) {
+        val scopeMounted = visualizationMode == VisualizationMode.ChannelScope
+        if (scopeMounted) {
+            NativeBridge.setChannelScopeVisualizerActive(true)
+        }
+        onDispose { NativeBridge.setChannelScopeVisualizerActive(false) }
+    }
+
     LaunchedEffect(
         visualizationMode,
         file?.absolutePath,
