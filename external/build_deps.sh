@@ -227,6 +227,46 @@ PATCH
 }
 
 # -----------------------------------------------------------------------------
+# Function: Build uFMOD
+# -----------------------------------------------------------------------------
+build_ufmod() {
+    local ABI=$1
+    local PROJECT_PATH="$ABSOLUTE_PATH/ufmod_c"
+    local INSTALL_DIR="$ABSOLUTE_PATH/../app/src/main/cpp/prebuilt/$ABI"
+    local BUILD_DIR="$PROJECT_PATH/build_android_${ABI}"
+
+    if [ ! -d "$PROJECT_PATH" ]; then
+        echo "uFMOD source not found at $PROJECT_PATH (skipping)."
+        return 0
+    fi
+
+    local TARGET_CC="$TOOLCHAIN/bin/${TRIPLE}${ANDROID_API}-clang"
+
+    echo "Building uFMOD for $ABI..."
+    rm -rf "$BUILD_DIR"
+    mkdir -p "$BUILD_DIR/obj" "$INSTALL_DIR/lib" "$INSTALL_DIR/include"
+
+    local SOURCES=(
+        "$PROJECT_PATH/src/ufmod_load.c"
+        "$PROJECT_PATH/src/ufmod_play.c"
+        "$PROJECT_PATH/src/ufmod_mix.c"
+        "$PROJECT_PATH/src/ufmod_core.c"
+    )
+    local objects=()
+    local source object
+    for source in "${SOURCES[@]}"; do
+        object="$BUILD_DIR/obj/$(basename "${source%.c}").o"
+        "$TARGET_CC" -fPIC -I"$PROJECT_PATH/include" -I"$PROJECT_PATH/src" $DEP_OPT_FLAGS \
+            -DUFMOD_RUNTIME_QUIRKS=1 -c "$source" -o "$object"
+        objects+=("$object")
+    done
+
+    "$AR" rcs "$INSTALL_DIR/lib/libufmod.a" "${objects[@]}"
+    cp "$PROJECT_PATH/include/ufmod.h" "$INSTALL_DIR/include/ufmod.h"
+    touch "$INSTALL_DIR/lib/.ufmod_build_stamp"
+}
+
+# -----------------------------------------------------------------------------
 # Function: Build libsoxr (optional, if source is present)
 # -----------------------------------------------------------------------------
 build_libsoxr() {
@@ -2530,7 +2570,7 @@ build_projectm() {
 usage() {
     echo "Usage: $0 <abi|all> <lib|all[,lib2,...]> [clean]"
     echo "  ABI: all, all_legacy, arm64-v8a, armeabi-v7a, x86_64 (x86 supported explicitly or via all_legacy)"
-    echo "  LIB: all, libsoxr, mbedtls, ffmpeg, libopenmpt, libxmp, libayfly, libvgm, libgme, libresid, libresidfp, libsidplayfp, crsid, lazyusf2, psflib, vio2sf, fluidsynth, sc68, libbinio, adplug, libzakalwe, bencodetools, vasm, uade, hivelytracker, klystrack, furnace, projectm"
+    echo "  LIB: all, libsoxr, mbedtls, ffmpeg, libopenmpt, libxmp, libayfly, ufmod, libvgm, libgme, libresid, libresidfp, libsidplayfp, crsid, lazyusf2, psflib, vio2sf, fluidsynth, sc68, libbinio, adplug, libzakalwe, bencodetools, vasm, uade, hivelytracker, klystrack, furnace, projectm"
     echo "  clean (optional): force rebuild (bypass already-built skip checks)"
     echo "  Aliases: sox/soxr, gme, xmp, ayfly, resid/residfp, sid/sidplayfp, crsid/cRSID/libcrsid, usf/lazyusf, psf, 2sf/twosf, fluid/libfluidsynth, libsc68, binio, libadplug, zakalwe, bencode, assembler/vasm, libuade, hvl/hively, kly/kt, fur"
 }
@@ -2680,7 +2720,7 @@ is_valid_abi() {
 is_valid_lib() {
     local lib="$1"
     case "$lib" in
-        all|libsoxr|mbedtls|ffmpeg|libopenmpt|libxmp|libayfly|libvgm|libgme|libresid|libresidfp|libsidplayfp|crsid|lazyusf2|psflib|vio2sf|fluidsynth|sc68|libbinio|adplug|libzakalwe|bencodetools|vasm|uade|hivelytracker|klystrack|furnace|projectm)
+        all|libsoxr|mbedtls|ffmpeg|libopenmpt|libxmp|libayfly|ufmod|libvgm|libgme|libresid|libresidfp|libsidplayfp|crsid|lazyusf2|psflib|vio2sf|fluidsynth|sc68|libbinio|adplug|libzakalwe|bencodetools|vasm|uade|hivelytracker|klystrack|furnace|projectm)
             return 0
             ;;
         *)
@@ -2725,7 +2765,7 @@ clean_target_artifacts() {
 
     # Resolve lib list
     if [ "$TARGET_LIB" = "all" ]; then
-            lib_list=(libsoxr mbedtls ffmpeg libopenmpt libxmp libayfly libvgm libgme libresid libresidfp libsidplayfp crsid lazyusf2 psflib vio2sf fluidsynth sc68 libbinio adplug libzakalwe bencodetools vasm uade hivelytracker klystrack furnace projectm)
+            lib_list=(libsoxr mbedtls ffmpeg libopenmpt libxmp libayfly ufmod libvgm libgme libresid libresidfp libsidplayfp crsid lazyusf2 psflib vio2sf fluidsynth sc68 libbinio adplug libzakalwe bencodetools vasm uade hivelytracker klystrack furnace projectm)
     else
         IFS=',' read -r -a requested <<< "$TARGET_LIB"
         for raw in "${requested[@]}"; do
@@ -2747,6 +2787,7 @@ clean_target_artifacts() {
             libopenmpt)     PROJ="$ABSOLUTE_PATH/libopenmpt" ;;
             libxmp)         PROJ="$ABSOLUTE_PATH/libxmp"; CMAKE=1 ;;
             libayfly)       PROJ="$ABSOLUTE_PATH/ayfly"; CMAKE=1 ;;
+            ufmod)          PROJ="$ABSOLUTE_PATH/ufmod_c" ;;
             libvgm)         PROJ="$ABSOLUTE_PATH/libvgm"; CMAKE=1 ;;
             libgme)         PROJ="$ABSOLUTE_PATH/libgme"; CMAKE=1 ;;
             libresid)       PROJ="$ABSOLUTE_PATH/resid"; CMAKE=1 ;;
@@ -2835,6 +2876,7 @@ clean_target_artifacts() {
                 libgme)    rm -f "$inst/lib/libgme.so" 2>/dev/null || true; rm -rf "$inst/include/libgme" 2>/dev/null || true ;;
                 libxmp)    rm -f "$inst/lib/libxmp.so" 2>/dev/null || true; rm -f "$inst/include/xmp.h" 2>/dev/null || true ;;
                 ayfly)     rm -f "$inst/lib/libayfly.so" "$inst/lib/libayfly.a" 2>/dev/null || true; rm -rf "$inst/include/ayfly" 2>/dev/null || true ;;
+                ufmod)     rm -f "$inst/lib/libufmod.a" 2>/dev/null || true; rm -f "$inst/include/ufmod.h" 2>/dev/null || true; rm -f "$inst/lib/.ufmod_build_stamp" 2>/dev/null || true ;;
                 libresid)  rm -f "$inst/lib/libresid.so" 2>/dev/null || true; rm -rf "$inst/include/resid" 2>/dev/null || true ;;
                 libresidfp) rm -f "$inst/lib/libresidfp.so" 2>/dev/null || true; rm -rf "$inst/include/libresidfp" 2>/dev/null || true ;;
                 libsidplayfp) rm -f "$inst/lib/libsidplayfp.so" 2>/dev/null || true; rm -rf "$inst/include/libsidplayfp" 2>/dev/null || true ;;
@@ -2995,6 +3037,10 @@ for ABI in "${ABIS[@]}"; do
 
     if target_has_lib "libayfly"; then
         build_ayfly "$ABI"
+    fi
+
+    if target_has_lib "ufmod"; then
+        build_ufmod "$ABI"
     fi
 
     if target_has_lib "libvgm"; then
