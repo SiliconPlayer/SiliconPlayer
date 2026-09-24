@@ -43,8 +43,6 @@ DEP_OPT_FLAGS="$DEP_WARN_FLAGS -Ofast"
 DEFAULT_ABIS=("arm64-v8a" "armeabi-v7a" "x86_64")
 SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )"
 ABSOLUTE_PATH="$SCRIPT_DIR"
-PATCHES_DIR_VIO2SF="$ABSOLUTE_PATH/patches/vio2sf"
-PATCHES_DIR_LIBSIDPLAYFP="$ABSOLUTE_PATH/patches/libsidplayfp"
 MBEDTLS_DIR="$ABSOLUTE_PATH/mbedtls"
 
 # -----------------------------------------------------------------------------
@@ -133,117 +131,99 @@ ensure_system_dependencies() {
     install_dependency_if_missing "XA assembler" "xa|xa65" "xa65" "xa" "$linux_family"
 }
 
-extract_patch_subject() {
-    local patch_file="$1"
-
-    awk '
-        BEGIN {
-            in_subject = 0
-            subject = ""
-        }
-        /^Subject: / {
-            in_subject = 1
-            line = $0
-            sub(/^Subject: \[PATCH[^]]*\] /, "", line)
-            subject = line
-            next
-        }
-        in_subject && /^[ \t]/ {
-            line = $0
-            sub(/^[ \t]+/, "", line)
-            subject = subject " " line
-            next
-        }
-        in_subject {
-            print subject
-            exit
-        }
-        END {
-            if(in_subject) {
-                print subject
-            }
-        }
-    ' "$patch_file"
-}
-
-
-
-
-
-
-
 # -----------------------------------------------------------------------------
-# Function: Apply vio2sf patches (idempotent)
-# -----------------------------------------------------------------------------
-apply_vio2sf_patches() {
-    local PROJECT_PATH="$ABSOLUTE_PATH/2sf/vio2sf"
-    if [ ! -d "$PATCHES_DIR_VIO2SF" ]; then
-        return
-    fi
-
-    for patch_file in "$PATCHES_DIR_VIO2SF"/*.patch; do
-        [ -e "$patch_file" ] || continue
-        local patch_name
-        patch_name="$(basename "$patch_file")"
-        local patch_subject
-        patch_subject="$(extract_patch_subject "$patch_file")"
-
-        if [ -n "$patch_subject" ] && git -C "$PROJECT_PATH" log --format=%s | grep -Fqx "$patch_subject"; then
-            echo "vio2sf patch already applied (subject): $patch_name"
-            continue
-        fi
-
-        if git -C "$PROJECT_PATH" apply --check --reverse "$patch_file" >/dev/null 2>&1; then
-            echo "vio2sf patch already applied: $patch_name"
-            continue
-        fi
-
-        echo "Applying vio2sf patch: $patch_name"
-        git -C "$PROJECT_PATH" am "$patch_file" || {
-            echo "Error applying patch $patch_name"
-            git -C "$PROJECT_PATH" am --abort
-            exit 1
-        }
-    done
-}
-
-
-
-
-
-
-
+# Function: Apply libsidplayfp patches (idempotent)
+#
+# Exports the SID interfaces (SID_EXTERN) so app code can subclass them when
+# libsidplayfp is linked as a shared library.
 # -----------------------------------------------------------------------------
 apply_libsidplayfp_patches() {
     local PROJECT_PATH="$ABSOLUTE_PATH/libsidplayfp"
-    if [ ! -d "$PATCHES_DIR_LIBSIDPLAYFP" ]; then
+    if [ ! -d "$PROJECT_PATH" ]; then
         return
     fi
 
-    for patch_file in "$PATCHES_DIR_LIBSIDPLAYFP"/*.patch; do
-        [ -e "$patch_file" ] || continue
-        local patch_name
-        patch_name="$(basename "$patch_file")"
-        local patch_subject
-        patch_subject="$(extract_patch_subject "$patch_file")"
+    if grep -Fq "class SID_EXTERN c64sid" "$PROJECT_PATH/src/c64/c64sid.h"; then
+        echo "libsidplayfp patch already applied."
+        return
+    fi
 
-        if [ -n "$patch_subject" ] && git -C "$PROJECT_PATH" log --format=%s | grep -Fqx "$patch_subject"; then
-            echo "libsidplayfp patch already applied (subject): $patch_name"
-            continue
-        fi
+    echo "Applying libsidplayfp patch: SID_EXTERN visibility"
+    local patch_file
+    patch_file="$(mktemp)"
+    cat > "$patch_file" <<'PATCH'
+diff --git a/src/c64/Banks/Bank.h b/src/c64/Banks/Bank.h
+--- a/src/c64/Banks/Bank.h
++++ b/src/c64/Banks/Bank.h
+@@ -32,7 +32,7 @@ namespace libsidplayfp
+ /**
+  * Base interface for memory and I/O banks.
+  */
+-class Bank
++class SID_EXTERN Bank
+ {
+ public:
+     /**
+diff --git a/src/c64/c64sid.h b/src/c64/c64sid.h
+--- a/src/c64/c64sid.h
++++ b/src/c64/c64sid.h
+@@ -23,6 +23,7 @@
+ 
+ #include "Banks/Bank.h"
+ 
++#include "sidplayfp/siddefs.h"
+ #include "sidcxx11.h"
+ 
+ #include <algorithm>
+@@ -36,7 +37,7 @@ namespace libsidplayfp
+ /**
+  * SID interface.
+  */
+-class c64sid : public Bank
++class SID_EXTERN c64sid : public Bank
+ {
+ private:
+     uint8_t lastpoke[0x20];
+diff --git a/src/sidemu.h b/src/sidemu.h
+--- a/src/sidemu.h
++++ b/src/sidemu.h
+@@ -43,7 +43,7 @@ namespace libsidplayfp
+ /**
+  * Inherit this class to create a new SID emulation.
+  */
+-class sidemu : public c64sid
++class SID_EXTERN sidemu : public c64sid
+ {
+ private:
+     sidbuilder* const m_builder;
+diff --git a/src/sidplayfp/sidbuilder.h b/src/sidplayfp/sidbuilder.h
+--- a/src/sidplayfp/sidbuilder.h
++++ b/src/sidplayfp/sidbuilder.h
+@@ -27,6 +27,7 @@
+ #include <string>
+ 
+ #include "sidplayfp/SidConfig.h"
++#include "sidplayfp/siddefs.h"
+ 
+ namespace libsidplayfp
+ {
+@@ -37,7 +38,7 @@ class EventScheduler;
+ /**
+  * Base class for sid builders.
+  */
+-class sidbuilder
++class SID_EXTERN sidbuilder
+ {
+ protected:
+     typedef std::set<libsidplayfp::sidemu*> emuset_t;
+PATCH
 
-        if git -C "$PROJECT_PATH" apply --check --reverse "$patch_file" >/dev/null 2>&1; then
-            echo "libsidplayfp patch already applied: $patch_name"
-            continue
-        fi
-
-        echo "Applying libsidplayfp patch: $patch_name"
-        git -C "$PROJECT_PATH" am "$patch_file" || {
-            echo "Error applying patch $patch_name"
-            git -C "$PROJECT_PATH" am --abort
-            exit 1
-        }
-    done
+    if ! git -C "$PROJECT_PATH" apply "$patch_file"; then
+        echo "Error applying libsidplayfp patch."
+        rm -f "$patch_file"
+        exit 1
+    fi
+    rm -f "$patch_file"
 }
 
 # -----------------------------------------------------------------------------
@@ -2906,10 +2886,6 @@ esac
 # -----------------------------------------------------------------------------
 if target_has_lib "libsidplayfp"; then
     ensure_system_dependencies
-fi
-
-if target_has_lib "vio2sf"; then
-    apply_vio2sf_patches
 fi
 
 if target_has_lib "libsidplayfp"; then
