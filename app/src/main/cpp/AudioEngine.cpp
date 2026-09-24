@@ -132,6 +132,8 @@ namespace {
             DecoderStaticInfo ufmodStaticInfo;
             ufmodStaticInfo.hasPlaybackCapabilities = true;
             ufmodStaticInfo.playbackCapabilities =
+                    AudioDecoder::PLAYBACK_CAP_SEEK |
+                    AudioDecoder::PLAYBACK_CAP_RELIABLE_DURATION |
                     AudioDecoder::PLAYBACK_CAP_CUSTOM_SAMPLE_RATE;
             ufmodStaticInfo.hasRepeatModeCapabilities = true;
             ufmodStaticInfo.repeatModeCapabilities = AudioDecoder::REPEAT_CAP_TRACK;

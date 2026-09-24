@@ -31,6 +31,9 @@ public:
     int getRepeatModeCapabilities() const override { return REPEAT_CAP_TRACK; }
     double getPlaybackPositionSeconds() override;
     TimelineMode getTimelineMode() const override { return TimelineMode::Discontinuous; }
+    int getPlaybackCapabilities() const override {
+        return PLAYBACK_CAP_SEEK | PLAYBACK_CAP_CUSTOM_SAMPLE_RATE;
+    }
     void setOption(const char* name, const char* value) override;
     std::string getCoreStringInfo(const char* name) override;
     int getCoreIntInfo(const char* name, int fallback = 0) override;
@@ -45,6 +48,10 @@ private:
     std::string title;
     int sampleRate = 48000;
     int moduleChannels = 0;
+    int moduleOrders = 0;
+    int moduleBpm = 0;
+    int moduleSpeed = 0;
+    double estimatedDuration = 0.0;
     int repeatMode = 0;
     bool ended = false;
 };
