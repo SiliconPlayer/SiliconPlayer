@@ -54,8 +54,15 @@ private:
     int moduleBpm = 0;
     int moduleSpeed = 0;
     double estimatedDuration = 0.0;
+    double timelineBaseSeconds = 0.0;
+    double timelineAudioBaseSeconds = 0.0;
+    int lastOrder = -1;
+    int lastRow = -1;
     int repeatMode = 0;
     bool ended = false;
+    bool timelineAnchored = false;
+
+    void updateTimelinePositionLocked();
 };
 
 #endif // SILICONPLAYER_UFMODDECODER_H

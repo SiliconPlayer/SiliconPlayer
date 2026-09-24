@@ -46,6 +46,11 @@ bool UfmodDecoder::open(const char* path) {
     }
     sampleRate = static_cast<int>(ufmod_get_sample_rate(context));
     pcmBuffer.assign(static_cast<size_t>(std::max(1, 4096)) * 2, 0);
+    timelineBaseSeconds = 0.0;
+    timelineAudioBaseSeconds = 0.0;
+    lastOrder = -1;
+    lastRow = -1;
+    timelineAnchored = false;
     ended = false;
     ufmod_set_noloop(context, repeatMode == 0 ? 1 : 0);
     return true;
@@ -64,6 +69,11 @@ void UfmodDecoder::close() {
     moduleBpm = 0;
     moduleSpeed = 0;
     estimatedDuration = 0.0;
+    timelineBaseSeconds = 0.0;
+    timelineAudioBaseSeconds = 0.0;
+    lastOrder = -1;
+    lastRow = -1;
+    timelineAnchored = false;
     ended = false;
 }
 
@@ -79,6 +89,7 @@ int UfmodDecoder::read(float* buffer, int numFrames) {
     for (int i = 0; i < frames * 2; ++i) {
         buffer[i] = static_cast<float>(pcmBuffer[i]) / 32768.0f;
     }
+    updateTimelinePositionLocked();
     if (frames < numFrames) ended = true;
     return frames;
 }
@@ -93,6 +104,9 @@ void UfmodDecoder::seek(double seconds) {
         if (targetOrder > 0) ufmod_jump_order(context, targetOrder);
     }
     ufmod_set_noloop(context, repeatMode == 0 ? 1 : 0);
+    lastOrder = -1;
+    lastRow = -1;
+    timelineAnchored = false;
     ended = false;
 }
 
@@ -111,9 +125,40 @@ void UfmodDecoder::setRepeatMode(int mode) {
     repeatMode = mode;
     if (context) ufmod_set_noloop(context, mode == 0 ? 1 : 0);
 }
+void UfmodDecoder::updateTimelinePositionLocked() {
+    if (!context) return;
+
+    unsigned int order = 0;
+    unsigned int row = 0;
+    ufmod_get_row_order(context, &row, &order);
+    const double audioSeconds = static_cast<double>(ufmod_get_time(context)) / 1000.0;
+    const bool backwardJump = lastOrder >= 0 &&
+            (static_cast<int>(order) < lastOrder ||
+             (static_cast<int>(order) == lastOrder && static_cast<int>(row) < lastRow));
+
+    if (!timelineAnchored) {
+        timelineBaseSeconds = 0.0;
+        timelineAudioBaseSeconds = audioSeconds;
+        timelineAnchored = true;
+    } else if (backwardJump) {
+        const double rowDuration = moduleSpeed > 0 && moduleBpm > 0
+                ? 2.5 * moduleSpeed / moduleBpm
+                : 0.0;
+        timelineBaseSeconds = (static_cast<double>(order) * 64.0 + row) * rowDuration;
+        timelineAudioBaseSeconds = audioSeconds;
+    }
+
+    lastOrder = static_cast<int>(order);
+    lastRow = static_cast<int>(row);
+}
+
 double UfmodDecoder::getPlaybackPositionSeconds() {
     std::lock_guard<std::mutex> lock(decodeMutex);
-    return context ? static_cast<double>(ufmod_get_time(context)) / 1000.0 : 0.0;
+    if (!context) return 0.0;
+    updateTimelinePositionLocked();
+    const double audioSeconds = static_cast<double>(ufmod_get_time(context)) / 1000.0;
+    const double position = timelineBaseSeconds + (audioSeconds - timelineAudioBaseSeconds);
+    return std::max(0.0, std::min(position, estimatedDuration > 0.0 ? estimatedDuration : position));
 }
 
 void UfmodDecoder::setOption(const char* name, const char* value) {
