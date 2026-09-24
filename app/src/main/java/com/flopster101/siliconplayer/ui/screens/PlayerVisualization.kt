@@ -2926,6 +2926,7 @@ internal fun AlbumArtPlaceholder(
     ) {
         when (channelScopePrefs.backgroundMode) {
             VisualizationChannelScopeBackgroundMode.Custom -> Color(channelScopePrefs.customBackgroundColorArgb)
+            VisualizationChannelScopeBackgroundMode.Black -> Color.Black
             VisualizationChannelScopeBackgroundMode.AutoDarkAccent -> {
                 val accent = extractArtworkAccentColor(artwork)
                     ?: themePrimaryColor.copy(alpha = 1f)

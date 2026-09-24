@@ -203,6 +203,7 @@ enum class VisualizationChannelScopeBackgroundMode(
     val label: String
 ) {
     AutoDarkAccent("auto_dark_accent", "Auto dark accent"),
+    Black("black", "Black"),
     Custom("custom", "Custom");
 
     companion object {
