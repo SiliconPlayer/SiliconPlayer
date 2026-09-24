@@ -54,6 +54,7 @@ import androidx.compose.material.icons.automirrored.filled.PlaylistAdd
 import androidx.compose.material.icons.filled.PushPin
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.material.icons.filled.Star
+import androidx.compose.material.icons.filled.Tune
 import com.flopster101.siliconplayer.FAVORITES_PLAYLIST_ID
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
@@ -61,6 +62,7 @@ import androidx.compose.material3.ElevatedCard
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import com.flopster101.siliconplayer.ui.dialogs.AddToPlaylistChooserDialog
+import com.flopster101.siliconplayer.ui.dialogs.PlayWithDialog
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MenuDefaults
 import android.widget.Toast
@@ -276,6 +278,11 @@ internal fun HomeScreen(
     var recentPlayedSectionMenuExpanded by remember { mutableStateOf(false) }
     var pendingBulkClearTarget by remember { mutableStateOf<HomeBulkClearTarget?>(null) }
     var pendingPlaylistAddSource by remember { mutableStateOf<Pair<String, String>?>(null) }
+    var recentPlayWithEntry by remember { mutableStateOf<Pair<File, RecentPathEntry>?>(null) }
+    var pinnedPlayWithEntry by remember { mutableStateOf<Pair<File, HomePinnedEntry>?>(null) }
+    val playWithPrefs = remember(context) {
+        context.getSharedPreferences(AppPreferenceKeys.PREFS_NAME, android.content.Context.MODE_PRIVATE)
+    }
     val playedEntryKey: (RecentPathEntry) -> String = { entry ->
         "${entry.locationId.orEmpty()}|${entry.path}"
     }
@@ -619,6 +626,56 @@ internal fun HomeScreen(
                                             expanded = pinnedFolderActionTarget == pinnedEntry,
                                             onDismissRequest = { pinnedFolderActionTarget = null }
                                         ) {
+                                            if (isPlaylistPinnedFolder) {
+                                                DropdownMenuItem(
+                                                    text = {
+                                                        Text(
+                                                            text = "Play",
+                                                            style = MaterialTheme.typography.bodyLarge
+                                                        )
+                                                    },
+                                                    leadingIcon = {
+                                                        Icon(
+                                                            imageVector = Icons.Default.PlayArrow,
+                                                            contentDescription = null,
+                                                            modifier = Modifier.size(22.dp)
+                                                        )
+                                                    },
+                                                    contentPadding = PaddingValues(start = 14.dp, end = 18.dp),
+                                                    colors = MenuDefaults.itemColors(
+                                                        textColor = MaterialTheme.colorScheme.onSurface,
+                                                        leadingIconColor = MaterialTheme.colorScheme.onSurfaceVariant
+                                                    ),
+                                                    onClick = {
+                                                        onOpenPinnedFolder(pinnedEntry)
+                                                        pinnedFolderActionTarget = null
+                                                    }
+                                                )
+                                                DropdownMenuItem(
+                                                    text = {
+                                                        Text(
+                                                            text = "Play with...",
+                                                            style = MaterialTheme.typography.bodyLarge
+                                                        )
+                                                    },
+                                                    leadingIcon = {
+                                                        Icon(
+                                                            imageVector = Icons.Default.Tune,
+                                                            contentDescription = null,
+                                                            modifier = Modifier.size(22.dp)
+                                                        )
+                                                    },
+                                                    contentPadding = PaddingValues(start = 14.dp, end = 18.dp),
+                                                    colors = MenuDefaults.itemColors(
+                                                        textColor = MaterialTheme.colorScheme.onSurface,
+                                                        leadingIconColor = MaterialTheme.colorScheme.onSurfaceVariant
+                                                    ),
+                                                    onClick = {
+                                                        pinnedFolderActionTarget = null
+                                                        pinnedPlayWithEntry = File(pinnedEntry.path) to pinnedEntry
+                                                    }
+                                                )
+                                            }
                                             DropdownMenuItem(
                                                 text = {
                                                     Text(
@@ -789,6 +846,56 @@ internal fun HomeScreen(
                                             expanded = pinnedFileActionTarget == pinnedEntry,
                                             onDismissRequest = { pinnedFileActionTarget = null }
                                         ) {
+                                            DropdownMenuItem(
+                                                text = {
+                                                    Text(
+                                                        text = "Play",
+                                                        style = MaterialTheme.typography.bodyLarge
+                                                    )
+                                                },
+                                                leadingIcon = {
+                                                    Icon(
+                                                        imageVector = Icons.Default.PlayArrow,
+                                                        contentDescription = null,
+                                                        modifier = Modifier.size(22.dp)
+                                                    )
+                                                },
+                                                contentPadding = PaddingValues(start = 14.dp, end = 18.dp),
+                                                colors = MenuDefaults.itemColors(
+                                                    textColor = MaterialTheme.colorScheme.onSurface,
+                                                    leadingIconColor = MaterialTheme.colorScheme.onSurfaceVariant
+                                                ),
+                                                onClick = {
+                                                    onPlayPinnedFile(pinnedEntry)
+                                                    pinnedFileActionTarget = null
+                                                }
+                                            )
+                                            if (!isSupportedPlaylistFileName(trackFile.name)) {
+                                                DropdownMenuItem(
+                                                    text = {
+                                                        Text(
+                                                            text = "Play with...",
+                                                            style = MaterialTheme.typography.bodyLarge
+                                                        )
+                                                    },
+                                                    leadingIcon = {
+                                                        Icon(
+                                                            imageVector = Icons.Default.Tune,
+                                                            contentDescription = null,
+                                                            modifier = Modifier.size(22.dp)
+                                                        )
+                                                    },
+                                                    contentPadding = PaddingValues(start = 14.dp, end = 18.dp),
+                                                    colors = MenuDefaults.itemColors(
+                                                        textColor = MaterialTheme.colorScheme.onSurface,
+                                                        leadingIconColor = MaterialTheme.colorScheme.onSurfaceVariant
+                                                    ),
+                                                    onClick = {
+                                                        pinnedFileActionTarget = null
+                                                        pinnedPlayWithEntry = trackFile to pinnedEntry
+                                                    }
+                                                )
+                                            }
                                             DropdownMenuItem(
                                                 text = {
                                                     Text(
@@ -1496,6 +1603,56 @@ internal fun HomeScreen(
                                                 DropdownMenuItem(
                                                     text = {
                                                         Text(
+                                                            text = "Play",
+                                                            style = MaterialTheme.typography.bodyLarge
+                                                        )
+                                                    },
+                                                    leadingIcon = {
+                                                        Icon(
+                                                            imageVector = Icons.Default.PlayArrow,
+                                                            contentDescription = null,
+                                                            modifier = Modifier.size(22.dp)
+                                                        )
+                                                    },
+                                                    contentPadding = PaddingValues(start = 14.dp, end = 18.dp),
+                                                    colors = MenuDefaults.itemColors(
+                                                        textColor = MaterialTheme.colorScheme.onSurface,
+                                                        leadingIconColor = MaterialTheme.colorScheme.onSurfaceVariant
+                                                    ),
+                                                    onClick = {
+                                                        onPlayRecentFile(entry)
+                                                        fileActionTargetEntry = null
+                                                    }
+                                                )
+                                                if (entry.isPlaylist || !isSupportedPlaylistFileName(trackFile.name)) {
+                                                    DropdownMenuItem(
+                                                        text = {
+                                                            Text(
+                                                                text = "Play with...",
+                                                                style = MaterialTheme.typography.bodyLarge
+                                                            )
+                                                        },
+                                                        leadingIcon = {
+                                                            Icon(
+                                                                imageVector = Icons.Default.Tune,
+                                                                contentDescription = null,
+                                                                modifier = Modifier.size(22.dp)
+                                                            )
+                                                        },
+                                                        contentPadding = PaddingValues(start = 14.dp, end = 18.dp),
+                                                        colors = MenuDefaults.itemColors(
+                                                            textColor = MaterialTheme.colorScheme.onSurface,
+                                                            leadingIconColor = MaterialTheme.colorScheme.onSurfaceVariant
+                                                        ),
+                                                        onClick = {
+                                                            fileActionTargetEntry = null
+                                                            recentPlayWithEntry = trackFile to entry
+                                                        }
+                                                    )
+                                                }
+                                                DropdownMenuItem(
+                                                    text = {
+                                                        Text(
                                                             text = "Open location",
                                                             style = MaterialTheme.typography.bodyLarge
                                                         )
@@ -1862,6 +2019,28 @@ internal fun HomeScreen(
         }
     }
 
+    recentPlayWithEntry?.let { (file, entry) ->
+        PlayWithDialog(
+            file = file,
+            prefs = playWithPrefs,
+            onPlay = {
+                recentPlayWithEntry = null
+                onPlayRecentFile(entry)
+            },
+            onDismiss = { recentPlayWithEntry = null }
+        )
+    }
+    pinnedPlayWithEntry?.let { (file, entry) ->
+        PlayWithDialog(
+            file = file,
+            prefs = playWithPrefs,
+            onPlay = {
+                pinnedPlayWithEntry = null
+                if (entry.isFolder) onOpenPinnedFolder(entry) else onPlayPinnedFile(entry)
+            },
+            onDismiss = { pinnedPlayWithEntry = null }
+        )
+    }
     pendingPlaylistAddSource?.let { (source, title) ->
         AddToPlaylistChooserDialog(
             playlists = playlists,
