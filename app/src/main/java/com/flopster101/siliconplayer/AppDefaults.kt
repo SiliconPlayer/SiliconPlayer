@@ -231,14 +231,14 @@ object AppDefaults {
             val classic = StarfieldPresetTune(
                 starCount = 70, speedCenti = 30, fovCenti = 100, nearMilli = 60,
                 starColorArgb = 0xFFFFFFFF.toInt(), baseSizeDeci = 45, sizeGrowthCenti = 120,
-                farDimPercent = 60, softnessPercent = 25, beatGlowPercent = 25, glowSizeDeci = 25,
+                farDimPercent = 60, softnessPercent = 25, beatGlowPercent = 45, glowSizeDeci = 35,
                 trailPercent = 55, streaksEnabled = false, streakLengthCenti = 100,
                 centerXCenti = 0, centerYCenti = 0, autoDriftEnabled = false,
-                reactSpeedCenti = 150, flashPercent = 50, contrastBackdropEnabled = true,
+                reactSpeedCenti = 200, flashPercent = 60, contrastBackdropEnabled = true,
                 squarePixelsEnabled = true
             )
             val warp = StarfieldPresetTune(
-                starCount = 50, speedCenti = 50, fovCenti = 130, nearMilli = 30,
+                starCount = 50, speedCenti = 30, fovCenti = 130, nearMilli = 30,
                 starColorArgb = 0xFFFFFFFF.toInt(), baseSizeDeci = 70, sizeGrowthCenti = 220,
                 farDimPercent = 45, softnessPercent = 35, beatGlowPercent = 20, glowSizeDeci = 30,
                 trailPercent = 75, streaksEnabled = true, streakLengthCenti = 100,
