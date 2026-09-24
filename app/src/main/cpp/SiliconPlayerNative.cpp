@@ -1188,6 +1188,16 @@ Java_com_flopster101_siliconplayer_NativeBridge_getXmpMixerName(JNIEnv* env, job
 }
 
 extern "C" JNIEXPORT jint JNICALL
+Java_com_flopster101_siliconplayer_NativeBridge_getUfmodInfo(JNIEnv* env, jobject, jstring name) {
+    if (audioEngine == nullptr || name == nullptr) return 0;
+    const char* nameChars = env->GetStringUTFChars(name, nullptr);
+    if (nameChars == nullptr) return 0;
+    const int value = audioEngine->getUfmodInfo(nameChars);
+    env->ReleaseStringUTFChars(name, nameChars);
+    return value;
+}
+
+extern "C" JNIEXPORT jint JNICALL
 Java_com_flopster101_siliconplayer_NativeBridge_getXmpChannelCount(JNIEnv*, jobject) {
     if (audioEngine == nullptr) {
         return 0;

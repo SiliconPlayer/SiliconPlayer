@@ -118,6 +118,7 @@ public:
     int getXmpCurrentSpeed();
     int getXmpCurrentBpm();
     int getXmpLoopCount();
+    int getUfmodInfo(const std::string& name);
     std::string getAyflyFormatName();
     std::string getAyflyChipName();
     std::string getAyflyPlayerName();

@@ -115,7 +115,9 @@ int UfmodDecoder::getSampleRate() { return sampleRate; }
 int UfmodDecoder::getBitDepth() { return 16; }
 std::string UfmodDecoder::getBitDepthLabel() { return "16-bit mixer output"; }
 int UfmodDecoder::getChannelCount() { return 2; }
-int UfmodDecoder::getDisplayChannelCount() { return 2; }
+int UfmodDecoder::getDisplayChannelCount() {
+    return moduleChannels > 0 ? moduleChannels : 2;
+}
 int UfmodDecoder::getSourceChannelCount() { return moduleChannels; }
 std::string UfmodDecoder::getTitle() { return title; }
 std::string UfmodDecoder::getArtist() { return {}; }
@@ -174,7 +176,18 @@ std::string UfmodDecoder::getCoreStringInfo(const char* name) {
 }
 
 int UfmodDecoder::getCoreIntInfo(const char* name, int fallback) {
-    if (name && std::strcmp(name, "channels") == 0) return moduleChannels;
-    if (name && std::strcmp(name, "quirks") == 0 && context) return static_cast<int>(ufmod_get_quirks(context));
+    if (!name) return fallback;
+    if (std::strcmp(name, "channels") == 0) return moduleChannels;
+    if (std::strcmp(name, "orders") == 0) return moduleOrders;
+    if (std::strcmp(name, "bpm") == 0) return moduleBpm;
+    if (std::strcmp(name, "speed") == 0) return moduleSpeed;
+    if (std::strcmp(name, "quirks") == 0 && context) return static_cast<int>(ufmod_get_quirks(context));
+    if (context && (std::strcmp(name, "current_order") == 0 || std::strcmp(name, "current_row") == 0)) {
+        unsigned int row = 0;
+        unsigned int order = 0;
+        ufmod_get_row_order(context, &row, &order);
+        return std::strcmp(name, "current_order") == 0 ? static_cast<int>(order) : static_cast<int>(row);
+    }
+    if (std::strcmp(name, "loop_count") == 0 && context) return ufmod_get_loop_count(context);
     return fallback;
 }

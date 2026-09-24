@@ -435,6 +435,7 @@ object NativeBridge {
     external fun getXmpCurrentSpeed(): Int
     external fun getXmpCurrentBpm(): Int
     external fun getXmpLoopCount(): Int
+    external fun getUfmodInfo(name: String): Int
     external fun getAyflyFormatName(): String
     external fun getAyflyChipName(): String
     external fun getAyflyPlayerName(): String

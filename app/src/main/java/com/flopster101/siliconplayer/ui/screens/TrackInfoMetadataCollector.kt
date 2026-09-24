@@ -51,6 +51,17 @@ internal data class XmpMetadata(
     val sampleNames: String = ""
 )
 
+internal data class UfmodMetadata(
+    val channelCount: Int = 0,
+    val orderCount: Int = 0,
+    val bpm: Int = 0,
+    val speed: Int = 0,
+    val currentOrder: Int = -1,
+    val currentRow: Int = -1,
+    val loopCount: Int = -1,
+    val quirks: Int = 0
+)
+
 internal data class AyflyMetadata(
     val formatName: String = "",
     val chipName: String = "",
@@ -248,6 +259,7 @@ internal data class TrackInfoLiveMetadata(
     val comment: String = "",
     val openMpt: OpenMptMetadata = OpenMptMetadata(),
     val xmp: XmpMetadata = XmpMetadata(),
+    val ufmod: UfmodMetadata = UfmodMetadata(),
     val ayfly: AyflyMetadata = AyflyMetadata(),
     val vgmPlay: VgmPlayMetadata = VgmPlayMetadata(),
     val ffmpeg: FfmpegMetadata = FfmpegMetadata(),
@@ -341,6 +353,19 @@ private fun queryTrackInfoLiveMetadata(decoderName: String?): TrackInfoLiveMetad
                 mixerName = NativeBridge.getXmpMixerName(),
                 instrumentNames = NativeBridge.getXmpInstrumentNames(),
                 sampleNames = NativeBridge.getXmpSampleNames()
+            )
+        )
+
+        decoderName.equals(DecoderNames.UFMOD, ignoreCase = true) -> common.copy(
+            ufmod = UfmodMetadata(
+                channelCount = NativeBridge.getUfmodInfo("channels"),
+                orderCount = NativeBridge.getUfmodInfo("orders"),
+                bpm = NativeBridge.getUfmodInfo("bpm"),
+                speed = NativeBridge.getUfmodInfo("speed"),
+                currentOrder = NativeBridge.getUfmodInfo("current_order"),
+                currentRow = NativeBridge.getUfmodInfo("current_row"),
+                loopCount = NativeBridge.getUfmodInfo("loop_count"),
+                quirks = NativeBridge.getUfmodInfo("quirks")
             )
         )
 

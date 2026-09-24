@@ -269,6 +269,12 @@ std::string AudioEngine::getXmpFormatName() {
     return decoder->getCoreStringInfo("moduleTypeLong");
 }
 
+int AudioEngine::getUfmodInfo(const std::string& name) {
+    std::lock_guard<std::mutex> lock(decoderMutex);
+    if (!decoder) return 0;
+    return decoder->getCoreIntInfo(name.c_str(), 0);
+}
+
 std::string AudioEngine::getXmpSongMessage() {
     std::lock_guard<std::mutex> lock(decoderMutex);
     if (!decoder) return "";

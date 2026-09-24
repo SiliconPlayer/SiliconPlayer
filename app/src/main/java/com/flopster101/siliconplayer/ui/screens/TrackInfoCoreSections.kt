@@ -75,6 +75,18 @@ internal fun TrackInfoCoreSections(
             if (metadata.xmp.sampleNames.isNotBlank()) TrackInfoDetailsRow("Sample names", metadata.xmp.sampleNames)
         }
 
+        decoderName.equals(DecoderNames.UFMOD, ignoreCase = true) -> {
+            TrackInfoSectionHeader(DecoderNames.UFMOD)
+            if (metadata.ufmod.channelCount > 0) TrackInfoDetailsRow("Channels", metadata.ufmod.channelCount.toString())
+            if (metadata.ufmod.orderCount > 0) TrackInfoDetailsRow("Orders", metadata.ufmod.orderCount.toString())
+            if (metadata.ufmod.bpm > 0) TrackInfoDetailsRow("Tempo", "${metadata.ufmod.bpm} BPM")
+            if (metadata.ufmod.speed > 0) TrackInfoDetailsRow("Speed", metadata.ufmod.speed.toString())
+            if (metadata.ufmod.currentOrder >= 0) TrackInfoDetailsRow("Current order", metadata.ufmod.currentOrder.toString())
+            if (metadata.ufmod.currentRow >= 0) TrackInfoDetailsRow("Current row", metadata.ufmod.currentRow.toString())
+            if (metadata.ufmod.loopCount > 0) TrackInfoDetailsRow("Loops", metadata.ufmod.loopCount.toString())
+            if (metadata.ufmod.quirks > 0) TrackInfoDetailsRow("Runtime quirks", metadata.ufmod.quirks.toString())
+        }
+
         decoderName.equals(DecoderNames.AYFLY, ignoreCase = true) -> {
             TrackInfoSectionHeader(DecoderNames.AYFLY)
             if (metadata.ayfly.formatName.isNotBlank()) TrackInfoDetailsRow("Format", metadata.ayfly.formatName)
