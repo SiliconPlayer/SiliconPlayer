@@ -105,3 +105,7 @@
 	path = external/mbedtls
 	url = https://github.com/Mbed-TLS/mbedtls.git
 	ignore = dirty
+[submodule "external/ufmod_c"]
+	path = external/ufmod_c
+	url = https://github.com/Flopster101/uFMOD-C
+	ignore = dirty
