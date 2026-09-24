@@ -59,6 +59,7 @@ private:
     int lastOrder = -1;
     int lastRow = -1;
     int repeatMode = 0;
+    unsigned int quirkFlags = 0;
     bool ended = false;
     bool timelineAnchored = false;
 

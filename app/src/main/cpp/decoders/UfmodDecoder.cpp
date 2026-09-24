@@ -31,6 +31,7 @@ bool UfmodDecoder::open(const char* path) {
     }
 
     title = ufmod_get_title(context);
+    ufmod_set_quirks(context, quirkFlags);
     moduleChannels = static_cast<int>(ufmod_get_channel_count(context));
     unsigned int orders = 0;
     unsigned int bpm = 0;
@@ -164,9 +165,10 @@ double UfmodDecoder::getPlaybackPositionSeconds() {
 }
 
 void UfmodDecoder::setOption(const char* name, const char* value) {
-    if (!name || !value || !context) return;
+    if (!name || !value) return;
     if (std::strcmp(name, "ufmod.quirks") == 0) {
-        ufmod_set_quirks(context, static_cast<unsigned int>(std::strtoul(value, nullptr, 10)));
+        quirkFlags = static_cast<unsigned int>(std::strtoul(value, nullptr, 10));
+        if (context) ufmod_set_quirks(context, quirkFlags);
     }
 }
 

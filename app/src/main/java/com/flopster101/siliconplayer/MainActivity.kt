@@ -331,6 +331,9 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         NativeBridge.installContext(applicationContext)
+        val savedUfmodQuirks = getSharedPreferences(AppPreferenceKeys.PREFS_NAME, Context.MODE_PRIVATE)
+            .getInt(CorePreferenceKeys.UFMOD_QUIRKS, 0)
+        NativeBridge.setCoreOption(DecoderNames.UFMOD, "ufmod.quirks", savedUfmodQuirks.toString())
         applyRemoteSourceCachePolicyOnLaunch(this, cacheDir)
         applyArchiveMountCachePolicyOnLaunch(this, cacheDir)
         if (shouldOpenPlayerFromNotification(intent)) {

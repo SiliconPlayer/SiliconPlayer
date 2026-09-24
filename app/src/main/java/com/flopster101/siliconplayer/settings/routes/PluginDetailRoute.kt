@@ -33,6 +33,7 @@ import com.flopster101.siliconplayer.pluginsettings.UadeSettings
 import com.flopster101.siliconplayer.pluginsettings.Vio2sfSettings
 import com.flopster101.siliconplayer.pluginsettings.VgmPlaySettings
 import com.flopster101.siliconplayer.pluginsettings.XmpSettings
+import com.flopster101.siliconplayer.pluginsettings.UfmodSettings
 import java.util.Locale
 
 internal data class PluginDetailRouteState(
@@ -459,6 +460,8 @@ internal fun PluginDetailRouteContent(
             oplEngine = state.adPlugOplEngine,
             onOplEngineChanged = actions.onAdPlugOplEngineChanged
         )
+
+        DecoderNames.UFMOD -> UfmodSettings()
 
         DecoderNames.LIBXMP -> XmpSettings(
             interpolation = state.xmpInterpolation,
