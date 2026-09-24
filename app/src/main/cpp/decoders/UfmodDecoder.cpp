@@ -8,7 +8,7 @@
 #define LOG_TAG "UfmodDecoder"
 #define LOGE(...) __android_log_print(ANDROID_LOG_ERROR, LOG_TAG, __VA_ARGS__)
 
-constexpr float kUfmodScopeGain = 2.0f;
+constexpr float kUfmodScopeGain = 3.0f;
 
 UfmodDecoder::~UfmodDecoder() {
     close();
