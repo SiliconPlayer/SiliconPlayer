@@ -348,6 +348,7 @@ include_directories(${CMAKE_CURRENT_BINARY_DIR}/libusb_gen)
             SHARED
             decoders/UfmodDecoder.cpp
             decoders/UfmodDecoderPlugin.cpp
+            ChannelScopeSharedState.cpp
     )
     if (ANDROID)
         target_compile_options(

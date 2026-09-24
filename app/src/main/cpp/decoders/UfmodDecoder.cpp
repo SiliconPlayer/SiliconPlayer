@@ -3,9 +3,12 @@
 #include <algorithm>
 #include <cstring>
 #include <fstream>
+#include <chrono>
 
 #define LOG_TAG "UfmodDecoder"
 #define LOGE(...) __android_log_print(ANDROID_LOG_ERROR, LOG_TAG, __VA_ARGS__)
+
+constexpr float kUfmodScopeGain = 2.0f;
 
 UfmodDecoder::~UfmodDecoder() {
     close();
@@ -76,6 +79,12 @@ void UfmodDecoder::close() {
     lastRow = -1;
     timelineAnchored = false;
     ended = false;
+    scopeRingRaw.clear();
+    scopeRingChannels = 0;
+    scopeRingWritePos = 0;
+    scopeRingSamples = 0;
+    channelScopeLastReadNs = 0;
+    channelScopeState->clear();
 }
 
 int UfmodDecoder::read(float* buffer, int numFrames) {
@@ -85,10 +94,61 @@ int UfmodDecoder::read(float* buffer, int numFrames) {
         pcmBuffer.resize(static_cast<size_t>(numFrames) * 2);
     }
 
-    const size_t rendered = ufmod_render(context, pcmBuffer.data(), static_cast<size_t>(numFrames));
+    const int scopeChannels = std::clamp(moduleChannels, 1, 64);
+    scopeScratch.resize(static_cast<size_t>(scopeChannels) * static_cast<size_t>(numFrames));
+    const size_t rendered = ufmod_render_with_scope(
+            context,
+            pcmBuffer.data(),
+            static_cast<size_t>(numFrames),
+            scopeScratch.data(),
+            static_cast<size_t>(scopeChannels)
+    );
     const int frames = static_cast<int>(rendered);
     for (int i = 0; i < frames * 2; ++i) {
         buffer[i] = static_cast<float>(pcmBuffer[i]) / 32768.0f;
+    }
+    if (scopeRingChannels != scopeChannels ||
+            scopeRingRaw.size() != static_cast<size_t>(scopeChannels * ChannelScopeSharedState::kMaxSamples)) {
+        scopeRingRaw.assign(static_cast<size_t>(scopeChannels * ChannelScopeSharedState::kMaxSamples), 0.0f);
+        scopeRingChannels = scopeChannels;
+        scopeRingWritePos = 0;
+        scopeRingSamples = 0;
+    }
+    for (int frame = 0; frame < frames; ++frame) {
+        for (int channel = 0; channel < scopeChannels; ++channel) {
+            scopeRingRaw[static_cast<size_t>(channel) * ChannelScopeSharedState::kMaxSamples +
+                          static_cast<size_t>(scopeRingWritePos)] =
+                    scopeScratch[static_cast<size_t>(channel) * static_cast<size_t>(numFrames) +
+                                static_cast<size_t>(frame)] * kUfmodScopeGain;
+        }
+        scopeRingWritePos = (scopeRingWritePos + 1) % ChannelScopeSharedState::kMaxSamples;
+        scopeRingSamples = std::min(scopeRingSamples + 1, ChannelScopeSharedState::kMaxSamples);
+    }
+    channelScopeLastReadNs = std::chrono::duration_cast<std::chrono::nanoseconds>(
+            std::chrono::steady_clock::now().time_since_epoch()
+    ).count();
+    if (scopeRingSamples > 0 &&
+            channelScopeState->tryBeginCapture(channelScopeLastReadNs, scopeChannels)) {
+        scopePublishRaw.assign(static_cast<size_t>(scopeChannels) * ChannelScopeSharedState::kMaxSamples, 0.0f);
+        scopePublishVu.assign(static_cast<size_t>(scopeChannels), 0.0f);
+        const int filled = scopeRingSamples;
+        const int zeroPrefix = ChannelScopeSharedState::kMaxSamples - filled;
+        for (int channel = 0; channel < scopeChannels; ++channel) {
+            for (int i = 0; i < filled; ++i) {
+                const int ringIndex = (scopeRingWritePos - filled + i + ChannelScopeSharedState::kMaxSamples) %
+                        ChannelScopeSharedState::kMaxSamples;
+                scopePublishRaw[static_cast<size_t>(channel) * ChannelScopeSharedState::kMaxSamples + zeroPrefix + i] =
+                        scopeRingRaw[static_cast<size_t>(channel) * ChannelScopeSharedState::kMaxSamples + ringIndex];
+            }
+            const int start = std::max(0, ChannelScopeSharedState::kMaxSamples - 1024);
+            for (int i = start; i < ChannelScopeSharedState::kMaxSamples; ++i) {
+                scopePublishVu[static_cast<size_t>(channel)] = std::max(
+                        scopePublishVu[static_cast<size_t>(channel)],
+                        std::abs(scopePublishRaw[static_cast<size_t>(channel) * ChannelScopeSharedState::kMaxSamples + i]));
+            }
+        }
+        static uint64_t scopeSerial = 0;
+        channelScopeState->publish(scopePublishRaw, scopePublishVu, scopeChannels, ++scopeSerial, true);
     }
     updateTimelinePositionLocked();
     if (frames < numFrames) ended = true;

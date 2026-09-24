@@ -140,7 +140,8 @@ internal fun supportsChannelScopeVisualization(coreNameForUi: String?): Boolean 
         DecoderNames.KLYSTRACK,
         DecoderNames.UADE,
         DecoderNames.VGM_PLAY,
-        DecoderNames.AD_PLUG -> true
+        DecoderNames.AD_PLUG,
+        DecoderNames.UFMOD -> true
         else -> false
     }
 }
