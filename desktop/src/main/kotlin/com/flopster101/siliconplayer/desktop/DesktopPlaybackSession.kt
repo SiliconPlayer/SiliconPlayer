@@ -16,6 +16,11 @@ import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import java.io.File
 
+import androidx.compose.ui.graphics.ImageBitmap
+import com.flopster101.siliconplayer.canSeekPlayback
+import com.flopster101.siliconplayer.hasReliableDuration
+import com.flopster101.siliconplayer.SubtuneEntry
+
 class DesktopPlaybackSession(
     private val scope: CoroutineScope = CoroutineScope(Dispatchers.Default)
 ) {
@@ -61,6 +66,18 @@ class DesktopPlaybackSession(
     var subtuneCount by mutableIntStateOf(0)
         private set
 
+    var subtuneEntries by mutableStateOf<List<SubtuneEntry>>(emptyList())
+        private set
+
+    var artwork by mutableStateOf<ImageBitmap?>(null)
+        private set
+
+    var playbackCapabilitiesFlags by mutableIntStateOf(0)
+        private set
+
+    var repeatModeCapabilitiesFlags by mutableIntStateOf(0)
+        private set
+
     var canSeek by mutableStateOf(true)
         private set
 
@@ -87,6 +104,10 @@ class DesktopPlaybackSession(
 
         currentFile = file
         refreshMetadata()
+        artwork = null
+        scope.launch(Dispatchers.IO) {
+            artwork = DesktopArtworkSupport.loadArtworkForFile(file)
+        }
 
         NativeBridge.startEngineNative()
         isPlaying = NativeBridge.isEnginePlaying()
@@ -107,6 +128,13 @@ class DesktopPlaybackSession(
         }
         currentFile = File(source)
         refreshMetadata()
+        artwork = null
+        scope.launch(Dispatchers.IO) {
+            val f = currentFile
+            if (f != null && f.exists() && f.isFile) {
+                artwork = DesktopArtworkSupport.loadArtworkForFile(f)
+            }
+        }
         if (title.isBlank() && !titleHint.isNullOrBlank()) {
             title = titleHint
         }
@@ -205,8 +233,25 @@ class DesktopPlaybackSession(
         durationSeconds = NativeBridge.getDuration()
         subtuneIndex = NativeBridge.getCurrentSubtuneIndex()
         subtuneCount = NativeBridge.getSubtuneCount()
-        canSeek = true
-        hasReliableDuration = durationSeconds > 0.0
+        subtuneEntries = if (subtuneCount > 1) {
+            (0 until subtuneCount).map { idx ->
+                val subTitle = NativeBridge.getSubtuneTitle(idx).trim()
+                val subArtist = NativeBridge.getSubtuneArtist(idx).trim()
+                val subDuration = NativeBridge.getSubtuneDurationSeconds(idx)
+                SubtuneEntry(
+                    index = idx,
+                    title = subTitle.ifBlank { "Subtune ${idx + 1}" },
+                    artist = subArtist,
+                    durationSeconds = subDuration
+                )
+            }
+        } else {
+            emptyList()
+        }
+        playbackCapabilitiesFlags = NativeBridge.getPlaybackCapabilities()
+        repeatModeCapabilitiesFlags = NativeBridge.getRepeatModeCapabilities()
+        canSeek = canSeekPlayback(playbackCapabilitiesFlags)
+        hasReliableDuration = hasReliableDuration(playbackCapabilitiesFlags)
     }
 
     private fun startTicker() {
@@ -223,6 +268,13 @@ class DesktopPlaybackSession(
                         durationSeconds = dur
                     }
                     isPlaying = playing
+
+                    if (bitDepthLabel.isBlank() || bitDepthLabel == "-bit" || bitDepthLabel == "Unknown") {
+                        val depth = NativeBridge.getTrackBitDepthLabel().trim()
+                        if (depth.isNotBlank() && depth != "-bit") {
+                            bitDepthLabel = depth
+                        }
+                    }
 
                     if (NativeBridge.consumeNaturalEndEvent()) {
                         when (repeatMode) {

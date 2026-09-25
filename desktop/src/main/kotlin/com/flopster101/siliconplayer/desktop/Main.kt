@@ -46,6 +46,33 @@ import com.flopster101.siliconplayer.inferredPrimaryExtensionForName
 import com.flopster101.siliconplayer.MainView
 import com.flopster101.siliconplayer.SettingsRoute
 import com.flopster101.siliconplayer.MainNavigationScaffold
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.LinearOutSlowInEasing
+import androidx.compose.animation.core.tween
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.isSystemInDarkTheme
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import androidx.compose.ui.text.style.TextOverflow
+import com.flopster101.siliconplayer.AppDefaults
+import com.flopster101.siliconplayer.AppPreferenceKeys
+import com.flopster101.siliconplayer.LocalPlayerExitSlideFraction
+import com.flopster101.siliconplayer.LocalPlayerOverlayVisibility
+import com.flopster101.siliconplayer.ThemeMode
+import com.flopster101.siliconplayer.canSeekPlayback
+import com.flopster101.siliconplayer.formatShortDuration
+import com.flopster101.siliconplayer.hasReliableDuration
+import com.flopster101.siliconplayer.placeholderArtworkIconForFile
+import com.flopster101.siliconplayer.platform.AppPreferences
+import com.flopster101.siliconplayer.supportsLiveRepeatMode
+import com.flopster101.siliconplayer.ui.screens.LocalPlayerFocusIndicatorsEnabled
 import com.flopster101.siliconplayer.ui.screens.PlayerScreen
 import com.flopster101.siliconplayer.ui.theme.SiliconPlayerBaseTheme
 import java.io.File
@@ -164,72 +191,38 @@ fun main(args: Array<String>) = application {
             windowWidthDp = windowState.size.width.value.toInt(),
             windowHeightDp = windowState.size.height.value.toInt()
         ) {
-            SiliconPlayerBaseTheme {
-                if (isPlayerExpanded) {
-                    PlayerScreen(
-                        file = session.currentFile,
-                        onBack = { isPlayerExpanded = false },
-                        isPlaying = session.isPlaying,
-                        canResumeStoppedTrack = true,
-                        onPlay = { session.play() },
-                        onPause = { session.pause() },
-                        onStopAndClear = { session.stop() },
-                        canPreviousTrack = false,
-                        canNextTrack = false,
-                        durationSeconds = session.durationSeconds,
-                        positionSeconds = session.positionSeconds,
-                        positionSecondsProvider = { session.positionSeconds },
-                        title = session.title,
-                        artist = session.artist,
-                        album = session.album,
-                        sampleRateHz = session.sampleRateHz,
-                        channelCount = session.channelCount,
-                        bitDepthLabel = session.bitDepthLabel,
-                        decoderName = session.decoderName,
-                        artwork = null,
-                        repeatMode = session.repeatMode,
-                        canCycleRepeatMode = true,
-                        canSeek = session.canSeek,
-                        hasReliableDuration = session.hasReliableDuration,
-                        onSeek = { seconds -> session.seekTo(seconds) },
-                        onPreviousTrack = {},
-                        onForcePreviousTrack = {},
-                        onNextTrack = {},
-                        onPreviousSubtune = { session.previousSubtune() },
-                        onNextSubtune = { session.nextSubtune() },
-                        onOpenSubtuneSelector = {},
-                        canPreviousSubtune = session.subtuneCount > 1 && session.subtuneIndex > 0,
-                        canNextSubtune = session.subtuneCount > 1 && session.subtuneIndex + 1 < session.subtuneCount,
-                        canOpenSubtuneSelector = session.subtuneCount > 1,
-                        canOpenPlaylistSelector = true,
-                        onOpenPlaylistSelector = { openDesktopFileChooser { playFile(it) } },
-                        currentSubtuneIndex = session.subtuneIndex,
-                        subtuneCount = session.subtuneCount,
-                        titleCurrentSubtuneIndex = session.subtuneIndex,
-                        titleSubtuneCount = session.subtuneCount,
-                        onCycleRepeatMode = { session.cycleRepeatMode() },
-                        canOpenCoreSettings = false,
-                        onOpenCoreSettings = {},
-                        visualizationMode = VisualizationMode.Off,
-                        availableVisualizationModes = listOf(VisualizationMode.Off),
-                        onCycleVisualizationMode = {},
-                        onSelectVisualizationMode = {},
-                        onOpenVisualizationSettings = {},
-                        onOpenSelectedVisualizationSettings = {},
-                        visualizationBarCount = 40,
-                        visualizationBarSmoothingPercent = 60,
-                        visualizationBarRoundnessDp = 6,
-                        visualizationBarOverlayArtwork = false,
-                        visualizationBarUseThemeColor = true,
-                        visualizationBarRenderBackend = VisualizationRenderBackend.OpenGlTexture,
-                        visualizationOscStereo = true,
-                        visualizationVuAnchor = VisualizationVuAnchor.Bottom,
-                        visualizationVuUseThemeColor = true,
-                        visualizationVuSmoothingPercent = 50,
-                        visualizationVuRenderBackend = VisualizationRenderBackend.OpenGlTexture,
-                        onOpenAudioEffects = {}
-                    )
-                } else {
+            val prefs = LocalAppPreferences.current
+            var prefToken by remember { mutableIntStateOf(0) }
+            DisposableEffect(prefs) {
+                val listener = AppPreferences.OnChangeListener { _, _ -> prefToken++ }
+                prefs.addListener(listener)
+                onDispose { prefs.removeListener(listener) }
+            }
+
+            val themeMode = remember(prefToken, prefs) {
+                ThemeMode.fromStorage(prefs.getString(AppPreferenceKeys.THEME_MODE, ThemeMode.Auto.storageValue))
+            }
+            val playerArtworkCornerRadiusDp = remember(prefToken, prefs) {
+                prefs.getInt(AppPreferenceKeys.PLAYER_ARTWORK_CORNER_RADIUS_DP, AppDefaults.Player.artworkCornerRadiusDp)
+            }
+            val darkTheme = when (themeMode) {
+                ThemeMode.Auto -> isSystemInDarkTheme()
+                ThemeMode.Light -> false
+                ThemeMode.Dark -> true
+            }
+
+            val favoritePaths = remember { mutableStateListOf<String>() }
+            val currentTrackPath = session.currentFile?.absolutePath
+            val isCurrentTrackFavorited = currentTrackPath != null && favoritePaths.contains(currentTrackPath)
+
+            var showSubtuneSelectorDialog by remember { mutableStateOf(false) }
+
+            SiliconPlayerBaseTheme(darkTheme = darkTheme) {
+                Surface(
+                    modifier = Modifier.fillMaxSize(),
+                    color = MaterialTheme.colorScheme.background,
+                    contentColor = MaterialTheme.colorScheme.onBackground
+                ) {
                     Box(modifier = Modifier.fillMaxSize()) {
                         MainNavigationScaffold(
                             currentView = currentView,
@@ -520,7 +513,7 @@ fun main(args: Array<String>) = application {
 
                         // Docked Mini Player
                         AnimatedVisibility(
-                            visible = session.currentFile != null,
+                            visible = session.currentFile != null && !isPlayerExpanded,
                             modifier = Modifier.align(Alignment.BottomCenter),
                             enter = slideInVertically(initialOffsetY = { it }) + fadeIn(),
                             exit = slideOutVertically(targetOffsetY = { it }) + fadeOut()
@@ -530,9 +523,9 @@ fun main(args: Array<String>) = application {
                                 title = session.title.ifBlank { session.currentFile?.name ?: "No title" },
                                 artist = session.artist.ifBlank { "Unknown Artist" },
                                 metadataTitleResolved = session.title.isNotBlank(),
-                                artwork = null,
-                                noArtworkIcon = Icons.Default.MusicNote,
-                                artworkCornerRadiusDp = 12,
+                                artwork = session.artwork,
+                                noArtworkIcon = placeholderArtworkIconForFile(session.currentFile, session.decoderName),
+                                artworkCornerRadiusDp = playerArtworkCornerRadiusDp,
                                 isPlaying = session.isPlaying,
                                 playbackStartInProgress = false,
                                 seekInProgress = false,
@@ -566,6 +559,158 @@ fun main(args: Array<String>) = application {
                                 nextButtonFocusRequester = remember { FocusRequester() }
                             )
                         }
+
+                        // Expanded Player Screen Overlay
+                        AnimatedVisibility(
+                            visible = isPlayerExpanded,
+                            enter = slideInVertically(
+                                initialOffsetY = { it },
+                                animationSpec = tween(durationMillis = 300, easing = FastOutSlowInEasing)
+                            ) + fadeIn(animationSpec = tween(durationMillis = 240)),
+                            exit = slideOutVertically(
+                                targetOffsetY = { it },
+                                animationSpec = tween(durationMillis = 280, easing = LinearOutSlowInEasing)
+                            ) + fadeOut(animationSpec = tween(durationMillis = 200))
+                        ) {
+                            CompositionLocalProvider(
+                                LocalPlayerFocusIndicatorsEnabled provides true,
+                                LocalPlayerOverlayVisibility provides { 1f },
+                                LocalPlayerExitSlideFraction provides 0f
+                            ) {
+                                PlayerScreen(
+                                    file = session.currentFile,
+                                    onBack = { isPlayerExpanded = false },
+                                    onCollapseBySwipe = { isPlayerExpanded = false },
+                                    isPlaying = session.isPlaying,
+                                    canResumeStoppedTrack = true,
+                                    onPlay = { session.play() },
+                                    onPause = { session.pause() },
+                                    onStopAndClear = { session.stop() },
+                                    durationSeconds = session.durationSeconds,
+                                    positionSeconds = session.positionSeconds,
+                                    positionSecondsProvider = { session.positionSeconds },
+                                    canPreviousTrack = false,
+                                    canNextTrack = false,
+                                    title = session.title,
+                                    artist = session.artist,
+                                    album = session.album,
+                                    sampleRateHz = session.sampleRateHz,
+                                    channelCount = session.channelCount,
+                                    bitDepthLabel = session.bitDepthLabel,
+                                    decoderName = session.decoderName,
+                                    playbackSourceLabel = "Local",
+                                    pathOrUrl = session.currentFile?.absolutePath,
+                                    playbackSourceId = session.currentFile?.absolutePath,
+                                    artwork = session.artwork,
+                                    noArtworkIcon = placeholderArtworkIconForFile(session.currentFile, session.decoderName),
+                                    repeatMode = session.repeatMode,
+                                    canCycleRepeatMode = supportsLiveRepeatMode(session.playbackCapabilitiesFlags),
+                                    canSeek = session.canSeek,
+                                    hasReliableDuration = session.hasReliableDuration,
+                                    playbackCapabilitiesFlags = session.playbackCapabilitiesFlags,
+                                    onSeek = { seconds -> session.seekTo(seconds) },
+                                    onPreviousTrack = {},
+                                    onForcePreviousTrack = {},
+                                    onNextTrack = {},
+                                    onPreviousSubtune = { session.previousSubtune() },
+                                    onNextSubtune = { session.nextSubtune() },
+                                    onOpenSubtuneSelector = { showSubtuneSelectorDialog = true },
+                                    canPreviousSubtune = session.subtuneCount > 1 && session.subtuneIndex > 0,
+                                    canNextSubtune = session.subtuneCount > 1 && session.subtuneIndex + 1 < session.subtuneCount,
+                                    canOpenSubtuneSelector = session.subtuneCount > 1,
+                                    canOpenPlaylistSelector = true,
+                                    onOpenPlaylistSelector = { openDesktopFileChooser { playFile(it) } },
+                                    currentSubtuneIndex = session.subtuneIndex,
+                                    subtuneCount = session.subtuneCount,
+                                    titleCurrentSubtuneIndex = session.subtuneIndex,
+                                    titleSubtuneCount = session.subtuneCount,
+                                    subtuneTitleClickable = session.subtuneCount > 1,
+                                    onCycleRepeatMode = { session.cycleRepeatMode() },
+                                    canOpenCoreSettings = false,
+                                    onOpenCoreSettings = {},
+                                    visualizationMode = VisualizationMode.Off,
+                                    availableVisualizationModes = listOf(VisualizationMode.Off),
+                                    onCycleVisualizationMode = {},
+                                    onSelectVisualizationMode = {},
+                                    onOpenVisualizationSettings = {},
+                                    onOpenSelectedVisualizationSettings = {},
+                                    visualizationBarCount = 40,
+                                    visualizationBarSmoothingPercent = 60,
+                                    visualizationBarRoundnessDp = 6,
+                                    visualizationBarOverlayArtwork = false,
+                                    visualizationBarUseThemeColor = true,
+                                    visualizationBarRenderBackend = VisualizationRenderBackend.OpenGlTexture,
+                                    visualizationOscStereo = true,
+                                    visualizationVuAnchor = VisualizationVuAnchor.Bottom,
+                                    visualizationVuUseThemeColor = true,
+                                    visualizationVuSmoothingPercent = 50,
+                                    visualizationVuRenderBackend = VisualizationRenderBackend.OpenGlTexture,
+                                    artworkCornerRadiusDp = playerArtworkCornerRadiusDp,
+                                    isTrackFavorited = isCurrentTrackFavorited,
+                                    onToggleFavoriteTrack = {
+                                        val p = session.currentFile?.absolutePath ?: return@PlayerScreen
+                                        if (favoritePaths.contains(p)) {
+                                            favoritePaths.remove(p)
+                                        } else {
+                                            favoritePaths.add(p)
+                                        }
+                                    },
+                                    onOpenAudioEffects = {}
+                                )
+                            }
+                        }
+                    }
+
+                    if (showSubtuneSelectorDialog && session.subtuneEntries.isNotEmpty()) {
+                        AlertDialog(
+                            onDismissRequest = { showSubtuneSelectorDialog = false },
+                            title = { Text("Subtunes") },
+                            text = {
+                                LazyColumn(
+                                    modifier = Modifier.fillMaxWidth().heightIn(max = 360.dp),
+                                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                                ) {
+                                    items(session.subtuneEntries.size) { index ->
+                                        val entry = session.subtuneEntries[index]
+                                        val isCurrent = entry.index == session.subtuneIndex
+                                        Surface(
+                                            modifier = Modifier
+                                                .fillMaxWidth()
+                                                .clickable {
+                                                    session.selectSubtune(entry.index)
+                                                    showSubtuneSelectorDialog = false
+                                                },
+                                            shape = MaterialTheme.shapes.medium,
+                                            color = if (isCurrent) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceContainerHigh
+                                        ) {
+                                            Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 10.dp)) {
+                                                Text(
+                                                    text = "${entry.index + 1}. ${entry.title}",
+                                                    style = MaterialTheme.typography.titleSmall,
+                                                    maxLines = 1,
+                                                    overflow = TextOverflow.Ellipsis
+                                                )
+                                                if (entry.artist.isNotBlank() || entry.durationSeconds > 0) {
+                                                    Text(
+                                                        text = listOfNotNull(
+                                                            formatShortDuration(entry.durationSeconds).takeIf { entry.durationSeconds > 0 },
+                                                            entry.artist.takeIf { it.isNotBlank() }
+                                                        ).joinToString(" • "),
+                                                        style = MaterialTheme.typography.bodySmall,
+                                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                                    )
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            },
+                            confirmButton = {
+                                TextButton(onClick = { showSubtuneSelectorDialog = false }) {
+                                    Text("Close")
+                                }
+                            }
+                        )
                     }
                 }
             }

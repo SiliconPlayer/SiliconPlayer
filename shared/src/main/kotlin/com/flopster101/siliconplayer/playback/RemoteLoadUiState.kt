@@ -25,7 +25,7 @@ internal data class RemoteDownloadResult(
     val cancelled: Boolean = false
 )
 
-internal data class SubtuneEntry(
+data class SubtuneEntry(
     val index: Int,
     val title: String,
     val artist: String,
@@ -44,7 +44,7 @@ internal fun formatByteCount(bytes: Long): String {
     return String.format(Locale.US, "%.1f %s", value, units[unitIndex])
 }
 
-internal fun formatShortDuration(seconds: Double): String {
+fun formatShortDuration(seconds: Double): String {
     if (seconds <= 0.0 || !seconds.isFinite()) return "--:--"
     val totalSeconds = seconds.toInt().coerceAtLeast(0)
     val minutes = totalSeconds / 60

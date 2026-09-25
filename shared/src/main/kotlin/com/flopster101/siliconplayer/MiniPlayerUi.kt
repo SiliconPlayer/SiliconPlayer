@@ -191,7 +191,8 @@ internal fun MiniPlayerBar(
         tonalElevation = 1.dp,
         shadowElevation = 3.dp,
         shape = MaterialTheme.shapes.large,
-        color = MaterialTheme.colorScheme.surface.copy(alpha = 0.98f)
+        color = MaterialTheme.colorScheme.surface.copy(alpha = 0.98f),
+        contentColor = MaterialTheme.colorScheme.onSurface
     ) {
         Column(modifier = Modifier.fillMaxWidth()) {
             Row(
@@ -359,6 +360,7 @@ internal fun MiniPlayerBar(
                                     Text(
                                         text = animatedTitle,
                                         style = MaterialTheme.typography.titleSmall,
+                                        color = MaterialTheme.colorScheme.onSurface,
                                         maxLines = 1,
                                         overflow = TextOverflow.Ellipsis
                                     )

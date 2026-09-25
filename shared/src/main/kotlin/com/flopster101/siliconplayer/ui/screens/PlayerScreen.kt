@@ -864,7 +864,7 @@ internal fun PlayerScreen(
     visualizationVuRenderBackend: VisualizationRenderBackend,
     visualizationPerformanceMode: VisualizationPerformanceMode = com.flopster101.siliconplayer.AppDefaults.Visualization.performanceMode,
     visualizationShowDebugInfo: Boolean = false,
-    artworkCornerRadiusDp: Int = 3,
+    artworkCornerRadiusDp: Int = com.flopster101.siliconplayer.AppDefaults.Player.artworkCornerRadiusDp,
     canvasTapToSeekSeconds: Int = com.flopster101.siliconplayer.AppDefaults.Player.canvasTapToSeekSeconds,
     isTrackFavorited: Boolean = false,
     onToggleFavoriteTrack: () -> Unit = {},

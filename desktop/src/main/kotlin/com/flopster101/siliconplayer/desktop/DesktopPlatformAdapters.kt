@@ -174,11 +174,12 @@ fun ProvideDesktopPlatformAdapters(
                 if (cacheKey == null) return null
                 val file = java.io.File(cacheKey)
                 if (file.exists() && file.isFile) {
-                    return try {
+                    val directImage = try {
                         org.jetbrains.skia.Image.makeFromEncoded(file.readBytes()).toComposeImageBitmap()
                     } catch (_: Throwable) {
                         null
                     }
+                    return directImage ?: DesktopArtworkSupport.loadArtworkForFile(file)
                 }
                 return null
             }
