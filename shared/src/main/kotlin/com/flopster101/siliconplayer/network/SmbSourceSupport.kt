@@ -1,6 +1,5 @@
 package com.flopster101.siliconplayer
 
-import android.net.Uri
 import java.util.Locale
 
 internal data class SmbSourceSpec(
@@ -182,32 +181,31 @@ private fun buildSmbUri(spec: SmbSourceSpec, includePassword: Boolean): String {
     } else {
         "$encodedUserInfo@$authorityHost"
     }
-    val builder = Uri.Builder()
-        .scheme("smb")
-        .encodedAuthority(authority)
+    val pathSegments = mutableListOf<String>()
     val share = spec.share.trim()
     if (share.isNotBlank()) {
-        builder.appendPath(share)
+        pathSegments.add(safeUriEncode(share))
         normalizeSmbPathForShare(spec.path)
             ?.split('/')
             ?.filter { it.isNotBlank() }
             ?.forEach { segment ->
-                builder.appendPath(segment)
+                pathSegments.add(safeUriEncode(segment))
             }
     }
-    return builder.build().toString()
+    val path = if (pathSegments.isEmpty()) "" else "/" + pathSegments.joinToString("/")
+    return "smb://$authority$path"
 }
 
 private fun safeUriDecode(value: String): String {
-    return runCatching { Uri.decode(value) }.getOrElse {
-        runCatching { java.net.URLDecoder.decode(value, "UTF-8") }.getOrDefault(value)
-    }
+    return runCatching { java.net.URLDecoder.decode(value, "UTF-8") }.getOrDefault(value)
 }
 
 private fun safeUriEncode(value: String): String {
-    return runCatching { Uri.encode(value) }.getOrElse {
-        runCatching { java.net.URLEncoder.encode(value, "UTF-8") }.getOrDefault(value)
-    }
+    return runCatching {
+        java.net.URLEncoder.encode(value, "UTF-8")
+            .replace("+", "%20")
+            .replace("%2F", "/")
+    }.getOrDefault(value)
 }
 
 private fun buildSmbAuthorityHost(rawHost: String): String {

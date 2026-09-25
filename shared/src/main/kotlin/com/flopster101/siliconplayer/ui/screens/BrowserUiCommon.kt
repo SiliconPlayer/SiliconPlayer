@@ -2,13 +2,12 @@ package com.flopster101.siliconplayer.ui.screens
 
 import com.flopster101.siliconplayer.onGloballyPositionedDeferred
 import com.flopster101.siliconplayer.onSizeChangedDeferred
-import android.app.ActivityManager
-import android.content.Context
+import java.net.URLConnection
+import com.flopster101.siliconplayer.platform.LocalIsWatchDevice
+import com.flopster101.siliconplayer.ExportConflictAction
 import com.flopster101.siliconplayer.VerticalScrollbarTrack
 import com.flopster101.siliconplayer.rememberLazyListScrollbarDragHandler
 import com.flopster101.siliconplayer.rememberScrollStateScrollbarDragHandler
-import android.graphics.BitmapFactory
-import android.webkit.MimeTypeMap
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.ContentTransform
 import androidx.compose.animation.Crossfade
@@ -61,12 +60,16 @@ import androidx.compose.material.icons.filled.AudioFile
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Description
 import androidx.compose.material.icons.filled.Folder
+import androidx.compose.material.icons.filled.FolderZip
 import androidx.compose.material.icons.filled.Info
+import androidx.compose.material.icons.filled.InsertDriveFile
 import androidx.compose.material.icons.filled.KeyboardArrowDown
+import androidx.compose.material.icons.filled.LibraryMusic
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Photo
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.SelectAll
+import androidx.compose.material.icons.filled.SportsEsports
 import androidx.compose.material.icons.filled.VideoFile
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
@@ -112,8 +115,6 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalClipboardManager
-import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.SpanStyle
@@ -140,13 +141,11 @@ import com.flopster101.siliconplayer.FilePreviewKind
 import com.flopster101.siliconplayer.detectFilePreviewKind
 import com.flopster101.siliconplayer.RemoteLoadPhase
 import com.flopster101.siliconplayer.RemoteLoadUiState
-import com.flopster101.siliconplayer.R
 import com.flopster101.siliconplayer.rememberDialogScrollbarAlpha
 import com.flopster101.siliconplayer.ui.dialogs.dialogScrollableContentNavigation
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
-import com.flopster101.siliconplayer.session.ExportConflictAction
 import java.util.Locale
 import java.io.File
 
@@ -250,17 +249,9 @@ internal class BrowserSelectionController<K> {
 
 @Composable
 internal fun rememberIsConstrainedBrowserDevice(): Boolean {
-    val context = LocalContext.current
-    val activityManager = remember(context) {
-        context.getSystemService(Context.ACTIVITY_SERVICE) as? ActivityManager
-    }
-    val isTvDevice = remember(context) {
-        context.packageManager.hasSystemFeature(android.content.pm.PackageManager.FEATURE_LEANBACK)
-    }
-    return remember(activityManager, isTvDevice) {
-        isTvDevice ||
-            (activityManager?.isLowRamDevice == true) ||
-            Runtime.getRuntime().availableProcessors().coerceAtLeast(1) <= 4
+    val isWatch = LocalIsWatchDevice.current
+    return remember(isWatch) {
+        isWatch || Runtime.getRuntime().availableProcessors().coerceAtLeast(1) <= 4
     }
 }
 
@@ -317,7 +308,7 @@ internal fun BrowserRemoteEntryIcon(
 
         BrowserRemoteEntryVisualKind.ArchiveFile -> {
             Icon(
-                painter = painterResource(id = R.drawable.ic_folder_zip),
+                imageVector = Icons.Default.FolderZip,
                 contentDescription = "Archive file",
                 tint = tint,
                 modifier = modifier
@@ -326,7 +317,7 @@ internal fun BrowserRemoteEntryIcon(
 
         BrowserRemoteEntryVisualKind.TrackedFile -> {
             Icon(
-                painter = painterResource(id = R.drawable.ic_file_tracked),
+                imageVector = Icons.Default.LibraryMusic,
                 contentDescription = "Tracked file",
                 tint = tint,
                 modifier = modifier
@@ -335,7 +326,7 @@ internal fun BrowserRemoteEntryIcon(
 
         BrowserRemoteEntryVisualKind.GameFile -> {
             Icon(
-                painter = painterResource(id = R.drawable.ic_file_game),
+                imageVector = Icons.Default.SportsEsports,
                 contentDescription = "Game file",
                 tint = tint,
                 modifier = modifier
@@ -380,7 +371,7 @@ internal fun BrowserRemoteEntryIcon(
 
         BrowserRemoteEntryVisualKind.UnsupportedFile -> {
             Icon(
-                painter = painterResource(id = R.drawable.ic_file_unsupported),
+                imageVector = Icons.Default.InsertDriveFile,
                 contentDescription = null,
                 tint = tint,
                 modifier = modifier
@@ -819,9 +810,10 @@ internal fun BrowserImagePreviewDialog(
     var isLoaded by androidx.compose.runtime.remember(imageFile.absolutePath) {
         mutableStateOf(false)
     }
+    val thumbnailLoader = com.flopster101.siliconplayer.platform.LocalArtworkThumbnailLoader.current
     LaunchedEffect(imageFile.absolutePath) {
         imageBitmap = withContext(Dispatchers.IO) {
-            BitmapFactory.decodeFile(imageFile.absolutePath)?.asImageBitmap()
+            thumbnailLoader.load(imageFile.absolutePath)
         }
         isLoaded = true
     }
@@ -1337,7 +1329,7 @@ internal fun browserRemoteEntryVisualKind(
     }
     val extension = inferredPrimaryExtensionForName(name)?.lowercase(Locale.ROOT)
     val mimeType = extension
-        ?.let { ext -> MimeTypeMap.getSingleton().getMimeTypeFromExtension(ext) }
+        ?.let { ext -> runCatching { URLConnection.guessContentTypeFromName("file.$ext") }.getOrNull() }
         .orEmpty()
         .lowercase(Locale.ROOT)
     return if (
@@ -1605,7 +1597,6 @@ internal fun BrowserToolbarSubtitle(
 internal fun BrowserToolbarPathRow(
     icon: ImageVector,
     subtitle: String,
-    iconPainterResId: Int? = null,
     contentStartPadding: Dp = 6.dp,
     modifier: Modifier = Modifier
 ) {
@@ -1615,21 +1606,12 @@ internal fun BrowserToolbarPathRow(
             .padding(start = contentStartPadding),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        if (iconPainterResId != null) {
-            Icon(
-                painter = painterResource(id = iconPainterResId),
-                contentDescription = null,
-                tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.size(16.dp)
-            )
-        } else {
-            Icon(
-                imageVector = icon,
-                contentDescription = null,
-                tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.size(16.dp)
-            )
-        }
+        Icon(
+            imageVector = icon,
+            contentDescription = null,
+            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.size(16.dp)
+        )
         Spacer(modifier = Modifier.width(6.dp))
         BrowserToolbarSubtitle(
             subtitle = subtitle,

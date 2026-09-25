@@ -23,7 +23,6 @@ import com.flopster101.siliconplayer.library.LibraryTrackEntity
 import com.flopster101.siliconplayer.data.buildArchiveSourceId
 import com.flopster101.siliconplayer.data.parseArchiveSourceId
 
-private val SUPPORTED_PLAYLIST_EXTENSIONS = setOf("m3u", "m3u8")
 
 internal fun LibraryTrackEntity.toPlaylistTrackEntry(): PlaylistTrackEntry {
     val artist = artist.takeUnless { it.isBlank() || it.equals("Unknown artist", ignoreCase = true) }
@@ -99,7 +98,6 @@ internal data class ParsedPlaylistDocument(
     val entries: List<PlaylistTrackEntry>
 )
 
-internal const val FAVORITES_PLAYLIST_ID = "__favorites__"
 
 internal fun favoritesAsStoredPlaylist(favorites: List<PlaylistTrackEntry>): StoredPlaylist {
     return StoredPlaylist(
@@ -149,14 +147,6 @@ internal fun getDescendantFolderIds(folders: List<PlaylistFolder>, folderId: Str
     return descendants
 }
 
-internal fun isSupportedPlaylistFileName(name: String): Boolean {
-    return inferredPrimaryExtensionForName(name)
-        ?.lowercase(Locale.ROOT) in SUPPORTED_PLAYLIST_EXTENSIONS
-}
-
-internal fun isSupportedPlaylistFile(file: File?): Boolean {
-    return file != null && file.isFile && isSupportedPlaylistFileName(file.name)
-}
 
 internal fun parsePlaylistDocument(
     file: File,

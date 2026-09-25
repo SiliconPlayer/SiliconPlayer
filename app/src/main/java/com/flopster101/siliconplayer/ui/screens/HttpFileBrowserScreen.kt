@@ -142,8 +142,9 @@ import com.flopster101.siliconplayer.R
 import com.flopster101.siliconplayer.data.ensureArchiveMounted
 import com.flopster101.siliconplayer.data.buildArchiveDirectoryPath
 import com.flopster101.siliconplayer.session.exportFilesToTree
-import com.flopster101.siliconplayer.session.ExportConflictDecision
-import com.flopster101.siliconplayer.session.ExportNameConflict
+import com.flopster101.siliconplayer.ExportConflictDecision
+import com.flopster101.siliconplayer.ExportNameConflict
+import com.flopster101.siliconplayer.ExportFileItem
 import java.io.File
 import java.util.Locale
 import kotlinx.coroutines.CancellationException
@@ -1066,7 +1067,7 @@ internal fun HttpFileBrowserScreen(
         exportDownloadJob?.cancel()
         exportDownloadJob = coroutineScope.launch {
             var preparationFailed = 0
-            val exportItems = mutableListOf<com.flopster101.siliconplayer.session.ExportFileItem>()
+            val exportItems = mutableListOf<ExportFileItem>()
             for ((index, target) in targets.withIndex()) {
                 if (!isActive) break
                 exportDownloadProgressState = BrowserRemoteExportProgressState(

@@ -1,27 +1,34 @@
 package com.flopster101.siliconplayer.ui.screens
 
-import com.flopster101.siliconplayer.isRoundScreenCompat
 import com.flopster101.siliconplayer.StoredPlaylist
 import com.flopster101.siliconplayer.inferredDisplayTitleForName
 import com.flopster101.siliconplayer.isSupportedPlaylistFileName
 import com.flopster101.siliconplayer.ui.dialogs.AddToPlaylistChooserDialog
 import com.flopster101.siliconplayer.ui.dialogs.DirectoryTreeSheet
 import com.flopster101.siliconplayer.ui.dialogs.PlayWithDialog
-import android.app.ActivityManager
-import android.content.ClipData
-import android.content.ClipboardManager
-import android.content.Context
-import android.content.res.Configuration
-import android.net.Uri
-import android.os.Build
-import android.os.Environment
-import android.os.storage.StorageManager
-import android.os.storage.StorageVolume
-import android.webkit.MimeTypeMap
-import android.widget.Toast
-import androidx.activity.compose.BackHandler
-import androidx.activity.compose.rememberLauncherForActivityResult
-import androidx.activity.result.contract.ActivityResultContracts
+import java.net.URLConnection
+import java.net.URLEncoder
+import java.net.URLDecoder
+import com.flopster101.siliconplayer.platform.PlatformBackHandler
+import com.flopster101.siliconplayer.platform.LocalAppPreferences
+import com.flopster101.siliconplayer.platform.LocalToastHandler
+import com.flopster101.siliconplayer.platform.LocalIsWatchDevice
+import com.flopster101.siliconplayer.platform.LocalIsRoundScreen
+import com.flopster101.siliconplayer.platform.LocalWindowSizeInfo
+import com.flopster101.siliconplayer.platform.PlatformStorageLocation
+import com.flopster101.siliconplayer.platform.StorageLocationKind
+import com.flopster101.siliconplayer.platform.LocalStorageLocationsProvider
+import com.flopster101.siliconplayer.platform.LocalFileExportHandler
+import com.flopster101.siliconplayer.platform.LocalAppCacheDir
+import com.flopster101.siliconplayer.platform.AppPreferences
+import androidx.compose.material.icons.filled.FolderZip
+import androidx.compose.material.icons.filled.LibraryMusic
+import androidx.compose.material.icons.filled.SportsEsports
+import androidx.compose.material.icons.filled.InsertDriveFile
+import androidx.compose.material.icons.filled.Star
+import androidx.compose.material.icons.filled.StarBorder
+import androidx.compose.ui.platform.LocalClipboardManager
+import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.animateFloatAsState
@@ -71,7 +78,6 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.listSaver
 import androidx.compose.runtime.saveable.rememberSaveable
-import android.content.pm.PackageManager
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.window.Dialog
@@ -81,8 +87,6 @@ import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.foundation.focusable
-import androidx.compose.ui.platform.LocalConfiguration
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
@@ -90,7 +94,6 @@ import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.graphicsLayer
-import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -104,14 +107,13 @@ import com.flopster101.siliconplayer.AppDefaults
 import com.flopster101.siliconplayer.AppPreferenceKeys
 import com.flopster101.siliconplayer.BrowserLaunchState
 import com.flopster101.siliconplayer.BrowserLocationModel
-import com.flopster101.siliconplayer.R
 import com.flopster101.siliconplayer.WatchDialogContainer
 import com.flopster101.siliconplayer.rememberDialogLazyListScrollbarAlpha
 import com.flopster101.siliconplayer.resolveDecoderArtworkHintForFileName
 import com.flopster101.siliconplayer.resolveBrowserLocationModel
 import com.flopster101.siliconplayer.buildHttpDisplayUri
 import com.flopster101.siliconplayer.buildSmbDisplayUri
-import com.flopster101.siliconplayer.resolveLocalBrowserThumbnailPreview
+import com.flopster101.siliconplayer.platform.LocalArtworkThumbnailLoader
 import com.flopster101.siliconplayer.decodePercentEncodedForDisplay
 import com.flopster101.siliconplayer.HomePinnedEntry
 import com.flopster101.siliconplayer.RecentPathEntry
@@ -134,10 +136,8 @@ import com.flopster101.siliconplayer.data.FileRepository
 import com.flopster101.siliconplayer.data.ensureArchiveMounted
 import com.flopster101.siliconplayer.data.resolveArchiveLogicalDirectory
 import com.flopster101.siliconplayer.data.resolveArchiveLocationToFile
-import com.flopster101.siliconplayer.session.ExportFileItem
-import com.flopster101.siliconplayer.session.ExportConflictDecision
-import com.flopster101.siliconplayer.session.ExportNameConflict
-import com.flopster101.siliconplayer.session.exportFilesToTree
+import com.flopster101.siliconplayer.data.readZipEntrySizesForDirectory
+import com.flopster101.siliconplayer.ExportFileItem
 import java.io.File
 import java.util.Locale
 import java.util.zip.ZipFile
@@ -205,8 +205,8 @@ private data class ArchiveToolbarContext(
 
 private fun encodeSavedFileItem(item: FileItem): String {
     return listOf(
-        Uri.encode(item.file.absolutePath),
-        Uri.encode(item.name),
+        URLEncoder.encode(item.file.absolutePath, "UTF-8"),
+        URLEncoder.encode(item.name, "UTF-8"),
         if (item.isDirectory) "1" else "0",
         item.size.toString(),
         item.kind.name
@@ -218,8 +218,8 @@ private fun decodeSavedFileItem(encoded: String): FileItem? {
     if (parts.size != 5) return null
     return runCatching {
         FileItem(
-            file = File(Uri.decode(parts[0])),
-            name = Uri.decode(parts[1]),
+            file = File(URLDecoder.decode(parts[0], "UTF-8")),
+            name = URLDecoder.decode(parts[1], "UTF-8"),
             isDirectory = parts[2] == "1",
             size = parts[3].toLong(),
             kind = FileItem.Kind.valueOf(parts[4])
@@ -270,10 +270,17 @@ internal fun FileBrowserScreen(
     pinnedHomeEntries: List<HomePinnedEntry> = emptyList(),
     onPinHomeEntry: (RecentPathEntry, Boolean) -> Unit = { _, _ -> }
 ) {
-    val context = LocalContext.current
-    val prefs = remember(context) {
-        context.getSharedPreferences(AppPreferenceKeys.PREFS_NAME, Context.MODE_PRIVATE)
-    }
+    val prefs = LocalAppPreferences.current
+    val toastHandler = LocalToastHandler.current
+    val isWatch = LocalIsWatchDevice.current
+    val isRound = LocalIsRoundScreen.current
+    val windowSize = LocalWindowSizeInfo.current
+    val storageLocationsProvider = LocalStorageLocationsProvider.current
+    val fileExportHandler = LocalFileExportHandler.current
+    val cacheDir = LocalAppCacheDir.current
+    val clipboardManager = LocalClipboardManager.current
+    val isTablet = windowSize.smallestScreenWidthDp >= 600
+
     var showLocalThumbnailPreviews by remember {
         mutableStateOf(
             prefs.getBoolean(
@@ -283,22 +290,22 @@ internal fun FileBrowserScreen(
         )
     }
     DisposableEffect(prefs) {
-        val listener = android.content.SharedPreferences.OnSharedPreferenceChangeListener { sharedPrefs, key ->
+        val listener = AppPreferences.OnChangeListener { preferences, key ->
             if (key == AppPreferenceKeys.BROWSER_SHOW_LOCAL_THUMBNAIL_PREVIEWS) {
-                showLocalThumbnailPreviews = sharedPrefs.getBoolean(
+                showLocalThumbnailPreviews = preferences.getBoolean(
                     AppPreferenceKeys.BROWSER_SHOW_LOCAL_THUMBNAIL_PREVIEWS,
                     AppDefaults.Browser.showLocalThumbnailPreviews
                 )
             }
         }
-        prefs.registerOnSharedPreferenceChangeListener(listener)
+        prefs.addListener(listener)
         onDispose {
-            prefs.unregisterOnSharedPreferenceChangeListener(listener)
+            prefs.removeListener(listener)
         }
     }
     val localListingAdapter = remember(repository) { LocalBrowserListingAdapter(repository) }
     var storageLocationsRefreshToken by remember { mutableIntStateOf(0) }
-    val storageLocations = remember(context, storageLocationsRefreshToken) { detectStorageLocations(context) }
+    val storageLocations = remember(storageLocationsProvider, storageLocationsRefreshToken) { storageLocationsProvider() }
     var selectedLocationId by rememberSaveable { mutableStateOf<String?>(null) }
     var currentDirectoryPath by rememberSaveable { mutableStateOf<String?>(null) }
     val currentDirectory = currentDirectoryPath?.let(::File)
@@ -327,29 +334,14 @@ internal fun FileBrowserScreen(
     var showBrowserInfoDialog by remember { mutableStateOf(false) }
     var textPreviewDialogState by remember { mutableStateOf<Pair<String, String>?>(null) }
     var imagePreviewDialogState by remember { mutableStateOf<Pair<String, File>?>(null) }
-    var pendingExportFiles by remember { mutableStateOf<List<ExportFileItem>>(emptyList()) }
-    var exportConflictDialogState by remember { mutableStateOf<BrowserExportConflictDialogState?>(null) }
     var pendingDeleteFilePaths by remember { mutableStateOf<List<String>>(emptyList()) }
     var pendingPinConfirmation by remember { mutableStateOf<Pair<RecentPathEntry, Boolean>?>(null) }
     var pendingPinEvictionCandidate by remember { mutableStateOf<HomePinnedEntry?>(null) }
     var watchActionTargetItem by remember { mutableStateOf<FileItem?>(null) }
     var pendingPlaylistAddSource by remember { mutableStateOf<Pair<String, String>?>(null) }
     val folderSummaryCache = remember { mutableStateMapOf<String, String>() }
-    val activityManager = remember(context) {
-        context.getSystemService(Context.ACTIVITY_SERVICE) as? ActivityManager
-    }
-    val isTvDevice = remember(context) {
-        context.packageManager.hasSystemFeature(PackageManager.FEATURE_LEANBACK)
-    }
-    val isWatch = remember(context) {
-        context.packageManager.hasSystemFeature(PackageManager.FEATURE_WATCH)
-    }
-    val isRound = LocalConfiguration.current.isRoundScreenCompat
-    val isConstrainedBrowserDevice = remember(activityManager, isTvDevice, isWatch) {
-        isTvDevice ||
-            isWatch ||
-            (activityManager?.isLowRamDevice == true) ||
-            Runtime.getRuntime().availableProcessors().coerceAtLeast(1) <= 4
+    val isConstrainedBrowserDevice = remember(isWatch) {
+        isWatch || Runtime.getRuntime().availableProcessors().coerceAtLeast(1) <= 4
     }
 
     val selectedLocation = storageLocations.firstOrNull { it.id == selectedLocationId }
@@ -465,7 +457,7 @@ internal fun FileBrowserScreen(
                                 .trim('/')
                         }
                         val zipSizes = readZipEntrySizesForDirectory(
-                            context = context,
+                            cacheDir = cacheDir,
                             archivePath = mountInfo.archivePath,
                             relativeDirectory = relativeDirectory
                         )
@@ -672,7 +664,7 @@ internal fun FileBrowserScreen(
         directoryLoadJob = coroutineScope.launch {
             try {
                 val mountDirectory = withContext(Dispatchers.IO) {
-                    ensureArchiveMounted(context, archiveFile)
+                    ensureArchiveMounted(cacheDir, archiveFile)
                 }
                 archiveFile.parentFile?.absolutePath?.let { parentPath ->
                     val mountRootKey = normalizePathForArchiveMountLookup(mountDirectory.absolutePath)
@@ -893,11 +885,7 @@ internal fun FileBrowserScreen(
             pendingPinConfirmation = recentEntry to isFolder
         } else {
             onPinHomeEntry(recentEntry, isFolder)
-            Toast.makeText(
-                context,
-                if (isFolder) "Pinned folder to home" else "Pinned file to home",
-                Toast.LENGTH_SHORT
-            ).show()
+            toastHandler.showToast(if (isFolder) "Pinned folder to home" else "Pinned file to home")
         }
     }
 
@@ -933,7 +921,7 @@ internal fun FileBrowserScreen(
                 if (textPreviewContent != null) {
                     textPreviewDialogState = item.name to textPreviewContent
                 } else {
-                    Toast.makeText(context, "Unable to preview text file", Toast.LENGTH_SHORT).show()
+                    toastHandler.showToast("Unable to preview text file")
                 }
                 return
             }
@@ -944,82 +932,6 @@ internal fun FileBrowserScreen(
             null -> Unit
         }
         onFileSelected(item.file, sourceIdOverride)
-    }
-
-    suspend fun requestExportConflictDecision(
-        conflict: ExportNameConflict
-    ): ExportConflictDecision = withContext(Dispatchers.Main.immediate) {
-        suspendCancellableCoroutine { continuation ->
-            var applyToAll = false
-            fun finish(decision: ExportConflictDecision) {
-                exportConflictDialogState = null
-                if (continuation.isActive) {
-                    continuation.resume(decision)
-                }
-            }
-            exportConflictDialogState = BrowserExportConflictDialogState(
-                fileName = conflict.fileName,
-                applyToAll = applyToAll,
-                onApplyToAllChange = { checked ->
-                    applyToAll = checked
-                    exportConflictDialogState = exportConflictDialogState?.copy(applyToAll = checked)
-                },
-                onResolve = { action, applyAll ->
-                    finish(
-                        ExportConflictDecision(
-                            action = action,
-                            applyToAll = applyAll
-                        )
-                    )
-                }
-            )
-            continuation.invokeOnCancellation {
-                exportConflictDialogState = null
-            }
-        }
-    }
-
-    val exportDirectoryLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.OpenDocumentTree()
-    ) { treeUri ->
-        val targets = pendingExportFiles
-        pendingExportFiles = emptyList()
-        if (targets.isEmpty()) return@rememberLauncherForActivityResult
-        if (treeUri == null) {
-            Toast.makeText(context, "Save cancelled", Toast.LENGTH_SHORT).show()
-            return@rememberLauncherForActivityResult
-        }
-        coroutineScope.launch {
-            val result = exportFilesToTree(
-                context = context,
-                treeUri = treeUri,
-                exportItems = targets,
-                onNameConflict = { conflict ->
-                    requestExportConflictDecision(conflict)
-                }
-            )
-            Toast.makeText(
-                context,
-                when {
-                    result.cancelled -> "Save cancelled"
-                    else -> {
-                        "Saved ${result.exportedCount} file(s)" +
-                            buildString {
-                                if (result.skippedCount > 0) {
-                                    append(" (${result.skippedCount} skipped)")
-                                }
-                                if (result.failedCount > 0) {
-                                    append(" (${result.failedCount} failed)")
-                                }
-                            }
-                    }
-                },
-                Toast.LENGTH_SHORT
-            ).show()
-            if (!result.cancelled) {
-                browserSelectionController.exitSelectionMode()
-            }
-        }
     }
 
     LaunchedEffect(
@@ -1038,7 +950,7 @@ internal fun FileBrowserScreen(
 
         val rawInitialDirectory = initialDirectoryPath?.trim().takeUnless { it.isNullOrBlank() }
         val resolvedArchive = rawInitialDirectory?.let { path ->
-            withContext(Dispatchers.IO) { resolveArchiveLogicalDirectory(context, path) }
+            withContext(Dispatchers.IO) { resolveArchiveLogicalDirectory(cacheDir, path) }
         }
         val restoredDirectory = when {
             resolvedArchive != null -> {
@@ -1124,11 +1036,10 @@ internal fun FileBrowserScreen(
     LaunchedEffect(selectedLocationId, currentDirectory?.absolutePath) {
         browserSelectionController.exitSelectionMode()
         showBrowserInfoDialog = false
-        pendingExportFiles = emptyList()
         pendingDeleteFilePaths = emptyList()
     }
 
-    BackHandler(
+    PlatformBackHandler(
         enabled = backHandlingEnabled && (currentDirectory != null || onExitBrowser != null),
         onBack = { handleBack() }
     )
@@ -1183,9 +1094,9 @@ internal fun FileBrowserScreen(
     }
     val showLocalStorageSelector = archiveToolbarContext?.isRemote != true
     val subtitleIcon = archiveToolbarContext?.sourceIcon
-        ?: selectedLocation?.let { iconForStorageKind(it.kind, context) }
+        ?: if (archiveToolbarContext != null) Icons.Default.FolderZip else null
+        ?: selectedLocation?.let { iconForStorageKind(it.kind, isTablet) }
         ?: Icons.Default.Home
-    val subtitleIconPainterResId = if (archiveToolbarContext != null) R.drawable.ic_folder_zip else null
     val subtitle = archiveToolbarContext?.subtitle ?: if (selectedLocation == null && currentDirectory == null) {
         "Storage locations"
     } else {
@@ -1349,7 +1260,7 @@ internal fun FileBrowserScreen(
                                                     },
                                                     leadingIcon = {
                                                         Icon(
-                                                            imageVector = iconForStorageKind(location.kind, context),
+                                                            imageVector = iconForStorageKind(location.kind, isTablet),
                                                             contentDescription = null
                                                         )
                                                     },
@@ -1459,11 +1370,7 @@ internal fun FileBrowserScreen(
                                                     pendingPinConfirmation = recentEntry to true
                                                 } else {
                                                     onPinHomeEntry(recentEntry, true)
-                                                    Toast.makeText(
-                                                        context,
-                                                        "Pinned folder to home",
-                                                        Toast.LENGTH_SHORT
-                                                    ).show()
+                                                    toastHandler.showToast("Pinned folder to home")
                                                 }
                                                 currentFolderMenuExpanded = false
                                             }
@@ -1490,9 +1397,8 @@ internal fun FileBrowserScreen(
                                             onClick = {
                                                 val folderPath = resolveCurrentFolderPathForActions()
                                                 if (folderPath != null) {
-                                                    val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
-                                                    clipboard.setPrimaryClip(ClipData.newPlainText("Path", folderPath))
-                                                    Toast.makeText(context, "Copied path", Toast.LENGTH_SHORT).show()
+                                                    clipboardManager.setText(AnnotatedString(folderPath))
+                                                    toastHandler.showToast("Copied path")
                                                 }
                                                 currentFolderMenuExpanded = false
                                             }
@@ -1526,7 +1432,6 @@ internal fun FileBrowserScreen(
                                 BrowserToolbarPathRow(
                                     icon = subtitleIcon,
                                     subtitle = subtitle,
-                                    iconPainterResId = subtitleIconPainterResId,
                                     contentStartPadding = 12.dp
                                 )
                             }
@@ -1562,15 +1467,10 @@ internal fun FileBrowserScreen(
                                             icon = Icons.Default.Save,
                                             enabled = selectedRegularFileItems().isNotEmpty(),
                                             onClick = {
-                                                val exportItems = selectedRegularFileItems().map { item ->
-                                                    ExportFileItem(
-                                                        sourceFile = item.file,
-                                                        displayNameOverride = item.file.name
-                                                    )
-                                                }
-                                                if (exportItems.isNotEmpty()) {
-                                                    pendingExportFiles = exportItems
-                                                    exportDirectoryLauncher.launch(null)
+                                                val exportFiles = selectedRegularFileItems().map { it.file }
+                                                if (exportFiles.isNotEmpty()) {
+                                                    fileExportHandler.exportFiles(exportFiles)
+                                                    browserSelectionController.exitSelectionMode()
                                                 }
                                             }
                                         ),
@@ -1603,7 +1503,7 @@ internal fun FileBrowserScreen(
                                                     pendingPinConfirmation = recentEntry to isFolder
                                                 } else {
                                                     onPinHomeEntry(recentEntry, isFolder)
-                                                    Toast.makeText(context, if (isFolder) "Pinned folder to home" else "Pinned file to home", Toast.LENGTH_SHORT).show()
+                                                    toastHandler.showToast(if (isFolder) "Pinned folder to home" else "Pinned file to home")
                                                 }
                                             }
                                         ),
@@ -1786,7 +1686,7 @@ internal fun FileBrowserScreen(
                                     verticalAlignment = Alignment.CenterVertically
                                 ) {
                                     Icon(
-                                        imageVector = iconForStorageKind(location.kind, context),
+                                        imageVector = iconForStorageKind(location.kind, isTablet),
                                         contentDescription = null,
                                         tint = MaterialTheme.colorScheme.primary,
                                         modifier = Modifier.size(if (isWatch) 20.dp else 24.dp)
@@ -2128,7 +2028,7 @@ internal fun FileBrowserScreen(
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             Icon(
-                                imageVector = iconForStorageKind(location.kind, context),
+                                imageVector = iconForStorageKind(location.kind, isTablet),
                                 contentDescription = null,
                                 tint = MaterialTheme.colorScheme.primary,
                                 modifier = Modifier.size(20.dp)
@@ -2216,11 +2116,7 @@ internal fun FileBrowserScreen(
                                             pendingPinConfirmation = recentEntry to true
                                         } else {
                                             onPinHomeEntry(recentEntry, true)
-                                            Toast.makeText(
-                                                context,
-                                                "Pinned folder to home",
-                                                Toast.LENGTH_SHORT
-                                            ).show()
+                                            toastHandler.showToast("Pinned folder to home")
                                         }
                                     }
                                     currentFolderMenuExpanded = false
@@ -2375,11 +2271,7 @@ internal fun FileBrowserScreen(
                                         pendingPinConfirmation = recentEntry to isFolder
                                     } else {
                                         onPinHomeEntry(recentEntry, isFolder)
-                                        Toast.makeText(
-                                            context,
-                                            if (isFolder) "Pinned folder to home" else "Pinned file to home",
-                                            Toast.LENGTH_SHORT
-                                        ).show()
+                                        toastHandler.showToast(if (isFolder) "Pinned folder to home" else "Pinned file to home")
                                     }
                                     watchActionTargetItem = null
                                 }
@@ -2504,11 +2396,6 @@ internal fun FileBrowserScreen(
             onDismiss = { imagePreviewDialogState = null }
         )
     }
-
-    exportConflictDialogState?.let { state ->
-        BrowserExportConflictDialog(state = state)
-    }
-
     if (pendingDeleteFilePaths.isNotEmpty()) {
         val performDelete = {
             val pathsToDelete = pendingDeleteFilePaths
@@ -2521,16 +2408,10 @@ internal fun FileBrowserScreen(
                         }.getOrDefault(false)
                     }
                 }
-                Toast.makeText(
-                    context,
-                    "Deleted $deletedCount file(s)" +
-                        if (deletedCount < pathsToDelete.size) {
-                            " (${pathsToDelete.size - deletedCount} failed)"
-                        } else {
-                            ""
-                        },
-                    Toast.LENGTH_SHORT
-                ).show()
+                val failedCount = pathsToDelete.size - deletedCount
+                toastHandler.showToast(
+                    "Deleted $deletedCount file(s)" + if (failedCount > 0) " ($failedCount failed)" else ""
+                )
                 browserSelectionController.exitSelectionMode()
                 currentDirectory?.let { loadDirectoryAsync(it) }
             }
@@ -2603,7 +2484,7 @@ internal fun FileBrowserScreen(
             onPinHomeEntry(entry, isFolder)
             pendingPinConfirmation = null
             pendingPinEvictionCandidate = null
-            Toast.makeText(context, if (isFolder) "Pinned folder to home" else "Pinned file to home", Toast.LENGTH_SHORT).show()
+            toastHandler.showToast(if (isFolder) "Pinned folder to home" else "Pinned file to home")
         }
         val onCancel = {
             pendingPinConfirmation = null
@@ -2860,32 +2741,13 @@ private fun directoryPublishBatchSize(totalItems: Int): Int = when {
     totalItems <= 10000 -> 512
     else -> 1024
 }
+private typealias StorageLocation = PlatformStorageLocation
+private typealias StorageKind = StorageLocationKind
 
-private data class StorageLocation(
-    val id: String,
-    val kind: StorageKind,
-    val typeLabel: String,
-    val name: String,
-    val directory: File
-)
-
-private enum class StorageKind {
-    ROOT,
-    INTERNAL,
-    SD,
-    USB
-}
-
-private enum class MountKindHint {
-    SD,
-    USB
-}
-
-private fun iconForStorageKind(kind: StorageKind, context: Context): ImageVector {
+private fun iconForStorageKind(kind: StorageKind, isTablet: Boolean = false): ImageVector {
     return when (kind) {
         StorageKind.ROOT -> Icons.Default.Folder
         StorageKind.INTERNAL -> {
-            val isTablet = context.resources.configuration.smallestScreenWidthDp >= 600
             if (isTablet) Icons.Default.TabletAndroid else Icons.Default.PhoneAndroid
         }
         StorageKind.SD -> Icons.Default.SdCard
@@ -2893,215 +2755,6 @@ private fun iconForStorageKind(kind: StorageKind, context: Context): ImageVector
     }
 }
 
-private fun detectStorageLocations(context: Context): List<StorageLocation> {
-    val results = mutableListOf<StorageLocation>()
-    val seenPaths = mutableSetOf<String>()
-
-    fun addLocation(kind: StorageKind, typeLabel: String, name: String, directory: File) {
-        val normalizedPath = directory.absolutePath
-        if (normalizedPath in seenPaths) return
-        if (!directory.exists() || !directory.isDirectory) return
-        results += StorageLocation(
-            id = normalizedPath,
-            kind = kind,
-            typeLabel = typeLabel,
-            name = name,
-            directory = directory
-        )
-        seenPaths += normalizedPath
-    }
-
-    addLocation(
-        kind = StorageKind.ROOT,
-        typeLabel = "Root",
-        name = "/",
-        directory = File("/")
-    )
-
-    val internalStorage = Environment.getExternalStorageDirectory()
-    addLocation(
-        kind = StorageKind.INTERNAL,
-        typeLabel = "Internal storage",
-        name = internalStorage.absolutePath,
-        directory = internalStorage
-    )
-
-    // On some Android 10 devices/emulators with scoped-storage quirks, the legacy
-    // Environment path can be missing or unusable. Recover internal storage root
-    // from app-specific external dirs as a fallback.
-    context.getExternalFilesDirs(null)
-        .orEmpty()
-        .forEach { externalDir ->
-            if (externalDir == null) return@forEach
-            if (Environment.isExternalStorageRemovable(externalDir)) return@forEach
-            val volumeRoot = resolveVolumeRoot(externalDir) ?: return@forEach
-            addLocation(
-                kind = StorageKind.INTERNAL,
-                typeLabel = "Internal storage",
-                name = volumeRoot.absolutePath,
-                directory = volumeRoot
-            )
-        }
-
-    val storageManager: StorageManager? = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-        context.getSystemService(StorageManager::class.java)
-    } else {
-        @Suppress("DEPRECATION")
-        context.getSystemService(Context.STORAGE_SERVICE) as? StorageManager
-    }
-    val removableFromVolumes = mutableSetOf<String>()
-    data class RemovableVolumeCandidate(
-        val root: File,
-        val description: String,
-        val hasUsbMarker: Boolean,
-        val hasSdMarker: Boolean,
-        val mountKindHint: MountKindHint?
-    )
-    val volumeCandidates = mutableListOf<RemovableVolumeCandidate>()
-
-    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
-        storageManager?.storageVolumes.orEmpty().forEach { volume ->
-            if (!volume.isRemovable) return@forEach
-            val volumeRoot = resolveStorageVolumeRoot(volume) ?: return@forEach
-            val description = volume.getDescription(context).orEmpty().trim()
-            val detectionText = "${description.lowercase()} ${volumeRoot.absolutePath.lowercase()}"
-            volumeCandidates += RemovableVolumeCandidate(
-                root = volumeRoot,
-                description = description,
-                hasUsbMarker = detectionText.contains("usb") || detectionText.contains("otg"),
-                hasSdMarker = detectionText.contains("sd card") ||
-                    detectionText.contains("sdcard") ||
-                    detectionText.contains(" microsd") ||
-                    detectionText.contains("sd "),
-                mountKindHint = detectMountKindHint(volumeRoot)
-            )
-        }
-    }
-
-    volumeCandidates.forEach { candidate ->
-        val isUsb = when {
-            candidate.hasUsbMarker && !candidate.hasSdMarker -> true
-            candidate.hasSdMarker && !candidate.hasUsbMarker -> false
-            candidate.mountKindHint == MountKindHint.USB -> true
-            candidate.mountKindHint == MountKindHint.SD -> false
-            else -> false
-        }
-        val label = candidate.description.ifBlank { candidate.root.name.ifBlank { "Volume" } }
-        val typeLabel = if (isUsb) "$label (USB)" else "$label (SD)"
-        addLocation(
-            kind = if (isUsb) StorageKind.USB else StorageKind.SD,
-            typeLabel = typeLabel,
-            name = candidate.root.absolutePath,
-            directory = candidate.root
-        )
-        removableFromVolumes += candidate.root.absolutePath
-    }
-
-    // Fallback scan for removable media on devices that may not expose a
-    // StorageVolume path on some OEMs.
-    context.getExternalFilesDirs(null)
-        .orEmpty()
-        .forEach { externalDir ->
-            if (externalDir == null) return@forEach
-            val volumeRoot = resolveVolumeRoot(externalDir) ?: return@forEach
-            if (volumeRoot.absolutePath in removableFromVolumes) return@forEach
-            val pathLower = volumeRoot.absolutePath.lowercase()
-            val isRemovable = Environment.isExternalStorageRemovable(externalDir)
-            if (!isRemovable) return@forEach
-            val mountKindHint = detectMountKindHint(volumeRoot)
-
-            val isUsb = when {
-                pathLower.contains("usb") || pathLower.contains("otg") -> true
-                pathLower.contains("sd") -> false
-                mountKindHint == MountKindHint.USB -> true
-                mountKindHint == MountKindHint.SD -> false
-                else -> false
-            }
-            val label = volumeRoot.name.ifBlank { "Volume" }
-            val typeLabel = if (isUsb) "$label (USB)" else "$label (SD)"
-            addLocation(
-                kind = if (isUsb) StorageKind.USB else StorageKind.SD,
-                typeLabel = typeLabel,
-                name = volumeRoot.absolutePath,
-                directory = volumeRoot
-            )
-        }
-
-    return results
-}
-
-private fun resolveStorageVolumeRoot(volume: StorageVolume): File? {
-    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-        volume.directory?.let { directory ->
-            if (directory.exists() && directory.isDirectory) return directory
-        }
-    }
-    runCatching {
-        val method = StorageVolume::class.java.getMethod("getPathFile")
-        (method.invoke(volume) as? File)?.let { file ->
-            if (file.exists() && file.isDirectory) return file
-        }
-    }
-    runCatching {
-        val method = StorageVolume::class.java.getMethod("getPath")
-        val path = method.invoke(volume) as? String
-        path?.let { File(it) }?.let { file ->
-            if (file.exists() && file.isDirectory) return file
-        }
-    }
-    return null
-}
-
-private fun resolveVolumeRoot(appSpecificDir: File): File? {
-    val marker = "/Android/"
-    val absolutePath = appSpecificDir.absolutePath
-    val markerIndex = absolutePath.indexOf(marker)
-    if (markerIndex <= 0) return null
-    return File(absolutePath.substring(0, markerIndex))
-}
-
-private fun detectMountKindHint(root: File): MountKindHint? {
-    val mountPoint = root.absolutePath
-    val mounts = sequenceOf("/proc/self/mounts", "/proc/mounts")
-    mounts.forEach { mountsPath ->
-        val hint = runCatching {
-            File(mountsPath).useLines { lines ->
-                lines
-                    .mapNotNull { line ->
-                        val parts = line.split(' ')
-                        if (parts.size < 2) return@mapNotNull null
-                        val source = parts[0]
-                        val target = parts[1]
-                        if (target != mountPoint) return@mapNotNull null
-                        classifyMountSource(source)
-                    }
-                    .firstOrNull()
-            }
-        }.getOrNull()
-        if (hint != null) return hint
-    }
-    return null
-}
-
-private fun classifyMountSource(source: String): MountKindHint? {
-    val lower = source.lowercase(Locale.US)
-    if (lower.contains("public:")) {
-        val major = lower
-            .substringAfter("public:", "")
-            .substringBefore(',')
-            .toIntOrNull()
-        return when (major) {
-            179 -> MountKindHint.SD
-            8 -> MountKindHint.USB
-            else -> null
-        }
-    }
-    return when {
-        "mmcblk" in lower -> MountKindHint.SD
-        Regex("""(^|/)(sd[a-z]\d*|usb\d+|uas\d+)($|/)""").containsMatchIn(lower) -> MountKindHint.USB
-        else -> null
-    }
-}
 
 private fun isWithinRoot(file: File, root: File): Boolean {
     val filePath = file.absolutePath
@@ -3141,17 +2794,13 @@ fun FileItemRow(
     onSelect: (() -> Unit)? = null,
     onDelete: (() -> Unit)? = null
 ) {
-    val context = LocalContext.current
-    val isWatch = remember(context) {
-        context.packageManager.hasSystemFeature(PackageManager.FEATURE_WATCH)
-    }
+    val isWatch = LocalIsWatchDevice.current
     val iconBoxSize = if (isWatch) 32.dp else FILE_ICON_BOX_SIZE
     val iconGlyphSize = if (isWatch) 16.dp else FILE_ICON_GLYPH_SIZE
     val chipCorner = if (isWatch) 8.dp else 11.dp
     var showPlayWith by remember { mutableStateOf(false) }
-    val playWithPrefs = remember(context) {
-        context.getSharedPreferences(AppPreferenceKeys.PREFS_NAME, Context.MODE_PRIVATE)
-    }
+    val playWithPrefs = LocalAppPreferences.current
+    val thumbnailLoader = LocalArtworkThumbnailLoader.current
     if (showPlayWith) {
         PlayWithDialog(
             file = item.file,
@@ -3227,9 +2876,7 @@ fun FileItemRow(
                 ((item.file.absolutePath.hashCode().toLong() and Long.MAX_VALUE) %
                     LOCAL_BROWSER_THUMBNAIL_STAGGER_RANGE_MS)
         )
-        value = withContext(LOCAL_BROWSER_THUMBNAIL_LOADER_DISPATCHER) {
-            resolveLocalBrowserThumbnailPreview(context, item.file)
-        }
+        value = thumbnailLoader.load(item.file.absolutePath)
     }
     val subtitle by produceState(
         initialValue = if (item.isDirectory && !item.isArchive) {
@@ -3343,7 +2990,7 @@ fun FileItemRow(
                     if (item.isDirectory) {
                         if (item.isArchive) {
                             Icon(
-                                painter = painterResource(id = R.drawable.ic_folder_zip),
+                                imageVector = Icons.Default.FolderZip,
                                 contentDescription = "ZIP archive",
                                 tint = iconTint,
                                 modifier = Modifier.size(iconGlyphSize)
@@ -3375,14 +3022,14 @@ fun FileItemRow(
                             )
                         } else if (decoderArtworkHint == DecoderArtworkHint.TrackedFile) {
                             Icon(
-                                painter = painterResource(id = R.drawable.ic_file_tracked),
+                                imageVector = Icons.Default.LibraryMusic,
                                 contentDescription = contentDescription,
                                 tint = iconTint,
                                 modifier = Modifier.size(iconGlyphSize)
                             )
                         } else if (decoderArtworkHint == DecoderArtworkHint.GameFile) {
                             Icon(
-                                painter = painterResource(id = R.drawable.ic_file_game),
+                                imageVector = Icons.Default.SportsEsports,
                                 contentDescription = contentDescription,
                                 tint = iconTint,
                                 modifier = Modifier.size(iconGlyphSize)
@@ -3403,7 +3050,7 @@ fun FileItemRow(
                             )
                         } else if (item.kind == FileItem.Kind.UnsupportedFile) {
                             Icon(
-                                painter = painterResource(id = R.drawable.ic_file_unsupported),
+                                imageVector = Icons.Default.InsertDriveFile,
                                 contentDescription = contentDescription,
                                 tint = iconTint,
                                 modifier = Modifier.size(iconGlyphSize)
@@ -3499,13 +3146,7 @@ fun FileItemRow(
                 contentAlignment = Alignment.Center
             ) {
                 Icon(
-                    painter = painterResource(
-                        id = if (isFavorited) {
-                            R.drawable.ic_star_filled
-                        } else {
-                            R.drawable.ic_star_outline
-                        }
-                    ),
+                    imageVector = if (isFavorited) Icons.Default.Star else Icons.Default.StarBorder,
                     contentDescription = if (isFavorited) {
                         "Remove from favorites"
                     } else {
@@ -3623,9 +3264,7 @@ fun FileItemRow(
                             },
                             leadingIcon = {
                                 Icon(
-                                    painter = painterResource(
-                                        id = if (isFavorited) R.drawable.ic_star_filled else R.drawable.ic_star_outline
-                                    ),
+                                    imageVector = if (isFavorited) Icons.Default.Star else Icons.Default.StarBorder,
                                     contentDescription = null,
                                     modifier = Modifier.size(22.dp)
                                 )
@@ -3755,7 +3394,7 @@ private fun isLikelyVideoFile(file: File): Boolean {
     val candidates = extensionCandidatesForName(file.name)
     if (candidates.isEmpty()) return false
     return candidates.any { extension ->
-        val mimeType = MimeTypeMap.getSingleton().getMimeTypeFromExtension(extension)
+        val mimeType = URLConnection.guessContentTypeFromName("file.$extension")
         mimeType?.startsWith("video/") == true || extension in FALLBACK_VIDEO_EXTENSIONS
     }
 }
@@ -3774,35 +3413,6 @@ private fun formatFileSizeHumanReadable(bytes: Long): String {
         String.format(Locale.US, "%.0f %s", size, units[unitIndex])
     } else {
         String.format(Locale.US, "%.1f %s", size, units[unitIndex])
-    }
-}
-
-private fun readZipEntrySizesForDirectory(
-    context: Context,
-    archivePath: String,
-    relativeDirectory: String
-): Map<String, Long> {
-    val normalizedDirectory = relativeDirectory.replace('\\', '/').trim('/')
-    val archiveFile = resolveArchiveLocationToFile(context, archivePath) ?: return emptyMap()
-    return try {
-        ZipFile(archiveFile).use { zip ->
-            val sizes = LinkedHashMap<String, Long>()
-            val entries = zip.entries()
-            while (entries.hasMoreElements()) {
-                val entry = entries.nextElement()
-                if (entry.isDirectory || entry.size < 0L) continue
-                val normalizedName = entry.name.replace('\\', '/').trimStart('/')
-                if (normalizedName.isBlank()) continue
-                val parent = normalizedName.substringBeforeLast('/', "")
-                if (parent != normalizedDirectory) continue
-                val leaf = normalizedName.substringAfterLast('/')
-                if (leaf.isBlank()) continue
-                sizes[leaf] = entry.size
-            }
-            sizes
-        }
-    } catch (_: Exception) {
-        emptyMap()
     }
 }
 

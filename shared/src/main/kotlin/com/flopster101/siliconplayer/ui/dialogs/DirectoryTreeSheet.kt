@@ -1,6 +1,5 @@
 package com.flopster101.siliconplayer.ui.dialogs
 
-import android.os.Build
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -43,6 +42,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import com.flopster101.siliconplayer.adaptiveDialogModifier
 import com.flopster101.siliconplayer.adaptiveDialogProperties
+import com.flopster101.siliconplayer.platform.LocalIsWatchDevice
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.io.File
@@ -75,14 +75,7 @@ internal fun DirectoryTreeSheet(
             onDismiss = onDismiss
         )
     }
-    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
-        ModalBottomSheet(
-            onDismissRequest = onDismiss,
-            sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
-        ) {
-            content()
-        }
-    } else {
+    if (LocalIsWatchDevice.current) {
         Dialog(onDismissRequest = onDismiss, properties = adaptiveDialogProperties()) {
             Card(
                 modifier = adaptiveDialogModifier().fillMaxHeight(0.7f),
@@ -90,6 +83,13 @@ internal fun DirectoryTreeSheet(
             ) {
                 content()
             }
+        }
+    } else {
+        ModalBottomSheet(
+            onDismissRequest = onDismiss,
+            sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+        ) {
+            content()
         }
     }
 }
@@ -118,39 +118,56 @@ private fun DirectoryTreeContent(
     // Recursively flatten the visible tree from the root, honoring expansion.
     fun flatten(dir: File, depth: Int, out: MutableList<DirRow>) {
         out += DirRow(dir, depth, isCurrent = dir.absolutePath == currentPath)
-        val path = dir.absolutePath
-        if (isExpanded(path)) {
-            when (val state = childrenByPath[path]) {
-                is DirChildren.Ready -> state.dirs.forEach { flatten(it, depth + 1, out) }
-                else -> Unit
+        if (!isExpanded(dir.absolutePath)) return
+        val state = childrenByPath[dir.absolutePath]
+        if (state is DirChildren.Ready) {
+            state.dirs.forEach { child ->
+                flatten(child, depth + 1, out)
             }
         }
     }
-    val rows = remember(
-        root, currentPath, manuallyToggled.value, childrenByPath.toMap()
-    ) {
+
+    val rows = remember(childrenByPath.toMap(), manuallyToggled.value, currentPath) {
         mutableListOf<DirRow>().also { flatten(root, 0, it) }
+    }
+
+    // Lazily load children for any expanded directory that has not been fetched yet.
+    // Ancestors along the current path start in autoExpanded so they fetch on launch.
+    LaunchedEffect(rows) {
+        rows.forEach { row ->
+            val path = row.directory.absolutePath
+            if (isExpanded(path) && path !in childrenByPath) {
+                childrenByPath[path] = DirChildren.Loading
+                val dirs = withContext(Dispatchers.IO) {
+                    row.directory.listFiles()
+                        ?.filter { it.isDirectory && !it.name.startsWith(".") }
+                        ?.sortedWith(compareBy(String.CASE_INSENSITIVE_ORDER) { it.name })
+                        ?: emptyList()
+                }
+                childrenByPath[path] = DirChildren.Ready(dirs)
+            }
+        }
     }
 
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = 20.dp, vertical = 12.dp)
+            .padding(horizontal = 16.dp, vertical = 8.dp)
     ) {
         Text(
-            text = "Directory tree",
+            text = "Browse Folders",
             style = MaterialTheme.typography.titleMedium,
             fontWeight = FontWeight.Bold,
-            modifier = Modifier.padding(bottom = 8.dp)
+            modifier = Modifier.padding(bottom = 12.dp)
         )
         LazyColumn(
             state = listState,
             modifier = Modifier
                 .fillMaxWidth()
-                .heightIn(max = 420.dp),
+                .heightIn(max = 480.dp),
             verticalArrangement = Arrangement.spacedBy(2.dp)
         ) {
-            items(items = rows, key = { it.directory.absolutePath }) { row ->
+            items(rows, key = { it.directory.absolutePath }) { row ->
                 DirectoryTreeRow(
                     row = row,
                     childrenState = childrenByPath[row.directory.absolutePath],
@@ -161,42 +178,18 @@ private fun DirectoryTreeContent(
                     },
                     onToggleExpand = {
                         val path = row.directory.absolutePath
-                        manuallyToggled.value = if (path in manuallyToggled.value) {
-                            manuallyToggled.value - path
-                        } else {
-                            manuallyToggled.value + path
-                        }
+                        val current = manuallyToggled.value
+                        manuallyToggled.value = if (path in current) current - path else current + path
                     }
                 )
             }
         }
     }
 
-    // Lazily load children for every expanded directory not yet fetched.
-    val expandedNow = rows.filter { isExpanded(it.directory.absolutePath) }
-        .map { it.directory.absolutePath }
-    LaunchedEffect(expandedNow) {
-        expandedNow.forEach { path ->
-            if (childrenByPath[path] == null) {
-                childrenByPath[path] = DirChildren.Loading
-                val dirs = withContext(Dispatchers.IO) {
-                    File(path).listFiles()
-                        .orEmpty()
-                        .filter { it.isDirectory && !it.name.startsWith(".") }
-                        .sortedBy { it.name.lowercase() }
-                }
-                childrenByPath[path] = DirChildren.Ready(dirs)
-            }
-        }
-    }
-
-    // Scroll to the current directory once every auto-expanded ancestor has
-    // loaded its children, so the row index is stable, and animate rather than
-    // jump. Runs once per sheet open.
-    val ancestorsReady = autoExpanded.all { childrenByPath[it] is DirChildren.Ready }
-    var scrolledToCurrent by remember(currentPath) { mutableStateOf(false) }
-    LaunchedEffect(ancestorsReady) {
-        if (scrolledToCurrent || !ancestorsReady) return@LaunchedEffect
+    // Scroll to the current directory row on initial open.
+    var scrolledToCurrent by remember { mutableStateOf(false) }
+    LaunchedEffect(rows) {
+        if (scrolledToCurrent) return@LaunchedEffect
         val currentIndex = rows.indexOfFirst { it.isCurrent }
         if (currentIndex > 0) {
             listState.animateScrollToItem(currentIndex)

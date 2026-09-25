@@ -1,6 +1,6 @@
 package com.flopster101.siliconplayer
 
-import android.webkit.MimeTypeMap
+import java.net.URLConnection
 import java.util.Locale
 
 internal enum class FilePreviewKind {
@@ -19,8 +19,9 @@ internal fun detectFilePreviewKind(name: String): FilePreviewKind? {
     if (extension in TEXT_PREVIEW_EXTENSIONS) {
         return FilePreviewKind.Text
     }
-    val mimeType = MimeTypeMap.getSingleton()
-        .getMimeTypeFromExtension(extension)
+    val mimeType = runCatching {
+        URLConnection.guessContentTypeFromName("file.$extension")
+    }.getOrNull()
         .orEmpty()
         .lowercase(Locale.ROOT)
     return when {

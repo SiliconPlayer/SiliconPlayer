@@ -17,6 +17,9 @@ dependencies {
     implementation(compose.material)
     implementation(compose.materialIconsExtended)
     implementation(compose.components.resources)
+    implementation("org.json:json:20240303")
+    implementation(libs.smbj)
+    implementation(libs.smbj.rpc)
     testImplementation(libs.junit)
 }
 

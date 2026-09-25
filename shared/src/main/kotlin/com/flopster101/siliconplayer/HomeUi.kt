@@ -1,7 +1,5 @@
 package com.flopster101.siliconplayer
 
-import android.graphics.BitmapFactory
-import android.net.Uri
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.expandVertically
 import androidx.compose.animation.fadeIn
@@ -33,8 +31,6 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.background
-import android.content.pm.PackageManager
-import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.unit.sp
 import androidx.compose.material.icons.filled.Link
 import androidx.compose.material.icons.filled.Settings
@@ -45,6 +41,8 @@ import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Folder
 import androidx.compose.material.icons.filled.FolderOpen
+import androidx.compose.material.icons.filled.FolderZip
+import androidx.compose.material.icons.filled.StarBorder
 import androidx.compose.material.icons.filled.LibraryMusic
 import androidx.compose.material.icons.filled.MoreHoriz
 import androidx.compose.material.icons.filled.MusicNote
@@ -65,7 +63,6 @@ import com.flopster101.siliconplayer.ui.dialogs.AddToPlaylistChooserDialog
 import com.flopster101.siliconplayer.ui.dialogs.PlayWithDialog
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MenuDefaults
-import android.widget.Toast
 import androidx.compose.foundation.Image
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
@@ -89,7 +86,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -97,7 +93,11 @@ import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.compose.ui.res.painterResource
+import com.flopster101.siliconplayer.platform.LocalAppPreferences
+import com.flopster101.siliconplayer.platform.LocalArtworkThumbnailLoader
+import com.flopster101.siliconplayer.platform.LocalToastHandler
+import com.flopster101.siliconplayer.platform.isRoundScreen
+import com.flopster101.siliconplayer.platform.isWatchDevice
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
@@ -143,17 +143,18 @@ internal data class RecentTrackDisplay(
     val includeFilenameInSubtitle: Boolean
 )
 
-internal enum class SourceEntryAction {
-    DeleteFromRecents,
-    ShareFile,
-    CopySource,
-    OpenInBrowser
-}
-
-internal enum class FolderEntryAction {
-    DeleteFromRecents,
-    CopyPath,
-    OpenInBrowser
+private fun resolveDisplayFileForPath(sourcePath: String): File {
+    val isFileScheme = sourcePath.startsWith("file:", ignoreCase = true)
+    if (isFileScheme) {
+        val path = sourcePath.removePrefix("file://").removePrefix("file:")
+        return File(path)
+    }
+    val colonSlashIdx = sourcePath.indexOf("://")
+    if (colonSlashIdx > 0) {
+        val decodedLeaf = sourceLeafNameForDisplay(sourcePath)?.trim()?.takeIf { it.isNotBlank() }
+        return File(decodedLeaf ?: sourcePath)
+    }
+    return File(sourcePath)
 }
 
 private enum class HomeBulkClearTarget {
@@ -236,8 +237,7 @@ internal fun HomeScreen(
     onOpenSettings: (() -> Unit)? = null,
     onOpenUrlOrPath: (() -> Unit)? = null
 ) {
-    val context = LocalContext.current
-    val isWatch = remember(context) { context.packageManager.hasSystemFeature(PackageManager.FEATURE_WATCH) }
+    val isWatch = isWatchDevice()
     if (isWatch) {
         WearHomeScreen(
             pinnedHomeEntries = pinnedHomeEntries,
@@ -280,9 +280,7 @@ internal fun HomeScreen(
     var pendingPlaylistAddSource by remember { mutableStateOf<Pair<String, String>?>(null) }
     var recentPlayWithEntry by remember { mutableStateOf<Pair<File, RecentPathEntry>?>(null) }
     var pinnedPlayWithEntry by remember { mutableStateOf<Pair<File, HomePinnedEntry>?>(null) }
-    val playWithPrefs = remember(context) {
-        context.getSharedPreferences(AppPreferenceKeys.PREFS_NAME, android.content.Context.MODE_PRIVATE)
-    }
+    val playWithPrefs = LocalAppPreferences.current
     val playedEntryKey: (RecentPathEntry) -> String = { entry ->
         "${entry.locationId.orEmpty()}|${entry.path}"
     }
@@ -406,32 +404,50 @@ internal fun HomeScreen(
             .padding(horizontal = 20.dp, vertical = 16.dp)
             .padding(bottom = bottomContentPadding)
     ) {
-        val quickActions = listOf(
-            HomeQuickActionSpec(
-                itemKey = "home_intro_files_button",
-                order = 0,
-                title = "Files",
-                icon = Icons.Default.Folder,
-                containerColor = MaterialTheme.colorScheme.primaryContainer,
-                onClick = onOpenLibrary
-            ),
-            HomeQuickActionSpec(
-                itemKey = "home_intro_playlists_button",
-                order = 1,
-                title = "Library",
-                icon = Icons.Default.LibraryMusic,
-                containerColor = MaterialTheme.colorScheme.secondaryContainer,
-                onClick = onOpenPlaylists
-            ),
-            HomeQuickActionSpec(
-                itemKey = "home_intro_network_button",
-                order = 2,
-                title = "Network",
-                icon = Icons.Default.Public,
-                containerColor = MaterialTheme.colorScheme.tertiaryContainer,
-                onClick = onOpenNetwork
+        val quickActions = buildList {
+            add(
+                HomeQuickActionSpec(
+                    itemKey = "home_intro_files_button",
+                    order = 0,
+                    title = "Files",
+                    icon = Icons.Default.Folder,
+                    containerColor = MaterialTheme.colorScheme.primaryContainer,
+                    onClick = onOpenLibrary
+                )
             )
-        )
+            add(
+                HomeQuickActionSpec(
+                    itemKey = "home_intro_playlists_button",
+                    order = 1,
+                    title = "Library",
+                    icon = Icons.Default.LibraryMusic,
+                    containerColor = MaterialTheme.colorScheme.secondaryContainer,
+                    onClick = onOpenPlaylists
+                )
+            )
+            add(
+                HomeQuickActionSpec(
+                    itemKey = "home_intro_network_button",
+                    order = 2,
+                    title = "Network",
+                    icon = Icons.Default.Public,
+                    containerColor = MaterialTheme.colorScheme.tertiaryContainer,
+                    onClick = onOpenNetwork
+                )
+            )
+            if (onOpenUrlOrPath != null) {
+                add(
+                    HomeQuickActionSpec(
+                        itemKey = "home_intro_open_url_or_path_button",
+                        order = 3,
+                        title = "Open file",
+                        icon = Icons.Default.FolderOpen,
+                        containerColor = MaterialTheme.colorScheme.surfaceVariant,
+                        onClick = onOpenUrlOrPath
+                    )
+                )
+            }
+        }
         BoxWithConstraints(modifier = Modifier.fillMaxWidth()) {
             val maxColumns = if (maxWidth >= 600.dp) 4 else 2
             val quickActionRows = remember(quickActions, maxColumns) {
@@ -568,14 +584,10 @@ internal fun HomeScreen(
                                         icon = when {
                                             pinnedEntry.path == "playlist://$FAVORITES_PLAYLIST_ID" -> Icons.Default.Star
                                             pinnedEntry.path.startsWith("playlist://") -> Icons.Default.LibraryMusic
+                                            isArchiveLogicalFolderPath(pinnedEntry.path) -> Icons.Default.FolderZip
                                             isSmbPinnedFolder -> NetworkIcons.SmbShare
                                             isHttpPinnedFolder -> NetworkIcons.WorldCode
                                             else -> Icons.Default.Folder
-                                        },
-                                        iconPainterResId = if (isArchiveLogicalFolderPath(pinnedEntry.path)) {
-                                            R.drawable.ic_folder_zip
-                                        } else {
-                                            null
                                         },
                                         isPinned = true
                                     )
@@ -768,17 +780,7 @@ internal fun HomeScreen(
                                 File(archiveSource.entryPath)
                             } else {
                                 val normalizedSourcePath = normalizeSourceIdentity(recentEntry.path) ?: recentEntry.path
-                                val parsedSource = Uri.parse(normalizedSourcePath)
-                                if (parsedSource.scheme.equals("file", ignoreCase = true)) {
-                                    File(parsedSource.path ?: normalizedSourcePath)
-                                } else if (!parsedSource.scheme.isNullOrBlank()) {
-                                    val decodedLeaf = sourceLeafNameForDisplay(normalizedSourcePath)
-                                        ?.trim()
-                                        ?.takeIf { it.isNotBlank() }
-                                    File(decodedLeaf ?: normalizedSourcePath)
-                                } else {
-                                    File(normalizedSourcePath)
-                                }
+                                resolveDisplayFileForPath(normalizedSourcePath)
                             }
                             val storagePresentation = storagePresentationForPinnedEntry(pinnedEntry)
                             val extensionLabel = inferredPrimaryExtensionForName(trackFile.name)?.uppercase()
@@ -803,7 +805,6 @@ internal fun HomeScreen(
                                     verticalAlignment = Alignment.CenterVertically
                                 ) {
                                     RecentTrackArtworkChip(
-                                        context = context,
                                         artworkThumbnailCacheKey = pinnedEntry.artworkThumbnailCacheKey,
                                         fallbackIcon = placeholderArtworkIconForFile(
                                             file = trackFile,
@@ -961,9 +962,7 @@ internal fun HomeScreen(
                                                     },
                                                     leadingIcon = {
                                                         Icon(
-                                                            painter = painterResource(
-                                                                id = if (isFavorited) R.drawable.ic_star_filled else R.drawable.ic_star_outline
-                                                            ),
+                                                            imageVector = if (isFavorited) Icons.Default.Star else Icons.Default.StarBorder,
                                                             contentDescription = null,
                                                             modifier = Modifier.size(22.dp)
                                                         )
@@ -1163,14 +1162,10 @@ internal fun HomeScreen(
                                             val isHttpRecentFolder = parseHttpSourceSpecFromInput(entry.path) != null
                                             RecentIconChip(
                                                 icon = when {
+                                                    isArchiveLogicalFolderPath(entry.path) -> Icons.Default.FolderZip
                                                     isSmbRecentFolder -> NetworkIcons.SmbShare
                                                     isHttpRecentFolder -> NetworkIcons.WorldCode
                                                     else -> Icons.Default.Folder
-                                                },
-                                                iconPainterResId = if (isArchiveLogicalFolderPath(entry.path)) {
-                                                    R.drawable.ic_folder_zip
-                                                } else {
-                                                    null
                                                 }
                                             )
                                             Spacer(modifier = Modifier.width(12.dp))
@@ -1426,33 +1421,13 @@ internal fun HomeScreen(
                                     } else {
                                         val normalizedSourcePath =
                                             normalizeSourceIdentity(entry.path) ?: entry.path
-                                        val parsedSource = Uri.parse(normalizedSourcePath)
-                                        if (parsedSource.scheme.equals("file", ignoreCase = true)) {
-                                            File(parsedSource.path ?: normalizedSourcePath)
-                                        } else if (!parsedSource.scheme.isNullOrBlank()) {
-                                            val decodedLeaf = sourceLeafNameForDisplay(normalizedSourcePath)
-                                                ?.trim()
-                                                ?.takeIf { it.isNotBlank() }
-                                            File(decodedLeaf ?: normalizedSourcePath)
-                                        } else {
-                                            File(normalizedSourcePath)
-                                        }
+                                        resolveDisplayFileForPath(normalizedSourcePath)
                                     }
                                     val storagePresentation = storagePresentationForEntry(entry)
                                     val playlistSourceFile = entry.playlistSourceHint?.let { sourceHint ->
                                         val normalizedSourcePath =
                                             normalizeSourceIdentity(sourceHint) ?: sourceHint
-                                        val parsedSource = Uri.parse(normalizedSourcePath)
-                                        if (parsedSource.scheme.equals("file", ignoreCase = true)) {
-                                            File(parsedSource.path ?: normalizedSourcePath)
-                                        } else if (!parsedSource.scheme.isNullOrBlank()) {
-                                            val decodedLeaf = sourceLeafNameForDisplay(normalizedSourcePath)
-                                                ?.trim()
-                                                ?.takeIf { it.isNotBlank() }
-                                            File(decodedLeaf ?: normalizedSourcePath)
-                                        } else {
-                                            File(normalizedSourcePath)
-                                        }
+                                        resolveDisplayFileForPath(normalizedSourcePath)
                                     }
                                     val iconSourceFile = if (entry.isPlaylist) {
                                         playlistSourceFile ?: trackFile
@@ -1560,7 +1535,6 @@ internal fun HomeScreen(
                                                 verticalAlignment = Alignment.CenterVertically
                                             ) {
                                                 RecentTrackArtworkChip(
-                                                    context = context,
                                                     artworkThumbnailCacheKey = entry.artworkThumbnailCacheKey,
                                                     fallbackIcon = fallbackIcon,
                                                     isPinned = false,
@@ -1718,9 +1692,7 @@ internal fun HomeScreen(
                                                         },
                                                         leadingIcon = {
                                                             Icon(
-                                                                painter = painterResource(
-                                                                    id = if (isFavorited) R.drawable.ic_star_filled else R.drawable.ic_star_outline
-                                                                ),
+                                                                imageVector = if (isFavorited) Icons.Default.Star else Icons.Default.StarBorder,
                                                                 contentDescription = null,
                                                                 modifier = Modifier.size(22.dp)
                                                             )
@@ -2172,7 +2144,6 @@ private fun BoxScope.PlayingChipBadge() {
 @Composable
 private fun RecentIconChip(
     icon: androidx.compose.ui.graphics.vector.ImageVector,
-    iconPainterResId: Int? = null,
     isPinned: Boolean = false
 ) {
     Box(
@@ -2188,21 +2159,12 @@ private fun RecentIconChip(
                 ),
             contentAlignment = Alignment.Center
         ) {
-            if (iconPainterResId != null) {
-                Icon(
-                    painter = painterResource(id = iconPainterResId),
-                    contentDescription = null,
-                    tint = MaterialTheme.colorScheme.onPrimaryContainer,
-                    modifier = Modifier.size(HomeRecentIconGlyphSize)
-                )
-            } else {
-                Icon(
-                    imageVector = icon,
-                    contentDescription = null,
-                    tint = MaterialTheme.colorScheme.onPrimaryContainer,
-                    modifier = Modifier.size(HomeRecentIconGlyphSize)
-                )
-            }
+            Icon(
+                imageVector = icon,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.onPrimaryContainer,
+                modifier = Modifier.size(HomeRecentIconGlyphSize)
+            )
         }
         if (isPinned) {
             PinnedChipBadge()
@@ -2212,19 +2174,19 @@ private fun RecentIconChip(
 
 @Composable
 private fun RecentTrackArtworkChip(
-    context: android.content.Context,
     artworkThumbnailCacheKey: String?,
     fallbackIcon: androidx.compose.ui.graphics.vector.ImageVector,
     isPinned: Boolean = false,
     isCurrentlyPlaying: Boolean = false
 ) {
-    val cacheRevision by recentArtworkCacheRevision.collectAsState()
+    val thumbnailLoader = LocalArtworkThumbnailLoader.current
+    val cacheRevision by thumbnailLoader.revision.collectAsState()
     val artwork = androidx.compose.runtime.produceState<androidx.compose.ui.graphics.ImageBitmap?>(
-        initialValue = peekRecentArtworkThumbnail(context, artworkThumbnailCacheKey),
+        initialValue = thumbnailLoader.peek(artworkThumbnailCacheKey),
         key1 = artworkThumbnailCacheKey,
         key2 = cacheRevision
     ) {
-        val loaded = loadRecentArtworkThumbnail(context, artworkThumbnailCacheKey)
+        val loaded = thumbnailLoader.load(artworkThumbnailCacheKey)
         if (loaded != null) {
             value = loaded
         }
@@ -2521,7 +2483,7 @@ internal fun RecentTrackSummaryText(
             )
         } else if (isArchiveSource) {
             Icon(
-                painter = painterResource(id = R.drawable.ic_folder_zip),
+                imageVector = Icons.Default.FolderZip,
                 contentDescription = null,
                 tint = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.size(14.dp)
@@ -2592,9 +2554,8 @@ internal fun WearHomeScreen(
     onOpenSettings: () -> Unit = {},
     onOpenUrlOrPath: () -> Unit = {}
 ) {
-    val configuration = LocalConfiguration.current
-    val isRound = configuration.isRoundScreenCompat
-    val context = LocalContext.current
+    val isRound = isRoundScreen()
+    val toastHandler = LocalToastHandler.current
     var selectedPinnedEntryForActions by remember { mutableStateOf<HomePinnedEntry?>(null) }
     var selectedRecentFolderForActions by remember { mutableStateOf<RecentPathEntry?>(null) }
     var selectedRecentFileForActions by remember { mutableStateOf<RecentPathEntry?>(null) }
@@ -2621,7 +2582,7 @@ internal fun WearHomeScreen(
             pendingPinEvictionCandidate = preview.evictionCandidate
         } else {
             if (isFolder) onPinRecentFolder(entry) else onPinRecentFile(entry)
-            Toast.makeText(context, if (isFolder) "Pinned folder to home" else "Pinned file to home", Toast.LENGTH_SHORT).show()
+            toastHandler.showToast(if (isFolder) "Pinned folder to home" else "Pinned file to home")
         }
     }
 
@@ -3063,7 +3024,7 @@ internal fun WearHomeScreen(
             if (isFolder) onPinRecentFolder(entry) else onPinRecentFile(entry)
             pendingPinConfirmation = null
             pendingPinEvictionCandidate = null
-            Toast.makeText(context, if (isFolder) "Pinned folder to home" else "Pinned file to home", Toast.LENGTH_SHORT).show()
+            toastHandler.showToast(if (isFolder) "Pinned folder to home" else "Pinned file to home")
         }
         val onCancel = {
             pendingPinConfirmation = null

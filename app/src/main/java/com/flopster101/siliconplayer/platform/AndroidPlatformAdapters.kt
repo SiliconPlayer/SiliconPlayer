@@ -27,6 +27,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.core.content.ContextCompat
+import kotlinx.coroutines.launch
+import androidx.compose.ui.graphics.asImageBitmap
 import com.flopster101.siliconplayer.AppPreferenceKeys
 import com.flopster101.siliconplayer.isRoundScreenCompat
 import com.flopster101.siliconplayer.ui.visualization.gl.ProjectMPresetSets
@@ -418,12 +420,65 @@ fun ProvideAndroidPlatformAdapters(
         }
     }
 
+    val coroutineScope = androidx.compose.runtime.rememberCoroutineScope()
+    var pendingExportFiles by remember { mutableStateOf<List<java.io.File>>(emptyList()) }
+    val exportLauncher = androidx.activity.compose.rememberLauncherForActivityResult(
+        contract = androidx.activity.result.contract.ActivityResultContracts.OpenDocumentTree()
+    ) { treeUri ->
+        val targets = pendingExportFiles
+        pendingExportFiles = emptyList()
+        if (targets.isEmpty() || treeUri == null) return@rememberLauncherForActivityResult
+        coroutineScope.launch {
+            val exportItems = targets.map { com.flopster101.siliconplayer.ExportFileItem(it) }
+            val result = com.flopster101.siliconplayer.session.exportFilesToTree(
+                context = context,
+                treeUri = treeUri,
+                exportItems = exportItems
+            )
+            toastHandler.showToast("Saved ${result.exportedCount} file(s)")
+        }
+    }
+    val fileExportHandler = remember {
+        FileExportHandler { files ->
+            pendingExportFiles = files
+            exportLauncher.launch(null)
+        }
+    }
+
+    val storageLocationsProvider = remember(context) {
+        { detectAndroidStorageLocations(context) }
+    }
+
+    val artworkThumbnailLoader = remember(context) {
+        object : ArtworkThumbnailLoader {
+            override fun peek(cacheKey: String?) = com.flopster101.siliconplayer.peekRecentArtworkThumbnail(context, cacheKey)
+            override suspend fun load(cacheKey: String?): androidx.compose.ui.graphics.ImageBitmap? {
+                if (cacheKey == null) return null
+                val file = java.io.File(cacheKey)
+                if (file.exists() && file.isFile) {
+                    val previewKind = com.flopster101.siliconplayer.detectFilePreviewKind(file.name)
+                    if (previewKind == com.flopster101.siliconplayer.FilePreviewKind.Image) {
+                        return android.graphics.BitmapFactory.decodeFile(file.absolutePath)?.asImageBitmap()
+                    }
+                    return com.flopster101.siliconplayer.resolveLocalBrowserThumbnailPreview(context, file)
+                }
+                return com.flopster101.siliconplayer.loadRecentArtworkThumbnail(context, cacheKey)
+            }
+            override val revision = com.flopster101.siliconplayer.recentArtworkCacheRevision
+        }
+    }
+
+    remember(prefs) {
+        com.flopster101.siliconplayer.NetworkCredentialStore.preferencesProvider = { prefs }
+    }
+
     CompositionLocalProvider(
         LocalAppPreferences provides prefs,
         LocalPreferencesProvider provides prefsProvider,
         LocalIsWatchDevice provides isWatch,
         LocalAudioRouteManager provides audioRouteManager,
         LocalToastHandler provides toastHandler,
+        LocalArtworkThumbnailLoader provides artworkThumbnailLoader,
         LocalPlatformBackHandler provides { enabled, onBack ->
             androidx.activity.compose.BackHandler(enabled, onBack)
         },
@@ -431,6 +486,9 @@ fun ProvideAndroidPlatformAdapters(
         LocalProjectMOptionsProvider provides projectMOptionsProvider,
         LocalAppVersionInfo provides appVersionInfo,
         LocalSettingsPlatformContent provides settingsPlatformContent,
+        LocalAppCacheDir provides context.cacheDir,
+        LocalStorageLocationsProvider provides storageLocationsProvider,
+        LocalFileExportHandler provides fileExportHandler,
         content = content
     )
 }

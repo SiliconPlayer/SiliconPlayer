@@ -54,3 +54,17 @@ internal data class StoragePresentation(
     val icon: ImageVector,
     val qualifier: String? = null
 )
+
+internal enum class SourceEntryAction {
+    DeleteFromRecents,
+    ShareFile,
+    CopySource,
+    OpenInBrowser
+}
+
+internal enum class FolderEntryAction {
+    DeleteFromRecents,
+    CopyPath,
+    OpenInBrowser
+}
+

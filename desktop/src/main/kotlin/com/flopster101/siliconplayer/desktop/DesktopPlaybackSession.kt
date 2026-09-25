@@ -78,11 +78,41 @@ class DesktopPlaybackSession(
         if (!file.exists() || !file.isFile) return false
 
         NativeBridge.stopEngineNative()
-        NativeBridge.loadAudio(file.absolutePath)
+        val forced = NativeBridge.consumeForcedDecoderOneShot()
+        if (forced != null) {
+            NativeBridge.loadAudioWithDecoder(file.absolutePath, forced)
+        } else {
+            NativeBridge.loadAudio(file.absolutePath)
+        }
 
         currentFile = file
         refreshMetadata()
 
+        NativeBridge.startEngineNative()
+        isPlaying = NativeBridge.isEnginePlaying()
+        return true
+    }
+
+    fun loadSource(source: String, titleHint: String? = null, artistHint: String? = null): Boolean {
+        val file = File(source)
+        if (file.exists() && file.isFile) {
+            return loadFile(file)
+        }
+        NativeBridge.stopEngineNative()
+        val forced = NativeBridge.consumeForcedDecoderOneShot()
+        if (forced != null) {
+            NativeBridge.loadAudioWithDecoder(source, forced)
+        } else {
+            NativeBridge.loadAudio(source)
+        }
+        currentFile = File(source)
+        refreshMetadata()
+        if (title.isBlank() && !titleHint.isNullOrBlank()) {
+            title = titleHint
+        }
+        if (artist.isBlank() && !artistHint.isNullOrBlank()) {
+            artist = artistHint
+        }
         NativeBridge.startEngineNative()
         isPlaying = NativeBridge.isEnginePlaying()
         return true

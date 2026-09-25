@@ -55,6 +55,20 @@ fun isWatchDevice(): Boolean = LocalIsWatchDevice.current
 @Composable
 fun isRoundScreen(): Boolean = LocalIsRoundScreen.current
 
+interface ArtworkThumbnailLoader {
+    fun peek(cacheKey: String?): androidx.compose.ui.graphics.ImageBitmap?
+    suspend fun load(cacheKey: String?): androidx.compose.ui.graphics.ImageBitmap?
+    val revision: kotlinx.coroutines.flow.StateFlow<Long>
+}
+
+val LocalArtworkThumbnailLoader = staticCompositionLocalOf<ArtworkThumbnailLoader> {
+    object : ArtworkThumbnailLoader {
+        override fun peek(cacheKey: String?): androidx.compose.ui.graphics.ImageBitmap? = null
+        override suspend fun load(cacheKey: String?): androidx.compose.ui.graphics.ImageBitmap? = null
+        override val revision: kotlinx.coroutines.flow.StateFlow<Long> = kotlinx.coroutines.flow.MutableStateFlow(0L)
+    }
+}
+
 enum class AudioOutputRouteType {
     Speaker,
     Headphones,
@@ -165,4 +179,83 @@ interface SettingsPlatformContent {
 val LocalSettingsPlatformContent = staticCompositionLocalOf<SettingsPlatformContent> {
     object : SettingsPlatformContent {}
 }
+
+data class PlatformStorageLocation(
+    val id: String,
+    val kind: StorageLocationKind,
+    val typeLabel: String,
+    val name: String,
+    val directory: java.io.File
+)
+
+enum class StorageLocationKind {
+    ROOT,
+    INTERNAL,
+    SD,
+    USB
+}
+
+val LocalStorageLocationsProvider = staticCompositionLocalOf<() -> List<PlatformStorageLocation>> {
+    {
+        val results = mutableListOf<PlatformStorageLocation>()
+        val seen = mutableSetOf<String>()
+        val userHome = java.io.File(System.getProperty("user.home") ?: "/")
+        if (userHome.exists() && userHome.isDirectory) {
+            results += PlatformStorageLocation(
+                id = userHome.absolutePath,
+                kind = StorageLocationKind.INTERNAL,
+                typeLabel = "Home",
+                name = userHome.name.ifBlank { "Home" },
+                directory = userHome
+            )
+            seen += userHome.absolutePath
+        }
+        java.io.File.listRoots()?.forEach { root ->
+            if (root.exists() && root.isDirectory && root.absolutePath !in seen) {
+                results += PlatformStorageLocation(
+                    id = root.absolutePath,
+                    kind = StorageLocationKind.ROOT,
+                    typeLabel = if (root.absolutePath == "/") "Root" else root.absolutePath,
+                    name = root.name.ifBlank { root.absolutePath },
+                    directory = root
+                )
+                seen += root.absolutePath
+            }
+        }
+        val mediaDir = java.io.File("/media")
+        if (mediaDir.exists() && mediaDir.isDirectory && mediaDir.absolutePath !in seen) {
+            results += PlatformStorageLocation(
+                id = mediaDir.absolutePath,
+                kind = StorageLocationKind.USB,
+                typeLabel = "Media",
+                name = "media",
+                directory = mediaDir
+            )
+        }
+        val mntDir = java.io.File("/mnt")
+        if (mntDir.exists() && mntDir.isDirectory && mntDir.absolutePath !in seen) {
+            results += PlatformStorageLocation(
+                id = mntDir.absolutePath,
+                kind = StorageLocationKind.SD,
+                typeLabel = "Mounts",
+                name = "mnt",
+                directory = mntDir
+            )
+        }
+        results
+    }
+}
+
+fun interface FileExportHandler {
+    fun exportFiles(files: List<java.io.File>)
+}
+
+val LocalFileExportHandler = staticCompositionLocalOf<FileExportHandler> {
+    FileExportHandler { _ -> }
+}
+
+val LocalAppCacheDir = staticCompositionLocalOf<java.io.File> {
+    java.io.File(System.getProperty("java.io.tmpdir"), "siliconplayer_cache").also { it.mkdirs() }
+}
+
 

@@ -1,6 +1,6 @@
 package com.flopster101.siliconplayer
 
-import android.net.Uri
+import java.net.URI
 import com.flopster101.siliconplayer.data.parseArchiveLogicalPath
 import com.flopster101.siliconplayer.data.parseArchiveSourceId
 
@@ -37,17 +37,19 @@ internal fun sourceLeafNameForDisplay(rawPath: String): String? {
         return decodePercentEncodedForDisplay(leaf)
     }
 
-    val parsed = Uri.parse(normalized)
+    val parsed = runCatching { URI(normalized) }.getOrNull()
     val leaf = when {
-        parsed.scheme.equals("file", ignoreCase = true) -> {
-            parsed.path
+        parsed?.scheme.equals("file", ignoreCase = true) -> {
+            parsed?.path
                 ?.substringAfterLast('/')
                 ?.trim()
                 .orEmpty()
         }
 
-        !parsed.scheme.isNullOrBlank() -> {
-            parsed.lastPathSegment
+        !parsed?.scheme.isNullOrBlank() -> {
+            parsed?.path
+                ?.trimEnd('/')
+                ?.substringAfterLast('/')
                 ?.trim()
                 .orEmpty()
         }
@@ -83,7 +85,7 @@ private fun sourceLeafNameForArchiveLogicalPath(path: String): String? {
         parseHttpSourceSpecFromInput(archiveLocation) != null ->
             sourceLeafNameForDisplay(parseHttpSourceSpecFromInput(archiveLocation)?.let(::buildHttpDisplayUri).orEmpty())
         else -> {
-            val fromUri = Uri.parse(archiveLocation).lastPathSegment?.trim().orEmpty()
+            val fromUri = runCatching { URI(archiveLocation).path?.trimEnd('/')?.substringAfterLast('/')?.trim() }.getOrNull().orEmpty()
             val fromPath = archiveLocation.substringAfterLast('/').trim()
             decodePercentEncodedForDisplay(fromUri.ifBlank { fromPath })
         }

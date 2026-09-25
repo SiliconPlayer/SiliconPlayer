@@ -51,8 +51,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.graphics.graphicsLayer
-import androidx.compose.ui.layout.onSizeChanged
-import androidx.compose.ui.platform.LocalConfiguration
+import com.flopster101.siliconplayer.platform.LocalWindowSizeInfo
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.material3.Button
 import androidx.compose.material3.FilledTonalButton
@@ -897,8 +896,8 @@ private fun networkDialogTextFieldColors() = OutlinedTextFieldDefaults.colors(
 private fun NetworkDialogScrollableContent(
     content: @Composable ColumnScope.() -> Unit
 ) {
-    val configuration = LocalConfiguration.current
-    val maxHeight = configuration.screenHeightDp.dp * 0.58f
+    val windowSizeInfo = LocalWindowSizeInfo.current
+    val maxHeight = windowSizeInfo.screenHeightDp.dp * 0.58f
     val scrollState = rememberScrollState()
     var viewportHeightPx by remember { mutableIntStateOf(0) }
     val density = LocalDensity.current

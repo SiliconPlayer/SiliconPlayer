@@ -19,14 +19,27 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Window
 import androidx.compose.ui.window.application
 import androidx.compose.ui.window.rememberWindowState
+import androidx.compose.material.icons.filled.Folder
+import androidx.compose.material.icons.filled.InsertDriveFile
+import com.flopster101.siliconplayer.HomeScreen
 import com.flopster101.siliconplayer.HomePinnedEntry
 import com.flopster101.siliconplayer.MiniPlayerBar
 import com.flopster101.siliconplayer.RecentPathEntry
+import com.flopster101.siliconplayer.StoragePresentation
+import com.flopster101.siliconplayer.FolderEntryAction
+import com.flopster101.siliconplayer.SourceEntryAction
+import com.flopster101.siliconplayer.NetworkNode
+import com.flopster101.siliconplayer.readNetworkNodes
+import com.flopster101.siliconplayer.writeNetworkNodes
+import com.flopster101.siliconplayer.BrowserNameSortMode
+import com.flopster101.siliconplayer.NativeBridge
+import com.flopster101.siliconplayer.data.FileRepository
+import com.flopster101.siliconplayer.platform.LocalAppPreferences
+import com.flopster101.siliconplayer.ui.screens.FileBrowserScreen
+import com.flopster101.siliconplayer.ui.screens.NetworkBrowserScreen
 import com.flopster101.siliconplayer.VisualizationMode
 import com.flopster101.siliconplayer.VisualizationRenderBackend
 import com.flopster101.siliconplayer.VisualizationVuAnchor
-import com.flopster101.siliconplayer.desktop.ui.DesktopFileBrowserScreen
-import com.flopster101.siliconplayer.desktop.ui.DesktopHomeScreen
 import com.flopster101.siliconplayer.desktop.ui.DesktopPlaylistsScreen
 import com.flopster101.siliconplayer.SettingsScreen
 import com.flopster101.siliconplayer.inferredPrimaryExtensionForName
@@ -99,6 +112,28 @@ fun main(args: Array<String>) = application {
     fun playFile(file: File) {
         if (session.loadFile(file)) {
             registerLoadedFile(file)
+        }
+    }
+
+    fun playSource(source: String, titleHint: String? = null, artistHint: String? = null) {
+        val file = File(source)
+        if (file.exists() && file.isFile) {
+            playFile(file)
+            return
+        }
+        if (session.loadSource(source, titleHint, artistHint)) {
+            val entry = RecentPathEntry(
+                path = source,
+                locationId = null,
+                title = session.title.ifBlank { titleHint ?: source },
+                artist = session.artist.ifBlank { artistHint ?: "Network" },
+                decoderName = session.decoderName
+            )
+            recentFiles.removeAll { it.path == source }
+            recentFiles.add(0, entry)
+            if (recentFiles.size > 20) {
+                recentFiles.removeLast()
+            }
         }
     }
 
@@ -219,29 +254,182 @@ fun main(args: Array<String>) = application {
                             ) {
                                 when (targetView) {
                                     MainView.Home -> {
-                                        DesktopHomeScreen(
-                                            recentFiles = recentFiles,
-                                            recentFolders = recentFolders,
-                                            pinnedEntries = pinnedEntries,
+                                        HomeScreen(
                                             currentTrackPath = session.currentFile?.absolutePath,
-                                            isPlaying = session.isPlaying,
-                                            onOpenFile = { playFile(it) },
-                                            onOpenFolder = { folder ->
-                                                currentDirectory = folder
+                                            currentTrackTitle = session.title,
+                                            currentTrackArtist = session.artist,
+                                            pinnedHomeEntries = pinnedEntries,
+                                            recentFolders = recentFolders,
+                                            recentPlayedFiles = recentFiles,
+                                            storagePresentationForEntry = {
+                                                StoragePresentation(
+                                                    label = "Local",
+                                                    icon = Icons.Default.Folder
+                                                )
+                                            },
+                                            storagePresentationForPinnedEntry = { entry ->
+                                                StoragePresentation(
+                                                    label = "Local",
+                                                    icon = if (entry.isFolder) Icons.Default.Folder else Icons.Default.InsertDriveFile
+                                                )
+                                            },
+                                            bottomContentPadding = bottomMargin,
+                                            onOpenLibrary = { currentView = MainView.Browser },
+                                            onOpenPlaylists = { currentView = MainView.Playlists },
+                                            onOpenNetwork = { currentView = MainView.Network },
+                                            onOpenPinnedFolder = { entry ->
+                                                currentDirectory = File(entry.path)
                                                 currentView = MainView.Browser
                                             },
-                                            onNavigateToView = { view -> currentView = view },
-                                            onOpenSystemFileChooser = { openDesktopFileChooser { playFile(it) } }
+                                            onPlayPinnedFile = { entry ->
+                                                playSource(entry.path, entry.title, entry.artist)
+                                            },
+                                            onOpenRecentFolder = { entry ->
+                                                currentDirectory = File(entry.path)
+                                                currentView = MainView.Browser
+                                            },
+                                            onPlayRecentFile = { entry ->
+                                                playSource(entry.path, entry.title, entry.artist)
+                                            },
+                                            onPinRecentFolder = { entry ->
+                                                if (pinnedEntries.none { it.path == entry.path }) {
+                                                    pinnedEntries.add(
+                                                        HomePinnedEntry(
+                                                            path = entry.path,
+                                                            isFolder = true,
+                                                            title = entry.title,
+                                                            artist = entry.artist
+                                                        )
+                                                    )
+                                                }
+                                            },
+                                            onPinRecentFile = { entry ->
+                                                if (pinnedEntries.none { it.path == entry.path }) {
+                                                    pinnedEntries.add(
+                                                        HomePinnedEntry(
+                                                            path = entry.path,
+                                                            isFolder = false,
+                                                            title = entry.title,
+                                                            artist = entry.artist,
+                                                            decoderName = entry.decoderName
+                                                        )
+                                                    )
+                                                }
+                                            },
+                                            onPersistRecentFileMetadata = { entry, title, artist ->
+                                                val idx = recentFiles.indexOfFirst { it.path == entry.path }
+                                                if (idx >= 0) {
+                                                    recentFiles[idx] = recentFiles[idx].copy(title = title, artist = artist)
+                                                }
+                                            },
+                                            onPinnedFolderAction = { entry, action ->
+                                                when (action) {
+                                                    FolderEntryAction.DeleteFromRecents -> pinnedEntries.removeAll { it.path == entry.path }
+                                                    FolderEntryAction.CopyPath -> {}
+                                                    FolderEntryAction.OpenInBrowser -> {
+                                                        currentDirectory = File(entry.path)
+                                                        currentView = MainView.Browser
+                                                    }
+                                                }
+                                            },
+                                            onPinnedFileAction = { entry, action ->
+                                                when (action) {
+                                                    SourceEntryAction.DeleteFromRecents -> pinnedEntries.removeAll { it.path == entry.path }
+                                                    SourceEntryAction.ShareFile -> {}
+                                                    SourceEntryAction.CopySource -> {}
+                                                    SourceEntryAction.OpenInBrowser -> {
+                                                        val f = File(entry.path)
+                                                        currentDirectory = f.parentFile ?: f
+                                                        currentView = MainView.Browser
+                                                    }
+                                                }
+                                            },
+                                            onRecentFolderAction = { entry, action ->
+                                                when (action) {
+                                                    FolderEntryAction.DeleteFromRecents -> recentFolders.removeAll { it.path == entry.path }
+                                                    FolderEntryAction.CopyPath -> {}
+                                                    FolderEntryAction.OpenInBrowser -> {
+                                                        currentDirectory = File(entry.path)
+                                                        currentView = MainView.Browser
+                                                    }
+                                                }
+                                            },
+                                            onRecentFileAction = { entry, action ->
+                                                when (action) {
+                                                    SourceEntryAction.DeleteFromRecents -> recentFiles.removeAll { it.path == entry.path }
+                                                    SourceEntryAction.ShareFile -> {}
+                                                    SourceEntryAction.CopySource -> {}
+                                                    SourceEntryAction.OpenInBrowser -> {
+                                                        val f = File(entry.path)
+                                                        currentDirectory = f.parentFile ?: f
+                                                        currentView = MainView.Browser
+                                                    }
+                                                }
+                                            },
+                                            onClearPinnedEntries = { pinnedEntries.clear() },
+                                            onClearRecentFolders = { recentFolders.clear() },
+                                            onClearRecentPlayed = { recentFiles.clear() },
+                                            canShareRecentFile = { false },
+                                            canSharePinnedFile = { false },
+                                            onOpenPlayerSurface = {
+                                                if (session.currentFile != null) {
+                                                    isPlayerExpanded = true
+                                                }
+                                            },
+                                            onOpenSettings = {
+                                                currentView = MainView.Settings
+                                                settingsRoute = SettingsRoute.Root
+                                            },
+                                            onOpenUrlOrPath = {
+                                                openDesktopFileChooser { playFile(it) }
+                                            }
                                         )
                                     }
 
                                     MainView.Browser -> {
-                                        DesktopFileBrowserScreen(
-                                            currentDirectory = currentDirectory,
-                                            onDirectoryChanged = { currentDirectory = it },
-                                            currentPlayingFile = session.currentFile,
-                                            isPlaying = session.isPlaying,
-                                            onFileSelected = { playFile(it) }
+                                        val prefs = LocalAppPreferences.current
+                                        val repository = remember(prefs) {
+                                            FileRepository(
+                                                supportedExtensions = runCatching {
+                                                    NativeBridge.getSupportedExtensions().toSet()
+                                                }.getOrElse { emptySet() },
+                                                prefs = prefs,
+                                                sortArchivesBeforeFiles = true,
+                                                nameSortMode = BrowserNameSortMode.Natural,
+                                                rootDirectoryProvider = { File(System.getProperty("user.home") ?: "/") }
+                                            )
+                                        }
+                                        FileBrowserScreen(
+                                            repository = repository,
+                                            initialDirectoryPath = currentDirectory.absolutePath,
+                                            playingFile = session.currentFile,
+                                            bottomContentPadding = bottomMargin,
+                                            showPrimaryTopBar = false,
+                                            backHandlingEnabled = true,
+                                            onExitBrowser = { currentView = MainView.Home },
+                                            onFileSelected = { file, _ ->
+                                                currentDirectory = file.parentFile ?: currentDirectory
+                                                playFile(file)
+                                            },
+                                            onBrowserLocationChanged = { launchState ->
+                                                launchState.directoryPath?.let { path ->
+                                                    currentDirectory = File(path)
+                                                }
+                                            },
+                                            pinnedHomeEntries = pinnedEntries,
+                                            onPinHomeEntry = { entry, isFolder ->
+                                                if (pinnedEntries.none { it.path == entry.path }) {
+                                                    pinnedEntries.add(
+                                                        HomePinnedEntry(
+                                                            path = entry.path,
+                                                            isFolder = isFolder,
+                                                            title = entry.title,
+                                                            artist = entry.artist,
+                                                            decoderName = entry.decoderName
+                                                        )
+                                                    )
+                                                }
+                                            }
                                         )
                                     }
 
@@ -253,12 +441,57 @@ fun main(args: Array<String>) = application {
                                     }
 
                                     MainView.Network -> {
-                                        DesktopFileBrowserScreen(
-                                            currentDirectory = currentDirectory,
-                                            onDirectoryChanged = { currentDirectory = it },
-                                            currentPlayingFile = session.currentFile,
-                                            isPlaying = session.isPlaying,
-                                            onFileSelected = { playFile(it) }
+                                        val prefs = LocalAppPreferences.current
+                                        val networkNodes = remember(prefs) {
+                                            mutableStateListOf<NetworkNode>().apply {
+                                                addAll(readNetworkNodes(prefs))
+                                            }
+                                        }
+                                        var currentNetworkFolderId by remember { mutableStateOf<Long?>(null) }
+                                        NetworkBrowserScreen(
+                                            bottomContentPadding = bottomMargin,
+                                            backHandlingEnabled = true,
+                                            nodes = networkNodes,
+                                            currentFolderId = currentNetworkFolderId,
+                                            onExitNetwork = {
+                                                if (currentNetworkFolderId != null) {
+                                                    val parent = networkNodes.firstOrNull { it.id == currentNetworkFolderId }?.parentId
+                                                    currentNetworkFolderId = parent
+                                                } else {
+                                                    currentView = MainView.Home
+                                                }
+                                            },
+                                            onCurrentFolderIdChanged = { currentNetworkFolderId = it },
+                                            onNodesChanged = { newNodes ->
+                                                networkNodes.clear()
+                                                networkNodes.addAll(newNodes)
+                                                writeNetworkNodes(prefs, newNodes)
+                                            },
+                                            onResolveRemoteSourceMetadata = { _, callback -> callback() },
+                                            onCancelPendingMetadataBackfill = {},
+                                            onOpenRemoteSource = { source ->
+                                                playSource(source)
+                                            },
+                                            onBrowseSmbSource = { rawInput, _ ->
+                                                playSource(rawInput)
+                                            },
+                                            onBrowseHttpSource = { rawInput, _, _ ->
+                                                playSource(rawInput)
+                                            },
+                                            pinnedHomeEntries = pinnedEntries,
+                                            onPinHomeEntry = { entry, isFolder ->
+                                                if (pinnedEntries.none { it.path == entry.path }) {
+                                                    pinnedEntries.add(
+                                                        HomePinnedEntry(
+                                                            path = entry.path,
+                                                            isFolder = isFolder,
+                                                            title = entry.title,
+                                                            artist = entry.artist,
+                                                            decoderName = entry.decoderName
+                                                        )
+                                                    )
+                                                }
+                                            }
                                         )
                                     }
 

@@ -1,6 +1,6 @@
 package com.flopster101.siliconplayer
 
-import android.content.Context
+import com.flopster101.siliconplayer.platform.AppPreferences
 import org.json.JSONArray
 import org.json.JSONObject
 import java.util.LinkedHashMap
@@ -216,13 +216,12 @@ internal object NetworkCredentialStore {
         prefs().edit().putString(AppPreferenceKeys.NETWORK_CREDENTIALS_JSON, root.toString()).apply()
     }
 
-    private fun prefs() = requireAppContext().getSharedPreferences(
-        AppPreferenceKeys.PREFS_NAME,
-        Context.MODE_PRIVATE
-    )
+    @Volatile
+    var preferencesProvider: (() -> AppPreferences)? = null
 
-    private fun requireAppContext(): Context {
-        return NativeBridge.requireAppContext()
+    private fun prefs(): AppPreferences {
+        return preferencesProvider?.invoke()
+            ?: error("NetworkCredentialStore preferencesProvider not initialized")
     }
 }
 

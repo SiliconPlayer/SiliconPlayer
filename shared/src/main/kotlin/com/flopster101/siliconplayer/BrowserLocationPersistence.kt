@@ -1,6 +1,6 @@
 package com.flopster101.siliconplayer
 
-import android.content.SharedPreferences
+import com.flopster101.siliconplayer.platform.AppPreferences
 import org.json.JSONObject
 
 private const val BROWSER_PERSISTED_KIND = "kind"
@@ -10,7 +10,7 @@ private const val BROWSER_PERSISTED_LOCATION_ID = "locationId"
 private const val BROWSER_PERSISTED_DIRECTORY_PATH = "directoryPath"
 
 internal fun readRememberedBrowserLaunchState(
-    prefs: SharedPreferences
+    prefs: AppPreferences
 ): BrowserLaunchState {
     val serialized = prefs.getString(AppPreferenceKeys.BROWSER_LAST_LOCATION_STATE_JSON, null)
     val parsedFromJson = parsePersistedBrowserLaunchState(serialized)
@@ -34,7 +34,7 @@ internal fun readRememberedBrowserLaunchState(
 }
 
 internal fun persistRememberedBrowserLaunchState(
-    prefs: SharedPreferences,
+    prefs: AppPreferences,
     state: BrowserLaunchState
 ) {
     val sanitized = sanitizeRememberedBrowserState(state)
@@ -47,7 +47,7 @@ internal fun persistRememberedBrowserLaunchState(
 }
 
 internal fun clearRememberedBrowserLaunchState(
-    prefs: SharedPreferences
+    prefs: AppPreferences
 ) {
     prefs.edit()
         .remove(AppPreferenceKeys.BROWSER_LAST_LOCATION_STATE_JSON)

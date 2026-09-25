@@ -1,6 +1,6 @@
 package com.flopster101.siliconplayer
 
-import android.net.Uri
+import java.net.URLDecoder
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.withContext
@@ -285,7 +285,7 @@ private fun parseHttpDirectoryListingInto(
             return@forEach
         }
 
-        val fallbackLeaf = Uri.decode(rawLeaf).ifBlank {
+        val fallbackLeaf = try { URLDecoder.decode(rawLeaf, "UTF-8") } catch (_: Exception) { rawLeaf }.ifBlank {
             absoluteSpec.host
         }
         val isDirectory = normalizedHref.endsWith("/") || renderedLabel.endsWith("/")

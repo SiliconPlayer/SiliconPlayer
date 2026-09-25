@@ -1,9 +1,8 @@
 package com.flopster101.siliconplayer
 
-import android.net.Uri
-import android.util.Base64
 import java.net.URI
 import java.nio.charset.StandardCharsets
+import java.util.Base64
 import java.util.Locale
 
 internal data class HttpSourceSpec(
@@ -19,22 +18,6 @@ internal data class HttpSourceSpec(
 internal fun parseHttpSourceSpecFromInput(input: String): HttpSourceSpec? {
     val trimmed = input.trim()
     if (trimmed.isBlank()) return null
-    val parsedUri = runCatching { Uri.parse(trimmed) }.getOrNull()
-    if (parsedUri != null && parsedUri.scheme != null) {
-        val scheme = parsedUri.scheme?.lowercase(Locale.ROOT)
-        if (scheme != "http" && scheme != "https") return null
-        val host = parsedUri.host?.trim().takeUnless { it.isNullOrBlank() } ?: return null
-        val (username, password) = parseHttpUserInfo(parsedUri.encodedUserInfo)
-        return HttpSourceSpec(
-            scheme = scheme,
-            host = host.removePrefix("[").removeSuffix("]"),
-            port = parsedUri.port.takeIf { it > 0 },
-            path = normalizeHttpPath(parsedUri.path),
-            query = parsedUri.query?.trim().takeUnless { it.isNullOrBlank() },
-            username = username,
-            password = password
-        )
-    }
     val javaUri = runCatching { URI(trimmed) }.getOrNull() ?: return null
     val scheme = javaUri.scheme?.lowercase(Locale.ROOT)
     if (scheme != "http" && scheme != "https") return null
@@ -83,10 +66,7 @@ internal fun httpBasicAuthorizationHeader(
     val normalizedPassword = password?.trim().orEmpty()
     if (normalizedUsername.isBlank() && normalizedPassword.isBlank()) return null
     val token = "$normalizedUsername:$normalizedPassword"
-    val encoded = Base64.encodeToString(
-        token.toByteArray(StandardCharsets.UTF_8),
-        Base64.NO_WRAP
-    )
+    val encoded = Base64.getEncoder().encodeToString(token.toByteArray(StandardCharsets.UTF_8))
     return "Basic $encoded"
 }
 
@@ -148,9 +128,7 @@ private fun buildHttpUri(spec: HttpSourceSpec, includePassword: Boolean): String
 }
 
 private fun safeUriDecode(value: String): String {
-    return runCatching { Uri.decode(value) }.getOrElse {
-        runCatching { java.net.URLDecoder.decode(value, "UTF-8") }.getOrDefault(value)
-    }
+    return runCatching { java.net.URLDecoder.decode(value, "UTF-8") }.getOrDefault(value)
 }
 
 private fun parseHttpUserInfo(encodedUserInfo: String?): Pair<String?, String?> {

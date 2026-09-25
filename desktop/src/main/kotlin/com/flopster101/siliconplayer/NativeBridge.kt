@@ -44,6 +44,19 @@ object NativeBridge {
     @JvmStatic
     fun closeSmbAvioHandle(handleId: Long) {}
 
+    @Volatile
+    private var forcedDecoderOneShot: String? = null
+
+    fun prioritizeNextOpenWith(decoderName: String) {
+        forcedDecoderOneShot = decoderName
+    }
+
+    fun consumeForcedDecoderOneShot(): String? {
+        val decoder = forcedDecoderOneShot
+        forcedDecoderOneShot = null
+        return decoder
+    }
+
     external fun isAudioBackendSupported(backendId: Int): Boolean
     external fun getAudioSessionId(): Int
 

@@ -1,9 +1,9 @@
 package com.flopster101.siliconplayer
 
-import android.net.Uri
-import android.content.SharedPreferences
+import com.flopster101.siliconplayer.platform.AppPreferences
 import org.json.JSONArray
 import org.json.JSONObject
+import java.net.URLDecoder
 
 private const val NETWORK_NODE_TYPE_FOLDER = "folder"
 private const val NETWORK_NODE_TYPE_REMOTE_SOURCE = "remote_source"
@@ -48,7 +48,7 @@ internal fun nextNetworkNodeId(nodes: List<NetworkNode>): Long {
     return (nodes.maxOfOrNull { it.id } ?: 0L) + 1L
 }
 
-internal fun readNetworkNodes(prefs: SharedPreferences): List<NetworkNode> {
+internal fun readNetworkNodes(prefs: AppPreferences): List<NetworkNode> {
     val raw = prefs.getString(AppPreferenceKeys.NETWORK_SAVED_NODES, null) ?: return emptyList()
     return try {
         val array = JSONArray(raw)
@@ -164,7 +164,7 @@ internal fun readNetworkNodes(prefs: SharedPreferences): List<NetworkNode> {
 }
 
 internal fun writeNetworkNodes(
-    prefs: SharedPreferences,
+    prefs: AppPreferences,
     nodes: List<NetworkNode>
 ) {
     NetworkNodesHolder.current = nodes
@@ -421,7 +421,7 @@ private fun isLegacyAutoHttpTitle(title: String, spec: HttpSourceSpec?): Boolean
     val normalizedTitle = title.trim()
     if (normalizedTitle.isBlank()) return false
     val displayUri = buildHttpDisplayUri(spec)
-    val decodedDisplayUri = Uri.decode(displayUri)
+    val decodedDisplayUri = try { URLDecoder.decode(displayUri, "UTF-8") } catch (_: Exception) { displayUri }
     val normalizedTitleNoSlash = normalizedTitle.removeSuffix("/")
     val displayUriNoSlash = displayUri.removeSuffix("/")
     val decodedDisplayUriNoSlash = decodedDisplayUri.removeSuffix("/")

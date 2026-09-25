@@ -3,6 +3,7 @@ package com.flopster101.siliconplayer.desktop
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.remember
+import androidx.compose.ui.graphics.toComposeImageBitmap
 import com.flopster101.siliconplayer.platform.AppPreferences
 import com.flopster101.siliconplayer.platform.AudioOutputRouteInfo
 import com.flopster101.siliconplayer.platform.AudioOutputRouteType
@@ -146,7 +147,10 @@ fun ProvideDesktopPlatformAdapters(
     content: @Composable () -> Unit
 ) {
     val prefsProvider = remember { DesktopPreferencesProvider() }
-    val prefs = remember { prefsProvider.getPreferences("main_preferences") }
+    val prefs = remember { prefsProvider.getPreferences(com.flopster101.siliconplayer.AppPreferenceKeys.PREFS_NAME) }
+    remember(prefs) {
+        com.flopster101.siliconplayer.NetworkCredentialStore.preferencesProvider = { prefs }
+    }
     val audioRouteManager = remember { DesktopAudioRouteManager() }
     val toastHandler = remember { ToastHandler { msg -> println("[SiliconPlayer] $msg") } }
     val windowSizeInfo = remember(windowWidthDp, windowHeightDp) {
@@ -163,6 +167,25 @@ fun ProvideDesktopPlatformAdapters(
         }
     }
 
+    val artworkThumbnailLoader = remember {
+        object : com.flopster101.siliconplayer.platform.ArtworkThumbnailLoader {
+            override fun peek(cacheKey: String?) = null
+            override suspend fun load(cacheKey: String?): androidx.compose.ui.graphics.ImageBitmap? {
+                if (cacheKey == null) return null
+                val file = java.io.File(cacheKey)
+                if (file.exists() && file.isFile) {
+                    return try {
+                        org.jetbrains.skia.Image.makeFromEncoded(file.readBytes()).toComposeImageBitmap()
+                    } catch (_: Throwable) {
+                        null
+                    }
+                }
+                return null
+            }
+            override val revision: kotlinx.coroutines.flow.StateFlow<Long> = kotlinx.coroutines.flow.MutableStateFlow(0L)
+        }
+    }
+
     val appVersionInfo = remember {
         com.flopster101.siliconplayer.platform.AppVersionInfo(
             versionName = "1.0.0",
@@ -171,17 +194,37 @@ fun ProvideDesktopPlatformAdapters(
         )
     }
 
+    val cacheDir = remember {
+        java.io.File(System.getProperty("user.home") ?: ".", ".siliconplayer/cache").also { it.mkdirs() }
+    }
+
     CompositionLocalProvider(
         LocalAppPreferences provides prefs,
         LocalPreferencesProvider provides prefsProvider,
         LocalIsWatchDevice provides false,
         LocalAudioRouteManager provides audioRouteManager,
         LocalToastHandler provides toastHandler,
+        com.flopster101.siliconplayer.platform.LocalArtworkThumbnailLoader provides artworkThumbnailLoader,
         LocalPlatformBackHandler provides { _, _ -> },
         LocalWindowSizeInfo provides windowSizeInfo,
         LocalProjectMOptionsProvider provides projectMOptionsProvider,
         com.flopster101.siliconplayer.platform.LocalAppVersionInfo provides appVersionInfo,
         com.flopster101.siliconplayer.platform.LocalSettingsPlatformContent provides object : com.flopster101.siliconplayer.platform.SettingsPlatformContent {},
+        com.flopster101.siliconplayer.platform.LocalAppCacheDir provides cacheDir,
+        com.flopster101.siliconplayer.platform.LocalFileExportHandler provides com.flopster101.siliconplayer.platform.FileExportHandler { files ->
+            val chooser = javax.swing.JFileChooser().apply {
+                fileSelectionMode = javax.swing.JFileChooser.DIRECTORIES_ONLY
+                dialogTitle = "Select Destination Folder"
+            }
+            val result = chooser.showSaveDialog(null)
+            if (result == javax.swing.JFileChooser.APPROVE_OPTION) {
+                val destDir = chooser.selectedFile
+                files.forEach { file ->
+                    file.copyTo(destDir.resolve(file.name), overwrite = true)
+                }
+                toastHandler.showToast("Saved ${files.size} file(s)")
+            }
+        },
         content = content
     )
 }

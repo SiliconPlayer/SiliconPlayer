@@ -1,10 +1,15 @@
 package com.flopster101.siliconplayer.ui.screens
 
-import com.flopster101.siliconplayer.isRoundScreenCompat
-import android.net.Uri
-import android.view.KeyEvent as AndroidKeyEvent
-import android.widget.Toast
-import androidx.activity.compose.BackHandler
+import com.flopster101.siliconplayer.platform.PlatformBackHandler
+import com.flopster101.siliconplayer.platform.LocalToastHandler
+import com.flopster101.siliconplayer.platform.LocalIsWatchDevice
+import com.flopster101.siliconplayer.platform.LocalWindowSizeInfo
+import androidx.compose.ui.input.key.Key
+import androidx.compose.ui.input.key.KeyEventType
+import androidx.compose.ui.input.key.key
+import androidx.compose.ui.input.key.type
+import java.net.URI
+import java.net.URLDecoder
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.animateContentSize
 import androidx.compose.animation.animateColorAsState
@@ -28,11 +33,9 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import android.content.pm.PackageManager
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import androidx.compose.foundation.layout.fillMaxSize
@@ -109,7 +112,6 @@ import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.input.nestedscroll.nestedScroll
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
@@ -269,9 +271,10 @@ internal fun NetworkBrowserScreen(
     var newHttpPassword by remember { mutableStateOf("") }
     var newHttpPasswordVisible by remember { mutableStateOf(false) }
     var newHttpTreatAsRoot by remember { mutableStateOf(true) }
-    val context = LocalContext.current
-    val isWatch = remember(context) { context.packageManager.hasSystemFeature(PackageManager.FEATURE_WATCH) }
-    val isRound = isWatch && (LocalConfiguration.current.isRoundScreenCompat || LocalConfiguration.current.screenWidthDp == LocalConfiguration.current.screenHeightDp)
+    val toastHandler = LocalToastHandler.current
+    val isWatch = LocalIsWatchDevice.current
+    val windowSizeInfo = LocalWindowSizeInfo.current
+    val isRound = isWatch && (windowSizeInfo.isRound || windowSizeInfo.screenWidthDp == windowSizeInfo.screenHeightDp)
     var watchActionTargetNode by remember { mutableStateOf<NetworkNode?>(null) }
     val uiScope = rememberCoroutineScope()
     val refreshTimeoutJobs = remember { LinkedHashMap<String, Job>() }
@@ -744,11 +747,7 @@ internal fun NetworkBrowserScreen(
             refreshTimeoutJobs.values.forEach { it.cancel() }
             refreshTimeoutJobs.clear()
             val label = if (successCount == 1) "file" else "files"
-            Toast.makeText(
-                context,
-                "$successCount $label refreshed successfully",
-                Toast.LENGTH_SHORT
-            ).show()
+            toastHandler.showToast("$successCount $label refreshed successfully")
         }
     }
 
@@ -931,11 +930,7 @@ internal fun NetworkBrowserScreen(
             return
         }
         onPinHomeEntry(recentEntry, isFolder)
-        Toast.makeText(
-            context,
-            if (isFolder) "Pinned folder to home" else "Pinned file to home",
-            Toast.LENGTH_SHORT
-        ).show()
+        toastHandler.showToast(if (isFolder) "Pinned folder to home" else "Pinned file to home")
     }
 
     fun requestInfo(nodeIds: Set<Long>) {
@@ -958,7 +953,7 @@ internal fun NetworkBrowserScreen(
         }
     }
 
-    BackHandler(enabled = backHandlingEnabled) {
+    PlatformBackHandler(enabled = backHandlingEnabled) {
         if (refreshNodeIdsPendingConfirmation != null) {
             refreshNodeIdsPendingConfirmation = null
         } else if (isSelectionMode) {
@@ -1955,7 +1950,7 @@ internal fun NetworkBrowserScreen(
                                     parentFolderId = currentFolderId
                                 ) {
                                     val sourceId = resolveNetworkNodeSourceId(entry).orEmpty()
-                                    val sourceScheme = Uri.parse(sourceId).scheme?.lowercase(Locale.ROOT)
+                                    val sourceScheme = runCatching { URI(sourceId).scheme }.getOrNull()?.lowercase(Locale.ROOT)
                                     val isSmbFolderLikeSource = isSmbFolderLikeSource(entry, sourceId)
                                     val isHttpFolderLikeSource = isHttpFolderLikeSource(entry, sourceId)
                                     val isSelected = selectedNodeIds.contains(entry.id)
@@ -2257,12 +2252,11 @@ internal fun NetworkBrowserScreen(
                                                                 nextMenuFocusRequester?.let { down = it }
                                                             }
                                                             .onPreviewKeyEvent { event ->
-                                                                val nativeEvent = event.nativeKeyEvent
-                                                                if (nativeEvent.action == AndroidKeyEvent.ACTION_DOWN && (
-                                                                        nativeEvent.keyCode == AndroidKeyEvent.KEYCODE_ENTER ||
-                                                                            nativeEvent.keyCode == AndroidKeyEvent.KEYCODE_NUMPAD_ENTER ||
-                                                                            nativeEvent.keyCode == AndroidKeyEvent.KEYCODE_DPAD_CENTER ||
-                                                                            nativeEvent.keyCode == AndroidKeyEvent.KEYCODE_SPACE
+                                                                if (event.type == KeyEventType.KeyDown && (
+                                                                        event.key == Key.Enter ||
+                                                                            event.key == Key.NumPadEnter ||
+                                                                            event.key == Key.DirectionCenter ||
+                                                                            event.key == Key.Spacebar
                                                                         )
                                                                 ) {
                                                                     expandedEntryMenuNodeId = entry.id
@@ -3779,7 +3773,7 @@ private fun parseHttpSiteNameFromHtml(html: String): String? {
         val normalized = raw
             ?.replace(Regex("\\s+"), " ")
             ?.trim()
-            ?.let(Uri::decode)
+            ?.let(::uriDecode)
             .orEmpty()
         if (normalized.isBlank()) return null
         return normalized
@@ -3795,9 +3789,12 @@ private fun parseHttpSiteNameFromHtml(html: String): String? {
     return null
 }
 
+private fun uriDecode(value: String): String =
+    try { URLDecoder.decode(value, "UTF-8") } catch (_: Exception) { value }
+
 private fun buildCurrentNetworkInfoFields(entry: NetworkNode): List<NetworkInfoField> {
     val sourceId = resolveNetworkNodeSourceId(entry).orEmpty()
-    val scheme = Uri.parse(sourceId).scheme?.lowercase(Locale.ROOT)
+    val scheme = runCatching { URI(sourceId).scheme }.getOrNull()?.lowercase(Locale.ROOT)
     val fields = mutableListOf<NetworkInfoField>()
     fields += NetworkInfoField(
         label = "Entry type",
@@ -3814,7 +3811,7 @@ private fun buildCurrentNetworkInfoFields(entry: NetworkNode): List<NetworkInfoF
         fields += NetworkInfoField("Source kind", sourceKindLabel)
         val displaySource = resolveNetworkNodeDisplaySource(entry).trim()
         if (displaySource.isNotBlank()) {
-            fields += NetworkInfoField("Source", Uri.decode(displaySource))
+            fields += NetworkInfoField("Source", uriDecode(displaySource))
         }
 
         when {
@@ -3827,12 +3824,12 @@ private fun buildCurrentNetworkInfoFields(entry: NetworkNode): List<NetworkInfoF
                 spec?.let {
                     fields += NetworkInfoField("Host", it.host)
                     if (it.share.isNotBlank()) {
-                        fields += NetworkInfoField("Share", Uri.decode(it.share))
+                        fields += NetworkInfoField("Share", uriDecode(it.share))
                     }
                     val normalizedPath = it.path?.trim().orEmpty().trim('/')
                     fields += NetworkInfoField(
                         "Path",
-                        if (normalizedPath.isBlank()) "/" else Uri.decode("/$normalizedPath")
+                        if (normalizedPath.isBlank()) "/" else uriDecode("/$normalizedPath")
                     )
                     if (!it.username.isNullOrBlank()) {
                         fields += NetworkInfoField("Username", it.username.orEmpty())
@@ -3852,7 +3849,7 @@ private fun buildCurrentNetworkInfoFields(entry: NetworkNode): List<NetworkInfoF
                 )
                 spec?.let {
                     fields += NetworkInfoField("Host", it.host)
-                    fields += NetworkInfoField("Path", Uri.decode(normalizeHttpPath(it.path)))
+                    fields += NetworkInfoField("Path", uriDecode(normalizeHttpPath(it.path)))
                     if (!it.username.isNullOrBlank()) {
                         fields += NetworkInfoField("Username", it.username.orEmpty())
                     }

@@ -1,22 +1,19 @@
 package com.flopster101.siliconplayer
 
-import android.content.pm.PackageManager
 import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.remember
-import androidx.compose.ui.platform.LocalConfiguration
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import com.flopster101.siliconplayer.platform.LocalIsWatchDevice
+import com.flopster101.siliconplayer.platform.LocalWindowSizeInfo
 
 @Composable
 internal fun rememberMiniPlayerListInset(
     currentView: MainView,
     isPlayerSurfaceVisible: Boolean
 ): Dp {
-    val context = LocalContext.current
-    val isWatch = remember(context) { context.packageManager.hasSystemFeature(PackageManager.FEATURE_WATCH) }
-    val isRound = LocalConfiguration.current.isRoundScreenCompat
+    val isWatch = LocalIsWatchDevice.current
+    val isRound = LocalWindowSizeInfo.current.isRound
     val defaultInset = if (isWatch) (if (isRound) 70.dp else 52.dp) else 108.dp
     val target = when {
         currentView == MainView.Browser && isPlayerSurfaceVisible -> defaultInset
@@ -36,4 +33,3 @@ internal fun miniPlayerFabLift(bottomContentPadding: Dp): Dp {
     if (bottomContentPadding <= 0.dp) return 0.dp
     return bottomContentPadding * (70f / 108f)
 }
-

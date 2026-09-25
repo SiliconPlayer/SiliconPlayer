@@ -9,34 +9,11 @@ import com.flopster101.siliconplayer.stripRemoteCacheHashPrefix
 import java.io.File
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
-
-internal data class CacheExportResult(
-    val exportedCount: Int,
-    val failedCount: Int,
-    val skippedCount: Int = 0,
-    val cancelled: Boolean = false,
-    val invalidDestination: Boolean = false
-)
-
-internal data class ExportFileItem(
-    val sourceFile: File,
-    val displayNameOverride: String? = null
-)
-
-internal enum class ExportConflictAction {
-    Overwrite,
-    Skip,
-    Cancel
-}
-
-internal data class ExportConflictDecision(
-    val action: ExportConflictAction,
-    val applyToAll: Boolean = false
-)
-
-internal data class ExportNameConflict(
-    val fileName: String
-)
+import com.flopster101.siliconplayer.CacheExportResult
+import com.flopster101.siliconplayer.ExportFileItem
+import com.flopster101.siliconplayer.ExportConflictAction
+import com.flopster101.siliconplayer.ExportConflictDecision
+import com.flopster101.siliconplayer.ExportNameConflict
 
 internal suspend fun exportCachedFilesToTree(
     context: Context,

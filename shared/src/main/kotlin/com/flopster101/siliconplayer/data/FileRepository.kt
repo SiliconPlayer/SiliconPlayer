@@ -5,14 +5,15 @@ import com.flopster101.siliconplayer.AppPreferenceKeys
 import com.flopster101.siliconplayer.AppDefaults
 import com.flopster101.siliconplayer.detectFilePreviewKind
 import com.flopster101.siliconplayer.fileMatchesSupportedExtensions
-import android.content.SharedPreferences
+import com.flopster101.siliconplayer.platform.AppPreferences
 import java.io.File
 
 class FileRepository(
     private val supportedExtensions: Set<String>,
-    private val prefs: SharedPreferences,
+    private val prefs: AppPreferences,
     private val sortArchivesBeforeFiles: Boolean,
-    private val nameSortMode: BrowserNameSortMode
+    private val nameSortMode: BrowserNameSortMode,
+    private val rootDirectoryProvider: () -> File = { File(System.getProperty("user.home") ?: "/") }
 ) {
 
     fun getFiles(directory: File): List<FileItem> {
@@ -120,7 +121,7 @@ class FileRepository(
     }
 
     fun getRootDirectory(): File {
-        return android.os.Environment.getExternalStorageDirectory()
+        return rootDirectoryProvider()
     }
 
     private fun compareNaturalName(left: String, right: String): Int {
