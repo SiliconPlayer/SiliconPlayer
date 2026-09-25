@@ -409,6 +409,13 @@ void StarfieldRenderer::drawPoints(
     glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
     glBindBuffer(GL_ARRAY_BUFFER, 0);
 
+#if !defined(__ANDROID__)
+    #ifndef GL_POINT_SPRITE
+    #define GL_POINT_SPRITE 0x8861
+    #endif
+    glEnable(GL_POINT_SPRITE);
+#endif
+
     pointProgram_.use();
     glUniform2f(pointResLoc_, static_cast<float>(widthPx_), static_cast<float>(heightPx_));
     glUniform3f(pointColorLoc_, c.r, c.g, c.b);
@@ -426,6 +433,10 @@ void StarfieldRenderer::drawPoints(
     glDisableVertexAttribArray(pointPosLoc_);
     glDisableVertexAttribArray(pointSizeLoc_);
     glDisableVertexAttribArray(pointAlphaLoc_);
+
+#if !defined(__ANDROID__)
+    glDisable(GL_POINT_SPRITE);
+#endif
 }
 
 void StarfieldRenderer::drawTrailComposite() {
@@ -507,7 +518,7 @@ void StarfieldRenderer::drawBloomComposite(float strength) {
     glBindTexture(GL_TEXTURE_2D, 0);
 
     // Additive composite over the screen image.
-    glBindFramebuffer(GL_FRAMEBUFFER, 0);
+    glBindFramebuffer(GL_FRAMEBUFFER, destFbo_);
     glViewport(0, 0, widthPx_, heightPx_);
     glEnable(GL_BLEND);
     glBlendFunc(GL_ONE, GL_ONE);
@@ -527,6 +538,10 @@ void StarfieldRenderer::drawBloomComposite(float strength) {
 
 void StarfieldRenderer::render() {
     if (widthPx_ <= 0 || heightPx_ <= 0 || !pointProgram_.isReady()) return;
+
+    GLint currentFbo = 0;
+    glGetIntegerv(GL_FRAMEBUFFER_BINDING, &currentFbo);
+    destFbo_ = static_cast<GLuint>(currentFbo);
 
     const auto now = std::chrono::steady_clock::now();
     float dt = 0.0f;
@@ -664,7 +679,7 @@ void StarfieldRenderer::render() {
     // Bloom needs an offscreen source even with trails off: reuse the
     // trail target as a fresh framebuffer (persistence 0 wipes it clean).
     const bool useFbo = (trailPersistence_ > 0.003f || wantBloom) && ensureTrailTarget();
-    glBindFramebuffer(GL_FRAMEBUFFER, useFbo ? trailFbo_ : 0);
+    glBindFramebuffer(GL_FRAMEBUFFER, useFbo ? trailFbo_ : destFbo_);
     glViewport(0, 0, widthPx_, heightPx_);
     if (useFbo && dt > 0.0f) {
         const float fade = std::min(1.0f, 1.0f - std::pow(trailPersistence_, dt * 60.0f));
@@ -693,7 +708,7 @@ void StarfieldRenderer::render() {
     }
 
     if (useFbo) {
-        glBindFramebuffer(GL_FRAMEBUFFER, 0);
+        glBindFramebuffer(GL_FRAMEBUFFER, destFbo_);
         glViewport(0, 0, widthPx_, heightPx_);
         drawTrailComposite();
         if (wantBloom) drawBloomComposite(std::min(2.0f, gk * 2.5f));

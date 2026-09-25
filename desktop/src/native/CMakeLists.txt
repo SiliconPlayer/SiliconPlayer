@@ -22,6 +22,7 @@ find_package(PkgConfig REQUIRED)
 
 pkg_check_modules(ALSA REQUIRED alsa)
 pkg_check_modules(PULSE libpulse)
+pkg_check_modules(X11 REQUIRED x11)
 
 option(USE_SYSTEM_FFMPEG "Use system FFmpeg libraries instead of external/ffmpeg submodule" ON)
 if (USE_SYSTEM_FFMPEG)
@@ -60,6 +61,7 @@ set(COMMON_INCLUDES
     ${JNI_INCLUDE_DIRS}
     ${ALSA_INCLUDE_DIRS}
     ${PULSE_INCLUDE_DIRS}
+    ${X11_INCLUDE_DIRS}
 )
 
 # -----------------------------------------------------------------------------
@@ -84,6 +86,7 @@ set(MAIN_SOURCES
     "${APP_CPP_DIR}/decoders/SdlCompat.c"
     "${APP_CPP_DIR}/decoders/CPConvStub.c"
     "${APP_CPP_DIR}/SiliconVisJni.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/DesktopGlSurface.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/UacDriverStub.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/ProjectMStub.cpp"
 )
@@ -106,6 +109,8 @@ target_compile_definitions(siliconplayer_desktop PRIVATE
 
 target_link_libraries(siliconplayer_desktop PRIVATE
     silicon_vis
+    OpenGL::GL
+    ${X11_LIBRARIES}
     Threads::Threads
     ${CMAKE_DL_LIBS}
     m

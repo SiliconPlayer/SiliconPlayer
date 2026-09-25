@@ -1,12 +1,17 @@
 package com.flopster101.siliconplayer.ui.screens
 
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
-import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
-import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -15,24 +20,106 @@ import androidx.compose.material.icons.filled.Equalizer
 import androidx.compose.material.icons.filled.GraphicEq
 import androidx.compose.material.icons.filled.MonitorHeart
 import androidx.compose.material.icons.filled.Star
-import androidx.compose.material3.*
-import androidx.compose.runtime.*
+import androidx.compose.material.icons.filled.VisibilityOff
+import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.ElevatedCard
+import androidx.compose.material3.Icon
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
+import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ImageBitmap
+import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.unit.dp
 import com.flopster101.siliconplayer.AppDefaults
 import com.flopster101.siliconplayer.ArtworkSwipePreviewState
+import com.flopster101.siliconplayer.ChannelScopeVisibleElementId
+import com.flopster101.siliconplayer.NativeBridge
+import com.flopster101.siliconplayer.VisualizationChannelScopeTextColorMode
 import com.flopster101.siliconplayer.VisualizationMode
 import com.flopster101.siliconplayer.VisualizationOscColorMode
 import com.flopster101.siliconplayer.VisualizationOscFpsMode
 import com.flopster101.siliconplayer.VisualizationPerformanceMode
 import com.flopster101.siliconplayer.VisualizationRenderBackend
 import com.flopster101.siliconplayer.VisualizationVuAnchor
+import com.flopster101.siliconplayer.isChannelScopeVisibleElementEnabled
+import com.flopster101.siliconplayer.supportsChannelScopeNoteText
+import com.flopster101.siliconplayer.ui.visualization.gl.GlChannelScopeTextPalette
+import com.flopster101.siliconplayer.ui.visualization.gl.SiliconNativeGlDesktopVisualization
+import com.flopster101.siliconplayer.ui.visualization.gl.SiliconNativeGlFrame
 import java.io.File
+
+private fun resolveOscColor(
+    hasArtwork: Boolean,
+    noArtworkMode: VisualizationOscColorMode,
+    withArtworkMode: VisualizationOscColorMode,
+    monetColor: Color,
+    customColor: Color
+): Color {
+    val mode = if (hasArtwork) withArtworkMode else noArtworkMode
+    return when (mode) {
+        VisualizationOscColorMode.Artwork -> monetColor
+        VisualizationOscColorMode.Monet -> monetColor
+        VisualizationOscColorMode.White -> Color.White
+        VisualizationOscColorMode.Custom -> customColor
+    }
+}
+
+private fun resolveChannelScopeTextPalette(
+    mode: VisualizationChannelScopeTextColorMode,
+    monetColor: Color,
+    customColor: Color
+): GlChannelScopeTextPalette {
+    return when (mode) {
+        VisualizationChannelScopeTextColorMode.Monet -> {
+            val c = monetColor.toArgb()
+            GlChannelScopeTextPalette(c, c, c, c, c, c)
+        }
+        VisualizationChannelScopeTextColorMode.White -> {
+            val c = Color.White.toArgb()
+            GlChannelScopeTextPalette(c, c, c, c, c, c)
+        }
+        VisualizationChannelScopeTextColorMode.Custom -> {
+            val c = customColor.toArgb()
+            GlChannelScopeTextPalette(c, c, c, c, c, c)
+        }
+        VisualizationChannelScopeTextColorMode.OpenMptInspired -> {
+            GlChannelScopeTextPalette(
+                channelArgb = 0xFFBABDB6.toInt(),
+                noteArgb = 0xFF729FCF.toInt(),
+                volumeArgb = 0xFF8AE234.toInt(),
+                effectArgb = 0xFFFCAF3E.toInt(),
+                instrumentOrSampleArgb = 0xFFFFFFFF.toInt(),
+                separatorArgb = 0xC6FFFFFF.toInt()
+            )
+        }
+    }
+}
+
+private fun resolveChannelScopeVuColor(
+    mode: VisualizationChannelScopeTextColorMode,
+    monetColor: Color,
+    customColor: Color
+): Color {
+    return when (mode) {
+        VisualizationChannelScopeTextColorMode.Monet -> monetColor.copy(alpha = 0.92f)
+        VisualizationChannelScopeTextColorMode.OpenMptInspired -> Color(0xFF8AE234)
+        VisualizationChannelScopeTextColorMode.White -> Color.White
+        VisualizationChannelScopeTextColorMode.Custom -> customColor
+    }
+}
 
 @Composable
 internal fun AlbumArtPlaceholder(
@@ -94,37 +181,246 @@ internal fun AlbumArtPlaceholder(
     onSwipeNextTrack: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
-    ElevatedCard(
-        modifier = modifier,
-        colors = CardDefaults.elevatedCardColors(
-            containerColor = MaterialTheme.colorScheme.surfaceVariant
-        ),
-        shape = RoundedCornerShape(artworkCornerRadiusDp.coerceIn(0, 48).dp)
-    ) {
-        Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-            if (artwork != null) {
-                Image(
-                    bitmap = artwork,
-                    contentDescription = "Album Artwork",
-                    modifier = Modifier.fillMaxSize(),
-                    contentScale = ContentScale.Crop
-                )
-            } else {
-                Box(
-                    modifier = Modifier
-                        .size(120.dp)
-                        .clip(CircleShape)
-                        .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.14f)),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Icon(
-                        imageVector = placeholderIcon,
-                        contentDescription = "No album artwork",
-                        tint = MaterialTheme.colorScheme.primary,
-                        modifier = Modifier.size(64.dp)
+    var hasStartedPlaybackForTrack by remember { mutableStateOf(false) }
+    LaunchedEffect(isPlaying) {
+        if (isPlaying) {
+            hasStartedPlaybackForTrack = true
+        }
+    }
+
+    if (visualizationMode == VisualizationMode.Off || (file == null && !isPlaying) || !hasStartedPlaybackForTrack) {
+        ElevatedCard(
+            modifier = modifier,
+            colors = CardDefaults.elevatedCardColors(
+                containerColor = MaterialTheme.colorScheme.surfaceVariant
+            ),
+            shape = RoundedCornerShape(artworkCornerRadiusDp.coerceIn(0, 48).dp)
+        ) {
+            Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                if (artwork != null) {
+                    Image(
+                        bitmap = artwork,
+                        contentDescription = "Album Artwork",
+                        modifier = Modifier.fillMaxSize(),
+                        contentScale = ContentScale.Crop
                     )
+                } else {
+                    Box(
+                        modifier = Modifier
+                            .size(120.dp)
+                            .clip(CircleShape)
+                            .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.14f)),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            imageVector = placeholderIcon,
+                            contentDescription = "No album artwork",
+                            tint = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.size(64.dp)
+                        )
+                    }
                 }
             }
+        }
+        return
+    }
+
+    DisposableEffect(visualizationMode) {
+        val scopeMounted = visualizationMode == VisualizationMode.ChannelScope
+        if (scopeMounted) {
+            NativeBridge.setChannelScopeVisualizerActive(true)
+        }
+        onDispose { NativeBridge.setChannelScopeVisualizerActive(false) }
+    }
+
+    val themePrimary = MaterialTheme.colorScheme.primary
+    val themeTertiary = MaterialTheme.colorScheme.tertiary
+    val themeSurface = MaterialTheme.colorScheme.surface
+    val hasArtwork = artwork != null
+
+    val barColor = if (barUseThemeColor) themePrimary.copy(alpha = 0.85f) else themeTertiary.copy(alpha = 0.85f)
+    val oscColor = resolveOscColor(hasArtwork, oscLineColorModeNoArtwork, oscLineColorModeWithArtwork, themePrimary.copy(alpha = 0.92f), Color(oscCustomLineColorArgb))
+    val gridColor = resolveOscColor(hasArtwork, oscGridColorModeNoArtwork, oscGridColorModeWithArtwork, themePrimary.copy(alpha = 0.34f), Color(oscCustomGridColorArgb))
+    val vuColor = if (vuUseThemeColor) themePrimary.copy(alpha = 0.9f) else themeTertiary.copy(alpha = 0.9f)
+    val vuLabelColor = vuColor
+    val vuBackgroundColor = themeSurface.copy(alpha = 0.6f)
+
+    val channelScopeLineColor = resolveOscColor(hasArtwork, channelScopePrefs.lineColorModeNoArtwork, channelScopePrefs.lineColorModeWithArtwork, themePrimary.copy(alpha = 0.92f), Color(channelScopePrefs.customLineColorArgb))
+    val channelScopeGridColor = resolveOscColor(hasArtwork, channelScopePrefs.gridColorModeNoArtwork, channelScopePrefs.gridColorModeWithArtwork, themePrimary.copy(alpha = 0.34f), Color(channelScopePrefs.customGridColorArgb))
+    val channelScopeTextPalette = resolveChannelScopeTextPalette(
+        mode = channelScopePrefs.textColorMode,
+        monetColor = themePrimary.copy(alpha = 0.92f),
+        customColor = Color(channelScopePrefs.customTextColorArgb)
+    )
+    val channelScopeVuColor = resolveChannelScopeVuColor(
+        mode = channelScopePrefs.textVuColorMode,
+        monetColor = themePrimary.copy(alpha = 0.92f),
+        customColor = Color(channelScopePrefs.textVuCustomColorArgb)
+    )
+
+    val nativeMode = when (visualizationMode) {
+        VisualizationMode.Bars -> 1
+        VisualizationMode.Oscilloscope -> 2
+        VisualizationMode.VuMeters -> 3
+        VisualizationMode.ChannelScope -> 4
+        VisualizationMode.Starfield -> 5
+        VisualizationMode.ProjectM -> 100
+        VisualizationMode.Off -> 0
+    }
+
+    val primaryColorArgb = themePrimary.toArgb()
+    val surfaceColorArgb = themeSurface.toArgb()
+
+    val glFrame = remember(
+        visualizationMode,
+        isPlaying,
+        file?.absolutePath,
+        barCount,
+        visualizationBarSmoothingPercent,
+        barColor,
+        barRoundnessDp,
+        barFrequencyGridEnabled,
+        barOverlayArtwork,
+        oscStereo,
+        visualizationOscWindowMs,
+        visualizationOscTriggerModeNative,
+        oscColor,
+        gridColor,
+        oscLineWidthDp,
+        oscGridWidthDp,
+        oscCenterLineEnabled,
+        oscVerticalGridEnabled,
+        vuAnchor,
+        vuColor,
+        vuBackgroundColor,
+        vuLabelColor,
+        channelScopePrefs,
+        starfieldPrefs,
+        primaryColorArgb,
+        surfaceColorArgb,
+        artwork
+    ) {
+        SiliconNativeGlFrame(
+            mode = nativeMode,
+            isPlaying = isPlaying,
+            trackKey = file?.absolutePath,
+            artworkImage = artwork,
+            showArtworkBackground = when (visualizationMode) {
+                VisualizationMode.Bars -> barOverlayArtwork
+                VisualizationMode.ChannelScope -> channelScopePrefs.showArtworkBackground
+                else -> true
+            },
+            primaryColorArgb = primaryColorArgb,
+            surfaceColorArgb = surfaceColorArgb,
+            visualAlpha = 1f,
+            contrastMode = when (visualizationMode) {
+                VisualizationMode.Oscilloscope -> if (oscStereo) 3 else 2
+                VisualizationMode.ChannelScope -> 1
+                VisualizationMode.Bars -> 4
+                else -> 0
+            },
+            contrastScrimColorArgb = 0x66000000,
+            channelLayout = channelScopePrefs.layout.ordinal,
+            textAnchor = channelScopePrefs.textAnchor.ordinal,
+            vuAnchor = channelScopePrefs.textVuAnchor.ordinal,
+            channelLayoutStrategy = channelScopePrefs.layout,
+            channelTextAnchor = channelScopePrefs.textAnchor,
+            channelVuAnchor = channelScopePrefs.textVuAnchor,
+            channelScopeTextEnabled = channelScopePrefs.textEnabled,
+            showChannel = channelScopePrefs.textShowChannel,
+            showNote = channelScopePrefs.textShowNote && supportsChannelScopeNoteText(decoderName),
+            showVolume = isChannelScopeVisibleElementEnabled(channelScopePrefs.textVisibleElementSelection, decoderName, ChannelScopeVisibleElementId.Volume),
+            showEffectPrimary = isChannelScopeVisibleElementEnabled(channelScopePrefs.textVisibleElementSelection, decoderName, ChannelScopeVisibleElementId.EffectPrimary),
+            showEffectSecondary = isChannelScopeVisibleElementEnabled(channelScopePrefs.textVisibleElementSelection, decoderName, ChannelScopeVisibleElementId.EffectSecondary),
+            showChip = isChannelScopeVisibleElementEnabled(channelScopePrefs.textVisibleElementSelection, decoderName, ChannelScopeVisibleElementId.Chip),
+            showInstrument = isChannelScopeVisibleElementEnabled(channelScopePrefs.textVisibleElementSelection, decoderName, ChannelScopeVisibleElementId.Instrument),
+            showSample = isChannelScopeVisibleElementEnabled(channelScopePrefs.textVisibleElementSelection, decoderName, ChannelScopeVisibleElementId.Sample),
+            vuEnabled = channelScopePrefs.textVuEnabled,
+            textSizeSp = channelScopePrefs.textSizeSp,
+            textFont = channelScopePrefs.textFont,
+            noteFormat = channelScopePrefs.textNoteFormat,
+            paddingPx = channelScopePrefs.textPaddingDp.toFloat(),
+            gridColorArgb = channelScopeGridColor.toArgb(),
+            gridWidthPx = channelScopePrefs.gridWidthDp.toFloat(),
+            lineColorArgb = channelScopeLineColor.toArgb(),
+            lineWidthPx = channelScopePrefs.lineWidthDp.toFloat(),
+            vuColorArgb = channelScopeVuColor.toArgb(),
+            textPalette = channelScopeTextPalette,
+            shadowEnabled = channelScopePrefs.textShadowEnabled,
+            hideWhenOverflow = channelScopePrefs.textHideWhenOverflow,
+            channelScopeWindowMs = channelScopePrefs.windowMs,
+            channelScopeGainPercent = channelScopePrefs.gainPercent,
+            channelScopeDcRemovalEnabled = channelScopePrefs.dcRemovalEnabled,
+            channelScopeTriggerMode = channelScopePrefs.triggerModeNative,
+            channelScopeWaveRenderMode = channelScopePrefs.waveRenderMode.ordinal,
+            oscStereo = oscStereo,
+            oscWindowMs = visualizationOscWindowMs,
+            oscTriggerMode = visualizationOscTriggerModeNative,
+            oscWaveColorArgb = oscColor.toArgb(),
+            oscLineWidthPx = oscLineWidthDp.toFloat(),
+            oscGridColorArgb = gridColor.toArgb(),
+            oscGridWidthPx = oscGridWidthDp.toFloat(),
+            oscShowCenterLine = oscCenterLineEnabled,
+            oscShowGrid = oscVerticalGridEnabled,
+            barCount = barCount,
+            barSmoothingPercent = visualizationBarSmoothingPercent,
+            barStartColorArgb = barColor.toArgb(),
+            barEndColorArgb = barColor.toArgb(),
+            barCornerRadiusPx = barRoundnessDp.toFloat(),
+            barShowFrequencyGuide = barFrequencyGridEnabled,
+            barGuideColorArgb = gridColor.toArgb(),
+            vuStereo = true,
+            vuMetersAnchor = when (vuAnchor) {
+                VisualizationVuAnchor.Top -> 0
+                VisualizationVuAnchor.Center -> 1
+                VisualizationVuAnchor.Bottom -> 2
+            },
+            vuSmoothingPercent = visualizationVuSmoothingPercent,
+            vuFillColorArgb = vuColor.toArgb(),
+            vuTrackColorArgb = vuBackgroundColor.toArgb(),
+            vuLabelColorArgb = vuLabelColor.toArgb(),
+            starfieldStarCount = starfieldPrefs.starCount,
+            starfieldSpeed = starfieldPrefs.speed,
+            starfieldFov = starfieldPrefs.fov,
+            starfieldNearPlane = starfieldPrefs.nearPlane,
+            starfieldStarColorArgb = starfieldPrefs.starColorArgb,
+            starfieldBaseSizePx = starfieldPrefs.baseSizePx,
+            starfieldSizeGrowth = starfieldPrefs.sizeGrowth,
+            starfieldFarDim = starfieldPrefs.farDim,
+            starfieldSoftness = starfieldPrefs.softness,
+            starfieldBeatGlow = starfieldPrefs.beatGlow,
+            starfieldGlowSize = starfieldPrefs.glowSize,
+            starfieldTrailPersistence = starfieldPrefs.trailPersistence,
+            starfieldStreaks = starfieldPrefs.streaks,
+            starfieldStreakLength = starfieldPrefs.streakLength,
+            starfieldCenterX = starfieldPrefs.centerX,
+            starfieldCenterY = starfieldPrefs.centerY,
+            starfieldAutoDrift = starfieldPrefs.autoDrift,
+            starfieldBeatFollow = starfieldPrefs.beatFollow,
+            starfieldReactSpeed = starfieldPrefs.reactSpeed,
+            starfieldFlash = starfieldPrefs.flash,
+            starfieldSquarePixels = starfieldPrefs.square
+        )
+    }
+
+    val cardShape = RoundedCornerShape(artworkCornerRadiusDp.coerceIn(0, 48).dp)
+    ElevatedCard(
+        modifier = modifier.clip(cardShape),
+        colors = CardDefaults.elevatedCardColors(
+            containerColor = Color.Black
+        ),
+        shape = cardShape
+    ) {
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .clip(cardShape),
+            contentAlignment = Alignment.Center
+        ) {
+            SiliconNativeGlDesktopVisualization(
+                frame = glFrame,
+                modifier = Modifier.fillMaxSize()
+            )
 
             androidx.compose.animation.AnimatedVisibility(
                 visible = showVisualizationModeBadge && visualizationMode != VisualizationMode.Off,
@@ -145,7 +441,7 @@ internal fun AlbumArtPlaceholder(
                     ) {
                         Icon(
                             imageVector = when (visualizationMode) {
-                                VisualizationMode.Off -> Icons.Default.GraphicEq
+                                VisualizationMode.Off -> Icons.Default.VisibilityOff
                                 VisualizationMode.Bars -> Icons.Default.GraphicEq
                                 VisualizationMode.Oscilloscope -> Icons.Default.MonitorHeart
                                 VisualizationMode.VuMeters -> Icons.Default.Equalizer

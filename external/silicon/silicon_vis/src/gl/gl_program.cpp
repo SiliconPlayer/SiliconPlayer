@@ -1,5 +1,6 @@
 #include "gl_program.h"
 #include <vector>
+#include <string>
 
 namespace silicon::vis::gl {
 
@@ -13,6 +14,38 @@ GLuint GlProgram::compileShader(GLenum type, const char* source) {
         VIS_LOGE("Failed creating shader type: %d", type);
         return 0;
     }
+
+#if !defined(__ANDROID__)
+    std::string adaptedSource;
+    if (source) {
+        std::string src(source);
+        size_t pos = 0;
+        while ((pos = src.find("precision ", pos)) != std::string::npos) {
+            size_t end = src.find(';', pos);
+            if (end != std::string::npos) {
+                for (size_t i = pos; i <= end; ++i) {
+                    if (src[i] != '\n') src[i] = ' ';
+                }
+                pos = end + 1;
+            } else {
+                break;
+            }
+        }
+        if (src.find("#version") == std::string::npos) {
+            size_t firstNonWs = src.find_first_not_of(" \t\r\n");
+            const char* header = "#version 120\n#define lowp\n#define mediump\n#define highp\n";
+            if (firstNonWs != std::string::npos) {
+                adaptedSource = std::string(header) + src.substr(firstNonWs);
+            } else {
+                adaptedSource = std::string(header) + src;
+            }
+        } else {
+            adaptedSource = std::move(src);
+        }
+        source = adaptedSource.c_str();
+    }
+#endif
+
     glShaderSource(shader, 1, &source, nullptr);
     glCompileShader(shader);
 

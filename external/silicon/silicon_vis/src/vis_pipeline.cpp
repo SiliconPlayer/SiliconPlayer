@@ -12,6 +12,14 @@ SiliconVisPipeline::~SiliconVisPipeline() {
 
 bool SiliconVisPipeline::initGl() {
     if (glInitialized_) return true;
+
+#if !defined(__ANDROID__)
+    #ifndef GL_PROGRAM_POINT_SIZE
+    #define GL_PROGRAM_POINT_SIZE 0x8642
+    #endif
+    glEnable(GL_PROGRAM_POINT_SIZE);
+#endif
+
     if (!artworkRenderer_.init()) return false;
     if (!channelScope_.initGl()) return false;
     if (!oscilloscope_.initGl()) return false;
@@ -302,6 +310,8 @@ void SiliconVisPipeline::render() {
     const bool useMsaa = wantsMsaa() && probeMsaaSupport() && ensureMsaaTarget(widthPx_, heightPx_);
     if (useMsaa) {
         glBindFramebuffer(GL_FRAMEBUFFER, msaaFbo_);
+    } else {
+        glBindFramebuffer(GL_FRAMEBUFFER, static_cast<GLuint>(targetFbo_));
     }
 
     // 1. Render Artwork / Radial Fallback & Contrast Backdrop

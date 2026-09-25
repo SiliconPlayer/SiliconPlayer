@@ -1,6 +1,6 @@
 package com.flopster101.siliconplayer.ui.visualization.advanced
 
-import com.flopster101.siliconplayer.ui.visualization.gl.resolveChannelGrid
+import com.flopster101.siliconplayer.ui.visualization.channel.resolveChannelGrid
 
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.layout.fillMaxSize

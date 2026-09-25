@@ -40,6 +40,7 @@ import com.flopster101.siliconplayer.ui.screens.NetworkBrowserScreen
 import com.flopster101.siliconplayer.VisualizationMode
 import com.flopster101.siliconplayer.VisualizationRenderBackend
 import com.flopster101.siliconplayer.VisualizationVuAnchor
+import com.flopster101.siliconplayer.ui.screens.rememberVisualizationUiState
 import com.flopster101.siliconplayer.desktop.ui.DesktopPlaylistsScreen
 import com.flopster101.siliconplayer.SettingsScreen
 import com.flopster101.siliconplayer.inferredPrimaryExtensionForName
@@ -216,6 +217,12 @@ fun main(args: Array<String>) = application {
             val isCurrentTrackFavorited = currentTrackPath != null && favoritePaths.contains(currentTrackPath)
 
             var showSubtuneSelectorDialog by remember { mutableStateOf(false) }
+
+            val visualizationUiState = rememberVisualizationUiState(
+                prefs = prefs,
+                activeCoreName = session.decoderName,
+                isPlayerSurfaceVisible = isPlayerExpanded
+            )
 
             SiliconPlayerBaseTheme(darkTheme = darkTheme) {
                 Surface(
@@ -628,23 +635,78 @@ fun main(args: Array<String>) = application {
                                     onCycleRepeatMode = { session.cycleRepeatMode() },
                                     canOpenCoreSettings = false,
                                     onOpenCoreSettings = {},
-                                    visualizationMode = VisualizationMode.Off,
-                                    availableVisualizationModes = listOf(VisualizationMode.Off),
-                                    onCycleVisualizationMode = {},
-                                    onSelectVisualizationMode = {},
-                                    onOpenVisualizationSettings = {},
-                                    onOpenSelectedVisualizationSettings = {},
-                                    visualizationBarCount = 40,
-                                    visualizationBarSmoothingPercent = 60,
-                                    visualizationBarRoundnessDp = 6,
-                                    visualizationBarOverlayArtwork = false,
-                                    visualizationBarUseThemeColor = true,
-                                    visualizationBarRenderBackend = VisualizationRenderBackend.OpenGlTexture,
-                                    visualizationOscStereo = true,
-                                    visualizationVuAnchor = VisualizationVuAnchor.Bottom,
-                                    visualizationVuUseThemeColor = true,
-                                    visualizationVuSmoothingPercent = 50,
-                                    visualizationVuRenderBackend = VisualizationRenderBackend.OpenGlTexture,
+                                    visualizationMode = visualizationUiState.mode,
+                                    availableVisualizationModes = visualizationUiState.availableModes,
+                                    onCycleVisualizationMode = visualizationUiState.onCycleMode,
+                                    onSelectVisualizationMode = visualizationUiState.onSelectMode,
+                                    onOpenVisualizationSettings = {
+                                        currentView = MainView.Settings
+                                        settingsRoute = SettingsRoute.Visualization
+                                    },
+                                    onOpenSelectedVisualizationSettings = {
+                                        currentView = MainView.Settings
+                                        settingsRoute = when (visualizationUiState.mode) {
+                                            VisualizationMode.Bars -> SettingsRoute.VisualizationBasicBars
+                                            VisualizationMode.Oscilloscope -> SettingsRoute.VisualizationBasicOscilloscope
+                                            VisualizationMode.VuMeters -> SettingsRoute.VisualizationBasicVuMeters
+                                            VisualizationMode.ChannelScope -> SettingsRoute.VisualizationAdvancedChannelScope
+                                            VisualizationMode.Starfield -> SettingsRoute.VisualizationAdvancedStarfield
+                                            VisualizationMode.ProjectM -> SettingsRoute.VisualizationAdvancedProjectM
+                                            else -> SettingsRoute.Visualization
+                                        }
+                                    },
+                                    visualizationBarCount = prefs.getInt(
+                                        AppPreferenceKeys.VISUALIZATION_BAR_COUNT,
+                                        AppDefaults.Visualization.Bars.count
+                                    ),
+                                    visualizationBarSmoothingPercent = prefs.getInt(
+                                        AppPreferenceKeys.VISUALIZATION_BAR_SMOOTHING_PERCENT,
+                                        AppDefaults.Visualization.Bars.smoothingPercent
+                                    ),
+                                    visualizationBarRoundnessDp = prefs.getInt(
+                                        AppPreferenceKeys.VISUALIZATION_BAR_ROUNDNESS_DP,
+                                        AppDefaults.Visualization.Bars.roundnessDp
+                                    ),
+                                    visualizationBarOverlayArtwork = prefs.getBoolean(
+                                        AppPreferenceKeys.VISUALIZATION_BAR_OVERLAY_ARTWORK,
+                                        AppDefaults.Visualization.Bars.overlayArtwork
+                                    ),
+                                    visualizationBarUseThemeColor = prefs.getBoolean(
+                                        AppPreferenceKeys.VISUALIZATION_BAR_USE_THEME_COLOR,
+                                        AppDefaults.Visualization.Bars.useThemeColor
+                                    ),
+                                    visualizationBarRenderBackend = VisualizationRenderBackend.fromStorage(
+                                        prefs.getString(
+                                            AppPreferenceKeys.VISUALIZATION_BAR_RENDER_BACKEND,
+                                            AppDefaults.Visualization.Bars.renderBackend.storageValue
+                                        ),
+                                        AppDefaults.Visualization.Bars.renderBackend
+                                    ),
+                                    visualizationOscStereo = prefs.getBoolean(
+                                        AppPreferenceKeys.VISUALIZATION_OSC_STEREO,
+                                        AppDefaults.Visualization.Oscilloscope.stereo
+                                    ),
+                                    visualizationVuAnchor = VisualizationVuAnchor.fromStorage(
+                                        prefs.getString(
+                                            AppPreferenceKeys.VISUALIZATION_VU_ANCHOR,
+                                            AppDefaults.Visualization.Vu.anchor.storageValue
+                                        )
+                                    ),
+                                    visualizationVuUseThemeColor = prefs.getBoolean(
+                                        AppPreferenceKeys.VISUALIZATION_VU_USE_THEME_COLOR,
+                                        AppDefaults.Visualization.Vu.useThemeColor
+                                    ),
+                                    visualizationVuSmoothingPercent = prefs.getInt(
+                                        AppPreferenceKeys.VISUALIZATION_VU_SMOOTHING_PERCENT,
+                                        AppDefaults.Visualization.Vu.smoothingPercent
+                                    ),
+                                    visualizationVuRenderBackend = VisualizationRenderBackend.fromStorage(
+                                        prefs.getString(
+                                            AppPreferenceKeys.VISUALIZATION_VU_RENDER_BACKEND,
+                                            AppDefaults.Visualization.Vu.renderBackend.storageValue
+                                        ),
+                                        AppDefaults.Visualization.Vu.renderBackend
+                                    ),
                                     artworkCornerRadiusDp = playerArtworkCornerRadiusDp,
                                     isTrackFavorited = isCurrentTrackFavorited,
                                     onToggleFavoriteTrack = {

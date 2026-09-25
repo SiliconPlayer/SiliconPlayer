@@ -58,6 +58,7 @@ val buildDesktopNative by tasks.registering(Exec::class) {
     val nativeDir = nativeBuildDir.get().asFile
     inputs.dir(file("src/native"))
     inputs.dir(file("../app/src/main/cpp"))
+    inputs.dir(file("../external/silicon/silicon_vis"))
     outputs.file(nativeDir.resolve("libsiliconplayer_desktop.so"))
 
     workingDir = rootDir

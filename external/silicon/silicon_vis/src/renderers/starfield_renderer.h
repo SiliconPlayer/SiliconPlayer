@@ -160,6 +160,7 @@ private:
     int32_t bloomWidth_ = 0;
     int32_t bloomHeight_ = 0;
 
+    GLuint destFbo_ = 0;
     std::chrono::steady_clock::time_point lastTime_{};
     bool clockValid_ = false;
     float elapsed_ = 0.0f;
