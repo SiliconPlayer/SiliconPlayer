@@ -1,4 +1,5 @@
 *.iml
+*.class
 .gradle
 /local.properties
 /.idea/caches
@@ -18,6 +19,11 @@ local.properties
 # Android Module Build
 app/build/
 app/src/main/cpp/prebuilt/
+
+# Desktop Module Build
+desktop/build/
+desktop/build_native/
+desktop/prebuilt/
 
 # Native Build Artifacts
 external/libopenmpt/obj/
