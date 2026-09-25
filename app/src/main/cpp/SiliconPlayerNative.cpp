@@ -38,6 +38,14 @@ static std::string gUadeRuntimeBaseDir;
 static std::string gUadeRuntimeCorePath;
 
 namespace {
+inline jint attachCurrentThreadCompat(JavaVM* vm, JNIEnv** env, void* args) {
+#if defined(__ANDROID__)
+    return vm->AttachCurrentThread(env, args);
+#else
+    return vm->AttachCurrentThread(reinterpret_cast<void**>(env), args);
+#endif
+}
+
 struct AttachedEnv {
     JNIEnv* env = nullptr;
     bool didAttach = false;
@@ -48,7 +56,7 @@ struct AttachedEnv {
         }
         const jint getEnvResult = gJavaVm->GetEnv(reinterpret_cast<void**>(&env), JNI_VERSION_1_6);
         if (getEnvResult == JNI_EDETACHED) {
-            if (gJavaVm->AttachCurrentThread(&env, nullptr) == JNI_OK && env != nullptr) {
+            if (attachCurrentThreadCompat(gJavaVm, &env, nullptr) == JNI_OK && env != nullptr) {
                 didAttach = true;
             } else {
                 env = nullptr;
@@ -77,7 +85,7 @@ std::string resolveArchiveCompanionPathForNative(
     bool didAttach = false;
     const jint getEnvResult = gJavaVm->GetEnv(reinterpret_cast<void**>(&env), JNI_VERSION_1_6);
     if (getEnvResult == JNI_EDETACHED) {
-        if (gJavaVm->AttachCurrentThread(&env, nullptr) != JNI_OK || env == nullptr) {
+        if (attachCurrentThreadCompat(gJavaVm, &env, nullptr) != JNI_OK || env == nullptr) {
             return {};
         }
         didAttach = true;

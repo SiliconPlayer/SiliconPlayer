@@ -34,6 +34,14 @@ void* getMainLibraryHandle() {
         if (loaded == nullptr) {
             loaded = dlopen("libsiliconplayer.so", RTLD_NOW);
         }
+#if !defined(__ANDROID__)
+        if (loaded == nullptr) {
+            loaded = dlopen("libsiliconplayer_desktop.so", RTLD_NOW | RTLD_NOLOAD);
+        }
+        if (loaded == nullptr) {
+            loaded = dlopen("libsiliconplayer_desktop.so", RTLD_NOW);
+        }
+#endif
         return loaded;
     }();
     return handle;
