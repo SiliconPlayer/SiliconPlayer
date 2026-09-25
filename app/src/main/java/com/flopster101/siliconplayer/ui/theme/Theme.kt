@@ -56,7 +56,8 @@ fun SiliconPlayerTheme(
 
     SiliconPlayerBaseTheme(
         darkTheme = darkTheme,
-        colorScheme = colorScheme,
-        content = content
-    )
+        colorScheme = colorScheme
+    ) {
+        com.flopster101.siliconplayer.platform.ProvideAndroidPlatformAdapters(content = content)
+    }
 }

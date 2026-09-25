@@ -7,12 +7,19 @@ import com.flopster101.siliconplayer.LocalPlayerExitSlideFraction
 import com.flopster101.siliconplayer.LocalPlayerOverlayVisibility
 import com.flopster101.siliconplayer.VisualizationPerformanceMode
 import com.flopster101.siliconplayer.VerticalScrollbarTrack
-import android.content.Context
-import android.content.SharedPreferences
-import android.hardware.usb.UsbConstants
-import android.hardware.usb.UsbDevice
-import android.widget.Toast
-import androidx.activity.compose.BackHandler
+import com.flopster101.siliconplayer.platform.AppPreferences
+import com.flopster101.siliconplayer.platform.AudioOutputRouteInfo
+import com.flopster101.siliconplayer.platform.AudioOutputRouteType
+import com.flopster101.siliconplayer.platform.LocalAppPreferences
+import com.flopster101.siliconplayer.platform.LocalAudioRouteManager
+import com.flopster101.siliconplayer.platform.LocalIsWatchDevice
+import com.flopster101.siliconplayer.platform.LocalPlatformBackHandler
+import com.flopster101.siliconplayer.platform.LocalPreferencesProvider
+import com.flopster101.siliconplayer.platform.LocalProjectMOptionsProvider
+import com.flopster101.siliconplayer.platform.LocalToastHandler
+import com.flopster101.siliconplayer.platform.LocalWindowSizeInfo
+import com.flopster101.siliconplayer.platform.PlatformBackHandler
+import androidx.compose.ui.input.pointer.PointerEventType
 import com.flopster101.siliconplayer.NativeBridge
 import com.flopster101.siliconplayer.formatDisplayArtist
 import androidx.compose.foundation.gestures.detectTapGestures
@@ -61,7 +68,6 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
-import android.content.pm.PackageManager
 import androidx.compose.foundation.focusable
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.List
@@ -91,18 +97,6 @@ import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.filled.StarBorder
 import androidx.compose.material.icons.filled.Stop
 import androidx.compose.material.icons.sharp.Stop
-import android.bluetooth.BluetoothDevice
-import android.content.BroadcastReceiver
-import android.content.Intent
-import android.content.IntentFilter
-import android.media.AudioDeviceCallback
-import android.media.AudioDeviceInfo
-import android.media.AudioManager
-import android.os.Build
-import android.os.Handler
-import android.os.Looper
-import android.provider.Settings
-import androidx.core.content.ContextCompat
 import androidx.compose.material.icons.filled.Bluetooth
 import androidx.compose.material.icons.filled.Headphones
 import androidx.compose.material.icons.filled.Usb
@@ -130,16 +124,15 @@ import androidx.compose.ui.graphics.toPixelMap
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.layout.onSizeChanged
-import androidx.compose.ui.platform.LocalConfiguration
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.input.pointer.pointerInput
-import androidx.compose.ui.input.pointer.pointerInteropFilter
 import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.input.key.key
+import androidx.compose.ui.input.key.type
+import androidx.compose.ui.input.key.KeyEventType
 import androidx.compose.ui.input.key.isCtrlPressed
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusProperties
@@ -163,7 +156,6 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
-import android.view.MotionEvent
 import com.flopster101.siliconplayer.AppDefaults
 import com.flopster101.siliconplayer.AnimatedMetadataPlaceholderLine
 import com.flopster101.siliconplayer.ArtworkSwipePreviewState
@@ -326,7 +318,7 @@ private fun parseOscTriggerModeNative(value: String?): Int {
 
 @Composable
 private fun rememberPlayerVisualizationPreferenceState(
-    prefs: SharedPreferences,
+    prefs: AppPreferences,
     defaultBarRenderBackend: VisualizationRenderBackend,
     defaultVuRenderBackend: VisualizationRenderBackend
 ): PlayerVisualizationPreferenceState {
@@ -456,7 +448,7 @@ private fun rememberPlayerVisualizationPreferenceState(
         )
     }
     DisposableEffect(prefs, defaultBarRenderBackend, defaultVuRenderBackend) {
-        val listener = SharedPreferences.OnSharedPreferenceChangeListener { sharedPrefs, key ->
+        val listener = AppPreferences.OnChangeListener { sharedPrefs, key ->
             when (key) {
                 PREF_KEY_VIS_OSC_WINDOW_MS -> {
                     state.oscWindowMs = sharedPrefs.getInt(PREF_KEY_VIS_OSC_WINDOW_MS, 40).coerceIn(5, 200)
@@ -654,9 +646,9 @@ private fun rememberPlayerVisualizationPreferenceState(
                 }
             }
         }
-        prefs.registerOnSharedPreferenceChangeListener(listener)
+        prefs.addListener(listener)
         onDispose {
-            prefs.unregisterOnSharedPreferenceChangeListener(listener)
+            prefs.removeListener(listener)
         }
     }
     return state
@@ -905,7 +897,6 @@ internal fun PlayerScreen(
     var showVisualizationOptionsSheet by remember { mutableStateOf(false) }
     var showChannelControlDialog by remember { mutableStateOf(false) }
     var showAudioOutputDetailsDialog by remember { mutableStateOf(false) }
-    val context = LocalContext.current
     var showVisualizationModeBadge by remember { mutableStateOf(false) }
     var visualizationModeBadgeText by remember { mutableStateOf(visualizationMode.label) }
     var lastVisualizationModeForBadge by remember { mutableStateOf<VisualizationMode?>(null) }
@@ -983,7 +974,7 @@ internal fun PlayerScreen(
                     showFullscreenAffordance = true
                 } else {
                     val side = if (offset.x < leftThreshold) CanvasSeekSide.Backward else CanvasSeekSide.Forward
-                    val now = android.os.SystemClock.elapsedRealtime()
+                    val now = System.nanoTime() / 1_000_000L
                     val isMultiTap = (lastTapSide == side && (now - lastTapTimestamp) <= 400L) ||
                             (seekFeedbackState?.side == side && (now - lastTapTimestamp) <= 750L)
 
@@ -1049,9 +1040,9 @@ internal fun PlayerScreen(
         }
     }
     val currentHandleCanvasTap by rememberUpdatedState(handleCanvasTap)
-    val prefs = remember {
-        context.getSharedPreferences(AppPreferenceKeys.PREFS_NAME, Context.MODE_PRIVATE)
-    }
+    val prefs = LocalAppPreferences.current
+    val projectMOptionsProvider = LocalProjectMOptionsProvider.current
+    val audioRouteManager = LocalAudioRouteManager.current
     var fullscreenModePref by remember {
         mutableStateOf(
             VisualizationFullscreenMode.fromStorage(
@@ -1060,15 +1051,15 @@ internal fun PlayerScreen(
         )
     }
     DisposableEffect(prefs) {
-        val listener = SharedPreferences.OnSharedPreferenceChangeListener { _, key ->
+        val listener = AppPreferences.OnChangeListener { _, key ->
             if (key == AppPreferenceKeys.VISUALIZATION_FULLSCREEN_MODE) {
                 fullscreenModePref = VisualizationFullscreenMode.fromStorage(
                     prefs.getString(key, null)
                 )
             }
         }
-        prefs.registerOnSharedPreferenceChangeListener(listener)
-        onDispose { prefs.unregisterOnSharedPreferenceChangeListener(listener) }
+        prefs.addListener(listener)
+        onDispose { prefs.removeListener(listener) }
     }
     val visualizationPrefsState = rememberPlayerVisualizationPreferenceState(
         prefs = prefs,
@@ -1092,8 +1083,9 @@ internal fun PlayerScreen(
             else -> Unit
         }
     }
-    val trackGainPrefs = remember {
-        context.getSharedPreferences("silicon_player_channel_scope_track_gains", Context.MODE_PRIVATE)
+    val preferencesProvider = LocalPreferencesProvider.current
+    val trackGainPrefs = remember(preferencesProvider) {
+        preferencesProvider.getPreferences("silicon_player_channel_scope_track_gains")
     }
     val currentTrackKey = file?.absolutePath ?: playlistPathOrUrl.orEmpty()
     var trackInputGain by remember(currentTrackKey) {
@@ -1105,7 +1097,7 @@ internal fun PlayerScreen(
     val effectiveChannelScopePrefs = remember(channelScopePrefs, effectiveChannelScopeGainPercent) {
         channelScopePrefs.copy(gainPercent = effectiveChannelScopeGainPercent)
     }
-    val configuration = LocalConfiguration.current
+    val configuration = LocalWindowSizeInfo.current
     // Fullscreen stretches cells far beyond the player card; scale the labels
     // up with the display so they stay readable.
     val fullscreenChannelScopePrefs = remember(
@@ -1285,7 +1277,7 @@ internal fun PlayerScreen(
             .fillMaxSize()
             .onPreviewKeyEvent { keyEvent ->
                 // Only handle key down events to avoid double-triggering
-                if (keyEvent.nativeKeyEvent.action != android.view.KeyEvent.ACTION_DOWN) {
+                if (keyEvent.type != KeyEventType.KeyDown) {
                     return@onPreviewKeyEvent false
                 }
                 handlePlayerGlobalKeyDown(
@@ -1406,9 +1398,7 @@ internal fun PlayerScreen(
             LocalPlayerMarqueeClockState provides playerMarqueeClockState,
             LocalPlayerOverlayVisibility provides overlayVisibilityProvider
         ) {
-            val isWatchDevice = remember(context) {
-                context.packageManager.hasSystemFeature(PackageManager.FEATURE_WATCH)
-            }
+            val isWatchDevice = LocalIsWatchDevice.current
 
             Scaffold(
                 contentWindowInsets = WindowInsets(0.dp, 0.dp, 0.dp, 0.dp),
@@ -2143,7 +2133,7 @@ internal fun PlayerScreen(
             showFullscreenAffordance = false
         }
     }
-    BackHandler(enabled = isVisualizationFullscreen) {
+    PlatformBackHandler(enabled = isVisualizationFullscreen) {
         isVisualizationFullscreen = false
     }
     FullscreenVisualizationOverlay(
@@ -2286,9 +2276,8 @@ internal fun PlayerScreen(
                     .apply()
                 savedProjectMPreset = presetKey
             },
-            presetSetLabels = remember(context, prefs) {
-                ProjectMPresetSets.enabledSets(context, prefs)
-                    .associate { it.id to it.label }
+            presetSetLabels = remember(projectMOptionsProvider) {
+                projectMOptionsProvider.getEnabledPresetLabels()
             },
             onResetDefaults = {
                 when (visualizationMode) {
@@ -2330,7 +2319,7 @@ internal fun PlayerScreen(
         )
     }
     if (showAudioOutputDetailsDialog) {
-        val outputRouteInfo = rememberAudioOutputRouteInfo()
+        val outputRouteInfo = LocalAudioRouteManager.current.rememberCurrentRoute()
         val effectiveCaps = if (playbackCapabilitiesFlags != 0) {
             playbackCapabilitiesFlags
         } else {
@@ -2354,7 +2343,7 @@ internal fun PlayerScreen(
             },
             onOpenAudioSettings = {
                 showAudioOutputDetailsDialog = false
-                openAudioOutputSwitcher(context)
+                audioRouteManager.openAudioOutputSwitcher()
             },
             onDismiss = { showAudioOutputDetailsDialog = false }
         )
@@ -2455,8 +2444,8 @@ private fun PlayerTopBar(
     onOpenVisualizationPicker: () -> Unit = {},
     onOpenAudioOutputDetails: () -> Unit = {}
 ) {
-    val context = LocalContext.current
-    val outputRouteInfo = rememberAudioOutputRouteInfo()
+    val audioRouteManager = LocalAudioRouteManager.current
+    val outputRouteInfo = audioRouteManager.rememberCurrentRoute()
     var showMoreMenu by remember { mutableStateOf(false) }
     val routePillFocusRequester = remember { FocusRequester() }
     val playlistFocusRequester = remember { FocusRequester() }
@@ -2808,239 +2797,6 @@ private fun PlayerTopBar(
 }
 }
 
-internal enum class AudioOutputRouteType {
-    Speaker,
-    Headphones,
-    Usb,
-    Bluetooth
-}
-
-internal data class AudioOutputRouteInfo(
-    val type: AudioOutputRouteType,
-    val name: String
-)
-
-@Composable
-private fun rememberAudioOutputRouteInfo(): AudioOutputRouteInfo {
-    val context = LocalContext.current
-    var routeInfo by remember { mutableStateOf(resolveCurrentAudioOutputRoute(context)) }
-
-    DisposableEffect(context) {
-        val audioManager = context.getSystemService(Context.AUDIO_SERVICE) as? AudioManager
-        val callback = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-            object : AudioDeviceCallback() {
-                override fun onAudioDevicesAdded(addedDevices: Array<out AudioDeviceInfo>?) {
-                    routeInfo = resolveCurrentAudioOutputRoute(context)
-                }
-
-                override fun onAudioDevicesRemoved(removedDevices: Array<out AudioDeviceInfo>?) {
-                    routeInfo = resolveCurrentAudioOutputRoute(context)
-                }
-            }
-        } else {
-            null
-        }
-
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M && callback != null) {
-            audioManager?.registerAudioDeviceCallback(callback, Handler(Looper.getMainLooper()))
-        }
-
-        val receiver = object : BroadcastReceiver() {
-            override fun onReceive(ctx: Context?, intent: Intent?) {
-                routeInfo = resolveCurrentAudioOutputRoute(context)
-            }
-        }
-        val filter = IntentFilter().apply {
-            addAction(AudioManager.ACTION_AUDIO_BECOMING_NOISY)
-            addAction(Intent.ACTION_HEADSET_PLUG)
-            addAction(BluetoothDevice.ACTION_ACL_CONNECTED)
-            addAction(BluetoothDevice.ACTION_ACL_DISCONNECTED)
-        }
-        val registered = runCatching {
-            ContextCompat.registerReceiver(
-                context,
-                receiver,
-                filter,
-                ContextCompat.RECEIVER_NOT_EXPORTED
-            )
-            true
-        }.getOrElse {
-            runCatching {
-                context.registerReceiver(receiver, filter)
-                true
-            }.getOrDefault(false)
-        }
-
-        onDispose {
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M && callback != null) {
-                audioManager?.unregisterAudioDeviceCallback(callback)
-            }
-            if (registered) {
-                runCatching { context.unregisterReceiver(receiver) }
-            }
-        }
-    }
-
-    return routeInfo
-}
-
-internal fun resolveCurrentAudioOutputRoute(context: Context): AudioOutputRouteInfo {
-    val audioManager = context.getSystemService(Context.AUDIO_SERVICE) as? AudioManager
-        ?: return AudioOutputRouteInfo(AudioOutputRouteType.Speaker, "Speaker")
-
-    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-        val devices = audioManager.getDevices(AudioManager.GET_DEVICES_OUTPUTS)
-
-        // 1. Bluetooth devices (A2DP, BLE Headset, BLE Speaker, SCO, Hearing Aid)
-        val bluetoothDevice = devices.firstOrNull { device ->
-            device.type == AudioDeviceInfo.TYPE_BLUETOOTH_A2DP ||
-            device.type == AudioDeviceInfo.TYPE_BLUETOOTH_SCO ||
-            (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S && device.type == AudioDeviceInfo.TYPE_BLE_HEADSET) ||
-            (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S && device.type == AudioDeviceInfo.TYPE_BLE_SPEAKER) ||
-            (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S && device.type == AudioDeviceInfo.TYPE_BLE_BROADCAST) ||
-            (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P && device.type == AudioDeviceInfo.TYPE_HEARING_AID)
-        }
-        if (bluetoothDevice != null) {
-            val name = bluetoothDevice.productName?.toString()?.trim()
-            val displayName = if (!name.isNullOrBlank()) name else "Bluetooth"
-            return AudioOutputRouteInfo(AudioOutputRouteType.Bluetooth, displayName)
-        }
-
-        // 2. USB Headset / USB Audio Device
-        val usbDevice = devices.firstOrNull { device ->
-            device.type == AudioDeviceInfo.TYPE_USB_HEADSET ||
-            device.type == AudioDeviceInfo.TYPE_USB_DEVICE ||
-            device.type == AudioDeviceInfo.TYPE_USB_ACCESSORY
-        }
-        if (usbDevice != null) {
-            val rawName = usbDevice.productName?.toString()?.trim()
-            val name = rawName
-                ?.removePrefix("USB-Audio - ")
-                ?.removePrefix("USB-Audio-")
-                ?.removePrefix("USB Audio - ")
-                ?.trim()
-            val displayName = if (!name.isNullOrBlank()) name else "USB Audio"
-            return AudioOutputRouteInfo(AudioOutputRouteType.Usb, displayName)
-        }
-
-        // 3. 3.5mm Wired Headset / Headphones / Line Out / HDMI
-        val wiredDevice = devices.firstOrNull { device ->
-            device.type == AudioDeviceInfo.TYPE_WIRED_HEADPHONES ||
-            device.type == AudioDeviceInfo.TYPE_WIRED_HEADSET ||
-            device.type == AudioDeviceInfo.TYPE_LINE_DIGITAL ||
-            device.type == AudioDeviceInfo.TYPE_LINE_ANALOG ||
-            device.type == AudioDeviceInfo.TYPE_AUX_LINE ||
-            device.type == AudioDeviceInfo.TYPE_HDMI ||
-            device.type == AudioDeviceInfo.TYPE_HDMI_ARC
-        }
-        if (wiredDevice != null) {
-            return AudioOutputRouteInfo(AudioOutputRouteType.Headphones, "Wired Headset")
-        }
-
-        // 4. Built-in Speaker
-        return AudioOutputRouteInfo(AudioOutputRouteType.Speaker, "Speaker")
-    } else {
-        @Suppress("DEPRECATION")
-        return when {
-            audioManager.isBluetoothA2dpOn || audioManager.isBluetoothScoOn ->
-                AudioOutputRouteInfo(AudioOutputRouteType.Bluetooth, "Bluetooth")
-            audioManager.isWiredHeadsetOn ->
-                AudioOutputRouteInfo(AudioOutputRouteType.Headphones, "Wired Headset")
-            else ->
-                AudioOutputRouteInfo(AudioOutputRouteType.Speaker, "Speaker")
-        }
-    }
-}
-
-internal fun openAudioOutputSwitcher(context: Context) {
-    runCatching {
-        val panelIntent = Intent("com.android.settings.panel.action.MEDIA_OUTPUT").apply {
-            putExtra("com.android.settings.panel.extra.PACKAGE_NAME", context.packageName)
-            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-        }
-        context.startActivity(panelIntent)
-    }.onFailure {
-        runCatching {
-            val btIntent = Intent(Settings.ACTION_BLUETOOTH_SETTINGS).apply {
-                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-            }
-            context.startActivity(btIntent)
-        }.onFailure {
-            runCatching {
-                val soundIntent = Intent(Settings.ACTION_SOUND_SETTINGS).apply {
-                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                }
-                context.startActivity(soundIntent)
-            }
-        }
-    }
-}
-
-private fun isGenericUsbAudioProductName(name: String?): Boolean {
-    if (name.isNullOrBlank()) return true
-    val lower = name.trim().lowercase()
-    val genericExact = setOf(
-        "usb audio",
-        "usb-audio",
-        "usb audio device",
-        "usb-audio device",
-        "usb composite device",
-        "usb advanced audio device",
-        "usb dac",
-        "usb audio dac",
-        "usb sound device",
-        "usb pnp sound device",
-        "generic usb audio",
-        "audio device",
-        "composite device",
-        "android audio",
-        "android usb audio"
-    )
-    if (lower in genericExact) return true
-    if (lower.startsWith("linux") && (lower.contains("gadget") || lower.contains("uac") || lower.contains("audio"))) return true
-    if (lower.contains("uac1_gadget") || lower.contains("uac2_gadget")) return true
-    return false
-}
-
-private fun getUsbAudioProtocolVersion(device: UsbDevice): String {
-    for (i in 0 until device.interfaceCount) {
-        val iface = device.getInterface(i)
-        if (iface.interfaceClass == UsbConstants.USB_CLASS_AUDIO) {
-            if (iface.interfaceProtocol >= 0x20) {
-                return if (iface.interfaceProtocol == 0x30) "USB Audio 3.0" else "USB Audio 2.0"
-            }
-        }
-    }
-    return "USB Audio 1.0"
-}
-
-private fun formatUsbAudioPillName(context: Context, rawName: String): String {
-    if (!isGenericUsbAudioProductName(rawName)) {
-        return rawName
-    }
-
-    val rawUsb = com.flopster101.siliconplayer.usb.UacDriverCoordinator.findUsbAudioDevice(context)
-    val uacVersion = if (rawUsb != null) {
-        getUsbAudioProtocolVersion(rawUsb)
-    } else {
-        "USB Audio 1.0"
-    }
-
-    val manufacturer = rawUsb?.manufacturerName?.trim()?.takeIf {
-        it.isNotBlank() &&
-        !it.equals("Linux Foundation", ignoreCase = true) &&
-        !it.equals("Linux", ignoreCase = true) &&
-        !it.equals("Android", ignoreCase = true) &&
-        !it.equals("Generic", ignoreCase = true)
-    }
-
-    return if (manufacturer != null) {
-        "$manufacturer $uacVersion"
-    } else {
-        uacVersion
-    }
-}
-
 @Composable
 private fun AudioOutputRoutePill(
     routeInfo: AudioOutputRouteInfo,
@@ -3053,7 +2809,7 @@ private fun AudioOutputRoutePill(
     downFocusRequester: FocusRequester? = null,
     modifier: Modifier = Modifier
 ) {
-    val context = LocalContext.current
+    val audioRouteManager = LocalAudioRouteManager.current
     val pillHeight = if (compactLayout) 26.dp else 28.dp
     val iconSize = if (compactLayout) 14.dp else 15.dp
 
@@ -3100,7 +2856,7 @@ private fun AudioOutputRoutePill(
                 tint = MaterialTheme.colorScheme.onSurfaceVariant
             )
             val displayText = if (routeInfo.type == AudioOutputRouteType.Usb) {
-                formatUsbAudioPillName(context, routeInfo.name)
+                audioRouteManager.formatUsbAudioName(routeInfo.name)
             } else {
                 routeInfo.name
             }
@@ -3219,7 +2975,7 @@ private fun TrackInfoDetailsDialog(
     hasReliableDuration: Boolean,
     onDismiss: () -> Unit
 ) {
-    val context = LocalContext.current
+    val toastHandler = LocalToastHandler.current
     val clipboardManager = LocalClipboardManager.current
     val liveMetadata = rememberTrackInfoLiveMetadata(
         filePath = file?.absolutePath,
@@ -3383,7 +3139,7 @@ private fun TrackInfoDetailsDialog(
             Button(
                 onClick = {
                     clipboardManager.setText(AnnotatedString(copyAllText.trim()))
-                    Toast.makeText(context, "Copied track and decoder info", Toast.LENGTH_SHORT).show()
+                    toastHandler.showToast("Copied track and decoder info")
                 },
                 modifier = Modifier.fillMaxWidth(),
                 shape = RoundedCornerShape(14.dp)
@@ -3508,7 +3264,7 @@ private fun TrackInfoDetailsDialog(
                         },
                     onClick = {
                         clipboardManager.setText(AnnotatedString(copyAllText.trim()))
-                        Toast.makeText(context, "Copied track and decoder info", Toast.LENGTH_SHORT).show()
+                        toastHandler.showToast("Copied track and decoder info")
                     }
                 ) {
                     Text("Copy all")
@@ -5660,7 +5416,7 @@ internal fun LineageStyleSeekBar(
                 if (
                     !enabled ||
                     maxValue <= 0f ||
-                    keyEvent.nativeKeyEvent.action != android.view.KeyEvent.ACTION_DOWN
+                    keyEvent.type != KeyEventType.KeyDown
                 ) {
                     return@onPreviewKeyEvent false
                 }
@@ -5678,55 +5434,61 @@ internal fun LineageStyleSeekBar(
                     else -> false
                 }
             }
-            .pointerInteropFilter { event ->
-                if (!enabled || barWidthPx <= 0f || maxValue <= 0f) return@pointerInteropFilter false
-                val centerY = barHeightPx / 2f
-                val valueRatio = if (maxValue > 0f) (value / maxValue).coerceIn(0f, 1f) else 0f
-                val trackStartX = thumbWidthPx / 2f
-                val trackEndX = (barWidthPx - thumbWidthPx / 2f).coerceAtLeast(trackStartX)
-                val trackWidth = (trackEndX - trackStartX).coerceAtLeast(0f)
-                val thumbCenterX = trackStartX + trackWidth * valueRatio
-                when (event.actionMasked) {
-                    MotionEvent.ACTION_DOWN -> {
-                        thumbHovered = false
-                        val nearTrackLane = kotlin.math.abs(event.y - centerY) <= tapLaneHalfHeightPx
-                        if (!nearTrackLane) return@pointerInteropFilter false
-                        val nearThumb = kotlin.math.abs(event.x - thumbCenterX) <= thumbGrabRadiusPx
-                        return@pointerInteropFilter if (nearThumb) {
-                            draggingThumb = true
-                            thumbPressed = true
-                            onSeekInteractionChanged(true)
-                            onValueChange(xToValue(event.x))
-                            true
-                        } else {
-                            onValueChange(xToValue(event.x))
-                            onValueChangeFinished()
-                            true
+            .pointerInput(enabled, barWidthPx, maxValue, barHeightPx, value) {
+                if (!enabled || barWidthPx <= 0f || maxValue <= 0f) return@pointerInput
+                awaitPointerEventScope {
+                    while (true) {
+                        val event = awaitPointerEvent()
+                        val change = event.changes.firstOrNull() ?: continue
+                        val centerY = barHeightPx / 2f
+                        val valueRatio = if (maxValue > 0f) (value / maxValue).coerceIn(0f, 1f) else 0f
+                        val trackStartX = thumbWidthPx / 2f
+                        val trackEndX = (barWidthPx - thumbWidthPx / 2f).coerceAtLeast(trackStartX)
+                        val trackWidth = (trackEndX - trackStartX).coerceAtLeast(0f)
+                        val thumbCenterX = trackStartX + trackWidth * valueRatio
+
+                        when (event.type) {
+                            PointerEventType.Press -> {
+                                thumbHovered = false
+                                val nearTrackLane = kotlin.math.abs(change.position.y - centerY) <= tapLaneHalfHeightPx
+                                if (nearTrackLane) {
+                                    val nearThumb = kotlin.math.abs(change.position.x - thumbCenterX) <= thumbGrabRadiusPx
+                                    if (nearThumb) {
+                                        draggingThumb = true
+                                        thumbPressed = true
+                                        onSeekInteractionChanged(true)
+                                        onValueChange(xToValue(change.position.x))
+                                        change.consume()
+                                    } else {
+                                        onValueChange(xToValue(change.position.x))
+                                        onValueChangeFinished()
+                                        change.consume()
+                                    }
+                                }
+                            }
+                            PointerEventType.Move -> {
+                                if (draggingThumb) {
+                                    onValueChange(xToValue(change.position.x))
+                                    change.consume()
+                                } else {
+                                    val nearThumb = kotlin.math.abs(change.position.x - thumbCenterX) <= thumbGrabRadiusPx
+                                    thumbHovered = nearThumb
+                                }
+                            }
+                            PointerEventType.Release -> {
+                                if (draggingThumb) {
+                                    draggingThumb = false
+                                    thumbPressed = false
+                                    onSeekInteractionChanged(false)
+                                    onValueChangeFinished()
+                                    change.consume()
+                                }
+                            }
+                            PointerEventType.Exit -> {
+                                thumbHovered = false
+                            }
                         }
                     }
-                    MotionEvent.ACTION_MOVE -> {
-                        if (!draggingThumb) return@pointerInteropFilter false
-                        onValueChange(xToValue(event.x))
-                        true
-                    }
-                    MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
-                        if (!draggingThumb) return@pointerInteropFilter false
-                        draggingThumb = false
-                        thumbPressed = false
-                        onSeekInteractionChanged(false)
-                        onValueChangeFinished()
-                        true
-                    }
-                    MotionEvent.ACTION_HOVER_MOVE, MotionEvent.ACTION_HOVER_ENTER -> {
-                        val nearThumb = kotlin.math.abs(event.x - thumbCenterX) <= thumbGrabRadiusPx
-                        thumbHovered = nearThumb
-                        false
-                    }
-                    MotionEvent.ACTION_HOVER_EXIT -> {
-                        thumbHovered = false
-                        false
-                    }
-                    else -> false
                 }
             }
             .onSizeChangedDeferred { canvasSize ->
@@ -5973,8 +5735,8 @@ private fun WearPlayerContent(
     onOpenTrackInfo: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    val configuration = LocalConfiguration.current
-    val isRound = configuration.isRoundScreenCompat
+    val configuration = LocalWindowSizeInfo.current
+    val isRound = configuration.isRound
     val pagerState = rememberPagerState(pageCount = { 2 })
     var isSeeking by remember { mutableStateOf(false) }
     var sliderPosition by remember { mutableDoubleStateOf(0.0) }

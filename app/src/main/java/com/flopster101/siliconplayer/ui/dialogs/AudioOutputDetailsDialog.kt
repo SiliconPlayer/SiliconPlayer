@@ -97,8 +97,8 @@ import com.flopster101.siliconplayer.BitPerfectDriverMethod
 import com.flopster101.siliconplayer.BitPerfectSupportStatus
 import com.flopster101.siliconplayer.supportsLiveSampleRateChange
 import com.flopster101.siliconplayer.ui.icons.ConversionPathIcon
-import com.flopster101.siliconplayer.ui.screens.AudioOutputRouteInfo
-import com.flopster101.siliconplayer.ui.screens.AudioOutputRouteType
+import com.flopster101.siliconplayer.platform.AudioOutputRouteInfo
+import com.flopster101.siliconplayer.platform.AudioOutputRouteType
 import com.flopster101.siliconplayer.usb.UacDriverCoordinator
 import kotlinx.coroutines.launch
 import java.io.File

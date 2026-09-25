@@ -1833,6 +1833,18 @@ internal fun rememberFullscreenTickerPrefs(
 }
 
 @Composable
+internal fun rememberFullscreenTickerPrefs(
+    prefs: com.flopster101.siliconplayer.platform.AppPreferences
+): FullscreenTickerPrefs {
+    val sp = (prefs as? com.flopster101.siliconplayer.platform.AndroidAppPreferences)?.sharedPreferences
+    return if (sp != null) {
+        rememberFullscreenTickerPrefs(sp)
+    } else {
+        remember { FullscreenTickerPrefs(masterEnabled = false, durationSeconds = 5, perModeEnabled = emptyMap()) }
+    }
+}
+
+@Composable
 internal fun rememberChannelScopePrefs(
     sharedPrefs: android.content.SharedPreferences
 ): ChannelScopePrefs {
@@ -1849,6 +1861,18 @@ internal fun rememberChannelScopePrefs(
         }
     }
     return state
+}
+
+@Composable
+internal fun rememberChannelScopePrefs(
+    prefs: com.flopster101.siliconplayer.platform.AppPreferences
+): ChannelScopePrefs {
+    val sp = (prefs as? com.flopster101.siliconplayer.platform.AndroidAppPreferences)?.sharedPreferences
+    return if (sp != null) {
+        rememberChannelScopePrefs(sp)
+    } else {
+        error("AndroidAppPreferences required")
+    }
 }
 
 internal data class StarfieldModeKeys(
@@ -2018,6 +2042,19 @@ internal fun starfieldActivePreset(sharedPrefs: android.content.SharedPreference
     )
 }
 
+internal fun starfieldActivePreset(prefs: com.flopster101.siliconplayer.platform.AppPreferences): StarfieldPreset {
+    val sp = (prefs as? com.flopster101.siliconplayer.platform.AndroidAppPreferences)?.sharedPreferences
+    return if (sp != null) starfieldActivePreset(sp) else StarfieldPreset.ClassicAmiga
+}
+
+internal fun writeStarfieldFactoryTune(
+    prefs: com.flopster101.siliconplayer.platform.AppPreferences,
+    preset: StarfieldPreset
+) {
+    val sp = (prefs as? com.flopster101.siliconplayer.platform.AndroidAppPreferences)?.sharedPreferences
+    if (sp != null) writeStarfieldFactoryTune(sp, preset)
+}
+
 
 internal data class StarfieldPrefs(
     val renderBackend: VisualizationRenderBackend,
@@ -2127,6 +2164,18 @@ internal fun rememberStarfieldPrefs(
         }
     }
     return state
+}
+
+@Composable
+internal fun rememberStarfieldPrefs(
+    prefs: com.flopster101.siliconplayer.platform.AppPreferences
+): StarfieldPrefs {
+    val sp = (prefs as? com.flopster101.siliconplayer.platform.AndroidAppPreferences)?.sharedPreferences
+    return if (sp != null) {
+        rememberStarfieldPrefs(sp)
+    } else {
+        error("AndroidAppPreferences required")
+    }
 }
 
 private data class ChannelScopeVisualState(

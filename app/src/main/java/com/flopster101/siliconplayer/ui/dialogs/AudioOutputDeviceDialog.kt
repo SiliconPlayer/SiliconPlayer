@@ -34,9 +34,9 @@ import com.flopster101.siliconplayer.WatchDialogContainer
 import com.flopster101.siliconplayer.adaptiveDialogModifier
 import com.flopster101.siliconplayer.adaptiveDialogProperties
 import com.flopster101.siliconplayer.isWatchDevice
-import com.flopster101.siliconplayer.ui.screens.AudioOutputRouteType
-import com.flopster101.siliconplayer.ui.screens.openAudioOutputSwitcher
-import com.flopster101.siliconplayer.ui.screens.resolveCurrentAudioOutputRoute
+import com.flopster101.siliconplayer.platform.AudioOutputRouteType
+import com.flopster101.siliconplayer.platform.openAudioOutputSwitcher
+import com.flopster101.siliconplayer.platform.resolveCurrentAudioOutputRoute
 
 internal data class AudioOutputDeviceItem(
     val id: String,
