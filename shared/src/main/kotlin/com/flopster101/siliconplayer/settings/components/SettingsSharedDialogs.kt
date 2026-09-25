@@ -40,7 +40,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.layout.onSizeChanged
-import androidx.compose.ui.platform.LocalConfiguration
+import com.flopster101.siliconplayer.platform.LocalWindowSizeInfo
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -341,7 +341,7 @@ internal fun <T> SettingsSingleChoiceDialog(
             }
         }
     } else {
-        val configuration = LocalConfiguration.current
+        val configuration = LocalWindowSizeInfo.current
         val scrollState = rememberScrollState()
         val dragToFraction = rememberScrollStateScrollbarDragHandler(scrollState)
         var scrollViewportHeightPx by remember { mutableFloatStateOf(0f) }

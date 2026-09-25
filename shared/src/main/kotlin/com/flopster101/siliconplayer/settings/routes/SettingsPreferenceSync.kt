@@ -1,24 +1,25 @@
 package com.flopster101.siliconplayer
 
-import android.content.SharedPreferences
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
+import com.flopster101.siliconplayer.platform.AppPreferences
 
 @Composable
 internal fun PreferenceChangeSyncEffect(
-    prefs: SharedPreferences,
+    prefs: AppPreferences,
     watchedKeys: Set<String>,
     onRelevantChange: () -> Unit
 ) {
     DisposableEffect(prefs, watchedKeys) {
-        val listener = SharedPreferences.OnSharedPreferenceChangeListener { _, key ->
-            if (key != null && key in watchedKeys) {
+        val listener = AppPreferences.OnChangeListener { _, key ->
+            if (key in watchedKeys) {
                 onRelevantChange()
             }
         }
-        prefs.registerOnSharedPreferenceChangeListener(listener)
+        prefs.addListener(listener)
         onDispose {
-            prefs.unregisterOnSharedPreferenceChangeListener(listener)
+            prefs.removeListener(listener)
         }
     }
 }
+

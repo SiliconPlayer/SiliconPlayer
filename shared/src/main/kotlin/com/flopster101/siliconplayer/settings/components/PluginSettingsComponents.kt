@@ -1,8 +1,7 @@
 package com.flopster101.siliconplayer
 
 import com.flopster101.siliconplayer.onGloballyPositionedDeferred
-import com.flopster101.siliconplayer.onSizeChangedDeferred
-import android.content.pm.PackageManager
+import com.flopster101.siliconplayer.platform.LocalIsWatchDevice
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.LinearOutSlowInEasing
 import androidx.compose.animation.core.animateFloatAsState
@@ -45,7 +44,6 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.onSizeChanged
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
@@ -96,8 +94,7 @@ internal fun PluginListItemCard(
     )
     val displayOffsetY = animatedDragOffsetY + if (isDragging) 0f else rowNudgeAnim.value
 
-    val context = LocalContext.current
-    val isWatch = remember(context) { context.packageManager.hasSystemFeature(PackageManager.FEATURE_WATCH) }
+    val isWatch = LocalIsWatchDevice.current
 
     Surface(
         modifier = Modifier

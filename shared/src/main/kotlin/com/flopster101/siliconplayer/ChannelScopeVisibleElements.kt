@@ -1,7 +1,5 @@
 package com.flopster101.siliconplayer
 
-import android.content.SharedPreferences
-
 internal enum class ChannelScopeVisibleElementId(
     val storageId: String,
     val defaultLabel: String,
@@ -162,11 +160,11 @@ internal fun defaultChannelScopeVisibleElementSelection(): Set<String> {
         .mapTo(linkedSetOf()) { it.storageKey }
 }
 
-internal fun readChannelScopeVisibleElementSelection(sharedPrefs: SharedPreferences): Set<String> {
+internal fun readChannelScopeVisibleElementSelection(prefs: com.flopster101.siliconplayer.platform.AppPreferences): Set<String> {
     val defaults = defaultChannelScopeVisibleElementSelection()
     return channelScopeVisibleElementOptions()
         .mapNotNullTo(linkedSetOf()) { option ->
-            if (sharedPrefs.getBoolean(option.storageKey, defaults.contains(option.storageKey))) {
+            if (prefs.getBoolean(option.storageKey, defaults.contains(option.storageKey))) {
                 option.storageKey
             } else {
                 null
@@ -174,14 +172,15 @@ internal fun readChannelScopeVisibleElementSelection(sharedPrefs: SharedPreferen
         }
 }
 
-internal fun SharedPreferences.Editor.putChannelScopeVisibleElementSelection(
+internal fun com.flopster101.siliconplayer.platform.AppPreferences.Editor.putChannelScopeVisibleElementSelection(
     selectedStorageKeys: Set<String>
-): SharedPreferences.Editor {
+): com.flopster101.siliconplayer.platform.AppPreferences.Editor {
     channelScopeVisibleElementOptions().forEach { option ->
         putBoolean(option.storageKey, selectedStorageKeys.contains(option.storageKey))
     }
     return this
 }
+
 
 internal fun channelScopeVisibleElementsSummary(selectedStorageKeys: Set<String>): String {
     val count = channelScopeVisibleElementOptions()

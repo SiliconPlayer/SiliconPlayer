@@ -1,6 +1,5 @@
 package com.flopster101.siliconplayer
 
-import android.content.Context
 import androidx.compose.animation.Crossfade
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.layout.Arrangement
@@ -18,9 +17,9 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import java.util.Locale
+
 
 @Composable
 internal fun VisualizationAdvancedChannelScopeRouteContent() {
@@ -66,10 +65,7 @@ internal fun VisualizationAdvancedChannelScopeRouteContent() {
                         val scopeTextVuAnchorKey = "visualization_channel_scope_text_vu_anchor"
                         val scopeTextVuColorModeKey = "visualization_channel_scope_text_vu_color_mode"
                         val scopeTextVuCustomColorKey = "visualization_channel_scope_text_vu_custom_color_argb"
-                        val context = LocalContext.current
-                        val prefs = remember(context) {
-                            context.getSharedPreferences(prefsName, Context.MODE_PRIVATE)
-                        }
+                        val prefs = com.flopster101.siliconplayer.platform.LocalAppPreferences.current
                         var scopeWindowMs by remember {
                             mutableIntStateOf(
                                 prefs.getInt(

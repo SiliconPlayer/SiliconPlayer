@@ -29,13 +29,6 @@ internal data class RemoteCacheDeleteResult(
     val freedBytes: Long
 )
 
-internal data class CachedSourceFile(
-    val absolutePath: String,
-    val fileName: String,
-    val sizeBytes: Long,
-    val lastModified: Long,
-    val sourceId: String?
-)
 
 internal fun sha1Hex(value: String): String {
     val digest = MessageDigest.getInstance("SHA-1").digest(value.toByteArray())

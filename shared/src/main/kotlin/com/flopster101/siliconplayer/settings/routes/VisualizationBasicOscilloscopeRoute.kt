@@ -1,6 +1,5 @@
 package com.flopster101.siliconplayer
 
-import android.content.Context
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.height
 import androidx.compose.runtime.Composable
@@ -10,7 +9,6 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import java.util.Locale
 
@@ -35,10 +33,7 @@ internal fun VisualizationBasicOscilloscopeRouteContent(
     val oscCustomLineColorKey = "visualization_osc_custom_line_color_argb"
     val oscCustomGridColorKey = "visualization_osc_custom_grid_color_argb"
     val oscContrastBackdropEnabledKey = AppPreferenceKeys.VISUALIZATION_OSC_CONTRAST_BACKDROP_ENABLED
-    val context = LocalContext.current
-    val prefs = remember(context) {
-        context.getSharedPreferences(prefsName, Context.MODE_PRIVATE)
-    }
+    val prefs = com.flopster101.siliconplayer.platform.LocalAppPreferences.current
     var visualizationOscWindowMs by remember {
         mutableIntStateOf(
             prefs.getInt(oscWindowKey, AppDefaults.Visualization.Oscilloscope.windowMs).coerceIn(

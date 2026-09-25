@@ -416,3 +416,6 @@ object NativeBridge {
         return TrackMetadataProbeResult(title, artist, album, durationSeconds)
     }
 }
+
+fun supportsProjectM(): Boolean = false
+

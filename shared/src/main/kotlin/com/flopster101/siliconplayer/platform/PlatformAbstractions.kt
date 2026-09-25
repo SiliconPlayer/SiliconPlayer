@@ -49,6 +49,12 @@ val LocalPreferencesProvider = staticCompositionLocalOf<PreferencesProvider> {
 val LocalIsWatchDevice = staticCompositionLocalOf { false }
 val LocalIsRoundScreen = staticCompositionLocalOf { false }
 
+@Composable
+fun isWatchDevice(): Boolean = LocalIsWatchDevice.current
+
+@Composable
+fun isRoundScreen(): Boolean = LocalIsRoundScreen.current
+
 enum class AudioOutputRouteType {
     Speaker,
     Headphones,
@@ -118,3 +124,45 @@ val LocalProjectMOptionsProvider = staticCompositionLocalOf<ProjectMOptionsProvi
         override fun getEnabledPresetLabels(): Map<String, String> = emptyMap()
     }
 }
+
+data class AppVersionInfo(
+    val versionName: String,
+    val abiOrArch: String,
+    val gitSha: String
+)
+
+val LocalAppVersionInfo = staticCompositionLocalOf {
+    AppVersionInfo(
+        versionName = "1.0.0",
+        abiOrArch = System.getProperty("os.arch") ?: "unknown",
+        gitSha = "dev"
+    )
+}
+
+interface SettingsPlatformContent {
+    @Composable
+    fun LibrarySettingsContent(onOpenScanner: () -> Unit) {}
+
+    @Composable
+    fun LibraryScannerContent() {}
+
+    @Composable
+    fun PlatformAudioOptions(
+        bitPerfectUsbAudio: Boolean,
+        onBitPerfectUsbAudioChanged: (Boolean) -> Unit
+    ) {}
+
+    @Composable
+    fun PlatformDolbyDetailContent() {}
+
+    @Composable
+    fun ProjectMRouteContent(onOpenPresetPacks: () -> Unit) {}
+
+    @Composable
+    fun ProjectMSetsRouteContent() {}
+}
+
+val LocalSettingsPlatformContent = staticCompositionLocalOf<SettingsPlatformContent> {
+    object : SettingsPlatformContent {}
+}
+

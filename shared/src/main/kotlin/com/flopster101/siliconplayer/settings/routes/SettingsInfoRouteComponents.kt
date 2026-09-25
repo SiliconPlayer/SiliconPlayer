@@ -1,8 +1,7 @@
 package com.flopster101.siliconplayer
 
-import android.content.Intent
-import android.net.Uri
-import androidx.compose.foundation.Image
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -26,27 +25,26 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
-import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.text.font.FontWeight
-import android.os.Build
 import androidx.compose.ui.unit.dp
+import com.flopster101.siliconplayer.platform.LocalAppVersionInfo
 
 @Composable
 internal fun AboutSettingsBody(
     useMonet: Boolean
 ) {
-    val context = LocalContext.current
-    val abi = Build.SUPPORTED_ABIS.firstOrNull()?.replace("-", "") ?: "unknown"
-    val versionLabel = "v${BuildConfig.VERSION_NAME}-${abi}-${BuildConfig.GIT_SHA}"
+    val uriHandler = LocalUriHandler.current
+    val versionInfo = LocalAppVersionInfo.current
+    val versionLabel = "v${versionInfo.versionName}-${versionInfo.abiOrArch}-${versionInfo.gitSha}"
     val coreEntries = remember { AboutCatalog.cores }
     val libraryEntries = remember { AboutCatalog.libraries }
     var selectedAboutEntry by remember { mutableStateOf<AboutEntity?>(null) }
     Column(
         modifier = Modifier.fillMaxWidth()
     ) {
+
         androidx.compose.material3.ElevatedCard(
             modifier = Modifier.fillMaxWidth(),
             shape = RoundedCornerShape(24.dp)
@@ -100,11 +98,7 @@ internal fun AboutSettingsBody(
                 Spacer(modifier = Modifier.size(14.dp))
                 Button(
                     onClick = {
-                        val intent = Intent(
-                            Intent.ACTION_VIEW,
-                            Uri.parse("https://github.com/Flopster101/SiliconPlayer")
-                        )
-                        context.startActivity(intent)
+                        uriHandler.openUri("https://github.com/Flopster101/SiliconPlayer")
                     },
                     shape = RoundedCornerShape(14.dp)
                 ) {
@@ -167,24 +161,24 @@ internal fun AboutSettingsBody(
 private fun AboutAppIcon(
     useMonet: Boolean
 ) {
-    val painter = painterResource(
-        id = if (useMonet) {
-            R.drawable.about_app_icon_monochrome
-        } else {
-            R.drawable.about_app_icon_color
-        }
-    )
-    Image(
-        painter = painter,
-        contentDescription = null,
-        modifier = Modifier.size(48.dp),
-        colorFilter = if (useMonet) {
-            ColorFilter.tint(MaterialTheme.colorScheme.primary)
-        } else {
-            null
-        }
-    )
+    Box(
+        modifier = Modifier
+            .size(48.dp)
+            .background(
+                color = MaterialTheme.colorScheme.primaryContainer,
+                shape = RoundedCornerShape(12.dp)
+            ),
+        contentAlignment = Alignment.Center
+    ) {
+        Icon(
+            imageVector = Icons.Default.GraphicEq,
+            contentDescription = null,
+            modifier = Modifier.size(32.dp),
+            tint = MaterialTheme.colorScheme.onPrimaryContainer
+        )
+    }
 }
+
 
 @Composable
 private fun AboutEntityListItemCard(

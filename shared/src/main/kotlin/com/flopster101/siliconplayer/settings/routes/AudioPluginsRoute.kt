@@ -4,7 +4,8 @@ import com.flopster101.siliconplayer.AppPreferenceKeys
 import com.flopster101.siliconplayer.DecoderNames
 import com.flopster101.siliconplayer.onGloballyPositionedDeferred
 import com.flopster101.siliconplayer.onSizeChangedDeferred
-import android.widget.Toast
+import com.flopster101.siliconplayer.platform.LocalAppPreferences
+import com.flopster101.siliconplayer.platform.LocalToastHandler
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.expandVertically
 import androidx.compose.animation.fadeIn
@@ -37,7 +38,6 @@ import androidx.compose.runtime.snapshots.Snapshot
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.layout.positionInParent
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.dp
 
@@ -65,7 +65,7 @@ internal fun AudioPluginsRouteContent(
     val onPluginPriorityOrderChanged = actions.onPluginPriorityOrderChanged
     val onRequestClearPluginSettings = actions.onRequestClearPluginSettings
 
-    val context = LocalContext.current
+    val toastHandler = LocalToastHandler.current
     SettingsSectionLabel("Registered cores")
 
     val registeredPluginNames = remember { NativeBridge.getRegisteredDecoderNames().toList() }
@@ -316,14 +316,11 @@ internal fun AudioPluginsRouteContent(
     // decoder registry. Lowest priority by design — it only claims DD-family
     // formats, and its toggle lives in the platform prefs, not the registry.
     if (orderedPluginNames.none { it.equals(DecoderNames.PLATFORM_DOLBY, ignoreCase = true) }) {
+        val platformPrefs = LocalAppPreferences.current
         val platformEnabled = remember {
             mutableStateOf(
-                context.getSharedPreferences(AppPreferenceKeys.PREFS_NAME, android.content.Context.MODE_PRIVATE)
-                    .getBoolean(AppPreferenceKeys.PLATFORM_DOLBY_DECODER, true)
+                platformPrefs.getBoolean(AppPreferenceKeys.PLATFORM_DOLBY_DECODER, true)
             )
-        }
-        val platformPrefs = remember {
-            context.getSharedPreferences(AppPreferenceKeys.PREFS_NAME, android.content.Context.MODE_PRIVATE)
         }
         Spacer(modifier = Modifier.height(2.dp))
         PluginListItemCard(
@@ -377,7 +374,7 @@ internal fun AudioPluginsRouteContent(
             dragSwapRemainderPx = 0f
             dragStartIndex = -1
             orderDirty = false
-            Toast.makeText(context, "Core priority order reset", Toast.LENGTH_SHORT).show()
+            toastHandler.showToast("Core priority order reset")
         }
     )
 }

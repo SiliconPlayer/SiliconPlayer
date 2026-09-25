@@ -28,7 +28,7 @@ import com.flopster101.siliconplayer.VisualizationVuAnchor
 import com.flopster101.siliconplayer.desktop.ui.DesktopFileBrowserScreen
 import com.flopster101.siliconplayer.desktop.ui.DesktopHomeScreen
 import com.flopster101.siliconplayer.desktop.ui.DesktopPlaylistsScreen
-import com.flopster101.siliconplayer.desktop.ui.DesktopSettingsScreen
+import com.flopster101.siliconplayer.SettingsScreen
 import com.flopster101.siliconplayer.inferredPrimaryExtensionForName
 import com.flopster101.siliconplayer.MainView
 import com.flopster101.siliconplayer.SettingsRoute
@@ -52,7 +52,7 @@ fun openDesktopFileChooser(onFileSelected: (File) -> Unit) {
 
 fun main(args: Array<String>) = application {
     val session = remember { DesktopPlaybackSession() }
-    val windowState = rememberWindowState(width = 540.dp, height = 840.dp)
+    val windowState = rememberWindowState(width = 1100.dp, height = 750.dp)
 
     var currentView by remember { mutableStateOf(MainView.Home) }
     var isPlayerExpanded by remember { mutableStateOf(false) }
@@ -263,16 +263,22 @@ fun main(args: Array<String>) = application {
                                     }
 
                                     MainView.Settings -> {
-                                        DesktopSettingsScreen(
+                                        val (desktopSettingsState, desktopSettingsActions) = rememberDesktopSettings(
                                             currentRoute = settingsRoute,
                                             onRouteChange = { settingsRoute = it },
-                                            onBack = {
+                                            onBackToMainView = {
                                                 if (settingsRoute != SettingsRoute.Root) {
                                                     settingsRoute = SettingsRoute.Root
                                                 } else {
                                                     currentView = MainView.Home
                                                 }
                                             }
+                                        )
+                                        SettingsScreen(
+                                            route = settingsRoute,
+                                            bottomContentPadding = bottomMargin,
+                                            state = desktopSettingsState,
+                                            actions = desktopSettingsActions
                                         )
                                     }
                                 }

@@ -1,6 +1,5 @@
 package com.flopster101.siliconplayer
 
-import android.content.Context
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.height
@@ -11,7 +10,6 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import java.util.Locale
 import androidx.compose.material.icons.Icons
@@ -23,10 +21,8 @@ import com.flopster101.siliconplayer.ui.screens.starfieldPresetTuneFor
 @Composable
 internal fun VisualizationAdvancedStarfieldRouteContent() {
     val d = AppDefaults.Visualization.Starfield
-    val context = LocalContext.current
-    val prefs = remember(context) {
-        context.getSharedPreferences(AppPreferenceKeys.PREFS_NAME, Context.MODE_PRIVATE)
-    }
+    val prefs = com.flopster101.siliconplayer.platform.LocalAppPreferences.current
+
     var activePreset by remember {
         mutableStateOf(
             StarfieldPreset.fromStorage(

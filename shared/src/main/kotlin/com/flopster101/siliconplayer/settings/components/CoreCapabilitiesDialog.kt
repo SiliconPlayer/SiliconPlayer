@@ -33,7 +33,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.onSizeChanged
-import androidx.compose.ui.platform.LocalConfiguration
+import com.flopster101.siliconplayer.platform.LocalWindowSizeInfo
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.dp
 import kotlin.math.roundToInt
@@ -44,7 +44,7 @@ internal fun CoreCapabilitiesDialog(
     isLiveSnapshot: Boolean,
     onDismiss: () -> Unit
 ) {
-    val configuration = LocalConfiguration.current
+    val configuration = LocalWindowSizeInfo.current
     val maxHeight = configuration.screenHeightDp.dp * 0.60f
     val scrollState = rememberScrollState()
     var viewportHeightPx by remember { mutableIntStateOf(0) }

@@ -1,6 +1,6 @@
 package com.flopster101.siliconplayer
 
-import android.content.pm.PackageManager
+import com.flopster101.siliconplayer.platform.LocalIsWatchDevice
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -31,7 +31,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.compose.foundation.shape.RoundedCornerShape
 
@@ -89,8 +88,7 @@ internal fun SettingsRowContainer(
     enabled: Boolean = true,
     content: @Composable RowScope.() -> Unit
 ) {
-    val context = LocalContext.current
-    val isWatch = remember(context) { context.packageManager.hasSystemFeature(PackageManager.FEATURE_WATCH) }
+    val isWatch = LocalIsWatchDevice.current
     val outerCorner = if (isWatch) 16.dp else SettingsOuterCorner
     val sequencer = LocalSettingsRowSequencer.current
     val rowRole = remember { mutableStateOf(SettingsRowRole.Standalone) }
@@ -149,8 +147,7 @@ internal fun SettingsRowSpacer() {
 
 @Composable
 internal fun SettingsSectionLabel(text: String) {
-    val context = LocalContext.current
-    val isWatch = remember(context) { context.packageManager.hasSystemFeature(PackageManager.FEATURE_WATCH) }
+    val isWatch = LocalIsWatchDevice.current
     val sequencer = LocalSettingsRowSequencer.current
     DisposableEffect(sequencer, text) {
         sequencer?.onSectionBoundary()
@@ -175,8 +172,7 @@ internal fun SettingsItemCard(
     enabled: Boolean = true,
     leadingContent: (@Composable () -> Unit)? = null
 ) {
-    val context = LocalContext.current
-    val isWatch = remember(context) { context.packageManager.hasSystemFeature(PackageManager.FEATURE_WATCH) }
+    val isWatch = LocalIsWatchDevice.current
     val contentAlpha = if (enabled) 1f else 0.38f
     SettingsRowContainer(onClick = onClick, enabled = enabled) {
         if (leadingContent != null) {
@@ -216,8 +212,7 @@ internal fun SettingsValuePickerCard(
     onClick: () -> Unit,
     enabled: Boolean = true
 ) {
-    val context = LocalContext.current
-    val isWatch = remember(context) { context.packageManager.hasSystemFeature(PackageManager.FEATURE_WATCH) }
+    val isWatch = LocalIsWatchDevice.current
     val contentAlpha = if (enabled) 1f else 0.38f
     SettingsRowContainer(
         onClick = onClick,
@@ -258,8 +253,7 @@ internal fun PlayerSettingToggleCard(
     badgeText: String? = null,
     errorText: String? = null
 ) {
-    val context = LocalContext.current
-    val isWatch = remember(context) { context.packageManager.hasSystemFeature(PackageManager.FEATURE_WATCH) }
+    val isWatch = LocalIsWatchDevice.current
     var localChecked by remember(title) { mutableStateOf(checked) }
     LaunchedEffect(checked) {
         localChecked = checked

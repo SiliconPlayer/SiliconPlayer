@@ -1,6 +1,5 @@
 package com.flopster101.siliconplayer
 
-import android.content.Context
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.height
 import androidx.compose.runtime.Composable
@@ -10,9 +9,9 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import java.util.Locale
+
 
 internal data class VisualizationBasicBarsRouteState(
     val visualizationBarCount: Int,
@@ -72,10 +71,7 @@ internal fun VisualizationBasicBarsRouteContent(
     val barFpsModeKey = AppPreferenceKeys.VISUALIZATION_BAR_FPS_MODE
     val barFrequencyGridEnabledKey = AppPreferenceKeys.VISUALIZATION_BAR_FREQUENCY_GRID_ENABLED
     val barContrastBackdropEnabledKey = AppPreferenceKeys.VISUALIZATION_BAR_CONTRAST_BACKDROP_ENABLED
-    val context = LocalContext.current
-    val prefs = remember(context) {
-        context.getSharedPreferences(prefsName, Context.MODE_PRIVATE)
-    }
+    val prefs = com.flopster101.siliconplayer.platform.LocalAppPreferences.current
     var barColorModeNoArtwork by remember {
         mutableStateOf(
             VisualizationOscColorMode.fromStorage(
@@ -425,10 +421,7 @@ internal fun VisualizationBasicVuMetersRouteContent(
     val vuRenderBackendKey = AppPreferenceKeys.VISUALIZATION_VU_RENDER_BACKEND
     val vuFpsModeKey = AppPreferenceKeys.VISUALIZATION_VU_FPS_MODE
     val vuContrastBackdropEnabledKey = AppPreferenceKeys.VISUALIZATION_VU_CONTRAST_BACKDROP_ENABLED
-    val context = LocalContext.current
-    val prefs = remember(context) {
-        context.getSharedPreferences(prefsName, Context.MODE_PRIVATE)
-    }
+    val prefs = com.flopster101.siliconplayer.platform.LocalAppPreferences.current
     var vuColorModeNoArtwork by remember {
         mutableStateOf(
             VisualizationOscColorMode.fromStorage(

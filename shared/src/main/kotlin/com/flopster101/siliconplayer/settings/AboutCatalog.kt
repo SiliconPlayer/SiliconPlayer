@@ -330,7 +330,13 @@ internal object AboutCatalog {
         get() = libraryEntries
 
     private val generatedVersionResolver: (String) -> String? = { entityId ->
-        GeneratedAboutVersions.versionForId(entityId)
+        try {
+            val clazz = Class.forName("com.flopster101.siliconplayer.GeneratedAboutVersions")
+            val method = clazz.getMethod("versionForId", String::class.java)
+            method.invoke(null, entityId) as? String
+        } catch (_: Throwable) {
+            null
+        }
     }
 
     fun resolveVersion(entityId: String): String? {

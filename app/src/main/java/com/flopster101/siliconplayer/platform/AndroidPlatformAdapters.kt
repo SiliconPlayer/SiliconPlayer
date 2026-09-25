@@ -366,6 +366,58 @@ fun ProvideAndroidPlatformAdapters(
         }
     }
 
+    val appVersionInfo = remember {
+        AppVersionInfo(
+            versionName = com.flopster101.siliconplayer.BuildConfig.VERSION_NAME,
+            abiOrArch = Build.SUPPORTED_ABIS.firstOrNull()?.replace("-", "") ?: "unknown",
+            gitSha = com.flopster101.siliconplayer.BuildConfig.GIT_SHA
+        )
+    }
+
+    val settingsPlatformContent = remember {
+        object : SettingsPlatformContent {
+            @Composable
+            override fun LibrarySettingsContent(onOpenScanner: () -> Unit) {
+                com.flopster101.siliconplayer.settings.routes.LibrarySettingsRouteContent(
+                    onOpenScanner = onOpenScanner
+                )
+            }
+
+            @Composable
+            override fun LibraryScannerContent() {
+                com.flopster101.siliconplayer.settings.routes.LibraryScannerRouteContent()
+            }
+
+            @Composable
+            override fun PlatformAudioOptions(
+                bitPerfectUsbAudio: Boolean,
+                onBitPerfectUsbAudioChanged: (Boolean) -> Unit
+            ) {
+                com.flopster101.siliconplayer.settings.AndroidBitPerfectSettingsCard(
+                    bitPerfectUsbAudio = bitPerfectUsbAudio,
+                    onBitPerfectUsbAudioChanged = onBitPerfectUsbAudioChanged
+                )
+            }
+
+            @Composable
+            override fun PlatformDolbyDetailContent() {
+                com.flopster101.siliconplayer.settings.AndroidPlatformDolbyDetailContent()
+            }
+
+            @Composable
+            override fun ProjectMRouteContent(onOpenPresetPacks: () -> Unit) {
+                com.flopster101.siliconplayer.VisualizationAdvancedProjectMRouteContent(
+                    onOpenPresetPacks = onOpenPresetPacks
+                )
+            }
+
+            @Composable
+            override fun ProjectMSetsRouteContent() {
+                com.flopster101.siliconplayer.VisualizationProjectMSetsRouteContent()
+            }
+        }
+    }
+
     CompositionLocalProvider(
         LocalAppPreferences provides prefs,
         LocalPreferencesProvider provides prefsProvider,
@@ -377,6 +429,10 @@ fun ProvideAndroidPlatformAdapters(
         },
         LocalWindowSizeInfo provides windowSizeInfo,
         LocalProjectMOptionsProvider provides projectMOptionsProvider,
+        LocalAppVersionInfo provides appVersionInfo,
+        LocalSettingsPlatformContent provides settingsPlatformContent,
         content = content
     )
 }
+
+

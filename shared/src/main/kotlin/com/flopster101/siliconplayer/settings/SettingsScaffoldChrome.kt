@@ -1,6 +1,7 @@
 package com.flopster101.siliconplayer
 
-import android.content.pm.PackageManager
+import com.flopster101.siliconplayer.platform.LocalIsWatchDevice
+import com.flopster101.siliconplayer.platform.LocalIsRoundScreen
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.core.FastOutLinearInEasing
 import androidx.compose.animation.core.FastOutSlowInEasing
@@ -44,8 +45,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.nestedscroll.nestedScroll
-import androidx.compose.ui.platform.LocalConfiguration
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -67,9 +66,8 @@ internal fun SettingsScaffoldShell(
     onResetVisualizationProjectMSettings: () -> Unit,
     content: @Composable (PaddingValues) -> Unit
 ) {
-    val context = LocalContext.current
-    val isWatch = remember(context) { context.packageManager.hasSystemFeature(PackageManager.FEATURE_WATCH) }
-    val isRound = LocalConfiguration.current.isRoundScreenCompat
+    val isWatch = LocalIsWatchDevice.current
+    val isRound = LocalIsRoundScreen.current
     val scrollBehavior = TopAppBarDefaults.exitUntilCollapsedScrollBehavior()
 
     val titleContent: @Composable () -> Unit = {

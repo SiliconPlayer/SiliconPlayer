@@ -2,8 +2,7 @@ package com.flopster101.siliconplayer
 
 import com.flopster101.siliconplayer.onGloballyPositionedDeferred
 import com.flopster101.siliconplayer.onSizeChangedDeferred
-import android.content.Intent
-import android.net.Uri
+import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.ScrollState
 import androidx.compose.foundation.background
@@ -37,8 +36,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.onSizeChanged
-import androidx.compose.ui.platform.LocalConfiguration
-import androidx.compose.ui.platform.LocalContext
+import com.flopster101.siliconplayer.platform.LocalWindowSizeInfo
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.dp
 import kotlin.math.roundToInt
@@ -48,8 +46,8 @@ internal fun AboutEntityDialog(
     entity: AboutEntity,
     onDismiss: () -> Unit
 ) {
+    val uriHandler = LocalUriHandler.current
     if (isWatchDevice()) {
-        val context = LocalContext.current
         val versionLabel = remember(entity.id) { AboutCatalog.resolveVersion(entity.id) }
         WatchDialogContainer(
             title = entity.name,
@@ -98,7 +96,7 @@ internal fun AboutEntityDialog(
                         FilledTonalButton(
                             onClick = {
                                 runCatching {
-                                    context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(link.url)))
+                                    uriHandler.openUri(link.url)
                                 }
                             },
                             modifier = Modifier.fillMaxWidth(),
@@ -158,9 +156,9 @@ internal fun AboutEntityDialog(
 private fun AboutEntityDialogContent(
     entity: AboutEntity
 ) {
-    val context = LocalContext.current
+    val uriHandler = LocalUriHandler.current
     val versionLabel = remember(entity.id) { AboutCatalog.resolveVersion(entity.id) }
-    val configuration = LocalConfiguration.current
+    val configuration = LocalWindowSizeInfo.current
     val maxHeight = configuration.screenHeightDp.dp * 0.60f
     val scrollState = rememberScrollState()
     var viewportHeightPx by remember { mutableIntStateOf(0) }
@@ -219,7 +217,7 @@ private fun AboutEntityDialogContent(
                                 .fillMaxWidth()
                                 .clickable {
                                     runCatching {
-                                        context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(link.url)))
+                                        uriHandler.openUri(link.url)
                                     }
                                 }
                         )

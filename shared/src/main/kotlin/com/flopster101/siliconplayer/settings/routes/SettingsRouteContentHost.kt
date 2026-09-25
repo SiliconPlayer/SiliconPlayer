@@ -1,8 +1,5 @@
 package com.flopster101.siliconplayer
 
-import com.flopster101.siliconplayer.settings.routes.LibraryScannerRouteContent
-import com.flopster101.siliconplayer.settings.routes.LibrarySettingsRouteContent
-import android.content.pm.PackageManager
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.core.FastOutLinearInEasing
 import androidx.compose.animation.core.FastOutSlowInEasing
@@ -24,8 +21,6 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.LocalConfiguration
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 
@@ -42,12 +37,13 @@ internal fun SettingsRouteContentHost(
     onRequestClearAllSettings: () -> Unit,
     onRequestClearPluginSettings: () -> Unit
 ) {
-    val context = LocalContext.current
-    val isWatch = remember(context) { context.packageManager.hasSystemFeature(PackageManager.FEATURE_WATCH) }
-    val isRound = LocalConfiguration.current.isRoundScreenCompat
+    val isWatch = com.flopster101.siliconplayer.platform.LocalIsWatchDevice.current
+    val isRound = com.flopster101.siliconplayer.platform.LocalIsRoundScreen.current
     val extraBottomPadding = if (isWatch) (if (isRound) 56.dp else 24.dp) else 0.dp
+    val platformContent = com.flopster101.siliconplayer.platform.LocalSettingsPlatformContent.current
 
     Column(
+
         modifier = Modifier
             .fillMaxSize()
             .padding(scaffoldPaddingValues)
@@ -252,13 +248,13 @@ internal fun SettingsRouteContentHost(
                     }
 
                     SettingsRoute.Library -> {
-                        LibrarySettingsRouteContent(
+                        platformContent.LibrarySettingsContent(
                             onOpenScanner = actions.onOpenLibraryScanner
                         )
                     }
 
                     SettingsRoute.LibraryScanner -> {
-                        LibraryScannerRouteContent()
+                        platformContent.LibraryScannerContent()
                     }
 
                     SettingsRoute.Home -> {
@@ -450,13 +446,13 @@ internal fun SettingsRouteContentHost(
                     }
 
                     SettingsRoute.VisualizationAdvancedProjectM -> {
-                        VisualizationAdvancedProjectMRouteContent(
+                        platformContent.ProjectMRouteContent(
                             onOpenPresetPacks = actions.onOpenVisualizationProjectMPacks
                         )
                     }
 
                     SettingsRoute.VisualizationAdvancedProjectMPacks -> {
-                        VisualizationProjectMSetsRouteContent()
+                        platformContent.ProjectMSetsRouteContent()
                     }
 
                     SettingsRoute.Misc -> {

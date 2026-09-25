@@ -83,21 +83,6 @@ internal fun adaptiveDialogProperties(): DialogProperties {
     return DialogProperties(usePlatformDefaultWidth = false)
 }
 
-@Composable
-internal fun rememberScrollStateScrollbarDragHandler(
-    scrollState: ScrollState
-): (Float) -> Unit {
-    return remember(scrollState) {
-        { requestedFraction ->
-            val targetFraction = requestedFraction.coerceIn(0f, 1f)
-            val targetScroll = (scrollState.maxValue.toFloat() * targetFraction).roundToInt()
-            val delta = (targetScroll - scrollState.value).toFloat()
-            if (delta != 0f) {
-                scrollState.dispatchRawDelta(delta)
-            }
-        }
-    }
-}
 
 @Composable
 internal fun VerticalScrollbarTrack(

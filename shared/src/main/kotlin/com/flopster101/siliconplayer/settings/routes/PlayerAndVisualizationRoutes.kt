@@ -17,8 +17,8 @@ import androidx.compose.material.icons.filled.MoreHoriz
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.filled.Tune
 import androidx.compose.runtime.remember
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.material3.MaterialTheme
+
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -167,10 +167,7 @@ internal fun PlayerRouteContent(
     state: PlayerRouteState,
     actions: PlayerRouteActions
 ) {
-    val appContext = LocalContext.current
-    val appPrefs = remember(appContext) {
-        appContext.getSharedPreferences(AppPreferenceKeys.PREFS_NAME, android.content.Context.MODE_PRIVATE)
-    }
+    val appPrefs = com.flopster101.siliconplayer.platform.LocalAppPreferences.current
     var playWithExternalOpenDialog by remember(appPrefs) {
         mutableStateOf(appPrefs.getBoolean(AppPreferenceKeys.PLAY_WITH_EXTERNAL_OPEN_DIALOG, true))
     }
@@ -496,12 +493,11 @@ internal fun VisualizationRouteContent(
     val onOpenVisualizationAdvanced = actions.onOpenVisualizationAdvanced
     val onOpenVisualizationTrackTicker = actions.onOpenVisualizationTrackTicker
 
-    val context = LocalContext.current
     var showModeDialog by remember { mutableStateOf(false) }
     var showEnabledDialog by remember { mutableStateOf(false) }
     var showPerformanceDialog by remember { mutableStateOf(false) }
     var showFullscreenModeDialog by remember { mutableStateOf(false) }
-    val prefsFullscreen = remember(context) { context.getSharedPreferences(AppPreferenceKeys.PREFS_NAME, android.content.Context.MODE_PRIVATE) }
+    val prefsFullscreen = com.flopster101.siliconplayer.platform.LocalAppPreferences.current
     var fullscreenMode by remember {
         mutableStateOf(
             VisualizationFullscreenMode.fromStorage(
@@ -515,7 +511,7 @@ internal fun VisualizationRouteContent(
         .filter { it.mode != VisualizationMode.ProjectM || projectMSupported }
     val allPages = remember { basicPages + advancedPages }
     val toggleableModes = remember(allPages) { allPages.map { it.mode } }
-    val isWatch = remember(context) { context.packageManager.hasSystemFeature(android.content.pm.PackageManager.FEATURE_WATCH) }
+    val isWatch = com.flopster101.siliconplayer.platform.LocalIsWatchDevice.current
     val effectivePerformanceMode = remember(visualizationPerformanceMode, isWatch) {
         resolveEffectiveVisualizationPerformanceMode(visualizationPerformanceMode, isWatch)
     }

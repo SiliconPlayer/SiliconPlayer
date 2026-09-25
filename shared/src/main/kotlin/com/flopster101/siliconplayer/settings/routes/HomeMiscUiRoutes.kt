@@ -1,6 +1,7 @@
 package com.flopster101.siliconplayer
 
-import android.widget.Toast
+import com.flopster101.siliconplayer.platform.LocalAppPreferences
+import com.flopster101.siliconplayer.platform.LocalToastHandler
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.height
 import androidx.compose.material.icons.Icons
@@ -14,7 +15,6 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
@@ -44,7 +44,8 @@ internal data class FileBrowserRouteActions(
     val onShowParentDirectoryEntryChanged: (Boolean) -> Unit,
     val onShowFileIconChipBackgroundChanged: (Boolean) -> Unit,
     val onSortArchivesBeforeFilesChanged: (Boolean) -> Unit,
-    val onBrowserNameSortModeChanged: (BrowserNameSortMode) -> Unit
+    val onBrowserNameSortModeChanged: (BrowserNameSortMode) -> Unit,
+    val onClearThumbnailCache: (() -> Int)? = null
 )
 
 internal data class MiscRouteActions(
@@ -191,10 +192,8 @@ internal fun FileBrowserRouteContent(
     state: FileBrowserRouteState,
     actions: FileBrowserRouteActions
 ) {
-    val context = LocalContext.current
-    val prefs = remember(context) {
-        context.getSharedPreferences(AppPreferenceKeys.PREFS_NAME, android.content.Context.MODE_PRIVATE)
-    }
+    val prefs = LocalAppPreferences.current
+    val toastHandler = LocalToastHandler.current
     var showUnsupportedFiles by remember {
         mutableStateOf(
             prefs.getBoolean(
@@ -265,12 +264,10 @@ internal fun FileBrowserRouteContent(
         description = "Delete cached local file browser and library artwork thumbnails.",
         icon = Icons.Default.DeleteForever,
         onClick = {
-            val deleted = clearLocalBrowserThumbnailCache(context) + clearLibraryArtworkThumbnailCache(context)
-            Toast.makeText(
-                context,
-                if (deleted > 0) "Cleared $deleted thumbnail previews" else "Thumbnail preview cache is already empty",
-                Toast.LENGTH_SHORT
-            ).show()
+            val deleted = actions.onClearThumbnailCache?.invoke() ?: 0
+            toastHandler.showToast(
+                if (deleted > 0) "Cleared $deleted thumbnail previews" else "Thumbnail preview cache is already empty"
+            )
         }
     )
     SettingsRowSpacer()

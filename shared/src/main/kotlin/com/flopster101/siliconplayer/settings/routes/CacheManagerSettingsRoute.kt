@@ -1,6 +1,6 @@
 package com.flopster101.siliconplayer
 
-import androidx.activity.compose.BackHandler
+import com.flopster101.siliconplayer.platform.PlatformBackHandler
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
@@ -68,7 +68,7 @@ internal fun CacheManagerSettingsRouteContent(
 
     val inSelectionMode = selectedPaths.isNotEmpty()
     val totalBytes = cachedSourceFiles.sumOf { it.sizeBytes.coerceAtLeast(0L) }
-    BackHandler(enabled = inSelectionMode) {
+    PlatformBackHandler(enabled = inSelectionMode) {
         selectedPaths = emptySet()
     }
 

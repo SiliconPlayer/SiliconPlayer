@@ -6,7 +6,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.platform.LocalContext
+import com.flopster101.siliconplayer.platform.LocalAppPreferences
 import com.flopster101.siliconplayer.AppPreferenceKeys
 import com.flopster101.siliconplayer.CorePreferenceKeys
 import com.flopster101.siliconplayer.DecoderNames
@@ -16,10 +16,7 @@ import com.flopster101.siliconplayer.PlayerSettingToggleCard
 internal class UfmodSettings : PluginSettings {
     @Composable
     override fun buildSettings(builder: PluginSettingsBuilder) {
-        val context = LocalContext.current
-        val prefs = remember(context) {
-            context.getSharedPreferences(AppPreferenceKeys.PREFS_NAME, android.content.Context.MODE_PRIVATE)
-        }
+        val prefs = LocalAppPreferences.current
         var flags by remember {
             mutableIntStateOf(prefs.getInt(CorePreferenceKeys.UFMOD_QUIRKS, 0))
         }
