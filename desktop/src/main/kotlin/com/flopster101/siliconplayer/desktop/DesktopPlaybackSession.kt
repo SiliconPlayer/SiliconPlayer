@@ -229,7 +229,7 @@ class DesktopPlaybackSession(
         decoderName = NativeBridge.getCurrentDecoderName()
         sampleRateHz = NativeBridge.getTrackSampleRate()
         channelCount = NativeBridge.getTrackChannelCount()
-        bitDepthLabel = NativeBridge.getTrackBitDepthLabel()
+        bitDepthLabel = resolveTrackBitDepthLabel()
         durationSeconds = NativeBridge.getDuration()
         subtuneIndex = NativeBridge.getCurrentSubtuneIndex()
         subtuneCount = NativeBridge.getSubtuneCount()
@@ -254,6 +254,21 @@ class DesktopPlaybackSession(
         hasReliableDuration = hasReliableDuration(playbackCapabilitiesFlags)
     }
 
+    private fun resolveTrackBitDepthLabel(): String {
+        val rawLabel = NativeBridge.getTrackBitDepthLabel().trim()
+        val rawInt = NativeBridge.getTrackBitDepth()
+        return when {
+            rawLabel.isNotBlank() && rawLabel != "-bit" && !rawLabel.equals("Unknown", ignoreCase = true) -> {
+                if (rawLabel.matches(Regex("^\\d+$"))) "${rawLabel}-bit" else rawLabel
+            }
+            rawInt > 0 -> "${rawInt}-bit"
+            currentFile?.extension.equals("flac", ignoreCase = true) -> {
+                currentFile?.let { DesktopArtworkSupport.extractFlacBitDepth(it) }?.let { "${it}-bit" } ?: "Unknown"
+            }
+            else -> rawLabel.takeIf { it.isNotBlank() && it != "-bit" } ?: "Unknown"
+        }
+    }
+
     private fun startTicker() {
         tickerJob?.cancel()
         tickerJob = scope.launch {
@@ -270,9 +285,9 @@ class DesktopPlaybackSession(
                     isPlaying = playing
 
                     if (bitDepthLabel.isBlank() || bitDepthLabel == "-bit" || bitDepthLabel == "Unknown") {
-                        val depth = NativeBridge.getTrackBitDepthLabel().trim()
-                        if (depth.isNotBlank() && depth != "-bit") {
-                            bitDepthLabel = depth
+                        val resolved = resolveTrackBitDepthLabel()
+                        if (resolved != "Unknown" && resolved != "-bit") {
+                            bitDepthLabel = resolved
                         }
                     }
 

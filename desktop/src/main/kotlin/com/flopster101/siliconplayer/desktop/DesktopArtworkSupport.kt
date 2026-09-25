@@ -58,6 +58,34 @@ internal object DesktopArtworkSupport {
         return siblings.firstOrNull { it.isFile && allowed.contains(it.name.lowercase()) }
     }
 
+    fun extractFlacBitDepth(file: File): Int? {
+        try {
+            RandomAccessFile(file, "r").use { raf ->
+                val magic = ByteArray(4)
+                raf.readFully(magic)
+                if (magic[0] != 0x66.toByte() || magic[1] != 0x4C.toByte() ||
+                    magic[2] != 0x61.toByte() || magic[3] != 0x43.toByte()) {
+                    return null
+                }
+                val header = raf.readUnsignedByte()
+                val type = header and 0x7F
+                val length = (raf.readUnsignedByte() shl 16) or
+                             (raf.readUnsignedByte() shl 8) or
+                             raf.readUnsignedByte()
+                if (type == 0 && length >= 14) {
+                    val streamInfo = ByteArray(length)
+                    raf.readFully(streamInfo)
+                    val b20 = streamInfo[12].toInt() and 0xFF
+                    val b21 = streamInfo[13].toInt() and 0xFF
+                    val bps = (((b20 and 0x01) shl 4) or ((b21 ushr 4) and 0x0F)) + 1
+                    if (bps in 4..64) return bps
+                }
+            }
+        } catch (_: Throwable) {
+        }
+        return null
+    }
+
     private fun extractFlacArtwork(file: File): ByteArray? {
         try {
             RandomAccessFile(file, "r").use { raf ->

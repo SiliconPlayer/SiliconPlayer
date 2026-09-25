@@ -3002,7 +3002,7 @@ private fun TrackInfoDetailsDialog(
         "Unavailable"
     }
     val channelsLabel = if (channelCount > 0) "$channelCount channels" else "Unknown"
-    val depthLabel = bitDepthLabel.ifBlank { "Unknown" }
+    val depthLabel = bitDepthLabel.trim().takeIf { it.isNotBlank() && it != "-bit" } ?: "Unknown"
     val playlistCountLabel = when {
         playlistTrackCount <= 0 -> null
         playlistTrackCount == 1 -> "1 track"
@@ -5607,7 +5607,7 @@ private fun buildTrackTechnicalInfo(
         "-- kHz"
     }
     val showBitDepth = decoderName.equals(DecoderNames.FFMPEG, ignoreCase = true)
-    val depthDisplay = bitDepthLabel.ifBlank { "Unknown" }
+    val depthDisplay = bitDepthLabel.trim().takeIf { it.isNotBlank() && it != "-bit" } ?: "Unknown"
     val channelsAndDepth = when {
         channelCount > 0 && showBitDepth -> "${channelCount} ch / $depthDisplay"
         channelCount > 0 -> "${channelCount} ch"

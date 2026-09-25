@@ -68,16 +68,25 @@ val buildDesktopNative by tasks.registering(Exec::class) {
     )
 }
 
-tasks.withType<JavaExec>().configureEach {
-    dependsOn(buildDesktopNative)
+fun configureNativePaths(task: JavaForkOptions) {
     val nativeDir = nativeBuildDir.get().asFile
     val prebuiltLibDir = file("prebuilt/x86_64/lib")
     val combinedPath = "${nativeDir.absolutePath}:${prebuiltLibDir.absolutePath}"
-    systemProperty("java.library.path", combinedPath)
+    task.systemProperty("java.library.path", combinedPath)
     val currentLd = System.getenv("LD_LIBRARY_PATH") ?: ""
-    environment(
+    task.environment(
         "LD_LIBRARY_PATH",
         if (currentLd.isNotEmpty()) "$combinedPath:$currentLd" else combinedPath
     )
+}
+
+tasks.withType<JavaExec>().configureEach {
+    dependsOn(buildDesktopNative)
+    configureNativePaths(this)
+}
+
+tasks.withType<Test>().configureEach {
+    dependsOn(buildDesktopNative)
+    configureNativePaths(this)
 }
 
