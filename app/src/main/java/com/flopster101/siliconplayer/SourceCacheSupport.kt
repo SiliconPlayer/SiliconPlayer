@@ -7,7 +7,6 @@ import java.io.File
 import java.net.URLDecoder
 import java.security.MessageDigest
 
-internal const val REMOTE_SOURCE_CACHE_DIR = "remote_sources"
 internal const val SOURCE_CACHE_MAX_TRACKS_DEFAULT = 100
 internal const val SOURCE_CACHE_MAX_BYTES_DEFAULT = 1024L * 1024L * 1024L
 private const val SOURCE_CACHE_INDEX_FILE = ".source_index.json"
@@ -48,33 +47,6 @@ internal fun sanitizeRemoteLeafName(raw: String?): String? {
     return trimmed.replace(Regex("""[\\/:*?"<>|]"""), "_")
 }
 
-private val REMOTE_CACHE_HASH_PREFIX_REGEX = Regex("^[0-9a-fA-F]{40}_(.+)$")
-
-internal fun stripRemoteCacheHashPrefix(rawName: String): String {
-    val normalized = rawName.trim()
-    if (normalized.isEmpty()) return rawName
-    return REMOTE_CACHE_HASH_PREFIX_REGEX.matchEntire(normalized)
-        ?.groupValues
-        ?.getOrNull(1)
-        ?.takeIf { it.isNotBlank() }
-        ?: normalized
-}
-
-internal fun sanitizeRemoteCachedMetadataTitle(
-    rawTitle: String,
-    selectedFile: File?
-): String {
-    val normalizedTitle = rawTitle.trim()
-    if (normalizedTitle.isBlank()) return rawTitle
-    val file = selectedFile ?: return rawTitle
-    if (file.parentFile?.name == REMOTE_SOURCE_CACHE_DIR) {
-        val strippedHashPrefix = stripRemoteCacheHashPrefix(normalizedTitle)
-        if (strippedHashPrefix == normalizedTitle) return rawTitle
-        return inferredDisplayTitleForName(strippedHashPrefix)
-    }
-
-    return rawTitle
-}
 
 internal fun stripUrlFragment(url: String): String {
     val fragmentIndex = url.indexOf('#')

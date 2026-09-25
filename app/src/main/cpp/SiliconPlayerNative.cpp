@@ -5,6 +5,8 @@
 #include <cstdint>
 #include <cstring>
 #include <cmath>
+#include <clocale>
+#include <locale>
 #include "AudioEngine.h"
 #include "ChannelScopeTrigger.h"
 #include "decoders/DecoderRegistry.h"
@@ -298,6 +300,11 @@ int siliconplayer_resolve_archive_companion_path(
 }
 
 extern "C" JNIEXPORT jint JNICALL JNI_OnLoad(JavaVM* vm, void*) {
+    std::setlocale(LC_ALL, "C");
+    try {
+        std::locale::global(std::locale::classic());
+    } catch (...) {}
+
     gJavaVm = vm;
     JNIEnv* env = nullptr;
     if (vm->GetEnv(reinterpret_cast<void**>(&env), JNI_VERSION_1_6) != JNI_OK || env == nullptr) {

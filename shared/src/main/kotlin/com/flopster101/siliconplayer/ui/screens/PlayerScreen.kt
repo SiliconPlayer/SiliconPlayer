@@ -95,6 +95,7 @@ import androidx.compose.material.icons.filled.SkipPrevious
 import androidx.compose.material.icons.filled.SkipNext
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.filled.StarBorder
+import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Stop
 import androidx.compose.material.icons.sharp.Stop
 import androidx.compose.material.icons.filled.Bluetooth
@@ -162,12 +163,10 @@ import com.flopster101.siliconplayer.ArtworkSwipePreviewState
 import com.flopster101.siliconplayer.DecoderNames
 import com.flopster101.siliconplayer.inferredDisplayTitleForName
 import com.flopster101.siliconplayer.inferredPrimaryExtensionForName
-import com.flopster101.siliconplayer.R
 import com.flopster101.siliconplayer.RepeatMode
 import com.flopster101.siliconplayer.AppPreferenceKeys
 import com.flopster101.siliconplayer.VisualizationFullscreenMode
 import com.flopster101.siliconplayer.VisualizationMode
-import com.flopster101.siliconplayer.ui.visualization.gl.ProjectMPresetSets
 import com.flopster101.siliconplayer.ui.visualization.gl.SiliconVisNativeBridge
 import com.flopster101.siliconplayer.VisualizationChannelScopeLayout
 import com.flopster101.siliconplayer.VisualizationOscColorMode
@@ -199,7 +198,6 @@ import com.flopster101.siliconplayer.ui.dialogs.DialogSectionLabel
 import com.flopster101.siliconplayer.ui.dialogs.FloatingActionDialog
 import com.flopster101.siliconplayer.ui.dialogs.VisualizationModePickerDialog
 import com.flopster101.siliconplayer.ui.dialogs.VisualizationOptionsSheet
-import com.flopster101.siliconplayer.ui.visualization.basic.BasicVisualizationOverlay
 import java.io.File
 import kotlin.math.roundToInt
 import kotlin.math.pow
@@ -1701,13 +1699,11 @@ internal fun PlayerScreen(
                                             contentAlignment = Alignment.Center
                                         ) {
                                             Icon(
-                                                painter = painterResource(
-                                                    id = if (isTrackFavorited) {
-                                                        R.drawable.ic_star_filled
-                                                    } else {
-                                                        R.drawable.ic_star_outline
-                                                    }
-                                                ),
+                                                imageVector = if (isTrackFavorited) {
+                                                    Icons.Filled.Star
+                                                } else {
+                                                    Icons.Filled.StarBorder
+                                                },
                                                 contentDescription = if (isTrackFavorited) {
                                                     "Remove from favorites"
                                                 } else {
@@ -1993,13 +1989,11 @@ internal fun PlayerScreen(
                                                 contentAlignment = Alignment.Center
                                             ) {
                                                 Icon(
-                                                    painter = painterResource(
-                                                        id = if (isTrackFavorited) {
-                                                            R.drawable.ic_star_filled
-                                                        } else {
-                                                            R.drawable.ic_star_outline
-                                                        }
-                                                    ),
+                                                    imageVector = if (isTrackFavorited) {
+                                                        Icons.Filled.Star
+                                                    } else {
+                                                        Icons.Filled.StarBorder
+                                                    },
                                                     contentDescription = if (isTrackFavorited) {
                                                         "Remove from favorites"
                                                     } else {
@@ -2693,7 +2687,7 @@ private fun PlayerTopBar(
                         },
                         leadingIcon = {
                             Icon(
-                                painter = painterResource(id = R.drawable.ic_airwave),
+                                imageVector = androidx.compose.material.icons.Icons.Filled.GraphicEq,
                                 contentDescription = null,
                                 modifier = Modifier.size(22.dp)
                             )
@@ -2772,7 +2766,7 @@ private fun PlayerTopBar(
                         },
                         leadingIcon = {
                             Icon(
-                                painter = painterResource(id = R.drawable.ic_settings_applications),
+                                imageVector = androidx.compose.material.icons.Icons.Filled.Settings,
                                 contentDescription = null,
                                 modifier = Modifier.size(22.dp)
                             )
@@ -6315,7 +6309,7 @@ private fun WearPlayerContent(
                     horizontalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
                     Icon(
-                        painter = painterResource(id = R.drawable.ic_airwave),
+                        imageVector = androidx.compose.material.icons.Icons.Filled.GraphicEq,
                         contentDescription = null,
                         tint = MaterialTheme.colorScheme.primary,
                         modifier = Modifier.size(18.dp)

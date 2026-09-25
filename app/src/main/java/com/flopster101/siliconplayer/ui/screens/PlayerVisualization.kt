@@ -1461,50 +1461,7 @@ private fun findCorrelationTriggerIndex(
     return triggerIdx
 }
 
-internal data class ChannelScopePrefs(
-    val windowMs: Int,
-    val renderBackend: VisualizationRenderBackend,
-    val dcRemovalEnabled: Boolean,
-    val gainPercent: Int,
-    val contrastBackdropEnabled: Boolean,
-    val triggerModeNative: Int,
-    val triggerAlgorithmNative: Int,
-    val waveRenderMode: VisualizationChannelScopeWaveRenderMode,
-    val trackTransition: VisualizationChannelScopeTrackTransition,
-    val fpsMode: VisualizationOscFpsMode,
-    val lineWidthDp: Int,
-    val gridWidthDp: Int,
-    val verticalGridEnabled: Boolean,
-    val centerLineEnabled: Boolean,
-    val layout: VisualizationChannelScopeLayout,
-    val lineColorModeNoArtwork: VisualizationOscColorMode,
-    val gridColorModeNoArtwork: VisualizationOscColorMode,
-    val lineColorModeWithArtwork: VisualizationOscColorMode,
-    val gridColorModeWithArtwork: VisualizationOscColorMode,
-    val customLineColorArgb: Int,
-    val customGridColorArgb: Int,
-    val showArtworkBackground: Boolean,
-    val backgroundMode: VisualizationChannelScopeBackgroundMode,
-    val customBackgroundColorArgb: Int,
-    val textEnabled: Boolean,
-    val textAnchor: VisualizationChannelScopeTextAnchor,
-    val textPaddingDp: Int,
-    val textSizeSp: Int,
-    val textHideWhenOverflow: Boolean,
-    val textShadowEnabled: Boolean,
-    val textFont: VisualizationChannelScopeTextFont,
-    val textColorMode: VisualizationChannelScopeTextColorMode,
-    val customTextColorArgb: Int,
-    val textNoteFormat: VisualizationNoteNameFormat,
-    val textShowChannel: Boolean,
-    val textShowNote: Boolean,
-    val textVisibleElementSelection: Set<String>,
-    val textVuEnabled: Boolean,
-    val textVuAnchor: VisualizationVuAnchor,
-    val textVuColorMode: VisualizationChannelScopeTextColorMode,
-    val textVuCustomColorArgb: Int
-) {
-    companion object {
+internal object ChannelScopePrefsSupport {
         private const val KEY_WINDOW_MS = "visualization_channel_scope_window_ms"
         private const val KEY_RENDER_BACKEND = "visualization_channel_scope_render_backend"
         private const val KEY_DC_REMOVAL_ENABLED = "visualization_channel_scope_dc_removal_enabled"
@@ -1778,8 +1735,13 @@ internal data class ChannelScopePrefs(
         fun isChannelScopeKey(key: String?): Boolean {
             return key?.startsWith("visualization_channel_scope_") == true
         }
-    }
 }
+
+internal fun ChannelScopePrefs.Companion.from(sharedPrefs: android.content.SharedPreferences): ChannelScopePrefs =
+    ChannelScopePrefsSupport.from(sharedPrefs)
+
+internal fun ChannelScopePrefs.Companion.isChannelScopeKey(key: String?): Boolean =
+    ChannelScopePrefsSupport.isChannelScopeKey(key)
 
 internal data class FullscreenTickerPrefs(
     val masterEnabled: Boolean,
@@ -2056,33 +2018,7 @@ internal fun writeStarfieldFactoryTune(
 }
 
 
-internal data class StarfieldPrefs(
-    val renderBackend: VisualizationRenderBackend,
-    val starCount: Int,
-    val speed: Float,
-    val fov: Float,
-    val nearPlane: Float,
-    val starColorArgb: Int,
-    val baseSizePx: Float,
-    val sizeGrowth: Float,
-    val farDim: Float,
-    val softness: Float,
-    val beatGlow: Float,
-    val glowSize: Float,
-    val trailPersistence: Float,
-    val streaks: Boolean,
-    val streakLength: Float,
-    val centerX: Float,
-    val centerY: Float,
-    val autoDrift: Boolean,
-    val beatFollow: Boolean,
-    val reactSpeed: Float,
-    val flash: Float,
-    val contrastBackdropEnabled: Boolean,
-    val monochromeBackdrop: Boolean,
-    val square: Boolean
-) {
-    companion object {
+internal object StarfieldPrefsSupport {
         fun from(sharedPrefs: android.content.SharedPreferences): StarfieldPrefs {
             val d = AppDefaults.Visualization.Starfield
             val t = starfieldPresetTuneFor(starfieldActivePreset(sharedPrefs))
@@ -2145,7 +2081,12 @@ internal data class StarfieldPrefs(
             return key?.startsWith("visualization_starfield_") == true
         }
     }
-}
+
+internal fun StarfieldPrefs.Companion.from(sharedPrefs: android.content.SharedPreferences): StarfieldPrefs =
+    StarfieldPrefsSupport.from(sharedPrefs)
+
+internal fun StarfieldPrefs.Companion.isStarfieldKey(key: String?): Boolean =
+    StarfieldPrefsSupport.isStarfieldKey(key)
 
 @Composable
 internal fun rememberStarfieldPrefs(

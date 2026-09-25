@@ -34,3 +34,47 @@ compose.desktop {
         }
     }
 }
+
+val nativeBuildDir = layout.buildDirectory.dir("native")
+
+val configureDesktopNative by tasks.registering(Exec::class) {
+    val srcDir = file("src/native")
+    inputs.dir(srcDir)
+    outputs.file(nativeBuildDir.get().file("Makefile"))
+
+    workingDir = rootDir
+    commandLine(
+        "cmake",
+        "-B", nativeBuildDir.get().asFile.absolutePath,
+        "-S", srcDir.absolutePath
+    )
+}
+
+val buildDesktopNative by tasks.registering(Exec::class) {
+    dependsOn(configureDesktopNative)
+    val nativeDir = nativeBuildDir.get().asFile
+    inputs.dir(file("src/native"))
+    inputs.dir(file("../app/src/main/cpp"))
+    outputs.file(nativeDir.resolve("libsiliconplayer_desktop.so"))
+
+    workingDir = rootDir
+    commandLine(
+        "cmake",
+        "--build", nativeDir.absolutePath,
+        "-j"
+    )
+}
+
+tasks.withType<JavaExec>().configureEach {
+    dependsOn(buildDesktopNative)
+    val nativeDir = nativeBuildDir.get().asFile
+    val prebuiltLibDir = file("prebuilt/x86_64/lib")
+    val combinedPath = "${nativeDir.absolutePath}:${prebuiltLibDir.absolutePath}"
+    systemProperty("java.library.path", combinedPath)
+    val currentLd = System.getenv("LD_LIBRARY_PATH") ?: ""
+    environment(
+        "LD_LIBRARY_PATH",
+        if (currentLd.isNotEmpty()) "$combinedPath:$currentLd" else combinedPath
+    )
+}
+

@@ -205,15 +205,17 @@ add_custom_command(TARGET siliconplayer_xmp_decoder POST_BUILD
     "${CMAKE_CURRENT_BINARY_DIR}/libxmp.so.4"
 )
 
-# 5. LibSIDPlayFP Decoder (using submodule builds)
-add_library(libresid_submodule SHARED IMPORTED)
-set_target_properties(libresid_submodule PROPERTIES IMPORTED_LOCATION "${EXTERNAL_DIR}/resid/build_host/libresid.so")
+# 5. LibSIDPlayFP Decoder (using desktop prebuilt)
+set(PREBUILT_DIR "${REPO_ROOT}/desktop/prebuilt/x86_64")
 
-add_library(libresidfp_submodule SHARED IMPORTED)
-set_target_properties(libresidfp_submodule PROPERTIES IMPORTED_LOCATION "${EXTERNAL_DIR}/libresidfp/build_host/install/lib/libresidfp.so")
+add_library(libresidfp_prebuilt SHARED IMPORTED)
+set_target_properties(libresidfp_prebuilt PROPERTIES IMPORTED_LOCATION "${PREBUILT_DIR}/lib/libresidfp.so")
 
-add_library(libsidplayfp_submodule SHARED IMPORTED)
-set_target_properties(libsidplayfp_submodule PROPERTIES IMPORTED_LOCATION "${EXTERNAL_DIR}/libsidplayfp/build_host/install/lib/libsidplayfp.so")
+add_library(libsidplayfp_prebuilt SHARED IMPORTED)
+set_target_properties(libsidplayfp_prebuilt PROPERTIES IMPORTED_LOCATION "${PREBUILT_DIR}/lib/libsidplayfp.so")
+
+add_library(libresid_prebuilt STATIC IMPORTED)
+set_target_properties(libresid_prebuilt PROPERTIES IMPORTED_LOCATION "${PREBUILT_DIR}/lib/libresid.a")
 
 add_library(siliconplayer_libsidplayfp_decoder SHARED
     "${APP_CPP_DIR}/decoders/LibSidPlayFpDecoder.cpp"
@@ -224,18 +226,16 @@ add_library(siliconplayer_libsidplayfp_decoder SHARED
 )
 target_include_directories(siliconplayer_libsidplayfp_decoder PRIVATE
     ${COMMON_INCLUDES}
-    "${EXTERNAL_DIR}/libresidfp/build_host/install/include"
-    "${EXTERNAL_DIR}/libsidplayfp/build_host/install/include"
-    "${EXTERNAL_DIR}/libsidplayfp/src"
-    "${APP_CPP_DIR}/prebuilt/x86_64/include"
+    "${PREBUILT_DIR}/include"
     "${EXTERNAL_DIR}"
     "${EXTERNAL_DIR}/resid"
-    "${EXTERNAL_DIR}/resid/build_host"
+    "${EXTERNAL_DIR}/resid/build_desktop_x86_64"
+    "${EXTERNAL_DIR}/libsidplayfp/src"
 )
 target_link_libraries(siliconplayer_libsidplayfp_decoder PRIVATE
-    libsidplayfp_submodule
-    libresidfp_submodule
-    libresid_submodule
+    libsidplayfp_prebuilt
+    libresidfp_prebuilt
+    libresid_prebuilt
     m
 )
 set_target_properties(siliconplayer_libsidplayfp_decoder PROPERTIES
@@ -244,13 +244,10 @@ set_target_properties(siliconplayer_libsidplayfp_decoder PROPERTIES
 )
 add_custom_command(TARGET siliconplayer_libsidplayfp_decoder POST_BUILD
     COMMAND ${CMAKE_COMMAND} -E copy_if_different
-    "${EXTERNAL_DIR}/resid/build_host/libresid.so"
-    "${CMAKE_CURRENT_BINARY_DIR}/libresid.so"
-    COMMAND ${CMAKE_COMMAND} -E copy_if_different
-    "${EXTERNAL_DIR}/libresidfp/build_host/install/lib/libresidfp.so.0"
+    "${PREBUILT_DIR}/lib/libresidfp.so"
     "${CMAKE_CURRENT_BINARY_DIR}/libresidfp.so.0"
     COMMAND ${CMAKE_COMMAND} -E copy_if_different
-    "${EXTERNAL_DIR}/libsidplayfp/build_host/install/lib/libsidplayfp.so.6"
+    "${PREBUILT_DIR}/lib/libsidplayfp.so"
     "${CMAKE_CURRENT_BINARY_DIR}/libsidplayfp.so.6"
 )
 

@@ -179,10 +179,6 @@ object AppDefaults {
             val fpsMode = VisualizationOscFpsMode.Default
             val renderResolution = VisualizationProjectMResolutionMode.P720
 
-            fun defaultMeshSize(context: android.content.Context): Int {
-                val isWatch = context.packageManager.hasSystemFeature(android.content.pm.PackageManager.FEATURE_WATCH)
-                return if (isWatch || CpuHardwareDetector.info.isLegacyOrConstrained) 32 else meshSize
-            }
         }
 
         data class StarfieldPresetTune(

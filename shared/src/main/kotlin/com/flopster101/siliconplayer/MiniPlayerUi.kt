@@ -1,6 +1,5 @@
 package com.flopster101.siliconplayer
 
-import android.webkit.MimeTypeMap
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.Crossfade
 import androidx.compose.animation.core.Animatable
@@ -65,15 +64,14 @@ import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.input.key.type
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalDensity
-import androidx.compose.ui.res.vectorResource
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.flopster101.siliconplayer.platform.LocalWindowSizeInfo
 import java.io.File
 import java.util.Locale
 import kotlinx.coroutines.delay
@@ -85,44 +83,11 @@ private val artworkFallbackVideoExtensions = setOf(
     "ts", "vob", "webm", "wmv"
 )
 
-@Composable
-internal fun placeholderArtworkIconForFile(
-    file: File?,
-    decoderName: String?,
-    allowCurrentDecoderFallback: Boolean = true
-): ImageVector {
-    val resId = placeholderArtworkDrawableResIdForFile(file, decoderName)
-    return ImageVector.vectorResource(resId)
-}
-
-internal fun placeholderArtworkDrawableResIdForFile(
-    file: File?,
-    decoderName: String?
-): Int {
-    val extension = file?.name?.let(::inferredPrimaryExtensionForName) ?: return R.drawable.ic_placeholder_music_note
-    val decoderExtensionArtworkHints = buildDecoderExtensionArtworkHintMap()
-    val effectiveDecoderName = decoderName
-        ?.trim()
-        ?.takeIf { it.isNotEmpty() }
-    val resolvedHint =
-        decoderArtworkHintForName(effectiveDecoderName)
-            ?: file?.name?.let { resolveDecoderArtworkHintForFileName(it, decoderExtensionArtworkHints) }
-    return when (resolvedHint) {
-        DecoderArtworkHint.TrackedFile -> R.drawable.ic_placeholder_tracker_chip
-        DecoderArtworkHint.GameFile -> R.drawable.ic_placeholder_gamepad
-        null -> R.drawable.ic_placeholder_music_note
-    }
-}
-
 private fun isLikelyVideoExtension(extension: String): Boolean {
     if (extension.isBlank()) {
         return false
     }
     val normalized = extension.lowercase(Locale.ROOT)
-    val mimeType = MimeTypeMap.getSingleton().getMimeTypeFromExtension(normalized)
-    if (mimeType?.startsWith("video/") == true) {
-        return true
-    }
     return normalized in artworkFallbackVideoExtensions
 }
 
@@ -184,12 +149,13 @@ internal fun MiniPlayerBar(
     } else {
         0f
     }
-    val compactControls = LocalConfiguration.current.screenWidthDp <= 420
+    val windowSize = LocalWindowSizeInfo.current
+    val compactControls = windowSize.screenWidthDp <= 420
     val controlButtonSize = if (compactControls) 36.dp else 40.dp
     val controlIconSize = if (compactControls) 20.dp else 22.dp
     val density = LocalDensity.current
     val expandSwipeThresholdPx = with(density) { 112.dp.toPx() }
-    val screenHeightPx = with(density) { LocalConfiguration.current.screenHeightDp.dp.toPx() }
+    val screenHeightPx = with(density) { windowSize.screenHeightDp.dp.toPx() }
     val previewDistancePx = screenHeightPx * 0.72f
     var upwardDragPx by remember { mutableFloatStateOf(0f) }
     var expandSettleAnimating by remember { mutableStateOf(false) }

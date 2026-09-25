@@ -144,7 +144,11 @@ private:
 
     std::shared_ptr<LoadedPlugin> loadPlugin(const std::string& libraryName) {
         LOGD("Loading decoder plugin: %s", libraryName.c_str());
+#if defined(__ANDROID__)
         void* handle = dlopen(libraryName.c_str(), RTLD_NOW | RTLD_LOCAL);
+#else
+        void* handle = dlopen(libraryName.c_str(), RTLD_NOW | RTLD_GLOBAL);
+#endif
         if (handle == nullptr) {
             LOGE("dlopen failed for %s: %s", libraryName.c_str(), dlerror());
             return {};

@@ -1,7 +1,5 @@
 package com.flopster101.siliconplayer
 
-import android.app.ActivityManager
-import android.content.Context
 
 enum class VisualizationMode(
     val storageValue: String,
@@ -312,20 +310,31 @@ enum class VisualizationProjectMResolutionMode(
     }
 }
 
-/**
- * projectM requires OpenGL ES 3.0. Availability is cached for the process
- * lifetime using the app context installed by NativeBridge at startup.
- */
-@Volatile
-private var cachedProjectMSupported: Boolean? = null
+enum class VisualizationPerformanceMode(
+    val storageValue: String,
+    val label: String,
+    val description: String
+) {
+    Auto("auto", "Auto (Recommended)", "Automatically selects the best performance profile based on device CPU capabilities."),
+    HighPerformance("high_performance", "High performance", "Elevates thread priority to maintain high FPS on constrained devices."),
+    Balanced("balanced", "Balanced", "Standard UI display priority with good balance between performance and battery life."),
+    PowerSaving("power_saving", "Power saving", "Lowers thread priority to maximize battery life.");
 
-fun supportsProjectM(context: Context): Boolean {
-    cachedProjectMSupported?.let { return it }
-    val activityManager =
-        context.applicationContext.getSystemService(Context.ACTIVITY_SERVICE) as ActivityManager
-    val supported = activityManager.deviceConfigurationInfo.reqGlEsVersion >= 0x30000
-    cachedProjectMSupported = supported
-    return supported
+    companion object {
+        fun fromStorage(value: String?): VisualizationPerformanceMode {
+            return entries.firstOrNull { it.storageValue == value } ?: Auto
+        }
+    }
 }
 
-fun supportsProjectM(): Boolean = supportsProjectM(NativeBridge.requireAppContext())
+enum class VisualizationFullscreenMode(val storageValue: String, val label: String) {
+    Complete("complete", "Complete"),
+    Compact("compact", "Compact"),
+    SuperCompact("super_compact", "Super compact");
+
+    companion object {
+        fun fromStorage(value: String?): VisualizationFullscreenMode {
+            return entries.firstOrNull { it.storageValue == value } ?: Complete
+        }
+    }
+}

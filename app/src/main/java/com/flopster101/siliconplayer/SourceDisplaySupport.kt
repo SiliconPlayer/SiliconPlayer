@@ -4,15 +4,6 @@ import android.net.Uri
 import com.flopster101.siliconplayer.data.parseArchiveLogicalPath
 import com.flopster101.siliconplayer.data.parseArchiveSourceId
 
-internal fun decodePercentEncodedForDisplay(raw: String?): String? {
-    val trimmed = raw?.trim().takeUnless { it.isNullOrBlank() } ?: return null
-    if (!trimmed.contains('%')) return trimmed
-    return runCatching { Uri.decode(trimmed) }
-        .getOrNull()
-        ?.trim()
-        .takeUnless { it.isNullOrBlank() }
-        ?: trimmed
-}
 
 internal fun sourceLeafNameForDisplay(rawPath: String): String? {
     sourceLeafNameForArchiveLogicalPath(rawPath)?.let { return it }
@@ -99,13 +90,4 @@ private fun sourceLeafNameForArchiveLogicalPath(path: String): String? {
     }
 }
 
-internal fun formatDisplayArtist(rawArtist: String?): String {
-    val trimmed = rawArtist?.trim().orEmpty()
-    if (trimmed.isBlank() || !trimmed.contains(';')) return trimmed
-    return trimmed
-        .split(';')
-        .map { it.trim() }
-        .filter { it.isNotEmpty() }
-        .joinToString(", ")
-}
 

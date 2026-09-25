@@ -2,6 +2,7 @@ package com.flopster101.siliconplayer.ui.visualization.gl
 
 import android.content.Context
 import com.flopster101.siliconplayer.AppDefaults
+import com.flopster101.siliconplayer.defaultMeshSize
 import com.flopster101.siliconplayer.AppPreferenceKeys
 import com.flopster101.siliconplayer.VisualizationOscFpsMode
 import com.flopster101.siliconplayer.VisualizationProjectMResolutionMode

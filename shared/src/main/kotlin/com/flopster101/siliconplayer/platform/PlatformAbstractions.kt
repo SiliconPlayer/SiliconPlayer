@@ -47,6 +47,7 @@ val LocalPreferencesProvider = staticCompositionLocalOf<PreferencesProvider> {
 }
 
 val LocalIsWatchDevice = staticCompositionLocalOf { false }
+val LocalIsRoundScreen = staticCompositionLocalOf { false }
 
 enum class AudioOutputRouteType {
     Speaker,

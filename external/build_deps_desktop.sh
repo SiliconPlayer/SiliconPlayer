@@ -399,7 +399,7 @@ build_libresid() {
     local PROJECT_PATH="$ABSOLUTE_PATH/resid"
     local BUILD_DIR="$PROJECT_PATH/build_desktop_${ARCH}"
     if [ ! -d "$PROJECT_PATH" ]; then return 0; fi
-    if [ "$FORCE_CLEAN" -ne 1 ] && [ -f "$INSTALL_DIR/lib/libresid.so" ]; then return 0; fi
+    if [ "$FORCE_CLEAN" -ne 1 ] && [ -f "$INSTALL_DIR/lib/libresid.a" ]; then return 0; fi
     echo "Building libresid for host..."
     rm -rf "$BUILD_DIR" && mkdir -p "$BUILD_DIR"
     (
@@ -407,6 +407,8 @@ build_libresid() {
         "$PROJECT_PATH/configure" --prefix="$INSTALL_DIR" --enable-shared --disable-static CFLAGS="$CFLAGS" CXXFLAGS="$CXXFLAGS"
         make -j"$NPROC"
         make install
+        mkdir -p "$INSTALL_DIR/include/resid"
+        cp "$PROJECT_PATH"/*.h "$BUILD_DIR"/siddefs.h "$INSTALL_DIR/include/resid/"
     )
 }
 
@@ -432,7 +434,7 @@ build_libsidplayfp() {
     if [ "$FORCE_CLEAN" -ne 1 ] && [ -f "$INSTALL_DIR/lib/libsidplayfp.so" ]; then return 0; fi
     apply_libsidplayfp_patches
     if [ ! -f "$INSTALL_DIR/lib/libresidfp.so" ]; then build_libresidfp; fi
-    if [ ! -f "$INSTALL_DIR/lib/libresid.so" ]; then build_libresid; fi
+    if [ ! -f "$INSTALL_DIR/lib/libresid.a" ]; then build_libresid; fi
     echo "Building libsidplayfp for host..."
     rm -rf "$BUILD_DIR" && mkdir -p "$BUILD_DIR"
     (

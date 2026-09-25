@@ -37,12 +37,14 @@ std::string toHexLower(const unsigned char* bytes, size_t count) {
 // "N. name" per entry, 1-based, as consumed by the channel scope overlay.
 template <typename T>
 std::string joinIndexedNames(const T* entries, int count) {
-    std::ostringstream out;
+    std::string out;
     for (int i = 0; i < count; ++i) {
-        if (i > 0) out << '\n';
-        out << (i + 1) << ". " << std::string(entries[i].name, strnlen(entries[i].name, 32));
+        if (i > 0) out.push_back('\n');
+        out += std::to_string(i + 1);
+        out += ". ";
+        out.append(entries[i].name, strnlen(entries[i].name, 32));
     }
-    return out.str();
+    return out;
 }
 
 // libxmp converts every effect to the FastTracker numbering. FastTracker and

@@ -44,11 +44,10 @@ import androidx.compose.animation.core.updateTransition
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.input.nestedscroll.nestedScroll
-import android.content.pm.PackageManager
-import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import com.flopster101.siliconplayer.platform.LocalIsWatchDevice
+import com.flopster101.siliconplayer.platform.LocalIsRoundScreen
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -61,10 +60,8 @@ internal fun MainNavigationScaffold(
     mainContentModifier: Modifier = Modifier,
     content: @Composable (mainPadding: PaddingValues, targetView: MainView) -> Unit
 ) {
-    val context = LocalContext.current
-    val isWatch = remember(context) { context.packageManager.hasSystemFeature(PackageManager.FEATURE_WATCH) }
-    val configuration = LocalConfiguration.current
-    val isRound = configuration.isRoundScreenCompat
+    val isWatch = LocalIsWatchDevice.current
+    val isRound = LocalIsRoundScreen.current
 
     val isMainTopBarVisible =
         !isWatch &&

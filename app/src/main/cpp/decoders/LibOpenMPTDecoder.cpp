@@ -9,6 +9,8 @@
 #include <concepts>
 #include <unordered_set>
 #include <sstream>
+#include <clocale>
+#include <locale>
 
 #define LOG_TAG "LibOpenMPTDecoder"
 #define LOGE(...) __android_log_print(ANDROID_LOG_ERROR, LOG_TAG, __VA_ARGS__)
@@ -114,18 +116,23 @@ bool isAmigaStyleLeftChannel(int channel) {
 
 std::string joinNamedEntries(const std::vector<std::string>& names) {
     if (names.empty()) return "";
-    std::ostringstream out;
+    std::string out;
     for (size_t i = 0; i < names.size(); ++i) {
-        if (i > 0) out << '\n';
-        const std::string& rawName = names[i];
-        out << (i + 1) << ". " << rawName;
+        if (i > 0) out.push_back('\n');
+        out += std::to_string(i + 1);
+        out += ". ";
+        out += names[i];
     }
-    return out.str();
+    return out;
 }
 }
 
 LibOpenMPTDecoder::LibOpenMPTDecoder()
     : channelScopeState(std::make_shared<ChannelScopeSharedState>()) {
+    std::setlocale(LC_ALL, "C");
+    try {
+        std::locale::global(std::locale::classic());
+    } catch (...) {}
 }
 
 LibOpenMPTDecoder::~LibOpenMPTDecoder() {
