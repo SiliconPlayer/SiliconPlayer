@@ -366,6 +366,7 @@ extensions.configure<com.android.build.api.dsl.ApplicationExtension>("android") 
             assets.directories.add("build/generated/projectmPresetsAssets/main")
             jniLibs.directories.add("build/generated/prebuiltNativeLibs/main")
             java.directories.add("build/generated/source/aboutVersions/main")
+            java.directories.add(rootProject.file("shared/src/main/kotlin").absolutePath)
         }
     }
 }
@@ -374,6 +375,10 @@ kotlin {
     compilerOptions {
         jvmTarget.set(JvmTarget.JVM_17)
     }
+}
+
+tasks.withType<org.jetbrains.kotlin.gradle.tasks.KotlinCompile>().configureEach {
+    source(rootProject.file("shared/src/main/kotlin"))
 }
 
 tasks.named("preBuild").configure {
