@@ -112,7 +112,7 @@ jobs:
       - name: Build native dependencies
         if: steps.deps-cache.outputs.cache-hit != 'true'
         run: |
-          chmod +x external/build_deps.sh
+          chmod +x external/build_deps*.sh
           ./external/build_deps.sh all_legacy all
 
       - name: Build optimizedDebug APK
