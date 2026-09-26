@@ -102,6 +102,8 @@ class DesktopLibraryRepository(private val configDir: File) : LibraryRepositoryS
         val config = readLibraryScanConfig(configDir)
         val extensions = config.extensions ?: defaultScanExtensions()
         val syncedAtMs = System.currentTimeMillis()
+        val enabledRoots = config.roots.filter { it.enabled }.map { it.path }
+        println("[SiliconPlayer] library scan started: $enabledRoots")
         scanRootsIntoStore(config.roots, extensions, onProgress)
         // The scan rewrote the track store (pruning vanished files); stamp
         // the sync time on the config row.
@@ -198,6 +200,8 @@ class DesktopLibraryRepository(private val configDir: File) : LibraryRepositoryS
             }
             dirty = true
             onProgress(scanned, indexed, null)
+            val skipped = candidates.size - indexed
+            println("[SiliconPlayer] library scan finished: $indexed indexed, $skipped skipped")
         }
         val removed = existing.keys - seenPaths
         if (removed.isNotEmpty()) {

@@ -1855,7 +1855,7 @@ internal fun PlaylistsScreen(
                                         item {
                                             LibraryPlaceholderRow(
                                                 title = if (librarySyncState.isScanning) "Scanning library…" else "No albums yet",
-                                                body = if (librarySyncState.isScanning) "Indexing MediaStore tracks" else "Albums from your media library will appear here",
+                                                body = if (librarySyncState.isScanning) "Indexing tracks…" else "Albums from your media library will appear here",
                                                 isWatch = true
                                             )
                                         }
@@ -1879,7 +1879,7 @@ internal fun PlaylistsScreen(
                                         item {
                                             LibraryPlaceholderRow(
                                                 title = if (librarySyncState.isScanning) "Scanning library…" else "No artists yet",
-                                                body = if (librarySyncState.isScanning) "Indexing MediaStore tracks" else "Library tracks will appear here",
+                                                body = if (librarySyncState.isScanning) "Indexing tracks…" else "Library tracks will appear here",
                                                 isWatch = true
                                             )
                                         }
@@ -1903,7 +1903,7 @@ internal fun PlaylistsScreen(
                                         item {
                                             LibraryPlaceholderRow(
                                                 title = if (librarySyncState.isScanning) "Scanning library…" else "No tracks yet",
-                                                body = if (librarySyncState.isScanning) "Indexing MediaStore tracks" else "Tracks from your media library will appear here",
+                                                body = if (librarySyncState.isScanning) "Indexing tracks…" else "Tracks from your media library will appear here",
                                                 isWatch = true
                                             )
                                         }
@@ -3653,38 +3653,42 @@ private fun LibraryCollectionPlaceholderPage(
     title: String,
     body: String,
     bottomContentPadding: Dp,
-    isWatch: Boolean = false
+    isWatch: Boolean = false,
+    syncState: LibrarySyncState = LibrarySyncState()
 ) {
-    LazyColumn(
-        modifier = Modifier.fillMaxSize(),
-        contentPadding = if (isWatch) {
-            PaddingValues(0.dp)
-        } else {
-            PaddingValues(
-                start = 16.dp,
-                top = 12.dp,
-                end = 16.dp,
-                bottom = bottomContentPadding + 16.dp
-            )
-        },
-        verticalArrangement = Arrangement.spacedBy(4.dp)
+    // Background status, never fake entries: empty means nothing indexed yet.
+    Column(
+        modifier = Modifier.fillMaxSize().padding(bottom = bottomContentPadding),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.Center
     ) {
-        item {
+        Text(
+            text = title,
+            style = if (isWatch) MaterialTheme.typography.titleSmall else MaterialTheme.typography.titleLarge,
+            color = MaterialTheme.colorScheme.onSurface
+        )
+        Spacer(modifier = Modifier.height(8.dp))
+        Text(
+            text = body,
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+        if (syncState.isScanning) {
+            Spacer(modifier = Modifier.height(8.dp))
             Text(
-                text = body,
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.padding(horizontal = 6.dp, vertical = 4.dp)
+                text = "${syncState.scannedFiles} files · ${syncState.indexedTracks} tracks",
+                style = MaterialTheme.typography.labelLarge,
+                color = MaterialTheme.colorScheme.primary
             )
-        }
-        items(
-            items = listOf(0, 1, 2, 3)
-        ) {
-            LibraryPlaceholderRow(
-                title = "$title will appear here",
-                body = "Add library folders later.",
-                isWatch = isWatch
-            )
+            syncState.currentPath?.substringAfterLast('/')?.takeIf { it.isNotBlank() }?.let { name ->
+                Text(
+                    text = name,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+            }
         }
     }
 }
@@ -3706,9 +3710,10 @@ private fun AlbumsLibraryPage(
     if (albums.isEmpty()) {
         LibraryCollectionPlaceholderPage(
             title = if (isSyncing) "Scanning library…" else "No albums yet",
-            body = if (isSyncing) "Indexing MediaStore tracks" else "Albums from your media library will appear here.",
+            body = if (isSyncing) "Indexing tracks…" else "Albums from your media library will appear here.",
             bottomContentPadding = bottomContentPadding,
-            isWatch = isWatch
+            isWatch = isWatch,
+            syncState = syncState
         )
         return
     }
@@ -3796,7 +3801,7 @@ private fun AlbumsLibraryPage(
             }
         }
     }
-    }
+}
 
 @Composable
 private fun TracksLibraryPage(
@@ -3812,9 +3817,10 @@ private fun TracksLibraryPage(
     if (tracks.isEmpty()) {
         LibraryCollectionPlaceholderPage(
             title = if (isSyncing) "Scanning library…" else "No tracks yet",
-            body = if (isSyncing) "Indexing MediaStore tracks" else "Tracks from your media library will appear here.",
+            body = if (isSyncing) "Indexing tracks…" else "Tracks from your media library will appear here.",
             bottomContentPadding = bottomContentPadding,
-            isWatch = false
+            isWatch = false,
+            syncState = syncState
         )
         return
     }
@@ -3866,9 +3872,10 @@ private fun ArtistsLibraryPage(
     if (artists.isEmpty()) {
         LibraryCollectionPlaceholderPage(
             title = if (isSyncing) "Scanning library…" else "No artists yet",
-            body = if (isSyncing) "Indexing MediaStore tracks" else "Artists from your media library will appear here.",
+            body = if (isSyncing) "Indexing tracks…" else "Artists from your media library will appear here.",
             bottomContentPadding = bottomContentPadding,
-            isWatch = isWatch
+            isWatch = isWatch,
+            syncState = syncState
         )
         return
     }
@@ -3880,23 +3887,23 @@ private fun ArtistsLibraryPage(
             )
         }
         LazyColumn(
-        state = listState,
-        modifier = Modifier.fillMaxSize(),
-        contentPadding = PaddingValues(
-            start = 16.dp,
-            top = 10.dp,
-            end = 16.dp,
-            bottom = bottomContentPadding + 16.dp
-        ),
-        verticalArrangement = Arrangement.spacedBy(4.dp)
-    ) {
-        items(artists, key = { it.name }) { artist ->
-            ArtistLibraryRow(
-                artist = artist,
-                onClick = { onOpenArtist(artist) },
-                contextMenu = contextMenuFor(artist)
-            )
-        }
+            state = listState,
+            modifier = Modifier.fillMaxSize(),
+            contentPadding = PaddingValues(
+                start = 16.dp,
+                top = 10.dp,
+                end = 16.dp,
+                bottom = bottomContentPadding + 16.dp
+            ),
+            verticalArrangement = Arrangement.spacedBy(4.dp)
+        ) {
+            items(artists, key = { it.name }) { artist ->
+                ArtistLibraryRow(
+                    artist = artist,
+                    onClick = { onOpenArtist(artist) },
+                    contextMenu = contextMenuFor(artist)
+                )
+            }
     }
     }
 }
