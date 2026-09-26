@@ -5,21 +5,30 @@ import androidx.compose.runtime.mutableDoubleStateOf
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.graphics.ImageBitmap
+import com.flopster101.siliconplayer.AppDefaults
+import com.flopster101.siliconplayer.AppPreferenceKeys
+import com.flopster101.siliconplayer.CrsidOptionKeys
+import com.flopster101.siliconplayer.DecoderNames
+import com.flopster101.siliconplayer.EndFadeCurve
+import com.flopster101.siliconplayer.GmeDefaults
+import com.flopster101.siliconplayer.GmeOptionKeys
 import com.flopster101.siliconplayer.NativeBridge
 import com.flopster101.siliconplayer.RepeatMode
+import com.flopster101.siliconplayer.SidPlayFpOptionKeys
+import com.flopster101.siliconplayer.SubtuneEntry
+import com.flopster101.siliconplayer.UadeOptionKeys
 import com.flopster101.siliconplayer.availableRepeatModesForFlags
+import com.flopster101.siliconplayer.canSeekPlayback
+import com.flopster101.siliconplayer.hasReliableDuration
+import com.flopster101.siliconplayer.platform.AppPreferences
+import java.io.File
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
-import java.io.File
-
-import androidx.compose.ui.graphics.ImageBitmap
-import com.flopster101.siliconplayer.canSeekPlayback
-import com.flopster101.siliconplayer.hasReliableDuration
-import com.flopster101.siliconplayer.SubtuneEntry
 
 class DesktopPlaybackSession(
     private val scope: CoroutineScope = CoroutineScope(Dispatchers.Default)
@@ -88,12 +97,14 @@ class DesktopPlaybackSession(
     private var isUserSeeking = false
     private var currentSource: String? = null
     private var stoppedSource: String? = null
+    // Live prefs source for track-open native pushes; attached once host prefs exist.
+    var trackOptionsPrefs: AppPreferences? = null
 
     init {
         startTicker()
     }
 
-    fun loadFile(file: File): Boolean {
+    fun loadFile(file: File, autoStart: Boolean = true): Boolean {
         if (!file.exists() || !file.isFile) return false
 
         NativeBridge.stopEngineNative()
@@ -103,6 +114,7 @@ class DesktopPlaybackSession(
         } else {
             NativeBridge.loadAudio(file.absolutePath)
         }
+        trackOptionsPrefs?.let { pushStoredTrackOptionsToNative(it) }
 
         currentFile = file
         currentSource = file.absolutePath
@@ -113,15 +125,20 @@ class DesktopPlaybackSession(
             artwork = DesktopArtworkSupport.loadArtworkForFile(file)
         }
 
-        NativeBridge.startEngineNative()
-        isPlaying = NativeBridge.isEnginePlaying()
+        // loadAudio without start leaves a loaded-but-paused track (mirrors autoStart=false).
+        if (autoStart) {
+            NativeBridge.startEngineNative()
+            isPlaying = NativeBridge.isEnginePlaying()
+        } else {
+            isPlaying = false
+        }
         return true
     }
 
-    fun loadSource(source: String, titleHint: String? = null, artistHint: String? = null): Boolean {
+    fun loadSource(source: String, titleHint: String? = null, artistHint: String? = null, autoStart: Boolean = true): Boolean {
         val file = File(source)
         if (file.exists() && file.isFile) {
-            return loadFile(file)
+            return loadFile(file, autoStart)
         }
         NativeBridge.stopEngineNative()
         val forced = NativeBridge.consumeForcedDecoderOneShot()
@@ -130,6 +147,7 @@ class DesktopPlaybackSession(
         } else {
             NativeBridge.loadAudio(source)
         }
+        trackOptionsPrefs?.let { pushStoredTrackOptionsToNative(it) }
         currentFile = File(source)
         currentSource = source
         stoppedSource = null
@@ -147,10 +165,18 @@ class DesktopPlaybackSession(
         if (artist.isBlank() && !artistHint.isNullOrBlank()) {
             artist = artistHint
         }
-        NativeBridge.startEngineNative()
-        isPlaying = NativeBridge.isEnginePlaying()
+        // loadAudio without start leaves a loaded-but-paused track (mirrors autoStart=false).
+        if (autoStart) {
+            NativeBridge.startEngineNative()
+            isPlaying = NativeBridge.isEnginePlaying()
+        } else {
+            isPlaying = false
+        }
         return true
     }
+
+    // Mirrors Android: skip the fade natives when off or near track start.
+    var fadePauseResume: Boolean = true
 
     fun play() {
         val sourceToResume = stoppedSource
@@ -160,12 +186,20 @@ class DesktopPlaybackSession(
             return
         }
         if (currentFile == null) return
-        NativeBridge.startEngineWithPauseResumeFadeNative()
+        if (fadePauseResume && positionSeconds > 0.05) {
+            NativeBridge.startEngineWithPauseResumeFadeNative()
+        } else {
+            NativeBridge.startEngineNative()
+        }
         isPlaying = true
     }
 
     fun pause() {
-        NativeBridge.stopEngineWithPauseResumeFadeNative()
+        if (fadePauseResume && positionSeconds > 0.05) {
+            NativeBridge.stopEngineWithPauseResumeFadeNative()
+        } else {
+            NativeBridge.stopEngineNative()
+        }
         isPlaying = false
     }
 
@@ -357,4 +391,30 @@ class DesktopPlaybackSession(
         tickerJob = null
         stop()
     }
+}
+
+// Mirrors Android AppNavigationCoreEffects unknown-duration: live setCoreOption on all four cores.
+internal fun pushUnknownTrackDurationToNative(seconds: Int) {
+    val value = seconds.coerceIn(1, 86400).toString()
+    runCatching { NativeBridge.setCoreOption(DecoderNames.GAME_MUSIC_EMU, GmeOptionKeys.UNKNOWN_DURATION_SECONDS, value) }
+    runCatching { NativeBridge.setCoreOption(DecoderNames.LIB_SID_PLAY_FP, SidPlayFpOptionKeys.UNKNOWN_DURATION_SECONDS, value) }
+    runCatching { NativeBridge.setCoreOption(DecoderNames.C_RSID, CrsidOptionKeys.UNKNOWN_DURATION_SECONDS, value) }
+    runCatching { NativeBridge.setCoreOption(DecoderNames.UADE, UadeOptionKeys.UNKNOWN_DURATION_SECONDS, value) }
+}
+
+// Engine-level end-fade (same shared C++ AudioEngine; native clamps duration/curve).
+internal fun pushEndFadeToNative(applyToAll: Boolean, durationMs: Int, curve: EndFadeCurve) {
+    runCatching { NativeBridge.setEndFadeApplyToAllTracks(applyToAll) }
+    runCatching { NativeBridge.setEndFadeDurationMs(durationMs) }
+    runCatching { NativeBridge.setEndFadeCurve(curve.nativeValue) }
+}
+
+// Stored player prefs pushed at track-open/startup; fallbacks match desktop settings reads.
+internal fun pushStoredTrackOptionsToNative(prefs: AppPreferences) {
+    pushUnknownTrackDurationToNative(prefs.getInt(AppPreferenceKeys.UNKNOWN_TRACK_DURATION_SECONDS, GmeDefaults.unknownDurationSeconds))
+    pushEndFadeToNative(
+        prefs.getBoolean(AppPreferenceKeys.END_FADE_APPLY_TO_ALL_TRACKS, AppDefaults.Player.endFadeApplyToAllTracks),
+        prefs.getInt(AppPreferenceKeys.END_FADE_DURATION_MS, AppDefaults.Player.endFadeDurationMs),
+        EndFadeCurve.fromStorage(prefs.getString(AppPreferenceKeys.END_FADE_CURVE, AppDefaults.Player.endFadeCurve.storageValue))
+    )
 }

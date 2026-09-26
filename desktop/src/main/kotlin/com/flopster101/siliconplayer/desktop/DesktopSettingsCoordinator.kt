@@ -43,6 +43,21 @@ import com.flopster101.siliconplayer.VisualizationPerformanceMode
 import com.flopster101.siliconplayer.VisualizationRenderBackend
 import com.flopster101.siliconplayer.VisualizationVuAnchor
 import com.flopster101.siliconplayer.VgmPlayConfig
+import com.flopster101.siliconplayer.VgmPlayOptionKeys
+import com.flopster101.siliconplayer.AdPlugOptionKeys
+import com.flopster101.siliconplayer.AyflyOptionKeys
+import com.flopster101.siliconplayer.CrsidOptionKeys
+import com.flopster101.siliconplayer.FfmpegOptionKeys
+import com.flopster101.siliconplayer.FurnaceOptionKeys
+import com.flopster101.siliconplayer.GmeOptionKeys
+import com.flopster101.siliconplayer.HivelyTrackerOptionKeys
+import com.flopster101.siliconplayer.KlystrackOptionKeys
+import com.flopster101.siliconplayer.LazyUsf2OptionKeys
+import com.flopster101.siliconplayer.Sc68OptionKeys
+import com.flopster101.siliconplayer.SidPlayFpOptionKeys
+import com.flopster101.siliconplayer.UadeOptionKeys
+import com.flopster101.siliconplayer.Vio2sfOptionKeys
+import com.flopster101.siliconplayer.XmpOptionKeys
 import com.flopster101.siliconplayer.audio.applyDspSettingsToNative
 import com.flopster101.siliconplayer.audio.defaultDspSettings
 import com.flopster101.siliconplayer.buildSettingsScreenState
@@ -60,6 +75,7 @@ import com.flopster101.siliconplayer.platform.LocalAppCacheDir
 import com.flopster101.siliconplayer.platform.LocalAppPreferences
 import com.flopster101.siliconplayer.platform.LocalFileExportHandler
 import com.flopster101.siliconplayer.platform.LocalToastHandler
+import com.flopster101.siliconplayer.platform.ToastHandler
 import java.io.File
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -71,7 +87,12 @@ internal fun rememberDesktopSettings(
     onBackToMainView: () -> Unit,
     onOpenAudioEffects: () -> Unit = {},
     defaultScopeTextSizeSp: Int = 10,
-    protectedCachePaths: Set<String> = emptySet()
+    protectedCachePaths: Set<String> = emptySet(),
+    onSelectVisualizationMode: (VisualizationMode) -> Unit = {},
+    onSetEnabledModes: (Set<VisualizationMode>) -> Unit = {},
+    onClearRecentsUiState: () -> Unit = {},
+    onClearNetworkNodesUiState: () -> Unit = {},
+    onClearAllUiState: () -> Unit = {}
 ): Pair<SettingsScreenState, SettingsScreenActions> {
     val prefs = LocalAppPreferences.current
     val cacheDir = LocalAppCacheDir.current
@@ -111,6 +132,10 @@ internal fun rememberDesktopSettings(
         prefs.edit().putString(key, value).apply()
         changeToken++
     }
+
+    // One-time migration: early builds stored OpenMPT values under dotted native
+    // option names; canonical CorePreferenceKeys.OPENMPT_* win going forward.
+    remember(prefs) { migrateLegacyDesktopOpenMptKeys(prefs) }
 
     // Build plugin core state
     val pluginCoreState = remember(changeToken) {
@@ -199,15 +224,15 @@ internal fun rememberDesktopSettings(
             vgmPlayChipCoreSelections = VgmPlayConfig.defaultChipCoreSelections().mapValues { (chipKey, defaultValue) ->
                 prefs.getInt(CorePreferenceKeys.vgmPlayChipCoreKey(chipKey), defaultValue)
             },
-            openMptStereoSeparationPercent = prefs.getInt("openmpt.stereo_separation_percent", 100),
-            openMptStereoSeparationAmigaPercent = prefs.getInt("openmpt.stereo_separation_amiga_percent", 100),
-            openMptInterpolationFilterLength = prefs.getInt("openmpt.interpolation_filter_length", 8),
-            openMptAmigaResamplerMode = prefs.getInt("openmpt.amiga_resampler_mode", 0),
-            openMptAmigaResamplerApplyAllModules = prefs.getBoolean("openmpt.amiga_resampler_apply_all_modules", false),
-            openMptVolumeRampingStrength = prefs.getInt("openmpt.volume_ramping_strength", -1),
-            openMptFt2XmVolumeRamping = prefs.getBoolean("openmpt.ft2_xm_volume_ramping", false),
-            openMptMasterGainMilliBel = prefs.getInt("openmpt.master_gain_millibel", 0),
-            openMptSurroundEnabled = prefs.getBoolean("openmpt.surround_enabled", false)
+            openMptStereoSeparationPercent = prefs.getInt(CorePreferenceKeys.OPENMPT_STEREO_SEPARATION_PERCENT, 100),
+            openMptStereoSeparationAmigaPercent = prefs.getInt(CorePreferenceKeys.OPENMPT_STEREO_SEPARATION_AMIGA_PERCENT, 100),
+            openMptInterpolationFilterLength = prefs.getInt(CorePreferenceKeys.OPENMPT_INTERPOLATION_FILTER_LENGTH, 8),
+            openMptAmigaResamplerMode = prefs.getInt(CorePreferenceKeys.OPENMPT_AMIGA_RESAMPLER_MODE, 0),
+            openMptAmigaResamplerApplyAllModules = prefs.getBoolean(CorePreferenceKeys.OPENMPT_AMIGA_RESAMPLER_APPLY_ALL_MODULES, false),
+            openMptVolumeRampingStrength = prefs.getInt(CorePreferenceKeys.OPENMPT_VOLUME_RAMPING_STRENGTH, -1),
+            openMptFt2XmVolumeRamping = prefs.getBoolean(CorePreferenceKeys.OPENMPT_FT2_XM_VOLUME_RAMPING, false),
+            openMptMasterGainMilliBel = prefs.getInt(CorePreferenceKeys.OPENMPT_MASTER_GAIN_MILLIBEL, 0),
+            openMptSurroundEnabled = prefs.getBoolean(CorePreferenceKeys.OPENMPT_SURROUND_ENABLED, false)
         )
     }
 
@@ -321,6 +346,9 @@ internal fun rememberDesktopSettings(
         )
     }
 
+    // Box shares the built core callbacks with clear/reset below; plain array
+    // (not state) so capturing during composition never recomposes.
+    val coreActionsBox = remember { arrayOfNulls<SettingsPluginCoreActions>(1) }
     val actions = remember {
         SettingsScreenActions(
             onBack = {
@@ -492,16 +520,16 @@ internal fun rememberDesktopSettings(
                     prefs.edit().putInt(CorePreferenceKeys.vgmPlayChipCoreKey(chipKey), selectedValue).apply()
                     changeToken++
                 },
-                onOpenMptStereoSeparationPercentChanged = { putInt("openmpt.stereo_separation_percent", it) },
-                onOpenMptStereoSeparationAmigaPercentChanged = { putInt("openmpt.stereo_separation_amiga_percent", it) },
-                onOpenMptInterpolationFilterLengthChanged = { putInt("openmpt.interpolation_filter_length", it) },
-                onOpenMptAmigaResamplerModeChanged = { putInt("openmpt.amiga_resampler_mode", it) },
-                onOpenMptAmigaResamplerApplyAllModulesChanged = { putBool("openmpt.amiga_resampler_apply_all_modules", it) },
-                onOpenMptVolumeRampingStrengthChanged = { putInt("openmpt.volume_ramping_strength", it) },
-                onOpenMptFt2XmVolumeRampingChanged = { putBool("openmpt.ft2_xm_volume_ramping", it) },
-                onOpenMptMasterGainMilliBelChanged = { putInt("openmpt.master_gain_millibel", it) },
-                onOpenMptSurroundEnabledChanged = { putBool("openmpt.surround_enabled", it) }
-            ),
+                onOpenMptStereoSeparationPercentChanged = { putInt(CorePreferenceKeys.OPENMPT_STEREO_SEPARATION_PERCENT, it) },
+                onOpenMptStereoSeparationAmigaPercentChanged = { putInt(CorePreferenceKeys.OPENMPT_STEREO_SEPARATION_AMIGA_PERCENT, it) },
+                onOpenMptInterpolationFilterLengthChanged = { putInt(CorePreferenceKeys.OPENMPT_INTERPOLATION_FILTER_LENGTH, it) },
+                onOpenMptAmigaResamplerModeChanged = { putInt(CorePreferenceKeys.OPENMPT_AMIGA_RESAMPLER_MODE, it) },
+                onOpenMptAmigaResamplerApplyAllModulesChanged = { putBool(CorePreferenceKeys.OPENMPT_AMIGA_RESAMPLER_APPLY_ALL_MODULES, it) },
+                onOpenMptVolumeRampingStrengthChanged = { putInt(CorePreferenceKeys.OPENMPT_VOLUME_RAMPING_STRENGTH, it) },
+                onOpenMptFt2XmVolumeRampingChanged = { putBool(CorePreferenceKeys.OPENMPT_FT2_XM_VOLUME_RAMPING, it) },
+                onOpenMptMasterGainMilliBelChanged = { putInt(CorePreferenceKeys.OPENMPT_MASTER_GAIN_MILLIBEL, it) },
+                onOpenMptSurroundEnabledChanged = { putBool(CorePreferenceKeys.OPENMPT_SURROUND_ENABLED, it) }
+            ).also { coreActionsBox[0] = it },
             onAutoPlayOnTrackSelectChanged = { putBool(AppPreferenceKeys.AUTO_PLAY_ON_TRACK_SELECT, it) },
             onOpenPlayerOnTrackSelectChanged = { putBool(AppPreferenceKeys.OPEN_PLAYER_ON_TRACK_SELECT, it) },
             onAutoPlayNextTrackOnEndChanged = { putBool(AppPreferenceKeys.AUTO_PLAY_NEXT_TRACK_ON_END, it) },
@@ -594,20 +622,26 @@ internal fun rememberDesktopSettings(
             onCanvasTapToSeekSecondsChanged = { putInt(AppPreferenceKeys.CANVAS_TAP_TO_SEEK_SECONDS, it) },
             onFilenameDisplayModeChanged = { putString(AppPreferenceKeys.FILENAME_DISPLAY_MODE, it.storageValue) },
             onFilenameOnlyWhenTitleMissingChanged = { putBool(AppPreferenceKeys.FILENAME_ONLY_WHEN_TITLE_MISSING, it) },
-            onUnknownTrackDurationSecondsChanged = { putInt(AppPreferenceKeys.UNKNOWN_TRACK_DURATION_SECONDS, it) },
-            onEndFadeApplyToAllTracksChanged = { putBool(AppPreferenceKeys.END_FADE_APPLY_TO_ALL_TRACKS, it) },
-            onEndFadeDurationMsChanged = { putInt(AppPreferenceKeys.END_FADE_DURATION_MS, it) },
-            onEndFadeCurveChanged = { putString(AppPreferenceKeys.END_FADE_CURVE, it.storageValue) },
-            onVisualizationModeChanged = { putString(AppPreferenceKeys.VISUALIZATION_MODE, it.storageValue) },
-            onEnabledVisualizationModesChanged = { modes ->
-                prefs.edit()
-                    .putString(
-                        AppPreferenceKeys.VISUALIZATION_ENABLED_MODES,
-                        serializeEnabledVisualizationModes(modes)
-                    )
-                    .apply()
-                changeToken++
+            onUnknownTrackDurationSecondsChanged = {
+                val normalized = it.coerceIn(1, 86400)
+                putInt(AppPreferenceKeys.UNKNOWN_TRACK_DURATION_SECONDS, normalized)
+                pushUnknownTrackDurationToNative(normalized)
             },
+            onEndFadeApplyToAllTracksChanged = {
+                putBool(AppPreferenceKeys.END_FADE_APPLY_TO_ALL_TRACKS, it)
+                runCatching { NativeBridge.setEndFadeApplyToAllTracks(it) }
+            },
+            onEndFadeDurationMsChanged = {
+                putInt(AppPreferenceKeys.END_FADE_DURATION_MS, it)
+                runCatching { NativeBridge.setEndFadeDurationMs(it) }
+            },
+            onEndFadeCurveChanged = {
+                putString(AppPreferenceKeys.END_FADE_CURVE, it.storageValue)
+                runCatching { NativeBridge.setEndFadeCurve(it.nativeValue) }
+            },
+            // Live visualization state persists itself; the prefs write below refreshes this snapshot.
+            onVisualizationModeChanged = { onSelectVisualizationMode(it) },
+            onEnabledVisualizationModesChanged = { modes -> onSetEnabledModes(modes) },
             onVisualizationPerformanceModeChanged = { putString(AppPreferenceKeys.VISUALIZATION_PERFORMANCE_MODE, it.storageValue) },
             onVisualizationShowDebugInfoChanged = { putBool(AppPreferenceKeys.VISUALIZATION_SHOW_DEBUG_INFO, it) },
             onVisualizationKeepScreenOnChanged = { putBool(AppPreferenceKeys.VISUALIZATION_KEEP_SCREEN_ON, it) },
@@ -650,6 +684,8 @@ internal fun rememberDesktopSettings(
                     .remove(AppPreferenceKeys.RECENT_FOLDERS)
                     .remove(AppPreferenceKeys.RECENT_PLAYED_FILES)
                     .apply()
+                onClearRecentsUiState()
+                toastHandler.showToast("Home recents cleared")
                 changeToken++
             },
             onClearSavedNetworkSources = {
@@ -660,20 +696,456 @@ internal fun rememberDesktopSettings(
                     .remove(AppPreferenceKeys.NETWORK_SAVED_NODES)
                     .remove(AppPreferenceKeys.NETWORK_CREDENTIALS_JSON)
                     .apply()
+                onClearNetworkNodesUiState()
+                toastHandler.showToast("Saved network sources cleared")
                 changeToken++
             },
             onClearAllSettings = {
                 prefs.edit().clear().apply()
+                onClearAllUiState()
+                toastHandler.showToast("All app settings cleared")
                 changeToken++
             },
             onClearAllPluginSettings = {
+                // Reset callbacks persist defaults, so the Main.kt core-push
+                // observer fans every value out to the engine.
+                coreActionsBox[0]?.let { clearAllDesktopPluginSettings(prefs, it, toastHandler) }
                 changeToken++
             },
-            onResetPluginSettings = { _ ->
+            onResetPluginSettings = { pluginName ->
+                coreActionsBox[0]?.let { resetDesktopPluginSettings(prefs, pluginName, it, toastHandler) }
                 changeToken++
             }
         )
     }
 
     return Pair(state, actions)
+}
+
+// Legacy dotted OpenMPT keys written by early desktop builds.
+private val LegacyDesktopOpenMptKeyPairs = listOf(
+    "openmpt.stereo_separation_percent" to CorePreferenceKeys.OPENMPT_STEREO_SEPARATION_PERCENT,
+    "openmpt.stereo_separation_amiga_percent" to CorePreferenceKeys.OPENMPT_STEREO_SEPARATION_AMIGA_PERCENT,
+    "openmpt.interpolation_filter_length" to CorePreferenceKeys.OPENMPT_INTERPOLATION_FILTER_LENGTH,
+    "openmpt.amiga_resampler_mode" to CorePreferenceKeys.OPENMPT_AMIGA_RESAMPLER_MODE,
+    "openmpt.amiga_resampler_apply_all_modules" to CorePreferenceKeys.OPENMPT_AMIGA_RESAMPLER_APPLY_ALL_MODULES,
+    "openmpt.volume_ramping_strength" to CorePreferenceKeys.OPENMPT_VOLUME_RAMPING_STRENGTH,
+    "openmpt.ft2_xm_volume_ramping" to CorePreferenceKeys.OPENMPT_FT2_XM_VOLUME_RAMPING,
+    "openmpt.master_gain_millibel" to CorePreferenceKeys.OPENMPT_MASTER_GAIN_MILLIBEL,
+    "openmpt.surround_enabled" to CorePreferenceKeys.OPENMPT_SURROUND_ENABLED
+)
+
+private val LegacyDesktopOpenMptBoolKeys = setOf(
+    CorePreferenceKeys.OPENMPT_AMIGA_RESAMPLER_APPLY_ALL_MODULES,
+    CorePreferenceKeys.OPENMPT_FT2_XM_VOLUME_RAMPING,
+    CorePreferenceKeys.OPENMPT_SURROUND_ENABLED
+)
+
+// Copies legacy values to canonical keys once; canonical wins when both exist.
+private fun migrateLegacyDesktopOpenMptKeys(prefs: AppPreferences) {
+    try {
+        val editor = prefs.edit()
+        var changed = false
+        LegacyDesktopOpenMptKeyPairs.forEach { (legacy, canonical) ->
+            if (!prefs.contains(canonical) && prefs.contains(legacy)) {
+                if (LegacyDesktopOpenMptBoolKeys.contains(canonical)) {
+                    editor.putBoolean(canonical, prefs.getBoolean(legacy, false))
+                } else {
+                    editor.putInt(canonical, prefs.getInt(legacy, 0))
+                }
+                editor.remove(legacy)
+                changed = true
+            }
+        }
+        if (changed) editor.apply()
+    } catch (_: Throwable) {}
+}
+
+private data class DesktopCoreDecoderReset(
+    val prefKeys: List<String>,
+    val optionNames: List<String>,
+    val reset: (SettingsPluginCoreActions) -> Unit
+)
+
+// Mirrors Android resetPluginSettingsAction; reset values match the desktop
+// read-path defaults above so UI and engine agree after keys are removed.
+// VGMPlay chip-core prefs/options are derived from chipCoreSpecs (no literals).
+private val DesktopCoreDecoderResets: Map<String, DesktopCoreDecoderReset> = mapOf(
+    DecoderNames.FFMPEG to DesktopCoreDecoderReset(
+        prefKeys = listOf(CorePreferenceKeys.CORE_RATE_FFMPEG, CorePreferenceKeys.FFMPEG_GAPLESS_REPEAT_TRACK),
+        optionNames = listOf(FfmpegOptionKeys.GAPLESS_REPEAT_TRACK),
+        reset = { a -> a.onFfmpegSampleRateChanged(0); a.onFfmpegGaplessRepeatTrackChanged(false) }
+    ),
+    DecoderNames.LIB_OPEN_MPT to DesktopCoreDecoderReset(
+        prefKeys = listOf(
+            CorePreferenceKeys.CORE_RATE_OPENMPT,
+            CorePreferenceKeys.OPENMPT_STEREO_SEPARATION_PERCENT,
+            CorePreferenceKeys.OPENMPT_STEREO_SEPARATION_AMIGA_PERCENT,
+            CorePreferenceKeys.OPENMPT_INTERPOLATION_FILTER_LENGTH,
+            CorePreferenceKeys.OPENMPT_AMIGA_RESAMPLER_MODE,
+            CorePreferenceKeys.OPENMPT_AMIGA_RESAMPLER_APPLY_ALL_MODULES,
+            CorePreferenceKeys.OPENMPT_VOLUME_RAMPING_STRENGTH,
+            CorePreferenceKeys.OPENMPT_FT2_XM_VOLUME_RAMPING,
+            CorePreferenceKeys.OPENMPT_MASTER_GAIN_MILLIBEL,
+            CorePreferenceKeys.OPENMPT_SURROUND_ENABLED
+        ),
+        optionNames = listOf(
+            "openmpt.stereo_separation_percent",
+            "openmpt.stereo_separation_amiga_percent",
+            "openmpt.interpolation_filter_length",
+            "openmpt.amiga_resampler_mode",
+            "openmpt.amiga_resampler_apply_all_modules",
+            "openmpt.volume_ramping_strength",
+            "openmpt.ft2_xm_volume_ramping",
+            "openmpt.master_gain_millibel",
+            "openmpt.surround_enabled"
+        ),
+        reset = { a ->
+            a.onOpenMptSampleRateChanged(0)
+            a.onOpenMptStereoSeparationPercentChanged(100)
+            a.onOpenMptStereoSeparationAmigaPercentChanged(100)
+            a.onOpenMptInterpolationFilterLengthChanged(8)
+            a.onOpenMptAmigaResamplerModeChanged(0)
+            a.onOpenMptAmigaResamplerApplyAllModulesChanged(false)
+            a.onOpenMptVolumeRampingStrengthChanged(-1)
+            a.onOpenMptFt2XmVolumeRampingChanged(false)
+            a.onOpenMptMasterGainMilliBelChanged(0)
+            a.onOpenMptSurroundEnabledChanged(false)
+        }
+    ),
+    DecoderNames.VGM_PLAY to DesktopCoreDecoderReset(
+        prefKeys = listOf(
+            CorePreferenceKeys.CORE_RATE_VGMPLAY,
+            CorePreferenceKeys.VGMPLAY_LOOP_COUNT,
+            CorePreferenceKeys.VGMPLAY_ALLOW_NON_LOOPING_LOOP,
+            CorePreferenceKeys.VGMPLAY_VSYNC_RATE,
+            CorePreferenceKeys.VGMPLAY_RESAMPLE_MODE,
+            CorePreferenceKeys.VGMPLAY_CHIP_SAMPLE_MODE,
+            CorePreferenceKeys.VGMPLAY_CHIP_SAMPLE_RATE
+        ),
+        optionNames = listOf(
+            VgmPlayOptionKeys.LOOP_COUNT,
+            VgmPlayOptionKeys.ALLOW_NON_LOOPING_LOOP,
+            VgmPlayOptionKeys.VSYNC_RATE_HZ,
+            VgmPlayOptionKeys.RESAMPLE_MODE,
+            VgmPlayOptionKeys.CHIP_SAMPLE_MODE,
+            VgmPlayOptionKeys.CHIP_SAMPLE_RATE_HZ
+        ) + VgmPlayConfig.chipCoreSpecs.map { VgmPlayOptionKeys.CHIP_CORE_PREFIX + it.key },
+        reset = { a ->
+            a.onVgmPlaySampleRateChanged(0)
+            a.onVgmPlayLoopCountChanged(2)
+            a.onVgmPlayAllowNonLoopingLoopChanged(false)
+            a.onVgmPlayVsyncRateChanged(60)
+            a.onVgmPlayResampleModeChanged(0)
+            a.onVgmPlayChipSampleModeChanged(0)
+            a.onVgmPlayChipSampleRateChanged(0)
+            VgmPlayConfig.defaultChipCoreSelections().forEach { (chipKey, defaultValue) ->
+                a.onVgmPlayChipCoreChanged(chipKey, defaultValue)
+            }
+        }
+    ),
+    DecoderNames.GAME_MUSIC_EMU to DesktopCoreDecoderReset(
+        prefKeys = listOf(
+            CorePreferenceKeys.CORE_RATE_GME,
+            CorePreferenceKeys.GME_TEMPO_PERCENT,
+            CorePreferenceKeys.GME_STEREO_SEPARATION_PERCENT,
+            CorePreferenceKeys.GME_ECHO_ENABLED,
+            CorePreferenceKeys.GME_ACCURACY_ENABLED,
+            CorePreferenceKeys.GME_EQ_TREBLE_DECIBEL,
+            CorePreferenceKeys.GME_EQ_BASS_HZ,
+            CorePreferenceKeys.GME_SPC_USE_BUILTIN_FADE,
+            CorePreferenceKeys.GME_SPC_INTERPOLATION,
+            CorePreferenceKeys.GME_SPC_USE_NATIVE_SAMPLE_RATE
+        ),
+        optionNames = listOf(
+            GmeOptionKeys.TEMPO,
+            GmeOptionKeys.STEREO_SEPARATION,
+            GmeOptionKeys.ECHO_ENABLED,
+            GmeOptionKeys.ACCURACY_ENABLED,
+            GmeOptionKeys.EQ_TREBLE_DB,
+            GmeOptionKeys.EQ_BASS_HZ,
+            GmeOptionKeys.SPC_USE_BUILTIN_FADE,
+            GmeOptionKeys.SPC_INTERPOLATION,
+            GmeOptionKeys.SPC_USE_NATIVE_SAMPLE_RATE
+        ),
+        reset = { a ->
+            a.onGmeSampleRateChanged(0)
+            a.onGmeTempoPercentChanged(100)
+            a.onGmeStereoSeparationPercentChanged(100)
+            a.onGmeEchoEnabledChanged(false)
+            a.onGmeAccuracyEnabledChanged(true)
+            a.onGmeEqTrebleDecibelChanged(0)
+            a.onGmeEqBassHzChanged(0)
+            a.onGmeSpcUseBuiltInFadeChanged(true)
+            a.onGmeSpcInterpolationChanged(0)
+            a.onGmeSpcUseNativeSampleRateChanged(false)
+        }
+    ),
+    DecoderNames.C_RSID to DesktopCoreDecoderReset(
+        prefKeys = listOf(
+            CorePreferenceKeys.CORE_RATE_CRSID,
+            CorePreferenceKeys.CRSID_CLOCK_MODE,
+            CorePreferenceKeys.CRSID_SID_MODEL_MODE,
+            CorePreferenceKeys.CRSID_QUALITY_MODE,
+            CorePreferenceKeys.CRSID_FILTER_6581_PRESET
+        ),
+        optionNames = listOf(
+            CrsidOptionKeys.CLOCK_MODE,
+            CrsidOptionKeys.SID_MODEL_MODE,
+            CrsidOptionKeys.QUALITY_MODE,
+            CrsidOptionKeys.FILTER_6581_PRESET
+        ),
+        reset = { a ->
+            a.onCrsidSampleRateChanged(0)
+            a.onCrsidClockModeChanged(0)
+            a.onCrsidSidModelModeChanged(0)
+            a.onCrsidQualityModeChanged(0)
+            a.onCrsidFilter6581PresetChanged(0)
+        }
+    ),
+    DecoderNames.LIB_SID_PLAY_FP to DesktopCoreDecoderReset(
+        prefKeys = listOf(
+            CorePreferenceKeys.CORE_RATE_SIDPLAYFP,
+            CorePreferenceKeys.SIDPLAYFP_BACKEND,
+            CorePreferenceKeys.SIDPLAYFP_CLOCK_MODE,
+            CorePreferenceKeys.SIDPLAYFP_SID_MODEL_MODE,
+            CorePreferenceKeys.SIDPLAYFP_FILTER_6581_ENABLED,
+            CorePreferenceKeys.SIDPLAYFP_FILTER_8580_ENABLED,
+            CorePreferenceKeys.SIDPLAYFP_DIGI_BOOST_8580,
+            CorePreferenceKeys.SIDPLAYFP_FILTER_CURVE_6581,
+            CorePreferenceKeys.SIDPLAYFP_FILTER_RANGE_6581,
+            CorePreferenceKeys.SIDPLAYFP_FILTER_CURVE_8580,
+            CorePreferenceKeys.SIDPLAYFP_RESIDFP_FAST_SAMPLING,
+            CorePreferenceKeys.SIDPLAYFP_RESIDFP_COMBINED_WAVEFORMS_STRENGTH
+        ),
+        optionNames = listOf(
+            SidPlayFpOptionKeys.BACKEND,
+            SidPlayFpOptionKeys.CLOCK_MODE,
+            SidPlayFpOptionKeys.SID_MODEL_MODE,
+            SidPlayFpOptionKeys.FILTER_6581_ENABLED,
+            SidPlayFpOptionKeys.FILTER_8580_ENABLED,
+            SidPlayFpOptionKeys.RESIDFP_FAST_SAMPLING,
+            SidPlayFpOptionKeys.RESIDFP_COMBINED_WAVEFORMS_STRENGTH
+        ),
+        reset = { a ->
+            a.onSidPlayFpSampleRateChanged(0)
+            a.onSidPlayFpBackendChanged(0)
+            a.onSidPlayFpClockModeChanged(0)
+            a.onSidPlayFpSidModelModeChanged(0)
+            a.onSidPlayFpFilter6581EnabledChanged(true)
+            a.onSidPlayFpFilter8580EnabledChanged(true)
+            a.onSidPlayFpDigiBoost8580Changed(false)
+            a.onSidPlayFpFilterCurve6581PercentChanged(50)
+            a.onSidPlayFpFilterRange6581PercentChanged(50)
+            a.onSidPlayFpFilterCurve8580PercentChanged(50)
+            a.onSidPlayFpReSidFpFastSamplingChanged(false)
+            a.onSidPlayFpReSidFpCombinedWaveformsStrengthChanged(50)
+        }
+    ),
+    DecoderNames.LAZY_USF2 to DesktopCoreDecoderReset(
+        prefKeys = listOf(CorePreferenceKeys.CORE_RATE_LAZYUSF2, CorePreferenceKeys.LAZYUSF2_USE_HLE_AUDIO),
+        optionNames = listOf(LazyUsf2OptionKeys.USE_HLE_AUDIO),
+        reset = { a -> a.onLazyUsf2SampleRateChanged(0); a.onLazyUsf2UseHleAudioChanged(true) }
+    ),
+    DecoderNames.AD_PLUG to DesktopCoreDecoderReset(
+        prefKeys = listOf(CorePreferenceKeys.CORE_RATE_ADPLUG, CorePreferenceKeys.ADPLUG_OPL_ENGINE),
+        optionNames = listOf(AdPlugOptionKeys.OPL_ENGINE),
+        reset = { a -> a.onAdPlugSampleRateChanged(0); a.onAdPlugOplEngineChanged(0) }
+    ),
+    DecoderNames.LIBXMP to DesktopCoreDecoderReset(
+        // Android also drops CORE_RATE_UFMOD here; mirrored verbatim.
+        prefKeys = listOf(
+            CorePreferenceKeys.CORE_RATE_XMP,
+            CorePreferenceKeys.CORE_RATE_UFMOD,
+            CorePreferenceKeys.XMP_INTERPOLATION,
+            CorePreferenceKeys.XMP_STEREO_SEPARATION_PERCENT,
+            CorePreferenceKeys.XMP_AMIGA_STEREO_SEPARATION_PERCENT,
+            CorePreferenceKeys.XMP_AMIGA_MODEL
+        ),
+        optionNames = listOf(
+            XmpOptionKeys.INTERPOLATION,
+            XmpOptionKeys.STEREO_SEPARATION,
+            XmpOptionKeys.AMIGA_STEREO_SEPARATION,
+            XmpOptionKeys.AMIGA_MODEL
+        ),
+        reset = { a ->
+            a.onXmpSampleRateChanged(0)
+            a.onUfmodSampleRateChanged(0)
+            a.onXmpInterpolationChanged(0)
+            a.onXmpStereoSeparationPercentChanged(100)
+            a.onXmpAmigaStereoSeparationPercentChanged(100)
+            a.onXmpAmigaModelChanged(0)
+        }
+    ),
+    DecoderNames.AYFLY to DesktopCoreDecoderReset(
+        prefKeys = listOf(
+            CorePreferenceKeys.CORE_RATE_AYFLY,
+            CorePreferenceKeys.AYFLY_OVERSAMPLE,
+            CorePreferenceKeys.AYFLY_CHIP_TYPE,
+            CorePreferenceKeys.AYFLY_MIX_TYPE,
+            CorePreferenceKeys.AYFLY_INT_FREQ
+        ),
+        optionNames = listOf(
+            AyflyOptionKeys.OVERSAMPLE,
+            AyflyOptionKeys.CHIP_TYPE,
+            AyflyOptionKeys.MIX_TYPE,
+            AyflyOptionKeys.INT_FREQ
+        ),
+        reset = { a ->
+            a.onAyflyCoreSampleRateHzChanged(0)
+            a.onAyflyOversampleChanged(0)
+            a.onAyflyChipTypeChanged(0)
+            a.onAyflyMixTypeChanged(0)
+            a.onAyflyIntFreqChanged(0)
+        }
+    ),
+    DecoderNames.VIO2_SF to DesktopCoreDecoderReset(
+        prefKeys = listOf(CorePreferenceKeys.VIO2SF_INTERPOLATION_QUALITY),
+        optionNames = listOf(Vio2sfOptionKeys.INTERPOLATION_QUALITY),
+        reset = { a -> a.onVio2sfInterpolationQualityChanged(0) }
+    ),
+    DecoderNames.SC68 to DesktopCoreDecoderReset(
+        prefKeys = listOf(
+            CorePreferenceKeys.CORE_RATE_SC68,
+            CorePreferenceKeys.SC68_ASID,
+            CorePreferenceKeys.SC68_DEFAULT_TIME_SECONDS,
+            CorePreferenceKeys.SC68_YM_ENGINE,
+            CorePreferenceKeys.SC68_YM_VOLMODEL,
+            CorePreferenceKeys.SC68_AMIGA_FILTER,
+            CorePreferenceKeys.SC68_AMIGA_BLEND,
+            CorePreferenceKeys.SC68_AMIGA_CLOCK
+        ),
+        optionNames = listOf(
+            Sc68OptionKeys.ASID,
+            Sc68OptionKeys.DEFAULT_TIME_SECONDS,
+            Sc68OptionKeys.YM_ENGINE,
+            Sc68OptionKeys.YM_VOLMODEL,
+            Sc68OptionKeys.AMIGA_FILTER,
+            Sc68OptionKeys.AMIGA_BLEND,
+            Sc68OptionKeys.AMIGA_CLOCK
+        ),
+        reset = { a ->
+            a.onSc68SamplingRateHzChanged(0)
+            a.onSc68AsidChanged(0)
+            a.onSc68DefaultTimeSecondsChanged(0)
+            a.onSc68YmEngineChanged(0)
+            a.onSc68YmVolModelChanged(0)
+            a.onSc68AmigaFilterChanged(false)
+            a.onSc68AmigaBlendChanged(0)
+            a.onSc68AmigaClockChanged(0)
+        }
+    ),
+    DecoderNames.UADE to DesktopCoreDecoderReset(
+        prefKeys = listOf(
+            CorePreferenceKeys.CORE_RATE_UADE,
+            CorePreferenceKeys.UADE_FILTER_ENABLED,
+            CorePreferenceKeys.UADE_NTSC_MODE,
+            CorePreferenceKeys.UADE_PANNING_MODE
+        ),
+        optionNames = listOf(
+            UadeOptionKeys.FILTER_ENABLED,
+            UadeOptionKeys.NTSC_MODE,
+            UadeOptionKeys.PANNING_MODE
+        ),
+        reset = { a ->
+            a.onUadeSampleRateChanged(0)
+            a.onUadeFilterEnabledChanged(true)
+            a.onUadeNtscModeChanged(false)
+            a.onUadePanningModeChanged(0)
+        }
+    ),
+    DecoderNames.HIVELY_TRACKER to DesktopCoreDecoderReset(
+        prefKeys = listOf(
+            CorePreferenceKeys.CORE_RATE_HIVELYTRACKER,
+            CorePreferenceKeys.HIVELYTRACKER_PANNING_MODE,
+            CorePreferenceKeys.HIVELYTRACKER_MIX_GAIN_PERCENT
+        ),
+        optionNames = listOf(
+            HivelyTrackerOptionKeys.PANNING_MODE,
+            HivelyTrackerOptionKeys.MIX_GAIN_PERCENT
+        ),
+        reset = { a ->
+            a.onHivelyTrackerSampleRateChanged(0)
+            a.onHivelyTrackerPanningModeChanged(0)
+            a.onHivelyTrackerMixGainPercentChanged(100)
+        }
+    ),
+    DecoderNames.KLYSTRACK to DesktopCoreDecoderReset(
+        prefKeys = listOf(CorePreferenceKeys.CORE_RATE_KLYSTRACK, CorePreferenceKeys.KLYSTRACK_PLAYER_QUALITY),
+        optionNames = listOf(KlystrackOptionKeys.PLAYER_QUALITY),
+        reset = { a -> a.onKlystrackSampleRateChanged(0); a.onKlystrackPlayerQualityChanged(0) }
+    ),
+    DecoderNames.FURNACE to DesktopCoreDecoderReset(
+        prefKeys = listOf(
+            CorePreferenceKeys.CORE_RATE_FURNACE,
+            CorePreferenceKeys.FURNACE_YM2612_CORE,
+            CorePreferenceKeys.FURNACE_SN_CORE,
+            CorePreferenceKeys.FURNACE_NES_CORE,
+            CorePreferenceKeys.FURNACE_C64_CORE,
+            CorePreferenceKeys.FURNACE_GB_QUALITY,
+            CorePreferenceKeys.FURNACE_DSID_QUALITY,
+            CorePreferenceKeys.FURNACE_AY_CORE
+        ),
+        optionNames = listOf(
+            FurnaceOptionKeys.YM2612_CORE,
+            FurnaceOptionKeys.SN_CORE,
+            FurnaceOptionKeys.NES_CORE,
+            FurnaceOptionKeys.C64_CORE,
+            FurnaceOptionKeys.GB_QUALITY,
+            FurnaceOptionKeys.DSID_QUALITY,
+            FurnaceOptionKeys.AY_CORE
+        ),
+        reset = { a ->
+            a.onFurnaceSampleRateChanged(0)
+            a.onFurnaceYm2612CoreChanged(0)
+            a.onFurnaceSnCoreChanged(0)
+            a.onFurnaceNesCoreChanged(0)
+            a.onFurnaceC64CoreChanged(0)
+            a.onFurnaceGbQualityChanged(0)
+            a.onFurnaceDsidQualityChanged(0)
+            a.onFurnaceAyCoreChanged(0)
+        }
+    )
+)
+
+// Reset callbacks persist defaults first; remove() then drops the keys so a
+// missing key always means default on next read.
+private fun clearAllDesktopPluginSettings(
+    prefs: AppPreferences,
+    core: SettingsPluginCoreActions,
+    toast: ToastHandler
+) {
+    DesktopCoreDecoderResets.values.forEach { it.reset(core) }
+    val editor = prefs.edit()
+    DesktopCoreDecoderResets.values.forEach { entry -> entry.prefKeys.forEach { editor.remove(it) } }
+    VgmPlayConfig.chipCoreSpecs.forEach { editor.remove(CorePreferenceKeys.vgmPlayChipCoreKey(it.key)) }
+    LegacyDesktopOpenMptKeyPairs.forEach { (legacy, _) -> editor.remove(legacy) }
+    editor.apply()
+    toast.showToast("Core settings cleared")
+}
+
+private fun resetDesktopPluginSettings(
+    prefs: AppPreferences,
+    pluginName: String,
+    core: SettingsPluginCoreActions,
+    toast: ToastHandler
+) {
+    val entry = DesktopCoreDecoderResets.entries.firstOrNull { it.key.equals(pluginName, ignoreCase = true) }?.value
+    if (entry != null) {
+        entry.reset(core)
+        val editor = prefs.edit()
+        entry.prefKeys.forEach { editor.remove(it) }
+        if (pluginName.equals(DecoderNames.VGM_PLAY, ignoreCase = true)) {
+            VgmPlayConfig.chipCoreSpecs.forEach { editor.remove(CorePreferenceKeys.vgmPlayChipCoreKey(it.key)) }
+        }
+        editor.apply()
+    }
+    // Restart-needed variant mirrors Android resetPluginSettingsAction.
+    val requiresRestart = entry?.optionNames?.any { option ->
+        runCatching { NativeBridge.getCoreOptionApplyPolicy(pluginName, option) == 1 }.getOrDefault(false)
+    } == true
+    toast.showToast(
+        if (requiresRestart) "Settings reset. Playback restart needed for some changes."
+        else "$pluginName core settings reset"
+    )
 }
