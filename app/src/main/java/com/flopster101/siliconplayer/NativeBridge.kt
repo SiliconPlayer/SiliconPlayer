@@ -38,7 +38,8 @@ object NativeBridge {
     }
 
     @JvmStatic
-    fun openSmbAvioHandle(requestUri: String): Long = SmbAvioBridge.openHandle(requestUri)
+    fun openSmbAvioHandle(requestUri: String): Long =
+        SmbAvioBridge.openHandle(requestUri, requireAppContext().cacheDir)
 
     @JvmStatic
     fun readSmbAvioHandle(handleId: Long, offset: Long, buffer: ByteArray, length: Int): Int {

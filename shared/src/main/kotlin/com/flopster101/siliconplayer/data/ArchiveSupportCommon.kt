@@ -1,10 +1,13 @@
 package com.flopster101.siliconplayer.data
 
 import java.io.File
+import java.net.URI
 import java.net.URLDecoder
 import java.net.URLEncoder
 import java.util.Locale
 import com.flopster101.siliconplayer.normalizeSourceIdentity
+import com.flopster101.siliconplayer.remoteFilenameHintForUrl
+import com.flopster101.siliconplayer.sanitizeRemoteLeafName
 
 internal const val ARCHIVE_SOURCE_SCHEME = "archive"
 internal const val ARCHIVE_DIRECTORY_SCHEME = "archive-dir"
@@ -125,6 +128,16 @@ internal fun findExistingCachedFileForSource(cacheRoot: File, url: String): File
     val prefix = "${sha1Hex(url)}_"
     return cacheRoot.listFiles().orEmpty()
         .firstOrNull { it.isFile && it.name.startsWith(prefix) && !it.name.endsWith(".part") && it.length() > 0L }
+}
+
+internal fun remoteCacheFileForSource(cacheRoot: File, url: String): File {
+    if (!cacheRoot.exists()) {
+        cacheRoot.mkdirs()
+    }
+    val safeLeaf = remoteFilenameHintForUrl(url)
+        ?: sanitizeRemoteLeafName(runCatching { URI(url).host }.getOrNull())
+        ?: "remote"
+    return File(cacheRoot, "${sha1Hex(url)}_$safeLeaf")
 }
 
 internal fun ensureArchiveMounted(cacheDir: File, archiveFile: File): File {

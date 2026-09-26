@@ -1,7 +1,6 @@
 package com.flopster101.siliconplayer
 
-import android.content.Context
-import android.os.SystemClock
+import com.flopster101.siliconplayer.data.remoteCacheFileForSource
 import java.io.File
 import java.io.RandomAccessFile
 import kotlinx.coroutines.CancellationException
@@ -21,6 +20,8 @@ private const val DEFAULT_PROGRESSIVE_CACHE_CHUNK_SIZE_BYTES = 64 * 1024
 private const val CHUNK_STATE_UNCACHED: Byte = 0
 private const val CHUNK_STATE_CACHED: Byte = 1
 private const val CHUNK_STATE_FETCHING: Byte = 2
+
+private fun elapsedRealtimeMs(): Long = System.nanoTime() / 1_000_000L
 
 internal interface ProgressiveRandomAccessTransport {
     val sourceId: String
@@ -47,10 +48,10 @@ private data class ProgressiveRandomAccessCacheFiles(
 )
 
 private fun progressiveRandomAccessCacheFiles(
-    context: Context,
+    cacheDir: File,
     sourceId: String
 ): ProgressiveRandomAccessCacheFiles {
-    val cacheRoot = File(context.cacheDir, PROGRESSIVE_REMOTE_SOURCE_CACHE_DIR)
+    val cacheRoot = File(cacheDir, PROGRESSIVE_REMOTE_SOURCE_CACHE_DIR)
     val dataFile = remoteCacheFileForSource(cacheRoot, sourceId)
     return ProgressiveRandomAccessCacheFiles(
         dataFile = dataFile,
@@ -85,7 +86,7 @@ private fun progressiveRandomAccessMetaMatches(
 }
 
 internal class ProgressiveRandomAccessCache(
-    context: Context,
+    cacheDir: File,
     private val transport: ProgressiveRandomAccessTransport,
     private val chunkSizeBytes: Int = DEFAULT_PROGRESSIVE_CACHE_CHUNK_SIZE_BYTES,
     private val prefetchTransportFactory: (() -> ProgressiveRandomAccessTransport)? = null,
@@ -93,7 +94,7 @@ internal class ProgressiveRandomAccessCache(
 ) {
     private val lock = Object()
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
-    private val files = progressiveRandomAccessCacheFiles(context, transport.sourceId)
+    private val files = progressiveRandomAccessCacheFiles(cacheDir, transport.sourceId)
     private val chunkCount = when {
         transport.sizeBytes <= 0L -> 0
         else -> ((transport.sizeBytes + chunkSizeBytes - 1L) / chunkSizeBytes).toInt()
@@ -267,7 +268,7 @@ internal class ProgressiveRandomAccessCache(
                 val rateLimitBytesPerSecond = prefetchConfig.rateLimitBytesPerSecond
                     ?.coerceAtLeast(1L)
                 var backgroundBytesFetched = 0L
-                val startedAtMs = SystemClock.elapsedRealtime()
+                val startedAtMs = elapsedRealtimeMs()
                 for (chunkIndex in 0 until chunkCount) {
                     ensureActive()
                     if (isClosed()) break
@@ -282,7 +283,7 @@ internal class ProgressiveRandomAccessCache(
                             val targetElapsedMs =
                                 (backgroundBytesFetched * 1000L) / rateLimitBytesPerSecond
                             val actualElapsedMs =
-                                (SystemClock.elapsedRealtime() - startedAtMs).coerceAtLeast(0L)
+                                (elapsedRealtimeMs() - startedAtMs).coerceAtLeast(0L)
                             val delayMs = (targetElapsedMs - actualElapsedMs).coerceAtLeast(0L)
                             if (delayMs > 0L) {
                                 delay(delayMs)

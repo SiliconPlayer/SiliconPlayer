@@ -1,6 +1,7 @@
 package com.flopster101.siliconplayer
 
 import java.io.File
+import java.net.URI
 import java.net.URLDecoder
 
 internal const val REMOTE_SOURCE_CACHE_DIR = "remote_sources"
@@ -86,4 +87,30 @@ internal fun filenameFromContentDisposition(headerValue: String?): String? {
         ?.groupValues
         ?.getOrNull(2)
     return sanitizeRemoteLeafName(filename)
+}
+
+internal fun remoteFilenameHintForUrl(url: String): String? {
+    val uri = runCatching { URI(url) }.getOrNull()
+    val fragmentHint = sanitizeRemoteLeafName(uri?.fragment)
+        ?.takeIf { it.contains('.') }
+    if (fragmentHint != null) return fragmentHint
+
+    val queryHint = uri?.rawQuery
+        ?.split('&')
+        ?.mapNotNull { pair ->
+            val key = pair.substringBefore('=')
+            if (key == "filename" || key == "file" || key == "name") {
+                val value = pair.substringAfter('=', "")
+                runCatching { URLDecoder.decode(value, "UTF-8") }.getOrNull()
+            } else {
+                null
+            }
+        }
+        ?.firstNotNullOfOrNull { candidate ->
+            sanitizeRemoteLeafName(candidate)?.takeIf { it.contains('.') }
+        }
+    if (queryHint != null) return queryHint
+
+    val path = uri?.path?.trimEnd('/').orEmpty()
+    return sanitizeRemoteLeafName(path.substringAfterLast('/', ""))
 }

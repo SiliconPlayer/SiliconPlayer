@@ -22,6 +22,7 @@ import com.flopster101.siliconplayer.data.sha1Hex
 import com.flopster101.siliconplayer.filenameFromContentDisposition
 import com.flopster101.siliconplayer.httpBasicAuthorizationHeader
 import com.flopster101.siliconplayer.platform.RemoteSourceExportSupport
+import com.flopster101.siliconplayer.remoteFilenameHintForUrl
 import com.flopster101.siliconplayer.resolveCredentialedHttpSpec
 import com.flopster101.siliconplayer.sanitizeRemoteLeafName
 import com.flopster101.siliconplayer.stripRemoteCacheHashPrefix
@@ -36,9 +37,7 @@ import java.io.BufferedInputStream
 import java.io.File
 import java.io.FileOutputStream
 import java.net.HttpURLConnection
-import java.net.URI
 import java.net.URL
-import java.net.URLDecoder
 import javax.swing.JFileChooser
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
@@ -561,30 +560,4 @@ private fun nextAvailableName(
         }
     }
     return null
-}
-
-private fun remoteFilenameHintForUrl(url: String): String? {
-    val uri = runCatching { URI(url) }.getOrNull()
-    val fragmentHint = sanitizeRemoteLeafName(uri?.fragment)
-        ?.takeIf { it.contains('.') }
-    if (fragmentHint != null) return fragmentHint
-
-    val queryHint = uri?.rawQuery
-        ?.split('&')
-        ?.mapNotNull { pair ->
-            val key = pair.substringBefore('=')
-            if (key == "filename" || key == "file" || key == "name") {
-                val value = pair.substringAfter('=', "")
-                runCatching { URLDecoder.decode(value, "UTF-8") }.getOrNull()
-            } else {
-                null
-            }
-        }
-        ?.firstNotNullOfOrNull { candidate ->
-            sanitizeRemoteLeafName(candidate)?.takeIf { it.contains('.') }
-        }
-    if (queryHint != null) return queryHint
-
-    val path = uri?.path?.trimEnd('/').orEmpty()
-    return sanitizeRemoteLeafName(path.substringAfterLast('/', ""))
 }

@@ -1,5 +1,6 @@
 package com.flopster101.siliconplayer
 
+import com.flopster101.siliconplayer.desktop.desktopCacheDir
 import java.io.File
 
 object NativeBridge {
@@ -96,16 +97,31 @@ object NativeBridge {
     }
 
     @JvmStatic
-    fun openSmbAvioHandle(requestUri: String): Long = 0L
+    fun openSmbAvioHandle(requestUri: String): Long =
+        SmbAvioBridge.openHandle(requestUri, desktopCacheDir())
 
     @JvmStatic
-    fun readSmbAvioHandle(handleId: Long, offset: Long, buffer: ByteArray, length: Int): Int = -1
+    fun readSmbAvioHandle(handleId: Long, offset: Long, buffer: ByteArray, length: Int): Int {
+        return SmbAvioBridge.readHandle(
+            handleId = handleId,
+            offset = offset,
+            buffer = buffer,
+            length = length
+        )
+    }
 
     @JvmStatic
-    fun getSmbAvioHandleSize(handleId: Long): Long = -1L
+    fun getSmbAvioHandleSize(handleId: Long): Long = SmbAvioBridge.getHandleSize(handleId)
 
     @JvmStatic
-    fun closeSmbAvioHandle(handleId: Long) {}
+    fun closeSmbAvioHandle(handleId: Long) {
+        SmbAvioBridge.closeHandle(handleId)
+    }
+
+    @JvmStatic
+    fun cancelActiveSmbAvioHandles() {
+        SmbAvioBridge.cancelAllHandles()
+    }
 
     @Volatile
     private var forcedDecoderOneShot: String? = null

@@ -44,7 +44,7 @@ internal suspend fun warmProgressiveSmbSourcePrefix(
     var cache: ProgressiveRandomAccessCache? = null
     return@withContext try {
         cache = ProgressiveRandomAccessCache(
-            context = context.applicationContext,
+            cacheDir = context.applicationContext.cacheDir,
             transport = SmbProgressiveRandomAccessTransport(
                 spec = spec,
                 remotePath = remotePath

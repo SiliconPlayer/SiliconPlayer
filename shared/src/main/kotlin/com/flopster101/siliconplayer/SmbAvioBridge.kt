@@ -1,5 +1,6 @@
 package com.flopster101.siliconplayer
 
+import java.io.File
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.atomic.AtomicLong
 
@@ -25,7 +26,7 @@ internal object SmbAvioBridge {
     private val nextHandleId = AtomicLong(1L)
     private val activeHandles = ConcurrentHashMap<Long, SmbAvioHandle>()
 
-    fun openHandle(requestUri: String): Long {
+    fun openHandle(requestUri: String, cacheDir: File): Long {
         val spec = resolveCredentialedSmbSpec(requestUri)
             ?: throw IllegalArgumentException("Invalid SMB AVIO request URI")
         val remotePath = spec.path?.trim().orEmpty()
@@ -39,7 +40,7 @@ internal object SmbAvioBridge {
         val handleId = nextHandleId.getAndIncrement().coerceAtLeast(1L)
         activeHandles[handleId] = SmbAvioHandle(
             cache = ProgressiveRandomAccessCache(
-                context = NativeBridge.requireAppContext(),
+                cacheDir = cacheDir,
                 transport = SmbProgressiveRandomAccessTransport(
                     spec = spec,
                     remotePath = remotePath
