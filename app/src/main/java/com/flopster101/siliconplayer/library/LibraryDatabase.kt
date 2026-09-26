@@ -11,7 +11,6 @@ import androidx.room.Query
 import androidx.room.Room
 import androidx.room.RoomDatabase
 import android.content.Context
-import java.util.Locale
 
 @Entity(
     tableName = "library_tracks",
@@ -62,41 +61,6 @@ data class LibraryArtistRow(
 data class LibraryTrackSourcePair(
     val path: String,
     val sourceId: String
-)
-
-/**
- * Display-time identity for cross-source dedup: the same file can be indexed
- * by MediaStore and the storage scanner under textually different absolute
- * paths (for example `/sdcard/Music/x.mp3` versus
- * `/storage/emulated/0/Music/x.mp3`), which the path primary key alone
- * cannot collapse. The key folds `.`/`..` segments, well-known
- * emulated-storage aliases and case (Android media volumes are
- * case-insensitive); it is computed at insert time and only ever read.
- */
-internal fun libraryDedupKeyForPath(path: String): String {
-    val absolute = path.startsWith("/")
-    val segments = ArrayDeque<String>()
-    path.split('/').forEach { segment ->
-        when {
-            segment.isEmpty() || segment == "." -> Unit
-            segment == ".." -> if (segments.isNotEmpty()) segments.removeLast()
-            else -> segments.addLast(segment)
-        }
-    }
-    var normalized = (if (absolute) "/" else "") + segments.joinToString("/")
-    for ((prefix, replacement) in DEDUP_PATH_ALIASES) {
-        if (normalized.startsWith(prefix)) {
-            normalized = replacement + normalized.removePrefix(prefix)
-            break
-        }
-    }
-    return normalized.lowercase(Locale.ROOT)
-}
-
-private val DEDUP_PATH_ALIASES = listOf(
-    "/sdcard/" to "/storage/emulated/0/",
-    "/mnt/sdcard/" to "/storage/emulated/0/",
-    "/storage/emulated/legacy/" to "/storage/emulated/0/"
 )
 
 object LibraryContract {

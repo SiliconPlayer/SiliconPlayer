@@ -47,7 +47,7 @@ internal object ScannerLibrarySource {
 
         for (root in roots) {
             if (!root.enabled) continue
-            for (file in DirectPathLister.listFiles(root)) {
+            for (file in DirectPathLister.listFiles(root, includeHidden = true)) {
                 if (!currentCoroutineContext().isActive) {
                     flushBatch()
                     throw kotlinx.coroutines.CancellationException("Library scan cancelled")

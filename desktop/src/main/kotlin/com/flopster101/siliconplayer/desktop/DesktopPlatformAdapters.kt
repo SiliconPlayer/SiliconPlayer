@@ -2,6 +2,7 @@ package com.flopster101.siliconplayer.desktop
 
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.remember
 import androidx.compose.ui.graphics.toComposeImageBitmap
 import com.flopster101.siliconplayer.platform.AppPreferences
@@ -208,6 +209,10 @@ fun ProvideDesktopPlatformAdapters(
     val remoteSourceExportSupport = rememberDesktopRemoteSourceExportSupport(cacheDir)
     val artworkCacheSupport = rememberDesktopArtworkCacheSupport(cacheDir)
     val playlistPlatformSupport = rememberDesktopPlaylistPlatformSupport(cacheDir)
+    val libraryRepository = remember(configDir) {
+        com.flopster101.siliconplayer.library.DesktopLibraryRepository(configDir)
+    }
+    LaunchedEffect(libraryRepository) { libraryRepository.maybeStartAutoScan() }
 
     CompositionLocalProvider(
         LocalAppPreferences provides prefs,
@@ -228,6 +233,7 @@ fun ProvideDesktopPlatformAdapters(
         com.flopster101.siliconplayer.platform.LocalAppConfigDir provides configDir,
         com.flopster101.siliconplayer.platform.LocalArtworkCacheSupport provides artworkCacheSupport,
         com.flopster101.siliconplayer.platform.LocalPlaylistPlatformSupport provides playlistPlatformSupport,
+        com.flopster101.siliconplayer.platform.LocalLibraryRepository provides libraryRepository,
         com.flopster101.siliconplayer.platform.LocalRemoteSourceExportSupport provides { remoteSourceExportSupport },
         com.flopster101.siliconplayer.platform.LocalFileExportHandler provides com.flopster101.siliconplayer.platform.FileExportHandler { files ->
             val chooser = javax.swing.JFileChooser().apply {

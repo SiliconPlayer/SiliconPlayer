@@ -3,11 +3,6 @@ package com.flopster101.siliconplayer.library
 import android.content.Context
 import org.json.JSONArray
 
-data class LibraryScanRoot(
-    val path: String,
-    val enabled: Boolean = true
-)
-
 internal object LibraryScanRootStore {
 
     private const val PREFS_NAME = "library_prefs"
