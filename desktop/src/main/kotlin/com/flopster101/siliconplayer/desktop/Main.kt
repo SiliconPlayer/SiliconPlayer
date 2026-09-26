@@ -1847,7 +1847,7 @@ fun main(args: Array<String>) = application {
                                             )
                                         }
                                     },
-                                    canOpenPlaylistSelector = true,
+                                    canOpenPlaylistSelector = activePlaylist?.entries?.isNotEmpty() == true,
                                     onOpenPlaylistSelector = { showPlaylistSelectorDialog = true },
                                     currentSubtuneIndex = session.subtuneIndex,
                                     subtuneCount = session.subtuneCount,
