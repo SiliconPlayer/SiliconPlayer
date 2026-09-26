@@ -26,6 +26,7 @@ import java.util.Locale
 internal fun DesktopPlaylistsScreen(
     session: DesktopPlaybackSession,
     onFileSelected: (File) -> Unit,
+    onOpenTrackInfo: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     Column(modifier = modifier.fillMaxSize().padding(16.dp)) {
@@ -52,7 +53,10 @@ internal fun DesktopPlaylistsScreen(
         // Currently playing track quick-add / info
         if (session.currentFile != null) {
             Surface(
-                modifier = Modifier.fillMaxWidth(),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(12.dp))
+                    .clickable { onOpenTrackInfo() },
                 shape = RoundedCornerShape(12.dp),
                 color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.3f)
             ) {
@@ -79,6 +83,13 @@ internal fun DesktopPlaylistsScreen(
                             fontWeight = FontWeight.SemiBold,
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis
+                        )
+                    }
+                    IconButton(onClick = onOpenTrackInfo) {
+                        Icon(
+                            imageVector = Icons.Default.Info,
+                            contentDescription = "Track Info",
+                            tint = MaterialTheme.colorScheme.primary
                         )
                     }
                 }

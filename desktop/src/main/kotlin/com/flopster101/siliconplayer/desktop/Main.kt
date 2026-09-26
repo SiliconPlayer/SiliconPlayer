@@ -41,6 +41,11 @@ import com.flopster101.siliconplayer.VisualizationMode
 import com.flopster101.siliconplayer.VisualizationRenderBackend
 import com.flopster101.siliconplayer.VisualizationVuAnchor
 import com.flopster101.siliconplayer.ui.screens.rememberVisualizationUiState
+import com.flopster101.siliconplayer.ui.dialogs.TrackInfoDialog
+import androidx.compose.ui.input.key.Key
+import androidx.compose.ui.input.key.KeyEventType
+import androidx.compose.ui.input.key.key
+import androidx.compose.ui.input.key.type
 import com.flopster101.siliconplayer.desktop.ui.DesktopPlaylistsScreen
 import com.flopster101.siliconplayer.SettingsScreen
 import com.flopster101.siliconplayer.inferredPrimaryExtensionForName
@@ -180,13 +185,36 @@ fun main(args: Array<String>) = application {
         "SiliconPlayer Desktop"
     }
 
+    var showTrackInfoDialog by remember { mutableStateOf(false) }
+    var externalTrackInfoDialogRequestToken by remember { mutableIntStateOf(0) }
+
     Window(
         onCloseRequest = {
             session.dispose()
             exitApplication()
         },
         state = windowState,
-        title = windowTitle
+        title = windowTitle,
+        onKeyEvent = { keyEvent ->
+            if (keyEvent.type == KeyEventType.KeyDown) {
+                if (keyEvent.key == Key.I) {
+                    if (session.currentFile != null) {
+                        if (isPlayerExpanded) {
+                            externalTrackInfoDialogRequestToken += 1
+                        } else {
+                            showTrackInfoDialog = !showTrackInfoDialog
+                        }
+                        return@Window true
+                    }
+                } else if (keyEvent.key == Key.Escape) {
+                    if (showTrackInfoDialog) {
+                        showTrackInfoDialog = false
+                        return@Window true
+                    }
+                }
+            }
+            false
+        }
     ) {
         ProvideDesktopPlatformAdapters(
             windowWidthDp = windowState.size.width.value.toInt(),
@@ -436,7 +464,12 @@ fun main(args: Array<String>) = application {
                                     MainView.Playlists -> {
                                         DesktopPlaylistsScreen(
                                             session = session,
-                                            onFileSelected = { playFile(it) }
+                                            onFileSelected = { playFile(it) },
+                                            onOpenTrackInfo = {
+                                                if (session.currentFile != null) {
+                                                    showTrackInfoDialog = true
+                                                }
+                                            }
                                         )
                                     }
 
@@ -707,6 +740,7 @@ fun main(args: Array<String>) = application {
                                         ),
                                         AppDefaults.Visualization.Vu.renderBackend
                                     ),
+                                    externalTrackInfoDialogRequestToken = externalTrackInfoDialogRequestToken,
                                     artworkCornerRadiusDp = playerArtworkCornerRadiusDp,
                                     isTrackFavorited = isCurrentTrackFavorited,
                                     onToggleFavoriteTrack = {
@@ -721,6 +755,23 @@ fun main(args: Array<String>) = application {
                                 )
                             }
                         }
+                    }
+
+                    if (showTrackInfoDialog && session.currentFile != null) {
+                        TrackInfoDialog(
+                            file = session.currentFile,
+                            title = session.title,
+                            artist = session.artist,
+                            decoderName = session.decoderName,
+                            playbackSourceLabel = "Local",
+                            pathOrUrl = session.currentFile?.absolutePath,
+                            sampleRateHz = session.sampleRateHz,
+                            channelCount = session.channelCount,
+                            bitDepthLabel = session.bitDepthLabel,
+                            durationSeconds = session.durationSeconds,
+                            hasReliableDuration = session.hasReliableDuration,
+                            onDismiss = { showTrackInfoDialog = false }
+                        )
                     }
 
                     if (showSubtuneSelectorDialog && session.subtuneEntries.isNotEmpty()) {
