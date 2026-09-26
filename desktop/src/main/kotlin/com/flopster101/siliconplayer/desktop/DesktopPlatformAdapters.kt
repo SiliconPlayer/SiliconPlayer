@@ -140,9 +140,6 @@ class DesktopAudioRouteManager : AudioRouteManager {
     override fun formatUsbAudioName(rawName: String): String = rawName
 }
 
-internal fun desktopCacheDir(): java.io.File =
-    java.io.File(System.getProperty("user.home") ?: ".", ".siliconplayer/cache").also { it.mkdirs() }
-
 @Composable
 fun ProvideDesktopPlatformAdapters(
     windowWidthDp: Int = 1100,
@@ -173,7 +170,7 @@ fun ProvideDesktopPlatformAdapters(
         }
     }
 
-    val cacheDir = remember { desktopCacheDir() }
+    val cacheDir = remember { DesktopPaths.cacheDir() }
     val artworkThumbnailLoader = remember(cacheDir) {
         val artworkCacheDir = desktopArtworkCacheDir(cacheDir)
         object : com.flopster101.siliconplayer.platform.ArtworkThumbnailLoader {

@@ -1,6 +1,6 @@
 package com.flopster101.siliconplayer
 
-import com.flopster101.siliconplayer.desktop.desktopCacheDir
+import com.flopster101.siliconplayer.desktop.DesktopPaths
 import java.io.File
 
 object NativeBridge {
@@ -98,7 +98,7 @@ object NativeBridge {
 
     @JvmStatic
     fun openSmbAvioHandle(requestUri: String): Long =
-        SmbAvioBridge.openHandle(requestUri, desktopCacheDir())
+        SmbAvioBridge.openHandle(requestUri, DesktopPaths.cacheDir())
 
     @JvmStatic
     fun readSmbAvioHandle(handleId: Long, offset: Long, buffer: ByteArray, length: Int): Int {

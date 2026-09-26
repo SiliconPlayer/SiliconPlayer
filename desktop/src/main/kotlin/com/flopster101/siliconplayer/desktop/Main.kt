@@ -130,6 +130,7 @@ fun openDesktopFileChooser(onFileSelected: (File) -> Unit) {
 }
 
 fun main(args: Array<String>) = application {
+    DesktopPaths.install()
     val session = remember { DesktopPlaybackSession() }
     val windowState = rememberWindowState(width = 1100.dp, height = 750.dp)
     val backDispatcher = remember { DesktopBackDispatcher() }
