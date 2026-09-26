@@ -138,7 +138,11 @@ import com.flopster101.siliconplayer.BrowserLaunchState
 import com.flopster101.siliconplayer.clearRememberedBrowserLaunchState
 import com.flopster101.siliconplayer.persistRememberedBrowserLaunchState
 import com.flopster101.siliconplayer.readRecentEntries
+import com.flopster101.siliconplayer.SessionResumeSnapshot
+import com.flopster101.siliconplayer.hasValidPosition
 import com.flopster101.siliconplayer.readRememberedBrowserLaunchState
+import com.flopster101.siliconplayer.readSessionResumeSnapshot
+import com.flopster101.siliconplayer.writeSessionResumeSnapshot
 import com.flopster101.siliconplayer.upsertFavoriteTrack
 import com.flopster101.siliconplayer.upsertFavoriteTracks
 import com.flopster101.siliconplayer.writePluginVolumeForDecoder
@@ -877,6 +881,104 @@ fun main(args: Array<String>) = application {
             }
             LaunchedEffect(rememberBrowserLocation) {
                 if (!rememberBrowserLocation) clearRememberedBrowserLaunchState(prefs)
+            }
+            // SESSION RESTORE (§7.6): prefill the last track paused at its saved
+            // position, never auto-play. Mirrors Android; remote/archive sources
+            // are skipped until the desktop remote-cache path (§7.12) exists.
+            val pendingSessionRestore = remember {
+                if (args.isNotEmpty()) null else readSessionResumeSnapshot(configDir)
+            }
+            var sessionRestoreConsumed by remember { mutableStateOf(pendingSessionRestore == null) }
+            var hadLoadedTrack by remember { mutableStateOf(false) }
+            LaunchedEffect(pendingSessionRestore) {
+                try {
+                    val snapshot = pendingSessionRestore ?: return@LaunchedEffect
+                    val file = resolvePlaylistEntryLocalFile(snapshot.sourceId)
+                    if (file == null || !file.isFile) {
+                        writeSessionResumeSnapshot(configDir, null)
+                        return@LaunchedEffect
+                    }
+                    // Previous process died mid-load; drop instead of crash-looping.
+                    if (prefs.getString(AppPreferenceKeys.SESSION_LOAD_CRASH_GUARD_PATH, null) ==
+                        snapshot.sourceId
+                    ) {
+                        prefs.edit().remove(AppPreferenceKeys.SESSION_LOAD_CRASH_GUARD_PATH).apply()
+                        writeSessionResumeSnapshot(configDir, null)
+                        return@LaunchedEffect
+                    }
+                    if (!snapshot.playlistId.isNullOrBlank() && !snapshot.entryId.isNullOrBlank()) {
+                        // Favorites live outside the playlist list, so a favorites
+                        // id restores the track without playlist context.
+                        val playlist = playlistLibraryState.playlists.firstOrNull {
+                            it.id == snapshot.playlistId
+                        }
+                        val entry = playlist?.entries?.firstOrNull { it.id == snapshot.entryId }
+                        if (playlist != null && entry != null &&
+                            samePath(entry.source, snapshot.sourceId)
+                        ) {
+                            activePlaylist = playlist
+                            activePlaylistEntryId = entry.id
+                        }
+                    }
+                    if (session.loadFile(file, autoStart = false)) {
+                        val subtune = activePlaylist?.entries
+                            ?.firstOrNull { it.id == activePlaylistEntryId }
+                            ?.subtuneIndex
+                        if (subtune != null && subtune in 0 until session.subtuneCount) {
+                            session.selectSubtune(subtune)
+                        }
+                        if (snapshot.hasValidPosition() && session.canSeek) {
+                            session.seekTo(snapshot.positionSeconds)
+                        }
+                        registerLoadedFile(file)
+                        isPlayerSurfaceVisible = true
+                    } else {
+                        writeSessionResumeSnapshot(configDir, null)
+                    }
+                } finally {
+                    sessionRestoreConsumed = true
+                }
+            }
+            // Checkpoint writer, bucketed like Android's 0.5s buckets. Gated until
+            // restore runs so startup never deletes the snapshot before it is read.
+            val resumePositionBucket = (session.positionSeconds * 2.0).toInt()
+            val resumeDurationBucket = (session.durationSeconds * 2.0).toInt()
+            val resumeSourcePath = session.currentFile?.absolutePath
+            LaunchedEffect(
+                resumeSourcePath,
+                resumePositionBucket,
+                resumeDurationBucket,
+                activePlaylist?.id,
+                activePlaylistEntryId,
+                sessionRestoreConsumed
+            ) {
+                if (!sessionRestoreConsumed) return@LaunchedEffect
+                if (resumeSourcePath == null) {
+                    if (hadLoadedTrack) writeSessionResumeSnapshot(configDir, null)
+                    return@LaunchedEffect
+                }
+                hadLoadedTrack = true
+                val playlist = activePlaylist
+                val entryId = activePlaylistEntryId?.trim().takeUnless { it.isNullOrBlank() }
+                val playlistId = if (playlist != null && entryId != null &&
+                    playlist.entries.any { it.id == entryId }
+                ) {
+                    playlist.id
+                } else {
+                    null
+                }
+                writeSessionResumeSnapshot(
+                    configDir,
+                    SessionResumeSnapshot(
+                        sourceId = resumeSourcePath,
+                        positionSeconds = session.positionSeconds,
+                        durationSeconds = session.durationSeconds,
+                        playlistId = playlistId,
+                        entryId = if (playlistId != null) entryId else null,
+                        // No shuffle-active mode on desktop yet (§7.11); flag reserved.
+                        shuffleActive = false
+                    )
+                )
             }
             LaunchedEffect(Unit) {
                 masterVolumeDb = prefs.getFloat(AppPreferenceKeys.AUDIO_MASTER_VOLUME_DB, 0f)

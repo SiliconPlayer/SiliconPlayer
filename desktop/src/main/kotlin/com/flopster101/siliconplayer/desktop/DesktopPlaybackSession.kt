@@ -107,6 +107,16 @@ class DesktopPlaybackSession(
     fun loadFile(file: File, autoStart: Boolean = true): Boolean {
         if (!file.exists() || !file.isFile) return false
 
+        armLoadCrashGuard(file.absolutePath)
+        try {
+            loadFileGuarded(file, autoStart)
+            return true
+        } finally {
+            clearLoadCrashGuard()
+        }
+    }
+
+    private fun loadFileGuarded(file: File, autoStart: Boolean) {
         NativeBridge.stopEngineNative()
         val forced = NativeBridge.consumeForcedDecoderOneShot()
         if (forced != null) {
@@ -132,7 +142,6 @@ class DesktopPlaybackSession(
         } else {
             isPlaying = false
         }
-        return true
     }
 
     fun loadSource(source: String, titleHint: String? = null, artistHint: String? = null, autoStart: Boolean = true): Boolean {
@@ -140,6 +149,35 @@ class DesktopPlaybackSession(
         if (file.exists() && file.isFile) {
             return loadFile(file, autoStart)
         }
+        armLoadCrashGuard(source)
+        try {
+            loadSourceGuarded(source, titleHint, artistHint, autoStart)
+            return true
+        } finally {
+            clearLoadCrashGuard()
+        }
+    }
+
+    // Crash guard: armed around every decoder load so a mid-load process death
+    // is skipped once at the next session restore instead of crash-looping.
+    // Mirrors Android NativeBridge.replaceCurrentAudio.
+    private fun armLoadCrashGuard(path: String) {
+        runCatching {
+            trackOptionsPrefs?.edit()
+                ?.putString(AppPreferenceKeys.SESSION_LOAD_CRASH_GUARD_PATH, path)
+                ?.apply()
+        }
+    }
+
+    private fun clearLoadCrashGuard() {
+        runCatching {
+            trackOptionsPrefs?.edit()
+                ?.remove(AppPreferenceKeys.SESSION_LOAD_CRASH_GUARD_PATH)
+                ?.apply()
+        }
+    }
+
+    private fun loadSourceGuarded(source: String, titleHint: String?, artistHint: String?, autoStart: Boolean) {
         NativeBridge.stopEngineNative()
         val forced = NativeBridge.consumeForcedDecoderOneShot()
         if (forced != null) {
@@ -172,7 +210,6 @@ class DesktopPlaybackSession(
         } else {
             isPlaying = false
         }
-        return true
     }
 
     // Mirrors Android: skip the fade natives when off or near track start.
