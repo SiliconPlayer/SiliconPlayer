@@ -48,7 +48,7 @@ class DesktopLibraryRepository(private val configDir: File) : LibraryRepositoryS
             libraryArtistTracks(readLibraryTracks(configDir), artist)
         }
 
-    suspend fun artistAlbums(artist: String): List<LibraryAlbum> = withContext(Dispatchers.IO) {
+    override suspend fun artistAlbums(artist: String): List<LibraryAlbum> = withContext(Dispatchers.IO) {
         libraryArtistAlbums(readLibraryTracks(configDir), artist)
     }
 

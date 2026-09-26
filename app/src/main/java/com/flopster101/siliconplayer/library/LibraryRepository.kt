@@ -121,27 +121,7 @@ object LibraryRepository {
     ): LibraryAlbumDetail? = withContext(Dispatchers.IO) {
         val db = LibraryDatabase.get(context)
         val tracks = db.trackDao().albumTracks(albumName, dedupeEnabled(context))
-        if (tracks.isEmpty()) return@withContext null
-        // Albums group by title only, so a bucket can span artists (the unknown
-        // album always does); show the shared artist or a compilation label.
-        val artistKeys = tracks.map { it.albumArtist.ifBlank { it.artist } }
-            .filter { it.isNotBlank() }
-            .distinct()
-        LibraryAlbumDetail(
-            album = LibraryAlbum(
-                name = albumName.ifBlank { LibraryContract.UNKNOWN_ALBUM },
-                artist = when (artistKeys.size) {
-                    0 -> LibraryContract.UNKNOWN_ARTIST
-                    1 -> artistKeys[0]
-                    else -> LibraryContract.VARIOUS_ARTISTS
-                },
-                trackCount = tracks.size,
-                durationMs = tracks.sumOf { it.durationMs },
-                year = tracks.maxOf { it.year },
-                artworkPath = tracks.minOfOrNull { it.path }
-            ),
-            tracks = tracks
-        )
+        libraryAlbumDetailForTracks(albumName, tracks)
     }
 
     /** All enabled-source tracks in stable title/artist order. */

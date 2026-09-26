@@ -12,6 +12,7 @@ import com.flopster101.siliconplayer.PlaylistExportFormat
 import com.flopster101.siliconplayer.RemoteExportRequest
 import com.flopster101.siliconplayer.RemoteLoadUiState
 import com.flopster101.siliconplayer.StoredPlaylist
+import com.flopster101.siliconplayer.library.LibraryAlbum
 import com.flopster101.siliconplayer.library.LibraryCollections
 import com.flopster101.siliconplayer.library.LibrarySearchResults
 import com.flopster101.siliconplayer.library.LibrarySyncState
@@ -313,6 +314,7 @@ interface LibraryRepositorySupport {
     suspend fun search(rawQuery: String): LibrarySearchResults
     suspend fun albumTracks(albumName: String): List<LibraryTrackEntity>
     suspend fun artistTracks(artist: String): List<LibraryTrackEntity>
+    suspend fun artistAlbums(artist: String): List<LibraryAlbum>
     fun requestScan()
 }
 
@@ -324,6 +326,7 @@ private val EmptyLibraryRepository = object : LibraryRepositorySupport {
     override suspend fun search(rawQuery: String) = LibrarySearchResults(rawQuery, emptyList(), emptyList(), emptyList())
     override suspend fun albumTracks(albumName: String): List<LibraryTrackEntity> = emptyList()
     override suspend fun artistTracks(artist: String): List<LibraryTrackEntity> = emptyList()
+    override suspend fun artistAlbums(artist: String): List<LibraryAlbum> = emptyList()
     override fun requestScan() {}
 }
 

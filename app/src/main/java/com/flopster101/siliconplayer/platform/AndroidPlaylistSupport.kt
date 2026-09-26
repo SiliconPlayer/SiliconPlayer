@@ -67,6 +67,9 @@ internal fun rememberAndroidLibraryRepositorySupport(): LibraryRepositorySupport
             override suspend fun artistTracks(artist: String) =
                 LibraryRepository.artistTracks(context, artist)
 
+            override suspend fun artistAlbums(artist: String) =
+                LibraryRepository.artistAlbums(context, artist)
+
             override fun requestScan() {
                 LibraryRepository.requestScan(context)
             }

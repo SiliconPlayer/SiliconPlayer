@@ -70,6 +70,7 @@ import com.flopster101.siliconplayer.XmpOptionKeys
 import com.flopster101.siliconplayer.data.FileRepository
 import com.flopster101.siliconplayer.data.compareFileNamesNatural
 import com.flopster101.siliconplayer.platform.LocalAppPreferences
+import com.flopster101.siliconplayer.platform.LocalLibraryRepository
 import com.flopster101.siliconplayer.platform.LocalToastHandler
 import com.flopster101.siliconplayer.platform.ToastHandler
 import com.flopster101.siliconplayer.platform.PlatformBackHandler
@@ -102,7 +103,10 @@ import com.flopster101.siliconplayer.PlaylistStoredFormat
 import com.flopster101.siliconplayer.PlaylistTrackEntry
 import com.flopster101.siliconplayer.StoredPlaylist
 import com.flopster101.siliconplayer.appendStoredPlaylistEntries
+import com.flopster101.siliconplayer.library.LibraryAlbum
+import com.flopster101.siliconplayer.library.LibraryAlbumDetail
 import com.flopster101.siliconplayer.library.LibraryCollections
+import com.flopster101.siliconplayer.library.libraryAlbumDetailForTracks
 import com.flopster101.siliconplayer.moveFavoriteTrack
 import com.flopster101.siliconplayer.moveStoredPlaylistEntry
 import com.flopster101.siliconplayer.readPlaylistLibraryState
@@ -611,6 +615,23 @@ fun main(args: Array<String>) = application {
                 )
             }
             val librarySurfaceState = remember { LibrarySurfaceState() }
+            // Mirrors Android's LibraryDetailState; loads the album/artist behind
+            // the detail destination so it never renders with a null detail.
+            var selectedLibraryAlbumName by remember { mutableStateOf<String?>(null) }
+            var selectedLibraryArtistName by remember { mutableStateOf<String?>(null) }
+            var libraryAlbumDetail by remember { mutableStateOf<LibraryAlbumDetail?>(null) }
+            var libraryArtistAlbums by remember { mutableStateOf<List<LibraryAlbum>?>(null) }
+            val libraryRepository = LocalLibraryRepository.current
+            LaunchedEffect(selectedLibraryAlbumName) {
+                libraryAlbumDetail = selectedLibraryAlbumName?.let { name ->
+                    libraryAlbumDetailForTracks(name, libraryRepository.albumTracks(name))
+                }
+            }
+            LaunchedEffect(selectedLibraryArtistName) {
+                libraryArtistAlbums = selectedLibraryArtistName?.let { artist ->
+                    libraryRepository.artistAlbums(artist)
+                }
+            }
             var activePlaylist by remember { mutableStateOf<StoredPlaylist?>(null) }
             var activePlaylistEntryId by remember { mutableStateOf<String?>(null) }
             val onPlaylistLibraryStateChanged: (PlaylistLibraryState) -> Unit = { updated ->
@@ -1388,13 +1409,21 @@ fun main(args: Array<String>) = application {
                                         PlaylistsScreen(
                                             libraryState = playlistLibraryState,
                                             libraryCollections = LibraryCollections.Empty,
-                                            libraryAlbumDetail = null,
-                                            libraryArtistAlbums = null,
-                                            selectedArtistName = null,
-                                            onOpenLibraryAlbum = { _, _ -> },
-                                            onOpenLibraryArtist = { },
-                                            onPlayLibraryTracks = { _, _, _ -> },
-                                            onShuffleLibraryTracks = { _, _ -> },
+                                            libraryAlbumDetail = libraryAlbumDetail,
+                                            libraryArtistAlbums = libraryArtistAlbums,
+                                            selectedArtistName = selectedLibraryArtistName,
+                                            onOpenLibraryAlbum = { albumName, _ ->
+                                                selectedLibraryAlbumName = albumName
+                                            },
+                                            onOpenLibraryArtist = { artistName ->
+                                                selectedLibraryArtistName = artistName
+                                            },
+                                            onPlayLibraryTracks = { tracks, startIndex, _ ->
+                                                tracks.getOrNull(startIndex)?.path?.let { playFile(File(it)) }
+                                            },
+                                            onShuffleLibraryTracks = { tracks, _ ->
+                                                tracks.randomOrNull()?.path?.let { playFile(File(it)) }
+                                            },
                                             onAddLibraryTracksToFavorites = { },
                                             onRemoveLibraryTracksFromFavorites = { },
                                             onAddLibraryTracksToPlaylist = { tracks, playlistId, newTitle ->
