@@ -144,6 +144,7 @@ class DesktopAudioRouteManager : AudioRouteManager {
 fun ProvideDesktopPlatformAdapters(
     windowWidthDp: Int = 1100,
     windowHeightDp: Int = 750,
+    backDispatcher: DesktopBackDispatcher = remember { DesktopBackDispatcher() },
     content: @Composable () -> Unit
 ) {
     val prefsProvider = remember { DesktopPreferencesProvider() }
@@ -208,7 +209,10 @@ fun ProvideDesktopPlatformAdapters(
         LocalAudioRouteManager provides audioRouteManager,
         LocalToastHandler provides toastHandler,
         com.flopster101.siliconplayer.platform.LocalArtworkThumbnailLoader provides artworkThumbnailLoader,
-        LocalPlatformBackHandler provides { _, _ -> },
+        LocalDesktopBackDispatcher provides backDispatcher,
+        LocalPlatformBackHandler provides { enabled, onBack ->
+            DesktopBackHandler(dispatcher = backDispatcher, enabled = enabled, onBack = onBack)
+        },
         LocalWindowSizeInfo provides windowSizeInfo,
         LocalProjectMOptionsProvider provides projectMOptionsProvider,
         com.flopster101.siliconplayer.platform.LocalAppVersionInfo provides appVersionInfo,

@@ -7,6 +7,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
@@ -19,6 +20,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.flopster101.siliconplayer.desktop.DesktopPlaybackSession
 import com.flopster101.siliconplayer.inferredPrimaryExtensionForName
+import com.flopster101.siliconplayer.platform.PlatformBackHandler
 import java.io.File
 import java.util.Locale
 
@@ -27,13 +29,27 @@ internal fun DesktopPlaylistsScreen(
     session: DesktopPlaybackSession,
     onFileSelected: (File) -> Unit,
     onOpenTrackInfo: () -> Unit = {},
+    onBack: () -> Unit = {},
+    backHandlingEnabled: Boolean = true,
     modifier: Modifier = Modifier
 ) {
+    PlatformBackHandler(enabled = backHandlingEnabled) {
+        onBack()
+    }
+
     Column(modifier = modifier.fillMaxSize().padding(16.dp)) {
         Row(
             modifier = Modifier.fillMaxWidth(),
             verticalAlignment = Alignment.CenterVertically
         ) {
+            IconButton(onClick = onBack) {
+                Icon(
+                    imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                    contentDescription = "Back",
+                    tint = MaterialTheme.colorScheme.onSurface
+                )
+            }
+            Spacer(modifier = Modifier.width(4.dp))
             Icon(
                 imageVector = Icons.Default.LibraryMusic,
                 contentDescription = null,

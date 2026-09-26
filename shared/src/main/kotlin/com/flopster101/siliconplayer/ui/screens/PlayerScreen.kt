@@ -793,6 +793,7 @@ internal fun PlayerScreen(
     onBack: () -> Unit,
     onCollapseBySwipe: () -> Unit = onBack,
     enableCollapseGesture: Boolean = true,
+    requestInitialFocus: Boolean = false,
     isPlaying: Boolean,
     canResumeStoppedTrack: Boolean = false,
     onPlay: () -> Unit,
@@ -1271,10 +1272,26 @@ internal fun PlayerScreen(
     }
     val transportAnchorFocusRequester = remember { FocusRequester() }
     val actionStripFirstFocusRequester = remember { FocusRequester() }
+    val playerRootFocusRequester = remember { FocusRequester() }
+
+    LaunchedEffect(requestInitialFocus) {
+        if (requestInitialFocus) {
+            playerRootFocusRequester.requestFocus()
+        }
+    }
 
     Box(
         modifier = Modifier
             .fillMaxSize()
+            .then(
+                if (requestInitialFocus) {
+                    Modifier
+                        .focusRequester(playerRootFocusRequester)
+                        .focusable(interactionSource = remember { MutableInteractionSource() })
+                } else {
+                    Modifier
+                }
+            )
             .onPreviewKeyEvent { keyEvent ->
                 // Only handle key down events to avoid double-triggering
                 if (keyEvent.type != KeyEventType.KeyDown) {
@@ -2129,8 +2146,35 @@ internal fun PlayerScreen(
             showFullscreenAffordance = false
         }
     }
+    PlatformBackHandler(
+        enabled = !isVisualizationFullscreen &&
+            !showTrackInfoDialog &&
+            !showVisualizationOptionsSheet &&
+            !showVisualizationPickerDialog &&
+            !showChannelControlDialog &&
+            !showAudioOutputDetailsDialog &&
+            !showAddToPlaylistChooser
+    ) {
+        onBack()
+    }
     PlatformBackHandler(enabled = isVisualizationFullscreen) {
         isVisualizationFullscreen = false
+    }
+    PlatformBackHandler(enabled = showVisualizationOptionsSheet) {
+        showVisualizationOptionsSheet = false
+        showVisualizationPickerDialog = true
+    }
+    PlatformBackHandler(enabled = showVisualizationPickerDialog) {
+        showVisualizationPickerDialog = false
+    }
+    PlatformBackHandler(enabled = showChannelControlDialog) {
+        showChannelControlDialog = false
+    }
+    PlatformBackHandler(enabled = showAudioOutputDetailsDialog) {
+        showAudioOutputDetailsDialog = false
+    }
+    PlatformBackHandler(enabled = showAddToPlaylistChooser) {
+        showAddToPlaylistChooser = false
     }
     FullscreenVisualizationOverlay(
         isFullscreen = isVisualizationFullscreen,

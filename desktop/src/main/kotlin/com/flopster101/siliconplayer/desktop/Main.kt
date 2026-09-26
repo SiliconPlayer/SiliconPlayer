@@ -35,6 +35,7 @@ import com.flopster101.siliconplayer.BrowserNameSortMode
 import com.flopster101.siliconplayer.NativeBridge
 import com.flopster101.siliconplayer.data.FileRepository
 import com.flopster101.siliconplayer.platform.LocalAppPreferences
+import com.flopster101.siliconplayer.platform.PlatformBackHandler
 import com.flopster101.siliconplayer.ui.screens.FileBrowserScreen
 import com.flopster101.siliconplayer.ui.screens.NetworkBrowserScreen
 import com.flopster101.siliconplayer.VisualizationMode
@@ -66,6 +67,8 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.ui.input.pointer.PointerEventPass
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.text.style.TextOverflow
 import com.flopster101.siliconplayer.AppDefaults
 import com.flopster101.siliconplayer.AppPreferenceKeys
@@ -99,6 +102,7 @@ fun openDesktopFileChooser(onFileSelected: (File) -> Unit) {
 fun main(args: Array<String>) = application {
     val session = remember { DesktopPlaybackSession() }
     val windowState = rememberWindowState(width = 1100.dp, height = 750.dp)
+    val backDispatcher = remember { DesktopBackDispatcher() }
 
     var currentView by remember { mutableStateOf(MainView.Home) }
     var isPlayerExpanded by remember { mutableStateOf(false) }
@@ -186,6 +190,7 @@ fun main(args: Array<String>) = application {
     }
 
     var showTrackInfoDialog by remember { mutableStateOf(false) }
+    var showSubtuneSelectorDialog by remember { mutableStateOf(false) }
     var externalTrackInfoDialogRequestToken by remember { mutableIntStateOf(0) }
 
     Window(
@@ -207,8 +212,31 @@ fun main(args: Array<String>) = application {
                         return@Window true
                     }
                 } else if (keyEvent.key == Key.Escape) {
+                    if (backDispatcher.onBackPressed()) {
+                        return@Window true
+                    }
                     if (showTrackInfoDialog) {
                         showTrackInfoDialog = false
+                        return@Window true
+                    }
+                    if (showSubtuneSelectorDialog) {
+                        showSubtuneSelectorDialog = false
+                        return@Window true
+                    }
+                    if (isPlayerExpanded) {
+                        isPlayerExpanded = false
+                        return@Window true
+                    }
+                    if (currentView == MainView.Settings) {
+                        if (settingsRoute != SettingsRoute.Root) {
+                            settingsRoute = SettingsRoute.Root
+                        } else {
+                            currentView = MainView.Home
+                        }
+                        return@Window true
+                    }
+                    if (currentView != MainView.Home) {
+                        currentView = MainView.Home
                         return@Window true
                     }
                 }
@@ -218,7 +246,8 @@ fun main(args: Array<String>) = application {
     ) {
         ProvideDesktopPlatformAdapters(
             windowWidthDp = windowState.size.width.value.toInt(),
-            windowHeightDp = windowState.size.height.value.toInt()
+            windowHeightDp = windowState.size.height.value.toInt(),
+            backDispatcher = backDispatcher
         ) {
             val prefs = LocalAppPreferences.current
             var prefToken by remember { mutableIntStateOf(0) }
@@ -243,8 +272,6 @@ fun main(args: Array<String>) = application {
             val favoritePaths = remember { mutableStateListOf<String>() }
             val currentTrackPath = session.currentFile?.absolutePath
             val isCurrentTrackFavorited = currentTrackPath != null && favoritePaths.contains(currentTrackPath)
-
-            var showSubtuneSelectorDialog by remember { mutableStateOf(false) }
 
             val visualizationUiState = rememberVisualizationUiState(
                 prefs = prefs,
@@ -433,7 +460,7 @@ fun main(args: Array<String>) = application {
                                             playingFile = session.currentFile,
                                             bottomContentPadding = bottomMargin,
                                             showPrimaryTopBar = false,
-                                            backHandlingEnabled = true,
+                                            backHandlingEnabled = !isPlayerExpanded,
                                             onExitBrowser = { currentView = MainView.Home },
                                             onFileSelected = { file, _ ->
                                                 currentDirectory = file.parentFile ?: currentDirectory
@@ -469,7 +496,9 @@ fun main(args: Array<String>) = application {
                                                 if (session.currentFile != null) {
                                                     showTrackInfoDialog = true
                                                 }
-                                            }
+                                            },
+                                            onBack = { currentView = MainView.Home },
+                                            backHandlingEnabled = !isPlayerExpanded
                                         )
                                     }
 
@@ -483,7 +512,7 @@ fun main(args: Array<String>) = application {
                                         var currentNetworkFolderId by remember { mutableStateOf<Long?>(null) }
                                         NetworkBrowserScreen(
                                             bottomContentPadding = bottomMargin,
-                                            backHandlingEnabled = true,
+                                            backHandlingEnabled = !isPlayerExpanded,
                                             nodes = networkNodes,
                                             currentFolderId = currentNetworkFolderId,
                                             onExitNetwork = {
@@ -603,6 +632,15 @@ fun main(args: Array<String>) = application {
                         // Expanded Player Screen Overlay
                         AnimatedVisibility(
                             visible = isPlayerExpanded,
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .pointerInput(Unit) {
+                                    awaitPointerEventScope {
+                                        while (true) {
+                                            awaitPointerEvent(PointerEventPass.Main).changes.forEach { it.consume() }
+                                        }
+                                    }
+                                },
                             enter = slideInVertically(
                                 initialOffsetY = { it },
                                 animationSpec = tween(durationMillis = 300, easing = FastOutSlowInEasing)
@@ -643,6 +681,7 @@ fun main(args: Array<String>) = application {
                                     playbackSourceId = session.currentFile?.absolutePath,
                                     artwork = session.artwork,
                                     noArtworkIcon = placeholderArtworkIconForFile(session.currentFile, session.decoderName),
+                                    requestInitialFocus = true,
                                     repeatMode = session.repeatMode,
                                     canCycleRepeatMode = supportsLiveRepeatMode(session.playbackCapabilitiesFlags),
                                     canSeek = session.canSeek,
@@ -775,6 +814,9 @@ fun main(args: Array<String>) = application {
                     }
 
                     if (showSubtuneSelectorDialog && session.subtuneEntries.isNotEmpty()) {
+                        PlatformBackHandler(enabled = true) {
+                            showSubtuneSelectorDialog = false
+                        }
                         AlertDialog(
                             onDismissRequest = { showSubtuneSelectorDialog = false },
                             title = { Text("Subtunes") },

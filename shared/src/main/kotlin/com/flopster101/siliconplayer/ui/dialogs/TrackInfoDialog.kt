@@ -42,6 +42,7 @@ import com.flopster101.siliconplayer.adaptiveDialogProperties
 import com.flopster101.siliconplayer.inferredPrimaryExtensionForName
 import com.flopster101.siliconplayer.onSizeChangedDeferred
 import com.flopster101.siliconplayer.platform.LocalToastHandler
+import com.flopster101.siliconplayer.platform.PlatformBackHandler
 import com.flopster101.siliconplayer.platform.isWatchDevice
 import com.flopster101.siliconplayer.rememberDialogScrollbarAlpha
 import com.flopster101.siliconplayer.rememberScrollStateScrollbarDragHandler
@@ -77,6 +78,10 @@ internal fun TrackInfoDialog(
 ) {
     val toastHandler = LocalToastHandler.current
     val clipboardManager = LocalClipboardManager.current
+
+    PlatformBackHandler(enabled = isDialogVisible) {
+        onDismiss()
+    }
     val liveMetadata = rememberTrackInfoLiveMetadata(
         filePath = file?.absolutePath,
         decoderName = decoderName,
