@@ -56,6 +56,7 @@ data class SiliconNativeGlFrame(
     val isPlaying: Boolean = true,
     val trackKey: String? = null,
     val artworkImage: ImageBitmap? = null,
+    val placeholderIconImage: ImageBitmap? = null,
     val showArtworkBackground: Boolean = true,
     val monochromeBackdrop: Boolean = false,
     val visualAlpha: Float = 1f,
@@ -198,6 +199,7 @@ private class SiliconNativeDesktopRenderThread(
         var fpsTimerNs = System.nanoTime()
 
         var lastArtwork: ImageBitmap? = null
+        var lastPlaceholderIcon: ImageBitmap? = null
         var lastTextFontKey = ""
 
         var projectMAttached = false
@@ -274,6 +276,32 @@ private class SiliconNativeDesktopRenderThread(
                             }
                         } else {
                             SiliconVisNativeBridge.nativeClearArtwork(visHandle)
+                        }
+                    }
+
+                    if (frame.placeholderIconImage !== lastPlaceholderIcon) {
+                        lastPlaceholderIcon = frame.placeholderIconImage
+                        val icon = frame.placeholderIconImage
+                        if (icon != null) {
+                            try {
+                                val pixelMap = icon.toPixelMap()
+                                val iconW = pixelMap.width
+                                val iconH = pixelMap.height
+                                val intBuf = pixelMap.buffer
+                                val buf = ByteBuffer.allocateDirect(iconW * iconH * 4).order(ByteOrder.nativeOrder())
+                                for (pixel in intBuf) {
+                                    buf.put((pixel ushr 16 and 0xFF).toByte())
+                                    buf.put((pixel ushr 8 and 0xFF).toByte())
+                                    buf.put((pixel and 0xFF).toByte())
+                                    buf.put((pixel ushr 24 and 0xFF).toByte())
+                                }
+                                buf.flip()
+                                SiliconVisNativeBridge.nativeSetIconPixels(visHandle, buf, iconW, iconH)
+                            } catch (_: Throwable) {
+                                SiliconVisNativeBridge.nativeClearIcon(visHandle)
+                            }
+                        } else {
+                            SiliconVisNativeBridge.nativeClearIcon(visHandle)
                         }
                     }
 

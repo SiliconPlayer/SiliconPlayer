@@ -37,11 +37,18 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.Canvas
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.graphics.ImageBitmap
+import androidx.compose.ui.graphics.drawscope.CanvasDrawScope
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.graphics.vector.rememberVectorPainter
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.unit.Density
+import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
 import com.flopster101.siliconplayer.AppDefaults
 import com.flopster101.siliconplayer.ArtworkSwipePreviewState
@@ -238,6 +245,32 @@ internal fun AlbumArtPlaceholder(
     val themeSurface = MaterialTheme.colorScheme.surface
     val hasArtwork = artwork != null
 
+    val vectorPainter = rememberVectorPainter(placeholderIcon)
+    val placeholderIconImage = remember(placeholderIcon, themePrimary) {
+        try {
+            val sizePx = 256
+            val bmp = ImageBitmap(sizePx, sizePx)
+            val canvas = Canvas(bmp)
+            val canvasDrawScope = CanvasDrawScope()
+            canvasDrawScope.draw(
+                density = Density(1f),
+                layoutDirection = LayoutDirection.Ltr,
+                canvas = canvas,
+                size = Size(sizePx.toFloat(), sizePx.toFloat())
+            ) {
+                with(vectorPainter) {
+                    draw(
+                        size = size,
+                        colorFilter = ColorFilter.tint(themePrimary)
+                    )
+                }
+            }
+            bmp
+        } catch (_: Throwable) {
+            null
+        }
+    }
+
     val barColor = if (barUseThemeColor) themePrimary.copy(alpha = 0.85f) else themeTertiary.copy(alpha = 0.85f)
     val oscColor = resolveOscColor(hasArtwork, oscLineColorModeNoArtwork, oscLineColorModeWithArtwork, themePrimary.copy(alpha = 0.92f), Color(oscCustomLineColorArgb))
     val gridColor = resolveOscColor(hasArtwork, oscGridColorModeNoArtwork, oscGridColorModeWithArtwork, themePrimary.copy(alpha = 0.34f), Color(oscCustomGridColorArgb))
@@ -298,13 +331,15 @@ internal fun AlbumArtPlaceholder(
         starfieldPrefs,
         primaryColorArgb,
         surfaceColorArgb,
-        artwork
+        artwork,
+        placeholderIconImage
     ) {
         SiliconNativeGlFrame(
             mode = nativeMode,
             isPlaying = isPlaying,
             trackKey = file?.absolutePath,
             artworkImage = artwork,
+            placeholderIconImage = placeholderIconImage,
             showArtworkBackground = when (visualizationMode) {
                 VisualizationMode.Bars -> barOverlayArtwork
                 VisualizationMode.ChannelScope -> channelScopePrefs.showArtworkBackground
