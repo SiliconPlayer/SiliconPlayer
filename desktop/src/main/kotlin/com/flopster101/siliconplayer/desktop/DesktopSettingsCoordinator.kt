@@ -6,6 +6,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import com.flopster101.siliconplayer.AppDefaults
 import com.flopster101.siliconplayer.AppPreferenceKeys
@@ -16,7 +17,12 @@ import com.flopster101.siliconplayer.AudioResamplerPreference
 import com.flopster101.siliconplayer.BrowserNameSortMode
 import com.flopster101.siliconplayer.CachedSourceFile
 import com.flopster101.siliconplayer.CorePreferenceKeys
+import com.flopster101.siliconplayer.REMOTE_SOURCE_CACHE_DIR
+import com.flopster101.siliconplayer.clearRemoteCacheFiles
+import com.flopster101.siliconplayer.data.clearArchiveMountCache
 import com.flopster101.siliconplayer.DecoderNames
+import com.flopster101.siliconplayer.deleteSpecificRemoteCacheFiles
+import com.flopster101.siliconplayer.listCachedSourceFiles
 import com.flopster101.siliconplayer.EndFadeCurve
 import com.flopster101.siliconplayer.FilenameDisplayMode
 import com.flopster101.siliconplayer.LookaheadClipperMode
@@ -32,19 +38,51 @@ import com.flopster101.siliconplayer.VisualizationMode
 import com.flopster101.siliconplayer.VisualizationPerformanceMode
 import com.flopster101.siliconplayer.VisualizationRenderBackend
 import com.flopster101.siliconplayer.VisualizationVuAnchor
+import com.flopster101.siliconplayer.VgmPlayConfig
+import com.flopster101.siliconplayer.audio.applyDspSettingsToNative
+import com.flopster101.siliconplayer.audio.defaultDspSettings
 import com.flopster101.siliconplayer.buildSettingsScreenState
+import com.flopster101.siliconplayer.clearAllAudioParameterPrefs
+import com.flopster101.siliconplayer.clearAllDecoderPluginVolumes
+import com.flopster101.siliconplayer.parseEnabledVisualizationModes
 import com.flopster101.siliconplayer.platform.AppPreferences
+import com.flopster101.siliconplayer.resetVisualizationBarsSettings
+import com.flopster101.siliconplayer.resetVisualizationChannelScopeSettings
+import com.flopster101.siliconplayer.resetVisualizationOscilloscopeSettings
+import com.flopster101.siliconplayer.resetVisualizationProjectMSettings
+import com.flopster101.siliconplayer.resetVisualizationVuSettings
+import com.flopster101.siliconplayer.serializeEnabledVisualizationModes
+import com.flopster101.siliconplayer.platform.LocalAppCacheDir
 import com.flopster101.siliconplayer.platform.LocalAppPreferences
+import com.flopster101.siliconplayer.platform.LocalFileExportHandler
+import com.flopster101.siliconplayer.platform.LocalToastHandler
+import java.io.File
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 
 @Composable
 internal fun rememberDesktopSettings(
     currentRoute: SettingsRoute,
     onRouteChange: (SettingsRoute) -> Unit,
-    onBackToMainView: () -> Unit
+    onBackToMainView: () -> Unit,
+    onOpenAudioEffects: () -> Unit = {},
+    defaultScopeTextSizeSp: Int = 10,
+    protectedCachePaths: Set<String> = emptySet()
 ): Pair<SettingsScreenState, SettingsScreenActions> {
     val prefs = LocalAppPreferences.current
+    val cacheDir = LocalAppCacheDir.current
+    val toastHandler = LocalToastHandler.current
+    val fileExportHandler = LocalFileExportHandler.current
+    val scope = rememberCoroutineScope()
+    val remoteCacheRoot = remember(cacheDir) { File(cacheDir, REMOTE_SOURCE_CACHE_DIR) }
 
     var changeToken by remember { mutableIntStateOf(0) }
+    val cachedSourceFiles = remember(changeToken, remoteCacheRoot) {
+        listCachedSourceFiles(remoteCacheRoot)
+    }
+    fun refreshCachedSourceFiles() {
+        changeToken++
+    }
     DisposableEffect(prefs) {
         val listener = AppPreferences.OnChangeListener { _, _ ->
             changeToken++
@@ -154,7 +192,9 @@ internal fun rememberDesktopSettings(
             vgmPlayResampleMode = prefs.getInt(CorePreferenceKeys.VGMPLAY_RESAMPLE_MODE, 0),
             vgmPlayChipSampleMode = prefs.getInt(CorePreferenceKeys.VGMPLAY_CHIP_SAMPLE_MODE, 0),
             vgmPlayChipSampleRate = prefs.getInt(CorePreferenceKeys.VGMPLAY_CHIP_SAMPLE_RATE, 0),
-            vgmPlayChipCoreSelections = emptyMap(),
+            vgmPlayChipCoreSelections = VgmPlayConfig.defaultChipCoreSelections().mapValues { (chipKey, defaultValue) ->
+                prefs.getInt(CorePreferenceKeys.vgmPlayChipCoreKey(chipKey), defaultValue)
+            },
             openMptStereoSeparationPercent = prefs.getInt("openmpt.stereo_separation_percent", 100),
             openMptStereoSeparationAmigaPercent = prefs.getInt("openmpt.stereo_separation_amiga_percent", 100),
             openMptInterpolationFilterLength = prefs.getInt("openmpt.interpolation_filter_length", 8),
@@ -165,6 +205,36 @@ internal fun rememberDesktopSettings(
             openMptMasterGainMilliBel = prefs.getInt("openmpt.master_gain_millibel", 0),
             openMptSurroundEnabled = prefs.getBoolean("openmpt.surround_enabled", false)
         )
+    }
+
+    val enabledVisualizationModes = remember(changeToken) {
+        val parsed = parseEnabledVisualizationModes(
+            prefs.getString(AppPreferenceKeys.VISUALIZATION_ENABLED_MODES, null)
+        )
+        val projectMMigrated = prefs.getBoolean(
+            AppPreferenceKeys.VISUALIZATION_ENABLED_MODES_PROJECTM_MIGRATED,
+            false
+        )
+        val starfieldMigrated = prefs.getBoolean(
+            AppPreferenceKeys.VISUALIZATION_ENABLED_MODES_STARFIELD_MIGRATED,
+            false
+        )
+        if (projectMMigrated && starfieldMigrated) {
+            parsed
+        } else {
+            var result = parsed
+            if (!projectMMigrated) result = result + VisualizationMode.ProjectM
+            if (!starfieldMigrated) result = result + VisualizationMode.Starfield
+            prefs.edit()
+                .putBoolean(AppPreferenceKeys.VISUALIZATION_ENABLED_MODES_PROJECTM_MIGRATED, true)
+                .putBoolean(AppPreferenceKeys.VISUALIZATION_ENABLED_MODES_STARFIELD_MIGRATED, true)
+                .putString(
+                    AppPreferenceKeys.VISUALIZATION_ENABLED_MODES,
+                    serializeEnabledVisualizationModes(result)
+                )
+                .apply()
+            result
+        }
     }
 
     val state = remember(changeToken, selectedPluginName) {
@@ -210,7 +280,7 @@ internal fun rememberDesktopSettings(
             archiveCacheMaxMounts = prefs.getInt(AppPreferenceKeys.ARCHIVE_CACHE_MAX_MOUNTS, 10),
             archiveCacheMaxBytes = prefs.getLong(AppPreferenceKeys.ARCHIVE_CACHE_MAX_BYTES, 200L * 1024 * 1024),
             archiveCacheMaxAgeDays = prefs.getInt(AppPreferenceKeys.ARCHIVE_CACHE_MAX_AGE_DAYS, 7),
-            cachedSourceFiles = emptyList<CachedSourceFile>(),
+            cachedSourceFiles = cachedSourceFiles,
             keepScreenOn = prefs.getBoolean(AppPreferenceKeys.KEEP_SCREEN_ON, false),
             playerArtworkCornerRadiusDp = prefs.getInt(AppPreferenceKeys.PLAYER_ARTWORK_CORNER_RADIUS_DP, 16),
             showAudioOutputRouteChip = prefs.getBoolean(AppPreferenceKeys.PLAYER_SHOW_AUDIO_OUTPUT_CHIP, true),
@@ -222,13 +292,7 @@ internal fun rememberDesktopSettings(
             endFadeDurationMs = prefs.getInt(AppPreferenceKeys.END_FADE_DURATION_MS, 4000),
             endFadeCurve = EndFadeCurve.fromStorage(prefs.getString(AppPreferenceKeys.END_FADE_CURVE, "linear")),
             visualizationMode = VisualizationMode.fromStorage(prefs.getString(AppPreferenceKeys.VISUALIZATION_MODE, "bars")),
-            enabledVisualizationModes = setOf(
-                VisualizationMode.Bars,
-                VisualizationMode.Oscilloscope,
-                VisualizationMode.VuMeters,
-                VisualizationMode.ChannelScope,
-                VisualizationMode.Starfield
-            ),
+            enabledVisualizationModes = enabledVisualizationModes,
             visualizationPerformanceMode = VisualizationPerformanceMode.fromStorage(prefs.getString(AppPreferenceKeys.VISUALIZATION_PERFORMANCE_MODE, "auto")),
             visualizationShowDebugInfo = prefs.getBoolean(AppPreferenceKeys.VISUALIZATION_SHOW_DEBUG_INFO, false),
             visualizationKeepScreenOn = prefs.getBoolean(AppPreferenceKeys.VISUALIZATION_KEEP_SCREEN_ON, true),
@@ -281,30 +345,28 @@ internal fun rememberDesktopSettings(
             onOpenHome = { onRouteChange(SettingsRoute.Home) },
             onOpenFileBrowser = { onRouteChange(SettingsRoute.FileBrowser) },
             onOpenNetwork = { onRouteChange(SettingsRoute.Network) },
-            onOpenAudioEffects = {},
+            onOpenAudioEffects = onOpenAudioEffects,
             onClearAllAudioParameters = {
+                clearAllAudioParameterPrefs(prefs)
+                DesktopSongVolumeStore.getInstance().resetAllSongVolumes()
                 runCatching {
                     NativeBridge.setMasterGain(0f)
                     NativeBridge.setPluginGain(0f)
                     NativeBridge.setSongGain(0f)
                     NativeBridge.setForceMono(false)
+                    applyDspSettingsToNative(defaultDspSettings())
                 }
-                prefs.edit()
-                    .remove(AppPreferenceKeys.AUDIO_MASTER_VOLUME_DB)
-                    .remove(AppPreferenceKeys.AUDIO_PLUGIN_VOLUME_DB)
-                    .remove(AppPreferenceKeys.AUDIO_FORCE_MONO)
-                    .apply()
                 changeToken++
             },
             onClearPluginAudioParameters = {
+                clearAllDecoderPluginVolumes(prefs)
                 runCatching { NativeBridge.setPluginGain(0f) }
-                prefs.edit()
-                    .remove(AppPreferenceKeys.AUDIO_PLUGIN_VOLUME_DB)
-                    .apply()
                 changeToken++
             },
             onClearSongAudioParameters = {
+                DesktopSongVolumeStore.getInstance().resetAllSongVolumes()
                 runCatching { NativeBridge.setSongGain(0f) }
+                changeToken++
             },
             onOpenPlayer = { onRouteChange(SettingsRoute.Player) },
             onOpenVisualization = { onRouteChange(SettingsRoute.Visualization) },
@@ -422,7 +484,10 @@ internal fun rememberDesktopSettings(
                 onVgmPlayResampleModeChanged = { putInt(CorePreferenceKeys.VGMPLAY_RESAMPLE_MODE, it) },
                 onVgmPlayChipSampleModeChanged = { putInt(CorePreferenceKeys.VGMPLAY_CHIP_SAMPLE_MODE, it) },
                 onVgmPlayChipSampleRateChanged = { putInt(CorePreferenceKeys.VGMPLAY_CHIP_SAMPLE_RATE, it) },
-                onVgmPlayChipCoreChanged = { _, _ -> },
+                onVgmPlayChipCoreChanged = { chipKey, selectedValue ->
+                    prefs.edit().putInt(CorePreferenceKeys.vgmPlayChipCoreKey(chipKey), selectedValue).apply()
+                    changeToken++
+                },
                 onOpenMptStereoSeparationPercentChanged = { putInt("openmpt.stereo_separation_percent", it) },
                 onOpenMptStereoSeparationAmigaPercentChanged = { putInt("openmpt.stereo_separation_amiga_percent", it) },
                 onOpenMptInterpolationFilterLengthChanged = { putInt("openmpt.interpolation_filter_length", it) },
@@ -481,11 +546,44 @@ internal fun rememberDesktopSettings(
             onArchiveCacheMaxMountsChanged = { putInt(AppPreferenceKeys.ARCHIVE_CACHE_MAX_MOUNTS, it) },
             onArchiveCacheMaxBytesChanged = { prefs.edit().putLong(AppPreferenceKeys.ARCHIVE_CACHE_MAX_BYTES, it).apply(); changeToken++ },
             onArchiveCacheMaxAgeDaysChanged = { putInt(AppPreferenceKeys.ARCHIVE_CACHE_MAX_AGE_DAYS, it) },
-            onClearUrlCacheNow = {},
-            onClearArchiveCacheNow = {},
-            onRefreshCachedSourceFiles = {},
-            onDeleteCachedSourceFiles = { _ -> },
-            onExportCachedSourceFiles = { _ -> },
+            onClearUrlCacheNow = {
+                scope.launch(Dispatchers.IO) {
+                    val result = clearRemoteCacheFiles(remoteCacheRoot, protectedCachePaths)
+                    refreshCachedSourceFiles()
+                    val suffix = if (result.skippedFiles > 0) " (${result.skippedFiles} protected)" else ""
+                    toastHandler.showToast("Deleted ${result.deletedFiles} file(s)$suffix")
+                }
+            },
+            onClearArchiveCacheNow = {
+                scope.launch(Dispatchers.IO) {
+                    val result = clearArchiveMountCache(cacheDir)
+                    toastHandler.showToast("Deleted ${result.deletedMounts} mount(s)")
+                }
+            },
+            onRefreshCachedSourceFiles = {
+                scope.launch(Dispatchers.IO) {
+                    listCachedSourceFiles(remoteCacheRoot)
+                    refreshCachedSourceFiles()
+                }
+            },
+            onDeleteCachedSourceFiles = { paths ->
+                scope.launch(Dispatchers.IO) {
+                    val result = deleteSpecificRemoteCacheFiles(remoteCacheRoot, paths.toSet(), protectedCachePaths)
+                    refreshCachedSourceFiles()
+                    val suffix = if (result.skippedFiles > 0) " (${result.skippedFiles} protected)" else ""
+                    toastHandler.showToast("Deleted ${result.deletedFiles} file(s)$suffix")
+                }
+            },
+            onExportCachedSourceFiles = { paths ->
+                val files = paths.mapNotNull { path ->
+                    File(path).takeIf { it.exists() && it.isFile }
+                }
+                if (files.isEmpty()) {
+                    toastHandler.showToast("No files selected")
+                } else {
+                    fileExportHandler.exportFiles(files)
+                }
+            },
             onKeepScreenOnChanged = { putBool(AppPreferenceKeys.KEEP_SCREEN_ON, it) },
             onPlayerArtworkCornerRadiusDpChanged = { putInt(AppPreferenceKeys.PLAYER_ARTWORK_CORNER_RADIUS_DP, it) },
             onShowAudioOutputRouteChipChanged = { putBool(AppPreferenceKeys.PLAYER_SHOW_AUDIO_OUTPUT_CHIP, it) },
@@ -497,7 +595,15 @@ internal fun rememberDesktopSettings(
             onEndFadeDurationMsChanged = { putInt(AppPreferenceKeys.END_FADE_DURATION_MS, it) },
             onEndFadeCurveChanged = { putString(AppPreferenceKeys.END_FADE_CURVE, it.storageValue) },
             onVisualizationModeChanged = { putString(AppPreferenceKeys.VISUALIZATION_MODE, it.storageValue) },
-            onEnabledVisualizationModesChanged = { _ -> },
+            onEnabledVisualizationModesChanged = { modes ->
+                prefs.edit()
+                    .putString(
+                        AppPreferenceKeys.VISUALIZATION_ENABLED_MODES,
+                        serializeEnabledVisualizationModes(modes)
+                    )
+                    .apply()
+                changeToken++
+            },
             onVisualizationPerformanceModeChanged = { putString(AppPreferenceKeys.VISUALIZATION_PERFORMANCE_MODE, it.storageValue) },
             onVisualizationShowDebugInfoChanged = { putBool(AppPreferenceKeys.VISUALIZATION_SHOW_DEBUG_INFO, it) },
             onVisualizationKeepScreenOnChanged = { putBool(AppPreferenceKeys.VISUALIZATION_KEEP_SCREEN_ON, it) },
@@ -512,11 +618,26 @@ internal fun rememberDesktopSettings(
             onVisualizationVuUseThemeColorChanged = { putBool(AppPreferenceKeys.VISUALIZATION_VU_USE_THEME_COLOR, it) },
             onVisualizationVuSmoothingPercentChanged = { putInt(AppPreferenceKeys.VISUALIZATION_VU_SMOOTHING_PERCENT, it) },
             onVisualizationVuRenderBackendChanged = { putString(AppPreferenceKeys.VISUALIZATION_VU_RENDER_BACKEND, it.storageValue) },
-            onResetVisualizationBarsSettings = {},
-            onResetVisualizationOscilloscopeSettings = {},
-            onResetVisualizationVuSettings = {},
-            onResetVisualizationChannelScopeSettings = {},
-            onResetVisualizationProjectMSettings = {},
+            onResetVisualizationBarsSettings = {
+                resetVisualizationBarsSettings(prefs)
+                changeToken++
+            },
+            onResetVisualizationOscilloscopeSettings = {
+                resetVisualizationOscilloscopeSettings(prefs)
+                changeToken++
+            },
+            onResetVisualizationVuSettings = {
+                resetVisualizationVuSettings(prefs)
+                changeToken++
+            },
+            onResetVisualizationChannelScopeSettings = {
+                resetVisualizationChannelScopeSettings(prefs, defaultScopeTextSizeSp)
+                changeToken++
+            },
+            onResetVisualizationProjectMSettings = {
+                resetVisualizationProjectMSettings(prefs, setOf("internal_projectm_tests"))
+                changeToken++
+            },
             onClearRecentHistory = {
                 prefs.edit()
                     .remove(AppPreferenceKeys.RECENT_FOLDERS)

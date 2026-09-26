@@ -27,6 +27,7 @@ interface AppPreferences {
     fun getFloat(key: String, defValue: Float): Float
     fun getLong(key: String, defValue: Long): Long
     fun getStringSet(key: String, defValues: Set<String>?): Set<String>?
+    fun contains(key: String): Boolean
 
     interface Editor {
         fun putString(key: String, value: String?): Editor

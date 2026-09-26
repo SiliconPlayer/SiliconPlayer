@@ -1,4 +1,7 @@
 package com.flopster101.siliconplayer
+import com.flopster101.siliconplayer.data.findExistingCachedFileForSource
+import com.flopster101.siliconplayer.data.remoteCacheFileForSource
+import com.flopster101.siliconplayer.data.sha1Hex
 
 import android.content.Context
 import android.util.Log

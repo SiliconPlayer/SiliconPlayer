@@ -426,7 +426,7 @@ internal object PlatformDolbyPlayer {
             context.cacheDir,
             com.flopster101.siliconplayer.PROGRESSIVE_REMOTE_SOURCE_CACHE_DIR
         )
-        com.flopster101.siliconplayer.remoteCacheFileForSource(cacheRoot, sourceId)
+        com.flopster101.siliconplayer.data.remoteCacheFileForSource(cacheRoot, sourceId)
     } catch (t: Throwable) {
         Log.d(TAG, "SMB cache lookup failed", t)
         null

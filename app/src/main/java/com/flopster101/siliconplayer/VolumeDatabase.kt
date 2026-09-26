@@ -12,7 +12,8 @@ import android.database.sqlite.SQLiteOpenHelper
  * - Whether core volume should be ignored for this song
  */
 class VolumeDatabase private constructor(context: Context) :
-    SQLiteOpenHelper(context, DATABASE_NAME, null, DATABASE_VERSION) {
+    SQLiteOpenHelper(context, DATABASE_NAME, null, DATABASE_VERSION),
+    com.flopster101.siliconplayer.audio.SongVolumeStore {
 
     override fun onCreate(db: SQLiteDatabase) {
         db.execSQL(
@@ -43,7 +44,7 @@ class VolumeDatabase private constructor(context: Context) :
      * @param filePath The absolute file path of the song
      * @return The volume in dB, or null if no adjustment is stored
      */
-    fun getSongVolume(filePath: String): Float? {
+    override fun getSongVolume(filePath: String): Float? {
         val db = readableDatabase
         val cursor = db.query(
             TABLE_SONG_VOLUMES,
@@ -69,7 +70,7 @@ class VolumeDatabase private constructor(context: Context) :
      * @param filePath The absolute file path of the song
      * @param volumeDb The volume adjustment in dB
      */
-    fun setSongVolume(filePath: String, volumeDb: Float) {
+    override fun setSongVolume(filePath: String, volumeDb: Float) {
         val db = writableDatabase
         val values = ContentValues().apply {
             put(COLUMN_VOLUME_DB, volumeDb)
@@ -93,7 +94,7 @@ class VolumeDatabase private constructor(context: Context) :
      * @param filePath The absolute file path of the song
      * @return true if core volume should be ignored for this song
      */
-    fun getSongIgnoreCoreVolume(filePath: String): Boolean {
+    override fun getSongIgnoreCoreVolume(filePath: String): Boolean {
         val db = readableDatabase
         val cursor = db.query(
             TABLE_SONG_VOLUMES,
@@ -119,7 +120,7 @@ class VolumeDatabase private constructor(context: Context) :
      * @param filePath The absolute file path of the song
      * @param ignoreCoreVolume true to ignore core volume for this song
      */
-    fun setSongIgnoreCoreVolume(filePath: String, ignoreCoreVolume: Boolean) {
+    override fun setSongIgnoreCoreVolume(filePath: String, ignoreCoreVolume: Boolean) {
         val db = writableDatabase
         val values = ContentValues().apply {
             put(COLUMN_IGNORE_CORE_VOLUME, if (ignoreCoreVolume) 1 else 0)
@@ -155,7 +156,7 @@ class VolumeDatabase private constructor(context: Context) :
      * Reset all song volume adjustments (clear the entire table).
      * This is useful for a "reset all" feature.
      */
-    fun resetAllSongVolumes() {
+    override fun resetAllSongVolumes() {
         val db = writableDatabase
         db.delete(TABLE_SONG_VOLUMES, null, null)
     }

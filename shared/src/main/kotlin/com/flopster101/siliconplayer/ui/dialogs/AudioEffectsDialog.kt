@@ -37,7 +37,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import com.flopster101.siliconplayer.WatchDialogContainer
-import com.flopster101.siliconplayer.isWatchDevice
+import com.flopster101.siliconplayer.platform.isWatchDevice
 import com.flopster101.siliconplayer.adaptiveDialogModifier
 import com.flopster101.siliconplayer.adaptiveDialogProperties
 import com.flopster101.siliconplayer.rememberDialogScrollbarAlpha

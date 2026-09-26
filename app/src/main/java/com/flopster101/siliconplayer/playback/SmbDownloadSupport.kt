@@ -1,4 +1,6 @@
 package com.flopster101.siliconplayer
+import com.flopster101.siliconplayer.data.findExistingCachedFileForSource
+import com.flopster101.siliconplayer.data.remoteCacheFileForSource
 
 import android.content.Context
 import com.hierynomus.msdtyp.AccessMask

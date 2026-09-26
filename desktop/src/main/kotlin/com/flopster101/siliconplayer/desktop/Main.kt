@@ -30,6 +30,8 @@ import com.flopster101.siliconplayer.FolderEntryAction
 import com.flopster101.siliconplayer.SourceEntryAction
 import com.flopster101.siliconplayer.NetworkNode
 import com.flopster101.siliconplayer.NetworkCredentialStore
+import com.flopster101.siliconplayer.REMOTE_SOURCE_CACHE_DIR
+import com.flopster101.siliconplayer.platform.LocalAppCacheDir
 import com.flopster101.siliconplayer.ManualSourceType
 import com.flopster101.siliconplayer.MANUAL_INPUT_INVALID_MESSAGE
 import com.flopster101.siliconplayer.resolveManualSourceInput
@@ -52,6 +54,9 @@ import com.flopster101.siliconplayer.VisualizationMode
 import com.flopster101.siliconplayer.VisualizationRenderBackend
 import com.flopster101.siliconplayer.VisualizationVuAnchor
 import com.flopster101.siliconplayer.ui.screens.rememberVisualizationUiState
+import com.flopster101.siliconplayer.ui.dialogs.AddToPlaylistChooserDialog
+import com.flopster101.siliconplayer.ui.dialogs.AudioEffectsDialog
+import com.flopster101.siliconplayer.ui.dialogs.PlaylistSelectorDialog
 import com.flopster101.siliconplayer.ui.dialogs.TrackInfoDialog
 import com.flopster101.siliconplayer.ui.dialogs.UrlOrPathDialog
 import androidx.compose.ui.input.key.Key
@@ -77,7 +82,27 @@ import com.flopster101.siliconplayer.removeStoredPlaylistEntry
 import com.flopster101.siliconplayer.renameStoredPlaylist
 import com.flopster101.siliconplayer.resolvePlaylistEntryLocalFile
 import com.flopster101.siliconplayer.setStoredPlaylistPinned
+import com.flopster101.siliconplayer.FAVORITES_PLAYLIST_ID
+import com.flopster101.siliconplayer.LookaheadClipperMode
+import com.flopster101.siliconplayer.MultiChannelOutputMode
+import com.flopster101.siliconplayer.audio.DspSettingsNamespace
+import com.flopster101.siliconplayer.audio.applyDspSettingsToNative
+import com.flopster101.siliconplayer.audio.defaultDspSettings
+import com.flopster101.siliconplayer.audio.hasCoreDspOverrides
+import com.flopster101.siliconplayer.audio.normalizeSurroundDelayMsPref
+import com.flopster101.siliconplayer.audio.readCoreDspSettings
+import com.flopster101.siliconplayer.audio.readCoreIgnoreGlobalDsp
+import com.flopster101.siliconplayer.audio.readGlobalDspSettings
+import com.flopster101.siliconplayer.audio.resolveEffectiveDspSettings
+import com.flopster101.siliconplayer.audio.writeCoreDspSettings
+import com.flopster101.siliconplayer.audio.writeGlobalDspSettings
+import com.flopster101.siliconplayer.playlistContainsTrack
+import com.flopster101.siliconplayer.samePath
+import com.flopster101.siliconplayer.toPlaylistTrackEntry
+import com.flopster101.siliconplayer.readPluginVolumeForDecoder
 import com.flopster101.siliconplayer.upsertFavoriteTrack
+import com.flopster101.siliconplayer.upsertFavoriteTracks
+import com.flopster101.siliconplayer.writePluginVolumeForDecoder
 import com.flopster101.siliconplayer.upsertStoredPlaylist
 import com.flopster101.siliconplayer.writePlaylistLibraryState
 import com.flopster101.siliconplayer.SettingsScreen
@@ -284,7 +309,12 @@ fun main(args: Array<String>) = application {
     }
 
     var showTrackInfoDialog by remember { mutableStateOf(false) }
+    var dismissAudioEffectsDialogHandler by remember { mutableStateOf<(() -> Boolean)?>(null) }
     var showSubtuneSelectorDialog by remember { mutableStateOf(false) }
+    var showPlaylistSelectorDialog by remember { mutableStateOf(false) }
+    var selectorImportEntries by remember { mutableStateOf<List<PlaylistTrackEntry>?>(null) }
+    var selectorImportTitle by remember { mutableStateOf<String?>(null) }
+    var selectorImportDialogTitle by remember { mutableStateOf("Add to playlist") }
     var externalTrackInfoDialogRequestToken by remember { mutableIntStateOf(0) }
 
     Window(
@@ -309,12 +339,24 @@ fun main(args: Array<String>) = application {
                     if (backDispatcher.onBackPressed()) {
                         return@Window true
                     }
+                    if (dismissAudioEffectsDialogHandler?.invoke() == true) {
+                        return@Window true
+                    }
                     if (showTrackInfoDialog) {
                         showTrackInfoDialog = false
                         return@Window true
                     }
                     if (showSubtuneSelectorDialog) {
                         showSubtuneSelectorDialog = false
+                        return@Window true
+                    }
+                    if (selectorImportEntries != null) {
+                        selectorImportEntries = null
+                        selectorImportTitle = null
+                        return@Window true
+                    }
+                    if (showPlaylistSelectorDialog) {
+                        showPlaylistSelectorDialog = false
                         return@Window true
                     }
                     if (isPlayerExpanded) {
@@ -398,6 +440,276 @@ fun main(args: Array<String>) = application {
             val onPlaylistLibraryStateChanged: (PlaylistLibraryState) -> Unit = { updated ->
                 playlistLibraryState = updated
                 writePlaylistLibraryState(prefs, updated)
+            }
+            val addEntriesToPlaylist: (List<PlaylistTrackEntry>, String?, String) -> Unit = { entries, playlistId, newTitle ->
+                if (entries.isNotEmpty()) {
+                    val target = playlistId?.let { id -> playlistLibraryState.playlists.firstOrNull { it.id == id } }
+                    onPlaylistLibraryStateChanged(
+                        when {
+                            playlistId == FAVORITES_PLAYLIST_ID -> upsertFavoriteTracks(playlistLibraryState, entries)
+                            target != null -> upsertStoredPlaylist(
+                                playlistLibraryState,
+                                target.copy(entries = target.entries + entries)
+                            )
+                            else -> upsertStoredPlaylist(
+                                playlistLibraryState,
+                                StoredPlaylist(title = newTitle.ifBlank { "New playlist" }, entries = entries)
+                            )
+                        }
+                    )
+                    toastHandler.showToast(
+                        if (entries.size == 1) "Added to playlist" else "Added ${entries.size} tracks to playlist"
+                    )
+                }
+            }
+            fun buildCurrentTrackEntry(): PlaylistTrackEntry? {
+                val path = session.currentFile?.absolutePath ?: return null
+                return PlaylistTrackEntry(
+                    id = java.util.UUID.randomUUID().toString(),
+                    source = path,
+                    title = session.title.ifBlank { session.currentFile?.nameWithoutExtension.orEmpty() },
+                    artist = session.artist.takeUnless { it.isBlank() },
+                    album = session.album.takeUnless { it.isBlank() },
+                    subtuneIndex = session.subtuneIndex.takeIf { session.subtuneCount > 1 },
+                    durationSecondsOverride = session.durationSeconds.takeIf { it > 0 },
+                    addedAtMs = System.currentTimeMillis()
+                )
+            }
+            fun togglePlaylistEntryFavorite(entry: PlaylistTrackEntry) {
+                val existing = playlistLibraryState.favorites.firstOrNull { fav ->
+                    samePath(fav.source, entry.source) && (fav.subtuneIndex ?: -1) == (entry.subtuneIndex ?: -1)
+                }
+                if (existing != null) {
+                    onPlaylistLibraryStateChanged(removeFavoriteTrack(playlistLibraryState, existing.id))
+                    toastHandler.showToast("Removed from favorites")
+                } else {
+                    onPlaylistLibraryStateChanged(upsertFavoriteTrack(playlistLibraryState, entry))
+                    toastHandler.showToast("Added to favorites")
+                }
+            }
+            fun removeSourceFromPlaylist(playlistId: String, source: String, subtuneIndex: Int?) {
+                if (playlistId == FAVORITES_PLAYLIST_ID) {
+                    val matching = playlistLibraryState.favorites.filter { entry ->
+                        samePath(entry.source, source) &&
+                            (entry.subtuneIndex == subtuneIndex || entry.subtuneIndex == null)
+                    }
+                    if (matching.isNotEmpty()) {
+                        onPlaylistLibraryStateChanged(
+                            playlistLibraryState.copy(
+                                favorites = playlistLibraryState.favorites.filterNot { entry ->
+                                    matching.any { it.id == entry.id }
+                                }
+                            )
+                        )
+                        toastHandler.showToast("Removed from favorites")
+                    }
+                } else {
+                    val target = playlistLibraryState.playlists.firstOrNull { it.id == playlistId }
+                    val entryId = target?.entries?.firstOrNull { entry ->
+                        samePath(entry.source, source) &&
+                            (entry.subtuneIndex == subtuneIndex || entry.subtuneIndex == null)
+                    }?.id
+                    if (entryId != null) {
+                        onPlaylistLibraryStateChanged(
+                            removeStoredPlaylistEntry(playlistLibraryState, playlistId, entryId)
+                        )
+                        toastHandler.showToast("Removed from playlist")
+                    }
+                }
+            }
+            val songVolumeStore = remember { DesktopSongVolumeStore.getInstance() }
+            var showAudioEffectsDialog by remember { mutableStateOf(false) }
+            var masterVolumeDb by remember {
+                mutableStateOf(prefs.getFloat(AppPreferenceKeys.AUDIO_MASTER_VOLUME_DB, 0f))
+            }
+            var forceMono by remember {
+                mutableStateOf(prefs.getBoolean(AppPreferenceKeys.AUDIO_FORCE_MONO, false))
+            }
+            var songVolumeDb by remember { mutableStateOf(0f) }
+            var ignoreCoreVolumeForSong by remember { mutableStateOf(false) }
+            var globalDspSettings by remember { mutableStateOf(readGlobalDspSettings(prefs)) }
+            var coreDspSettings by remember(session.decoderName) {
+                mutableStateOf(readCoreDspSettings(prefs, session.decoderName))
+            }
+            var coreDspHasOverrides by remember(session.decoderName) {
+                mutableStateOf(hasCoreDspOverrides(prefs, session.decoderName))
+            }
+            var coreIgnoreGlobalDsp by remember(session.decoderName) {
+                mutableStateOf(readCoreIgnoreGlobalDsp(prefs, session.decoderName))
+            }
+            var dspNamespaceSelection by remember {
+                mutableStateOf(
+                    when (prefs.getString(AppPreferenceKeys.AUDIO_DSP_EDITOR_NAMESPACE, "global")) {
+                        "core" -> DspSettingsNamespace.CurrentCore
+                        else -> DspSettingsNamespace.Global
+                    }
+                )
+            }
+            if (session.decoderName == null && dspNamespaceSelection == DspSettingsNamespace.CurrentCore) {
+                dspNamespaceSelection = DspSettingsNamespace.Global
+            }
+            var tempMasterVolumeDb by remember { mutableStateOf(masterVolumeDb) }
+            var tempPluginVolumeDb by remember { mutableStateOf(0f) }
+            var tempSongVolumeDb by remember { mutableStateOf(songVolumeDb) }
+            var tempIgnoreCoreVolumeForSong by remember { mutableStateOf(ignoreCoreVolumeForSong) }
+            var tempForceMono by remember { mutableStateOf(forceMono) }
+            var tempGlobalDspSettings by remember { mutableStateOf(globalDspSettings) }
+            var tempCoreDspSettings by remember { mutableStateOf(coreDspSettings) }
+            var tempCoreIgnoreGlobalDsp by remember { mutableStateOf(coreIgnoreGlobalDsp) }
+            var tempDspNamespaceSelection by remember { mutableStateOf(dspNamespaceSelection) }
+            fun applyCurrentTempDspSettingsToNative() {
+                val coreHasTempOverrides = coreDspHasOverrides ||
+                    tempDspNamespaceSelection == DspSettingsNamespace.CurrentCore
+                applyDspSettingsToNative(
+                    resolveEffectiveDspSettings(
+                        coreName = session.decoderName,
+                        global = tempGlobalDspSettings,
+                        core = tempCoreDspSettings,
+                        coreHasOverrides = coreHasTempOverrides,
+                        ignoreGlobalForCore = tempCoreIgnoreGlobalDsp
+                    )
+                )
+            }
+            fun applyCommittedAudioParametersToNative() {
+                NativeBridge.setMasterGain(masterVolumeDb)
+                NativeBridge.setPluginGain(
+                    if (ignoreCoreVolumeForSong) 0f else readPluginVolumeForDecoder(prefs, session.decoderName)
+                )
+                NativeBridge.setSongGain(songVolumeDb)
+                NativeBridge.setForceMono(forceMono)
+                applyDspSettingsToNative(
+                    resolveEffectiveDspSettings(
+                        coreName = session.decoderName,
+                        global = globalDspSettings,
+                        core = coreDspSettings,
+                        coreHasOverrides = coreDspHasOverrides,
+                        ignoreGlobalForCore = coreIgnoreGlobalDsp
+                    )
+                )
+            }
+            fun openAudioEffectsDialog() {
+                masterVolumeDb = prefs.getFloat(AppPreferenceKeys.AUDIO_MASTER_VOLUME_DB, 0f)
+                forceMono = prefs.getBoolean(AppPreferenceKeys.AUDIO_FORCE_MONO, false)
+                val path = session.currentFile?.absolutePath
+                songVolumeDb = path?.let { songVolumeStore.getSongVolume(it) } ?: 0f
+                ignoreCoreVolumeForSong = path?.let { songVolumeStore.getSongIgnoreCoreVolume(it) } ?: false
+                globalDspSettings = readGlobalDspSettings(prefs)
+                coreDspSettings = readCoreDspSettings(prefs, session.decoderName)
+                coreDspHasOverrides = hasCoreDspOverrides(prefs, session.decoderName)
+                coreIgnoreGlobalDsp = readCoreIgnoreGlobalDsp(prefs, session.decoderName)
+                tempMasterVolumeDb = masterVolumeDb
+                tempPluginVolumeDb = readPluginVolumeForDecoder(prefs, session.decoderName)
+                tempSongVolumeDb = songVolumeDb
+                tempIgnoreCoreVolumeForSong = ignoreCoreVolumeForSong
+                tempForceMono = forceMono
+                tempGlobalDspSettings = globalDspSettings
+                tempCoreDspSettings = coreDspSettings
+                tempCoreIgnoreGlobalDsp = coreIgnoreGlobalDsp
+                tempDspNamespaceSelection = dspNamespaceSelection
+                if (session.decoderName == null && tempDspNamespaceSelection == DspSettingsNamespace.CurrentCore) {
+                    tempDspNamespaceSelection = DspSettingsNamespace.Global
+                }
+                showAudioEffectsDialog = true
+            }
+            fun dismissAudioEffectsDialog() {
+                applyCommittedAudioParametersToNative()
+                showAudioEffectsDialog = false
+            }
+            SideEffect {
+                dismissAudioEffectsDialogHandler = {
+                    if (showAudioEffectsDialog) {
+                        dismissAudioEffectsDialog()
+                        true
+                    } else {
+                        false
+                    }
+                }
+            }
+            fun confirmAudioEffectsDialog() {
+                masterVolumeDb = tempMasterVolumeDb
+                forceMono = tempForceMono
+                songVolumeDb = tempSongVolumeDb
+                ignoreCoreVolumeForSong = tempIgnoreCoreVolumeForSong
+                dspNamespaceSelection = tempDspNamespaceSelection
+                globalDspSettings = tempGlobalDspSettings
+                coreDspSettings = tempCoreDspSettings
+                coreIgnoreGlobalDsp = tempCoreIgnoreGlobalDsp
+                val coreName = session.decoderName
+                prefs.edit().apply {
+                    putFloat(AppPreferenceKeys.AUDIO_MASTER_VOLUME_DB, tempMasterVolumeDb)
+                    putBoolean(AppPreferenceKeys.AUDIO_FORCE_MONO, tempForceMono)
+                    putString(
+                        AppPreferenceKeys.AUDIO_DSP_EDITOR_NAMESPACE,
+                        if (dspNamespaceSelection == DspSettingsNamespace.CurrentCore) "core" else "global"
+                    )
+                    writeGlobalDspSettings(this, tempGlobalDspSettings)
+                    if (coreName != null) {
+                        putBoolean(AppPreferenceKeys.audioDspCoreIgnoreGlobalKey(coreName), tempCoreIgnoreGlobalDsp)
+                        if (dspNamespaceSelection == DspSettingsNamespace.CurrentCore) {
+                            writeCoreDspSettings(this, coreName, tempCoreDspSettings)
+                            coreDspHasOverrides = true
+                        } else {
+                            coreDspHasOverrides = hasCoreDspOverrides(prefs, coreName)
+                        }
+                    }
+                    apply()
+                }
+                writePluginVolumeForDecoder(prefs, coreName, tempPluginVolumeDb)
+                session.currentFile?.absolutePath?.let { path ->
+                    songVolumeStore.setSongVolume(path, tempSongVolumeDb)
+                    songVolumeStore.setSongIgnoreCoreVolume(path, tempIgnoreCoreVolumeForSong)
+                }
+                NativeBridge.setPluginGain(if (tempIgnoreCoreVolumeForSong) 0f else tempPluginVolumeDb)
+                applyCommittedAudioParametersToNative()
+                showAudioEffectsDialog = false
+            }
+            LaunchedEffect(Unit) {
+                masterVolumeDb = prefs.getFloat(AppPreferenceKeys.AUDIO_MASTER_VOLUME_DB, 0f)
+                forceMono = prefs.getBoolean(AppPreferenceKeys.AUDIO_FORCE_MONO, false)
+                NativeBridge.setMasterGain(masterVolumeDb)
+                NativeBridge.setPluginGain(0f)
+                NativeBridge.setForceMono(forceMono)
+                NativeBridge.setOutputLimiterEnabled(
+                    prefs.getBoolean(
+                        AppPreferenceKeys.AUDIO_OUTPUT_LIMITER_ENABLED,
+                        AppDefaults.AudioProcessing.outputLimiterEnabled
+                    )
+                )
+                NativeBridge.setLookaheadClipperMode(
+                    LookaheadClipperMode.fromStorage(
+                        prefs.getString(
+                            AppPreferenceKeys.AUDIO_LOOKAHEAD_CLIPPER_MODE,
+                            AppDefaults.AudioProcessing.lookaheadClipperMode.storageValue
+                        )
+                    ).nativeValue
+                )
+                NativeBridge.setMultiChannelOutputMode(
+                    MultiChannelOutputMode.fromStorage(
+                        prefs.getString(
+                            AppPreferenceKeys.AUDIO_MULTI_CHANNEL_OUTPUT_MODE,
+                            AppDefaults.OutputPipeline.multiChannelOutputMode.storageValue
+                        )
+                    ).nativeValue
+                )
+                applyDspSettingsToNative(readGlobalDspSettings(prefs))
+            }
+            LaunchedEffect(session.currentFile, session.decoderName) {
+                val path = session.currentFile?.absolutePath
+                songVolumeDb = path?.let { songVolumeStore.getSongVolume(it) } ?: 0f
+                ignoreCoreVolumeForSong = path?.let { songVolumeStore.getSongIgnoreCoreVolume(it) } ?: false
+                NativeBridge.setPluginGain(
+                    if (ignoreCoreVolumeForSong) 0f else readPluginVolumeForDecoder(prefs, session.decoderName)
+                )
+                NativeBridge.setSongGain(songVolumeDb)
+                applyDspSettingsToNative(
+                    resolveEffectiveDspSettings(
+                        coreName = session.decoderName,
+                        global = readGlobalDspSettings(prefs),
+                        core = readCoreDspSettings(prefs, session.decoderName),
+                        coreHasOverrides = hasCoreDspOverrides(prefs, session.decoderName),
+                        ignoreGlobalForCore = readCoreIgnoreGlobalDsp(prefs, session.decoderName)
+                    )
+                )
             }
             val currentTrackPath = session.currentFile?.absolutePath
             val isCurrentTrackFavorited = currentTrackPath != null &&
@@ -703,7 +1015,13 @@ fun main(args: Array<String>) = application {
                                             onShuffleLibraryTracks = { _, _ -> },
                                             onAddLibraryTracksToFavorites = { },
                                             onRemoveLibraryTracksFromFavorites = { },
-                                            onAddLibraryTracksToPlaylist = { _, _, _ -> },
+                                            onAddLibraryTracksToPlaylist = { tracks, playlistId, newTitle ->
+                                                addEntriesToPlaylist(
+                                                    tracks.map { it.toPlaylistTrackEntry() },
+                                                    playlistId,
+                                                    newTitle
+                                                )
+                                            },
                                             onPinLibraryEntries = { },
                                             onUnpinLibraryPaths = { },
                                             pinnedHomeEntries = pinnedEntries,
@@ -951,9 +1269,17 @@ fun main(args: Array<String>) = application {
                                     }
 
                                     MainView.Settings -> {
+                                        val settingsCacheDir = LocalAppCacheDir.current
+                                        val settingsProtectedCachePaths = remember(session.currentFile, settingsCacheDir) {
+                                            val path = session.currentFile?.absolutePath
+                                            val cachePrefix = File(settingsCacheDir, REMOTE_SOURCE_CACHE_DIR).absolutePath + File.separator
+                                            if (path != null && path.startsWith(cachePrefix)) setOf(path) else emptySet()
+                                        }
                                         val (desktopSettingsState, desktopSettingsActions) = rememberDesktopSettings(
                                             currentRoute = settingsRoute,
                                             onRouteChange = { settingsRoute = it },
+                                            onOpenAudioEffects = { openAudioEffectsDialog() },
+                                            protectedCachePaths = settingsProtectedCachePaths,
                                             onBackToMainView = {
                                                 if (settingsRoute != SettingsRoute.Root) {
                                                     settingsRoute = SettingsRoute.Root
@@ -1096,8 +1422,24 @@ fun main(args: Array<String>) = application {
                                     canPreviousSubtune = session.subtuneCount > 1 && session.subtuneIndex > 0,
                                     canNextSubtune = session.subtuneCount > 1 && session.subtuneIndex + 1 < session.subtuneCount,
                                     canOpenSubtuneSelector = session.subtuneCount > 1,
+                                    playlists = playlistLibraryState.playlists,
+                                    onAddToPlaylist = { playlistId, newTitle ->
+                                        buildCurrentTrackEntry()?.let { entry ->
+                                            addEntriesToPlaylist(listOf(entry), playlistId, newTitle)
+                                        }
+                                    },
+                                    onRemoveFromPlaylist = { playlistId ->
+                                        val path = session.currentFile?.absolutePath
+                                        if (path != null) {
+                                            removeSourceFromPlaylist(
+                                                playlistId,
+                                                path,
+                                                session.subtuneIndex.takeIf { session.subtuneCount > 1 }
+                                            )
+                                        }
+                                    },
                                     canOpenPlaylistSelector = true,
-                                    onOpenPlaylistSelector = { openDesktopFileChooser { playFile(it) } },
+                                    onOpenPlaylistSelector = { showPlaylistSelectorDialog = true },
                                     currentSubtuneIndex = session.subtuneIndex,
                                     subtuneCount = session.subtuneCount,
                                     titleCurrentSubtuneIndex = session.subtuneIndex,
@@ -1202,7 +1544,7 @@ fun main(args: Array<String>) = application {
                                             }
                                         )
                                     },
-                                    onOpenAudioEffects = {}
+                                    onOpenAudioEffects = { openAudioEffectsDialog() }
                                 )
                             }
                         }
@@ -1238,6 +1580,274 @@ fun main(args: Array<String>) = application {
                             durationSeconds = session.durationSeconds,
                             hasReliableDuration = session.hasReliableDuration,
                             onDismiss = { showTrackInfoDialog = false }
+                        )
+                    }
+
+                    if (showPlaylistSelectorDialog) {
+                        PlatformBackHandler(enabled = true) {
+                            showPlaylistSelectorDialog = false
+                        }
+                        val selectorPlaylist = activePlaylist
+                        PlaylistSelectorDialog(
+                            title = "Playlist",
+                            subtitle = selectorPlaylist?.title,
+                            shuffleActive = false,
+                            entries = selectorPlaylist?.entries ?: playlistLibraryState.favorites,
+                            currentEntryId = activePlaylistEntryId,
+                            onSelectEntry = { entry ->
+                                activePlaylistEntryId = entry.id
+                                resolvePlaylistEntryLocalFile(entry.source)?.let { playFile(it) }
+                            },
+                            onDismiss = { showPlaylistSelectorDialog = false },
+                            onSaveAsPlaylist = selectorPlaylist?.takeIf { it.entries.isNotEmpty() }?.let { playlist ->
+                                {
+                                    selectorImportDialogTitle = "Save playlist"
+                                    selectorImportTitle = playlist.title
+                                    selectorImportEntries = playlist.entries
+                                }
+                            },
+                            onEntryAddTrackToPlaylist = { entry ->
+                                selectorImportDialogTitle = "Add to playlist"
+                                selectorImportTitle = null
+                                selectorImportEntries = listOf(entry)
+                            },
+                            onEntryToggleFavorite = { entry -> togglePlaylistEntryFavorite(entry) },
+                            isEntryFavorite = { entry ->
+                                playlistContainsTrack(playlistLibraryState.favorites, entry.source, entry.subtuneIndex)
+                            }
+                        )
+                    }
+
+                    selectorImportEntries?.let { importEntries ->
+                        PlatformBackHandler(enabled = true) {
+                            selectorImportEntries = null
+                            selectorImportTitle = null
+                        }
+                        AddToPlaylistChooserDialog(
+                            dialogTitle = selectorImportDialogTitle,
+                            initialNewPlaylistTitle = selectorImportTitle,
+                            playlists = playlistLibraryState.playlists,
+                            pendingSources = importEntries.map { it.source }.toSet(),
+                            onConfirm = { playlistId, newTitle ->
+                                addEntriesToPlaylist(importEntries, playlistId, newTitle)
+                                selectorImportEntries = null
+                                selectorImportTitle = null
+                            },
+                            onRemoveFromPlaylist = { playlistId ->
+                                val matchingSources = importEntries.map { it.source to it.subtuneIndex }.toSet()
+                                if (playlistId == FAVORITES_PLAYLIST_ID) {
+                                    val filtered = playlistLibraryState.favorites.filterNot { fav ->
+                                        (fav.source to fav.subtuneIndex) in matchingSources
+                                    }
+                                    if (filtered.size != playlistLibraryState.favorites.size) {
+                                        onPlaylistLibraryStateChanged(
+                                            playlistLibraryState.copy(favorites = filtered)
+                                        )
+                                    }
+                                } else {
+                                    val target = playlistLibraryState.playlists.firstOrNull { it.id == playlistId }
+                                    if (target != null) {
+                                        val matching = target.entries.filter {
+                                            (it.source to it.subtuneIndex) in matchingSources
+                                        }
+                                        var updated = playlistLibraryState
+                                        matching.forEach { match ->
+                                            updated = removeStoredPlaylistEntries(updated, playlistId, setOf(match.id))
+                                        }
+                                        onPlaylistLibraryStateChanged(updated)
+                                    }
+                                }
+                            },
+                            onDismiss = {
+                                selectorImportEntries = null
+                                selectorImportTitle = null
+                            }
+                        )
+                    }
+
+                    if (showAudioEffectsDialog) {
+                        PlatformBackHandler(enabled = true) {
+                            dismissAudioEffectsDialog()
+                        }
+                        val tempEditedDspSettings =
+                            if (tempDspNamespaceSelection == DspSettingsNamespace.CurrentCore) tempCoreDspSettings
+                            else tempGlobalDspSettings
+                        AudioEffectsDialog(
+                            masterVolumeDb = tempMasterVolumeDb,
+                            pluginVolumeDb = tempPluginVolumeDb,
+                            songVolumeDb = tempSongVolumeDb,
+                            ignoreCoreVolumeForSong = tempIgnoreCoreVolumeForSong,
+                            forceMono = tempForceMono,
+                            hasActiveCore = session.decoderName != null,
+                            hasActiveSong = session.currentFile != null,
+                            currentCoreName = session.decoderName,
+                            onMasterVolumeChange = {
+                                tempMasterVolumeDb = it
+                                NativeBridge.setMasterGain(it)
+                            },
+                            onPluginVolumeChange = {
+                                tempPluginVolumeDb = it
+                                NativeBridge.setPluginGain(if (tempIgnoreCoreVolumeForSong) 0f else it)
+                            },
+                            onSongVolumeChange = {
+                                tempSongVolumeDb = it
+                                NativeBridge.setSongGain(it)
+                            },
+                            onIgnoreCoreVolumeForSongChange = {
+                                tempIgnoreCoreVolumeForSong = it
+                                NativeBridge.setPluginGain(if (it) 0f else tempPluginVolumeDb)
+                            },
+                            onForceMonoChange = {
+                                tempForceMono = it
+                                NativeBridge.setForceMono(it)
+                            },
+                            onDspNamespaceSelectionChange = { value ->
+                                tempDspNamespaceSelection =
+                                    if (value == "core" && session.decoderName != null) {
+                                        DspSettingsNamespace.CurrentCore
+                                    } else {
+                                        DspSettingsNamespace.Global
+                                    }
+                                applyCurrentTempDspSettingsToNative()
+                            },
+                            onDspIgnoreGlobalForCurrentCoreChange = {
+                                tempCoreIgnoreGlobalDsp = it
+                                applyCurrentTempDspSettingsToNative()
+                            },
+                            dspBassEnabled = tempEditedDspSettings.bassEnabled,
+                            dspBassDepth = tempEditedDspSettings.bassDepth,
+                            dspBassRange = tempEditedDspSettings.bassRange,
+                            dspSurroundEnabled = tempEditedDspSettings.surroundEnabled,
+                            dspSurroundDepth = tempEditedDspSettings.surroundDepth,
+                            dspSurroundDelayMs = tempEditedDspSettings.surroundDelayMs,
+                            dspReverbEnabled = tempEditedDspSettings.reverbEnabled,
+                            dspReverbDepth = tempEditedDspSettings.reverbDepth,
+                            dspReverbPreset = tempEditedDspSettings.reverbPreset,
+                            dspBitCrushEnabled = tempEditedDspSettings.bitCrushEnabled,
+                            dspBitCrushBits = tempEditedDspSettings.bitCrushBits,
+                            dspNamespaceSelection =
+                                if (tempDspNamespaceSelection == DspSettingsNamespace.CurrentCore) "core" else "global",
+                            dspIgnoreGlobalForCurrentCore = tempCoreIgnoreGlobalDsp,
+                            hasActiveCurrentCoreDspParameters =
+                                session.decoderName != null && (coreDspHasOverrides || coreIgnoreGlobalDsp),
+                            onDspBassEnabledChange = {
+                                if (tempDspNamespaceSelection == DspSettingsNamespace.CurrentCore) {
+                                    tempCoreDspSettings = tempCoreDspSettings.copy(bassEnabled = it)
+                                } else {
+                                    tempGlobalDspSettings = tempGlobalDspSettings.copy(bassEnabled = it)
+                                }
+                                applyCurrentTempDspSettingsToNative()
+                            },
+                            onDspBassDepthChange = {
+                                val normalized = it.coerceIn(0, 4)
+                                if (tempDspNamespaceSelection == DspSettingsNamespace.CurrentCore) {
+                                    tempCoreDspSettings = tempCoreDspSettings.copy(bassDepth = normalized)
+                                } else {
+                                    tempGlobalDspSettings = tempGlobalDspSettings.copy(bassDepth = normalized)
+                                }
+                                applyCurrentTempDspSettingsToNative()
+                            },
+                            onDspBassRangeChange = {
+                                val normalized = it.coerceIn(0, 4)
+                                if (tempDspNamespaceSelection == DspSettingsNamespace.CurrentCore) {
+                                    tempCoreDspSettings = tempCoreDspSettings.copy(bassRange = normalized)
+                                } else {
+                                    tempGlobalDspSettings = tempGlobalDspSettings.copy(bassRange = normalized)
+                                }
+                                applyCurrentTempDspSettingsToNative()
+                            },
+                            onDspSurroundEnabledChange = {
+                                if (tempDspNamespaceSelection == DspSettingsNamespace.CurrentCore) {
+                                    tempCoreDspSettings = tempCoreDspSettings.copy(surroundEnabled = it)
+                                } else {
+                                    tempGlobalDspSettings = tempGlobalDspSettings.copy(surroundEnabled = it)
+                                }
+                                applyCurrentTempDspSettingsToNative()
+                            },
+                            onDspSurroundDepthChange = {
+                                val normalized = it.coerceIn(1, 16)
+                                if (tempDspNamespaceSelection == DspSettingsNamespace.CurrentCore) {
+                                    tempCoreDspSettings = tempCoreDspSettings.copy(surroundDepth = normalized)
+                                } else {
+                                    tempGlobalDspSettings = tempGlobalDspSettings.copy(surroundDepth = normalized)
+                                }
+                                applyCurrentTempDspSettingsToNative()
+                            },
+                            onDspSurroundDelayMsChange = {
+                                val normalized = normalizeSurroundDelayMsPref(it)
+                                if (tempDspNamespaceSelection == DspSettingsNamespace.CurrentCore) {
+                                    tempCoreDspSettings = tempCoreDspSettings.copy(surroundDelayMs = normalized)
+                                } else {
+                                    tempGlobalDspSettings = tempGlobalDspSettings.copy(surroundDelayMs = normalized)
+                                }
+                                applyCurrentTempDspSettingsToNative()
+                            },
+                            onDspReverbEnabledChange = {
+                                if (tempDspNamespaceSelection == DspSettingsNamespace.CurrentCore) {
+                                    tempCoreDspSettings = tempCoreDspSettings.copy(reverbEnabled = it)
+                                } else {
+                                    tempGlobalDspSettings = tempGlobalDspSettings.copy(reverbEnabled = it)
+                                }
+                                applyCurrentTempDspSettingsToNative()
+                            },
+                            onDspReverbDepthChange = {
+                                val normalized = it.coerceIn(1, 16)
+                                if (tempDspNamespaceSelection == DspSettingsNamespace.CurrentCore) {
+                                    tempCoreDspSettings = tempCoreDspSettings.copy(reverbDepth = normalized)
+                                } else {
+                                    tempGlobalDspSettings = tempGlobalDspSettings.copy(reverbDepth = normalized)
+                                }
+                                applyCurrentTempDspSettingsToNative()
+                            },
+                            onDspReverbPresetChange = {
+                                val normalized = it.coerceIn(0, 28)
+                                if (tempDspNamespaceSelection == DspSettingsNamespace.CurrentCore) {
+                                    tempCoreDspSettings = tempCoreDspSettings.copy(reverbPreset = normalized)
+                                } else {
+                                    tempGlobalDspSettings = tempGlobalDspSettings.copy(reverbPreset = normalized)
+                                }
+                                applyCurrentTempDspSettingsToNative()
+                            },
+                            onDspBitCrushEnabledChange = {
+                                if (tempDspNamespaceSelection == DspSettingsNamespace.CurrentCore) {
+                                    tempCoreDspSettings = tempCoreDspSettings.copy(bitCrushEnabled = it)
+                                } else {
+                                    tempGlobalDspSettings = tempGlobalDspSettings.copy(bitCrushEnabled = it)
+                                }
+                                applyCurrentTempDspSettingsToNative()
+                            },
+                            onDspBitCrushBitsChange = {
+                                val normalized = it.coerceIn(1, 24)
+                                if (tempDspNamespaceSelection == DspSettingsNamespace.CurrentCore) {
+                                    tempCoreDspSettings = tempCoreDspSettings.copy(bitCrushBits = normalized)
+                                } else {
+                                    tempGlobalDspSettings = tempGlobalDspSettings.copy(bitCrushBits = normalized)
+                                }
+                                applyCurrentTempDspSettingsToNative()
+                            },
+                            onResetVolumeTab = {
+                                tempMasterVolumeDb = 0f
+                                tempPluginVolumeDb = 0f
+                                tempSongVolumeDb = 0f
+                                tempIgnoreCoreVolumeForSong = false
+                                tempForceMono = false
+                                NativeBridge.setMasterGain(0f)
+                                NativeBridge.setPluginGain(0f)
+                                NativeBridge.setSongGain(0f)
+                                NativeBridge.setForceMono(false)
+                            },
+                            onResetDspScope = { scope ->
+                                val defaults = defaultDspSettings()
+                                if (scope == "core" && session.decoderName != null) {
+                                    tempCoreDspSettings = defaults
+                                    tempCoreIgnoreGlobalDsp = false
+                                } else {
+                                    tempGlobalDspSettings = defaults
+                                }
+                                applyCurrentTempDspSettingsToNative()
+                            },
+                            onDismiss = { dismissAudioEffectsDialog() },
+                            onConfirm = { confirmAudioEffectsDialog() }
                         )
                     }
 

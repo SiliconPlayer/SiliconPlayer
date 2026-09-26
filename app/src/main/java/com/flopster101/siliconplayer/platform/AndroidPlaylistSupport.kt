@@ -34,7 +34,7 @@ import com.flopster101.siliconplayer.peekCachedArtworkBitmapForSource
 import com.flopster101.siliconplayer.peekLibraryThumbnail
 import com.flopster101.siliconplayer.queryRealPathFromUri
 import com.flopster101.siliconplayer.recentArtworkFile
-import com.flopster101.siliconplayer.sha1Hex
+import com.flopster101.siliconplayer.data.sha1Hex
 import com.flopster101.siliconplayer.suggestedPlaylistExportFileName
 import java.io.File
 import java.io.FileOutputStream

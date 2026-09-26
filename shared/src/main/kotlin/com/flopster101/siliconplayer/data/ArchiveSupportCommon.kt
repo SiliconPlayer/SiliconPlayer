@@ -7,6 +7,7 @@ import java.net.URLEncoder
 import java.util.Locale
 import com.flopster101.siliconplayer.normalizeSourceIdentity
 import com.flopster101.siliconplayer.remoteFilenameHintForUrl
+import kotlin.math.max
 import com.flopster101.siliconplayer.sanitizeRemoteLeafName
 
 internal const val ARCHIVE_SOURCE_SCHEME = "archive"
@@ -316,3 +317,131 @@ internal fun readZipEntrySizesForDirectory(
     }
 }
 
+internal data class ArchiveMountCacheEntry(
+    val directory: File,
+    val readyMarker: File,
+    val sizeBytes: Long,
+    val lastAccessTimeMs: Long
+)
+
+internal data class ArchiveMountCachePruneResult(
+    val deletedMounts: Int,
+    val freedBytes: Long
+)
+
+internal data class ArchiveMountCacheClearResult(
+    val deletedMounts: Int,
+    val freedBytes: Long
+)
+
+internal fun clearArchiveMountCache(cacheDir: File): ArchiveMountCacheClearResult {
+    val mountRoot = archiveMountRoot(cacheDir)
+    if (!mountRoot.exists()) {
+        return ArchiveMountCacheClearResult(
+            deletedMounts = 0,
+            freedBytes = 0L
+        )
+    }
+    var deletedMounts = 0
+    var freedBytes = 0L
+    mountRoot.listFiles().orEmpty()
+        .filter { it.isDirectory }
+        .forEach { mountDir ->
+            val bytes = directorySizeBytes(mountDir)
+            if (mountDir.deleteRecursively()) {
+                deletedMounts += 1
+                freedBytes += bytes
+            } else {
+                mountDir.deleteOnExit()
+            }
+        }
+    return ArchiveMountCacheClearResult(
+        deletedMounts = deletedMounts,
+        freedBytes = freedBytes
+    )
+}
+
+internal fun enforceArchiveMountCacheLimits(
+    cacheDir: File,
+    maxMounts: Int,
+    maxBytes: Long,
+    maxAgeDays: Int
+): ArchiveMountCachePruneResult {
+    val mountRoot = archiveMountRoot(cacheDir)
+    if (!mountRoot.exists()) {
+        return ArchiveMountCachePruneResult(
+            deletedMounts = 0,
+            freedBytes = 0L
+        )
+    }
+    val normalizedMaxMounts = max(maxMounts, 1)
+    val normalizedMaxBytes = max(maxBytes, 1L)
+    val normalizedMaxAgeDays = max(maxAgeDays, 1)
+
+    val now = System.currentTimeMillis()
+    val cutoff = now - (normalizedMaxAgeDays.toLong() * 24L * 60L * 60L * 1000L)
+    val entries = listArchiveMountCacheEntries(mountRoot)
+    if (entries.isEmpty()) {
+        return ArchiveMountCachePruneResult(
+            deletedMounts = 0,
+            freedBytes = 0L
+        )
+    }
+
+    var deletedMounts = 0
+    var freedBytes = 0L
+    val survivors = mutableListOf<ArchiveMountCacheEntry>()
+    entries.forEach { entry ->
+        if (entry.lastAccessTimeMs <= cutoff && entry.directory.deleteRecursively()) {
+            deletedMounts += 1
+            freedBytes += entry.sizeBytes
+        } else {
+            survivors.add(entry)
+        }
+    }
+
+    var totalBytes = survivors.sumOf { it.sizeBytes }
+    var totalMounts = survivors.size
+    survivors.sortBy { it.lastAccessTimeMs }
+    for (entry in survivors) {
+        if (totalMounts <= normalizedMaxMounts && totalBytes <= normalizedMaxBytes) break
+        if (entry.directory.deleteRecursively()) {
+            deletedMounts += 1
+            freedBytes += entry.sizeBytes
+            totalMounts -= 1
+            totalBytes = (totalBytes - entry.sizeBytes).coerceAtLeast(0L)
+        } else {
+            entry.directory.deleteOnExit()
+        }
+    }
+
+    return ArchiveMountCachePruneResult(
+        deletedMounts = deletedMounts,
+        freedBytes = freedBytes
+    )
+}
+
+private fun listArchiveMountCacheEntries(mountRoot: File): List<ArchiveMountCacheEntry> {
+    return mountRoot.listFiles().orEmpty()
+        .filter { it.isDirectory }
+        .mapNotNull { mountDir ->
+            val readyMarker = File(mountDir, ARCHIVE_READY_MARKER)
+            if (!readyMarker.exists() || !readyMarker.isFile) {
+                mountDir.deleteRecursively()
+                return@mapNotNull null
+            }
+            ArchiveMountCacheEntry(
+                directory = mountDir,
+                readyMarker = readyMarker,
+                sizeBytes = directorySizeBytes(mountDir),
+                lastAccessTimeMs = max(readyMarker.lastModified(), mountDir.lastModified())
+            )
+        }
+}
+
+private fun directorySizeBytes(directory: File): Long {
+    if (!directory.exists()) return 0L
+    return directory.walkTopDown()
+        .filter { it.isFile }
+        .sumOf { it.length().coerceAtLeast(0L) }
+}

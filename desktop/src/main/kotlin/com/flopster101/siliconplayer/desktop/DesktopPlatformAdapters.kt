@@ -46,6 +46,8 @@ class DesktopAppPreferences(private val nodeName: String) : AppPreferences {
         return raw.split("\n").filter { it.isNotEmpty() }.toSet()
     }
 
+    override fun contains(key: String): Boolean = prefs.get(key, null) != null
+
     override fun edit(): AppPreferences.Editor = Editor()
 
     override fun addListener(listener: AppPreferences.OnChangeListener) {

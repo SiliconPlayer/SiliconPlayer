@@ -1,4 +1,6 @@
 package com.flopster101.siliconplayer
+import com.flopster101.siliconplayer.data.sha1Hex
+import com.flopster101.siliconplayer.data.findExistingCachedFileForSource
 
 import android.content.Context
 import android.graphics.Bitmap

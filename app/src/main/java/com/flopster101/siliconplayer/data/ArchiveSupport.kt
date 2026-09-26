@@ -5,7 +5,7 @@ import android.content.Context
 import com.flopster101.siliconplayer.REMOTE_SOURCE_CACHE_DIR
 import com.flopster101.siliconplayer.buildHttpRequestUri
 import com.flopster101.siliconplayer.buildSmbRequestUri
-import com.flopster101.siliconplayer.findExistingCachedFileForSource
+import com.flopster101.siliconplayer.data.findExistingCachedFileForSource
 import com.flopster101.siliconplayer.normalizeHttpPath
 import com.flopster101.siliconplayer.normalizeSourceIdentity
 import com.flopster101.siliconplayer.normalizeSmbPathForShare
@@ -32,22 +32,6 @@ internal data class ArchiveMountedPathOrigin(
     val parentPath: String
 )
 
-internal data class ArchiveMountCacheEntry(
-    val directory: File,
-    val readyMarker: File,
-    val sizeBytes: Long,
-    val lastAccessTimeMs: Long
-)
-
-internal data class ArchiveMountCachePruneResult(
-    val deletedMounts: Int,
-    val freedBytes: Long
-)
-
-internal data class ArchiveMountCacheClearResult(
-    val deletedMounts: Int,
-    val freedBytes: Long
-)
 
 internal fun ensureArchiveMounted(context: Context, archiveFile: File): File =
     ensureArchiveMounted(context.cacheDir, archiveFile)
@@ -169,117 +153,6 @@ internal fun resolveArchiveLocationToFile(
 private fun resolveArchiveFileForLocation(context: Context, archiveLocation: String): File? =
     resolveArchiveFileForLocation(context.cacheDir, archiveLocation)
 
-internal fun clearArchiveMountCache(cacheDir: File): ArchiveMountCacheClearResult {
-    val mountRoot = archiveMountRoot(cacheDir)
-    if (!mountRoot.exists()) {
-        return ArchiveMountCacheClearResult(
-            deletedMounts = 0,
-            freedBytes = 0L
-        )
-    }
-    var deletedMounts = 0
-    var freedBytes = 0L
-    mountRoot.listFiles().orEmpty()
-        .filter { it.isDirectory }
-        .forEach { mountDir ->
-            val bytes = directorySizeBytes(mountDir)
-            if (mountDir.deleteRecursively()) {
-                deletedMounts += 1
-                freedBytes += bytes
-            } else {
-                mountDir.deleteOnExit()
-            }
-        }
-    return ArchiveMountCacheClearResult(
-        deletedMounts = deletedMounts,
-        freedBytes = freedBytes
-    )
-}
-
-internal fun enforceArchiveMountCacheLimits(
-    cacheDir: File,
-    maxMounts: Int,
-    maxBytes: Long,
-    maxAgeDays: Int
-): ArchiveMountCachePruneResult {
-    val mountRoot = archiveMountRoot(cacheDir)
-    if (!mountRoot.exists()) {
-        return ArchiveMountCachePruneResult(
-            deletedMounts = 0,
-            freedBytes = 0L
-        )
-    }
-    val normalizedMaxMounts = max(maxMounts, 1)
-    val normalizedMaxBytes = max(maxBytes, 1L)
-    val normalizedMaxAgeDays = max(maxAgeDays, 1)
-
-    val now = System.currentTimeMillis()
-    val cutoff = now - (normalizedMaxAgeDays.toLong() * 24L * 60L * 60L * 1000L)
-    val entries = listArchiveMountCacheEntries(mountRoot)
-    if (entries.isEmpty()) {
-        return ArchiveMountCachePruneResult(
-            deletedMounts = 0,
-            freedBytes = 0L
-        )
-    }
-
-    var deletedMounts = 0
-    var freedBytes = 0L
-    val survivors = mutableListOf<ArchiveMountCacheEntry>()
-    entries.forEach { entry ->
-        if (entry.lastAccessTimeMs <= cutoff && entry.directory.deleteRecursively()) {
-            deletedMounts += 1
-            freedBytes += entry.sizeBytes
-        } else {
-            survivors.add(entry)
-        }
-    }
-
-    var totalBytes = survivors.sumOf { it.sizeBytes }
-    var totalMounts = survivors.size
-    survivors.sortBy { it.lastAccessTimeMs }
-    for (entry in survivors) {
-        if (totalMounts <= normalizedMaxMounts && totalBytes <= normalizedMaxBytes) break
-        if (entry.directory.deleteRecursively()) {
-            deletedMounts += 1
-            freedBytes += entry.sizeBytes
-            totalMounts -= 1
-            totalBytes = (totalBytes - entry.sizeBytes).coerceAtLeast(0L)
-        } else {
-            entry.directory.deleteOnExit()
-        }
-    }
-
-    return ArchiveMountCachePruneResult(
-        deletedMounts = deletedMounts,
-        freedBytes = freedBytes
-    )
-}
-
-private fun listArchiveMountCacheEntries(mountRoot: File): List<ArchiveMountCacheEntry> {
-    return mountRoot.listFiles().orEmpty()
-        .filter { it.isDirectory }
-        .mapNotNull { mountDir ->
-            val readyMarker = File(mountDir, ARCHIVE_READY_MARKER)
-            if (!readyMarker.exists() || !readyMarker.isFile) {
-                mountDir.deleteRecursively()
-                return@mapNotNull null
-            }
-            ArchiveMountCacheEntry(
-                directory = mountDir,
-                readyMarker = readyMarker,
-                sizeBytes = directorySizeBytes(mountDir),
-                lastAccessTimeMs = max(readyMarker.lastModified(), mountDir.lastModified())
-            )
-        }
-}
-
-private fun directorySizeBytes(directory: File): Long {
-    if (!directory.exists()) return 0L
-    return directory.walkTopDown()
-        .filter { it.isFile }
-        .sumOf { it.length().coerceAtLeast(0L) }
-}
 
 private fun findArchiveMountRoot(file: File): File? {
     var current: File? = runCatching { file.canonicalFile }.getOrNull()

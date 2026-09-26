@@ -1,0 +1,374 @@
+package com.flopster101.siliconplayer
+
+import com.flopster101.siliconplayer.platform.AppPreferences
+
+/**
+ * Visualization settings resets with the exact write-defaults semantics of
+ * the Android settings actions. Desktop wires these behind its reset
+ * buttons; both platforms rebuild their settings state from prefs, so no
+ * state-holder callbacks are needed here.
+ */
+internal fun resetVisualizationBarsSettings(prefs: AppPreferences) {
+    prefs.edit()
+        .putInt(AppPreferenceKeys.VISUALIZATION_BAR_COUNT, AppDefaults.Visualization.Bars.count)
+        .putInt(AppPreferenceKeys.VISUALIZATION_BAR_SMOOTHING_PERCENT, AppDefaults.Visualization.Bars.smoothingPercent)
+        .putInt(AppPreferenceKeys.VISUALIZATION_BAR_ROUNDNESS_DP, AppDefaults.Visualization.Bars.roundnessDp)
+        .putBoolean(AppPreferenceKeys.VISUALIZATION_BAR_OVERLAY_ARTWORK, AppDefaults.Visualization.Bars.overlayArtwork)
+        .putBoolean(AppPreferenceKeys.VISUALIZATION_BAR_USE_THEME_COLOR, AppDefaults.Visualization.Bars.useThemeColor)
+        .putString(
+            AppPreferenceKeys.VISUALIZATION_BAR_RENDER_BACKEND,
+            AppDefaults.Visualization.Bars.renderBackend.storageValue
+        )
+        .putBoolean(
+            AppPreferenceKeys.VISUALIZATION_BAR_FREQUENCY_GRID_ENABLED,
+            AppDefaults.Visualization.Bars.frequencyGridEnabled
+        )
+        .putBoolean(
+            AppPreferenceKeys.VISUALIZATION_BAR_CONTRAST_BACKDROP_ENABLED,
+            AppDefaults.Visualization.Bars.contrastBackdropEnabled
+        )
+        .putString(
+            AppPreferenceKeys.VISUALIZATION_BAR_FPS_MODE,
+            AppDefaults.Visualization.Bars.fpsMode.storageValue
+        )
+        .putString(
+            AppPreferenceKeys.VISUALIZATION_BAR_COLOR_MODE_NO_ARTWORK,
+            AppDefaults.Visualization.Bars.colorModeNoArtwork.storageValue
+        )
+        .putString(
+            AppPreferenceKeys.VISUALIZATION_BAR_COLOR_MODE_WITH_ARTWORK,
+            AppDefaults.Visualization.Bars.colorModeWithArtwork.storageValue
+        )
+        .putInt(
+            AppPreferenceKeys.VISUALIZATION_BAR_CUSTOM_COLOR_ARGB,
+            AppDefaults.Visualization.Bars.customColorArgb
+        )
+        .apply()
+}
+
+internal fun resetVisualizationOscilloscopeSettings(prefs: AppPreferences) {
+    prefs.edit()
+        .putBoolean(AppPreferenceKeys.VISUALIZATION_OSC_STEREO, AppDefaults.Visualization.Oscilloscope.stereo)
+        .putInt(
+            AppPreferenceKeys.VISUALIZATION_OSC_WINDOW_MS,
+            AppDefaults.Visualization.Oscilloscope.windowMs
+        )
+        .putBoolean(
+            AppPreferenceKeys.VISUALIZATION_OSC_CONTRAST_BACKDROP_ENABLED,
+            AppDefaults.Visualization.Oscilloscope.contrastBackdropEnabled
+        )
+        .putString(
+            AppPreferenceKeys.VISUALIZATION_OSC_TRIGGER_MODE,
+            AppDefaults.Visualization.Oscilloscope.triggerMode.storageValue
+        )
+        .putString(
+            AppPreferenceKeys.VISUALIZATION_OSC_FPS_MODE,
+            AppDefaults.Visualization.Oscilloscope.fpsMode.storageValue
+        )
+        .putString(
+            AppPreferenceKeys.VISUALIZATION_OSC_RENDER_BACKEND,
+            AppDefaults.Visualization.Oscilloscope.renderBackend.storageValue
+        )
+        .putInt(
+            AppPreferenceKeys.VISUALIZATION_OSC_LINE_WIDTH_DP,
+            AppDefaults.Visualization.Oscilloscope.lineWidthDp
+        )
+        .putInt(
+            AppPreferenceKeys.VISUALIZATION_OSC_GRID_WIDTH_DP,
+            AppDefaults.Visualization.Oscilloscope.gridWidthDp
+        )
+        .putBoolean(
+            AppPreferenceKeys.VISUALIZATION_OSC_VERTICAL_GRID_ENABLED,
+            AppDefaults.Visualization.Oscilloscope.verticalGridEnabled
+        )
+        .putBoolean(
+            AppPreferenceKeys.VISUALIZATION_OSC_CENTER_LINE_ENABLED,
+            AppDefaults.Visualization.Oscilloscope.centerLineEnabled
+        )
+        .putString(
+            AppPreferenceKeys.VISUALIZATION_OSC_LINE_COLOR_MODE_NO_ARTWORK,
+            AppDefaults.Visualization.Oscilloscope.lineColorModeNoArtwork.storageValue
+        )
+        .putString(
+            AppPreferenceKeys.VISUALIZATION_OSC_GRID_COLOR_MODE_NO_ARTWORK,
+            AppDefaults.Visualization.Oscilloscope.gridColorModeNoArtwork.storageValue
+        )
+        .putString(
+            AppPreferenceKeys.VISUALIZATION_OSC_LINE_COLOR_MODE_WITH_ARTWORK,
+            AppDefaults.Visualization.Oscilloscope.lineColorModeWithArtwork.storageValue
+        )
+        .putString(
+            AppPreferenceKeys.VISUALIZATION_OSC_GRID_COLOR_MODE_WITH_ARTWORK,
+            AppDefaults.Visualization.Oscilloscope.gridColorModeWithArtwork.storageValue
+        )
+        .putInt(
+            AppPreferenceKeys.VISUALIZATION_OSC_CUSTOM_LINE_COLOR_ARGB,
+            AppDefaults.Visualization.Oscilloscope.customLineColorArgb
+        )
+        .putInt(
+            AppPreferenceKeys.VISUALIZATION_OSC_CUSTOM_GRID_COLOR_ARGB,
+            AppDefaults.Visualization.Oscilloscope.customGridColorArgb
+        )
+        .apply()
+}
+
+internal fun resetVisualizationVuSettings(prefs: AppPreferences) {
+    prefs.edit()
+        .putString(
+            AppPreferenceKeys.VISUALIZATION_VU_ANCHOR,
+            AppDefaults.Visualization.Vu.anchor.storageValue
+        )
+        .putBoolean(AppPreferenceKeys.VISUALIZATION_VU_USE_THEME_COLOR, AppDefaults.Visualization.Vu.useThemeColor)
+        .putInt(AppPreferenceKeys.VISUALIZATION_VU_SMOOTHING_PERCENT, AppDefaults.Visualization.Vu.smoothingPercent)
+        .putString(
+            AppPreferenceKeys.VISUALIZATION_VU_RENDER_BACKEND,
+            AppDefaults.Visualization.Vu.renderBackend.storageValue
+        )
+        .putString(
+            AppPreferenceKeys.VISUALIZATION_VU_FPS_MODE,
+            AppDefaults.Visualization.Vu.fpsMode.storageValue
+        )
+        .putBoolean(
+            AppPreferenceKeys.VISUALIZATION_VU_CONTRAST_BACKDROP_ENABLED,
+            AppDefaults.Visualization.Vu.contrastBackdropEnabled
+        )
+        .putString(
+            AppPreferenceKeys.VISUALIZATION_VU_COLOR_MODE_NO_ARTWORK,
+            AppDefaults.Visualization.Vu.colorModeNoArtwork.storageValue
+        )
+        .putString(
+            AppPreferenceKeys.VISUALIZATION_VU_COLOR_MODE_WITH_ARTWORK,
+            AppDefaults.Visualization.Vu.colorModeWithArtwork.storageValue
+        )
+        .putInt(
+            AppPreferenceKeys.VISUALIZATION_VU_CUSTOM_COLOR_ARGB,
+            AppDefaults.Visualization.Vu.customColorArgb
+        )
+        .apply()
+}
+
+internal fun resetVisualizationChannelScopeSettings(
+    prefs: AppPreferences,
+    defaultScopeTextSizeSp: Int
+) {
+    prefs.edit()
+        .putInt(
+            AppPreferenceKeys.VISUALIZATION_CHANNEL_SCOPE_WINDOW_MS,
+            AppDefaults.Visualization.ChannelScope.windowMs
+        )
+        .putString(
+            AppPreferenceKeys.VISUALIZATION_CHANNEL_SCOPE_RENDER_BACKEND,
+            AppDefaults.Visualization.ChannelScope.renderBackend.storageValue
+        )
+        .putBoolean(
+            AppPreferenceKeys.VISUALIZATION_CHANNEL_SCOPE_DC_REMOVAL_ENABLED,
+            AppDefaults.Visualization.ChannelScope.dcRemovalEnabled
+        )
+        .putInt(
+            AppPreferenceKeys.VISUALIZATION_CHANNEL_SCOPE_GAIN_PERCENT,
+            AppDefaults.Visualization.ChannelScope.gainPercent
+        )
+        .putBoolean(
+            AppPreferenceKeys.VISUALIZATION_CHANNEL_SCOPE_CONTRAST_BACKDROP_ENABLED,
+            AppDefaults.Visualization.ChannelScope.contrastBackdropEnabled
+        )
+        .putString(
+            AppPreferenceKeys.VISUALIZATION_CHANNEL_SCOPE_TRIGGER_MODE,
+            AppDefaults.Visualization.ChannelScope.triggerMode.storageValue
+        )
+        .putString(
+            AppPreferenceKeys.VISUALIZATION_CHANNEL_SCOPE_TRIGGER_ALGORITHM,
+            AppDefaults.Visualization.ChannelScope.triggerAlgorithm.storageValue
+        )
+        .putString(
+            AppPreferenceKeys.VISUALIZATION_CHANNEL_SCOPE_FPS_MODE,
+            AppDefaults.Visualization.ChannelScope.fpsMode.storageValue
+        )
+        .putInt(
+            AppPreferenceKeys.VISUALIZATION_CHANNEL_SCOPE_LINE_WIDTH_DP,
+            AppDefaults.Visualization.ChannelScope.lineWidthDp
+        )
+        .putInt(
+            AppPreferenceKeys.VISUALIZATION_CHANNEL_SCOPE_GRID_WIDTH_DP,
+            AppDefaults.Visualization.ChannelScope.gridWidthDp
+        )
+        .putBoolean(
+            AppPreferenceKeys.VISUALIZATION_CHANNEL_SCOPE_VERTICAL_GRID_ENABLED,
+            AppDefaults.Visualization.ChannelScope.verticalGridEnabled
+        )
+        .putBoolean(
+            AppPreferenceKeys.VISUALIZATION_CHANNEL_SCOPE_CENTER_LINE_ENABLED,
+            AppDefaults.Visualization.ChannelScope.centerLineEnabled
+        )
+        .putBoolean(
+            AppPreferenceKeys.VISUALIZATION_CHANNEL_SCOPE_SHOW_ARTWORK_BACKGROUND,
+            AppDefaults.Visualization.ChannelScope.showArtworkBackground
+        )
+        .putString(
+            AppPreferenceKeys.VISUALIZATION_CHANNEL_SCOPE_BACKGROUND_MODE,
+            AppDefaults.Visualization.ChannelScope.backgroundMode.storageValue
+        )
+        .putInt(
+            AppPreferenceKeys.VISUALIZATION_CHANNEL_SCOPE_CUSTOM_BACKGROUND_COLOR_ARGB,
+            AppDefaults.Visualization.ChannelScope.customBackgroundColorArgb
+        )
+        .putString(
+            AppPreferenceKeys.VISUALIZATION_CHANNEL_SCOPE_LAYOUT,
+            AppDefaults.Visualization.ChannelScope.layout.storageValue
+        )
+        .putString(
+            AppPreferenceKeys.VISUALIZATION_CHANNEL_SCOPE_LINE_COLOR_MODE_NO_ARTWORK,
+            AppDefaults.Visualization.ChannelScope.lineColorModeNoArtwork.storageValue
+        )
+        .putString(
+            AppPreferenceKeys.VISUALIZATION_CHANNEL_SCOPE_GRID_COLOR_MODE_NO_ARTWORK,
+            AppDefaults.Visualization.ChannelScope.gridColorModeNoArtwork.storageValue
+        )
+        .putString(
+            AppPreferenceKeys.VISUALIZATION_CHANNEL_SCOPE_LINE_COLOR_MODE_WITH_ARTWORK,
+            AppDefaults.Visualization.ChannelScope.lineColorModeWithArtwork.storageValue
+        )
+        .putString(
+            AppPreferenceKeys.VISUALIZATION_CHANNEL_SCOPE_GRID_COLOR_MODE_WITH_ARTWORK,
+            AppDefaults.Visualization.ChannelScope.gridColorModeWithArtwork.storageValue
+        )
+        .putInt(
+            AppPreferenceKeys.VISUALIZATION_CHANNEL_SCOPE_CUSTOM_LINE_COLOR_ARGB,
+            AppDefaults.Visualization.ChannelScope.customLineColorArgb
+        )
+        .putInt(
+            AppPreferenceKeys.VISUALIZATION_CHANNEL_SCOPE_CUSTOM_GRID_COLOR_ARGB,
+            AppDefaults.Visualization.ChannelScope.customGridColorArgb
+        )
+        .putBoolean(
+            AppPreferenceKeys.VISUALIZATION_CHANNEL_SCOPE_TEXT_ENABLED,
+            AppDefaults.Visualization.ChannelScope.textEnabled
+        )
+        .putString(
+            AppPreferenceKeys.VISUALIZATION_CHANNEL_SCOPE_TEXT_ANCHOR,
+            AppDefaults.Visualization.ChannelScope.textAnchor.storageValue
+        )
+        .putInt(
+            AppPreferenceKeys.VISUALIZATION_CHANNEL_SCOPE_TEXT_PADDING_DP,
+            AppDefaults.Visualization.ChannelScope.textPaddingDp
+        )
+        .putInt(
+            AppPreferenceKeys.VISUALIZATION_CHANNEL_SCOPE_TEXT_SIZE_SP,
+            defaultScopeTextSizeSp
+        )
+        .putBoolean(
+            AppPreferenceKeys.VISUALIZATION_CHANNEL_SCOPE_TEXT_HIDE_WHEN_OVERFLOW,
+            AppDefaults.Visualization.ChannelScope.textHideWhenOverflow
+        )
+        .putBoolean(
+            AppPreferenceKeys.VISUALIZATION_CHANNEL_SCOPE_TEXT_SHADOW_ENABLED,
+            AppDefaults.Visualization.ChannelScope.textShadowEnabled
+        )
+        .putString(
+            AppPreferenceKeys.VISUALIZATION_CHANNEL_SCOPE_TEXT_FONT,
+            AppDefaults.Visualization.ChannelScope.textFont.storageValue
+        )
+        .putString(
+            AppPreferenceKeys.VISUALIZATION_CHANNEL_SCOPE_TEXT_COLOR_MODE,
+            AppDefaults.Visualization.ChannelScope.textColorMode.storageValue
+        )
+        .putInt(
+            AppPreferenceKeys.VISUALIZATION_CHANNEL_SCOPE_CUSTOM_TEXT_COLOR_ARGB,
+            AppDefaults.Visualization.ChannelScope.customTextColorArgb
+        )
+        .putString(
+            AppPreferenceKeys.VISUALIZATION_CHANNEL_SCOPE_TEXT_NOTE_FORMAT,
+            AppDefaults.Visualization.ChannelScope.textNoteFormat.storageValue
+        )
+        .putBoolean(
+            AppPreferenceKeys.VISUALIZATION_CHANNEL_SCOPE_TEXT_SHOW_CHANNEL,
+            AppDefaults.Visualization.ChannelScope.textShowChannel
+        )
+        .putBoolean(
+            AppPreferenceKeys.VISUALIZATION_CHANNEL_SCOPE_TEXT_SHOW_NOTE,
+            AppDefaults.Visualization.ChannelScope.textShowNote
+        )
+        .putBoolean(
+            AppPreferenceKeys.VISUALIZATION_CHANNEL_SCOPE_TEXT_SHOW_VOLUME,
+            AppDefaults.Visualization.ChannelScope.textShowVolume
+        )
+        .putBoolean(
+            AppPreferenceKeys.VISUALIZATION_CHANNEL_SCOPE_TEXT_SHOW_EFFECT,
+            AppDefaults.Visualization.ChannelScope.textShowEffect
+        )
+        .putChannelScopeVisibleElementSelection(defaultChannelScopeVisibleElementSelection())
+        .remove(AppPreferenceKeys.VISUALIZATION_CHANNEL_SCOPE_TEXT_SHOW_INSTRUMENT_SAMPLE)
+        .putBoolean(
+            AppPreferenceKeys.VISUALIZATION_CHANNEL_SCOPE_TEXT_SHOW_INSTRUMENT,
+            AppDefaults.Visualization.ChannelScope.textShowInstrument
+        )
+        .putBoolean(
+            AppPreferenceKeys.VISUALIZATION_CHANNEL_SCOPE_TEXT_SHOW_SAMPLE,
+            AppDefaults.Visualization.ChannelScope.textShowSample
+        )
+        .putBoolean(
+            AppPreferenceKeys.VISUALIZATION_CHANNEL_SCOPE_TEXT_VU_ENABLED,
+            AppDefaults.Visualization.ChannelScope.textVuEnabled
+        )
+        .putString(
+            AppPreferenceKeys.VISUALIZATION_CHANNEL_SCOPE_TEXT_VU_ANCHOR,
+            AppDefaults.Visualization.ChannelScope.textVuAnchor.storageValue
+        )
+        .putString(
+            AppPreferenceKeys.VISUALIZATION_CHANNEL_SCOPE_TEXT_VU_COLOR_MODE,
+            AppDefaults.Visualization.ChannelScope.textVuColorMode.storageValue
+        )
+        .putInt(
+            AppPreferenceKeys.VISUALIZATION_CHANNEL_SCOPE_TEXT_VU_CUSTOM_COLOR_ARGB,
+            AppDefaults.Visualization.ChannelScope.textVuCustomColorArgb
+        )
+        .apply()
+}
+
+internal fun clearAllAudioParameterPrefs(prefs: AppPreferences) {
+    val editor = prefs.edit()
+    editor.remove(AppPreferenceKeys.AUDIO_MASTER_VOLUME_DB)
+    editor.remove(AppPreferenceKeys.AUDIO_FORCE_MONO)
+    editor.remove(AppPreferenceKeys.AUDIO_DSP_EDITOR_NAMESPACE)
+    editor.remove(AppPreferenceKeys.AUDIO_DSP_BASS_ENABLED)
+    editor.remove(AppPreferenceKeys.AUDIO_DSP_BASS_DEPTH)
+    editor.remove(AppPreferenceKeys.AUDIO_DSP_BASS_RANGE)
+    editor.remove(AppPreferenceKeys.AUDIO_DSP_SURROUND_ENABLED)
+    editor.remove(AppPreferenceKeys.AUDIO_DSP_SURROUND_DEPTH)
+    editor.remove(AppPreferenceKeys.AUDIO_DSP_SURROUND_DELAY_MS)
+    editor.remove(AppPreferenceKeys.AUDIO_DSP_REVERB_ENABLED)
+    editor.remove(AppPreferenceKeys.AUDIO_DSP_REVERB_DEPTH)
+    editor.remove(AppPreferenceKeys.AUDIO_DSP_REVERB_PRESET)
+    editor.remove(AppPreferenceKeys.AUDIO_DSP_BITCRUSH_ENABLED)
+    editor.remove(AppPreferenceKeys.AUDIO_DSP_BITCRUSH_BITS)
+    runCatching { NativeBridge.getRegisteredDecoderNames() }.getOrDefault(emptyArray()).forEach { coreName ->
+        editor.remove(AppPreferenceKeys.audioDspCoreBassEnabledKey(coreName))
+        editor.remove(AppPreferenceKeys.audioDspCoreBassDepthKey(coreName))
+        editor.remove(AppPreferenceKeys.audioDspCoreBassRangeKey(coreName))
+        editor.remove(AppPreferenceKeys.audioDspCoreSurroundEnabledKey(coreName))
+        editor.remove(AppPreferenceKeys.audioDspCoreSurroundDepthKey(coreName))
+        editor.remove(AppPreferenceKeys.audioDspCoreSurroundDelayMsKey(coreName))
+        editor.remove(AppPreferenceKeys.audioDspCoreReverbEnabledKey(coreName))
+        editor.remove(AppPreferenceKeys.audioDspCoreReverbDepthKey(coreName))
+        editor.remove(AppPreferenceKeys.audioDspCoreReverbPresetKey(coreName))
+        editor.remove(AppPreferenceKeys.audioDspCoreBitCrushEnabledKey(coreName))
+        editor.remove(AppPreferenceKeys.audioDspCoreBitCrushBitsKey(coreName))
+        editor.remove(AppPreferenceKeys.audioDspCoreIgnoreGlobalKey(coreName))
+    }
+    editor.apply()
+    clearAllDecoderPluginVolumes(prefs)
+}
+
+internal fun resetVisualizationProjectMSettings(
+    prefs: AppPreferences,
+    defaultEnabledSetIds: Set<String>
+) {
+    prefs.edit()
+        .remove(AppPreferenceKeys.VISUALIZATION_PROJECTM_PRESET)
+        .remove(AppPreferenceKeys.VISUALIZATION_PROJECTM_USER_PRESET_PATHS)
+        .putStringSet(
+            AppPreferenceKeys.VISUALIZATION_PROJECTM_ENABLED_SET_IDS,
+            defaultEnabledSetIds
+        )
+        .apply()
+}
