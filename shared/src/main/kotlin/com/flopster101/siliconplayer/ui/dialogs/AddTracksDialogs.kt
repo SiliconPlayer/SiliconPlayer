@@ -1,6 +1,5 @@
 package com.flopster101.siliconplayer.ui.dialogs
 
-import android.os.Build
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -33,8 +32,8 @@ import androidx.compose.material.icons.filled.LibraryMusic
 import androidx.compose.material.icons.filled.Link
 import androidx.compose.material.icons.filled.MusicNote
 import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.SportsEsports
 import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.Card
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -59,16 +58,10 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.window.Dialog
-import androidx.compose.ui.window.DialogProperties
 import com.flopster101.siliconplayer.library.LibraryTrackEntity
-import com.flopster101.siliconplayer.library.LibraryRepository
-import android.os.Environment
-import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
@@ -76,8 +69,8 @@ import androidx.compose.material3.FilterChip
 import com.flopster101.siliconplayer.fileMatchesSupportedExtensions
 import com.flopster101.siliconplayer.inferredDisplayTitleForName
 import com.flopster101.siliconplayer.NativeBridge
-import com.flopster101.siliconplayer.StorageDescriptor
-import com.flopster101.siliconplayer.detectStorageDescriptors
+import com.flopster101.siliconplayer.platform.LocalLibraryRepository
+import com.flopster101.siliconplayer.platform.PlatformBackHandler
 import com.flopster101.siliconplayer.ui.screens.formatFileSize
 import androidx.compose.material.icons.filled.Public
 import androidx.compose.material3.LinearProgressIndicator
@@ -95,9 +88,7 @@ import com.flopster101.siliconplayer.buildSmbRequestUri
 import com.flopster101.siliconplayer.joinSmbRelativePath
 import com.flopster101.siliconplayer.SmbBrowserEntry
 import com.flopster101.siliconplayer.SmbSourceSpec
-import androidx.compose.ui.res.painterResource
 import com.flopster101.siliconplayer.DecoderArtworkHint
-import com.flopster101.siliconplayer.R
 import com.flopster101.siliconplayer.buildDecoderExtensionArtworkHintMap
 import com.flopster101.siliconplayer.isSupportedPlaylistFileName
 import com.flopster101.siliconplayer.placeholderArtworkIconForFile
@@ -126,50 +117,20 @@ internal fun AddTracksSourceSheet(
     onSelectDirectUrl: () -> Unit,
     onDismiss: () -> Unit
 ) {
-    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
-        ModalBottomSheet(
-            onDismissRequest = onDismiss,
-            sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
-        ) {
-            AddTracksSourceSheetContent(
-                playlistTitle = playlistTitle,
-                currentTrack = currentTrack,
-                onAddCurrentTrack = onAddCurrentTrack,
-                onSelectLibrary = onSelectLibrary,
-                onSelectStorage = onSelectStorage,
-                onSelectNetwork = onSelectNetwork,
-                onSelectDirectUrl = onSelectDirectUrl,
-                onDismiss = onDismiss
-            )
-        }
-    } else {
-        Dialog(
-            onDismissRequest = onDismiss,
-            properties = DialogProperties(usePlatformDefaultWidth = false, dismissOnClickOutside = true)
-        ) {
-            Box(
-                modifier = Modifier.fillMaxSize(),
-                contentAlignment = Alignment.BottomCenter
-            ) {
-                Card(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .fillMaxHeight(0.65f)
-                        .padding(top = 48.dp)
-                ) {
-                    AddTracksSourceSheetContent(
-                        playlistTitle = playlistTitle,
-                        currentTrack = currentTrack,
-                        onAddCurrentTrack = onAddCurrentTrack,
-                        onSelectLibrary = onSelectLibrary,
-                        onSelectStorage = onSelectStorage,
-                        onSelectNetwork = onSelectNetwork,
-                        onSelectDirectUrl = onSelectDirectUrl,
-                        onDismiss = onDismiss
-                    )
-                }
-            }
-        }
+    ModalBottomSheet(
+        onDismissRequest = onDismiss,
+        sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    ) {
+        AddTracksSourceSheetContent(
+            playlistTitle = playlistTitle,
+            currentTrack = currentTrack,
+            onAddCurrentTrack = onAddCurrentTrack,
+            onSelectLibrary = onSelectLibrary,
+            onSelectStorage = onSelectStorage,
+            onSelectNetwork = onSelectNetwork,
+            onSelectDirectUrl = onSelectDirectUrl,
+            onDismiss = onDismiss
+        )
     }
 }
 
@@ -287,7 +248,7 @@ private fun AddTracksSourceSheetContent(
                 }
                 currentTrackArtworkHint == DecoderArtworkHint.TrackedFile -> {
                     Icon(
-                        painter = painterResource(id = R.drawable.ic_file_tracked),
+                        imageVector = Icons.Default.LibraryMusic,
                         contentDescription = "Tracked file",
                         tint = iconTint,
                         modifier = iconSize
@@ -295,7 +256,7 @@ private fun AddTracksSourceSheetContent(
                 }
                 currentTrackArtworkHint == DecoderArtworkHint.GameFile -> {
                     Icon(
-                        painter = painterResource(id = R.drawable.ic_file_game),
+                        imageVector = Icons.Default.SportsEsports,
                         contentDescription = "Game file",
                         tint = iconTint,
                         modifier = iconSize
@@ -454,7 +415,7 @@ internal fun AddFromLibraryPickerSheet(
     onConfirm: (List<LibraryTrackEntity>) -> Unit,
     onDismiss: () -> Unit
 ) {
-    val context = LocalContext.current
+    val repository = LocalLibraryRepository.current
     var allTracks by remember { mutableStateOf<List<LibraryTrackEntity>>(emptyList()) }
     var query by remember { mutableStateOf("") }
     val selectedTracks = remember { mutableStateMapOf<String, LibraryTrackEntity>() }
@@ -462,7 +423,7 @@ internal fun AddFromLibraryPickerSheet(
 
     LaunchedEffect(Unit) {
         withContext(Dispatchers.IO) {
-            val collections = LibraryRepository.collections(context)
+            val collections = repository.collections()
             allTracks = collections.tracks
             isLoading = false
         }
@@ -481,48 +442,19 @@ internal fun AddFromLibraryPickerSheet(
         }
     }
 
-    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
-        ModalBottomSheet(
-            onDismissRequest = onDismiss,
-            sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = false)
-        ) {
-            AddFromLibraryPickerSheetContent(
-                tracks = filteredTracks,
-                query = query,
-                onQueryChange = { query = it },
-                selectedTracks = selectedTracks,
-                isLoading = isLoading,
-                onConfirm = { onConfirm(selectedTracks.values.toList()) },
-                onDismiss = onDismiss
-            )
-        }
-    } else {
-        Dialog(
-            onDismissRequest = onDismiss,
-            properties = DialogProperties(usePlatformDefaultWidth = false, dismissOnClickOutside = true)
-        ) {
-            Box(
-                modifier = Modifier.fillMaxSize(),
-                contentAlignment = Alignment.BottomCenter
-            ) {
-                Card(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .fillMaxHeight(0.85f)
-                        .padding(top = 48.dp)
-                ) {
-                    AddFromLibraryPickerSheetContent(
-                        tracks = filteredTracks,
-                        query = query,
-                        onQueryChange = { query = it },
-                        selectedTracks = selectedTracks,
-                        isLoading = isLoading,
-                        onConfirm = { onConfirm(selectedTracks.values.toList()) },
-                        onDismiss = onDismiss
-                    )
-                }
-            }
-        }
+    ModalBottomSheet(
+        onDismissRequest = onDismiss,
+        sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = false)
+    ) {
+        AddFromLibraryPickerSheetContent(
+            tracks = filteredTracks,
+            query = query,
+            onQueryChange = { query = it },
+            selectedTracks = selectedTracks,
+            isLoading = isLoading,
+            onConfirm = { onConfirm(selectedTracks.values.toList()) },
+            onDismiss = onDismiss
+        )
     }
 }
 
@@ -763,32 +695,11 @@ internal fun AddFromNetworkPickerSheet(
         )
     }
 
-    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
-        ModalBottomSheet(
-            onDismissRequest = onDismiss,
-            sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
-        ) {
-            content()
-        }
-    } else {
-        Dialog(
-            onDismissRequest = onDismiss,
-            properties = DialogProperties(usePlatformDefaultWidth = false, dismissOnClickOutside = true)
-        ) {
-            Box(
-                modifier = Modifier.fillMaxSize(),
-                contentAlignment = Alignment.BottomCenter
-            ) {
-                Card(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .fillMaxHeight(0.85f)
-                        .padding(top = 48.dp)
-                ) {
-                    content()
-                }
-            }
-        }
+    ModalBottomSheet(
+        onDismissRequest = onDismiss,
+        sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    ) {
+        content()
     }
 }
 
@@ -848,7 +759,7 @@ private fun AddFromNetworkPickerSheetContent(
         }
     }
 
-    BackHandler(enabled = canGoUp) {
+    PlatformBackHandler(enabled = canGoUp) {
         navigateUp()
     }
 

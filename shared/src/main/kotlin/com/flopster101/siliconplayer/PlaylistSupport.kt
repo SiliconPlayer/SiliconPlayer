@@ -1,15 +1,6 @@
 package com.flopster101.siliconplayer
 
-import android.content.Context
-import android.content.ContentResolver
-import android.graphics.Bitmap
-import android.graphics.BitmapFactory
-import android.graphics.Matrix
-import android.media.ExifInterface
-import android.net.Uri
-import android.provider.OpenableColumns
 import java.io.File
-import java.io.FileOutputStream
 import java.net.URI
 import java.nio.ByteBuffer
 import java.nio.charset.StandardCharsets
@@ -48,7 +39,7 @@ internal fun sanitizePlaylistTrackRequestUrlHint(
 internal fun isRemotePlaylistSource(sourceId: String): Boolean {
     val normalized = sourceId.trim()
     if (normalized.isEmpty()) return false
-    val scheme = Uri.parse(normalized).scheme?.lowercase(Locale.ROOT)
+    val scheme = playlistSourceScheme(normalized)
     if (scheme == "http" || scheme == "https" || scheme == "smb") return true
     if (scheme == "archive") {
         val parsed = parseArchiveSourceId(normalized) ?: return false
@@ -57,6 +48,19 @@ internal fun isRemotePlaylistSource(sourceId: String): Boolean {
     }
     return parseHttpSourceSpecFromInput(normalized) != null ||
         parseSmbSourceSpecFromInput(normalized) != null
+}
+
+private val PLAYLIST_SOURCE_SCHEME_REGEX = Regex("^([A-Za-z][A-Za-z0-9+.\\-]*):")
+
+/**
+ * Scheme prefix of a source id, mirroring `android.net.Uri.scheme` without the Android
+ * dependency (backslash-separated Windows paths never match the pattern).
+ */
+private fun playlistSourceScheme(sourceId: String): String? {
+    return PLAYLIST_SOURCE_SCHEME_REGEX.find(sourceId)
+        ?.groupValues
+        ?.get(1)
+        ?.lowercase(Locale.ROOT)
 }
 
 internal fun stripCredentialsFromUri(uriString: String): String {
@@ -170,7 +174,7 @@ internal fun resolvePlaylistEntryLocalFile(source: String): File? {
         return null
     }
     val localPath = if (source.startsWith("file://", ignoreCase = true)) {
-        Uri.parse(source).path
+        runCatching { URI(source).path }.getOrNull()
     } else {
         source
     } ?: return null
@@ -251,102 +255,6 @@ internal fun duplicateStoredPlaylist(
         customArtworkUri = copiedArtworkUri ?: playlist.customArtworkUri,
         iconTintArgb = playlist.iconTintArgb
     )
-}
-
-internal fun saveNormalizedPlaylistCover(context: Context, sourceUri: Uri, destFile: File): Boolean {
-    val tempFile = File(destFile.parentFile ?: context.cacheDir, "temp_cover_${UUID.randomUUID()}.tmp")
-    return try {
-        context.contentResolver.openInputStream(sourceUri)?.use { input ->
-            FileOutputStream(tempFile).use { output ->
-                input.copyTo(output)
-            }
-        } ?: return false
-        if (!tempFile.exists() || tempFile.length() == 0L) return false
-
-        val exif = try {
-            ExifInterface(tempFile.absolutePath)
-        } catch (_: Throwable) {
-            null
-        }
-        val orientation = exif?.getAttributeInt(
-            ExifInterface.TAG_ORIENTATION,
-            ExifInterface.ORIENTATION_NORMAL
-        ) ?: ExifInterface.ORIENTATION_NORMAL
-        val rotationDegrees = when (orientation) {
-            ExifInterface.ORIENTATION_ROTATE_90 -> 90f
-            ExifInterface.ORIENTATION_ROTATE_180 -> 180f
-            ExifInterface.ORIENTATION_ROTATE_270 -> 270f
-            else -> 0f
-        }
-
-        val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
-        BitmapFactory.decodeFile(tempFile.absolutePath, bounds)
-        val maxDim = maxOf(bounds.outWidth, bounds.outHeight)
-        val needsScale = maxDim > 1024
-        val needsRotation = rotationDegrees != 0f
-
-        var sampleSize = 1
-        if (needsScale) {
-            while (maxDim / (sampleSize * 2) >= 1024) {
-                sampleSize *= 2
-            }
-        }
-        val decodeOptions = BitmapFactory.Options().apply { inSampleSize = sampleSize }
-        val bitmap = BitmapFactory.decodeFile(tempFile.absolutePath, decodeOptions) ?: return false
-
-        val matrix = Matrix()
-        if (needsRotation) {
-            matrix.postRotate(rotationDegrees)
-        }
-        val scale = if (needsScale) {
-            1024f / maxOf(bitmap.width, bitmap.height).coerceAtLeast(1)
-        } else {
-            1f
-        }
-        if (scale < 1f) {
-            matrix.postScale(scale, scale)
-        }
-
-        val finalBitmap = if (needsRotation || scale < 1f) {
-            Bitmap.createBitmap(bitmap, 0, 0, bitmap.width, bitmap.height, matrix, true)
-        } else {
-            bitmap
-        }
-
-        FileOutputStream(destFile).use { out ->
-            finalBitmap.compress(Bitmap.CompressFormat.JPEG, 92, out)
-        }
-        if (finalBitmap != bitmap) {
-            finalBitmap.recycle()
-        }
-        bitmap.recycle()
-        destFile.exists() && destFile.length() > 0L
-    } catch (_: Throwable) {
-        false
-    } finally {
-        if (tempFile.exists()) {
-            tempFile.delete()
-        }
-    }
-}
-
-internal fun rotatePlaylistCoverFile(file: File, degrees: Float = 90f): Boolean {
-    if (!file.exists() || !file.isFile || file.length() == 0L) return false
-    return try {
-        val bitmap = BitmapFactory.decodeFile(file.absolutePath) ?: return false
-        val matrix = Matrix().apply { postRotate(degrees) }
-        val rotated = Bitmap.createBitmap(bitmap, 0, 0, bitmap.width, bitmap.height, matrix, true)
-        FileOutputStream(file).use { out ->
-            rotated.compress(Bitmap.CompressFormat.JPEG, 92, out)
-        }
-        if (rotated != bitmap) {
-            rotated.recycle()
-        }
-        bitmap.recycle()
-        true
-    } catch (_: Throwable) {
-        false
-    }
 }
 
 internal fun buildImportedPlaylist(
@@ -507,68 +415,6 @@ private fun parseM3uPlaylist(
         format = format,
         allowUnresolvedFiles = allowUnresolvedFiles
     )
-}
-
-internal fun parsePlaylistDocumentFromUri(
-    context: Context,
-    uri: Uri
-): ParsedPlaylistDocument? {
-    val contentResolver = context.contentResolver
-    val displayName = queryDisplayNameFromUri(contentResolver, uri)
-    val baseFile = resolveBaseFileFromUri(context, uri)
-
-    val rawTitle = displayName
-        ?.substringBeforeLast('.')
-        ?.ifBlank { null }
-        ?: uri.lastPathSegment?.substringAfterLast('/')?.substringBeforeLast('.')?.ifBlank { null }
-        ?: "Imported Playlist"
-
-    val title = if (
-        (rawTitle.equals("!playlist", ignoreCase = true) || rawTitle.equals("playlist", ignoreCase = true)) &&
-        !baseFile?.parentFile?.name.isNullOrBlank()
-    ) {
-        baseFile?.parentFile?.name ?: rawTitle
-    } else {
-        rawTitle
-    }
-
-    val bytes = runCatching {
-        contentResolver.openInputStream(uri)?.use { it.readBytes() }
-    }.getOrNull() ?: return null
-
-    val text = decodePlaylistText(bytes)
-    val lines = text.replace("\uFEFF", "").lineSequence().toList()
-    if (lines.isEmpty()) return null
-
-    return parseM3uPlaylistLines(
-        lines = lines,
-        title = title,
-        baseFile = baseFile,
-        sourceIdHint = null,
-        format = PlaylistStoredFormat.M3u8,
-        allowUnresolvedFiles = true
-    )
-}
-
-internal fun resolveBaseFileFromUri(context: Context, uri: Uri): File? {
-    val realPath = queryRealPathFromUri(context, uri)
-    val candidate = when {
-        uri.scheme == "file" -> File(uri.path ?: "")
-        realPath != null -> File(realPath)
-        else -> null
-    }
-    return candidate?.takeIf { it.exists() }
-}
-
-private fun queryDisplayNameFromUri(contentResolver: ContentResolver, uri: Uri): String? {
-    return runCatching {
-        contentResolver.query(uri, arrayOf(OpenableColumns.DISPLAY_NAME), null, null, null)?.use { cursor ->
-            if (cursor.moveToFirst()) {
-                val index = cursor.getColumnIndex(OpenableColumns.DISPLAY_NAME)
-                if (index >= 0) cursor.getString(index) else null
-            } else null
-        }
-    }.getOrNull()
 }
 
 private fun readPlaylistLines(file: File): List<String> {
@@ -754,8 +600,8 @@ private fun resolvePlaylistTarget(
         )
     }
     if (normalized.startsWith("file://", ignoreCase = true)) {
-        val fileUri = Uri.parse(normalized)
-        val localPath = fileUri.path?.takeIf { it.isNotBlank() } ?: return null
+        val localPath = runCatching { URI(normalized).path }.getOrNull()
+            ?.takeIf { it.isNotBlank() } ?: return null
         val resolved = File(localPath)
         if (!allowUnresolvedFiles && (!resolved.exists() || !resolved.isFile)) return null
         return PlaylistTargetResolution(

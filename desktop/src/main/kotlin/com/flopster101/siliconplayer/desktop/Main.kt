@@ -53,7 +53,28 @@ import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.input.key.KeyEventType
 import androidx.compose.ui.input.key.key
 import androidx.compose.ui.input.key.type
-import com.flopster101.siliconplayer.desktop.ui.DesktopPlaylistsScreen
+import com.flopster101.siliconplayer.ui.screens.PlaylistsScreen
+import com.flopster101.siliconplayer.ui.screens.LibrarySurfaceState
+import com.flopster101.siliconplayer.PlaylistEntrySortMode
+import com.flopster101.siliconplayer.PlaylistLibraryState
+import com.flopster101.siliconplayer.PlaylistStoredFormat
+import com.flopster101.siliconplayer.PlaylistTrackEntry
+import com.flopster101.siliconplayer.StoredPlaylist
+import com.flopster101.siliconplayer.appendStoredPlaylistEntries
+import com.flopster101.siliconplayer.library.LibraryCollections
+import com.flopster101.siliconplayer.moveFavoriteTrack
+import com.flopster101.siliconplayer.moveStoredPlaylistEntry
+import com.flopster101.siliconplayer.readPlaylistLibraryState
+import com.flopster101.siliconplayer.removeFavoriteTrack
+import com.flopster101.siliconplayer.removeFavoriteTracks
+import com.flopster101.siliconplayer.removeStoredPlaylistEntries
+import com.flopster101.siliconplayer.removeStoredPlaylistEntry
+import com.flopster101.siliconplayer.renameStoredPlaylist
+import com.flopster101.siliconplayer.resolvePlaylistEntryLocalFile
+import com.flopster101.siliconplayer.setStoredPlaylistPinned
+import com.flopster101.siliconplayer.upsertFavoriteTrack
+import com.flopster101.siliconplayer.upsertStoredPlaylist
+import com.flopster101.siliconplayer.writePlaylistLibraryState
 import com.flopster101.siliconplayer.SettingsScreen
 import com.flopster101.siliconplayer.inferredPrimaryExtensionForName
 import com.flopster101.siliconplayer.MainView
@@ -329,9 +350,26 @@ fun main(args: Array<String>) = application {
                 ThemeMode.Dark -> true
             }
 
-            val favoritePaths = remember { mutableStateListOf<String>() }
+            var playlistLibraryState by remember {
+                mutableStateOf(readPlaylistLibraryState(prefs))
+            }
+            var favoritesSortMode by remember {
+                mutableStateOf(
+                    PlaylistEntrySortMode.fromStorage(
+                        prefs.getString(AppPreferenceKeys.FAVORITES_SORT_MODE, null)
+                    )
+                )
+            }
+            val librarySurfaceState = remember { LibrarySurfaceState() }
+            var activePlaylist by remember { mutableStateOf<StoredPlaylist?>(null) }
+            var activePlaylistEntryId by remember { mutableStateOf<String?>(null) }
+            val onPlaylistLibraryStateChanged: (PlaylistLibraryState) -> Unit = { updated ->
+                playlistLibraryState = updated
+                writePlaylistLibraryState(prefs, updated)
+            }
             val currentTrackPath = session.currentFile?.absolutePath
-            val isCurrentTrackFavorited = currentTrackPath != null && favoritePaths.contains(currentTrackPath)
+            val isCurrentTrackFavorited = currentTrackPath != null &&
+                playlistLibraryState.favorites.any { it.source == currentTrackPath }
 
             val visualizationUiState = rememberVisualizationUiState(
                 prefs = prefs,
@@ -614,16 +652,209 @@ fun main(args: Array<String>) = application {
                                     }
 
                                     MainView.Playlists -> {
-                                        DesktopPlaylistsScreen(
-                                            session = session,
-                                            onFileSelected = { playFile(it) },
-                                            onOpenTrackInfo = {
-                                                if (session.currentFile != null) {
-                                                    showTrackInfoDialog = true
+                                        val playPlaylistEntry: (PlaylistTrackEntry) -> Unit = { entry ->
+                                            resolvePlaylistEntryLocalFile(entry.source)?.let { file ->
+                                                playFile(file)
+                                            }
+                                        }
+                                        PlaylistsScreen(
+                                            libraryState = playlistLibraryState,
+                                            libraryCollections = LibraryCollections.Empty,
+                                            libraryAlbumDetail = null,
+                                            libraryArtistAlbums = null,
+                                            selectedArtistName = null,
+                                            onOpenLibraryAlbum = { _, _ -> },
+                                            onOpenLibraryArtist = { },
+                                            onPlayLibraryTracks = { _, _, _ -> },
+                                            onShuffleLibraryTracks = { _, _ -> },
+                                            onAddLibraryTracksToFavorites = { },
+                                            onRemoveLibraryTracksFromFavorites = { },
+                                            onAddLibraryTracksToPlaylist = { _, _, _ -> },
+                                            onPinLibraryEntries = { },
+                                            onUnpinLibraryPaths = { },
+                                            pinnedHomeEntries = pinnedEntries,
+                                            surfaceState = librarySurfaceState,
+                                            onOpenLibrarySettings = {
+                                                currentView = MainView.Settings
+                                                settingsRoute = SettingsRoute.Library
+                                            },
+                                            activePlaylist = activePlaylist,
+                                            activePlaylistEntryId = activePlaylistEntryId,
+                                            currentPlaybackSourceId = session.currentFile?.absolutePath,
+                                            currentPlaybackTitle = session.title,
+                                            currentPlaybackArtist = session.artist,
+                                            currentSubtuneIndex = session.subtuneIndex,
+                                            bottomContentPadding = bottomMargin,
+                                            favoritesSortMode = favoritesSortMode,
+                                            networkNodes = networkNodes,
+                                            backHandlingEnabled = !isPlayerExpanded,
+                                            onBack = { currentView = MainView.Home },
+                                            onFavoritesSortModeChange = { mode ->
+                                                favoritesSortMode = mode
+                                                prefs.edit()
+                                                    .putString(AppPreferenceKeys.FAVORITES_SORT_MODE, mode.storageValue)
+                                                    .apply()
+                                            },
+                                            onOpenFavorite = playPlaylistEntry,
+                                            onPlayStoredPlaylist = { playlist ->
+                                                activePlaylist = playlist
+                                                activePlaylistEntryId = null
+                                                playlist.entries.firstOrNull()?.let { entry ->
+                                                    activePlaylistEntryId = entry.id
+                                                    playPlaylistEntry(entry)
                                                 }
                                             },
-                                            onBack = { currentView = MainView.Home },
-                                            backHandlingEnabled = !isPlayerExpanded
+                                            onShuffleStoredPlaylist = { playlist ->
+                                                activePlaylist = playlist
+                                                playlist.entries.shuffled().firstOrNull()?.let { entry ->
+                                                    activePlaylistEntryId = entry.id
+                                                    playPlaylistEntry(entry)
+                                                }
+                                            },
+                                            onOpenStoredPlaylistEntry = { entry, playlist ->
+                                                activePlaylist = playlist
+                                                activePlaylistEntryId = entry.id
+                                                playPlaylistEntry(entry)
+                                            },
+                                            onPlayFavoritePlaylist = {
+                                                activePlaylist = null
+                                                playlistLibraryState.favorites.firstOrNull()?.let { entry ->
+                                                    activePlaylistEntryId = entry.id
+                                                    playPlaylistEntry(entry)
+                                                }
+                                            },
+                                            onShuffleFavoritePlaylist = {
+                                                activePlaylist = null
+                                                playlistLibraryState.favorites.shuffled().firstOrNull()?.let { entry ->
+                                                    activePlaylistEntryId = entry.id
+                                                    playPlaylistEntry(entry)
+                                                }
+                                            },
+                                            onDeleteAllFavorites = {
+                                                onPlaylistLibraryStateChanged(
+                                                    playlistLibraryState.copy(favorites = emptyList())
+                                                )
+                                            },
+                                            onDeleteFavoriteTrack = { entry ->
+                                                onPlaylistLibraryStateChanged(
+                                                    removeFavoriteTrack(playlistLibraryState, entry.id)
+                                                )
+                                            },
+                                            onMoveFavoriteTrack = { entry, offset ->
+                                                onPlaylistLibraryStateChanged(
+                                                    moveFavoriteTrack(playlistLibraryState, entry.id, offset)
+                                                )
+                                            },
+                                            onPlayFavoriteTrackAsCached = playPlaylistEntry,
+                                            onCreatePlaylist = { title ->
+                                                val playlist = StoredPlaylist(
+                                                    id = java.util.UUID.randomUUID().toString(),
+                                                    title = title.trim(),
+                                                    format = PlaylistStoredFormat.Internal,
+                                                    sourceIdHint = null,
+                                                    entries = emptyList(),
+                                                    updatedAtMs = System.currentTimeMillis()
+                                                )
+                                                onPlaylistLibraryStateChanged(
+                                                    upsertStoredPlaylist(playlistLibraryState, playlist)
+                                                )
+                                                playlist.id
+                                            },
+                                            onDeleteStoredPlaylistEntry = { entry, playlistId ->
+                                                onPlaylistLibraryStateChanged(
+                                                    removeStoredPlaylistEntry(playlistLibraryState, playlistId, entry.id)
+                                                )
+                                            },
+                                            onMoveStoredPlaylistEntry = { entry, playlistId, offset ->
+                                                onPlaylistLibraryStateChanged(
+                                                    moveStoredPlaylistEntry(playlistLibraryState, playlistId, entry.id, offset)
+                                                )
+                                            },
+                                            onDeleteAllStoredPlaylistEntries = { playlistId ->
+                                                val entryIds = playlistLibraryState.playlists
+                                                    .firstOrNull { it.id == playlistId }
+                                                    ?.entries
+                                                    ?.map { it.id }
+                                                    ?.toSet()
+                                                    .orEmpty()
+                                                onPlaylistLibraryStateChanged(
+                                                    removeStoredPlaylistEntries(playlistLibraryState, playlistId, entryIds)
+                                                )
+                                            },
+                                            onPlayStoredPlaylistTrackAsCached = { entry, playlist ->
+                                                activePlaylist = playlist
+                                                activePlaylistEntryId = entry.id
+                                                playPlaylistEntry(entry)
+                                            },
+                                            onRemoveSourceFromPlaylist = { source, playlistId ->
+                                                val playlist = playlistLibraryState.playlists
+                                                    .firstOrNull { it.id == playlistId }
+                                                    ?: return@PlaylistsScreen
+                                                onPlaylistLibraryStateChanged(
+                                                    removeStoredPlaylistEntries(
+                                                        playlistLibraryState,
+                                                        playlistId,
+                                                        playlist.entries
+                                                            .filter { it.source == source }
+                                                            .map { it.id }
+                                                            .toSet()
+                                                    )
+                                                )
+                                            },
+                                            onOpenFavoriteTrackLocation = { entry ->
+                                                resolvePlaylistEntryLocalFile(entry.source)
+                                                    ?.parentFile
+                                                    ?.let { openLocalBrowser(it) }
+                                            },
+                                            onShareFavoriteTrack = { },
+                                            onCopyFavoriteTrackSource = { entry ->
+                                                java.awt.Toolkit.getDefaultToolkit().systemClipboard.setContents(
+                                                    java.awt.datatransfer.StringSelection(entry.source),
+                                                    null
+                                                )
+                                            },
+                                            onOpenFavoriteTrackInfo = playPlaylistEntry,
+                                            onDeleteStoredPlaylist = { playlistId ->
+                                                if (activePlaylist?.id == playlistId) {
+                                                    activePlaylist = null
+                                                    activePlaylistEntryId = null
+                                                }
+                                                onPlaylistLibraryStateChanged(
+                                                    playlistLibraryState.copy(
+                                                        playlists = playlistLibraryState.playlists.filterNot { it.id == playlistId }
+                                                    )
+                                                )
+                                            },
+                                            onTogglePinStoredPlaylist = { playlistId ->
+                                                val playlist = playlistLibraryState.playlists.firstOrNull { it.id == playlistId }
+                                                if (playlist != null) {
+                                                    onPlaylistLibraryStateChanged(
+                                                        setStoredPlaylistPinned(playlistLibraryState, playlistId, !playlist.isPinned)
+                                                    )
+                                                }
+                                            },
+                                            onRenameStoredPlaylist = { playlistId, title ->
+                                                onPlaylistLibraryStateChanged(
+                                                    renameStoredPlaylist(playlistLibraryState, playlistId, title)
+                                                )
+                                            },
+                                            onOpenBrowser = { openLocalBrowser(currentDirectory) },
+                                            onAppendStoredPlaylistEntries = { playlistId, entries ->
+                                                onPlaylistLibraryStateChanged(
+                                                    appendStoredPlaylistEntries(playlistLibraryState, playlistId, entries)
+                                                )
+                                            },
+                                            onDeleteFavoriteTracks = { favoriteIds ->
+                                                onPlaylistLibraryStateChanged(
+                                                    removeFavoriteTracks(playlistLibraryState, favoriteIds)
+                                                )
+                                            },
+                                            onDeleteStoredPlaylistEntries = { playlistId, entryIds ->
+                                                onPlaylistLibraryStateChanged(
+                                                    removeStoredPlaylistEntries(playlistLibraryState, playlistId, entryIds)
+                                                )
+                                            },
+                                            onPlaylistLibraryStateChanged = onPlaylistLibraryStateChanged
                                         )
                                     }
 
@@ -911,12 +1142,25 @@ fun main(args: Array<String>) = application {
                                     artworkCornerRadiusDp = playerArtworkCornerRadiusDp,
                                     isTrackFavorited = isCurrentTrackFavorited,
                                     onToggleFavoriteTrack = {
-                                        val p = session.currentFile?.absolutePath ?: return@PlayerScreen
-                                        if (favoritePaths.contains(p)) {
-                                            favoritePaths.remove(p)
-                                        } else {
-                                            favoritePaths.add(p)
-                                        }
+                                        val path = session.currentFile?.absolutePath ?: return@PlayerScreen
+                                        val existing = playlistLibraryState.favorites.firstOrNull { it.source == path }
+                                        onPlaylistLibraryStateChanged(
+                                            if (existing != null) {
+                                                removeFavoriteTrack(playlistLibraryState, existing.id)
+                                            } else {
+                                                upsertFavoriteTrack(
+                                                    playlistLibraryState,
+                                                    PlaylistTrackEntry(
+                                                        id = java.util.UUID.randomUUID().toString(),
+                                                        source = path,
+                                                        title = session.title.ifBlank { session.currentFile?.nameWithoutExtension.orEmpty() },
+                                                        artist = session.artist.takeUnless { it.isBlank() },
+                                                        album = session.album.takeUnless { it.isBlank() },
+                                                        addedAtMs = System.currentTimeMillis()
+                                                    )
+                                                )
+                                            }
+                                        )
                                     },
                                     onOpenAudioEffects = {}
                                 )

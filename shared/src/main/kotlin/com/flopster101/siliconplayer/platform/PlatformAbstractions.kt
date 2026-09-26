@@ -2,12 +2,23 @@ package com.flopster101.siliconplayer.platform
 
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.staticCompositionLocalOf
+import androidx.compose.ui.graphics.ImageBitmap
 import com.flopster101.siliconplayer.CacheExportResult
 import com.flopster101.siliconplayer.ExportConflictDecision
 import com.flopster101.siliconplayer.ExportFileItem
 import com.flopster101.siliconplayer.ExportNameConflict
+import com.flopster101.siliconplayer.ParsedPlaylistDocument
+import com.flopster101.siliconplayer.PlaylistExportFormat
 import com.flopster101.siliconplayer.RemoteExportRequest
 import com.flopster101.siliconplayer.RemoteLoadUiState
+import com.flopster101.siliconplayer.StoredPlaylist
+import com.flopster101.siliconplayer.library.LibraryCollections
+import com.flopster101.siliconplayer.library.LibrarySearchResults
+import com.flopster101.siliconplayer.library.LibrarySyncState
+import com.flopster101.siliconplayer.library.LibraryTrackEntity
+import java.io.File
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
 
 interface AppPreferences {
     fun getString(key: String, defValue: String?): String?
@@ -282,6 +293,96 @@ internal fun rememberRemoteSourceExportSupport(): RemoteSourceExportSupport =
 
 val LocalAppCacheDir = staticCompositionLocalOf<java.io.File> {
     java.io.File(System.getProperty("java.io.tmpdir"), "siliconplayer_cache").also { it.mkdirs() }
+}
+
+/**
+ * Media library queries backing the albums/artists/tracks surfaces. Platforms without an
+ * indexed library report [isAvailable] as `false` and return empty collections.
+ */
+interface LibraryRepositorySupport {
+    val isAvailable: Boolean
+    val scanState: StateFlow<LibrarySyncState>
+    suspend fun collections(): LibraryCollections
+    suspend fun search(rawQuery: String): LibrarySearchResults
+    suspend fun albumTracks(albumName: String): List<LibraryTrackEntity>
+    suspend fun artistTracks(artist: String): List<LibraryTrackEntity>
+    fun requestScan()
+}
+
+/** No-op repository used when the platform has no media library (e.g. desktop). */
+private val EmptyLibraryRepository = object : LibraryRepositorySupport {
+    override val isAvailable: Boolean = false
+    override val scanState: StateFlow<LibrarySyncState> = MutableStateFlow(LibrarySyncState())
+    override suspend fun collections(): LibraryCollections = LibraryCollections.Empty
+    override suspend fun search(rawQuery: String) = LibrarySearchResults(rawQuery, emptyList(), emptyList(), emptyList())
+    override suspend fun albumTracks(albumName: String): List<LibraryTrackEntity> = emptyList()
+    override suspend fun artistTracks(artist: String): List<LibraryTrackEntity> = emptyList()
+    override fun requestScan() {}
+}
+
+val LocalLibraryRepository = staticCompositionLocalOf<LibraryRepositorySupport> {
+    EmptyLibraryRepository
+}
+
+/**
+ * Generated artwork and ad-hoc image decoding for playlist covers and library thumbnails.
+ */
+interface ArtworkCacheSupport {
+    suspend fun ensureThumbnailCached(sourceId: String, requestUrlHint: String?): String?
+    suspend fun ensureArtworkCached(sourceId: String, requireLarge: Boolean): String?
+    fun peekGeneratedKey(sourceId: String): String?
+    fun cacheFile(cacheKey: String, preferLarge: Boolean): File?
+    suspend fun loadImageFile(file: File): ImageBitmap?
+    suspend fun loadArtworkForSource(sourceId: String, requestUrl: String?): ImageBitmap?
+    fun peekLibraryArtwork(path: String?): ImageBitmap?
+    suspend fun loadLibraryArtwork(path: String): ImageBitmap?
+}
+
+val LocalArtworkCacheSupport = staticCompositionLocalOf<ArtworkCacheSupport> {
+    object : ArtworkCacheSupport {
+        override suspend fun ensureThumbnailCached(sourceId: String, requestUrlHint: String?): String? = null
+        override suspend fun ensureArtworkCached(sourceId: String, requireLarge: Boolean): String? = null
+        override fun peekGeneratedKey(sourceId: String): String? = null
+        override fun cacheFile(cacheKey: String, preferLarge: Boolean): File? = null
+        override suspend fun loadImageFile(file: File): ImageBitmap? = null
+        override suspend fun loadArtworkForSource(sourceId: String, requestUrl: String?): ImageBitmap? = null
+        override fun peekLibraryArtwork(path: String?): ImageBitmap? = null
+        override suspend fun loadLibraryArtwork(path: String): ImageBitmap? = null
+    }
+}
+
+/**
+ * Playlist file/cover pickers plus playlist export and sharing, all backed by the platform's
+ * own document picker or share affordance.
+ */
+internal interface PlaylistPlatformSupport {
+    /**
+     * Whether the platform routes playlist import/export through its own document picker. When
+     * `false`, the shared UI shows its in-app file picker instead.
+     */
+    val supportsSystemPicker: Boolean
+    val coversDirectory: File
+    suspend fun pickCoverImage(destFile: File): Boolean
+    suspend fun rotateCoverFile(file: File, degrees: Float): Boolean
+    suspend fun pickPlaylistDocument(): ParsedPlaylistDocument?
+    suspend fun exportPlaylist(playlist: StoredPlaylist, format: PlaylistExportFormat): Boolean
+    suspend fun sharePlaylist(playlist: StoredPlaylist, format: PlaylistExportFormat): Boolean
+}
+
+internal val LocalPlaylistPlatformSupport = staticCompositionLocalOf<PlaylistPlatformSupport> {
+    error("No PlaylistPlatformSupport provided")
+}
+
+@Composable
+internal fun rememberPlaylistPlatformSupport(): PlaylistPlatformSupport =
+    LocalPlaylistPlatformSupport.current
+
+fun interface PlaylistRefreshNotifier {
+    fun update(current: Int, total: Int, title: String?)
+}
+
+val LocalPlaylistRefreshNotifier = staticCompositionLocalOf<PlaylistRefreshNotifier> {
+    PlaylistRefreshNotifier { _, _, _ -> }
 }
 
 

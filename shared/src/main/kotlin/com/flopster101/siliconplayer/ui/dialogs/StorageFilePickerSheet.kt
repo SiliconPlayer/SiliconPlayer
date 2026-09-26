@@ -1,8 +1,5 @@
 package com.flopster101.siliconplayer.ui.dialogs
 
-import android.os.Build
-import android.os.Environment
-import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -28,6 +25,9 @@ import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Folder
 import androidx.compose.material.icons.filled.MusicNote
+import androidx.compose.material.icons.filled.PhoneAndroid
+import androidx.compose.material.icons.filled.SdCard
+import androidx.compose.material.icons.filled.Usb
 import androidx.compose.material3.Card
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.CircularProgressIndicator
@@ -54,16 +54,16 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
-import androidx.compose.ui.window.DialogProperties
 import com.flopster101.siliconplayer.StorageDescriptor
 import com.flopster101.siliconplayer.adaptiveDialogModifier
 import com.flopster101.siliconplayer.adaptiveDialogProperties
-import com.flopster101.siliconplayer.detectStorageDescriptors
 import com.flopster101.siliconplayer.inferredDisplayTitleForName
+import com.flopster101.siliconplayer.platform.LocalStorageLocationsProvider
+import com.flopster101.siliconplayer.platform.PlatformBackHandler
+import com.flopster101.siliconplayer.platform.StorageLocationKind
 import com.flopster101.siliconplayer.ui.screens.formatFileSize
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -94,32 +94,11 @@ internal fun StorageFilePickerSheet(
         )
     }
 
-    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
-        ModalBottomSheet(
-            onDismissRequest = onDismiss,
-            sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
-        ) {
-            content()
-        }
-    } else {
-        Dialog(
-            onDismissRequest = onDismiss,
-            properties = DialogProperties(usePlatformDefaultWidth = false, dismissOnClickOutside = true)
-        ) {
-            Box(
-                modifier = Modifier.fillMaxSize(),
-                contentAlignment = Alignment.BottomCenter
-            ) {
-                Card(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .fillMaxHeight(0.85f)
-                        .padding(top = 48.dp)
-                ) {
-                    content()
-                }
-            }
-        }
+    ModalBottomSheet(
+        onDismissRequest = onDismiss,
+        sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    ) {
+        content()
     }
 }
 
@@ -168,16 +147,31 @@ private fun StorageFilePickerContent(
     onConfirmFiles: (List<File>) -> Unit,
     onDismiss: () -> Unit
 ) {
-    val context = LocalContext.current
-    val descriptors = remember(context) { detectStorageDescriptors(context) }
+    val storageLocationsProvider = LocalStorageLocationsProvider.current
+    val descriptors = remember(storageLocationsProvider) {
+        storageLocationsProvider().map { location ->
+            StorageDescriptor(
+                rootPath = location.directory.absolutePath,
+                label = location.name,
+                icon = when (location.kind) {
+                    StorageLocationKind.ROOT -> Icons.Default.Folder
+                    StorageLocationKind.INTERNAL -> Icons.Default.PhoneAndroid
+                    StorageLocationKind.SD -> Icons.Default.SdCard
+                    StorageLocationKind.USB -> Icons.Default.Usb
+                }
+            )
+        }
+    }
     val initialDir = remember(descriptors, initialDirectory) {
         if (initialDirectory != null && initialDirectory.exists() && initialDirectory.canRead()) {
             if (initialDirectory.isDirectory) initialDirectory else initialDirectory.parentFile ?: initialDirectory
         } else {
             val preferred = descriptors.firstOrNull { it.rootPath != "/" }?.rootPath
-                ?: Environment.getExternalStorageDirectory().absolutePath
+                ?: descriptors.firstOrNull()?.rootPath
+                ?: System.getProperty("user.home")
+                ?: "/"
             val file = File(preferred)
-            if (file.exists() && file.canRead()) file else Environment.getExternalStorageDirectory()
+            if (file.exists() && file.canRead()) file else File("/")
         }
     }
 
@@ -188,7 +182,7 @@ private fun StorageFilePickerContent(
 
     val canGoUp = currentDirectory.parentFile != null && currentDirectory.absolutePath != "/"
 
-    BackHandler(enabled = canGoUp) {
+    PlatformBackHandler(enabled = canGoUp) {
         val parent = currentDirectory.parentFile
         if (parent != null && parent.canRead()) {
             currentDirectory = parent

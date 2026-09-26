@@ -473,6 +473,11 @@ fun ProvideAndroidPlatformAdapters(
         }
     }
 
+    val libraryRepository = rememberAndroidLibraryRepositorySupport()
+    val artworkCacheSupport = rememberAndroidArtworkCacheSupport()
+    val playlistPlatformSupport = rememberAndroidPlaylistPlatformSupport()
+    val playlistRefreshNotifier = remember(context) { AndroidPlaylistRefreshNotifier(context) }
+
     remember(prefs) {
         com.flopster101.siliconplayer.NetworkCredentialStore.preferencesProvider = { prefs }
     }
@@ -486,6 +491,10 @@ fun ProvideAndroidPlatformAdapters(
         LocalAudioRouteManager provides audioRouteManager,
         LocalToastHandler provides toastHandler,
         LocalArtworkThumbnailLoader provides artworkThumbnailLoader,
+        LocalLibraryRepository provides libraryRepository,
+        LocalArtworkCacheSupport provides artworkCacheSupport,
+        LocalPlaylistPlatformSupport provides playlistPlatformSupport,
+        LocalPlaylistRefreshNotifier provides playlistRefreshNotifier,
         LocalPlatformBackHandler provides { enabled, onBack ->
             androidx.activity.compose.BackHandler(enabled, onBack)
         },

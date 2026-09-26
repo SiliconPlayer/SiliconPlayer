@@ -1,15 +1,14 @@
 package com.flopster101.siliconplayer.ui.dialogs
 
-import android.os.Build
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.tween
 import androidx.compose.animation.expandVertically
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.scaleIn
 import androidx.compose.animation.scaleOut
 import androidx.compose.animation.shrinkVertically
-import androidx.compose.animation.core.tween
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -18,8 +17,6 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxHeight
-import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
@@ -46,7 +43,6 @@ import com.flopster101.siliconplayer.AppPreferenceKeys
 import com.flopster101.siliconplayer.readPlaylistLibraryState
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
-import androidx.compose.material3.Card
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
@@ -74,10 +70,9 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.window.Dialog
-import androidx.compose.ui.window.DialogProperties
 import com.flopster101.siliconplayer.PlaylistSortMode
 import com.flopster101.siliconplayer.StoredPlaylist
+import com.flopster101.siliconplayer.platform.LocalAppPreferences
 import com.flopster101.siliconplayer.samePath
 import com.flopster101.siliconplayer.sortStoredPlaylists
 import com.flopster101.siliconplayer.ui.screens.PlaylistCoverArt
@@ -103,81 +98,42 @@ internal fun AddToPlaylistChooserDialog(
     onRemoveFromPlaylist: (playlistId: String) -> Unit,
     onDismiss: () -> Unit
 ) {
-    val context = androidx.compose.ui.platform.LocalContext.current
-    val effectiveShowFavorites = remember(showFavorites) {
+    val prefs = LocalAppPreferences.current
+    val effectiveShowFavorites = remember(showFavorites, prefs) {
         if (showFavorites) {
             true
         } else {
-            val p = context.getSharedPreferences(
-                AppPreferenceKeys.PREFS_NAME,
-                android.content.Context.MODE_PRIVATE
-            )
-            p.getBoolean(
+            prefs.getBoolean(
                 AppPreferenceKeys.LIBRARY_SHOW_FAVORITES_IN_PLAYLIST_CHOOSER,
                 false
             )
         }
     }
-    val effectiveFavorites = remember(favorites, effectiveShowFavorites) {
+    val effectiveFavorites = remember(favorites, effectiveShowFavorites, prefs) {
         if (!effectiveShowFavorites) {
             emptyList()
         } else if (favorites.isNotEmpty()) {
             favorites
         } else {
-            val p = context.getSharedPreferences(
-                AppPreferenceKeys.PREFS_NAME,
-                android.content.Context.MODE_PRIVATE
-            )
-            readPlaylistLibraryState(p).favorites
+            readPlaylistLibraryState(prefs).favorites
         }
     }
 
-    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
-        ModalBottomSheet(
-            onDismissRequest = onDismiss,
-            sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = false)
-        ) {
-            AddToPlaylistSheetContent(
-                playlists = playlists,
-                favorites = effectiveFavorites,
-                showFavorites = effectiveShowFavorites,
-                pendingSources = pendingSources,
-                dialogTitle = dialogTitle,
-                initialNewPlaylistTitle = initialNewPlaylistTitle,
-                onConfirm = onConfirm,
-                onRemoveFromPlaylist = onRemoveFromPlaylist,
-                onDismiss = onDismiss
-            )
-        }
-    } else {
-        Dialog(
-            onDismissRequest = onDismiss,
-            properties = DialogProperties(usePlatformDefaultWidth = false, dismissOnClickOutside = true)
-        ) {
-            Box(
-                modifier = Modifier.fillMaxSize(),
-                contentAlignment = Alignment.BottomCenter
-            ) {
-                Card(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .fillMaxHeight(0.85f)
-                        .padding(top = 48.dp)
-                ) {
-                    AddToPlaylistSheetContent(
-                        playlists = playlists,
-                        favorites = effectiveFavorites,
-                        showFavorites = effectiveShowFavorites,
-                        pendingSources = pendingSources,
-                        dialogTitle = dialogTitle,
-                        initialNewPlaylistTitle = initialNewPlaylistTitle,
-                        onConfirm = onConfirm,
-                        onRemoveFromPlaylist = onRemoveFromPlaylist,
-                        onDismiss = onDismiss
-                    )
-                }
-            }
-        }
+    ModalBottomSheet(
+        onDismissRequest = onDismiss,
+        sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = false)
+    ) {
+        AddToPlaylistSheetContent(
+            playlists = playlists,
+            favorites = effectiveFavorites,
+            showFavorites = effectiveShowFavorites,
+            pendingSources = pendingSources,
+            dialogTitle = dialogTitle,
+            initialNewPlaylistTitle = initialNewPlaylistTitle,
+            onConfirm = onConfirm,
+            onRemoveFromPlaylist = onRemoveFromPlaylist,
+            onDismiss = onDismiss
+        )
     }
 }
 

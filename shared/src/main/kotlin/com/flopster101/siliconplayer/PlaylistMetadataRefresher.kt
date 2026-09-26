@@ -1,6 +1,8 @@
 package com.flopster101.siliconplayer
 
-import android.content.Context
+import com.flopster101.siliconplayer.data.findExistingCachedFileForSource
+import com.flopster101.siliconplayer.platform.ArtworkCacheSupport
+import com.flopster101.siliconplayer.platform.PlaylistRefreshNotifier
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -33,12 +35,12 @@ internal object PlaylistMetadataRefresher {
         _state.value = PlaylistMetadataRefreshState()
     }
 
-    private fun resolveTrackProbePath(context: Context, entry: PlaylistTrackEntry): String? {
+    private fun resolveTrackProbePath(cacheDir: File, entry: PlaylistTrackEntry): String? {
         val localFile = resolvePlaylistEntryLocalFile(entry.source)
         if (localFile != null && localFile.exists()) {
             return localFile.absolutePath
         }
-        val cacheRoot = File(context.cacheDir, REMOTE_SOURCE_CACHE_DIR)
+        val cacheRoot = File(cacheDir, REMOTE_SOURCE_CACHE_DIR)
         val cached = findExistingCachedFileForSource(cacheRoot, entry.source)
             ?: entry.requestUrlHint?.let { findExistingCachedFileForSource(cacheRoot, it) }
         if (cached != null && cached.exists()) {
@@ -47,8 +49,12 @@ internal object PlaylistMetadataRefresher {
         return entry.source
     }
 
-    suspend fun probeTrack(context: Context, entry: PlaylistTrackEntry): PlaylistTrackEntry? = withContext(Dispatchers.IO) {
-        val candidatePath = resolveTrackProbePath(context, entry) ?: return@withContext null
+    suspend fun probeTrack(
+        cacheDir: File,
+        artworkCache: ArtworkCacheSupport,
+        entry: PlaylistTrackEntry
+    ): PlaylistTrackEntry? = withContext(Dispatchers.IO) {
+        val candidatePath = resolveTrackProbePath(cacheDir, entry) ?: return@withContext null
         val probeResult = runCatching {
             NativeBridge.probeMetadata(candidatePath, entry.subtuneIndex ?: -1)
         }.getOrNull() ?: return@withContext null
@@ -62,8 +68,7 @@ internal object PlaylistMetadataRefresher {
         val newArtist = probedArtist ?: entry.artist
         val newAlbum = probedAlbum ?: entry.album
         val newDuration = probedDuration
-        val artworkKey = entry.artworkThumbnailCacheKey ?: ensureRecentArtworkThumbnailCached(
-            context = context,
+        val artworkKey = entry.artworkThumbnailCacheKey ?: artworkCache.ensureThumbnailCached(
             sourceId = entry.source,
             requestUrlHint = entry.requestUrlHint
         )
@@ -78,12 +83,13 @@ internal object PlaylistMetadataRefresher {
     }
 
     suspend fun refreshSingleTrack(
-        context: Context,
+        cacheDir: File,
+        artworkCache: ArtworkCacheSupport,
         entry: PlaylistTrackEntry,
         playlistLibraryState: PlaylistLibraryState,
         onPlaylistLibraryStateChanged: (PlaylistLibraryState) -> Unit
     ): Boolean {
-        val updated = probeTrack(context, entry) ?: return false
+        val updated = probeTrack(cacheDir, artworkCache, entry) ?: return false
         var changed = false
         val newFavorites = playlistLibraryState.favorites.map { fav ->
             if (fav.id == entry.id) {
@@ -113,7 +119,8 @@ internal object PlaylistMetadataRefresher {
     }
 
     suspend fun refreshPlaylistTracks(
-        context: Context,
+        cacheDir: File,
+        artworkCache: ArtworkCacheSupport,
         playlistId: String,
         targetEntryIds: Set<String>?,
         playlistLibraryStateProvider: () -> PlaylistLibraryState,
@@ -134,7 +141,7 @@ internal object PlaylistMetadataRefresher {
         var state = playlistLibraryStateProvider()
 
         for (track in tracksToRefresh) {
-            val probed = probeTrack(context, track)
+            val probed = probeTrack(cacheDir, artworkCache, track)
             if (probed != null) {
                 succeeded++
                 state = if (isFavorites) {
@@ -149,7 +156,9 @@ internal object PlaylistMetadataRefresher {
     }
 
     suspend fun refreshAllPlaylists(
-        context: Context,
+        cacheDir: File,
+        artworkCache: ArtworkCacheSupport,
+        notifier: PlaylistRefreshNotifier,
         localOnly: Boolean,
         onStopPlayback: () -> Unit,
         playlistLibraryStateProvider: () -> PlaylistLibraryState,
@@ -191,7 +200,7 @@ internal object PlaylistMetadataRefresher {
             succeededCount = 0,
             failedCount = 0
         )
-        PlaylistMetadataRefreshNotifier.start(context, total)
+        notifier.update(0, total, null)
 
         var current = 0
         var succeeded = 0
@@ -200,8 +209,8 @@ internal object PlaylistMetadataRefresher {
 
         for (track in filtered) {
             current++
-            PlaylistMetadataRefreshNotifier.progress(context, current, total, track.title)
-            val probed = probeTrack(context, track)
+            notifier.update(current, total, track.title)
+            val probed = probeTrack(cacheDir, artworkCache, track)
             if (probed != null) {
                 succeeded++
                 state = mergeTrackPlaybackMetadata(
@@ -229,8 +238,6 @@ internal object PlaylistMetadataRefresher {
                 failedCount = failed
             )
         }
-
-        PlaylistMetadataRefreshNotifier.finish(context)
 
         val finalStatus = when {
             succeeded > 0 && failed == 0 -> PlaylistMetadataRefreshStatus.Success

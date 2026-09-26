@@ -1,5 +1,6 @@
 package com.flopster101.siliconplayer
 
+import com.flopster101.siliconplayer.platform.rotatePlaylistCoverFile
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull

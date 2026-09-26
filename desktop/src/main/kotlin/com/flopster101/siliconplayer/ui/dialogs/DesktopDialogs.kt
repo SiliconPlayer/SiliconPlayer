@@ -40,20 +40,6 @@ import com.flopster101.siliconplayer.platform.AudioOutputRouteInfo
 import java.io.File
 
 @Composable
-internal fun AddToPlaylistChooserDialog(
-    playlists: List<StoredPlaylist>,
-    favorites: List<PlaylistTrackEntry> = emptyList(),
-    showFavorites: Boolean = false,
-    pendingSources: Set<String>,
-    dialogTitle: String = "Add to playlist",
-    initialNewPlaylistTitle: String? = null,
-    onConfirm: (playlistId: String?, newTitle: String) -> Unit,
-    onRemoveFromPlaylist: (playlistId: String) -> Unit,
-    onDismiss: () -> Unit
-) {
-}
-
-@Composable
 internal fun AudioOutputDetailsDialog(
     routeInfo: AudioOutputRouteInfo,
     displayFile: File?,

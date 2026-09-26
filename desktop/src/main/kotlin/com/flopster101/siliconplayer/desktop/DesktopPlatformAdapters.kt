@@ -170,21 +170,24 @@ fun ProvideDesktopPlatformAdapters(
         }
     }
 
-    val artworkThumbnailLoader = remember {
+    val cacheDir = remember {
+        java.io.File(System.getProperty("user.home") ?: ".", ".siliconplayer/cache").also { it.mkdirs() }
+    }
+    val artworkThumbnailLoader = remember(cacheDir) {
+        val artworkCacheDir = desktopArtworkCacheDir(cacheDir)
         object : com.flopster101.siliconplayer.platform.ArtworkThumbnailLoader {
             override fun peek(cacheKey: String?) = null
             override suspend fun load(cacheKey: String?): androidx.compose.ui.graphics.ImageBitmap? {
                 if (cacheKey == null) return null
-                val file = java.io.File(cacheKey)
-                if (file.exists() && file.isFile) {
-                    val directImage = try {
-                        org.jetbrains.skia.Image.makeFromEncoded(file.readBytes()).toComposeImageBitmap()
-                    } catch (_: Throwable) {
-                        null
-                    }
-                    return directImage ?: DesktopArtworkSupport.loadArtworkForFile(file)
+                val file = java.io.File(cacheKey).takeIf { it.exists() && it.isFile }
+                    ?: java.io.File(artworkCacheDir, cacheKey).takeIf { it.exists() && it.isFile }
+                    ?: return null
+                val directImage = try {
+                    org.jetbrains.skia.Image.makeFromEncoded(file.readBytes()).toComposeImageBitmap()
+                } catch (_: Throwable) {
+                    null
                 }
-                return null
+                return directImage ?: DesktopArtworkSupport.loadArtworkForFile(file)
             }
             override val revision: kotlinx.coroutines.flow.StateFlow<Long> = kotlinx.coroutines.flow.MutableStateFlow(0L)
         }
@@ -198,10 +201,9 @@ fun ProvideDesktopPlatformAdapters(
         )
     }
 
-    val cacheDir = remember {
-        java.io.File(System.getProperty("user.home") ?: ".", ".siliconplayer/cache").also { it.mkdirs() }
-    }
     val remoteSourceExportSupport = rememberDesktopRemoteSourceExportSupport(cacheDir)
+    val artworkCacheSupport = rememberDesktopArtworkCacheSupport(cacheDir)
+    val playlistPlatformSupport = rememberDesktopPlaylistPlatformSupport(cacheDir)
 
     CompositionLocalProvider(
         LocalAppPreferences provides prefs,
@@ -219,6 +221,8 @@ fun ProvideDesktopPlatformAdapters(
         com.flopster101.siliconplayer.platform.LocalAppVersionInfo provides appVersionInfo,
         com.flopster101.siliconplayer.platform.LocalSettingsPlatformContent provides object : com.flopster101.siliconplayer.platform.SettingsPlatformContent {},
         com.flopster101.siliconplayer.platform.LocalAppCacheDir provides cacheDir,
+        com.flopster101.siliconplayer.platform.LocalArtworkCacheSupport provides artworkCacheSupport,
+        com.flopster101.siliconplayer.platform.LocalPlaylistPlatformSupport provides playlistPlatformSupport,
         com.flopster101.siliconplayer.platform.LocalRemoteSourceExportSupport provides { remoteSourceExportSupport },
         com.flopster101.siliconplayer.platform.LocalFileExportHandler provides com.flopster101.siliconplayer.platform.FileExportHandler { files ->
             val chooser = javax.swing.JFileChooser().apply {

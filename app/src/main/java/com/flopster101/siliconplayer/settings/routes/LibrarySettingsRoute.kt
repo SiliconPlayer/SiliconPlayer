@@ -61,6 +61,8 @@ import com.flopster101.siliconplayer.SettingsValuePickerCard
 import com.flopster101.siliconplayer.library.LibraryContract
 import com.flopster101.siliconplayer.library.LibraryRepository
 import com.flopster101.siliconplayer.library.LibraryScanRoot
+import com.flopster101.siliconplayer.platform.AndroidPlaylistRefreshNotifier
+import com.flopster101.siliconplayer.platform.LocalArtworkCacheSupport
 import com.flopster101.siliconplayer.readPlaylistLibraryState
 import com.flopster101.siliconplayer.PlaylistCoverGenerationMode
 import com.flopster101.siliconplayer.readPlaylistCoverGenerationMode
@@ -74,6 +76,8 @@ internal fun LibrarySettingsRouteContent(
 ) {
     val context = LocalContext.current
     val coroutineScope = rememberCoroutineScope()
+    val refreshNotifier = remember(context) { AndroidPlaylistRefreshNotifier(context) }
+    val artworkCache = LocalArtworkCacheSupport.current
     val prefs = remember(context) {
         context.getSharedPreferences(com.flopster101.siliconplayer.AppPreferenceKeys.PREFS_NAME, android.content.Context.MODE_PRIVATE)
     }
@@ -402,7 +406,9 @@ internal fun LibrarySettingsRouteContent(
                         showRefreshConfirmDialog = false
                         coroutineScope.launch {
                             PlaylistMetadataRefresher.refreshAllPlaylists(
-                                context = context,
+                                cacheDir = context.cacheDir,
+                                artworkCache = artworkCache,
+                                notifier = refreshNotifier,
                                 localOnly = localOnly,
                                 onStopPlayback = {
                                     context.startService(

@@ -1,6 +1,5 @@
 package com.flopster101.siliconplayer.ui.dialogs
 
-import android.os.Build
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -47,45 +46,18 @@ internal fun FilePickerChoiceSheet(
     onSelectBuiltIn: () -> Unit,
     onDismiss: () -> Unit
 ) {
-    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
-        ModalBottomSheet(
-            onDismissRequest = onDismiss,
-            sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
-        ) {
-            FilePickerChoiceContent(
-                title = title,
-                subtitle = subtitle,
-                onSelectSaf = onSelectSaf,
-                onSelectBuiltIn = onSelectBuiltIn,
-                onDismiss = onDismiss,
-                showCloseButton = false
-            )
-        }
-    } else {
-        Dialog(
-            onDismissRequest = onDismiss,
-            properties = DialogProperties(usePlatformDefaultWidth = false, dismissOnClickOutside = true)
-        ) {
-            Box(
-                modifier = Modifier.fillMaxSize(),
-                contentAlignment = Alignment.BottomCenter
-            ) {
-                Card(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(top = 48.dp)
-                ) {
-                    FilePickerChoiceContent(
-                        title = title,
-                        subtitle = subtitle,
-                        onSelectSaf = onSelectSaf,
-                        onSelectBuiltIn = onSelectBuiltIn,
-                        onDismiss = onDismiss,
-                        showCloseButton = true
-                    )
-                }
-            }
-        }
+    ModalBottomSheet(
+        onDismissRequest = onDismiss,
+        sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    ) {
+        FilePickerChoiceContent(
+            title = title,
+            subtitle = subtitle,
+            onSelectSaf = onSelectSaf,
+            onSelectBuiltIn = onSelectBuiltIn,
+            onDismiss = onDismiss,
+            showCloseButton = false
+        )
     }
 }
 

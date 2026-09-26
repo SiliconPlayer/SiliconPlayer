@@ -1,6 +1,6 @@
 package com.flopster101.siliconplayer
 
-import android.content.SharedPreferences
+import com.flopster101.siliconplayer.platform.AppPreferences
 import java.io.File
 import org.json.JSONArray
 import org.json.JSONObject
@@ -37,7 +37,7 @@ private const val FOLDER_PARENT_ID_KEY = "parent_folder_id"
 private const val FOLDER_CREATED_AT_KEY = "created_at_ms"
 private const val FOLDER_IS_PINNED_KEY = "is_pinned"
 
-internal fun readPlaylistLibraryState(prefs: SharedPreferences): PlaylistLibraryState {
+internal fun readPlaylistLibraryState(prefs: AppPreferences): PlaylistLibraryState {
     val raw = prefs.getString(AppPreferenceKeys.PLAYLIST_LIBRARY_JSON, null)
         ?.trim()
         .takeUnless { it.isNullOrBlank() }
@@ -64,7 +64,7 @@ internal fun readPlaylistLibraryState(prefs: SharedPreferences): PlaylistLibrary
 }
 
 internal fun writePlaylistLibraryState(
-    prefs: SharedPreferences,
+    prefs: AppPreferences,
     state: PlaylistLibraryState
 ) {
     val root = JSONObject()

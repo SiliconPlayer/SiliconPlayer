@@ -1,10 +1,6 @@
 package com.flopster101.siliconplayer.ui.screens
 
-import android.content.Context
 import com.flopster101.siliconplayer.PlaylistEntrySortMode
-import com.flopster101.siliconplayer.loadRecentArtworkThumbnail
-import com.flopster101.siliconplayer.peekRecentArtworkThumbnail
-import com.flopster101.siliconplayer.recentArtworkCacheRevision
 import com.flopster101.siliconplayer.PlaylistSortMode
 import com.flopster101.siliconplayer.formatSourceIdForDisplay
 import com.flopster101.siliconplayer.moveStoredPlaylist
@@ -16,16 +12,20 @@ import com.flopster101.siliconplayer.sortStoredPlaylists
 import com.flopster101.siliconplayer.NetworkNode
 import com.flopster101.siliconplayer.resolveSmbDisplayHost
 import com.flopster101.siliconplayer.sortPlaylistEntries
-import com.flopster101.siliconplayer.isRoundScreenCompat
-import android.net.Uri
-import android.graphics.BitmapFactory
-import androidx.activity.compose.BackHandler
-import androidx.activity.compose.rememberLauncherForActivityResult
-import androidx.activity.result.contract.ActivityResultContracts
-import com.flopster101.siliconplayer.exportPlaylistToUri
+import com.flopster101.siliconplayer.platform.AppPreferences
+import com.flopster101.siliconplayer.platform.ArtworkCacheSupport
+import com.flopster101.siliconplayer.platform.LocalAppCacheDir
+import com.flopster101.siliconplayer.platform.LocalAppPreferences
+import com.flopster101.siliconplayer.platform.LocalArtworkCacheSupport
+import com.flopster101.siliconplayer.platform.LocalArtworkThumbnailLoader
+import com.flopster101.siliconplayer.platform.LocalIsRoundScreen
+import com.flopster101.siliconplayer.platform.LocalIsWatchDevice
+import com.flopster101.siliconplayer.platform.LocalLibraryRepository
+import com.flopster101.siliconplayer.platform.LocalPlaylistPlatformSupport
+import com.flopster101.siliconplayer.platform.LocalToastHandler
+import com.flopster101.siliconplayer.platform.PlatformBackHandler
 import com.flopster101.siliconplayer.favoritesAsStoredPlaylist
-import com.flopster101.siliconplayer.sharePlaylist
-import com.flopster101.siliconplayer.suggestedPlaylistExportFileName
+import com.flopster101.siliconplayer.PlaylistExportFormat
 import androidx.compose.material.icons.filled.Save
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.animation.AnimatedContent
@@ -40,11 +40,8 @@ import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedIconButton
 import androidx.compose.material.icons.filled.FileOpen
 import androidx.compose.foundation.interaction.MutableInteractionSource
-import com.flopster101.siliconplayer.parsePlaylistDocumentFromUri
 import com.flopster101.siliconplayer.parsePlaylistDocument
 import com.flopster101.siliconplayer.duplicateStoredPlaylist
-import com.flopster101.siliconplayer.saveNormalizedPlaylistCover
-import com.flopster101.siliconplayer.rotatePlaylistCoverFile
 import com.flopster101.siliconplayer.ui.dialogs.ColorPickerDialog
 import com.flopster101.siliconplayer.isSupportedPlaylistFile
 import com.flopster101.siliconplayer.ParsedPlaylistDocument
@@ -106,7 +103,6 @@ import androidx.compose.foundation.lazy.grid.GridItemSpan
 import androidx.compose.foundation.lazy.grid.LazyGridState
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items as gridItems
-import android.content.pm.PackageManager
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.border
 import androidx.compose.foundation.verticalScroll
@@ -173,7 +169,6 @@ import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
-import androidx.compose.ui.platform.LocalConfiguration
 import com.flopster101.siliconplayer.WatchDialogContainer
 import com.flopster101.siliconplayer.HomePinnedEntry
 import com.flopster101.siliconplayer.samePath
@@ -215,7 +210,6 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.text.AnnotatedString
@@ -257,8 +251,6 @@ import com.flopster101.siliconplayer.getDescendantFolderIds
 import com.flopster101.siliconplayer.StoredPlaylist
 import com.flopster101.siliconplayer.appendStoredPlaylistEntries
 import com.flopster101.siliconplayer.decodePercentEncodedForDisplay
-import com.flopster101.siliconplayer.ensureRecentArtworkThumbnailCached
-import com.flopster101.siliconplayer.ensureRecentArtworkCached
 import com.flopster101.siliconplayer.inferredDisplayTitleForName
 import com.flopster101.siliconplayer.miniPlayerFabLift
 import com.flopster101.siliconplayer.parseHttpSourceSpecFromInput
@@ -266,9 +258,6 @@ import com.flopster101.siliconplayer.parseSmbSourceSpecFromInput
 import com.flopster101.siliconplayer.playlistContainsTrack
 import com.flopster101.siliconplayer.playlistEntryMatchesPlayback
 import com.flopster101.siliconplayer.placeholderArtworkIconForFile
-import com.flopster101.siliconplayer.peekCachedArtworkBitmapForSource
-import com.flopster101.siliconplayer.recentArtworkThumbnailFile
-import com.flopster101.siliconplayer.recentArtworkFile
 import com.flopster101.siliconplayer.resolvePlaylistEntryLocalFile
 import com.flopster101.siliconplayer.sourceLeafNameForDisplay
 import com.flopster101.siliconplayer.data.parseArchiveSourceId
@@ -277,30 +266,21 @@ import com.flopster101.siliconplayer.library.LibraryAlbumDetail
 import com.flopster101.siliconplayer.library.LibraryArtist
 import com.flopster101.siliconplayer.library.LibraryCollections
 import com.flopster101.siliconplayer.library.LibraryContract
-import com.flopster101.siliconplayer.library.LibraryRepository
 import com.flopster101.siliconplayer.library.LibrarySearchResults
 import com.flopster101.siliconplayer.library.LibrarySyncState
 import com.flopster101.siliconplayer.library.LibraryTrackEntity
-import com.flopster101.siliconplayer.loadArtworkForFile
-import com.flopster101.siliconplayer.loadLibraryThumbnail
-import com.flopster101.siliconplayer.peekLibraryThumbnail
 import androidx.compose.ui.graphics.ImageBitmap
 import com.flopster101.siliconplayer.NativeBridge
 import java.io.File
 import java.util.Locale
-import android.widget.Toast
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import android.content.SharedPreferences
 import androidx.compose.material.icons.filled.Palette
 import androidx.compose.material.icons.filled.Image
 import androidx.compose.ui.graphics.luminance
-import com.flopster101.siliconplayer.RECENT_ARTWORK_CACHE_DIR
-import com.flopster101.siliconplayer.sha1Hex
 import com.flopster101.siliconplayer.updateStoredPlaylistCover
-import java.io.FileOutputStream
 
 internal enum class PlaylistsSurfaceDestination {
     Library,
@@ -627,10 +607,15 @@ internal fun PlaylistsScreen(
     onDeleteStoredPlaylistEntries: (String, Set<String>) -> Unit = { _, _ -> },
     onPlaylistLibraryStateChanged: (PlaylistLibraryState) -> Unit = {}
 ) {
-    val context = LocalContext.current
-    val isWatch = remember(context) { context.packageManager.hasSystemFeature(PackageManager.FEATURE_WATCH) }
-    val configuration = LocalConfiguration.current
-    val isRound = configuration.isRoundScreenCompat || configuration.screenWidthDp == configuration.screenHeightDp
+    val isWatch = LocalIsWatchDevice.current
+    val isRound = LocalIsRoundScreen.current
+    val appCacheDir = LocalAppCacheDir.current
+    val prefs = LocalAppPreferences.current
+    val libraryRepository = LocalLibraryRepository.current
+    val artworkCache = LocalArtworkCacheSupport.current
+    val artworkThumbnailLoader = LocalArtworkThumbnailLoader.current
+    val playlistPlatform = LocalPlaylistPlatformSupport.current
+    val toastHandler = LocalToastHandler.current
 
     val scrollBehavior = TopAppBarDefaults.exitUntilCollapsedScrollBehavior()
     var destination by surfaceState.destinationState
@@ -638,15 +623,12 @@ internal fun PlaylistsScreen(
     var selectedPlaylistFolderId by surfaceState.selectedPlaylistFolderIdState
     var selectedTabIndex by surfaceState.selectedTabIndexState
     var albumCollectionLayout by surfaceState.albumCollectionLayoutState
-    val librarySyncState by LibraryRepository.scanState.collectAsState()
+    val librarySyncState by libraryRepository.scanState.collectAsState()
     var librarySearchActive by surfaceState.searchActiveState
     var librarySearchQuery by surfaceState.searchQueryState
     var librarySearchResults by surfaceState.searchResultsState
     var artistContentMode by surfaceState.artistContentModeState
     var artistAlbumLayout by surfaceState.artistAlbumLayoutState
-    val prefs = remember(context) {
-        context.getSharedPreferences(AppPreferenceKeys.PREFS_NAME, Context.MODE_PRIVATE)
-    }
     var libraryPlaylistSortMode by remember {
         mutableStateOf(
             PlaylistSortMode.fromStorage(
@@ -659,14 +641,14 @@ internal fun PlaylistsScreen(
     }
     val autoGenerateMosaics = coverGenerationMode != PlaylistCoverGenerationMode.Never
     DisposableEffect(prefs) {
-        val listener = SharedPreferences.OnSharedPreferenceChangeListener { _, key ->
+        val listener = AppPreferences.OnChangeListener { _, key ->
             if (key == AppPreferenceKeys.PLAYLIST_COVER_GENERATION_MODE || key == AppPreferenceKeys.PLAYLIST_AUTO_MOSAIC) {
                 coverGenerationMode = readPlaylistCoverGenerationMode(prefs)
             }
         }
-        prefs.registerOnSharedPreferenceChangeListener(listener)
+        prefs.addListener(listener)
         onDispose {
-            prefs.unregisterOnSharedPreferenceChangeListener(listener)
+            prefs.removeListener(listener)
         }
     }
     var playlistsEditModeEnabled by rememberSaveable { mutableStateOf(false) }
@@ -674,7 +656,7 @@ internal fun PlaylistsScreen(
     LaunchedEffect(selectedArtistName, destination) {
         val artistName = selectedArtistName
         if (destination == PlaylistsSurfaceDestination.ArtistDetail && artistName != null) {
-            surfaceState.artistTracksState.value = LibraryRepository.artistTracks(context, artistName)
+            surfaceState.artistTracksState.value = libraryRepository.artistTracks(artistName)
         }
     }
     var libraryContextTracks by remember { mutableStateOf<List<LibraryTrackEntity>?>(null) }
@@ -701,9 +683,10 @@ internal fun PlaylistsScreen(
     val coroutineScope = rememberCoroutineScope()
     val refreshPlaylistMetadataAction: (String) -> Unit = { plId ->
         coroutineScope.launch {
-            Toast.makeText(context, "Refreshing metadata…", Toast.LENGTH_SHORT).show()
+            toastHandler.showToast("Refreshing metadata…")
             val (succeeded, total) = PlaylistMetadataRefresher.refreshPlaylistTracks(
-                context = context,
+                cacheDir = appCacheDir,
+                artworkCache = artworkCache,
                 playlistId = plId,
                 targetEntryIds = null,
                 playlistLibraryStateProvider = { libraryState },
@@ -715,19 +698,20 @@ internal fun PlaylistsScreen(
                 succeeded > 0 -> "Refreshed $succeeded of $total tracks"
                 else -> "Failed to refresh metadata"
             }
-            Toast.makeText(context, msg, Toast.LENGTH_SHORT).show()
+            toastHandler.showToast(msg)
         }
     }
     val refreshTrackMetadataAction: (PlaylistTrackEntry) -> Unit = { entry ->
         coroutineScope.launch {
             val success = PlaylistMetadataRefresher.refreshSingleTrack(
-                context = context,
+                cacheDir = appCacheDir,
+                artworkCache = artworkCache,
                 entry = entry,
                 playlistLibraryState = libraryState,
                 onPlaylistLibraryStateChanged = onPlaylistLibraryStateChanged
             )
             val msg = if (success) "Metadata refreshed" else "Could not refresh metadata"
-            Toast.makeText(context, msg, Toast.LENGTH_SHORT).show()
+            toastHandler.showToast(msg)
         }
     }
     val libraryFavoriteKeySet = remember(libraryState.favorites) {
@@ -828,12 +812,12 @@ internal fun PlaylistsScreen(
             noun = "album",
             onAddToFavorites = {
                 coroutineScope.launch {
-                    onAddLibraryTracksToFavorites(LibraryRepository.albumTracks(context, album.rawName))
+                    onAddLibraryTracksToFavorites(libraryRepository.albumTracks(album.rawName))
                 }
             },
             onPin = {
                 coroutineScope.launch {
-                    val tracks = LibraryRepository.albumTracks(context, album.rawName)
+                    val tracks = libraryRepository.albumTracks(album.rawName)
                     val folders = libraryFolderPinsFor(tracks, album.rawName)
                     if (folders.size == 1) {
                         onPinLibraryEntries(folders)
@@ -843,7 +827,7 @@ internal fun PlaylistsScreen(
                 }
             },
             onAddToPlaylist = {
-                coroutineScope.launch { libraryContextTracks = LibraryRepository.albumTracks(context, album.rawName) }
+                coroutineScope.launch { libraryContextTracks = libraryRepository.albumTracks(album.rawName) }
             }
         )
     }
@@ -852,12 +836,12 @@ internal fun PlaylistsScreen(
             noun = "artist",
             onAddToFavorites = {
                 coroutineScope.launch {
-                    onAddLibraryTracksToFavorites(LibraryRepository.artistTracks(context, artist.name))
+                    onAddLibraryTracksToFavorites(libraryRepository.artistTracks(artist.name))
                 }
             },
             onPin = {
                 coroutineScope.launch {
-                    val tracks = LibraryRepository.artistTracks(context, artist.name)
+                    val tracks = libraryRepository.artistTracks(artist.name)
                     val folders = libraryFolderPinsFor(tracks, artist.name)
                     if (folders.size == 1) {
                         onPinLibraryEntries(folders)
@@ -867,7 +851,7 @@ internal fun PlaylistsScreen(
                 }
             },
             onAddToPlaylist = {
-                coroutineScope.launch { libraryContextTracks = LibraryRepository.artistTracks(context, artist.name) }
+                coroutineScope.launch { libraryContextTracks = libraryRepository.artistTracks(artist.name) }
             }
         )
     }
@@ -877,16 +861,16 @@ internal fun PlaylistsScreen(
             return@LaunchedEffect
         }
         delay(220)
-        librarySearchResults = LibraryRepository.search(context, librarySearchQuery)
+        librarySearchResults = libraryRepository.search(librarySearchQuery)
     }
     var libraryCollectionsOverride by remember { mutableStateOf<LibraryCollections?>(null) }
     val effectiveLibraryCollections = libraryCollectionsOverride ?: libraryCollections
     // Refresh the visible collections whenever a scan completes, regardless
     // of where it was started from.
     LaunchedEffect(Unit) {
-        LibraryRepository.scanState.collect { state ->
+        libraryRepository.scanState.collect { state ->
             if (!state.isScanning && state.lastSyncedAtMs > 0L) {
-                libraryCollectionsOverride = LibraryRepository.collections(context)
+                libraryCollectionsOverride = libraryRepository.collections()
             }
         }
     }
@@ -938,70 +922,25 @@ internal fun PlaylistsScreen(
     var folderPendingDelete by remember { mutableStateOf<PlaylistFolder?>(null) }
     var folderPendingMove by remember { mutableStateOf<PlaylistFolder?>(null) }
     var playlistPendingCoverCustomization by remember { mutableStateOf<StoredPlaylist?>(null) }
-    val coverImagePickerLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.OpenDocument()
-    ) { targetUri ->
-        val playlist = playlistPendingCoverCustomization ?: return@rememberLauncherForActivityResult
-        if (targetUri != null) {
-            val coversDir = File(context.filesDir, "playlist_covers")
-            if (!coversDir.exists()) coversDir.mkdirs()
-            val targetFile = File(coversDir, "${playlist.id}.jpg")
-            val success = saveNormalizedPlaylistCover(context, targetUri, targetFile)
-            if (success) {
-                val updatedState = updateStoredPlaylistCover(
-                    state = libraryState,
-                    playlistId = playlist.id,
-                    customArtworkUri = targetFile.absolutePath,
-                    iconTintArgb = playlist.iconTintArgb
-                )
-                onPlaylistLibraryStateChanged(updatedState)
-                playlistPendingCoverCustomization = updatedState.playlists.firstOrNull { it.id == playlist.id }
-            } else {
-                Toast.makeText(context, "Failed to load image", Toast.LENGTH_SHORT).show()
-            }
-        }
-    }
     var trackInfoDialogState by remember {
         mutableStateOf<PlaylistTrackInfoDialogState?>(null)
     }
-    var pendingExportPlaylist by remember { mutableStateOf<StoredPlaylist?>(null) }
-    val exportPlaylistLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.CreateDocument("audio/x-mpegurl")
-    ) { targetUri ->
-        val playlist = pendingExportPlaylist
-        pendingExportPlaylist = null
-        if (targetUri != null && playlist != null) {
-            val success = exportPlaylistToUri(context, targetUri, playlist)
-            if (success) {
-                Toast.makeText(context, "Exported ${playlist.title}", Toast.LENGTH_SHORT).show()
-            } else {
-                Toast.makeText(context, "Failed to export playlist", Toast.LENGTH_SHORT).show()
+    val onExportPlaylistAction: (StoredPlaylist) -> Unit = { playlist ->
+        coroutineScope.launch {
+            if (playlistPlatform.exportPlaylist(playlist, PlaylistExportFormat.M3U8)) {
+                toastHandler.showToast("Exported ${playlist.title}")
             }
         }
     }
-    val onExportPlaylistAction: (StoredPlaylist) -> Unit = { playlist ->
-        pendingExportPlaylist = playlist
-        exportPlaylistLauncher.launch(suggestedPlaylistExportFileName(playlist))
-    }
     val onSharePlaylistAction: (StoredPlaylist) -> Unit = { playlist ->
-        sharePlaylist(context, playlist)
+        coroutineScope.launch {
+            playlistPlatform.sharePlaylist(playlist, PlaylistExportFormat.M3U8)
+        }
     }
     var playlistFabExpanded by remember { mutableStateOf(false) }
     var pendingImportPlaylistDocument by remember { mutableStateOf<ParsedPlaylistDocument?>(null) }
     var showImportPickerChoiceSheet by remember { mutableStateOf(false) }
     var showBuiltInPlaylistPicker by remember { mutableStateOf(false) }
-    val importPlaylistLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.OpenDocument()
-    ) { targetUri ->
-        if (targetUri != null) {
-            val doc = parsePlaylistDocumentFromUri(context, targetUri)
-            if (doc != null && doc.entries.isNotEmpty()) {
-                pendingImportPlaylistDocument = doc
-            } else {
-                Toast.makeText(context, "No valid tracks found in playlist", Toast.LENGTH_SHORT).show()
-            }
-        }
-    }
     val detailSubtitle = when {
         showingFavoritesDetail -> "Favorites"
         showingStoredPlaylistDetail -> selectedStoredPlaylist?.title
@@ -1042,16 +981,16 @@ internal fun PlaylistsScreen(
             stack + destination
         }
     }
-    BackHandler(enabled = backHandlingEnabled && playlistFabExpanded) {
+    PlatformBackHandler(enabled = backHandlingEnabled && playlistFabExpanded) {
         playlistFabExpanded = false
     }
-    BackHandler(enabled = backHandlingEnabled && librarySearchActive) {
+    PlatformBackHandler(enabled = backHandlingEnabled && librarySearchActive) {
         librarySearchActive = false
         librarySearchQuery = ""
         keyboardController?.hide()
         librarySearchResults = LibrarySearchResults("", emptyList(), emptyList(), emptyList())
     }
-    BackHandler(
+    PlatformBackHandler(
         enabled = backHandlingEnabled &&
             destination == PlaylistsSurfaceDestination.Library &&
             playlistsEditModeEnabled &&
@@ -1061,7 +1000,7 @@ internal fun PlaylistsScreen(
         playlistsEditModeEnabled = false
         playlistsDraggingId = null
     }
-    BackHandler(
+    PlatformBackHandler(
         enabled = backHandlingEnabled &&
             destination == PlaylistsSurfaceDestination.Library &&
             selectedPlaylistFolderId != null &&
@@ -1071,18 +1010,18 @@ internal fun PlaylistsScreen(
         val currentFolder = libraryState.folders.firstOrNull { it.id == selectedPlaylistFolderId }
         selectedPlaylistFolderId = currentFolder?.parentFolderId
     }
-    BackHandler(enabled = backHandlingEnabled && showingPlaylistDetail) {
+    PlatformBackHandler(enabled = backHandlingEnabled && showingPlaylistDetail) {
         if (destination == PlaylistsSurfaceDestination.Favorites && favoritesEditModeEnabled) {
             favoritesEditModeEnabled = false
             favoritesSelectedEntryIds = emptySet()
             favoritesDraggingEntryId = null
-            return@BackHandler
+            return@PlatformBackHandler
         }
         if (destination == PlaylistsSurfaceDestination.StoredPlaylist && storedPlaylistEditModeEnabled) {
             storedPlaylistEditModeEnabled = false
             storedPlaylistSelectedEntryIds = emptySet()
             storedPlaylistDraggingEntryId = null
-            return@BackHandler
+            return@PlatformBackHandler
         }
         favoritesEditModeEnabled = false
         favoritesSelectedEntryIds = emptySet()
@@ -1334,7 +1273,7 @@ internal fun PlaylistsScreen(
                                 }
                                 IconButton(
                                     onClick = {
-                                        LibraryRepository.requestScan(context)
+                                        libraryRepository.requestScan()
                                     }
                                 ) {
                                     Icon(
@@ -1598,9 +1537,10 @@ internal fun PlaylistsScreen(
                                 onRefreshMetadata = {
                                     val targetIds = favoritesSelectedEntryIds
                                     coroutineScope.launch {
-                                        Toast.makeText(context, "Refreshing metadata…", Toast.LENGTH_SHORT).show()
+                                        toastHandler.showToast("Refreshing metadata…")
                                         val (succeeded, total) = PlaylistMetadataRefresher.refreshPlaylistTracks(
-                                            context = context,
+                                            cacheDir = appCacheDir,
+                                            artworkCache = artworkCache,
                                             playlistId = FAVORITES_PLAYLIST_ID,
                                             targetEntryIds = targetIds,
                                             playlistLibraryStateProvider = { libraryState },
@@ -1612,7 +1552,7 @@ internal fun PlaylistsScreen(
                                             succeeded > 0 -> "Refreshed $succeeded of $total tracks"
                                             else -> "Failed to refresh metadata"
                                         }
-                                        Toast.makeText(context, msg, Toast.LENGTH_SHORT).show()
+                                        toastHandler.showToast(msg)
                                     }
                                 },
                                 modifier = Modifier.align(Alignment.BottomCenter)
@@ -1752,9 +1692,10 @@ internal fun PlaylistsScreen(
                                         val targetIds = storedPlaylistSelectedEntryIds
                                         val targetPlaylistId = playlist.id
                                         coroutineScope.launch {
-                                            Toast.makeText(context, "Refreshing metadata…", Toast.LENGTH_SHORT).show()
+                                            toastHandler.showToast("Refreshing metadata…")
                                             val (succeeded, total) = PlaylistMetadataRefresher.refreshPlaylistTracks(
-                                                context = context,
+                                                cacheDir = appCacheDir,
+                                                artworkCache = artworkCache,
                                                 playlistId = targetPlaylistId,
                                                 targetEntryIds = targetIds,
                                                 playlistLibraryStateProvider = { libraryState },
@@ -1766,7 +1707,7 @@ internal fun PlaylistsScreen(
                                                 succeeded > 0 -> "Refreshed $succeeded of $total tracks"
                                                 else -> "Failed to refresh metadata"
                                             }
-                                            Toast.makeText(context, msg, Toast.LENGTH_SHORT).show()
+                                            toastHandler.showToast(msg)
                                         }
                                     },
                                     modifier = Modifier.align(Alignment.BottomCenter)
@@ -2232,7 +2173,11 @@ internal fun PlaylistsScreen(
                                                 enabled = playlistFabExpanded
                                             ) {
                                                 playlistFabExpanded = false
-                                                showImportPickerChoiceSheet = true
+                                                if (playlistPlatform.supportsSystemPicker) {
+                                                    showImportPickerChoiceSheet = true
+                                                } else {
+                                                    showBuiltInPlaylistPicker = true
+                                                }
                                             }
                                         ) {
                                             Surface(
@@ -2259,7 +2204,11 @@ internal fun PlaylistsScreen(
                                                 SmallFloatingActionButton(
                                                     onClick = {
                                                         playlistFabExpanded = false
-                                                        showImportPickerChoiceSheet = true
+                                                        if (playlistPlatform.supportsSystemPicker) {
+                                                            showImportPickerChoiceSheet = true
+                                                        } else {
+                                                            showBuiltInPlaylistPicker = true
+                                                        }
                                                     },
                                                     containerColor = MaterialTheme.colorScheme.secondaryContainer,
                                                     contentColor = MaterialTheme.colorScheme.onSecondaryContainer,
@@ -2784,7 +2733,16 @@ internal fun PlaylistsScreen(
             subtitle = "Choose how to browse for playlist files",
             onSelectSaf = {
                 showImportPickerChoiceSheet = false
-                importPlaylistLauncher.launch(arrayOf("*/*"))
+                coroutineScope.launch {
+                    val doc = playlistPlatform.pickPlaylistDocument()
+                    if (doc != null) {
+                        if (doc.entries.isNotEmpty()) {
+                            pendingImportPlaylistDocument = doc
+                        } else {
+                            toastHandler.showToast("No valid tracks found in playlist")
+                        }
+                    }
+                }
             },
             onSelectBuiltIn = {
                 showImportPickerChoiceSheet = false
@@ -2807,7 +2765,7 @@ internal fun PlaylistsScreen(
                 if (doc != null && doc.entries.isNotEmpty()) {
                     pendingImportPlaylistDocument = doc
                 } else {
-                    Toast.makeText(context, "No valid tracks found in playlist", Toast.LENGTH_SHORT).show()
+                    toastHandler.showToast("No valid tracks found in playlist")
                 }
             },
             onDismiss = { showBuiltInPlaylistPicker = false }
@@ -2847,11 +2805,7 @@ internal fun PlaylistsScreen(
                 pendingImportPlaylistDocument = null
                 selectedStoredPlaylistId = playlistId
                 destination = PlaylistsSurfaceDestination.StoredPlaylist
-                Toast.makeText(
-                    context,
-                    "Imported ${doc.entries.size} tracks into $title",
-                    Toast.LENGTH_SHORT
-                ).show()
+                toastHandler.showToast("Imported ${doc.entries.size} tracks into $title")
             },
             onDismiss = { pendingImportPlaylistDocument = null }
         )
@@ -3068,20 +3022,34 @@ internal fun PlaylistsScreen(
             playlist = playlist,
             onDismissRequest = { playlistPendingCoverCustomization = null },
             onPickImage = {
-                coverImagePickerLauncher.launch(arrayOf("image/*"))
+                coroutineScope.launch {
+                    val targetFile = File(playlistPlatform.coversDirectory, "${playlist.id}.jpg")
+                    if (playlistPlatform.pickCoverImage(targetFile)) {
+                        val updatedState = updateStoredPlaylistCover(
+                            state = libraryState,
+                            playlistId = playlist.id,
+                            customArtworkUri = targetFile.absolutePath,
+                            iconTintArgb = playlist.iconTintArgb
+                        )
+                        onPlaylistLibraryStateChanged(updatedState)
+                        playlistPendingCoverCustomization = updatedState.playlists.firstOrNull { it.id == playlist.id }
+                    }
+                }
             },
             onRotateImage = {
                 if (!playlist.customArtworkUri.isNullOrBlank()) {
                     val file = File(playlist.customArtworkUri)
-                    if (rotatePlaylistCoverFile(file, 90f)) {
-                        val updated = updateStoredPlaylistCover(
-                            state = libraryState,
-                            playlistId = playlist.id,
-                            customArtworkUri = playlist.customArtworkUri,
-                            iconTintArgb = playlist.iconTintArgb
-                        )
-                        onPlaylistLibraryStateChanged(updated)
-                        playlistPendingCoverCustomization = updated.playlists.firstOrNull { it.id == playlist.id }
+                    coroutineScope.launch {
+                        if (playlistPlatform.rotateCoverFile(file, 90f)) {
+                            val updated = updateStoredPlaylistCover(
+                                state = libraryState,
+                                playlistId = playlist.id,
+                                customArtworkUri = playlist.customArtworkUri,
+                                iconTintArgb = playlist.iconTintArgb
+                            )
+                            onPlaylistLibraryStateChanged(updated)
+                            playlistPendingCoverCustomization = updated.playlists.firstOrNull { it.id == playlist.id }
+                        }
                     }
                 }
             },
@@ -3170,7 +3138,7 @@ internal fun PlaylistsScreen(
                             addedAtMs = System.currentTimeMillis()
                         )
                         onAppendStoredPlaylistEntries(targetPlaylistId, listOf(entryToAdd))
-                        Toast.makeText(context, "Added to ${targetPlaylist.title}", Toast.LENGTH_SHORT).show()
+                        toastHandler.showToast("Added to ${targetPlaylist.title}")
                     }
                     if (isDuplicate) {
                         duplicateTrackPromptState = DuplicateTrackPromptState(
@@ -4038,6 +4006,7 @@ private fun LibraryLayoutToggleButton(
     }
 }
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun AlbumLibraryGridCard(
     album: LibraryAlbum,
@@ -4393,6 +4362,7 @@ private fun LibraryCollectionActionsMenu(
     }
 }
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun LibraryTrackListRow(
     position: Int,
@@ -4837,6 +4807,7 @@ private fun LibraryAlbumCompactRow(
     }
 }
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun LibraryArtistCompactRow(
     artist: LibraryArtist,
@@ -4902,16 +4873,14 @@ private fun AlbumArtworkBox(
     artworkPath: String?,
     modifier: Modifier = Modifier
 ) {
-    val context = LocalContext.current
+    val artworkCache = LocalArtworkCacheSupport.current
     var bitmap by remember(artworkPath) {
-        mutableStateOf(peekLibraryThumbnail(artworkPath))
+        mutableStateOf(artworkCache.peekLibraryArtwork(artworkPath))
     }
     LaunchedEffect(artworkPath) {
         if (bitmap != null) return@LaunchedEffect
         val path = artworkPath ?: return@LaunchedEffect
-        bitmap = withContext(Dispatchers.IO) {
-            loadLibraryThumbnail(context, path)
-        }
+        bitmap = artworkCache.loadLibraryArtwork(path)
     }
     val artwork = bitmap
     if (artwork != null) {
@@ -4971,6 +4940,7 @@ private fun LibraryFallbackArtworkIcon(
     )
 }
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun AlbumLibraryListRow(
     album: LibraryAlbum,
@@ -5035,6 +5005,7 @@ private fun AlbumLibraryListRow(
     }
 }
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun ArtistLibraryRow(
     artist: LibraryArtist,
@@ -6786,7 +6757,7 @@ internal fun PlaylistCoverArt(
     coverRevision: Long = 0L,
     isLarge: Boolean = false
 ) {
-    val context = LocalContext.current
+    val artworkCache = LocalArtworkCacheSupport.current
 
     val customBitmap = produceState<ImageBitmap?>(
         initialValue = null,
@@ -6797,19 +6768,11 @@ internal fun PlaylistCoverArt(
             value = null
             return@produceState
         }
-        value = withContext(Dispatchers.IO) {
-            try {
-                val file = File(customArtworkUri)
-                if (file.exists() && file.isFile && file.length() > 0L) {
-                    BitmapFactory.decodeFile(file.absolutePath)?.apply {
-                        setHasMipMap(true)
-                    }?.asImageBitmap()
-                } else {
-                    null
-                }
-            } catch (_: Throwable) {
-                null
-            }
+        val file = File(customArtworkUri)
+        value = if (file.exists() && file.isFile && file.length() > 0L) {
+            artworkCache.loadImageFile(file)
+        } else {
+            null
         }
     }.value
 
@@ -6827,14 +6790,12 @@ internal fun PlaylistCoverArt(
             value = emptyList()
             return@produceState
         }
-        value = withContext(Dispatchers.IO) {
-            resolvePlaylistCoverArtworks(
-                context = context,
-                entries = entries,
-                maxCount = 4,
-                preferLarge = isLarge
-            )
-        }
+        value = resolvePlaylistCoverArtworks(
+            artworkCache = artworkCache,
+            entries = entries,
+            maxCount = 4,
+            preferLarge = isLarge
+        )
     }.value
 
     val commonIcon = resolveCommonPlaylistFormatIcon(entries)
@@ -7022,15 +6983,14 @@ internal fun PlaylistCoverArt(
     }
 }
 
-internal fun resolvePlaylistCoverArtworks(
-    context: Context,
+internal suspend fun resolvePlaylistCoverArtworks(
+    artworkCache: ArtworkCacheSupport,
     entries: List<PlaylistTrackEntry>,
     maxCount: Int = 4,
     preferLarge: Boolean = false
 ): List<ImageBitmap> {
     val results = mutableListOf<ImageBitmap>()
     val seenArtworkKeys = mutableSetOf<String>()
-    val cacheRoot = File(context.cacheDir, RECENT_ARTWORK_CACHE_DIR)
 
     var checkedCount = 0
     for (entry in entries) {
@@ -7040,47 +7000,29 @@ internal fun resolvePlaylistCoverArtworks(
             break
         }
         val cacheKey = entry.artworkThumbnailCacheKey?.takeIf { it.isNotBlank() }
-            ?: run {
-                val normalized = normalizeSourceIdentity(entry.source)?.trim().orEmpty()
-                if (normalized.isNotBlank()) {
-                    val key = "${sha1Hex(normalized)}.jpg"
-                    if (File(cacheRoot, key).exists()) key else null
-                } else null
-            }
+            ?: artworkCache.peekGeneratedKey(entry.source)
         val effectiveKey = cacheKey ?: run {
             if (results.size < maxCount) {
-                ensureRecentArtworkCached(
-                    context = context,
-                    sourceId = entry.source,
-                    requireLarge = preferLarge
-                )
+                artworkCache.ensureArtworkCached(entry.source, preferLarge)
             } else null
         } ?: continue
 
         if (!seenArtworkKeys.add(effectiveKey)) continue
 
-        val file = recentArtworkFile(context, effectiveKey, preferLarge = preferLarge)
+        val file = artworkCache.cacheFile(effectiveKey, preferLarge)
             ?: if (preferLarge) {
-                ensureRecentArtworkCached(
-                    context = context,
-                    sourceId = entry.source,
-                    requireLarge = true
-                )
-                recentArtworkFile(context, effectiveKey, preferLarge = true)
+                artworkCache.ensureArtworkCached(entry.source, true)
+                artworkCache.cacheFile(effectiveKey, preferLarge = true)
             } else null
 
         if (file != null && file.exists() && file.isFile && file.length() > 0L) {
-            try {
-                val bitmap = BitmapFactory.decodeFile(file.absolutePath)?.apply {
-                    setHasMipMap(true)
+            val bitmap = artworkCache.loadImageFile(file)
+            if (bitmap != null) {
+                results.add(bitmap)
+                if (results.size >= maxCount) {
+                    break
                 }
-                if (bitmap != null) {
-                    results.add(bitmap.asImageBitmap())
-                    if (results.size >= maxCount) {
-                        break
-                    }
-                }
-            } catch (_: Throwable) {}
+            }
         }
     }
     return results
@@ -7235,10 +7177,7 @@ private fun PlaylistTrackRow(
     val localEntryFile = remember(entry.source) { resolvePlaylistEntryLocalFile(entry.source) }
     val canOpenLocalLocation = localEntryFile?.exists() == true
     var showPlayWith by rememberSaveable(entry.id) { mutableStateOf(false) }
-    val playWithContext = LocalContext.current
-    val playWithPrefs = remember(playWithContext) {
-        playWithContext.getSharedPreferences(AppPreferenceKeys.PREFS_NAME, Context.MODE_PRIVATE)
-    }
+    val playWithPrefs = LocalAppPreferences.current
     if (showPlayWith) {
         PlayWithDialog(
             file = localEntryFile ?: File(entry.source),
@@ -7970,13 +7909,14 @@ private fun PlaylistTrackArtworkChip(
     isActive: Boolean,
     isWatch: Boolean = false
 ) {
-    val context = LocalContext.current
+    val artworkCache = LocalArtworkCacheSupport.current
+    val artworkThumbnailLoader = LocalArtworkThumbnailLoader.current
     val fallbackIcon = placeholderArtworkIconForFile(
         file = resolvePlaylistEntryLocalFile(entry.source),
         decoderName = null,
         allowCurrentDecoderFallback = false
     )
-    val cacheRevision by recentArtworkCacheRevision.collectAsState()
+    val cacheRevision by artworkThumbnailLoader.revision.collectAsState()
     val artworkThumbnailCacheKey = androidx.compose.runtime.produceState<String?>(
         initialValue = entry.artworkThumbnailCacheKey,
         key1 = entry.id,
@@ -7987,31 +7927,19 @@ private fun PlaylistTrackArtworkChip(
             value = entry.artworkThumbnailCacheKey
             return@produceState
         }
-        value = withContext(Dispatchers.IO) {
-            ensureRecentArtworkThumbnailCached(
-                context = context,
-                sourceId = entry.source,
-                requestUrlHint = entry.requestUrlHint
-            )
-        }
+        value = artworkCache.ensureThumbnailCached(entry.source, entry.requestUrlHint)
     }.value
     val artwork = androidx.compose.runtime.produceState<androidx.compose.ui.graphics.ImageBitmap?>(
-        initialValue = peekRecentArtworkThumbnail(context, artworkThumbnailCacheKey),
+        initialValue = artworkThumbnailLoader.peek(artworkThumbnailCacheKey),
         key1 = artworkThumbnailCacheKey,
         key2 = cacheRevision
     ) {
-        val loaded = loadRecentArtworkThumbnail(context, artworkThumbnailCacheKey)
+        val loaded = artworkThumbnailLoader.load(artworkThumbnailCacheKey)
         if (loaded != null) {
             value = loaded
             return@produceState
         }
-        value = withContext(Dispatchers.IO) {
-            peekCachedArtworkBitmapForSource(
-                displayFile = null,
-                sourceId = entry.source,
-                requestUrl = entry.requestUrlHint
-            )?.asImageBitmap()
-        }
+        value = artworkCache.loadArtworkForSource(entry.source, entry.requestUrlHint)
     }.value
     val chipSize = if (isWatch) 32.dp else 46.dp
     val iconSize = if (isWatch) 18.dp else 28.dp
@@ -8202,6 +8130,7 @@ private fun FolderCollectionRow(
     )
 }
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun PlaylistLibraryFlatRow(
     modifier: Modifier = Modifier,
