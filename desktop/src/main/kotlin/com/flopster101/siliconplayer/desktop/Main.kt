@@ -119,6 +119,13 @@ import java.util.Locale
 import javax.swing.JFileChooser
 import javax.swing.SwingUtilities
 
+// Mini player docking: Android's MiniPlayerOverlayHost floats the bar 14.dp/6.dp inside the
+// content area, which itself ends above the navigation bar. Desktop windows have no navigation
+// bar, so DesktopNavigationBarInset supplies that gap explicitly.
+private val MiniPlayerDockHorizontalPadding = 14.dp
+private val MiniPlayerDockVerticalPadding = 6.dp
+private val DesktopNavigationBarInset = 16.dp
+
 fun openDesktopFileChooser(onFileSelected: (File) -> Unit) {
     SwingUtilities.invokeLater {
         val chooser = JFileChooser()
@@ -399,7 +406,11 @@ fun main(args: Array<String>) = application {
                                 settingsRoute = SettingsRoute.Root
                             }
                         ) { mainPadding, targetView ->
-                            val bottomMargin = if (session.currentFile != null) 72.dp else 0.dp
+                            val bottomMargin = if (session.currentFile != null) {
+                                72.dp + DesktopNavigationBarInset
+                            } else {
+                                0.dp
+                            }
                             Box(
                                 modifier = Modifier
                                     .fillMaxSize()
@@ -943,7 +954,13 @@ fun main(args: Array<String>) = application {
                         // Docked Mini Player
                         AnimatedVisibility(
                             visible = session.currentFile != null && !isPlayerExpanded,
-                            modifier = Modifier.align(Alignment.BottomCenter),
+                            modifier = Modifier
+                                .align(Alignment.BottomCenter)
+                                .padding(
+                                    horizontal = MiniPlayerDockHorizontalPadding,
+                                    vertical = MiniPlayerDockVerticalPadding
+                                )
+                                .padding(bottom = DesktopNavigationBarInset),
                             enter = slideInVertically(initialOffsetY = { it }) + fadeIn(),
                             exit = slideOutVertically(targetOffsetY = { it }) + fadeOut()
                         ) {
