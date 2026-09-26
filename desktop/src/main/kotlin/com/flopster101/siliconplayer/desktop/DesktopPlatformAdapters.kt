@@ -161,9 +161,11 @@ fun ProvideDesktopPlatformAdapters(
             isRound = false
         )
     }
-    val projectMOptionsProvider = remember {
+    val projectMOptionsProvider = remember(prefs) {
         object : ProjectMOptionsProvider {
-            override fun getEnabledPresetLabels(): Map<String, String> = emptyMap()
+            override fun getEnabledPresetLabels(): Map<String, String> {
+                return DesktopProjectMPresetSets.enabledSets(prefs).associate { it.id to it.label }
+            }
         }
     }
 

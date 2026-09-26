@@ -111,16 +111,28 @@ bool ProjectMVisualizer::initGl() {
     // preset would otherwise sample garbage until its first render completes.
     projectm_set_preset_start_clean(instance_, true);
 
-    if (!presets_.empty()) {
-        size_t startIndex = 0;
-        // Warm-cache reuse keeps the last live preset; resume it.
-        const std::string resumeKey = !currentPresetKey_.empty() ? currentPresetKey_ : startPresetKey_;
-        if (!resumeKey.empty()) {
-            const auto found = std::find(presetKeys_.begin(), presetKeys_.end(), resumeKey);
-            if (found != presetKeys_.end()) {
-                startIndex = static_cast<size_t>(found - presetKeys_.begin());
+    std::string resumeKey;
+    {
+        std::lock_guard<std::mutex> lock(commandMutex_);
+        resumeKey = !currentPresetKey_.empty() ? currentPresetKey_ : startPresetKey_;
+    }
+
+    size_t startIndex = 0;
+    bool hasPresets = false;
+    {
+        std::lock_guard<std::mutex> lock(presetListMutex_);
+        if (!presets_.empty()) {
+            hasPresets = true;
+            if (!resumeKey.empty()) {
+                const auto found = std::find(presetKeys_.begin(), presetKeys_.end(), resumeKey);
+                if (found != presetKeys_.end()) {
+                    startIndex = static_cast<size_t>(found - presetKeys_.begin());
+                }
             }
         }
+    }
+
+    if (hasPresets) {
         loadPresetAt(startIndex, false);
     } else {
         loadIdlePreset();
@@ -231,11 +243,14 @@ void ProjectMVisualizer::ensureOffscreenTarget(int32_t w, int32_t h) {
     glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, w, h, 0, GL_RGBA, GL_UNSIGNED_BYTE, nullptr);
     glBindTexture(GL_TEXTURE_2D, 0);
 
+    GLint prevFbo = 0;
+    glGetIntegerv(GL_FRAMEBUFFER_BINDING, &prevFbo);
+
     glGenFramebuffers(1, &offscreenFbo_);
     glBindFramebuffer(GL_FRAMEBUFFER, offscreenFbo_);
     glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, offscreenTex_, 0);
     const GLenum status = glCheckFramebufferStatus(GL_FRAMEBUFFER);
-    glBindFramebuffer(GL_FRAMEBUFFER, 0);
+    glBindFramebuffer(GL_FRAMEBUFFER, static_cast<GLuint>(prevFbo));
     if (status != GL_FRAMEBUFFER_COMPLETE) {
         releaseOffscreen();
         return;
@@ -321,6 +336,10 @@ void ProjectMVisualizer::render() {
         nextPreset(true);
     }
 
+    GLint currentFbo = 0;
+    glGetIntegerv(GL_FRAMEBUFFER_BINDING, &currentFbo);
+    const GLuint destFbo = static_cast<GLuint>(currentFbo);
+
     const bool useOffscreen = renderWidth_ > 0 && renderHeight_ > 0 &&
                               (renderWidth_ != widthPx_ || renderHeight_ != heightPx_);
     if (useOffscreen) {
@@ -334,14 +353,14 @@ void ProjectMVisualizer::render() {
             projectm_opengl_render_frame_fbo(instance_, offscreenFbo_);
 
             // Blit the capped texture scaled up to fill the full surface.
-            glBindFramebuffer(GL_FRAMEBUFFER, 0);
+            glBindFramebuffer(GL_FRAMEBUFFER, destFbo);
             glViewport(0, 0, widthPx_, heightPx_);
             blitOffscreenToSurface();
             return;
         }
     }
 
-    projectm_opengl_render_frame(instance_);
+    projectm_opengl_render_frame_fbo(instance_, destFbo);
 }
 
 void ProjectMVisualizer::releaseGl() {
@@ -358,15 +377,15 @@ void ProjectMVisualizer::releaseGl() {
 }
 
 void ProjectMVisualizer::setPresetSets(const std::vector<std::pair<std::string, std::string>>& sets) {
-    sets_ = sets;
+    {
+        std::lock_guard<std::mutex> lock(presetListMutex_);
+        sets_ = sets;
+    }
     scanPresetSets();
 
     if (instance_) {
-        if (!presets_.empty()) {
-            loadPresetAt(0, true);
-        } else {
-            loadIdlePreset();
-        }
+        std::lock_guard<std::mutex> lock(commandMutex_);
+        pendingCommands_.push_back({PresetCommand::Type::Load, true, startPresetKey_.empty() ? "" : startPresetKey_});
     }
 }
 
@@ -403,8 +422,8 @@ void ProjectMVisualizer::setPresetKeys(const std::vector<std::pair<std::string, 
         }
     }
     if (instance_) {
-        if (!presets_.empty()) loadPresetAt(0, true);
-        else loadIdlePreset();
+        std::lock_guard<std::mutex> lock(commandMutex_);
+        pendingCommands_.push_back({PresetCommand::Type::Load, true, startPresetKey_.empty() ? "" : startPresetKey_});
     }
 }
 
@@ -553,40 +572,73 @@ void ProjectMVisualizer::drainCommands() {
 
     for (const auto& command : commands) {
         if (command.type == PresetCommand::Type::Load) {
-            const auto found = std::find(presetKeys_.begin(), presetKeys_.end(), command.key);
-            if (found != presetKeys_.end()) {
-                loadPresetAt(static_cast<size_t>(found - presetKeys_.begin()), command.smooth);
+            size_t targetIndex = 0;
+            bool foundPreset = false;
+            {
+                std::lock_guard<std::mutex> lock(presetListMutex_);
+                if (!command.key.empty()) {
+                    const auto found = std::find(presetKeys_.begin(), presetKeys_.end(), command.key);
+                    if (found != presetKeys_.end()) {
+                        targetIndex = static_cast<size_t>(found - presetKeys_.begin());
+                        foundPreset = true;
+                    }
+                } else if (!presets_.empty()) {
+                    foundPreset = true;
+                }
+            }
+            if (foundPreset) {
+                loadPresetAt(targetIndex, command.smooth);
+            } else {
+                loadIdlePreset();
             }
             continue;
         }
-        if (presets_.empty()) {
+
+        size_t count = 0;
+        {
+            std::lock_guard<std::mutex> lock(presetListMutex_);
+            count = presets_.size();
+        }
+
+        if (count == 0) {
             loadIdlePreset();
             continue;
         }
-        if (rotationRandom_ && presets_.size() > 1) {
+
+        if (rotationRandom_ && count > 1) {
             size_t next = presetIndex_;
-            while (next == presetIndex_) next = static_cast<size_t>(rand()) % presets_.size();
+            while (next == presetIndex_) next = static_cast<size_t>(rand()) % count;
             loadPresetAt(next, command.smooth);
         } else if (command.type == PresetCommand::Type::Next) {
-            loadPresetAt((presetIndex_ + 1) % presets_.size(), command.smooth);
+            loadPresetAt((presetIndex_ + 1) % count, command.smooth);
         } else {
-            loadPresetAt((presetIndex_ + presets_.size() - 1) % presets_.size(), command.smooth);
+            loadPresetAt((presetIndex_ + count - 1) % count, command.smooth);
         }
     }
 }
 
 void ProjectMVisualizer::loadPresetAt(size_t index, bool smoothTransition) {
-    if (!instance_ || presets_.empty()) return;
-    presetIndex_ = index % presets_.size();
-    const PresetEntry& entry = presets_[presetIndex_];
-    const std::string setDir = dirForSet(entry.setId);
-    const std::string fullPath = setDir.empty() ? entry.relativePath : setDir + "/" + entry.relativePath;
+    std::string fullPath;
+    std::string relPath;
+    std::string setId;
+    {
+        std::lock_guard<std::mutex> lock(presetListMutex_);
+        if (presets_.empty()) return;
+        presetIndex_ = index % presets_.size();
+        const PresetEntry& entry = presets_[presetIndex_];
+        relPath = entry.relativePath;
+        setId = entry.setId;
+        const std::string setDir = dirForSet(setId);
+        fullPath = setDir.empty() ? relPath : setDir + "/" + relPath;
+    }
+
+    if (!instance_ || fullPath.empty()) return;
     projectm_load_preset_file(instance_, fullPath.c_str(), smoothTransition);
 
     {
         std::lock_guard<std::mutex> lock(commandMutex_);
-        currentPresetName_ = displayNameFor(entry.relativePath);
-        currentPresetKey_ = makeKey(entry.setId, entry.relativePath);
+        currentPresetName_ = displayNameFor(relPath);
+        currentPresetKey_ = makeKey(setId, relPath);
     }
     presetStartedAt_ = std::chrono::steady_clock::now();
 }

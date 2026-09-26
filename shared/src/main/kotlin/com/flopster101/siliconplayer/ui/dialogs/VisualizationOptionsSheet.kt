@@ -4,53 +4,46 @@ import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
-import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.ExpandLess
+import androidx.compose.material.icons.filled.ExpandMore
+import androidx.compose.material.icons.filled.Remove
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.SkipNext
 import androidx.compose.material.icons.filled.SkipPrevious
 import androidx.compose.material3.AlertDialog
-import androidx.compose.foundation.interaction.MutableInteractionSource
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.ui.window.Dialog
-import androidx.compose.ui.window.DialogProperties
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.ModalBottomSheet
-import androidx.compose.material3.rememberModalBottomSheetState
-import androidx.compose.material.icons.filled.ExpandLess
-import androidx.compose.material.icons.filled.ExpandMore
-import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.Remove
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
-import androidx.compose.material3.Slider
-import androidx.compose.material3.SliderDefaults
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedIconButton
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Slider
+import androidx.compose.material3.SliderDefaults
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import com.flopster101.siliconplayer.AppDefaults
+import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -62,29 +55,34 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import android.content.Context
-import android.os.Build
-import androidx.compose.ui.platform.LocalContext
+import com.flopster101.siliconplayer.AppDefaults
 import com.flopster101.siliconplayer.AppPreferenceKeys
 import com.flopster101.siliconplayer.ChoiceDialogOption
-import com.flopster101.siliconplayer.StarfieldPreset
-import com.flopster101.siliconplayer.ui.screens.starfieldActivePreset
-import com.flopster101.siliconplayer.ui.screens.starfieldKeysFor
-import com.flopster101.siliconplayer.ui.screens.starfieldPresetTuneFor
-import java.util.Locale
 import com.flopster101.siliconplayer.SettingsSingleChoiceDialog
 import com.flopster101.siliconplayer.SettingsValuePickerCard
+import com.flopster101.siliconplayer.StarfieldPreset
 import com.flopster101.siliconplayer.VisualizationChannelScopeTrackTransition
 import com.flopster101.siliconplayer.VisualizationChannelScopeWaveRenderMode
 import com.flopster101.siliconplayer.VisualizationMode
-import com.flopster101.siliconplayer.ui.visualization.gl.ProjectMPresetSets
+import com.flopster101.siliconplayer.platform.LocalAppPreferences
+import com.flopster101.siliconplayer.ui.screens.starfieldActivePreset
+import com.flopster101.siliconplayer.ui.screens.starfieldKeysFor
+import com.flopster101.siliconplayer.ui.screens.starfieldPresetTuneFor
 import com.flopster101.siliconplayer.ui.visualization.gl.SiliconVisNativeBridge
 import kotlinx.coroutines.delay
+import java.util.Locale
+
+private fun splitPresetKey(key: String): Pair<String, String> {
+    val idx = key.indexOf('\u001F')
+    if (idx < 0) return key to ""
+    return key.substring(0, idx) to key.substring(idx + 1)
+}
 
 private fun presetKeyRelativePath(key: String): String {
-    return ProjectMPresetSets.splitKey(key).second
+    return splitPresetKey(key).second
 }
 
 private fun presetDisplayName(key: String): String {
@@ -98,9 +96,6 @@ private sealed class PresetListRow {
     data class Item(val key: String) : PresetListRow()
 }
 
-/**
- * Content-height options sheet for the selected visualizer.
- */
 @Composable
 @OptIn(ExperimentalMaterial3Api::class)
 internal fun VisualizationOptionsSheet(
@@ -118,48 +113,24 @@ internal fun VisualizationOptionsSheet(
     onDismiss: () -> Unit,
     resetNonce: Int = 0
 ) {
-    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
-        ModalBottomSheet(
-            onDismissRequest = onDismiss,
-            sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = false)
-        ) {
-            OptionsSheetContent(mode, globalInputGain, onGlobalInputGainChange, trackInputGain, onTrackInputGainChange, showChannelLabels, onShowChannelLabelsChange, savedProjectMPreset, onProjectMPresetSelected, presetSetLabels, onResetDefaults, resetNonce)
-        }
-    } else {
-        Dialog(
-            onDismissRequest = onDismiss,
-            properties = DialogProperties(usePlatformDefaultWidth = false, dismissOnClickOutside = true)
-        ) {
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .clickable(
-                        interactionSource = remember { MutableInteractionSource() },
-                        indication = null,
-                        onClick = onDismiss
-                    ),
-                contentAlignment = Alignment.BottomCenter
-            ) {
-                Card(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .fillMaxHeight(0.85f)
-                        .padding(top = 48.dp)
-                        .clickable(
-                            interactionSource = remember { MutableInteractionSource() },
-                            indication = null,
-                            onClick = {}
-                        ),
-                    shape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp),
-                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer)
-                ) {
-                    Column(modifier = Modifier.fillMaxWidth().padding(top = 12.dp)) {
-                        Box(modifier = Modifier.align(Alignment.CenterHorizontally).padding(bottom = 8.dp).size(width = 36.dp, height = 4.dp).background(MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f), RoundedCornerShape(2.dp)))
-                        OptionsSheetContent(mode, globalInputGain, onGlobalInputGainChange, trackInputGain, onTrackInputGainChange, showChannelLabels, onShowChannelLabelsChange, savedProjectMPreset, onProjectMPresetSelected, presetSetLabels, onResetDefaults, resetNonce)
-                    }
-                }
-            }
-        }
+    ModalBottomSheet(
+        onDismissRequest = onDismiss,
+        sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = false)
+    ) {
+        OptionsSheetContent(
+            mode = mode,
+            globalInputGain = globalInputGain,
+            onGlobalInputGainChange = onGlobalInputGainChange,
+            trackInputGain = trackInputGain,
+            onTrackInputGainChange = onTrackInputGainChange,
+            showChannelLabels = showChannelLabels,
+            onShowChannelLabelsChange = onShowChannelLabelsChange,
+            savedProjectMPreset = savedProjectMPreset,
+            onProjectMPresetSelected = onProjectMPresetSelected,
+            presetSetLabels = presetSetLabels,
+            onResetDefaults = onResetDefaults,
+            resetNonce = resetNonce
+        )
     }
 }
 
@@ -178,64 +149,64 @@ private fun OptionsSheetContent(
     onResetDefaults: () -> Unit,
     resetNonce: Int = 0
 ) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .navigationBarsPadding()
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 24.dp, vertical = 4.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                text = "${mode.label} options",
+                style = MaterialTheme.typography.titleLarge,
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.onSurface
+            )
+        }
+
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .navigationBarsPadding()
+                .verticalScroll(rememberScrollState())
+                .padding(horizontal = 20.dp, vertical = 8.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 24.dp, vertical = 4.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text(
-                    text = "${mode.label} options",
-                    style = MaterialTheme.typography.titleLarge,
-                    fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.onSurface
+            when (mode) {
+                VisualizationMode.ChannelScope -> ChannelScopeOptionsContent(
+                    globalInputGain = globalInputGain,
+                    onGlobalInputGainChange = onGlobalInputGainChange,
+                    trackInputGain = trackInputGain,
+                    onTrackInputGainChange = onTrackInputGainChange,
+                    showChannelLabels = showChannelLabels,
+                    onShowChannelLabelsChange = onShowChannelLabelsChange
                 )
+                VisualizationMode.ProjectM -> ProjectMOptionsContent(
+                    savedPreset = savedProjectMPreset,
+                    onPresetSelected = onProjectMPresetSelected,
+                    setLabels = presetSetLabels
+                )
+                VisualizationMode.Starfield -> StarfieldOptionsContent(
+                    resetNonce = resetNonce
+                )
+                else -> Unit
             }
 
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .verticalScroll(rememberScrollState())
-                    .padding(horizontal = 20.dp, vertical = 8.dp),
-                verticalArrangement = Arrangement.spacedBy(16.dp)
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.End
             ) {
-                when (mode) {
-                    VisualizationMode.ChannelScope -> ChannelScopeOptionsContent(
-                        globalInputGain = globalInputGain,
-                        onGlobalInputGainChange = onGlobalInputGainChange,
-                        trackInputGain = trackInputGain,
-                        onTrackInputGainChange = onTrackInputGainChange,
-                        showChannelLabels = showChannelLabels,
-                        onShowChannelLabelsChange = onShowChannelLabelsChange
-                    )
-                    VisualizationMode.ProjectM -> ProjectMOptionsContent(
-                        savedPreset = savedProjectMPreset,
-                        onPresetSelected = onProjectMPresetSelected,
-                        setLabels = presetSetLabels
-                    )
-                    VisualizationMode.Starfield -> StarfieldOptionsContent(
-                        resetNonce = resetNonce
-                    )
-                    else -> Unit
-                }
-
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.End
-                ) {
-                    DialogResetButton(text = "Reset defaults", onClick = onResetDefaults)
-                }
-
-                Spacer(modifier = Modifier.height(12.dp))
+                DialogResetButton(text = "Reset defaults", onClick = onResetDefaults)
             }
+
+            Spacer(modifier = Modifier.height(12.dp))
         }
     }
+}
 
 @Composable
 private fun ChannelScopeOptionsContent(
@@ -246,8 +217,7 @@ private fun ChannelScopeOptionsContent(
     showChannelLabels: Boolean,
     onShowChannelLabelsChange: (Boolean) -> Unit
 ) {
-    val context = LocalContext.current
-    val prefs = remember(context) { context.getSharedPreferences(AppPreferenceKeys.PREFS_NAME, Context.MODE_PRIVATE) }
+    val prefs = LocalAppPreferences.current
     var waveRenderMode by remember {
         mutableStateOf(
             VisualizationChannelScopeWaveRenderMode.fromStorage(
@@ -273,26 +243,24 @@ private fun ChannelScopeOptionsContent(
 
     Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
         DialogIntSliderRow(
-            title = "Global input gain",
-            value = globalInputGain,
-            valueRange = 25..1000,
-            step = 25,
-            dragSnap = 5,
-            unitLabel = "%",
-            onValueChange = onGlobalInputGainChange
-        )
-        DialogIntSliderRow(
-            title = "Track input gain",
+            title = "Gain (current track)",
             value = trackInputGain,
-            valueRange = 25..1000,
-            step = 25,
-            dragSnap = 5,
+            valueRange = 10..500,
+            step = 5,
             unitLabel = "%",
             onValueChange = onTrackInputGainChange
         )
+        DialogIntSliderRow(
+            title = "Gain (all tracks)",
+            value = globalInputGain,
+            valueRange = 10..500,
+            step = 5,
+            unitLabel = "%",
+            onValueChange = onGlobalInputGainChange
+        )
         DialogToggleRow(
-            title = "Show channel labels",
-            subtitle = "Display track index, notes, and instruments",
+            title = "Channel labels",
+            subtitle = "Show channel label overlay",
             checked = showChannelLabels,
             onCheckedChange = onShowChannelLabelsChange
         )
@@ -434,8 +402,7 @@ private fun snapSheetSliderToStep(floatVal: Float, valueRange: IntRange, snap: I
 
 @Composable
 private fun StarfieldOptionsContent(resetNonce: Int) {
-    val context = LocalContext.current
-    val prefs = remember(context) { context.getSharedPreferences(AppPreferenceKeys.PREFS_NAME, Context.MODE_PRIVATE) }
+    val prefs = LocalAppPreferences.current
     val d = AppDefaults.Visualization.Starfield
     var activePreset by remember(resetNonce) { mutableStateOf(starfieldActivePreset(prefs)) }
     val tune = starfieldPresetTuneFor(activePreset)
@@ -553,8 +520,7 @@ private fun ProjectMOptionsContent(
     onPresetSelected: (String) -> Unit,
     setLabels: Map<String, String>
 ) {
-    val context = LocalContext.current
-    val prefs = remember(context) { context.getSharedPreferences("silicon_player_settings", Context.MODE_PRIVATE) }
+    val prefs = LocalAppPreferences.current
     var randomStart by remember { mutableStateOf(prefs.getBoolean(AppPreferenceKeys.VISUALIZATION_PROJECTM_RANDOM_START, true)) }
     var presetDuration by remember { mutableStateOf(prefs.getString(AppPreferenceKeys.VISUALIZATION_PROJECTM_PRESET_DURATION_SECONDS, AppDefaults.Visualization.ProjectM.presetDurationSeconds.toString())?.toDoubleOrNull() ?: AppDefaults.Visualization.ProjectM.presetDurationSeconds) }
     var hardCutEnabled by remember { mutableStateOf(prefs.getBoolean(AppPreferenceKeys.VISUALIZATION_PROJECTM_HARD_CUT_ENABLED, AppDefaults.Visualization.ProjectM.hardCutEnabled)) }
@@ -619,7 +585,7 @@ private fun ProjectMOptionsContent(
                     color = MaterialTheme.colorScheme.onSurface,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
-                    textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                    textAlign = TextAlign.Center,
                     modifier = Modifier
                         .weight(1f)
                         .clip(RoundedCornerShape(10.dp))
@@ -719,8 +685,8 @@ private fun ProjectMOptionsContent(
         }
         var searchQuery by remember { mutableStateOf("") }
         var debouncedQuery by remember { mutableStateOf("") }
-        androidx.compose.runtime.LaunchedEffect(searchQuery) {
-            kotlinx.coroutines.delay(300)
+        LaunchedEffect(searchQuery) {
+            delay(300)
             debouncedQuery = searchQuery
         }
         val filteredIndices = remember(presetKeys, debouncedQuery) {
@@ -736,7 +702,7 @@ private fun ProjectMOptionsContent(
             val rows = mutableListOf<PresetListRow>()
             var lastSet: String? = null
             for (i in filteredIndices) {
-                val setId = presetSetIds.getOrElse(i) { ProjectMPresetSets.splitKey(presetKeys[i]).first }
+                val setId = presetSetIds.getOrElse(i) { splitPresetKey(presetKeys[i]).first }
                 if (setId != lastSet) {
                     rows.add(PresetListRow.Header(setId, setLabels[setId] ?: setId))
                     lastSet = setId
@@ -746,7 +712,7 @@ private fun ProjectMOptionsContent(
             rows
         }
         val currentSetId = remember(currentPresetKey) {
-            currentPresetKey?.let { ProjectMPresetSets.splitKey(it).first }
+            currentPresetKey?.let { splitPresetKey(it).first }
         }
         var collapsedSets by remember(presetKeys, currentSetId) {
             val allIds = presetSetIds.distinct()
@@ -773,7 +739,7 @@ private fun ProjectMOptionsContent(
         val currentDisplayedIndex = remember(displayedRows, currentPresetKey) {
             displayedRows.indexOfFirst { it is PresetListRow.Item && it.key == currentPresetKey }
         }
-        androidx.compose.runtime.LaunchedEffect(currentDisplayedIndex) {
+        LaunchedEffect(currentDisplayedIndex) {
             if (currentDisplayedIndex >= 0) listState.scrollToItem(currentDisplayedIndex)
         }
         AlertDialog(

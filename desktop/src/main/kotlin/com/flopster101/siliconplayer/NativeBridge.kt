@@ -15,6 +15,22 @@ object NativeBridge {
 
     private fun loadNativeLibraries() {
         try {
+            System.loadLibrary("projectM-4")
+        } catch (_: Throwable) {
+            val candidates = listOf(
+                File("desktop/prebuilt/x86_64/lib/libprojectM-4.so"),
+                File("../desktop/prebuilt/x86_64/lib/libprojectM-4.so"),
+                File("external/projectm/build_host/src/libprojectM/libprojectM-4.so"),
+                File("../external/projectm/build_host/src/libprojectM/libprojectM-4.so"),
+                File("desktop/build/native/projectm/src/libprojectM/libprojectM-4.so")
+            )
+            val found = candidates.firstOrNull { it.exists() && it.isFile }
+            if (found != null) {
+                try { System.load(found.absolutePath) } catch (_: Throwable) {}
+            }
+        }
+
+        try {
             System.loadLibrary("siliconplayer_desktop")
             return
         } catch (e: UnsatisfiedLinkError) {
@@ -435,5 +451,5 @@ object NativeBridge {
     }
 }
 
-fun supportsProjectM(): Boolean = false
+fun supportsProjectM(): Boolean = true
 

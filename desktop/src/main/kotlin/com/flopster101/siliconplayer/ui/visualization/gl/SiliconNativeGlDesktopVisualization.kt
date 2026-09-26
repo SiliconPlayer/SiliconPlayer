@@ -18,12 +18,19 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.IntSize
+import com.flopster101.siliconplayer.AppDefaults
+import com.flopster101.siliconplayer.AppPreferenceKeys
 import com.flopster101.siliconplayer.NativeBridge
 import com.flopster101.siliconplayer.VisualizationChannelScopeLayout
 import com.flopster101.siliconplayer.VisualizationChannelScopeTextAnchor
 import com.flopster101.siliconplayer.VisualizationChannelScopeTextFont
 import com.flopster101.siliconplayer.VisualizationNoteNameFormat
+import com.flopster101.siliconplayer.VisualizationOscFpsMode
+import com.flopster101.siliconplayer.VisualizationProjectMResolutionMode
 import com.flopster101.siliconplayer.VisualizationVuAnchor
+import com.flopster101.siliconplayer.desktop.DesktopProjectMPresetSets
+import com.flopster101.siliconplayer.platform.AppPreferences
+import com.flopster101.siliconplayer.platform.LocalAppPreferences
 import com.flopster101.siliconplayer.ui.visualization.channel.ChannelScopeChannelTextState
 import org.jetbrains.skia.ColorAlphaType
 import org.jetbrains.skia.ColorInfo
@@ -142,10 +149,11 @@ data class SiliconNativeGlFrame(
 )
 
 private class SiliconNativeDesktopRenderThread(
+    private val prefs: AppPreferences,
     private val density: Float,
     private val onFrameAvailable: (ImageBitmap) -> Unit,
     private val onFrameStats: ((fps: Int, frameMs: Int) -> Unit)?
-) : Thread("SiliconNativeDesktopRenderThread") {
+) : Thread(null, null, "SiliconNativeDesktopRenderThread", 8L * 1024 * 1024) {
 
     @Volatile
     private var running = true
@@ -191,6 +199,11 @@ private class SiliconNativeDesktopRenderThread(
 
         var lastArtwork: ImageBitmap? = null
         var lastTextFontKey = ""
+
+        var projectMAttached = false
+        var projectMSawStopped = false
+        var projectMStoppedTrackEmpty = false
+        var projectMTargetFps = 30
 
         var currentBufW = 0
         var currentBufH = 0
@@ -261,6 +274,84 @@ private class SiliconNativeDesktopRenderThread(
                             }
                         } else {
                             SiliconVisNativeBridge.nativeClearArtwork(visHandle)
+                        }
+                    }
+
+                    if (frame.mode == 100 && !projectMAttached) {
+                        val enabledSets = DesktopProjectMPresetSets.enabledSets(prefs)
+                        if (enabledSets.isNotEmpty()) {
+                            val setIds = enabledSets.map { it.id }.toTypedArray()
+                            val setDirs = enabledSets.map { it.dir }.toTypedArray()
+                            val randomStart = prefs.getBoolean(AppPreferenceKeys.VISUALIZATION_PROJECTM_RANDOM_START, true)
+                            val (presetKeys, _) = try {
+                                DesktopProjectMPresetSets.indexedPresetKeys(prefs)
+                            } catch (_: Throwable) {
+                                emptyList<String>() to emptyList()
+                            }
+                            val savedPreset = prefs.getString(AppPreferenceKeys.VISUALIZATION_PROJECTM_PRESET, null)
+                            val startPreset = if (randomStart && presetKeys.isNotEmpty()) {
+                                try { SiliconVisNativeBridge.nativeClearProjectMLastPreset() } catch (_: Throwable) {}
+                                presetKeys.random()
+                            } else savedPreset
+                            if (presetKeys.isNotEmpty()) {
+                                SiliconVisNativeBridge.nativeAttachProjectMWithKeys(
+                                    visHandle, setIds, setDirs, presetKeys.toTypedArray(), startPreset
+                                )
+                            } else {
+                                SiliconVisNativeBridge.nativeAttachProjectM(visHandle, setIds, setDirs, startPreset)
+                            }
+                            projectMAttached = true
+                            projectMSawStopped = false
+                            projectMStoppedTrackEmpty = false
+                            try {
+                                val duration = prefs.getString(AppPreferenceKeys.VISUALIZATION_PROJECTM_PRESET_DURATION_SECONDS, AppDefaults.Visualization.ProjectM.presetDurationSeconds.toString())?.toDoubleOrNull() ?: AppDefaults.Visualization.ProjectM.presetDurationSeconds
+                                SiliconVisNativeBridge.nativeProjectMSetPresetDuration(duration)
+                                SiliconVisNativeBridge.nativeProjectMSetHardCutEnabled(prefs.getBoolean(AppPreferenceKeys.VISUALIZATION_PROJECTM_HARD_CUT_ENABLED, AppDefaults.Visualization.ProjectM.hardCutEnabled))
+                                SiliconVisNativeBridge.nativeProjectMSetHardCutSensitivity(prefs.getFloat(AppPreferenceKeys.VISUALIZATION_PROJECTM_HARD_CUT_SENSITIVITY, AppDefaults.Visualization.ProjectM.hardCutSensitivity))
+                                SiliconVisNativeBridge.nativeProjectMSetRotationRandom(prefs.getBoolean(AppPreferenceKeys.VISUALIZATION_PROJECTM_ROTATION_RANDOM, AppDefaults.Visualization.ProjectM.rotationRandom))
+                                SiliconVisNativeBridge.nativeProjectMSetMeshSize(prefs.getInt(AppPreferenceKeys.VISUALIZATION_PROJECTM_MESH_SIZE, AppDefaults.Visualization.ProjectM.meshSize))
+                                SiliconVisNativeBridge.nativeProjectMSetAspectCorrection(prefs.getBoolean(AppPreferenceKeys.VISUALIZATION_PROJECTM_ASPECT_CORRECTION, AppDefaults.Visualization.ProjectM.aspectCorrection))
+                                SiliconVisNativeBridge.nativeProjectMSetMaxResolution(
+                                    VisualizationProjectMResolutionMode.fromStorage(prefs.getString(AppPreferenceKeys.VISUALIZATION_PROJECTM_RENDER_RESOLUTION, AppDefaults.Visualization.ProjectM.renderResolution.storageValue)).maxLongEdgePx
+                                )
+                                val fpsMode = VisualizationOscFpsMode.fromStorage(prefs.getString(AppPreferenceKeys.VISUALIZATION_PROJECTM_FPS_MODE, AppDefaults.Visualization.ProjectM.fpsMode.storageValue))
+                                val fps = when (fpsMode) {
+                                    VisualizationOscFpsMode.Default -> 30
+                                    VisualizationOscFpsMode.Fps60 -> 60
+                                    VisualizationOscFpsMode.NativeRefresh -> 0
+                                }
+                                projectMTargetFps = fps
+                                SiliconVisNativeBridge.nativeProjectMSetFps(fps)
+                            } catch (_: Throwable) {}
+                        }
+                    } else if (frame.mode != 100 && projectMAttached) {
+                        try {
+                            SiliconVisNativeBridge.nativeDetachProjectM(visHandle)
+                        } catch (_: Throwable) {}
+                        projectMAttached = false
+                    }
+
+                    if (frame.mode == 100) {
+                        if (!frame.isPlaying) {
+                            projectMSawStopped = true
+                            projectMStoppedTrackEmpty = frame.trackKey == null
+                        } else if (projectMSawStopped && projectMAttached) {
+                            projectMSawStopped = false
+                            val wasStoppedEmpty = projectMStoppedTrackEmpty
+                            projectMStoppedTrackEmpty = false
+                            if (wasStoppedEmpty) {
+                                if (prefs.getBoolean(AppPreferenceKeys.VISUALIZATION_PROJECTM_RANDOM_START, true)) {
+                                    val presetKeys = try {
+                                        DesktopProjectMPresetSets.indexedPresetKeys(prefs).first
+                                    } catch (_: Throwable) {
+                                        emptyList<String>()
+                                    }
+                                    if (presetKeys.isNotEmpty()) {
+                                        try { SiliconVisNativeBridge.nativeClearProjectMLastPreset() } catch (_: Throwable) {}
+                                        SiliconVisNativeBridge.nativeProjectMLoadPreset(presetKeys.random(), true)
+                                    }
+                                }
+                            }
                         }
                     }
 
@@ -400,7 +491,11 @@ private class SiliconNativeDesktopRenderThread(
                 }
 
                 val frameElapsedNs = System.nanoTime() - frameStartNs
-                val targetFrameTimeNs = 16_666_667L // 60 FPS
+                val targetFrameTimeNs = if (frame?.mode == 100 && projectMTargetFps > 0) {
+                    1_000_000_000L / projectMTargetFps
+                } else {
+                    16_666_667L // 60 FPS
+                }
                 val sleepNs = targetFrameTimeNs - frameElapsedNs
                 if (sleepNs > 1_000_000L) {
                     try {
@@ -422,6 +517,11 @@ private class SiliconNativeDesktopRenderThread(
                 lastFrameTimeNs = nowNs
             }
         } finally {
+            if (projectMAttached) {
+                try {
+                    SiliconVisNativeBridge.nativeDetachProjectM(visHandle)
+                } catch (_: Throwable) {}
+            }
             DesktopGlSurface.nativeDestroy(hostHandle, visHandle)
             SiliconVisNativeBridge.nativeDestroy(visHandle)
         }
@@ -434,12 +534,14 @@ fun SiliconNativeGlDesktopVisualization(
     modifier: Modifier = Modifier,
     onFrameStats: ((fps: Int, frameMs: Int) -> Unit)? = null
 ) {
+    val prefs = LocalAppPreferences.current
     val density = LocalDensity.current.density
     var surfaceSize by remember { mutableStateOf(IntSize.Zero) }
     var renderedBitmap by remember { mutableStateOf<ImageBitmap?>(null) }
 
-    val renderThread = remember {
+    val renderThread = remember(prefs) {
         SiliconNativeDesktopRenderThread(
+            prefs = prefs,
             density = density,
             onFrameAvailable = { bmp -> renderedBitmap = bmp },
             onFrameStats = onFrameStats

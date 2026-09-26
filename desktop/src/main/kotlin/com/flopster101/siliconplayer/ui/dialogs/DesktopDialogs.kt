@@ -81,21 +81,3 @@ internal fun AudioOutputDeviceDialog(
 ) {
 }
 
-
-@Composable
-internal fun VisualizationOptionsSheet(
-    mode: VisualizationMode,
-    globalInputGain: Int,
-    onGlobalInputGainChange: (Int) -> Unit,
-    trackInputGain: Int,
-    onTrackInputGainChange: (Int) -> Unit,
-    showChannelLabels: Boolean,
-    onShowChannelLabelsChange: (Boolean) -> Unit,
-    savedProjectMPreset: String?,
-    onProjectMPresetSelected: (String) -> Unit,
-    presetSetLabels: Map<String, String>,
-    onResetDefaults: () -> Unit,
-    onDismiss: () -> Unit,
-    resetNonce: Int = 0
-) {
-}

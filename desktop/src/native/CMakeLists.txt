@@ -5,14 +5,15 @@ set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 
-# Ensure runtime path searches the directory where the shared library resides
-set(CMAKE_BUILD_RPATH "$ORIGIN")
-set(CMAKE_INSTALL_RPATH "$ORIGIN")
-
 # Path variables
 set(REPO_ROOT "${CMAKE_CURRENT_SOURCE_DIR}/../../..")
 set(APP_CPP_DIR "${REPO_ROOT}/app/src/main/cpp")
 set(EXTERNAL_DIR "${REPO_ROOT}/external")
+set(PREBUILT_DIR "${REPO_ROOT}/desktop/prebuilt/x86_64")
+
+# Ensure runtime path searches the directory where the shared library resides
+set(CMAKE_BUILD_RPATH "$ORIGIN;${PREBUILT_DIR}/lib;${EXTERNAL_DIR}/projectm/build_host/src/libprojectM;${CMAKE_CURRENT_BINARY_DIR}/projectm/src/libprojectM")
+set(CMAKE_INSTALL_RPATH "$ORIGIN;${PREBUILT_DIR}/lib;${EXTERNAL_DIR}/projectm/build_host/src/libprojectM;${CMAKE_CURRENT_BINARY_DIR}/projectm/src/libprojectM")
 
 # Find system dependencies
 find_package(JNI REQUIRED)
@@ -86,10 +87,26 @@ set(MAIN_SOURCES
     "${APP_CPP_DIR}/decoders/SdlCompat.c"
     "${APP_CPP_DIR}/decoders/CPConvStub.c"
     "${APP_CPP_DIR}/SiliconVisJni.cpp"
+    "${APP_CPP_DIR}/ProjectMVisualizer.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/DesktopGlSurface.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/UacDriverStub.cpp"
-    "${CMAKE_CURRENT_SOURCE_DIR}/ProjectMStub.cpp"
 )
+
+set(PROJECTM_PREBUILT "${PREBUILT_DIR}/lib/libprojectM-4.so")
+set(PROJECTM_HOST_LIB "${EXTERNAL_DIR}/projectm/build_host/src/libprojectM/libprojectM-4.so")
+if (EXISTS "${PROJECTM_PREBUILT}")
+    add_library(libprojectM-4 SHARED IMPORTED)
+    set_target_properties(libprojectM-4 PROPERTIES IMPORTED_LOCATION "${PROJECTM_PREBUILT}")
+elseif (EXISTS "${PROJECTM_HOST_LIB}")
+    add_library(libprojectM-4 SHARED IMPORTED)
+    set_target_properties(libprojectM-4 PROPERTIES IMPORTED_LOCATION "${PROJECTM_HOST_LIB}")
+else()
+    set(ENABLE_SDL_UI OFF CACHE BOOL "" FORCE)
+    set(BUILD_TESTING OFF CACHE BOOL "" FORCE)
+    set(BUILD_DOCS OFF CACHE BOOL "" FORCE)
+    add_subdirectory("${EXTERNAL_DIR}/projectm" "${CMAKE_CURRENT_BINARY_DIR}/projectm" EXCLUDE_FROM_ALL)
+    add_library(libprojectM-4 ALIAS projectM)
+endif()
 
 add_library(siliconplayer_desktop SHARED ${MAIN_SOURCES})
 
@@ -104,11 +121,11 @@ target_compile_definitions(siliconplayer_desktop PRIVATE
     MA_NO_ENGINE
     MA_ENABLE_ALSA
     MA_ENABLE_PULSEAUDIO
-    SILICON_NO_PROJECTM
 )
 
 target_link_libraries(siliconplayer_desktop PRIVATE
     silicon_vis
+    libprojectM-4
     OpenGL::GL
     ${X11_LIBRARIES}
     Threads::Threads
