@@ -2,6 +2,12 @@ package com.flopster101.siliconplayer.platform
 
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.staticCompositionLocalOf
+import com.flopster101.siliconplayer.CacheExportResult
+import com.flopster101.siliconplayer.ExportConflictDecision
+import com.flopster101.siliconplayer.ExportFileItem
+import com.flopster101.siliconplayer.ExportNameConflict
+import com.flopster101.siliconplayer.RemoteExportRequest
+import com.flopster101.siliconplayer.RemoteLoadUiState
 
 interface AppPreferences {
     fun getString(key: String, defValue: String?): String?
@@ -253,6 +259,26 @@ fun interface FileExportHandler {
 val LocalFileExportHandler = staticCompositionLocalOf<FileExportHandler> {
     FileExportHandler { _ -> }
 }
+
+internal interface RemoteSourceExportSupport {
+    suspend fun prepareRemoteExportFile(
+        request: RemoteExportRequest,
+        onStatus: suspend (RemoteLoadUiState) -> Unit = {}
+    ): Result<ExportFileItem>
+
+    suspend fun exportFiles(
+        exportItems: List<ExportFileItem>,
+        onNameConflict: (suspend (ExportNameConflict) -> ExportConflictDecision)? = null
+    ): CacheExportResult
+}
+
+internal val LocalRemoteSourceExportSupport = staticCompositionLocalOf<() -> RemoteSourceExportSupport> {
+    { error("No RemoteSourceExportSupport provided") }
+}
+
+@Composable
+internal fun rememberRemoteSourceExportSupport(): RemoteSourceExportSupport =
+    LocalRemoteSourceExportSupport.current()
 
 val LocalAppCacheDir = staticCompositionLocalOf<java.io.File> {
     java.io.File(System.getProperty("java.io.tmpdir"), "siliconplayer_cache").also { it.mkdirs() }

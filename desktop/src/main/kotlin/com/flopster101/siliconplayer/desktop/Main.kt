@@ -29,6 +29,10 @@ import com.flopster101.siliconplayer.StoragePresentation
 import com.flopster101.siliconplayer.FolderEntryAction
 import com.flopster101.siliconplayer.SourceEntryAction
 import com.flopster101.siliconplayer.NetworkNode
+import com.flopster101.siliconplayer.NetworkCredentialStore
+import com.flopster101.siliconplayer.RemotePlayableSourceIdsHolder
+import com.flopster101.siliconplayer.resolveNetworkNodeHttpSpec
+import com.flopster101.siliconplayer.resolveNetworkNodeSmbSpec
 import com.flopster101.siliconplayer.readNetworkNodes
 import com.flopster101.siliconplayer.writeNetworkNodes
 import com.flopster101.siliconplayer.BrowserNameSortMode
@@ -37,6 +41,8 @@ import com.flopster101.siliconplayer.data.FileRepository
 import com.flopster101.siliconplayer.platform.LocalAppPreferences
 import com.flopster101.siliconplayer.platform.PlatformBackHandler
 import com.flopster101.siliconplayer.ui.screens.FileBrowserScreen
+import com.flopster101.siliconplayer.ui.screens.HttpFileBrowserScreen
+import com.flopster101.siliconplayer.ui.screens.SmbFileBrowserScreen
 import com.flopster101.siliconplayer.ui.screens.NetworkBrowserScreen
 import com.flopster101.siliconplayer.VisualizationMode
 import com.flopster101.siliconplayer.VisualizationRenderBackend
@@ -52,6 +58,9 @@ import com.flopster101.siliconplayer.SettingsScreen
 import com.flopster101.siliconplayer.inferredPrimaryExtensionForName
 import com.flopster101.siliconplayer.MainView
 import com.flopster101.siliconplayer.SettingsRoute
+import com.flopster101.siliconplayer.BrowserRouteMode
+import com.flopster101.siliconplayer.rememberBrowserRouteRenderState
+import com.flopster101.siliconplayer.resolveBrowserRouteResolution
 import com.flopster101.siliconplayer.MainNavigationScaffold
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.LinearOutSlowInEasing
@@ -111,9 +120,60 @@ fun main(args: Array<String>) = application {
     }
     var settingsRoute by remember { mutableStateOf(SettingsRoute.Root) }
 
+    val networkNodes = remember { mutableStateListOf<NetworkNode>() }
+    var currentNetworkFolderId by remember { mutableStateOf<Long?>(null) }
+
+    var remoteBrowserInput by remember { mutableStateOf<String?>(null) }
+    var remoteSmbSourceNodeId by remember { mutableStateOf<Long?>(null) }
+    var remoteHttpSourceNodeId by remember { mutableStateOf<Long?>(null) }
+    var remoteHttpRootPath by remember { mutableStateOf<String?>(null) }
+    var remoteSmbAllowHostShareNavigation by remember { mutableStateOf(false) }
+    var browserReturnView by remember { mutableStateOf(MainView.Home) }
+
+    fun openLocalBrowser(directory: File) {
+        currentDirectory = directory
+        remoteBrowserInput = null
+        remoteSmbSourceNodeId = null
+        remoteHttpSourceNodeId = null
+        remoteHttpRootPath = null
+        remoteSmbAllowHostShareNavigation = false
+        browserReturnView = MainView.Home
+        currentView = MainView.Browser
+    }
+
+    fun openRemoteBrowser(
+        input: String,
+        smbSourceNodeId: Long?,
+        httpSourceNodeId: Long?,
+        httpRootPath: String?,
+        allowHostShareNavigation: Boolean
+    ) {
+        remoteBrowserInput = input
+        remoteSmbSourceNodeId = smbSourceNodeId
+        remoteHttpSourceNodeId = httpSourceNodeId
+        remoteHttpRootPath = httpRootPath
+        remoteSmbAllowHostShareNavigation = allowHostShareNavigation
+        browserReturnView = MainView.Network
+        currentView = MainView.Browser
+    }
+
     val recentFiles = remember { mutableStateListOf<RecentPathEntry>() }
     val recentFolders = remember { mutableStateListOf<RecentPathEntry>() }
     val pinnedEntries = remember { mutableStateListOf<HomePinnedEntry>() }
+
+    fun pinHomeEntry(entry: RecentPathEntry, isFolder: Boolean) {
+        if (pinnedEntries.none { it.path == entry.path }) {
+            pinnedEntries.add(
+                HomePinnedEntry(
+                    path = entry.path,
+                    isFolder = isFolder,
+                    title = entry.title,
+                    artist = entry.artist,
+                    sourceNodeId = entry.sourceNodeId
+                )
+            )
+        }
+    }
 
     fun registerLoadedFile(file: File) {
         val ext = inferredPrimaryExtensionForName(file.name)?.uppercase(Locale.ROOT) ?: "FILE"
@@ -329,19 +389,17 @@ fun main(args: Array<String>) = application {
                                                 )
                                             },
                                             bottomContentPadding = bottomMargin,
-                                            onOpenLibrary = { currentView = MainView.Browser },
+                                            onOpenLibrary = { openLocalBrowser(currentDirectory) },
                                             onOpenPlaylists = { currentView = MainView.Playlists },
                                             onOpenNetwork = { currentView = MainView.Network },
                                             onOpenPinnedFolder = { entry ->
-                                                currentDirectory = File(entry.path)
-                                                currentView = MainView.Browser
+                                                openLocalBrowser(File(entry.path))
                                             },
                                             onPlayPinnedFile = { entry ->
                                                 playSource(entry.path, entry.title, entry.artist)
                                             },
                                             onOpenRecentFolder = { entry ->
-                                                currentDirectory = File(entry.path)
-                                                currentView = MainView.Browser
+                                                openLocalBrowser(File(entry.path))
                                             },
                                             onPlayRecentFile = { entry ->
                                                 playSource(entry.path, entry.title, entry.artist)
@@ -382,8 +440,7 @@ fun main(args: Array<String>) = application {
                                                     FolderEntryAction.DeleteFromRecents -> pinnedEntries.removeAll { it.path == entry.path }
                                                     FolderEntryAction.CopyPath -> {}
                                                     FolderEntryAction.OpenInBrowser -> {
-                                                        currentDirectory = File(entry.path)
-                                                        currentView = MainView.Browser
+                                                        openLocalBrowser(File(entry.path))
                                                     }
                                                 }
                                             },
@@ -394,8 +451,7 @@ fun main(args: Array<String>) = application {
                                                     SourceEntryAction.CopySource -> {}
                                                     SourceEntryAction.OpenInBrowser -> {
                                                         val f = File(entry.path)
-                                                        currentDirectory = f.parentFile ?: f
-                                                        currentView = MainView.Browser
+                                                        openLocalBrowser(f.parentFile ?: f)
                                                     }
                                                 }
                                             },
@@ -404,8 +460,7 @@ fun main(args: Array<String>) = application {
                                                     FolderEntryAction.DeleteFromRecents -> recentFolders.removeAll { it.path == entry.path }
                                                     FolderEntryAction.CopyPath -> {}
                                                     FolderEntryAction.OpenInBrowser -> {
-                                                        currentDirectory = File(entry.path)
-                                                        currentView = MainView.Browser
+                                                        openLocalBrowser(File(entry.path))
                                                     }
                                                 }
                                             },
@@ -416,8 +471,7 @@ fun main(args: Array<String>) = application {
                                                     SourceEntryAction.CopySource -> {}
                                                     SourceEntryAction.OpenInBrowser -> {
                                                         val f = File(entry.path)
-                                                        currentDirectory = f.parentFile ?: f
-                                                        currentView = MainView.Browser
+                                                        openLocalBrowser(f.parentFile ?: f)
                                                     }
                                                 }
                                             },
@@ -454,38 +508,109 @@ fun main(args: Array<String>) = application {
                                                 rootDirectoryProvider = { File(System.getProperty("user.home") ?: "/") }
                                             )
                                         }
-                                        FileBrowserScreen(
-                                            repository = repository,
-                                            initialDirectoryPath = currentDirectory.absolutePath,
-                                            playingFile = session.currentFile,
-                                            bottomContentPadding = bottomMargin,
-                                            showPrimaryTopBar = false,
-                                            backHandlingEnabled = !isPlayerExpanded,
-                                            onExitBrowser = { currentView = MainView.Home },
-                                            onFileSelected = { file, _ ->
-                                                currentDirectory = file.parentFile ?: currentDirectory
-                                                playFile(file)
-                                            },
-                                            onBrowserLocationChanged = { launchState ->
-                                                launchState.directoryPath?.let { path ->
-                                                    currentDirectory = File(path)
-                                                }
-                                            },
-                                            pinnedHomeEntries = pinnedEntries,
-                                            onPinHomeEntry = { entry, isFolder ->
-                                                if (pinnedEntries.none { it.path == entry.path }) {
-                                                    pinnedEntries.add(
-                                                        HomePinnedEntry(
-                                                            path = entry.path,
-                                                            isFolder = isFolder,
-                                                            title = entry.title,
-                                                            artist = entry.artist,
-                                                            decoderName = entry.decoderName
-                                                        )
-                                                    )
-                                                }
+                                        val browserResolution = remember(
+                                            remoteBrowserInput,
+                                            remoteSmbSourceNodeId,
+                                            remoteHttpSourceNodeId,
+                                            remoteHttpRootPath
+                                        ) {
+                                            resolveBrowserRouteResolution(
+                                                initialLocationId = null,
+                                                initialDirectoryPath = remoteBrowserInput,
+                                                initialSmbSourceNodeId = remoteSmbSourceNodeId,
+                                                initialHttpSourceNodeId = remoteHttpSourceNodeId,
+                                                initialHttpRootPath = remoteHttpRootPath
+                                            )
+                                        }
+                                        val browserRenderState = rememberBrowserRouteRenderState(browserResolution)
+                                        if (browserRenderState.renderMode == BrowserRouteMode.Smb) {
+                                            val smbSpec = browserRenderState.renderSmbSpec
+                                            if (smbSpec != null) {
+                                                SmbFileBrowserScreen(
+                                                    sourceSpec = smbSpec,
+                                                    bottomContentPadding = bottomMargin,
+                                                    backHandlingEnabled = !isPlayerExpanded,
+                                                    allowHostShareNavigation = remoteSmbAllowHostShareNavigation,
+                                                    onExitBrowser = {
+                                                        remoteBrowserInput = null
+                                                        currentView = browserReturnView
+                                                    },
+                                                    onOpenRemoteSource = { source -> playSource(source) },
+                                                    onOpenRemoteSourceAsCached = { source -> playSource(source) },
+                                                    onRememberSmbCredentials = { nodeId, _, username, password ->
+                                                        nodeId
+                                                            ?.let { id -> networkNodes.firstOrNull { it.id == id } }
+                                                            ?.let(::resolveNetworkNodeSmbSpec)
+                                                            ?.let { spec ->
+                                                                NetworkCredentialStore.remember(spec, username, password)
+                                                            }
+                                                    },
+                                                    sourceNodeId = browserResolution.requestedSmbSourceNodeId,
+                                                    onBrowserLocationChanged = {},
+                                                    onPlaylistFileSelected = { file, _ -> playFile(file) },
+                                                    pinnedHomeEntries = pinnedEntries,
+                                                    onPinHomeEntry = ::pinHomeEntry,
+                                                    playlists = emptyList(),
+                                                    favoriteSourceIds = emptySet(),
+                                                    networkNodes = networkNodes
+                                                )
                                             }
-                                        )
+                                        } else if (browserRenderState.renderMode == BrowserRouteMode.Http) {
+                                            val httpSpec = browserRenderState.renderHttpSpec
+                                            if (httpSpec != null) {
+                                                HttpFileBrowserScreen(
+                                                    sourceSpec = httpSpec,
+                                                    browserRootPath = browserResolution.requestedHttpRootPath,
+                                                    bottomContentPadding = bottomMargin,
+                                                    backHandlingEnabled = !isPlayerExpanded,
+                                                    onExitBrowser = {
+                                                        remoteBrowserInput = null
+                                                        currentView = browserReturnView
+                                                    },
+                                                    onOpenRemoteSource = { source -> playSource(source) },
+                                                    onOpenRemoteSourceAsCached = { source -> playSource(source) },
+                                                    onRememberHttpCredentials = { nodeId, _, username, password ->
+                                                        nodeId
+                                                            ?.let { id -> networkNodes.firstOrNull { it.id == id } }
+                                                            ?.let(::resolveNetworkNodeHttpSpec)
+                                                            ?.let { spec ->
+                                                                NetworkCredentialStore.remember(spec, username, password)
+                                                            }
+                                                    },
+                                                    sourceNodeId = browserResolution.requestedHttpSourceNodeId,
+                                                    onBrowserLocationChanged = {},
+                                                    onPlaylistFileSelected = { file, _ -> playFile(file) },
+                                                    pinnedHomeEntries = pinnedEntries,
+                                                    onPinHomeEntry = ::pinHomeEntry,
+                                                    playlists = emptyList(),
+                                                    favoriteSourceIds = emptySet(),
+                                                    networkNodes = networkNodes
+                                                )
+                                            }
+                                        } else {
+                                            RemotePlayableSourceIdsHolder.current = emptyList()
+                                            FileBrowserScreen(
+                                                repository = repository,
+                                                initialDirectoryPath = browserResolution.requestedLocalDirectoryPath
+                                                    ?: currentDirectory.absolutePath,
+                                                playingFile = session.currentFile,
+                                                bottomContentPadding = bottomMargin,
+                                                showPrimaryTopBar = false,
+                                                backHandlingEnabled = !isPlayerExpanded,
+                                                onExitBrowser = { currentView = MainView.Home },
+                                                onFileSelected = { file, _ ->
+                                                    currentDirectory = file.parentFile ?: currentDirectory
+                                                    playFile(file)
+                                                },
+                                                onBrowserLocationChanged = { launchState ->
+                                                    launchState.directoryPath?.let { path ->
+                                                        currentDirectory = File(path)
+                                                    }
+                                                },
+                                                pinnedHomeEntries = pinnedEntries,
+                                                onPinHomeEntry = ::pinHomeEntry
+                                            )
+                                        }
                                     }
 
                                     MainView.Playlists -> {
@@ -504,12 +629,9 @@ fun main(args: Array<String>) = application {
 
                                     MainView.Network -> {
                                         val prefs = LocalAppPreferences.current
-                                        val networkNodes = remember(prefs) {
-                                            mutableStateListOf<NetworkNode>().apply {
-                                                addAll(readNetworkNodes(prefs))
-                                            }
+                                        if (networkNodes.isEmpty()) {
+                                            networkNodes.addAll(readNetworkNodes(prefs))
                                         }
-                                        var currentNetworkFolderId by remember { mutableStateOf<Long?>(null) }
                                         NetworkBrowserScreen(
                                             bottomContentPadding = bottomMargin,
                                             backHandlingEnabled = !isPlayerExpanded,
@@ -534,26 +656,32 @@ fun main(args: Array<String>) = application {
                                             onOpenRemoteSource = { source ->
                                                 playSource(source)
                                             },
-                                            onBrowseSmbSource = { rawInput, _ ->
-                                                playSource(rawInput)
+                                            onBrowseSmbSource = { rawInput, sourceNodeId ->
+                                                val node = sourceNodeId?.let { id -> networkNodes.firstOrNull { it.id == id } }
+                                                val allowHostShareNavigation = node
+                                                    ?.let(::resolveNetworkNodeSmbSpec)
+                                                    ?.share
+                                                    ?.trim()
+                                                    ?.isEmpty() == true
+                                                openRemoteBrowser(
+                                                    input = rawInput,
+                                                    smbSourceNodeId = sourceNodeId,
+                                                    httpSourceNodeId = null,
+                                                    httpRootPath = null,
+                                                    allowHostShareNavigation = allowHostShareNavigation
+                                                )
                                             },
-                                            onBrowseHttpSource = { rawInput, _, _ ->
-                                                playSource(rawInput)
+                                            onBrowseHttpSource = { rawInput, sourceNodeId, rootPath ->
+                                                openRemoteBrowser(
+                                                    input = rawInput,
+                                                    smbSourceNodeId = null,
+                                                    httpSourceNodeId = sourceNodeId,
+                                                    httpRootPath = rootPath,
+                                                    allowHostShareNavigation = false
+                                                )
                                             },
                                             pinnedHomeEntries = pinnedEntries,
-                                            onPinHomeEntry = { entry, isFolder ->
-                                                if (pinnedEntries.none { it.path == entry.path }) {
-                                                    pinnedEntries.add(
-                                                        HomePinnedEntry(
-                                                            path = entry.path,
-                                                            isFolder = isFolder,
-                                                            title = entry.title,
-                                                            artist = entry.artist,
-                                                            decoderName = entry.decoderName
-                                                        )
-                                                    )
-                                                }
-                                            }
+                                            onPinHomeEntry = ::pinHomeEntry
                                         )
                                     }
 

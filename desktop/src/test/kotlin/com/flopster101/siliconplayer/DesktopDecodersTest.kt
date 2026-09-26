@@ -51,7 +51,10 @@ class DesktopDecodersTest {
             assertTrue("Duration should be finite and >= 0.0", !duration.isNaN() && duration >= 0.0)
 
             NativeBridge.startEngineNative()
-            Thread.sleep(50)
+            val deadline = System.currentTimeMillis() + 2000
+            while (!NativeBridge.isEnginePlaying() && System.currentTimeMillis() < deadline) {
+                Thread.sleep(25)
+            }
             assertTrue("Engine should report playing", NativeBridge.isEnginePlaying())
             NativeBridge.stopEngineNative()
         } finally {

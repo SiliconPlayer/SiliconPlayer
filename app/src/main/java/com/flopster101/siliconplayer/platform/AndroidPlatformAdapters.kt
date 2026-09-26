@@ -359,6 +359,11 @@ fun ProvideAndroidPlatformAdapters(
             isRound = configuration.isRoundScreenCompat
         )
     }
+    val isRoundScreen = isWatch && (
+        configuration.isRoundScreenCompat ||
+            configuration.screenWidthDp == configuration.screenHeightDp
+    )
+    val remoteSourceExportSupport = rememberAndroidRemoteSourceExportSupport()
     val projectMOptionsProvider = remember(context, prefs) {
         object : ProjectMOptionsProvider {
             override fun getEnabledPresetLabels(): Map<String, String> {
@@ -476,6 +481,8 @@ fun ProvideAndroidPlatformAdapters(
         LocalAppPreferences provides prefs,
         LocalPreferencesProvider provides prefsProvider,
         LocalIsWatchDevice provides isWatch,
+        LocalIsRoundScreen provides isRoundScreen,
+        LocalRemoteSourceExportSupport provides { remoteSourceExportSupport },
         LocalAudioRouteManager provides audioRouteManager,
         LocalToastHandler provides toastHandler,
         LocalArtworkThumbnailLoader provides artworkThumbnailLoader,

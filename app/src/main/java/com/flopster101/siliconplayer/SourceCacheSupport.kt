@@ -4,7 +4,6 @@ import android.content.Context
 import android.net.Uri
 import org.json.JSONObject
 import java.io.File
-import java.net.URLDecoder
 import java.security.MessageDigest
 
 internal const val SOURCE_CACHE_MAX_TRACKS_DEFAULT = 100
@@ -35,17 +34,6 @@ internal fun sha1Hex(value: String): String {
     return digest.joinToString("") { "%02x".format(it) }
 }
 
-internal fun sanitizeRemoteLeafName(raw: String?): String? {
-    val trimmed = raw?.trim()?.substringAfterLast('/')?.takeIf { it.isNotBlank() } ?: return null
-    return trimmed.replace(Regex("""[\\/:*?"<>|]"""), "_")
-}
-
-
-internal fun stripUrlFragment(url: String): String {
-    val fragmentIndex = url.indexOf('#')
-    return if (fragmentIndex >= 0) url.substring(0, fragmentIndex) else url
-}
-
 internal fun remoteFilenameHintFromUri(uri: Uri): String? {
     val fragmentHint = sanitizeRemoteLeafName(uri.fragment)
         ?.takeIf { it.contains('.') }
@@ -59,32 +47,6 @@ internal fun remoteFilenameHintFromUri(uri: Uri): String? {
     if (queryHint != null) return queryHint
 
     return sanitizeRemoteLeafName(uri.lastPathSegment)
-}
-
-internal fun filenameFromContentDisposition(headerValue: String?): String? {
-    if (headerValue.isNullOrBlank()) return null
-    val filenameStar = Regex("""filename\*\s*=\s*([^;]+)""", RegexOption.IGNORE_CASE)
-        .find(headerValue)
-        ?.groupValues
-        ?.getOrNull(1)
-        ?.trim()
-        ?.trim('"')
-        ?.let { value ->
-            value.substringAfter("''", value)
-        }
-    if (!filenameStar.isNullOrBlank()) {
-        return try {
-            sanitizeRemoteLeafName(URLDecoder.decode(filenameStar, "UTF-8"))
-        } catch (_: Throwable) {
-            sanitizeRemoteLeafName(filenameStar)
-        }
-    }
-
-    val filename = Regex("""filename\s*=\s*("?)([^";]+)\1""", RegexOption.IGNORE_CASE)
-        .find(headerValue)
-        ?.groupValues
-        ?.getOrNull(2)
-    return sanitizeRemoteLeafName(filename)
 }
 
 internal fun remoteCacheFileForSource(cacheRoot: File, url: String): File {

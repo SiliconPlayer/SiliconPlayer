@@ -1,18 +1,18 @@
 package com.flopster101.siliconplayer.ui.screens
 
-import com.flopster101.siliconplayer.isRoundScreenCompat
-import android.content.pm.PackageManager
-import android.net.Uri
-import android.widget.Toast
-import androidx.activity.compose.BackHandler
-import androidx.activity.compose.rememberLauncherForActivityResult
-import androidx.activity.result.contract.ActivityResultContracts
+import com.flopster101.siliconplayer.NetworkCredentialStore
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.material3.AlertDialog
-import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
+import com.flopster101.siliconplayer.platform.LocalAppCacheDir
+import com.flopster101.siliconplayer.platform.LocalAppPreferences
+import com.flopster101.siliconplayer.platform.LocalIsRoundScreen
+import com.flopster101.siliconplayer.platform.LocalIsWatchDevice
+import com.flopster101.siliconplayer.platform.LocalToastHandler
+import com.flopster101.siliconplayer.platform.PlatformBackHandler
+import com.flopster101.siliconplayer.platform.rememberRemoteSourceExportSupport
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -54,6 +54,8 @@ import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.PlaylistAdd
 import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material.icons.filled.Save
+import androidx.compose.material.icons.filled.Star
+import androidx.compose.material.icons.filled.StarBorder
 import androidx.compose.material.icons.filled.VideoFile
 import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material.icons.filled.VisibilityOff
@@ -89,8 +91,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.graphicsLayer
-import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
@@ -112,7 +112,6 @@ import com.flopster101.siliconplayer.StoredPlaylist
 import com.flopster101.siliconplayer.NetworkNode
 import com.flopster101.siliconplayer.ui.dialogs.AddToPlaylistChooserDialog
 import com.flopster101.siliconplayer.ui.dialogs.PlayWithDialog
-import com.flopster101.siliconplayer.ManualSmbAuthCoordinator
 import com.flopster101.siliconplayer.buildHttpDisplayUri
 import com.flopster101.siliconplayer.buildHttpRequestUri
 import com.flopster101.siliconplayer.buildHttpSourceId
@@ -130,7 +129,6 @@ import com.flopster101.siliconplayer.NativeBridge
 import com.flopster101.siliconplayer.normalizeHttpDirectoryPath
 import com.flopster101.siliconplayer.normalizeHttpPath
 import com.flopster101.siliconplayer.parseHttpSourceSpecFromInput
-import com.flopster101.siliconplayer.prepareRemoteExportFile
 import com.flopster101.siliconplayer.resolveHttpAuthenticationFailureReason
 import com.flopster101.siliconplayer.rememberDialogLazyListScrollbarAlpha
 import com.flopster101.siliconplayer.stripUrlFragment
@@ -138,10 +136,8 @@ import com.flopster101.siliconplayer.previewPinnedHomeEntryInsertion
 import com.flopster101.siliconplayer.adaptiveDialogModifier
 import com.flopster101.siliconplayer.adaptiveDialogProperties
 import com.flopster101.siliconplayer.RemotePlayableSourceIdsHolder
-import com.flopster101.siliconplayer.R
 import com.flopster101.siliconplayer.data.ensureArchiveMounted
 import com.flopster101.siliconplayer.data.buildArchiveDirectoryPath
-import com.flopster101.siliconplayer.session.exportFilesToTree
 import com.flopster101.siliconplayer.ExportConflictDecision
 import com.flopster101.siliconplayer.ExportNameConflict
 import com.flopster101.siliconplayer.ExportFileItem
@@ -201,12 +197,12 @@ internal fun HttpFileBrowserScreen(
     onRemoveSourceFromPlaylist: (String, String) -> Unit = { _, _ -> },
     networkNodes: List<NetworkNode> = emptyList()
 ) {
-    val context = LocalContext.current
-    val isWatch = remember(context) { context.packageManager.hasSystemFeature(PackageManager.FEATURE_WATCH) }
-    val isRound = isWatch && (LocalConfiguration.current.isRoundScreenCompat || LocalConfiguration.current.screenWidthDp == LocalConfiguration.current.screenHeightDp)
-    val browserPrefs = remember(context) {
-        context.getSharedPreferences(AppPreferenceKeys.PREFS_NAME, android.content.Context.MODE_PRIVATE)
-    }
+    val browserPrefs = LocalAppPreferences.current
+    val toastHandler = LocalToastHandler.current
+    val isWatch = LocalIsWatchDevice.current
+    val isRound = LocalIsRoundScreen.current
+    val cacheDir = LocalAppCacheDir.current
+    val remoteSourceExportSupport = rememberRemoteSourceExportSupport()
     val showUnsupportedFiles = browserPrefs.getBoolean(
         AppPreferenceKeys.BROWSER_SHOW_UNSUPPORTED_FILES,
         AppDefaults.Browser.showUnsupportedFiles
@@ -228,7 +224,7 @@ internal fun HttpFileBrowserScreen(
         sourceSpec.host,
         sourceSpec.port
     ) {
-        ManualSmbAuthCoordinator.credentialsFor(sourceSpec)
+        NetworkCredentialStore.resolvedCredentialPair(sourceSpec)
     }
     val screenSessionKey = remember(
         sourceNodeId,
@@ -288,7 +284,6 @@ internal fun HttpFileBrowserScreen(
     var showBrowserInfoDialog by remember(screenSessionKey) { mutableStateOf(false) }
     var textPreviewDialogState by remember(screenSessionKey) { mutableStateOf<Pair<String, String>?>(null) }
     var imagePreviewDialogState by remember(screenSessionKey) { mutableStateOf<Pair<String, File>?>(null) }
-    var pendingExportTargets by remember(screenSessionKey) { mutableStateOf<List<HttpSelectionFileTarget>>(emptyList()) }
     var exportConflictDialogState by remember(screenSessionKey) { mutableStateOf<BrowserExportConflictDialogState?>(null) }
     var exportDownloadProgressState by remember(screenSessionKey) { mutableStateOf<BrowserRemoteExportProgressState?>(null) }
     var exportDownloadJob by remember(screenSessionKey) { mutableStateOf<Job?>(null) }
@@ -592,14 +587,14 @@ internal fun HttpFileBrowserScreen(
         )
     }
 
-    BackHandler(enabled = backHandlingEnabled) {
+    PlatformBackHandler(enabled = backHandlingEnabled) {
         if (browserSelectionController.isSelectionMode) {
             browserSelectionController.exitSelectionMode()
-            return@BackHandler
+            return@PlatformBackHandler
         }
         if (isLoading) {
             cancelCurrentLoadAndGoBack()
-            return@BackHandler
+            return@PlatformBackHandler
         }
         if (!navigateUpWithinBrowser()) {
             onExitBrowser()
@@ -757,11 +752,7 @@ internal fun HttpFileBrowserScreen(
             return
         }
         onPinHomeEntry(recentEntry, isFolder)
-        Toast.makeText(
-            context,
-            if (isFolder) "Pinned folder to home" else "Pinned file to home",
-            Toast.LENGTH_SHORT
-        ).show()
+        toastHandler.showToast(if (isFolder) "Pinned folder to home" else "Pinned file to home")
     }
 
     fun openArchiveEntry(entry: HttpBrowserEntry) {
@@ -781,8 +772,7 @@ internal fun HttpFileBrowserScreen(
                 currentFileName = entry.name,
                 loadState = null
             )
-            val prepared = prepareRemoteExportFile(
-                context = context,
+            val prepared = remoteSourceExportSupport.prepareRemoteExportFile(
                 request = HttpRemoteExportRequest(
                     sourceId = sourceId,
                     requestUrl = requestUrl,
@@ -802,20 +792,20 @@ internal fun HttpFileBrowserScreen(
                 exportDownloadProgressState = null
                 val error = prepared.exceptionOrNull()
                 if (error is RemoteExportCancelledException || error is CancellationException) {
-                    Toast.makeText(context, "Archive open cancelled", Toast.LENGTH_SHORT).show()
+                    toastHandler.showToast("Archive open cancelled")
                     return@launch
                 }
-                Toast.makeText(context, "Failed to open archive", Toast.LENGTH_SHORT).show()
+                toastHandler.showToast("Failed to open archive")
                 return@launch
             }
             val capability = browserArchiveCapabilityForName(cachedItem.sourceFile.name)
             if (capability != BrowserArchiveCapability.Browsable) {
                 exportDownloadProgressState = null
-                Toast.makeText(context, "Archive format not supported yet", Toast.LENGTH_SHORT).show()
+                toastHandler.showToast("Archive format not supported yet")
                 return@launch
             }
             val mountDirectory = withContext(Dispatchers.IO) {
-                ensureArchiveMounted(context, cachedItem.sourceFile)
+                ensureArchiveMounted(cacheDir, cachedItem.sourceFile)
             }
             exportDownloadProgressState = null
             onBrowserLocationChanged(
@@ -844,8 +834,7 @@ internal fun HttpFileBrowserScreen(
                 currentFileName = entry.name,
                 loadState = null
             )
-            val prepared = prepareRemoteExportFile(
-                context = context,
+            val prepared = remoteSourceExportSupport.prepareRemoteExportFile(
                 request = HttpRemoteExportRequest(
                     sourceId = sourceId,
                     requestUrl = requestUrl,
@@ -865,7 +854,7 @@ internal fun HttpFileBrowserScreen(
             if (cachedItem == null) {
                 val error = prepared.exceptionOrNull()
                 if (error !is RemoteExportCancelledException && error !is CancellationException) {
-                    Toast.makeText(context, "Failed to open playlist", Toast.LENGTH_SHORT).show()
+                    toastHandler.showToast("Failed to open playlist")
                 }
                 return@launch
             }
@@ -891,8 +880,7 @@ internal fun HttpFileBrowserScreen(
                 currentFileName = entry.name,
                 loadState = null
             )
-            val prepared = prepareRemoteExportFile(
-                context = context,
+            val prepared = remoteSourceExportSupport.prepareRemoteExportFile(
                 request = HttpRemoteExportRequest(
                     sourceId = sourceId,
                     requestUrl = requestUrl,
@@ -912,7 +900,7 @@ internal fun HttpFileBrowserScreen(
             if (cachedItem == null) {
                 val error = prepared.exceptionOrNull()
                 if (error !is RemoteExportCancelledException && error !is CancellationException) {
-                    Toast.makeText(context, "Failed to preview file", Toast.LENGTH_SHORT).show()
+                    toastHandler.showToast("Failed to preview file")
                 }
                 return@launch
             }
@@ -923,7 +911,7 @@ internal fun HttpFileBrowserScreen(
                 FilePreviewKind.Text -> {
                     val textPreviewContent = readRemoteTextPreviewContent(cachedItem.sourceFile)
                     if (textPreviewContent == null) {
-                        Toast.makeText(context, "Unable to preview text file", Toast.LENGTH_SHORT).show()
+                        toastHandler.showToast("Unable to preview text file")
                     } else {
                         textPreviewDialogState = entry.name to textPreviewContent
                     }
@@ -1013,11 +1001,7 @@ internal fun HttpFileBrowserScreen(
             pendingPinConfirmation = recentEntry to isFolder
         } else {
             onPinHomeEntry(recentEntry, isFolder)
-            Toast.makeText(
-                context,
-                if (isFolder) "Pinned folder to home" else "Pinned file to home",
-                Toast.LENGTH_SHORT
-            ).show()
+            toastHandler.showToast(if (isFolder) "Pinned folder to home" else "Pinned file to home")
         }
     }
 
@@ -1054,16 +1038,8 @@ internal fun HttpFileBrowserScreen(
         }
     }
 
-    val exportDirectoryLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.OpenDocumentTree()
-    ) { treeUri ->
-        val targets = pendingExportTargets
-        pendingExportTargets = emptyList()
-        if (targets.isEmpty()) return@rememberLauncherForActivityResult
-        if (treeUri == null) {
-            Toast.makeText(context, "Download cancelled", Toast.LENGTH_SHORT).show()
-            return@rememberLauncherForActivityResult
-        }
+    fun startExport(targets: List<HttpSelectionFileTarget>) {
+        if (targets.isEmpty()) return
         exportDownloadJob?.cancel()
         exportDownloadJob = coroutineScope.launch {
             var preparationFailed = 0
@@ -1076,8 +1052,7 @@ internal fun HttpFileBrowserScreen(
                     currentFileName = target.displayName,
                     loadState = null
                 )
-                val prepared = prepareRemoteExportFile(
-                    context = context,
+                val prepared = remoteSourceExportSupport.prepareRemoteExportFile(
                     request = HttpRemoteExportRequest(
                         sourceId = target.sourceId,
                         requestUrl = target.requestUrl,
@@ -1099,7 +1074,7 @@ internal fun HttpFileBrowserScreen(
                     val error = prepared.exceptionOrNull()
                     if (error is RemoteExportCancelledException || error is CancellationException) {
                         exportDownloadProgressState = null
-                        Toast.makeText(context, "Download cancelled", Toast.LENGTH_SHORT).show()
+                        toastHandler.showToast("Download cancelled")
                         return@launch
                     }
                     preparationFailed++
@@ -1107,17 +1082,12 @@ internal fun HttpFileBrowserScreen(
             }
             exportDownloadProgressState = null
 
-            val result = exportFilesToTree(
-                context = context,
-                treeUri = treeUri,
+            val result = remoteSourceExportSupport.exportFiles(
                 exportItems = exportItems,
-                onNameConflict = { conflict ->
-                    requestExportConflictDecision(conflict)
-                }
+                onNameConflict = { conflict -> requestExportConflictDecision(conflict) }
             )
             val totalFailed = preparationFailed + result.failedCount
-            Toast.makeText(
-                context,
+            toastHandler.showToast(
                 when {
                     result.cancelled -> "Download cancelled"
                     else -> {
@@ -1131,9 +1101,8 @@ internal fun HttpFileBrowserScreen(
                                 }
                             }
                     }
-                },
-                Toast.LENGTH_SHORT
-            ).show()
+                }
+            )
             if (!result.cancelled) {
                 browserSelectionController.exitSelectionMode()
             }
@@ -1147,7 +1116,6 @@ internal fun HttpFileBrowserScreen(
         exportConflictDialogState = null
         browserSelectionController.exitSelectionMode()
         showBrowserInfoDialog = false
-        pendingExportTargets = emptyList()
     }
     val isConstrainedBrowserDevice = rememberIsConstrainedBrowserDevice()
     val renderBrowserContent: @Composable (HttpBrowserContentState) -> Unit = { state ->
@@ -1428,11 +1396,7 @@ internal fun HttpFileBrowserScreen(
                                     when (browserArchiveCapabilityForName(entry.name)) {
                                         BrowserArchiveCapability.Browsable -> openArchiveEntry(entry)
                                         BrowserArchiveCapability.KnownUnsupported -> {
-                                            Toast.makeText(
-                                                context,
-                                                "Archive format not supported yet",
-                                                Toast.LENGTH_SHORT
-                                            ).show()
+                                            toastHandler.showToast("Archive format not supported yet")
                                         }
 
                                         BrowserArchiveCapability.None -> {
@@ -1572,11 +1536,7 @@ internal fun HttpFileBrowserScreen(
                                         icon = Icons.Default.Link,
                                         enabled = selectedDownloadFileTargets().isNotEmpty(),
                                         onClick = {
-                                            val targets = selectedDownloadFileTargets()
-                                            if (targets.isNotEmpty()) {
-                                                pendingExportTargets = targets
-                                                exportDirectoryLauncher.launch(null)
-                                            }
+                                            startExport(selectedDownloadFileTargets())
                                         }
                                     ),
                                     BrowserSelectionActionItem(
@@ -1814,7 +1774,7 @@ internal fun HttpFileBrowserScreen(
             sessionUsername = normalizedUsername
             sessionPassword = normalizedPassword
             if (authRememberPassword) {
-                ManualSmbAuthCoordinator.rememberCredentials(
+                NetworkCredentialStore.remember(
                     currentSpec.copy(
                         username = normalizedUsername,
                         password = normalizedPassword
@@ -2251,14 +2211,8 @@ private fun HttpEntryRow(
     )
     val isArchive = browserArchiveCapabilityForName(entry.name) != BrowserArchiveCapability.None
     val treatAsContainer = entry.isDirectory || isArchive
-    val playWithContext = LocalContext.current
+    val playWithPrefs = LocalAppPreferences.current
     var showPlayWith by remember { mutableStateOf(false) }
-    val playWithPrefs = remember(playWithContext) {
-        playWithContext.getSharedPreferences(
-            AppPreferenceKeys.PREFS_NAME,
-            android.content.Context.MODE_PRIVATE
-        )
-    }
     if (showPlayWith) {
         PlayWithDialog(
             file = File(entry.name),
@@ -2357,13 +2311,7 @@ private fun HttpEntryRow(
                 contentAlignment = Alignment.Center
             ) {
                 Icon(
-                    painter = painterResource(
-                        id = if (isFavorited) {
-                            R.drawable.ic_star_filled
-                        } else {
-                            R.drawable.ic_star_outline
-                        }
-                    ),
+                    imageVector = if (isFavorited) Icons.Default.Star else Icons.Default.StarBorder,
                     contentDescription = if (isFavorited) {
                         "Remove from favorites"
                     } else {
@@ -2479,9 +2427,7 @@ private fun HttpEntryRow(
                             },
                             leadingIcon = {
                                 Icon(
-                                    painter = painterResource(
-                                        id = if (isFavorited) R.drawable.ic_star_filled else R.drawable.ic_star_outline
-                                    ),
+                                    imageVector = if (isFavorited) Icons.Default.Star else Icons.Default.StarBorder,
                                     contentDescription = null,
                                     modifier = Modifier.size(22.dp)
                                 )
@@ -2669,11 +2615,8 @@ private fun appendHttpDisplayNameFragment(
         .replace('/', '_')
         .replace('\\', '_')
     return try {
-        Uri.parse(sourceUrl)
-            .buildUpon()
-            .fragment(Uri.encode(sanitizedLabel))
-            .build()
-            .toString()
+        val encodedLabel = java.net.URLEncoder.encode(sanitizedLabel, "UTF-8").replace("+", "%20")
+        "${sourceUrl.substringBefore('#')}#$encodedLabel"
     } catch (_: Throwable) {
         sourceUrl
     }

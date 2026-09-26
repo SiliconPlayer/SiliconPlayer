@@ -51,3 +51,39 @@ internal fun decodePercentEncodedForDisplay(raw: String?): String? {
         .takeUnless { it.isNullOrBlank() }
         ?: trimmed
 }
+
+internal fun sanitizeRemoteLeafName(raw: String?): String? {
+    val trimmed = raw?.trim()?.substringAfterLast('/')?.takeIf { it.isNotBlank() } ?: return null
+    return trimmed.replace(Regex("""[\\/:*?"<>|]"""), "_")
+}
+
+internal fun stripUrlFragment(url: String): String {
+    val fragmentIndex = url.indexOf('#')
+    return if (fragmentIndex >= 0) url.substring(0, fragmentIndex) else url
+}
+
+internal fun filenameFromContentDisposition(headerValue: String?): String? {
+    if (headerValue.isNullOrBlank()) return null
+    val filenameStar = Regex("""filename\*\s*=\s*([^;]+)""", RegexOption.IGNORE_CASE)
+        .find(headerValue)
+        ?.groupValues
+        ?.getOrNull(1)
+        ?.trim()
+        ?.trim('"')
+        ?.let { value ->
+            value.substringAfter("''", value)
+        }
+    if (!filenameStar.isNullOrBlank()) {
+        return try {
+            sanitizeRemoteLeafName(URLDecoder.decode(filenameStar, "UTF-8"))
+        } catch (_: Throwable) {
+            sanitizeRemoteLeafName(filenameStar)
+        }
+    }
+
+    val filename = Regex("""filename\s*=\s*("?)([^";]+)\1""", RegexOption.IGNORE_CASE)
+        .find(headerValue)
+        ?.groupValues
+        ?.getOrNull(2)
+    return sanitizeRemoteLeafName(filename)
+}

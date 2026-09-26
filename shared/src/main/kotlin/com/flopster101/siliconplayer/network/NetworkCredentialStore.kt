@@ -101,6 +101,23 @@ internal object NetworkCredentialStore {
         )
     }
 
+    fun resolvedCredentialPair(spec: SmbSourceSpec): Pair<String?, String?>? {
+        val resolved = applyTo(spec)
+        return credentialPair(resolved.username, resolved.password)
+    }
+
+    fun resolvedCredentialPair(spec: HttpSourceSpec): Pair<String?, String?>? {
+        val resolved = applyTo(spec)
+        return credentialPair(resolved.username, resolved.password)
+    }
+
+    private fun credentialPair(username: String?, password: String?): Pair<String?, String?>? {
+        val normalizedUsername = username?.trim().takeUnless { it.isNullOrBlank() }
+        val normalizedPassword = password?.trim().takeUnless { it.isNullOrBlank() }
+        if (normalizedUsername == null && normalizedPassword == null) return null
+        return normalizedUsername to normalizedPassword
+    }
+
     fun clearAll() {
         synchronized(lock) {
             ensureLoadedLocked()
