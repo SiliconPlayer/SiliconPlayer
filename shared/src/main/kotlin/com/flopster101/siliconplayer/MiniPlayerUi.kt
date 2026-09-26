@@ -91,6 +91,14 @@ private fun isLikelyVideoExtension(extension: String): Boolean {
     return normalized in artworkFallbackVideoExtensions
 }
 
+internal fun resolveMiniPlayerTitle(sanitizedTitle: String, file: File?): String {
+    return sanitizedTitle.ifBlank { file?.name?.let(::inferredDisplayTitleForName) ?: "No track loaded" }
+}
+
+internal fun resolveMiniPlayerArtist(formattedArtist: String, file: File?): String {
+    return formattedArtist.ifBlank { if (file != null) "Unknown Artist" else "Unknown" }
+}
+
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
 internal fun MiniPlayerBar(

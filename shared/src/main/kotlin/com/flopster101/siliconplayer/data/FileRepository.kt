@@ -124,62 +124,65 @@ class FileRepository(
         return rootDirectoryProvider()
     }
 
-    private fun compareNaturalName(left: String, right: String): Int {
-        var leftIndex = 0
-        var rightIndex = 0
-        val leftLength = left.length
-        val rightLength = right.length
+    private fun compareNaturalName(left: String, right: String): Int =
+        compareFileNamesNatural(left, right)
+}
 
-        while (leftIndex < leftLength && rightIndex < rightLength) {
-            val leftChar = left[leftIndex]
-            val rightChar = right[rightIndex]
-            val leftIsDigit = leftChar.isDigit()
-            val rightIsDigit = rightChar.isDigit()
+internal fun compareFileNamesNatural(left: String, right: String): Int {
+    var leftIndex = 0
+    var rightIndex = 0
+    val leftLength = left.length
+    val rightLength = right.length
 
-            if (leftIsDigit && rightIsDigit) {
-                var leftNumEnd = leftIndex
-                while (leftNumEnd < leftLength && left[leftNumEnd].isDigit()) leftNumEnd++
-                var rightNumEnd = rightIndex
-                while (rightNumEnd < rightLength && right[rightNumEnd].isDigit()) rightNumEnd++
+    while (leftIndex < leftLength && rightIndex < rightLength) {
+        val leftChar = left[leftIndex]
+        val rightChar = right[rightIndex]
+        val leftIsDigit = leftChar.isDigit()
+        val rightIsDigit = rightChar.isDigit()
 
-                var leftTrimmedStart = leftIndex
-                while (leftTrimmedStart < leftNumEnd && left[leftTrimmedStart] == '0') leftTrimmedStart++
-                var rightTrimmedStart = rightIndex
-                while (rightTrimmedStart < rightNumEnd && right[rightTrimmedStart] == '0') rightTrimmedStart++
+        if (leftIsDigit && rightIsDigit) {
+            var leftNumEnd = leftIndex
+            while (leftNumEnd < leftLength && left[leftNumEnd].isDigit()) leftNumEnd++
+            var rightNumEnd = rightIndex
+            while (rightNumEnd < rightLength && right[rightNumEnd].isDigit()) rightNumEnd++
 
-                val leftDigitsLength = leftNumEnd - leftTrimmedStart
-                val rightDigitsLength = rightNumEnd - rightTrimmedStart
-                if (leftDigitsLength != rightDigitsLength) {
-                    return leftDigitsLength.compareTo(rightDigitsLength)
+            var leftTrimmedStart = leftIndex
+            while (leftTrimmedStart < leftNumEnd && left[leftTrimmedStart] == '0') leftTrimmedStart++
+            var rightTrimmedStart = rightIndex
+            while (rightTrimmedStart < rightNumEnd && right[rightTrimmedStart] == '0') rightTrimmedStart++
+
+            val leftDigitsLength = leftNumEnd - leftTrimmedStart
+            val rightDigitsLength = rightNumEnd - rightTrimmedStart
+            if (leftDigitsLength != rightDigitsLength) {
+                return leftDigitsLength.compareTo(rightDigitsLength)
+            }
+            if (leftDigitsLength > 0) {
+                var offset = 0
+                while (offset < leftDigitsLength) {
+                    val digitCompare =
+                        left[leftTrimmedStart + offset].compareTo(right[rightTrimmedStart + offset])
+                    if (digitCompare != 0) return digitCompare
+                    offset++
                 }
-                if (leftDigitsLength > 0) {
-                    var offset = 0
-                    while (offset < leftDigitsLength) {
-                        val digitCompare =
-                            left[leftTrimmedStart + offset].compareTo(right[rightTrimmedStart + offset])
-                        if (digitCompare != 0) return digitCompare
-                        offset++
-                    }
-                }
-
-                val leftRawLength = leftNumEnd - leftIndex
-                val rightRawLength = rightNumEnd - rightIndex
-                if (leftRawLength != rightRawLength) {
-                    return leftRawLength.compareTo(rightRawLength)
-                }
-
-                leftIndex = leftNumEnd
-                rightIndex = rightNumEnd
-                continue
             }
 
-            val charCompare = leftChar.lowercaseChar().compareTo(rightChar.lowercaseChar())
-            if (charCompare != 0) return charCompare
+            val leftRawLength = leftNumEnd - leftIndex
+            val rightRawLength = rightNumEnd - rightIndex
+            if (leftRawLength != rightRawLength) {
+                return leftRawLength.compareTo(rightRawLength)
+            }
 
-            leftIndex++
-            rightIndex++
+            leftIndex = leftNumEnd
+            rightIndex = rightNumEnd
+            continue
         }
 
-        return leftLength.compareTo(rightLength)
+        val charCompare = leftChar.lowercaseChar().compareTo(rightChar.lowercaseChar())
+        if (charCompare != 0) return charCompare
+
+        leftIndex++
+        rightIndex++
     }
+
+    return leftLength.compareTo(rightLength)
 }

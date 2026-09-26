@@ -15,6 +15,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Window
 import androidx.compose.ui.window.application
@@ -24,6 +25,8 @@ import androidx.compose.material.icons.filled.InsertDriveFile
 import com.flopster101.siliconplayer.HomeScreen
 import com.flopster101.siliconplayer.HomePinnedEntry
 import com.flopster101.siliconplayer.MiniPlayerBar
+import com.flopster101.siliconplayer.resolveMiniPlayerArtist
+import com.flopster101.siliconplayer.resolveMiniPlayerTitle
 import com.flopster101.siliconplayer.RecentPathEntry
 import com.flopster101.siliconplayer.StoragePresentation
 import com.flopster101.siliconplayer.FolderEntryAction
@@ -43,6 +46,7 @@ import com.flopster101.siliconplayer.writeNetworkNodes
 import com.flopster101.siliconplayer.BrowserNameSortMode
 import com.flopster101.siliconplayer.NativeBridge
 import com.flopster101.siliconplayer.data.FileRepository
+import com.flopster101.siliconplayer.data.compareFileNamesNatural
 import com.flopster101.siliconplayer.platform.LocalAppPreferences
 import com.flopster101.siliconplayer.platform.LocalToastHandler
 import com.flopster101.siliconplayer.platform.PlatformBackHandler
@@ -63,6 +67,8 @@ import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.input.key.KeyEventType
 import androidx.compose.ui.input.key.key
 import androidx.compose.ui.input.key.type
+import androidx.compose.ui.platform.LocalClipboardManager
+import androidx.compose.ui.platform.LocalDensity
 import com.flopster101.siliconplayer.ui.screens.PlaylistsScreen
 import com.flopster101.siliconplayer.ui.screens.LibrarySurfaceState
 import com.flopster101.siliconplayer.PlaylistEntrySortMode
@@ -96,27 +102,37 @@ import com.flopster101.siliconplayer.audio.readGlobalDspSettings
 import com.flopster101.siliconplayer.audio.resolveEffectiveDspSettings
 import com.flopster101.siliconplayer.audio.writeCoreDspSettings
 import com.flopster101.siliconplayer.audio.writeGlobalDspSettings
+import com.flopster101.siliconplayer.fileMatchesSupportedExtensions
 import com.flopster101.siliconplayer.playlistContainsTrack
 import com.flopster101.siliconplayer.samePath
+import com.flopster101.siliconplayer.shouldRestartCurrentTrackOnPrevious
 import com.flopster101.siliconplayer.toPlaylistTrackEntry
+import com.flopster101.siliconplayer.readPinnedHomeEntries
 import com.flopster101.siliconplayer.readPluginVolumeForDecoder
+import com.flopster101.siliconplayer.readRecentEntries
 import com.flopster101.siliconplayer.upsertFavoriteTrack
 import com.flopster101.siliconplayer.upsertFavoriteTracks
 import com.flopster101.siliconplayer.writePluginVolumeForDecoder
 import com.flopster101.siliconplayer.upsertStoredPlaylist
+import com.flopster101.siliconplayer.writePinnedHomeEntries
+import com.flopster101.siliconplayer.writeRecentEntries
 import com.flopster101.siliconplayer.writePlaylistLibraryState
 import com.flopster101.siliconplayer.SettingsScreen
 import com.flopster101.siliconplayer.inferredPrimaryExtensionForName
+import com.flopster101.siliconplayer.RepeatMode
 import com.flopster101.siliconplayer.MainView
 import com.flopster101.siliconplayer.SettingsRoute
 import com.flopster101.siliconplayer.BrowserRouteMode
 import com.flopster101.siliconplayer.rememberBrowserRouteRenderState
 import com.flopster101.siliconplayer.resolveBrowserRouteResolution
 import com.flopster101.siliconplayer.MainNavigationScaffold
+import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.LinearOutSlowInEasing
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -129,6 +145,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.style.TextOverflow
 import com.flopster101.siliconplayer.AppDefaults
 import com.flopster101.siliconplayer.AppPreferenceKeys
@@ -144,6 +161,9 @@ import com.flopster101.siliconplayer.supportsLiveRepeatMode
 import com.flopster101.siliconplayer.ui.screens.LocalPlayerFocusIndicatorsEnabled
 import com.flopster101.siliconplayer.ui.screens.PlayerScreen
 import com.flopster101.siliconplayer.ui.theme.SiliconPlayerBaseTheme
+import kotlin.math.abs
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.launch
 import java.io.File
 import java.util.Locale
 import javax.swing.JFileChooser
@@ -155,6 +175,8 @@ import javax.swing.SwingUtilities
 private val MiniPlayerDockHorizontalPadding = 14.dp
 private val MiniPlayerDockVerticalPadding = 6.dp
 private val DesktopNavigationBarInset = 16.dp
+private const val DesktopRecentFilesLimit = 20
+private const val DesktopRecentFoldersLimit = 10
 
 fun openDesktopFileChooser(onFileSelected: (File) -> Unit) {
     SwingUtilities.invokeLater {
@@ -174,6 +196,15 @@ fun main(args: Array<String>) = application {
 
     var currentView by remember { mutableStateOf(MainView.Home) }
     var isPlayerExpanded by remember { mutableStateOf(false) }
+    var isPlayerSurfaceVisible by remember { mutableStateOf(false) }
+    var miniExpandPreviewProgress by remember { mutableFloatStateOf(0f) }
+    var miniDismissOffsetPx by remember { mutableFloatStateOf(0f) }
+    val miniDismissSettle = remember { Animatable(0f) }
+    val miniDismissScope = rememberCoroutineScope()
+    val supportedExtensions = remember {
+        runCatching { NativeBridge.getSupportedExtensions().toSet() }.getOrElse { emptySet() }
+    }
+    var previousRestartsAfterThreshold by remember { mutableStateOf(true) }
     var currentDirectory by remember {
         mutableStateOf(File(System.getProperty("user.home") ?: "/"))
     }
@@ -245,7 +276,7 @@ fun main(args: Array<String>) = application {
         )
         recentFiles.removeAll { it.path == file.absolutePath }
         recentFiles.add(0, entry)
-        if (recentFiles.size > 20) {
+        if (recentFiles.size > DesktopRecentFilesLimit) {
             recentFiles.removeLast()
         }
 
@@ -259,7 +290,7 @@ fun main(args: Array<String>) = application {
             )
             recentFolders.removeAll { it.path == parent.absolutePath }
             recentFolders.add(0, folderEntry)
-            if (recentFolders.size > 10) {
+            if (recentFolders.size > DesktopRecentFoldersLimit) {
                 recentFolders.removeLast()
             }
         }
@@ -268,6 +299,7 @@ fun main(args: Array<String>) = application {
     fun playFile(file: File) {
         if (session.loadFile(file)) {
             registerLoadedFile(file)
+            isPlayerSurfaceVisible = true
         }
     }
 
@@ -278,6 +310,7 @@ fun main(args: Array<String>) = application {
             return
         }
         if (session.loadSource(source, titleHint, artistHint)) {
+            isPlayerSurfaceVisible = true
             val entry = RecentPathEntry(
                 path = source,
                 locationId = null,
@@ -287,10 +320,49 @@ fun main(args: Array<String>) = application {
             )
             recentFiles.removeAll { it.path == source }
             recentFiles.add(0, entry)
-            if (recentFiles.size > 20) {
+            if (recentFiles.size > DesktopRecentFilesLimit) {
                 recentFiles.removeLast()
             }
         }
+    }
+
+    fun listSiblingTracks(anchor: File): List<File> {
+        val siblings = anchor.parentFile?.listFiles()
+            ?.filter { it.isFile && fileMatchesSupportedExtensions(it, supportedExtensions) }
+            ?: return emptyList()
+        return siblings.sortedWith { left, right -> compareFileNamesNatural(left.name, right.name) }
+    }
+
+    fun playAdjacentTrack(offset: Int, stopAtBoundary: Boolean): Boolean {
+        val current = session.currentFile ?: return false
+        val siblings = listSiblingTracks(current)
+        if (siblings.isEmpty()) return false
+        val index = siblings.indexOfFirst { samePath(it.absolutePath, current.absolutePath) }
+        if (index < 0) return false
+        val target = if (session.repeatMode != RepeatMode.None) {
+            siblings[((index + offset) % siblings.size + siblings.size) % siblings.size]
+        } else {
+            siblings.getOrNull(index + offset)
+        }
+        if (target == null) {
+            if (stopAtBoundary && offset > 0) {
+                session.stop()
+                return true
+            }
+            return false
+        }
+        playFile(target)
+        return true
+    }
+
+    fun playPreviousTrackFromUi() {
+        val current = session.currentFile ?: return
+        if (shouldRestartCurrentTrackOnPrevious(previousRestartsAfterThreshold, true, session.positionSeconds)) {
+            session.seekTo(0.0)
+            return
+        }
+        if (playAdjacentTrack(-1, stopAtBoundary = false)) return
+        session.seekTo(0.0)
     }
 
     LaunchedEffect(args) {
@@ -411,6 +483,7 @@ fun main(args: Array<String>) = application {
                 mutableStateOf(prefs.getBoolean(AppPreferenceKeys.URL_PATH_FORCE_CACHING, false))
             }
             val toastHandler = LocalToastHandler.current
+            val clipboardManager = LocalClipboardManager.current
             fun confirmUrlOrPathOpen() {
                 showUrlOrPathDialog = false
                 val resolved = resolveManualSourceInput(urlOrPathInput)
@@ -663,6 +736,10 @@ fun main(args: Array<String>) = application {
                 applyCommittedAudioParametersToNative()
                 showAudioEffectsDialog = false
             }
+            LaunchedEffect(prefToken, prefs) {
+                previousRestartsAfterThreshold =
+                    prefs.getBoolean(AppPreferenceKeys.PREVIOUS_RESTART_AFTER_THRESHOLD, true)
+            }
             LaunchedEffect(Unit) {
                 masterVolumeDb = prefs.getFloat(AppPreferenceKeys.AUDIO_MASTER_VOLUME_DB, 0f)
                 forceMono = prefs.getBoolean(AppPreferenceKeys.AUDIO_FORCE_MONO, false)
@@ -711,14 +788,40 @@ fun main(args: Array<String>) = application {
                     )
                 )
             }
+            LaunchedEffect(prefs) {
+                readRecentEntries(prefs, AppPreferenceKeys.RECENT_FOLDERS, DesktopRecentFoldersLimit)
+                    .takeIf { it.isNotEmpty() }?.let { stored ->
+                        recentFolders.clear()
+                        recentFolders.addAll(stored)
+                    }
+                readRecentEntries(prefs, AppPreferenceKeys.RECENT_PLAYED_FILES, DesktopRecentFilesLimit)
+                    .takeIf { it.isNotEmpty() }?.let { stored ->
+                        recentFiles.clear()
+                        recentFiles.addAll(stored)
+                    }
+                readPinnedHomeEntries(prefs)
+                    .takeIf { it.isNotEmpty() }?.let { stored ->
+                        pinnedEntries.clear()
+                        pinnedEntries.addAll(stored)
+                    }
+                snapshotFlow { Triple(recentFiles.toList(), recentFolders.toList(), pinnedEntries.toList()) }
+                    .distinctUntilChanged()
+                    .collect { (files, folders, pinned) ->
+                        writeRecentEntries(prefs, AppPreferenceKeys.RECENT_FOLDERS, folders, DesktopRecentFoldersLimit)
+                        writeRecentEntries(prefs, AppPreferenceKeys.RECENT_PLAYED_FILES, files, DesktopRecentFilesLimit)
+                        writePinnedHomeEntries(prefs, pinned)
+                    }
+            }
             val currentTrackPath = session.currentFile?.absolutePath
             val isCurrentTrackFavorited = currentTrackPath != null &&
                 playlistLibraryState.favorites.any { it.source == currentTrackPath }
 
+            val miniPreviewLiftPx = with(LocalDensity.current) { 28.dp.toPx() }
+            val miniDismissMaxOffsetPx = with(LocalDensity.current) { 108.dp.toPx() }
             val visualizationUiState = rememberVisualizationUiState(
                 prefs = prefs,
                 activeCoreName = session.decoderName,
-                isPlayerSurfaceVisible = isPlayerExpanded
+                isPlayerSurfaceVisible = isPlayerSurfaceVisible
             )
 
             SiliconPlayerBaseTheme(darkTheme = darkTheme) {
@@ -731,9 +834,8 @@ fun main(args: Array<String>) = application {
                         MainNavigationScaffold(
                             currentView = currentView,
                             onOpenPlayerSurface = {
-                                if (session.currentFile != null) {
-                                    isPlayerExpanded = true
-                                }
+                                isPlayerSurfaceVisible = true
+                                isPlayerExpanded = true
                             },
                             onHomeRequested = { currentView = MainView.Home },
                             onOpenUrlOrPathRequested = { showUrlOrPathDialog = true },
@@ -742,7 +844,7 @@ fun main(args: Array<String>) = application {
                                 settingsRoute = SettingsRoute.Root
                             }
                         ) { mainPadding, targetView ->
-                            val bottomMargin = if (session.currentFile != null) {
+                            val bottomMargin = if (isPlayerSurfaceVisible && !isPlayerExpanded) {
                                 72.dp + DesktopNavigationBarInset
                             } else {
                                 0.dp
@@ -824,7 +926,10 @@ fun main(args: Array<String>) = application {
                                             onPinnedFolderAction = { entry, action ->
                                                 when (action) {
                                                     FolderEntryAction.DeleteFromRecents -> pinnedEntries.removeAll { it.path == entry.path }
-                                                    FolderEntryAction.CopyPath -> {}
+                                                    FolderEntryAction.CopyPath -> {
+                                                        clipboardManager.setText(AnnotatedString(entry.path))
+                                                        toastHandler.showToast("Copied path")
+                                                    }
                                                     FolderEntryAction.OpenInBrowser -> {
                                                         openLocalBrowser(File(entry.path))
                                                     }
@@ -834,7 +939,10 @@ fun main(args: Array<String>) = application {
                                                 when (action) {
                                                     SourceEntryAction.DeleteFromRecents -> pinnedEntries.removeAll { it.path == entry.path }
                                                     SourceEntryAction.ShareFile -> {}
-                                                    SourceEntryAction.CopySource -> {}
+                                                    SourceEntryAction.CopySource -> {
+                                                        clipboardManager.setText(AnnotatedString(entry.path))
+                                                        toastHandler.showToast("Copied URL/path")
+                                                    }
                                                     SourceEntryAction.OpenInBrowser -> {
                                                         val f = File(entry.path)
                                                         openLocalBrowser(f.parentFile ?: f)
@@ -844,7 +952,10 @@ fun main(args: Array<String>) = application {
                                             onRecentFolderAction = { entry, action ->
                                                 when (action) {
                                                     FolderEntryAction.DeleteFromRecents -> recentFolders.removeAll { it.path == entry.path }
-                                                    FolderEntryAction.CopyPath -> {}
+                                                    FolderEntryAction.CopyPath -> {
+                                                        clipboardManager.setText(AnnotatedString(entry.path))
+                                                        toastHandler.showToast("Copied path")
+                                                    }
                                                     FolderEntryAction.OpenInBrowser -> {
                                                         openLocalBrowser(File(entry.path))
                                                     }
@@ -854,7 +965,10 @@ fun main(args: Array<String>) = application {
                                                 when (action) {
                                                     SourceEntryAction.DeleteFromRecents -> recentFiles.removeAll { it.path == entry.path }
                                                     SourceEntryAction.ShareFile -> {}
-                                                    SourceEntryAction.CopySource -> {}
+                                                    SourceEntryAction.CopySource -> {
+                                                        clipboardManager.setText(AnnotatedString(entry.path))
+                                                        toastHandler.showToast("Copied URL/path")
+                                                    }
                                                     SourceEntryAction.OpenInBrowser -> {
                                                         val f = File(entry.path)
                                                         openLocalBrowser(f.parentFile ?: f)
@@ -867,9 +981,8 @@ fun main(args: Array<String>) = application {
                                             canShareRecentFile = { false },
                                             canSharePinnedFile = { false },
                                             onOpenPlayerSurface = {
-                                                if (session.currentFile != null) {
-                                                    isPlayerExpanded = true
-                                                }
+                                                isPlayerSurfaceVisible = true
+                                                isPlayerExpanded = true
                                             },
                                             onOpenSettings = {
                                                 currentView = MainView.Settings
@@ -1299,9 +1412,15 @@ fun main(args: Array<String>) = application {
                             }
                         }
 
+                        LaunchedEffect(session.isPlaying, isPlayerSurfaceVisible) {
+                            if (session.isPlaying || !isPlayerSurfaceVisible) {
+                                miniDismissOffsetPx = 0f
+                            }
+                        }
+
                         // Docked Mini Player
                         AnimatedVisibility(
-                            visible = session.currentFile != null && !isPlayerExpanded,
+                            visible = isPlayerSurfaceVisible && !isPlayerExpanded,
                             modifier = Modifier
                                 .align(Alignment.BottomCenter)
                                 .padding(
@@ -1313,9 +1432,86 @@ fun main(args: Array<String>) = application {
                             exit = slideOutVertically(targetOffsetY = { it }) + fadeOut()
                         ) {
                             MiniPlayerBar(
+                                modifier = Modifier
+                                    .graphicsLayer {
+                                        val dragProgress = miniExpandPreviewProgress.coerceIn(0f, 1f)
+                                        alpha = 1f - dragProgress
+                                        translationY = -miniPreviewLiftPx * dragProgress
+                                        translationX = miniDismissOffsetPx
+                                    }
+                                    .pointerInput(session.isPlaying, miniDismissMaxOffsetPx) {
+                                    // Direction-locked dismiss: decided in the Main pass before the inner
+                                    // vertical expand detector sees the gesture, so horizontal drags engage
+                                    // immediately instead of racing it. Vertical drags pass through untouched.
+                                    val touchSlop = viewConfiguration.touchSlop
+                                    awaitEachGesture {
+                                        val pointerId = awaitFirstDown(requireUnconsumed = false).id
+                                        var lockedHorizontal = false
+                                        var slopX = 0f
+                                        var slopY = 0f
+                                        fun snapMiniDismissBack() {
+                                            val releaseOffset = miniDismissOffsetPx
+                                            miniDismissScope.launch {
+                                                miniDismissSettle.snapTo(releaseOffset)
+                                                miniDismissSettle.animateTo(
+                                                    targetValue = 0f,
+                                                    animationSpec = tween(
+                                                        durationMillis = 220,
+                                                        easing = LinearOutSlowInEasing
+                                                    )
+                                                ) {
+                                                    miniDismissOffsetPx = value
+                                                }
+                                            }
+                                        }
+                                        fun settleMiniDismiss() {
+                                            val releaseOffset = miniDismissOffsetPx
+                                            if (!session.isPlaying &&
+                                                abs(releaseOffset) >= miniDismissMaxOffsetPx * 0.6f
+                                            ) {
+                                                miniDismissOffsetPx = 0f
+                                                isPlayerExpanded = false
+                                                isPlayerSurfaceVisible = false
+                                            } else {
+                                                snapMiniDismissBack()
+                                            }
+                                        }
+                                        var finished = false
+                                        while (!finished) {
+                                            val event = awaitPointerEvent(PointerEventPass.Main)
+                                            val change = event.changes.firstOrNull { it.id == pointerId }
+                                            if (change == null) {
+                                                if (lockedHorizontal) snapMiniDismissBack()
+                                                finished = true
+                                            } else if (!change.pressed) {
+                                                if (lockedHorizontal) settleMiniDismiss()
+                                                finished = true
+                                            } else {
+                                                val dx = change.position.x - change.previousPosition.x
+                                                if (!lockedHorizontal) {
+                                                    slopX += dx
+                                                    slopY += change.position.y - change.previousPosition.y
+                                                    if (maxOf(abs(slopX), abs(slopY)) <= touchSlop) continue
+                                                    if (abs(slopY) >= abs(slopX)) {
+                                                        finished = true
+                                                        continue
+                                                    }
+                                                    lockedHorizontal = true
+                                                }
+                                                miniDismissOffsetPx = if (session.isPlaying) {
+                                                    (miniDismissOffsetPx + dx)
+                                                        .coerceIn(-miniDismissMaxOffsetPx, miniDismissMaxOffsetPx)
+                                                } else {
+                                                    miniDismissOffsetPx + dx
+                                                }
+                                                change.consume()
+                                            }
+                                        }
+                                    }
+                                },
                                 file = session.currentFile,
-                                title = session.title.ifBlank { session.currentFile?.name ?: "No title" },
-                                artist = session.artist.ifBlank { "Unknown Artist" },
+                                title = resolveMiniPlayerTitle(session.title, session.currentFile),
+                                artist = resolveMiniPlayerArtist(session.artist, session.currentFile),
                                 metadataTitleResolved = session.title.isNotBlank(),
                                 artwork = session.artwork,
                                 noArtworkIcon = placeholderArtworkIconForFile(session.currentFile, session.decoderName),
@@ -1323,23 +1519,29 @@ fun main(args: Array<String>) = application {
                                 isPlaying = session.isPlaying,
                                 playbackStartInProgress = false,
                                 seekInProgress = false,
-                                canResumeStoppedTrack = true,
+                                canResumeStoppedTrack = session.canResume(),
                                 positionSeconds = session.positionSeconds,
                                 durationSeconds = session.durationSeconds,
                                 hasReliableDuration = session.hasReliableDuration,
-                                previousRestartsAfterThreshold = true,
-                                canPreviousTrack = false,
-                                canNextTrack = false,
+                                previousRestartsAfterThreshold = previousRestartsAfterThreshold,
+                                canPreviousTrack = session.currentFile != null,
+                                canNextTrack = session.currentFile != null,
                                 canPreviousSubtune = session.subtuneCount > 1 && session.subtuneIndex > 0,
                                 canNextSubtune = session.subtuneCount > 1 && session.subtuneIndex + 1 < session.subtuneCount,
                                 currentSubtuneIndex = session.subtuneIndex,
                                 subtuneCount = session.subtuneCount,
-                                onExpand = { isPlayerExpanded = true },
-                                onExpandDragProgress = {},
-                                onExpandDragCommit = { isPlayerExpanded = true },
-                                onPreviousTrack = {},
-                                onForcePreviousTrack = {},
-                                onNextTrack = {},
+                                onExpand = {
+                                    miniExpandPreviewProgress = 0f
+                                    isPlayerExpanded = true
+                                },
+                                onExpandDragProgress = { miniExpandPreviewProgress = it },
+                                onExpandDragCommit = {
+                                    miniExpandPreviewProgress = 0f
+                                    isPlayerExpanded = true
+                                },
+                                onPreviousTrack = { playPreviousTrackFromUi() },
+                                onForcePreviousTrack = { playAdjacentTrack(-1, stopAtBoundary = false) },
+                                onNextTrack = { playAdjacentTrack(1, stopAtBoundary = true) },
                                 onPreviousSubtune = { session.previousSubtune() },
                                 onNextSubtune = { session.nextSubtune() },
                                 onPlayPause = {
@@ -1385,15 +1587,15 @@ fun main(args: Array<String>) = application {
                                     onBack = { isPlayerExpanded = false },
                                     onCollapseBySwipe = { isPlayerExpanded = false },
                                     isPlaying = session.isPlaying,
-                                    canResumeStoppedTrack = true,
+                                    canResumeStoppedTrack = session.canResume(),
                                     onPlay = { session.play() },
                                     onPause = { session.pause() },
                                     onStopAndClear = { session.stop() },
                                     durationSeconds = session.durationSeconds,
                                     positionSeconds = session.positionSeconds,
                                     positionSecondsProvider = { session.positionSeconds },
-                                    canPreviousTrack = false,
-                                    canNextTrack = false,
+                                    canPreviousTrack = session.currentFile != null,
+                                    canNextTrack = session.currentFile != null,
                                     title = session.title,
                                     artist = session.artist,
                                     album = session.album,
@@ -1413,9 +1615,9 @@ fun main(args: Array<String>) = application {
                                     hasReliableDuration = session.hasReliableDuration,
                                     playbackCapabilitiesFlags = session.playbackCapabilitiesFlags,
                                     onSeek = { seconds -> session.seekTo(seconds) },
-                                    onPreviousTrack = {},
-                                    onForcePreviousTrack = {},
-                                    onNextTrack = {},
+                                    onPreviousTrack = { playPreviousTrackFromUi() },
+                                    onForcePreviousTrack = { playAdjacentTrack(-1, stopAtBoundary = false) },
+                                    onNextTrack = { playAdjacentTrack(1, stopAtBoundary = true) },
                                     onPreviousSubtune = { session.previousSubtune() },
                                     onNextSubtune = { session.nextSubtune() },
                                     onOpenSubtuneSelector = { showSubtuneSelectorDialog = true },

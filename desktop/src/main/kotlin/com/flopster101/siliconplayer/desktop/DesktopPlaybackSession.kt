@@ -177,6 +177,8 @@ class DesktopPlaybackSession(
         }
     }
 
+    fun canResume(): Boolean = currentFile != null || stoppedSource != null
+
     fun stop() {
         NativeBridge.stopEngineNative()
         NativeBridge.releaseCurrentDecoder()
@@ -211,7 +213,6 @@ class DesktopPlaybackSession(
         repeatModeCapabilitiesFlags = 0
         canSeek = false
         hasReliableDuration = false
-        repeatMode = RepeatMode.None
     }
 
     fun seekTo(seconds: Double) {

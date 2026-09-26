@@ -310,11 +310,7 @@ internal fun BoxScope.MiniPlayerOverlayHost(
                         if (dismissSettling) {
                             return@detectHorizontalDragGestures
                         }
-                        dismissOffsetPx =
-                            (dismissOffsetPx + dragAmount).coerceIn(
-                                -blockedDismissMaxOffsetPx,
-                                blockedDismissMaxOffsetPx
-                            )
+                        dismissOffsetPx += dragAmount
                         change.consume()
                     },
                     onDragEnd = {
@@ -377,13 +373,8 @@ internal fun BoxScope.MiniPlayerOverlayHost(
         }
         val miniPlayerContent: @Composable () -> Unit = {
             val sanitizedTitle = sanitizeRemoteCachedMetadataTitle(metadataTitle, selectedFile)
-            val displayTitle = sanitizedTitle.ifBlank {
-                selectedFile?.name?.let(::inferredDisplayTitleForName)
-                    ?: "No track loaded"
-            }
-            val displayArtist = formatDisplayArtist(metadataArtist).ifBlank {
-                if (selectedFile != null) "Unknown Artist" else "Unknown"
-            }
+            val displayTitle = resolveMiniPlayerTitle(sanitizedTitle, selectedFile)
+            val displayArtist = resolveMiniPlayerArtist(formatDisplayArtist(metadataArtist), selectedFile)
             if (isWatch) {
                 WearMiniPlayerPill(
                     artwork = artworkBitmap,
