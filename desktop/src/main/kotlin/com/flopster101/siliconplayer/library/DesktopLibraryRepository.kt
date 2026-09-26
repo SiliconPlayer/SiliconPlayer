@@ -24,6 +24,9 @@ class DesktopLibraryRepository(private val configDir: File) : LibraryRepositoryS
     // screen; the UI observes scanState for progress.
     private val scanScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private val scanMutex = Mutex()
+    // Files that killed the probe helper before; skipped while unchanged so
+    // one bad file cannot stall every scan with timeouts and restarts.
+    private val knownKillers = mutableMapOf<String, Pair<Long, Long>>()
     private val _scanState = MutableStateFlow(LibrarySyncState())
     override val scanState: StateFlow<LibrarySyncState> = _scanState.asStateFlow()
 
@@ -119,9 +122,8 @@ class DesktopLibraryRepository(private val configDir: File) : LibraryRepositoryS
         val stale: LibraryTrackEntity?
     )
 
-    // Walks enabled roots, probes changed files in isolated child JVMs (a
-    // native decoder crash must never take the app down) and rewrites the
-    // track store.
+    // Walks enabled roots, probes changed files in an isolated child JVM and
+    // rewrites the track store.
     private suspend fun scanRootsIntoStore(
         roots: List<LibraryScanRoot>,
         extensions: Set<String>,
@@ -142,9 +144,14 @@ class DesktopLibraryRepository(private val configDir: File) : LibraryRepositoryS
                 if (extension !in extensions) continue
                 val path = file.absolutePath
                 seenPaths.add(path)
-                val stale = existing[path]
                 val mtimeMs = file.lastModified()
                 val sizeBytes = file.length()
+                val killerPrint = knownKillers[path]
+                if (killerPrint != null) {
+                    if (killerPrint.first == mtimeMs && killerPrint.second == sizeBytes) continue
+                    knownKillers.remove(path)
+                }
+                val stale = existing[path]
                 if (stale != null && stale.mtimeMs == mtimeMs && stale.sizeBytes == sizeBytes) continue
                 candidates.add(
                     ProbeCandidate(
@@ -162,21 +169,23 @@ class DesktopLibraryRepository(private val configDir: File) : LibraryRepositoryS
         var indexed = 0
         var dirty = false
         if (candidates.isNotEmpty()) {
-            val results = IsolatedLibraryProber().probeAll(candidates.map { it.path }) { probed, total ->
-                if (probed % 16 == 0 || probed == total) {
+            val byPath = candidates.associateBy { it.path }
+            val prober = IsolatedLibraryProber()
+            val results = prober.probeAll(candidates.map { it.path }) { probed, total ->
+                if (probed % 8 == 0 || probed == total) {
                     onProgress(scanned, indexed + probed, candidates.getOrNull(probed)?.path)
                 }
             }
-            val byPath = candidates.associateBy { it.path }
+            prober.killedPaths.forEach { killed ->
+                byPath[killed]?.let { knownKillers[killed] = it.mtimeMs to it.sizeBytes }
+            }
             results.forEach { (path, probe) ->
                 val candidate = byPath[path] ?: return@forEach
-                val durationMs = probe?.durationSeconds
+                val durationMs = probe.durationSeconds
                     ?.takeIf { it.isFinite() && it > 0.0 }
                     ?.let { (it * 1000.0).roundToLong() } ?: 0L
                 // Skip durationless, artist-less phantom opens; keep them out of the library.
-                if (probe == null ||
-                    (durationMs <= 0L && probe.artist.isNullOrBlank() && probe.album.isNullOrBlank())
-                ) {
+                if (durationMs <= 0L && probe.artist.isNullOrBlank() && probe.album.isNullOrBlank()) {
                     return@forEach
                 }
                 existing[path] = LibraryTrackEntity(

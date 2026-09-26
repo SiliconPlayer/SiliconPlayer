@@ -1,6 +1,5 @@
 package com.flopster101.siliconplayer
 
-import com.flopster101.siliconplayer.library.BatchProbeOutcome
 import com.flopster101.siliconplayer.library.DesktopLibraryRepository
 import com.flopster101.siliconplayer.library.DesktopLibraryScanConfig
 import com.flopster101.siliconplayer.library.DirectPathLister
@@ -9,6 +8,7 @@ import com.flopster101.siliconplayer.library.IsolatedProbeResult
 import com.flopster101.siliconplayer.library.LibraryContract
 import com.flopster101.siliconplayer.library.LibraryScanRoot
 import com.flopster101.siliconplayer.library.LibraryTrackEntity
+import com.flopster101.siliconplayer.library.ProbeTransport
 import com.flopster101.siliconplayer.library.SCANNER_DEFAULT_EXTENSION_BLOCKLIST
 import com.flopster101.siliconplayer.library.defaultScanExtensions
 import com.flopster101.siliconplayer.library.libraryAlbumTracks
@@ -210,30 +210,39 @@ class DesktopLibraryTest {
         )
     }
 
-    @Test
-    fun proberSubdividesAroundCrashes() {
-        val killer = "/m/killer.sid"
-        val fakeRunner = { paths: List<String>, _: Long ->
-            val killAt = paths.indexOf(killer)
-            if (killAt < 0) {
-                BatchProbeOutcome(paths.associateWith { resultFor(it) }, emptyList())
-            } else {
-                BatchProbeOutcome(
-                    paths.subList(0, killAt).associateWith { resultFor(it) },
-                    paths.subList(killAt, paths.size)
-                )
-            }
+    private class FakeTransport(
+        private val results: Map<String, IsolatedProbeResult?>,
+        private val killers: Set<String> = emptySet()
+    ) : ProbeTransport {
+        val attempts = mutableMapOf<String, Int>()
+        override fun probe(path: String, timeoutSeconds: Long): IsolatedProbeResult? {
+            attempts[path] = (attempts[path] ?: 0) + 1
+            return if (path in killers) ProbeTransport.DEAD else results[path]
         }
-        val prober = IsolatedLibraryProber(batchSize = 4, runBatch = fakeRunner)
-        val paths = listOf("/m/a.mp3", "/m/b.mp3", killer, "/m/c.mp3", "/m/d.mp3")
+        override fun close() {}
+    }
+
+    @Test
+    fun proberSkipsKillerAfterTwoDeaths() {
+        val killer = "/m/killer.sid"
+        val paths = listOf("/m/a.mp3", "/m/b.mp3", killer, "/m/c.mp3")
+        val fake = FakeTransport(
+            results = paths.associateWith { resultFor(it) },
+            killers = setOf(killer)
+        )
+        val prober = IsolatedLibraryProber(transportProvider = { fake })
         val results = prober.probeAll(paths)
-        assertEquals(setOf("/m/a.mp3", "/m/b.mp3", "/m/c.mp3", "/m/d.mp3"), results.keys)
+        assertEquals(setOf("/m/a.mp3", "/m/b.mp3", "/m/c.mp3"), results.keys)
         assertEquals("a", results["/m/a.mp3"]?.title)
+        assertEquals(2, fake.attempts[killer])
+        assertEquals(1, fake.attempts["/m/a.mp3"])
+        assertEquals(setOf(killer), prober.killedPaths)
     }
 
     @Test
     fun proberSkipsEverythingOnSpawnFailure() {
-        val prober = IsolatedLibraryProber(runBatch = { _, _ -> null })
+        val fake = FakeTransport(results = emptyMap(), killers = setOf("/m/a.mp3", "/m/b.mp3"))
+        val prober = IsolatedLibraryProber(transportProvider = { fake })
         assertTrue(prober.probeAll(listOf("/m/a.mp3", "/m/b.mp3")).isEmpty())
     }
 
