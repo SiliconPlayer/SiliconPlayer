@@ -323,16 +323,14 @@ internal fun UiRouteContent(
         selectedMode = state.themeMode,
         onSelectedModeChanged = actions.onThemeModeChanged
     )
-    SettingsRowSpacer()
-    PlayerSettingToggleCard(
-        title = "Use Monet colors",
-        description = if (state.monetAvailable) {
-            "Use Android wallpaper-based dynamic colors instead of SiliconPlayer's custom palette."
-        } else {
-            "Requires Android 12 or newer. Older versions use SiliconPlayer's custom palette."
-        },
-        checked = state.monetAvailable && state.useMonet,
-        onCheckedChange = actions.onUseMonetChanged,
-        enabled = state.monetAvailable
-    )
+    // Unavailable hides instead of showing a dead row, like the other §7.10 flags.
+    if (state.monetAvailable) {
+        SettingsRowSpacer()
+        PlayerSettingToggleCard(
+            title = "Use Monet colors",
+            description = "Use Android wallpaper-based dynamic colors instead of SiliconPlayer's custom palette.",
+            checked = state.useMonet,
+            onCheckedChange = actions.onUseMonetChanged
+        )
+    }
 }

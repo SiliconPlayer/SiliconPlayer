@@ -102,6 +102,8 @@ internal data class PlayerRouteState(
     val openPlayerFromNotification: Boolean,
     val persistRepeatMode: Boolean,
     val keepScreenOn: Boolean,
+    val openPlayerFromNotificationAvailable: Boolean = true,
+    val keepScreenOnAvailable: Boolean = true,
     val playerArtworkCornerRadiusDp: Int,
     val showAudioOutputRouteChip: Boolean,
     val canvasTapToSeekSeconds: Int,
@@ -136,7 +138,8 @@ internal data class VisualizationRouteState(
     val enabledVisualizationModes: Set<VisualizationMode>,
     val visualizationPerformanceMode: VisualizationPerformanceMode,
     val visualizationShowDebugInfo: Boolean,
-    val visualizationKeepScreenOn: Boolean
+    val visualizationKeepScreenOn: Boolean,
+    val visualizationKeepScreenOnAvailable: Boolean = true
 )
 
 internal data class VisualizationRouteActions(
@@ -366,13 +369,15 @@ internal fun PlayerRouteContent(
         onCheckedChange = onFadePauseResumeChanged
     )
     SettingsRowSpacer()
-    PlayerSettingToggleCard(
-        title = "Open player from notification",
-        description = "When tapping playback notification, open the full player instead of normal app start destination.",
-        checked = openPlayerFromNotification,
-        onCheckedChange = onOpenPlayerFromNotificationChanged
-    )
-    SettingsRowSpacer()
+    if (state.openPlayerFromNotificationAvailable) {
+        PlayerSettingToggleCard(
+            title = "Open player from notification",
+            description = "When tapping playback notification, open the full player instead of normal app start destination.",
+            checked = openPlayerFromNotification,
+            onCheckedChange = onOpenPlayerFromNotificationChanged
+        )
+        SettingsRowSpacer()
+    }
     PlayerSettingToggleCard(
         title = "Persist repeat mode",
         description = "Keep selected repeat mode across app restarts.",
@@ -380,13 +385,15 @@ internal fun PlayerRouteContent(
         onCheckedChange = onPersistRepeatModeChanged
     )
     SettingsRowSpacer()
-    PlayerSettingToggleCard(
-        title = "Keep screen on",
-        description = "Prevent screen from turning off when the player is expanded.",
-        checked = keepScreenOn,
-        onCheckedChange = onKeepScreenOnChanged
-    )
-    SettingsRowSpacer()
+    if (state.keepScreenOnAvailable) {
+        PlayerSettingToggleCard(
+            title = "Keep screen on",
+            description = "Prevent screen from turning off when the player is expanded.",
+            checked = keepScreenOn,
+            onCheckedChange = onKeepScreenOnChanged
+        )
+        SettingsRowSpacer()
+    }
     SettingsValuePickerCard(
         title = "Artwork corner radius",
         description = "Rounded corner size for the player artwork/scope container.",
@@ -561,13 +568,15 @@ internal fun VisualizationRouteContent(
         checked = visualizationShowDebugInfo,
         onCheckedChange = onVisualizationShowDebugInfoChanged
     )
-    SettingsRowSpacer()
-    PlayerSettingToggleCard(
-        title = "Keep screen on with visualization",
-        description = "Prevent screen from turning off while a visualization is visible and playing.",
-        checked = visualizationKeepScreenOn,
-        onCheckedChange = onVisualizationKeepScreenOnChanged
-    )
+    if (state.visualizationKeepScreenOnAvailable) {
+        SettingsRowSpacer()
+        PlayerSettingToggleCard(
+            title = "Keep screen on with visualization",
+            description = "Prevent screen from turning off while a visualization is visible and playing.",
+            checked = visualizationKeepScreenOn,
+            onCheckedChange = onVisualizationKeepScreenOnChanged
+        )
+    }
     if (!isWatch) {
         SettingsRowSpacer()
         SettingsItemCard(

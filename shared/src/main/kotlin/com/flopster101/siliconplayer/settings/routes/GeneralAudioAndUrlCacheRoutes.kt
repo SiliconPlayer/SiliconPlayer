@@ -31,6 +31,10 @@ internal data class GeneralAudioRouteState(
     val pauseOnHeadphoneDisconnect: Boolean,
     val audioFocusInterrupt: Boolean,
     val audioDucking: Boolean,
+    val headphoneMediaButtonsAvailable: Boolean = true,
+    val pauseOnHeadphoneDisconnectAvailable: Boolean = true,
+    val audioFocusInterruptAvailable: Boolean = true,
+    val audioDuckingAvailable: Boolean = true,
     val audioBackendPreference: AudioBackendPreference,
     val audioPerformanceMode: AudioPerformanceMode,
     val audioBufferPreset: AudioBufferPreset,
@@ -90,35 +94,50 @@ internal fun GeneralAudioRouteContent(
     state: GeneralAudioRouteState,
     actions: GeneralAudioRouteActions
 ) {
-    SettingsSectionLabel("Output behavior")
-    PlayerSettingToggleCard(
-        title = "Respond to headset media buttons",
-        description = "Allow headphone/bluetooth media buttons to control playback.",
-        checked = state.respondHeadphoneMediaButtons,
-        onCheckedChange = actions.onRespondHeadphoneMediaButtonsChanged
-    )
-    SettingsRowSpacer()
-    PlayerSettingToggleCard(
-        title = "Pause on output disconnect",
-        description = "Pause playback when headphones/output device disconnects.",
-        checked = state.pauseOnHeadphoneDisconnect,
-        onCheckedChange = actions.onPauseOnHeadphoneDisconnectChanged
-    )
-    SettingsRowSpacer()
-    PlayerSettingToggleCard(
-        title = "Allow interruption by other apps",
-        description = "Pause playback when another app starts playing audio.",
-        checked = state.audioFocusInterrupt,
-        onCheckedChange = actions.onAudioFocusInterruptChanged
-    )
-    SettingsRowSpacer()
-    PlayerSettingToggleCard(
-        title = "Duck audio instead of pausing",
-        description = "Lower volume temporarily for brief interruptions (e.g., notifications) instead of pausing.",
-        checked = state.audioDucking,
-        onCheckedChange = actions.onAudioDuckingChanged
-    )
-    Spacer(modifier = Modifier.height(16.dp))
+    // Whole section is platform-gated: unavailable rows hide with their spacer,
+    // so hiding all four removes the section with no leftover gaps.
+    if (
+        state.headphoneMediaButtonsAvailable || state.pauseOnHeadphoneDisconnectAvailable ||
+            state.audioFocusInterruptAvailable || state.audioDuckingAvailable
+    ) {
+        SettingsSectionLabel("Output behavior")
+        if (state.headphoneMediaButtonsAvailable) {
+            PlayerSettingToggleCard(
+                title = "Respond to headset media buttons",
+                description = "Allow headphone/bluetooth media buttons to control playback.",
+                checked = state.respondHeadphoneMediaButtons,
+                onCheckedChange = actions.onRespondHeadphoneMediaButtonsChanged
+            )
+            SettingsRowSpacer()
+        }
+        if (state.pauseOnHeadphoneDisconnectAvailable) {
+            PlayerSettingToggleCard(
+                title = "Pause on output disconnect",
+                description = "Pause playback when headphones/output device disconnects.",
+                checked = state.pauseOnHeadphoneDisconnect,
+                onCheckedChange = actions.onPauseOnHeadphoneDisconnectChanged
+            )
+            SettingsRowSpacer()
+        }
+        if (state.audioFocusInterruptAvailable) {
+            PlayerSettingToggleCard(
+                title = "Allow interruption by other apps",
+                description = "Pause playback when another app starts playing audio.",
+                checked = state.audioFocusInterrupt,
+                onCheckedChange = actions.onAudioFocusInterruptChanged
+            )
+            SettingsRowSpacer()
+        }
+        if (state.audioDuckingAvailable) {
+            PlayerSettingToggleCard(
+                title = "Duck audio instead of pausing",
+                description = "Lower volume temporarily for brief interruptions (e.g., notifications) instead of pausing.",
+                checked = state.audioDucking,
+                onCheckedChange = actions.onAudioDuckingChanged
+            )
+        }
+        Spacer(modifier = Modifier.height(16.dp))
+    }
     SettingsSectionLabel("Audio processing")
     SettingsItemCard(
         title = "Audio effects",

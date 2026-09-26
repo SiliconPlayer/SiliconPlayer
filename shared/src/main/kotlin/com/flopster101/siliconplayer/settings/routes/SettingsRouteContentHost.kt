@@ -215,6 +215,10 @@ internal fun SettingsRouteContentHost(
                                 pauseOnHeadphoneDisconnect = state.pauseOnHeadphoneDisconnect,
                                 audioFocusInterrupt = state.audioFocusInterrupt,
                                 audioDucking = state.audioDucking,
+                                headphoneMediaButtonsAvailable = state.headphoneMediaButtonsAvailable,
+                                pauseOnHeadphoneDisconnectAvailable = state.pauseOnHeadphoneDisconnectAvailable,
+                                audioFocusInterruptAvailable = state.audioFocusInterruptAvailable,
+                                audioDuckingAvailable = state.audioDuckingAvailable,
                                 audioBackendPreference = state.audioBackendPreference,
                                 audioPerformanceMode = state.audioPerformanceMode,
                                 audioBufferPreset = state.audioBufferPreset,
@@ -316,6 +320,8 @@ internal fun SettingsRouteContentHost(
                                 openPlayerFromNotification = state.openPlayerFromNotification,
                                 persistRepeatMode = state.persistRepeatMode,
                                 keepScreenOn = state.keepScreenOn,
+                                openPlayerFromNotificationAvailable = state.openPlayerFromNotificationAvailable,
+                                keepScreenOnAvailable = state.keepScreenOnAvailable,
                                 playerArtworkCornerRadiusDp = state.playerArtworkCornerRadiusDp,
                                 showAudioOutputRouteChip = state.showAudioOutputRouteChip,
                                 canvasTapToSeekSeconds = state.canvasTapToSeekSeconds,
@@ -353,7 +359,8 @@ internal fun SettingsRouteContentHost(
                                 enabledVisualizationModes = state.enabledVisualizationModes,
                                 visualizationPerformanceMode = state.visualizationPerformanceMode,
                                 visualizationShowDebugInfo = state.visualizationShowDebugInfo,
-                                visualizationKeepScreenOn = state.visualizationKeepScreenOn
+                                visualizationKeepScreenOn = state.visualizationKeepScreenOn,
+                                visualizationKeepScreenOnAvailable = state.visualizationKeepScreenOnAvailable
                             ),
                             actions = VisualizationRouteActions(
                                 onVisualizationModeChanged = actions.onVisualizationModeChanged,

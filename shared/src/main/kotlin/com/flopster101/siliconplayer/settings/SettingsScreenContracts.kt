@@ -218,6 +218,15 @@ internal data class SettingsScreenState(
     val themeMode: ThemeMode,
     val useMonet: Boolean,
     val monetAvailable: Boolean,
+    // Per-feature settings visibility. True unless the platform opts out;
+    // Android leaves the defaults, desktop hides its dead rows (see §7.10).
+    val headphoneMediaButtonsAvailable: Boolean = true,
+    val pauseOnHeadphoneDisconnectAvailable: Boolean = true,
+    val audioFocusInterruptAvailable: Boolean = true,
+    val audioDuckingAvailable: Boolean = true,
+    val openPlayerFromNotificationAvailable: Boolean = true,
+    val keepScreenOnAvailable: Boolean = true,
+    val visualizationKeepScreenOnAvailable: Boolean = true,
     val rememberBrowserLocation: Boolean,
     val showParentDirectoryEntry: Boolean,
     val showFileIconChipBackground: Boolean,
