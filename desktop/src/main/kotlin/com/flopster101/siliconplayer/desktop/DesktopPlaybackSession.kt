@@ -86,6 +86,8 @@ class DesktopPlaybackSession(
 
     private var tickerJob: Job? = null
     private var isUserSeeking = false
+    private var currentSource: String? = null
+    private var stoppedSource: String? = null
 
     init {
         startTicker()
@@ -103,6 +105,8 @@ class DesktopPlaybackSession(
         }
 
         currentFile = file
+        currentSource = file.absolutePath
+        stoppedSource = null
         refreshMetadata()
         artwork = null
         scope.launch(Dispatchers.IO) {
@@ -127,6 +131,8 @@ class DesktopPlaybackSession(
             NativeBridge.loadAudio(source)
         }
         currentFile = File(source)
+        currentSource = source
+        stoppedSource = null
         refreshMetadata()
         artwork = null
         scope.launch(Dispatchers.IO) {
@@ -147,6 +153,12 @@ class DesktopPlaybackSession(
     }
 
     fun play() {
+        val sourceToResume = stoppedSource
+        if (sourceToResume != null) {
+            stoppedSource = null
+            loadSource(sourceToResume)
+            return
+        }
         if (currentFile == null) return
         NativeBridge.startEngineWithPauseResumeFadeNative()
         isPlaying = true
@@ -167,8 +179,39 @@ class DesktopPlaybackSession(
 
     fun stop() {
         NativeBridge.stopEngineNative()
+        NativeBridge.releaseCurrentDecoder()
+        if (currentSource != null) {
+            stoppedSource = currentSource
+        }
         isPlaying = false
+        clearTrackState()
+    }
+
+    /**
+     * Mirrors Android's stop-and-clear: the decoder is unloaded and the track state cleared while
+     * the source is remembered so Play restarts it from the beginning.
+     */
+    private fun clearTrackState() {
+        currentFile = null
+        currentSource = null
+        title = ""
+        artist = ""
+        album = ""
+        decoderName = null
+        sampleRateHz = 0
+        channelCount = 0
+        bitDepthLabel = ""
+        durationSeconds = 0.0
         positionSeconds = 0.0
+        subtuneIndex = 0
+        subtuneCount = 0
+        subtuneEntries = emptyList()
+        artwork = null
+        playbackCapabilitiesFlags = 0
+        repeatModeCapabilitiesFlags = 0
+        canSeek = false
+        hasReliableDuration = false
+        repeatMode = RepeatMode.None
     }
 
     fun seekTo(seconds: Double) {
@@ -312,6 +355,5 @@ class DesktopPlaybackSession(
         tickerJob?.cancel()
         tickerJob = null
         stop()
-        NativeBridge.releaseCurrentDecoder()
     }
 }
