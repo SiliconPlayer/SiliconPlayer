@@ -56,6 +56,15 @@ namespace {
 
 bool AudioEngine::start() {
     std::lock_guard<std::mutex> lifecycleLock(lifecycleMutex);
+    {
+        std::lock_guard<std::mutex> lock(decoderMutex);
+        if (!decoder) {
+            // Nothing is loaded (a failed open already tore the stream down,
+            // or nothing was ever opened): starting the device would only feed
+            // silence and log render-queue underruns indefinitely.
+            return false;
+        }
+    }
     recoverStreamIfNeededLocked();
 
     if (refreshPausedStreamOnNextStart.exchange(false, std::memory_order_relaxed) &&
@@ -314,6 +323,20 @@ bool AudioEngine::isEnginePlaying() const {
     return isPlaying.load();
 }
 
+// Tears down the output stream after a decoder failure. The caller must hold
+// lifecycleMutex. Mirrors the teardown in stop()/releaseCurrentDecoder() so a
+// failed open never leaves the device running with nothing to feed it.
+void AudioEngine::stopOutputStreamLocked() {
+    if (outputStreamReady.load(std::memory_order_relaxed)) {
+        resumeAfterRebuild.store(false);
+        requestStreamStop();
+    }
+    isPlaying.store(false);
+    naturalEndPending.store(false);
+    clearRenderQueue();
+    renderWorkerCv.notify_all();
+}
+
 void AudioEngine::setUrl(const char* url, const char* forcedDecoder) {
     std::lock_guard<std::mutex> lifecycleLock(lifecycleMutex);
     LOGD("URL set to: %s", url);
@@ -395,6 +418,7 @@ void AudioEngine::setUrl(const char* url, const char* forcedDecoder) {
         }
         if (!newDecoder->open(url)) {
             LOGE("Failed to open file: %s", url);
+            stopOutputStreamLocked();
             return;
         }
         std::lock_guard<std::mutex> lock(decoderMutex);
@@ -420,6 +444,7 @@ void AudioEngine::setUrl(const char* url, const char* forcedDecoder) {
     } else {
         fastTrackSwitchStartupHint.store(false, std::memory_order_relaxed);
         LOGE("Failed to create decoder for file: %s", url);
+        stopOutputStreamLocked();
     }
 }
 
