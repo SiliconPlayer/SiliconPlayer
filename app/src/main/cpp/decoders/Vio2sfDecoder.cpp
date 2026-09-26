@@ -39,6 +39,12 @@ ResolveArchiveCompanionPathFn getArchiveCompanionResolver() {
             handle = dlopen("libsiliconplayer.so", RTLD_NOW);
         }
         if (handle == nullptr) {
+            handle = dlopen("libsiliconplayer_desktop.so", RTLD_NOW | RTLD_NOLOAD);
+        }
+        if (handle == nullptr) {
+            handle = dlopen("libsiliconplayer_desktop.so", RTLD_NOW);
+        }
+        if (handle == nullptr) {
             return ResolveArchiveCompanionPathFn{};
         }
         return reinterpret_cast<ResolveArchiveCompanionPathFn>(
@@ -87,6 +93,17 @@ static void* stdioFopen(void* context, const char* path) {
         );
         if (!resolvedPath.empty()) {
             candidatePath = resolvedPath;
+        } else if (!std::filesystem::path(candidatePath).is_absolute()) {
+            std::filesystem::path baseDir = std::filesystem::path(openContext->sourcePath).parent_path();
+            std::filesystem::path relativeFile = baseDir / candidatePath;
+            if (std::filesystem::exists(relativeFile)) {
+                candidatePath = relativeFile.string();
+            } else {
+                std::filesystem::path filenameOnly = baseDir / std::filesystem::path(candidatePath).filename();
+                if (std::filesystem::exists(filenameOnly)) {
+                    candidatePath = filenameOnly.string();
+                }
+            }
         }
     }
 

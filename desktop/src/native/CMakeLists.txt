@@ -20,6 +20,7 @@ find_package(JNI REQUIRED)
 find_package(Threads REQUIRED)
 find_package(OpenGL REQUIRED)
 find_package(PkgConfig REQUIRED)
+find_package(ZLIB REQUIRED)
 
 pkg_check_modules(ALSA REQUIRED alsa)
 pkg_check_modules(PULSE libpulse)
@@ -260,10 +261,6 @@ target_link_libraries(siliconplayer_libsidplayfp_decoder PRIVATE
     libresid_prebuilt
     m
 )
-set_target_properties(siliconplayer_libsidplayfp_decoder PROPERTIES
-    BUILD_RPATH "\$ORIGIN"
-    INSTALL_RPATH "\$ORIGIN"
-)
 add_custom_command(TARGET siliconplayer_libsidplayfp_decoder POST_BUILD
     COMMAND ${CMAKE_COMMAND} -E copy_if_different
     "${PREBUILT_DIR}/lib/libresidfp.so"
@@ -271,5 +268,265 @@ add_custom_command(TARGET siliconplayer_libsidplayfp_decoder POST_BUILD
     COMMAND ${CMAKE_COMMAND} -E copy_if_different
     "${PREBUILT_DIR}/lib/libsidplayfp.so"
     "${CMAKE_CURRENT_BINARY_DIR}/libsidplayfp.so.6"
+)
+
+# 6. uFMOD Decoder
+add_library(libufmod_prebuilt STATIC IMPORTED)
+set_target_properties(libufmod_prebuilt PROPERTIES IMPORTED_LOCATION "${PREBUILT_DIR}/lib/libufmod.a")
+
+add_library(siliconplayer_ufmod_decoder SHARED
+    "${APP_CPP_DIR}/decoders/UfmodDecoder.cpp"
+    "${APP_CPP_DIR}/decoders/UfmodDecoderPlugin.cpp"
+    "${APP_CPP_DIR}/ChannelScopeSharedState.cpp"
+)
+target_include_directories(siliconplayer_ufmod_decoder PRIVATE
+    ${COMMON_INCLUDES}
+    "${PREBUILT_DIR}/include"
+)
+target_link_libraries(siliconplayer_ufmod_decoder PRIVATE
+    libufmod_prebuilt
+    m
+)
+
+# 7. Ayfly Decoder
+add_library(libayfly_prebuilt SHARED IMPORTED)
+set_target_properties(libayfly_prebuilt PROPERTIES IMPORTED_LOCATION "${PREBUILT_DIR}/lib/libayfly.so")
+
+add_library(siliconplayer_ayfly_decoder SHARED
+    "${APP_CPP_DIR}/decoders/AyflyDecoder.cpp"
+    "${APP_CPP_DIR}/decoders/AyflyDecoderPlugin.cpp"
+    "${APP_CPP_DIR}/ChannelScopeSharedState.cpp"
+)
+target_compile_definitions(siliconplayer_ayfly_decoder PRIVATE
+    DISABLE_AUDIO
+    _UNICODE
+    UNICODE
+)
+target_include_directories(siliconplayer_ayfly_decoder PRIVATE
+    ${COMMON_INCLUDES}
+    "${PREBUILT_DIR}/include"
+)
+target_link_libraries(siliconplayer_ayfly_decoder PRIVATE
+    libayfly_prebuilt
+    m
+)
+
+# 8. UADE Decoder
+add_library(libuade_prebuilt SHARED IMPORTED)
+set_target_properties(libuade_prebuilt PROPERTIES IMPORTED_LOCATION "${PREBUILT_DIR}/lib/libuade.so")
+
+add_library(libzakalwe_prebuilt SHARED IMPORTED)
+set_target_properties(libzakalwe_prebuilt PROPERTIES IMPORTED_LOCATION "${PREBUILT_DIR}/lib/libzakalwe.so")
+
+add_library(libbencodetools_prebuilt SHARED IMPORTED)
+set_target_properties(libbencodetools_prebuilt PROPERTIES IMPORTED_LOCATION "${PREBUILT_DIR}/lib/libbencodetools.so")
+
+add_library(siliconplayer_uade_decoder SHARED
+    "${APP_CPP_DIR}/decoders/UadeDecoder.cpp"
+    "${APP_CPP_DIR}/decoders/UadeDecoderPlugin.cpp"
+    "${APP_CPP_DIR}/ChannelScopeSharedState.cpp"
+)
+target_include_directories(siliconplayer_uade_decoder PRIVATE
+    ${COMMON_INCLUDES}
+    "${PREBUILT_DIR}/include"
+)
+target_link_libraries(siliconplayer_uade_decoder PRIVATE
+    libuade_prebuilt
+    libzakalwe_prebuilt
+    libbencodetools_prebuilt
+    ${CMAKE_DL_LIBS}
+    m
+)
+
+# 9. VGMPlay Decoder
+add_library(libvgm_player_prebuilt SHARED IMPORTED)
+set_target_properties(libvgm_player_prebuilt PROPERTIES IMPORTED_LOCATION "${PREBUILT_DIR}/lib/libvgm-player.so")
+
+add_library(libvgm_emu_prebuilt SHARED IMPORTED)
+set_target_properties(libvgm_emu_prebuilt PROPERTIES IMPORTED_LOCATION "${PREBUILT_DIR}/lib/libvgm-emu.so")
+
+add_library(libvgm_utils_prebuilt SHARED IMPORTED)
+set_target_properties(libvgm_utils_prebuilt PROPERTIES IMPORTED_LOCATION "${PREBUILT_DIR}/lib/libvgm-utils.so")
+
+add_library(siliconplayer_vgm_decoder SHARED
+    "${APP_CPP_DIR}/decoders/VGMDecoder.cpp"
+    "${APP_CPP_DIR}/decoders/VGMDecoderPlugin.cpp"
+    "${APP_CPP_DIR}/ChannelScopeSharedState.cpp"
+)
+target_include_directories(siliconplayer_vgm_decoder PRIVATE
+    ${COMMON_INCLUDES}
+    "${PREBUILT_DIR}/include"
+)
+target_link_libraries(siliconplayer_vgm_decoder PRIVATE
+    libvgm_player_prebuilt
+    libvgm_emu_prebuilt
+    libvgm_utils_prebuilt
+    ZLIB::ZLIB
+    m
+)
+
+# 10. cRSID Decoder
+add_library(libcRSID_prebuilt SHARED IMPORTED)
+set_target_properties(libcRSID_prebuilt PROPERTIES IMPORTED_LOCATION "${PREBUILT_DIR}/lib/libcRSID.so")
+
+add_library(siliconplayer_crsid_decoder SHARED
+    "${APP_CPP_DIR}/decoders/CRSIDDecoder.cpp"
+    "${APP_CPP_DIR}/decoders/CRSIDDecoderPlugin.cpp"
+    "${APP_CPP_DIR}/ChannelScopeSharedState.cpp"
+)
+target_include_directories(siliconplayer_crsid_decoder PRIVATE
+    ${COMMON_INCLUDES}
+    "${PREBUILT_DIR}/include"
+)
+target_link_libraries(siliconplayer_crsid_decoder PRIVATE
+    libcRSID_prebuilt
+    m
+)
+
+# 11. SC68 Decoder
+add_library(libsc68_prebuilt SHARED IMPORTED)
+set_target_properties(libsc68_prebuilt PROPERTIES IMPORTED_LOCATION "${PREBUILT_DIR}/lib/libsc68.so")
+
+add_library(libfile68_prebuilt SHARED IMPORTED)
+set_target_properties(libfile68_prebuilt PROPERTIES IMPORTED_LOCATION "${PREBUILT_DIR}/lib/libfile68.so")
+
+add_library(libunice68_prebuilt SHARED IMPORTED)
+set_target_properties(libunice68_prebuilt PROPERTIES IMPORTED_LOCATION "${PREBUILT_DIR}/lib/libunice68.so")
+
+add_library(siliconplayer_sc68_decoder SHARED
+    "${APP_CPP_DIR}/decoders/Sc68Decoder.cpp"
+    "${APP_CPP_DIR}/decoders/Sc68DecoderPlugin.cpp"
+    "${APP_CPP_DIR}/ChannelScopeSharedState.cpp"
+)
+target_include_directories(siliconplayer_sc68_decoder PRIVATE
+    ${COMMON_INCLUDES}
+    "${PREBUILT_DIR}/include"
+)
+target_link_libraries(siliconplayer_sc68_decoder PRIVATE
+    libsc68_prebuilt
+    libfile68_prebuilt
+    libunice68_prebuilt
+    m
+)
+
+# 12. AdPlug Decoder
+add_library(libadplug_prebuilt SHARED IMPORTED)
+set_target_properties(libadplug_prebuilt PROPERTIES IMPORTED_LOCATION "${PREBUILT_DIR}/lib/libadplug.so")
+
+add_library(libbinio_prebuilt SHARED IMPORTED)
+set_target_properties(libbinio_prebuilt PROPERTIES IMPORTED_LOCATION "${PREBUILT_DIR}/lib/liblibbinio.so")
+
+add_library(siliconplayer_adplug_decoder SHARED
+    "${APP_CPP_DIR}/decoders/AdPlugDecoder.cpp"
+    "${APP_CPP_DIR}/decoders/AdPlugDecoderPlugin.cpp"
+    "${APP_CPP_DIR}/ChannelScopeSharedState.cpp"
+)
+target_include_directories(siliconplayer_adplug_decoder PRIVATE
+    ${COMMON_INCLUDES}
+    "${PREBUILT_DIR}/include"
+)
+target_link_libraries(siliconplayer_adplug_decoder PRIVATE
+    libadplug_prebuilt
+    libbinio_prebuilt
+    m
+)
+
+# 13. LazyUSF2 Decoder
+add_library(liblazyusf2_prebuilt STATIC IMPORTED)
+set_target_properties(liblazyusf2_prebuilt PROPERTIES IMPORTED_LOCATION "${PREBUILT_DIR}/lib/liblazyusf2.a")
+
+add_library(siliconplayer_lazyusf2_decoder SHARED
+    "${APP_CPP_DIR}/decoders/LazyUsf2Decoder.cpp"
+    "${APP_CPP_DIR}/decoders/LazyUsf2DecoderPlugin.cpp"
+)
+target_include_directories(siliconplayer_lazyusf2_decoder PRIVATE
+    ${COMMON_INCLUDES}
+    "${PREBUILT_DIR}/include"
+    "${EXTERNAL_DIR}"
+)
+target_link_libraries(siliconplayer_lazyusf2_decoder PRIVATE
+    liblazyusf2_prebuilt
+    ZLIB::ZLIB
+    m
+)
+
+# 14. Vio2sf Decoder
+add_library(libvio2sf_prebuilt SHARED IMPORTED)
+set_target_properties(libvio2sf_prebuilt PROPERTIES IMPORTED_LOCATION "${PREBUILT_DIR}/lib/libvio2sf.so")
+
+add_library(libpsflib_prebuilt SHARED IMPORTED)
+set_target_properties(libpsflib_prebuilt PROPERTIES IMPORTED_LOCATION "${PREBUILT_DIR}/lib/libpsflib.so")
+
+add_library(siliconplayer_vio2sf_decoder SHARED
+    "${APP_CPP_DIR}/decoders/Vio2sfDecoder.cpp"
+    "${APP_CPP_DIR}/decoders/Vio2sfDecoderPlugin.cpp"
+)
+target_include_directories(siliconplayer_vio2sf_decoder PRIVATE
+    ${COMMON_INCLUDES}
+    "${PREBUILT_DIR}/include"
+)
+target_link_libraries(siliconplayer_vio2sf_decoder PRIVATE
+    libvio2sf_prebuilt
+    libpsflib_prebuilt
+    ZLIB::ZLIB
+    m
+)
+
+# 15. HivelyTracker Decoder
+add_library(libhivelytracker_prebuilt SHARED IMPORTED)
+set_target_properties(libhivelytracker_prebuilt PROPERTIES IMPORTED_LOCATION "${PREBUILT_DIR}/lib/libhivelytracker.so")
+
+add_library(siliconplayer_hivelytracker_decoder SHARED
+    "${APP_CPP_DIR}/decoders/HivelyTrackerDecoder.cpp"
+    "${APP_CPP_DIR}/decoders/HivelyTrackerDecoderPlugin.cpp"
+    "${APP_CPP_DIR}/ChannelScopeSharedState.cpp"
+)
+target_include_directories(siliconplayer_hivelytracker_decoder PRIVATE
+    ${COMMON_INCLUDES}
+    "${PREBUILT_DIR}/include"
+)
+target_link_libraries(siliconplayer_hivelytracker_decoder PRIVATE
+    libhivelytracker_prebuilt
+    m
+)
+
+# 16. Klystrack Decoder
+add_library(libklystrack_prebuilt SHARED IMPORTED)
+set_target_properties(libklystrack_prebuilt PROPERTIES IMPORTED_LOCATION "${PREBUILT_DIR}/lib/libklystrack.so")
+
+add_library(siliconplayer_klystrack_decoder SHARED
+    "${APP_CPP_DIR}/decoders/KlystrackDecoder.cpp"
+    "${APP_CPP_DIR}/decoders/KlystrackDecoderPlugin.cpp"
+    "${APP_CPP_DIR}/ChannelScopeSharedState.cpp"
+)
+target_include_directories(siliconplayer_klystrack_decoder PRIVATE
+    ${COMMON_INCLUDES}
+    "${PREBUILT_DIR}/include"
+)
+target_link_libraries(siliconplayer_klystrack_decoder PRIVATE
+    libklystrack_prebuilt
+    m
+)
+
+# 17. Furnace Decoder
+add_library(libfurnace_prebuilt SHARED IMPORTED)
+set_target_properties(libfurnace_prebuilt PROPERTIES IMPORTED_LOCATION "${PREBUILT_DIR}/lib/libfurnace.so")
+
+add_library(siliconplayer_furnace_decoder SHARED
+    "${APP_CPP_DIR}/decoders/FurnaceDecoder.cpp"
+    "${APP_CPP_DIR}/decoders/FurnaceDecoderPlugin.cpp"
+    "${APP_CPP_DIR}/ChannelScopeSharedState.cpp"
+)
+target_compile_definitions(siliconplayer_furnace_decoder PRIVATE HAVE_SNDFILE)
+target_include_directories(siliconplayer_furnace_decoder PRIVATE
+    ${COMMON_INCLUDES}
+    "${PREBUILT_DIR}/include"
+    "${EXTERNAL_DIR}/furnace/extern/fmt/include"
+    "${EXTERNAL_DIR}/furnace/extern/blip_buf"
+    "${EXTERNAL_DIR}/furnace/extern/libsndfile-modified/include"
+)
+target_link_libraries(siliconplayer_furnace_decoder PRIVATE
+    libfurnace_prebuilt
+    m
 )
 

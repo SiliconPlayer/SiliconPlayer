@@ -11,6 +11,39 @@ object NativeBridge {
 
     init {
         loadNativeLibraries()
+        initUadeRuntimePaths()
+    }
+
+    private fun initUadeRuntimePaths() {
+        val userDir = System.getProperty("user.dir") ?: "."
+        val baseCandidates = listOf(
+            File("desktop/prebuilt/x86_64/share/uade"),
+            File("../desktop/prebuilt/x86_64/share/uade"),
+            File(userDir, "desktop/prebuilt/x86_64/share/uade"),
+            File(userDir, "SiliconPlayer/desktop/prebuilt/x86_64/share/uade"),
+            File("/usr/share/uade"),
+            File("/usr/local/share/uade")
+        )
+        val coreCandidates = listOf(
+            File("desktop/prebuilt/x86_64/lib/uade/uadecore"),
+            File("../desktop/prebuilt/x86_64/lib/uade/uadecore"),
+            File(userDir, "desktop/prebuilt/x86_64/lib/uade/uadecore"),
+            File(userDir, "SiliconPlayer/desktop/prebuilt/x86_64/lib/uade/uadecore"),
+            File("/usr/lib/uade/uadecore"),
+            File("/usr/local/lib/uade/uadecore")
+        )
+        val baseDir = baseCandidates.firstOrNull { it.exists() && it.isDirectory }
+        val coreFile = coreCandidates.firstOrNull { it.exists() && it.isFile }
+        if (baseDir != null && coreFile != null) {
+            try {
+                if (!coreFile.canExecute()) {
+                    coreFile.setExecutable(true)
+                }
+                setUadeRuntimePaths(baseDir.absolutePath, coreFile.absolutePath)
+            } catch (t: Throwable) {
+                System.err.println("Failed to initialize UADE runtime paths: ${t.message}")
+            }
+        }
     }
 
     private fun loadNativeLibraries() {
@@ -51,7 +84,16 @@ object NativeBridge {
     }
 
     @JvmStatic
-    fun resolveArchiveCompanionPathForNative(basePath: String?, requestedPath: String?): String? = null
+    fun resolveArchiveCompanionPathForNative(basePath: String?, requestedPath: String?): String? {
+        if (basePath == null || requestedPath == null) return null
+        val baseFile = File(basePath)
+        val parent = baseFile.parentFile ?: return null
+        val direct = File(parent, requestedPath)
+        if (direct.exists() && direct.isFile) return direct.absolutePath
+        val byName = File(parent, File(requestedPath).name)
+        if (byName.exists() && byName.isFile) return byName.absolutePath
+        return null
+    }
 
     @JvmStatic
     fun openSmbAvioHandle(requestUri: String): Long = 0L

@@ -114,6 +114,12 @@ std::string getRuntimeBaseDir() {
         if (handle == nullptr) {
             handle = dlopen("libsiliconplayer.so", RTLD_NOW);
         }
+        if (handle == nullptr) {
+            handle = dlopen("libsiliconplayer_desktop.so", RTLD_NOW | RTLD_NOLOAD);
+        }
+        if (handle == nullptr) {
+            handle = dlopen("libsiliconplayer_desktop.so", RTLD_NOW);
+        }
         return handle != nullptr
                 ? reinterpret_cast<GetUadeRuntimePathsFn>(dlsym(handle, "siliconplayer_get_uade_runtime_paths"))
                 : GetUadeRuntimePathsFn{};
@@ -132,6 +138,12 @@ std::string getRuntimeUadeCorePath() {
         void* handle = dlopen("libsiliconplayer.so", RTLD_NOW | RTLD_NOLOAD);
         if (handle == nullptr) {
             handle = dlopen("libsiliconplayer.so", RTLD_NOW);
+        }
+        if (handle == nullptr) {
+            handle = dlopen("libsiliconplayer_desktop.so", RTLD_NOW | RTLD_NOLOAD);
+        }
+        if (handle == nullptr) {
+            handle = dlopen("libsiliconplayer_desktop.so", RTLD_NOW);
         }
         return handle != nullptr
                 ? reinterpret_cast<GetUadeRuntimePathsFn>(dlsym(handle, "siliconplayer_get_uade_runtime_paths"))
