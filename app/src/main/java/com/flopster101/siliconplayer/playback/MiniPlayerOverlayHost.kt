@@ -45,6 +45,7 @@ import androidx.compose.ui.input.key.KeyEventType
 import androidx.compose.ui.input.key.key
 import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.input.key.type
+import androidx.compose.ui.layout.onSizeChanged
 import android.content.pm.PackageManager
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalConfiguration
@@ -52,6 +53,7 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.dp
 import java.io.File
 import kotlinx.coroutines.launch
+import kotlin.math.abs
 
 private val MiniPlayerBackdropScrimHeight = 48.dp
 private val MiniPlayerBackdropScrimBrush = Brush.verticalGradient(
@@ -187,8 +189,11 @@ internal fun BoxScope.MiniPlayerOverlayHost(
         var dismissOffsetPx by remember { mutableFloatStateOf(0f) }
         val dismissSettleOffset = remember { Animatable(0f) }
         var dismissSettling by remember { mutableStateOf(false) }
+        var miniDismissWidthPx by remember { mutableFloatStateOf(0f) }
+        // A paused hide is the dismiss fling: leave the offset past the screen edge
+        // until the exit finishes or the bar re-shows, or it pops back to center.
         LaunchedEffect(isPlaying, isPlayerSurfaceVisible) {
-            if (!isPlaying || !isPlayerSurfaceVisible) {
+            if (isPlayerSurfaceVisible || isPlaying) {
                 blockedDismissSettling = false
                 blockedDismissOffsetPx = 0f
                 dismissSettling = false
@@ -314,15 +319,31 @@ internal fun BoxScope.MiniPlayerOverlayHost(
                         change.consume()
                     },
                     onDragEnd = {
+                        if (dismissSettling) {
+                            return@detectHorizontalDragGestures
+                        }
                         val releaseOffset = dismissOffsetPx
                         miniPlayerUiScope.launch {
                             dismissSettling = true
                             dismissSettleOffset.snapTo(releaseOffset)
                             val dismissed =
-                                (if (releaseOffset < 0f) -releaseOffset else releaseOffset) >= blockedDismissMaxOffsetPx * 0.6f
+                                abs(releaseOffset) >= blockedDismissMaxOffsetPx * 0.6f
                             if (dismissed) {
+                                // Fling off-screen toward the dragged side; the visibility exit
+                                // below only slides vertically, so hiding here would sink the bar.
+                                val exitDistancePx =
+                                    if (miniDismissWidthPx > 0f) miniDismissWidthPx
+                                    else abs(releaseOffset) + 600f
+                                dismissSettleOffset.animateTo(
+                                    targetValue = if (releaseOffset < 0f) -exitDistancePx else exitDistancePx,
+                                    animationSpec = tween(
+                                        durationMillis = 220,
+                                        easing = LinearOutSlowInEasing
+                                    )
+                                ) {
+                                    dismissOffsetPx = value
+                                }
                                 onHidePlayerSurface()
-                                dismissOffsetPx = 0f
                             } else {
                                 dismissSettleOffset.animateTo(
                                     targetValue = 0f,
@@ -454,7 +475,11 @@ internal fun BoxScope.MiniPlayerOverlayHost(
                 miniPlayerContent()
             }
         } else {
-            Box(modifier = miniPlayerModifier.then(dismissModifier)) {
+            Box(
+                modifier = miniPlayerModifier
+                    .then(dismissModifier)
+                    .onSizeChanged { miniDismissWidthPx = it.width.toFloat() }
+            ) {
                 miniPlayerContent()
             }
         }

@@ -147,6 +147,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.style.TextOverflow
 import com.flopster101.siliconplayer.AppDefaults
@@ -204,6 +205,8 @@ fun main(args: Array<String>) = application {
     var miniDismissOffsetPx by remember { mutableFloatStateOf(0f) }
     val miniDismissSettle = remember { Animatable(0f) }
     val miniDismissScope = rememberCoroutineScope()
+    var miniDismissWidthPx by remember { mutableFloatStateOf(0f) }
+    var miniDismissSettling by remember { mutableStateOf(false) }
     val supportedExtensions = remember {
         runCatching { NativeBridge.getSupportedExtensions().toSet() }.getOrElse { emptySet() }
     }
@@ -1417,8 +1420,10 @@ fun main(args: Array<String>) = application {
                             }
                         }
 
+                        // A paused hide is the dismiss fling: leave the offset past the screen
+                        // edge until the exit finishes or the bar re-shows, or it pops back.
                         LaunchedEffect(session.isPlaying, isPlayerSurfaceVisible) {
-                            if (session.isPlaying || !isPlayerSurfaceVisible) {
+                            if (isPlayerSurfaceVisible || session.isPlaying) {
                                 miniDismissOffsetPx = 0f
                             }
                         }
@@ -1444,6 +1449,7 @@ fun main(args: Array<String>) = application {
                                         translationY = -miniPreviewLiftPx * dragProgress
                                         translationX = miniDismissOffsetPx
                                     }
+                                    .onSizeChanged { miniDismissWidthPx = it.width.toFloat() }
                                     .pointerInput(session.isPlaying, miniDismissMaxOffsetPx) {
                                     // Direction-locked dismiss: decided in the Main pass before the inner
                                     // vertical expand detector sees the gesture, so horizontal drags engage
@@ -1474,9 +1480,27 @@ fun main(args: Array<String>) = application {
                                             if (!session.isPlaying &&
                                                 abs(releaseOffset) >= miniDismissMaxOffsetPx * 0.6f
                                             ) {
-                                                miniDismissOffsetPx = 0f
-                                                isPlayerExpanded = false
-                                                isPlayerSurfaceVisible = false
+                                                // Fling off-screen toward the dragged side; the visibility
+                                                // exit only slides vertically, so hiding here would sink it.
+                                                miniDismissSettling = true
+                                                val exitDistancePx =
+                                                    if (miniDismissWidthPx > 0f) miniDismissWidthPx
+                                                    else abs(releaseOffset) + 600f
+                                                miniDismissScope.launch {
+                                                    miniDismissSettle.snapTo(releaseOffset)
+                                                    miniDismissSettle.animateTo(
+                                                        targetValue = if (releaseOffset < 0f) -exitDistancePx else exitDistancePx,
+                                                        animationSpec = tween(
+                                                            durationMillis = 220,
+                                                            easing = LinearOutSlowInEasing
+                                                        )
+                                                    ) {
+                                                        miniDismissOffsetPx = value
+                                                    }
+                                                    isPlayerExpanded = false
+                                                    isPlayerSurfaceVisible = false
+                                                    miniDismissSettling = false
+                                                }
                                             } else {
                                                 snapMiniDismissBack()
                                             }
@@ -1486,11 +1510,13 @@ fun main(args: Array<String>) = application {
                                             val event = awaitPointerEvent(PointerEventPass.Main)
                                             val change = event.changes.firstOrNull { it.id == pointerId }
                                             if (change == null) {
-                                                if (lockedHorizontal) snapMiniDismissBack()
+                                                if (lockedHorizontal && !miniDismissSettling) snapMiniDismissBack()
                                                 finished = true
                                             } else if (!change.pressed) {
-                                                if (lockedHorizontal) settleMiniDismiss()
+                                                if (lockedHorizontal && !miniDismissSettling) settleMiniDismiss()
                                                 finished = true
+                                            } else if (miniDismissSettling) {
+                                                continue
                                             } else {
                                                 val dx = change.position.x - change.previousPosition.x
                                                 if (!lockedHorizontal) {
