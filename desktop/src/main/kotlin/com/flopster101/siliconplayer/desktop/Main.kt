@@ -30,6 +30,9 @@ import com.flopster101.siliconplayer.FolderEntryAction
 import com.flopster101.siliconplayer.SourceEntryAction
 import com.flopster101.siliconplayer.NetworkNode
 import com.flopster101.siliconplayer.NetworkCredentialStore
+import com.flopster101.siliconplayer.ManualSourceType
+import com.flopster101.siliconplayer.MANUAL_INPUT_INVALID_MESSAGE
+import com.flopster101.siliconplayer.resolveManualSourceInput
 import com.flopster101.siliconplayer.RemotePlayableSourceIdsHolder
 import com.flopster101.siliconplayer.resolveNetworkNodeHttpSpec
 import com.flopster101.siliconplayer.resolveNetworkNodeSmbSpec
@@ -39,6 +42,7 @@ import com.flopster101.siliconplayer.BrowserNameSortMode
 import com.flopster101.siliconplayer.NativeBridge
 import com.flopster101.siliconplayer.data.FileRepository
 import com.flopster101.siliconplayer.platform.LocalAppPreferences
+import com.flopster101.siliconplayer.platform.LocalToastHandler
 import com.flopster101.siliconplayer.platform.PlatformBackHandler
 import com.flopster101.siliconplayer.ui.screens.FileBrowserScreen
 import com.flopster101.siliconplayer.ui.screens.HttpFileBrowserScreen
@@ -49,6 +53,7 @@ import com.flopster101.siliconplayer.VisualizationRenderBackend
 import com.flopster101.siliconplayer.VisualizationVuAnchor
 import com.flopster101.siliconplayer.ui.screens.rememberVisualizationUiState
 import com.flopster101.siliconplayer.ui.dialogs.TrackInfoDialog
+import com.flopster101.siliconplayer.ui.dialogs.UrlOrPathDialog
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.input.key.KeyEventType
 import androidx.compose.ui.input.key.key
@@ -358,6 +363,25 @@ fun main(args: Array<String>) = application {
                 ThemeMode.Dark -> true
             }
 
+            var showUrlOrPathDialog by remember { mutableStateOf(false) }
+            var urlOrPathInput by remember { mutableStateOf("") }
+            var urlOrPathForceCaching by remember {
+                mutableStateOf(prefs.getBoolean(AppPreferenceKeys.URL_PATH_FORCE_CACHING, false))
+            }
+            val toastHandler = LocalToastHandler.current
+            fun confirmUrlOrPathOpen() {
+                showUrlOrPathDialog = false
+                val resolved = resolveManualSourceInput(urlOrPathInput)
+                when {
+                    resolved == null -> toastHandler.showToast(MANUAL_INPUT_INVALID_MESSAGE)
+                    resolved.type == ManualSourceType.LocalDirectory ->
+                        resolved.directoryPath?.let { openLocalBrowser(File(it)) }
+                    resolved.type == ManualSourceType.LocalFile ->
+                        resolved.localFile?.let { playFile(it) }
+                    else -> playSource(resolved.requestUrl)
+                }
+            }
+
             var playlistLibraryState by remember {
                 mutableStateOf(readPlaylistLibraryState(prefs))
             }
@@ -400,7 +424,7 @@ fun main(args: Array<String>) = application {
                                 }
                             },
                             onHomeRequested = { currentView = MainView.Home },
-                            onOpenUrlOrPathRequested = { openDesktopFileChooser { playFile(it) } },
+                            onOpenUrlOrPathRequested = { showUrlOrPathDialog = true },
                             onSettingsRequested = {
                                 currentView = MainView.Settings
                                 settingsRoute = SettingsRoute.Root
@@ -539,9 +563,7 @@ fun main(args: Array<String>) = application {
                                                 currentView = MainView.Settings
                                                 settingsRoute = SettingsRoute.Root
                                             },
-                                            onOpenUrlOrPath = {
-                                                openDesktopFileChooser { playFile(it) }
-                                            }
+                                            onOpenUrlOrPath = { showUrlOrPathDialog = true }
                                         )
                                     }
 
@@ -1184,6 +1206,22 @@ fun main(args: Array<String>) = application {
                                 )
                             }
                         }
+                    }
+
+                    if (showUrlOrPathDialog) {
+                        UrlOrPathDialog(
+                            input = urlOrPathInput,
+                            forceCaching = urlOrPathForceCaching,
+                            onInputChange = { urlOrPathInput = it },
+                            onForceCachingChange = { checked ->
+                                urlOrPathForceCaching = checked
+                                prefs.edit()
+                                    .putBoolean(AppPreferenceKeys.URL_PATH_FORCE_CACHING, checked)
+                                    .apply()
+                            },
+                            onDismiss = { showUrlOrPathDialog = false },
+                            onOpen = { confirmUrlOrPathOpen() }
+                        )
                     }
 
                     if (showTrackInfoDialog && session.currentFile != null) {

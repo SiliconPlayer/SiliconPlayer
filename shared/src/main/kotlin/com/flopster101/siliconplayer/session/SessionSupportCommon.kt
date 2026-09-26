@@ -192,3 +192,128 @@ internal data class ExportConflictDecision(
 internal data class ExportNameConflict(
     val fileName: String
 )
+
+internal const val MANUAL_INPUT_INVALID_MESSAGE =
+    "Enter a valid file/folder path, file:// path, http(s) URL, or smb:// source"
+
+internal enum class ManualSourceType {
+    LocalFile,
+    LocalDirectory,
+    RemoteUrl,
+    Smb
+}
+
+internal data class ManualSourceResolution(
+    val type: ManualSourceType,
+    val sourceId: String,
+    val requestUrl: String,
+    val localFile: File?,
+    val directoryPath: String?,
+    val displayFile: File?,
+    val smbSpec: SmbSourceSpec? = null
+)
+
+internal data class ManualSourceOpenOptions(
+    val forceCaching: Boolean = false,
+    val initialSubtuneIndex: Int? = null
+)
+
+private fun manualSourceScheme(trimmed: String): String? {
+    val candidate = trimmed.substringBefore(':', missingDelimiterValue = "")
+    if (candidate.isEmpty() || candidate.length > 16) return null
+    if (!candidate.first().isLetter()) return null
+    if (!candidate.all { it.isLetterOrDigit() || it == '+' || it == '-' || it == '.' }) return null
+    return candidate.lowercase(Locale.ROOT)
+}
+
+internal fun resolveManualSourceInput(rawInput: String): ManualSourceResolution? {
+    val trimmed = rawInput.trim()
+    if (trimmed.isEmpty()) return null
+    rememberEmbeddedNetworkCredentials(trimmed)
+
+    val scheme = manualSourceScheme(trimmed)
+    if (scheme == "http" || scheme == "https") {
+        val httpSpec = resolveCredentialedHttpSpec(trimmed) ?: return null
+        val normalizedUrl = buildHttpSourceId(httpSpec)
+        val requestUrl = stripUrlFragment(buildHttpRequestUri(httpSpec))
+        val safeName = remoteFilenameHintForUrl(trimmed)
+            ?: sanitizeRemoteLeafName(runCatching { URI(trimmed).host }.getOrNull())
+            ?: "remote"
+        return ManualSourceResolution(
+            type = ManualSourceType.RemoteUrl,
+            sourceId = normalizedUrl,
+            requestUrl = requestUrl,
+            localFile = null,
+            directoryPath = null,
+            displayFile = File("/virtual/remote/$safeName"),
+            smbSpec = null
+        )
+    }
+
+    if (scheme == "smb") {
+        val smbSpec = resolveCredentialedSmbSpec(trimmed) ?: return null
+        val sourceId = buildSmbSourceId(smbSpec)
+        val requestUri = buildSmbRequestUri(smbSpec)
+        val safeName = sanitizeRemoteLeafName(smbSpec.path?.substringAfterLast('/'))
+            ?: sanitizeRemoteLeafName(smbSpec.share)
+            ?: "smb"
+        return ManualSourceResolution(
+            type = ManualSourceType.Smb,
+            sourceId = sourceId,
+            requestUrl = requestUri,
+            localFile = null,
+            directoryPath = null,
+            displayFile = File("/virtual/remote/$safeName"),
+            smbSpec = smbSpec
+        )
+    }
+
+    fun resolveLocalPath(path: String, sourceIdOverride: String? = null): ManualSourceResolution? {
+        val file = File(path).absoluteFile
+        if (!file.exists()) return null
+        if (file.isDirectory) {
+            return ManualSourceResolution(
+                type = ManualSourceType.LocalDirectory,
+                sourceId = sourceIdOverride ?: file.absolutePath,
+                requestUrl = sourceIdOverride ?: file.absolutePath,
+                localFile = null,
+                directoryPath = file.absolutePath,
+                displayFile = null
+            )
+        }
+        if (file.isFile) {
+            return ManualSourceResolution(
+                type = ManualSourceType.LocalFile,
+                sourceId = sourceIdOverride ?: file.absolutePath,
+                requestUrl = sourceIdOverride ?: file.absolutePath,
+                localFile = file,
+                directoryPath = null,
+                displayFile = file,
+                smbSpec = null
+            )
+        }
+        return null
+    }
+
+    if (scheme == "file") {
+        val localPath = (runCatching { URI(trimmed).path }.getOrNull() ?: trimmed.substringAfter(':', ""))
+            .takeIf { it.isNotBlank() }
+            ?.let { if (it.startsWith("/")) "/" + it.trimStart('/') else it }
+            ?: return null
+        return resolveLocalPath(
+            localPath,
+            sourceIdOverride = "$scheme:${trimmed.substringAfter(':')}"
+        )
+    }
+
+    val expandedPath = when {
+        trimmed == "~" -> System.getProperty("user.home") ?: trimmed
+        trimmed.startsWith("~/") -> {
+            val home = System.getProperty("user.home") ?: return null
+            home + trimmed.removePrefix("~")
+        }
+
+        else -> trimmed
+    }
+    return resolveLocalPath(expandedPath)
+}

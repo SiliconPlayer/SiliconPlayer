@@ -2,9 +2,6 @@ package com.flopster101.siliconplayer
 
 import java.io.File
 
-internal const val MANUAL_INPUT_INVALID_MESSAGE =
-    "Enter a valid file/folder path, file:// path, http(s) URL, or smb:// source"
-
 internal sealed class ManualInputAction {
     data class OpenDirectory(
         val directoryPath: String,
