@@ -22,6 +22,7 @@ import androidx.compose.ui.window.application
 import androidx.compose.ui.window.rememberWindowState
 import androidx.compose.material.icons.filled.Folder
 import androidx.compose.material.icons.filled.InsertDriveFile
+import com.flopster101.siliconplayer.DomainStoreDirs
 import com.flopster101.siliconplayer.HomeScreen
 import com.flopster101.siliconplayer.HomePinnedEntry
 import com.flopster101.siliconplayer.MiniPlayerBar
@@ -35,6 +36,7 @@ import com.flopster101.siliconplayer.NetworkNode
 import com.flopster101.siliconplayer.NetworkCredentialStore
 import com.flopster101.siliconplayer.REMOTE_SOURCE_CACHE_DIR
 import com.flopster101.siliconplayer.platform.LocalAppCacheDir
+import com.flopster101.siliconplayer.platform.LocalAppConfigDir
 import com.flopster101.siliconplayer.ManualSourceType
 import com.flopster101.siliconplayer.MANUAL_INPUT_INVALID_MESSAGE
 import com.flopster101.siliconplayer.resolveManualSourceInput
@@ -190,6 +192,7 @@ fun openDesktopFileChooser(onFileSelected: (File) -> Unit) {
 
 fun main(args: Array<String>) = application {
     DesktopPaths.install()
+    DomainStoreDirs.configDir = DesktopPaths.configDir()
     val session = remember { DesktopPlaybackSession() }
     val windowState = rememberWindowState(width = 1100.dp, height = 750.dp)
     val backDispatcher = remember { DesktopBackDispatcher() }
@@ -458,6 +461,7 @@ fun main(args: Array<String>) = application {
             backDispatcher = backDispatcher
         ) {
             val prefs = LocalAppPreferences.current
+            val configDir = LocalAppConfigDir.current
             var prefToken by remember { mutableIntStateOf(0) }
             DisposableEffect(prefs) {
                 val listener = AppPreferences.OnChangeListener { _, _ -> prefToken++ }
@@ -498,7 +502,7 @@ fun main(args: Array<String>) = application {
             }
 
             var playlistLibraryState by remember {
-                mutableStateOf(readPlaylistLibraryState(prefs))
+                mutableStateOf(readPlaylistLibraryState(configDir, prefs))
             }
             var favoritesSortMode by remember {
                 mutableStateOf(
@@ -512,7 +516,7 @@ fun main(args: Array<String>) = application {
             var activePlaylistEntryId by remember { mutableStateOf<String?>(null) }
             val onPlaylistLibraryStateChanged: (PlaylistLibraryState) -> Unit = { updated ->
                 playlistLibraryState = updated
-                writePlaylistLibraryState(prefs, updated)
+                writePlaylistLibraryState(configDir, updated)
             }
             val addEntriesToPlaylist: (List<PlaylistTrackEntry>, String?, String) -> Unit = { entries, playlistId, newTitle ->
                 if (entries.isNotEmpty()) {
@@ -789,17 +793,17 @@ fun main(args: Array<String>) = application {
                 )
             }
             LaunchedEffect(prefs) {
-                readRecentEntries(prefs, AppPreferenceKeys.RECENT_FOLDERS, DesktopRecentFoldersLimit)
+                readRecentEntries(configDir, AppPreferenceKeys.RECENT_FOLDERS, DesktopRecentFoldersLimit, prefs)
                     .takeIf { it.isNotEmpty() }?.let { stored ->
                         recentFolders.clear()
                         recentFolders.addAll(stored)
                     }
-                readRecentEntries(prefs, AppPreferenceKeys.RECENT_PLAYED_FILES, DesktopRecentFilesLimit)
+                readRecentEntries(configDir, AppPreferenceKeys.RECENT_PLAYED_FILES, DesktopRecentFilesLimit, prefs)
                     .takeIf { it.isNotEmpty() }?.let { stored ->
                         recentFiles.clear()
                         recentFiles.addAll(stored)
                     }
-                readPinnedHomeEntries(prefs)
+                readPinnedHomeEntries(configDir, legacyPrefs = prefs)
                     .takeIf { it.isNotEmpty() }?.let { stored ->
                         pinnedEntries.clear()
                         pinnedEntries.addAll(stored)
@@ -807,9 +811,9 @@ fun main(args: Array<String>) = application {
                 snapshotFlow { Triple(recentFiles.toList(), recentFolders.toList(), pinnedEntries.toList()) }
                     .distinctUntilChanged()
                     .collect { (files, folders, pinned) ->
-                        writeRecentEntries(prefs, AppPreferenceKeys.RECENT_FOLDERS, folders, DesktopRecentFoldersLimit)
-                        writeRecentEntries(prefs, AppPreferenceKeys.RECENT_PLAYED_FILES, files, DesktopRecentFilesLimit)
-                        writePinnedHomeEntries(prefs, pinned)
+                        writeRecentEntries(configDir, AppPreferenceKeys.RECENT_FOLDERS, folders, DesktopRecentFoldersLimit)
+                        writeRecentEntries(configDir, AppPreferenceKeys.RECENT_PLAYED_FILES, files, DesktopRecentFilesLimit)
+                        writePinnedHomeEntries(configDir, pinned)
                     }
             }
             val currentTrackPath = session.currentFile?.absolutePath
@@ -1325,8 +1329,9 @@ fun main(args: Array<String>) = application {
 
                                     MainView.Network -> {
                                         val prefs = LocalAppPreferences.current
+                                        val configDir = LocalAppConfigDir.current
                                         if (networkNodes.isEmpty()) {
-                                            networkNodes.addAll(readNetworkNodes(prefs))
+                                            networkNodes.addAll(readNetworkNodes(configDir, prefs))
                                         }
                                         NetworkBrowserScreen(
                                             bottomContentPadding = bottomMargin,
@@ -1345,7 +1350,7 @@ fun main(args: Array<String>) = application {
                                             onNodesChanged = { newNodes ->
                                                 networkNodes.clear()
                                                 networkNodes.addAll(newNodes)
-                                                writeNetworkNodes(prefs, newNodes)
+                                                writeNetworkNodes(configDir, newNodes)
                                             },
                                             onResolveRemoteSourceMetadata = { _, callback -> callback() },
                                             onCancelPendingMetadataBackfill = {},

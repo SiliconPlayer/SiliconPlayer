@@ -336,6 +336,8 @@ class MainActivity : ComponentActivity() {
             com.flopster101.siliconplayer.platform.AndroidPreferencesProvider(applicationContext)
                 .getPreferences(AppPreferenceKeys.PREFS_NAME)
         }
+        NetworkCredentialStore.configDirProvider = { applicationContext.filesDir }
+        DomainStoreDirs.configDir = applicationContext.filesDir
         val savedUfmodQuirks = getSharedPreferences(AppPreferenceKeys.PREFS_NAME, Context.MODE_PRIVATE)
             .getInt(CorePreferenceKeys.UFMOD_QUIRKS, 0)
         NativeBridge.setCoreOption(DecoderNames.UFMOD, "ufmod.quirks", savedUfmodQuirks.toString())

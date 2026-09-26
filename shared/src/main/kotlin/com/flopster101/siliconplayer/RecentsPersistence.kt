@@ -1,6 +1,7 @@
 package com.flopster101.siliconplayer
 
 import com.flopster101.siliconplayer.platform.AppPreferences
+import java.io.File
 import org.json.JSONArray
 import org.json.JSONObject
 
@@ -9,9 +10,36 @@ internal fun readRecentEntries(
     key: String,
     maxItems: Int
 ): List<RecentPathEntry> {
-    val raw = prefs.getString(key, null) ?: return emptyList()
+    return decodeRecentEntries(prefs.getString(key, null), maxItems)
+}
+
+internal fun readRecentEntries(
+    configDir: File,
+    key: String,
+    maxItems: Int,
+    legacyPrefs: AppPreferences? = null
+): List<RecentPathEntry> {
+    val file = domainFileForKey(configDir, key)
+    firstParsableJson(readCandidateTexts(file), isObject = false)?.let { raw ->
+        clearLegacyDomainKey(legacyPrefs, key)
+        return decodeRecentEntries(raw, maxItems)
+    }
+    if (legacyPrefs != null && legacyPrefs.contains(key)) {
+        val migrated = decodeRecentEntries(legacyPrefs.getString(key, null), maxItems)
+        writeTextAtomic(file, encodeRecentEntries(migrated, maxItems))
+        clearLegacyDomainKey(legacyPrefs, key)
+        return migrated
+    }
+    return emptyList()
+}
+
+internal fun decodeRecentEntries(
+    raw: String?,
+    maxItems: Int
+): List<RecentPathEntry> {
+    val normalized = raw?.trim().takeUnless { it.isNullOrBlank() } ?: return emptyList()
     return try {
-        val array = JSONArray(raw)
+        val array = JSONArray(normalized)
         val deduped = mutableListOf<RecentPathEntry>()
         for (index in 0 until array.length()) {
             val objectValue = array.optJSONObject(index) ?: continue
@@ -75,9 +103,36 @@ internal fun readPinnedHomeEntries(
     key: String = AppPreferenceKeys.PINNED_HOME_ENTRIES,
     maxItems: Int = PINNED_HOME_ENTRIES_LIMIT
 ): List<HomePinnedEntry> {
-    val raw = prefs.getString(key, null) ?: return emptyList()
+    return decodePinnedHomeEntries(prefs.getString(key, null), maxItems)
+}
+
+internal fun readPinnedHomeEntries(
+    configDir: File,
+    key: String = AppPreferenceKeys.PINNED_HOME_ENTRIES,
+    maxItems: Int = PINNED_HOME_ENTRIES_LIMIT,
+    legacyPrefs: AppPreferences? = null
+): List<HomePinnedEntry> {
+    val file = domainFileForKey(configDir, key)
+    firstParsableJson(readCandidateTexts(file), isObject = false)?.let { raw ->
+        clearLegacyDomainKey(legacyPrefs, key)
+        return decodePinnedHomeEntries(raw, maxItems)
+    }
+    if (legacyPrefs != null && legacyPrefs.contains(key)) {
+        val migrated = decodePinnedHomeEntries(legacyPrefs.getString(key, null), maxItems)
+        writeTextAtomic(file, encodePinnedHomeEntries(migrated, maxItems))
+        clearLegacyDomainKey(legacyPrefs, key)
+        return migrated
+    }
+    return emptyList()
+}
+
+internal fun decodePinnedHomeEntries(
+    raw: String?,
+    maxItems: Int
+): List<HomePinnedEntry> {
+    val normalized = raw?.trim().takeUnless { it.isNullOrBlank() } ?: return emptyList()
     return try {
-        val array = JSONArray(raw)
+        val array = JSONArray(normalized)
         val deduped = mutableListOf<HomePinnedEntry>()
         for (index in 0 until array.length()) {
             val objectValue = array.optJSONObject(index) ?: continue
@@ -137,12 +192,10 @@ internal fun readPinnedHomeEntries(
     }
 }
 
-internal fun writePinnedHomeEntries(
-    prefs: AppPreferences,
+internal fun encodePinnedHomeEntries(
     entries: List<HomePinnedEntry>,
-    key: String = AppPreferenceKeys.PINNED_HOME_ENTRIES,
     maxItems: Int = PINNED_HOME_ENTRIES_LIMIT
-) {
+): String {
     val deduped = mutableListOf<HomePinnedEntry>()
     entries.forEach { entry ->
         val existingIndex = deduped.indexOfFirst { samePath(it.path, entry.path) }
@@ -178,15 +231,31 @@ internal fun writePinnedHomeEntries(
                 .put("pinnedAtEpochMs", entry.pinnedAtEpochMs)
         )
     }
-    prefs.edit().putString(key, array.toString()).apply()
+    return array.toString()
 }
 
-internal fun writeRecentEntries(
+internal fun writePinnedHomeEntries(
     prefs: AppPreferences,
-    key: String,
+    entries: List<HomePinnedEntry>,
+    key: String = AppPreferenceKeys.PINNED_HOME_ENTRIES,
+    maxItems: Int = PINNED_HOME_ENTRIES_LIMIT
+) {
+    prefs.edit().putString(key, encodePinnedHomeEntries(entries, maxItems)).apply()
+}
+
+internal fun writePinnedHomeEntries(
+    configDir: File,
+    entries: List<HomePinnedEntry>,
+    key: String = AppPreferenceKeys.PINNED_HOME_ENTRIES,
+    maxItems: Int = PINNED_HOME_ENTRIES_LIMIT
+) {
+    writeTextAtomic(domainFileForKey(configDir, key), encodePinnedHomeEntries(entries, maxItems))
+}
+
+internal fun encodeRecentEntries(
     entries: List<RecentPathEntry>,
     maxItems: Int
-) {
+): String {
     val deduped = mutableListOf<RecentPathEntry>()
     entries.forEach { entry ->
         val existingIndex = deduped.indexOfFirst { samePath(it.path, entry.path) }
@@ -222,5 +291,29 @@ internal fun writeRecentEntries(
                 .put("playlistSourceHint", entry.playlistSourceHint ?: "")
         )
     }
-    prefs.edit().putString(key, array.toString()).apply()
+    return array.toString()
+}
+
+internal fun writeRecentEntries(
+    prefs: AppPreferences,
+    key: String,
+    entries: List<RecentPathEntry>,
+    maxItems: Int
+) {
+    prefs.edit().putString(key, encodeRecentEntries(entries, maxItems)).apply()
+}
+
+internal fun writeRecentEntries(
+    configDir: File,
+    key: String,
+    entries: List<RecentPathEntry>,
+    maxItems: Int
+) {
+    writeTextAtomic(domainFileForKey(configDir, key), encodeRecentEntries(entries, maxItems))
+}
+
+internal fun clearLegacyDomainKey(prefs: AppPreferences?, key: String) {
+    if (prefs != null && prefs.contains(key)) {
+        runCatching { prefs.edit().remove(key).apply() }
+    }
 }

@@ -3,11 +3,16 @@ package com.flopster101.siliconplayer
 import com.flopster101.siliconplayer.platform.AppPreferences
 import org.json.JSONArray
 import org.json.JSONObject
+import java.io.File
 import java.util.LinkedHashMap
 import java.util.Locale
 
 private const val NETWORK_CREDENTIALS_STORE_VERSION = 1
+private const val NETWORK_CREDENTIALS_FILE_NAME = "credentials.json"
 private const val NETWORK_CREDENTIALS_HTTP_ROOT_SCOPE = "/"
+
+internal fun networkCredentialsFile(configDir: File): File =
+    File(configDir, NETWORK_CREDENTIALS_FILE_NAME)
 
 private data class StoredNetworkCredential(
     val username: String?,
@@ -150,18 +155,37 @@ internal object NetworkCredentialStore {
         if (loaded) return
         smbCredentials.clear()
         httpCredentials.clear()
-        val raw = prefs().getString(AppPreferenceKeys.NETWORK_CREDENTIALS_JSON, null)
-        if (!raw.isNullOrBlank()) {
-            runCatching {
-                val root = JSONObject(raw)
-                val version = root.optInt("version", NETWORK_CREDENTIALS_STORE_VERSION)
-                if (version == NETWORK_CREDENTIALS_STORE_VERSION) {
-                    root.optJSONArray("smb")?.let(::loadSmbCredentialsLocked)
-                    root.optJSONArray("http")?.let(::loadHttpCredentialsLocked)
+        val legacyKey = AppPreferenceKeys.NETWORK_CREDENTIALS_JSON
+        val file = configDirProvider?.invoke()?.let { File(it, NETWORK_CREDENTIALS_FILE_NAME) }
+        val fileRaw = file?.let { firstParsableJson(readCandidateTexts(it), isObject = true) }
+        if (fileRaw != null) {
+            decodeCredentialsLocked(fileRaw)
+            clearLegacyDomainKey(legacyPrefsOrNull(), legacyKey)
+        } else {
+            val legacyRaw = legacyPrefsOrNull()?.getString(legacyKey, null)
+            if (!legacyRaw.isNullOrBlank()) {
+                decodeCredentialsLocked(legacyRaw)
+                if (file != null) {
+                    writeTextAtomic(file, encodeCredentialsLocked())
+                    clearLegacyDomainKey(legacyPrefsOrNull(), legacyKey)
                 }
             }
         }
         loaded = true
+    }
+
+    private fun legacyPrefsOrNull(): AppPreferences? =
+        runCatching { preferencesProvider?.invoke() }.getOrNull()
+
+    private fun decodeCredentialsLocked(raw: String) {
+        runCatching {
+            val root = JSONObject(raw)
+            val version = root.optInt("version", NETWORK_CREDENTIALS_STORE_VERSION)
+            if (version == NETWORK_CREDENTIALS_STORE_VERSION) {
+                root.optJSONArray("smb")?.let(::loadSmbCredentialsLocked)
+                root.optJSONArray("http")?.let(::loadHttpCredentialsLocked)
+            }
+        }
     }
 
     private fun loadSmbCredentialsLocked(array: JSONArray) {
@@ -196,7 +220,7 @@ internal object NetworkCredentialStore {
         }
     }
 
-    private fun persistLocked() {
+    private fun encodeCredentialsLocked(): String {
         val root = JSONObject()
             .put("version", NETWORK_CREDENTIALS_STORE_VERSION)
             .put("smb", JSONArray().apply {
@@ -230,11 +254,23 @@ internal object NetworkCredentialStore {
                     }
                 }
             })
-        prefs().edit().putString(AppPreferenceKeys.NETWORK_CREDENTIALS_JSON, root.toString()).apply()
+        return root.toString()
+    }
+
+    private fun persistLocked() {
+        val file = configDirProvider?.invoke()?.let { File(it, NETWORK_CREDENTIALS_FILE_NAME) }
+        if (file != null) {
+            writeTextAtomic(file, encodeCredentialsLocked())
+        } else {
+            prefs().edit().putString(AppPreferenceKeys.NETWORK_CREDENTIALS_JSON, encodeCredentialsLocked()).apply()
+        }
     }
 
     @Volatile
     var preferencesProvider: (() -> AppPreferences)? = null
+
+    @Volatile
+    var configDirProvider: (() -> File)? = null
 
     private fun prefs(): AppPreferences {
         return preferencesProvider?.invoke()

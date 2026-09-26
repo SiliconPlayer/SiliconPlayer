@@ -296,6 +296,12 @@ val LocalAppCacheDir = staticCompositionLocalOf<java.io.File> {
     java.io.File(System.getProperty("java.io.tmpdir"), "siliconplayer_cache").also { it.mkdirs() }
 }
 
+// Per-domain config files (recents, playlists, favorites, network,
+// credentials). Mirrors LocalAppCacheDir; both platforms must provide it.
+val LocalAppConfigDir = staticCompositionLocalOf<java.io.File> {
+    java.io.File(System.getProperty("java.io.tmpdir"), "siliconplayer_config").also { it.mkdirs() }
+}
+
 /**
  * Media library queries backing the albums/artists/tracks surfaces. Platforms without an
  * indexed library report [isAvailable] as `false` and return empty collections.

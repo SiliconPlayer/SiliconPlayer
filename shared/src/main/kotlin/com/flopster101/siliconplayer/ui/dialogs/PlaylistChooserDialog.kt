@@ -72,6 +72,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.flopster101.siliconplayer.PlaylistSortMode
 import com.flopster101.siliconplayer.StoredPlaylist
+import com.flopster101.siliconplayer.platform.LocalAppConfigDir
 import com.flopster101.siliconplayer.platform.LocalAppPreferences
 import com.flopster101.siliconplayer.samePath
 import com.flopster101.siliconplayer.sortStoredPlaylists
@@ -109,13 +110,14 @@ internal fun AddToPlaylistChooserDialog(
             )
         }
     }
-    val effectiveFavorites = remember(favorites, effectiveShowFavorites, prefs) {
+    val configDir = LocalAppConfigDir.current
+    val effectiveFavorites = remember(favorites, effectiveShowFavorites, prefs, configDir) {
         if (!effectiveShowFavorites) {
             emptyList()
         } else if (favorites.isNotEmpty()) {
             favorites
         } else {
-            readPlaylistLibraryState(prefs).favorites
+            readPlaylistLibraryState(configDir, prefs).favorites
         }
     }
 

@@ -173,6 +173,10 @@ fun ProvideDesktopPlatformAdapters(
     }
 
     val cacheDir = remember { DesktopPaths.cacheDir() }
+    val configDir = remember { DesktopPaths.configDir() }
+    remember(configDir) {
+        com.flopster101.siliconplayer.NetworkCredentialStore.configDirProvider = { configDir }
+    }
     val artworkThumbnailLoader = remember(cacheDir) {
         val artworkCacheDir = desktopArtworkCacheDir(cacheDir)
         object : com.flopster101.siliconplayer.platform.ArtworkThumbnailLoader {
@@ -221,6 +225,7 @@ fun ProvideDesktopPlatformAdapters(
         com.flopster101.siliconplayer.platform.LocalAppVersionInfo provides appVersionInfo,
         com.flopster101.siliconplayer.platform.LocalSettingsPlatformContent provides object : com.flopster101.siliconplayer.platform.SettingsPlatformContent {},
         com.flopster101.siliconplayer.platform.LocalAppCacheDir provides cacheDir,
+        com.flopster101.siliconplayer.platform.LocalAppConfigDir provides configDir,
         com.flopster101.siliconplayer.platform.LocalArtworkCacheSupport provides artworkCacheSupport,
         com.flopster101.siliconplayer.platform.LocalPlaylistPlatformSupport provides playlistPlatformSupport,
         com.flopster101.siliconplayer.platform.LocalRemoteSourceExportSupport provides { remoteSourceExportSupport },

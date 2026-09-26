@@ -479,8 +479,9 @@ fun ProvideAndroidPlatformAdapters(
     val playlistPlatformSupport = rememberAndroidPlaylistPlatformSupport()
     val playlistRefreshNotifier = remember(context) { AndroidPlaylistRefreshNotifier(context) }
 
-    remember(prefs) {
+    remember(prefs, context) {
         com.flopster101.siliconplayer.NetworkCredentialStore.preferencesProvider = { prefs }
+        com.flopster101.siliconplayer.NetworkCredentialStore.configDirProvider = { context.filesDir }
     }
 
     CompositionLocalProvider(
@@ -504,6 +505,7 @@ fun ProvideAndroidPlatformAdapters(
         LocalAppVersionInfo provides appVersionInfo,
         LocalSettingsPlatformContent provides settingsPlatformContent,
         LocalAppCacheDir provides context.cacheDir,
+        LocalAppConfigDir provides context.filesDir,
         LocalStorageLocationsProvider provides storageLocationsProvider,
         LocalFileExportHandler provides fileExportHandler,
         content = content

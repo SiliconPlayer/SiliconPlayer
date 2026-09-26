@@ -19,6 +19,10 @@ import com.flopster101.siliconplayer.CachedSourceFile
 import com.flopster101.siliconplayer.CorePreferenceKeys
 import com.flopster101.siliconplayer.REMOTE_SOURCE_CACHE_DIR
 import com.flopster101.siliconplayer.clearRemoteCacheFiles
+import com.flopster101.siliconplayer.deleteDomainFile
+import com.flopster101.siliconplayer.deleteStoreFile
+import com.flopster101.siliconplayer.networkCredentialsFile
+import com.flopster101.siliconplayer.networkNodesFile
 import com.flopster101.siliconplayer.data.clearArchiveMountCache
 import com.flopster101.siliconplayer.DecoderNames
 import com.flopster101.siliconplayer.deleteSpecificRemoteCacheFiles
@@ -639,6 +643,9 @@ internal fun rememberDesktopSettings(
                 changeToken++
             },
             onClearRecentHistory = {
+                val configDir = DesktopPaths.configDir()
+                deleteDomainFile(configDir, AppPreferenceKeys.RECENT_FOLDERS)
+                deleteDomainFile(configDir, AppPreferenceKeys.RECENT_PLAYED_FILES)
                 prefs.edit()
                     .remove(AppPreferenceKeys.RECENT_FOLDERS)
                     .remove(AppPreferenceKeys.RECENT_PLAYED_FILES)
@@ -646,6 +653,9 @@ internal fun rememberDesktopSettings(
                 changeToken++
             },
             onClearSavedNetworkSources = {
+                val configDir = DesktopPaths.configDir()
+                deleteStoreFile(networkNodesFile(configDir))
+                deleteStoreFile(networkCredentialsFile(configDir))
                 prefs.edit()
                     .remove(AppPreferenceKeys.NETWORK_SAVED_NODES)
                     .remove(AppPreferenceKeys.NETWORK_CREDENTIALS_JSON)

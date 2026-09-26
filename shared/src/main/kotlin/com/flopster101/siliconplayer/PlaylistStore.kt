@@ -38,12 +38,14 @@ private const val FOLDER_CREATED_AT_KEY = "created_at_ms"
 private const val FOLDER_IS_PINNED_KEY = "is_pinned"
 
 internal fun readPlaylistLibraryState(prefs: AppPreferences): PlaylistLibraryState {
-    val raw = prefs.getString(AppPreferenceKeys.PLAYLIST_LIBRARY_JSON, null)
-        ?.trim()
-        .takeUnless { it.isNullOrBlank() }
+    return decodePlaylistLibraryState(prefs.getString(AppPreferenceKeys.PLAYLIST_LIBRARY_JSON, null))
+}
+
+internal fun decodePlaylistLibraryState(raw: String?): PlaylistLibraryState {
+    val normalized = raw?.trim().takeUnless { it.isNullOrBlank() }
         ?: return emptyPlaylistLibraryState()
     return runCatching {
-        val root = JSONObject(raw)
+        val root = JSONObject(normalized)
         val favorites = root.optJSONArray(PLAYLIST_LIBRARY_FAVORITES_KEY)
             ?.let(::readPlaylistTrackEntries)
             .orEmpty()
@@ -727,6 +729,176 @@ internal fun movePlaylistToFolder(
         }
     }
     return state.copy(playlists = updatedPlaylists)
+}
+
+private const val PLAYLIST_FILES_DIR_NAME = "playlists"
+private const val PLAYLIST_INDEX_FILE_NAME = "index.json"
+private const val PLAYLIST_FAVORITES_FILE_NAME = "favorites.json"
+private const val PLAYLIST_INDEX_PLAYLISTS_KEY = "playlists"
+private const val PLAYLIST_INDEX_ID_KEY = "id"
+private const val PLAYLIST_INDEX_FILE_KEY = "file"
+
+// Last persisted snapshot per library dir. Writes diff against it so a
+// favorite toggle only rewrites favorites.json and a track add only
+// rewrites that playlist's file, never the whole library.
+private val playlistLibraryWriteCache = java.util.concurrent.ConcurrentHashMap<String, PlaylistLibraryState>()
+
+internal fun playlistLibraryDir(configDir: File): File = File(configDir, PLAYLIST_FILES_DIR_NAME)
+
+internal fun playlistFavoritesFile(configDir: File): File = File(configDir, PLAYLIST_FAVORITES_FILE_NAME)
+
+internal fun playlistFileName(playlistId: String): String =
+    sanitizeDomainFileName(playlistId) + ".json"
+
+internal fun encodePlaylistTrackEntries(entries: List<PlaylistTrackEntry>): String {
+    return JSONArray().apply {
+        entries.forEach { put(writePlaylistTrackEntry(it)) }
+    }.toString()
+}
+
+internal fun decodePlaylistTrackEntries(raw: String?): List<PlaylistTrackEntry> {
+    val normalized = raw?.trim().takeUnless { it.isNullOrBlank() } ?: return emptyList()
+    return runCatching { readPlaylistTrackEntries(JSONArray(normalized)) }.getOrElse { emptyList() }
+}
+
+internal fun readPlaylistLibraryState(
+    configDir: File,
+    legacyPrefs: AppPreferences? = null
+): PlaylistLibraryState {
+    val dir = playlistLibraryDir(configDir)
+    val legacyKey = AppPreferenceKeys.PLAYLIST_LIBRARY_JSON
+    firstParsableJson(readCandidateTexts(File(dir, PLAYLIST_INDEX_FILE_NAME)), isObject = true)?.let { raw ->
+        clearLegacyDomainKey(legacyPrefs, legacyKey)
+        val state = decodeIndexedPlaylistLibraryState(dir, configDir, raw)
+        playlistLibraryWriteCache[dir.absolutePath] = state
+        return state
+    }
+    if (legacyPrefs != null && legacyPrefs.contains(legacyKey)) {
+        val migrated = decodePlaylistLibraryState(legacyPrefs.getString(legacyKey, null))
+        writePlaylistLibraryStateFresh(dir, configDir, migrated)
+        playlistLibraryWriteCache[dir.absolutePath] = migrated
+        clearLegacyDomainKey(legacyPrefs, legacyKey)
+        return migrated
+    }
+    val empty = emptyPlaylistLibraryState()
+    playlistLibraryWriteCache[dir.absolutePath] = empty
+    return empty
+}
+
+internal fun writePlaylistLibraryState(
+    configDir: File,
+    state: PlaylistLibraryState
+) {
+    val dir = playlistLibraryDir(configDir)
+    val previous = playlistLibraryWriteCache[dir.absolutePath]
+    if (previous == null) {
+        writePlaylistLibraryStateFresh(dir, configDir, state)
+    } else {
+        val previousById = previous.playlists.associateBy { it.id }
+        val nextIds = state.playlists.map { it.id }.toSet()
+        for (playlist in state.playlists) {
+            if (previousById[playlist.id] != playlist) {
+                writeTextAtomic(File(dir, playlistFileName(playlist.id)), writeStoredPlaylistToJson(playlist))
+            }
+        }
+        for (id in previousById.keys) {
+            if (id !in nextIds) {
+                runCatching {
+                    File(dir, playlistFileName(id)).delete()
+                    File(dir, "${playlistFileName(id)}.bak").delete()
+                }
+            }
+        }
+        if (previous.playlists.map { it.id } != state.playlists.map { it.id } ||
+            previous.folders != state.folders
+        ) {
+            writeTextAtomic(File(dir, PLAYLIST_INDEX_FILE_NAME), encodePlaylistLibraryIndex(state))
+        }
+        if (previous.favorites != state.favorites) {
+            writeTextAtomic(
+                File(configDir, PLAYLIST_FAVORITES_FILE_NAME),
+                encodePlaylistTrackEntries(state.favorites)
+            )
+        }
+    }
+    playlistLibraryWriteCache[dir.absolutePath] = state
+}
+
+private fun writePlaylistLibraryStateFresh(
+    dir: File,
+    configDir: File,
+    state: PlaylistLibraryState
+) {
+    for (playlist in state.playlists) {
+        writeTextAtomic(File(dir, playlistFileName(playlist.id)), writeStoredPlaylistToJson(playlist))
+    }
+    writeTextAtomic(File(dir, PLAYLIST_INDEX_FILE_NAME), encodePlaylistLibraryIndex(state))
+    writeTextAtomic(File(configDir, PLAYLIST_FAVORITES_FILE_NAME), encodePlaylistTrackEntries(state.favorites))
+}
+
+private fun encodePlaylistLibraryIndex(state: PlaylistLibraryState): String {
+    return JSONObject()
+        .put(
+            PLAYLIST_LIBRARY_FOLDERS_KEY,
+            JSONArray().apply {
+                state.folders.forEach { put(writePlaylistFolder(it)) }
+            }
+        )
+        .put(
+            PLAYLIST_INDEX_PLAYLISTS_KEY,
+            JSONArray().apply {
+                state.playlists.forEach { playlist ->
+                    put(
+                        JSONObject()
+                            .put(PLAYLIST_INDEX_ID_KEY, playlist.id)
+                            .put(PLAYLIST_INDEX_FILE_KEY, playlistFileName(playlist.id))
+                    )
+                }
+            }
+        )
+        .toString()
+}
+
+private fun decodeIndexedPlaylistLibraryState(
+    dir: File,
+    configDir: File,
+    raw: String
+): PlaylistLibraryState {
+    return runCatching {
+        val root = JSONObject(raw)
+        val folders = root.optJSONArray(PLAYLIST_LIBRARY_FOLDERS_KEY)
+            ?.let(::readPlaylistFolders)
+            .orEmpty()
+        val roster = root.optJSONArray(PLAYLIST_INDEX_PLAYLISTS_KEY)
+        val playlists = mutableListOf<StoredPlaylist>()
+        if (roster != null) {
+            for (index in 0 until roster.length()) {
+                val item = roster.optJSONObject(index) ?: continue
+                val id = item.optString(PLAYLIST_INDEX_ID_KEY).trim()
+                val fileName = item.optString(PLAYLIST_INDEX_FILE_KEY).trim()
+                if (id.isBlank() || fileName.isBlank()) continue
+                loadStoredPlaylistFile(File(dir, fileName))?.let { playlist ->
+                    playlists += if (playlist.id != id) playlist.copy(id = id) else playlist
+                }
+            }
+        }
+        val favorites = firstParsableJson(
+            readCandidateTexts(File(configDir, PLAYLIST_FAVORITES_FILE_NAME)),
+            isObject = false
+        )?.let(::decodePlaylistTrackEntries).orEmpty()
+        PlaylistLibraryState(
+            favorites = favorites,
+            playlists = playlists,
+            folders = folders
+        )
+    }.getOrElse {
+        emptyPlaylistLibraryState()
+    }
+}
+
+private fun loadStoredPlaylistFile(file: File): StoredPlaylist? {
+    val raw = firstParsableJson(readCandidateTexts(file), isObject = true) ?: return null
+    return readStoredPlaylistFromJson(raw)
 }
 
 internal fun deletePlaylistFolder(

@@ -272,23 +272,41 @@ internal fun readRecentEntries(
     prefs: android.content.SharedPreferences,
     key: String,
     maxItems: Int
-): List<RecentPathEntry> =
-    readRecentEntries(AndroidAppPreferences(prefs), key, maxItems)
+): List<RecentPathEntry> {
+    val dir = DomainStoreDirs.configDir
+    return if (dir != null) {
+        readRecentEntries(dir, key, maxItems, AndroidAppPreferences(prefs))
+    } else {
+        readRecentEntries(AndroidAppPreferences(prefs), key, maxItems)
+    }
+}
 
 internal fun readPinnedHomeEntries(
     prefs: android.content.SharedPreferences,
     key: String = AppPreferenceKeys.PINNED_HOME_ENTRIES,
     maxItems: Int = PINNED_HOME_ENTRIES_LIMIT
-): List<HomePinnedEntry> =
-    readPinnedHomeEntries(AndroidAppPreferences(prefs), key, maxItems)
+): List<HomePinnedEntry> {
+    val dir = DomainStoreDirs.configDir
+    return if (dir != null) {
+        readPinnedHomeEntries(dir, key, maxItems, AndroidAppPreferences(prefs))
+    } else {
+        readPinnedHomeEntries(AndroidAppPreferences(prefs), key, maxItems)
+    }
+}
 
 internal fun writePinnedHomeEntries(
     prefs: android.content.SharedPreferences,
     entries: List<HomePinnedEntry>,
     key: String = AppPreferenceKeys.PINNED_HOME_ENTRIES,
     maxItems: Int = PINNED_HOME_ENTRIES_LIMIT
-) =
-    writePinnedHomeEntries(AndroidAppPreferences(prefs), entries, key, maxItems)
+) {
+    val dir = DomainStoreDirs.configDir
+    if (dir != null) {
+        writePinnedHomeEntries(dir, entries, key, maxItems)
+    } else {
+        writePinnedHomeEntries(AndroidAppPreferences(prefs), entries, key, maxItems)
+    }
+}
 
 
 internal fun writeRecentEntries(
@@ -296,8 +314,14 @@ internal fun writeRecentEntries(
     key: String,
     entries: List<RecentPathEntry>,
     maxItems: Int
-) =
-    writeRecentEntries(AndroidAppPreferences(prefs), key, entries, maxItems)
+) {
+    val dir = DomainStoreDirs.configDir
+    if (dir != null) {
+        writeRecentEntries(dir, key, entries, maxItems)
+    } else {
+        writeRecentEntries(AndroidAppPreferences(prefs), key, entries, maxItems)
+    }
+}
 
 internal fun buildUpdatedRecentFolders(
     current: List<RecentPathEntry>,

@@ -11,13 +11,26 @@ fun savePlaylistCoverGenerationMode(
     mode: PlaylistCoverGenerationMode
 ) = savePlaylistCoverGenerationMode(AndroidAppPreferences(prefs), mode)
 
-internal fun readPlaylistLibraryState(prefs: SharedPreferences): PlaylistLibraryState =
-    readPlaylistLibraryState(AndroidAppPreferences(prefs))
+internal fun readPlaylistLibraryState(prefs: SharedPreferences): PlaylistLibraryState {
+    val dir = DomainStoreDirs.configDir
+    return if (dir != null) {
+        readPlaylistLibraryState(dir, AndroidAppPreferences(prefs))
+    } else {
+        readPlaylistLibraryState(AndroidAppPreferences(prefs))
+    }
+}
 
 internal fun writePlaylistLibraryState(
     prefs: SharedPreferences,
     state: PlaylistLibraryState
-) = writePlaylistLibraryState(AndroidAppPreferences(prefs), state)
+) {
+    val dir = DomainStoreDirs.configDir
+    if (dir != null) {
+        writePlaylistLibraryState(dir, state)
+    } else {
+        writePlaylistLibraryState(AndroidAppPreferences(prefs), state)
+    }
+}
 
 fun readChannelScopeVisibleElementSelection(prefs: SharedPreferences): Set<String> =
     readChannelScopeVisibleElementSelection(AndroidAppPreferences(prefs))

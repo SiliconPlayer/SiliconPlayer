@@ -357,10 +357,16 @@ internal fun clearRecentHistoryAction(
 ) {
     onRecentFoldersChanged(emptyList())
     onRecentPlayedFilesChanged(emptyList())
-    prefs.edit()
-        .remove(AppPreferenceKeys.RECENT_FOLDERS)
-        .remove(AppPreferenceKeys.RECENT_PLAYED_FILES)
-        .apply()
+    val dir = DomainStoreDirs.configDir
+    if (dir != null) {
+        deleteDomainFile(dir, AppPreferenceKeys.RECENT_FOLDERS)
+        deleteDomainFile(dir, AppPreferenceKeys.RECENT_PLAYED_FILES)
+    } else {
+        prefs.edit()
+            .remove(AppPreferenceKeys.RECENT_FOLDERS)
+            .remove(AppPreferenceKeys.RECENT_PLAYED_FILES)
+            .apply()
+    }
     Toast.makeText(context, "Home recents cleared", Toast.LENGTH_SHORT).show()
 }
 

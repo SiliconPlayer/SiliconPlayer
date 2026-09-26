@@ -3,6 +3,7 @@ package com.flopster101.siliconplayer
 import com.flopster101.siliconplayer.platform.AppPreferences
 import org.json.JSONArray
 import org.json.JSONObject
+import java.io.File
 import java.net.URLDecoder
 
 private const val NETWORK_NODE_TYPE_FOLDER = "folder"
@@ -48,10 +49,37 @@ internal fun nextNetworkNodeId(nodes: List<NetworkNode>): Long {
     return (nodes.maxOfOrNull { it.id } ?: 0L) + 1L
 }
 
+private const val NETWORK_NODES_FILE_NAME = "network.json"
+
+internal fun networkNodesFile(configDir: File): File = File(configDir, NETWORK_NODES_FILE_NAME)
+
 internal fun readNetworkNodes(prefs: AppPreferences): List<NetworkNode> {
-    val raw = prefs.getString(AppPreferenceKeys.NETWORK_SAVED_NODES, null) ?: return emptyList()
+    return decodeNetworkNodes(prefs.getString(AppPreferenceKeys.NETWORK_SAVED_NODES, null))
+}
+
+internal fun readNetworkNodes(
+    configDir: File,
+    legacyPrefs: AppPreferences? = null
+): List<NetworkNode> {
+    val file = File(configDir, NETWORK_NODES_FILE_NAME)
+    val legacyKey = AppPreferenceKeys.NETWORK_SAVED_NODES
+    firstParsableJson(readCandidateTexts(file), isObject = false)?.let { raw ->
+        clearLegacyDomainKey(legacyPrefs, legacyKey)
+        return decodeNetworkNodes(raw)
+    }
+    if (legacyPrefs != null && legacyPrefs.contains(legacyKey)) {
+        val migrated = decodeNetworkNodes(legacyPrefs.getString(legacyKey, null))
+        writeTextAtomic(file, encodeNetworkNodes(migrated))
+        clearLegacyDomainKey(legacyPrefs, legacyKey)
+        return migrated
+    }
+    return emptyList()
+}
+
+internal fun decodeNetworkNodes(raw: String?): List<NetworkNode> {
+    val normalized = raw?.trim().takeUnless { it.isNullOrBlank() } ?: return emptyList()
     return try {
-        val array = JSONArray(raw)
+        val array = JSONArray(normalized)
         val parsed = buildList {
             for (index in 0 until array.length()) {
                 val objectValue = array.optJSONObject(index) ?: continue
@@ -163,11 +191,9 @@ internal fun readNetworkNodes(prefs: AppPreferences): List<NetworkNode> {
     }
 }
 
-internal fun writeNetworkNodes(
-    prefs: AppPreferences,
+internal fun encodeNetworkNodes(
     nodes: List<NetworkNode>
-) {
-    NetworkNodesHolder.current = nodes
+): String {
     val array = JSONArray()
     nodes.forEach { node ->
         val objectValue = JSONObject()
@@ -223,7 +249,23 @@ internal fun writeNetworkNodes(
         }
         array.put(objectValue)
     }
-    prefs.edit().putString(AppPreferenceKeys.NETWORK_SAVED_NODES, array.toString()).apply()
+    return array.toString()
+}
+
+internal fun writeNetworkNodes(
+    prefs: AppPreferences,
+    nodes: List<NetworkNode>
+) {
+    NetworkNodesHolder.current = nodes
+    prefs.edit().putString(AppPreferenceKeys.NETWORK_SAVED_NODES, encodeNetworkNodes(nodes)).apply()
+}
+
+internal fun writeNetworkNodes(
+    configDir: File,
+    nodes: List<NetworkNode>
+) {
+    NetworkNodesHolder.current = nodes
+    writeTextAtomic(File(configDir, NETWORK_NODES_FILE_NAME), encodeNetworkNodes(nodes))
 }
 
 internal fun mergeNetworkSourceMetadata(
