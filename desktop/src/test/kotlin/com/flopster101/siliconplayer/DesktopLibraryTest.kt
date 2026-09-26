@@ -9,7 +9,7 @@ import com.flopster101.siliconplayer.library.LibraryContract
 import com.flopster101.siliconplayer.library.LibraryScanRoot
 import com.flopster101.siliconplayer.library.LibraryTrackEntity
 import com.flopster101.siliconplayer.library.ProbeTransport
-import com.flopster101.siliconplayer.library.SCANNER_DEFAULT_EXTENSION_BLOCKLIST
+import com.flopster101.siliconplayer.library.SCANNER_CONVENTIONAL_EXTENSIONS
 import com.flopster101.siliconplayer.library.defaultScanExtensions
 import com.flopster101.siliconplayer.library.libraryAlbumTracks
 import com.flopster101.siliconplayer.library.libraryArtistAlbums
@@ -188,11 +188,10 @@ class DesktopLibraryTest {
     }
 
     @Test
-    fun defaultScanExtensionsBlocklist() {
-        val extensions = defaultScanExtensions()
-        assertTrue(extensions.contains("mp3"))
-        assertTrue(extensions.contains("sid"))
-        assertTrue(extensions.none { it in SCANNER_DEFAULT_EXTENSION_BLOCKLIST })
+    fun defaultScanExtensionsAreConventional() {
+        assertEquals(SCANNER_CONVENTIONAL_EXTENSIONS, defaultScanExtensions())
+        assertTrue(defaultScanExtensions().contains("mp3"))
+        assertTrue(!defaultScanExtensions().contains("sid"))
     }
 
     @Test

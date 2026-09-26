@@ -1,6 +1,5 @@
 package com.flopster101.siliconplayer.library
 
-import com.flopster101.siliconplayer.NativeBridge
 import com.flopster101.siliconplayer.firstParsableJson
 import com.flopster101.siliconplayer.readCandidateTexts
 import com.flopster101.siliconplayer.writeTextAtomic
@@ -10,9 +9,6 @@ import org.json.JSONObject
 
 internal const val LIBRARY_TRACKS_FILE_NAME = "library.json"
 internal const val LIBRARY_SCAN_FILE_NAME = "library_scan.json"
-
-// Excluded from the default set; collides with common non-audio files.
-internal val SCANNER_DEFAULT_EXTENSION_BLOCKLIST = setOf("md", "dat", "asc")
 
 // Null extensions means the default set (see defaultScanExtensions).
 internal data class DesktopLibraryScanConfig(
@@ -111,13 +107,9 @@ internal fun writeLibraryScanConfig(configDir: File, config: DesktopLibraryScanC
     writeTextAtomic(libraryScanFile(configDir), json.toString())
 }
 
-// Null means native-supported extensions minus the blocklist above.
-internal fun defaultScanExtensions(): Set<String> = runCatching {
-    NativeBridge.getSupportedExtensions()
-        .map { it.trim().lowercase().removePrefix(".") }
-        .filter { it.isNotBlank() && it !in SCANNER_DEFAULT_EXTENSION_BLOCKLIST }
-        .toSet()
-}.getOrElse { emptySet() }
+// Null means the conventional sampled set; module formats stay in the
+// file browser. Users can widen it via the stored extensions override.
+internal fun defaultScanExtensions(): Set<String> = SCANNER_CONVENTIONAL_EXTENSIONS
 
 // XDG music dir with $HOME/Music fallback; never resolves to $HOME itself.
 internal fun defaultMusicScanRoot(): String? {

@@ -11,10 +11,7 @@ internal object LibraryScanRootStore {
     private const val KEY_AUTO_SCAN_ENABLED = "auto_scan_enabled"
     private const val KEY_DEDUPLICATE_SOURCES = "deduplicate_sources"
 
-    val DEFAULT_EXTENSIONS = setOf(
-        "mp3", "flac", "wav", "ogg", "oga", "opus", "m4a", "aac",
-        "wma", "mka", "ape", "wv", "aiff", "aif", "alac"
-    )
+    val DEFAULT_EXTENSIONS = SCANNER_CONVENTIONAL_EXTENSIONS
 
     private fun prefs(context: Context) =
         context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)

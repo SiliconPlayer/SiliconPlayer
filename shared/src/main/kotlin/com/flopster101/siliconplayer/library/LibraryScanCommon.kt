@@ -8,6 +8,13 @@ data class LibraryScanRoot(
     val enabled: Boolean = true
 )
 
+// Conventional sampled formats. The indexed library is the normie surface;
+// exotic module formats stay playable through the browser, not the index.
+val SCANNER_CONVENTIONAL_EXTENSIONS = setOf(
+    "mp3", "flac", "wav", "ogg", "oga", "opus", "m4a", "aac",
+    "wma", "mka", "ape", "wv", "aiff", "aif", "alac"
+)
+
 /** Directory traversal; desktop passes includeHidden=false to skip dot-dirs. */
 internal fun interface LibraryLister {
     fun listFiles(root: LibraryScanRoot, includeHidden: Boolean): Sequence<File>
