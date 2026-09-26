@@ -295,7 +295,8 @@ fun main(args: Array<String>) = application {
                     isFolder = isFolder,
                     title = entry.title,
                     artist = entry.artist,
-                    sourceNodeId = entry.sourceNodeId
+                    sourceNodeId = entry.sourceNodeId,
+                    artworkThumbnailCacheKey = entry.artworkThumbnailCacheKey
                 )
             )
         }
@@ -308,7 +309,9 @@ fun main(args: Array<String>) = application {
             locationId = null,
             title = session.title.ifBlank { file.name },
             artist = session.artist.ifBlank { ext },
-            decoderName = session.decoderName
+            decoderName = session.decoderName,
+            // Desktop loader resolves absolute paths to embedded art, as in file rows.
+            artworkThumbnailCacheKey = file.absolutePath
         )
         recentFiles.removeAll { it.path == file.absolutePath }
         recentFiles.add(0, entry)
@@ -1036,7 +1039,8 @@ fun main(args: Array<String>) = application {
                                                             path = entry.path,
                                                             isFolder = true,
                                                             title = entry.title,
-                                                            artist = entry.artist
+                                                            artist = entry.artist,
+                                                            artworkThumbnailCacheKey = entry.artworkThumbnailCacheKey
                                                         )
                                                     )
                                                 }
@@ -1049,7 +1053,8 @@ fun main(args: Array<String>) = application {
                                                             isFolder = false,
                                                             title = entry.title,
                                                             artist = entry.artist,
-                                                            decoderName = entry.decoderName
+                                                            decoderName = entry.decoderName,
+                                                            artworkThumbnailCacheKey = entry.artworkThumbnailCacheKey
                                                         )
                                                     )
                                                 }
