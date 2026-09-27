@@ -3,6 +3,7 @@ package com.flopster101.siliconplayer
 import com.flopster101.siliconplayer.platform.AppPreferences
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.io.File
@@ -236,6 +237,47 @@ class DesktopDomainStorageTest {
         } finally {
             NetworkCredentialStore.preferencesProvider = previousPrefsProvider
             NetworkCredentialStore.configDirProvider = previousDirProvider
+            resetCredentialStoreLoaded()
+        }
+    }
+
+    @Test
+    fun clearSavedNetworkSourcesWipesSourcesAndCredentials() {
+        val dir = tempDir()
+        val prefs = FakePrefs()
+        val previousPrefsProvider = NetworkCredentialStore.preferencesProvider
+        val previousDirProvider = NetworkCredentialStore.configDirProvider
+        val previousStoreDir = DomainStoreDirs.configDir
+        try {
+            NetworkCredentialStore.preferencesProvider = { prefs }
+            NetworkCredentialStore.configDirProvider = { dir }
+            DomainStoreDirs.configDir = dir
+            resetCredentialStoreLoaded()
+            writeNetworkNodes(
+                dir,
+                listOf(NetworkNode(id = 1L, parentId = null, type = NetworkNodeType.Folder, title = "NAS"))
+            )
+            NetworkCredentialStore.remember(
+                parseSmbSourceSpecFromInput("smb://nas/music")!!, username = "user", password = "secret"
+            )
+
+            clearSavedNetworkSources(prefs)
+
+            assertTrue(NetworkNodesHolder.current.isEmpty())
+            assertTrue(readNetworkNodes(dir, prefs).isEmpty())
+            assertFalse(networkNodesFile(dir).exists())
+            val credentialsFile = networkCredentialsFile(dir)
+            assertFalse(credentialsFile.exists())
+            assertFalse(File(dir, "${credentialsFile.name}.bak").exists())
+            assertFalse(prefs.contains(AppPreferenceKeys.NETWORK_SAVED_NODES))
+            assertFalse(prefs.contains(AppPreferenceKeys.NETWORK_CREDENTIALS_JSON))
+            val resolved = NetworkCredentialStore.applyTo(parseSmbSourceSpecFromInput("smb://nas/music")!!)
+            assertNull(resolved.username)
+            assertNull(resolved.password)
+        } finally {
+            NetworkCredentialStore.preferencesProvider = previousPrefsProvider
+            NetworkCredentialStore.configDirProvider = previousDirProvider
+            DomainStoreDirs.configDir = previousStoreDir
             resetCredentialStoreLoaded()
         }
     }

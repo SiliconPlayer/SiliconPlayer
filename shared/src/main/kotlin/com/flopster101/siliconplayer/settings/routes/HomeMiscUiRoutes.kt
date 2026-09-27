@@ -164,7 +164,7 @@ internal fun NetworkRouteContent(
     SettingsSectionLabel("Saved network sources")
     SettingsItemCard(
         title = "Clear saved sources",
-        description = "Remove all saved network folders and remote sources.",
+        description = "Remove all saved network folders, remote sources, and their saved credentials.",
         icon = Icons.Default.DeleteForever,
         onClick = { showClearSavedSourcesConfirm = true }
     )
@@ -179,7 +179,7 @@ internal fun NetworkRouteContent(
     if (showClearSavedSourcesConfirm) {
         SettingsConfirmDialog(
             title = "Clear saved network sources?",
-            message = "This removes all user-saved network folders and remote sources.",
+            message = "This removes all user-saved network folders, remote sources, and their saved credentials.",
             confirmLabel = "Clear",
             onDismiss = { showClearSavedSourcesConfirm = false },
             onConfirm = actions.onClearSavedNetworkSources

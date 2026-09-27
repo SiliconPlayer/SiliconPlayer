@@ -268,6 +268,18 @@ internal fun writeNetworkNodes(
     writeTextAtomic(File(configDir, NETWORK_NODES_FILE_NAME), encodeNetworkNodes(nodes))
 }
 
+// Saved sources and their stored credentials are cleared together on both
+// platforms until a dedicated credential manager exists.
+internal fun clearSavedNetworkSources(prefs: AppPreferences) {
+    NetworkCredentialStore.clearAll()
+    NetworkNodesHolder.current = emptyList()
+    prefs.edit()
+        .remove(AppPreferenceKeys.NETWORK_SAVED_NODES)
+        .remove(AppPreferenceKeys.NETWORK_CREDENTIALS_JSON)
+        .apply()
+    DomainStoreDirs.configDir?.let { deleteStoreFile(networkNodesFile(it)) }
+}
+
 internal fun mergeNetworkSourceMetadata(
     nodes: List<NetworkNode>,
     sourceId: String,

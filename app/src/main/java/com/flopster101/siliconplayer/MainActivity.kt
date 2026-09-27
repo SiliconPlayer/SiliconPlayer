@@ -1406,7 +1406,7 @@ private fun clearSavedNetworkSourcesFromSettings(
     onNetworkNodesChanged: (List<NetworkNode>) -> Unit
 ) {
     onNetworkNodesChanged(emptyList())
-    writeNetworkNodes(prefs, emptyList())
+    clearSavedNetworkSources(prefs)
     Toast.makeText(context, "Saved network sources cleared", Toast.LENGTH_SHORT).show()
 }
 

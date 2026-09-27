@@ -129,6 +129,9 @@ internal object NetworkCredentialStore {
             smbCredentials.clear()
             httpCredentials.clear()
             persistLocked()
+            // persistLocked rotates the previous credentials into the backup
+            // file, so drop both to leave no plaintext behind.
+            configDirProvider?.invoke()?.let { deleteStoreFile(networkCredentialsFile(it)) }
         }
     }
 

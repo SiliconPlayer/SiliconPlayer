@@ -21,3 +21,7 @@ internal fun writeNetworkNodes(prefs: SharedPreferences, nodes: List<NetworkNode
         writeNetworkNodes(AndroidAppPreferences(prefs), nodes)
     }
 }
+
+internal fun clearSavedNetworkSources(prefs: SharedPreferences) {
+    clearSavedNetworkSources(AndroidAppPreferences(prefs))
+}
