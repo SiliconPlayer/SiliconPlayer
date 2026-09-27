@@ -155,6 +155,13 @@ FurnaceDecoder::~FurnaceDecoder() {
     close();
 }
 
+void FurnaceDecoder::DivEngineDeleter::operator()(DivEngine* dead) const noexcept {
+    if (dead) {
+        dead->~DivEngine();
+        std::free(dead);
+    }
+}
+
 int FurnaceDecoder::normalizeRepeatMode(int mode) {
     if (mode < 0 || mode > 3) {
         return 0;
@@ -181,7 +188,22 @@ bool FurnaceDecoder::open(const char* path) {
         return false;
     }
 
-    auto localEngine = std::make_unique<DivEngine>();
+    // Upstream ctor under-clears filePlayerBuf (float-sized clear of a pointer
+    // array); pre-zero the backing store so those entries always start null.
+    void* engineBacking = std::calloc(1, sizeof(DivEngine));
+    if (!engineBacking) {
+        closeInternalLocked();
+        return false;
+    }
+    DivEngine* rawEngine = nullptr;
+    try {
+        rawEngine = new (engineBacking) DivEngine;
+    } catch (...) {
+        std::free(engineBacking);
+        closeInternalLocked();
+        return false;
+    }
+    std::unique_ptr<DivEngine, DivEngineDeleter> localEngine(rawEngine);
     localEngine->setAudio(DIV_AUDIO_DUMMY);
     localEngine->setView(DIV_STATUS_NOTHING);
     localEngine->setConsoleMode(true, false);

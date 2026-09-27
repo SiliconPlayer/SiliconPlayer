@@ -86,7 +86,10 @@ private:
     };
 
     mutable std::mutex decodeMutex;
-    std::unique_ptr<DivEngine> engine;
+    struct DivEngineDeleter {
+        void operator()(DivEngine* engine) const noexcept;
+    };
+    std::unique_ptr<DivEngine, DivEngineDeleter> engine;
 
     std::string sourcePath;
     std::string title;
