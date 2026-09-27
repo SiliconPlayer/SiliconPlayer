@@ -18,4 +18,15 @@ object DesktopGlSurface {
         pixelBuffer: ByteBuffer
     ): Boolean
     external fun nativeDestroy(hostHandle: Long, visHandle: Long)
+    external fun nativeUploadScopeAtlas(
+        hostHandle: Long,
+        pixelBuffer: ByteBuffer,
+        width: Int,
+        height: Int,
+        baseFontSizePx: Float,
+        lineHeightPx: Float,
+        glyphBuffer: ByteBuffer,
+        glyphCount: Int
+    ): Boolean
+    external fun nativeSetScopeTextQuads(hostHandle: Long, quadArray: FloatArray?, floatCount: Int)
 }

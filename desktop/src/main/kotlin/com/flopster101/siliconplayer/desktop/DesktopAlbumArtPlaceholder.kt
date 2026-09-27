@@ -63,7 +63,11 @@ import com.flopster101.siliconplayer.VisualizationRenderBackend
 import com.flopster101.siliconplayer.VisualizationVuAnchor
 import com.flopster101.siliconplayer.isChannelScopeVisibleElementEnabled
 import com.flopster101.siliconplayer.supportsChannelScopeNoteText
-import com.flopster101.siliconplayer.ui.visualization.gl.GlChannelScopeTextPalette
+import com.flopster101.siliconplayer.desktop.DesktopChannelScopeNameSource
+import com.flopster101.siliconplayer.pluginNameForCoreName
+import com.flopster101.siliconplayer.ui.visualization.channel.ChannelScopeNameMaps
+import com.flopster101.siliconplayer.ui.visualization.channel.GlChannelScopeTextPalette
+import com.flopster101.siliconplayer.ui.visualization.channel.loadChannelScopeNameMaps
 import com.flopster101.siliconplayer.ui.visualization.gl.SiliconNativeGlDesktopVisualization
 import com.flopster101.siliconplayer.ui.visualization.gl.SiliconNativeGlFrame
 import java.io.File
@@ -188,6 +192,16 @@ internal fun AlbumArtPlaceholder(
     onSwipeNextTrack: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
+    var scopeNameMaps by remember { mutableStateOf(ChannelScopeNameMaps()) }
+    LaunchedEffect(file?.absolutePath, decoderName, visualizationMode) {
+        scopeNameMaps = if (visualizationMode == VisualizationMode.ChannelScope) {
+            runCatching {
+                loadChannelScopeNameMaps(pluginNameForCoreName(decoderName), DesktopChannelScopeNameSource)
+            }.getOrDefault(ChannelScopeNameMaps())
+        } else {
+            ChannelScopeNameMaps()
+        }
+    }
     var hasStartedPlaybackForTrack by remember { mutableStateOf(false) }
     LaunchedEffect(isPlaying) {
         if (isPlaying) {
@@ -332,7 +346,8 @@ internal fun AlbumArtPlaceholder(
         primaryColorArgb,
         surfaceColorArgb,
         artwork,
-        placeholderIconImage
+        placeholderIconImage,
+        scopeNameMaps
     ) {
         SiliconNativeGlFrame(
             mode = nativeMode,
@@ -381,6 +396,9 @@ internal fun AlbumArtPlaceholder(
             lineWidthPx = channelScopePrefs.lineWidthDp.toFloat(),
             vuColorArgb = channelScopeVuColor.toArgb(),
             textPalette = channelScopeTextPalette,
+            instrumentNamesByIndex = scopeNameMaps.instrumentNamesByIndex,
+            sampleNamesByIndex = scopeNameMaps.sampleNamesByIndex,
+            chipNamesByChannelIndex = scopeNameMaps.chipNamesByChannelIndex,
             shadowEnabled = channelScopePrefs.textShadowEnabled,
             hideWhenOverflow = channelScopePrefs.textHideWhenOverflow,
             channelScopeWindowMs = channelScopePrefs.windowMs,

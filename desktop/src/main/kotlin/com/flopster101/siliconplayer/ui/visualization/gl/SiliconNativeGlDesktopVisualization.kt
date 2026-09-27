@@ -34,6 +34,10 @@ import com.flopster101.siliconplayer.desktop.DesktopProjectMPresetSets
 import com.flopster101.siliconplayer.platform.AppPreferences
 import com.flopster101.siliconplayer.platform.LocalAppPreferences
 import com.flopster101.siliconplayer.ui.visualization.channel.ChannelScopeChannelTextState
+import com.flopster101.siliconplayer.ui.visualization.channel.GlChannelScopeTextFrame
+import com.flopster101.siliconplayer.ui.visualization.channel.GlChannelScopeTextPalette
+import com.flopster101.siliconplayer.ui.visualization.channel.layoutChannelScopeText
+import com.flopster101.siliconplayer.ui.visualization.channel.parseChannelScopeTextStates
 import org.jetbrains.skia.Bitmap
 import org.jetbrains.skia.ColorAlphaType
 import org.jetbrains.skia.ColorInfo
@@ -44,15 +48,6 @@ import org.jetbrains.skia.ImageInfo
 import java.awt.Font
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
-
-data class GlChannelScopeTextPalette(
-    val channelArgb: Int = 0xFFCCCCCC.toInt(),
-    val noteArgb: Int = 0xFF80D8FF.toInt(),
-    val volumeArgb: Int = 0xFFB9F6CA.toInt(),
-    val effectArgb: Int = 0xFFFFD180.toInt(),
-    val instrumentOrSampleArgb: Int = 0xFFEA80FC.toInt(),
-    val separatorArgb: Int = 0x88FFFFFF.toInt()
-)
 
 data class SiliconNativeGlFrame(
     val mode: Int, // 1=Bars, 2=Osc, 3=VU, 4=ChannelScope, 5=Starfield, 100=projectM plugin
@@ -95,6 +90,9 @@ data class SiliconNativeGlFrame(
     val lineWidthPx: Float = 1.5f,
     val vuColorArgb: Int = 0xFF76FF03.toInt(),
     val textPalette: GlChannelScopeTextPalette = GlChannelScopeTextPalette(),
+    val instrumentNamesByIndex: Map<Int, String> = emptyMap(),
+    val sampleNamesByIndex: Map<Int, String> = emptyMap(),
+    val chipNamesByChannelIndex: Map<Int, String> = emptyMap(),
     val shadowEnabled: Boolean = true,
     val hideWhenOverflow: Boolean = false,
     val channelScopeWindowMs: Int = 30,
@@ -204,6 +202,13 @@ private class SiliconNativeDesktopRenderThread(
         var lastArtwork: ImageBitmap? = null
         var lastPlaceholderIcon: ImageBitmap? = null
         var lastTextFontKey = ""
+        var lastScopeFontKey = ""
+        var scopeEmitter: ScopeTextQuadEmitter? = null
+        var lastScopeFrame: GlChannelScopeTextFrame? = null
+        var lastScopeStates: List<ChannelScopeChannelTextState> = emptyList()
+        var lastScopePollNs = 0L
+        var lastScopeW = 0
+        var lastScopeH = 0
 
         var projectMAttached = false
         var projectMSawStopped = false
@@ -508,6 +513,105 @@ private class SiliconNativeDesktopRenderThread(
                                 squareStars = frame.starfieldSquarePixels
                             )
                         }
+                    }
+
+                    if (frame.mode == 4 && frame.channelScopeTextEnabled) {
+                        val overlayKey = "scope_" + frame.textFont.storageValue
+                        if (overlayKey != lastScopeFontKey) {
+                            lastScopeFontKey = overlayKey
+                            scopeEmitter = try {
+                                val resourcePath = when (frame.textFont) {
+                                    VisualizationChannelScopeTextFont.System -> null
+                                    VisualizationChannelScopeTextFont.RaccoonSerif -> "/fonts/scope/raccoon_serif_base.ttf"
+                                    VisualizationChannelScopeTextFont.RaccoonMono -> "/fonts/scope/raccoon_serif_mono.ttf"
+                                    VisualizationChannelScopeTextFont.RetroCuteMono -> "/fonts/scope/retro_pixel_cute_mono.ttf"
+                                    VisualizationChannelScopeTextFont.RetroThick -> "/fonts/scope/retro_pixel_thick.ttf"
+                                }
+                                val uploadData = DesktopGlFontAtlas.createAtlasUploadData(
+                                    fontName = Font.SANS_SERIF,
+                                    fontResourcePath = resourcePath,
+                                    baseFontSizePx = 32f
+                                )
+                                val uploaded = DesktopGlSurface.nativeUploadScopeAtlas(
+                                    hostHandle,
+                                    uploadData.pixelBuffer,
+                                    uploadData.width,
+                                    uploadData.height,
+                                    uploadData.baseFontSizePx,
+                                    uploadData.lineHeightPx,
+                                    uploadData.glyphBuffer,
+                                    uploadData.glyphCount
+                                )
+                                if (uploaded) {
+                                    ScopeTextQuadEmitter(uploadData.glyphBuffer, uploadData.baseFontSizePx, uploadData.lineHeightPx)
+                                } else {
+                                    null
+                                }
+                            } catch (_: Throwable) {
+                                null
+                            }
+                            lastScopeFrame = null
+                        }
+                        val nowNs = System.nanoTime()
+                        if (nowNs - lastScopePollNs >= 20_000_000L) {
+                            lastScopePollNs = nowNs
+                            val raw = runCatching { NativeBridge.getChannelScopeTextState(64) }.getOrDefault(IntArray(0))
+                            // Hold the last good states through empty polls; clearing here
+                            // blinked the labels whenever the engine had no fresh row ready.
+                            if (raw.isNotEmpty()) lastScopeStates = parseChannelScopeTextStates(raw)
+                        }
+                        val emitter = scopeEmitter
+                        if (emitter != null && lastScopeStates.isNotEmpty()) {
+                            val candidate = GlChannelScopeTextFrame(
+                                channelCount = lastScopeStates.size,
+                                channelTextStates = lastScopeStates,
+                                instrumentNamesByIndex = frame.instrumentNamesByIndex,
+                                sampleNamesByIndex = frame.sampleNamesByIndex,
+                                chipNamesByChannelIndex = frame.chipNamesByChannelIndex,
+                                layoutStrategy = frame.channelLayoutStrategy,
+                                anchor = frame.channelTextAnchor,
+                                paddingPx = frame.paddingPx,
+                                textSizeSp = frame.textSizeSp,
+                                density = density,
+                                hideWhenOverflow = frame.hideWhenOverflow,
+                                textShadowEnabled = frame.shadowEnabled,
+                                textFont = frame.textFont,
+                                noteFormat = frame.noteFormat,
+                                showChannel = frame.showChannel,
+                                showNote = frame.showNote,
+                                showVolume = frame.showVolume,
+                                showEffectPrimary = frame.showEffectPrimary,
+                                showEffectSecondary = frame.showEffectSecondary,
+                                showChip = frame.showChip,
+                                showInstrument = frame.showInstrument,
+                                showSample = frame.showSample,
+                                palette = frame.textPalette
+                            )
+                            if (candidate != lastScopeFrame || w != lastScopeW || h != lastScopeH) {
+                                lastScopeFrame = candidate
+                                lastScopeW = w
+                                lastScopeH = h
+                                val layout = layoutChannelScopeText(candidate, w.toFloat(), h.toFloat(), emitter.measurer)
+                                val quads = if (layout == null) {
+                                    FloatArray(0)
+                                } else {
+                                    emitter.emitRuns(layout.runs, layout.textSizePx, layout.shadowEnabled)
+                                }
+                                try {
+                                    DesktopGlSurface.nativeSetScopeTextQuads(hostHandle, quads, quads.size)
+                                } catch (_: Throwable) {}
+                            }
+                        } else if (lastScopeFrame != null) {
+                            lastScopeFrame = null
+                            try {
+                                DesktopGlSurface.nativeSetScopeTextQuads(hostHandle, null, 0)
+                            } catch (_: Throwable) {}
+                        }
+                    } else if (lastScopeFrame != null) {
+                        lastScopeFrame = null
+                        try {
+                            DesktopGlSurface.nativeSetScopeTextQuads(hostHandle, null, 0)
+                        } catch (_: Throwable) {}
                     }
                 }
 

@@ -4,7 +4,7 @@ import com.flopster101.siliconplayer.onGloballyPositionedDeferred
 import com.flopster101.siliconplayer.onSizeChangedDeferred
 import com.flopster101.siliconplayer.VisualizationPerformanceMode
 import com.flopster101.siliconplayer.resolveEffectiveVisualizationPerformanceMode
-import com.flopster101.siliconplayer.ui.visualization.gl.resolveChannelGrid
+import com.flopster101.siliconplayer.ui.visualization.channel.resolveChannelGrid
 import android.content.Context
 import android.os.Build
 import android.os.Process
@@ -106,6 +106,9 @@ import com.flopster101.siliconplayer.supportsChannelScopeVisualization
 import com.flopster101.siliconplayer.visualizationRenderBackendForMode
 import com.flopster101.siliconplayer.ui.visualization.basic.BasicVisualizationOverlay
 import com.flopster101.siliconplayer.ui.visualization.channel.ChannelScopeChannelTextState
+import com.flopster101.siliconplayer.ui.visualization.channel.ChannelScopeNameSource
+import com.flopster101.siliconplayer.ui.visualization.channel.loadChannelScopeNameMaps
+import com.flopster101.siliconplayer.ui.visualization.channel.parseChannelScopeTextStates
 import java.io.File
 import java.util.concurrent.Executors
 import java.util.concurrent.locks.LockSupport
@@ -1100,45 +1103,16 @@ private fun buildChannelScopeHistories(
     return histories
 }
 
-internal fun parseChannelScopeTextStates(
-    flat: IntArray
-): List<ChannelScopeChannelTextState> {
-    val stride = NativeBridge.CHANNEL_SCOPE_TEXT_STATE_STRIDE
-    if (stride <= 0 || flat.isEmpty()) return emptyList()
-    val channels = flat.size / stride
-    if (channels <= 0) return emptyList()
-    return List(channels) { channel ->
-        val base = channel * stride
-        ChannelScopeChannelTextState(
-            channelIndex = flat.getOrElse(base + 0) { channel },
-            note = flat.getOrElse(base + 1) { -1 },
-            volume = flat.getOrElse(base + 2) { 0 },
-            effectPrimaryLetterAscii = flat.getOrElse(base + 3) { 0 },
-            effectPrimaryParam = flat.getOrElse(base + 4) { -1 },
-            effectSecondaryLetterAscii = flat.getOrElse(base + 5) { 0 },
-            effectSecondaryParam = flat.getOrElse(base + 6) { -1 },
-            instrumentIndex = flat.getOrElse(base + 7) { -1 },
-            sampleIndex = flat.getOrElse(base + 8) { -1 },
-            flags = flat.getOrElse(base + 9) { 0 }
-        )
-    }
-}
-
-private fun parseIndexedNames(raw: String): Map<Int, String> {
-    if (raw.isBlank()) return emptyMap()
-    val out = LinkedHashMap<Int, String>()
-    raw.lineSequence().forEach { lineRaw ->
-        val line = lineRaw.trim()
-        if (line.isEmpty()) return@forEach
-        val dotIndex = line.indexOf(". ")
-        if (dotIndex <= 0) return@forEach
-        val index = line.substring(0, dotIndex).toIntOrNull() ?: return@forEach
-        val name = line.substring(dotIndex + 2).trim()
-        if (index > 0) {
-            out[index] = name
-        }
-    }
-    return out
+private object AndroidChannelScopeNameSource : ChannelScopeNameSource {
+    override fun openMptInstrumentNames(): String = NativeBridge.getOpenMptInstrumentNames()
+    override fun openMptSampleNames(): String = NativeBridge.getOpenMptSampleNames()
+    override fun xmpInstrumentNames(): String = NativeBridge.getXmpInstrumentNames()
+    override fun xmpSampleNames(): String = NativeBridge.getXmpSampleNames()
+    override fun furnaceInstrumentNames(): String = NativeBridge.getFurnaceInstrumentNames()
+    override fun furnaceSampleNames(): String = NativeBridge.getFurnaceSampleNames()
+    override fun klystrackInstrumentNames(): String = NativeBridge.getKlystrackInstrumentNames()
+    override fun hivelyInstrumentNames(): String = NativeBridge.getHivelyInstrumentNames()
+    override fun decoderToggleChannelNames(): Array<String> = NativeBridge.getDecoderToggleChannelNames()
 }
 
 // Per-channel persistent state for the correlation trigger.
@@ -2224,86 +2198,10 @@ internal fun AlbumArtPlaceholder(
             visChannelScopeChipNamesByChannelIndex = emptyMap()
             return@LaunchedEffect
         }
-        when (pluginNameForCoreName(decoderName)) {
-            DecoderNames.LIB_OPEN_MPT -> {
-                visChannelScopeInstrumentNamesByIndex =
-                    parseIndexedNames(NativeBridge.getOpenMptInstrumentNames())
-                visChannelScopeSampleNamesByIndex =
-                    parseIndexedNames(NativeBridge.getOpenMptSampleNames())
-                visChannelScopeChipNamesByChannelIndex = emptyMap()
-            }
-            DecoderNames.LIBXMP -> {
-                visChannelScopeInstrumentNamesByIndex =
-                    parseIndexedNames(NativeBridge.getXmpInstrumentNames())
-                visChannelScopeSampleNamesByIndex =
-                    parseIndexedNames(NativeBridge.getXmpSampleNames())
-                visChannelScopeChipNamesByChannelIndex = emptyMap()
-            }
-            DecoderNames.AYFLY -> {
-                visChannelScopeInstrumentNamesByIndex = emptyMap()
-                visChannelScopeSampleNamesByIndex = emptyMap()
-                visChannelScopeChipNamesByChannelIndex =
-                    NativeBridge.getDecoderToggleChannelNames()
-                        .mapIndexed { index, name -> index to name }
-                        .toMap()
-            }
-            DecoderNames.FURNACE -> {
-                visChannelScopeInstrumentNamesByIndex =
-                    parseIndexedNames(NativeBridge.getFurnaceInstrumentNames())
-                visChannelScopeSampleNamesByIndex =
-                    parseIndexedNames(NativeBridge.getFurnaceSampleNames())
-                visChannelScopeChipNamesByChannelIndex = emptyMap()
-            }
-            DecoderNames.GAME_MUSIC_EMU -> {
-                visChannelScopeInstrumentNamesByIndex = emptyMap()
-                visChannelScopeSampleNamesByIndex = emptyMap()
-                visChannelScopeChipNamesByChannelIndex =
-                    NativeBridge.getDecoderToggleChannelNames()
-                        .mapIndexed { index, name -> index to name }
-                        .toMap()
-            }
-            DecoderNames.C_RSID -> {
-                visChannelScopeInstrumentNamesByIndex = emptyMap()
-                visChannelScopeSampleNamesByIndex = emptyMap()
-                visChannelScopeChipNamesByChannelIndex =
-                    NativeBridge.getDecoderToggleChannelNames()
-                        .mapIndexed { index, name -> index to name }
-                        .toMap()
-            }
-            DecoderNames.LIB_SID_PLAY_FP -> {
-                visChannelScopeInstrumentNamesByIndex = emptyMap()
-                visChannelScopeSampleNamesByIndex = emptyMap()
-                visChannelScopeChipNamesByChannelIndex =
-                    NativeBridge.getDecoderToggleChannelNames()
-                        .mapIndexed { index, name -> index to name }
-                        .toMap()
-            }
-            DecoderNames.VGM_PLAY -> {
-                visChannelScopeInstrumentNamesByIndex = emptyMap()
-                visChannelScopeSampleNamesByIndex = emptyMap()
-                visChannelScopeChipNamesByChannelIndex =
-                    NativeBridge.getDecoderToggleChannelNames()
-                        .mapIndexed { index, name -> index to name }
-                        .toMap()
-            }
-            DecoderNames.KLYSTRACK -> {
-                visChannelScopeInstrumentNamesByIndex =
-                    parseIndexedNames(NativeBridge.getKlystrackInstrumentNames())
-                visChannelScopeSampleNamesByIndex = emptyMap()
-                visChannelScopeChipNamesByChannelIndex = emptyMap()
-            }
-            DecoderNames.HIVELY_TRACKER -> {
-                visChannelScopeInstrumentNamesByIndex =
-                    parseIndexedNames(NativeBridge.getHivelyInstrumentNames())
-                visChannelScopeSampleNamesByIndex = emptyMap()
-                visChannelScopeChipNamesByChannelIndex = emptyMap()
-            }
-            else -> {
-                visChannelScopeInstrumentNamesByIndex = emptyMap()
-                visChannelScopeSampleNamesByIndex = emptyMap()
-                visChannelScopeChipNamesByChannelIndex = emptyMap()
-            }
-        }
+        val nameMaps = loadChannelScopeNameMaps(pluginNameForCoreName(decoderName), AndroidChannelScopeNameSource)
+        visChannelScopeInstrumentNamesByIndex = nameMaps.instrumentNamesByIndex
+        visChannelScopeSampleNamesByIndex = nameMaps.sampleNamesByIndex
+        visChannelScopeChipNamesByChannelIndex = nameMaps.chipNamesByChannelIndex
     }
     LaunchedEffect(
         visualizationMode,

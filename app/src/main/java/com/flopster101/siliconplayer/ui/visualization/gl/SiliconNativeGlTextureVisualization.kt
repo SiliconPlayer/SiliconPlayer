@@ -42,6 +42,9 @@ import com.flopster101.siliconplayer.VisualizationChannelScopeTextFont
 import com.flopster101.siliconplayer.VisualizationNoteNameFormat
 import com.flopster101.siliconplayer.VisualizationVuAnchor
 import com.flopster101.siliconplayer.ui.visualization.channel.ChannelScopeChannelTextState
+import com.flopster101.siliconplayer.ui.visualization.channel.GlChannelScopeTextFrame
+import com.flopster101.siliconplayer.ui.visualization.channel.parseChannelScopeTextStates
+import com.flopster101.siliconplayer.ui.visualization.channel.GlChannelScopeTextPalette
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
 
@@ -1055,7 +1058,7 @@ internal class SiliconNativeTextureRenderThread(
                             localLastTextPollNs = textNowNs
                             val rawText = com.flopster101.siliconplayer.NativeBridge.getChannelScopeTextState(64)
                             if (rawText.isNotEmpty()) {
-                                localChannelTextStates = com.flopster101.siliconplayer.ui.screens.parseChannelScopeTextStates(rawText)
+                                localChannelTextStates = parseChannelScopeTextStates(rawText)
                                 localChannelCount = localChannelTextStates.size
                             }
                         }

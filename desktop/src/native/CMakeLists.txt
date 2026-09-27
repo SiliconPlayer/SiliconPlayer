@@ -90,6 +90,7 @@ set(MAIN_SOURCES
     "${APP_CPP_DIR}/SiliconVisJni.cpp"
     "${APP_CPP_DIR}/ProjectMVisualizer.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/DesktopGlSurface.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/ScopeTextOverlay.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/DesktopAudioRoute.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/UacDriverStub.cpp"
 )

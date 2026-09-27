@@ -17,6 +17,8 @@ import androidx.compose.ui.viewinterop.AndroidView
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import com.flopster101.siliconplayer.VisualizationChannelScopeLayout
+import com.flopster101.siliconplayer.ui.visualization.channel.GlChannelScopeTextFrame
+import com.flopster101.siliconplayer.ui.visualization.channel.resolveChannelGrid
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
 import java.nio.FloatBuffer

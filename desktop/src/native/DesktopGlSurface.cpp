@@ -9,6 +9,7 @@
 #include <vector>
 #include <algorithm>
 #include "silicon/vis/vis_api.h"
+#include "ScopeTextOverlay.h"
 
 #ifndef GL_FRAMEBUFFER
 #define GL_FRAMEBUFFER 0x8D40
@@ -34,6 +35,7 @@ struct DesktopGlContext {
     int height = 0;
     float density = 1.0f;
     std::vector<uint8_t> readBackBuffer;
+    ScopeTextOverlay textOverlay;
 
     PFNGLGENFRAMEBUFFERSPROC glGenFramebuffers = nullptr;
     PFNGLBINDFRAMEBUFFERPROC glBindFramebuffer = nullptr;
@@ -175,6 +177,8 @@ Java_com_flopster101_siliconplayer_ui_visualization_gl_DesktopGlSurface_nativeRe
 
     silicon_vis_render(reinterpret_cast<SiliconVisHandle>(visHandle));
 
+    ctx->textOverlay.draw(width, height);
+
     uint8_t* outPixels = static_cast<uint8_t*>(env->GetDirectBufferAddress(outBuffer));
     if (!outPixels) return JNI_FALSE;
 
@@ -196,6 +200,54 @@ Java_com_flopster101_siliconplayer_ui_visualization_gl_DesktopGlSurface_nativeRe
     return JNI_TRUE;
 }
 
+JNIEXPORT jboolean JNICALL
+Java_com_flopster101_siliconplayer_ui_visualization_gl_DesktopGlSurface_nativeUploadScopeAtlas(
+    JNIEnv* env,
+    jobject /* thiz */,
+    jlong hostHandle,
+    jobject pixelBuffer,
+    jint width,
+    jint height,
+    jfloat baseFontSizePx,
+    jfloat lineHeightPx,
+    jobject glyphBuffer,
+    jint glyphCount
+) {
+    if (!hostHandle || !pixelBuffer || !glyphBuffer || width <= 0 || height <= 0 || glyphCount <= 0) {
+        return JNI_FALSE;
+    }
+    auto* ctx = reinterpret_cast<DesktopGlContext*>(hostHandle);
+    if (!glXMakeCurrent(ctx->glDisplay, ctx->dummyWindow, ctx->glContext)) {
+        return JNI_FALSE;
+    }
+    const uint8_t* pixels = static_cast<const uint8_t*>(env->GetDirectBufferAddress(pixelBuffer));
+    const void* glyphs = env->GetDirectBufferAddress(glyphBuffer);
+    if (!pixels || !glyphs) return JNI_FALSE;
+    return ctx->textOverlay.uploadAtlas(pixels, width, height, baseFontSizePx, lineHeightPx, glyphs, glyphCount)
+        ? JNI_TRUE
+        : JNI_FALSE;
+}
+
+JNIEXPORT void JNICALL
+Java_com_flopster101_siliconplayer_ui_visualization_gl_DesktopGlSurface_nativeSetScopeTextQuads(
+    JNIEnv* env,
+    jobject /* thiz */,
+    jlong hostHandle,
+    jfloatArray quadArray,
+    jint floatCount
+) {
+    if (!hostHandle) return;
+    auto* ctx = reinterpret_cast<DesktopGlContext*>(hostHandle);
+    if (!quadArray || floatCount <= 0) {
+        ctx->textOverlay.setQuads(nullptr, 0);
+        return;
+    }
+    jfloat* quads = env->GetFloatArrayElements(quadArray, nullptr);
+    if (!quads) return;
+    ctx->textOverlay.setQuads(quads, floatCount);
+    env->ReleaseFloatArrayElements(quadArray, quads, JNI_ABORT);
+}
+
 JNIEXPORT void JNICALL
 Java_com_flopster101_siliconplayer_ui_visualization_gl_DesktopGlSurface_nativeDestroy(
     JNIEnv* /* env */,
@@ -207,6 +259,8 @@ Java_com_flopster101_siliconplayer_ui_visualization_gl_DesktopGlSurface_nativeDe
     auto* ctx = reinterpret_cast<DesktopGlContext*>(hostHandle);
 
     glXMakeCurrent(ctx->glDisplay, ctx->dummyWindow, ctx->glContext);
+
+    ctx->textOverlay.release();
 
     if (visHandle != 0) {
         silicon_vis_release_gl(reinterpret_cast<SiliconVisHandle>(visHandle));

@@ -661,7 +661,7 @@ fun BasicVisualizationOverlay(
                             lineColorArgb = channelScopeLineColor.toArgb(),
                             lineWidthPx = channelScopeLineWidthDp.toFloat(),
                             vuColorArgb = channelScopeVuColor.toArgb(),
-                            textPalette = com.flopster101.siliconplayer.ui.visualization.gl.GlChannelScopeTextPalette(
+                            textPalette = com.flopster101.siliconplayer.ui.visualization.channel.GlChannelScopeTextPalette(
                                 channelArgb = channelScopeTextPalette.channel.toArgb(),
                                 noteArgb = channelScopeTextPalette.note.toArgb(),
                                 volumeArgb = channelScopeTextPalette.volume.toArgb(),

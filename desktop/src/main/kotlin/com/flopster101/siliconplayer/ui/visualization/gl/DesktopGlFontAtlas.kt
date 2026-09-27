@@ -23,9 +23,20 @@ internal object DesktopGlFontAtlas {
 
     fun createAtlasUploadData(
         fontName: String = Font.MONOSPACED,
+        fontResourcePath: String? = null,
         baseFontSizePx: Float = 32f
     ): AtlasUploadData {
-        val font = Font(fontName, Font.BOLD, baseFontSizePx.toInt().coerceAtLeast(12))
+        val requestedSize = baseFontSizePx.toInt().coerceAtLeast(12)
+        val font = if (fontResourcePath != null) {
+            runCatching {
+                DesktopGlFontAtlas.javaClass.getResourceAsStream(fontResourcePath)?.use {
+                    Font.createFont(Font.TRUETYPE_FONT, it).deriveFont(Font.BOLD, requestedSize.toFloat())
+                }
+            }.getOrNull()
+                ?: return createAtlasUploadData(fontName = fontName, baseFontSizePx = baseFontSizePx)
+        } else {
+            Font(fontName, Font.BOLD, requestedSize)
+        }
         val dummyImg = BufferedImage(1, 1, BufferedImage.TYPE_INT_ARGB)
         val dummyG = dummyImg.createGraphics()
         dummyG.font = font
@@ -33,7 +44,15 @@ internal object DesktopGlFontAtlas {
         val fontAscent = fm.ascent.toFloat()
         val fontDescent = fm.descent.toFloat()
         val measuredLineHeight = fontAscent + fontDescent
+        // The bundled pixel fonts miss symbols Android backfills from the
+        // system font (bullets, sharps, box drawing); rasterize those cells
+        // from a fallback face like Android's Minikin fallback does.
+        val fallbackFont = Font(Font.SANS_SERIF, Font.BOLD, requestedSize)
+        dummyG.font = fallbackFont
+        val fallbackFm = dummyG.fontMetrics
         dummyG.dispose()
+        fun drawFontFor(ch: Char) = if (font.canDisplay(ch)) font else fallbackFont
+        fun advanceFor(ch: Char) = (if (font.canDisplay(ch)) fm else fallbackFm).charWidth(ch).toFloat()
 
         val chars = ArrayList<Char>(160)
         for (c in 32..126) chars.add(c.toChar())
@@ -47,7 +66,7 @@ internal object DesktopGlFontAtlas {
         val padding = 2
         var maxAdvance = fm.stringWidth("W").toFloat()
         for (c in chars) {
-            val adv = fm.charWidth(c).toFloat()
+            val adv = advanceFor(c)
             if (adv > maxAdvance) maxAdvance = adv
         }
         val cellW = ceil(maxAdvance + (padding * 2)).toInt().coerceAtLeast(16)
@@ -70,11 +89,12 @@ internal object DesktopGlFontAtlas {
         var col = 0
         var row = 0
         for (ch in chars) {
-            val adv = fm.charWidth(ch).toFloat().coerceAtLeast(1f)
+            val adv = advanceFor(ch).coerceAtLeast(1f)
             val x = col * cellW + padding
             val y = row * cellH + padding
             val drawY = (y + fontAscent).toInt()
 
+            g2d.font = drawFontFor(ch)
             g2d.drawString(ch.toString(), x, drawY)
 
             val u0 = x.toFloat() / atlasW.toFloat()
