@@ -4,6 +4,7 @@ import com.flopster101.siliconplayer.data.clearArchiveMountCache
 import com.flopster101.siliconplayer.data.enforceArchiveMountCacheLimits
 import com.flopster101.siliconplayer.platform.AppPreferences
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.io.File
@@ -106,6 +107,80 @@ class DesktopCacheMaintenanceTest {
         File(freshMount, ".ready").writeText("stamp")
         val cleared = clearArchiveMountCache(cacheDir)
         assertEquals(1, cleared.deletedMounts)
+    }
+
+    @Test
+    fun appliesRemoteSourceCachePolicyOnLaunch() {
+        val prefs = CacheTestPrefs()
+        val cacheRoot = tempDir("siliconplayer-remote-policy-")
+        val older = File(cacheRoot, "first.mp3").apply { writeBytes(ByteArray(100)) }
+        older.setLastModified(System.currentTimeMillis() - 60_000)
+        val newer = File(cacheRoot, "second.mp3").apply { writeBytes(ByteArray(100)) }
+
+        prefs.edit()
+            .putInt(AppPreferenceKeys.URL_CACHE_MAX_TRACKS, 1)
+            .putLong(AppPreferenceKeys.URL_CACHE_MAX_BYTES, Long.MAX_VALUE)
+            .apply()
+        val pruned = applyRemoteSourceCachePolicy(prefs, cacheRoot)
+        assertFalse(pruned.clearedOnLaunch)
+        assertEquals(1, pruned.deletedFiles)
+        assertTrue(newer.exists())
+
+        prefs.edit().putBoolean(AppPreferenceKeys.URL_CACHE_CLEAR_ON_LAUNCH, true).apply()
+        val cleared = applyRemoteSourceCachePolicy(prefs, cacheRoot, protectedPaths = setOf(newer.absolutePath))
+        assertTrue(cleared.clearedOnLaunch)
+        assertEquals(1, cleared.skippedFiles)
+        assertTrue(newer.exists())
+    }
+
+    @Test
+    fun appliesArchiveMountCachePolicyOnLaunch() {
+        val prefs = CacheTestPrefs()
+        val cacheDir = tempDir("siliconplayer-archive-policy-")
+        val mountRoot = File(cacheDir, "archive_mounts").apply { mkdirs() }
+        val olderMount = File(mountRoot, "older").apply { mkdirs() }
+        File(olderMount, ".ready").writeText("stamp")
+        File(olderMount, "track.mod").writeBytes(ByteArray(64))
+        olderMount.setLastModified(System.currentTimeMillis() - 60_000)
+        File(olderMount, ".ready").setLastModified(System.currentTimeMillis() - 60_000)
+        val newerMount = File(mountRoot, "newer").apply { mkdirs() }
+        File(newerMount, ".ready").writeText("stamp")
+
+        prefs.edit().putInt(AppPreferenceKeys.ARCHIVE_CACHE_MAX_MOUNTS, 1).apply()
+        val pruned = applyArchiveMountCachePolicy(prefs, cacheDir)
+        assertFalse(pruned.clearedOnLaunch)
+        assertEquals(1, pruned.deletedMounts)
+
+        prefs.edit().putBoolean(AppPreferenceKeys.ARCHIVE_CACHE_CLEAR_ON_LAUNCH, true).apply()
+        val cleared = applyArchiveMountCachePolicy(prefs, cacheDir)
+        assertTrue(cleared.clearedOnLaunch)
+        assertEquals(1, cleared.deletedMounts)
+    }
+
+    @Test
+    fun enforcesCacheLimitsFromPrefs() {
+        val prefs = CacheTestPrefs()
+        val cacheRoot = tempDir("siliconplayer-remote-prefs-")
+        File(cacheRoot, "a.mp3").apply { writeBytes(ByteArray(100)) }
+        File(cacheRoot, "b.mp3").apply { writeBytes(ByteArray(100)) }
+        rememberSourceForCachedFile(cacheRoot, "a.mp3", "https://example.com/a.mp3")
+        rememberSourceForCachedFile(cacheRoot, "b.mp3", "https://example.com/b.mp3")
+        // The index is old enough to be pruned first; it must never be treated as a track.
+        File(cacheRoot, ".source_index.json").setLastModified(System.currentTimeMillis() - 120_000)
+        prefs.edit().putInt(AppPreferenceKeys.URL_CACHE_MAX_TRACKS, 1).apply()
+        val pruned = enforceRemoteCacheLimitsFromPrefs(prefs, cacheRoot)
+        assertEquals(1, pruned.deletedFiles)
+        assertTrue(File(cacheRoot, ".source_index.json").exists())
+
+        val cacheDir = tempDir("siliconplayer-archive-prefs-")
+        val mountRoot = File(cacheDir, "archive_mounts").apply { mkdirs() }
+        File(mountRoot, "mount").apply {
+            mkdirs()
+            File(this, ".ready").writeText("stamp")
+        }
+        prefs.edit().putInt(AppPreferenceKeys.ARCHIVE_CACHE_MAX_MOUNTS, 1).apply()
+        val archivePruned = enforceArchiveMountCacheLimitsFromPrefs(prefs, cacheDir)
+        assertEquals(0, archivePruned.deletedMounts)
     }
 
     @Test

@@ -18,11 +18,18 @@ import com.flopster101.siliconplayer.BrowserNameSortMode
 import com.flopster101.siliconplayer.CachedSourceFile
 import com.flopster101.siliconplayer.CorePreferenceKeys
 import com.flopster101.siliconplayer.REMOTE_SOURCE_CACHE_DIR
+import com.flopster101.siliconplayer.SOURCE_CACHE_MAX_BYTES_DEFAULT
+import com.flopster101.siliconplayer.SOURCE_CACHE_MAX_TRACKS_DEFAULT
 import com.flopster101.siliconplayer.clearRemoteCacheFiles
 import com.flopster101.siliconplayer.deleteDomainFile
 import com.flopster101.siliconplayer.deleteStoreFile
+import com.flopster101.siliconplayer.enforceArchiveMountCacheLimitsFromPrefs
+import com.flopster101.siliconplayer.enforceRemoteCacheLimitsFromPrefs
 import com.flopster101.siliconplayer.networkCredentialsFile
 import com.flopster101.siliconplayer.networkNodesFile
+import com.flopster101.siliconplayer.data.ARCHIVE_CACHE_MAX_AGE_DAYS_DEFAULT
+import com.flopster101.siliconplayer.data.ARCHIVE_CACHE_MAX_BYTES_DEFAULT
+import com.flopster101.siliconplayer.data.ARCHIVE_CACHE_MAX_MOUNTS_DEFAULT
 import com.flopster101.siliconplayer.data.clearArchiveMountCache
 import com.flopster101.siliconplayer.DecoderNames
 import com.flopster101.siliconplayer.deleteSpecificRemoteCacheFiles
@@ -82,6 +89,7 @@ import com.flopster101.siliconplayer.platform.ToastHandler
 import java.io.File
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 // Mirrors Android's pipeline LaunchedEffect: every stored pipeline value goes live.
 internal fun pushAudioPipelineConfigToNative(prefs: AppPreferences) {
@@ -346,12 +354,12 @@ internal fun rememberDesktopSettings(
             recentFilesLimit = prefs.getInt(AppPreferenceKeys.RECENT_PLAYED_FILES_LIMIT, 20),
             pressBackTwiceToExit = prefs.getBoolean(AppPreferenceKeys.PRESS_BACK_TWICE_TO_EXIT, false),
             urlCacheClearOnLaunch = prefs.getBoolean(AppPreferenceKeys.URL_CACHE_CLEAR_ON_LAUNCH, false),
-            urlCacheMaxTracks = prefs.getInt(AppPreferenceKeys.URL_CACHE_MAX_TRACKS, 200),
-            urlCacheMaxBytes = prefs.getLong(AppPreferenceKeys.URL_CACHE_MAX_BYTES, 500L * 1024 * 1024),
+            urlCacheMaxTracks = prefs.getInt(AppPreferenceKeys.URL_CACHE_MAX_TRACKS, SOURCE_CACHE_MAX_TRACKS_DEFAULT),
+            urlCacheMaxBytes = prefs.getLong(AppPreferenceKeys.URL_CACHE_MAX_BYTES, SOURCE_CACHE_MAX_BYTES_DEFAULT),
             archiveCacheClearOnLaunch = prefs.getBoolean(AppPreferenceKeys.ARCHIVE_CACHE_CLEAR_ON_LAUNCH, false),
-            archiveCacheMaxMounts = prefs.getInt(AppPreferenceKeys.ARCHIVE_CACHE_MAX_MOUNTS, 10),
-            archiveCacheMaxBytes = prefs.getLong(AppPreferenceKeys.ARCHIVE_CACHE_MAX_BYTES, 200L * 1024 * 1024),
-            archiveCacheMaxAgeDays = prefs.getInt(AppPreferenceKeys.ARCHIVE_CACHE_MAX_AGE_DAYS, 7),
+            archiveCacheMaxMounts = prefs.getInt(AppPreferenceKeys.ARCHIVE_CACHE_MAX_MOUNTS, ARCHIVE_CACHE_MAX_MOUNTS_DEFAULT),
+            archiveCacheMaxBytes = prefs.getLong(AppPreferenceKeys.ARCHIVE_CACHE_MAX_BYTES, ARCHIVE_CACHE_MAX_BYTES_DEFAULT),
+            archiveCacheMaxAgeDays = prefs.getInt(AppPreferenceKeys.ARCHIVE_CACHE_MAX_AGE_DAYS, ARCHIVE_CACHE_MAX_AGE_DAYS_DEFAULT),
             cachedSourceFiles = cachedSourceFiles,
             keepScreenOn = prefs.getBoolean(AppPreferenceKeys.KEEP_SCREEN_ON, false),
             playerArtworkCornerRadiusDp = prefs.getInt(AppPreferenceKeys.PLAYER_ARTWORK_CORNER_RADIUS_DP, 16),
@@ -661,12 +669,51 @@ internal fun rememberDesktopSettings(
             onRecentFilesLimitChanged = { putInt(AppPreferenceKeys.RECENT_PLAYED_FILES_LIMIT, it) },
             onPressBackTwiceToExitChanged = { putBool(AppPreferenceKeys.PRESS_BACK_TWICE_TO_EXIT, it) },
             onUrlCacheClearOnLaunchChanged = { putBool(AppPreferenceKeys.URL_CACHE_CLEAR_ON_LAUNCH, it) },
-            onUrlCacheMaxTracksChanged = { putInt(AppPreferenceKeys.URL_CACHE_MAX_TRACKS, it) },
-            onUrlCacheMaxBytesChanged = { prefs.edit().putLong(AppPreferenceKeys.URL_CACHE_MAX_BYTES, it).apply(); changeToken++ },
+            onUrlCacheMaxTracksChanged = { value ->
+                putInt(AppPreferenceKeys.URL_CACHE_MAX_TRACKS, value)
+                scope.launch {
+                    withContext(Dispatchers.IO) {
+                        enforceRemoteCacheLimitsFromPrefs(prefs, remoteCacheRoot)
+                    }
+                    refreshCachedSourceFiles()
+                }
+            },
+            onUrlCacheMaxBytesChanged = {
+                prefs.edit().putLong(AppPreferenceKeys.URL_CACHE_MAX_BYTES, it).apply()
+                changeToken++
+                scope.launch {
+                    withContext(Dispatchers.IO) {
+                        enforceRemoteCacheLimitsFromPrefs(prefs, remoteCacheRoot)
+                    }
+                    refreshCachedSourceFiles()
+                }
+            },
             onArchiveCacheClearOnLaunchChanged = { putBool(AppPreferenceKeys.ARCHIVE_CACHE_CLEAR_ON_LAUNCH, it) },
-            onArchiveCacheMaxMountsChanged = { putInt(AppPreferenceKeys.ARCHIVE_CACHE_MAX_MOUNTS, it) },
-            onArchiveCacheMaxBytesChanged = { prefs.edit().putLong(AppPreferenceKeys.ARCHIVE_CACHE_MAX_BYTES, it).apply(); changeToken++ },
-            onArchiveCacheMaxAgeDaysChanged = { putInt(AppPreferenceKeys.ARCHIVE_CACHE_MAX_AGE_DAYS, it) },
+            onArchiveCacheMaxMountsChanged = { value ->
+                putInt(AppPreferenceKeys.ARCHIVE_CACHE_MAX_MOUNTS, value)
+                scope.launch {
+                    withContext(Dispatchers.IO) {
+                        enforceArchiveMountCacheLimitsFromPrefs(prefs, cacheDir)
+                    }
+                }
+            },
+            onArchiveCacheMaxBytesChanged = {
+                prefs.edit().putLong(AppPreferenceKeys.ARCHIVE_CACHE_MAX_BYTES, it).apply()
+                changeToken++
+                scope.launch {
+                    withContext(Dispatchers.IO) {
+                        enforceArchiveMountCacheLimitsFromPrefs(prefs, cacheDir)
+                    }
+                }
+            },
+            onArchiveCacheMaxAgeDaysChanged = { value ->
+                putInt(AppPreferenceKeys.ARCHIVE_CACHE_MAX_AGE_DAYS, value)
+                scope.launch {
+                    withContext(Dispatchers.IO) {
+                        enforceArchiveMountCacheLimitsFromPrefs(prefs, cacheDir)
+                    }
+                }
+            },
             onClearUrlCacheNow = {
                 scope.launch(Dispatchers.IO) {
                     val result = clearRemoteCacheFiles(remoteCacheRoot, protectedCachePaths)

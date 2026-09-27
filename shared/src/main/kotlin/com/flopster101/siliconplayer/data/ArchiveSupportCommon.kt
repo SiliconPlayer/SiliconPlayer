@@ -12,6 +12,9 @@ import com.flopster101.siliconplayer.sanitizeRemoteLeafName
 
 internal const val ARCHIVE_SOURCE_SCHEME = "archive"
 internal const val ARCHIVE_DIRECTORY_SCHEME = "archive-dir"
+internal const val ARCHIVE_CACHE_MAX_MOUNTS_DEFAULT = 24
+internal const val ARCHIVE_CACHE_MAX_BYTES_DEFAULT = 2L * 1024L * 1024L * 1024L // 2 GB
+internal const val ARCHIVE_CACHE_MAX_AGE_DAYS_DEFAULT = 14
 
 internal data class ArchiveSourceRef(
     val archivePath: String,

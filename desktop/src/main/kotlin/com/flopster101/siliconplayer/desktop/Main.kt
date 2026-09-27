@@ -41,6 +41,8 @@ import com.flopster101.siliconplayer.ManualSourceType
 import com.flopster101.siliconplayer.MANUAL_INPUT_INVALID_MESSAGE
 import com.flopster101.siliconplayer.resolveManualSourceInput
 import com.flopster101.siliconplayer.RemotePlayableSourceIdsHolder
+import com.flopster101.siliconplayer.RemoteLoadUiStateHolder
+import com.flopster101.siliconplayer.platform.rememberRemoteSourceExportSupport
 import com.flopster101.siliconplayer.resolveNetworkNodeHttpSpec
 import com.flopster101.siliconplayer.resolveNetworkNodeSmbSpec
 import com.flopster101.siliconplayer.readNetworkNodes
@@ -204,8 +206,12 @@ import com.flopster101.siliconplayer.ui.screens.LocalPlayerFocusIndicatorsEnable
 import com.flopster101.siliconplayer.ui.screens.PlayerScreen
 import com.flopster101.siliconplayer.ui.theme.SiliconPlayerBaseTheme
 import kotlin.math.abs
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import java.io.File
 import java.util.Locale
 import javax.swing.JFileChooser
@@ -231,6 +237,11 @@ fun openDesktopFileChooser(onFileSelected: (File) -> Unit) {
 fun main(args: Array<String>) = application {
     DesktopPaths.install()
     DomainStoreDirs.configDir = DesktopPaths.configDir()
+    applyDesktopCachePoliciesOnLaunch(
+        prefs = DesktopPreferencesProvider().getPreferences(AppPreferenceKeys.PREFS_NAME),
+        cacheDir = DesktopPaths.cacheDir(),
+        configDir = DesktopPaths.configDir()
+    )
     val session = remember { DesktopPlaybackSession() }
     val windowState = rememberWindowState(width = 1100.dp, height = 750.dp)
     val backDispatcher = remember { DesktopBackDispatcher() }
@@ -576,6 +587,10 @@ fun main(args: Array<String>) = application {
             var urlOrPathForceCaching by remember {
                 mutableStateOf(prefs.getBoolean(AppPreferenceKeys.URL_PATH_FORCE_CACHING, false))
             }
+            val appCacheDir = LocalAppCacheDir.current
+            val remoteSourceExportSupport = rememberRemoteSourceExportSupport()
+            val remoteCacheOpenScope = rememberCoroutineScope()
+            var remoteCacheOpenJob by remember { mutableStateOf<Job?>(null) }
             val toastHandler = LocalToastHandler.current
             // CORE-OPTION PUSH: setters persist only; this single observer fans core
             // writes to the engine, mirroring Android AppNavigationCoreEffects.
@@ -598,6 +613,57 @@ fun main(args: Array<String>) = application {
                 onDispose { prefs.removeListener(listener) }
             }
             val clipboardManager = LocalClipboardManager.current
+            fun registerRemoteSourceEntry(source: String) {
+                val entry = RecentPathEntry(
+                    path = source,
+                    locationId = null,
+                    title = session.title.ifBlank { source },
+                    artist = session.artist.ifBlank { "Network" },
+                    decoderName = session.decoderName
+                )
+                recentFiles.removeAll { it.path == source }
+                recentFiles.add(0, entry)
+                while (recentFiles.size > recentFilesLimit) {
+                    recentFiles.removeLast()
+                }
+            }
+
+            // "Play as cached": download the remote source, then open the local copy.
+            fun playRemoteSourceAsCached(source: String) {
+                val resolved = resolveManualSourceInput(source)
+                if (resolved == null ||
+                    resolved.type == ManualSourceType.LocalFile ||
+                    resolved.type == ManualSourceType.LocalDirectory
+                ) {
+                    toastHandler.showToast(MANUAL_INPUT_INVALID_MESSAGE)
+                    return
+                }
+                remoteCacheOpenJob?.cancel()
+                remoteCacheOpenJob = remoteCacheOpenScope.launch {
+                    try {
+                        val cachedFile = withContext(Dispatchers.IO) {
+                            prepareRemotePlaybackCacheFile(
+                                support = remoteSourceExportSupport,
+                                resolution = resolved,
+                                prefs = prefs,
+                                cacheRoot = File(appCacheDir, REMOTE_SOURCE_CACHE_DIR),
+                                onStatus = { RemoteLoadUiStateHolder.current = it }
+                            )
+                        }.getOrElse { error ->
+                            if (error is CancellationException) return@launch
+                            toastHandler.showToast("Failed to cache remote source: ${error.message ?: "unknown error"}")
+                            return@launch
+                        }
+                        if (session.loadFile(cachedFile, autoStart = autoPlayOnTrackSelect)) {
+                            registerRemoteSourceEntry(resolved.requestUrl)
+                            if (openPlayerOnTrackSelect) isPlayerSurfaceVisible = true
+                        }
+                    } finally {
+                        RemoteLoadUiStateHolder.current = null
+                    }
+                }
+            }
+
             fun confirmUrlOrPathOpen() {
                 showUrlOrPathDialog = false
                 val resolved = resolveManualSourceInput(urlOrPathInput)
@@ -607,6 +673,7 @@ fun main(args: Array<String>) = application {
                         resolved.directoryPath?.let { openLocalBrowser(File(it)) }
                     resolved.type == ManualSourceType.LocalFile ->
                         resolved.localFile?.let { playFile(it) }
+                    urlOrPathForceCaching -> playRemoteSourceAsCached(resolved.requestUrl)
                     else -> playSource(resolved.requestUrl)
                 }
             }
@@ -1473,7 +1540,7 @@ fun main(args: Array<String>) = application {
                                                         currentView = browserReturnView
                                                     },
                                                     onOpenRemoteSource = { source -> playSource(source) },
-                                                    onOpenRemoteSourceAsCached = { source -> playSource(source) },
+                                                    onOpenRemoteSourceAsCached = { source -> playRemoteSourceAsCached(source) },
                                                     onRememberSmbCredentials = { nodeId, _, username, password ->
                                                         nodeId
                                                             ?.let { id -> networkNodes.firstOrNull { it.id == id } }
@@ -1505,7 +1572,7 @@ fun main(args: Array<String>) = application {
                                                         currentView = browserReturnView
                                                     },
                                                     onOpenRemoteSource = { source -> playSource(source) },
-                                                    onOpenRemoteSourceAsCached = { source -> playSource(source) },
+                                                    onOpenRemoteSourceAsCached = { source -> playRemoteSourceAsCached(source) },
                                                     onRememberHttpCredentials = { nodeId, _, username, password ->
                                                         nodeId
                                                             ?.let { id -> networkNodes.firstOrNull { it.id == id } }

@@ -24,6 +24,7 @@ import com.flopster101.siliconplayer.httpBasicAuthorizationHeader
 import com.flopster101.siliconplayer.platform.RemoteSourceExportSupport
 import com.flopster101.siliconplayer.remoteFilenameHintForUrl
 import com.flopster101.siliconplayer.resolveCredentialedHttpSpec
+import com.flopster101.siliconplayer.rememberSourceForCachedFile
 import com.flopster101.siliconplayer.sanitizeRemoteLeafName
 import com.flopster101.siliconplayer.stripRemoteCacheHashPrefix
 import com.flopster101.siliconplayer.stripUrlFragment
@@ -99,6 +100,7 @@ private class DesktopRemoteSourceExportSupport(
                 }
             )
         downloadedFile.setLastModified(System.currentTimeMillis())
+        rememberSourceForCachedFile(cacheRoot, downloadedFile.name, request.sourceId)
         return Result.success(downloadedFile.toExportFileItem(request.preferredFileName))
     }
 

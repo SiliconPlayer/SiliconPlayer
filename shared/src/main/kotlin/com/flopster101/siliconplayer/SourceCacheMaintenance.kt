@@ -128,7 +128,7 @@ internal fun enforceRemoteCacheLimits(
     val protected = protectedPaths.filter { it.isNotBlank() }.toSet()
 
     val entries = cacheRoot.listFiles().orEmpty()
-        .filter { it.isFile && !it.name.endsWith(".part", ignoreCase = true) }
+        .filter { it.isFile && !it.name.endsWith(".part", ignoreCase = true) && it.name != SOURCE_CACHE_INDEX_FILE }
         .toMutableList()
     if (entries.isEmpty()) return RemoteCachePruneResult(0, 0L)
 

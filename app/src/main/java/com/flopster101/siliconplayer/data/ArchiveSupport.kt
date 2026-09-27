@@ -22,9 +22,6 @@ private const val ARCHIVE_READY_MARKER = ".ready"
 private const val MAX_ARCHIVE_ENTRIES = 20_000
 private const val MAX_ARCHIVE_TOTAL_UNCOMPRESSED_BYTES = 1_000_000_000L // ~1 GB
 private const val MAX_ARCHIVE_ENTRY_UNCOMPRESSED_BYTES = 256_000_000L // ~256 MB
-internal const val ARCHIVE_CACHE_MAX_MOUNTS_DEFAULT = 24
-internal const val ARCHIVE_CACHE_MAX_BYTES_DEFAULT = 2L * 1024L * 1024L * 1024L // 2 GB
-internal const val ARCHIVE_CACHE_MAX_AGE_DAYS_DEFAULT = 14
 
 internal data class ArchiveMountedPathOrigin(
     val mountRootPath: String,
