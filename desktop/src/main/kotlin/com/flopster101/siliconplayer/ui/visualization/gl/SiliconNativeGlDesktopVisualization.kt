@@ -38,6 +38,9 @@ import com.flopster101.siliconplayer.ui.visualization.channel.GlChannelScopeText
 import com.flopster101.siliconplayer.ui.visualization.channel.GlChannelScopeTextPalette
 import com.flopster101.siliconplayer.ui.visualization.channel.layoutChannelScopeText
 import com.flopster101.siliconplayer.ui.visualization.channel.parseChannelScopeTextStates
+import java.awt.Font
+import java.nio.ByteBuffer
+import java.nio.ByteOrder
 import org.jetbrains.skia.Bitmap
 import org.jetbrains.skia.ColorAlphaType
 import org.jetbrains.skia.ColorInfo
@@ -45,9 +48,6 @@ import org.jetbrains.skia.ColorSpace
 import org.jetbrains.skia.ColorType
 import org.jetbrains.skia.Image
 import org.jetbrains.skia.ImageInfo
-import java.awt.Font
-import java.nio.ByteBuffer
-import java.nio.ByteOrder
 
 data class SiliconNativeGlFrame(
     val mode: Int, // 1=Bars, 2=Osc, 3=VU, 4=ChannelScope, 5=Starfield, 100=projectM plugin
@@ -215,6 +215,21 @@ private class SiliconNativeDesktopRenderThread(
         var projectMStoppedTrackEmpty = false
         var projectMTargetFps = 30
 
+        var pausedFrameRendered = false
+        var forceRenderUntilNs = 0L
+        var lastRenderedTrackKey: String? = null
+        var lastDataAlivePollNs = 0L
+        var dataChannelsAlive = false
+        var dataSerial = -1L
+        var capturedSerial = -1L
+        var pendingDataSerial = -1L
+        var scopeSceneHasLiveData = false
+        var transitionActive = false
+        var transitionPending = false
+        var transitionStartNs = 0L
+        var transitionPendingSinceNs = 0L
+        var hasRenderedAtLeastOneFrame = false
+
         var currentBufW = 0
         var currentBufH = 0
         var directBuffer: ByteBuffer? = null
@@ -233,7 +248,16 @@ private class SiliconNativeDesktopRenderThread(
                     Triple(targetWidth.coerceAtLeast(16), targetHeight.coerceAtLeast(16), currentFrame)
                 }
 
-                if (currentBufW != w || currentBufH != h || directBuffer == null) {
+                val surfaceSizeChanged = currentBufW != w || currentBufH != h || directBuffer == null
+                if (surfaceSizeChanged) {
+                    if (transitionActive || transitionPending) {
+                        transitionActive = false
+                        transitionPending = false
+                        capturedSerial = dataSerial
+                        try {
+                            DesktopGlSurface.nativeReleaseTransitionSnapshot(hostHandle)
+                        } catch (_: Throwable) {}
+                    }
                     currentBufW = w
                     currentBufH = h
                     directBuffer = ByteBuffer.allocateDirect(w * h * 4).order(ByteOrder.nativeOrder())
@@ -248,6 +272,88 @@ private class SiliconNativeDesktopRenderThread(
                         skiaBitmaps[slot] = bitmap
                         composeBitmaps[slot] = bitmap.asImageBitmap()
                     }
+                }
+
+                val frameTrackKey = frame?.trackKey
+                val trackDetectNowNs = System.nanoTime()
+                if (frame?.mode == 4) {
+                    dataSerial = NativeBridge.getChannelScopeDataSerial()
+                    if (trackDetectNowNs - lastDataAlivePollNs >= 30_000_000L) {
+                        lastDataAlivePollNs = trackDetectNowNs
+                        dataChannelsAlive = runCatching {
+                            NativeBridge.getChannelScopeTextState(1).isNotEmpty()
+                        }.getOrDefault(false)
+                    }
+                } else {
+                    scopeSceneHasLiveData = false
+                }
+                val uiTrackFlipped = frameTrackKey != lastRenderedTrackKey
+                val hadRenderedTrack = lastRenderedTrackKey != null
+                if (uiTrackFlipped) {
+                    if (frameTrackKey != null) {
+                        lastRenderedTrackKey = frameTrackKey
+                    }
+                    if (frameTrackKey != null && hadRenderedTrack) {
+                        forceRenderUntilNs = trackDetectNowNs + 1_600_000_000L
+                    }
+                }
+
+                if (
+                    frame?.mode == 4 &&
+                    frame.channelScopeTrackTransition != 0 &&
+                    hasRenderedAtLeastOneFrame
+                ) {
+                    if (!transitionActive && !transitionPending && frameTrackKey != null) {
+                        val dataFlipped = capturedSerial >= 0L && dataSerial != capturedSerial
+                        if ((dataFlipped || (uiTrackFlipped && hadRenderedTrack)) && scopeSceneHasLiveData) {
+                            transitionPending = true
+                            transitionPendingSinceNs = trackDetectNowNs
+                            pendingDataSerial = capturedSerial
+                            forceRenderUntilNs = trackDetectNowNs + 1_600_000_000L
+                            try {
+                                DesktopGlSurface.nativeTakeTransitionSnapshot(hostHandle)
+                            } catch (_: Throwable) {}
+                        }
+                    }
+                    if (transitionPending) {
+                        val newDataAlive = dataSerial != pendingDataSerial && dataChannelsAlive
+                        if (newDataAlive) {
+                            transitionPending = false
+                            transitionActive = true
+                            transitionStartNs = trackDetectNowNs
+                        } else if (trackDetectNowNs - transitionPendingSinceNs > 250_000_000L) {
+                            transitionPending = false
+                            try {
+                                DesktopGlSurface.nativeReleaseTransitionSnapshot(hostHandle)
+                            } catch (_: Throwable) {}
+                            capturedSerial = dataSerial
+                        }
+                    }
+                }
+
+                if (frame != null && !frame.isPlaying) {
+                    val isFadeMode = frame.mode == 1 || frame.mode == 2 || frame.mode == 3 || frame.mode == 5
+                    val fadeSettled = !isFadeMode || frame.visualAlpha <= 0.001f
+                    val transitionRendering =
+                        System.nanoTime() < forceRenderUntilNs || transitionActive || transitionPending
+                    if (pausedFrameRendered && !surfaceSizeChanged && fadeSettled && !transitionRendering) {
+                        val targetFrameTimeNs = if (frame.mode == 100 && projectMTargetFps > 0) {
+                            1_000_000_000L / projectMTargetFps
+                        } else {
+                            16_666_667L
+                        }
+                        val elapsedNs = System.nanoTime() - frameStartNs
+                        val sleepNs = (targetFrameTimeNs - elapsedNs).coerceAtLeast(10_000_000L)
+                        try {
+                            sleep(sleepNs / 1_000_000L, (sleepNs % 1_000_000L).toInt())
+                        } catch (_: InterruptedException) {
+                            if (!running) break
+                        }
+                        continue
+                    }
+                    pausedFrameRendered = true
+                } else {
+                    pausedFrameRendered = false
                 }
 
                 if (frame != null) {
@@ -615,6 +721,44 @@ private class SiliconNativeDesktopRenderThread(
                     }
                 }
 
+                var transitionOffsetX = 0f
+                var transitionAlpha = 0f
+                if (frame?.mode == 4 && frame.channelScopeTrackTransition != 0) {
+                    if (transitionActive) {
+                        val p = ((System.nanoTime() - transitionStartNs) / 750_000_000f).coerceIn(0f, 1f)
+                        if (p >= 1f) {
+                            transitionActive = false
+                            capturedSerial = dataSerial
+                            try {
+                                DesktopGlSurface.nativeReleaseTransitionSnapshot(hostHandle)
+                            } catch (_: Throwable) {}
+                        } else {
+                            val eased = p * p * (3f - 2f * p)
+                            transitionOffsetX = if (frame.channelScopeTrackTransition == 1) {
+                                -eased * w.toFloat()
+                            } else {
+                                0f
+                            }
+                            transitionAlpha = 1f - eased
+                        }
+                    } else if (transitionPending) {
+                        transitionOffsetX = 0f
+                        transitionAlpha = 1f
+                    } else {
+                        if (frameTrackKey != null) {
+                            capturedSerial = dataSerial
+                            scopeSceneHasLiveData = dataChannelsAlive
+                        }
+                    }
+                } else if (transitionActive || transitionPending) {
+                    transitionActive = false
+                    transitionPending = false
+                    capturedSerial = dataSerial
+                    try {
+                        DesktopGlSurface.nativeReleaseTransitionSnapshot(hostHandle)
+                    } catch (_: Throwable) {}
+                }
+
                 directBuffer.clear()
                 val ok = DesktopGlSurface.nativeRenderFrame(
                     hostHandle,
@@ -622,8 +766,13 @@ private class SiliconNativeDesktopRenderThread(
                     w,
                     h,
                     density,
-                    directBuffer
+                    directBuffer,
+                    transitionOffsetX,
+                    transitionAlpha
                 )
+                if (ok) {
+                    hasRenderedAtLeastOneFrame = true
+                }
 
                 val target = skiaBitmaps[backSlot]
                 val ready = composeBitmaps[backSlot]
@@ -682,6 +831,9 @@ private class SiliconNativeDesktopRenderThread(
                     SiliconVisNativeBridge.nativeDetachProjectM(visHandle)
                 } catch (_: Throwable) {}
             }
+            try {
+                DesktopGlSurface.nativeReleaseTransitionSnapshot(hostHandle)
+            } catch (_: Throwable) {}
             DesktopGlSurface.nativeDestroy(hostHandle, visHandle)
             SiliconVisNativeBridge.nativeDestroy(visHandle)
         }

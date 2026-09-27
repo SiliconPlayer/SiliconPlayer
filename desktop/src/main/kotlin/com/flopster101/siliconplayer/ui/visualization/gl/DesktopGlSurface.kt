@@ -15,9 +15,13 @@ object DesktopGlSurface {
         width: Int,
         height: Int,
         density: Float,
-        pixelBuffer: ByteBuffer
+        pixelBuffer: ByteBuffer,
+        transitionOffsetX: Float = 0f,
+        transitionAlpha: Float = 0f
     ): Boolean
     external fun nativeDestroy(hostHandle: Long, visHandle: Long)
+    external fun nativeTakeTransitionSnapshot(hostHandle: Long): Boolean
+    external fun nativeReleaseTransitionSnapshot(hostHandle: Long)
     external fun nativeUploadScopeAtlas(
         hostHandle: Long,
         pixelBuffer: ByteBuffer,

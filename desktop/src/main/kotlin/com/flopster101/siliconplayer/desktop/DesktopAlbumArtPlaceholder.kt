@@ -1,6 +1,7 @@
 package com.flopster101.siliconplayer.ui.screens
 
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -71,6 +72,7 @@ import com.flopster101.siliconplayer.ui.visualization.channel.loadChannelScopeNa
 import com.flopster101.siliconplayer.ui.visualization.gl.SiliconNativeGlDesktopVisualization
 import com.flopster101.siliconplayer.ui.visualization.gl.SiliconNativeGlFrame
 import java.io.File
+import kotlinx.coroutines.delay
 
 private fun resolveOscColor(
     hasArtwork: Boolean,
@@ -318,6 +320,53 @@ internal fun AlbumArtPlaceholder(
     val primaryColorArgb = themePrimary.toArgb()
     val surfaceColorArgb = themeSurface.toArgb()
 
+    val basicVisualizationMode =
+        visualizationMode == VisualizationMode.Bars ||
+            visualizationMode == VisualizationMode.Oscilloscope ||
+            visualizationMode == VisualizationMode.VuMeters
+    val basicVisualizationAlpha by animateFloatAsState(
+        targetValue = if (!basicVisualizationMode || isPlaying) 1f else 0f,
+        animationSpec = tween(durationMillis = 220),
+        label = "basicVisualizationVisibility"
+    )
+
+    var starfieldPlaybackActive by remember { mutableStateOf(isPlaying) }
+    LaunchedEffect(isPlaying) {
+        if (isPlaying) {
+            starfieldPlaybackActive = true
+        } else {
+            delay(700)
+            starfieldPlaybackActive = false
+        }
+    }
+    val starfieldAlpha by animateFloatAsState(
+        targetValue = if (starfieldPlaybackActive) 1f else 0f,
+        animationSpec = tween(durationMillis = 450),
+        label = "starfieldPauseFade"
+    )
+
+    val visualAlpha = when (visualizationMode) {
+        VisualizationMode.Starfield -> starfieldAlpha
+        VisualizationMode.Bars,
+        VisualizationMode.Oscilloscope,
+        VisualizationMode.VuMeters -> basicVisualizationAlpha
+        else -> 1f
+    }
+
+    val contrastMode = when (visualizationMode) {
+        VisualizationMode.Bars -> if (barContrastBackdropEnabled) 1 else 0
+        VisualizationMode.Oscilloscope -> if (!oscContrastBackdropEnabled) 0 else if (oscStereo) 3 else 2
+        VisualizationMode.VuMeters -> if (!vuContrastBackdropEnabled) 0 else if (vuAnchor == VisualizationVuAnchor.Top) 4 else 5
+        VisualizationMode.ChannelScope -> if (channelScopePrefs.contrastBackdropEnabled) 6 else 0
+        VisualizationMode.Starfield -> if (starfieldPrefs.contrastBackdropEnabled) 7 else 0
+        else -> 0
+    }
+
+    val monochromeBackdrop = when (visualizationMode) {
+        VisualizationMode.Starfield -> starfieldPrefs.monochromeBackdrop && starfieldPlaybackActive
+        else -> false
+    }
+
     val glFrame = remember(
         visualizationMode,
         isPlaying,
@@ -328,6 +377,7 @@ internal fun AlbumArtPlaceholder(
         barRoundnessDp,
         barFrequencyGridEnabled,
         barOverlayArtwork,
+        barContrastBackdropEnabled,
         oscStereo,
         visualizationOscWindowMs,
         visualizationOscTriggerModeNative,
@@ -337,14 +387,19 @@ internal fun AlbumArtPlaceholder(
         oscGridWidthDp,
         oscCenterLineEnabled,
         oscVerticalGridEnabled,
+        oscContrastBackdropEnabled,
         vuAnchor,
         vuColor,
         vuBackgroundColor,
         vuLabelColor,
+        vuContrastBackdropEnabled,
         channelScopePrefs,
         starfieldPrefs,
         primaryColorArgb,
         surfaceColorArgb,
+        visualAlpha,
+        contrastMode,
+        monochromeBackdrop,
         artwork,
         placeholderIconImage,
         scopeNameMaps
@@ -362,13 +417,9 @@ internal fun AlbumArtPlaceholder(
             },
             primaryColorArgb = primaryColorArgb,
             surfaceColorArgb = surfaceColorArgb,
-            visualAlpha = 1f,
-            contrastMode = when (visualizationMode) {
-                VisualizationMode.Oscilloscope -> if (oscStereo) 3 else 2
-                VisualizationMode.ChannelScope -> 1
-                VisualizationMode.Bars -> 4
-                else -> 0
-            },
+            monochromeBackdrop = monochromeBackdrop,
+            visualAlpha = visualAlpha,
+            contrastMode = contrastMode,
             contrastScrimColorArgb = 0x66000000,
             channelLayout = channelScopePrefs.layout.ordinal,
             textAnchor = channelScopePrefs.textAnchor.ordinal,
@@ -406,6 +457,7 @@ internal fun AlbumArtPlaceholder(
             channelScopeDcRemovalEnabled = channelScopePrefs.dcRemovalEnabled,
             channelScopeTriggerMode = channelScopePrefs.triggerModeNative,
             channelScopeWaveRenderMode = channelScopePrefs.waveRenderMode.nativeValue,
+            channelScopeTrackTransition = channelScopePrefs.trackTransition.nativeValue,
             oscStereo = oscStereo,
             oscWindowMs = visualizationOscWindowMs,
             oscTriggerMode = visualizationOscTriggerModeNative,
