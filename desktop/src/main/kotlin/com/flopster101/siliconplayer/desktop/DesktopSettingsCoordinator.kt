@@ -66,6 +66,8 @@ import com.flopster101.siliconplayer.clearAllAudioParameterPrefs
 import com.flopster101.siliconplayer.clearAllDecoderPluginVolumes
 import com.flopster101.siliconplayer.parseEnabledVisualizationModes
 import com.flopster101.siliconplayer.platform.AppPreferences
+import com.flopster101.siliconplayer.restoreAudioBufferPresetForBackend
+import com.flopster101.siliconplayer.restoreAudioPerformanceModeForBackend
 import com.flopster101.siliconplayer.resetVisualizationBarsSettings
 import com.flopster101.siliconplayer.resetVisualizationChannelScopeSettings
 import com.flopster101.siliconplayer.resetVisualizationOscilloscopeSettings
@@ -80,6 +82,24 @@ import com.flopster101.siliconplayer.platform.ToastHandler
 import java.io.File
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+
+// Mirrors Android's pipeline LaunchedEffect: every stored pipeline value goes live.
+internal fun pushAudioPipelineConfigToNative(prefs: AppPreferences) {
+    val backend = AudioBackendPreference.fromStorage(
+        prefs.getString(AppPreferenceKeys.AUDIO_BACKEND_PREFERENCE, "auto")
+    )
+    runCatching {
+        NativeBridge.setAudioPipelineConfig(
+            backend.nativeValue,
+            restoreAudioPerformanceModeForBackend(prefs::contains, prefs::getString, backend).nativeValue,
+            restoreAudioBufferPresetForBackend(prefs::contains, prefs::getString, backend).nativeValue,
+            AudioResamplerPreference.fromStorage(
+                prefs.getString(AppPreferenceKeys.AUDIO_RESAMPLER_PREFERENCE, "builtin")
+            ).nativeValue,
+            prefs.getBoolean(AppPreferenceKeys.AUDIO_ALLOW_BACKEND_FALLBACK, true)
+        )
+    }
+}
 
 @Composable
 internal fun rememberDesktopSettings(
@@ -268,6 +288,10 @@ internal fun rememberDesktopSettings(
     }
 
     val state = remember(changeToken, selectedPluginName) {
+        // Pipeline perf/buffer are per-backend like Android, resolved through the shared chain.
+        val backendPreference = AudioBackendPreference.fromStorage(
+            prefs.getString(AppPreferenceKeys.AUDIO_BACKEND_PREFERENCE, "auto")
+        )
         buildSettingsScreenState(
             selectedPluginName = selectedPluginName,
             autoPlayOnTrackSelect = prefs.getBoolean(AppPreferenceKeys.AUTO_PLAY_ON_TRACK_SELECT, true),
@@ -281,9 +305,17 @@ internal fun rememberDesktopSettings(
             pauseOnHeadphoneDisconnect = prefs.getBoolean(AppPreferenceKeys.PAUSE_ON_HEADPHONE_DISCONNECT, true),
             audioFocusInterrupt = prefs.getBoolean(AppPreferenceKeys.AUDIO_FOCUS_INTERRUPT, true),
             audioDucking = prefs.getBoolean(AppPreferenceKeys.AUDIO_DUCKING, true),
-            audioBackendPreference = AudioBackendPreference.fromStorage(prefs.getString(AppPreferenceKeys.AUDIO_BACKEND_PREFERENCE, "auto")),
-            audioPerformanceMode = AudioPerformanceMode.fromStorage(prefs.getString(AppPreferenceKeys.AUDIO_PERFORMANCE_MODE, "none")),
-            audioBufferPreset = AudioBufferPreset.fromStorage(prefs.getString(AppPreferenceKeys.AUDIO_BUFFER_PRESET, "medium")),
+            audioBackendPreference = backendPreference,
+            audioPerformanceMode = restoreAudioPerformanceModeForBackend(
+                prefs::contains,
+                prefs::getString,
+                backendPreference
+            ),
+            audioBufferPreset = restoreAudioBufferPresetForBackend(
+                prefs::contains,
+                prefs::getString,
+                backendPreference
+            ),
             audioResamplerPreference = AudioResamplerPreference.fromStorage(prefs.getString(AppPreferenceKeys.AUDIO_RESAMPLER_PREFERENCE, "builtin")),
             audioOutputLimiterEnabled = prefs.getBoolean(AppPreferenceKeys.AUDIO_OUTPUT_LIMITER_ENABLED, false),
             lookaheadClipperMode = LookaheadClipperMode.fromStorage(prefs.getString(AppPreferenceKeys.AUDIO_LOOKAHEAD_CLIPPER_MODE, "soft")),
@@ -538,10 +570,67 @@ internal fun rememberDesktopSettings(
             onPauseOnHeadphoneDisconnectChanged = { putBool(AppPreferenceKeys.PAUSE_ON_HEADPHONE_DISCONNECT, it) },
             onAudioFocusInterruptChanged = { putBool(AppPreferenceKeys.AUDIO_FOCUS_INTERRUPT, it) },
             onAudioDuckingChanged = { putBool(AppPreferenceKeys.AUDIO_DUCKING, it) },
-            onAudioBackendPreferenceChanged = { putString(AppPreferenceKeys.AUDIO_BACKEND_PREFERENCE, it.storageValue) },
-            onAudioPerformanceModeChanged = { putString(AppPreferenceKeys.AUDIO_PERFORMANCE_MODE, it.storageValue) },
-            onAudioBufferPresetChanged = { putString(AppPreferenceKeys.AUDIO_BUFFER_PRESET, it.storageValue) },
-            onAudioResamplerPreferenceChanged = { putString(AppPreferenceKeys.AUDIO_RESAMPLER_PREFERENCE, it.storageValue) },
+            onAudioBackendPreferenceChanged = { selected ->
+                // Save the old backend's tuning, restore the new one's (shared chain
+                // rebuilds state via the prefs listener); mirrors Android's switch.
+                val current = AudioBackendPreference.fromStorage(
+                    prefs.getString(AppPreferenceKeys.AUDIO_BACKEND_PREFERENCE, "auto")
+                )
+                if (selected != current) {
+                    prefs.edit()
+                        .putString(AppPreferenceKeys.AUDIO_BACKEND_PREFERENCE, selected.storageValue)
+                        .putString(
+                            AppPreferenceKeys.audioPerformanceModeForBackend(current),
+                            restoreAudioPerformanceModeForBackend(
+                                prefs::contains,
+                                prefs::getString,
+                                current
+                            ).storageValue
+                        )
+                        .putString(
+                            AppPreferenceKeys.audioBufferPresetForBackend(current),
+                            restoreAudioBufferPresetForBackend(
+                                prefs::contains,
+                                prefs::getString,
+                                current
+                            ).storageValue
+                        )
+                        .apply()
+                    pushAudioPipelineConfigToNative(prefs)
+                }
+            },
+            onAudioPerformanceModeChanged = {
+                val backend = AudioBackendPreference.fromStorage(
+                    prefs.getString(AppPreferenceKeys.AUDIO_BACKEND_PREFERENCE, "auto")
+                )
+                val editor = prefs.edit().putString(
+                    AppPreferenceKeys.audioPerformanceModeForBackend(backend),
+                    it.storageValue
+                )
+                if (backend == AudioBackendPreference.AAudio || backend == AudioBackendPreference.Auto) {
+                    editor.putString(AppPreferenceKeys.AUDIO_PERFORMANCE_MODE, it.storageValue)
+                }
+                editor.apply()
+                pushAudioPipelineConfigToNative(prefs)
+            },
+            onAudioBufferPresetChanged = {
+                val backend = AudioBackendPreference.fromStorage(
+                    prefs.getString(AppPreferenceKeys.AUDIO_BACKEND_PREFERENCE, "auto")
+                )
+                val editor = prefs.edit().putString(
+                    AppPreferenceKeys.audioBufferPresetForBackend(backend),
+                    it.storageValue
+                )
+                if (backend == AudioBackendPreference.AAudio || backend == AudioBackendPreference.Auto) {
+                    editor.putString(AppPreferenceKeys.AUDIO_BUFFER_PRESET, it.storageValue)
+                }
+                editor.apply()
+                pushAudioPipelineConfigToNative(prefs)
+            },
+            onAudioResamplerPreferenceChanged = {
+                putString(AppPreferenceKeys.AUDIO_RESAMPLER_PREFERENCE, it.storageValue)
+                pushAudioPipelineConfigToNative(prefs)
+            },
             onAudioOutputLimiterEnabledChanged = {
                 putBool(AppPreferenceKeys.AUDIO_OUTPUT_LIMITER_ENABLED, it)
                 runCatching { NativeBridge.setOutputLimiterEnabled(it) }
@@ -554,7 +643,10 @@ internal fun rememberDesktopSettings(
                 putString(AppPreferenceKeys.AUDIO_MULTI_CHANNEL_OUTPUT_MODE, it.storageValue)
                 runCatching { NativeBridge.setMultiChannelOutputMode(it.nativeValue) }
             },
-            onAudioAllowBackendFallbackChanged = { putBool(AppPreferenceKeys.AUDIO_ALLOW_BACKEND_FALLBACK, it) },
+            onAudioAllowBackendFallbackChanged = {
+                putBool(AppPreferenceKeys.AUDIO_ALLOW_BACKEND_FALLBACK, it)
+                pushAudioPipelineConfigToNative(prefs)
+            },
             onBitPerfectUsbAudioChanged = { putBool(AppPreferenceKeys.BIT_PERFECT_USB_AUDIO, it) },
             onOpenPlayerFromNotificationChanged = { putBool(AppPreferenceKeys.OPEN_PLAYER_FROM_NOTIFICATION, it) },
             onPersistRepeatModeChanged = { putBool(AppPreferenceKeys.PERSIST_REPEAT_MODE, it) },

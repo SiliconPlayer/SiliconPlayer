@@ -1182,6 +1182,7 @@ fun main(args: Array<String>) = application {
                 )
                 // Stored track-open options (unknown-duration + end-fade) for cold start.
                 pushStoredTrackOptionsToNative(prefs)
+                pushAudioPipelineConfigToNative(prefs)
                 applyDspSettingsToNative(readGlobalDspSettings(prefs))
             }
             LaunchedEffect(session.currentFile, session.decoderName) {

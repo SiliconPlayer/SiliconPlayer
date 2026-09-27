@@ -351,3 +351,40 @@ internal object AppPreferenceKeys {
     fun audioBufferPresetForBackend(backend: AudioBackendPreference) =
         "${AUDIO_BUFFER_PRESET}_${backend.storageValue}"
 }
+
+// Per-backend restore chain shared by both platforms: stored per-backend value,
+// then the legacy global key for AAudio/Auto, then the backend default.
+// Takes lambdas because the two prefs types are unrelated classes.
+internal fun restoreAudioPerformanceModeForBackend(
+    contains: (String) -> Boolean,
+    getString: (String, String?) -> String?,
+    backend: AudioBackendPreference
+): AudioPerformanceMode {
+    val backendKey = AppPreferenceKeys.audioPerformanceModeForBackend(backend)
+    val restoredValue = when {
+        contains(backendKey) -> getString(backendKey, backend.defaultPerformanceMode().storageValue)
+        backend == AudioBackendPreference.AAudio || backend == AudioBackendPreference.Auto -> getString(
+            AppPreferenceKeys.AUDIO_PERFORMANCE_MODE,
+            backend.defaultPerformanceMode().storageValue
+        )
+        else -> backend.defaultPerformanceMode().storageValue
+    }
+    return AudioPerformanceMode.fromStorage(restoredValue)
+}
+
+internal fun restoreAudioBufferPresetForBackend(
+    contains: (String) -> Boolean,
+    getString: (String, String?) -> String?,
+    backend: AudioBackendPreference
+): AudioBufferPreset {
+    val backendKey = AppPreferenceKeys.audioBufferPresetForBackend(backend)
+    val restoredValue = when {
+        contains(backendKey) -> getString(backendKey, backend.defaultBufferPreset().storageValue)
+        backend == AudioBackendPreference.AAudio || backend == AudioBackendPreference.Auto -> getString(
+            AppPreferenceKeys.AUDIO_BUFFER_PRESET,
+            backend.defaultBufferPreset().storageValue
+        )
+        else -> backend.defaultBufferPreset().storageValue
+    }
+    return AudioBufferPreset.fromStorage(restoredValue)
+}

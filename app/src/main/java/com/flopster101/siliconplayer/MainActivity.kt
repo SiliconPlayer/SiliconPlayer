@@ -1383,41 +1383,17 @@ private fun updateAudioBackendPreferenceSelection(
         )
         .apply()
 
-    val performanceModeKey = AppPreferenceKeys.audioPerformanceModeForBackend(selectedBackend)
-    val restoredPerformanceValue = when {
-        prefs.contains(performanceModeKey) -> {
-            prefs.getString(
-                performanceModeKey,
-                selectedBackend.defaultPerformanceMode().storageValue
-            )
-        }
-        selectedBackend == AudioBackendPreference.AAudio || selectedBackend == AudioBackendPreference.Auto -> {
-            prefs.getString(
-                AppPreferenceKeys.AUDIO_PERFORMANCE_MODE,
-                selectedBackend.defaultPerformanceMode().storageValue
-            )
-        }
-        else -> selectedBackend.defaultPerformanceMode().storageValue
-    }
-    val restoredPerformanceMode = AudioPerformanceMode.fromStorage(restoredPerformanceValue)
+    val restoredPerformanceMode = restoreAudioPerformanceModeForBackend(
+        prefs::contains,
+        prefs::getString,
+        selectedBackend
+    )
 
-    val bufferPresetKey = AppPreferenceKeys.audioBufferPresetForBackend(selectedBackend)
-    val restoredBufferValue = when {
-        prefs.contains(bufferPresetKey) -> {
-            prefs.getString(
-                bufferPresetKey,
-                selectedBackend.defaultBufferPreset().storageValue
-            )
-        }
-        selectedBackend == AudioBackendPreference.AAudio || selectedBackend == AudioBackendPreference.Auto -> {
-            prefs.getString(
-                AppPreferenceKeys.AUDIO_BUFFER_PRESET,
-                selectedBackend.defaultBufferPreset().storageValue
-            )
-        }
-        else -> selectedBackend.defaultBufferPreset().storageValue
-    }
-    val restoredBufferPreset = AudioBufferPreset.fromStorage(restoredBufferValue)
+    val restoredBufferPreset = restoreAudioBufferPresetForBackend(
+        prefs::contains,
+        prefs::getString,
+        selectedBackend
+    )
 
     onAudioBackendPreferenceChanged(selectedBackend)
     onAudioPerformanceModeChanged(restoredPerformanceMode)

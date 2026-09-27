@@ -545,36 +545,20 @@ internal fun rememberAppNavigationSettingsStates(
     )
     val audioBackendPreference = remember { mutableStateOf(initialAudioBackendPreference) }
     val audioPerformanceMode = remember {
-        val backend = initialAudioBackendPreference
-        val backendKey = AppPreferenceKeys.audioPerformanceModeForBackend(backend)
-        val restoredValue = when {
-            prefs.contains(backendKey) -> prefs.getString(backendKey, backend.defaultPerformanceMode().storageValue)
-            backend == AudioBackendPreference.AAudio || backend == AudioBackendPreference.Auto -> prefs.getString(
-                AppPreferenceKeys.AUDIO_PERFORMANCE_MODE,
-                backend.defaultPerformanceMode().storageValue
-            )
-            else -> backend.defaultPerformanceMode().storageValue
-        }
         mutableStateOf(
-            AudioPerformanceMode.fromStorage(
-                restoredValue
+            restoreAudioPerformanceModeForBackend(
+                prefs::contains,
+                prefs::getString,
+                initialAudioBackendPreference
             )
         )
     }
     val audioBufferPreset = remember {
-        val backend = initialAudioBackendPreference
-        val backendKey = AppPreferenceKeys.audioBufferPresetForBackend(backend)
-        val restoredValue = when {
-            prefs.contains(backendKey) -> prefs.getString(backendKey, backend.defaultBufferPreset().storageValue)
-            backend == AudioBackendPreference.AAudio || backend == AudioBackendPreference.Auto -> prefs.getString(
-                AppPreferenceKeys.AUDIO_BUFFER_PRESET,
-                backend.defaultBufferPreset().storageValue
-            )
-            else -> backend.defaultBufferPreset().storageValue
-        }
         mutableStateOf(
-            AudioBufferPreset.fromStorage(
-                restoredValue
+            restoreAudioBufferPresetForBackend(
+                prefs::contains,
+                prefs::getString,
+                initialAudioBackendPreference
             )
         )
     }
