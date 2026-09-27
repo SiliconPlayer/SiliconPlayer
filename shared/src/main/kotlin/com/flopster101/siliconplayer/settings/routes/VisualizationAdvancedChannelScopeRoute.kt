@@ -22,7 +22,9 @@ import java.util.Locale
 
 
 @Composable
-internal fun VisualizationAdvancedChannelScopeRouteContent() {
+internal fun VisualizationAdvancedChannelScopeRouteContent(
+    waveRenderModeDefault: VisualizationChannelScopeWaveRenderMode = AppDefaults.Visualization.ChannelScope.waveRenderMode
+) {
                         val prefsName = "silicon_player_settings"
                         val scopeWindowKey = "visualization_channel_scope_window_ms"
                         val scopeRenderBackendKey = "visualization_channel_scope_render_backend"
@@ -102,7 +104,7 @@ internal fun VisualizationAdvancedChannelScopeRouteContent() {
                                 VisualizationChannelScopeWaveRenderMode.fromStorage(
                                     prefs.getString(
                                         scopeWaveRenderModeKey,
-                                        AppDefaults.Visualization.ChannelScope.waveRenderMode.storageValue
+                                        waveRenderModeDefault.storageValue
                                     )
                                 )
                             )
@@ -547,7 +549,7 @@ internal fun VisualizationAdvancedChannelScopeRouteContent() {
                             scopeWaveRenderMode = VisualizationChannelScopeWaveRenderMode.fromStorage(
                                 prefs.getString(
                                     scopeWaveRenderModeKey,
-                                    AppDefaults.Visualization.ChannelScope.waveRenderMode.storageValue
+                                    waveRenderModeDefault.storageValue
                                 )
                             )
                             scopeTrackTransition = VisualizationChannelScopeTrackTransition.fromStorage(

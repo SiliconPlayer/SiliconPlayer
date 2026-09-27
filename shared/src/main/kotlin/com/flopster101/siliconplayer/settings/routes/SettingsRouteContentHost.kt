@@ -445,7 +445,9 @@ internal fun SettingsRouteContentHost(
                     }
 
                     SettingsRoute.VisualizationAdvancedChannelScope -> {
-                        VisualizationAdvancedChannelScopeRouteContent()
+                        VisualizationAdvancedChannelScopeRouteContent(
+                            waveRenderModeDefault = state.channelScopeWaveRenderModeDefault
+                        )
                     }
 
                     SettingsRoute.VisualizationAdvancedStarfield -> {

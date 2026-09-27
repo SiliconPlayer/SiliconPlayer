@@ -258,6 +258,7 @@ internal data class SettingsScreenState(
     val visualizationPerformanceMode: VisualizationPerformanceMode,
     val visualizationShowDebugInfo: Boolean,
     val visualizationKeepScreenOn: Boolean,
+    val channelScopeWaveRenderModeDefault: VisualizationChannelScopeWaveRenderMode = AppDefaults.Visualization.ChannelScope.waveRenderMode,
     val visualizationBarCount: Int,
     val visualizationBarSmoothingPercent: Int,
     val visualizationBarRoundnessDp: Int,

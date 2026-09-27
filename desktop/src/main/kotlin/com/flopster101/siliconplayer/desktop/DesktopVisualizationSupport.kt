@@ -206,8 +206,9 @@ internal object ChannelScopePrefsSupport {
             triggerAlgorithmNative = VisualizationChannelScopeTriggerAlgorithm.fromStorage(
                 prefs.getString(AppPreferenceKeys.VISUALIZATION_CHANNEL_SCOPE_TRIGGER_ALGORITHM, d.triggerAlgorithm.storageValue)
             ).nativeValue,
+            // Desktop defaults to antialiased waves; mobile keeps Off for GPU reasons.
             waveRenderMode = VisualizationChannelScopeWaveRenderMode.fromStorage(
-                prefs.getString(AppPreferenceKeys.VISUALIZATION_CHANNEL_SCOPE_WAVE_RENDER_MODE, d.waveRenderMode.storageValue)
+                prefs.getString(AppPreferenceKeys.VISUALIZATION_CHANNEL_SCOPE_WAVE_RENDER_MODE, VisualizationChannelScopeWaveRenderMode.Antialiased.storageValue)
             ),
             trackTransition = VisualizationChannelScopeTrackTransition.fromStorage(
                 prefs.getString(AppPreferenceKeys.VISUALIZATION_CHANNEL_SCOPE_TRACK_TRANSITION, d.trackTransition.storageValue)

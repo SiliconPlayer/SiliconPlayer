@@ -38,6 +38,7 @@ import com.flopster101.siliconplayer.SettingsRoute
 import com.flopster101.siliconplayer.SettingsScreenActions
 import com.flopster101.siliconplayer.SettingsScreenState
 import com.flopster101.siliconplayer.ThemeMode
+import com.flopster101.siliconplayer.VisualizationChannelScopeWaveRenderMode
 import com.flopster101.siliconplayer.VisualizationMode
 import com.flopster101.siliconplayer.VisualizationPerformanceMode
 import com.flopster101.siliconplayer.VisualizationRenderBackend
@@ -302,6 +303,8 @@ internal fun rememberDesktopSettings(
             openPlayerFromNotificationAvailable = false,
             keepScreenOnAvailable = false,
             visualizationKeepScreenOnAvailable = false,
+            // Desktop smooths scope waves by default; mobile keeps Off for GPU reasons.
+            channelScopeWaveRenderModeDefault = VisualizationChannelScopeWaveRenderMode.Antialiased,
             rememberBrowserLocation = prefs.getBoolean(AppPreferenceKeys.REMEMBER_BROWSER_LOCATION, true),
             showParentDirectoryEntry = prefs.getBoolean(AppPreferenceKeys.BROWSER_SHOW_PARENT_DIRECTORY_ENTRY, true),
             showFileIconChipBackground = prefs.getBoolean(AppPreferenceKeys.BROWSER_SHOW_FILE_ICON_CHIP_BACKGROUND, true),
