@@ -846,8 +846,6 @@ internal fun clearAllSettingsAction(
     onLastBrowserDirectoryPathChanged: (String?) -> Unit,
     onRecentFoldersLimitChanged: (Int) -> Unit,
     onRecentFilesLimitChanged: (Int) -> Unit,
-    onRecentFoldersChanged: (List<RecentPathEntry>) -> Unit,
-    onRecentPlayedFilesChanged: (List<RecentPathEntry>) -> Unit,
     onKeepScreenOnChanged: (Boolean) -> Unit,
     onPlayerArtworkCornerRadiusDpChanged: (Int) -> Unit,
     onShowAudioOutputRouteChipChanged: (Boolean) -> Unit,
@@ -1051,8 +1049,6 @@ internal fun clearAllSettingsAction(
     onLastBrowserDirectoryPathChanged(null)
     onRecentFoldersLimitChanged(RECENT_FOLDERS_LIMIT_DEFAULT)
     onRecentFilesLimitChanged(RECENT_FILES_LIMIT_DEFAULT)
-    onRecentFoldersChanged(emptyList())
-    onRecentPlayedFilesChanged(emptyList())
     onKeepScreenOnChanged(AppDefaults.Player.keepScreenOn)
     onPlayerArtworkCornerRadiusDpChanged(AppDefaults.Player.artworkCornerRadiusDp)
     onShowAudioOutputRouteChipChanged(AppDefaults.Player.showAudioOutputRouteChip)

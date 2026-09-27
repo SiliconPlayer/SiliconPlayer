@@ -1434,8 +1434,6 @@ private fun clearAllSettingsAndUiState(
     onLastBrowserDirectoryPathChanged: (String?) -> Unit,
     onRecentFoldersLimitChanged: (Int) -> Unit,
     onRecentFilesLimitChanged: (Int) -> Unit,
-    onRecentFoldersChanged: (List<RecentPathEntry>) -> Unit,
-    onRecentPlayedFilesChanged: (List<RecentPathEntry>) -> Unit,
     onKeepScreenOnChanged: (Boolean) -> Unit,
     onPlayerArtworkCornerRadiusDpChanged: (Int) -> Unit,
     onShowAudioOutputRouteChipChanged: (Boolean) -> Unit,
@@ -1461,12 +1459,7 @@ private fun clearAllSettingsAndUiState(
     onVisualizationVuAnchorChanged: (VisualizationVuAnchor) -> Unit,
     onVisualizationVuUseThemeColorChanged: (Boolean) -> Unit,
     onVisualizationVuSmoothingPercentChanged: (Int) -> Unit,
-    onVisualizationVuRenderBackendChanged: (VisualizationRenderBackend) -> Unit,
-    onNetworkNodesChanged: (List<NetworkNode>) -> Unit,
-    onPlaylistLibraryStateChanged: (PlaylistLibraryState) -> Unit,
-    onActivePlaylistChanged: (StoredPlaylist?) -> Unit,
-    onActivePlaylistEntryIdChanged: (String?) -> Unit,
-    onShowPlaylistSelectorDialogChanged: (Boolean) -> Unit
+    onVisualizationVuRenderBackendChanged: (VisualizationRenderBackend) -> Unit
 ) {
     clearAllSettingsUsingStateHolders(
         context = context,
@@ -1493,8 +1486,6 @@ private fun clearAllSettingsAndUiState(
         onLastBrowserDirectoryPathChanged = onLastBrowserDirectoryPathChanged,
         onRecentFoldersLimitChanged = onRecentFoldersLimitChanged,
         onRecentFilesLimitChanged = onRecentFilesLimitChanged,
-        onRecentFoldersChanged = onRecentFoldersChanged,
-        onRecentPlayedFilesChanged = onRecentPlayedFilesChanged,
         onKeepScreenOnChanged = onKeepScreenOnChanged,
         onPlayerArtworkCornerRadiusDpChanged = onPlayerArtworkCornerRadiusDpChanged,
         onShowAudioOutputRouteChipChanged = onShowAudioOutputRouteChipChanged,
@@ -1522,12 +1513,8 @@ private fun clearAllSettingsAndUiState(
         onVisualizationVuSmoothingPercentChanged = onVisualizationVuSmoothingPercentChanged,
         onVisualizationVuRenderBackendChanged = onVisualizationVuRenderBackendChanged
     )
-    onNetworkNodesChanged(emptyList())
-    writeNetworkNodes(prefs, emptyList())
-    onPlaylistLibraryStateChanged(emptyPlaylistLibraryState())
-    onActivePlaylistChanged(null)
-    onActivePlaylistEntryIdChanged(null)
-    onShowPlaylistSelectorDialogChanged(false)
+    // Settings only: domain-backed state (network, recents, playlists) and the
+    // active session stay intact; the nuclear reset is a separate action.
 }
 
 @Composable
@@ -4720,8 +4707,6 @@ filenameOnlyWhenTitleMissing = filenameOnlyWhenTitleMissing,
                                 onLastBrowserDirectoryPathChanged = { lastBrowserDirectoryPath = it },
                                 onRecentFoldersLimitChanged = { recentFoldersLimit = it },
                                 onRecentFilesLimitChanged = { recentFilesLimit = it },
-                                onRecentFoldersChanged = { recentFolders = it },
-                                onRecentPlayedFilesChanged = { recentPlayedFiles = it },
                                 onKeepScreenOnChanged = { keepScreenOn = it },
                                 onPlayerArtworkCornerRadiusDpChanged = { playerArtworkCornerRadiusDp = it },
                                 onShowAudioOutputRouteChipChanged = { showAudioOutputRouteChip = it },
@@ -4747,12 +4732,7 @@ filenameOnlyWhenTitleMissing = filenameOnlyWhenTitleMissing,
                                 onVisualizationVuAnchorChanged = { visualizationVuAnchor = it },
                                 onVisualizationVuUseThemeColorChanged = { visualizationVuUseThemeColor = it },
                                 onVisualizationVuSmoothingPercentChanged = { visualizationVuSmoothingPercent = it },
-                                onVisualizationVuRenderBackendChanged = { visualizationVuRenderBackend = it },
-                                onNetworkNodesChanged = { networkNodes = it },
-                                onPlaylistLibraryStateChanged = onPlaylistLibraryStateChanged,
-                                onActivePlaylistChanged = { activePlaylist = it },
-                                onActivePlaylistEntryIdChanged = { activePlaylistEntryId = it },
-                                onShowPlaylistSelectorDialogChanged = { showPlaylistSelectorDialog = it }
+                                onVisualizationVuRenderBackendChanged = { visualizationVuRenderBackend = it }
                             )
                         },
                                     onClearAllPluginSettings = {

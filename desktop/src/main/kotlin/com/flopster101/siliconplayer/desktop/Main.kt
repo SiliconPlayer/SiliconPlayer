@@ -1928,11 +1928,7 @@ fun main(args: Array<String>) = application {
                                             },
                                             onClearNetworkNodesUiState = { networkNodes.clear() },
                                             onClearAllUiState = {
-                                                // Desktop subset of Android clearAll: UI state that would go stale.
-                                                recentFiles.clear()
-                                                recentFolders.clear()
-                                                pinnedEntries.clear()
-                                                networkNodes.clear()
+                                                // Settings-derived UI only; domain-backed lists keep their data.
                                                 favoritesSortMode = PlaylistEntrySortMode.fromStorage(null)
                                                 currentDirectory = File(System.getProperty("user.home") ?: "/")
                                             },
