@@ -82,9 +82,9 @@ import kotlinx.coroutines.launch
 
 @Composable
 internal fun rememberDesktopSettings(
-    currentRoute: SettingsRoute,
-    onRouteChange: (SettingsRoute) -> Unit,
-    onBackToMainView: () -> Unit,
+    openSettingsRoute: (SettingsRoute) -> Unit,
+    popSettingsRoute: () -> Boolean,
+    exitSettingsToReturnView: () -> Unit,
     onOpenAudioEffects: () -> Unit = {},
     defaultScopeTextSizeSp: Int = 10,
     protectedCachePaths: Set<String> = emptySet(),
@@ -357,34 +357,20 @@ internal fun rememberDesktopSettings(
     // Box shares the built core callbacks with clear/reset below; plain array
     // (not state) so capturing during composition never recomposes.
     val coreActionsBox = remember { arrayOfNulls<SettingsPluginCoreActions>(1) }
-    val actions = remember {
+    val actions = remember(openSettingsRoute, popSettingsRoute, exitSettingsToReturnView) {
         SettingsScreenActions(
             onBack = {
-                when (currentRoute) {
-                    SettingsRoute.Root -> onBackToMainView()
-                    SettingsRoute.VisualizationBasicBars,
-                    SettingsRoute.VisualizationBasicOscilloscope,
-                    SettingsRoute.VisualizationBasicVuMeters -> onRouteChange(SettingsRoute.VisualizationBasic)
-                    SettingsRoute.VisualizationBasic -> onRouteChange(SettingsRoute.Visualization)
-                    SettingsRoute.VisualizationAdvancedChannelScope,
-                    SettingsRoute.VisualizationAdvancedStarfield,
-                    SettingsRoute.VisualizationAdvancedProjectM,
-                    SettingsRoute.VisualizationTrackTicker -> onRouteChange(SettingsRoute.VisualizationAdvanced)
-                    SettingsRoute.VisualizationAdvancedProjectMPacks -> onRouteChange(SettingsRoute.VisualizationAdvancedProjectM)
-                    SettingsRoute.VisualizationAdvanced -> onRouteChange(SettingsRoute.Visualization)
-                    SettingsRoute.LibraryScanner -> onRouteChange(SettingsRoute.Library)
-                    SettingsRoute.PluginDetail -> onRouteChange(SettingsRoute.AudioPlugins)
-                    SettingsRoute.PluginVgmPlayChipSettings -> onRouteChange(SettingsRoute.PluginDetail)
-                    else -> onRouteChange(SettingsRoute.Root)
+                if (!popSettingsRoute()) {
+                    exitSettingsToReturnView()
                 }
             },
-            onOpenAudioPlugins = { onRouteChange(SettingsRoute.AudioPlugins) },
-            onOpenGeneralAudio = { onRouteChange(SettingsRoute.GeneralAudio) },
-            onOpenLibrary = { onRouteChange(SettingsRoute.Library) },
-            onOpenLibraryScanner = { onRouteChange(SettingsRoute.LibraryScanner) },
-            onOpenHome = { onRouteChange(SettingsRoute.Home) },
-            onOpenFileBrowser = { onRouteChange(SettingsRoute.FileBrowser) },
-            onOpenNetwork = { onRouteChange(SettingsRoute.Network) },
+            onOpenAudioPlugins = { openSettingsRoute(SettingsRoute.AudioPlugins) },
+            onOpenGeneralAudio = { openSettingsRoute(SettingsRoute.GeneralAudio) },
+            onOpenLibrary = { openSettingsRoute(SettingsRoute.Library) },
+            onOpenLibraryScanner = { openSettingsRoute(SettingsRoute.LibraryScanner) },
+            onOpenHome = { openSettingsRoute(SettingsRoute.Home) },
+            onOpenFileBrowser = { openSettingsRoute(SettingsRoute.FileBrowser) },
+            onOpenNetwork = { openSettingsRoute(SettingsRoute.Network) },
             onOpenAudioEffects = onOpenAudioEffects,
             onClearAllAudioParameters = {
                 clearAllAudioParameterPrefs(prefs)
@@ -408,28 +394,28 @@ internal fun rememberDesktopSettings(
                 runCatching { NativeBridge.setSongGain(0f) }
                 changeToken++
             },
-            onOpenPlayer = { onRouteChange(SettingsRoute.Player) },
-            onOpenVisualization = { onRouteChange(SettingsRoute.Visualization) },
-            onOpenVisualizationBasic = { onRouteChange(SettingsRoute.VisualizationBasic) },
-            onOpenVisualizationTrackTicker = { onRouteChange(SettingsRoute.VisualizationTrackTicker) },
-            onOpenVisualizationBasicBars = { onRouteChange(SettingsRoute.VisualizationBasicBars) },
-            onOpenVisualizationBasicOscilloscope = { onRouteChange(SettingsRoute.VisualizationBasicOscilloscope) },
-            onOpenVisualizationBasicVuMeters = { onRouteChange(SettingsRoute.VisualizationBasicVuMeters) },
-            onOpenVisualizationAdvanced = { onRouteChange(SettingsRoute.VisualizationAdvanced) },
-            onOpenVisualizationAdvancedChannelScope = { onRouteChange(SettingsRoute.VisualizationAdvancedChannelScope) },
-            onOpenVisualizationAdvancedStarfield = { onRouteChange(SettingsRoute.VisualizationAdvancedStarfield) },
-            onOpenVisualizationAdvancedProjectM = { onRouteChange(SettingsRoute.VisualizationAdvancedProjectM) },
-            onOpenVisualizationProjectMPacks = { onRouteChange(SettingsRoute.VisualizationAdvancedProjectMPacks) },
-            onOpenMisc = { onRouteChange(SettingsRoute.Misc) },
-            onOpenUrlCache = { onRouteChange(SettingsRoute.UrlCache) },
-            onOpenCacheManager = { onRouteChange(SettingsRoute.CacheManager) },
-            onOpenUi = { onRouteChange(SettingsRoute.Ui) },
-            onOpenAbout = { onRouteChange(SettingsRoute.About) },
+            onOpenPlayer = { openSettingsRoute(SettingsRoute.Player) },
+            onOpenVisualization = { openSettingsRoute(SettingsRoute.Visualization) },
+            onOpenVisualizationBasic = { openSettingsRoute(SettingsRoute.VisualizationBasic) },
+            onOpenVisualizationTrackTicker = { openSettingsRoute(SettingsRoute.VisualizationTrackTicker) },
+            onOpenVisualizationBasicBars = { openSettingsRoute(SettingsRoute.VisualizationBasicBars) },
+            onOpenVisualizationBasicOscilloscope = { openSettingsRoute(SettingsRoute.VisualizationBasicOscilloscope) },
+            onOpenVisualizationBasicVuMeters = { openSettingsRoute(SettingsRoute.VisualizationBasicVuMeters) },
+            onOpenVisualizationAdvanced = { openSettingsRoute(SettingsRoute.VisualizationAdvanced) },
+            onOpenVisualizationAdvancedChannelScope = { openSettingsRoute(SettingsRoute.VisualizationAdvancedChannelScope) },
+            onOpenVisualizationAdvancedStarfield = { openSettingsRoute(SettingsRoute.VisualizationAdvancedStarfield) },
+            onOpenVisualizationAdvancedProjectM = { openSettingsRoute(SettingsRoute.VisualizationAdvancedProjectM) },
+            onOpenVisualizationProjectMPacks = { openSettingsRoute(SettingsRoute.VisualizationAdvancedProjectMPacks) },
+            onOpenMisc = { openSettingsRoute(SettingsRoute.Misc) },
+            onOpenUrlCache = { openSettingsRoute(SettingsRoute.UrlCache) },
+            onOpenCacheManager = { openSettingsRoute(SettingsRoute.CacheManager) },
+            onOpenUi = { openSettingsRoute(SettingsRoute.Ui) },
+            onOpenAbout = { openSettingsRoute(SettingsRoute.About) },
             pluginCoreActions = SettingsPluginCoreActions(
-                onOpenVgmPlayChipSettings = { onRouteChange(SettingsRoute.PluginVgmPlayChipSettings) },
+                onOpenVgmPlayChipSettings = { openSettingsRoute(SettingsRoute.PluginVgmPlayChipSettings) },
                 onPluginSelected = { pluginName ->
                     selectedPluginName = pluginName
-                    onRouteChange(SettingsRoute.PluginDetail)
+                    openSettingsRoute(SettingsRoute.PluginDetail)
                 },
                 onPluginEnabledChanged = { pluginName, enabled ->
                     runCatching { NativeBridge.setDecoderEnabled(pluginName, enabled) }

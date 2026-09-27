@@ -158,6 +158,7 @@ import com.flopster101.siliconplayer.SettingsScreen
 import com.flopster101.siliconplayer.inferredPrimaryExtensionForName
 import com.flopster101.siliconplayer.MainView
 import com.flopster101.siliconplayer.SettingsRoute
+import com.flopster101.siliconplayer.buildSettingsNavigationCoordinator
 import com.flopster101.siliconplayer.BrowserRouteMode
 import com.flopster101.siliconplayer.rememberBrowserRouteRenderState
 import com.flopster101.siliconplayer.resolveBrowserRouteResolution
@@ -253,6 +254,8 @@ fun main(args: Array<String>) = application {
         mutableStateOf(File(System.getProperty("user.home") ?: "/"))
     }
     var settingsRoute by remember { mutableStateOf(SettingsRoute.Root) }
+    var settingsRouteHistory by remember { mutableStateOf<List<SettingsRoute>>(emptyList()) }
+    var settingsReturnView by remember { mutableStateOf(MainView.Home) }
 
     val networkNodes = remember { mutableStateListOf<NetworkNode>() }
     var currentNetworkFolderId by remember { mutableStateOf<Long?>(null) }
@@ -289,6 +292,29 @@ fun main(args: Array<String>) = application {
         remoteSmbAllowHostShareNavigation = allowHostShareNavigation
         browserReturnView = MainView.Network
         currentView = MainView.Browser
+    }
+
+    // Shared settings back-stack (route history + return view); mirrors Android.
+    val settingsNavigationCoordinator = buildSettingsNavigationCoordinator(
+        currentView = currentView,
+        settingsRoute = settingsRoute,
+        settingsRouteHistory = settingsRouteHistory,
+        settingsReturnView = settingsReturnView,
+        lastUsedCoreName = session.decoderName,
+        setSettingsRoute = { settingsRoute = it },
+        setSettingsRouteHistory = { settingsRouteHistory = it },
+        setSettingsReturnView = { settingsReturnView = it },
+        setCurrentView = { currentView = it },
+        setSelectedPluginName = { },
+        setPlayerExpanded = { isPlayerExpanded = it }
+    )
+
+    fun enterSettings(targetRoute: SettingsRoute) {
+        settingsReturnView = (if (currentView == MainView.Settings) settingsReturnView else currentView)
+            .takeUnless { it == MainView.Settings }
+            ?: MainView.Home
+        settingsNavigationCoordinator.openSettingsRoute(targetRoute, true)
+        currentView = MainView.Settings
     }
 
     val recentFiles = remember { mutableStateListOf<RecentPathEntry>() }
@@ -443,6 +469,49 @@ fun main(args: Array<String>) = application {
         },
         state = windowState,
         title = windowTitle,
+        onPreviewKeyEvent = { keyEvent ->
+            // Capture-phase Escape: a focused child must never swallow back.
+            if (keyEvent.type == KeyEventType.KeyDown && keyEvent.key == Key.Escape) {
+                if (backDispatcher.onBackPressed()) {
+                    return@Window true
+                }
+                if (dismissAudioEffectsDialogHandler?.invoke() == true) {
+                    return@Window true
+                }
+                if (showTrackInfoDialog) {
+                    showTrackInfoDialog = false
+                    return@Window true
+                }
+                if (showSubtuneSelectorDialog) {
+                    showSubtuneSelectorDialog = false
+                    return@Window true
+                }
+                if (selectorImportEntries != null) {
+                    selectorImportEntries = null
+                    selectorImportTitle = null
+                    return@Window true
+                }
+                if (showPlaylistSelectorDialog) {
+                    showPlaylistSelectorDialog = false
+                    return@Window true
+                }
+                if (isPlayerExpanded) {
+                    isPlayerExpanded = false
+                    return@Window true
+                }
+                if (currentView == MainView.Settings) {
+                    if (!settingsNavigationCoordinator.popSettingsRoute()) {
+                        settingsNavigationCoordinator.exitSettingsToReturnView()
+                    }
+                    return@Window true
+                }
+                if (currentView != MainView.Home) {
+                    currentView = MainView.Home
+                    return@Window true
+                }
+            }
+            false
+        },
         onKeyEvent = { keyEvent ->
             if (keyEvent.type == KeyEventType.KeyDown) {
                 if (keyEvent.key == Key.I) {
@@ -452,46 +521,6 @@ fun main(args: Array<String>) = application {
                         } else {
                             showTrackInfoDialog = !showTrackInfoDialog
                         }
-                        return@Window true
-                    }
-                } else if (keyEvent.key == Key.Escape) {
-                    if (backDispatcher.onBackPressed()) {
-                        return@Window true
-                    }
-                    if (dismissAudioEffectsDialogHandler?.invoke() == true) {
-                        return@Window true
-                    }
-                    if (showTrackInfoDialog) {
-                        showTrackInfoDialog = false
-                        return@Window true
-                    }
-                    if (showSubtuneSelectorDialog) {
-                        showSubtuneSelectorDialog = false
-                        return@Window true
-                    }
-                    if (selectorImportEntries != null) {
-                        selectorImportEntries = null
-                        selectorImportTitle = null
-                        return@Window true
-                    }
-                    if (showPlaylistSelectorDialog) {
-                        showPlaylistSelectorDialog = false
-                        return@Window true
-                    }
-                    if (isPlayerExpanded) {
-                        isPlayerExpanded = false
-                        return@Window true
-                    }
-                    if (currentView == MainView.Settings) {
-                        if (settingsRoute != SettingsRoute.Root) {
-                            settingsRoute = SettingsRoute.Root
-                        } else {
-                            currentView = MainView.Home
-                        }
-                        return@Window true
-                    }
-                    if (currentView != MainView.Home) {
-                        currentView = MainView.Home
                         return@Window true
                     }
                 }
@@ -1104,8 +1133,7 @@ fun main(args: Array<String>) = application {
                             onHomeRequested = { currentView = MainView.Home },
                             onOpenUrlOrPathRequested = { showUrlOrPathDialog = true },
                             onSettingsRequested = {
-                                currentView = MainView.Settings
-                                settingsRoute = SettingsRoute.Root
+                                enterSettings(SettingsRoute.Root)
                             }
                         ) { mainPadding, targetView ->
                             val bottomMargin = if (isPlayerSurfaceVisible && !isPlayerExpanded) {
@@ -1251,8 +1279,7 @@ fun main(args: Array<String>) = application {
                                                 isPlayerExpanded = true
                                             },
                                             onOpenSettings = {
-                                                currentView = MainView.Settings
-                                                settingsRoute = SettingsRoute.Root
+                                                enterSettings(SettingsRoute.Root)
                                             },
                                             onOpenUrlOrPath = { showUrlOrPathDialog = true }
                                         )
@@ -1439,8 +1466,7 @@ fun main(args: Array<String>) = application {
                                             pinnedHomeEntries = pinnedEntries,
                                             surfaceState = librarySurfaceState,
                                             onOpenLibrarySettings = {
-                                                currentView = MainView.Settings
-                                                settingsRoute = SettingsRoute.Library
+                                                enterSettings(SettingsRoute.Library)
                                             },
                                             activePlaylist = activePlaylist,
                                             activePlaylistEntryId = activePlaylistEntryId,
@@ -1689,8 +1715,9 @@ fun main(args: Array<String>) = application {
                                             if (path != null && path.startsWith(cachePrefix)) setOf(path) else emptySet()
                                         }
                                         val (desktopSettingsState, desktopSettingsActions) = rememberDesktopSettings(
-                                            currentRoute = settingsRoute,
-                                            onRouteChange = { settingsRoute = it },
+                                            openSettingsRoute = { settingsNavigationCoordinator.openSettingsRoute(it, false) },
+                                            popSettingsRoute = settingsNavigationCoordinator.popSettingsRoute,
+                                            exitSettingsToReturnView = settingsNavigationCoordinator.exitSettingsToReturnView,
                                             onOpenAudioEffects = { openAudioEffectsDialog() },
                                             protectedCachePaths = settingsProtectedCachePaths,
                                             onSelectVisualizationMode = visualizationUiState.onSelectMode,
@@ -1709,13 +1736,6 @@ fun main(args: Array<String>) = application {
                                                 favoritesSortMode = PlaylistEntrySortMode.fromStorage(null)
                                                 currentDirectory = File(System.getProperty("user.home") ?: "/")
                                             },
-                                            onBackToMainView = {
-                                                if (settingsRoute != SettingsRoute.Root) {
-                                                    settingsRoute = SettingsRoute.Root
-                                                } else {
-                                                    currentView = MainView.Home
-                                                }
-                                            }
                                         )
                                         SettingsScreen(
                                             route = settingsRoute,
@@ -1994,20 +2014,12 @@ fun main(args: Array<String>) = application {
                                     onCycleVisualizationMode = visualizationUiState.onCycleMode,
                                     onSelectVisualizationMode = visualizationUiState.onSelectMode,
                                     onOpenVisualizationSettings = {
-                                        currentView = MainView.Settings
-                                        settingsRoute = SettingsRoute.Visualization
+                                        settingsNavigationCoordinator.openVisualizationSettings()
                                     },
                                     onOpenSelectedVisualizationSettings = {
-                                        currentView = MainView.Settings
-                                        settingsRoute = when (visualizationUiState.mode) {
-                                            VisualizationMode.Bars -> SettingsRoute.VisualizationBasicBars
-                                            VisualizationMode.Oscilloscope -> SettingsRoute.VisualizationBasicOscilloscope
-                                            VisualizationMode.VuMeters -> SettingsRoute.VisualizationBasicVuMeters
-                                            VisualizationMode.ChannelScope -> SettingsRoute.VisualizationAdvancedChannelScope
-                                            VisualizationMode.Starfield -> SettingsRoute.VisualizationAdvancedStarfield
-                                            VisualizationMode.ProjectM -> SettingsRoute.VisualizationAdvancedProjectM
-                                            else -> SettingsRoute.Visualization
-                                        }
+                                        settingsNavigationCoordinator.openSelectedVisualizationSettings(
+                                            visualizationUiState.mode
+                                        )
                                     },
                                     visualizationBarCount = prefs.getInt(
                                         AppPreferenceKeys.VISUALIZATION_BAR_COUNT,
