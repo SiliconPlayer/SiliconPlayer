@@ -43,6 +43,8 @@ import com.flopster101.siliconplayer.resolveManualSourceInput
 import com.flopster101.siliconplayer.RemotePlayableSourceIdsHolder
 import com.flopster101.siliconplayer.RemoteLoadUiStateHolder
 import com.flopster101.siliconplayer.platform.rememberRemoteSourceExportSupport
+import com.flopster101.siliconplayer.formatSourceIdForDisplay
+import com.flopster101.siliconplayer.resolvePlaybackSourceLabel
 import com.flopster101.siliconplayer.resolveNetworkNodeHttpSpec
 import com.flopster101.siliconplayer.resolveNetworkNodeSmbSpec
 import com.flopster101.siliconplayer.readNetworkNodes
@@ -828,7 +830,7 @@ fun main(args: Array<String>) = application {
                 }
             }
             fun buildCurrentTrackEntry(): PlaylistTrackEntry? {
-                val path = session.currentFile?.absolutePath ?: return null
+                val path = session.currentSourceId ?: return null
                 return PlaylistTrackEntry(
                     id = java.util.UUID.randomUUID().toString(),
                     source = path,
@@ -955,7 +957,7 @@ fun main(args: Array<String>) = application {
             fun openAudioEffectsDialog() {
                 masterVolumeDb = prefs.getFloat(AppPreferenceKeys.AUDIO_MASTER_VOLUME_DB, 0f)
                 forceMono = prefs.getBoolean(AppPreferenceKeys.AUDIO_FORCE_MONO, false)
-                val path = session.currentFile?.absolutePath
+                val path = session.currentSourceId
                 songVolumeDb = path?.let { songVolumeStore.getSongVolume(it) } ?: 0f
                 ignoreCoreVolumeForSong = path?.let { songVolumeStore.getSongIgnoreCoreVolume(it) } ?: false
                 globalDspSettings = readGlobalDspSettings(prefs)
@@ -1020,7 +1022,7 @@ fun main(args: Array<String>) = application {
                     apply()
                 }
                 writePluginVolumeForDecoder(prefs, coreName, tempPluginVolumeDb)
-                session.currentFile?.absolutePath?.let { path ->
+                session.currentSourceId?.let { path ->
                     songVolumeStore.setSongVolume(path, tempSongVolumeDb)
                     songVolumeStore.setSongIgnoreCoreVolume(path, tempIgnoreCoreVolumeForSong)
                 }
@@ -1254,8 +1256,8 @@ fun main(args: Array<String>) = application {
                 pushAudioPipelineConfigToNative(prefs)
                 applyDspSettingsToNative(readGlobalDspSettings(prefs))
             }
-            LaunchedEffect(session.currentFile, session.decoderName) {
-                val path = session.currentFile?.absolutePath
+            LaunchedEffect(session.currentSourceId, session.decoderName) {
+                val path = session.currentSourceId
                 songVolumeDb = path?.let { songVolumeStore.getSongVolume(it) } ?: 0f
                 ignoreCoreVolumeForSong = path?.let { songVolumeStore.getSongIgnoreCoreVolume(it) } ?: false
                 NativeBridge.setPluginGain(
@@ -1296,7 +1298,7 @@ fun main(args: Array<String>) = application {
                         writePinnedHomeEntries(configDir, pinned)
                     }
             }
-            val currentTrackPath = session.currentFile?.absolutePath
+            val currentTrackPath = session.currentSourceId
             val isCurrentTrackFavorited = currentTrackPath != null &&
                 playlistLibraryState.favorites.any { it.source == currentTrackPath }
 
@@ -1341,7 +1343,7 @@ fun main(args: Array<String>) = application {
                                 when (targetView) {
                                     MainView.Home -> {
                                         HomeScreen(
-                                            currentTrackPath = session.currentFile?.absolutePath,
+                                            currentTrackPath = session.currentSourceId,
                                             currentTrackTitle = session.title,
                                             currentTrackArtist = session.artist,
                                             pinnedHomeEntries = pinnedEntries,
@@ -1673,7 +1675,7 @@ fun main(args: Array<String>) = application {
                                             },
                                             activePlaylist = activePlaylist,
                                             activePlaylistEntryId = activePlaylistEntryId,
-                                            currentPlaybackSourceId = session.currentFile?.absolutePath,
+                                            currentPlaybackSourceId = session.currentSourceId,
                                             currentPlaybackTitle = session.title,
                                             currentPlaybackArtist = session.artist,
                                             currentSubtuneIndex = session.subtuneIndex,
@@ -2182,9 +2184,13 @@ fun main(args: Array<String>) = application {
                                     channelCount = session.channelCount,
                                     bitDepthLabel = session.bitDepthLabel,
                                     decoderName = session.decoderName,
-                                    playbackSourceLabel = "Local",
-                                    pathOrUrl = session.currentFile?.absolutePath,
-                                    playbackSourceId = session.currentFile?.absolutePath,
+                                    playbackSourceLabel = resolvePlaybackSourceLabel(
+                                        session.currentFile,
+                                        session.currentSourceId,
+                                        networkNodes
+                                    ),
+                                    pathOrUrl = formatSourceIdForDisplay(session.currentSourceId, networkNodes),
+                                    playbackSourceId = session.currentSourceId,
                                     artwork = session.artwork,
                                     noArtworkIcon = placeholderArtworkIconForFile(session.currentFile, session.decoderName),
                                     requestInitialFocus = true,
@@ -2232,7 +2238,7 @@ fun main(args: Array<String>) = application {
                                         }
                                     },
                                     onRemoveFromPlaylist = { playlistId ->
-                                        val path = session.currentFile?.absolutePath
+                                        val path = session.currentSourceId
                                         if (path != null) {
                                             removeSourceFromPlaylist(
                                                 playlistId,
@@ -2380,8 +2386,12 @@ fun main(args: Array<String>) = application {
                             title = session.title,
                             artist = session.artist,
                             decoderName = session.decoderName,
-                            playbackSourceLabel = "Local",
-                            pathOrUrl = session.currentFile?.absolutePath,
+                            playbackSourceLabel = resolvePlaybackSourceLabel(
+                                session.currentFile,
+                                session.currentSourceId,
+                                networkNodes
+                            ),
+                            pathOrUrl = formatSourceIdForDisplay(session.currentSourceId, networkNodes),
                             sampleRateHz = session.sampleRateHz,
                             channelCount = session.channelCount,
                             bitDepthLabel = session.bitDepthLabel,

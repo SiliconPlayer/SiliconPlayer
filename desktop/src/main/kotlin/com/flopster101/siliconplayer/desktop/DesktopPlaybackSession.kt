@@ -22,6 +22,8 @@ import com.flopster101.siliconplayer.canSeekPlayback
 import com.flopster101.siliconplayer.cycleRepeatModeValue
 import com.flopster101.siliconplayer.hasReliableDuration
 import com.flopster101.siliconplayer.resolveActiveRepeatMode
+import com.flopster101.siliconplayer.resolveCachedRemoteSourceId
+import com.flopster101.siliconplayer.resolveManualSourceInput
 import com.flopster101.siliconplayer.supportsLiveRepeatMode
 import com.flopster101.siliconplayer.platform.AppPreferences
 import java.io.File
@@ -86,6 +88,10 @@ class DesktopPlaybackSession(
     var artwork by mutableStateOf<ImageBitmap?>(null)
         private set
 
+    // Remote-aware playback identity, mirroring Android's currentPlaybackSourceId.
+    var currentSourceId by mutableStateOf<String?>(null)
+        private set
+
     var playbackCapabilitiesFlags by mutableIntStateOf(0)
         private set
 
@@ -135,14 +141,20 @@ class DesktopPlaybackSession(
         }
         trackOptionsPrefs?.let { pushStoredTrackOptionsToNative(it) }
 
+        val remoteSourceId = runCatching { resolveCachedRemoteSourceId(file.absolutePath) }.getOrNull()
         currentFile = file
         currentSource = file.absolutePath
+        currentSourceId = remoteSourceId ?: file.absolutePath
         stoppedSource = null
         refreshMetadata()
         refreshRepeatMode()
         artwork = null
         scope.launch(Dispatchers.IO) {
-            artwork = DesktopArtworkSupport.loadArtworkForFile(file)
+            artwork = DesktopArtworkSupport.loadArtworkForSource(
+                displayFile = file,
+                sourceId = remoteSourceId ?: file.absolutePath,
+                requestUrl = remoteSourceId
+            )
         }
 
         // loadAudio without start leaves a loaded-but-paused track (mirrors autoStart=false).
@@ -196,16 +208,23 @@ class DesktopPlaybackSession(
             NativeBridge.loadAudio(source)
         }
         trackOptionsPrefs?.let { pushStoredTrackOptionsToNative(it) }
-        currentFile = File(source)
+        val resolved = resolveManualSourceInput(source)
+        currentFile = resolved?.displayFile ?: File(source)
         currentSource = source
+        currentSourceId = resolved?.sourceId ?: source
         stoppedSource = null
         refreshMetadata()
         refreshRepeatMode()
         artwork = null
         scope.launch(Dispatchers.IO) {
-            val f = currentFile
-            if (f != null && f.exists() && f.isFile) {
-                artwork = DesktopArtworkSupport.loadArtworkForFile(f)
+            val displayFile = currentFile
+            val sourceId = currentSourceId
+            if (displayFile != null) {
+                artwork = DesktopArtworkSupport.loadArtworkForSource(
+                    displayFile = displayFile,
+                    sourceId = sourceId,
+                    requestUrl = resolved?.requestUrl ?: sourceId
+                )
             }
         }
         if (title.isBlank() && !titleHint.isNullOrBlank()) {
@@ -278,6 +297,7 @@ class DesktopPlaybackSession(
     private fun clearTrackState() {
         currentFile = null
         currentSource = null
+        currentSourceId = null
         title = ""
         artist = ""
         album = ""

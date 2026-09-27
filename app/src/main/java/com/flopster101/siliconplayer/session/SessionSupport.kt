@@ -21,52 +21,6 @@ import com.flopster101.siliconplayer.ui.screens.NetworkIcons
 import java.io.File
 import java.util.Locale
 
-private fun resolveCachedRemoteSourceId(localPath: String): String? {
-    val candidate = File(localPath)
-    val parent = candidate.parentFile ?: return null
-    if (parent.name != REMOTE_SOURCE_CACHE_DIR) return null
-    return sourceIdForCachedFileName(parent, candidate.name)
-}
-
-
-internal fun resolvePlaybackSourceLabel(
-    selectedFile: File?,
-    sourceId: String?,
-    networkNodes: List<NetworkNode> = emptyList()
-): String? {
-    if (selectedFile == null) return null
-    val normalizedSource = normalizeSourceIdentity(sourceId ?: selectedFile.absolutePath) ?: return "Local"
-    val scheme = Uri.parse(normalizedSource).scheme?.lowercase(Locale.ROOT)
-    val isRemote = scheme == "http" || scheme == "https"
-    val isSmb = scheme == "smb"
-    if (scheme == "archive") return "Archive"
-    if (isSmb) {
-        val smbSpec = parseSmbSourceSpecFromInput(normalizedSource)
-        if (smbSpec != null) {
-            val suffix = if (selectedFile.absolutePath.contains("/cache/remote_sources/")) {
-                " (cached)"
-            } else {
-                ""
-            }
-            val displayHost = resolveSmbDisplayHost(smbSpec.host, networkNodes)
-            val decodedShare = decodePercentEncodedForDisplay(smbSpec.share) ?: smbSpec.share
-            val smbTarget = if (decodedShare.isBlank()) {
-                displayHost
-            } else {
-                "$displayHost/$decodedShare"
-            }
-            return "SMB ($smbTarget)$suffix"
-        }
-        return "SMB"
-    }
-    if (!isRemote) return "Local"
-    return if (selectedFile.absolutePath.contains("/cache/remote_sources/")) {
-        "Streamed (cached)"
-    } else {
-        "Streamed"
-    }
-}
-
 
 internal fun resolveStorageRootFromAppDir(appSpecificDir: File): File? {
     val marker = "/Android/"

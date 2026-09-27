@@ -60,6 +60,45 @@ internal fun normalizeSourceIdentity(path: String?): String? {
     }
 }
 
+// Cached remote tracks live under the remote cache dir; the index maps the
+// hash-prefixed file name back to the source it was downloaded from.
+internal fun resolveCachedRemoteSourceId(localPath: String): String? {
+    val candidate = File(localPath)
+    val parent = candidate.parentFile ?: return null
+    if (parent.name != REMOTE_SOURCE_CACHE_DIR) return null
+    return sourceIdForCachedFileName(parent, candidate.name)
+}
+
+internal fun resolvePlaybackSourceLabel(
+    selectedFile: File?,
+    sourceId: String?,
+    networkNodes: List<NetworkNode> = emptyList()
+): String? {
+    if (selectedFile == null) return null
+    val normalizedSource = normalizeSourceIdentity(sourceId ?: selectedFile.absolutePath) ?: return "Local"
+    val scheme = normalizedSource
+        .substringBefore(':', missingDelimiterValue = "")
+        .lowercase(Locale.ROOT)
+    val isCachedRemote = selectedFile.absolutePath.contains("/$REMOTE_SOURCE_CACHE_DIR/")
+    when (scheme) {
+        "smb" -> {
+            val smbSpec = parseSmbSourceSpecFromInput(normalizedSource) ?: return "SMB"
+            val displayHost = resolveSmbDisplayHost(smbSpec.host, networkNodes)
+            val decodedShare = decodePercentEncodedForDisplay(smbSpec.share) ?: smbSpec.share
+            val smbTarget = if (decodedShare.isBlank()) {
+                displayHost
+            } else {
+                "$displayHost/$decodedShare"
+            }
+            val suffix = if (isCachedRemote) " (cached)" else ""
+            return "SMB ($smbTarget)$suffix"
+        }
+        "archive" -> return "Archive"
+        "http", "https" -> return if (isCachedRemote) "Streamed (cached)" else "Streamed"
+    }
+    return "Local"
+}
+
 private fun normalizeArchiveContainerLocation(rawArchiveLocation: String): String {
     val scheme = runCatching { URI(rawArchiveLocation).scheme?.lowercase(Locale.ROOT) }.getOrNull()
     return when (scheme) {
