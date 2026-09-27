@@ -36,3 +36,7 @@ internal fun shouldRestartCurrentTrackOnPrevious(
 internal fun pluginNameForCoreName(coreName: String?): String? {
     return canonicalDecoderNameForAlias(coreName)
 }
+
+internal fun canOpenCoreSettingsForDecoder(decoderName: String?): Boolean {
+    return pluginNameForCoreName(decoderName) != null
+}

@@ -59,6 +59,9 @@ class DesktopPlaybackSession(
     var decoderName by mutableStateOf<String?>(null)
         private set
 
+    var lastUsedCoreName by mutableStateOf<String?>(null)
+        private set
+
     var sampleRateHz by mutableIntStateOf(0)
         private set
 
@@ -356,7 +359,11 @@ class DesktopPlaybackSession(
         title = if (currentTitle.isNotBlank()) currentTitle else fileLeaf
         artist = if (currentArtist.isNotBlank()) currentArtist else "Unknown Artist"
         album = if (currentAlbum.isNotBlank()) currentAlbum else ""
-        decoderName = NativeBridge.getCurrentDecoderName()
+        val currentDecoderName = NativeBridge.getCurrentDecoderName()
+        decoderName = currentDecoderName
+        currentDecoderName?.trim()?.takeIf { it.isNotEmpty() }?.let {
+            lastUsedCoreName = it
+        }
         sampleRateHz = NativeBridge.getTrackSampleRate()
         channelCount = NativeBridge.getTrackChannelCount()
         bitDepthLabel = resolveTrackBitDepthLabel()

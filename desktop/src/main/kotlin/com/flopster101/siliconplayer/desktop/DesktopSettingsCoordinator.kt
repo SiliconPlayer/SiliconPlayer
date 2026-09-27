@@ -103,6 +103,8 @@ internal fun pushAudioPipelineConfigToNative(prefs: AppPreferences) {
 
 @Composable
 internal fun rememberDesktopSettings(
+    selectedPluginName: String? = null,
+    onSelectPluginName: (String?) -> Unit = {},
     openSettingsRoute: (SettingsRoute) -> Unit,
     popSettingsRoute: () -> Boolean,
     exitSettingsToReturnView: () -> Unit,
@@ -136,8 +138,6 @@ internal fun rememberDesktopSettings(
         prefs.addListener(listener)
         onDispose { prefs.removeListener(listener) }
     }
-
-    var selectedPluginName by remember { mutableStateOf<String?>(null) }
 
     fun putBool(key: String, value: Boolean) {
         prefs.edit().putBoolean(key, value).apply()
@@ -449,7 +449,7 @@ internal fun rememberDesktopSettings(
             pluginCoreActions = SettingsPluginCoreActions(
                 onOpenVgmPlayChipSettings = { openSettingsRoute(SettingsRoute.PluginVgmPlayChipSettings) },
                 onPluginSelected = { pluginName ->
-                    selectedPluginName = pluginName
+                    onSelectPluginName(pluginName)
                     openSettingsRoute(SettingsRoute.PluginDetail)
                 },
                 onPluginEnabledChanged = { pluginName, enabled ->

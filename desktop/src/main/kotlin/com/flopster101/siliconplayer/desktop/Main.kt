@@ -192,6 +192,7 @@ import com.flopster101.siliconplayer.AppPreferenceKeys
 import com.flopster101.siliconplayer.LocalPlayerExitSlideFraction
 import com.flopster101.siliconplayer.LocalPlayerOverlayVisibility
 import com.flopster101.siliconplayer.ThemeMode
+import com.flopster101.siliconplayer.canOpenCoreSettingsForDecoder
 import com.flopster101.siliconplayer.canSeekPlayback
 import com.flopster101.siliconplayer.formatShortDuration
 import com.flopster101.siliconplayer.hasReliableDuration
@@ -262,6 +263,7 @@ fun main(args: Array<String>) = application {
     var settingsRoute by remember { mutableStateOf(SettingsRoute.Root) }
     var settingsRouteHistory by remember { mutableStateOf<List<SettingsRoute>>(emptyList()) }
     var settingsReturnView by remember { mutableStateOf(MainView.Home) }
+    var selectedPluginName by remember { mutableStateOf<String?>(null) }
 
     val networkNodes = remember { mutableStateListOf<NetworkNode>() }
     var currentNetworkFolderId by remember { mutableStateOf<Long?>(null) }
@@ -306,12 +308,12 @@ fun main(args: Array<String>) = application {
         settingsRoute = settingsRoute,
         settingsRouteHistory = settingsRouteHistory,
         settingsReturnView = settingsReturnView,
-        lastUsedCoreName = session.decoderName,
+        lastUsedCoreName = session.decoderName ?: session.lastUsedCoreName,
         setSettingsRoute = { settingsRoute = it },
         setSettingsRouteHistory = { settingsRouteHistory = it },
         setSettingsReturnView = { settingsReturnView = it },
         setCurrentView = { currentView = it },
-        setSelectedPluginName = { },
+        setSelectedPluginName = { selectedPluginName = it },
         setPlayerExpanded = { isPlayerExpanded = it }
     )
 
@@ -1842,6 +1844,8 @@ fun main(args: Array<String>) = application {
                                             if (path != null && path.startsWith(cachePrefix)) setOf(path) else emptySet()
                                         }
                                         val (desktopSettingsState, desktopSettingsActions) = rememberDesktopSettings(
+                                            selectedPluginName = selectedPluginName,
+                                            onSelectPluginName = { selectedPluginName = it },
                                             openSettingsRoute = { settingsNavigationCoordinator.openSettingsRoute(it, false) },
                                             popSettingsRoute = settingsNavigationCoordinator.popSettingsRoute,
                                             exitSettingsToReturnView = settingsNavigationCoordinator.exitSettingsToReturnView,
@@ -2183,8 +2187,10 @@ fun main(args: Array<String>) = application {
                                             toastHandler.showToast(next.label)
                                         }
                                     },
-                                    canOpenCoreSettings = false,
-                                    onOpenCoreSettings = {},
+                                    canOpenCoreSettings = canOpenCoreSettingsForDecoder(
+                                        session.decoderName ?: session.lastUsedCoreName
+                                    ),
+                                    onOpenCoreSettings = settingsNavigationCoordinator.openCurrentCoreSettings,
                                     visualizationMode = visualizationUiState.mode,
                                     availableVisualizationModes = visualizationUiState.availableModes,
                                     onCycleVisualizationMode = visualizationUiState.onCycleMode,

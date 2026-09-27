@@ -3530,8 +3530,7 @@ private fun AppNavigation(
         stopAndEmptyTrackBase()
     }
     val activeCoreNameForUi = lastUsedCoreName
-    val currentCorePluginName = pluginNameForCoreName(activeCoreNameForUi)
-    val canOpenCurrentCoreSettings = currentCorePluginName != null
+    val canOpenCurrentCoreSettings = canOpenCoreSettingsForDecoder(activeCoreNameForUi)
     val visualizationUiState = rememberVisualizationUiState(
         prefs = prefs,
         activeCoreName = activeCoreNameForUi,
