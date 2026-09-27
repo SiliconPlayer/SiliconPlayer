@@ -9,6 +9,7 @@ import com.flopster101.siliconplayer.NativeTrackSnapshot
 import com.flopster101.siliconplayer.currentTrackIndexForList
 import com.flopster101.siliconplayer.loadTrackSnapshotForSelection
 import com.flopster101.siliconplayer.runWithNativeAudioSession
+import com.flopster101.siliconplayer.resolveAdjacentIndex
 import com.flopster101.siliconplayer.resolvePreviousTrackAction
 import com.flopster101.siliconplayer.resolveResumeTarget
 import com.flopster101.siliconplayer.samePath
@@ -178,17 +179,10 @@ internal fun playAdjacentTrackAction(
     }
     if (currentIndex < 0) return false
 
-    val rawTargetIndex = currentIndex + offset
     val shouldWrap = wrapOverride ?: playlistWrapNavigation
-    val targetIndex = if (shouldWrap) {
-        val wrappedTargetIndex = ((rawTargetIndex % playlistSize) + playlistSize) % playlistSize
-        val wrapped = rawTargetIndex !in (0 until playlistSize) && playlistSize > 1
-        if (wrapped) {
-            onPlaylistWrapped(offset)
-        }
-        wrappedTargetIndex
-    } else {
-        rawTargetIndex
+    val targetIndex = resolveAdjacentIndex(currentIndex, offset, playlistSize, shouldWrap) ?: return false
+    if (shouldWrap && currentIndex + offset !in (0 until playlistSize) && playlistSize > 1) {
+        onPlaylistWrapped(offset)
     }
 
     if (hasLocalPlaylist) {

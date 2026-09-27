@@ -616,21 +616,14 @@ private fun playAdjacentPlaylistEntry(
         ?: -1
     if (currentIndex !in entries.indices) return false
     val shouldWrap = wrapOverride ?: playlistWrapNavigation
-    val rawTargetIndex = currentIndex + offset
-    val targetIndex = if (shouldWrap) {
-        val wrappedIndex = ((rawTargetIndex % entries.size) + entries.size) % entries.size
-        if (wrappedIndex != rawTargetIndex && notifyWrap) {
-            val message = if (offset < 0) {
-                "Wrapped to last track"
-            } else {
-                "Wrapped to first track"
-            }
-            Toast.makeText(context, message, Toast.LENGTH_SHORT).show()
+    val targetIndex = resolveAdjacentIndex(currentIndex, offset, entries.size, shouldWrap) ?: return false
+    if (shouldWrap && targetIndex != currentIndex + offset && notifyWrap) {
+        val message = if (offset < 0) {
+            "Wrapped to last track"
+        } else {
+            "Wrapped to first track"
         }
-        wrappedIndex
-    } else {
-        if (rawTargetIndex !in entries.indices) return false
-        rawTargetIndex
+        Toast.makeText(context, message, Toast.LENGTH_SHORT).show()
     }
     val targetEntry = entries.getOrNull(targetIndex) ?: return false
     openPlaylistEntry(

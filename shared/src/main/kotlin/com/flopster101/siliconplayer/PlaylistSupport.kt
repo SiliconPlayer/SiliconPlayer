@@ -165,6 +165,17 @@ internal fun parsePlaylistDocument(
     }
 }
 
+// Adjacent-queue index with explicit wrap; null at the boundary without wrap.
+// Shared by Android's track/playlist advance and the desktop queue advance.
+internal fun resolveAdjacentIndex(currentIndex: Int, offset: Int, size: Int, wrap: Boolean): Int? {
+    if (size <= 0 || currentIndex !in 0 until size) return null
+    val rawTargetIndex = currentIndex + offset
+    if (wrap) {
+        return ((rawTargetIndex % size) + size) % size
+    }
+    return rawTargetIndex.takeIf { it in 0 until size }
+}
+
 internal fun resolvePlaylistEntryLocalFile(source: String): File? {
     if (parseHttpSourceSpecFromInput(source) != null ||
         parseSmbSourceSpecFromInput(source) != null ||

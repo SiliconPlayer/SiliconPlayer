@@ -32,6 +32,18 @@ class RepeatModeParityTest {
     }
 
     @Test
+    fun adjacentIndexMatchesAndroidAdvanceMath() {
+        assertEquals(3, resolveAdjacentIndex(2, 1, 5, false))
+        assertEquals(null, resolveAdjacentIndex(4, 1, 5, false))
+        assertEquals(null, resolveAdjacentIndex(0, -1, 5, false))
+        assertEquals(0, resolveAdjacentIndex(4, 1, 5, true))
+        assertEquals(4, resolveAdjacentIndex(0, -1, 5, true))
+        assertEquals(2, resolveAdjacentIndex(1, 1, 5, true))
+        assertEquals(null, resolveAdjacentIndex(-1, 1, 5, true))
+        assertEquals(null, resolveAdjacentIndex(0, 1, 0, true))
+    }
+
+    @Test
     fun cycleOrderMatchesAndroid() {
         assertEquals(
             RepeatMode.Track,

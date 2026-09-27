@@ -115,9 +115,11 @@ import com.flopster101.siliconplayer.removeFavoriteTracks
 import com.flopster101.siliconplayer.removeStoredPlaylistEntries
 import com.flopster101.siliconplayer.removeStoredPlaylistEntry
 import com.flopster101.siliconplayer.renameStoredPlaylist
+import com.flopster101.siliconplayer.resolveAdjacentIndex
 import com.flopster101.siliconplayer.resolvePlaylistEntryLocalFile
 import com.flopster101.siliconplayer.setStoredPlaylistPinned
 import com.flopster101.siliconplayer.FAVORITES_PLAYLIST_ID
+import com.flopster101.siliconplayer.favoritesAsStoredPlaylist
 import com.flopster101.siliconplayer.LookaheadClipperMode
 import com.flopster101.siliconplayer.MultiChannelOutputMode
 import com.flopster101.siliconplayer.audio.DspSettingsNamespace
@@ -654,25 +656,26 @@ fun main(args: Array<String>) = application {
                 return true
             }
             // Playlist-queue advance; falls through when the current track has no entry here.
-            fun playAdjacentPlaylistEntry(offset: Int, wrap: Boolean, notifyWrap: Boolean): Boolean {
+            // Wrap follows the shared shouldWrap expression; callers pass it explicitly.
+            fun playAdjacentPlaylistEntry(offset: Int, wrapOverride: Boolean?, notifyWrap: Boolean): Boolean {
                 val playlist = activePlaylist ?: return false
                 val entries = playlist.entries
                 if (entries.isEmpty()) return false
                 val currentIndex = entries.indexOfFirst { it.id == activePlaylistEntryId }
                 if (currentIndex !in entries.indices) return false
-                val step = if (offset < 0) -1 else 1
-                val rawTargetIndex = currentIndex + offset
-                if (!wrap && rawTargetIndex !in entries.indices) return false
-                val wrappedIndex = ((rawTargetIndex % entries.size) + entries.size) % entries.size
-                if (wrap && wrappedIndex != rawTargetIndex && notifyWrap) {
+                val shouldWrap = wrapOverride ?: playlistWrapNavigation
+                val firstTarget = resolveAdjacentIndex(currentIndex, offset, entries.size, shouldWrap)
+                    ?: return false
+                if (shouldWrap && firstTarget != currentIndex + offset && notifyWrap) {
                     toastHandler.showToast(if (offset < 0) "Wrapped to last track" else "Wrapped to first track")
                 }
                 // Skip entries with no local file, continuing in the same direction.
+                val step = if (offset < 0) -1 else 1
                 for (probe in 0 until entries.size) {
-                    val targetIndex = if (wrap) {
-                        (((wrappedIndex + probe * step) % entries.size) + entries.size) % entries.size
+                    val targetIndex = if (shouldWrap) {
+                        (((firstTarget + probe * step) % entries.size) + entries.size) % entries.size
                     } else {
-                        rawTargetIndex + probe * step
+                        firstTarget + probe * step
                     }
                     val target = entries.getOrNull(targetIndex) ?: continue
                     val queue = activePlaylist ?: playlist
@@ -680,46 +683,54 @@ fun main(args: Array<String>) = application {
                 }
                 return false
             }
-            fun playAdjacentSiblingTrack(offset: Int, wrap: Boolean): Boolean {
+            fun playAdjacentSiblingTrack(offset: Int, wrapOverride: Boolean?): Boolean {
                 val current = session.currentFile ?: return false
                 val siblings = listSiblingTracks(current)
                 if (siblings.isEmpty()) return false
                 val index = siblings.indexOfFirst { samePath(it.absolutePath, current.absolutePath) }
                 if (index < 0) return false
-                val rawTargetIndex = index + offset
-                val targetIndex = if (wrap) {
-                    ((rawTargetIndex % siblings.size) + siblings.size) % siblings.size
-                } else {
-                    rawTargetIndex
-                }
-                val target = siblings.getOrNull(targetIndex) ?: return false
-                playFile(target)
+                val shouldWrap = wrapOverride ?: playlistWrapNavigation
+                val targetIndex = resolveAdjacentIndex(index, offset, siblings.size, shouldWrap) ?: return false
+                playFile(siblings[targetIndex])
                 return true
             }
-            // One advance path for both queues (Android chains three fallbacks here);
-            // playlist and browser queues share the explicit wrap flag.
+            // Playlist and browser queues take separate wrap flags, mirroring Android's
+            // UI action (playlist never wraps on manual next) and poll path (passthrough).
             fun playQueueAdjacentTrack(
                 offset: Int,
                 stopAtBoundary: Boolean,
-                wrapOverride: Boolean? = null,
+                playlistWrapOverride: Boolean?,
+                browserWrapOverride: Boolean?,
                 notifyWrap: Boolean = false
             ): Boolean {
-                val wrap = wrapOverride ?: playlistWrapNavigation
-                val moved = playAdjacentPlaylistEntry(offset, wrap, notifyWrap) ||
-                    playAdjacentSiblingTrack(offset, wrap)
-                if (!moved && stopAtBoundary && offset > 0 && !wrap) {
+                val moved = playAdjacentPlaylistEntry(offset, playlistWrapOverride, notifyWrap) ||
+                    playAdjacentSiblingTrack(offset, browserWrapOverride)
+                if (!moved && stopAtBoundary && offset > 0 &&
+                    !(browserWrapOverride ?: playlistWrapNavigation)
+                ) {
                     session.stop()
                     return true
                 }
                 return moved
             }
-            fun playQueuePreviousTrack(wrapOverride: Boolean? = null, notifyWrap: Boolean = false) {
+            fun playQueuePreviousTrack(
+                playlistWrapOverride: Boolean?,
+                browserWrapOverride: Boolean?,
+                notifyWrap: Boolean = false
+            ) {
                 val current = session.currentFile ?: return
                 if (shouldRestartCurrentTrackOnPrevious(previousRestartsAfterThreshold, true, session.positionSeconds)) {
                     session.seekTo(0.0)
                     return
                 }
-                if (playQueueAdjacentTrack(-1, stopAtBoundary = false, wrapOverride, notifyWrap)) return
+                if (playQueueAdjacentTrack(
+                        -1,
+                        stopAtBoundary = false,
+                        playlistWrapOverride,
+                        browserWrapOverride,
+                        notifyWrap
+                    )
+                ) return
                 session.seekTo(0.0)
             }
             val onPlaylistLibraryStateChanged: (PlaylistLibraryState) -> Unit = { updated ->
@@ -999,7 +1010,12 @@ fun main(args: Array<String>) = application {
             }
             LaunchedEffect(prefs) {
                 session.onAdvanceQueue = { wrap ->
-                    playQueueAdjacentTrack(1, stopAtBoundary = false, wrapOverride = wrap)
+                    playQueueAdjacentTrack(
+                        1,
+                        stopAtBoundary = false,
+                        playlistWrapOverride = wrap,
+                        browserWrapOverride = wrap
+                    )
                 }
             }
             // Restore/save the local browser directory gated by REMEMBER_BROWSER_LOCATION.
@@ -1618,20 +1634,14 @@ fun main(args: Array<String>) = application {
                                                 openQueueEntry(playlist, entry, false)
                                             },
                                             onPlayFavoritePlaylist = {
-                                                val queue = StoredPlaylist(
-                                                    id = FAVORITES_PLAYLIST_ID,
-                                                    title = "Favorites",
-                                                    entries = playlistLibraryState.favorites
-                                                )
+                                                val queue = favoritesAsStoredPlaylist(playlistLibraryState.favorites)
                                                 queue.entries.firstOrNull()?.let { entry ->
                                                     openQueueEntry(queue, entry, false)
                                                 }
                                             },
                                             onShuffleFavoritePlaylist = {
-                                                val queue = StoredPlaylist(
-                                                    id = FAVORITES_PLAYLIST_ID,
-                                                    title = "Favorites",
-                                                    entries = playlistLibraryState.favorites.shuffled()
+                                                val queue = favoritesAsStoredPlaylist(
+                                                    playlistLibraryState.favorites.shuffled()
                                                 )
                                                 queue.entries.firstOrNull()?.let { entry ->
                                                     openQueueEntry(queue, entry, true)
@@ -2016,7 +2026,8 @@ fun main(args: Array<String>) = application {
                                 },
                                 onPreviousTrack = {
                                     playQueuePreviousTrack(
-                                        wrapOverride = session.repeatMode != RepeatMode.None,
+                                        playlistWrapOverride = false,
+                                        browserWrapOverride = session.repeatMode != RepeatMode.None,
                                         notifyWrap = true
                                     )
                                 },
@@ -2024,7 +2035,8 @@ fun main(args: Array<String>) = application {
                                     playQueueAdjacentTrack(
                                         -1,
                                         stopAtBoundary = false,
-                                        wrapOverride = session.repeatMode != RepeatMode.None,
+                                        playlistWrapOverride = false,
+                                        browserWrapOverride = session.repeatMode != RepeatMode.None,
                                         notifyWrap = true
                                     )
                                 },
@@ -2032,7 +2044,8 @@ fun main(args: Array<String>) = application {
                                     playQueueAdjacentTrack(
                                         1,
                                         stopAtBoundary = true,
-                                        wrapOverride = session.repeatMode != RepeatMode.None,
+                                        playlistWrapOverride = false,
+                                        browserWrapOverride = session.repeatMode != RepeatMode.None,
                                         notifyWrap = true
                                     )
                                 },
@@ -2111,7 +2124,8 @@ fun main(args: Array<String>) = application {
                                     onSeek = { seconds -> session.seekTo(seconds) },
                                     onPreviousTrack = {
                                         playQueuePreviousTrack(
-                                            wrapOverride = session.repeatMode != RepeatMode.None,
+                                            playlistWrapOverride = false,
+                                            browserWrapOverride = session.repeatMode != RepeatMode.None,
                                             notifyWrap = true
                                         )
                                     },
@@ -2119,7 +2133,8 @@ fun main(args: Array<String>) = application {
                                         playQueueAdjacentTrack(
                                             -1,
                                             stopAtBoundary = false,
-                                            wrapOverride = session.repeatMode != RepeatMode.None,
+                                            playlistWrapOverride = false,
+                                            browserWrapOverride = session.repeatMode != RepeatMode.None,
                                             notifyWrap = true
                                         )
                                     },
@@ -2127,7 +2142,8 @@ fun main(args: Array<String>) = application {
                                         playQueueAdjacentTrack(
                                             1,
                                             stopAtBoundary = true,
-                                            wrapOverride = session.repeatMode != RepeatMode.None,
+                                            playlistWrapOverride = false,
+                                            browserWrapOverride = session.repeatMode != RepeatMode.None,
                                             notifyWrap = true
                                         )
                                     },
