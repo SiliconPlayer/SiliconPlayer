@@ -7,12 +7,14 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.ImageBitmap
-import androidx.compose.ui.graphics.toComposeImageBitmap
+import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.toPixelMap
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.layout.onSizeChanged
@@ -32,6 +34,7 @@ import com.flopster101.siliconplayer.desktop.DesktopProjectMPresetSets
 import com.flopster101.siliconplayer.platform.AppPreferences
 import com.flopster101.siliconplayer.platform.LocalAppPreferences
 import com.flopster101.siliconplayer.ui.visualization.channel.ChannelScopeChannelTextState
+import org.jetbrains.skia.Bitmap
 import org.jetbrains.skia.ColorAlphaType
 import org.jetbrains.skia.ColorInfo
 import org.jetbrains.skia.ColorSpace
@@ -211,6 +214,12 @@ private class SiliconNativeDesktopRenderThread(
         var currentBufH = 0
         var directBuffer: ByteBuffer? = null
         var pixelByteArray: ByteArray? = null
+        // Double-buffered presenting bitmaps, allocated once per size. The UI
+        // draws one slot while the render thread fills the other, so frames
+        // never tear and no native image is allocated per frame.
+        val skiaBitmaps = arrayOfNulls<Bitmap>(2)
+        val composeBitmaps = arrayOfNulls<ImageBitmap>(2)
+        var backSlot = 0
 
         try {
             while (running) {
@@ -224,6 +233,16 @@ private class SiliconNativeDesktopRenderThread(
                     currentBufH = h
                     directBuffer = ByteBuffer.allocateDirect(w * h * 4).order(ByteOrder.nativeOrder())
                     pixelByteArray = ByteArray(w * h * 4)
+                    val info = ImageInfo(
+                        ColorInfo(ColorType.RGBA_8888, ColorAlphaType.PREMUL, ColorSpace.sRGB),
+                        w,
+                        h
+                    )
+                    for (slot in 0..1) {
+                        val bitmap = Bitmap().also { it.allocPixels(info) }
+                        skiaBitmaps[slot] = bitmap
+                        composeBitmaps[slot] = bitmap.asImageBitmap()
+                    }
                 }
 
                 if (frame != null) {
@@ -502,7 +521,9 @@ private class SiliconNativeDesktopRenderThread(
                     directBuffer
                 )
 
-                if (ok && pixelByteArray != null) {
+                val target = skiaBitmaps[backSlot]
+                val ready = composeBitmaps[backSlot]
+                if (ok && pixelByteArray != null && target != null && ready != null) {
                     directBuffer.position(0)
                     directBuffer.get(pixelByteArray)
                     val info = ImageInfo(
@@ -514,8 +535,15 @@ private class SiliconNativeDesktopRenderThread(
                         w,
                         h
                     )
-                    val skiaImg = Image.makeRaster(info, pixelByteArray, w * 4)
-                    onFrameAvailable(skiaImg.toComposeImageBitmap())
+                    // The raster owns fresh native pixels per frame; copy into
+                    // the reused slot bitmap and release synchronously so
+                    // nothing waits on GC cleaners (that lag ballooned RSS
+                    // into the gigabytes at 60 fps).
+                    Image.makeRaster(info, pixelByteArray, w * 4).use { raster ->
+                        raster.readPixels(target)
+                    }
+                    backSlot = backSlot xor 1
+                    onFrameAvailable(ready)
                 }
 
                 val frameElapsedNs = System.nanoTime() - frameStartNs
@@ -566,12 +594,18 @@ fun SiliconNativeGlDesktopVisualization(
     val density = LocalDensity.current.density
     var surfaceSize by remember { mutableStateOf(IntSize.Zero) }
     var renderedBitmap by remember { mutableStateOf<ImageBitmap?>(null) }
+    // The thread hands back reused bitmap instances, which never compare as
+    // changed on their own; the tick forces a redraw of their new pixels.
+    var frameTick by remember { mutableIntStateOf(0) }
 
     val renderThread = remember(prefs) {
         SiliconNativeDesktopRenderThread(
             prefs = prefs,
             density = density,
-            onFrameAvailable = { bmp -> renderedBitmap = bmp },
+            onFrameAvailable = { bmp ->
+                renderedBitmap = bmp
+                frameTick++
+            },
             onFrameStats = onFrameStats
         ).also { it.start() }
     }
@@ -594,12 +628,14 @@ fun SiliconNativeGlDesktopVisualization(
     ) {
         val bmp = renderedBitmap
         if (bmp != null) {
-            Image(
-                bitmap = bmp,
-                contentDescription = null,
-                contentScale = ContentScale.FillBounds,
-                modifier = Modifier.fillMaxSize()
-            )
+            key(frameTick) {
+                Image(
+                    bitmap = bmp,
+                    contentDescription = null,
+                    contentScale = ContentScale.FillBounds,
+                    modifier = Modifier.fillMaxSize()
+                )
+            }
         }
     }
 }
