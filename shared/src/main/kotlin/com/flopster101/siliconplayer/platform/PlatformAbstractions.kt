@@ -7,6 +7,7 @@ import com.flopster101.siliconplayer.CacheExportResult
 import com.flopster101.siliconplayer.ExportConflictDecision
 import com.flopster101.siliconplayer.ExportFileItem
 import com.flopster101.siliconplayer.ExportNameConflict
+import com.flopster101.siliconplayer.NativeBridge
 import com.flopster101.siliconplayer.ParsedPlaylistDocument
 import com.flopster101.siliconplayer.PlaylistExportFormat
 import com.flopster101.siliconplayer.RemoteExportRequest
@@ -14,12 +15,16 @@ import com.flopster101.siliconplayer.RemoteLoadUiState
 import com.flopster101.siliconplayer.StoredPlaylist
 import com.flopster101.siliconplayer.library.LibraryAlbum
 import com.flopster101.siliconplayer.library.LibraryCollections
+import com.flopster101.siliconplayer.library.LibraryScanRoot
 import com.flopster101.siliconplayer.library.LibrarySearchResults
+import com.flopster101.siliconplayer.library.LibrarySourceStatus
 import com.flopster101.siliconplayer.library.LibrarySyncState
 import com.flopster101.siliconplayer.library.LibraryTrackEntity
 import java.io.File
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.withContext
 
 interface AppPreferences {
     fun getString(key: String, defValue: String?): String?
@@ -332,6 +337,75 @@ private val EmptyLibraryRepository = object : LibraryRepositorySupport {
 
 val LocalLibraryRepository = staticCompositionLocalOf<LibraryRepositorySupport> {
     EmptyLibraryRepository
+}
+
+/**
+ * Library settings backing the Sources/Scanning settings sections. Android serves MediaStore +
+ * scanner rows from Room; desktop serves the single JSON-backed scanner row (dedupe hidden).
+ */
+interface LibrarySettingsSupport {
+    val supportsDeduplication: Boolean
+    val addFolderPlaceholder: String
+    suspend fun sourceStatuses(): List<LibrarySourceStatus>
+    suspend fun setSourceEnabled(sourceId: String, enabled: Boolean)
+    fun sourceLabel(sourceId: String): String
+    fun sourceDescription(sourceId: String): String
+    suspend fun scanRoots(): List<LibraryScanRoot>
+    suspend fun setScanRoots(roots: List<LibraryScanRoot>)
+    suspend fun scannerExtensions(): Set<String>
+    suspend fun setScannerExtensions(extensions: Set<String>)
+    suspend fun autoScanEnabled(): Boolean
+    suspend fun setAutoScanEnabled(enabled: Boolean)
+    suspend fun deduplicateSources(): Boolean
+    suspend fun setDeduplicateSources(enabled: Boolean)
+    fun stopPlaybackForMetadataRefresh()
+}
+
+private val EmptyLibrarySettings = object : LibrarySettingsSupport {
+    override val supportsDeduplication: Boolean = false
+    override val addFolderPlaceholder: String = ""
+    override suspend fun sourceStatuses(): List<LibrarySourceStatus> = emptyList()
+    override suspend fun setSourceEnabled(sourceId: String, enabled: Boolean) {}
+    override fun sourceLabel(sourceId: String): String = sourceId
+    override fun sourceDescription(sourceId: String): String = ""
+    override suspend fun scanRoots(): List<LibraryScanRoot> = emptyList()
+    override suspend fun setScanRoots(roots: List<LibraryScanRoot>) {}
+    override suspend fun scannerExtensions(): Set<String> = emptySet()
+    override suspend fun setScannerExtensions(extensions: Set<String>) {}
+    override suspend fun autoScanEnabled(): Boolean = false
+    override suspend fun setAutoScanEnabled(enabled: Boolean) {}
+    override suspend fun deduplicateSources(): Boolean = false
+    override suspend fun setDeduplicateSources(enabled: Boolean) {}
+    override fun stopPlaybackForMetadataRefresh() {}
+}
+
+val LocalLibrarySettingsSupport = staticCompositionLocalOf<LibrarySettingsSupport> {
+    EmptyLibrarySettings
+}
+
+data class ProbedTrackTags(
+    val title: String?,
+    val artist: String?,
+    val album: String?,
+    val durationSeconds: Double?
+)
+
+/** Tag probe hook so playlist refresh can run isolated from the app process. */
+interface TrackProbeSupport {
+    suspend fun probeFile(path: String, subtuneIndex: Int): ProbedTrackTags?
+}
+
+internal object DefaultTrackProbeSupport : TrackProbeSupport {
+    override suspend fun probeFile(path: String, subtuneIndex: Int): ProbedTrackTags? =
+        withContext(Dispatchers.IO) {
+            runCatching { NativeBridge.probeMetadata(path, subtuneIndex) }.getOrNull()?.let {
+                ProbedTrackTags(it.title, it.artist, it.album, it.durationSeconds)
+            }
+        }
+}
+
+val LocalTrackProbeSupport = staticCompositionLocalOf<TrackProbeSupport> {
+    DefaultTrackProbeSupport
 }
 
 /**

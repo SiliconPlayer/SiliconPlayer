@@ -6,23 +6,42 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.remember
 import androidx.compose.ui.graphics.toComposeImageBitmap
 import com.flopster101.siliconplayer.platform.AppPreferences
+import com.flopster101.siliconplayer.platform.AppVersionInfo
+import com.flopster101.siliconplayer.platform.ArtworkThumbnailLoader
 import com.flopster101.siliconplayer.platform.AudioOutputRouteInfo
 import com.flopster101.siliconplayer.platform.AudioOutputRouteType
 import com.flopster101.siliconplayer.platform.AudioRouteManager
+import com.flopster101.siliconplayer.platform.FileExportHandler
+import com.flopster101.siliconplayer.platform.LocalAppCacheDir
+import com.flopster101.siliconplayer.platform.LocalAppConfigDir
 import com.flopster101.siliconplayer.platform.LocalAppPreferences
+import com.flopster101.siliconplayer.platform.LocalAppVersionInfo
+import com.flopster101.siliconplayer.platform.LocalArtworkCacheSupport
+import com.flopster101.siliconplayer.platform.LocalArtworkThumbnailLoader
 import com.flopster101.siliconplayer.platform.LocalAudioRouteManager
+import com.flopster101.siliconplayer.platform.LocalFileExportHandler
 import com.flopster101.siliconplayer.platform.LocalIsWatchDevice
+import com.flopster101.siliconplayer.platform.LocalLibraryRepository
+import com.flopster101.siliconplayer.platform.LocalLibrarySettingsSupport
 import com.flopster101.siliconplayer.platform.LocalPlatformBackHandler
+import com.flopster101.siliconplayer.platform.LocalPlaylistPlatformSupport
+import com.flopster101.siliconplayer.platform.LocalPlaylistRefreshNotifier
 import com.flopster101.siliconplayer.platform.LocalPreferencesProvider
 import com.flopster101.siliconplayer.platform.LocalProjectMOptionsProvider
+import com.flopster101.siliconplayer.platform.LocalRemoteSourceExportSupport
+import com.flopster101.siliconplayer.platform.LocalSettingsPlatformContent
 import com.flopster101.siliconplayer.platform.LocalToastHandler
+import com.flopster101.siliconplayer.platform.LocalTrackProbeSupport
 import com.flopster101.siliconplayer.platform.LocalWindowSizeInfo
+import com.flopster101.siliconplayer.platform.PlaylistRefreshNotifier
 import com.flopster101.siliconplayer.platform.PreferencesProvider
 import com.flopster101.siliconplayer.platform.ProjectMOptionsProvider
+import com.flopster101.siliconplayer.platform.SettingsPlatformContent
 import com.flopster101.siliconplayer.platform.ToastHandler
 import com.flopster101.siliconplayer.platform.WindowSizeInfo
 import java.util.concurrent.CopyOnWriteArrayList
 import java.util.prefs.Preferences
+import javax.swing.JFileChooser
 
 class DesktopAppPreferences(private val nodeName: String) : AppPreferences {
     private val prefs: Preferences = Preferences.userRoot().node("com/flopster101/siliconplayer/$nodeName")
@@ -148,6 +167,7 @@ fun ProvideDesktopPlatformAdapters(
     windowWidthDp: Int = 1100,
     windowHeightDp: Int = 750,
     backDispatcher: DesktopBackDispatcher = remember { DesktopBackDispatcher() },
+    stopPlaybackForRefresh: () -> Unit = {},
     content: @Composable () -> Unit
 ) {
     val prefsProvider = remember { DesktopPreferencesProvider() }
@@ -180,7 +200,7 @@ fun ProvideDesktopPlatformAdapters(
     }
     val artworkThumbnailLoader = remember(cacheDir) {
         val artworkCacheDir = desktopArtworkCacheDir(cacheDir)
-        object : com.flopster101.siliconplayer.platform.ArtworkThumbnailLoader {
+        object : ArtworkThumbnailLoader {
             override fun peek(cacheKey: String?) = null
             override suspend fun load(cacheKey: String?): androidx.compose.ui.graphics.ImageBitmap? {
                 if (cacheKey == null) return null
@@ -199,7 +219,7 @@ fun ProvideDesktopPlatformAdapters(
     }
 
     val appVersionInfo = remember {
-        com.flopster101.siliconplayer.platform.AppVersionInfo(
+        AppVersionInfo(
             versionName = "1.0.0",
             abiOrArch = System.getProperty("os.arch") ?: "desktop",
             gitSha = "desktop"
@@ -213,6 +233,18 @@ fun ProvideDesktopPlatformAdapters(
         com.flopster101.siliconplayer.library.DesktopLibraryRepository(configDir)
     }
     LaunchedEffect(libraryRepository) { libraryRepository.maybeStartAutoScan() }
+    val librarySettingsSupport = remember(configDir, stopPlaybackForRefresh) {
+        com.flopster101.siliconplayer.library.DesktopLibrarySettingsSupport(configDir, stopPlaybackForRefresh)
+    }
+    val playlistRefreshNotifier = remember(toastHandler) {
+        PlaylistRefreshNotifier { current, total, _ ->
+            when {
+                total <= 0 -> Unit
+                current <= 0 -> toastHandler.showToast("Refreshing metadata for $total tracks…")
+                current >= total -> toastHandler.showToast("Metadata refresh finished")
+            }
+        }
+    }
 
     CompositionLocalProvider(
         LocalAppPreferences provides prefs,
@@ -220,28 +252,43 @@ fun ProvideDesktopPlatformAdapters(
         LocalIsWatchDevice provides false,
         LocalAudioRouteManager provides audioRouteManager,
         LocalToastHandler provides toastHandler,
-        com.flopster101.siliconplayer.platform.LocalArtworkThumbnailLoader provides artworkThumbnailLoader,
+        LocalArtworkThumbnailLoader provides artworkThumbnailLoader,
         LocalDesktopBackDispatcher provides backDispatcher,
         LocalPlatformBackHandler provides { enabled, onBack ->
             DesktopBackHandler(dispatcher = backDispatcher, enabled = enabled, onBack = onBack)
         },
         LocalWindowSizeInfo provides windowSizeInfo,
         LocalProjectMOptionsProvider provides projectMOptionsProvider,
-        com.flopster101.siliconplayer.platform.LocalAppVersionInfo provides appVersionInfo,
-        com.flopster101.siliconplayer.platform.LocalSettingsPlatformContent provides object : com.flopster101.siliconplayer.platform.SettingsPlatformContent {},
-        com.flopster101.siliconplayer.platform.LocalAppCacheDir provides cacheDir,
-        com.flopster101.siliconplayer.platform.LocalAppConfigDir provides configDir,
-        com.flopster101.siliconplayer.platform.LocalArtworkCacheSupport provides artworkCacheSupport,
-        com.flopster101.siliconplayer.platform.LocalPlaylistPlatformSupport provides playlistPlatformSupport,
-        com.flopster101.siliconplayer.platform.LocalLibraryRepository provides libraryRepository,
-        com.flopster101.siliconplayer.platform.LocalRemoteSourceExportSupport provides { remoteSourceExportSupport },
-        com.flopster101.siliconplayer.platform.LocalFileExportHandler provides com.flopster101.siliconplayer.platform.FileExportHandler { files ->
-            val chooser = javax.swing.JFileChooser().apply {
-                fileSelectionMode = javax.swing.JFileChooser.DIRECTORIES_ONLY
+        LocalAppVersionInfo provides appVersionInfo,
+        LocalSettingsPlatformContent provides object : SettingsPlatformContent {
+            @Composable
+            override fun LibrarySettingsContent(onOpenScanner: () -> Unit) {
+                com.flopster101.siliconplayer.LibrarySettingsRouteContent(
+                    onOpenScanner = onOpenScanner
+                )
+            }
+
+            @Composable
+            override fun LibraryScannerContent() {
+                com.flopster101.siliconplayer.LibraryScannerRouteContent()
+            }
+        },
+        LocalAppCacheDir provides cacheDir,
+        LocalAppConfigDir provides configDir,
+        LocalArtworkCacheSupport provides artworkCacheSupport,
+        LocalPlaylistPlatformSupport provides playlistPlatformSupport,
+        LocalLibraryRepository provides libraryRepository,
+        LocalLibrarySettingsSupport provides librarySettingsSupport,
+        LocalTrackProbeSupport provides com.flopster101.siliconplayer.library.DesktopTrackProbeSupport,
+        LocalPlaylistRefreshNotifier provides playlistRefreshNotifier,
+        LocalRemoteSourceExportSupport provides { remoteSourceExportSupport },
+        LocalFileExportHandler provides FileExportHandler { files ->
+            val chooser = JFileChooser().apply {
+                fileSelectionMode = JFileChooser.DIRECTORIES_ONLY
                 dialogTitle = "Select Destination Folder"
             }
             val result = chooser.showSaveDialog(null)
-            if (result == javax.swing.JFileChooser.APPROVE_OPTION) {
+            if (result == JFileChooser.APPROVE_OPTION) {
                 val destDir = chooser.selectedFile
                 files.forEach { file ->
                     file.copyTo(destDir.resolve(file.name), overwrite = true)

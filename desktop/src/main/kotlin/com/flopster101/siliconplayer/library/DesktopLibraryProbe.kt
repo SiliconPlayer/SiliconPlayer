@@ -1,12 +1,18 @@
 package com.flopster101.siliconplayer.library
 
 import com.flopster101.siliconplayer.NativeBridge
+import com.flopster101.siliconplayer.platform.ProbedTrackTags
+import com.flopster101.siliconplayer.platform.TrackProbeSupport
 import java.io.BufferedReader
 import java.io.BufferedWriter
 import java.io.File
 import java.util.Base64
 import java.util.concurrent.Executors
 import java.util.concurrent.TimeUnit
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
+import kotlinx.coroutines.withContext
 
 // One probed file: mirrors NativeBridge.TrackMetadataProbeResult without
 // exposing the bridge type to the scanner.
@@ -56,7 +62,7 @@ internal class IsolatedLibraryProber(
 // Lockstep probe channel. probe() returns the result, null for a failed
 // open, or DEAD when the helper died/hung mid-file (already restarted).
 internal interface ProbeTransport : AutoCloseable {
-    fun probe(path: String, timeoutSeconds: Long): IsolatedProbeResult?
+    fun probe(path: String, timeoutSeconds: Long, subtuneIndex: Int = -1): IsolatedProbeResult?
 
     companion object {
         val DEAD: IsolatedProbeResult? = IsolatedProbeResult("\u0000DEAD\u0000", null, null, null)
@@ -72,10 +78,10 @@ internal class ProcessProbeTransport : ProbeTransport {
         Thread(task, "library-probe-reader").apply { isDaemon = true }
     }
 
-    override fun probe(path: String, timeoutSeconds: Long): IsolatedProbeResult? {
+    override fun probe(path: String, timeoutSeconds: Long, subtuneIndex: Int): IsolatedProbeResult? {
         if (!ensureStarted()) return ProbeTransport.DEAD
         val encoded = Base64.getEncoder().encodeToString(path.toByteArray(Charsets.UTF_8))
-        if (!writeLine("PROBE $encoded")) return deadAndRestart()
+        if (!writeLine("PROBE $encoded $subtuneIndex")) return deadAndRestart()
         val reply = readReply(timeoutSeconds) ?: return deadAndRestart()
         return parseReply(reply)
     }
@@ -161,14 +167,41 @@ internal class ProcessProbeTransport : ProbeTransport {
         }
 }
 
+// Isolated single-track prober for playlist metadata refresh. One helper
+// JVM serves the whole app lifetime (parent death EOFs its stdin, so no
+// orphan); death mid-probe restarts and retries once, else counts failed.
+internal object DesktopTrackProbeSupport : TrackProbeSupport {
+    private const val PROBE_TIMEOUT_SECONDS = 30L
+    private val mutex = Mutex()
+    private var transport: ProcessProbeTransport? = null
+
+    override suspend fun probeFile(path: String, subtuneIndex: Int): ProbedTrackTags? =
+        withContext(Dispatchers.IO) {
+            mutex.withLock {
+                val active = transport ?: ProcessProbeTransport().also { transport = it }
+                var result = active.probe(path, PROBE_TIMEOUT_SECONDS, subtuneIndex)
+                if (result === ProbeTransport.DEAD) {
+                    result = active.probe(path, PROBE_TIMEOUT_SECONDS, subtuneIndex)
+                    if (result === ProbeTransport.DEAD) {
+                        println("[SiliconPlayer] playlist probe crashed, skipping: $path")
+                        return@withLock null
+                    }
+                }
+                result?.let {
+                    ProbedTrackTags(it.title, it.artist, it.album, it.durationSeconds)
+                }
+            }
+        }
+}
+
 // Helper entry point. With file args it probes each and exits (debugging);
-// with no args it serves PROBE <b64path> lines on stdin until QUIT/EOF,
-// replying `OK <b64> <b64> <b64> <b64>` or `FAIL` per line, flushed eagerly.
+// with no args it serves PROBE <b64path> [subtune] lines on stdin until
+// QUIT/EOF, replying `OK <b64> <b64> <b64> <b64>` or `FAIL` per line.
 object LibraryProbeMain {
     @JvmStatic
     fun main(args: Array<String>) {
         if (args.isNotEmpty()) {
-            args.forEach { printResult(probePath(it)) }
+            args.forEach { printResult(probePath(it, -1)) }
             return
         }
         val input = System.`in`.bufferedReader()
@@ -179,15 +212,17 @@ object LibraryProbeMain {
                 break
             }
             if (line == "QUIT") break
-            val path = line.removePrefix("PROBE ")
-                .takeIf { it != line }?.let { decodePath(it) } ?: continue
-            printResult(probePath(path))
+            val rest = line.removePrefix("PROBE ").takeIf { it != line } ?: continue
+            val tokens = rest.split(' ')
+            val path = decodePath(tokens[0]) ?: continue
+            val subtune = tokens.getOrNull(1)?.toIntOrNull() ?: -1
+            printResult(probePath(path, subtune))
         }
     }
 
-    private fun probePath(path: String): String {
+    private fun probePath(path: String, subtuneIndex: Int): String {
         return try {
-            val probe = NativeBridge.probeMetadata(path, -1)
+            val probe = NativeBridge.probeMetadata(path, subtuneIndex)
             if (probe == null) {
                 "FAIL"
             } else {

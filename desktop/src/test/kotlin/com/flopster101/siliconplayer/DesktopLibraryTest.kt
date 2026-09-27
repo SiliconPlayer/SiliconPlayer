@@ -2,6 +2,7 @@ package com.flopster101.siliconplayer
 
 import com.flopster101.siliconplayer.library.DesktopLibraryRepository
 import com.flopster101.siliconplayer.library.DesktopLibraryScanConfig
+import com.flopster101.siliconplayer.library.DesktopLibrarySettingsSupport
 import com.flopster101.siliconplayer.library.DirectPathLister
 import com.flopster101.siliconplayer.library.IsolatedLibraryProber
 import com.flopster101.siliconplayer.library.IsolatedProbeResult
@@ -214,7 +215,7 @@ class DesktopLibraryTest {
         private val killers: Set<String> = emptySet()
     ) : ProbeTransport {
         val attempts = mutableMapOf<String, Int>()
-        override fun probe(path: String, timeoutSeconds: Long): IsolatedProbeResult? {
+        override fun probe(path: String, timeoutSeconds: Long, subtuneIndex: Int): IsolatedProbeResult? {
             attempts[path] = (attempts[path] ?: 0) + 1
             return if (path in killers) ProbeTransport.DEAD else results[path]
         }
@@ -275,5 +276,43 @@ class DesktopLibraryTest {
             while (repository.collections().trackCount != 0) delay(200)
         }
         assertTrue(readLibraryScanConfig(configDir).lastSyncMs > 0L)
+    }
+
+    @Test
+    fun settingsSourceDefaultsToEnabledScanner() = runBlocking {
+        val dir = tempDir()
+        val settings = DesktopLibrarySettingsSupport(dir) {}
+        val statuses = settings.sourceStatuses()
+        assertEquals(listOf(LibraryContract.SOURCE_SCANNER), statuses.map { it.id })
+        assertTrue(statuses.single().enabled)
+        assertEquals(0L, statuses.single().trackCount)
+        assertTrue(!settings.supportsDeduplication)
+    }
+
+    @Test
+    fun settingsSourceToggleAndOverridesRoundTrip() = runBlocking {
+        val dir = tempDir()
+        val settings = DesktopLibrarySettingsSupport(dir) {}
+        settings.setScanRoots(listOf(LibraryScanRoot("/music")))
+        settings.setSourceEnabled(LibraryContract.SOURCE_SCANNER, false)
+        assertTrue(!settings.sourceStatuses().single().enabled)
+        assertTrue(!readLibraryScanConfig(dir).scannerEnabled)
+        settings.setSourceEnabled("other", false)
+        assertTrue(!readLibraryScanConfig(dir).scannerEnabled)
+        settings.setSourceEnabled(LibraryContract.SOURCE_SCANNER, true)
+        settings.setScannerExtensions(setOf("mp3"))
+        settings.setAutoScanEnabled(false)
+        assertEquals(setOf("mp3"), settings.scannerExtensions())
+        assertTrue(!settings.autoScanEnabled())
+        assertEquals(
+            DesktopLibraryScanConfig(
+                roots = listOf(LibraryScanRoot("/music")),
+                extensions = setOf("mp3"),
+                autoScanEnabled = false,
+                scannerEnabled = true,
+                lastSyncMs = 0L
+            ),
+            readLibraryScanConfig(dir)
+        )
     }
 }

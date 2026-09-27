@@ -18,6 +18,7 @@ import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.platform.LocalContext
 import androidx.core.content.FileProvider
 import com.flopster101.siliconplayer.ParsedPlaylistDocument
+import com.flopster101.siliconplayer.PlaybackService
 import com.flopster101.siliconplayer.PlaylistExportFormat
 import com.flopster101.siliconplayer.PlaylistExportRegistry
 import com.flopster101.siliconplayer.PlaylistMetadataRefreshNotifier
@@ -26,7 +27,9 @@ import com.flopster101.siliconplayer.RECENT_ARTWORK_CACHE_DIR
 import com.flopster101.siliconplayer.StoredPlaylist
 import com.flopster101.siliconplayer.ensureRecentArtworkCached
 import com.flopster101.siliconplayer.ensureRecentArtworkThumbnailCached
+import com.flopster101.siliconplayer.library.LibraryContract
 import com.flopster101.siliconplayer.library.LibraryRepository
+import com.flopster101.siliconplayer.library.LibraryScanRoot
 import com.flopster101.siliconplayer.loadLibraryThumbnail
 import com.flopster101.siliconplayer.normalizeSourceIdentity
 import com.flopster101.siliconplayer.parseM3uPlaylistLines
@@ -72,6 +75,58 @@ internal fun rememberAndroidLibraryRepositorySupport(): LibraryRepositorySupport
 
             override fun requestScan() {
                 LibraryRepository.requestScan(context)
+            }
+        }
+    }
+}
+
+@Composable
+internal fun rememberAndroidLibrarySettingsSupport(): LibrarySettingsSupport {
+    val context = LocalContext.current
+    return remember(context) {
+        object : LibrarySettingsSupport {
+            override val supportsDeduplication: Boolean = true
+            override val addFolderPlaceholder: String = "/storage/emulated/0/Music"
+            override suspend fun sourceStatuses() = LibraryRepository.sourceStatuses(context)
+            override suspend fun setSourceEnabled(sourceId: String, enabled: Boolean) {
+                LibraryRepository.setSourceEnabled(context, sourceId, enabled)
+            }
+            override fun sourceLabel(sourceId: String): String = when (sourceId) {
+                LibraryContract.SOURCE_MEDIASTORE -> "MediaStore"
+                LibraryContract.SOURCE_SCANNER -> "Storage scanner"
+                else -> sourceId
+            }
+            override fun sourceDescription(sourceId: String): String = when (sourceId) {
+                LibraryContract.SOURCE_MEDIASTORE ->
+                    "System media index. Covers conventional formats with no configuration."
+                LibraryContract.SOURCE_SCANNER ->
+                    "Scans your folders directly, including formats MediaStore cannot index."
+                else -> ""
+            }
+            override suspend fun scanRoots(): List<LibraryScanRoot> =
+                LibraryRepository.scanRoots(context)
+            override suspend fun setScanRoots(roots: List<LibraryScanRoot>) {
+                LibraryRepository.setScanRoots(context, roots)
+            }
+            override suspend fun scannerExtensions(): Set<String> =
+                LibraryRepository.scannerExtensions(context)
+            override suspend fun setScannerExtensions(extensions: Set<String>) {
+                LibraryRepository.setScannerExtensions(context, extensions)
+            }
+            override suspend fun autoScanEnabled(): Boolean =
+                LibraryRepository.autoScanEnabled(context)
+            override suspend fun setAutoScanEnabled(enabled: Boolean) {
+                LibraryRepository.setAutoScanEnabled(context, enabled)
+            }
+            override suspend fun deduplicateSources(): Boolean =
+                LibraryRepository.deduplicateSources(context)
+            override suspend fun setDeduplicateSources(enabled: Boolean) {
+                LibraryRepository.setDeduplicateSources(context, enabled)
+            }
+            override fun stopPlaybackForMetadataRefresh() {
+                context.startService(
+                    Intent(context, PlaybackService::class.java).setAction(PlaybackService.ACTION_STOP_CLEAR)
+                )
             }
         }
     }

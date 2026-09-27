@@ -386,14 +386,14 @@ fun ProvideAndroidPlatformAdapters(
         object : SettingsPlatformContent {
             @Composable
             override fun LibrarySettingsContent(onOpenScanner: () -> Unit) {
-                com.flopster101.siliconplayer.settings.routes.LibrarySettingsRouteContent(
+                com.flopster101.siliconplayer.LibrarySettingsRouteContent(
                     onOpenScanner = onOpenScanner
                 )
             }
 
             @Composable
             override fun LibraryScannerContent() {
-                com.flopster101.siliconplayer.settings.routes.LibraryScannerRouteContent()
+                com.flopster101.siliconplayer.LibraryScannerRouteContent()
             }
 
             @Composable
@@ -475,6 +475,7 @@ fun ProvideAndroidPlatformAdapters(
     }
 
     val libraryRepository = rememberAndroidLibraryRepositorySupport()
+    val librarySettingsSupport = rememberAndroidLibrarySettingsSupport()
     val artworkCacheSupport = rememberAndroidArtworkCacheSupport()
     val playlistPlatformSupport = rememberAndroidPlaylistPlatformSupport()
     val playlistRefreshNotifier = remember(context) { AndroidPlaylistRefreshNotifier(context) }
@@ -494,6 +495,7 @@ fun ProvideAndroidPlatformAdapters(
         LocalToastHandler provides toastHandler,
         LocalArtworkThumbnailLoader provides artworkThumbnailLoader,
         LocalLibraryRepository provides libraryRepository,
+        LocalLibrarySettingsSupport provides librarySettingsSupport,
         LocalArtworkCacheSupport provides artworkCacheSupport,
         LocalPlaylistPlatformSupport provides playlistPlatformSupport,
         LocalPlaylistRefreshNotifier provides playlistRefreshNotifier,

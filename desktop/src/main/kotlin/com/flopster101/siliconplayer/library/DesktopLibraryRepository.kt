@@ -58,6 +58,7 @@ class DesktopLibraryRepository(private val configDir: File) : LibraryRepositoryS
      */
     override fun requestScan() {
         scanScope.launch {
+            if (!readLibraryScanConfig(configDir).scannerEnabled) return@launch
             if (!scanMutex.tryLock()) return@launch
             try {
                 _scanState.value = LibrarySyncState(isScanning = true)
@@ -83,7 +84,7 @@ class DesktopLibraryRepository(private val configDir: File) : LibraryRepositoryS
     /** Start a scan if the library looks stale and auto-scan is enabled. */
     suspend fun maybeStartAutoScan() = withContext(Dispatchers.IO) {
         val config = readLibraryScanConfig(configDir)
-        if (!config.autoScanEnabled) return@withContext
+        if (!config.autoScanEnabled || !config.scannerEnabled) return@withContext
         val nowMs = System.currentTimeMillis()
         if (config.lastSyncMs <= 0L || nowMs - config.lastSyncMs > SYNC_STALENESS_MS) {
             requestScan()

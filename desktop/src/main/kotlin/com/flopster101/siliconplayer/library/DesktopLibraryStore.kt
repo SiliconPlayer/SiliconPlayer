@@ -15,6 +15,7 @@ internal data class DesktopLibraryScanConfig(
     val roots: List<LibraryScanRoot>,
     val extensions: Set<String>? = null,
     val autoScanEnabled: Boolean = true,
+    val scannerEnabled: Boolean = true,
     val lastSyncMs: Long = 0L
 )
 
@@ -80,12 +81,13 @@ internal fun readLibraryScanConfig(configDir: File): DesktopLibraryScanConfig {
                 roots = roots,
                 extensions = extensions,
                 autoScanEnabled = json.optBoolean("autoScanEnabled", true),
+                scannerEnabled = json.optBoolean("scannerEnabled", true),
                 lastSyncMs = json.optLong("lastSyncMs", 0L)
             )
         }
     }
     // First launch: preseed the XDG music directory so the library is useful
-    // before the settings round adds folder management.
+    // before the first scan.
     val musicRoot = defaultMusicScanRoot()?.let { listOf(LibraryScanRoot(path = it)) } ?: emptyList()
     return DesktopLibraryScanConfig(roots = musicRoot)
 }
@@ -93,6 +95,7 @@ internal fun readLibraryScanConfig(configDir: File): DesktopLibraryScanConfig {
 internal fun writeLibraryScanConfig(configDir: File, config: DesktopLibraryScanConfig) {
     val json = JSONObject()
         .put("autoScanEnabled", config.autoScanEnabled)
+        .put("scannerEnabled", config.scannerEnabled)
         .put("lastSyncMs", config.lastSyncMs)
     val roots = JSONArray()
     config.roots.forEach { root ->

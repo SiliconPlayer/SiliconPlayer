@@ -502,7 +502,8 @@ fun main(args: Array<String>) = application {
         ProvideDesktopPlatformAdapters(
             windowWidthDp = windowState.size.width.value.toInt(),
             windowHeightDp = windowState.size.height.value.toInt(),
-            backDispatcher = backDispatcher
+            backDispatcher = backDispatcher,
+            stopPlaybackForRefresh = { session.stop() }
         ) {
             val prefs = LocalAppPreferences.current
             val configDir = LocalAppConfigDir.current

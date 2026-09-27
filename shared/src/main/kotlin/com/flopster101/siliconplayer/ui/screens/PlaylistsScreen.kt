@@ -17,6 +17,7 @@ import com.flopster101.siliconplayer.platform.ArtworkCacheSupport
 import com.flopster101.siliconplayer.platform.LocalAppCacheDir
 import com.flopster101.siliconplayer.platform.LocalAppPreferences
 import com.flopster101.siliconplayer.platform.LocalArtworkCacheSupport
+import com.flopster101.siliconplayer.platform.LocalTrackProbeSupport
 import com.flopster101.siliconplayer.platform.LocalArtworkThumbnailLoader
 import com.flopster101.siliconplayer.platform.LocalIsRoundScreen
 import com.flopster101.siliconplayer.platform.LocalIsWatchDevice
@@ -613,6 +614,7 @@ internal fun PlaylistsScreen(
     val prefs = LocalAppPreferences.current
     val libraryRepository = LocalLibraryRepository.current
     val artworkCache = LocalArtworkCacheSupport.current
+    val trackProbe = LocalTrackProbeSupport.current
     val artworkThumbnailLoader = LocalArtworkThumbnailLoader.current
     val playlistPlatform = LocalPlaylistPlatformSupport.current
     val toastHandler = LocalToastHandler.current
@@ -687,6 +689,7 @@ internal fun PlaylistsScreen(
             val (succeeded, total) = PlaylistMetadataRefresher.refreshPlaylistTracks(
                 cacheDir = appCacheDir,
                 artworkCache = artworkCache,
+                trackProbe = trackProbe,
                 playlistId = plId,
                 targetEntryIds = null,
                 playlistLibraryStateProvider = { libraryState },
@@ -706,6 +709,7 @@ internal fun PlaylistsScreen(
             val success = PlaylistMetadataRefresher.refreshSingleTrack(
                 cacheDir = appCacheDir,
                 artworkCache = artworkCache,
+                trackProbe = trackProbe,
                 entry = entry,
                 playlistLibraryState = libraryState,
                 onPlaylistLibraryStateChanged = onPlaylistLibraryStateChanged
@@ -1541,6 +1545,7 @@ internal fun PlaylistsScreen(
                                         val (succeeded, total) = PlaylistMetadataRefresher.refreshPlaylistTracks(
                                             cacheDir = appCacheDir,
                                             artworkCache = artworkCache,
+                                            trackProbe = trackProbe,
                                             playlistId = FAVORITES_PLAYLIST_ID,
                                             targetEntryIds = targetIds,
                                             playlistLibraryStateProvider = { libraryState },
@@ -1696,6 +1701,7 @@ internal fun PlaylistsScreen(
                                             val (succeeded, total) = PlaylistMetadataRefresher.refreshPlaylistTracks(
                                                 cacheDir = appCacheDir,
                                                 artworkCache = artworkCache,
+                                                trackProbe = trackProbe,
                                                 playlistId = targetPlaylistId,
                                                 targetEntryIds = targetIds,
                                                 playlistLibraryStateProvider = { libraryState },

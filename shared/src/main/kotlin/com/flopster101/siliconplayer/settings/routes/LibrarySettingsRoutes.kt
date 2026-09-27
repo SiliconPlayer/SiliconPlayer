@@ -1,7 +1,5 @@
-package com.flopster101.siliconplayer.settings.routes
+package com.flopster101.siliconplayer
 
-import android.content.Intent
-import android.content.pm.PackageManager
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -43,50 +41,40 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import com.flopster101.siliconplayer.ChoiceDialogOption
-import com.flopster101.siliconplayer.PlaybackService
-import com.flopster101.siliconplayer.PlaylistMetadataRefreshStatus
-import com.flopster101.siliconplayer.PlaylistMetadataRefresher
-import com.flopster101.siliconplayer.PlayerSettingToggleCard
-import com.flopster101.siliconplayer.SettingsItemCard
-import com.flopster101.siliconplayer.SettingsRowContainer
-import com.flopster101.siliconplayer.SettingsRowSpacer
-import com.flopster101.siliconplayer.SettingsSectionLabel
-import com.flopster101.siliconplayer.SettingsSingleChoiceDialog
-import com.flopster101.siliconplayer.SettingsValuePickerCard
 import com.flopster101.siliconplayer.library.LibraryContract
-import com.flopster101.siliconplayer.library.LibraryRepository
 import com.flopster101.siliconplayer.library.LibraryScanRoot
-import com.flopster101.siliconplayer.platform.AndroidPlaylistRefreshNotifier
+import com.flopster101.siliconplayer.library.LibrarySourceStatus
+import com.flopster101.siliconplayer.platform.LocalAppCacheDir
+import com.flopster101.siliconplayer.platform.LocalAppConfigDir
+import com.flopster101.siliconplayer.platform.LocalAppPreferences
 import com.flopster101.siliconplayer.platform.LocalArtworkCacheSupport
-import com.flopster101.siliconplayer.readPlaylistLibraryState
-import com.flopster101.siliconplayer.PlaylistCoverGenerationMode
-import com.flopster101.siliconplayer.readPlaylistCoverGenerationMode
-import com.flopster101.siliconplayer.savePlaylistCoverGenerationMode
-import com.flopster101.siliconplayer.writePlaylistLibraryState
+import com.flopster101.siliconplayer.platform.LocalIsWatchDevice
+import com.flopster101.siliconplayer.platform.LocalLibraryRepository
+import com.flopster101.siliconplayer.platform.LocalLibrarySettingsSupport
+import com.flopster101.siliconplayer.platform.LocalPlaylistRefreshNotifier
+import com.flopster101.siliconplayer.platform.LocalTrackProbeSupport
+import java.io.File
 import kotlinx.coroutines.launch
 
 @Composable
 internal fun LibrarySettingsRouteContent(
     onOpenScanner: () -> Unit
 ) {
-    val context = LocalContext.current
-    val coroutineScope = rememberCoroutineScope()
-    val refreshNotifier = remember(context) { AndroidPlaylistRefreshNotifier(context) }
+    val prefs = LocalAppPreferences.current
+    val cacheDir = LocalAppCacheDir.current
+    val configDir = LocalAppConfigDir.current
     val artworkCache = LocalArtworkCacheSupport.current
-    val prefs = remember(context) {
-        context.getSharedPreferences(com.flopster101.siliconplayer.AppPreferenceKeys.PREFS_NAME, android.content.Context.MODE_PRIVATE)
-    }
+    val refreshNotifier = LocalPlaylistRefreshNotifier.current
+    val trackProbe = LocalTrackProbeSupport.current
+    val libraryRepository = LocalLibraryRepository.current
+    val settings = LocalLibrarySettingsSupport.current
+    val coroutineScope = rememberCoroutineScope()
     var showFavoritesInPlaylistChooser by remember {
         mutableStateOf(
-            prefs.getBoolean(
-                com.flopster101.siliconplayer.AppPreferenceKeys.LIBRARY_SHOW_FAVORITES_IN_PLAYLIST_CHOOSER,
-                false
-            )
+            prefs.getBoolean(AppPreferenceKeys.LIBRARY_SHOW_FAVORITES_IN_PLAYLIST_CHOOSER, false)
         )
     }
     var coverGenerationMode by remember {
@@ -95,24 +83,24 @@ internal fun LibrarySettingsRouteContent(
     var showCoverGenerationDialog by remember { mutableStateOf(false) }
 
     var sources by remember {
-        mutableStateOf<List<com.flopster101.siliconplayer.library.LibrarySourceStatus>>(emptyList())
+        mutableStateOf<List<LibrarySourceStatus>>(emptyList())
     }
     var deduplicateSources by remember { mutableStateOf(true) }
-    val librarySyncState by LibraryRepository.scanState.collectAsState()
+    val librarySyncState by libraryRepository.scanState.collectAsState()
     val isScanning = librarySyncState.isScanning
-    val isWatch = remember(context) { context.packageManager.hasSystemFeature(PackageManager.FEATURE_WATCH) }
+    val isWatch = LocalIsWatchDevice.current
     val metadataRefreshState by PlaylistMetadataRefresher.state.collectAsState()
     var showRefreshConfirmDialog by remember { mutableStateOf(false) }
     var refreshLocalOnlyChoice by remember { mutableStateOf(false) }
 
     LaunchedEffect(Unit) {
-        sources = LibraryRepository.sourceStatuses(context)
-        deduplicateSources = LibraryRepository.deduplicateSources(context)
+        sources = settings.sourceStatuses()
+        deduplicateSources = settings.deduplicateSources()
     }
     var scanWasRunning by remember { mutableStateOf(false) }
     LaunchedEffect(librarySyncState.isScanning) {
         if (scanWasRunning && !isScanning) {
-            sources = LibraryRepository.sourceStatuses(context)
+            sources = settings.sourceStatuses()
         }
         scanWasRunning = isScanning
     }
@@ -120,101 +108,89 @@ internal fun LibrarySettingsRouteContent(
     // Rows register sequencer roles on first composition; the whole section
     // re-registers as one pass on any data change so the row sequencer
     // computes roles (corner grouping) from a clean section boundary.
-    fun sourceLabel(id: String): String = when (id) {
-        LibraryContract.SOURCE_MEDIASTORE -> "MediaStore"
-        LibraryContract.SOURCE_SCANNER -> "Storage scanner"
-        else -> id
-    }
-
-    fun sourceDescription(id: String): String = when (id) {
-        LibraryContract.SOURCE_MEDIASTORE ->
-            "System media index. Covers conventional formats with no configuration."
-        LibraryContract.SOURCE_SCANNER ->
-            "Scans your folders directly, including formats MediaStore cannot index."
-        else -> ""
-    }
-
     key(sources.map { it.id }) {
-    SettingsSectionLabel("Sources")
-    sources.forEachIndexed { index, source ->
-        if (source.id == LibraryContract.SOURCE_SCANNER) {
-            SettingsRowContainer(
-                onClick = onOpenScanner
-            ) {
-                Column(modifier = Modifier.weight(1f)) {
-                    Text(
-                        text = sourceLabel(source.id),
-                        style = MaterialTheme.typography.titleMedium,
-                        color = MaterialTheme.colorScheme.onSurface
+        SettingsSectionLabel("Sources")
+        sources.forEachIndexed { index, source ->
+            if (source.id == LibraryContract.SOURCE_SCANNER) {
+                SettingsRowContainer(
+                    onClick = onOpenScanner
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = settings.sourceLabel(source.id),
+                            style = MaterialTheme.typography.titleMedium,
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
+                        Spacer(modifier = Modifier.height(2.dp))
+                        Text(
+                            text = settings.sourceDescription(source.id),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        Spacer(modifier = Modifier.height(3.dp))
+                        Text(
+                            text = if (source.lastSyncMs > 0L) {
+                                "${source.trackCount} tracks"
+                            } else {
+                                "Not scanned yet"
+                            },
+                            style = MaterialTheme.typography.bodySmall,
+                            fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold,
+                            color = MaterialTheme.colorScheme.primary
+                        )
+                    }
+                    Icon(
+                        imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant
                     )
-                    Spacer(modifier = Modifier.height(2.dp))
-                    Text(
-                        text = sourceDescription(source.id),
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                    Spacer(modifier = Modifier.height(3.dp))
-                    Text(
-                        text = if (source.lastSyncMs > 0L) {
-                            "${source.trackCount} tracks"
-                        } else {
-                            "Not scanned yet"
-                        },
-                        style = MaterialTheme.typography.bodySmall,
-                        fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold,
-                        color = MaterialTheme.colorScheme.primary
+                    Switch(
+                        checked = source.enabled,
+                        onCheckedChange = { checked ->
+                            coroutineScope.launch {
+                                settings.setSourceEnabled(source.id, checked)
+                                sources = settings.sourceStatuses()
+                            }
+                        }
                     )
                 }
-                Icon(
-                    imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight,
-                    contentDescription = null,
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-                Switch(
+            } else {
+                PlayerSettingToggleCard(
+                    title = settings.sourceLabel(source.id),
+                    description = settings.sourceDescription(source.id),
                     checked = source.enabled,
                     onCheckedChange = { checked ->
                         coroutineScope.launch {
-                            LibraryRepository.setSourceEnabled(context, source.id, checked)
-                            sources = LibraryRepository.sourceStatuses(context)
+                            settings.setSourceEnabled(source.id, checked)
+                            sources = settings.sourceStatuses()
                         }
+                    },
+                    badgeText = if (source.lastSyncMs > 0L) {
+                        "${source.trackCount} tracks"
+                    } else {
+                        "Not scanned yet"
                     }
                 )
             }
-        } else {
-            PlayerSettingToggleCard(
-                title = sourceLabel(source.id),
-                description = sourceDescription(source.id),
-                checked = source.enabled,
-                onCheckedChange = { checked ->
-                    coroutineScope.launch {
-                        LibraryRepository.setSourceEnabled(context, source.id, checked)
-                        sources = LibraryRepository.sourceStatuses(context)
-                    }
-                },
-                badgeText = if (source.lastSyncMs > 0L) {
-                    "${source.trackCount} tracks"
-                } else {
-                    "Not scanned yet"
-                }
-            )
-        }
-        if (index < sources.lastIndex) {
-            SettingsRowSpacer()
-        }
+            if (index < sources.lastIndex) {
+                SettingsRowSpacer()
+            }
     }
     }
 
-    Spacer(modifier = Modifier.height(16.dp))
-    SettingsSectionLabel("Duplicates")
-    PlayerSettingToggleCard(
-        title = "Deduplicate tracks",
-        description = "List files found by both MediaStore and the storage scanner only once, keeping the scanner copy. Takes effect the next time the library loads.",
-        checked = deduplicateSources,
-        onCheckedChange = { checked ->
-            deduplicateSources = checked
-            coroutineScope.launch { LibraryRepository.setDeduplicateSources(context, checked) }
-        }
-    )
+    if (settings.supportsDeduplication) {
+        Spacer(modifier = Modifier.height(16.dp))
+        SettingsSectionLabel("Duplicates")
+        PlayerSettingToggleCard(
+            title = "Deduplicate tracks",
+            description = "List files found by both MediaStore and the storage scanner only once, keeping the scanner copy. Takes effect the next time the library loads.",
+            checked = deduplicateSources,
+            onCheckedChange = { checked ->
+                deduplicateSources = checked
+                coroutineScope.launch { settings.setDeduplicateSources(checked) }
+            }
+        )
+    }
 
     Spacer(modifier = Modifier.height(16.dp))
     SettingsSectionLabel("Playlists")
@@ -225,10 +201,7 @@ internal fun LibrarySettingsRouteContent(
         onCheckedChange = { checked ->
             showFavoritesInPlaylistChooser = checked
             prefs.edit()
-                .putBoolean(
-                    com.flopster101.siliconplayer.AppPreferenceKeys.LIBRARY_SHOW_FAVORITES_IN_PLAYLIST_CHOOSER,
-                    checked
-                )
+                .putBoolean(AppPreferenceKeys.LIBRARY_SHOW_FAVORITES_IN_PLAYLIST_CHOOSER, checked)
                 .apply()
         }
     )
@@ -267,7 +240,7 @@ internal fun LibrarySettingsRouteContent(
         icon = Icons.Default.Refresh,
         onClick = {
             if (isScanning) return@SettingsItemCard
-            LibraryRepository.requestScan(context)
+            libraryRepository.requestScan()
         },
         enabled = !isScanning
     )
@@ -406,17 +379,16 @@ internal fun LibrarySettingsRouteContent(
                         showRefreshConfirmDialog = false
                         coroutineScope.launch {
                             PlaylistMetadataRefresher.refreshAllPlaylists(
-                                cacheDir = context.cacheDir,
+                                cacheDir = cacheDir,
                                 artworkCache = artworkCache,
+                                trackProbe = trackProbe,
                                 notifier = refreshNotifier,
                                 localOnly = localOnly,
                                 onStopPlayback = {
-                                    context.startService(
-                                        Intent(context, PlaybackService::class.java).setAction(PlaybackService.ACTION_STOP_CLEAR)
-                                    )
+                                    settings.stopPlaybackForMetadataRefresh()
                                 },
-                                playlistLibraryStateProvider = { readPlaylistLibraryState(prefs) },
-                                onPlaylistLibraryStateChanged = { newState -> writePlaylistLibraryState(prefs, newState) }
+                                playlistLibraryStateProvider = { readPlaylistLibraryState(configDir, prefs) },
+                                onPlaylistLibraryStateChanged = { newState -> writePlaylistLibraryState(configDir, newState) }
                             )
                         }
                     }
@@ -435,7 +407,7 @@ internal fun LibrarySettingsRouteContent(
 
 @Composable
 internal fun LibraryScannerRouteContent() {
-    val context = LocalContext.current
+    val settings = LocalLibrarySettingsSupport.current
     val coroutineScope = rememberCoroutineScope()
 
     var roots by remember { mutableStateOf<List<LibraryScanRoot>>(emptyList()) }
@@ -448,22 +420,22 @@ internal fun LibraryScannerRouteContent() {
     var extensionsInput by remember { mutableStateOf("") }
 
     LaunchedEffect(Unit) {
-        roots = LibraryRepository.scanRoots(context)
-        extensions = LibraryRepository.scannerExtensions(context).joinToString(", ")
-        autoScanEnabled = LibraryRepository.autoScanEnabled(context)
+        roots = settings.scanRoots()
+        extensions = settings.scannerExtensions().joinToString(", ")
+        autoScanEnabled = settings.autoScanEnabled()
     }
 
     fun reload() {
         coroutineScope.launch {
-            roots = LibraryRepository.scanRoots(context)
-            extensions = LibraryRepository.scannerExtensions(context).joinToString(", ")
-            autoScanEnabled = LibraryRepository.autoScanEnabled(context)
+            roots = settings.scanRoots()
+            extensions = settings.scannerExtensions().joinToString(", ")
+            autoScanEnabled = settings.autoScanEnabled()
         }
     }
 
     fun submitPath() {
         val trimmed = pathInput.trim()
-        val directory = java.io.File(trimmed)
+        val directory = File(trimmed)
         when {
             trimmed.isEmpty() -> return
             !directory.isDirectory -> pathError = "Folder not found"
@@ -474,8 +446,8 @@ internal fun LibraryScannerRouteContent() {
                 pathInput = ""
                 showAddRootDialog = false
                 coroutineScope.launch {
-                    LibraryRepository.setScanRoots(context, roots + LibraryScanRoot(directory.absolutePath))
-                    LibraryRepository.setSourceEnabled(context, LibraryContract.SOURCE_SCANNER, true)
+                    settings.setScanRoots(roots + LibraryScanRoot(directory.absolutePath))
+                    settings.setSourceEnabled(LibraryContract.SOURCE_SCANNER, true)
                     reload()
                 }
             }
@@ -484,8 +456,7 @@ internal fun LibraryScannerRouteContent() {
 
     fun toggleRoot(root: LibraryScanRoot) {
         coroutineScope.launch {
-            LibraryRepository.setScanRoots(
-                context,
+            settings.setScanRoots(
                 roots.map { if (it.path == root.path) it.copy(enabled = !it.enabled) else it }
             )
             reload()
@@ -494,22 +465,14 @@ internal fun LibraryScannerRouteContent() {
 
     fun removeRoot(root: LibraryScanRoot) {
         coroutineScope.launch {
-            LibraryRepository.setScanRoots(context, roots.filterNot { it.path == root.path })
-            reload()
-        }
-    }
-
-    fun addRoot(path: String) {
-        coroutineScope.launch {
-            LibraryRepository.setScanRoots(context, roots + LibraryScanRoot(path))
-            LibraryRepository.setSourceEnabled(context, LibraryContract.SOURCE_SCANNER, true)
+            settings.setScanRoots(roots.filterNot { it.path == root.path })
             reload()
         }
     }
 
     fun saveExtensions(parsed: Set<String>) {
         coroutineScope.launch {
-            LibraryRepository.setScannerExtensions(context, parsed)
+            settings.setScannerExtensions(parsed)
             reload()
         }
     }
@@ -530,7 +493,7 @@ internal fun LibraryScannerRouteContent() {
                         pathError = null
                     },
                     label = { Text("Folder path") },
-                    placeholder = { Text("/storage/emulated/0/Music") },
+                    placeholder = { Text(settings.addFolderPlaceholder) },
                     isError = pathError != null,
                     supportingText = pathError?.let { error -> { Text(error) } },
                     singleLine = true,
@@ -593,46 +556,46 @@ internal fun LibraryScannerRouteContent() {
     }
 
     key(roots.map { it.path }) {
-    SettingsSectionLabel("Folders")
-    roots.forEach { root ->
-        SettingsRowContainer(onClick = { toggleRoot(root) }) {
-            Icon(
-                imageVector = Icons.Default.LibraryMusic,
-                contentDescription = null,
-                tint = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-            Spacer(modifier = Modifier.width(12.dp))
-            Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    text = root.path,
-                    style = MaterialTheme.typography.titleMedium,
-                    color = MaterialTheme.colorScheme.onSurface,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
-                )
-                Spacer(modifier = Modifier.height(2.dp))
-                Text(
-                    text = if (root.enabled) "Included in scans" else "Excluded from scans",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            }
-            IconButton(onClick = { removeRoot(root) }) {
+        SettingsSectionLabel("Folders")
+        roots.forEach { root ->
+            SettingsRowContainer(onClick = { toggleRoot(root) }) {
                 Icon(
-                    imageVector = Icons.Default.Delete,
-                    contentDescription = "Remove folder",
+                    imageVector = Icons.Default.LibraryMusic,
+                    contentDescription = null,
                     tint = MaterialTheme.colorScheme.onSurfaceVariant
                 )
+                Spacer(modifier = Modifier.width(12.dp))
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = root.path,
+                        style = MaterialTheme.typography.titleMedium,
+                        color = MaterialTheme.colorScheme.onSurface,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                    Spacer(modifier = Modifier.height(2.dp))
+                    Text(
+                        text = if (root.enabled) "Included in scans" else "Excluded from scans",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+                IconButton(onClick = { removeRoot(root) }) {
+                    Icon(
+                        imageVector = Icons.Default.Delete,
+                        contentDescription = "Remove folder",
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
             }
+            SettingsRowSpacer()
         }
-        SettingsRowSpacer()
-    }
-    SettingsItemCard(
-        title = "Add folder",
-        description = "Scan a folder and its subfolders.",
-        icon = Icons.Default.Add,
-        onClick = { showAddRootDialog = true }
-    )
+        SettingsItemCard(
+            title = "Add folder",
+            description = "Scan a folder and its subfolders.",
+            icon = Icons.Default.Add,
+            onClick = { showAddRootDialog = true }
+        )
     }
 
     Spacer(modifier = Modifier.height(16.dp))
@@ -643,7 +606,7 @@ internal fun LibraryScannerRouteContent() {
         checked = autoScanEnabled,
         onCheckedChange = { checked ->
             autoScanEnabled = checked
-            coroutineScope.launch { LibraryRepository.setAutoScanEnabled(context, checked) }
+            coroutineScope.launch { settings.setAutoScanEnabled(checked) }
         }
     )
     SettingsRowSpacer()
