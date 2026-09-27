@@ -1,6 +1,7 @@
 #include <jni.h>
 #include "silicon/vis/vis_api.h"
 #include "ProjectMVisualizer.h"
+#include <mutex>
 #include <vector>
 #include <cstring>
 
@@ -8,6 +9,7 @@ extern "C" {
 
 // The plugin is owned by the pipeline of the handle it was registered with.
 // A newer registration on a different handle implies the old pipeline died.
+static std::mutex s_projectMMutex;
 static ProjectMVisualizer* s_projectMPlugin = nullptr;
 static jlong s_projectMRegisteredHandle = 0;
 // Last active preset across surface teardowns; cleared on decoder release.
@@ -22,6 +24,7 @@ Java_com_flopster101_siliconplayer_ui_visualization_gl_SiliconVisNativeBridge_na
     jobjectArray setDirs,
     jstring startPresetKey
 ) {
+    std::lock_guard<std::mutex> lock(s_projectMMutex);
     if (!handle) return;
     jsize setCount = setIds ? env->GetArrayLength(setIds) : 0;
     if (setDirs && env->GetArrayLength(setDirs) != setCount) return;
@@ -63,10 +66,11 @@ Java_com_flopster101_siliconplayer_ui_visualization_gl_SiliconVisNativeBridge_na
         s_projectMPlugin->setStartPreset(effectiveStart);
     } else {
         auto* visHandle = reinterpret_cast<SiliconVisHandle>(handle);
-        s_projectMPlugin = new ProjectMVisualizer(silicon::vis::silicon_vis_get_audio_provider(visHandle));
-        s_projectMPlugin->setPresetSets(sets);
-        s_projectMPlugin->setStartPreset(effectiveStart);
-        silicon_vis_register_plugin_renderer(visHandle, s_projectMPlugin);
+        auto* plugin = new ProjectMVisualizer(silicon::vis::silicon_vis_get_audio_provider(visHandle));
+        plugin->setPresetSets(sets);
+        plugin->setStartPreset(effectiveStart);
+        silicon_vis_register_plugin_renderer(visHandle, plugin);
+        s_projectMPlugin = plugin;
         s_projectMRegisteredHandle = handle;
     }
 }
@@ -81,6 +85,7 @@ Java_com_flopster101_siliconplayer_ui_visualization_gl_SiliconVisNativeBridge_na
     jobjectArray presetKeys,
     jstring startPresetKey
 ) {
+    std::lock_guard<std::mutex> lock(s_projectMMutex);
     if (!handle) return;
     jsize setCount = setIds ? env->GetArrayLength(setIds) : 0;
     if (setDirs && env->GetArrayLength(setDirs) != setCount) return;
@@ -127,11 +132,12 @@ Java_com_flopster101_siliconplayer_ui_visualization_gl_SiliconVisNativeBridge_na
         s_projectMPlugin->setStartPreset(effectiveStart);
     } else {
         auto* visHandle = reinterpret_cast<SiliconVisHandle>(handle);
-        s_projectMPlugin = new ProjectMVisualizer(silicon::vis::silicon_vis_get_audio_provider(visHandle));
-        if (!keys.empty()) s_projectMPlugin->setPresetKeys(sets, keys);
-        else s_projectMPlugin->setPresetSets(sets);
-        s_projectMPlugin->setStartPreset(effectiveStart);
-        silicon_vis_register_plugin_renderer(visHandle, s_projectMPlugin);
+        auto* plugin = new ProjectMVisualizer(silicon::vis::silicon_vis_get_audio_provider(visHandle));
+        if (!keys.empty()) plugin->setPresetKeys(sets, keys);
+        else plugin->setPresetSets(sets);
+        plugin->setStartPreset(effectiveStart);
+        silicon_vis_register_plugin_renderer(visHandle, plugin);
+        s_projectMPlugin = plugin;
         s_projectMRegisteredHandle = handle;
     }
 }
@@ -142,6 +148,7 @@ Java_com_flopster101_siliconplayer_ui_visualization_gl_SiliconVisNativeBridge_na
     jobject /* thiz */,
     jlong handle
 ) {
+    std::lock_guard<std::mutex> lock(s_projectMMutex);
     if (!handle || s_projectMRegisteredHandle != handle) return;
     if (s_projectMPlugin) {
         s_projectMLastPreset = s_projectMPlugin->currentPresetKey();
@@ -155,6 +162,7 @@ Java_com_flopster101_siliconplayer_ui_visualization_gl_SiliconVisNativeBridge_na
     JNIEnv* env,
     jobject /* thiz */
 ) {
+    std::lock_guard<std::mutex> lock(s_projectMMutex);
     s_projectMLastPreset.clear();
 }
 
@@ -164,6 +172,7 @@ Java_com_flopster101_siliconplayer_ui_visualization_gl_SiliconVisNativeBridge_na
     jobject /* thiz */,
     jboolean smoothTransition
 ) {
+    std::lock_guard<std::mutex> lock(s_projectMMutex);
     if (!s_projectMPlugin || !s_projectMRegisteredHandle) return;
     s_projectMPlugin->nextPreset(smoothTransition == JNI_TRUE);
 }
@@ -174,6 +183,7 @@ Java_com_flopster101_siliconplayer_ui_visualization_gl_SiliconVisNativeBridge_na
     jobject /* thiz */,
     jboolean smoothTransition
 ) {
+    std::lock_guard<std::mutex> lock(s_projectMMutex);
     if (!s_projectMPlugin || !s_projectMRegisteredHandle) return;
     s_projectMPlugin->previousPreset(smoothTransition == JNI_TRUE);
 }
@@ -184,6 +194,7 @@ Java_com_flopster101_siliconplayer_ui_visualization_gl_SiliconVisNativeBridge_na
     jobject /* thiz */,
     jboolean locked
 ) {
+    std::lock_guard<std::mutex> lock(s_projectMMutex);
     if (!s_projectMPlugin || !s_projectMRegisteredHandle) return;
     s_projectMPlugin->setPresetLocked(locked == JNI_TRUE);
 }
@@ -193,6 +204,7 @@ Java_com_flopster101_siliconplayer_ui_visualization_gl_SiliconVisNativeBridge_na
     JNIEnv* env,
     jobject /* thiz */
 ) {
+    std::lock_guard<std::mutex> lock(s_projectMMutex);
     if (!s_projectMPlugin || !s_projectMRegisteredHandle) return JNI_FALSE;
     return s_projectMPlugin->isPresetLocked() ? JNI_TRUE : JNI_FALSE;
 }
@@ -203,6 +215,7 @@ Java_com_flopster101_siliconplayer_ui_visualization_gl_SiliconVisNativeBridge_na
     jobject /* thiz */,
     jdouble seconds
 ) {
+    std::lock_guard<std::mutex> lock(s_projectMMutex);
     if (!s_projectMPlugin || !s_projectMRegisteredHandle) return;
     s_projectMPlugin->setPresetDuration(seconds);
 }
@@ -213,6 +226,7 @@ Java_com_flopster101_siliconplayer_ui_visualization_gl_SiliconVisNativeBridge_na
     jobject /* thiz */,
     jboolean enabled
 ) {
+    std::lock_guard<std::mutex> lock(s_projectMMutex);
     if (!s_projectMPlugin || !s_projectMRegisteredHandle) return;
     s_projectMPlugin->setHardCutEnabled(enabled == JNI_TRUE);
 }
@@ -223,6 +237,7 @@ Java_com_flopster101_siliconplayer_ui_visualization_gl_SiliconVisNativeBridge_na
     jobject /* thiz */,
     jfloat sensitivity
 ) {
+    std::lock_guard<std::mutex> lock(s_projectMMutex);
     if (!s_projectMPlugin || !s_projectMRegisteredHandle) return;
     s_projectMPlugin->setHardCutSensitivity(sensitivity);
 }
@@ -233,6 +248,7 @@ Java_com_flopster101_siliconplayer_ui_visualization_gl_SiliconVisNativeBridge_na
     jobject /* thiz */,
     jboolean random
 ) {
+    std::lock_guard<std::mutex> lock(s_projectMMutex);
     if (!s_projectMPlugin || !s_projectMRegisteredHandle) return;
     s_projectMPlugin->setRotationRandom(random == JNI_TRUE);
 }
@@ -243,6 +259,7 @@ Java_com_flopster101_siliconplayer_ui_visualization_gl_SiliconVisNativeBridge_na
     jobject /* thiz */,
     jint size
 ) {
+    std::lock_guard<std::mutex> lock(s_projectMMutex);
     if (!s_projectMPlugin || !s_projectMRegisteredHandle) return;
     s_projectMPlugin->setMeshSize(size);
 }
@@ -253,6 +270,7 @@ Java_com_flopster101_siliconplayer_ui_visualization_gl_SiliconVisNativeBridge_na
     jobject /* thiz */,
     jboolean enabled
 ) {
+    std::lock_guard<std::mutex> lock(s_projectMMutex);
     if (!s_projectMPlugin || !s_projectMRegisteredHandle) return;
     s_projectMPlugin->setAspectCorrection(enabled == JNI_TRUE);
 }
@@ -263,6 +281,7 @@ Java_com_flopster101_siliconplayer_ui_visualization_gl_SiliconVisNativeBridge_na
     jobject /* thiz */,
     jint fps
 ) {
+    std::lock_guard<std::mutex> lock(s_projectMMutex);
     if (!s_projectMPlugin || !s_projectMRegisteredHandle) return;
     s_projectMPlugin->setFps(fps);
 }
@@ -273,6 +292,7 @@ Java_com_flopster101_siliconplayer_ui_visualization_gl_SiliconVisNativeBridge_na
     jobject /* thiz */,
     jint maxLongEdgePx
 ) {
+    std::lock_guard<std::mutex> lock(s_projectMMutex);
     if (!s_projectMPlugin || !s_projectMRegisteredHandle) return;
     s_projectMPlugin->setMaxResolutionPx(maxLongEdgePx);
 }
@@ -282,6 +302,7 @@ Java_com_flopster101_siliconplayer_ui_visualization_gl_SiliconVisNativeBridge_na
     JNIEnv* env,
     jobject /* thiz */
 ) {
+    std::lock_guard<std::mutex> lock(s_projectMMutex);
     if (!s_projectMPlugin || !s_projectMRegisteredHandle) return nullptr;
     return env->NewStringUTF(s_projectMPlugin->currentPresetName().c_str());
 }
@@ -291,6 +312,7 @@ Java_com_flopster101_siliconplayer_ui_visualization_gl_SiliconVisNativeBridge_na
     JNIEnv* env,
     jobject /* thiz */
 ) {
+    std::lock_guard<std::mutex> lock(s_projectMMutex);
     if (!s_projectMPlugin || !s_projectMRegisteredHandle) return nullptr;
     const auto keys = s_projectMPlugin->presetKeys();
     jclass stringClass = env->FindClass("java/lang/String");
@@ -309,6 +331,7 @@ Java_com_flopster101_siliconplayer_ui_visualization_gl_SiliconVisNativeBridge_na
     JNIEnv* env,
     jobject /* thiz */
 ) {
+    std::lock_guard<std::mutex> lock(s_projectMMutex);
     if (!s_projectMPlugin || !s_projectMRegisteredHandle) return nullptr;
     const auto setIds = s_projectMPlugin->presetSetIds();
     jclass stringClass = env->FindClass("java/lang/String");
@@ -327,6 +350,7 @@ Java_com_flopster101_siliconplayer_ui_visualization_gl_SiliconVisNativeBridge_na
     JNIEnv* env,
     jobject /* thiz */
 ) {
+    std::lock_guard<std::mutex> lock(s_projectMMutex);
     if (!s_projectMPlugin || !s_projectMRegisteredHandle) return nullptr;
     std::string current = s_projectMPlugin->currentPresetKey();
     if (current.empty()) return nullptr;
@@ -340,6 +364,7 @@ Java_com_flopster101_siliconplayer_ui_visualization_gl_SiliconVisNativeBridge_na
     jstring presetKey,
     jboolean smoothTransition
 ) {
+    std::lock_guard<std::mutex> lock(s_projectMMutex);
     if (!s_projectMPlugin || !s_projectMRegisteredHandle || !presetKey) return;
     const char* keyC = env->GetStringUTFChars(presetKey, nullptr);
     if (!keyC) return;
@@ -395,6 +420,7 @@ Java_com_flopster101_siliconplayer_ui_visualization_gl_SiliconVisNativeBridge_na
     jobject /* thiz */,
     jlong handle
 ) {
+    std::lock_guard<std::mutex> lock(s_projectMMutex);
     if (!handle) return;
     // Keep the last live preset for the next attach.
     if (s_projectMPlugin && s_projectMRegisteredHandle == handle) {
@@ -895,6 +921,8 @@ Java_com_flopster101_siliconplayer_ui_visualization_gl_SiliconVisNativeBridge_na
 
 } // extern "C"
 
-extern "C" __attribute__((visibility("default"))) void silicon_vis_projectm_clear_last_preset() {
+extern "C" __attribute__((visibility("default")))
+void silicon_vis_projectm_clear_last_preset() {
+    std::lock_guard<std::mutex> lock(s_projectMMutex);
     s_projectMLastPreset.clear();
 }
