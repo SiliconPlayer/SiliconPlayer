@@ -5,6 +5,7 @@ import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.remember
 import androidx.compose.ui.graphics.toComposeImageBitmap
+import com.flopster101.siliconplayer.NativeBridge
 import com.flopster101.siliconplayer.platform.AppPreferences
 import com.flopster101.siliconplayer.platform.AppVersionInfo
 import com.flopster101.siliconplayer.platform.ArtworkThumbnailLoader
@@ -18,6 +19,7 @@ import com.flopster101.siliconplayer.platform.LocalAppPreferences
 import com.flopster101.siliconplayer.platform.LocalAppVersionInfo
 import com.flopster101.siliconplayer.platform.LocalArtworkCacheSupport
 import com.flopster101.siliconplayer.platform.LocalArtworkThumbnailLoader
+import com.flopster101.siliconplayer.platform.LocalAudioInspectorSupport
 import com.flopster101.siliconplayer.platform.LocalAudioRouteManager
 import com.flopster101.siliconplayer.platform.LocalFileExportHandler
 import com.flopster101.siliconplayer.platform.LocalIsWatchDevice
@@ -151,13 +153,31 @@ class DesktopPreferencesProvider : PreferencesProvider {
     }
 }
 
-class DesktopAudioRouteManager : AudioRouteManager {
+class DesktopAudioRouteManager(
+    private val openAudioSettings: () -> Unit = {}
+) : AudioRouteManager {
+    // Device enumeration spins a transient miniaudio context; re-query at
+    // most every few seconds so chip recompositions stay allocation-free.
+    private var cachedName: String? = null
+    private var cachedAtMs: Long = 0L
+
     @Composable
     override fun rememberCurrentRoute(): AudioOutputRouteInfo {
-        return AudioOutputRouteInfo(AudioOutputRouteType.Speaker, "System Output")
+        val now = System.currentTimeMillis()
+        val name = synchronized(this) {
+            if (cachedName == null || now - cachedAtMs > 5000L) {
+                cachedName = runCatching { NativeBridge.getAudioOutputRouteName() }
+                    .getOrNull()?.trim()?.takeIf { it.isNotEmpty() }
+                cachedAtMs = now
+            }
+            cachedName
+        } ?: "System Output"
+        return AudioOutputRouteInfo(AudioOutputRouteType.Speaker, name)
     }
 
-    override fun openAudioOutputSwitcher() {}
+    // Desktop has no system output switcher; the dialog's action button
+    // opens the in-app audio settings page instead.
+    override fun openAudioOutputSwitcher() = openAudioSettings()
 
     override fun formatUsbAudioName(rawName: String): String = rawName
 }
@@ -168,6 +188,7 @@ fun ProvideDesktopPlatformAdapters(
     windowHeightDp: Int = 750,
     backDispatcher: DesktopBackDispatcher = remember { DesktopBackDispatcher() },
     stopPlaybackForRefresh: () -> Unit = {},
+    openAudioSettings: () -> Unit = {},
     content: @Composable () -> Unit
 ) {
     val prefsProvider = remember { DesktopPreferencesProvider() }
@@ -175,7 +196,7 @@ fun ProvideDesktopPlatformAdapters(
     remember(prefs) {
         com.flopster101.siliconplayer.NetworkCredentialStore.preferencesProvider = { prefs }
     }
-    val audioRouteManager = remember { DesktopAudioRouteManager() }
+    val audioRouteManager = remember(openAudioSettings) { DesktopAudioRouteManager(openAudioSettings) }
     val toastHandler = remember { ToastHandler { msg -> println("[SiliconPlayer] $msg") } }
     val windowSizeInfo = remember(windowWidthDp, windowHeightDp) {
         WindowSizeInfo(
@@ -251,6 +272,7 @@ fun ProvideDesktopPlatformAdapters(
         LocalPreferencesProvider provides prefsProvider,
         LocalIsWatchDevice provides false,
         LocalAudioRouteManager provides audioRouteManager,
+        LocalAudioInspectorSupport provides DesktopAudioInspectorSupport,
         LocalToastHandler provides toastHandler,
         LocalArtworkThumbnailLoader provides artworkThumbnailLoader,
         LocalDesktopBackDispatcher provides backDispatcher,

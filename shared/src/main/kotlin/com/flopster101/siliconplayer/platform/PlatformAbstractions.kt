@@ -4,6 +4,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.graphics.ImageBitmap
 import com.flopster101.siliconplayer.CacheExportResult
+import com.flopster101.siliconplayer.DecoderArtworkHint
 import com.flopster101.siliconplayer.ExportConflictDecision
 import com.flopster101.siliconplayer.ExportFileItem
 import com.flopster101.siliconplayer.ExportNameConflict
@@ -406,6 +407,45 @@ internal object DefaultTrackProbeSupport : TrackProbeSupport {
 
 val LocalTrackProbeSupport = staticCompositionLocalOf<TrackProbeSupport> {
     DefaultTrackProbeSupport
+}
+
+data class BitPerfectSectionParams(
+    val effectiveDecoderName: String,
+    val effectiveDecoderRateHz: Int,
+    val effectiveOutputRateHz: Int,
+    val effectiveChannels: Int,
+    val bitPerfectEnabled: Boolean,
+    val isPlaying: Boolean,
+    val playbackCapabilitiesFlags: Int,
+    val onBitPerfectToggled: (Boolean) -> Unit,
+    val onRestartTrack: () -> Unit
+)
+
+/** Audio-output inspector hook; USB/bit-perfect detail is Android-only. */
+interface AudioInspectorSupport {
+    val inactiveBackendLabel: String
+    val fileArtworkIcon: @Composable (DecoderArtworkHint?) -> Unit
+    val decoderNodeIcon: @Composable () -> Unit
+    val bitPerfectSection: @Composable (BitPerfectSectionParams) -> Unit
+    @Composable
+    fun rememberBitPerfectActive(bitPerfectEnabled: Boolean, routeIsUsb: Boolean): Boolean
+    @Composable
+    fun rememberUsbSinkFormatText(): String?
+}
+
+internal object EmptyAudioInspector : AudioInspectorSupport {
+    override val inactiveBackendLabel: String = "Unknown"
+    override val fileArtworkIcon: @Composable (DecoderArtworkHint?) -> Unit = {}
+    override val decoderNodeIcon: @Composable () -> Unit = {}
+    override val bitPerfectSection: @Composable (BitPerfectSectionParams) -> Unit = {}
+    @Composable
+    override fun rememberBitPerfectActive(bitPerfectEnabled: Boolean, routeIsUsb: Boolean): Boolean = false
+    @Composable
+    override fun rememberUsbSinkFormatText(): String? = null
+}
+
+val LocalAudioInspectorSupport = staticCompositionLocalOf<AudioInspectorSupport> {
+    EmptyAudioInspector
 }
 
 /**

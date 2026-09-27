@@ -1,17 +1,9 @@
 package com.flopster101.siliconplayer.ui.dialogs
-import com.flopster101.siliconplayer.isCachedRemoteSourceFile
-import com.flopster101.siliconplayer.sourceIdForCachedFileName
 
-import android.content.Context
-import android.media.AudioDeviceInfo
-import android.media.AudioManager
-import android.os.Build
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.ExperimentalLayoutApi
-import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
@@ -20,42 +12,29 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.VolumeUp
-import androidx.compose.material.icons.filled.AudioFile
 import androidx.compose.material.icons.filled.Bluetooth
 import androidx.compose.material.icons.filled.Headphones
-import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Usb
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.HorizontalDivider
-import androidx.compose.foundation.clickable
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Slider
 import androidx.compose.material3.Surface
-import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.collectAsState
-import com.flopster101.siliconplayer.ChoiceDialogOption
-import com.flopster101.siliconplayer.SettingsSingleChoiceDialog
-import com.flopster101.siliconplayer.usb.DirectUacVolumeMode
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -64,43 +43,40 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.Layout
 import androidx.compose.ui.layout.Placeable
-import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import com.flopster101.siliconplayer.AppPreferenceKeys
-import com.flopster101.siliconplayer.DecoderArtworkHint
-import com.flopster101.siliconplayer.NativeBridge
-import com.flopster101.siliconplayer.R
-import com.flopster101.siliconplayer.WatchDialogContainer
-import com.flopster101.siliconplayer.VerticalScrollbarTrack
-import com.flopster101.siliconplayer.onSizeChangedDeferred
-import com.flopster101.siliconplayer.rememberDialogScrollbarAlpha
-import com.flopster101.siliconplayer.rememberScrollStateScrollbarDragHandler
-import com.flopster101.siliconplayer.adaptiveDialogModifier
-import com.flopster101.siliconplayer.adaptiveDialogProperties
-import com.flopster101.siliconplayer.isWatchDevice
-import com.flopster101.siliconplayer.buildDecoderExtensionArtworkHintMap
-import com.flopster101.siliconplayer.decoderArtworkHintForName
-import com.flopster101.siliconplayer.resolveDecoderArtworkHintForFileName
-import com.flopster101.siliconplayer.REMOTE_SOURCE_CACHE_DIR
-import com.flopster101.siliconplayer.stripRemoteCacheHashPrefix
-import com.flopster101.siliconplayer.decodePercentEncodedForDisplay
 import com.flopster101.siliconplayer.AudioBackendPreference
 import com.flopster101.siliconplayer.AudioBufferPreset
 import com.flopster101.siliconplayer.AudioResamplerPreference
-import com.flopster101.siliconplayer.BitPerfectCoordinator
-import com.flopster101.siliconplayer.BitPerfectDriverMethod
-import com.flopster101.siliconplayer.BitPerfectSupportStatus
-import com.flopster101.siliconplayer.supportsLiveSampleRateChange
-import com.flopster101.siliconplayer.ui.icons.ConversionPathIcon
+import com.flopster101.siliconplayer.DecoderArtworkHint
+import com.flopster101.siliconplayer.NativeBridge
+import com.flopster101.siliconplayer.REMOTE_SOURCE_CACHE_DIR
+import com.flopster101.siliconplayer.VerticalScrollbarTrack
+import com.flopster101.siliconplayer.WatchDialogContainer
+import com.flopster101.siliconplayer.adaptiveDialogModifier
+import com.flopster101.siliconplayer.adaptiveDialogProperties
+import com.flopster101.siliconplayer.buildDecoderExtensionArtworkHintMap
+import com.flopster101.siliconplayer.decodePercentEncodedForDisplay
+import com.flopster101.siliconplayer.decoderArtworkHintForName
+import com.flopster101.siliconplayer.isCachedRemoteSourceFile
+import com.flopster101.siliconplayer.isWatchDevice
+import com.flopster101.siliconplayer.onSizeChangedDeferred
 import com.flopster101.siliconplayer.platform.AudioOutputRouteInfo
 import com.flopster101.siliconplayer.platform.AudioOutputRouteType
-import com.flopster101.siliconplayer.usb.UacDriverCoordinator
-import kotlinx.coroutines.launch
+import com.flopster101.siliconplayer.platform.BitPerfectSectionParams
+import com.flopster101.siliconplayer.platform.LocalAppCacheDir
+import com.flopster101.siliconplayer.platform.LocalAppPreferences
+import com.flopster101.siliconplayer.platform.LocalAudioInspectorSupport
+import com.flopster101.siliconplayer.rememberDialogScrollbarAlpha
+import com.flopster101.siliconplayer.rememberScrollStateScrollbarDragHandler
+import com.flopster101.siliconplayer.resolveDecoderArtworkHintForFileName
+import com.flopster101.siliconplayer.sourceIdForCachedFileName
+import com.flopster101.siliconplayer.stripRemoteCacheHashPrefix
+import com.flopster101.siliconplayer.ui.icons.ConversionPathIcon
 import java.io.File
 import java.util.Locale
 
@@ -130,32 +106,8 @@ internal fun AudioOutputDetailsDialog(
     onOpenAudioSettings: () -> Unit,
     onDismiss: () -> Unit
 ) {
-    val context = LocalContext.current
-    val prefs = remember(context) {
-        context.getSharedPreferences(AppPreferenceKeys.PREFS_NAME, Context.MODE_PRIVATE)
-    }
-
-    val driverMethod = remember(prefs) {
-        BitPerfectDriverMethod.fromStorage(prefs.getString(AppPreferenceKeys.BIT_PERFECT_DRIVER_METHOD, null))
-    }
-    val bitPerfectSupportStatus = remember(routeInfo, driverMethod) {
-        BitPerfectCoordinator.checkBitPerfectSupport(context, driverMethod)
-    }
-    val isBitPerfectSupported = bitPerfectSupportStatus == BitPerfectSupportStatus.Supported
-    val isUacDriverOpen by UacDriverCoordinator.isOpen.collectAsState()
-    val isUacStreaming by UacDriverCoordinator.isStreaming.collectAsState()
-    val uacLastError by UacDriverCoordinator.lastErrorMessage.collectAsState()
-    val uacDiagnostics = remember(isUacStreaming, isUacDriverOpen) {
-        if (isUacDriverOpen) UacDriverCoordinator.getDiagnostics() else null
-    }
-    val uacVolumeMode by UacDriverCoordinator.volumeMode.collectAsState()
-    val uacManualVolume by UacDriverCoordinator.manualVolume.collectAsState()
-    val uacEffectiveVolumeScale by UacDriverCoordinator.effectiveVolumeScale.collectAsState()
-    var showVolumeModeDialog by remember { mutableStateOf(false) }
-
-    val coroutineScope = rememberCoroutineScope()
-    var showRestartConfirmDialog by remember { mutableStateOf(false) }
-    var pendingBitPerfectState by remember { mutableStateOf(false) }
+    val prefs = LocalAppPreferences.current
+    val inspector = LocalAudioInspectorSupport.current
 
     val selectedBackend = remember(prefs) {
         AudioBackendPreference.fromStorage(prefs.getString(AppPreferenceKeys.AUDIO_BACKEND_PREFERENCE, null))
@@ -174,7 +126,8 @@ internal fun AudioOutputDetailsDialog(
         AudioResamplerPreference.fromStorage(prefs.getString(AppPreferenceKeys.AUDIO_RESAMPLER_PREFERENCE, null))
     }
 
-    val cacheRoot = remember(context) { File(context.cacheDir, REMOTE_SOURCE_CACHE_DIR) }
+    val cacheDir = LocalAppCacheDir.current
+    val cacheRoot = remember(cacheDir) { File(cacheDir, REMOTE_SOURCE_CACHE_DIR) }
     val resolvedSourceId = remember(displayFile, sourceId, requestUrl) {
         val direct = sourceId?.trim()?.takeIf { it.isNotBlank() } ?: requestUrl?.trim()?.takeIf { it.isNotBlank() }
         if (direct != null && (direct.startsWith("smb://", ignoreCase = true) || direct.startsWith("http://", ignoreCase = true) || direct.startsWith("https://", ignoreCase = true))) {
@@ -227,67 +180,10 @@ internal fun AudioOutputDetailsDialog(
         10.0
     }
 
-    val isBitPerfectActive = remember(bitPerfectEnabled, routeInfo, isUacDriverOpen, isBitPerfectSupported) {
-        routeInfo.type == AudioOutputRouteType.Usb && bitPerfectEnabled && (isUacDriverOpen || BitPerfectCoordinator.isBitPerfectActive(context) || isBitPerfectSupported)
-    }
-
-    var showReplugNoticeDialog by remember { mutableStateOf(false) }
-
-    val onToggleBitPerfect: (Boolean) -> Unit = { targetEnabled ->
-        val canLiveChange = supportsLiveSampleRateChange(playbackCapabilitiesFlags)
-        if (isPlaying && !canLiveChange) {
-            pendingBitPerfectState = targetEnabled
-            showRestartConfirmDialog = true
-        } else {
-            onBitPerfectToggled(targetEnabled)
-            if (targetEnabled) {
-                if (driverMethod == BitPerfectDriverMethod.DirectUac) {
-                    val rawUsb = UacDriverCoordinator.findUsbAudioDevice(context)
-                    if (rawUsb != null) {
-                        coroutineScope.launch {
-                            val granted = UacDriverCoordinator.requestPermission(context, rawUsb)
-                            if (granted) {
-                                UacDriverCoordinator.open(context, rawUsb)
-                                if (isPlaying) {
-                                    val targetRate = effectiveDecoderRate
-                                    val targetBitDepth = NativeBridge.getTrackBitDepth().takeIf { it in listOf(16, 24, 32) } ?: 16
-                                    val ok = UacDriverCoordinator.start(targetRate, targetBitDepth, 2)
-                                    NativeBridge.setBitPerfectMode(ok)
-                                    if (!ok) {
-                                        onBitPerfectToggled(false)
-                                    }
-                                } else {
-                                    NativeBridge.setBitPerfectMode(true)
-                                }
-                            } else {
-                                onBitPerfectToggled(false)
-                            }
-                        }
-                    } else {
-                        onBitPerfectToggled(false)
-                    }
-                } else if (BitPerfectCoordinator.isBitPerfectPlatformSupported()) {
-                    val usbAudioDevice = BitPerfectCoordinator.findConnectedUsbAudioDevice(context)
-                    if (usbAudioDevice != null) {
-                        if (isPlaying) {
-                            val targetRate = effectiveDecoderRate
-                            BitPerfectCoordinator.setPreferredBitPerfectMixer(context, usbAudioDevice, targetRate, effectiveChannels)
-                        }
-                        NativeBridge.setBitPerfectMode(true)
-                    } else {
-                        BitPerfectCoordinator.clearBitPerfectMixer(context)
-                        NativeBridge.setBitPerfectMode(false)
-                        onBitPerfectToggled(false)
-                    }
-                }
-            } else {
-                UacDriverCoordinator.close()
-                BitPerfectCoordinator.clearBitPerfectMixer(context)
-                NativeBridge.setBitPerfectMode(false)
-                showReplugNoticeDialog = true
-            }
-        }
-    }
+    val isBitPerfectActive = inspector.rememberBitPerfectActive(
+        bitPerfectEnabled,
+        routeInfo.type == AudioOutputRouteType.Usb
+    )
 
     val isResamplingActive = effectiveDecoderRate > 0 && effectiveOutputRate > 0 && effectiveDecoderRate != effectiveOutputRate
 
@@ -329,7 +225,7 @@ internal fun AudioOutputDetailsDialog(
         if (nativeBackend.isNotBlank() && nativeBackend != "(inactive)" && nativeBackend != "Unknown") {
             nativeBackend
         } else {
-            "AAudio"
+            inspector.inactiveBackendLabel
         }
     }
 
@@ -527,34 +423,7 @@ internal fun AudioOutputDetailsDialog(
                                 }
 
                                 SignalChainNodeCard(
-                                    icon = {
-                                        when (fileArtworkHint) {
-                                            DecoderArtworkHint.TrackedFile -> {
-                                                Icon(
-                                                    painter = painterResource(id = R.drawable.ic_file_tracked),
-                                                    contentDescription = null,
-                                                    modifier = Modifier.size(18.dp),
-                                                    tint = MaterialTheme.colorScheme.primary
-                                                )
-                                            }
-                                            DecoderArtworkHint.GameFile -> {
-                                                Icon(
-                                                    painter = painterResource(id = R.drawable.ic_file_game),
-                                                    contentDescription = null,
-                                                    modifier = Modifier.size(18.dp),
-                                                    tint = MaterialTheme.colorScheme.primary
-                                                )
-                                            }
-                                            else -> {
-                                                Icon(
-                                                    imageVector = Icons.Default.AudioFile,
-                                                    contentDescription = null,
-                                                    modifier = Modifier.size(18.dp),
-                                                    tint = MaterialTheme.colorScheme.primary
-                                                )
-                                            }
-                                        }
-                                    },
+                                    icon = { inspector.fileArtworkIcon(fileArtworkHint) },
                                     iconBackgroundColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.15f),
                                     title = effectiveFileName,
                                     badgeText = fileFormatBadge,
@@ -568,14 +437,7 @@ internal fun AudioOutputDetailsDialog(
 
                                 // Node 2: Decoder
                                 SignalChainNodeCard(
-                                    icon = {
-                                        Icon(
-                                            painter = painterResource(id = R.drawable.ic_placeholder_tracker_chip),
-                                            contentDescription = null,
-                                            modifier = Modifier.size(18.dp),
-                                            tint = MaterialTheme.colorScheme.tertiary
-                                        )
-                                    },
+                                    icon = { inspector.decoderNodeIcon() },
                                     iconBackgroundColor = MaterialTheme.colorScheme.tertiary.copy(alpha = 0.15f),
                                     title = effectiveDecoderName,
                                     badgeText = "Decoder",
@@ -643,12 +505,8 @@ internal fun AudioOutputDetailsDialog(
                                 val sinkBadgeColor = if (isBitPerfectActive) bitPerfectHighlightColor else MaterialTheme.colorScheme.onSurfaceVariant
                                 val sinkBadgeBg = if (isBitPerfectActive) bitPerfectHighlightColor.copy(alpha = 0.15f) else MaterialTheme.colorScheme.surfaceContainerHighest
 
-                                val sinkFormatText = if (isUacStreaming) {
-                                    val bits = uacDiagnostics?.bitsPerSample?.takeIf { it > 0 } ?: 16
-                                    "$bits-bit PCM"
-                                } else {
-                                    "16-bit PCM"
-                                }
+                                val sinkFormatText =
+                                    inspector.rememberUsbSinkFormatText() ?: "16-bit PCM"
 
                                 SignalChainNodeCard(
                                     icon = {
@@ -712,198 +570,20 @@ internal fun AudioOutputDetailsDialog(
                         }
                     }
 
-                    // Section: Bit-Perfect Routing (if USB route)
                     if (routeInfo.type == AudioOutputRouteType.Usb) {
-                        val supportedRates = remember(context) {
-                            BitPerfectCoordinator.getUsbDeviceSupportedSampleRates(context)
-                        }
-                        val isUac1 = remember(context) {
-                            BitPerfectCoordinator.isConnectedUsbAudioUac1(context)
-                        }
-                        val uacLabel = if (isUac1) "UAC 1.0" else "UAC 2.0"
-
-                        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                            DialogSectionLabel(
-                                text = "Bit-perfect routing",
-                                modifier = Modifier.padding(start = 8.dp)
+                        inspector.bitPerfectSection(
+                            BitPerfectSectionParams(
+                                effectiveDecoderName = effectiveDecoderName,
+                                effectiveDecoderRateHz = effectiveDecoderRate,
+                                effectiveOutputRateHz = effectiveOutputRate,
+                                effectiveChannels = effectiveChannels,
+                                bitPerfectEnabled = bitPerfectEnabled,
+                                isPlaying = isPlaying,
+                                playbackCapabilitiesFlags = playbackCapabilitiesFlags,
+                                onBitPerfectToggled = onBitPerfectToggled,
+                                onRestartTrack = onRestartTrack
                             )
-
-                            Card(
-                                modifier = Modifier.fillMaxWidth(),
-                                shape = RoundedCornerShape(16.dp),
-                                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow),
-                                border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f))
-                            ) {
-                                Column(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .padding(14.dp),
-                                    verticalArrangement = Arrangement.spacedBy(12.dp)
-                                ) {
-                                    Row(
-                                        modifier = Modifier.fillMaxWidth(),
-                                        horizontalArrangement = Arrangement.SpaceBetween,
-                                        verticalAlignment = Alignment.CenterVertically
-                                    ) {
-                                        Column(modifier = Modifier.weight(1f)) {
-                                            Text(
-                                                text = "Bit-perfect USB audio",
-                                                style = MaterialTheme.typography.titleMedium,
-                                                fontWeight = FontWeight.SemiBold,
-                                                color = MaterialTheme.colorScheme.onSurface
-                                            )
-                                            Spacer(modifier = Modifier.height(4.dp))
-                                            val (statusText, statusColor) = when (bitPerfectSupportStatus) {
-                                                BitPerfectSupportStatus.Supported -> Pair("Bypasses Android audio mixer for bit-perfect output.", MaterialTheme.colorScheme.onSurfaceVariant)
-                                                BitPerfectSupportStatus.UnsupportedAudioHal -> Pair("Platform bit-perfect API is not supported by this device's audio HAL.", MaterialTheme.colorScheme.error)
-                                                BitPerfectSupportStatus.UnsupportedApiLevel -> Pair("Platform bit-perfect USB routing requires Android 14 or higher.", MaterialTheme.colorScheme.error)
-                                                BitPerfectSupportStatus.NoUsbDeviceConnected -> Pair("No compatible USB audio device connected.", MaterialTheme.colorScheme.error)
-                                            }
-                                            Text(
-                                                text = statusText,
-                                                style = MaterialTheme.typography.bodySmall,
-                                                color = statusColor
-                                            )
-                                            Spacer(modifier = Modifier.height(3.dp))
-                                            val driverBadge = "Driver: ${driverMethod.displayName}"
-                                            Text(
-                                                text = driverBadge,
-                                                style = MaterialTheme.typography.bodySmall,
-                                                color = if (isBitPerfectSupported) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.38f),
-                                                fontWeight = FontWeight.SemiBold
-                                            )
-                                            if (driverMethod == BitPerfectDriverMethod.DirectUac && uacLastError != null) {
-                                                Spacer(modifier = Modifier.height(3.dp))
-                                                Text(
-                                                    text = "Error: $uacLastError",
-                                                    style = MaterialTheme.typography.bodySmall,
-                                                    color = MaterialTheme.colorScheme.error,
-                                                    fontWeight = FontWeight.Medium
-                                                )
-                                            }
-                                        }
-                                        Spacer(modifier = Modifier.width(12.dp))
-                                        Switch(
-                                            checked = bitPerfectEnabled && isBitPerfectSupported,
-                                            onCheckedChange = onToggleBitPerfect,
-                                            enabled = isBitPerfectSupported
-                                        )
-                                    }
-
-                                    HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.2f))
-
-                                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                                        Text(
-                                            text = "Supported Rates ($uacLabel)",
-                                            style = MaterialTheme.typography.labelMedium,
-                                            fontWeight = FontWeight.SemiBold,
-                                            color = MaterialTheme.colorScheme.onSurface
-                                        )
-
-                                        @OptIn(ExperimentalLayoutApi::class)
-                                        FlowRow(
-                                            modifier = Modifier.fillMaxWidth(),
-                                            horizontalArrangement = Arrangement.spacedBy(6.dp),
-                                            verticalArrangement = Arrangement.spacedBy(6.dp)
-                                        ) {
-                                            supportedRates.forEach { rate ->
-                                                val isActive = rate == effectiveOutputRate
-                                                Surface(
-                                                    shape = RoundedCornerShape(8.dp),
-                                                    color = if (isActive) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceContainerHigh,
-                                                    border = androidx.compose.foundation.BorderStroke(
-                                                        1.dp,
-                                                        if (isActive) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f)
-                                                    )
-                                                ) {
-                                                    Text(
-                                                        text = formatSampleRateForInspector(rate),
-                                                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp),
-                                                        style = MaterialTheme.typography.labelMedium.copy(
-                                                            fontFeatureSettings = "tnum"
-                                                        ),
-                                                        fontWeight = if (isActive) FontWeight.Bold else FontWeight.Medium,
-                                                        color = if (isActive) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurfaceVariant,
-                                                        fontSize = 11.5.sp
-                                                    )
-                                                }
-                                            }
-                                        }
-                                    }
-
-                                    if (bitPerfectEnabled && isBitPerfectSupported && driverMethod == BitPerfectDriverMethod.DirectUac) {
-                                        HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.2f))
-
-                                        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                                            Row(
-                                                modifier = Modifier.fillMaxWidth(),
-                                                horizontalArrangement = Arrangement.SpaceBetween,
-                                                verticalAlignment = Alignment.CenterVertically
-                                            ) {
-                                                Column(modifier = Modifier.weight(1f)) {
-                                                    Text(
-                                                        text = "DAC Volume Scaling",
-                                                        style = MaterialTheme.typography.labelMedium,
-                                                        fontWeight = FontWeight.SemiBold,
-                                                        color = MaterialTheme.colorScheme.onSurface
-                                                    )
-                                                    Text(
-                                                        text = when (uacVolumeMode) {
-                                                            DirectUacVolumeMode.None -> "None (0 dBFS unity gain)"
-                                                            DirectUacVolumeMode.System -> "Match Android system volume"
-                                                            DirectUacVolumeMode.Manual -> "Manual slider"
-                                                        },
-                                                        style = MaterialTheme.typography.bodySmall,
-                                                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                                                    )
-                                                }
-                                                FilledTonalButton(
-                                                    onClick = { showVolumeModeDialog = true },
-                                                    shape = RoundedCornerShape(12.dp),
-                                                    contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp)
-                                                ) {
-                                                    Text(
-                                                        text = uacVolumeMode.displayName,
-                                                        style = MaterialTheme.typography.labelMedium,
-                                                        fontWeight = FontWeight.SemiBold
-                                                    )
-                                                }
-                                            }
-
-                                            if (uacVolumeMode == DirectUacVolumeMode.Manual) {
-                                                Row(
-                                                    modifier = Modifier.fillMaxWidth(),
-                                                    verticalAlignment = Alignment.CenterVertically,
-                                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                                                ) {
-                                                    Icon(
-                                                        imageVector = Icons.AutoMirrored.Filled.VolumeUp,
-                                                        contentDescription = null,
-                                                        modifier = Modifier.size(18.dp),
-                                                        tint = MaterialTheme.colorScheme.primary
-                                                    )
-                                                    Slider(
-                                                        value = uacManualVolume,
-                                                        onValueChange = { newVol ->
-                                                            UacDriverCoordinator.setManualVolume(context, newVol)
-                                                        },
-                                                        valueRange = 0f..1f,
-                                                        modifier = Modifier.weight(1f)
-                                                    )
-                                                    Text(
-                                                        text = "${(uacManualVolume * 100).toInt()}%",
-                                                        style = MaterialTheme.typography.labelMedium.copy(fontFeatureSettings = "tnum"),
-                                                        fontWeight = FontWeight.Bold,
-                                                        color = MaterialTheme.colorScheme.primary,
-                                                        modifier = Modifier.width(36.dp)
-                                                    )
-                                                }
-                                            }
-                                        }
-                                    }
-                                }
-                            }
-                        }
+                        )
                     }
                 }
 
@@ -952,142 +632,6 @@ internal fun AudioOutputDetailsDialog(
                 }
             }
         }
-    }
-
-    if (showRestartConfirmDialog) {
-        AlertDialog(
-            onDismissRequest = { showRestartConfirmDialog = false },
-            title = {
-                Text(
-                    text = "Restart playback?",
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.Bold
-                )
-            },
-            text = {
-                Text(
-                    text = "Changing bit-perfect audio for $effectiveDecoderName won't take effect until playback is restarted. Would you like to restart playback now?",
-                    style = MaterialTheme.typography.bodyMedium
-                )
-            },
-            confirmButton = {
-                Button(
-                    onClick = {
-                        showRestartConfirmDialog = false
-                        if (pendingBitPerfectState) {
-                            if (driverMethod == BitPerfectDriverMethod.DirectUac) {
-                                val rawUsb = UacDriverCoordinator.findUsbAudioDevice(context)
-                                if (rawUsb != null) {
-                                    coroutineScope.launch {
-                                        val granted = UacDriverCoordinator.requestPermission(context, rawUsb)
-                                        if (granted) {
-                                            UacDriverCoordinator.open(context, rawUsb)
-                                            onBitPerfectToggled(true)
-                                            val targetRate = effectiveDecoderRate
-                                            val targetBitDepth = NativeBridge.getTrackBitDepth().takeIf { it in listOf(16, 24, 32) } ?: 16
-                                            val ok = UacDriverCoordinator.start(targetRate, targetBitDepth, 2)
-                                            NativeBridge.setBitPerfectMode(ok)
-                                            if (ok) {
-                                                onRestartTrack()
-                                            } else {
-                                                onBitPerfectToggled(false)
-                                            }
-                                        } else {
-                                            onBitPerfectToggled(false)
-                                        }
-                                    }
-                                } else {
-                                    onBitPerfectToggled(false)
-                                }
-                            } else {
-                                onBitPerfectToggled(true)
-                                val usbDevice = BitPerfectCoordinator.findConnectedUsbAudioDevice(context)
-                                if (usbDevice != null) {
-                                    BitPerfectCoordinator.setPreferredBitPerfectMixer(context, usbDevice, effectiveDecoderRate, effectiveChannels)
-                                    NativeBridge.setBitPerfectMode(true)
-                                }
-                                onRestartTrack()
-                            }
-                        } else {
-                            UacDriverCoordinator.close()
-                            BitPerfectCoordinator.clearBitPerfectMixer(context)
-                            NativeBridge.setBitPerfectMode(false)
-                            onBitPerfectToggled(false)
-                            showReplugNoticeDialog = true
-                            onRestartTrack()
-                        }
-                    }
-                ) {
-                    Text("Restart")
-                }
-            },
-            dismissButton = {
-                TextButton(
-                    onClick = {
-                        showRestartConfirmDialog = false
-                        onBitPerfectToggled(pendingBitPerfectState)
-                        if (!pendingBitPerfectState) {
-                            UacDriverCoordinator.close()
-                            BitPerfectCoordinator.clearBitPerfectMixer(context)
-                            NativeBridge.setBitPerfectMode(false)
-                            showReplugNoticeDialog = true
-                        }
-                    }
-                ) {
-                    Text("Keep playing")
-                }
-            }
-        )
-    }
-
-    if (showReplugNoticeDialog) {
-        AlertDialog(
-            onDismissRequest = { showReplugNoticeDialog = false },
-            icon = {
-                Icon(
-                    imageVector = Icons.Filled.Info,
-                    contentDescription = null,
-                    tint = MaterialTheme.colorScheme.primary
-                )
-            },
-            title = {
-                Text(
-                    text = "Device reconnect notice",
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.Bold
-                )
-            },
-            text = {
-                Text(
-                    text = "Disabling direct USB audio while a device is active releases exclusive hardware control. To route audio through Android's standard audio mixer again, you may need to unplug and reconnect your USB audio device.",
-                    style = MaterialTheme.typography.bodyMedium
-                )
-            },
-            confirmButton = {
-                Button(onClick = { showReplugNoticeDialog = false }) {
-                    Text("Got it")
-                }
-            }
-        )
-    }
-
-    if (showVolumeModeDialog) {
-        SettingsSingleChoiceDialog(
-            title = "DAC Volume Scaling",
-            selectedValue = uacVolumeMode.storageValue,
-            options = DirectUacVolumeMode.entries.map {
-                ChoiceDialogOption(
-                    value = it.storageValue,
-                    label = it.displayName
-                )
-            },
-            onSelected = { selectedStorage ->
-                val selected = DirectUacVolumeMode.fromStorage(selectedStorage)
-                UacDriverCoordinator.setVolumeMode(context, selected)
-                showVolumeModeDialog = false
-            },
-            onDismiss = { showVolumeModeDialog = false }
-        )
     }
 }
 
@@ -1389,7 +933,7 @@ private fun formatBitrateForInspector(bitrateBps: Long, isVbr: Boolean): String 
     }
 }
 
-private fun formatSampleRateForInspector(rateHz: Int): String {
+internal fun formatSampleRateForInspector(rateHz: Int): String {
     if (rateHz <= 0) return "Unknown"
     return if (rateHz % 1000 == 0) {
         "${rateHz / 1000}.0 kHz"

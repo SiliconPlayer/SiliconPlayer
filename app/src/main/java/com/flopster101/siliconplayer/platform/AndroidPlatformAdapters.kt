@@ -492,6 +492,7 @@ fun ProvideAndroidPlatformAdapters(
         LocalIsRoundScreen provides isRoundScreen,
         LocalRemoteSourceExportSupport provides { remoteSourceExportSupport },
         LocalAudioRouteManager provides audioRouteManager,
+        LocalAudioInspectorSupport provides AndroidAudioInspectorSupport,
         LocalToastHandler provides toastHandler,
         LocalArtworkThumbnailLoader provides artworkThumbnailLoader,
         LocalLibraryRepository provides libraryRepository,

@@ -532,7 +532,8 @@ fun main(args: Array<String>) = application {
             windowWidthDp = windowState.size.width.value.toInt(),
             windowHeightDp = windowState.size.height.value.toInt(),
             backDispatcher = backDispatcher,
-            stopPlaybackForRefresh = { session.stop() }
+            stopPlaybackForRefresh = { session.stop() },
+            openAudioSettings = { enterSettings(SettingsRoute.GeneralAudio) }
         ) {
             val prefs = LocalAppPreferences.current
             val configDir = LocalAppConfigDir.current

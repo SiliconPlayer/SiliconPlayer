@@ -375,6 +375,7 @@ object NativeBridge {
     external fun getTrackBitrate(): Long
     external fun isTrackVBR(): Boolean
     external fun getAudioBackendLabel(): String
+    external fun getAudioOutputRouteName(): String
     external fun getStreamBurstFrames(): Int
     external fun setBitPerfectMode(enabled: Boolean)
     external fun setUacSettlePilotTone(enabled: Boolean)
