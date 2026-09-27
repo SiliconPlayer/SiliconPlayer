@@ -35,7 +35,7 @@ public:
     double getPlaybackPositionSeconds() override;
     TimelineMode getTimelineMode() const override { return TimelineMode::Discontinuous; }
     int getPlaybackCapabilities() const override {
-        return PLAYBACK_CAP_SEEK | PLAYBACK_CAP_CUSTOM_SAMPLE_RATE;
+        return PLAYBACK_CAP_SEEK | PLAYBACK_CAP_LIVE_REPEAT_MODE | PLAYBACK_CAP_CUSTOM_SAMPLE_RATE;
     }
     void setOption(const char* name, const char* value) override;
     std::shared_ptr<ChannelScopeSharedState> getChannelScopeSharedState() const override { return channelScopeState; }
