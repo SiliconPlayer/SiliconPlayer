@@ -18,9 +18,11 @@ import com.flopster101.siliconplayer.RepeatMode
 import com.flopster101.siliconplayer.SidPlayFpOptionKeys
 import com.flopster101.siliconplayer.SubtuneEntry
 import com.flopster101.siliconplayer.UadeOptionKeys
-import com.flopster101.siliconplayer.availableRepeatModesForFlags
 import com.flopster101.siliconplayer.canSeekPlayback
+import com.flopster101.siliconplayer.cycleRepeatModeValue
 import com.flopster101.siliconplayer.hasReliableDuration
+import com.flopster101.siliconplayer.resolveActiveRepeatMode
+import com.flopster101.siliconplayer.supportsLiveRepeatMode
 import com.flopster101.siliconplayer.platform.AppPreferences
 import java.io.File
 import kotlinx.coroutines.CoroutineScope
@@ -99,6 +101,10 @@ class DesktopPlaybackSession(
     private var stoppedSource: String? = null
     // Live prefs source for track-open native pushes; attached once host prefs exist.
     var trackOptionsPrefs: AppPreferences? = null
+    // Persisted preferred mode (host-owned); resolved per track into repeatMode.
+    var preferredRepeatMode: RepeatMode = RepeatMode.None
+    // Queue advance for track-end Playlist/None; returns false when the queue is exhausted.
+    var onAdvanceQueue: ((wrap: Boolean) -> Boolean)? = null
 
     init {
         startTicker()
@@ -130,6 +136,7 @@ class DesktopPlaybackSession(
         currentSource = file.absolutePath
         stoppedSource = null
         refreshMetadata()
+        refreshRepeatMode()
         artwork = null
         scope.launch(Dispatchers.IO) {
             artwork = DesktopArtworkSupport.loadArtworkForFile(file)
@@ -190,6 +197,7 @@ class DesktopPlaybackSession(
         currentSource = source
         stoppedSource = null
         refreshMetadata()
+        refreshRepeatMode()
         artwork = null
         scope.launch(Dispatchers.IO) {
             val f = currentFile
@@ -294,24 +302,31 @@ class DesktopPlaybackSession(
         isUserSeeking = false
     }
 
-    fun cycleRepeatMode() {
-        val caps = NativeBridge.getRepeatModeCapabilities()
-        val available = availableRepeatModesForFlags(caps)
-        val currentIndex = available.indexOf(repeatMode)
-        val nextMode = if (currentIndex in available.indices && currentIndex + 1 < available.size) {
-            available[currentIndex + 1]
-        } else {
-            available.firstOrNull() ?: RepeatMode.None
-        }
-        repeatMode = nextMode
-        val nativeMode = when (nextMode) {
-            RepeatMode.None -> 0
-            RepeatMode.Track -> 1
-            RepeatMode.Subtune -> 2
-            RepeatMode.Playlist -> 3
-            RepeatMode.LoopPoint -> 4
-        }
-        NativeBridge.setRepeatMode(nativeMode)
+    // Preferred mode resolved against live decoder caps (subtune repeat only
+    // for multi-subtune tracks); mirrors Android refreshRepeatModeForTrack.
+    fun refreshRepeatMode() {
+        val resolved = resolveActiveRepeatMode(
+            preferredRepeatMode,
+            repeatModeCapabilitiesFlags,
+            includeSubtuneRepeat = subtuneCount > 1
+        )
+        repeatMode = resolved
+        NativeBridge.setRepeatMode(resolved.nativeValue)
+    }
+
+    // Cycle button: gated on live-repeat support like Android; the host
+    // persists the returned mode as the new preferred repeat mode.
+    fun cycleRepeatMode(): RepeatMode? {
+        if (!supportsLiveRepeatMode(playbackCapabilitiesFlags)) return null
+        val next = cycleRepeatModeValue(
+            repeatMode,
+            repeatModeCapabilitiesFlags,
+            includeSubtuneRepeat = subtuneCount > 1
+        ) ?: return null
+        repeatMode = next
+        preferredRepeatMode = next
+        NativeBridge.setRepeatMode(next.nativeValue)
+        return next
     }
 
     fun nextSubtune() {
@@ -408,12 +423,17 @@ class DesktopPlaybackSession(
 
                     if (NativeBridge.consumeNaturalEndEvent()) {
                         when (repeatMode) {
-                            RepeatMode.Track, RepeatMode.Subtune, RepeatMode.LoopPoint -> {
+                            RepeatMode.Track, RepeatMode.Subtune -> {
                                 seekTo(0.0)
                                 play()
                             }
+                            // LoopPoint is engine-handled; Playlist/None advance the queue.
+                            RepeatMode.LoopPoint -> Unit
                             else -> {
-                                stop()
+                                val advanced = onAdvanceQueue?.invoke(repeatMode == RepeatMode.Playlist) ?: false
+                                if (!advanced) {
+                                    stop()
+                                }
                             }
                         }
                     }

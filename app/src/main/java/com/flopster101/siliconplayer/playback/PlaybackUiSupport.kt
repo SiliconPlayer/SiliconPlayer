@@ -19,15 +19,7 @@ internal fun defaultChannelScopeTextSizeSp(context: Context): Int {
 }
 
 internal fun applyRepeatModeToNative(mode: RepeatMode) {
-    NativeBridge.setRepeatMode(
-        when (mode) {
-            RepeatMode.None -> 0
-            RepeatMode.Track -> 1
-            RepeatMode.LoopPoint -> 2
-            RepeatMode.Subtune -> 3
-            RepeatMode.Playlist -> 0
-        }
-    )
+    NativeBridge.setRepeatMode(mode.nativeValue)
 }
 
 internal fun showRepeatModeToast(context: Context, mode: RepeatMode) {

@@ -14,27 +14,34 @@ const val REPEAT_CAP_ALL = REPEAT_CAP_TRACK or REPEAT_CAP_LOOP_POINT
 
 enum class RepeatMode(
     val storageValue: String,
-    val label: String
+    val label: String,
+    // Engine setRepeatMode value (0..3); Playlist is UI-level so native sees no-repeat.
+    val nativeValue: Int
 ) {
     None(
         storageValue = "none",
-        label = "No repeat"
+        label = "No repeat",
+        nativeValue = 0
     ),
     Track(
         storageValue = "track",
-        label = "Repeat track"
+        label = "Repeat track",
+        nativeValue = 1
     ),
     Subtune(
         storageValue = "subtune",
-        label = "Repeat subtune"
+        label = "Repeat subtune",
+        nativeValue = 3
     ),
     Playlist(
         storageValue = "playlist",
-        label = "Repeat playlist"
+        label = "Repeat playlist",
+        nativeValue = 0
     ),
     LoopPoint(
         storageValue = "loop_point",
-        label = "Repeat at loop point"
+        label = "Repeat at loop point",
+        nativeValue = 2
     );
 
     companion object {
@@ -90,6 +97,39 @@ fun availableRepeatModesForFlags(
 
 fun resolveRepeatModeForFile(preferredMode: RepeatMode, file: File?): RepeatMode {
     return resolveRepeatModeForFlags(preferredMode, repeatModeCapabilitiesFlagsForFileFallback(file))
+}
+
+// Preferred mode resolved against live decoder caps; subtune repeat only
+// offered for multi-subtune tracks. Shared with Android's track-load path.
+fun resolveActiveRepeatMode(
+    preferredRepeatMode: RepeatMode,
+    repeatModeCapabilitiesFlags: Int,
+    includeSubtuneRepeat: Boolean = false,
+    includeTrackRepeat: Boolean = true
+): RepeatMode {
+    return resolveRepeatModeForFlags(
+        preferredRepeatMode,
+        repeatModeCapabilitiesFlags,
+        includeSubtuneRepeat,
+        includeTrackRepeat
+    )
+}
+
+// Next mode in the cycle order, or null when the list is empty.
+fun cycleRepeatModeValue(
+    activeRepeatMode: RepeatMode,
+    repeatModeCapabilitiesFlags: Int,
+    includeSubtuneRepeat: Boolean = false,
+    includeTrackRepeat: Boolean = true
+): RepeatMode? {
+    val modes = availableRepeatModesForFlags(
+        flags = repeatModeCapabilitiesFlags,
+        includeSubtuneRepeat = includeSubtuneRepeat,
+        includeTrackRepeat = includeTrackRepeat
+    )
+    if (modes.isEmpty()) return null
+    val currentIndex = modes.indexOf(activeRepeatMode).let { if (it < 0) 0 else it }
+    return modes[(currentIndex + 1) % modes.size]
 }
 
 fun resolveRepeatModeForFlags(

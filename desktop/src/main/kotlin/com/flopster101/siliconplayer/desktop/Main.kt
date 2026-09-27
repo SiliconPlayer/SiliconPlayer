@@ -194,6 +194,7 @@ import com.flopster101.siliconplayer.canSeekPlayback
 import com.flopster101.siliconplayer.formatShortDuration
 import com.flopster101.siliconplayer.hasReliableDuration
 import com.flopster101.siliconplayer.placeholderArtworkIconForFile
+import com.flopster101.siliconplayer.RepeatMode
 import com.flopster101.siliconplayer.platform.AppPreferences
 import com.flopster101.siliconplayer.supportsLiveRepeatMode
 import com.flopster101.siliconplayer.ui.screens.LocalPlayerFocusIndicatorsEnabled
@@ -248,6 +249,9 @@ fun main(args: Array<String>) = application {
     var autoPlayOnTrackSelect by remember { mutableStateOf(true) }
     var openPlayerOnTrackSelect by remember { mutableStateOf(true) }
     var playlistWrapNavigation by remember { mutableStateOf(true) }
+    // Repeat init mirrors Android (preferred + persist flag); values load in the pref effect below.
+    var preferredRepeatMode by remember { mutableStateOf(RepeatMode.None) }
+    var persistRepeatMode by remember { mutableStateOf(true) }
     var recentFilesLimit by remember { mutableIntStateOf(20) }
     var recentFoldersLimit by remember { mutableIntStateOf(10) }
     var currentDirectory by remember {
@@ -404,38 +408,6 @@ fun main(args: Array<String>) = application {
             ?.filter { it.isFile && fileMatchesSupportedExtensions(it, supportedExtensions) }
             ?: return emptyList()
         return siblings.sortedWith { left, right -> compareFileNamesNatural(left.name, right.name) }
-    }
-
-    fun playAdjacentTrack(offset: Int, stopAtBoundary: Boolean): Boolean {
-        val current = session.currentFile ?: return false
-        val siblings = listSiblingTracks(current)
-        if (siblings.isEmpty()) return false
-        val index = siblings.indexOfFirst { samePath(it.absolutePath, current.absolutePath) }
-        if (index < 0) return false
-        val target = if (playlistWrapNavigation) {
-            siblings[((index + offset) % siblings.size + siblings.size) % siblings.size]
-        } else {
-            siblings.getOrNull(index + offset)
-        }
-        if (target == null) {
-            if (stopAtBoundary && offset > 0) {
-                session.stop()
-                return true
-            }
-            return false
-        }
-        playFile(target)
-        return true
-    }
-
-    fun playPreviousTrackFromUi() {
-        val current = session.currentFile ?: return
-        if (shouldRestartCurrentTrackOnPrevious(previousRestartsAfterThreshold, true, session.positionSeconds)) {
-            session.seekTo(0.0)
-            return
-        }
-        if (playAdjacentTrack(-1, stopAtBoundary = false)) return
-        session.seekTo(0.0)
     }
 
     LaunchedEffect(args) {
@@ -665,6 +637,91 @@ fun main(args: Array<String>) = application {
             }
             var activePlaylist by remember { mutableStateOf<StoredPlaylist?>(null) }
             var activePlaylistEntryId by remember { mutableStateOf<String?>(null) }
+            var activePlaylistShuffleActive by remember { mutableStateOf(false) }
+            // Queue entry open: playlist context + per-entry subtune, mirrors Android openPlaylistEntry.
+            fun openQueueEntry(queue: StoredPlaylist, entry: PlaylistTrackEntry, shuffleActive: Boolean): Boolean {
+                val file = resolvePlaylistEntryLocalFile(entry.source) ?: return false
+                activePlaylist = queue
+                activePlaylistEntryId = entry.id
+                activePlaylistShuffleActive = shuffleActive
+                if (!session.loadFile(file, autoStart = autoPlayOnTrackSelect)) return false
+                val subtune = entry.subtuneIndex
+                if (subtune != null && subtune in 0 until session.subtuneCount) {
+                    session.selectSubtune(subtune)
+                }
+                registerLoadedFile(file)
+                if (openPlayerOnTrackSelect) isPlayerSurfaceVisible = true
+                return true
+            }
+            // Playlist-queue advance; falls through when the current track has no entry here.
+            fun playAdjacentPlaylistEntry(offset: Int, wrap: Boolean, notifyWrap: Boolean): Boolean {
+                val playlist = activePlaylist ?: return false
+                val entries = playlist.entries
+                if (entries.isEmpty()) return false
+                val currentIndex = entries.indexOfFirst { it.id == activePlaylistEntryId }
+                if (currentIndex !in entries.indices) return false
+                val step = if (offset < 0) -1 else 1
+                val rawTargetIndex = currentIndex + offset
+                if (!wrap && rawTargetIndex !in entries.indices) return false
+                val wrappedIndex = ((rawTargetIndex % entries.size) + entries.size) % entries.size
+                if (wrap && wrappedIndex != rawTargetIndex && notifyWrap) {
+                    toastHandler.showToast(if (offset < 0) "Wrapped to last track" else "Wrapped to first track")
+                }
+                // Skip entries with no local file, continuing in the same direction.
+                for (probe in 0 until entries.size) {
+                    val targetIndex = if (wrap) {
+                        (((wrappedIndex + probe * step) % entries.size) + entries.size) % entries.size
+                    } else {
+                        rawTargetIndex + probe * step
+                    }
+                    val target = entries.getOrNull(targetIndex) ?: continue
+                    val queue = activePlaylist ?: playlist
+                    if (openQueueEntry(queue, target, activePlaylistShuffleActive)) return true
+                }
+                return false
+            }
+            fun playAdjacentSiblingTrack(offset: Int, wrap: Boolean): Boolean {
+                val current = session.currentFile ?: return false
+                val siblings = listSiblingTracks(current)
+                if (siblings.isEmpty()) return false
+                val index = siblings.indexOfFirst { samePath(it.absolutePath, current.absolutePath) }
+                if (index < 0) return false
+                val rawTargetIndex = index + offset
+                val targetIndex = if (wrap) {
+                    ((rawTargetIndex % siblings.size) + siblings.size) % siblings.size
+                } else {
+                    rawTargetIndex
+                }
+                val target = siblings.getOrNull(targetIndex) ?: return false
+                playFile(target)
+                return true
+            }
+            // One advance path for both queues (Android chains three fallbacks here);
+            // playlist and browser queues share the explicit wrap flag.
+            fun playQueueAdjacentTrack(
+                offset: Int,
+                stopAtBoundary: Boolean,
+                wrapOverride: Boolean? = null,
+                notifyWrap: Boolean = false
+            ): Boolean {
+                val wrap = wrapOverride ?: playlistWrapNavigation
+                val moved = playAdjacentPlaylistEntry(offset, wrap, notifyWrap) ||
+                    playAdjacentSiblingTrack(offset, wrap)
+                if (!moved && stopAtBoundary && offset > 0 && !wrap) {
+                    session.stop()
+                    return true
+                }
+                return moved
+            }
+            fun playQueuePreviousTrack(wrapOverride: Boolean? = null, notifyWrap: Boolean = false) {
+                val current = session.currentFile ?: return
+                if (shouldRestartCurrentTrackOnPrevious(previousRestartsAfterThreshold, true, session.positionSeconds)) {
+                    session.seekTo(0.0)
+                    return
+                }
+                if (playQueueAdjacentTrack(-1, stopAtBoundary = false, wrapOverride, notifyWrap)) return
+                session.seekTo(0.0)
+            }
             val onPlaylistLibraryStateChanged: (PlaylistLibraryState) -> Unit = { updated ->
                 playlistLibraryState = updated
                 writePlaylistLibraryState(configDir, updated)
@@ -906,6 +963,44 @@ fun main(args: Array<String>) = application {
                     prefs.getInt(AppPreferenceKeys.RECENT_FOLDERS_LIMIT, 10)
                 session.fadePauseResume =
                     prefs.getBoolean(AppPreferenceKeys.FADE_PAUSE_RESUME, true)
+                persistRepeatMode =
+                    prefs.getBoolean(AppPreferenceKeys.PERSIST_REPEAT_MODE, true)
+                preferredRepeatMode = RepeatMode.fromStorage(
+                    prefs.getString(
+                        AppPreferenceKeys.PREFERRED_REPEAT_MODE,
+                        prefs.getString(
+                            AppPreferenceKeys.SESSION_CURRENT_REPEAT_MODE,
+                            RepeatMode.None.storageValue
+                        )
+                    )
+                )
+            }
+            // Repeat persist mirrors Android AppNavigationPlaybackEffects; the
+            // preferred sync re-resolves so a raced first load still lands right.
+            LaunchedEffect(persistRepeatMode) {
+                val editor = prefs.edit().putBoolean(AppPreferenceKeys.PERSIST_REPEAT_MODE, persistRepeatMode)
+                if (!persistRepeatMode) {
+                    editor.remove(AppPreferenceKeys.PREFERRED_REPEAT_MODE)
+                }
+                editor.apply()
+            }
+            LaunchedEffect(preferredRepeatMode, persistRepeatMode) {
+                if (persistRepeatMode) {
+                    prefs.edit()
+                        .putString(AppPreferenceKeys.PREFERRED_REPEAT_MODE, preferredRepeatMode.storageValue)
+                        .apply()
+                }
+            }
+            LaunchedEffect(preferredRepeatMode) {
+                session.preferredRepeatMode = preferredRepeatMode
+                if (session.currentFile != null) {
+                    session.refreshRepeatMode()
+                }
+            }
+            LaunchedEffect(prefs) {
+                session.onAdvanceQueue = { wrap ->
+                    playQueueAdjacentTrack(1, stopAtBoundary = false, wrapOverride = wrap)
+                }
             }
             // Restore/save the local browser directory gated by REMEMBER_BROWSER_LOCATION.
             var browserLocationRestored by remember { mutableStateOf(false) }
@@ -970,8 +1065,17 @@ fun main(args: Array<String>) = application {
                         ) {
                             activePlaylist = playlist
                             activePlaylistEntryId = entry.id
+                            if (snapshot.shuffleActive) {
+                                // Shuffled order isn't persisted; resume shuffled from here.
+                                activePlaylistShuffleActive = true
+                                activePlaylist = playlist.copy(
+                                    entries = listOf(entry) +
+                                        playlist.entries.filter { it.id != entry.id }.shuffled()
+                                )
+                            }
                         }
                     }
+                    session.preferredRepeatMode = preferredRepeatMode
                     if (session.loadFile(file, autoStart = false)) {
                         val subtune = activePlaylist?.entries
                             ?.firstOrNull { it.id == activePlaylistEntryId }
@@ -1002,6 +1106,7 @@ fun main(args: Array<String>) = application {
                 resumeDurationBucket,
                 activePlaylist?.id,
                 activePlaylistEntryId,
+                activePlaylistShuffleActive,
                 sessionRestoreConsumed
             ) {
                 if (!sessionRestoreConsumed) return@LaunchedEffect
@@ -1027,8 +1132,7 @@ fun main(args: Array<String>) = application {
                         durationSeconds = session.durationSeconds,
                         playlistId = playlistId,
                         entryId = if (playlistId != null) entryId else null,
-                        // No shuffle-active mode on desktop yet (§7.11); flag reserved.
-                        shuffleActive = false
+                        shuffleActive = activePlaylistShuffleActive
                     )
                 )
             }
@@ -1447,11 +1551,23 @@ fun main(args: Array<String>) = application {
                                             onOpenLibraryArtist = { artistName ->
                                                 selectedLibraryArtistName = artistName
                                             },
-                                            onPlayLibraryTracks = { tracks, startIndex, _ ->
-                                                tracks.getOrNull(startIndex)?.path?.let { playFile(File(it)) }
+                                            onPlayLibraryTracks = { tracks, startIndex, title ->
+                                                val queue = StoredPlaylist(
+                                                    title = title.ifBlank { "Library" },
+                                                    entries = tracks.map { it.toPlaylistTrackEntry() }
+                                                )
+                                                queue.entries.getOrNull(startIndex)?.let { entry ->
+                                                    openQueueEntry(queue, entry, false)
+                                                }
                                             },
-                                            onShuffleLibraryTracks = { tracks, _ ->
-                                                tracks.randomOrNull()?.path?.let { playFile(File(it)) }
+                                            onShuffleLibraryTracks = { tracks, title ->
+                                                val queue = StoredPlaylist(
+                                                    title = title.ifBlank { "Library" },
+                                                    entries = tracks.map { it.toPlaylistTrackEntry() }.shuffled()
+                                                )
+                                                queue.entries.firstOrNull()?.let { entry ->
+                                                    openQueueEntry(queue, entry, true)
+                                                }
                                             },
                                             onAddLibraryTracksToFavorites = { },
                                             onRemoveLibraryTracksFromFavorites = { },
@@ -1488,37 +1604,37 @@ fun main(args: Array<String>) = application {
                                             },
                                             onOpenFavorite = playPlaylistEntry,
                                             onPlayStoredPlaylist = { playlist ->
-                                                activePlaylist = playlist
-                                                activePlaylistEntryId = null
                                                 playlist.entries.firstOrNull()?.let { entry ->
-                                                    activePlaylistEntryId = entry.id
-                                                    playPlaylistEntry(entry)
+                                                    openQueueEntry(playlist, entry, false)
                                                 }
                                             },
                                             onShuffleStoredPlaylist = { playlist ->
-                                                activePlaylist = playlist
-                                                playlist.entries.shuffled().firstOrNull()?.let { entry ->
-                                                    activePlaylistEntryId = entry.id
-                                                    playPlaylistEntry(entry)
+                                                val shuffledPlaylist = playlist.copy(entries = playlist.entries.shuffled())
+                                                shuffledPlaylist.entries.firstOrNull()?.let { entry ->
+                                                    openQueueEntry(shuffledPlaylist, entry, true)
                                                 }
                                             },
                                             onOpenStoredPlaylistEntry = { entry, playlist ->
-                                                activePlaylist = playlist
-                                                activePlaylistEntryId = entry.id
-                                                playPlaylistEntry(entry)
+                                                openQueueEntry(playlist, entry, false)
                                             },
                                             onPlayFavoritePlaylist = {
-                                                activePlaylist = null
-                                                playlistLibraryState.favorites.firstOrNull()?.let { entry ->
-                                                    activePlaylistEntryId = entry.id
-                                                    playPlaylistEntry(entry)
+                                                val queue = StoredPlaylist(
+                                                    id = FAVORITES_PLAYLIST_ID,
+                                                    title = "Favorites",
+                                                    entries = playlistLibraryState.favorites
+                                                )
+                                                queue.entries.firstOrNull()?.let { entry ->
+                                                    openQueueEntry(queue, entry, false)
                                                 }
                                             },
                                             onShuffleFavoritePlaylist = {
-                                                activePlaylist = null
-                                                playlistLibraryState.favorites.shuffled().firstOrNull()?.let { entry ->
-                                                    activePlaylistEntryId = entry.id
-                                                    playPlaylistEntry(entry)
+                                                val queue = StoredPlaylist(
+                                                    id = FAVORITES_PLAYLIST_ID,
+                                                    title = "Favorites",
+                                                    entries = playlistLibraryState.favorites.shuffled()
+                                                )
+                                                queue.entries.firstOrNull()?.let { entry ->
+                                                    openQueueEntry(queue, entry, true)
                                                 }
                                             },
                                             onDeleteAllFavorites = {
@@ -1573,9 +1689,7 @@ fun main(args: Array<String>) = application {
                                                 )
                                             },
                                             onPlayStoredPlaylistTrackAsCached = { entry, playlist ->
-                                                activePlaylist = playlist
-                                                activePlaylistEntryId = entry.id
-                                                playPlaylistEntry(entry)
+                                                openQueueEntry(playlist, entry, false)
                                             },
                                             onRemoveSourceFromPlaylist = { source, playlistId ->
                                                 val playlist = playlistLibraryState.playlists
@@ -1609,6 +1723,7 @@ fun main(args: Array<String>) = application {
                                                 if (activePlaylist?.id == playlistId) {
                                                     activePlaylist = null
                                                     activePlaylistEntryId = null
+                                                    activePlaylistShuffleActive = false
                                                 }
                                                 onPlaylistLibraryStateChanged(
                                                     playlistLibraryState.copy(
@@ -1899,9 +2014,28 @@ fun main(args: Array<String>) = application {
                                     miniExpandPreviewProgress = 0f
                                     isPlayerExpanded = true
                                 },
-                                onPreviousTrack = { playPreviousTrackFromUi() },
-                                onForcePreviousTrack = { playAdjacentTrack(-1, stopAtBoundary = false) },
-                                onNextTrack = { playAdjacentTrack(1, stopAtBoundary = true) },
+                                onPreviousTrack = {
+                                    playQueuePreviousTrack(
+                                        wrapOverride = session.repeatMode != RepeatMode.None,
+                                        notifyWrap = true
+                                    )
+                                },
+                                onForcePreviousTrack = {
+                                    playQueueAdjacentTrack(
+                                        -1,
+                                        stopAtBoundary = false,
+                                        wrapOverride = session.repeatMode != RepeatMode.None,
+                                        notifyWrap = true
+                                    )
+                                },
+                                onNextTrack = {
+                                    playQueueAdjacentTrack(
+                                        1,
+                                        stopAtBoundary = true,
+                                        wrapOverride = session.repeatMode != RepeatMode.None,
+                                        notifyWrap = true
+                                    )
+                                },
                                 onPreviousSubtune = { session.previousSubtune() },
                                 onNextSubtune = { session.nextSubtune() },
                                 onPlayPause = {
@@ -1975,9 +2109,28 @@ fun main(args: Array<String>) = application {
                                     hasReliableDuration = session.hasReliableDuration,
                                     playbackCapabilitiesFlags = session.playbackCapabilitiesFlags,
                                     onSeek = { seconds -> session.seekTo(seconds) },
-                                    onPreviousTrack = { playPreviousTrackFromUi() },
-                                    onForcePreviousTrack = { playAdjacentTrack(-1, stopAtBoundary = false) },
-                                    onNextTrack = { playAdjacentTrack(1, stopAtBoundary = true) },
+                                    onPreviousTrack = {
+                                        playQueuePreviousTrack(
+                                            wrapOverride = session.repeatMode != RepeatMode.None,
+                                            notifyWrap = true
+                                        )
+                                    },
+                                    onForcePreviousTrack = {
+                                        playQueueAdjacentTrack(
+                                            -1,
+                                            stopAtBoundary = false,
+                                            wrapOverride = session.repeatMode != RepeatMode.None,
+                                            notifyWrap = true
+                                        )
+                                    },
+                                    onNextTrack = {
+                                        playQueueAdjacentTrack(
+                                            1,
+                                            stopAtBoundary = true,
+                                            wrapOverride = session.repeatMode != RepeatMode.None,
+                                            notifyWrap = true
+                                        )
+                                    },
                                     onPreviousSubtune = { session.previousSubtune() },
                                     onNextSubtune = { session.nextSubtune() },
                                     onOpenSubtuneSelector = { showSubtuneSelectorDialog = true },
@@ -2007,7 +2160,12 @@ fun main(args: Array<String>) = application {
                                     titleCurrentSubtuneIndex = session.subtuneIndex,
                                     titleSubtuneCount = session.subtuneCount,
                                     subtuneTitleClickable = session.subtuneCount > 1,
-                                    onCycleRepeatMode = { session.cycleRepeatMode() },
+                                    onCycleRepeatMode = {
+                                        session.cycleRepeatMode()?.let { next ->
+                                            preferredRepeatMode = next
+                                            toastHandler.showToast(next.label)
+                                        }
+                                    },
                                     canOpenCoreSettings = false,
                                     onOpenCoreSettings = {},
                                     visualizationMode = visualizationUiState.mode,
@@ -2151,7 +2309,7 @@ fun main(args: Array<String>) = application {
                         PlaylistSelectorDialog(
                             title = "Playlist",
                             subtitle = selectorPlaylist?.title,
-                            shuffleActive = false,
+                            shuffleActive = activePlaylistShuffleActive,
                             entries = selectorPlaylist?.entries ?: playlistLibraryState.favorites,
                             currentEntryId = activePlaylistEntryId,
                             onSelectEntry = { entry ->
