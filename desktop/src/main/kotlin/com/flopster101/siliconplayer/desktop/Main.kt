@@ -543,7 +543,11 @@ fun main(args: Array<String>) = application {
     }
 
     val windowTitle = if (session.title.isNotBlank()) {
-        "${session.title} - SiliconPlayer"
+        if (session.artist.isNotBlank()) {
+            "${session.artist} - ${session.title} - SiliconPlayer"
+        } else {
+            "${session.title} - SiliconPlayer"
+        }
     } else {
         "SiliconPlayer Desktop"
     }
