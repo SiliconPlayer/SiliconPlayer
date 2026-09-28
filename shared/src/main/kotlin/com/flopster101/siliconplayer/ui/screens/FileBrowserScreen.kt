@@ -21,10 +21,10 @@ import com.flopster101.siliconplayer.platform.LocalStorageLocationsProvider
 import com.flopster101.siliconplayer.platform.LocalFileExportHandler
 import com.flopster101.siliconplayer.platform.LocalAppCacheDir
 import com.flopster101.siliconplayer.platform.AppPreferences
-import androidx.compose.material.icons.filled.FolderZip
-import androidx.compose.material.icons.filled.LibraryMusic
-import androidx.compose.material.icons.filled.SportsEsports
-import androidx.compose.material.icons.filled.InsertDriveFile
+import com.flopster101.siliconplayer.ui.icons.FileGameIcon
+import com.flopster101.siliconplayer.ui.icons.FileTrackedIcon
+import com.flopster101.siliconplayer.ui.icons.FileUnsupportedIcon
+import com.flopster101.siliconplayer.ui.icons.FolderZipIcon
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.filled.StarBorder
 import androidx.compose.ui.platform.LocalClipboardManager
@@ -61,7 +61,6 @@ import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material.icons.filled.Photo
 import androidx.compose.material.icons.filled.Save
 import androidx.compose.material.icons.filled.Home
-import androidx.compose.material.icons.filled.LibraryMusic
 import androidx.compose.material.icons.filled.MoreHoriz
 import androidx.compose.material.icons.filled.SdCard
 import androidx.compose.material.icons.filled.Settings
@@ -1094,7 +1093,7 @@ internal fun FileBrowserScreen(
     }
     val showLocalStorageSelector = archiveToolbarContext?.isRemote != true
     val subtitleIcon = archiveToolbarContext?.sourceIcon
-        ?: if (archiveToolbarContext != null) Icons.Default.FolderZip else null
+        ?: if (archiveToolbarContext != null) FolderZipIcon else null
         ?: selectedLocation?.let { iconForStorageKind(it.kind, isTablet) }
         ?: Icons.Default.Home
     val subtitle = archiveToolbarContext?.subtitle ?: if (selectedLocation == null && currentDirectory == null) {
@@ -2990,7 +2989,7 @@ fun FileItemRow(
                     if (item.isDirectory) {
                         if (item.isArchive) {
                             Icon(
-                                imageVector = Icons.Default.FolderZip,
+                                imageVector = FolderZipIcon,
                                 contentDescription = "ZIP archive",
                                 tint = iconTint,
                                 modifier = Modifier.size(iconGlyphSize)
@@ -3022,14 +3021,14 @@ fun FileItemRow(
                             )
                         } else if (decoderArtworkHint == DecoderArtworkHint.TrackedFile) {
                             Icon(
-                                imageVector = Icons.Default.LibraryMusic,
+                                imageVector = FileTrackedIcon,
                                 contentDescription = contentDescription,
                                 tint = iconTint,
                                 modifier = Modifier.size(iconGlyphSize)
                             )
                         } else if (decoderArtworkHint == DecoderArtworkHint.GameFile) {
                             Icon(
-                                imageVector = Icons.Default.SportsEsports,
+                                imageVector = FileGameIcon,
                                 contentDescription = contentDescription,
                                 tint = iconTint,
                                 modifier = Modifier.size(iconGlyphSize)
@@ -3050,7 +3049,7 @@ fun FileItemRow(
                             )
                         } else if (item.kind == FileItem.Kind.UnsupportedFile) {
                             Icon(
-                                imageVector = Icons.Default.InsertDriveFile,
+                                imageVector = FileUnsupportedIcon,
                                 contentDescription = contentDescription,
                                 tint = iconTint,
                                 modifier = Modifier.size(iconGlyphSize)

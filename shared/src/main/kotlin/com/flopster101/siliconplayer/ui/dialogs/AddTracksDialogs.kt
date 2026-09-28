@@ -32,7 +32,8 @@ import androidx.compose.material.icons.filled.LibraryMusic
 import androidx.compose.material.icons.filled.Link
 import androidx.compose.material.icons.filled.MusicNote
 import androidx.compose.material.icons.filled.Search
-import androidx.compose.material.icons.filled.SportsEsports
+import com.flopster101.siliconplayer.ui.icons.FileGameIcon
+import com.flopster101.siliconplayer.ui.icons.FileTrackedIcon
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.CircularProgressIndicator
@@ -248,7 +249,7 @@ private fun AddTracksSourceSheetContent(
                 }
                 currentTrackArtworkHint == DecoderArtworkHint.TrackedFile -> {
                     Icon(
-                        imageVector = Icons.Default.LibraryMusic,
+                        imageVector = FileTrackedIcon,
                         contentDescription = "Tracked file",
                         tint = iconTint,
                         modifier = iconSize
@@ -256,7 +257,7 @@ private fun AddTracksSourceSheetContent(
                 }
                 currentTrackArtworkHint == DecoderArtworkHint.GameFile -> {
                     Icon(
-                        imageVector = Icons.Default.SportsEsports,
+                        imageVector = FileGameIcon,
                         contentDescription = "Game file",
                         tint = iconTint,
                         modifier = iconSize

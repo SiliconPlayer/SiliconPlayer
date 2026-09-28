@@ -182,6 +182,7 @@ import com.flopster101.siliconplayer.MainView
 import com.flopster101.siliconplayer.SettingsRoute
 import com.flopster101.siliconplayer.buildSettingsNavigationCoordinator
 import com.flopster101.siliconplayer.BrowserRouteMode
+import com.flopster101.siliconplayer.buildDecoderExtensionArtworkHintMap
 import com.flopster101.siliconplayer.rememberBrowserRouteRenderState
 import com.flopster101.siliconplayer.resolveBrowserRouteResolution
 import com.flopster101.siliconplayer.resolveBrowserFolderForRecentSource
@@ -670,6 +671,10 @@ fun main(args: Array<String>) = application {
                 onDispose { prefs.removeListener(listener) }
             }
             LaunchedEffect(prefs) { session.trackOptionsPrefs = prefs }
+            // Decoder enable flags live in prefs; rebuild the browser icon hints on any prefs write.
+            val decoderExtensionArtworkHints = remember(prefToken) {
+                buildDecoderExtensionArtworkHintMap()
+            }
 
             val themeMode = remember(prefToken, prefs) {
                 ThemeMode.fromStorage(prefs.getString(AppPreferenceKeys.THEME_MODE, ThemeMode.Auto.storageValue))
@@ -1916,6 +1921,7 @@ fun main(args: Array<String>) = application {
                                                 showPrimaryTopBar = false,
                                                 showParentDirectoryEntry = showParentDirectoryEntry,
                                                 showFileIconChipBackground = showFileIconChipBackground,
+                                                decoderExtensionArtworkHints = decoderExtensionArtworkHints,
                                                 backHandlingEnabled = !isPlayerExpanded,
                                                 onExitBrowser = { currentView = MainView.Home },
                                                 onFileSelected = { file, _ ->

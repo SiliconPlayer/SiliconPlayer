@@ -97,7 +97,8 @@ import androidx.compose.material.icons.filled.SkipPrevious
 import androidx.compose.material.icons.filled.SkipNext
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.filled.StarBorder
-import androidx.compose.material.icons.filled.Settings
+import com.flopster101.siliconplayer.ui.icons.AirwaveIcon
+import com.flopster101.siliconplayer.ui.icons.SettingsApplicationsIcon
 import androidx.compose.material.icons.filled.Stop
 import androidx.compose.material.icons.sharp.Stop
 import androidx.compose.material.icons.filled.Bluetooth
@@ -2732,7 +2733,7 @@ private fun PlayerTopBar(
                         },
                         leadingIcon = {
                             Icon(
-                                imageVector = androidx.compose.material.icons.Icons.Filled.GraphicEq,
+                                imageVector = AirwaveIcon,
                                 contentDescription = null,
                                 modifier = Modifier.size(22.dp)
                             )
@@ -2811,7 +2812,7 @@ private fun PlayerTopBar(
                         },
                         leadingIcon = {
                             Icon(
-                                imageVector = androidx.compose.material.icons.Icons.Filled.Settings,
+                                imageVector = SettingsApplicationsIcon,
                                 contentDescription = null,
                                 modifier = Modifier.size(22.dp)
                             )
@@ -5992,7 +5993,7 @@ private fun WearPlayerContent(
                     horizontalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
                     Icon(
-                        imageVector = androidx.compose.material.icons.Icons.Filled.GraphicEq,
+                        imageVector = AirwaveIcon,
                         contentDescription = null,
                         tint = MaterialTheme.colorScheme.primary,
                         modifier = Modifier.size(18.dp)

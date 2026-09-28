@@ -1,5 +1,6 @@
 package com.flopster101.siliconplayer
 
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -29,7 +30,10 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.graphics.ColorFilter
 import com.flopster101.siliconplayer.platform.LocalAppVersionInfo
+import com.flopster101.siliconplayer.ui.icons.AboutAppIconColor
+import com.flopster101.siliconplayer.ui.icons.AboutAppIconMonochrome
 
 @Composable
 internal fun AboutSettingsBody(
@@ -161,22 +165,16 @@ internal fun AboutSettingsBody(
 private fun AboutAppIcon(
     useMonet: Boolean
 ) {
-    Box(
-        modifier = Modifier
-            .size(48.dp)
-            .background(
-                color = MaterialTheme.colorScheme.primaryContainer,
-                shape = RoundedCornerShape(12.dp)
-            ),
-        contentAlignment = Alignment.Center
-    ) {
-        Icon(
-            imageVector = Icons.Default.GraphicEq,
-            contentDescription = null,
-            modifier = Modifier.size(32.dp),
-            tint = MaterialTheme.colorScheme.onPrimaryContainer
-        )
-    }
+    Image(
+        imageVector = if (useMonet) AboutAppIconMonochrome else AboutAppIconColor,
+        contentDescription = null,
+        modifier = Modifier.size(48.dp),
+        colorFilter = if (useMonet) {
+            ColorFilter.tint(MaterialTheme.colorScheme.primary)
+        } else {
+            null
+        }
+    )
 }
 
 

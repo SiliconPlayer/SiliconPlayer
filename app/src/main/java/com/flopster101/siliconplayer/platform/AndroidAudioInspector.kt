@@ -43,7 +43,9 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.res.painterResource
+import com.flopster101.siliconplayer.ui.icons.FileGameIcon
+import com.flopster101.siliconplayer.ui.icons.FileTrackedIcon
+import com.flopster101.siliconplayer.ui.icons.PlaceholderTrackerChipIcon
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -482,7 +484,7 @@ internal object AndroidAudioInspectorSupport : AudioInspectorSupport {
         when (hint) {
             DecoderArtworkHint.TrackedFile -> {
                 Icon(
-                    painter = painterResource(id = R.drawable.ic_file_tracked),
+                    imageVector = FileTrackedIcon,
                     contentDescription = null,
                     modifier = Modifier.size(18.dp),
                     tint = MaterialTheme.colorScheme.primary
@@ -490,7 +492,7 @@ internal object AndroidAudioInspectorSupport : AudioInspectorSupport {
             }
             DecoderArtworkHint.GameFile -> {
                 Icon(
-                    painter = painterResource(id = R.drawable.ic_file_game),
+                    imageVector = FileGameIcon,
                     contentDescription = null,
                     modifier = Modifier.size(18.dp),
                     tint = MaterialTheme.colorScheme.primary
@@ -508,7 +510,7 @@ internal object AndroidAudioInspectorSupport : AudioInspectorSupport {
     }
     override val decoderNodeIcon: @Composable () -> Unit = @Composable {
         Icon(
-            painter = painterResource(id = R.drawable.ic_placeholder_tracker_chip),
+            imageVector = PlaceholderTrackerChipIcon,
             contentDescription = null,
             modifier = Modifier.size(18.dp),
             tint = MaterialTheme.colorScheme.tertiary

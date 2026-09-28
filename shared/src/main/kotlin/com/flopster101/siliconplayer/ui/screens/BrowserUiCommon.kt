@@ -60,16 +60,16 @@ import androidx.compose.material.icons.filled.AudioFile
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Description
 import androidx.compose.material.icons.filled.Folder
-import androidx.compose.material.icons.filled.FolderZip
+import com.flopster101.siliconplayer.ui.icons.FileGameIcon
+import com.flopster101.siliconplayer.ui.icons.FileTrackedIcon
+import com.flopster101.siliconplayer.ui.icons.FileUnsupportedIcon
+import com.flopster101.siliconplayer.ui.icons.FolderZipIcon
 import androidx.compose.material.icons.filled.Info
-import androidx.compose.material.icons.filled.InsertDriveFile
 import androidx.compose.material.icons.filled.KeyboardArrowDown
-import androidx.compose.material.icons.filled.LibraryMusic
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Photo
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.SelectAll
-import androidx.compose.material.icons.filled.SportsEsports
 import androidx.compose.material.icons.filled.VideoFile
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
@@ -308,7 +308,7 @@ internal fun BrowserRemoteEntryIcon(
 
         BrowserRemoteEntryVisualKind.ArchiveFile -> {
             Icon(
-                imageVector = Icons.Default.FolderZip,
+                imageVector = FolderZipIcon,
                 contentDescription = "Archive file",
                 tint = tint,
                 modifier = modifier
@@ -317,7 +317,7 @@ internal fun BrowserRemoteEntryIcon(
 
         BrowserRemoteEntryVisualKind.TrackedFile -> {
             Icon(
-                imageVector = Icons.Default.LibraryMusic,
+                imageVector = FileTrackedIcon,
                 contentDescription = "Tracked file",
                 tint = tint,
                 modifier = modifier
@@ -326,7 +326,7 @@ internal fun BrowserRemoteEntryIcon(
 
         BrowserRemoteEntryVisualKind.GameFile -> {
             Icon(
-                imageVector = Icons.Default.SportsEsports,
+                imageVector = FileGameIcon,
                 contentDescription = "Game file",
                 tint = tint,
                 modifier = modifier
@@ -371,7 +371,7 @@ internal fun BrowserRemoteEntryIcon(
 
         BrowserRemoteEntryVisualKind.UnsupportedFile -> {
             Icon(
-                imageVector = Icons.Default.InsertDriveFile,
+                imageVector = FileUnsupportedIcon,
                 contentDescription = null,
                 tint = tint,
                 modifier = modifier

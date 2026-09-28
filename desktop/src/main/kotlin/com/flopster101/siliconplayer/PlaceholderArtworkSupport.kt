@@ -1,11 +1,10 @@
 package com.flopster101.siliconplayer
 
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Gamepad
-import androidx.compose.material.icons.filled.Memory
-import androidx.compose.material.icons.filled.MusicNote
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.graphics.vector.ImageVector
+import com.flopster101.siliconplayer.ui.icons.PlaceholderGamepadIcon
+import com.flopster101.siliconplayer.ui.icons.PlaceholderMusicNoteIcon
+import com.flopster101.siliconplayer.ui.icons.PlaceholderTrackerChipIcon
 import java.io.File
 
 @Composable
@@ -22,8 +21,8 @@ internal fun placeholderArtworkIconForFile(
         decoderArtworkHintForName(effectiveDecoderName)
             ?: file?.name?.let { resolveDecoderArtworkHintForFileName(it, decoderExtensionArtworkHints) }
     return when (resolvedHint) {
-        DecoderArtworkHint.TrackedFile -> Icons.Default.Memory
-        DecoderArtworkHint.GameFile -> Icons.Default.Gamepad
-        null -> Icons.Default.MusicNote
+        DecoderArtworkHint.TrackedFile -> PlaceholderTrackerChipIcon
+        DecoderArtworkHint.GameFile -> PlaceholderGamepadIcon
+        null -> PlaceholderMusicNoteIcon
     }
 }

@@ -41,7 +41,7 @@ import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Folder
 import androidx.compose.material.icons.filled.FolderOpen
-import androidx.compose.material.icons.filled.FolderZip
+import com.flopster101.siliconplayer.ui.icons.FolderZipIcon
 import androidx.compose.material.icons.filled.StarBorder
 import androidx.compose.material.icons.filled.LibraryMusic
 import androidx.compose.material.icons.filled.MoreHoriz
@@ -584,7 +584,7 @@ internal fun HomeScreen(
                                         icon = when {
                                             pinnedEntry.path == "playlist://$FAVORITES_PLAYLIST_ID" -> Icons.Default.Star
                                             pinnedEntry.path.startsWith("playlist://") -> Icons.Default.LibraryMusic
-                                            isArchiveLogicalFolderPath(pinnedEntry.path) -> Icons.Default.FolderZip
+                                            isArchiveLogicalFolderPath(pinnedEntry.path) -> FolderZipIcon
                                             isSmbPinnedFolder -> NetworkIcons.SmbShare
                                             isHttpPinnedFolder -> NetworkIcons.WorldCode
                                             else -> Icons.Default.Folder
@@ -1162,7 +1162,7 @@ internal fun HomeScreen(
                                             val isHttpRecentFolder = parseHttpSourceSpecFromInput(entry.path) != null
                                             RecentIconChip(
                                                 icon = when {
-                                                    isArchiveLogicalFolderPath(entry.path) -> Icons.Default.FolderZip
+                                                    isArchiveLogicalFolderPath(entry.path) -> FolderZipIcon
                                                     isSmbRecentFolder -> NetworkIcons.SmbShare
                                                     isHttpRecentFolder -> NetworkIcons.WorldCode
                                                     else -> Icons.Default.Folder
@@ -2483,7 +2483,7 @@ internal fun RecentTrackSummaryText(
             )
         } else if (isArchiveSource) {
             Icon(
-                imageVector = Icons.Default.FolderZip,
+                imageVector = FolderZipIcon,
                 contentDescription = null,
                 tint = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.size(14.dp)
