@@ -266,7 +266,8 @@ void OpenMptDspEffects::shelfEq(
     float alpha = 0.0f;
     if (quad != 0.0f) {
         const float lambda = (gainPI2 - gainDC2) / quad;
-        alpha = lambda - (sgn(lambda) * std::sqrt(std::max((lambda * lambda) - 1.0f, 0.0f)));
+        // Double-wide libm: the float sqrt resolves past Debian-stable glibc.
+        alpha = lambda - (sgn(lambda) * std::sqrt(static_cast<double>(std::max((lambda * lambda) - 1.0f, 0.0f))));
     }
 
     const float beta0 = 0.5f * ((gainDC + gainPI) + (gainDC - gainPI) * alpha);

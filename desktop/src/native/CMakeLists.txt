@@ -93,7 +93,11 @@ set(MAIN_SOURCES
     "${CMAKE_CURRENT_SOURCE_DIR}/ScopeTextOverlay.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/DesktopAudioRoute.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/UacDriverStub.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/LibmCompatWrappers.c"
 )
+
+# Double-wide libm shims (see LibmCompatWrappers.c); harmless when unreferenced.
+set(LIBM_WRAP_FLAGS "LINKER:--wrap,sqrtf" "LINKER:--wrap,atan2f" "LINKER:--wrap,log10f" "LINKER:--wrap,cosh" "LINKER:--wrap,sinh")
 
 set(PROJECTM_PREBUILT "${PREBUILT_DIR}/lib/libprojectM-4.so")
 set(PROJECTM_HOST_LIB "${EXTERNAL_DIR}/projectm/build_host/src/libprojectM/libprojectM-4.so")
@@ -139,6 +143,7 @@ target_link_libraries(siliconplayer_desktop PRIVATE
     ${AVUTIL_LIBRARIES}
     ${SWRESAMPLE_LIBRARIES}
     ${SOXR_LIBRARIES}
+    ${LIBM_WRAP_FLAGS}
 )
 
 # -----------------------------------------------------------------------------
@@ -149,6 +154,7 @@ target_link_libraries(siliconplayer_desktop PRIVATE
 add_library(siliconplayer_ffmpeg_decoder SHARED
     "${APP_CPP_DIR}/decoders/FFmpegDecoder.cpp"
     "${APP_CPP_DIR}/decoders/FFmpegDecoderPlugin.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/LibmCompatWrappers.c"
 )
 target_include_directories(siliconplayer_ffmpeg_decoder PRIVATE
     ${COMMON_INCLUDES}
@@ -164,6 +170,7 @@ target_link_libraries(siliconplayer_ffmpeg_decoder PRIVATE
     ${AVUTIL_LIBRARIES}
     ${SWRESAMPLE_LIBRARIES}
     ${SOXR_LIBRARIES}
+    ${LIBM_WRAP_FLAGS}
     m
 )
 

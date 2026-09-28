@@ -179,7 +179,8 @@ namespace {
                 const float im = fftImag[bin];
                 powerSum += (re * re) + (im * im);
             }
-            const float magnitude = std::sqrt(powerSum * b.invCount);
+            // Double-wide libm: the float sqrt resolves past Debian-stable glibc.
+            const float magnitude = std::sqrt(static_cast<double>(powerSum * b.invCount));
             const float weighted = magnitude * b.weight;
             const float barValue = std::clamp(weighted / (1.0f + weighted), 0.0f, 1.0f);
             outBars[band] = std::max(outBars[band], barValue);
@@ -1138,8 +1139,8 @@ std::vector<float> AudioEngine::getVisualizationVuLevels() const {
         sumSqR += localR[i] * localR[i];
     }
     constexpr float invSize = 1.0f / 512.0f;
-    const float rmsL = std::clamp(std::sqrt(sumSqL * invSize), 0.0f, 1.0f);
-    const float rmsR = std::clamp(std::sqrt(sumSqR * invSize), 0.0f, 1.0f);
+    const float rmsL = std::clamp(std::sqrt(static_cast<double>(sumSqL * invSize)), 0.0, 1.0);
+    const float rmsR = std::clamp(std::sqrt(static_cast<double>(sumSqR * invSize)), 0.0, 1.0);
 
     return { rmsL, rmsR };
 }

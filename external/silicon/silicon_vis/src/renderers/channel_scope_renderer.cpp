@@ -329,7 +329,8 @@ void ChannelScopeRenderer::buildGeometry() {
                         for (size_t k = 0; k + 1 < n; ++k) {
                             float dx = px[k + 1] - px[k];
                             float dy = py[k + 1] - py[k];
-                            const float segLen = std::sqrt(dx * dx + dy * dy);
+                            // Double-wide libm: float sqrt/atan2 resolve past Debian-stable glibc.
+                            const float segLen = std::sqrt(static_cast<double>(dx * dx + dy * dy));
                             if (segLen < 1e-4f) continue;
                             dx /= segLen;
                             dy /= segLen;
@@ -353,8 +354,8 @@ void ChannelScopeRenderer::buildGeometry() {
                             float d0y = py[k] - py[k - 1];
                             float d1x = px[k + 1] - px[k];
                             float d1y = py[k + 1] - py[k];
-                            const float l0 = std::sqrt(d0x * d0x + d0y * d0y);
-                            const float l1 = std::sqrt(d1x * d1x + d1y * d1y);
+                            const float l0 = std::sqrt(static_cast<double>(d0x * d0x + d0y * d0y));
+                            const float l1 = std::sqrt(static_cast<double>(d1x * d1x + d1y * d1y));
                             if (l0 < 1e-4f || l1 < 1e-4f) continue;
                             d0x /= l0; d0y /= l0; d1x /= l1; d1y /= l1;
                             const float dot = d0x * d1x + d0y * d1y;
@@ -366,8 +367,8 @@ void ChannelScopeRenderer::buildGeometry() {
                             float prevY = cy + d0x * halfW;
                             const float endX = cx - d1y * halfW;
                             const float endY = cy + d1x * halfW;
-                            float angle0 = std::atan2(prevY - cy, prevX - cx);
-                            float angle1 = std::atan2(endY - cy, endX - cx);
+                            float angle0 = std::atan2(static_cast<double>(prevY - cy), static_cast<double>(prevX - cx));
+                            float angle1 = std::atan2(static_cast<double>(endY - cy), static_cast<double>(endX - cx));
                             float sweep = angle1 - angle0;
                             if (sweep > (float)M_PI) sweep -= 2.0f * (float)M_PI;
                             if (sweep < -(float)M_PI) sweep += 2.0f * (float)M_PI;

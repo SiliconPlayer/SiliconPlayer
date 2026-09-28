@@ -80,7 +80,8 @@ void VuMetersRenderer::setOptions(
 }
 
 static float computeVuDbLevel(float raw) {
-    float db = 20.0f * std::log10(std::max(raw, 0.0001f));
+    // Double-wide libm: float log10 resolves past Debian-stable glibc.
+    float db = 20.0f * std::log10(static_cast<double>(std::max(raw, 0.0001f)));
     float dbFloor = -58.0f;
     float norm = std::clamp((db - dbFloor) / -dbFloor, 0.0f, 1.0f);
     return std::clamp(std::pow(norm, 0.62f), 0.0f, 1.0f);
