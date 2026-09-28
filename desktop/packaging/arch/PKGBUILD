@@ -7,7 +7,7 @@ arch=('x86_64')
 url="https://github.com/SiliconPlayer/SiliconPlayer"
 license=('GPL-3.0-or-later')
 # System JRE on purpose: the release distributable's bundled runtime is dropped.
-depends=('java-runtime>=17' 'ffmpeg' 'alsa-lib' 'libpulse' 'libgl' 'libx11' 'dbus' 'hicolor-icon-theme')
+depends=('java-runtime>=17' 'alsa-lib' 'libpulse' 'libgl' 'libx11' 'dbus' 'hicolor-icon-theme')
 makedepends=('cmake' 'git' 'imagemagick' 'jdk-openjdk')
 # Building also configures the Android module, so an Android SDK with
 # cmdline-tools + platform 34 is required (ANDROID_HOME or ~/Android/Sdk).
@@ -30,4 +30,5 @@ package() {
     install -Dm644 packaging/arch/siliconplayer.desktop "$pkgdir/usr/share/applications/siliconplayer.desktop"
     install -Dm644 siliconplayer.png "$pkgdir/usr/share/icons/hicolor/256x256/apps/siliconplayer.png"
     install -Dm644 LICENSE "$pkgdir/usr/share/licenses/siliconplayer/LICENSE"
+    install -Dm644 external/ffmpeg/COPYING.LGPLv2.1 "$pkgdir/usr/share/licenses/siliconplayer/COPYING.FFmpeg"
 }

@@ -48,6 +48,9 @@ exec "$APPDIR/usr/bin/SiliconPlayer" "$@"
 EOF
 chmod +x "$STAGE/AppRun"
 
+mkdir -p "$STAGE/usr/share/doc/siliconplayer"
+cp ../external/ffmpeg/COPYING.LGPLv2.1 "$STAGE/usr/share/doc/siliconplayer/COPYING.FFmpeg"
+
 if [ ! -x "$TOOL" ]; then
     mkdir -p "$(dirname "$TOOL")"
     curl -sSL -o "$TOOL" https://github.com/AppImage/appimagetool/releases/download/continuous/appimagetool-x86_64.AppImage

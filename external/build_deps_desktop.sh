@@ -277,14 +277,20 @@ build_ffmpeg() {
         return 0
     fi
     if [ "$FORCE_CLEAN" -ne 1 ] && [ -f "$INSTALL_DIR/lib/libavcodec.so" ]; then return 0; fi
-    echo "Building FFmpeg from submodule for host..."
+    echo "Building shared FFmpeg from submodule for host..."
     mkdir -p "$BUILD_DIR"
     (
         cd "$PROJECT_PATH"
         make clean >/dev/null 2>&1 || true
+        "$CC" -fPIC -c "$ABSOLUTE_PATH/../desktop/src/native/LibmCompatWrappers.c" -o "$BUILD_DIR/wrap_libm.o"
         ./configure --prefix="$INSTALL_DIR" --enable-shared --disable-static --disable-doc --disable-programs \
-            --disable-avdevice --disable-postproc --disable-swscale --disable-asm \
-            --extra-cflags="-fPIC $DEP_OPT_FLAGS" --extra-ldflags="-L$INSTALL_DIR/lib"
+            --disable-avdevice --disable-avfilter --disable-swscale --disable-asm \
+            --disable-encoders --disable-muxers \
+            --disable-vaapi --disable-vdpau --disable-vulkan --disable-libdrm \
+            --disable-cuda --disable-cuvid --disable-nvdec --disable-nvenc \
+            --disable-dxva2 --disable-d3d11va --disable-videotoolbox \
+            --extra-cflags="-fPIC $DEP_OPT_FLAGS" \
+            --extra-ldflags="$BUILD_DIR/wrap_libm.o -L$INSTALL_DIR/lib -lm -Wl,--wrap,sqrtf -Wl,--wrap,atan2f -Wl,--wrap,log10f -Wl,--wrap,cosh -Wl,--wrap,sinh"
         make -j"$NPROC"
         make install
     )
