@@ -1,5 +1,4 @@
 package com.flopster101.siliconplayer
-import com.flopster101.siliconplayer.data.sha1Hex
 import com.flopster101.siliconplayer.data.findExistingCachedFileForSource
 
 import android.content.Context
@@ -21,10 +20,6 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.async
 import kotlinx.coroutines.flow.MutableStateFlow
-
-internal const val RECENT_ARTWORK_CACHE_DIR = "recent_artwork"
-private const val RECENT_ARTWORK_THUMB_MAX_SIZE_PX = 240
-private const val RECENT_ARTWORK_LARGE_MAX_SIZE_PX = 1024
 
 // Bumped whenever a recents thumbnail file is newly written, so chips already on
 // screen re-peek instead of showing the fallback until the list itself changes.
@@ -52,8 +47,8 @@ internal fun saveBitmapToRecentArtworkCache(
     if (normalizedSource.isBlank()) return null
     val cacheRoot = File(context.cacheDir, RECENT_ARTWORK_CACHE_DIR)
     if (!cacheRoot.exists() && !cacheRoot.mkdirs()) return null
-    val cacheKey = "${sha1Hex(normalizedSource)}.jpg"
-    val largeKey = "${sha1Hex(normalizedSource)}_large.jpg"
+    val cacheKey = recentArtworkCacheKeyForSource(normalizedSource) ?: return null
+    val largeKey = recentLargeArtworkCacheKeyForSource(normalizedSource) ?: return null
     val cacheFile = File(cacheRoot, cacheKey)
     val largeFile = File(cacheRoot, largeKey)
 
@@ -134,8 +129,8 @@ internal fun ensureRecentArtworkCached(
     if (normalizedSource.isBlank()) return null
     val cacheRoot = File(context.cacheDir, RECENT_ARTWORK_CACHE_DIR)
     if (!cacheRoot.exists() && !cacheRoot.mkdirs()) return null
-    val cacheKey = "${sha1Hex(normalizedSource)}.jpg"
-    val largeKey = "${sha1Hex(normalizedSource)}_large.jpg"
+    val cacheKey = recentArtworkCacheKeyForSource(normalizedSource) ?: return null
+    val largeKey = recentLargeArtworkCacheKeyForSource(normalizedSource) ?: return null
     val cacheFile = File(cacheRoot, cacheKey)
     val largeFile = File(cacheRoot, largeKey)
 

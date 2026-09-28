@@ -41,9 +41,12 @@ import com.flopster101.siliconplayer.platform.ProjectMOptionsProvider
 import com.flopster101.siliconplayer.platform.SettingsPlatformContent
 import com.flopster101.siliconplayer.platform.ToastHandler
 import com.flopster101.siliconplayer.platform.WindowSizeInfo
+import java.io.File
 import java.util.concurrent.CopyOnWriteArrayList
 import java.util.prefs.Preferences
 import javax.swing.JFileChooser
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 
 class DesktopAppPreferences(private val nodeName: String) : AppPreferences {
     private val prefs: Preferences = Preferences.userRoot().node("com/flopster101/siliconplayer/$nodeName")
@@ -220,23 +223,31 @@ fun ProvideDesktopPlatformAdapters(
         com.flopster101.siliconplayer.NetworkCredentialStore.configDirProvider = { configDir }
     }
     val artworkThumbnailLoader = remember(cacheDir) {
-        val artworkCacheDir = desktopArtworkCacheDir(cacheDir)
+        val recentArtworkCacheDir = desktopRecentArtworkCacheDir(cacheDir)
         object : ArtworkThumbnailLoader {
             override fun peek(cacheKey: String?) = DesktopArtworkSupport.peekMemoryArtwork(cacheKey)
             override suspend fun load(cacheKey: String?): androidx.compose.ui.graphics.ImageBitmap? {
                 if (cacheKey == null) return null
                 DesktopArtworkSupport.peekMemoryArtwork(cacheKey)?.let { return it }
-                val file = java.io.File(cacheKey).takeIf { it.exists() && it.isFile }
-                    ?: java.io.File(artworkCacheDir, cacheKey).takeIf { it.exists() && it.isFile }
-                    ?: return null
-                val directImage = try {
-                    org.jetbrains.skia.Image.makeFromEncoded(file.readBytes()).toComposeImageBitmap()
-                } catch (_: Throwable) {
-                    null
+                val trimmed = cacheKey.trim()
+                if (trimmed.isEmpty()) return null
+                desktopRecentArtworkCacheFile(recentArtworkCacheDir, trimmed, false)?.let { file ->
+                    return decodeRecentArtworkFile(trimmed, file)
                 }
-                return directImage ?: DesktopArtworkSupport.loadArtworkForFile(file)
+                if (looksLikeRemoteSourceId(trimmed)) {
+                    return withContext(Dispatchers.IO) {
+                        ensureDesktopRecentArtworkCached(recentArtworkCacheDir, trimmed, null, false)?.let { key ->
+                            DesktopArtworkSupport.peekMemoryArtwork(key)
+                                ?: desktopRecentArtworkCacheFile(recentArtworkCacheDir, key, false)?.let { file ->
+                                    decodeRecentArtworkFile(key, file)
+                                }
+                        }
+                    }
+                }
+                val file = File(trimmed).takeIf { it.exists() && it.isFile } ?: return null
+                return withContext(Dispatchers.IO) { DesktopArtworkSupport.loadArtworkForFile(file) }
             }
-            override val revision: kotlinx.coroutines.flow.StateFlow<Long> = kotlinx.coroutines.flow.MutableStateFlow(0L)
+            override val revision: kotlinx.coroutines.flow.StateFlow<Long> = desktopRecentArtworkCacheRevision
         }
     }
 

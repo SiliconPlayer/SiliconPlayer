@@ -10,6 +10,7 @@ import com.flopster101.siliconplayer.joinSmbRelativePath
 import com.flopster101.siliconplayer.normalizeHttpDirectoryPath
 import com.flopster101.siliconplayer.normalizeHttpPath
 import com.flopster101.siliconplayer.normalizeSmbPathForShare
+import com.flopster101.siliconplayer.recentArtworkCacheKeyForSource
 import com.flopster101.siliconplayer.resolveCredentialedHttpSpec
 import com.flopster101.siliconplayer.resolveCredentialedSmbSpec
 import com.flopster101.siliconplayer.withAppSmbSession
@@ -116,6 +117,11 @@ private class ArtworkByteReader(private val source: ArtworkByteSource) : Closeab
 internal object DesktopArtworkSupport {
     private val memoryCache = ConcurrentHashMap<String, ImageBitmap?>()
 
+    internal fun rememberMemoryArtwork(key: String?, bitmap: ImageBitmap?) {
+        if (key == null || bitmap == null) return
+        memoryCache[key] = bitmap
+    }
+
     internal fun peekMemoryArtwork(key: String?): ImageBitmap? =
         if (key == null) null else memoryCache[key]?.takeIf { it != null }
 
@@ -131,6 +137,7 @@ internal object DesktopArtworkSupport {
 
         if (imageBitmap != null) {
             memoryCache[cacheKey] = imageBitmap
+            recentArtworkCacheKeyForSource(cacheKey)?.let { memoryCache[it] = imageBitmap }
         }
         return imageBitmap
     }
@@ -167,6 +174,7 @@ internal object DesktopArtworkSupport {
                 ?: loadCompanionRemoteArtwork(remoteRequest, scheme)
         }.getOrNull() ?: return null
         memoryCache[cacheKey] = imageBitmap
+        recentArtworkCacheKeyForSource(sourceId)?.let { memoryCache[it] = imageBitmap }
         return imageBitmap
     }
 

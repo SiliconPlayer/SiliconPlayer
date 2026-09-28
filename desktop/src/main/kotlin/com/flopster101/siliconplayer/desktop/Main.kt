@@ -81,10 +81,13 @@ import com.flopster101.siliconplayer.XmpOptionKeys
 import com.flopster101.siliconplayer.data.FileRepository
 import com.flopster101.siliconplayer.data.compareFileNamesNatural
 import com.flopster101.siliconplayer.platform.LocalAppPreferences
+import com.flopster101.siliconplayer.mergeRecentPlayedTrackArtworkCacheKey
+import com.flopster101.siliconplayer.platform.LocalArtworkCacheSupport
 import com.flopster101.siliconplayer.platform.LocalLibraryRepository
 import com.flopster101.siliconplayer.platform.LocalToastHandler
 import com.flopster101.siliconplayer.platform.ToastHandler
 import com.flopster101.siliconplayer.platform.PlatformBackHandler
+import com.flopster101.siliconplayer.recentArtworkCacheKeyForSource
 import com.flopster101.siliconplayer.ui.screens.FileBrowserScreen
 import com.flopster101.siliconplayer.ui.screens.HttpFileBrowserScreen
 import com.flopster101.siliconplayer.ui.screens.SmbFileBrowserScreen
@@ -399,6 +402,10 @@ fun main(args: Array<String>) = application {
     val recentFiles = remember { mutableStateListOf<RecentPathEntry>() }
     val recentFolders = remember { mutableStateListOf<RecentPathEntry>() }
     val pinnedEntries = remember { mutableStateListOf<HomePinnedEntry>() }
+    // Assigned once the platform artwork support is available below; persists the
+    // shared recent-artwork thumbnail for a played source, mirroring Android's
+    // scheduleRecentPlayedArtworkCacheBackfill.
+    var scheduleRecentArtworkBackfill by remember { mutableStateOf<((String, String?) -> Unit)?>(null) }
 
     fun pinHomeEntry(entry: RecentPathEntry, isFolder: Boolean) {
         if (pinnedEntries.none { it.path == entry.path }) {
@@ -418,20 +425,22 @@ fun main(args: Array<String>) = application {
     fun registerLoadedFile(file: File) {
         val ext = inferredPrimaryExtensionForName(file.name)?.uppercase(Locale.ROOT) ?: "FILE"
         val sourceId = session.currentSourceId
+        val identity = sourceId ?: file.absolutePath
         val entry = RecentPathEntry(
-            path = sourceId ?: file.absolutePath,
+            path = identity,
             locationId = null,
             title = session.title.ifBlank { file.name },
             artist = session.artist.ifBlank { ext },
             decoderName = session.decoderName,
             sourceNodeId = NetworkNodesHolder.current.firstOrNull { it.source == sourceId }?.id,
-            artworkThumbnailCacheKey = sourceId ?: file.absolutePath
+            artworkThumbnailCacheKey = recentArtworkCacheKeyForSource(identity) ?: identity
         )
-        recentFiles.removeAll { it.path == (sourceId ?: file.absolutePath) }
+        recentFiles.removeAll { it.path == identity }
         recentFiles.add(0, entry)
         while (recentFiles.size > recentFilesLimit) {
             recentFiles.removeLast()
         }
+        scheduleRecentArtworkBackfill?.invoke(identity, session.currentRequestUrl)
 
         val parent = file.parentFile
         if (parent != null) {
@@ -466,20 +475,22 @@ fun main(args: Array<String>) = application {
             if (openPlayerOnTrackSelect) isPlayerSurfaceVisible = true
             val sourceId = session.currentSourceId
             val sourceNodeId = NetworkNodesHolder.current.firstOrNull { it.source == sourceId }?.id
+            val identity = sourceId ?: source
             val entry = RecentPathEntry(
-                path = sourceId ?: source,
+                path = identity,
                 locationId = null,
                 title = session.title.ifBlank { titleHint ?: source },
                 artist = session.artist.ifBlank { artistHint ?: "Network" },
                 decoderName = session.decoderName,
                 sourceNodeId = sourceNodeId,
-                artworkThumbnailCacheKey = sourceId
+                artworkThumbnailCacheKey = recentArtworkCacheKeyForSource(identity) ?: identity
             )
-            recentFiles.removeAll { it.path == (sourceId ?: source) }
+            recentFiles.removeAll { it.path == identity }
             recentFiles.add(0, entry)
             while (recentFiles.size > recentFilesLimit) {
                 recentFiles.removeLast()
             }
+            scheduleRecentArtworkBackfill?.invoke(identity, session.currentRequestUrl)
         }
     }
 
@@ -671,6 +682,39 @@ fun main(args: Array<String>) = application {
             val remoteCacheOpenScope = rememberCoroutineScope()
             var remoteCacheOpenJob by remember { mutableStateOf<Job?>(null) }
             val toastHandler = LocalToastHandler.current
+            val artworkCacheSupport = LocalArtworkCacheSupport.current
+            val recentArtworkBackfillScope = rememberCoroutineScope()
+            val recentArtworkBackfillJobs = remember { mutableMapOf<String, Job>() }
+            LaunchedEffect(artworkCacheSupport) {
+                scheduleRecentArtworkBackfill = { playedSourceId, requestUrlHint ->
+                    recentArtworkBackfillJobs.remove(playedSourceId)?.cancel()
+                    recentArtworkBackfillJobs[playedSourceId] =
+                        recentArtworkBackfillScope.launch(Dispatchers.IO) {
+                            try {
+                                var cacheKey: String? = null
+                                for (attempt in 0 until 10) {
+                                    cacheKey = artworkCacheSupport.ensureThumbnailCached(playedSourceId, requestUrlHint)
+                                    if (cacheKey != null) break
+                                    delay(400L)
+                                }
+                                val resolved = cacheKey ?: return@launch
+                                val merged = mergeRecentPlayedTrackArtworkCacheKey(
+                                    recentFiles.toList(),
+                                    playedSourceId,
+                                    resolved
+                                )
+                                if (merged != recentFiles) {
+                                    withContext(Dispatchers.Main) {
+                                        recentFiles.clear()
+                                        recentFiles.addAll(merged)
+                                    }
+                                }
+                            } finally {
+                                recentArtworkBackfillJobs.remove(playedSourceId)
+                            }
+                        }
+                }
+            }
             // CORE-OPTION PUSH: setters persist only; this single observer fans core
             // writes to the engine, mirroring Android AppNavigationCoreEffects.
             DisposableEffect(prefs, session) {
@@ -698,13 +742,15 @@ fun main(args: Array<String>) = application {
                     locationId = null,
                     title = session.title.ifBlank { source },
                     artist = session.artist.ifBlank { "Network" },
-                    decoderName = session.decoderName
+                    decoderName = session.decoderName,
+                    artworkThumbnailCacheKey = recentArtworkCacheKeyForSource(source) ?: source
                 )
                 recentFiles.removeAll { it.path == source }
                 recentFiles.add(0, entry)
                 while (recentFiles.size > recentFilesLimit) {
                     recentFiles.removeLast()
                 }
+                scheduleRecentArtworkBackfill?.invoke(source, session.currentRequestUrl)
             }
 
             // "Play as cached": download the remote source, then open the local copy.

@@ -31,13 +31,12 @@ import com.flopster101.siliconplayer.library.LibraryContract
 import com.flopster101.siliconplayer.library.LibraryRepository
 import com.flopster101.siliconplayer.library.LibraryScanRoot
 import com.flopster101.siliconplayer.loadLibraryThumbnail
-import com.flopster101.siliconplayer.normalizeSourceIdentity
 import com.flopster101.siliconplayer.parseM3uPlaylistLines
 import com.flopster101.siliconplayer.peekCachedArtworkBitmapForSource
 import com.flopster101.siliconplayer.peekLibraryThumbnail
 import com.flopster101.siliconplayer.queryRealPathFromUri
+import com.flopster101.siliconplayer.recentArtworkCacheKeyForSource
 import com.flopster101.siliconplayer.recentArtworkFile
-import com.flopster101.siliconplayer.data.sha1Hex
 import com.flopster101.siliconplayer.suggestedPlaylistExportFileName
 import java.io.File
 import java.io.FileOutputStream
@@ -154,10 +153,8 @@ internal fun rememberAndroidArtworkCacheSupport(): ArtworkCacheSupport {
             }
 
             override fun peekGeneratedKey(sourceId: String): String? {
-                val normalized = normalizeSourceIdentity(sourceId)?.trim().orEmpty()
-                if (normalized.isBlank()) return null
+                val key = recentArtworkCacheKeyForSource(sourceId) ?: return null
                 val cacheRoot = File(context.cacheDir, RECENT_ARTWORK_CACHE_DIR)
-                val key = "${sha1Hex(normalized)}.jpg"
                 return key.takeIf { File(cacheRoot, it).exists() }
             }
 

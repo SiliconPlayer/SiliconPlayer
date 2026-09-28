@@ -353,27 +353,6 @@ internal fun buildUpdatedRecentPlayedTracks(
     return updated.take(limit)
 }
 
-internal fun mergeRecentPlayedTrackArtworkCacheKey(
-    current: List<RecentPathEntry>,
-    path: String,
-    artworkThumbnailCacheKey: String?
-): List<RecentPathEntry> {
-    val normalized = normalizeSourceIdentity(path) ?: path
-    val normalizedCacheKey = artworkThumbnailCacheKey?.trim().takeUnless { it.isNullOrBlank() }
-        ?: return current
-    var changed = false
-    val updated = current.map { entry ->
-        if (!samePath(entry.path, normalized)) return@map entry
-        if (entry.artworkThumbnailCacheKey == normalizedCacheKey) {
-            entry
-        } else {
-            changed = true
-            entry.copy(artworkThumbnailCacheKey = normalizedCacheKey)
-        }
-    }
-    return if (changed) updated else current
-}
-
 internal fun mergePinnedFileMetadataAndArtwork(
     current: List<HomePinnedEntry>,
     path: String,

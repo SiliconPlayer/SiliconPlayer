@@ -91,6 +91,8 @@ class DesktopPlaybackSession(
     // Remote-aware playback identity, mirroring Android's currentPlaybackSourceId.
     var currentSourceId by mutableStateOf<String?>(null)
         private set
+    var currentRequestUrl by mutableStateOf<String?>(null)
+        private set
 
     var playbackCapabilitiesFlags by mutableIntStateOf(0)
         private set
@@ -145,6 +147,7 @@ class DesktopPlaybackSession(
         currentFile = file
         currentSource = file.absolutePath
         currentSourceId = remoteSourceId ?: file.absolutePath
+        currentRequestUrl = remoteSourceId
         stoppedSource = null
         refreshMetadata()
         refreshRepeatMode()
@@ -212,6 +215,7 @@ class DesktopPlaybackSession(
         currentFile = resolved?.displayFile ?: File(source)
         currentSource = source
         currentSourceId = resolved?.sourceId ?: source
+        currentRequestUrl = resolved?.requestUrl ?: source
         stoppedSource = null
         refreshMetadata()
         refreshRepeatMode()
@@ -298,6 +302,7 @@ class DesktopPlaybackSession(
         currentFile = null
         currentSource = null
         currentSourceId = null
+        currentRequestUrl = null
         title = ""
         artist = ""
         album = ""
