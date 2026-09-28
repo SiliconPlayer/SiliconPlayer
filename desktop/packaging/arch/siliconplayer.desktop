@@ -1,0 +1,8 @@
+[Desktop Entry]
+Name=SiliconPlayer
+Exec=/usr/bin/siliconplayer
+Icon=siliconplayer
+Type=Application
+Categories=AudioVideo;Audio;
+Comment=Modern chiptune and module music player
+StartupWMClass=SiliconPlayer
