@@ -111,6 +111,7 @@ import androidx.compose.ui.input.key.key
 import androidx.compose.ui.input.key.type
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.res.painterResource
 import com.flopster101.siliconplayer.ui.screens.PlaylistsScreen
 import com.flopster101.siliconplayer.ui.screens.LibrarySurfaceState
 import com.flopster101.siliconplayer.ui.screens.PlaylistsSurfaceDestination
@@ -575,6 +576,7 @@ fun main(args: Array<String>) = application {
         },
         state = windowState,
         title = windowTitle,
+        icon = painterResource("app_icon.webp"),
         onPreviewKeyEvent = { keyEvent ->
             // Capture-phase Escape: a focused child must never swallow back.
             if (keyEvent.type == KeyEventType.KeyDown && keyEvent.key == Key.Escape) {
