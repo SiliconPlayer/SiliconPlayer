@@ -504,6 +504,7 @@ private:
     void renderSoxrResampledLocked(float* outputData, int32_t numFrames, int channels, int streamRate, int renderRate, bool& reachedEnd);
     void recoverStreamIfNeeded();
     void recoverStreamIfNeededLocked();
+    void primeRenderQueueForStreamStart();
     void stopOutputStreamLocked();
     void clearRenderQueue();
     void prependRenderQueueSilence(int numFrames, int channels);

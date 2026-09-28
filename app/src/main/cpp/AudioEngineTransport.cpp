@@ -17,6 +17,11 @@
 namespace {
     constexpr int kStartupPrefillDeadlineMs = 220;
     constexpr int kStartupPrefillPollIntervalMs = 2;
+    // A fresh stream must not present its first non-zero sample at full scale:
+    // the prepended preroll ends at an arbitrary phase, and the step into the
+    // signal clicks. Short enough to leave the track's own attack intact.
+    constexpr int kStreamStartFadeMs = 20;
+    constexpr float kStreamStartFadeDb = 6.0f;
 
     pid_t currentThreadId() {
 #ifdef SYS_gettid
@@ -147,58 +152,7 @@ bool AudioEngine::start() {
         // Prime render queue before starting callback-driven playback.
         // This avoids audible startup gaps for decoders that need a short warmup
         // (notably SID cores) and reduces first-second underruns.
-        playbackStreamStarted.store(false, std::memory_order_release);
-        // No clearRenderQueue: post-setUrl the queue already holds the new
-        // track's fresh head, and every stale case clears at its own source.
-        isPlaying = true;
-        naturalEndPending.store(false);
-        const int startupChunkFrames = std::max(256, renderWorkerChunkFrames.load(std::memory_order_relaxed));
-        const int burstFrames = getStreamBurstFrames();
-        const int burstPeriods = getStreamBurstPeriods();
-        // Cover the startup burst: the framework pulls a full device buffer
-        // as fast as callbacks return before real-time pacing settles.
-        // Anything short of that opens an audible hole ~200 ms in.
-        const int burstCoverFrames =
-                (burstFrames > 0 && burstPeriods > 0) ? burstFrames * burstPeriods : 0;
-        int startupBaseTargetFrames = std::max({
-                startupChunkFrames * 2,
-                std::min(renderWorkerTargetFrames.load(std::memory_order_relaxed), 4096),
-                burstCoverFrames
-        });
-        int startupPrerollFrames = 0;
-        if (streamStartupPrerollPending && !isBitPerfectModeEnabled()) {
-            const int prerollFrames = burstFrames > 0 ? burstFrames : startupChunkFrames;
-            startupPrerollFrames = std::clamp(prerollFrames, 128, 2048);
-            const size_t ch = streamChannelCount > 0 ? static_cast<size_t>(streamChannelCount) : 2u;
-            // Prepend, never append: queued frames are the song head and the
-            // silence must absorb the backend wake-up cut ahead of them.
-            prependRenderQueueSilence(startupPrerollFrames, static_cast<int>(ch));
-            LOGD("Applying one-time startup preroll: %d frames (ch=%zu)", startupPrerollFrames, ch);
-        }
-        const int startupTargetFrames = startupBaseTargetFrames + startupPrerollFrames;
-        // Let the worker overfill past its steady/scope-capped targets, or
-        // the prefill below stalls to the deadline without covering the burst.
-        renderQueueRecoveryBoostUntilNs.store(
-                std::chrono::duration_cast<std::chrono::nanoseconds>(
-                        std::chrono::steady_clock::now().time_since_epoch()).count() + 2500000000LL,
-                std::memory_order_relaxed);
-        renderWorkerCv.notify_one();
-        const auto prefillDeadline = std::chrono::steady_clock::now() + std::chrono::milliseconds(kStartupPrefillDeadlineMs);
-        while (renderQueueFrames() < startupTargetFrames &&
-               std::chrono::steady_clock::now() < prefillDeadline) {
-            std::this_thread::sleep_for(std::chrono::milliseconds(kStartupPrefillPollIntervalMs));
-            renderWorkerCv.notify_one();
-        }
-        LOGD("Track start prefill: queued=%d target=%d preroll=%d hitDeadline=%d",
-             renderQueueFrames(), startupTargetFrames, startupPrerollFrames,
-             renderQueueFrames() < startupTargetFrames ? 1 : 0);
-        if (renderQueueFrames() >= startupTargetFrames) {
-            // The cushion the burst needs is already queued, so drop the 4x
-            // multiplier now instead of overfilling for the rest of its window:
-            // a deep queue saturates the channel scope's delay estimate, which
-            // then pins the rendered window until the queue drains back.
-            renderQueueRecoveryBoostUntilNs.store(0, std::memory_order_relaxed);
-        }
+        primeRenderQueueForStreamStart();
 
         if (!requestStreamStart()) {
             closeStream();
@@ -224,6 +178,70 @@ bool AudioEngine::start() {
         return true;
     }
     return false;
+}
+
+// Every path that hands the queue to a (re)starting output stream comes
+// through here: the backend pulls a burst before pacing settles, so the queue
+// must already cover it or the first callbacks underrun. Must run with the
+// caller holding lifecycleMutex.
+void AudioEngine::primeRenderQueueForStreamStart() {
+    playbackStreamStarted.store(false, std::memory_order_release);
+    // No clearRenderQueue: post-setUrl the queue already holds the new
+    // track's fresh head, and every stale case clears at its own source.
+    isPlaying = true;
+    naturalEndPending.store(false);
+    if (!pendingResumeFadeOnStart.load(std::memory_order_relaxed)) {
+        pendingResumeFadeDurationMs.store(kStreamStartFadeMs, std::memory_order_relaxed);
+        pendingResumeFadeAttenuationDb.store(kStreamStartFadeDb, std::memory_order_relaxed);
+        pendingResumeFadeOnStart.store(true, std::memory_order_relaxed);
+    }
+    const int startupChunkFrames = std::max(256, renderWorkerChunkFrames.load(std::memory_order_relaxed));
+    const int burstFrames = getStreamBurstFrames();
+    const int burstPeriods = getStreamBurstPeriods();
+    // Cover the startup burst: the framework pulls a full device buffer
+    // as fast as callbacks return before real-time pacing settles.
+    // Anything short of that opens an audible hole ~200 ms in.
+    const int burstCoverFrames =
+            (burstFrames > 0 && burstPeriods > 0) ? burstFrames * burstPeriods : 0;
+    const int startupBaseTargetFrames = std::max({
+            startupChunkFrames * 2,
+            std::min(renderWorkerTargetFrames.load(std::memory_order_relaxed), 4096),
+            burstCoverFrames
+    });
+    int startupPrerollFrames = 0;
+    if (streamStartupPrerollPending && !isBitPerfectModeEnabled()) {
+        const int prerollFrames = burstFrames > 0 ? burstFrames : startupChunkFrames;
+        startupPrerollFrames = std::clamp(prerollFrames, 128, 2048);
+        const size_t ch = streamChannelCount > 0 ? static_cast<size_t>(streamChannelCount) : 2u;
+        // Prepend, never append: queued frames are the song head and the
+        // silence must absorb the backend wake-up cut ahead of them.
+        prependRenderQueueSilence(startupPrerollFrames, static_cast<int>(ch));
+        LOGD("Applying one-time startup preroll: %d frames (ch=%zu)", startupPrerollFrames, ch);
+    }
+    const int startupTargetFrames = startupBaseTargetFrames + startupPrerollFrames;
+    // Let the worker overfill past its steady/scope-capped targets, or
+    // the prefill below stalls to the deadline without covering the burst.
+    renderQueueRecoveryBoostUntilNs.store(
+            std::chrono::duration_cast<std::chrono::nanoseconds>(
+                    std::chrono::steady_clock::now().time_since_epoch()).count() + 2500000000LL,
+            std::memory_order_relaxed);
+    renderWorkerCv.notify_one();
+    const auto prefillDeadline = std::chrono::steady_clock::now() + std::chrono::milliseconds(kStartupPrefillDeadlineMs);
+    while (renderQueueFrames() < startupTargetFrames &&
+           std::chrono::steady_clock::now() < prefillDeadline) {
+        std::this_thread::sleep_for(std::chrono::milliseconds(kStartupPrefillPollIntervalMs));
+        renderWorkerCv.notify_one();
+    }
+    LOGD("Track start prefill: queued=%d target=%d preroll=%d hitDeadline=%d",
+         renderQueueFrames(), startupTargetFrames, startupPrerollFrames,
+         renderQueueFrames() < startupTargetFrames ? 1 : 0);
+    if (renderQueueFrames() >= startupTargetFrames) {
+        // The cushion the burst needs is already queued, so drop the 4x
+        // multiplier now instead of overfilling for the rest of its window:
+        // a deep queue saturates the channel scope's delay estimate, which
+        // then pins the rendered window until the queue drains back.
+        renderQueueRecoveryBoostUntilNs.store(0, std::memory_order_relaxed);
+    }
 }
 
 void AudioEngine::setFastTrackSwitchStartupHint(bool enabled) {
@@ -373,13 +391,17 @@ void AudioEngine::setUrl(const char* url, const char* forcedDecoder) {
         }
     }
 
-    decoderSerial.fetch_add(1);
-    clearRenderQueue();
-
-    // Drop any previously loaded decoder first. If opening the new source fails,
-    // playback should not continue from stale decoder state.
+    // Bump the serial and drop the queued audio under decoderMutex, the same
+    // lock the render worker appends under: otherwise a chunk that started on
+    // the old decoder can append its frames after the clear, and the previous
+    // song plays into the new one.
     {
         std::lock_guard<std::mutex> lock(decoderMutex);
+        decoderSerial.fetch_add(1);
+        clearRenderQueue();
+
+        // Drop any previously loaded decoder first. If opening the new source
+        // fails, playback should not continue from stale decoder state.
         if (decoder) {
             previousDecoderName = decoder->getName();
         }

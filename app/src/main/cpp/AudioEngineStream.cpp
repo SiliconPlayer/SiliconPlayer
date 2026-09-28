@@ -309,11 +309,17 @@ void AudioEngine::createStream() {
     }
 }
 
-// Manual track switch: destroy the device synchronously so already-popped
-// backend audio cannot keep playing the old song (PulseAudio cork retains
-// buffers; only destroy flushes). start() rebuilds it on the full path.
+// Track switch: destroy the device synchronously so already-popped backend
+// audio cannot keep playing the old song (PulseAudio cork retains buffers;
+// only destroy flushes). start() rebuilds it on the full path. The worker is
+// halted too: with no consumer left it would decode the outgoing track into a
+// ring the incoming one then has to render past.
 void AudioEngine::teardownOutputStreamForSwitch() {
     closeStream();
+    isPlaying.store(false);
+    naturalEndPending.store(false);
+    clearRenderQueue();
+    renderWorkerCv.notify_all();
 }
 
 void AudioEngine::closeStream() {
@@ -448,6 +454,9 @@ void AudioEngine::reconfigureStream(bool resumePlayback) {
 
     closeStream();
     createStream();
+    // This is the rebuild; leaving the flag armed makes the next position poll
+    // tear the fresh device down again and never restart it.
+    streamNeedsRebuild.store(false);
 
     if (streamSampleRate != previousSampleRate) {
         clearRenderQueue();
@@ -468,8 +477,7 @@ void AudioEngine::reconfigureStream(bool resumePlayback) {
     }
 
     naturalEndPending.store(false);
-    isPlaying.store(true);
-    renderWorkerCv.notify_all();
+    primeRenderQueueForStreamStart();
 
     if (requestStreamStart()) {
         streamStartupPrerollPending = false;
@@ -500,10 +508,14 @@ void AudioEngine::miniaudioStopCallback(ma_device* pDevice) {
     }
     if (engine->isPlaying.load()) {
         engine->streamNeedsRebuild.store(true);
-        std::thread([engine]() {
+        const uint64_t failedDecoderSerial = engine->decoderSerial.load();
+        std::thread([engine, failedDecoderSerial]() {
             pthread_setname_np(pthread_self(), "sp_recover");
             usleep(150000);
-            if (engine->isPlaying.load() && !engine->intentionalStreamTeardown.load()) {
+            // A track loaded in the meantime owns its own stream; rebuilding for
+            // the device that just died would discard the new track's head.
+            if (engine->decoderSerial.load() == failedDecoderSerial &&
+                engine->isPlaying.load() && !engine->intentionalStreamTeardown.load()) {
                 engine->reconfigureStream(true);
             }
         }).detach();
@@ -816,8 +828,10 @@ void AudioEngine::recoverStreamIfNeededLocked() {
 
     if (resumeAfterRebuild.load()) {
         resumeAfterRebuild.store(false);
+        primeRenderQueueForStreamStart();
         if (requestStreamStart()) {
-            isPlaying.store(true);
+            streamStartupPrerollPending = false;
+            playbackStreamStarted.store(true, std::memory_order_release);
         }
     }
 }

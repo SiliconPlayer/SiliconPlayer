@@ -127,26 +127,24 @@ class DesktopPlaybackSession(
         startTicker()
     }
 
-    fun loadFile(file: File, autoStart: Boolean = true, teardownStreamForSwitch: Boolean = false): Boolean {
+    fun loadFile(file: File, autoStart: Boolean = true): Boolean {
         if (!file.exists() || !file.isFile) return false
 
         armLoadCrashGuard(file.absolutePath)
         try {
-            loadFileGuarded(file, autoStart, teardownStreamForSwitch)
+            loadFileGuarded(file, autoStart)
             return true
         } finally {
             clearLoadCrashGuard()
         }
     }
 
-    private fun loadFileGuarded(file: File, autoStart: Boolean, teardownStreamForSwitch: Boolean) {
-        // Manual switches destroy the device first: anything already popped
-        // into PulseAudio's buffers would otherwise keep playing the old
-        // song after the click (cork retains buffers; only destroy flushes).
-        // Auto-advance keeps the live device for gapless-ish transitions.
-        if (teardownStreamForSwitch) {
-            NativeBridge.teardownOutputStream()
-        }
+    private fun loadFileGuarded(file: File, autoStart: Boolean) {
+        // Every track load destroys the device first: anything already popped
+        // into PulseAudio's buffers would otherwise keep playing the old song
+        // after the click, over the new one's head (cork retains buffers, only
+        // destroy flushes). start() rebuilds it through the prefill path.
+        NativeBridge.teardownOutputStream()
         // No pre-stop when auto-starting: setUrl swaps the decoder under the
         // running stream (Android parity). stopEngineNative runs on a detached
         // thread and could otherwise clear the new track's rendered head,
@@ -202,14 +200,14 @@ class DesktopPlaybackSession(
         }
     }
 
-    fun loadSource(source: String, titleHint: String? = null, artistHint: String? = null, autoStart: Boolean = true, teardownStreamForSwitch: Boolean = false): Boolean {
+    fun loadSource(source: String, titleHint: String? = null, artistHint: String? = null, autoStart: Boolean = true): Boolean {
         val file = File(source)
         if (file.exists() && file.isFile) {
-            return loadFile(file, autoStart, teardownStreamForSwitch)
+            return loadFile(file, autoStart)
         }
         armLoadCrashGuard(source)
         try {
-            loadSourceGuarded(source, titleHint, artistHint, autoStart, teardownStreamForSwitch)
+            loadSourceGuarded(source, titleHint, artistHint, autoStart)
             return true
         } finally {
             clearLoadCrashGuard()
@@ -235,11 +233,9 @@ class DesktopPlaybackSession(
         }
     }
 
-    private fun loadSourceGuarded(source: String, titleHint: String?, artistHint: String?, autoStart: Boolean, teardownStreamForSwitch: Boolean) {
-        // Same manual-switch teardown rule as loadFileGuarded.
-        if (teardownStreamForSwitch) {
-            NativeBridge.teardownOutputStream()
-        }
+    private fun loadSourceGuarded(source: String, titleHint: String?, artistHint: String?, autoStart: Boolean) {
+        // Same teardown rule as loadFileGuarded.
+        NativeBridge.teardownOutputStream()
         // Same no-pre-stop rule as loadFileGuarded: the detached stop could
         // wipe the new source's rendered head before start() prefills.
         if (!autoStart) {
@@ -306,7 +302,7 @@ class DesktopPlaybackSession(
         val sourceToResume = stoppedSource
         if (sourceToResume != null) {
             stoppedSource = null
-            loadSource(sourceToResume, teardownStreamForSwitch = true)
+            loadSource(sourceToResume)
             return
         }
         if (currentFile == null) return
