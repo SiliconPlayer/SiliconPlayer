@@ -19,6 +19,7 @@ import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Window
+import androidx.compose.ui.window.WindowPosition
 import androidx.compose.ui.window.application
 import androidx.compose.ui.window.rememberWindowState
 import androidx.compose.material.icons.filled.Folder
@@ -245,6 +246,8 @@ import javax.swing.SwingUtilities
 private val MiniPlayerDockHorizontalPadding = 14.dp
 private val MiniPlayerDockVerticalPadding = 6.dp
 private val DesktopNavigationBarInset = 16.dp
+private const val MasterMuteGainDb = -90f
+private const val KeyboardSeekStepSeconds = 5.0
 
 private data class ToastItem(val id: Long, val message: String)
 
@@ -311,7 +314,16 @@ fun main(args: Array<String>) = application {
         configDir = DesktopPaths.configDir()
     )
     val session = remember { DesktopPlaybackSession() }
-    val windowState = rememberWindowState(width = 1100.dp, height = 750.dp)
+    val restoredGeometry = remember { loadDesktopWindowGeometry(DesktopPaths.configDir()) }
+    val windowState = rememberWindowState(
+        width = (restoredGeometry?.widthDp ?: DesktopWindowDefaultWidthDp).dp,
+        height = (restoredGeometry?.heightDp ?: DesktopWindowDefaultHeightDp).dp,
+        position = if (restoredGeometry?.xDp != null && restoredGeometry.yDp != null) {
+            WindowPosition.Absolute(restoredGeometry.xDp.dp, restoredGeometry.yDp.dp)
+        } else {
+            WindowPosition.PlatformDefault
+        }
+    )
     val backDispatcher = remember { DesktopBackDispatcher() }
 
     var currentView by remember { mutableStateOf(MainView.Home) }
@@ -536,6 +548,7 @@ fun main(args: Array<String>) = application {
 
     var showTrackInfoDialog by remember { mutableStateOf(false) }
     var dismissAudioEffectsDialogHandler by remember { mutableStateOf<(() -> Boolean)?>(null) }
+    var toggleMasterMuteHandler by remember { mutableStateOf<(() -> Boolean)?>(null) }
     var showSubtuneSelectorDialog by remember { mutableStateOf(false) }
     var showPlaylistSelectorDialog by remember { mutableStateOf(false) }
     var selectorImportEntries by remember { mutableStateOf<List<PlaylistTrackEntry>?>(null) }
@@ -547,6 +560,15 @@ fun main(args: Array<String>) = application {
     var nextToastId by remember { mutableStateOf(0L) }
     Window(
         onCloseRequest = {
+            saveDesktopWindowGeometry(
+                DesktopPaths.configDir(),
+                DesktopWindowGeometry(
+                    widthDp = windowState.size.width.value,
+                    heightDp = windowState.size.height.value,
+                    xDp = (windowState.position as? WindowPosition.Absolute)?.x?.value,
+                    yDp = (windowState.position as? WindowPosition.Absolute)?.y?.value
+                )
+            )
             session.dispose()
             exitApplication()
         },
@@ -604,6 +626,26 @@ fun main(args: Array<String>) = application {
                         } else {
                             showTrackInfoDialog = !showTrackInfoDialog
                         }
+                        return@Window true
+                    }
+                }
+                if (keyEvent.key == Key.Spacebar) {
+                    session.togglePlayPause()
+                    return@Window true
+                }
+                if (keyEvent.key == Key.DirectionLeft || keyEvent.key == Key.DirectionRight) {
+                    if (session.canSeek && session.durationSeconds > 0.0) {
+                        val step = if (keyEvent.key == Key.DirectionLeft) {
+                            -KeyboardSeekStepSeconds
+                        } else {
+                            KeyboardSeekStepSeconds
+                        }
+                        session.seekTo(session.positionSeconds + step)
+                        return@Window true
+                    }
+                }
+                if (keyEvent.key == Key.M) {
+                    if (toggleMasterMuteHandler?.invoke() == true) {
                         return@Window true
                     }
                 }
@@ -1072,6 +1114,10 @@ fun main(args: Array<String>) = application {
             var masterVolumeDb by remember {
                 mutableStateOf(prefs.getFloat(AppPreferenceKeys.AUDIO_MASTER_VOLUME_DB, 0f))
             }
+            var masterMuted by remember { mutableStateOf(false) }
+            fun applyMasterGainToNative() {
+                NativeBridge.setMasterGain(if (masterMuted) MasterMuteGainDb else masterVolumeDb)
+            }
             var forceMono by remember {
                 mutableStateOf(prefs.getBoolean(AppPreferenceKeys.AUDIO_FORCE_MONO, false))
             }
@@ -1121,7 +1167,7 @@ fun main(args: Array<String>) = application {
                 )
             }
             fun applyCommittedAudioParametersToNative() {
-                NativeBridge.setMasterGain(masterVolumeDb)
+                applyMasterGainToNative()
                 NativeBridge.setPluginGain(
                     if (ignoreCoreVolumeForSong) 0f else readPluginVolumeForDecoder(prefs, session.decoderName)
                 )
@@ -1173,6 +1219,14 @@ fun main(args: Array<String>) = application {
                     } else {
                         false
                     }
+                }
+            }
+            SideEffect {
+                toggleMasterMuteHandler = {
+                    masterMuted = !masterMuted
+                    applyMasterGainToNative()
+                    toasts.add(ToastItem(nextToastId++, if (masterMuted) "Muted" else "Unmuted"))
+                    true
                 }
             }
             fun confirmAudioEffectsDialog() {
@@ -1409,7 +1463,7 @@ fun main(args: Array<String>) = application {
             LaunchedEffect(Unit) {
                 masterVolumeDb = prefs.getFloat(AppPreferenceKeys.AUDIO_MASTER_VOLUME_DB, 0f)
                 forceMono = prefs.getBoolean(AppPreferenceKeys.AUDIO_FORCE_MONO, false)
-                NativeBridge.setMasterGain(masterVolumeDb)
+                applyMasterGainToNative()
                 NativeBridge.setPluginGain(0f)
                 NativeBridge.setForceMono(forceMono)
                 NativeBridge.setOutputLimiterEnabled(
@@ -2826,6 +2880,7 @@ fun main(args: Array<String>) = application {
                             currentCoreName = session.decoderName,
                             onMasterVolumeChange = {
                                 tempMasterVolumeDb = it
+                                masterMuted = false
                                 NativeBridge.setMasterGain(it)
                             },
                             onPluginVolumeChange = {
