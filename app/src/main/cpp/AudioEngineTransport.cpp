@@ -463,14 +463,17 @@ void AudioEngine::setUrl(const char* url, const char* forcedDecoder) {
         std::lock_guard<std::mutex> lock(decoderMutex);
         decoderRenderSampleRate = newDecoder->getRenderSampleRate();
         newDecoder->setRepeatMode(repeatMode.load());
-        if (!optionsForDecoder.empty()) {
-            for (const auto& [name, value] : optionsForDecoder) {
-                newDecoder->setOption(name.c_str(), value.c_str());
-            }
-        }
         decoder = std::move(newDecoder);
         const int desiredChannels = resolveOutputStreamChannelsForTrackLocked();
         decoder->setOutputChannelCount(desiredChannels);
+        // Re-read under the lock: a setCoreOption landing mid-open targets this
+        // instance, and the pre-open snapshot no longer holds it.
+        const auto optionsIt = coreOptions.find(decoder->getName());
+        if (optionsIt != coreOptions.end()) {
+            for (const auto& [name, value] : optionsIt->second) {
+                decoder->setOption(name.c_str(), value.c_str());
+            }
+        }
         cachedDurationSeconds.store(decoder->getDuration());
         resetResamplerStateLocked();
         positionSeconds.store(0.0);
