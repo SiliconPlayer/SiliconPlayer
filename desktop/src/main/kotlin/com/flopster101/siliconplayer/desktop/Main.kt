@@ -1,6 +1,7 @@
 package com.flopster101.siliconplayer.desktop
 
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.EnterTransition
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInVertically
@@ -26,6 +27,10 @@ import com.flopster101.siliconplayer.DomainStoreDirs
 import com.flopster101.siliconplayer.HomeScreen
 import com.flopster101.siliconplayer.HomePinnedEntry
 import com.flopster101.siliconplayer.MiniPlayerBar
+import com.flopster101.siliconplayer.miniPlayerHiddenForExpand
+import com.flopster101.siliconplayer.playerDragPreviewVisible
+import com.flopster101.siliconplayer.playerPreviewAlpha
+import com.flopster101.siliconplayer.playerPreviewOffsetPx
 import com.flopster101.siliconplayer.resolveMiniPlayerArtist
 import com.flopster101.siliconplayer.resolveMiniPlayerTitle
 import com.flopster101.siliconplayer.RecentPathEntry
@@ -303,6 +308,8 @@ fun main(args: Array<String>) = application {
     var isPlayerExpanded by remember { mutableStateOf(false) }
     var isPlayerSurfaceVisible by remember { mutableStateOf(false) }
     var miniExpandPreviewProgress by remember { mutableFloatStateOf(0f) }
+    var expandFromMiniDrag by remember { mutableStateOf(false) }
+    var dragExpandCommitInProgress by remember { mutableStateOf(false) }
     var miniDismissOffsetPx by remember { mutableFloatStateOf(0f) }
     val miniDismissSettle = remember { Animatable(0f) }
     val miniDismissScope = rememberCoroutineScope()
@@ -490,6 +497,17 @@ fun main(args: Array<String>) = application {
                 playFile(candidate)
             }
         }
+    }
+    LaunchedEffect(isPlayerExpanded, miniExpandPreviewProgress) {
+        if (!isPlayerExpanded && miniExpandPreviewProgress <= 0f) {
+            dragExpandCommitInProgress = false
+        }
+    }
+    LaunchedEffect(isPlayerExpanded) {
+        if (isPlayerExpanded && expandFromMiniDrag) {
+            delay(350)
+        }
+        expandFromMiniDrag = false
     }
 
     val windowTitle = if (session.title.isNotBlank()) {
@@ -1362,6 +1380,7 @@ fun main(args: Array<String>) = application {
                 playlistLibraryState.favorites.any { it.source == currentTrackPath }
 
             val miniPreviewLiftPx = with(LocalDensity.current) { 28.dp.toPx() }
+            val playerPreviewScreenHeightPx = with(LocalDensity.current) { windowState.size.height.toPx() }
             val miniDismissMaxOffsetPx = with(LocalDensity.current) { 108.dp.toPx() }
             val visualizationUiState = rememberVisualizationUiState(
                 prefs = prefs,
@@ -2036,9 +2055,36 @@ fun main(args: Array<String>) = application {
                             }
                         }
 
+                        // Drag-up expand preview mirrors Android's ExpandedPlayerOverlayHost:
+                        // the player is already visible during the drag, parked below the
+                        // display edge, so it follows the finger instead of flinging in after release.
+                        val playerDragPreviewVisible = playerDragPreviewVisible(
+                            isPlayerSurfaceVisible,
+                            isPlayerExpanded,
+                            miniExpandPreviewProgress
+                        )
+                        val playerExpandedOverlayVisible = isPlayerSurfaceVisible && isPlayerExpanded
+                        val playerOverlayVisible = playerDragPreviewVisible || playerExpandedOverlayVisible
+                        val playerPreviewProgress = miniExpandPreviewProgress.coerceIn(0f, 1f)
+                        val playerPreviewMode = !playerExpandedOverlayVisible && playerPreviewProgress > 0f
+                        val miniHiddenForExpand = miniPlayerHiddenForExpand(
+                            dragExpandCommitInProgress,
+                            expandFromMiniDrag,
+                            isPlayerExpanded
+                        )
+                        var playerOverlayWasExpanded by remember { mutableStateOf(false) }
+                        LaunchedEffect(playerExpandedOverlayVisible) {
+                            if (playerExpandedOverlayVisible) playerOverlayWasExpanded = true
+                        }
+                        LaunchedEffect(playerOverlayVisible) {
+                            if (!playerOverlayVisible && playerOverlayWasExpanded) {
+                                delay(300)
+                                playerOverlayWasExpanded = false
+                            }
+                        }
                         // Docked Mini Player
                         AnimatedVisibility(
-                            visible = isPlayerSurfaceVisible && !isPlayerExpanded,
+                            visible = isPlayerSurfaceVisible && !isPlayerExpanded && !dragExpandCommitInProgress,
                             modifier = Modifier
                                 .align(Alignment.BottomCenter)
                                 .padding(
@@ -2047,13 +2093,17 @@ fun main(args: Array<String>) = application {
                                 )
                                 .padding(bottom = DesktopNavigationBarInset),
                             enter = slideInVertically(initialOffsetY = { it }) + fadeIn(),
-                            exit = slideOutVertically(targetOffsetY = { it }) + fadeOut()
+                            exit = if (dragExpandCommitInProgress || expandFromMiniDrag) {
+                                fadeOut(animationSpec = tween(durationMillis = 1))
+                            } else {
+                                slideOutVertically(targetOffsetY = { it }) + fadeOut()
+                            }
                         ) {
                             MiniPlayerBar(
                                 modifier = Modifier
                                     .graphicsLayer {
                                         val dragProgress = miniExpandPreviewProgress.coerceIn(0f, 1f)
-                                        alpha = 1f - dragProgress
+                                        alpha = if (miniHiddenForExpand) 0f else 1f - dragProgress
                                         translationY = -miniPreviewLiftPx * dragProgress
                                         translationX = miniDismissOffsetPx
                                     }
@@ -2170,11 +2220,17 @@ fun main(args: Array<String>) = application {
                                 currentSubtuneIndex = session.subtuneIndex,
                                 subtuneCount = session.subtuneCount,
                                 onExpand = {
+                                    expandFromMiniDrag = miniExpandPreviewProgress > 0f
                                     miniExpandPreviewProgress = 0f
                                     isPlayerExpanded = true
                                 },
                                 onExpandDragProgress = { miniExpandPreviewProgress = it },
                                 onExpandDragCommit = {
+                                    if (dragExpandCommitInProgress) {
+                                        return@MiniPlayerBar
+                                    }
+                                    dragExpandCommitInProgress = true
+                                    expandFromMiniDrag = true
                                     miniExpandPreviewProgress = 0f
                                     isPlayerExpanded = true
                                 },
@@ -2219,28 +2275,53 @@ fun main(args: Array<String>) = application {
 
                         // Expanded Player Screen Overlay
                         AnimatedVisibility(
-                            visible = isPlayerExpanded,
+                            visible = playerOverlayVisible,
                             modifier = Modifier
                                 .fillMaxSize()
-                                .pointerInput(Unit) {
-                                    awaitPointerEventScope {
-                                        while (true) {
-                                            awaitPointerEvent(PointerEventPass.Main).changes.forEach { it.consume() }
-                                        }
+                                .graphicsLayer {
+                                    if (playerPreviewMode) {
+                                        translationY = playerPreviewOffsetPx(
+                                            playerPreviewProgress,
+                                            playerPreviewScreenHeightPx
+                                        )
+                                        alpha = playerPreviewAlpha(playerPreviewProgress)
                                     }
-                                },
-                            enter = slideInVertically(
-                                initialOffsetY = { it },
-                                animationSpec = tween(durationMillis = 300, easing = FastOutSlowInEasing)
-                            ) + fadeIn(animationSpec = tween(durationMillis = 240)),
-                            exit = slideOutVertically(
-                                targetOffsetY = { it },
-                                animationSpec = tween(durationMillis = 280, easing = LinearOutSlowInEasing)
-                            ) + fadeOut(animationSpec = tween(durationMillis = 200))
+                                }
+                                .then(
+                                    if (playerExpandedOverlayVisible) {
+                                        Modifier.pointerInput(Unit) {
+                                            awaitPointerEventScope {
+                                                while (true) {
+                                                    awaitPointerEvent(PointerEventPass.Main).changes.forEach { it.consume() }
+                                                }
+                                            }
+                                        }
+                                    } else {
+                                        Modifier
+                                    }
+                                ),
+                            enter = if (expandFromMiniDrag || playerDragPreviewVisible) {
+                                EnterTransition.None
+                            } else {
+                                slideInVertically(
+                                    initialOffsetY = { it },
+                                    animationSpec = tween(durationMillis = 300, easing = FastOutSlowInEasing)
+                                ) + fadeIn(animationSpec = tween(durationMillis = 240))
+                            },
+                            exit = if (playerOverlayWasExpanded) {
+                                slideOutVertically(
+                                    targetOffsetY = { it },
+                                    animationSpec = tween(durationMillis = 280, easing = LinearOutSlowInEasing)
+                                ) + fadeOut(animationSpec = tween(durationMillis = 200))
+                            } else {
+                                fadeOut(animationSpec = tween(durationMillis = 1))
+                            }
                         ) {
                             CompositionLocalProvider(
                                 LocalPlayerFocusIndicatorsEnabled provides true,
-                                LocalPlayerOverlayVisibility provides { 1f },
+                                LocalPlayerOverlayVisibility provides {
+                                    if (playerPreviewMode) playerPreviewProgress else 1f
+                                },
                                 LocalPlayerExitSlideFraction provides 0f
                             ) {
                                 PlayerScreen(

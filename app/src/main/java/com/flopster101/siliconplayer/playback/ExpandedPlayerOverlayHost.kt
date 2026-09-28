@@ -144,7 +144,7 @@ internal fun ExpandedPlayerOverlayHost(
     onTouchInteraction: () -> Unit
 ) {
     val dragPreviewVisible =
-        isPlayerSurfaceVisible && !isPlayerExpanded && miniExpandPreviewProgress > 0f
+        playerDragPreviewVisible(isPlayerSurfaceVisible, isPlayerExpanded, miniExpandPreviewProgress)
     val expandedOverlayVisible = isPlayerSurfaceVisible && isPlayerExpanded
     val overlayVisible = dragPreviewVisible || expandedOverlayVisible
     val noOp: () -> Unit = {}
@@ -241,7 +241,7 @@ internal fun ExpandedPlayerOverlayHost(
     val exitSlideFraction = if (exitSlideArmed) exitSlideClock.value else 0f
     val previewProgress = miniExpandPreviewProgress.coerceIn(0f, 1f)
     val previewMode = !expandedOverlayVisible && previewProgress > 0f
-    val previewOffsetPx = (1f - previewProgress) * screenHeightPx
+    val previewOffsetPx = playerPreviewOffsetPx(previewProgress, screenHeightPx)
     // The enter slide runs on a local clock instead of slideInVertically,
     // keeping it a plain translation on the host layer below: an embedded
     // surface follows layer translations through the interop offset, but
@@ -301,7 +301,7 @@ internal fun ExpandedPlayerOverlayHost(
                 .graphicsLayer {
                     if (previewMode) {
                         translationY = previewOffsetPx
-                        alpha = previewProgress
+                        alpha = playerPreviewAlpha(previewProgress)
                     } else {
                         translationY = enterSlideClock.value * screenHeightPx / 3f
                     }

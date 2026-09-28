@@ -203,7 +203,7 @@ internal fun BoxScope.MiniPlayerOverlayHost(
         val miniPlayerModifier = Modifier
             .graphicsLayer {
                 val dragProgress = miniExpandPreviewProgress.coerceIn(0f, 1f)
-                val hideMini = dragExpandCommitInProgress || expandFromMiniDrag || isPlayerExpanded
+                val hideMini = miniPlayerHiddenForExpand(dragExpandCommitInProgress, expandFromMiniDrag, isPlayerExpanded)
                 alpha = if (hideMini) 0f else (1f - dragProgress).coerceIn(0f, 1f)
                 translationX = if (isPlaying) blockedDismissOffsetPx else dismissOffsetPx
                 translationY = -miniPreviewLiftPx * dragProgress
