@@ -222,9 +222,10 @@ fun ProvideDesktopPlatformAdapters(
     val artworkThumbnailLoader = remember(cacheDir) {
         val artworkCacheDir = desktopArtworkCacheDir(cacheDir)
         object : ArtworkThumbnailLoader {
-            override fun peek(cacheKey: String?) = null
+            override fun peek(cacheKey: String?) = DesktopArtworkSupport.peekMemoryArtwork(cacheKey)
             override suspend fun load(cacheKey: String?): androidx.compose.ui.graphics.ImageBitmap? {
                 if (cacheKey == null) return null
+                DesktopArtworkSupport.peekMemoryArtwork(cacheKey)?.let { return it }
                 val file = java.io.File(cacheKey).takeIf { it.exists() && it.isFile }
                     ?: java.io.File(artworkCacheDir, cacheKey).takeIf { it.exists() && it.isFile }
                     ?: return null

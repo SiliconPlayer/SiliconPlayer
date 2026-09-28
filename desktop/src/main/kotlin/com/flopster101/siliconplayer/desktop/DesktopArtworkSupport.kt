@@ -116,6 +116,9 @@ private class ArtworkByteReader(private val source: ArtworkByteSource) : Closeab
 internal object DesktopArtworkSupport {
     private val memoryCache = ConcurrentHashMap<String, ImageBitmap?>()
 
+    internal fun peekMemoryArtwork(key: String?): ImageBitmap? =
+        if (key == null) null else memoryCache[key]?.takeIf { it != null }
+
     fun loadArtworkForFile(file: File?): ImageBitmap? {
         if (file == null || !file.exists() || !file.isFile) return null
         val cacheKey = file.absolutePath

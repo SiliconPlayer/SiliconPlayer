@@ -34,6 +34,7 @@ import com.flopster101.siliconplayer.FolderEntryAction
 import com.flopster101.siliconplayer.SourceEntryAction
 import com.flopster101.siliconplayer.NetworkNode
 import com.flopster101.siliconplayer.NetworkCredentialStore
+import com.flopster101.siliconplayer.NetworkNodesHolder
 import com.flopster101.siliconplayer.REMOTE_SOURCE_CACHE_DIR
 import com.flopster101.siliconplayer.platform.LocalAppCacheDir
 import com.flopster101.siliconplayer.platform.LocalAppConfigDir
@@ -45,6 +46,7 @@ import com.flopster101.siliconplayer.RemoteLoadUiStateHolder
 import com.flopster101.siliconplayer.platform.rememberRemoteSourceExportSupport
 import com.flopster101.siliconplayer.formatSourceIdForDisplay
 import com.flopster101.siliconplayer.resolvePlaybackSourceLabel
+import com.flopster101.siliconplayer.storagePresentationForPath
 import com.flopster101.siliconplayer.resolveNetworkNodeHttpSpec
 import com.flopster101.siliconplayer.resolveNetworkNodeSmbSpec
 import com.flopster101.siliconplayer.readNetworkNodes
@@ -360,16 +362,17 @@ fun main(args: Array<String>) = application {
 
     fun registerLoadedFile(file: File) {
         val ext = inferredPrimaryExtensionForName(file.name)?.uppercase(Locale.ROOT) ?: "FILE"
+        val sourceId = session.currentSourceId
         val entry = RecentPathEntry(
-            path = file.absolutePath,
+            path = sourceId ?: file.absolutePath,
             locationId = null,
             title = session.title.ifBlank { file.name },
             artist = session.artist.ifBlank { ext },
             decoderName = session.decoderName,
-            // Desktop loader resolves absolute paths to embedded art, as in file rows.
-            artworkThumbnailCacheKey = file.absolutePath
+            sourceNodeId = NetworkNodesHolder.current.firstOrNull { it.source == sourceId }?.id,
+            artworkThumbnailCacheKey = sourceId ?: file.absolutePath
         )
-        recentFiles.removeAll { it.path == file.absolutePath }
+        recentFiles.removeAll { it.path == (sourceId ?: file.absolutePath) }
         recentFiles.add(0, entry)
         while (recentFiles.size > recentFilesLimit) {
             recentFiles.removeLast()
@@ -406,14 +409,18 @@ fun main(args: Array<String>) = application {
         }
         if (session.loadSource(source, titleHint, artistHint, autoStart = autoPlayOnTrackSelect)) {
             if (openPlayerOnTrackSelect) isPlayerSurfaceVisible = true
+            val sourceId = session.currentSourceId
+            val sourceNodeId = NetworkNodesHolder.current.firstOrNull { it.source == sourceId }?.id
             val entry = RecentPathEntry(
-                path = source,
+                path = sourceId ?: source,
                 locationId = null,
                 title = session.title.ifBlank { titleHint ?: source },
                 artist = session.artist.ifBlank { artistHint ?: "Network" },
-                decoderName = session.decoderName
+                decoderName = session.decoderName,
+                sourceNodeId = sourceNodeId,
+                artworkThumbnailCacheKey = sourceId
             )
-            recentFiles.removeAll { it.path == source }
+            recentFiles.removeAll { it.path == (sourceId ?: source) }
             recentFiles.add(0, entry)
             while (recentFiles.size > recentFilesLimit) {
                 recentFiles.removeLast()
@@ -1379,10 +1386,7 @@ fun main(args: Array<String>) = application {
                                             recentFolders = recentFolders,
                                             recentPlayedFiles = recentFiles,
                                             storagePresentationForEntry = {
-                                                StoragePresentation(
-                                                    label = "Local",
-                                                    icon = Icons.Default.Folder
-                                                )
+                                                storagePresentationForPath(it.path)
                                             },
                                             storagePresentationForPinnedEntry = { entry ->
                                                 StoragePresentation(

@@ -4,6 +4,10 @@ import com.flopster101.siliconplayer.data.buildArchiveDirectoryPath
 import com.flopster101.siliconplayer.data.buildArchiveSourceId
 import com.flopster101.siliconplayer.data.parseArchiveLogicalPath
 import com.flopster101.siliconplayer.data.parseArchiveSourceId
+import com.flopster101.siliconplayer.ui.screens.NetworkIcons
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Folder
+import androidx.compose.material.icons.filled.LibraryMusic
 import java.io.File
 import java.net.URI
 import java.util.Locale
@@ -355,4 +359,22 @@ internal fun resolveManualSourceInput(rawInput: String): ManualSourceResolution?
         else -> trimmed
     }
     return resolveLocalPath(expandedPath)
+}
+
+internal fun storagePresentationForPath(path: String): StoragePresentation {
+    val scheme = runCatching { URI(path) }.getOrNull()?.scheme?.lowercase(Locale.ROOT)
+        ?: if (path.contains("://")) path.substringBefore("://").lowercase(Locale.ROOT) else null
+    return when (scheme) {
+        "playlist" -> StoragePresentation("Playlist", Icons.Default.LibraryMusic)
+        "archive-dir", "archive" -> StoragePresentation("Archive", Icons.Default.Folder)
+        "http", "https" -> {
+            val host = runCatching { URI(path)?.host }.getOrNull()?.takeIf { it.isNotBlank() } ?: "unknown host"
+            StoragePresentation("${scheme.uppercase(Locale.ROOT)} ($host)", NetworkIcons.WorldCode)
+        }
+        "smb" -> {
+            val host = runCatching { URI(path)?.host }.getOrNull()?.takeIf { it.isNotBlank() } ?: "SMB"
+            StoragePresentation("SMB ($host)", NetworkIcons.SmbShare)
+        }
+        else -> StoragePresentation("Local", Icons.Default.Folder)
+    }
 }
