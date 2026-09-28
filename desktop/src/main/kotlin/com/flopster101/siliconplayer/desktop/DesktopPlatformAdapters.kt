@@ -189,6 +189,7 @@ fun ProvideDesktopPlatformAdapters(
     backDispatcher: DesktopBackDispatcher = remember { DesktopBackDispatcher() },
     stopPlaybackForRefresh: () -> Unit = {},
     openAudioSettings: () -> Unit = {},
+    toastHandler: ToastHandler = remember { ToastHandler { msg -> println("[SiliconPlayer] $msg") } },
     content: @Composable () -> Unit
 ) {
     val prefsProvider = remember { DesktopPreferencesProvider() }
@@ -197,7 +198,6 @@ fun ProvideDesktopPlatformAdapters(
         com.flopster101.siliconplayer.NetworkCredentialStore.preferencesProvider = { prefs }
     }
     val audioRouteManager = remember(openAudioSettings) { DesktopAudioRouteManager(openAudioSettings) }
-    val toastHandler = remember { ToastHandler { msg -> println("[SiliconPlayer] $msg") } }
     val windowSizeInfo = remember(windowWidthDp, windowHeightDp) {
         WindowSizeInfo(
             screenWidthDp = windowWidthDp,

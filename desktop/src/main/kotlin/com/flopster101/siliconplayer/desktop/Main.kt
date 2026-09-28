@@ -189,6 +189,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.onSizeChanged
@@ -214,6 +215,7 @@ import kotlin.math.abs
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -228,6 +230,52 @@ import javax.swing.SwingUtilities
 private val MiniPlayerDockHorizontalPadding = 14.dp
 private val MiniPlayerDockVerticalPadding = 6.dp
 private val DesktopNavigationBarInset = 16.dp
+
+private data class ToastItem(val id: Long, val message: String)
+
+@Composable
+private fun ToastOverlay(
+    items: List<ToastItem>,
+    onDismiss: (Long) -> Unit
+) {
+    if (items.isEmpty()) return
+    Box(
+        modifier = Modifier.fillMaxSize(),
+        contentAlignment = Alignment.BottomCenter
+    ) {
+        Column(
+            horizontalAlignment = Alignment.CenterHorizontally,
+            modifier = Modifier.padding(bottom = 16.dp).padding(start = 16.dp, end = 16.dp)
+        ) {
+            items.forEach { item ->
+                key(item.id) {
+                    var visible by remember { mutableStateOf(true) }
+                    LaunchedEffect(item.id) {
+                        delay(2500)
+                        visible = false
+                        onDismiss(item.id)
+                    }
+                    AnimatedVisibility(
+                        visible = visible,
+                        enter = fadeIn() + slideInVertically { it / 2 },
+                        exit = fadeOut() + slideOutVertically { it / 2 }
+                    ) {
+                        Surface(
+                            color = MaterialTheme.colorScheme.primary,
+                            contentColor = MaterialTheme.colorScheme.onPrimary,
+                            shape = RoundedCornerShape(8.dp)
+                        ) {
+                            Text(
+                                text = item.message,
+                                modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
+                            )
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
 
 fun openDesktopFileChooser(onFileSelected: (File) -> Unit) {
     SwingUtilities.invokeLater {
@@ -459,6 +507,8 @@ fun main(args: Array<String>) = application {
     var selectorImportDialogTitle by remember { mutableStateOf("Add to playlist") }
     var externalTrackInfoDialogRequestToken by remember { mutableIntStateOf(0) }
 
+    val toasts = remember { mutableStateListOf<ToastItem>() }
+    var nextToastId by remember { mutableStateOf(0L) }
     Window(
         onCloseRequest = {
             session.dispose()
@@ -530,7 +580,8 @@ fun main(args: Array<String>) = application {
             windowHeightDp = windowState.size.height.value.toInt(),
             backDispatcher = backDispatcher,
             stopPlaybackForRefresh = { session.stop() },
-            openAudioSettings = { enterSettings(SettingsRoute.GeneralAudio) }
+            openAudioSettings = { enterSettings(SettingsRoute.GeneralAudio) },
+            toastHandler = ToastHandler { msg -> toasts.add(ToastItem(nextToastId++, msg)) }
         ) {
             val prefs = LocalAppPreferences.current
             val configDir = LocalAppConfigDir.current
@@ -2755,6 +2806,7 @@ fun main(args: Array<String>) = application {
                 }
             }
         }
+        ToastOverlay(items = toasts, onDismiss = {})
     }
 }
 
