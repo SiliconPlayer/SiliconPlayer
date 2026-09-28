@@ -217,8 +217,12 @@ private fun InputStream.readFullyOrNull(destination: ByteArray): Boolean {
 }
 
 internal object DbusSessionBus {
-    fun connect(name: String, onFailure: (String) -> Unit = {}): DbusConnectionResult? {
-        val endpoints = resolveEndpoints()
+    fun connect(
+        name: String,
+        onFailure: (String) -> Unit = {},
+        env: (String) -> String? = System::getenv
+    ): DbusConnectionResult? {
+        val endpoints = resolveEndpoints(env)
         if (endpoints.isEmpty()) {
             onFailure("no session bus address")
             return null

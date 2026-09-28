@@ -1594,11 +1594,9 @@ fun main(args: Array<String>) = application {
                 // MPRIS (headset/BT media buttons, DE media widget) drives the same
                 // actions as the on-screen controls; the bridge reads the live session.
                 val mprisBridge = remember { DesktopMprisBridge(session) }
+                // Bind before start: the bus name must never be visible without wired actions,
+                // or a client discovering us in between drops the player and never retries.
                 DisposableEffect(Unit) {
-                    mprisBridge.start()
-                    onDispose { mprisBridge.stop() }
-                }
-                SideEffect {
                     mprisBridge.bind(
                         commands = MprisCommands(
                             playPause = { if (session.isPlaying) session.pause() else session.play() },
@@ -1642,6 +1640,8 @@ fun main(args: Array<String>) = application {
                         ),
                         volume = { masterGainDbToMprisVolume(masterVolumeDb, masterMuted) }
                     )
+                    mprisBridge.start()
+                    onDispose { mprisBridge.stop() }
                 }
                 Surface(
                     modifier = Modifier

@@ -17,12 +17,15 @@ internal val MPRIS_SUPPORTED_URI_SCHEMES = listOf("file", "http", "https", "smb"
 // Serves the MPRIS contract on the session bus: root + Player interfaces,
 // PropertiesChanged diffing, and transport methods routed to the app's own
 // playback actions, so a headset button and the on-screen button do the same thing.
+// Property reads never need the actions, so discovery succeeds even when the
+// actions are wired a moment after the bus name becomes visible.
 // Owning the name is not permanent: a bus restart or a dropped socket releases it,
 // so the service re-registers itself until it is stopped.
 internal class MprisService(
     private val stateProvider: () -> MprisState,
     private val commandsProvider: () -> MprisCommands,
-    private val onLog: (String) -> Unit = {}
+    private val onLog: (String) -> Unit = {},
+    private val env: (String) -> String? = System::getenv
 ) {
     private val lock = Any()
     private var connection: DbusConnection? = null
@@ -82,13 +85,17 @@ internal class MprisService(
         synchronized(lock) {
             if (stopped || connection != null) return
         }
-        val result = DbusSessionBus.connect(MPRIS_BUS_NAME) { reason ->
-            // One log per outage; the supervisor keeps retrying silently.
-            val firstFailure = synchronized(lock) {
-                if (loggedUnavailable) false else { loggedUnavailable = true; true }
-            }
-            if (firstFailure) onLog("MPRIS unavailable: $reason")
-        } ?: return
+        val result = DbusSessionBus.connect(
+            MPRIS_BUS_NAME,
+            onFailure = { reason ->
+                // One log per outage; the supervisor keeps retrying silently.
+                val firstFailure = synchronized(lock) {
+                    if (loggedUnavailable) false else { loggedUnavailable = true; true }
+                }
+                if (firstFailure) onLog("MPRIS unavailable: $reason")
+            },
+            env = env
+        ) ?: return
         val bus = result.connection
         val dispatch = Executors.newSingleThreadExecutor { task ->
             Thread(task, "mpris-dbus-dispatch").apply { isDaemon = true }
@@ -189,7 +196,6 @@ internal class MprisService(
         commands: MprisCommands?,
         member: String
     ) {
-        val actions = commands ?: throw DbusException("playback actions are not wired yet")
         when (message.interfaceName) {
             DBUS_INTROSPECTABLE_INTERFACE -> bus.replyTo(message, listOf(DbusValue.StringValue(MPRIS_INTROSPECTION_XML)))
             DBUS_PEER_INTERFACE -> when (member) {
@@ -197,28 +203,40 @@ internal class MprisService(
                 "GetMachineId" -> bus.replyTo(message, listOf(DbusValue.StringValue("")))
                 else -> bus.errorReplyTo(message, DBUS_ERROR_UNKNOWN_METHOD, "unknown $member")
             }
-            DBUS_PROPERTIES_INTERFACE -> handlePropertiesCall(bus, message, state, actions, member)
+            DBUS_PROPERTIES_INTERFACE -> handlePropertiesCall(bus, message, state, commands, member)
             MPRIS_ROOT_INTERFACE -> when (member) {
                 "Quit" -> {
+                    val actions = requireActions(bus, message, commands) ?: return
                     actions.quit()
                     bus.replyTo(message)
                 }
                 "Raise" -> {
+                    val actions = requireActions(bus, message, commands) ?: return
                     actions.raise()
                     bus.replyTo(message)
                 }
                 else -> bus.errorReplyTo(message, DBUS_ERROR_UNKNOWN_METHOD, "unknown $member")
             }
-            MPRIS_PLAYER_INTERFACE -> handlePlayerCall(bus, message, state, actions, member)
+            MPRIS_PLAYER_INTERFACE -> handlePlayerCall(bus, message, state, commands, member)
             else -> bus.errorReplyTo(message, DBUS_ERROR_UNKNOWN_INTERFACE, "unknown ${message.interfaceName}")
         }
+    }
+
+    private fun requireActions(
+        bus: DbusConnection,
+        message: DbusMessage,
+        commands: MprisCommands?
+    ): MprisCommands? {
+        if (commands != null) return commands
+        bus.errorReplyTo(message, DBUS_ERROR_INVALID_ARGS, "playback actions are not wired yet")
+        return null
     }
 
     private fun handlePropertiesCall(
         bus: DbusConnection,
         message: DbusMessage,
         state: MprisState,
-        actions: MprisCommands,
+        commands: MprisCommands?,
         member: String
     ) {
         when (member) {
@@ -238,12 +256,14 @@ internal class MprisService(
                 val propertyName = message.stringArg(1)
                 val value = message.variantArg(2)
                 if (interfaceName == MPRIS_PLAYER_INTERFACE && propertyName == "Volume") {
+                    val actions = requireActions(bus, message, commands) ?: return
                     val volume = (value as? DbusValue.DoubleValue)?.value
                         ?: throw DbusException("Volume must be a double")
                     actions.setVolume(volume.coerceIn(0.0, 1.0))
                     return bus.replyTo(message)
                 }
                 if (interfaceName == MPRIS_PLAYER_INTERFACE && propertyName == "LoopStatus") {
+                    val actions = requireActions(bus, message, commands) ?: return
                     val requested = (value as? DbusValue.StringValue)?.value
                         ?: throw DbusException("LoopStatus must be a string")
                     actions.setLoopStatus(
@@ -261,9 +281,10 @@ internal class MprisService(
         bus: DbusConnection,
         message: DbusMessage,
         state: MprisState,
-        actions: MprisCommands,
+        commands: MprisCommands?,
         member: String
     ) {
+        val actions = requireActions(bus, message, commands) ?: return
         when (member) {
             "Next" -> {
                 actions.next()
