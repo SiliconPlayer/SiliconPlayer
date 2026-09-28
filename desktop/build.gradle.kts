@@ -108,17 +108,18 @@ registerDesktopNativesCopy(
 afterEvaluate {
     tasks.findByName("createDistributable")?.finalizedBy("copyDesktopNativesToDistributable")
     tasks.findByName("createReleaseDistributable")?.finalizedBy("copyDesktopNativesToReleaseDistributable")
-    // Runners and packagers read the same app dir the copy fills.
+    tasks.findByName("runDistributable")?.dependsOn("copyDesktopNativesToDistributable")
+    tasks.findByName("runReleaseDistributable")?.dependsOn("copyDesktopNativesToReleaseDistributable")
+    // Packagers run their own jpackage pass into the same dir, so the copy
+    // runs after them, not before.
     listOf(
-        "runDistributable" to "copyDesktopNativesToDistributable",
-        "runReleaseDistributable" to "copyDesktopNativesToReleaseDistributable",
         "packageDeb" to "copyDesktopNativesToDistributable",
         "packageAppImage" to "copyDesktopNativesToDistributable",
         "packageDistributionForCurrentOS" to "copyDesktopNativesToDistributable",
         "packageReleaseDeb" to "copyDesktopNativesToReleaseDistributable",
         "packageReleaseAppImage" to "copyDesktopNativesToReleaseDistributable",
         "packageReleaseDistributionForCurrentOS" to "copyDesktopNativesToReleaseDistributable"
-    ).forEach { (consumer, producer) -> tasks.findByName(consumer)?.dependsOn(producer) }
+    ).forEach { (packager, producer) -> tasks.findByName(packager)?.finalizedBy(producer) }
 }
 
 fun configureNativePaths(task: JavaForkOptions) {
