@@ -675,6 +675,13 @@ void AudioEngine::applyLookaheadClipper(float* buffer, int numFrames, int channe
         lookaheadClipperChannels != safeChannels ||
         lookaheadClipperLastMode != mode) {
         lookaheadClipperDelayLine.assign(delaySamples, 0.0f);
+        // Prime with the first block, not zeros: a zero-primed line prepends
+        // lookaheadFrames of silence and then steps into the signal.
+        const size_t primeSamples =
+                static_cast<size_t>(numFrames) * static_cast<size_t>(safeChannels);
+        for (size_t i = 0; i < delaySamples; ++i) {
+            lookaheadClipperDelayLine[i] = buffer[i % primeSamples];
+        }
         lookaheadClipperWriteIndex = 0;
         lookaheadClipperSampleRate = safeRate;
         lookaheadClipperChannels = safeChannels;
