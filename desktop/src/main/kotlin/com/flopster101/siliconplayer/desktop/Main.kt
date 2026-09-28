@@ -308,6 +308,11 @@ fun openDesktopFileChooser(onFileSelected: (File) -> Unit) {
     }
 }
 
+// Load the engine before application{} pulls in Skiko: JNI_OnLoad warms the
+// locale facet caches, and that warming only sticks if the engine (and its
+// dlopen-time static init) wins the race. Class init runs before main().
+private val initNativeEngineEarly = runCatching { NativeBridge.getSupportedExtensions() }
+
 fun main(args: Array<String>) = application {
     DesktopPaths.install()
     DomainStoreDirs.configDir = DesktopPaths.configDir()

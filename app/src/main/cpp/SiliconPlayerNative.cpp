@@ -304,6 +304,18 @@ extern "C" JNIEXPORT jint JNICALL JNI_OnLoad(JavaVM* vm, void*) {
     try {
         std::locale::global(std::locale::classic());
     } catch (...) {}
+    // Warm the classic-locale facet caches while this runtime is pristine:
+    // third-party libs with a statically linked libstdc++ (Skiko) scramble
+    // lazy facet init once loaded, faulting later integer formats inside
+    // moneypunct::do_grouping. Built caches are never rebuilt, so one dummy
+    // format here immunizes the process (the desktop entry point loads this
+    // library before Compose pulls in Skiko).
+    try {
+        std::ostringstream warm;
+        warm << 1234567 << 1.5;
+        volatile size_t warmSize = warm.str().size();
+        (void) warmSize;
+    } catch (...) {}
 
     gJavaVm = vm;
     JNIEnv* env = nullptr;
