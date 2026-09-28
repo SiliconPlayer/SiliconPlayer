@@ -80,6 +80,7 @@ import com.flopster101.siliconplayer.VgmPlayOptionKeys
 import com.flopster101.siliconplayer.Vio2sfOptionKeys
 import com.flopster101.siliconplayer.XmpConfig
 import com.flopster101.siliconplayer.XmpOptionKeys
+import com.flopster101.siliconplayer.mpris.MprisCommands
 import com.flopster101.siliconplayer.data.FileRepository
 import com.flopster101.siliconplayer.data.compareFileNamesNatural
 import com.flopster101.siliconplayer.platform.LocalAppPreferences
@@ -570,20 +571,23 @@ fun main(args: Array<String>) = application {
 
     val toasts = remember { mutableStateListOf<ToastItem>() }
     var nextToastId by remember { mutableStateOf(0L) }
-    Window(
-        onCloseRequest = {
-            saveDesktopWindowGeometry(
-                DesktopPaths.configDir(),
-                DesktopWindowGeometry(
-                    widthDp = windowState.size.width.value,
-                    heightDp = windowState.size.height.value,
-                    xDp = (windowState.position as? WindowPosition.Absolute)?.x?.value,
-                    yDp = (windowState.position as? WindowPosition.Absolute)?.y?.value
-                )
+
+    fun requestApplicationExit() {
+        saveDesktopWindowGeometry(
+            DesktopPaths.configDir(),
+            DesktopWindowGeometry(
+                widthDp = windowState.size.width.value,
+                heightDp = windowState.size.height.value,
+                xDp = (windowState.position as? WindowPosition.Absolute)?.x?.value,
+                yDp = (windowState.position as? WindowPosition.Absolute)?.y?.value
             )
-            session.dispose()
-            exitApplication()
-        },
+        )
+        session.dispose()
+        exitApplication()
+    }
+
+    Window(
+        onCloseRequest = { requestApplicationExit() },
         state = windowState,
         title = windowTitle,
         icon = painterResource("app_icon.webp"),
@@ -1585,6 +1589,58 @@ fun main(args: Array<String>) = application {
                             playFile(dropPlayWithFile)
                         },
                         onDismiss = { pendingDropPlayWithFile = null }
+                    )
+                }
+                // MPRIS (headset/BT media buttons, DE media widget) drives the same
+                // actions as the on-screen controls; the bridge reads the live session.
+                val mprisBridge = remember { DesktopMprisBridge(session) }
+                DisposableEffect(Unit) {
+                    mprisBridge.start()
+                    onDispose { mprisBridge.stop() }
+                }
+                SideEffect {
+                    mprisBridge.bind(
+                        commands = MprisCommands(
+                            playPause = { if (session.isPlaying) session.pause() else session.play() },
+                            play = { session.play() },
+                            pause = { session.pause() },
+                            stop = { session.stop() },
+                            next = {
+                                playQueueAdjacentTrack(
+                                    1,
+                                    stopAtBoundary = true,
+                                    playlistWrapOverride = false,
+                                    browserWrapOverride = session.repeatMode != RepeatMode.None,
+                                    notifyWrap = true
+                                )
+                            },
+                            previous = {
+                                playQueuePreviousTrack(
+                                    playlistWrapOverride = false,
+                                    browserWrapOverride = session.repeatMode != RepeatMode.None,
+                                    notifyWrap = true
+                                )
+                            },
+                            seekToMicroseconds = { micros -> session.seekTo(micros / 1_000_000.0) },
+                            setVolume = { volume ->
+                                masterVolumeDb = mprisVolumeToMasterGainDb(volume)
+                                masterMuted = false
+                                applyMasterGainToNative()
+                            },
+                            setLoopStatus = { loopStatus -> preferredRepeatMode = repeatModeForMprisLoopStatus(loopStatus) },
+                            quit = { requestApplicationExit() },
+                            raise = { bringDesktopWindowToFront() },
+                            openUri = { uri ->
+                                val file = resolveDesktopMprisOpenUriFile(uri)
+                                when {
+                                    file == null -> playSource(uri)
+                                    prefs.getBoolean(AppPreferenceKeys.PLAY_WITH_EXTERNAL_OPEN_DIALOG, true) ->
+                                        pendingDropPlayWithFile = file
+                                    else -> playFile(file)
+                                }
+                            }
+                        ),
+                        volume = { masterGainDbToMprisVolume(masterVolumeDb, masterMuted) }
                     )
                 }
                 Surface(
