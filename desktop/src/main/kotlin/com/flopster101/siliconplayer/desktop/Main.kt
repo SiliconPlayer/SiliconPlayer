@@ -91,6 +91,7 @@ import com.flopster101.siliconplayer.ui.screens.rememberVisualizationUiState
 import com.flopster101.siliconplayer.ui.dialogs.AddToPlaylistChooserDialog
 import com.flopster101.siliconplayer.ui.dialogs.AudioEffectsDialog
 import com.flopster101.siliconplayer.ui.dialogs.PlaylistSelectorDialog
+import com.flopster101.siliconplayer.ui.dialogs.PlayWithDialog
 import com.flopster101.siliconplayer.ui.dialogs.TrackInfoDialog
 import com.flopster101.siliconplayer.ui.dialogs.UrlOrPathDialog
 import androidx.compose.ui.input.key.Key
@@ -1311,8 +1312,36 @@ fun main(args: Array<String>) = application {
             )
 
             SiliconPlayerBaseTheme(darkTheme = darkTheme) {
+                // Drops are external opens; honor the same Play-with gate as Android.
+                var pendingDropPlayWithFile by remember { mutableStateOf<File?>(null) }
+                val dropPlayWithFile = pendingDropPlayWithFile
+                if (dropPlayWithFile != null) {
+                    PlayWithDialog(
+                        file = dropPlayWithFile,
+                        prefs = prefs,
+                        showDontAskAgain = true,
+                        onPlay = {
+                            pendingDropPlayWithFile = null
+                            playFile(dropPlayWithFile)
+                        },
+                        onDismiss = { pendingDropPlayWithFile = null }
+                    )
+                }
                 Surface(
-                    modifier = Modifier.fillMaxSize(),
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .desktopFileDropTarget(
+                            supportedExtensions = supportedExtensions,
+                            onPlayFile = { file ->
+                                if (prefs.getBoolean(AppPreferenceKeys.PLAY_WITH_EXTERNAL_OPEN_DIALOG, true)) {
+                                    pendingDropPlayWithFile = file
+                                } else {
+                                    playFile(file)
+                                }
+                            },
+                            onBrowseDirectory = { openLocalBrowser(it) },
+                            onUnsupported = { toastHandler.showToast(DROP_UNSUPPORTED_MESSAGE) }
+                        ),
                     color = MaterialTheme.colorScheme.background,
                     contentColor = MaterialTheme.colorScheme.onBackground
                 ) {
