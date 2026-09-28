@@ -24,7 +24,7 @@ class UfmodStoredOptionsTest {
             override fun putStringSet(key: String, values: Set<String>?) = apply { this@FakePrefs.values[key] = values.orEmpty() }
             override fun remove(key: String) = apply { this@FakePrefs.values.remove(key) }
             override fun clear() = apply { this@FakePrefs.values.clear() }
-            override fun apply() = Unit
+            override fun apply() {}
             override fun commit(): Boolean = true
         }
         override fun addListener(listener: AppPreferences.OnChangeListener) {}
