@@ -112,6 +112,7 @@ import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalDensity
 import com.flopster101.siliconplayer.ui.screens.PlaylistsScreen
 import com.flopster101.siliconplayer.ui.screens.LibrarySurfaceState
+import com.flopster101.siliconplayer.ui.screens.PlaylistsSurfaceDestination
 import com.flopster101.siliconplayer.PlaylistEntrySortMode
 import com.flopster101.siliconplayer.PlaylistLibraryState
 import com.flopster101.siliconplayer.PlaylistStoredFormat
@@ -156,6 +157,9 @@ import com.flopster101.siliconplayer.toPlaylistTrackEntry
 import com.flopster101.siliconplayer.readPinnedHomeEntries
 import com.flopster101.siliconplayer.readPluginVolumeForDecoder
 import com.flopster101.siliconplayer.BrowserLaunchState
+import com.flopster101.siliconplayer.BrowserOpenRequest
+import com.flopster101.siliconplayer.BrowserOpenTarget
+import com.flopster101.siliconplayer.browserOpenRequest
 import com.flopster101.siliconplayer.clearRememberedBrowserLaunchState
 import com.flopster101.siliconplayer.persistRememberedBrowserLaunchState
 import com.flopster101.siliconplayer.readRecentEntries
@@ -179,6 +183,9 @@ import com.flopster101.siliconplayer.buildSettingsNavigationCoordinator
 import com.flopster101.siliconplayer.BrowserRouteMode
 import com.flopster101.siliconplayer.rememberBrowserRouteRenderState
 import com.flopster101.siliconplayer.resolveBrowserRouteResolution
+import com.flopster101.siliconplayer.resolveBrowserFolderForRecentSource
+import com.flopster101.siliconplayer.resolveBrowserParentForRecentFolder
+import com.flopster101.siliconplayer.resolveFolderOpenRequest
 import com.flopster101.siliconplayer.MainNavigationScaffold
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.FastOutSlowInEasing
@@ -682,6 +689,59 @@ fun main(args: Array<String>) = application {
             val remoteCacheOpenScope = rememberCoroutineScope()
             var remoteCacheOpenJob by remember { mutableStateOf<Job?>(null) }
             val toastHandler = LocalToastHandler.current
+
+    fun openBrowserRequest(request: BrowserOpenRequest) {
+        val launchState = request.launchState
+        val directoryPath = launchState.directoryPath.orEmpty()
+        val isHttp = launchState.httpSourceNodeId != null ||
+            directoryPath.startsWith("http://", ignoreCase = true) ||
+            directoryPath.startsWith("https://", ignoreCase = true)
+        val isRemote = isHttp || launchState.smbSourceNodeId != null ||
+            directoryPath.startsWith("smb://", ignoreCase = true)
+        if (!isRemote) {
+            openLocalBrowser(File(directoryPath))
+            return
+        }
+        if (isHttp) {
+            openRemoteBrowser(
+                input = directoryPath,
+                smbSourceNodeId = null,
+                httpSourceNodeId = launchState.httpSourceNodeId,
+                httpRootPath = launchState.httpRootPath,
+                allowHostShareNavigation = false
+            )
+            return
+        }
+        val allowHostShareNavigation = launchState.smbSourceNodeId
+            ?.let { sourceNodeId -> networkNodes.firstOrNull { it.id == sourceNodeId } }
+            ?.let(::resolveNetworkNodeSmbSpec)
+            ?.share
+            ?.trim()
+            ?.isEmpty() == true
+        openRemoteBrowser(
+            input = directoryPath,
+            smbSourceNodeId = launchState.smbSourceNodeId,
+            httpSourceNodeId = null,
+            httpRootPath = null,
+            allowHostShareNavigation = allowHostShareNavigation
+        )
+    }
+
+    fun openResolvedBrowserTarget(target: BrowserOpenTarget?, failureMessage: String) {
+        if (target == null) {
+            toastHandler.showToast(failureMessage)
+        } else {
+            openBrowserRequest(
+                browserOpenRequest(
+                    locationId = target.locationId,
+                    directoryPath = target.directoryPath,
+                    smbSourceNodeId = target.smbSourceNodeId,
+                    httpSourceNodeId = target.httpSourceNodeId
+                )
+            )
+        }
+    }
+
             val artworkCacheSupport = LocalArtworkCacheSupport.current
             val recentArtworkBackfillScope = rememberCoroutineScope()
             val recentArtworkBackfillJobs = remember { mutableMapOf<String, Job>() }
@@ -1515,13 +1575,36 @@ fun main(args: Array<String>) = application {
                                             onOpenPlaylists = { currentView = MainView.Playlists },
                                             onOpenNetwork = { currentView = MainView.Network },
                                             onOpenPinnedFolder = { entry ->
-                                                openLocalBrowser(File(entry.path))
+                                                if (entry.path.startsWith("playlist://")) {
+                                                    val playlistId = entry.path.removePrefix("playlist://")
+                                                    librarySurfaceState.selectedTabIndexState.intValue = 0
+                                                    if (playlistId == FAVORITES_PLAYLIST_ID) {
+                                                        librarySurfaceState.destinationState.value = PlaylistsSurfaceDestination.Favorites
+                                                        librarySurfaceState.selectedStoredPlaylistIdState.value = null
+                                                    } else {
+                                                        librarySurfaceState.destinationState.value = PlaylistsSurfaceDestination.StoredPlaylist
+                                                        librarySurfaceState.selectedStoredPlaylistIdState.value = playlistId
+                                                    }
+                                                    currentView = MainView.Playlists
+                                                } else {
+                                                    openBrowserRequest(
+                                                        resolveFolderOpenRequest(
+                                                            entry = entry.asRecentPathEntry(),
+                                                            networkNodes = networkNodes
+                                                        )
+                                                    )
+                                                }
                                             },
                                             onPlayPinnedFile = { entry ->
                                                 playSource(entry.path, entry.title, entry.artist)
                                             },
                                             onOpenRecentFolder = { entry ->
-                                                openLocalBrowser(File(entry.path))
+                                                openBrowserRequest(
+                                                    resolveFolderOpenRequest(
+                                                        entry = entry,
+                                                        networkNodes = networkNodes
+                                                    )
+                                                )
                                             },
                                             onPlayRecentFile = { entry ->
                                                 playSource(entry.path, entry.title, entry.artist)
@@ -1532,8 +1615,10 @@ fun main(args: Array<String>) = application {
                                                         HomePinnedEntry(
                                                             path = entry.path,
                                                             isFolder = true,
+                                                            locationId = entry.locationId,
                                                             title = entry.title,
                                                             artist = entry.artist,
+                                                            sourceNodeId = entry.sourceNodeId,
                                                             artworkThumbnailCacheKey = entry.artworkThumbnailCacheKey
                                                         )
                                                     )
@@ -1545,9 +1630,11 @@ fun main(args: Array<String>) = application {
                                                         HomePinnedEntry(
                                                             path = entry.path,
                                                             isFolder = false,
+                                                            locationId = entry.locationId,
                                                             title = entry.title,
                                                             artist = entry.artist,
                                                             decoderName = entry.decoderName,
+                                                            sourceNodeId = entry.sourceNodeId,
                                                             artworkThumbnailCacheKey = entry.artworkThumbnailCacheKey
                                                         )
                                                     )
@@ -1567,7 +1654,13 @@ fun main(args: Array<String>) = application {
                                                         toastHandler.showToast("Copied path")
                                                     }
                                                     FolderEntryAction.OpenInBrowser -> {
-                                                        openLocalBrowser(File(entry.path))
+                                                        openResolvedBrowserTarget(
+                                                            target = resolveBrowserParentForRecentFolder(
+                                                                entry = entry.asRecentPathEntry(),
+                                                                networkNodes = networkNodes
+                                                            ),
+                                                            failureMessage = "Unable to open folder in browser"
+                                                        )
                                                     }
                                                 }
                                             },
@@ -1580,8 +1673,13 @@ fun main(args: Array<String>) = application {
                                                         toastHandler.showToast("Copied URL/path")
                                                     }
                                                     SourceEntryAction.OpenInBrowser -> {
-                                                        val f = File(entry.path)
-                                                        openLocalBrowser(f.parentFile ?: f)
+                                                        openResolvedBrowserTarget(
+                                                            target = resolveBrowserFolderForRecentSource(
+                                                                entry = entry.asRecentPathEntry(),
+                                                                networkNodes = networkNodes
+                                                            ),
+                                                            failureMessage = "This source cannot be opened in file browser"
+                                                        )
                                                     }
                                                 }
                                             },
@@ -1593,7 +1691,13 @@ fun main(args: Array<String>) = application {
                                                         toastHandler.showToast("Copied path")
                                                     }
                                                     FolderEntryAction.OpenInBrowser -> {
-                                                        openLocalBrowser(File(entry.path))
+                                                        openResolvedBrowserTarget(
+                                                            target = resolveBrowserParentForRecentFolder(
+                                                                entry = entry,
+                                                                networkNodes = networkNodes
+                                                            ),
+                                                            failureMessage = "Unable to open folder in browser"
+                                                        )
                                                     }
                                                 }
                                             },
@@ -1606,8 +1710,13 @@ fun main(args: Array<String>) = application {
                                                         toastHandler.showToast("Copied URL/path")
                                                     }
                                                     SourceEntryAction.OpenInBrowser -> {
-                                                        val f = File(entry.path)
-                                                        openLocalBrowser(f.parentFile ?: f)
+                                                        openResolvedBrowserTarget(
+                                                            target = resolveBrowserFolderForRecentSource(
+                                                                entry = entry,
+                                                                networkNodes = networkNodes
+                                                            ),
+                                                            failureMessage = "This source cannot be opened in file browser"
+                                                        )
                                                     }
                                                 }
                                             },
@@ -1938,9 +2047,18 @@ fun main(args: Array<String>) = application {
                                                 )
                                             },
                                             onOpenFavoriteTrackLocation = { entry ->
-                                                resolvePlaylistEntryLocalFile(entry.source)
-                                                    ?.parentFile
-                                                    ?.let { openLocalBrowser(it) }
+                                                val localFile = resolvePlaylistEntryLocalFile(entry.source)
+                                                    ?.takeIf { it.exists() && it.isFile }
+                                                if (localFile == null) {
+                                                    toastHandler.showToast("Location is only available for local files")
+                                                } else {
+                                                    val parentDirectory = localFile.parentFile
+                                                    if (parentDirectory == null || !parentDirectory.exists()) {
+                                                        toastHandler.showToast("Unable to resolve file location")
+                                                    } else {
+                                                        openLocalBrowser(parentDirectory)
+                                                    }
+                                                }
                                             },
                                             onShareFavoriteTrack = { },
                                             onCopyFavoriteTrackSource = { entry ->

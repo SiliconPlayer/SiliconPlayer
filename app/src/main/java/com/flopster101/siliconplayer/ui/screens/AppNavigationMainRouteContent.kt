@@ -9,7 +9,6 @@ import androidx.compose.runtime.remember
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.unit.Dp
-import com.flopster101.siliconplayer.data.parseArchiveLogicalPath
 import com.flopster101.siliconplayer.data.FileRepository
 import com.flopster101.siliconplayer.library.LibraryAlbum
 import com.flopster101.siliconplayer.library.LibraryAlbumDetail
@@ -94,10 +93,11 @@ internal fun AppNavigationHomeContentSection(
                 val playlistId = entry.path.removePrefix("playlist://")
                 onOpenPinnedPlaylist(playlistId)
             } else {
-                onOpenRecentFolderFromEntry(
-                    entry = entry.asRecentPathEntry(),
-                    networkNodes = networkNodes,
-                    onOpenBrowser = onOpenBrowser
+                onOpenBrowser(
+                    resolveFolderOpenRequest(
+                        entry = entry.asRecentPathEntry(),
+                        networkNodes = networkNodes
+                    )
                 )
                 onCurrentViewChanged(MainView.Browser)
             }
@@ -125,10 +125,11 @@ internal fun AppNavigationHomeContentSection(
             )
         },
         onOpenRecentFolder = { entry ->
-            onOpenRecentFolderFromEntry(
-                entry = entry,
-                networkNodes = networkNodes,
-                onOpenBrowser = onOpenBrowser
+            onOpenBrowser(
+                resolveFolderOpenRequest(
+                    entry = entry,
+                    networkNodes = networkNodes
+                )
             )
             onCurrentViewChanged(MainView.Browser)
         },
@@ -1146,63 +1147,5 @@ internal fun AppNavigationMainContentHost(
             )
         },
         settingsContent = settingsContent
-    )
-}
-
-private fun onOpenRecentFolderFromEntry(
-    entry: RecentPathEntry,
-    networkNodes: List<NetworkNode>,
-    onOpenBrowser: (BrowserOpenRequest) -> Unit
-) {
-    val archiveLogicalPath = parseArchiveLogicalPath(entry.path)
-    if (archiveLogicalPath != null) {
-        val archiveSourcePath = archiveLogicalPath.first
-        val isArchiveSmb = parseSmbSourceSpecFromInput(archiveSourcePath) != null
-        val isArchiveHttp = parseHttpSourceSpecFromInput(archiveSourcePath) != null
-        onOpenBrowser(
-            browserOpenRequest(
-                locationId = null,
-                directoryPath = entry.path,
-                smbSourceNodeId = if (isArchiveSmb) entry.sourceNodeId else null,
-                httpSourceNodeId = if (isArchiveHttp) entry.sourceNodeId else null
-            )
-        )
-        return
-    }
-    val smbSpec = parseSmbSourceSpecFromInput(entry.path)
-    if (smbSpec != null) {
-        val smbTarget = resolveSmbRecentOpenTarget(
-            targetSpec = smbSpec,
-            networkNodes = networkNodes,
-            preferredSourceNodeId = entry.sourceNodeId
-        )
-        onOpenBrowser(
-            browserOpenRequest(
-                directoryPath = smbTarget.requestUri,
-                smbSourceNodeId = smbTarget.sourceNodeId
-            )
-        )
-        return
-    }
-    val httpSpec = parseHttpSourceSpecFromInput(entry.path)
-    if (httpSpec != null) {
-        val httpTarget = resolveHttpRecentOpenTarget(
-            targetSpec = httpSpec,
-            networkNodes = networkNodes,
-            preferredSourceNodeId = entry.sourceNodeId
-        )
-        onOpenBrowser(
-            browserOpenRequest(
-                directoryPath = httpTarget.requestUri,
-                httpSourceNodeId = httpTarget.sourceNodeId
-            )
-        )
-        return
-    }
-    onOpenBrowser(
-        browserOpenRequest(
-            locationId = entry.locationId,
-            directoryPath = entry.path
-        )
     )
 }
