@@ -25,6 +25,12 @@ import com.flopster101.siliconplayer.resolveActiveRepeatMode
 import com.flopster101.siliconplayer.resolveCachedRemoteSourceId
 import com.flopster101.siliconplayer.resolveManualSourceInput
 import com.flopster101.siliconplayer.supportsLiveRepeatMode
+import com.flopster101.siliconplayer.audio.applyDspSettingsToNative
+import com.flopster101.siliconplayer.audio.hasCoreDspOverrides
+import com.flopster101.siliconplayer.audio.readCoreDspSettings
+import com.flopster101.siliconplayer.audio.readCoreIgnoreGlobalDsp
+import com.flopster101.siliconplayer.audio.readGlobalDspSettings
+import com.flopster101.siliconplayer.audio.resolveEffectiveDspSettings
 import com.flopster101.siliconplayer.platform.AppPreferences
 import java.io.File
 import kotlinx.coroutines.CoroutineScope
@@ -121,20 +127,33 @@ class DesktopPlaybackSession(
         startTicker()
     }
 
-    fun loadFile(file: File, autoStart: Boolean = true): Boolean {
+    fun loadFile(file: File, autoStart: Boolean = true, teardownStreamForSwitch: Boolean = false): Boolean {
         if (!file.exists() || !file.isFile) return false
 
         armLoadCrashGuard(file.absolutePath)
         try {
-            loadFileGuarded(file, autoStart)
+            loadFileGuarded(file, autoStart, teardownStreamForSwitch)
             return true
         } finally {
             clearLoadCrashGuard()
         }
     }
 
-    private fun loadFileGuarded(file: File, autoStart: Boolean) {
-        NativeBridge.stopEngineNative()
+    private fun loadFileGuarded(file: File, autoStart: Boolean, teardownStreamForSwitch: Boolean) {
+        // Manual switches destroy the device first: anything already popped
+        // into PulseAudio's buffers would otherwise keep playing the old
+        // song after the click (cork retains buffers; only destroy flushes).
+        // Auto-advance keeps the live device for gapless-ish transitions.
+        if (teardownStreamForSwitch) {
+            NativeBridge.teardownOutputStream()
+        }
+        // No pre-stop when auto-starting: setUrl swaps the decoder under the
+        // running stream (Android parity). stopEngineNative runs on a detached
+        // thread and could otherwise clear the new track's rendered head,
+        // truncating the song start intermittently.
+        if (!autoStart) {
+            NativeBridge.stopEngineNative()
+        }
         val forced = NativeBridge.consumeForcedDecoderOneShot()
         if (forced != null) {
             NativeBridge.loadAudioWithDecoder(file.absolutePath, forced)
@@ -151,6 +170,20 @@ class DesktopPlaybackSession(
         stoppedSource = null
         refreshMetadata()
         refreshRepeatMode()
+        // Push the effective per-core DSP synchronously (Android parity):
+        // the Main LaunchedEffect only runs after start, so a deferred push
+        // would switch the reverb on audibly mid-song.
+        trackOptionsPrefs?.let { prefs ->
+            applyDspSettingsToNative(
+                resolveEffectiveDspSettings(
+                    coreName = decoderName,
+                    global = readGlobalDspSettings(prefs),
+                    core = readCoreDspSettings(prefs, decoderName),
+                    coreHasOverrides = hasCoreDspOverrides(prefs, decoderName),
+                    ignoreGlobalForCore = readCoreIgnoreGlobalDsp(prefs, decoderName)
+                )
+            )
+        }
         artwork = null
         scope.launch(Dispatchers.IO) {
             artwork = DesktopArtworkSupport.loadArtworkForSource(
@@ -169,14 +202,14 @@ class DesktopPlaybackSession(
         }
     }
 
-    fun loadSource(source: String, titleHint: String? = null, artistHint: String? = null, autoStart: Boolean = true): Boolean {
+    fun loadSource(source: String, titleHint: String? = null, artistHint: String? = null, autoStart: Boolean = true, teardownStreamForSwitch: Boolean = false): Boolean {
         val file = File(source)
         if (file.exists() && file.isFile) {
-            return loadFile(file, autoStart)
+            return loadFile(file, autoStart, teardownStreamForSwitch)
         }
         armLoadCrashGuard(source)
         try {
-            loadSourceGuarded(source, titleHint, artistHint, autoStart)
+            loadSourceGuarded(source, titleHint, artistHint, autoStart, teardownStreamForSwitch)
             return true
         } finally {
             clearLoadCrashGuard()
@@ -202,8 +235,16 @@ class DesktopPlaybackSession(
         }
     }
 
-    private fun loadSourceGuarded(source: String, titleHint: String?, artistHint: String?, autoStart: Boolean) {
-        NativeBridge.stopEngineNative()
+    private fun loadSourceGuarded(source: String, titleHint: String?, artistHint: String?, autoStart: Boolean, teardownStreamForSwitch: Boolean) {
+        // Same manual-switch teardown rule as loadFileGuarded.
+        if (teardownStreamForSwitch) {
+            NativeBridge.teardownOutputStream()
+        }
+        // Same no-pre-stop rule as loadFileGuarded: the detached stop could
+        // wipe the new source's rendered head before start() prefills.
+        if (!autoStart) {
+            NativeBridge.stopEngineNative()
+        }
         val forced = NativeBridge.consumeForcedDecoderOneShot()
         if (forced != null) {
             NativeBridge.loadAudioWithDecoder(source, forced)
@@ -219,6 +260,18 @@ class DesktopPlaybackSession(
         stoppedSource = null
         refreshMetadata()
         refreshRepeatMode()
+        // Same synchronous per-core DSP push as loadFileGuarded.
+        trackOptionsPrefs?.let { prefs ->
+            applyDspSettingsToNative(
+                resolveEffectiveDspSettings(
+                    coreName = decoderName,
+                    global = readGlobalDspSettings(prefs),
+                    core = readCoreDspSettings(prefs, decoderName),
+                    coreHasOverrides = hasCoreDspOverrides(prefs, decoderName),
+                    ignoreGlobalForCore = readCoreIgnoreGlobalDsp(prefs, decoderName)
+                )
+            )
+        }
         artwork = null
         scope.launch(Dispatchers.IO) {
             val displayFile = currentFile
@@ -253,7 +306,7 @@ class DesktopPlaybackSession(
         val sourceToResume = stoppedSource
         if (sourceToResume != null) {
             stoppedSource = null
-            loadSource(sourceToResume)
+            loadSource(sourceToResume, teardownStreamForSwitch = true)
             return
         }
         if (currentFile == null) return

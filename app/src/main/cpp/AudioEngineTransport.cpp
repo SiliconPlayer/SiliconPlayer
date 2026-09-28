@@ -67,6 +67,8 @@ bool AudioEngine::start() {
     }
     recoverStreamIfNeededLocked();
 
+    bool streamFreshlyCreatedForStart = false;
+
     if (refreshPausedStreamOnNextStart.exchange(false, std::memory_order_relaxed) &&
         outputStreamReady.load(std::memory_order_relaxed) &&
         !streamNeedsRebuild.load(std::memory_order_relaxed)) {
@@ -80,9 +82,12 @@ bool AudioEngine::start() {
         closeStream();
         createStream();
         streamNeedsRebuild.store(false);
+        // Fresh device just created below; the disconnected check underneath
+        // would otherwise destroy and recreate it a second time per switch.
+        streamFreshlyCreatedForStart = true;
     }
     if (outputStreamReady.load(std::memory_order_relaxed)) {
-        if (isStreamDisconnectedOrClosed()) {
+        if (!streamFreshlyCreatedForStart && isStreamDisconnectedOrClosed()) {
             closeStream();
             createStream();
         }
@@ -129,11 +134,22 @@ bool AudioEngine::start() {
             pauseResumeFadeOutStopPending = false;
         }
 
+        if (isPlaying.load(std::memory_order_relaxed) && !isStreamDisconnectedOrClosed()) {
+            // Track switch under a live stream: the device never stopped and
+            // the queue already holds (or is filling with) the new track's
+            // head. Clearing and prefilling here would discard rendered frames
+            // the decoder already consumed and stall the running callbacks
+            // into underruns, truncating the song start.
+            renderWorkerCv.notify_all();
+            return true;
+        }
+
         // Prime render queue before starting callback-driven playback.
         // This avoids audible startup gaps for decoders that need a short warmup
         // (notably SID cores) and reduces first-second underruns.
         playbackStreamStarted.store(false, std::memory_order_release);
-        clearRenderQueue();
+        // No clearRenderQueue: post-setUrl the queue already holds the new
+        // track's fresh head, and every stale case clears at its own source.
         isPlaying = true;
         naturalEndPending.store(false);
         const int startupChunkFrames = std::max(256, renderWorkerChunkFrames.load(std::memory_order_relaxed));
@@ -154,8 +170,9 @@ bool AudioEngine::start() {
             const int prerollFrames = burstFrames > 0 ? burstFrames : startupChunkFrames;
             startupPrerollFrames = std::clamp(prerollFrames, 128, 2048);
             const size_t ch = streamChannelCount > 0 ? static_cast<size_t>(streamChannelCount) : 2u;
-            std::vector<float> prerollSilence(static_cast<size_t>(startupPrerollFrames) * ch, 0.0f);
-            appendRenderQueue(prerollSilence.data(), startupPrerollFrames, static_cast<int>(ch));
+            // Prepend, never append: queued frames are the song head and the
+            // silence must absorb the backend wake-up cut ahead of them.
+            prependRenderQueueSilence(startupPrerollFrames, static_cast<int>(ch));
             LOGD("Applying one-time startup preroll: %d frames (ch=%zu)", startupPrerollFrames, ch);
         }
         const int startupTargetFrames = startupBaseTargetFrames + startupPrerollFrames;

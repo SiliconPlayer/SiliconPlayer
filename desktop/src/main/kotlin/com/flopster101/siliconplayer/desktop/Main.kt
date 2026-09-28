@@ -479,20 +479,20 @@ fun main(args: Array<String>) = application {
         }
     }
 
-    fun playFile(file: File) {
-        if (session.loadFile(file, autoStart = autoPlayOnTrackSelect)) {
+    fun playFile(file: File, teardownStreamForSwitch: Boolean = true) {
+        if (session.loadFile(file, autoStart = autoPlayOnTrackSelect, teardownStreamForSwitch = teardownStreamForSwitch)) {
             registerLoadedFile(file)
             if (openPlayerOnTrackSelect) isPlayerSurfaceVisible = true
         }
     }
 
-    fun playSource(source: String, titleHint: String? = null, artistHint: String? = null) {
+    fun playSource(source: String, titleHint: String? = null, artistHint: String? = null, teardownStreamForSwitch: Boolean = true) {
         val file = File(source)
         if (file.exists() && file.isFile) {
-            playFile(file)
+            playFile(file, teardownStreamForSwitch)
             return
         }
-        if (session.loadSource(source, titleHint, artistHint, autoStart = autoPlayOnTrackSelect)) {
+        if (session.loadSource(source, titleHint, artistHint, autoStart = autoPlayOnTrackSelect, teardownStreamForSwitch = teardownStreamForSwitch)) {
             if (openPlayerOnTrackSelect) isPlayerSurfaceVisible = true
             val sourceId = session.currentSourceId
             val sourceNodeId = NetworkNodesHolder.current.firstOrNull { it.source == sourceId }?.id
@@ -998,7 +998,7 @@ fun main(args: Array<String>) = application {
                 if (index < 0) return false
                 val shouldWrap = wrapOverride ?: playlistWrapNavigation
                 val targetIndex = resolveAdjacentIndex(index, offset, siblings.size, shouldWrap) ?: return false
-                playFile(siblings[targetIndex])
+                playFile(siblings[targetIndex], teardownStreamForSwitch = false)
                 return true
             }
             // Playlist and browser queues take separate wrap flags, mirroring Android's

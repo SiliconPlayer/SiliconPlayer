@@ -630,6 +630,32 @@ void AudioEngine::appendRenderQueue(const float* data, int numFrames, int channe
     renderQueueSampleCount += sampleCount;
 }
 
+void AudioEngine::prependRenderQueueSilence(int numFrames, int channels) {
+    if (numFrames <= 0 || channels <= 0) return;
+    std::lock_guard<std::mutex> lock(renderQueueMutex);
+    const size_t silenceSamples = static_cast<size_t>(numFrames) * static_cast<size_t>(channels);
+    if (silenceSamples == 0u) return;
+    if (renderQueueRing.empty()) {
+        ensureRenderQueueCapacityLocked(silenceSamples);
+        if (renderQueueRing.empty()) return;
+    }
+    if (renderQueueRing.size() - renderQueueSampleCount < silenceSamples) {
+        ensureRenderQueueCapacityLocked(renderQueueSampleCount + silenceSamples);
+        if (renderQueueRing.size() - renderQueueSampleCount < silenceSamples) return;
+    }
+    // Free space always ends exactly at the read index, so moving it back
+    // stays inside free slots; the write index is untouched by construction.
+    const size_t ringSize = renderQueueRing.size();
+    const size_t back = silenceSamples % ringSize;
+    renderQueueReadIndex = (renderQueueReadIndex + ringSize - back) % ringSize;
+    const size_t firstPart = std::min(silenceSamples, ringSize - renderQueueReadIndex);
+    std::memset(renderQueueRing.data() + renderQueueReadIndex, 0, firstPart * sizeof(float));
+    if (silenceSamples > firstPart) {
+        std::memset(renderQueueRing.data(), 0, (silenceSamples - firstPart) * sizeof(float));
+    }
+    renderQueueSampleCount += silenceSamples;
+}
+
 int AudioEngine::popRenderQueue(float* outputData, int numFrames, int channels) {
     if (!outputData || numFrames <= 0 || channels <= 0) return 0;
     std::lock_guard<std::mutex> lock(renderQueueMutex);
@@ -758,6 +784,7 @@ void AudioEngine::renderWorkerLoop() {
         }
 
         bool reachedEnd = false;
+        uint64_t chunkDecoderSerial = 0;
         int channels = streamChannelCount > 0 ? streamChannelCount : 2;
         int decodeChannels = channels;
         int chunkFrames = baseChunkFrames;
@@ -781,6 +808,7 @@ void AudioEngine::renderWorkerLoop() {
             if (!decoder || !isPlaying.load()) {
                 continue;
             }
+            chunkDecoderSerial = decoderSerial.load(std::memory_order_relaxed);
             // The decoder emits its own output channel count per frame, while the
             // render queue consumes streamChannelCount. During track switches the
             // two disagree (e.g. 12ch decoder installed before the stream is
@@ -961,7 +989,20 @@ void AudioEngine::renderWorkerLoop() {
             }
         }
 
-        appendRenderQueue(localBuffer.data(), chunkFrames, channels);
+        bool chunkSuperseded = false;
+        {
+            std::lock_guard<std::mutex> lock(decoderMutex);
+            chunkSuperseded = (chunkDecoderSerial != decoderSerial.load(std::memory_order_relaxed));
+            if (!chunkSuperseded) {
+                appendRenderQueue(localBuffer.data(), chunkFrames, channels);
+            }
+        }
+        if (chunkSuperseded) {
+            // Decoder swapped mid-render; drop the stale frames so the old
+            // track never leaks into the new one, then render the new head.
+            renderWorkerCv.notify_one();
+            continue;
+        }
 
         {
             const int64_t fillEndNs = std::chrono::duration_cast<std::chrono::nanoseconds>(

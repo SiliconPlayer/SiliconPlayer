@@ -145,6 +145,7 @@ object NativeBridge {
 
     external fun startEngineNative()
     external fun stopEngineNative()
+    external fun teardownOutputStream()
     external fun startEngineWithPauseResumeFadeNative()
     external fun stopEngineWithPauseResumeFadeNative()
     external fun seekToImpl(seconds: Double)

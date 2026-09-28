@@ -2314,6 +2314,14 @@ Java_com_flopster101_siliconplayer_NativeBridge_getUadeSubsongBytes(JNIEnv*, job
 }
 
 extern "C" JNIEXPORT void JNICALL
+Java_com_flopster101_siliconplayer_NativeBridge_teardownOutputStream(JNIEnv*, jobject) {
+    if (audioEngine == nullptr) {
+        return;
+    }
+    audioEngine->teardownOutputStreamForSwitch();
+}
+
+extern "C" JNIEXPORT void JNICALL
 Java_com_flopster101_siliconplayer_NativeBridge_startEngineNative(JNIEnv* env, jobject thiz) {
     Java_com_flopster101_siliconplayer_MainActivity_startEngine(env, thiz);
 }

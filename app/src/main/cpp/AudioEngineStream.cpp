@@ -309,6 +309,13 @@ void AudioEngine::createStream() {
     }
 }
 
+// Manual track switch: destroy the device synchronously so already-popped
+// backend audio cannot keep playing the old song (PulseAudio cork retains
+// buffers; only destroy flushes). start() rebuilds it on the full path.
+void AudioEngine::teardownOutputStreamForSwitch() {
+    closeStream();
+}
+
 void AudioEngine::closeStream() {
     if (!uacFeederStop.exchange(true)) {
         if (uacFeederThread.joinable()) uacFeederThread.join();

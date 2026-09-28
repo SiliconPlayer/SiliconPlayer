@@ -32,6 +32,7 @@ public:
     bool startWithPauseResumeFade(int durationMs, float attenuationDb);
     void stop();
     void stopWithPauseResumeFade(int durationMs, float attenuationDb);
+    void teardownOutputStreamForSwitch();
     void releaseCurrentDecoder();
     bool isEnginePlaying() const;
     void restart();
@@ -505,6 +506,7 @@ private:
     void recoverStreamIfNeededLocked();
     void stopOutputStreamLocked();
     void clearRenderQueue();
+    void prependRenderQueueSilence(int numFrames, int channels);
     void appendRenderQueue(const float* data, int numFrames, int channels);
     int popRenderQueue(float* outputData, int numFrames, int channels);
     int renderQueueFrames() const;
