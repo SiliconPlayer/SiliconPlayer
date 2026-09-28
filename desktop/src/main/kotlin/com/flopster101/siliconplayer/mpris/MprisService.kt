@@ -11,67 +11,135 @@ internal const val MPRIS_BUS_NAME = "org.mpris.MediaPlayer2.siliconplayer"
 internal const val MPRIS_IDENTITY = "SiliconPlayer"
 internal const val MPRIS_DESKTOP_ENTRY = "siliconplayer"
 internal const val MPRIS_POLL_INTERVAL_MS = 400L
+internal const val MPRIS_RECONNECT_INTERVAL_MS = 2000L
 internal val MPRIS_SUPPORTED_URI_SCHEMES = listOf("file", "http", "https", "smb")
 
 // Serves the MPRIS contract on the session bus: root + Player interfaces,
 // PropertiesChanged diffing, and transport methods routed to the app's own
 // playback actions, so a headset button and the on-screen button do the same thing.
+// Owning the name is not permanent: a bus restart or a dropped socket releases it,
+// so the service re-registers itself until it is stopped.
 internal class MprisService(
     private val stateProvider: () -> MprisState,
     private val commandsProvider: () -> MprisCommands,
     private val onLog: (String) -> Unit = {}
 ) {
+    private val lock = Any()
     private var connection: DbusConnection? = null
     private var poller: ScheduledExecutorService? = null
+    private var supervisor: ScheduledExecutorService? = null
     private var lastState: MprisState? = null
+    private var stopped = true
+    private var loggedUnavailable = false
 
-    @Synchronized
+    // Sampled on the poll thread only: a slow stateProvider must never delay a
+    // method reply, or the client times out and drops the player.
+    @Volatile
+    private var snapshot: MprisState = MprisState()
+
     fun start(): Boolean {
-        if (connection != null) return true
-        val result = DbusSessionBus.connect(MPRIS_BUS_NAME) { reason -> onLog("MPRIS unavailable: $reason") }
-            ?: return false
+        synchronized(lock) {
+            if (!stopped) return true
+            stopped = false
+        }
+        connectOnce()
+        synchronized(lock) {
+            if (stopped) return isRunning()
+            supervisor = Executors.newSingleThreadScheduledExecutor { task ->
+                Thread(task, "mpris-supervisor").apply { isDaemon = true }
+            }.also { scheduler ->
+                scheduler.scheduleWithFixedDelay(
+                    { connectOnce() },
+                    MPRIS_RECONNECT_INTERVAL_MS,
+                    MPRIS_RECONNECT_INTERVAL_MS,
+                    TimeUnit.MILLISECONDS
+                )
+            }
+        }
+        return isRunning()
+    }
+
+    fun stop() {
+        val bus: DbusConnection?
+        val scheduler: ScheduledExecutorService?
+        val ticker: ScheduledExecutorService?
+        synchronized(lock) {
+            stopped = true
+            bus = connection.also { connection = null }
+            scheduler = supervisor.also { supervisor = null }
+            ticker = poller.also { poller = null }
+            lastState = null
+        }
+        scheduler?.shutdownNow()
+        ticker?.shutdownNow()
+        bus?.close()
+    }
+
+    fun isRunning(): Boolean = synchronized(lock) { connection != null }
+
+    // Idempotent: connects when there is no live bus, does nothing otherwise.
+    private fun connectOnce() {
+        synchronized(lock) {
+            if (stopped || connection != null) return
+        }
+        val result = DbusSessionBus.connect(MPRIS_BUS_NAME) { reason ->
+            // One log per outage; the supervisor keeps retrying silently.
+            val firstFailure = synchronized(lock) {
+                if (loggedUnavailable) false else { loggedUnavailable = true; true }
+            }
+            if (firstFailure) onLog("MPRIS unavailable: $reason")
+        } ?: return
         val bus = result.connection
         val dispatch = Executors.newSingleThreadExecutor { task ->
             Thread(task, "mpris-dbus-dispatch").apply { isDaemon = true }
         }
+        bus.onClosed = { onBusClosed(bus) }
         bus.startReading(dispatch) { message -> handleMessage(message) }
-        connection = bus
-        lastState = null
-        poller = Executors.newSingleThreadScheduledExecutor { task ->
+        val ticker = Executors.newSingleThreadScheduledExecutor { task ->
             Thread(task, "mpris-poll").apply { isDaemon = true }
-        }.also { scheduler ->
-            scheduler.scheduleWithFixedDelay(
-                { publishChanges() },
-                MPRIS_POLL_INTERVAL_MS,
-                MPRIS_POLL_INTERVAL_MS,
-                TimeUnit.MILLISECONDS
-            )
         }
-        onLog("MPRIS registered as $MPRIS_BUS_NAME")
-        return true
+        synchronized(lock) {
+            if (stopped) {
+                bus.close()
+                ticker.shutdownNow()
+                return
+            }
+            connection = bus
+            poller = ticker
+            lastState = null
+            loggedUnavailable = false
+        }
+        // Sample immediately so a client that discovers us in the first moments
+        // already sees real state instead of the empty default.
+        ticker.scheduleWithFixedDelay(
+            { pollOnce() },
+            0L,
+            MPRIS_POLL_INTERVAL_MS,
+            TimeUnit.MILLISECONDS
+        )
+        onLog("MPRIS registered as $MPRIS_BUS_NAME (bus ${bus.endpoint}, unique ${bus.uniqueName})")
     }
 
-    @Synchronized
-    fun stop() {
-        poller?.shutdownNow()
-        poller = null
-        connection?.close()
-        connection = null
-        lastState = null
+    private fun onBusClosed(bus: DbusConnection) {
+        val lost = synchronized(lock) {
+            if (connection !== bus) {
+                false
+            } else {
+                connection = null
+                poller?.shutdownNow()
+                poller = null
+                lastState = null
+                true
+            }
+        }
+        if (lost) onLog("MPRIS connection to ${bus.endpoint} closed, re-registering")
     }
 
-    fun isRunning(): Boolean = connection != null
-
-    // The bus dropped us; stop serving so nothing writes to a dead socket.
-    private fun onConnectionLost() {
-        onLog("MPRIS connection lost")
-        stop()
-    }
-
-    private fun publishChanges() {
+    private fun pollOnce() {
         val bus = connection ?: return
         val previous = lastState
-        val current = runCatching { stateProvider() }.getOrElse { return }
+        val current = runCatching { stateProvider() }.getOrNull() ?: return
+        snapshot = current
         lastState = current
         if (previous == null) return
         val changed = changedPlayerProperties(previous, current)
@@ -87,7 +155,12 @@ internal class MprisService(
                     dbusStringArray(emptyList())
                 )
             )
-        }.onFailure { onConnectionLost() }
+        }.onFailure { dropBus(bus) }
+    }
+
+    private fun dropBus(bus: DbusConnection) {
+        onBusClosed(bus)
+        runCatching { bus.close() }
     }
 
     private fun handleMessage(message: DbusMessage) {
@@ -101,7 +174,7 @@ internal class MprisService(
             bus.errorReplyTo(message, DBUS_ERROR_UNKNOWN_METHOD, "memberless call")
             return
         }
-        val state = runCatching { stateProvider() }.getOrElse { MprisState() }
+        val state = snapshot
         val commands = runCatching { commandsProvider() }.getOrNull()
         val outcome = runCatching { dispatchCall(bus, message, state, commands, member) }
         outcome.onFailure { error ->

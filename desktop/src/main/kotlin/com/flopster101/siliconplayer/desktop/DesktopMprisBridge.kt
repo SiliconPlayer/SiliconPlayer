@@ -11,6 +11,7 @@ import com.flopster101.siliconplayer.mpris.MprisService
 import com.flopster101.siliconplayer.mpris.MprisState
 import com.flopster101.siliconplayer.mpris.mprisTrackPath
 import java.io.File
+import java.util.concurrent.Executors
 import javax.swing.SwingUtilities
 import kotlin.math.log10
 import kotlin.math.pow
@@ -79,7 +80,14 @@ internal class DesktopMprisBridge(private val session: DesktopPlaybackSession) {
     private var service: MprisService? = null
     private var trackIdentity: String? = null
     private var trackNumber = 0L
+    private val coverExecutor = Executors.newSingleThreadExecutor { task ->
+        Thread(task, "mpris-cover").apply { isDaemon = true }
+    }
+
+    @Volatile
     private var coverIdentity: String? = null
+
+    @Volatile
     private var coverUrl: String? = null
 
     fun bind(commands: MprisCommands, volume: () -> Double) {
@@ -112,6 +120,7 @@ internal class DesktopMprisBridge(private val session: DesktopPlaybackSession) {
             if (identity != null) trackNumber += 1L
         }
         val hasTrack = currentFile != null && identity != null
+        refreshCover(identity)
         val lengthMicros = if (session.hasReliableDuration) {
             (session.durationSeconds * MICROSECONDS_PER_SECOND).toLong().coerceAtLeast(0L)
         } else {
@@ -123,7 +132,7 @@ internal class DesktopMprisBridge(private val session: DesktopPlaybackSession) {
             artist = session.artist,
             album = session.album,
             lengthMicroseconds = lengthMicros,
-            artUrl = artworkUrl(identity),
+            artUrl = coverUrl,
             playbackStatus = when {
                 !session.canResume() -> MprisPlaybackStatus.Stopped
                 session.isPlaying -> MprisPlaybackStatus.Playing
@@ -140,29 +149,30 @@ internal class DesktopMprisBridge(private val session: DesktopPlaybackSession) {
         )
     }
 
+    // Cover lookup is filesystem/network work (embedded-art decode, folder-cover
+    // scan, JPEG encode), so it runs on its own thread: the D-Bus poll and every
+    // method reply must stay IO-free or clients time out and drop the player.
+    private fun refreshCover(identity: String?) {
+        if (identity == coverIdentity) return
+        coverIdentity = identity
+        coverUrl = null
+        if (identity == null) return
+        coverExecutor.execute { coverUrl = loadCoverUrl(identity) }
+    }
+
     // The recent-artwork cache already holds a JPEG per source, so the media
     // widget gets a file URL without a second encoder.
-    private fun artworkUrl(identity: String?): String? {
-        if (identity == null) {
-            coverIdentity = null
-            coverUrl = null
-            return null
-        }
-        if (identity == coverIdentity) return coverUrl
-        coverIdentity = identity
-        coverUrl = runCatching {
-            val cacheRoot = File(DesktopPaths.cacheDir(), RECENT_ARTWORK_CACHE_DIR)
-            val cacheKey = ensureDesktopRecentArtworkCached(
-                cacheRoot = cacheRoot,
-                sourceId = identity,
-                requestUrlHint = session.currentRequestUrl,
-                requireLarge = true
-            ) ?: return null
-            desktopRecentArtworkCacheFile(cacheRoot, cacheKey, preferLarge = true)
-                ?.takeIf { it.isFile && it.length() > 0L }
-                ?.toURI()
-                ?.toString()
-        }.getOrNull()
-        return coverUrl
-    }
+    private fun loadCoverUrl(identity: String): String? = runCatching {
+        val cacheRoot = File(DesktopPaths.cacheDir(), RECENT_ARTWORK_CACHE_DIR)
+        val cacheKey = ensureDesktopRecentArtworkCached(
+            cacheRoot = cacheRoot,
+            sourceId = identity,
+            requestUrlHint = session.currentRequestUrl,
+            requireLarge = true
+        ) ?: return null
+        desktopRecentArtworkCacheFile(cacheRoot, cacheKey, preferLarge = true)
+            ?.takeIf { it.isFile && it.length() > 0L }
+            ?.toURI()
+            ?.toString()
+    }.getOrNull()
 }

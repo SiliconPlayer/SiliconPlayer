@@ -30,6 +30,7 @@ internal data class DbusConnectionResult(val connection: DbusConnection, val own
 // Minimal session-bus client: enough of the protocol to own a well-known name,
 // answer method calls and emit signals, with no native D-Bus dependency.
 internal class DbusConnection(
+    val endpoint: String,
     private val channel: SocketChannel,
     private val input: BufferedInputStream,
     private val output: OutputStream,
@@ -50,6 +51,10 @@ internal class DbusConnection(
 
     @Volatile
     private var onMethodCall: (DbusMessage) -> Unit = {}
+
+    // Fires when the bus drops us, so the owner can register again.
+    @Volatile
+    var onClosed: (() -> Unit)? = null
 
     private val readerThread = Thread({ readLoop() }, "mpris-dbus-reader").apply {
         isDaemon = true
@@ -168,7 +173,9 @@ internal class DbusConnection(
                 }
             }
         } catch (_: IOException) {
-            // The socket closed or the bus dropped us; the service loop reports it.
+            // The socket closed or the bus dropped us; onClosed reports it.
+        } finally {
+            onClosed?.invoke()
         }
     }
 
@@ -223,7 +230,7 @@ internal object DbusSessionBus {
                 onFailure("cannot open ${endpoint.path}: ${it.message}")
                 continue
             }
-            val connection = runCatching { authenticateAndHandshake(channel) }.getOrElse {
+            val connection = runCatching { authenticateAndHandshake(endpoint, channel) }.getOrElse {
                 lastError = it
                 runCatching { channel.close() }
                 onFailure("handshake failed: ${it.message}")
@@ -270,7 +277,7 @@ internal object DbusSessionBus {
         SocketChannel.open(StandardProtocolFamily.UNIX)
             .apply { connect(UnixDomainSocketAddress.of(Path.of(endpoint.path))) }
 
-    private fun authenticateAndHandshake(channel: SocketChannel): DbusConnection {
+    private fun authenticateAndHandshake(endpoint: DbusEndpoint, channel: SocketChannel): DbusConnection {
         val input = BufferedInputStream(Channels.newInputStream(channel))
         val output = Channels.newOutputStream(channel)
         output.write(0)
@@ -281,7 +288,7 @@ internal object DbusSessionBus {
         if (!line.startsWith("OK")) throw DbusException("authentication rejected: $line")
         output.write("BEGIN\r\n".toByteArray(StandardCharsets.US_ASCII))
         output.flush()
-        val connection = DbusConnection(channel, input, output, AtomicInteger(1))
+        val connection = DbusConnection(endpoint.path, channel, input, output, AtomicInteger(1))
         val hello = connection.call(DBUS_SERVICE, DBUS_PATH, DBUS_INTERFACE, "Hello")
         val uniqueName = (hello.firstOrNull() as? DbusValue.StringValue)?.value
             ?: throw DbusException("Hello returned no unique name")
