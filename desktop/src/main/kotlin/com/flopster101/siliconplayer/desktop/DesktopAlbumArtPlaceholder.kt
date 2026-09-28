@@ -420,7 +420,7 @@ internal fun AlbumArtPlaceholder(
             monochromeBackdrop = monochromeBackdrop,
             visualAlpha = visualAlpha,
             contrastMode = contrastMode,
-            contrastScrimColorArgb = 0x66000000,
+            contrastScrimColorArgb = 0xFF000000.toInt(),
             channelLayout = channelScopePrefs.layout.ordinal,
             textAnchor = channelScopePrefs.textAnchor.ordinal,
             vuAnchor = channelScopePrefs.textVuAnchor.ordinal,
