@@ -746,8 +746,11 @@ build_hivelytracker() {
     if [ "$FORCE_CLEAN" -ne 1 ] && [ -f "$INSTALL_DIR/lib/libhivelytracker.so" ]; then return 0; fi
     echo "Building hivelytracker for host..."
     rm -rf "$BUILD_DIR" && mkdir -p "$BUILD_DIR" "$INSTALL_DIR/lib" "$INSTALL_DIR/include/hivelytracker"
-    "$CC" -c "$REPLAYER_DIR/hvl_replay.c" -o "$BUILD_DIR/hvl_replay.o" -fPIC -fcommon -fsigned-char $DEP_OPT_FLAGS
-    "$CC" -c "$REPLAYER_DIR/hvl_tables.c" -o "$BUILD_DIR/hvl_tables.o" -fPIC -fcommon -fsigned-char $DEP_OPT_FLAGS
+    # -Ofast implies -fno-semantic-interposition on GCC, which misresolves the
+    # replayer's tentative-definition tables (period_tab reads as zeros, so every
+    # note clamps to the 0x71 minimum period). Keep interposition on.
+    "$CC" -c "$REPLAYER_DIR/hvl_replay.c" -o "$BUILD_DIR/hvl_replay.o" -fPIC -fcommon -fsigned-char -fsemantic-interposition $DEP_OPT_FLAGS
+    "$CC" -c "$REPLAYER_DIR/hvl_tables.c" -o "$BUILD_DIR/hvl_tables.o" -fPIC -fcommon -fsigned-char -fsemantic-interposition $DEP_OPT_FLAGS
     "$CC" -shared -o "$INSTALL_DIR/lib/libhivelytracker.so" -Wl,-soname,libhivelytracker.so "$BUILD_DIR/hvl_replay.o" "$BUILD_DIR/hvl_tables.o"
     cp "$REPLAYER_DIR/hvl_replay.h" "$REPLAYER_DIR/hvl_tables.h" "$INSTALL_DIR/include/hivelytracker/"
 }
