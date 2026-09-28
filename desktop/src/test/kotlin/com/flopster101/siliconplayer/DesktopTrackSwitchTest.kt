@@ -1,10 +1,10 @@
 package com.flopster101.siliconplayer
 
 import com.flopster101.siliconplayer.desktop.DesktopPlaybackSession
-import java.io.File
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import java.io.File
 
 class DesktopTrackSwitchTest {
 
@@ -13,7 +13,7 @@ class DesktopTrackSwitchTest {
         val samples = rate * seconds
         val data = ByteArray(samples * 2)
         for (i in 0 until samples) {
-            val value = (Math.sin(2.0 * Math.PI * 440.0 * i / rate) * 30000).toInt()
+            val value = (kotlin.math.sin(2.0 * kotlin.math.PI * 440.0 * i / rate) * 30000).toInt()
             data[i * 2] = (value and 0xFF).toByte()
             data[i * 2 + 1] = ((value shr 8) and 0xFF).toByte()
         }
@@ -21,16 +21,13 @@ class DesktopTrackSwitchTest {
         fun putString(offset: Int, text: String) {
             text.toByteArray(Charsets.US_ASCII).copyInto(header, offset)
         }
-
         fun putInt(offset: Int, value: Int) {
             for (b in 0 until 4) header[offset + b] = ((value shr (8 * b)) and 0xFF).toByte()
         }
-
         fun putShort(offset: Int, value: Int) {
             header[offset] = (value and 0xFF).toByte()
             header[offset + 1] = ((value shr 8) and 0xFF).toByte()
         }
-
         putString(0, "RIFF")
         putInt(4, 36 + data.size)
         putString(8, "WAVE")
