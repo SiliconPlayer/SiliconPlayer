@@ -12,21 +12,23 @@ import com.flopster101.siliconplayer.CorePreferenceKeys
 import com.flopster101.siliconplayer.DecoderNames
 import com.flopster101.siliconplayer.NativeBridge
 import com.flopster101.siliconplayer.PlayerSettingToggleCard
+import com.flopster101.siliconplayer.UfmodOptionKeys
+import com.flopster101.siliconplayer.storedUfmodQuirks
 
 internal class UfmodSettings : PluginSettings {
     @Composable
     override fun buildSettings(builder: PluginSettingsBuilder) {
         val prefs = LocalAppPreferences.current
         var flags by remember {
-            mutableIntStateOf(prefs.getInt(CorePreferenceKeys.UFMOD_QUIRKS, 0))
+            mutableIntStateOf(storedUfmodQuirks(prefs))
         }
         LaunchedEffect(Unit) {
-            NativeBridge.setCoreOption(DecoderNames.UFMOD, "ufmod.quirks", flags.toString())
+            NativeBridge.setCoreOption(DecoderNames.UFMOD, UfmodOptionKeys.QUIRKS, flags.toString())
         }
         fun update(value: Int) {
             flags = value
             prefs.edit().putInt(CorePreferenceKeys.UFMOD_QUIRKS, value).apply()
-            NativeBridge.setCoreOption(DecoderNames.UFMOD, "ufmod.quirks", value.toString())
+            NativeBridge.setCoreOption(DecoderNames.UFMOD, UfmodOptionKeys.QUIRKS, value.toString())
         }
         builder.coreOptions {
             custom {

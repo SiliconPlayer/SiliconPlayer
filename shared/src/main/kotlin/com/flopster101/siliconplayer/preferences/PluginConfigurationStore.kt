@@ -24,6 +24,7 @@ internal fun loadPluginConfigurations(prefs: AppPreferences) {
 
     normalizeDecoderPriorityValues()
     persistAllPluginConfigurations(prefs)
+    pushStoredCoreOptionsToNative(prefs)
 }
 
 internal fun savePluginConfiguration(prefs: AppPreferences, decoderName: String) {
