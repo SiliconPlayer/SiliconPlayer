@@ -80,6 +80,47 @@ val buildDesktopNative by tasks.registering(Exec::class) {
     )
 }
 
+// Packaged distributables run outside the repo, so the engine .so, decoder
+// plugins, their prebuilt deps and uadecore ride inside lib/app (already on
+// java.library.path); $ORIGIN RUNPATH resolves everything co-located.
+fun registerDesktopNativesCopy(name: String, appDir: Provider<Directory>) {
+    tasks.register<Copy>(name) {
+        dependsOn(buildDesktopNative)
+        from(nativeBuildDir.get().asFile) { include("*.so") }
+        from(nativeBuildDir.get().asFile.resolve("silicon_vis")) { include("*.so") }
+        from(file("prebuilt/x86_64/lib")) { include("*.so*") }
+        from(file("prebuilt/x86_64/lib/uade")) { include("uadecore"); into("uade") }
+        from(file("prebuilt/x86_64/share/uade")) { into("uade") }
+        into(appDir)
+    }
+}
+
+registerDesktopNativesCopy(
+    "copyDesktopNativesToDistributable",
+    layout.buildDirectory.dir("compose/binaries/main/app/SiliconPlayer/lib/app")
+)
+registerDesktopNativesCopy(
+    "copyDesktopNativesToReleaseDistributable",
+    layout.buildDirectory.dir("compose/binaries/main-release/app/SiliconPlayer/lib/app")
+)
+
+// The compose plugin registers its distributable tasks late.
+afterEvaluate {
+    tasks.findByName("createDistributable")?.finalizedBy("copyDesktopNativesToDistributable")
+    tasks.findByName("createReleaseDistributable")?.finalizedBy("copyDesktopNativesToReleaseDistributable")
+    // Runners and packagers read the same app dir the copy fills.
+    listOf(
+        "runDistributable" to "copyDesktopNativesToDistributable",
+        "runReleaseDistributable" to "copyDesktopNativesToReleaseDistributable",
+        "packageDeb" to "copyDesktopNativesToDistributable",
+        "packageAppImage" to "copyDesktopNativesToDistributable",
+        "packageDistributionForCurrentOS" to "copyDesktopNativesToDistributable",
+        "packageReleaseDeb" to "copyDesktopNativesToReleaseDistributable",
+        "packageReleaseAppImage" to "copyDesktopNativesToReleaseDistributable",
+        "packageReleaseDistributionForCurrentOS" to "copyDesktopNativesToReleaseDistributable"
+    ).forEach { (consumer, producer) -> tasks.findByName(consumer)?.dependsOn(producer) }
+}
+
 fun configureNativePaths(task: JavaForkOptions) {
     val nativeDir = nativeBuildDir.get().asFile
     val prebuiltLibDir = file("prebuilt/x86_64/lib")

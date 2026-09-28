@@ -15,9 +15,19 @@ object NativeBridge {
         initUadeRuntimePaths()
     }
 
+    // Directory holding our own jars: build/libs in dev, lib/app inside a
+    // packaged distributable. Probing it keeps native lookup CWD-independent.
+    private fun packagedNativeDir(): File? = runCatching {
+        val location = NativeBridge::class.java.protectionDomain?.codeSource?.location
+            ?.toURI()?.let(::File) ?: return null
+        (if (location.isFile) location.parentFile else location).takeIf { it.isDirectory }
+    }.getOrNull()
+
     private fun initUadeRuntimePaths() {
         val userDir = System.getProperty("user.dir") ?: "."
-        val baseCandidates = listOf(
+        val packagedDir = packagedNativeDir()
+        val baseCandidates = listOfNotNull(
+            packagedDir?.let { File(it, "uade") },
             File("desktop/prebuilt/x86_64/share/uade"),
             File("../desktop/prebuilt/x86_64/share/uade"),
             File(userDir, "desktop/prebuilt/x86_64/share/uade"),
@@ -25,7 +35,8 @@ object NativeBridge {
             File("/usr/share/uade"),
             File("/usr/local/share/uade")
         )
-        val coreCandidates = listOf(
+        val coreCandidates = listOfNotNull(
+            packagedDir?.let { File(it, "uade/uadecore") },
             File("desktop/prebuilt/x86_64/lib/uade/uadecore"),
             File("../desktop/prebuilt/x86_64/lib/uade/uadecore"),
             File(userDir, "desktop/prebuilt/x86_64/lib/uade/uadecore"),
@@ -51,7 +62,9 @@ object NativeBridge {
         try {
             System.loadLibrary("projectM-4")
         } catch (_: Throwable) {
-            val candidates = listOf(
+            val packagedDir = packagedNativeDir()
+            val candidates = listOfNotNull(
+                packagedDir?.let { File(it, "libprojectM-4.so") },
                 File("desktop/prebuilt/x86_64/lib/libprojectM-4.so"),
                 File("../desktop/prebuilt/x86_64/lib/libprojectM-4.so"),
                 File("external/projectm/build_host/src/libprojectM/libprojectM-4.so"),
@@ -69,7 +82,9 @@ object NativeBridge {
             return
         } catch (e: UnsatisfiedLinkError) {
             // Try explicit candidate file locations
-            val candidates = listOf(
+            val packagedDir = packagedNativeDir()
+            val candidates = listOfNotNull(
+                packagedDir?.let { File(it, "libsiliconplayer_desktop.so") },
                 File("desktop/build/native/libsiliconplayer_desktop.so"),
                 File("build/native/libsiliconplayer_desktop.so"),
                 File("../desktop/build/native/libsiliconplayer_desktop.so"),
