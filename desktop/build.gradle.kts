@@ -34,6 +34,17 @@ compose.desktop {
             )
             packageName = "SiliconPlayer"
             packageVersion = "1.0.0"
+            buildTypes {
+                release {
+                    proguard {
+                        // Default 7.2.2 cannot read the Java 21 runtime (class 65).
+                        version.set("7.4.2")
+                        // Shrink only: optimization passes cost minutes on this tree.
+                        optimize.set(false)
+                        configurationFiles.from("siliconplayer-desktop.pro")
+                    }
+                }
+            }
         }
     }
 }
