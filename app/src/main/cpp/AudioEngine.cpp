@@ -147,7 +147,7 @@ namespace {
             };
             DecoderRegistry::getInstance().registerDecoder("uFMOD", getStaticUfmodExtensions(), []() {
                 return DecoderPluginLoader::getInstance().createDecoder("libsiliconplayer_ufmod_decoder.so");
-            }, 9, std::move(ufmodStaticInfo));
+            }, 18, std::move(ufmodStaticInfo));
 
             DecoderStaticInfo ayflyStaticInfo;
             ayflyStaticInfo.hasPlaybackCapabilities = true;
