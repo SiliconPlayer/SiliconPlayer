@@ -24,6 +24,7 @@ class DesktopDomainStorageTest {
         override fun getLong(key: String, defValue: Long): Long = defValue
         override fun getStringSet(key: String, defValues: Set<String>?): Set<String>? = defValues
         override fun contains(key: String): Boolean = map.containsKey(key)
+        override fun allKeys(): Set<String> = map.keys
         override fun edit(): AppPreferences.Editor = FakeEditor(map)
         override fun addListener(listener: AppPreferences.OnChangeListener) {}
         override fun removeListener(listener: AppPreferences.OnChangeListener) {}

@@ -838,8 +838,8 @@ fun main(args: Array<String>) = application {
                         }
                 }
             }
-            // CORE-OPTION PUSH: setters persist only; this single observer fans core
-            // writes to the engine, mirroring Android AppNavigationCoreEffects.
+            // CORE-OPTION PUSH: setters persist only; this observer fans core writes
+            // to the engine and sweeps stored keys once so cold starts apply them.
             DisposableEffect(prefs, session) {
                 val listener = AppPreferences.OnChangeListener { _, key ->
                     if (key != null) {
@@ -856,6 +856,19 @@ fun main(args: Array<String>) = application {
                     }
                 }
                 prefs.addListener(listener)
+                prefs.allKeys().forEach { key ->
+                    runCatching {
+                        pushDesktopCorePrefToNative(
+                            prefs = prefs,
+                            key = key,
+                            toast = toastHandler,
+                            isPlaying = session.isPlaying,
+                            hasCurrentTrack = session.currentFile != null,
+                            activeDecoderName = session.decoderName,
+                            silent = true
+                        )
+                    }
+                }
                 onDispose { prefs.removeListener(listener) }
             }
             val clipboardManager = LocalClipboardManager.current
@@ -3205,9 +3218,13 @@ private fun applyDesktopCoreOption(
     toast: ToastHandler,
     isPlaying: Boolean,
     hasCurrentTrack: Boolean,
-    activeDecoderName: String?
+    activeDecoderName: String?,
+    silent: Boolean = false
 ) {
     runCatching { NativeBridge.setCoreOption(coreName, optionName, optionValue) }
+    // Startup sweep only fills the stored map each open reads; no policy
+    // probe or toast while the session has not played anything yet.
+    if (silent) return
     val resolved = runCatching {
         if (NativeBridge.getCoreOptionApplyPolicy(coreName, optionName) == 1) {
             CoreOptionApplyPolicy.RequiresPlaybackRestart
@@ -3227,7 +3244,8 @@ private fun pushDesktopCorePrefToNative(
     toast: ToastHandler,
     isPlaying: Boolean,
     hasCurrentTrack: Boolean,
-    activeDecoderName: String?
+    activeDecoderName: String?,
+    silent: Boolean = false
 ) {
     fun opt(
         coreName: String,
@@ -3235,7 +3253,7 @@ private fun pushDesktopCorePrefToNative(
         optionValue: String,
         policy: CoreOptionApplyPolicy,
         optionLabel: String?
-    ) = applyDesktopCoreOption(coreName, optionName, optionValue, policy, optionLabel, toast, isPlaying, hasCurrentTrack, activeDecoderName)
+    ) = applyDesktopCoreOption(coreName, optionName, optionValue, policy, optionLabel, toast, isPlaying, hasCurrentTrack, activeDecoderName, silent)
     // 0 = auto/native; coerce window matches Android (8000..192000).
     fun clampedRate(raw: Int): Int = if (raw <= 0) 0 else raw.coerceIn(8000, 192000)
     fun plainRate(raw: Int): Int = if (raw <= 0) 0 else raw

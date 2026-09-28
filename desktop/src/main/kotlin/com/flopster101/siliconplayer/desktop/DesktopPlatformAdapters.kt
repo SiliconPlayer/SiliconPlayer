@@ -72,6 +72,7 @@ class DesktopAppPreferences(private val nodeName: String) : AppPreferences {
     }
 
     override fun contains(key: String): Boolean = prefs.get(key, null) != null
+    override fun allKeys(): Set<String> = runCatching { prefs.keys().toSet() }.getOrDefault(emptySet())
 
     override fun edit(): AppPreferences.Editor = Editor()
 

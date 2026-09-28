@@ -43,6 +43,7 @@ class AndroidAppPreferences(val sharedPreferences: SharedPreferences) : AppPrefe
     override fun getLong(key: String, defValue: Long): Long = sharedPreferences.getLong(key, defValue)
     override fun getStringSet(key: String, defValues: Set<String>?): Set<String>? = sharedPreferences.getStringSet(key, defValues)
     override fun contains(key: String): Boolean = sharedPreferences.contains(key)
+    override fun allKeys(): Set<String> = sharedPreferences.all.keys
 
     override fun edit(): AppPreferences.Editor = Editor(sharedPreferences.edit())
 

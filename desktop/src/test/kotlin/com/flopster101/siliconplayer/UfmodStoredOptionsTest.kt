@@ -15,6 +15,7 @@ class UfmodStoredOptionsTest {
         override fun getLong(key: String, defValue: Long): Long = values[key] as? Long ?: defValue
         override fun getStringSet(key: String, defValues: Set<String>?): Set<String>? = defValues
         override fun contains(key: String): Boolean = values.containsKey(key)
+        override fun allKeys(): Set<String> = values.keys
         override fun edit(): AppPreferences.Editor = object : AppPreferences.Editor {
             override fun putString(key: String, value: String?) = apply { values[key] = value ?: "" }
             override fun putInt(key: String, value: Int) = apply { values[key] = value }

@@ -32,6 +32,7 @@ private class CacheTestPrefs : AppPreferences {
     override fun getLong(key: String, defValue: Long) = values[key] as? Long ?: defValue
     override fun getStringSet(key: String, defValues: Set<String>?) = values[key] as? Set<String> ?: defValues
     override fun contains(key: String) = values.containsKey(key)
+    override fun allKeys(): Set<String> = values.keys
     override fun edit(): AppPreferences.Editor = FakeEditor()
     override fun addListener(listener: AppPreferences.OnChangeListener) {}
     override fun removeListener(listener: AppPreferences.OnChangeListener) {}
