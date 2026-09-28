@@ -32,6 +32,7 @@ import com.flopster101.siliconplayer.data.clearArchiveMountCache
 import com.flopster101.siliconplayer.DecoderNames
 import com.flopster101.siliconplayer.deleteSpecificRemoteCacheFiles
 import com.flopster101.siliconplayer.listCachedSourceFiles
+import com.flopster101.siliconplayer.normalizeDecoderPriorityValues
 import com.flopster101.siliconplayer.EndFadeCurve
 import com.flopster101.siliconplayer.FilenameDisplayMode
 import com.flopster101.siliconplayer.LookaheadClipperMode
@@ -64,12 +65,15 @@ import com.flopster101.siliconplayer.SidPlayFpOptionKeys
 import com.flopster101.siliconplayer.UadeOptionKeys
 import com.flopster101.siliconplayer.Vio2sfOptionKeys
 import com.flopster101.siliconplayer.XmpOptionKeys
+import com.flopster101.siliconplayer.applyDecoderPriorityOrder
 import com.flopster101.siliconplayer.audio.applyDspSettingsToNative
 import com.flopster101.siliconplayer.audio.defaultDspSettings
 import com.flopster101.siliconplayer.buildSettingsScreenState
 import com.flopster101.siliconplayer.clearAllAudioParameterPrefs
 import com.flopster101.siliconplayer.clearAllDecoderPluginVolumes
 import com.flopster101.siliconplayer.parseEnabledVisualizationModes
+import com.flopster101.siliconplayer.persistAllPluginConfigurations
+import com.flopster101.siliconplayer.savePluginConfiguration
 import com.flopster101.siliconplayer.platform.AppPreferences
 import com.flopster101.siliconplayer.restoreAudioBufferPresetForBackend
 import com.flopster101.siliconplayer.restoreAudioPerformanceModeForBackend
@@ -460,17 +464,22 @@ internal fun rememberDesktopSettings(
                 },
                 onPluginEnabledChanged = { pluginName, enabled ->
                     runCatching { NativeBridge.setDecoderEnabled(pluginName, enabled) }
+                    savePluginConfiguration(prefs, pluginName)
                     changeToken++
                 },
                 onPluginPriorityChanged = { pluginName, priority ->
                     runCatching { NativeBridge.setDecoderPriority(pluginName, priority) }
+                    normalizeDecoderPriorityValues()
+                    persistAllPluginConfigurations(prefs)
                     changeToken++
                 },
-                onPluginPriorityOrderChanged = { _ ->
+                onPluginPriorityOrderChanged = { order ->
+                    applyDecoderPriorityOrder(order, prefs)
                     changeToken++
                 },
                 onPluginExtensionsChanged = { pluginName, extensions ->
                     runCatching { NativeBridge.setDecoderEnabledExtensions(pluginName, extensions) }
+                    savePluginConfiguration(prefs, pluginName)
                     changeToken++
                 },
                 onFfmpegSampleRateChanged = { putInt(CorePreferenceKeys.CORE_RATE_FFMPEG, it) },

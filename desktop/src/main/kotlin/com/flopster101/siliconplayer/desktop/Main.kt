@@ -28,6 +28,7 @@ import com.flopster101.siliconplayer.DomainStoreDirs
 import com.flopster101.siliconplayer.HomeScreen
 import com.flopster101.siliconplayer.HomePinnedEntry
 import com.flopster101.siliconplayer.MiniPlayerBar
+import com.flopster101.siliconplayer.loadPluginConfigurations
 import com.flopster101.siliconplayer.miniPlayerHiddenForExpand
 import com.flopster101.siliconplayer.playerDragPreviewVisible
 import com.flopster101.siliconplayer.playerPreviewAlpha
@@ -1304,6 +1305,12 @@ fun main(args: Array<String>) = application {
                         )
                     )
                 )
+            }
+            // Push the saved decoder order and enables at startup like Android's
+            // AppNavigationStartupEffects; without this the baked registry order
+            // rules every launch and settings reorders never stick.
+            LaunchedEffect(prefs) {
+                withContext(Dispatchers.IO) { loadPluginConfigurations(prefs) }
             }
             // Repeat persist mirrors Android AppNavigationPlaybackEffects; the
             // preferred sync re-resolves so a raced first load still lands right.
