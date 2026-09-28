@@ -12,6 +12,7 @@ import java.nio.ByteOrder
 import java.nio.FloatBuffer
 import kotlin.math.ceil
 import kotlin.math.max
+import kotlin.math.min
 
 /**
  * High-performance glyph atlas and batched text renderer for OpenGL ES 2.0.
@@ -78,9 +79,12 @@ internal class GlFontAtlas(
         }
         val cellW = ceil(maxAdvance + (padding * 2)).toInt()
         val cellH = ceil(measuredLineHeight + (padding * 2)).toInt()
-        val cols = 16
-        val rows = ceil(chars.size.toDouble() / cols.toDouble()).toInt()
         val atlasW = 512
+        // Grid columns must fit the atlas: a wide cell (bold/large face)
+        // would otherwise push the last column off-atlas, leaving its
+        // glyphs (u0 > 1) blank. Shrink the grid instead of overflowing.
+        val cols = min(16, (atlasW / cellW).coerceAtLeast(1))
+        val rows = ceil(chars.size.toDouble() / cols.toDouble()).toInt()
         val atlasH = max(256, (rows * cellH + 31) / 32 * 32)
 
         val bitmap = Bitmap.createBitmap(atlasW, atlasH, Bitmap.Config.ARGB_8888)
@@ -173,9 +177,12 @@ internal class GlFontAtlas(
         val padding = 2
         val cellW = ceil(paint.measureText("W") + (padding * 2)).toInt()
         val cellH = ceil(lineHeightPx + (padding * 2)).toInt()
-        val cols = 16
-        val rows = ceil(chars.size.toDouble() / cols.toDouble()).toInt()
         val atlasW = 512
+        // Grid columns must fit the atlas: a wide cell (bold/large face)
+        // would otherwise push the last column off-atlas, leaving its
+        // glyphs (u0 > 1) blank. Shrink the grid instead of overflowing.
+        val cols = min(16, (atlasW / cellW).coerceAtLeast(1))
+        val rows = ceil(chars.size.toDouble() / cols.toDouble()).toInt()
         val atlasH = max(256, (rows * cellH + 31) / 32 * 32)
 
         val bitmap = Bitmap.createBitmap(atlasW, atlasH, Bitmap.Config.ARGB_8888)

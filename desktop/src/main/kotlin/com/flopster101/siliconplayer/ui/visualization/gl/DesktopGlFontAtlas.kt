@@ -9,6 +9,7 @@ import java.nio.ByteBuffer
 import java.nio.ByteOrder
 import kotlin.math.ceil
 import kotlin.math.max
+import kotlin.math.min
 
 internal object DesktopGlFontAtlas {
     data class AtlasUploadData(
@@ -71,9 +72,12 @@ internal object DesktopGlFontAtlas {
         }
         val cellW = ceil(maxAdvance + (padding * 2)).toInt().coerceAtLeast(16)
         val cellH = ceil(measuredLineHeight + (padding * 2)).toInt().coerceAtLeast(16)
-        val cols = 16
-        val rows = ceil(chars.size.toDouble() / cols.toDouble()).toInt()
         val atlasW = 512
+        // Grid columns must fit the atlas: a wide cell (bold/large face)
+        // would otherwise push the last column off-atlas, leaving its
+        // glyphs (u0 > 1) blank. Shrink the grid instead of overflowing.
+        val cols = min(16, (atlasW / cellW).coerceAtLeast(1))
+        val rows = ceil(chars.size.toDouble() / cols.toDouble()).toInt()
         val atlasH = max(256, (rows * cellH + 31) / 32 * 32)
 
         val atlasImg = BufferedImage(atlasW, atlasH, BufferedImage.TYPE_INT_ARGB)
