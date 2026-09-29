@@ -370,7 +370,16 @@ private class SiliconNativeDesktopRenderThread(
                                     else -> Font.MONOSPACED
                                 }
                             }
-                            val uploadData = DesktopGlFontAtlas.createAtlasUploadData(fontName = fontName, baseFontSizePx = 32f)
+                            val uploadData = if (frame.mode == 3) {
+                                DesktopGlFontAtlas.createAtlasUploadData(
+                                    fontName = Font.SANS_SERIF,
+                                    fontResourcePath = "/fonts/vumeters/roboto_medium.ttf",
+                                    baseFontSizePx = 32f,
+                                    bold = false
+                                )
+                            } else {
+                                DesktopGlFontAtlas.createAtlasUploadData(fontName = fontName, baseFontSizePx = 32f)
+                            }
                             SiliconVisNativeBridge.nativeSetFontAtlas(
                                 handle = visHandle,
                                 byteBuffer = uploadData.pixelBuffer,

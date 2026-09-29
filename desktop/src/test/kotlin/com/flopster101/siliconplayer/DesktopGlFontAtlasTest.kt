@@ -44,19 +44,28 @@ class DesktopGlFontAtlasTest {
     }
 
     @Test
+    fun bundledVuFontResourceIsOnTheClasspath() {
+        val stream = DesktopGlFontAtlas::class.java.getResourceAsStream("/fonts/vumeters/roboto_medium.ttf")
+        assertTrue("roboto_medium.ttf missing from resources", stream != null)
+        stream?.close()
+    }
+
+    @Test
     fun allScopeFontsKeepEveryGlyphOnAtlas() {
         val fonts = listOf(
-            null,
-            "/fonts/scope/raccoon_serif_base.ttf",
-            "/fonts/scope/raccoon_serif_mono.ttf",
-            "/fonts/scope/retro_pixel_cute_mono.ttf",
-            "/fonts/scope/retro_pixel_thick.ttf"
+            Pair(null, true),
+            Pair("/fonts/scope/raccoon_serif_base.ttf", true),
+            Pair("/fonts/scope/raccoon_serif_mono.ttf", true),
+            Pair("/fonts/scope/retro_pixel_cute_mono.ttf", true),
+            Pair("/fonts/scope/retro_pixel_thick.ttf", true),
+            Pair("/fonts/vumeters/roboto_medium.ttf", false)
         )
-        for (resourcePath in fonts) {
+        for ((resourcePath, bold) in fonts) {
             val upload = DesktopGlFontAtlas.createAtlasUploadData(
                 fontName = Font.SANS_SERIF,
                 fontResourcePath = resourcePath,
-                baseFontSizePx = 32f
+                baseFontSizePx = 32f,
+                bold = bold
             )
             val cells = parseGlyphs(upload)
             assertEquals(resourcePath, 122, cells.size)

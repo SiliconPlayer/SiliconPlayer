@@ -25,18 +25,20 @@ internal object DesktopGlFontAtlas {
     fun createAtlasUploadData(
         fontName: String = Font.MONOSPACED,
         fontResourcePath: String? = null,
-        baseFontSizePx: Float = 32f
+        baseFontSizePx: Float = 32f,
+        bold: Boolean = true
     ): AtlasUploadData {
         val requestedSize = baseFontSizePx.toInt().coerceAtLeast(12)
+        val style = if (bold) Font.BOLD else Font.PLAIN
         val font = if (fontResourcePath != null) {
             runCatching {
                 DesktopGlFontAtlas.javaClass.getResourceAsStream(fontResourcePath)?.use {
-                    Font.createFont(Font.TRUETYPE_FONT, it).deriveFont(Font.BOLD, requestedSize.toFloat())
+                    Font.createFont(Font.TRUETYPE_FONT, it).deriveFont(style, requestedSize.toFloat())
                 }
             }.getOrNull()
-                ?: return createAtlasUploadData(fontName = fontName, baseFontSizePx = baseFontSizePx)
+                ?: return createAtlasUploadData(fontName = fontName, baseFontSizePx = baseFontSizePx, bold = bold)
         } else {
-            Font(fontName, Font.BOLD, requestedSize)
+            Font(fontName, style, requestedSize)
         }
         val dummyImg = BufferedImage(1, 1, BufferedImage.TYPE_INT_ARGB)
         val dummyG = dummyImg.createGraphics()
@@ -48,7 +50,7 @@ internal object DesktopGlFontAtlas {
         // The bundled pixel fonts miss symbols Android backfills from the
         // system font (bullets, sharps, box drawing); rasterize those cells
         // from a fallback face like Android's Minikin fallback does.
-        val fallbackFont = Font(Font.SANS_SERIF, Font.BOLD, requestedSize)
+        val fallbackFont = Font(Font.SANS_SERIF, style, requestedSize)
         dummyG.font = fallbackFont
         val fallbackFm = dummyG.fontMetrics
         dummyG.dispose()

@@ -203,3 +203,9 @@ id = "core.ufmod"
 spdx = "MIT"
 source = "external/ufmod_c"
 texts = ["external/ufmod_c/LICENSE"]
+
+[[dep]]
+id = "lib.roboto"
+spdx = "Apache-2.0"
+texts = ["tools/licenses/Apache-2.0.txt"]
+note = "Bundled Roboto Medium; VU meter typeface on Android and desktop."
