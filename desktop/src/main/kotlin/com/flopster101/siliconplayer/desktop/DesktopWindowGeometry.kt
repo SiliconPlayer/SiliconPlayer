@@ -18,7 +18,8 @@ internal data class DesktopWindowGeometry(
     val widthDp: Float,
     val heightDp: Float,
     val xDp: Float?,
-    val yDp: Float?
+    val yDp: Float?,
+    val isMaximized: Boolean = false
 )
 
 // Best-effort restore of the last window size and position. A missing or
@@ -36,7 +37,8 @@ internal fun loadDesktopWindowGeometry(configDir: File = DesktopPaths.configDir(
             widthDp = width.coerceIn(DesktopWindowMinWidthDp, DesktopWindowMaxWidthDp),
             heightDp = height.coerceIn(DesktopWindowMinHeightDp, DesktopWindowMaxHeightDp),
             xDp = root.optDouble("xDp", Double.NaN).toFloat().takeIf { it.isFinite() },
-            yDp = root.optDouble("yDp", Double.NaN).toFloat().takeIf { it.isFinite() }
+            yDp = root.optDouble("yDp", Double.NaN).toFloat().takeIf { it.isFinite() },
+            isMaximized = root.optBoolean("isMaximized", false)
         )
     }.getOrNull()
 }
@@ -53,5 +55,6 @@ internal fun saveDesktopWindowGeometry(
         root.put("xDp", geometry.xDp.toDouble())
         root.put("yDp", geometry.yDp.toDouble())
     }
+    if (geometry.isMaximized) root.put("isMaximized", true)
     writeTextAtomic(File(configDir, DesktopWindowStateFileName), root.toString())
 }

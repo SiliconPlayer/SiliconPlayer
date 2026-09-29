@@ -19,6 +19,7 @@ import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Window
+import androidx.compose.ui.window.WindowPlacement
 import androidx.compose.ui.window.WindowPosition
 import androidx.compose.ui.window.application
 import androidx.compose.ui.window.rememberWindowState
@@ -331,6 +332,11 @@ fun main(args: Array<String>) = application {
             WindowPosition.Absolute(restoredGeometry.xDp.dp, restoredGeometry.yDp.dp)
         } else {
             WindowPosition.PlatformDefault
+        },
+        placement = if (restoredGeometry?.isMaximized == true) {
+            WindowPlacement.Maximized
+        } else {
+            WindowPlacement.Floating
         }
     )
     val backDispatcher = remember { DesktopBackDispatcher() }
@@ -573,13 +579,20 @@ fun main(args: Array<String>) = application {
     var nextToastId by remember { mutableStateOf(0L) }
 
     fun requestApplicationExit() {
+        // A maximized window reports the maximized size, so only persist
+        // the live size when floating; otherwise keep the stored one.
+        val maximized = windowState.placement == WindowPlacement.Maximized
+        val previous = if (maximized) loadDesktopWindowGeometry(DesktopPaths.configDir()) else null
         saveDesktopWindowGeometry(
             DesktopPaths.configDir(),
             DesktopWindowGeometry(
-                widthDp = windowState.size.width.value,
-                heightDp = windowState.size.height.value,
-                xDp = (windowState.position as? WindowPosition.Absolute)?.x?.value,
-                yDp = (windowState.position as? WindowPosition.Absolute)?.y?.value
+                widthDp = previous?.widthDp ?: windowState.size.width.value,
+                heightDp = previous?.heightDp ?: windowState.size.height.value,
+                xDp = previous?.xDp
+                    ?: (windowState.position as? WindowPosition.Absolute)?.x?.value,
+                yDp = previous?.yDp
+                    ?: (windowState.position as? WindowPosition.Absolute)?.y?.value,
+                isMaximized = maximized
             )
         )
         session.dispose()

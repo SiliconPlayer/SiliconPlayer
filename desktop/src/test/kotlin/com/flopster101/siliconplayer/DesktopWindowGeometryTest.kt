@@ -5,7 +5,9 @@ import com.flopster101.siliconplayer.desktop.DesktopWindowStateFileName
 import com.flopster101.siliconplayer.desktop.loadDesktopWindowGeometry
 import com.flopster101.siliconplayer.desktop.saveDesktopWindowGeometry
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.io.File
 
@@ -66,6 +68,34 @@ class DesktopWindowGeometryTest {
             val loaded = loadDesktopWindowGeometry(dir)!!
             assertEquals(480f, loaded.widthDp)
             assertEquals(4320f, loaded.heightDp)
+        } finally {
+            dir.deleteRecursively()
+        }
+    }
+
+    @Test
+    fun maximizedFlagRoundTrips() {
+        val dir = createTempDir("window-geometry-test")
+        try {
+            saveDesktopWindowGeometry(
+                dir,
+                DesktopWindowGeometry(widthDp = 1280f, heightDp = 800f, xDp = 64f, yDp = 32f, isMaximized = true)
+            )
+            assertTrue(loadDesktopWindowGeometry(dir)!!.isMaximized)
+        } finally {
+            dir.deleteRecursively()
+        }
+    }
+
+    @Test
+    fun maximizedFlagDefaultsToFalse() {
+        val dir = createTempDir("window-geometry-test")
+        try {
+            saveDesktopWindowGeometry(
+                dir,
+                DesktopWindowGeometry(widthDp = 1100f, heightDp = 750f, xDp = null, yDp = null)
+            )
+            assertFalse(loadDesktopWindowGeometry(dir)!!.isMaximized)
         } finally {
             dir.deleteRecursively()
         }
