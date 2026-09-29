@@ -79,14 +79,16 @@ void OscilloscopeRenderer::buildGeometry() {
     gridLines_.clear();
     waveLinesLeft_.clear();
     waveLinesRight_.clear();
+    waveStripLeft_.clear();
+    waveStripRight_.clear();
 
     if (widthPx_ <= 0 || heightPx_ <= 0) return;
     float w = static_cast<float>(widthPx_);
     float h = static_cast<float>(heightPx_);
 
     gridLines_.reserve(24);
-    if (!pcmLeft_.empty()) waveLinesLeft_.reserve(pcmLeft_.size() * 4);
-    if (!pcmRight_.empty()) waveLinesRight_.reserve(pcmRight_.size() * 4);
+    if (!pcmLeft_.empty()) waveLinesLeft_.reserve(pcmLeft_.size() * 6);
+    if (!pcmRight_.empty()) waveLinesRight_.reserve(pcmRight_.size() * 6);
 
     // 1. Grid & Centerline
     if (showGrid_) {
@@ -119,7 +121,7 @@ void OscilloscopeRenderer::buildGeometry() {
         }
     }
 
-    // 2. Waveforms
+    // 2. Waveforms as solid ribbons, the channel scope stroke idiom.
     if (stereo_) {
         float midY1 = h * 0.25f;
         float midY2 = h * 0.75f;
@@ -127,20 +129,16 @@ void OscilloscopeRenderer::buildGeometry() {
 
         if (pcmLeft_.size() >= 2) {
             float stepX = w / static_cast<float>(pcmLeft_.size() - 1);
-            for (size_t i = 0; i < pcmLeft_.size() - 1; ++i) {
+            for (size_t i = 0; i < pcmLeft_.size(); ++i) {
                 waveLinesLeft_.push_back(i * stepX);
                 waveLinesLeft_.push_back(midY1 - pcmLeft_[i] * maxAmp);
-                waveLinesLeft_.push_back((i + 1) * stepX);
-                waveLinesLeft_.push_back(midY1 - pcmLeft_[i + 1] * maxAmp);
             }
         }
         if (pcmRight_.size() >= 2) {
             float stepX = w / static_cast<float>(pcmRight_.size() - 1);
-            for (size_t i = 0; i < pcmRight_.size() - 1; ++i) {
+            for (size_t i = 0; i < pcmRight_.size(); ++i) {
                 waveLinesRight_.push_back(i * stepX);
                 waveLinesRight_.push_back(midY2 - pcmRight_[i] * maxAmp);
-                waveLinesRight_.push_back((i + 1) * stepX);
-                waveLinesRight_.push_back(midY2 - pcmRight_[i + 1] * maxAmp);
             }
         }
     } else {
@@ -148,14 +146,15 @@ void OscilloscopeRenderer::buildGeometry() {
         float maxAmp = h * 0.44f;
         if (pcmLeft_.size() >= 2) {
             float stepX = w / static_cast<float>(pcmLeft_.size() - 1);
-            for (size_t i = 0; i < pcmLeft_.size() - 1; ++i) {
+            for (size_t i = 0; i < pcmLeft_.size(); ++i) {
                 waveLinesLeft_.push_back(i * stepX);
                 waveLinesLeft_.push_back(midY - pcmLeft_[i] * maxAmp);
-                waveLinesLeft_.push_back((i + 1) * stepX);
-                waveLinesLeft_.push_back(midY - pcmLeft_[i + 1] * maxAmp);
             }
         }
     }
+    const float halfW = lineWidthPx_ * 0.5f;
+    gl::appendRoundJoinRibbon(waveStripLeft_, waveLinesLeft_.data(), waveLinesLeft_.size() / 2, halfW);
+    gl::appendRoundJoinRibbon(waveStripRight_, waveLinesRight_.data(), waveLinesRight_.size() / 2, halfW);
 }
 
 void OscilloscopeRenderer::render() {
@@ -172,23 +171,21 @@ void OscilloscopeRenderer::render() {
         );
     }
 
-    if (!waveLinesLeft_.empty()) {
-        flatRenderer_.drawLines(
-            waveLinesLeft_.data(),
-            static_cast<int>(waveLinesLeft_.size() / 2),
+    if (!waveStripLeft_.empty()) {
+        flatRenderer_.drawTriangles(
+            waveStripLeft_.data(),
+            static_cast<int>(waveStripLeft_.size() / 2),
             waveColorArgb_,
-            lineWidthPx_,
             static_cast<float>(widthPx_),
             static_cast<float>(heightPx_)
         );
     }
 
-    if (!waveLinesRight_.empty()) {
-        flatRenderer_.drawLines(
-            waveLinesRight_.data(),
-            static_cast<int>(waveLinesRight_.size() / 2),
+    if (!waveStripRight_.empty()) {
+        flatRenderer_.drawTriangles(
+            waveStripRight_.data(),
+            static_cast<int>(waveStripRight_.size() / 2),
             waveColorArgb_,
-            lineWidthPx_,
             static_cast<float>(widthPx_),
             static_cast<float>(heightPx_)
         );

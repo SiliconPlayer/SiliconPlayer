@@ -334,4 +334,89 @@ void GlWaveLineRenderer::draw(
     glDisableVertexAttribArray(distLoc_);
 }
 
+void appendRoundJoinRibbon(std::vector<float>& outPairs, const float* positions2D, size_t pointCount, float halfWidthPx) {
+    if (!positions2D || pointCount < 2 || halfWidthPx <= 0.0f) return;
+    // Channel scope stroke idiom: per-segment quads plus a disc fan wherever
+    // the path turns, so corners keep full width. Opaque flat finish; MSAA
+    // resolves the silhouette.
+    std::vector<float> cx;
+    std::vector<float> cy;
+    cx.reserve(pointCount);
+    cy.reserve(pointCount);
+    for (size_t i = 0; i < pointCount; ++i) {
+        const float x = positions2D[i * 2];
+        const float y = positions2D[i * 2 + 1];
+        if (!cx.empty()) {
+            const float ddx = x - cx.back();
+            const float ddy = y - cy.back();
+            if (ddx * ddx + ddy * ddy < 1e-8f) continue;
+        }
+        cx.push_back(x);
+        cy.push_back(y);
+    }
+    // Keep the tail sample; a dropped endpoint shortens the trace.
+    const float lastX = positions2D[(pointCount - 1) * 2];
+    const float lastY = positions2D[(pointCount - 1) * 2 + 1];
+    if (cx.empty() || cx.back() != lastX || cy.back() != lastY) {
+        cx.push_back(lastX);
+        cy.push_back(lastY);
+    }
+    const size_t n = cx.size();
+    if (n < 2) return;
+    for (size_t k = 0; k + 1 < n; ++k) {
+        float dx = cx[k + 1] - cx[k];
+        float dy = cy[k + 1] - cy[k];
+        // Double-wide libm: float sqrt/atan2 resolve past Debian-stable glibc.
+        const float len = std::sqrt(static_cast<double>(dx * dx + dy * dy));
+        if (len < 1e-4f) continue;
+        dx /= len;
+        dy /= len;
+        const float ox = -dy * halfWidthPx;
+        const float oy = dx * halfWidthPx;
+        outPairs.push_back(cx[k] + ox); outPairs.push_back(cy[k] + oy);
+        outPairs.push_back(cx[k + 1] + ox); outPairs.push_back(cy[k + 1] + oy);
+        outPairs.push_back(cx[k] - ox); outPairs.push_back(cy[k] - oy);
+        outPairs.push_back(cx[k + 1] + ox); outPairs.push_back(cy[k + 1] + oy);
+        outPairs.push_back(cx[k + 1] - ox); outPairs.push_back(cy[k + 1] - oy);
+        outPairs.push_back(cx[k] - ox); outPairs.push_back(cy[k] - oy);
+    }
+    const int segments = 10;
+    for (size_t k = 1; k + 1 < n; ++k) {
+        float d0x = cx[k] - cx[k - 1];
+        float d0y = cy[k] - cy[k - 1];
+        float d1x = cx[k + 1] - cx[k];
+        float d1y = cy[k + 1] - cy[k];
+        const float l0 = std::sqrt(static_cast<double>(d0x * d0x + d0y * d0y));
+        const float l1 = std::sqrt(static_cast<double>(d1x * d1x + d1y * d1y));
+        if (l0 < 1e-4f || l1 < 1e-4f) continue;
+        d0x /= l0;
+        d0y /= l0;
+        d1x /= l1;
+        d1y /= l1;
+        const float dot = d0x * d1x + d0y * d1y;
+        if (dot > 0.999f) continue;
+        const float px = cx[k];
+        const float py = cy[k];
+        float prevX = px - d0y * halfWidthPx;
+        float prevY = py + d0x * halfWidthPx;
+        const float endX = px - d1y * halfWidthPx;
+        const float endY = py + d1x * halfWidthPx;
+        const float angle0 = std::atan2(static_cast<double>(prevY - py), static_cast<double>(prevX - px));
+        const float angle1 = std::atan2(static_cast<double>(endY - py), static_cast<double>(endX - px));
+        float sweep = angle1 - angle0;
+        if (sweep > static_cast<float>(M_PI)) sweep -= 2.0f * static_cast<float>(M_PI);
+        if (sweep < -static_cast<float>(M_PI)) sweep += 2.0f * static_cast<float>(M_PI);
+        for (int s = 1; s <= segments; ++s) {
+            const float a = angle0 + sweep * (static_cast<float>(s) / segments);
+            const float vx = px + std::cos(a) * halfWidthPx;
+            const float vy = py + std::sin(a) * halfWidthPx;
+            outPairs.push_back(px); outPairs.push_back(py);
+            outPairs.push_back(prevX); outPairs.push_back(prevY);
+            outPairs.push_back(vx); outPairs.push_back(vy);
+            prevX = vx;
+            prevY = vy;
+        }
+    }
+}
+
 } // namespace silicon::vis::gl

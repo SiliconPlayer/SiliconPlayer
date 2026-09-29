@@ -63,6 +63,8 @@ private:
     std::vector<float> gridLines_;
     std::vector<float> waveLinesLeft_;
     std::vector<float> waveLinesRight_;
+    std::vector<float> waveStripLeft_;
+    std::vector<float> waveStripRight_;
 };
 
 } // namespace silicon::vis

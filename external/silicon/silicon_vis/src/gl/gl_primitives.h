@@ -116,4 +116,9 @@ private:
     float alpha_ = 1.0f;
 };
 
+// Expands a polyline into a round-joined ribbon of position pairs for
+// GlFlatColorRenderer::drawTriangles. Same stroke idiom the channel scope
+// uses: opaque geometry, MSAA resolves the silhouette.
+void appendRoundJoinRibbon(std::vector<float>& outPairs, const float* positions2D, size_t pointCount, float halfWidthPx);
+
 } // namespace silicon::vis::gl
