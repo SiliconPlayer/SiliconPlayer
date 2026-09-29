@@ -117,12 +117,7 @@ internal fun AboutSettingsBody(
         }
         Spacer(modifier = Modifier.size(8.dp))
 
-        Text(
-            text = "Audio cores",
-            style = MaterialTheme.typography.labelLarge,
-            color = MaterialTheme.colorScheme.onSurfaceVariant
-        )
-        Spacer(modifier = Modifier.size(4.dp))
+        SettingsSectionLabel(text = "Audio cores")
         coreEntries.forEachIndexed { index, entry ->
             AboutEntityListItemCard(
                 entity = entry,
@@ -135,12 +130,7 @@ internal fun AboutSettingsBody(
         }
         Spacer(modifier = Modifier.size(8.dp))
 
-        Text(
-            text = "Libraries",
-            style = MaterialTheme.typography.labelLarge,
-            color = MaterialTheme.colorScheme.onSurfaceVariant
-        )
-        Spacer(modifier = Modifier.size(4.dp))
+        SettingsSectionLabel(text = "Libraries")
         libraryEntries.forEachIndexed { index, entry ->
             AboutEntityListItemCard(
                 entity = entry,
