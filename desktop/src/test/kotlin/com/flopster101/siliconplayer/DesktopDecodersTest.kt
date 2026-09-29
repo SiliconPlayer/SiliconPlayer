@@ -10,21 +10,21 @@ class DesktopDecodersTest {
 
     private val allExpectedDecoders = setOf(
         "FFmpeg",
-        "LibOpenMPT",
+        "libopenmpt",
         "libxmp",
         "uFMOD-C",
         "ayfly",
         "VGMPlay",
         "Game Music Emu",
         "cRSID",
-        "LibSIDPlayFP",
-        "LazyUSF2",
-        "Vio2SF",
+        "libsidplayfp",
+        "lazyusf2",
+        "vio2sf",
         "SC68",
         "AdPlug",
         "UADE",
         "HivelyTracker",
-        "Klystrack-plus",
+        "klystrack-plus",
         "Furnace"
     )
 
@@ -73,7 +73,7 @@ class DesktopDecodersTest {
     @Test
     fun testLibOpenMptDecoder() {
         testSingleDecoder(
-            "LibOpenMPT",
+            "libopenmpt",
             "/home/flopster101/Music/SyncedMusic/TrackerMusic/FORMAT-Modtracker/spin_me_round.xm"
         )
     }
@@ -129,7 +129,7 @@ class DesktopDecodersTest {
     @Test
     fun testLibSidPlayFpDecoder() {
         testSingleDecoder(
-            "LibSIDPlayFP",
+            "libsidplayfp",
             "/home/flopster101/Music/SyncedMusic/Chips/C64/Mathematica_tune_1_8580.sid"
         )
     }
@@ -137,7 +137,7 @@ class DesktopDecodersTest {
     @Test
     fun testLazyUsf2Decoder() {
         testSingleDecoder(
-            "LazyUSF2",
+            "lazyusf2",
             "/home/flopster101/Music/SyncedMusic/Chips/VGM/N64/Diddy Kong Racing (EMU).zophar/35 Gets Balloon from Genie.miniusf"
         )
     }
@@ -145,7 +145,7 @@ class DesktopDecodersTest {
     @Test
     fun testVio2sfDecoder() {
         testSingleDecoder(
-            "Vio2SF",
+            "vio2sf",
             "/home/flopster101/Music/SyncedMusic/Chips/VGM/DS/Kirby Super Star Ultra (EMU).zophar/050 Vs. Meta Knight.mini2sf"
         )
     }
@@ -185,7 +185,7 @@ class DesktopDecodersTest {
     @Test
     fun testKlystrackDecoder() {
         testSingleDecoder(
-            "Klystrack-plus",
+            "klystrack-plus",
             "/home/flopster101/Music/SyncedMusic/TrackerMusic/FORMAT-Klystrack/smp-dpintro.kt"
         )
     }

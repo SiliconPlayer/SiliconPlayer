@@ -11,7 +11,7 @@ class SettingsNavigationTest {
     fun testCanOpenCoreSettingsForKnownDecodersAndAliases() {
         assertTrue(canOpenCoreSettingsForDecoder("uFMOD-C"))
         assertTrue(canOpenCoreSettingsForDecoder("ufmod"))
-        assertTrue(canOpenCoreSettingsForDecoder("LibOpenMPT"))
+        assertTrue(canOpenCoreSettingsForDecoder("libopenmpt"))
         assertTrue(canOpenCoreSettingsForDecoder("openmpt"))
         assertTrue(canOpenCoreSettingsForDecoder("FFmpeg"))
         assertTrue(canOpenCoreSettingsForDecoder("ffmpeg"))

@@ -165,7 +165,7 @@ internal object AboutCatalog {
             id = "core.klystrack",
             kind = AboutEntityKind.Core,
             name = DecoderNames.KLYSTRACK,
-            description = "Klystrack-plus module replay core using the klystron audio engine.",
+            description = "klystrack-plus module replay core using the klystron audio engine.",
             author = "Georgy Saraykin (LTVA1) and Klystrack-plus contributors",
             license = "MIT License",
             links = listOf(

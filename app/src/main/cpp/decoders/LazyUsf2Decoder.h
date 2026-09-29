@@ -52,7 +52,7 @@ public:
     std::string getCoreStringInfo(const char* name) override;
     int getCoreIntInfo(const char* name, int fallback) override;
 
-    const char* getName() const override { return "LazyUSF2"; }
+    const char* getName() const override { return "lazyusf2"; }
     static std::vector<std::string> getSupportedExtensions();
 
 private:

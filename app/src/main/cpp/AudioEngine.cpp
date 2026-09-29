@@ -102,7 +102,7 @@ namespace {
             openMptStaticInfo.optionApplyPolicy = [](const char*) {
                 return AudioDecoder::OPTION_APPLY_LIVE;
             };
-            DecoderRegistry::getInstance().registerDecoder("LibOpenMPT", getStaticOpenMptExtensions(), []() {
+            DecoderRegistry::getInstance().registerDecoder("libopenmpt", getStaticOpenMptExtensions(), []() {
                 return DecoderPluginLoader::getInstance().createDecoder("libsiliconplayer_openmpt_decoder.so");
             }, 10, std::move(openMptStaticInfo));
 
@@ -295,7 +295,7 @@ namespace {
                 }
                 return AudioDecoder::OPTION_APPLY_LIVE;
             };
-            DecoderRegistry::getInstance().registerDecoder("LibSIDPlayFP", {
+            DecoderRegistry::getInstance().registerDecoder("libsidplayfp", {
                     "sid", "psid", "rsid", "mus", "str", "prg", "p00", "c64", "dat"
             }, []() {
                 return DecoderPluginLoader::getInstance().createDecoder("libsiliconplayer_libsidplayfp_decoder.so");
@@ -322,7 +322,7 @@ namespace {
                 }
                 return AudioDecoder::OPTION_APPLY_LIVE;
             };
-            DecoderRegistry::getInstance().registerDecoder("LazyUSF2", {"usf", "miniusf"}, []() {
+            DecoderRegistry::getInstance().registerDecoder("lazyusf2", {"usf", "miniusf"}, []() {
                 return DecoderPluginLoader::getInstance().createDecoder("libsiliconplayer_lazyusf2_decoder.so");
             }, 8, std::move(lazyUsf2StaticInfo));
 
@@ -343,7 +343,7 @@ namespace {
             vio2sfStaticInfo.optionApplyPolicy = [](const char*) {
                 return AudioDecoder::OPTION_APPLY_LIVE;
             };
-            DecoderRegistry::getInstance().registerDecoder("Vio2SF", {"2sf", "mini2sf"}, []() {
+            DecoderRegistry::getInstance().registerDecoder("vio2sf", {"2sf", "mini2sf"}, []() {
                 return DecoderPluginLoader::getInstance().createDecoder("libsiliconplayer_vio2sf_decoder.so");
             }, 9, std::move(vio2sfStaticInfo));
 
@@ -480,7 +480,7 @@ namespace {
             klystrackStaticInfo.optionApplyPolicy = [](const char*) {
                 return AudioDecoder::OPTION_APPLY_LIVE;
             };
-            DecoderRegistry::getInstance().registerDecoder("Klystrack-plus", {"kt"}, []() {
+            DecoderRegistry::getInstance().registerDecoder("klystrack-plus", {"kt"}, []() {
                 return DecoderPluginLoader::getInstance().createDecoder("libsiliconplayer_klystrack_decoder.so");
             }, 16, std::move(klystrackStaticInfo));
 

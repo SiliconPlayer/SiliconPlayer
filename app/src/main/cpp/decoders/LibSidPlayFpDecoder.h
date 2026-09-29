@@ -87,7 +87,7 @@ public:
     std::string getCoreStringInfo(const char* name) override;
     int getCoreIntInfo(const char* name, int fallback = 0) override;
 
-    const char* getName() const override { return "LibSIDPlayFP"; }
+    const char* getName() const override { return "libsidplayfp"; }
     static std::vector<std::string> getSupportedExtensions();
 
 private:

@@ -74,7 +74,7 @@ public:
     std::vector<float> getCoreFloatVectorInfo(const char* name) override;
 
     // Framework
-    const char* getName() const override { return "LibOpenMPT"; }
+    const char* getName() const override { return "libopenmpt"; }
     static std::vector<std::string> getSupportedExtensions();
 
 private:
