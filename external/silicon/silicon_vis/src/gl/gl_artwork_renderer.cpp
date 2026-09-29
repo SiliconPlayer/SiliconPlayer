@@ -247,6 +247,43 @@ void GlArtworkRenderer::ensureArtworkTexture() {
     }
 }
 
+// Spreads opaque RGB into fully transparent neighbors so mipmap averaging
+// never samples the cleared-black backing. Alpha channel untouched.
+static void bleedTransparentTexels(std::vector<uint8_t>& rgba, int32_t width, int32_t height) {
+    for (int pass = 0; pass < 4; ++pass) {
+        bool changed = false;
+        for (int32_t y = 0; y < height; ++y) {
+            for (int32_t x = 0; x < width; ++x) {
+                uint8_t* px = &rgba[(static_cast<size_t>(y) * width + x) * 4];
+                if (px[3] != 0) continue;
+                int r = 0;
+                int g = 0;
+                int b = 0;
+                int n = 0;
+                const int dx[4] = {-1, 1, 0, 0};
+                const int dy[4] = {0, 0, -1, 1};
+                for (int i = 0; i < 4; ++i) {
+                    const int32_t nx = x + dx[i];
+                    const int32_t ny = y + dy[i];
+                    if (nx < 0 || ny < 0 || nx >= width || ny >= height) continue;
+                    const uint8_t* q = &rgba[(static_cast<size_t>(ny) * width + nx) * 4];
+                    if (q[3] == 0) continue;
+                    r += q[0];
+                    g += q[1];
+                    b += q[2];
+                    ++n;
+                }
+                if (n == 0) continue;
+                px[0] = static_cast<uint8_t>(r / n);
+                px[1] = static_cast<uint8_t>(g / n);
+                px[2] = static_cast<uint8_t>(b / n);
+                changed = true;
+            }
+        }
+        if (!changed) break;
+    }
+}
+
 void GlArtworkRenderer::ensureIconTexture() {
     if (!iconTextureDirty_) return;
     iconTextureDirty_ = false;
@@ -257,13 +294,21 @@ void GlArtworkRenderer::ensureIconTexture() {
     }
 
     if (!pendingIconPixels_.empty() && iconWidth_ > 0 && iconHeight_ > 0) {
+        // Mipmap minification averages transparent-black texels into edges
+        // as a dark halo; bleed opaque colors outward first. Alpha untouched.
+        bleedTransparentTexels(pendingIconPixels_, iconWidth_, iconHeight_);
         glGenTextures(1, &iconTextureId_);
         glBindTexture(GL_TEXTURE_2D, iconTextureId_);
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+        // Minified icons shimmer without mipmaps; both hosts upload square
+        // power-of-two bitmaps, the only case GLES2 mipmaps safely.
+        const bool pot = (iconWidth_ & (iconWidth_ - 1)) == 0 &&
+            (iconHeight_ & (iconHeight_ - 1)) == 0;
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, pot ? GL_LINEAR_MIPMAP_LINEAR : GL_LINEAR);
         glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
         glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
         glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
         glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, iconWidth_, iconHeight_, 0, GL_RGBA, GL_UNSIGNED_BYTE, pendingIconPixels_.data());
+        if (pot) glGenerateMipmap(GL_TEXTURE_2D);
         glBindTexture(GL_TEXTURE_2D, 0);
     }
 }
