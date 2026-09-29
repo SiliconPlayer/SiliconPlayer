@@ -114,7 +114,7 @@ extensions.configure<com.android.build.api.dsl.ApplicationExtension>("android") 
         minSdk = 21
         targetSdk = 34
         versionCode = 1000
-        versionName = "0.1.0"
+        versionName = property("siliconplayer.version") as String
         buildConfigField("String", "GIT_SHA", "\"${gitShortSha()}\"")
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables {

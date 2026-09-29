@@ -254,9 +254,9 @@ fun ProvideDesktopPlatformAdapters(
 
     val appVersionInfo = remember {
         AppVersionInfo(
-            versionName = "1.0.0",
+            versionName = DesktopBuildConfig.VERSION_NAME,
             abiOrArch = System.getProperty("os.arch") ?: "desktop",
-            gitSha = "desktop"
+            gitSha = DesktopBuildConfig.GIT_SHA
         )
     }
 
