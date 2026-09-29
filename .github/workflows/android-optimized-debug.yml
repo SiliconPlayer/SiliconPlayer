@@ -127,7 +127,7 @@ jobs:
       - name: Get app version
         id: version
         run: |
-          VERSION_NAME=$(grep -oP 'versionName\s*=\s*"\K[^"]+' app/build.gradle.kts)
+          VERSION_NAME=$(grep -oP '^siliconplayer\.version=\K.+' gradle.properties)
           echo "version_base=${VERSION_NAME}" >> "$GITHUB_OUTPUT"
           echo "version_name=${VERSION_NAME}-optdebug" >> "$GITHUB_OUTPUT"
 
@@ -271,7 +271,7 @@ jobs:
       - name: Get app version
         id: version
         run: |
-          VERSION_NAME=$(grep -oP 'packageVersion\s*=\s*"\K[^"]+' desktop/build.gradle.kts)
+          VERSION_NAME=$(grep -oP '^siliconplayer\.version=\K.+' gradle.properties)
           echo "version_name=${VERSION_NAME}" >> "$GITHUB_OUTPUT"
 
       - name: Upload AppImage artifact
