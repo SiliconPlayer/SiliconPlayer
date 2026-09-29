@@ -376,6 +376,48 @@ internal object AboutCatalog {
             integrationNotes = listOf(
                 "Renders the projectM visualization backend on both platforms."
             )
+        ),
+        AboutEntity(
+            id = "lib.fftw",
+            kind = AboutEntityKind.Library,
+            name = "FFTW",
+            description = "Fast Fourier transform library used by Furnace.",
+            author = "Matteo Frigo and Steven G. Johnson",
+            license = "GPL-2.0-or-later",
+            links = listOf(
+                AboutEntityLink("Source", "https://www.fftw.org/")
+            ),
+            integrationNotes = listOf(
+                "Shipped as built by the furnace tree; version follows core.furnace."
+            )
+        ),
+        AboutEntity(
+            id = "lib.fmt",
+            kind = AboutEntityKind.Library,
+            name = "fmt",
+            description = "Typesafe formatting library used by Furnace.",
+            author = "Victor Zverovich and contributors",
+            license = "MIT",
+            links = listOf(
+                AboutEntityLink("Source", "https://github.com/fmtlib/fmt")
+            ),
+            integrationNotes = listOf(
+                "Shipped as built by the furnace tree; version follows core.furnace."
+            )
+        ),
+        AboutEntity(
+            id = "lib.libsndfile",
+            kind = AboutEntityKind.Library,
+            name = "libsndfile",
+            description = "Audio file IO library used by Furnace.",
+            author = "Erik de Castro Lopo and contributors",
+            license = "LGPL-2.1-or-later",
+            links = listOf(
+                AboutEntityLink("Source", "https://github.com/libsndfile/libsndfile")
+            ),
+            integrationNotes = listOf(
+                "Shipped as built by the furnace tree; version follows core.furnace."
+            )
         )
     )
 

@@ -37,6 +37,9 @@ package under `/usr/share/licenses/siliconplayer/`.
 | lib.smbj_rpc | BSD-3-Clause | 0.11.1.1 | in-tree |
 | lib.json | LicenseRef-JSON | 20240303 | in-tree |
 | lib.projectm | LGPL-2.1-or-later | v4.1.7-359bf780 | `external/projectm` @ `359bf7801e20` |
+| lib.fftw | GPL-2.0-or-later | v0.6pre18-ba46d842 | `external/furnace` @ `ba46d842807c` |
+| lib.fmt | MIT | v0.6pre18-ba46d842 | `external/furnace` @ `ba46d842807c` |
+| lib.libsndfile | LGPL-2.1-or-later | v0.6pre18-ba46d842 | `external/furnace` @ `ba46d842807c` |
 
 **core.vgmplay**: No single license text upstream; per-chip sources carry their own notices.
 
@@ -51,3 +54,9 @@ package under `/usr/share/licenses/siliconplayer/`.
 **lib.smbj_rpc**: JVM dependency; version pinned from gradle/libs.versions.toml.
 
 **lib.json**: Desktop bundles org.json:json; Android uses the framework copy.
+
+**lib.fftw**: Shipped as built by the furnace tree; version follows core.furnace.
+
+**lib.fmt**: Shipped as built by the furnace tree; version follows core.furnace.
+
+**lib.libsndfile**: Shipped as built by the furnace tree; version follows core.furnace.

@@ -176,3 +176,24 @@ id = "lib.projectm"
 spdx = "LGPL-2.1-or-later"
 source = "external/projectm"
 texts = ["external/projectm/LICENSE.txt"]
+
+[[dep]]
+id = "lib.fftw"
+spdx = "GPL-2.0-or-later"
+source = "external/furnace"
+texts = ["external/furnace/extern/fftw/COPYING"]
+note = "Shipped as built by the furnace tree; version follows core.furnace."
+
+[[dep]]
+id = "lib.fmt"
+spdx = "MIT"
+source = "external/furnace"
+texts = ["external/furnace/extern/fmt/LICENSE.rst"]
+note = "Shipped as built by the furnace tree; version follows core.furnace."
+
+[[dep]]
+id = "lib.libsndfile"
+spdx = "LGPL-2.1-or-later"
+source = "external/furnace"
+texts = ["external/furnace/extern/libsndfile-modified/COPYING"]
+note = "Shipped as built by the furnace tree; version follows core.furnace."

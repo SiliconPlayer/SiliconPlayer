@@ -206,7 +206,7 @@ clean_target_artifacts() {
             uade) rm -f "$INSTALL_DIR/lib/libuade.so"* 2>/dev/null || true; rm -rf "$INSTALL_DIR/include/uade" 2>/dev/null || true ;;
             hivelytracker) rm -f "$INSTALL_DIR/lib/libhivelytracker.so"* 2>/dev/null || true; rm -rf "$INSTALL_DIR/include/hivelytracker" 2>/dev/null || true ;;
             klystrack) rm -f "$INSTALL_DIR/lib/libklystrack.so"* 2>/dev/null || true; rm -rf "$INSTALL_DIR/include/klystrack" 2>/dev/null || true ;;
-            furnace) rm -f "$INSTALL_DIR/lib/libfurnace.so"* 2>/dev/null || true; rm -rf "$INSTALL_DIR/include/furnace" 2>/dev/null || true ;;
+            furnace) rm -f "$INSTALL_DIR/lib/libfurnace.so"* "$INSTALL_DIR/lib/libfftw3.so"* "$INSTALL_DIR/lib/libfmt.so"* "$INSTALL_DIR/lib/libsndfile.so"* 2>/dev/null || true; rm -rf "$INSTALL_DIR/include/furnace" 2>/dev/null || true ;;
             projectm) rm -f "$INSTALL_DIR/lib/libprojectM"*.so* 2>/dev/null || true; rm -rf "$INSTALL_DIR/include/projectM"* 2>/dev/null || true ;;
         esac
     done
@@ -867,9 +867,10 @@ build_furnace() {
     rm -rf "$BUILD_DIR" && mkdir -p "$BUILD_DIR"
     cmake $CMAKE_COMMON_FLAGS -S "$PROJECT_PATH" -B "$BUILD_DIR" \
         -DCMAKE_BUILD_TYPE=Release \
-        -DCMAKE_C_FLAGS="$CFLAGS" \
-        -DCMAKE_CXX_FLAGS="$CXXFLAGS" \
+        -DCMAKE_C_FLAGS="$CFLAGS -include $ABSOLUTE_PATH/glibc-compat-symver.h" \
+        -DCMAKE_CXX_FLAGS="$CXXFLAGS -include $ABSOLUTE_PATH/glibc-compat-symver.h" \
         -DCMAKE_POSITION_INDEPENDENT_CODE=ON \
+        -DCMAKE_DISABLE_PRECOMPILE_HEADERS=ON \
         -DBUILD_SHARED_LIBS=ON \
         -DBUILD_GUI=OFF \
         -DUSE_SDL2=OFF \
@@ -905,6 +906,12 @@ build_furnace() {
         return 1
     fi
     cp "$BUILT_LIB" "$INSTALL_DIR/lib/libfurnace.so"
+    for vendored in fftw/libfftw3 fmt/libfmt libsndfile-modified/libsndfile; do
+        if ! cp -d "$BUILD_DIR/extern/${vendored}.so"* "$INSTALL_DIR/lib/"; then
+            echo "Error: furnace vendored dep $vendored not found after build."
+            return 1
+        fi
+    done
     mkdir -p "$INSTALL_DIR/include/furnace/engine" "$INSTALL_DIR/include/furnace/audio"
     cp "$PROJECT_PATH/src/"*.h "$INSTALL_DIR/include/furnace/" 2>/dev/null || true
     cp "$PROJECT_PATH/src/engine/"*.h "$INSTALL_DIR/include/furnace/engine/" 2>/dev/null || true
