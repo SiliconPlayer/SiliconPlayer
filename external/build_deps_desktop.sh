@@ -420,6 +420,9 @@ build_libresid() {
     if [ ! -d "$PROJECT_PATH" ]; then return 0; fi
     if [ "$FORCE_CLEAN" -ne 1 ] && [ -f "$INSTALL_DIR/lib/libresid.so" ]; then return 0; fi
     echo "Building libresid for host..."
+    if [ ! -f "$PROJECT_PATH/configure" ]; then
+        (cd "$PROJECT_PATH" && autoreconf -vfi)
+    fi
     rm -rf "$BUILD_DIR" && mkdir -p "$BUILD_DIR"
     (
         cd "$BUILD_DIR"
@@ -445,6 +448,9 @@ build_libresidfp() {
     if [ ! -d "$PROJECT_PATH" ]; then return 0; fi
     if [ "$FORCE_CLEAN" -ne 1 ] && [ -f "$INSTALL_DIR/lib/libresidfp.so" ]; then return 0; fi
     echo "Building libresidfp for host..."
+    if [ ! -f "$PROJECT_PATH/configure" ]; then
+        (cd "$PROJECT_PATH" && autoreconf -vfi)
+    fi
     rm -rf "$BUILD_DIR" && mkdir -p "$BUILD_DIR"
     (
         cd "$BUILD_DIR"
@@ -463,6 +469,9 @@ build_libsidplayfp() {
     if [ ! -f "$INSTALL_DIR/lib/libresidfp.so" ]; then build_libresidfp; fi
     if [ ! -f "$INSTALL_DIR/lib/libresid.so" ]; then build_libresid; fi
     echo "Building libsidplayfp for host..."
+    if [ ! -f "$PROJECT_PATH/configure" ]; then
+        (cd "$PROJECT_PATH" && autoreconf -vfi)
+    fi
     rm -rf "$BUILD_DIR" && mkdir -p "$BUILD_DIR"
     (
         cd "$BUILD_DIR"
