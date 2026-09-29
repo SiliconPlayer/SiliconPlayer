@@ -254,7 +254,7 @@ jobs:
         if: steps.deps-cache.outputs.cache-hit != 'true'
         run: |
           chmod +x external/build_deps*.sh
-          ./external/build_deps_desktop.sh all all
+          ./external/build_deps_desktop.sh x86_64 all
 
       - name: Build release distributable
         run: |
