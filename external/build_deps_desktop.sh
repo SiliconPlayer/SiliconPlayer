@@ -907,7 +907,7 @@ build_furnace() {
     cmake $CMAKE_COMMON_FLAGS -S "$PROJECT_PATH" -B "$BUILD_DIR" \
         -DCMAKE_BUILD_TYPE=Release \
         -DCMAKE_C_FLAGS="$CFLAGS -include $ABSOLUTE_PATH/glibc-compat-symver.h" \
-        -DCMAKE_CXX_FLAGS="$CXXFLAGS -include $ABSOLUTE_PATH/glibc-compat-symver.h" \
+        -DCMAKE_CXX_FLAGS="$CXXFLAGS -include $ABSOLUTE_PATH/glibc-compat-symver.h -include climits" \
         -DCMAKE_POSITION_INDEPENDENT_CODE=ON \
         -DCMAKE_DISABLE_PRECOMPILE_HEADERS=ON \
         -DBUILD_SHARED_LIBS=ON \
