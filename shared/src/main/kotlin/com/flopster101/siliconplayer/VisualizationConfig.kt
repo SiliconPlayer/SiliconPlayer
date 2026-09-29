@@ -164,6 +164,21 @@ enum class VisualizationChannelScopeWaveRenderMode(
     }
 }
 
+enum class VisualizationChannelScopeAntialiasMethod(
+    val storageValue: String,
+    val label: String,
+    val nativeValue: Int
+) {
+    Msaa("msaa", "MSAA", 0),
+    Fast("fast", "Fast", 1);
+
+    companion object {
+        fun fromStorage(value: String?): VisualizationChannelScopeAntialiasMethod {
+            return entries.firstOrNull { it.storageValue == value } ?: Msaa
+        }
+    }
+}
+
 enum class VisualizationChannelScopeTrackTransition(
     val storageValue: String,
     val label: String,

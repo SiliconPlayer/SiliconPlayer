@@ -46,6 +46,11 @@ public:
     // Offscreen FBO the frame resolves into instead of the window surface
     // (0 = window). Hosts the channel-scope transition's scene texture.
     void setRenderTargetFbo(GLuint fbo) { targetFbo_ = fbo; }
+    // 0 = hardware MSAA resolve, 1 = feathered fast lines in-shader.
+    void setChannelScopeAntialiasMethod(int32_t method) {
+        scopeAntialiasMethod_ = method;
+        channelScope_.setFastLinesEnabled(method == 1);
+    }
 
     // Font Atlas
     void setFontAtlas(
@@ -101,6 +106,9 @@ private:
     int msaaSamples_ = 0;
     bool msaaProbed_ = false;
     bool msaaSupported_ = false;
+
+    // 0 = hardware MSAA resolve, 1 = feathered fast lines (no FBO).
+    int32_t scopeAntialiasMethod_ = 0;
 
     bool probeMsaaSupport();
 

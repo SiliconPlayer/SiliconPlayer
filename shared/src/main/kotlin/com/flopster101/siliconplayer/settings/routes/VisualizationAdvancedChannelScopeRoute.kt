@@ -23,7 +23,8 @@ import java.util.Locale
 
 @Composable
 internal fun VisualizationAdvancedChannelScopeRouteContent(
-    waveRenderModeDefault: VisualizationChannelScopeWaveRenderMode = AppDefaults.Visualization.ChannelScope.waveRenderMode
+    waveRenderModeDefault: VisualizationChannelScopeWaveRenderMode = AppDefaults.Visualization.ChannelScope.waveRenderMode,
+    antialiasMethodDefault: VisualizationChannelScopeAntialiasMethod = AppDefaults.Visualization.ChannelScope.antialiasMethod
 ) {
                         val prefsName = "silicon_player_settings"
                         val scopeWindowKey = "visualization_channel_scope_window_ms"
@@ -35,6 +36,7 @@ internal fun VisualizationAdvancedChannelScopeRouteContent(
                         val scopeTriggerKey = "visualization_channel_scope_trigger_mode"
                         val scopeTriggerAlgorithmKey = "visualization_channel_scope_trigger_algorithm"
                         val scopeWaveRenderModeKey = "visualization_channel_scope_wave_render_mode"
+                        val scopeAntialiasMethodKey = AppPreferenceKeys.VISUALIZATION_CHANNEL_SCOPE_ANTIALIAS_METHOD
                         val scopeTrackTransitionKey = "visualization_channel_scope_track_transition"
                         val scopeFpsModeKey = "visualization_channel_scope_fps_mode"
                         val scopeLineWidthKey = "visualization_channel_scope_line_width_dp"
@@ -105,6 +107,16 @@ internal fun VisualizationAdvancedChannelScopeRouteContent(
                                     prefs.getString(
                                         scopeWaveRenderModeKey,
                                         waveRenderModeDefault.storageValue
+                                    )
+                                )
+                            )
+                        }
+                        var scopeAntialiasMethod by remember {
+                            mutableStateOf(
+                                VisualizationChannelScopeAntialiasMethod.fromStorage(
+                                    prefs.getString(
+                                        scopeAntialiasMethodKey,
+                                        antialiasMethodDefault.storageValue
                                     )
                                 )
                             )
@@ -457,6 +469,7 @@ internal fun VisualizationAdvancedChannelScopeRouteContent(
                         var showTriggerDialog by remember { mutableStateOf(false) }
                         var showTriggerAlgorithmDialog by remember { mutableStateOf(false) }
                         var showWaveRenderModeDialog by remember { mutableStateOf(false) }
+                        var showAntialiasMethodDialog by remember { mutableStateOf(false) }
                         var showTrackTransitionDialog by remember { mutableStateOf(false) }
                         var showFpsModeDialog by remember { mutableStateOf(false) }
                         var showLineWidthDialog by remember { mutableStateOf(false) }
@@ -550,6 +563,12 @@ internal fun VisualizationAdvancedChannelScopeRouteContent(
                                 prefs.getString(
                                     scopeWaveRenderModeKey,
                                     waveRenderModeDefault.storageValue
+                                )
+                            )
+                            scopeAntialiasMethod = VisualizationChannelScopeAntialiasMethod.fromStorage(
+                                prefs.getString(
+                                    scopeAntialiasMethodKey,
+                                    antialiasMethodDefault.storageValue
                                 )
                             )
                             scopeTrackTransition = VisualizationChannelScopeTrackTransition.fromStorage(
@@ -794,6 +813,15 @@ internal fun VisualizationAdvancedChannelScopeRouteContent(
                             value = scopeWaveRenderMode.label,
                             onClick = { showWaveRenderModeDialog = true }
                         )
+                        if (scopeWaveRenderMode == VisualizationChannelScopeWaveRenderMode.Antialiased) {
+                            SettingsRowSpacer()
+                            SettingsValuePickerCard(
+                                title = "Antialiasing method",
+                                description = "MSAA resolves edges in hardware. Fast feathers trace edges in-shader, cheaper on slower devices.",
+                                value = scopeAntialiasMethod.label,
+                                onClick = { showAntialiasMethodDialog = true }
+                            )
+                        }
                         SettingsRowSpacer()
                         SettingsValuePickerCard(
                             title = "Track transition",
@@ -1195,6 +1223,20 @@ internal fun VisualizationAdvancedChannelScopeRouteContent(
                                     prefs.edit().putString(scopeWaveRenderModeKey, mode.storageValue).apply()
                                 },
                                 onDismiss = { showWaveRenderModeDialog = false }
+                            )
+                        }
+                        if (showAntialiasMethodDialog) {
+                            SettingsSingleChoiceDialog(
+                                title = "Antialiasing method",
+                                selectedValue = scopeAntialiasMethod,
+                                options = VisualizationChannelScopeAntialiasMethod.entries.map { method ->
+                                    ChoiceDialogOption(value = method, label = method.label)
+                                },
+                                onSelected = { method ->
+                                    scopeAntialiasMethod = method
+                                    prefs.edit().putString(scopeAntialiasMethodKey, method.storageValue).apply()
+                                },
+                                onDismiss = { showAntialiasMethodDialog = false }
                             )
                         }
                         if (showTrackTransitionDialog) {

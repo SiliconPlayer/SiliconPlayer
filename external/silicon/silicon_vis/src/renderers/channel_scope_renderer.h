@@ -48,6 +48,7 @@ public:
     bool isDcRemovalEnabled() const { return dcRemovalEnabled_; }
     int32_t getTriggerMode() const { return triggerMode_; }
     int32_t getWaveRenderMode() const { return waveRenderMode_; }
+    void setFastLinesEnabled(bool enabled) { fastLinesEnabled_ = enabled; }
 
     void setChannelHistory(int32_t channel, const float* history, int32_t sampleCount);
     void setAllChannelHistories(int32_t channelCount, int32_t samplesPerChannel, const float* flatData, int32_t displaySamplesPerChannel = 0);
@@ -89,6 +90,7 @@ private:
     bool dcRemovalEnabled_ = true;
     int32_t triggerMode_ = 0;
     int32_t waveRenderMode_ = 1;
+    bool fastLinesEnabled_ = false;
 
     std::vector<std::vector<float>> channelHistories_;
     std::vector<SiliconVisChannelTextState> textStates_;

@@ -88,6 +88,7 @@ import com.flopster101.siliconplayer.VisualizationChannelScopeBackgroundMode
 import com.flopster101.siliconplayer.VisualizationChannelScopeTextColorMode
 import com.flopster101.siliconplayer.VisualizationChannelScopeTextFont
 import com.flopster101.siliconplayer.VisualizationChannelScopeTriggerAlgorithm
+import com.flopster101.siliconplayer.VisualizationChannelScopeAntialiasMethod
 import com.flopster101.siliconplayer.VisualizationChannelScopeWaveRenderMode
 import com.flopster101.siliconplayer.VisualizationChannelScopeTrackTransition
 import com.flopster101.siliconplayer.StarfieldPreset
@@ -1444,6 +1445,7 @@ internal object ChannelScopePrefsSupport {
         private const val KEY_TRIGGER_MODE = "visualization_channel_scope_trigger_mode"
         private const val KEY_TRIGGER_ALGORITHM = "visualization_channel_scope_trigger_algorithm"
         private const val KEY_WAVE_RENDER_MODE = "visualization_channel_scope_wave_render_mode"
+        private const val KEY_ANTIALIAS_METHOD = "visualization_channel_scope_antialias_method"
         private const val KEY_TRACK_TRANSITION = "visualization_channel_scope_track_transition"
         private const val KEY_FPS_MODE = "visualization_channel_scope_fps_mode"
         private const val KEY_LINE_WIDTH_DP = "visualization_channel_scope_line_width_dp"
@@ -1535,6 +1537,12 @@ internal object ChannelScopePrefsSupport {
                 triggerModeNative = triggerModeNative,
                 triggerAlgorithmNative = triggerAlgorithmNative,
                 waveRenderMode = waveRenderMode,
+                antialiasMethod = VisualizationChannelScopeAntialiasMethod.fromStorage(
+                    sharedPrefs.getString(
+                        KEY_ANTIALIAS_METHOD,
+                        AppDefaults.Visualization.ChannelScope.antialiasMethod.storageValue
+                    )
+                ),
                 trackTransition = trackTransition,
                 fpsMode = VisualizationOscFpsMode.fromStorage(
                     sharedPrefs.getString(
@@ -2937,6 +2945,7 @@ internal fun AlbumArtPlaceholder(
                     channelScopeChipNamesByChannelIndex = channelScopeState.chipNamesByChannelIndex,
                     channelScopeTriggerModeNative = channelScopePrefs.triggerModeNative,
                     channelScopeWaveRenderModeNative = channelScopePrefs.waveRenderMode.nativeValue,
+                    channelScopeAntialiasMethodNative = channelScopePrefs.antialiasMethod.nativeValue,
                     channelScopeTrackTransition = channelScopePrefs.trackTransition.nativeValue,
                     channelScopeTriggerIndices = channelScopeState.triggerIndices,
                     channelScopeWindowMs = channelScopePrefs.windowMs,

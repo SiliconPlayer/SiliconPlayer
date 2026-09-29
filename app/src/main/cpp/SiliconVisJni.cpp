@@ -453,6 +453,17 @@ Java_com_flopster101_siliconplayer_ui_visualization_gl_SiliconVisNativeBridge_na
 }
 
 JNIEXPORT void JNICALL
+Java_com_flopster101_siliconplayer_ui_visualization_gl_SiliconVisNativeBridge_nativeSetChannelScopeAntialiasMethod(
+    JNIEnv* env,
+    jobject /* thiz */,
+    jlong handle,
+    jint method
+) {
+    if (!handle) return;
+    silicon_vis_set_channel_scope_antialias_method(reinterpret_cast<SiliconVisHandle>(handle), method);
+}
+
+JNIEXPORT void JNICALL
 Java_com_flopster101_siliconplayer_ui_visualization_gl_SiliconVisNativeBridge_nativeSetArtworkPixels(
     JNIEnv* env,
     jobject /* thiz */,

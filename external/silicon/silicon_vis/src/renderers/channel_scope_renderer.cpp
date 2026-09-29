@@ -7,6 +7,7 @@ namespace silicon::vis {
 namespace {
 constexpr float kWaveCrtSoftnessPx = 0.75f;
 constexpr float kWaveCrtColumnOverlapPx = 0.5f;
+constexpr float kWaveFastSoftnessPx = 1.0f;
 }
 
 ChannelScopeRenderer::ChannelScopeRenderer() {
@@ -250,9 +251,9 @@ void ChannelScopeRenderer::buildGeometry() {
         }
     }
     const size_t segmentsPerChannel = histSize >= 2
-            ? ((histSize - 2) / waveStride) + 1
-            : 0;
-    waveformVertices_.reserve(channels * segmentsPerChannel * (waveRenderMode_ == 2 ? 18 : 40));
+        ? ((histSize - 2) / waveStride) + 1
+        : 0;
+    waveformVertices_.reserve(channels * segmentsPerChannel * (waveRenderMode_ == 2 ? 18 : ((waveRenderMode_ == 1 && fastLinesEnabled_) ? 60 : 40)));
     gridVertices_.reserve(static_cast<size_t>(cols + rows) * 4);
     vuTrackVertices_.reserve(static_cast<size_t>(channels) * 12);
 
@@ -286,9 +287,10 @@ void ChannelScopeRenderer::buildGeometry() {
             // Waveforms. Off and AA share one miter-joined ribbon per channel —
             // a single triangle strip with shared vertices, the GL equivalent of
             // a stroked path: no seams, no missing joins, filled corners. Off
-            // rasterizes aliased; AA renders through the pipeline's multisample
-            // framebuffer. CRT uses columnar bars per decimated sample (OVGen
-            // analog-scope stroke) with hard column edges.
+            // rasterizes aliased; MSAA resolves through the pipeline's
+            // multisample framebuffer; Fast carries across-distance triplets
+            // for the feathered wave-line shader. CRT uses columnar bars per
+            // decimated sample (OVGen analog-scope stroke) with hard column edges.
             const auto& hist = channelHistories_[ch];
             if (hist.size() >= 2) {
                 float stepX = cellW / static_cast<float>(hist.size() - 1);
@@ -325,6 +327,7 @@ void ChannelScopeRenderer::buildGeometry() {
                         py.push_back(lastY);
                     }
                     const size_t n = px.size();
+                    const bool feathered = waveRenderMode_ == 1 && fastLinesEnabled_;
                     if (n >= 2) {
                         for (size_t k = 0; k + 1 < n; ++k) {
                             float dx = px[k + 1] - px[k];
@@ -338,12 +341,18 @@ void ChannelScopeRenderer::buildGeometry() {
                             const float oy = dx * halfW;
 
                             waveformVertices_.push_back(px[k] + ox); waveformVertices_.push_back(py[k] + oy);
+                            if (feathered) waveformVertices_.push_back(halfW);
                             waveformVertices_.push_back(px[k + 1] + ox); waveformVertices_.push_back(py[k + 1] + oy);
+                            if (feathered) waveformVertices_.push_back(halfW);
                             waveformVertices_.push_back(px[k] - ox); waveformVertices_.push_back(py[k] - oy);
+                            if (feathered) waveformVertices_.push_back(-halfW);
 
                             waveformVertices_.push_back(px[k + 1] + ox); waveformVertices_.push_back(py[k + 1] + oy);
+                            if (feathered) waveformVertices_.push_back(halfW);
                             waveformVertices_.push_back(px[k + 1] - ox); waveformVertices_.push_back(py[k + 1] - oy);
+                            if (feathered) waveformVertices_.push_back(-halfW);
                             waveformVertices_.push_back(px[k] - ox); waveformVertices_.push_back(py[k] - oy);
+                            if (feathered) waveformVertices_.push_back(-halfW);
                         }
 
                         // Turn-point discs: cap the joins where consecutive
@@ -370,44 +379,47 @@ void ChannelScopeRenderer::buildGeometry() {
                             float angle0 = std::atan2(static_cast<double>(prevY - cy), static_cast<double>(prevX - cx));
                             float angle1 = std::atan2(static_cast<double>(endY - cy), static_cast<double>(endX - cx));
                             float sweep = angle1 - angle0;
-                            if (sweep > (float)M_PI) sweep -= 2.0f * (float)M_PI;
-                            if (sweep < -(float)M_PI) sweep += 2.0f * (float)M_PI;
+                            if (sweep > static_cast<float>(M_PI)) sweep -= 2.0f * static_cast<float>(M_PI);
+                            if (sweep < -static_cast<float>(M_PI)) sweep += 2.0f * static_cast<float>(M_PI);
                             for (int s = 1; s <= segments; ++s) {
                                 const float a = angle0 + sweep * (static_cast<float>(s) / segments);
                                 const float vx = cx + std::cos(a) * halfW;
                                 const float vy = cy + std::sin(a) * halfW;
                                 waveformVertices_.push_back(cx); waveformVertices_.push_back(cy);
+                                if (feathered) waveformVertices_.push_back(0.0f);
                                 waveformVertices_.push_back(prevX); waveformVertices_.push_back(prevY);
+                                if (feathered) waveformVertices_.push_back(halfW);
                                 waveformVertices_.push_back(vx); waveformVertices_.push_back(vy);
+                                if (feathered) waveformVertices_.push_back(halfW);
                                 prevX = vx;
                                 prevY = vy;
                             }
                         }
                     }
                 } else {
-                for (size_t i = 0; i + 1 < hist.size(); i += waveStride) {
-                    size_t j = std::min(i + static_cast<size_t>(waveStride), hist.size() - 1);
-                    float x0 = cellLeft + i * stepX;
-                    float y0 = centerY - (hist[i] * maxAmp);
-                    float x1 = cellLeft + j * stepX;
-                    float y1 = centerY - (hist[j] * maxAmp);
+                    for (size_t i = 0; i + 1 < hist.size(); i += waveStride) {
+                        size_t j = std::min(i + static_cast<size_t>(waveStride), hist.size() - 1);
+                        float x0 = cellLeft + i * stepX;
+                        float y0 = centerY - (hist[i] * maxAmp);
+                        float x1 = cellLeft + j * stepX;
+                        float y1 = centerY - (hist[j] * maxAmp);
 
-                    float bx1 = x1 + kWaveCrtColumnOverlapPx;
+                        float bx1 = x1 + kWaveCrtColumnOverlapPx;
 
-                    waveformVertices_.push_back(x0); waveformVertices_.push_back(y0 - barHalf);
-                    waveformVertices_.push_back(-barHalf);
-                    waveformVertices_.push_back(bx1); waveformVertices_.push_back(y0 - barHalf);
-                    waveformVertices_.push_back(-barHalf);
-                    waveformVertices_.push_back(x0); waveformVertices_.push_back(y0 + barHalf);
-                    waveformVertices_.push_back(barHalf);
+                        waveformVertices_.push_back(x0); waveformVertices_.push_back(y0 - barHalf);
+                        waveformVertices_.push_back(-barHalf);
+                        waveformVertices_.push_back(bx1); waveformVertices_.push_back(y0 - barHalf);
+                        waveformVertices_.push_back(-barHalf);
+                        waveformVertices_.push_back(x0); waveformVertices_.push_back(y0 + barHalf);
+                        waveformVertices_.push_back(barHalf);
 
-                    waveformVertices_.push_back(bx1); waveformVertices_.push_back(y0 - barHalf);
-                    waveformVertices_.push_back(-barHalf);
-                    waveformVertices_.push_back(bx1); waveformVertices_.push_back(y0 + barHalf);
-                    waveformVertices_.push_back(barHalf);
-                    waveformVertices_.push_back(x0); waveformVertices_.push_back(y0 + barHalf);
-                    waveformVertices_.push_back(barHalf);
-                }
+                        waveformVertices_.push_back(bx1); waveformVertices_.push_back(y0 - barHalf);
+                        waveformVertices_.push_back(-barHalf);
+                        waveformVertices_.push_back(bx1); waveformVertices_.push_back(y0 + barHalf);
+                        waveformVertices_.push_back(barHalf);
+                        waveformVertices_.push_back(x0); waveformVertices_.push_back(y0 + barHalf);
+                        waveformVertices_.push_back(barHalf);
+                    }
                 }
             }
 
@@ -613,7 +625,7 @@ void ChannelScopeRenderer::render() {
 
     // 3. Scope waveforms
     if (!waveformVertices_.empty()) {
-        if (waveRenderMode_ == 0 || waveRenderMode_ == 1) {
+        if (waveRenderMode_ == 0 || (waveRenderMode_ == 1 && !fastLinesEnabled_)) {
             flatRenderer_.drawTriangles(
                 waveformVertices_.data(),
                 static_cast<int>(waveformVertices_.size() / 2),
@@ -627,7 +639,7 @@ void ChannelScopeRenderer::render() {
                 static_cast<int>(waveformVertices_.size() / 3),
                 lineColorArgb_,
                 lineWidthPx_ * 0.5f,
-                kWaveCrtSoftnessPx,
+                waveRenderMode_ == 2 ? kWaveCrtSoftnessPx : kWaveFastSoftnessPx,
                 static_cast<float>(widthPx_),
                 static_cast<float>(heightPx_)
             );
