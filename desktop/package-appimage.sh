@@ -25,11 +25,7 @@ rm -rf "$STAGE"
 mkdir -p "$STAGE/usr"
 cp -a "$APP_PKG/." "$STAGE/usr/"
 
-if command -v convert >/dev/null 2>&1; then
-    convert src/main/resources/app_icon.webp -resize 256x256 "$STAGE/SiliconPlayer.png"
-else
-    cp "$APP_PKG/lib/SiliconPlayer.png" "$STAGE/SiliconPlayer.png"
-fi
+cp "$APP_PKG/lib/SiliconPlayer.png" "$STAGE/SiliconPlayer.png"
 
 cat > "$STAGE/SiliconPlayer.desktop" <<'EOF'
 [Desktop Entry]

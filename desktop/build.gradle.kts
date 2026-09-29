@@ -115,6 +115,9 @@ compose.desktop {
             )
             packageName = "SiliconPlayer"
             packageVersion = (project.findProperty("siliconplayer.version") as String?) ?: error("siliconplayer.version missing from gradle.properties")
+            linux {
+                iconFile.set(project.file("packaging/SiliconPlayer.png"))
+            }
             buildTypes {
                 release {
                     proguard {
