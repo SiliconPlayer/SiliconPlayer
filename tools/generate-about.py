@@ -2,6 +2,7 @@
 """Emit About artifacts from tools/licenses.toml and submodule SHAs."""
 import argparse
 import json
+import re
 import subprocess
 import sys
 import tomllib
@@ -72,17 +73,60 @@ def java_literal(text):
     return " +\n            ".join(parts) if parts else '""'
 
 
+def check_coverage(repo):
+    catalog = (
+        repo / "shared/src/main/kotlin/com/flopster101/siliconplayer/settings/AboutCatalog.kt"
+    ).read_text()
+    names_src = (
+        repo / "shared/src/main/kotlin/com/flopster101/siliconplayer/DecoderNames.kt"
+    ).read_text()
+    const_vals = dict(re.findall(r'const val (\w+) = "([^"]+)"', names_src))
+    mapped = {
+        const_vals[c] for c in re.findall(r'DecoderNames\.(\w+) to "', catalog) if c in const_vals
+    }
+    aliases = {}
+    for m in re.finditer(r'((?:"[^"]+",?\s*)+)-> DecoderNames\.(\w+)', names_src):
+        for lit in re.findall(r'"([^"]+)"', m.group(1)):
+            aliases[lit.lower()] = m.group(2)
+    registered = set()
+    for cpp in (repo / "app/src/main/cpp").rglob("*.cpp"):
+        registered.update(
+            re.findall(r'registerDecoder\("([^"]+)"', cpp.read_text(errors="replace"))
+        )
+
+    def canonical(name):
+        if name in const_vals.values():
+            return name
+        hit = aliases.get(name.lower())
+        return const_vals.get(hit) if hit else None
+
+    unmapped = sorted(n for n in registered if canonical(n) not in mapped)
+    covered = {canonical(n) for n in registered} - {None}
+    stale = sorted(mapped - covered)
+    for name in stale:
+        print("mapped but never registered: %s" % name, file=sys.stderr)
+    for name in unmapped:
+        print("registered but unmapped: %s" % name)
+    return 1 if unmapped else 0
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--repo", required=True)
-    ap.add_argument("--toml", required=True)
-    ap.add_argument("--java-out", required=True)
-    ap.add_argument("--meta-out", required=True)
+    ap.add_argument("--toml", default=None)
+    ap.add_argument("--java-out", default=None)
+    ap.add_argument("--meta-out", default=None)
+    ap.add_argument("--check-coverage", action="store_true")
     ap.add_argument("--disable-tags-for", default="")
     ap.add_argument("--third-party", default=None)
     args = ap.parse_args()
 
     repo = Path(args.repo)
+    if args.check_coverage:
+        return check_coverage(repo)
+    for flag in ("--toml", "--java-out", "--meta-out"):
+        if getattr(args, flag.lstrip("-").replace("-", "_")) is None:
+            ap.error("%s is required without --check-coverage" % flag)
     with open(args.toml, "rb") as f:
         config = tomllib.load(f)
     default_patterns = config.get("default_tag_patterns", ["*"])
