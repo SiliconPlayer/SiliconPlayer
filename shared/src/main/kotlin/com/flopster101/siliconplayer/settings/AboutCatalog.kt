@@ -298,7 +298,7 @@ internal object AboutCatalog {
             name = "reSID",
             description = "Classic SID emulation backend used alongside reSIDfp in SID playback paths.",
             author = "Dag Lem and contributors",
-            license = "GPL-3.0-or-later",
+            license = "GPL-2.0-or-later",
             links = listOf(
                 AboutEntityLink("Source", "https://github.com/libsidplayfp/resid")
             ),

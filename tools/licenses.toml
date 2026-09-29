@@ -125,9 +125,9 @@ texts = ["external/libresidfp/LICENSE"]
 
 [[dep]]
 id = "lib.resid"
-spdx = "GPL-3.0-or-later"
+spdx = "GPL-2.0-or-later"
 source = "external/resid"
-texts = ["external/resid/COPYING"]
+texts = ["tools/licenses/GPL-2.0.txt"]
 
 [[dep]]
 id = "lib.libbinio"
