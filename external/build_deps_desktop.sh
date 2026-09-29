@@ -583,6 +583,12 @@ build_sc68() {
     find "$PROJECT_PATH" \( -name "*.o" -o -name "*.lo" -o -name "*.la" -o -name "*.a" \) -delete 2>/dev/null || true
     find "$PROJECT_PATH" -name ".libs" -type d -exec rm -rf {} + 2>/dev/null || true
     mkdir -p "$PROJECT_PATH/unice68/m4" "$PROJECT_PATH/file68/m4" "$PROJECT_PATH/libsc68/m4"
+    # Each configure.ac declares AC_CONFIG_MACRO_DIR([m4]) but the project
+    # macros live in the top-level aclocal68/. Stage them or autoreconf
+    # emits a configure with literal SC68_PACKAGE( in it.
+    cp "$PROJECT_PATH/aclocal68/"*.m4 "$PROJECT_PATH/unice68/m4/"
+    cp "$PROJECT_PATH/aclocal68/"*.m4 "$PROJECT_PATH/file68/m4/"
+    cp "$PROJECT_PATH/aclocal68/"*.m4 "$PROJECT_PATH/libsc68/m4/"
     ln -sfn ../vcversion.sh "$PROJECT_PATH/unice68/vcversion.sh"
     ln -sfn ../vcversion.sh "$PROJECT_PATH/file68/vcversion.sh"
     ln -sfn ../vcversion.sh "$PROJECT_PATH/libsc68/vcversion.sh"
