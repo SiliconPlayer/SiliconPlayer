@@ -63,6 +63,10 @@ set(COMMON_INCLUDES
     ${ALSA_INCLUDE_DIRS}
     ${PULSE_INCLUDE_DIRS}
     ${X11_INCLUDE_DIRS}
+    ${AVCODEC_INCLUDE_DIRS}
+    ${AVFORMAT_INCLUDE_DIRS}
+    ${AVUTIL_INCLUDE_DIRS}
+    ${SWRESAMPLE_INCLUDE_DIRS}
 )
 
 # -----------------------------------------------------------------------------
@@ -143,8 +147,9 @@ target_link_libraries(siliconplayer_desktop PRIVATE
     ${AVUTIL_LIBRARIES}
     ${SWRESAMPLE_LIBRARIES}
     ${SOXR_LIBRARIES}
-    ${LIBM_WRAP_FLAGS}
 )
+# LINKER: items need target_link_options before CMake 3.31.
+target_link_options(siliconplayer_desktop PRIVATE ${LIBM_WRAP_FLAGS})
 
 # -----------------------------------------------------------------------------
 # Decoder Plugins (shared .so files dynamically loaded by DecoderPluginLoader)
@@ -170,9 +175,9 @@ target_link_libraries(siliconplayer_ffmpeg_decoder PRIVATE
     ${AVUTIL_LIBRARIES}
     ${SWRESAMPLE_LIBRARIES}
     ${SOXR_LIBRARIES}
-    ${LIBM_WRAP_FLAGS}
     m
 )
+target_link_options(siliconplayer_ffmpeg_decoder PRIVATE ${LIBM_WRAP_FLAGS})
 
 # 2. LibOpenMPT Decoder (using submodule build with custom channel scope)
 add_library(libopenmpt_submodule SHARED IMPORTED)
