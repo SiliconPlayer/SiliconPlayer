@@ -40,7 +40,6 @@ import androidx.compose.material.icons.filled.ClearAll
 import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Folder
-import androidx.compose.material.icons.filled.FolderOpen
 import com.flopster101.siliconplayer.ui.icons.FolderZipIcon
 import androidx.compose.material.icons.filled.StarBorder
 import androidx.compose.material.icons.filled.LibraryMusic
@@ -435,18 +434,6 @@ internal fun HomeScreen(
                     onClick = onOpenNetwork
                 )
             )
-            if (onOpenUrlOrPath != null) {
-                add(
-                    HomeQuickActionSpec(
-                        itemKey = "home_intro_open_url_or_path_button",
-                        order = 3,
-                        title = "Open file",
-                        icon = Icons.Default.FolderOpen,
-                        containerColor = MaterialTheme.colorScheme.surfaceVariant,
-                        onClick = onOpenUrlOrPath
-                    )
-                )
-            }
         }
         BoxWithConstraints(modifier = Modifier.fillMaxWidth()) {
             val maxColumns = if (maxWidth >= 600.dp) 4 else 2
