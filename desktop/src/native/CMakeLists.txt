@@ -181,7 +181,7 @@ target_link_options(siliconplayer_ffmpeg_decoder PRIVATE ${LIBM_WRAP_FLAGS})
 
 # 2. LibOpenMPT Decoder (using submodule build with custom channel scope)
 add_library(libopenmpt_submodule SHARED IMPORTED)
-set_target_properties(libopenmpt_submodule PROPERTIES IMPORTED_LOCATION "${EXTERNAL_DIR}/libopenmpt/bin/libopenmpt.so")
+set_target_properties(libopenmpt_submodule PROPERTIES IMPORTED_LOCATION "${PREBUILT_DIR}/lib/libopenmpt.so")
 
 add_library(siliconplayer_openmpt_decoder SHARED
     "${APP_CPP_DIR}/decoders/LibOpenMPTDecoder.cpp"
@@ -195,11 +195,6 @@ target_include_directories(siliconplayer_openmpt_decoder PRIVATE
 target_link_libraries(siliconplayer_openmpt_decoder PRIVATE
     libopenmpt_submodule
     m
-)
-add_custom_command(TARGET siliconplayer_openmpt_decoder POST_BUILD
-    COMMAND ${CMAKE_COMMAND} -E copy_if_different
-    "${EXTERNAL_DIR}/libopenmpt/bin/libopenmpt.so"
-    "${CMAKE_CURRENT_BINARY_DIR}/libopenmpt.so.0"
 )
 
 # Build custom-patched libgme and libxmp from submodules
