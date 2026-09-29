@@ -8,7 +8,7 @@ APP_PKG="build/compose/binaries/main-release/app/SiliconPlayer"
 OUT_DIR="build/compose/binaries/main-release"
 STAGE="build/appimage/AppDir"
 TOOL="build/appimage-tool/appimagetool-x86_64.AppImage"
-VERSION="$(grep -oP 'packageVersion = "\K[^"]+' build.gradle.kts | head -1)"
+VERSION="$(grep -oP '^siliconplayer\.version=\K.+' ../gradle.properties | head -1)"
 VERSION="${VERSION:-0.1.0}"
 SHA="$(git rev-parse --short HEAD 2>/dev/null || echo nogit)"
 

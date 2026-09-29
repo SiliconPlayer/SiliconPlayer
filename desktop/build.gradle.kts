@@ -25,6 +25,7 @@ dependencies {
 
 val generatedAboutVersionDir = layout.buildDirectory.dir("generated/source/aboutVersions/main")
 val generatedAboutMetaDir = layout.buildDirectory.dir("generated/about/main")
+val generatedDesktopConfigDir = layout.buildDirectory.dir("generated/source/desktopConfig/main")
 
 val generateAboutVersions by tasks.registering(Exec::class) {
     group = "build setup"
@@ -57,14 +58,51 @@ val generateAboutVersions by tasks.registering(Exec::class) {
 
 tasks.named("compileKotlin") {
     dependsOn(generateAboutVersions)
+    dependsOn(generateDesktopBuildConfig)
+}
+
+val generateDesktopBuildConfig by tasks.registering {
+    group = "build setup"
+    description = "Generate DesktopBuildConfig with the shared version and git SHA."
+    val shaCapture = try {
+        val proc = ProcessBuilder("git", "rev-parse", "--short", "HEAD")
+            .directory(rootDir)
+            .redirectErrorStream(true)
+            .start()
+        val out = proc.inputStream.bufferedReader().use { it.readText() }
+        proc.waitFor()
+        out.trim().ifBlank { "nogit" }
+    } catch (_: Exception) {
+        "nogit"
+    }
+    val appVersion = (project.findProperty("siliconplayer.version") as String?)
+        ?: error("siliconplayer.version missing from gradle.properties")
+    inputs.property("desktopGitSha", shaCapture)
+    inputs.property("desktopVersionName", appVersion)
+    outputs.dir(generatedDesktopConfigDir)
+    doLast {
+        val pkgDir = generatedDesktopConfigDir.get().asFile
+            .resolve("com/flopster101/siliconplayer/desktop")
+        pkgDir.mkdirs()
+        pkgDir.resolve("DesktopBuildConfig.java").writeText(
+            "package com.flopster101.siliconplayer.desktop;\n" +
+                "public final class DesktopBuildConfig {\n" +
+                "    private DesktopBuildConfig() {}\n" +
+                "    public static final String VERSION_NAME = \"$appVersion\";\n" +
+                "    public static final String GIT_SHA = \"$shaCapture\";\n" +
+                "}\n"
+        )
+    }
 }
 
 sourceSets.getByName("main") {
     java.srcDir(layout.buildDirectory.dir("generated/source/aboutVersions/main"))
+    java.srcDir(generatedDesktopConfigDir)
 }
 
 tasks.named("compileJava") {
     dependsOn(generateAboutVersions)
+    dependsOn(generateDesktopBuildConfig)
 }
 
 compose.desktop {
@@ -76,7 +114,7 @@ compose.desktop {
                 org.jetbrains.compose.desktop.application.dsl.TargetFormat.AppImage
             )
             packageName = "SiliconPlayer"
-            packageVersion = "0.1.0"
+            packageVersion = (project.findProperty("siliconplayer.version") as String?) ?: error("siliconplayer.version missing from gradle.properties")
             buildTypes {
                 release {
                     proguard {
