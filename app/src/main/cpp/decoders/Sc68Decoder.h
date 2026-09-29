@@ -121,7 +121,7 @@ private:
     std::vector<bool> toggleChannelMuted;
     std::atomic<int> repeatMode { 0 };
     int optionAsid = 1;
-    int optionDefaultTimeSeconds = 0;
+    int optionDefaultTimeSeconds = 180;
     int optionYmEngine = 0;
     int optionYmVolModel = 0;
     bool optionAmigaFilter = true;

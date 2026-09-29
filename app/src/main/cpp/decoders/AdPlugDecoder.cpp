@@ -241,7 +241,7 @@ private:
 
 int normalizeAdlibCore(int value) {
     if (value < 0 || value > 3) {
-        return 2;
+        return 0;
     }
     return value;
 }

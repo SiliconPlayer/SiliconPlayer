@@ -77,10 +77,10 @@ private:
     int restartPosition = 0;
     int repeatMode = 0;
     bool ended = false;
-    int interpolationMode = XMP_INTERP_LINEAR;
+    int interpolationMode = XMP_INTERP_SPLINE;
     int stereoSeparationPercent = 100;
-    int amigaStereoSeparationPercent = 100;
-    int amigaModel = 0; // 0 Off, 1 Amiga 500, 2 Amiga 1200
+    int amigaStereoSeparationPercent = 50;
+    int amigaModel = 2; // 0 Off, 1 Amiga 500, 2 Amiga 1200
     bool isAmigaModule = false;
     int readEventType = XMP_READ_EVENT_MOD;
     std::string title;

@@ -115,7 +115,7 @@ private:
     bool hasLoopPoint = false;
     double loopStartSeconds = 0.0;
     double loopEndSeconds = 0.0;
-    bool gaplessRepeatTrack = false;
+    bool gaplessRepeatTrack = true;
 
     mutable std::mutex decodeMutex;
     AVIOContext* avioContext = nullptr;

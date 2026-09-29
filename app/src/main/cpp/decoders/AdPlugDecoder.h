@@ -83,7 +83,7 @@ private:
     int scopeRingSamples = 0;
 
     int sampleRateHz = 44100;
-    int adlibCore = 2;
+    int adlibCore = 0;
     int channels = 2;
     int bitDepth = 16;
     std::atomic<int> repeatMode { 0 };

@@ -49,21 +49,38 @@ import com.flopster101.siliconplayer.VisualizationMode
 import com.flopster101.siliconplayer.VisualizationPerformanceMode
 import com.flopster101.siliconplayer.VisualizationRenderBackend
 import com.flopster101.siliconplayer.VisualizationVuAnchor
+import com.flopster101.siliconplayer.OpenMptDefaults
 import com.flopster101.siliconplayer.VgmPlayConfig
+import com.flopster101.siliconplayer.VgmPlayDefaults
 import com.flopster101.siliconplayer.VgmPlayOptionKeys
+import com.flopster101.siliconplayer.AdPlugDefaults
 import com.flopster101.siliconplayer.AdPlugOptionKeys
+import com.flopster101.siliconplayer.AyflyDefaults
 import com.flopster101.siliconplayer.AyflyOptionKeys
+import com.flopster101.siliconplayer.CrsidDefaults
 import com.flopster101.siliconplayer.CrsidOptionKeys
+import com.flopster101.siliconplayer.FfmpegDefaults
 import com.flopster101.siliconplayer.FfmpegOptionKeys
+import com.flopster101.siliconplayer.FurnaceDefaults
 import com.flopster101.siliconplayer.FurnaceOptionKeys
+import com.flopster101.siliconplayer.GmeDefaults
 import com.flopster101.siliconplayer.GmeOptionKeys
+import com.flopster101.siliconplayer.HivelyTrackerDefaults
 import com.flopster101.siliconplayer.HivelyTrackerOptionKeys
+import com.flopster101.siliconplayer.KlystrackDefaults
 import com.flopster101.siliconplayer.KlystrackOptionKeys
+import com.flopster101.siliconplayer.LazyUsf2Defaults
 import com.flopster101.siliconplayer.LazyUsf2OptionKeys
+import com.flopster101.siliconplayer.Sc68Defaults
 import com.flopster101.siliconplayer.Sc68OptionKeys
+import com.flopster101.siliconplayer.SidPlayFpDefaults
 import com.flopster101.siliconplayer.SidPlayFpOptionKeys
+import com.flopster101.siliconplayer.UadeDefaults
 import com.flopster101.siliconplayer.UadeOptionKeys
+import com.flopster101.siliconplayer.UfmodDefaults
+import com.flopster101.siliconplayer.Vio2sfDefaults
 import com.flopster101.siliconplayer.Vio2sfOptionKeys
+import com.flopster101.siliconplayer.XmpDefaults
 import com.flopster101.siliconplayer.XmpOptionKeys
 import com.flopster101.siliconplayer.applyDecoderPriorityOrder
 import com.flopster101.siliconplayer.audio.applyDspSettingsToNative
@@ -104,7 +121,7 @@ internal fun pushAudioPipelineConfigToNative(prefs: AppPreferences) {
             restoreAudioPerformanceModeForBackend(prefs::contains, prefs::getString, backend).nativeValue,
             restoreAudioBufferPresetForBackend(prefs::contains, prefs::getString, backend).nativeValue,
             AudioResamplerPreference.fromStorage(
-                prefs.getString(AppPreferenceKeys.AUDIO_RESAMPLER_PREFERENCE, "builtin")
+                prefs.getString(AppPreferenceKeys.AUDIO_RESAMPLER_PREFERENCE, AudioResamplerPreference.BuiltIn.storageValue)
             ).nativeValue,
             prefs.getBoolean(AppPreferenceKeys.AUDIO_ALLOW_BACKEND_FALLBACK, true)
         )
@@ -171,99 +188,99 @@ internal fun rememberDesktopSettings(
     // Build plugin core state
     val pluginCoreState = remember(changeToken) {
         SettingsPluginCoreState(
-            ffmpegSampleRateHz = prefs.getInt(CorePreferenceKeys.CORE_RATE_FFMPEG, 0),
-            ffmpegGaplessRepeatTrack = prefs.getBoolean(CorePreferenceKeys.FFMPEG_GAPLESS_REPEAT_TRACK, false),
+            ffmpegSampleRateHz = prefs.getInt(CorePreferenceKeys.CORE_RATE_FFMPEG, FfmpegDefaults.coreSampleRateHz),
+            ffmpegGaplessRepeatTrack = prefs.getBoolean(CorePreferenceKeys.FFMPEG_GAPLESS_REPEAT_TRACK, FfmpegDefaults.gaplessRepeatTrack),
             ffmpegCapabilities = runCatching { NativeBridge.getCoreCapabilities(DecoderNames.FFMPEG) }.getOrDefault(0),
-            openMptSampleRateHz = prefs.getInt(CorePreferenceKeys.CORE_RATE_OPENMPT, 0),
+            openMptSampleRateHz = prefs.getInt(CorePreferenceKeys.CORE_RATE_OPENMPT, OpenMptDefaults.coreSampleRateHz),
             openMptCapabilities = runCatching { NativeBridge.getCoreCapabilities(DecoderNames.LIB_OPEN_MPT) }.getOrDefault(0),
-            vgmPlaySampleRateHz = prefs.getInt(CorePreferenceKeys.CORE_RATE_VGMPLAY, 0),
+            vgmPlaySampleRateHz = prefs.getInt(CorePreferenceKeys.CORE_RATE_VGMPLAY, VgmPlayDefaults.coreSampleRateHz),
             vgmPlayCapabilities = runCatching { NativeBridge.getCoreCapabilities(DecoderNames.VGM_PLAY) }.getOrDefault(0),
-            gmeSampleRateHz = prefs.getInt(CorePreferenceKeys.CORE_RATE_GME, 0),
-            crsidSampleRateHz = prefs.getInt(CorePreferenceKeys.CORE_RATE_CRSID, 0),
-            sidPlayFpSampleRateHz = prefs.getInt(CorePreferenceKeys.CORE_RATE_SIDPLAYFP, 0),
-            lazyUsf2SampleRateHz = prefs.getInt(CorePreferenceKeys.CORE_RATE_LAZYUSF2, 0),
-            adPlugSampleRateHz = prefs.getInt(CorePreferenceKeys.CORE_RATE_ADPLUG, 0),
-            hivelyTrackerSampleRateHz = prefs.getInt(CorePreferenceKeys.CORE_RATE_HIVELYTRACKER, 0),
-            klystrackSampleRateHz = prefs.getInt(CorePreferenceKeys.CORE_RATE_KLYSTRACK, 0),
-            furnaceSampleRateHz = prefs.getInt(CorePreferenceKeys.CORE_RATE_FURNACE, 0),
-            uadeSampleRateHz = prefs.getInt(CorePreferenceKeys.CORE_RATE_UADE, 0),
-            xmpSampleRateHz = prefs.getInt(CorePreferenceKeys.CORE_RATE_XMP, 0),
-            ufmodSampleRateHz = prefs.getInt(CorePreferenceKeys.CORE_RATE_UFMOD, 0),
-            adPlugOplEngine = prefs.getInt(CorePreferenceKeys.ADPLUG_OPL_ENGINE, 0),
-            xmpInterpolation = prefs.getInt(CorePreferenceKeys.XMP_INTERPOLATION, 0),
-            xmpStereoSeparationPercent = prefs.getInt(CorePreferenceKeys.XMP_STEREO_SEPARATION_PERCENT, 100),
-            xmpAmigaStereoSeparationPercent = prefs.getInt(CorePreferenceKeys.XMP_AMIGA_STEREO_SEPARATION_PERCENT, 100),
-            xmpAmigaModel = prefs.getInt(CorePreferenceKeys.XMP_AMIGA_MODEL, 0),
-            ayflyCoreSampleRateHz = prefs.getInt(CorePreferenceKeys.CORE_RATE_AYFLY, 0),
-            ayflyOversample = prefs.getInt(CorePreferenceKeys.AYFLY_OVERSAMPLE, 0),
-            ayflyChipType = prefs.getInt(CorePreferenceKeys.AYFLY_CHIP_TYPE, 0),
-            ayflyMixType = prefs.getInt(CorePreferenceKeys.AYFLY_MIX_TYPE, 0),
-            ayflyIntFreq = prefs.getInt(CorePreferenceKeys.AYFLY_INT_FREQ, 0),
-            lazyUsf2UseHleAudio = prefs.getBoolean(CorePreferenceKeys.LAZYUSF2_USE_HLE_AUDIO, true),
-            vio2sfInterpolationQuality = prefs.getInt(CorePreferenceKeys.VIO2SF_INTERPOLATION_QUALITY, 0),
-            sc68SamplingRateHz = prefs.getInt(CorePreferenceKeys.CORE_RATE_SC68, 0),
-            sc68Asid = prefs.getInt(CorePreferenceKeys.SC68_ASID, 0),
-            sc68DefaultTimeSeconds = prefs.getInt(CorePreferenceKeys.SC68_DEFAULT_TIME_SECONDS, 0),
-            sc68YmEngine = prefs.getInt(CorePreferenceKeys.SC68_YM_ENGINE, 0),
-            sc68YmVolModel = prefs.getInt(CorePreferenceKeys.SC68_YM_VOLMODEL, 0),
-            sc68AmigaFilter = prefs.getBoolean(CorePreferenceKeys.SC68_AMIGA_FILTER, false),
-            sc68AmigaBlend = prefs.getInt(CorePreferenceKeys.SC68_AMIGA_BLEND, 0),
-            sc68AmigaClock = prefs.getInt(CorePreferenceKeys.SC68_AMIGA_CLOCK, 0),
-            uadeFilterEnabled = prefs.getBoolean(CorePreferenceKeys.UADE_FILTER_ENABLED, true),
-            uadeNtscMode = prefs.getBoolean(CorePreferenceKeys.UADE_NTSC_MODE, false),
-            uadePanningMode = prefs.getInt(CorePreferenceKeys.UADE_PANNING_MODE, 0),
-            hivelyTrackerPanningMode = prefs.getInt(CorePreferenceKeys.HIVELYTRACKER_PANNING_MODE, 0),
-            hivelyTrackerMixGainPercent = prefs.getInt(CorePreferenceKeys.HIVELYTRACKER_MIX_GAIN_PERCENT, 100),
-            klystrackPlayerQuality = prefs.getInt(CorePreferenceKeys.KLYSTRACK_PLAYER_QUALITY, 0),
-            furnaceYm2612Core = prefs.getInt(CorePreferenceKeys.FURNACE_YM2612_CORE, 0),
-            furnaceSnCore = prefs.getInt(CorePreferenceKeys.FURNACE_SN_CORE, 0),
-            furnaceNesCore = prefs.getInt(CorePreferenceKeys.FURNACE_NES_CORE, 0),
-            furnaceC64Core = prefs.getInt(CorePreferenceKeys.FURNACE_C64_CORE, 0),
-            furnaceGbQuality = prefs.getInt(CorePreferenceKeys.FURNACE_GB_QUALITY, 0),
-            furnaceDsidQuality = prefs.getInt(CorePreferenceKeys.FURNACE_DSID_QUALITY, 0),
-            furnaceAyCore = prefs.getInt(CorePreferenceKeys.FURNACE_AY_CORE, 0),
-            crsidClockMode = prefs.getInt(CorePreferenceKeys.CRSID_CLOCK_MODE, 0),
-            crsidSidModelMode = prefs.getInt(CorePreferenceKeys.CRSID_SID_MODEL_MODE, 0),
-            crsidQualityMode = prefs.getInt(CorePreferenceKeys.CRSID_QUALITY_MODE, 0),
-            crsidFilter6581Preset = prefs.getInt(CorePreferenceKeys.CRSID_FILTER_6581_PRESET, 0),
-            sidPlayFpBackend = prefs.getInt(CorePreferenceKeys.SIDPLAYFP_BACKEND, 0),
-            sidPlayFpClockMode = prefs.getInt(CorePreferenceKeys.SIDPLAYFP_CLOCK_MODE, 0),
-            sidPlayFpSidModelMode = prefs.getInt(CorePreferenceKeys.SIDPLAYFP_SID_MODEL_MODE, 0),
-            sidPlayFpFilter6581Enabled = prefs.getBoolean(CorePreferenceKeys.SIDPLAYFP_FILTER_6581_ENABLED, true),
-            sidPlayFpFilter8580Enabled = prefs.getBoolean(CorePreferenceKeys.SIDPLAYFP_FILTER_8580_ENABLED, true),
-            sidPlayFpDigiBoost8580 = prefs.getBoolean(CorePreferenceKeys.SIDPLAYFP_DIGI_BOOST_8580, false),
-            sidPlayFpFilterCurve6581Percent = prefs.getInt(CorePreferenceKeys.SIDPLAYFP_FILTER_CURVE_6581, 50),
-            sidPlayFpFilterRange6581Percent = prefs.getInt(CorePreferenceKeys.SIDPLAYFP_FILTER_RANGE_6581, 50),
-            sidPlayFpFilterCurve8580Percent = prefs.getInt(CorePreferenceKeys.SIDPLAYFP_FILTER_CURVE_8580, 50),
-            sidPlayFpReSidFpFastSampling = prefs.getBoolean(CorePreferenceKeys.SIDPLAYFP_RESIDFP_FAST_SAMPLING, false),
-            sidPlayFpReSidFpCombinedWaveformsStrength = prefs.getInt(CorePreferenceKeys.SIDPLAYFP_RESIDFP_COMBINED_WAVEFORMS_STRENGTH, 50),
-            gmeTempoPercent = prefs.getInt(CorePreferenceKeys.GME_TEMPO_PERCENT, 100),
-            gmeStereoSeparationPercent = prefs.getInt(CorePreferenceKeys.GME_STEREO_SEPARATION_PERCENT, 100),
-            gmeEchoEnabled = prefs.getBoolean(CorePreferenceKeys.GME_ECHO_ENABLED, false),
-            gmeAccuracyEnabled = prefs.getBoolean(CorePreferenceKeys.GME_ACCURACY_ENABLED, true),
-            gmeEqTrebleDecibel = prefs.getInt(CorePreferenceKeys.GME_EQ_TREBLE_DECIBEL, 0),
-            gmeEqBassHz = prefs.getInt(CorePreferenceKeys.GME_EQ_BASS_HZ, 0),
-            gmeSpcUseBuiltInFade = prefs.getBoolean(CorePreferenceKeys.GME_SPC_USE_BUILTIN_FADE, true),
-            gmeSpcInterpolation = prefs.getInt(CorePreferenceKeys.GME_SPC_INTERPOLATION, 0),
-            gmeSpcUseNativeSampleRate = prefs.getBoolean(CorePreferenceKeys.GME_SPC_USE_NATIVE_SAMPLE_RATE, false),
-            vgmPlayLoopCount = prefs.getInt(CorePreferenceKeys.VGMPLAY_LOOP_COUNT, 2),
-            vgmPlayAllowNonLoopingLoop = prefs.getBoolean(CorePreferenceKeys.VGMPLAY_ALLOW_NON_LOOPING_LOOP, false),
-            vgmPlayVsyncRate = prefs.getInt(CorePreferenceKeys.VGMPLAY_VSYNC_RATE, 60),
-            vgmPlayResampleMode = prefs.getInt(CorePreferenceKeys.VGMPLAY_RESAMPLE_MODE, 0),
-            vgmPlayChipSampleMode = prefs.getInt(CorePreferenceKeys.VGMPLAY_CHIP_SAMPLE_MODE, 0),
-            vgmPlayChipSampleRate = prefs.getInt(CorePreferenceKeys.VGMPLAY_CHIP_SAMPLE_RATE, 0),
+            gmeSampleRateHz = prefs.getInt(CorePreferenceKeys.CORE_RATE_GME, GmeDefaults.coreSampleRateHz),
+            crsidSampleRateHz = prefs.getInt(CorePreferenceKeys.CORE_RATE_CRSID, CrsidDefaults.coreSampleRateHz),
+            sidPlayFpSampleRateHz = prefs.getInt(CorePreferenceKeys.CORE_RATE_SIDPLAYFP, SidPlayFpDefaults.coreSampleRateHz),
+            lazyUsf2SampleRateHz = prefs.getInt(CorePreferenceKeys.CORE_RATE_LAZYUSF2, LazyUsf2Defaults.coreSampleRateHz),
+            adPlugSampleRateHz = prefs.getInt(CorePreferenceKeys.CORE_RATE_ADPLUG, AdPlugDefaults.coreSampleRateHz),
+            hivelyTrackerSampleRateHz = prefs.getInt(CorePreferenceKeys.CORE_RATE_HIVELYTRACKER, HivelyTrackerDefaults.coreSampleRateHz),
+            klystrackSampleRateHz = prefs.getInt(CorePreferenceKeys.CORE_RATE_KLYSTRACK, KlystrackDefaults.coreSampleRateHz),
+            furnaceSampleRateHz = prefs.getInt(CorePreferenceKeys.CORE_RATE_FURNACE, FurnaceDefaults.coreSampleRateHz),
+            uadeSampleRateHz = prefs.getInt(CorePreferenceKeys.CORE_RATE_UADE, UadeDefaults.coreSampleRateHz),
+            xmpSampleRateHz = prefs.getInt(CorePreferenceKeys.CORE_RATE_XMP, XmpDefaults.coreSampleRateHz),
+            ufmodSampleRateHz = prefs.getInt(CorePreferenceKeys.CORE_RATE_UFMOD, UfmodDefaults.coreSampleRateHz),
+            adPlugOplEngine = prefs.getInt(CorePreferenceKeys.ADPLUG_OPL_ENGINE, AdPlugDefaults.oplEngine),
+            xmpInterpolation = prefs.getInt(CorePreferenceKeys.XMP_INTERPOLATION, XmpDefaults.interpolation),
+            xmpStereoSeparationPercent = prefs.getInt(CorePreferenceKeys.XMP_STEREO_SEPARATION_PERCENT, XmpDefaults.stereoSeparationPercent),
+            xmpAmigaStereoSeparationPercent = prefs.getInt(CorePreferenceKeys.XMP_AMIGA_STEREO_SEPARATION_PERCENT, XmpDefaults.amigaStereoSeparationPercent),
+            xmpAmigaModel = prefs.getInt(CorePreferenceKeys.XMP_AMIGA_MODEL, XmpDefaults.amigaModel),
+            ayflyCoreSampleRateHz = prefs.getInt(CorePreferenceKeys.CORE_RATE_AYFLY, AyflyDefaults.coreSampleRateHz),
+            ayflyOversample = prefs.getInt(CorePreferenceKeys.AYFLY_OVERSAMPLE, AyflyDefaults.oversample),
+            ayflyChipType = prefs.getInt(CorePreferenceKeys.AYFLY_CHIP_TYPE, AyflyDefaults.chipType),
+            ayflyMixType = prefs.getInt(CorePreferenceKeys.AYFLY_MIX_TYPE, AyflyDefaults.mixType),
+            ayflyIntFreq = prefs.getInt(CorePreferenceKeys.AYFLY_INT_FREQ, AyflyDefaults.intFreq),
+            lazyUsf2UseHleAudio = prefs.getBoolean(CorePreferenceKeys.LAZYUSF2_USE_HLE_AUDIO, LazyUsf2Defaults.useHleAudio),
+            vio2sfInterpolationQuality = prefs.getInt(CorePreferenceKeys.VIO2SF_INTERPOLATION_QUALITY, Vio2sfDefaults.interpolationQuality),
+            sc68SamplingRateHz = prefs.getInt(CorePreferenceKeys.CORE_RATE_SC68, Sc68Defaults.coreSampleRateHz),
+            sc68Asid = prefs.getInt(CorePreferenceKeys.SC68_ASID, Sc68Defaults.asid),
+            sc68DefaultTimeSeconds = prefs.getInt(CorePreferenceKeys.SC68_DEFAULT_TIME_SECONDS, Sc68Defaults.defaultTimeSeconds),
+            sc68YmEngine = prefs.getInt(CorePreferenceKeys.SC68_YM_ENGINE, Sc68Defaults.ymEngine),
+            sc68YmVolModel = prefs.getInt(CorePreferenceKeys.SC68_YM_VOLMODEL, Sc68Defaults.ymVolModel),
+            sc68AmigaFilter = prefs.getBoolean(CorePreferenceKeys.SC68_AMIGA_FILTER, Sc68Defaults.amigaFilter),
+            sc68AmigaBlend = prefs.getInt(CorePreferenceKeys.SC68_AMIGA_BLEND, Sc68Defaults.amigaBlend),
+            sc68AmigaClock = prefs.getInt(CorePreferenceKeys.SC68_AMIGA_CLOCK, Sc68Defaults.amigaClock),
+            uadeFilterEnabled = prefs.getBoolean(CorePreferenceKeys.UADE_FILTER_ENABLED, UadeDefaults.filterEnabled),
+            uadeNtscMode = prefs.getBoolean(CorePreferenceKeys.UADE_NTSC_MODE, UadeDefaults.ntscMode),
+            uadePanningMode = prefs.getInt(CorePreferenceKeys.UADE_PANNING_MODE, UadeDefaults.panningMode),
+            hivelyTrackerPanningMode = prefs.getInt(CorePreferenceKeys.HIVELYTRACKER_PANNING_MODE, HivelyTrackerDefaults.panningMode),
+            hivelyTrackerMixGainPercent = prefs.getInt(CorePreferenceKeys.HIVELYTRACKER_MIX_GAIN_PERCENT, HivelyTrackerDefaults.mixGainPercent),
+            klystrackPlayerQuality = prefs.getInt(CorePreferenceKeys.KLYSTRACK_PLAYER_QUALITY, KlystrackDefaults.playerQuality),
+            furnaceYm2612Core = prefs.getInt(CorePreferenceKeys.FURNACE_YM2612_CORE, FurnaceDefaults.ym2612Core),
+            furnaceSnCore = prefs.getInt(CorePreferenceKeys.FURNACE_SN_CORE, FurnaceDefaults.snCore),
+            furnaceNesCore = prefs.getInt(CorePreferenceKeys.FURNACE_NES_CORE, FurnaceDefaults.nesCore),
+            furnaceC64Core = prefs.getInt(CorePreferenceKeys.FURNACE_C64_CORE, FurnaceDefaults.c64Core),
+            furnaceGbQuality = prefs.getInt(CorePreferenceKeys.FURNACE_GB_QUALITY, FurnaceDefaults.gbQuality),
+            furnaceDsidQuality = prefs.getInt(CorePreferenceKeys.FURNACE_DSID_QUALITY, FurnaceDefaults.dsidQuality),
+            furnaceAyCore = prefs.getInt(CorePreferenceKeys.FURNACE_AY_CORE, FurnaceDefaults.ayCore),
+            crsidClockMode = prefs.getInt(CorePreferenceKeys.CRSID_CLOCK_MODE, CrsidDefaults.clockMode),
+            crsidSidModelMode = prefs.getInt(CorePreferenceKeys.CRSID_SID_MODEL_MODE, CrsidDefaults.sidModelMode),
+            crsidQualityMode = prefs.getInt(CorePreferenceKeys.CRSID_QUALITY_MODE, CrsidDefaults.qualityMode),
+            crsidFilter6581Preset = prefs.getInt(CorePreferenceKeys.CRSID_FILTER_6581_PRESET, CrsidDefaults.filter6581Preset),
+            sidPlayFpBackend = prefs.getInt(CorePreferenceKeys.SIDPLAYFP_BACKEND, SidPlayFpDefaults.backend),
+            sidPlayFpClockMode = prefs.getInt(CorePreferenceKeys.SIDPLAYFP_CLOCK_MODE, SidPlayFpDefaults.clockMode),
+            sidPlayFpSidModelMode = prefs.getInt(CorePreferenceKeys.SIDPLAYFP_SID_MODEL_MODE, SidPlayFpDefaults.sidModelMode),
+            sidPlayFpFilter6581Enabled = prefs.getBoolean(CorePreferenceKeys.SIDPLAYFP_FILTER_6581_ENABLED, SidPlayFpDefaults.filter6581Enabled),
+            sidPlayFpFilter8580Enabled = prefs.getBoolean(CorePreferenceKeys.SIDPLAYFP_FILTER_8580_ENABLED, SidPlayFpDefaults.filter8580Enabled),
+            sidPlayFpDigiBoost8580 = prefs.getBoolean(CorePreferenceKeys.SIDPLAYFP_DIGI_BOOST_8580, SidPlayFpDefaults.digiBoost8580),
+            sidPlayFpFilterCurve6581Percent = prefs.getInt(CorePreferenceKeys.SIDPLAYFP_FILTER_CURVE_6581, SidPlayFpDefaults.filterCurve6581Percent),
+            sidPlayFpFilterRange6581Percent = prefs.getInt(CorePreferenceKeys.SIDPLAYFP_FILTER_RANGE_6581, SidPlayFpDefaults.filterRange6581Percent),
+            sidPlayFpFilterCurve8580Percent = prefs.getInt(CorePreferenceKeys.SIDPLAYFP_FILTER_CURVE_8580, SidPlayFpDefaults.filterCurve8580Percent),
+            sidPlayFpReSidFpFastSampling = prefs.getBoolean(CorePreferenceKeys.SIDPLAYFP_RESIDFP_FAST_SAMPLING, SidPlayFpDefaults.reSidFpFastSampling),
+            sidPlayFpReSidFpCombinedWaveformsStrength = prefs.getInt(CorePreferenceKeys.SIDPLAYFP_RESIDFP_COMBINED_WAVEFORMS_STRENGTH, SidPlayFpDefaults.reSidFpCombinedWaveformsStrength),
+            gmeTempoPercent = prefs.getInt(CorePreferenceKeys.GME_TEMPO_PERCENT, GmeDefaults.tempoPercent),
+            gmeStereoSeparationPercent = prefs.getInt(CorePreferenceKeys.GME_STEREO_SEPARATION_PERCENT, GmeDefaults.stereoSeparationPercent),
+            gmeEchoEnabled = prefs.getBoolean(CorePreferenceKeys.GME_ECHO_ENABLED, GmeDefaults.echoEnabled),
+            gmeAccuracyEnabled = prefs.getBoolean(CorePreferenceKeys.GME_ACCURACY_ENABLED, GmeDefaults.accuracyEnabled),
+            gmeEqTrebleDecibel = prefs.getInt(CorePreferenceKeys.GME_EQ_TREBLE_DECIBEL, GmeDefaults.eqTrebleDecibel),
+            gmeEqBassHz = prefs.getInt(CorePreferenceKeys.GME_EQ_BASS_HZ, GmeDefaults.eqBassHz),
+            gmeSpcUseBuiltInFade = prefs.getBoolean(CorePreferenceKeys.GME_SPC_USE_BUILTIN_FADE, GmeDefaults.spcUseBuiltInFade),
+            gmeSpcInterpolation = prefs.getInt(CorePreferenceKeys.GME_SPC_INTERPOLATION, GmeDefaults.spcInterpolation),
+            gmeSpcUseNativeSampleRate = prefs.getBoolean(CorePreferenceKeys.GME_SPC_USE_NATIVE_SAMPLE_RATE, GmeDefaults.spcUseNativeSampleRate),
+            vgmPlayLoopCount = prefs.getInt(CorePreferenceKeys.VGMPLAY_LOOP_COUNT, VgmPlayDefaults.loopCount),
+            vgmPlayAllowNonLoopingLoop = prefs.getBoolean(CorePreferenceKeys.VGMPLAY_ALLOW_NON_LOOPING_LOOP, VgmPlayDefaults.allowNonLoopingLoop),
+            vgmPlayVsyncRate = prefs.getInt(CorePreferenceKeys.VGMPLAY_VSYNC_RATE, VgmPlayDefaults.vsyncRate),
+            vgmPlayResampleMode = prefs.getInt(CorePreferenceKeys.VGMPLAY_RESAMPLE_MODE, VgmPlayDefaults.resampleMode),
+            vgmPlayChipSampleMode = prefs.getInt(CorePreferenceKeys.VGMPLAY_CHIP_SAMPLE_MODE, VgmPlayDefaults.chipSampleMode),
+            vgmPlayChipSampleRate = prefs.getInt(CorePreferenceKeys.VGMPLAY_CHIP_SAMPLE_RATE, VgmPlayDefaults.chipSampleRate),
             vgmPlayChipCoreSelections = VgmPlayConfig.defaultChipCoreSelections().mapValues { (chipKey, defaultValue) ->
                 prefs.getInt(CorePreferenceKeys.vgmPlayChipCoreKey(chipKey), defaultValue)
             },
-            openMptStereoSeparationPercent = prefs.getInt(CorePreferenceKeys.OPENMPT_STEREO_SEPARATION_PERCENT, 100),
-            openMptStereoSeparationAmigaPercent = prefs.getInt(CorePreferenceKeys.OPENMPT_STEREO_SEPARATION_AMIGA_PERCENT, 100),
-            openMptInterpolationFilterLength = prefs.getInt(CorePreferenceKeys.OPENMPT_INTERPOLATION_FILTER_LENGTH, 8),
-            openMptAmigaResamplerMode = prefs.getInt(CorePreferenceKeys.OPENMPT_AMIGA_RESAMPLER_MODE, 0),
-            openMptAmigaResamplerApplyAllModules = prefs.getBoolean(CorePreferenceKeys.OPENMPT_AMIGA_RESAMPLER_APPLY_ALL_MODULES, false),
-            openMptVolumeRampingStrength = prefs.getInt(CorePreferenceKeys.OPENMPT_VOLUME_RAMPING_STRENGTH, -1),
-            openMptFt2XmVolumeRamping = prefs.getBoolean(CorePreferenceKeys.OPENMPT_FT2_XM_VOLUME_RAMPING, false),
-            openMptMasterGainMilliBel = prefs.getInt(CorePreferenceKeys.OPENMPT_MASTER_GAIN_MILLIBEL, 0),
-            openMptSurroundEnabled = prefs.getBoolean(CorePreferenceKeys.OPENMPT_SURROUND_ENABLED, false)
+            openMptStereoSeparationPercent = prefs.getInt(CorePreferenceKeys.OPENMPT_STEREO_SEPARATION_PERCENT, OpenMptDefaults.stereoSeparationPercent),
+            openMptStereoSeparationAmigaPercent = prefs.getInt(CorePreferenceKeys.OPENMPT_STEREO_SEPARATION_AMIGA_PERCENT, OpenMptDefaults.stereoSeparationAmigaPercent),
+            openMptInterpolationFilterLength = prefs.getInt(CorePreferenceKeys.OPENMPT_INTERPOLATION_FILTER_LENGTH, OpenMptDefaults.interpolationFilterLength),
+            openMptAmigaResamplerMode = prefs.getInt(CorePreferenceKeys.OPENMPT_AMIGA_RESAMPLER_MODE, OpenMptDefaults.amigaResamplerMode),
+            openMptAmigaResamplerApplyAllModules = prefs.getBoolean(CorePreferenceKeys.OPENMPT_AMIGA_RESAMPLER_APPLY_ALL_MODULES, OpenMptDefaults.amigaResamplerApplyAllModules),
+            openMptVolumeRampingStrength = prefs.getInt(CorePreferenceKeys.OPENMPT_VOLUME_RAMPING_STRENGTH, OpenMptDefaults.volumeRampingStrength),
+            openMptFt2XmVolumeRamping = prefs.getBoolean(CorePreferenceKeys.OPENMPT_FT2_XM_VOLUME_RAMPING, OpenMptDefaults.ft2XmVolumeRamping),
+            openMptMasterGainMilliBel = prefs.getInt(CorePreferenceKeys.OPENMPT_MASTER_GAIN_MILLIBEL, OpenMptDefaults.masterGainMilliBel),
+            openMptSurroundEnabled = prefs.getBoolean(CorePreferenceKeys.OPENMPT_SURROUND_ENABLED, OpenMptDefaults.surroundEnabled)
         )
     }
 
@@ -326,12 +343,12 @@ internal fun rememberDesktopSettings(
                 prefs::getString,
                 backendPreference
             ),
-            audioResamplerPreference = AudioResamplerPreference.fromStorage(prefs.getString(AppPreferenceKeys.AUDIO_RESAMPLER_PREFERENCE, "builtin")),
-            audioOutputLimiterEnabled = prefs.getBoolean(AppPreferenceKeys.AUDIO_OUTPUT_LIMITER_ENABLED, false),
-            lookaheadClipperMode = LookaheadClipperMode.fromStorage(prefs.getString(AppPreferenceKeys.AUDIO_LOOKAHEAD_CLIPPER_MODE, "soft")),
-            multiChannelOutputMode = MultiChannelOutputMode.fromStorage(prefs.getString(AppPreferenceKeys.AUDIO_MULTI_CHANNEL_OUTPUT_MODE, "ffmpeg_only")),
+            audioResamplerPreference = AudioResamplerPreference.fromStorage(prefs.getString(AppPreferenceKeys.AUDIO_RESAMPLER_PREFERENCE, AudioResamplerPreference.BuiltIn.storageValue)),
+            audioOutputLimiterEnabled = prefs.getBoolean(AppPreferenceKeys.AUDIO_OUTPUT_LIMITER_ENABLED, AppDefaults.AudioProcessing.outputLimiterEnabled),
+            lookaheadClipperMode = LookaheadClipperMode.fromStorage(prefs.getString(AppPreferenceKeys.AUDIO_LOOKAHEAD_CLIPPER_MODE, AppDefaults.AudioProcessing.lookaheadClipperMode.storageValue)),
+            multiChannelOutputMode = MultiChannelOutputMode.fromStorage(prefs.getString(AppPreferenceKeys.AUDIO_MULTI_CHANNEL_OUTPUT_MODE, AppDefaults.OutputPipeline.multiChannelOutputMode.storageValue)),
             audioAllowBackendFallback = prefs.getBoolean(AppPreferenceKeys.AUDIO_ALLOW_BACKEND_FALLBACK, true),
-            bitPerfectUsbAudio = prefs.getBoolean(AppPreferenceKeys.BIT_PERFECT_USB_AUDIO, false),
+            bitPerfectUsbAudio = prefs.getBoolean(AppPreferenceKeys.BIT_PERFECT_USB_AUDIO, AppDefaults.OutputPipeline.bitPerfectUsbAudio),
             openPlayerFromNotification = prefs.getBoolean(AppPreferenceKeys.OPEN_PLAYER_FROM_NOTIFICATION, true),
             persistRepeatMode = prefs.getBoolean(AppPreferenceKeys.PERSIST_REPEAT_MODE, true),
             themeMode = ThemeMode.fromStorage(prefs.getString(AppPreferenceKeys.THEME_MODE, "auto")),

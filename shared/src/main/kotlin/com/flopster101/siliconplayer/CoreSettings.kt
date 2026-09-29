@@ -164,7 +164,7 @@ object LazyUsf2Defaults {
 
 object AdPlugDefaults {
     const val coreSampleRateHz = 0
-    const val oplEngine = 2
+    const val oplEngine = 0
 }
 
 object UfmodDefaults {
@@ -173,9 +173,9 @@ object UfmodDefaults {
 
 object XmpDefaults {
     const val coreSampleRateHz = 0
-    const val interpolation = 1 // 0 Nearest, 1 Linear, 2 Spline
+    const val interpolation = 2 // 0 Nearest, 1 Linear, 2 Spline
     const val stereoSeparationPercent = 100
-    const val amigaStereoSeparationPercent = 65
+    const val amigaStereoSeparationPercent = 50
     const val amigaModel = 2 // 0 Off, 1 Amiga 500, 2 Amiga 1200
 }
 

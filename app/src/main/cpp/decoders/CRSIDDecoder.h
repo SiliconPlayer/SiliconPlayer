@@ -114,7 +114,7 @@ private:
     ClockMode clockMode = ClockMode::Auto;
     SidModelMode sidModelMode = SidModelMode::Auto;
     QualityMode qualityMode = QualityMode::High;
-    Filter6581Preset filter6581Preset = Filter6581Preset::Stock;
+    Filter6581Preset filter6581Preset = Filter6581Preset::R3;
     bool durationReliable = false;
     bool endReached = false;
     double currentDurationSeconds = 0.0;

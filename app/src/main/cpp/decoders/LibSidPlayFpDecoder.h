@@ -159,7 +159,7 @@ private:
     double reSidFpFilterCurve6581 = 0.5;
     double reSidFpFilterRange6581 = 0.5;
     double reSidFpFilterCurve8580 = 0.5;
-    bool reSidFpFastSampling = true;
+    bool reSidFpFastSampling = false;
     SidConfig::sid_cw_t reSidFpCombinedWaveformsStrength = SidConfig::AVERAGE;
 
     bool openInternalLocked(const char* path);
