@@ -903,6 +903,21 @@ build_furnace() {
     if [ ! -d "$PROJECT_PATH" ]; then return 0; fi
     if [ "$FORCE_CLEAN" -ne 1 ] && [ -f "$INSTALL_DIR/lib/libfurnace.so" ]; then return 0; fi
     echo "Building furnace for host..."
+    cmake --version | head -n 1
+    # Upstream only builds the shared engine on Android; everywhere else
+    # the same target is the tracker executable. Force the shared branch
+    # explicitly: without this the desktop build links an executable and
+    # the libfurnace.so lookup below fails. The full-line anchor matches
+    # only the target-type branch (other ANDROID guards have a space
+    # after "if"). Idempotent via marker; the Android build keeps
+    # working because its NDK toolchain already takes the same branch.
+    if ! grep -Fq "SILICONPLAYER_FORCE_SHARED_LIBS" "$PROJECT_PATH/CMakeLists.txt"; then
+        sed -i "s/^if(ANDROID AND NOT TERMUX)$/if(ANDROID AND NOT TERMUX OR SILICONPLAYER_FORCE_SHARED_LIBS)/" "$PROJECT_PATH/CMakeLists.txt"
+    fi
+    if ! grep -Fq "SILICONPLAYER_FORCE_SHARED_LIBS" "$PROJECT_PATH/CMakeLists.txt"; then
+        echo "Error: furnace shared-library branch patch did not apply."
+        return 1
+    fi
     rm -rf "$BUILD_DIR" && mkdir -p "$BUILD_DIR"
     cmake $CMAKE_COMMON_FLAGS -S "$PROJECT_PATH" -B "$BUILD_DIR" \
         -DCMAKE_BUILD_TYPE=Release \
@@ -911,6 +926,7 @@ build_furnace() {
         -DCMAKE_POSITION_INDEPENDENT_CODE=ON \
         -DCMAKE_DISABLE_PRECOMPILE_HEADERS=ON \
         -DBUILD_SHARED_LIBS=ON \
+        -DSILICONPLAYER_FORCE_SHARED_LIBS=ON \
         -DBUILD_GUI=OFF \
         -DUSE_SDL2=OFF \
         -DUSE_SNDFILE=ON \
@@ -938,8 +954,29 @@ build_furnace() {
         -DNO_INTRO=ON \
         -DWARNINGS_ARE_ERRORS=OFF \
         -DCMAKE_INSTALL_PREFIX="$INSTALL_DIR"
+    # Fail fast when the configure above did not yield the shared engine:
+    # compiling 300 objects only to miss libfurnace.so wastes a CI cycle.
+    local FURNACE_LINK_DESC=""
+    if [ -f "$BUILD_DIR/CMakeFiles/furnace.dir/build.make" ]; then
+        FURNACE_LINK_DESC="$(grep -o "Linking CXX [a-z ]*" "$BUILD_DIR/CMakeFiles/furnace.dir/build.make" | sort -u | tr '\n' ' ')"
+    elif [ -f "$BUILD_DIR/build.ninja" ]; then
+        FURNACE_LINK_DESC="$(grep -o "build libfurnace[^:]*" "$BUILD_DIR/build.ninja" | sort -u | tr '\n' ' ')"
+    fi
+    if [ -n "$FURNACE_LINK_DESC" ]; then
+        echo "furnace target: $FURNACE_LINK_DESC"
+        case "$FURNACE_LINK_DESC" in
+            *"shared library"*|*"libfurnace.so"*) ;;
+            *)
+                echo "Error: furnace configured as '$FURNACE_LINK_DESC', expected a shared library."
+                return 1
+                ;;
+        esac
+    fi
     cmake --build "$BUILD_DIR" --target furnace -j"$NPROC"
     local BUILT_LIB="$(find "$BUILD_DIR" -type f -name 'libfurnace.so' | head -n 1)"
+    if [ -z "$BUILT_LIB" ]; then
+        BUILT_LIB="$(find "$BUILD_DIR" -type f -name 'libfurnace.so.*' | head -n 1)"
+    fi
     if [ -z "$BUILT_LIB" ] || [ ! -f "$BUILT_LIB" ]; then
         echo "Error: furnace shared library not found after build."
         return 1
