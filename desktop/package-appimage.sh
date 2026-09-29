@@ -49,7 +49,12 @@ EOF
 chmod +x "$STAGE/AppRun"
 
 mkdir -p "$STAGE/usr/share/doc/siliconplayer"
-cp ../external/ffmpeg/COPYING.LGPLv2.1 "$STAGE/usr/share/doc/siliconplayer/COPYING.FFmpeg"
+about_texts="build/generated/about/main/texts"
+if [ ! -d "$about_texts" ] || [ -z "$(ls -A "$about_texts")" ]; then
+    echo "error: license texts missing at $about_texts (run :desktop:generateAboutVersions first)" >&2
+    exit 1
+fi
+cp "$about_texts"/* "$STAGE/usr/share/doc/siliconplayer/"
 
 if [ ! -x "$TOOL" ]; then
     mkdir -p "$(dirname "$TOOL")"

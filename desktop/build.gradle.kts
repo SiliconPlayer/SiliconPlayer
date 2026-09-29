@@ -23,6 +23,49 @@ dependencies {
     testImplementation(libs.junit)
 }
 
+val generatedAboutVersionDir = layout.buildDirectory.dir("generated/source/aboutVersions/main")
+val generatedAboutMetaDir = layout.buildDirectory.dir("generated/about/main")
+
+val generateAboutVersions by tasks.registering(Exec::class) {
+    group = "build setup"
+    description = "Generate About versions and license texts from tools/licenses.toml."
+    val headsCapture = try {
+        val proc = ProcessBuilder("git", "submodule", "status")
+            .directory(rootDir)
+            .redirectErrorStream(true)
+            .start()
+        val out = proc.inputStream.bufferedReader().use { it.readText() }
+        proc.waitFor()
+        out
+    } catch (_: Exception) {
+        ""
+    }
+    inputs.file(rootProject.file("tools/licenses.toml"))
+    inputs.file(rootProject.file("tools/generate-about.py"))
+    inputs.property("aboutSourceHeads", headsCapture)
+    outputs.dir(generatedAboutVersionDir)
+    outputs.dir(generatedAboutMetaDir)
+    commandLine(
+        "python3",
+        rootProject.file("tools/generate-about.py").absolutePath,
+        "--repo", rootDir.absolutePath,
+        "--toml", rootProject.file("tools/licenses.toml").absolutePath,
+        "--java-out", generatedAboutVersionDir.get().asFile.absolutePath,
+        "--meta-out", generatedAboutMetaDir.get().asFile.absolutePath
+    )
+}
+
+tasks.named("compileKotlin") {
+    dependsOn(generateAboutVersions)
+}
+
+sourceSets.getByName("main") {
+    java.srcDir(layout.buildDirectory.dir("generated/source/aboutVersions/main"))
+}
+
+tasks.named("compileJava") {
+    dependsOn(generateAboutVersions)
+}
 
 compose.desktop {
     application {

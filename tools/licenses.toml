@@ -1,0 +1,142 @@
+# Build facts for the About page: display strings stay in AboutCatalog.kt.
+# tools/generate-about.py joins this map with submodule SHAs at build time.
+
+default_tag_patterns = ["*"]
+
+[[dep]]
+id = "core.ffmpeg"
+spdx = "LGPL-2.1-or-later"
+source = "external/ffmpeg"
+texts = ["external/ffmpeg/COPYING.LGPLv2.1"]
+
+[[dep]]
+id = "core.libopenmpt"
+spdx = "BSD-3-Clause"
+source = "external/libopenmpt"
+texts = ["external/libopenmpt/LICENSE"]
+tag_patterns = ["libopenmpt-*", "OpenMPT-*"]
+
+[[dep]]
+id = "core.vgmplay"
+spdx = "Mixed per-chip licenses, no single text upstream"
+source = "external/libvgm"
+texts = []
+note = "No single license text upstream; per-chip sources carry their own notices."
+
+[[dep]]
+id = "core.gme"
+spdx = "LGPL-2.1-or-later"
+source = "external/libgme"
+texts = ["external/libgme/license.txt"]
+
+[[dep]]
+id = "core.crsid"
+spdx = "Upstream custom permissive notice"
+source = ""
+texts = ["external/cRSID/libcRSID/README.txt"]
+override = "1.58"
+
+[[dep]]
+id = "core.libsidplayfp"
+spdx = "GPL-2.0-or-later"
+source = "external/libsidplayfp"
+texts = ["external/libsidplayfp/COPYING"]
+
+[[dep]]
+id = "core.lazyusf2"
+spdx = "GPL-2.0-or-later"
+source = "external/lazyusf2"
+texts = ["external/lazyusf2/rsp_hle/LICENSES"]
+
+[[dep]]
+id = "core.vio2sf"
+spdx = "GPL-2.0-or-later"
+source = "external/2sf/vio2sf"
+texts = ["external/2sf/vio2sf/src/vio2sf/desmume/COPYING"]
+
+[[dep]]
+id = "core.sc68"
+spdx = "GPL-3.0-or-later"
+source = "external/sc68"
+texts = ["external/sc68/COPYING"]
+override = "r713"
+
+[[dep]]
+id = "core.adplug"
+spdx = "LGPL-2.1-or-later"
+source = "external/adplug"
+texts = ["external/adplug/COPYING"]
+
+[[dep]]
+id = "core.uade"
+spdx = "Mixed, see composite notice"
+source = "external/uade"
+texts = ["external/uade/COPYING", "external/uade/COPYING.GPL", "external/uade/COPYING.LGPL"]
+note = "Upstream ships a composite notice plus GPL and LGPL texts; all three ride along."
+
+[[dep]]
+id = "core.hivelytracker"
+spdx = "BSD-3-Clause"
+source = "external/hivelytracker"
+texts = ["external/hivelytracker/LICENSE"]
+
+[[dep]]
+id = "core.klystrack"
+spdx = "MIT"
+source = "external/klystrack"
+texts = ["external/klystrack/LICENSE"]
+
+[[dep]]
+id = "core.furnace"
+spdx = "GPL-2.0-or-later"
+source = "external/furnace"
+texts = ["external/furnace/LICENSE"]
+
+[[dep]]
+id = "lib.openmpt_dsp_effects"
+spdx = "BSD-3-Clause"
+source = ""
+texts = ["app/src/main/cpp/effects/openmpt_dsp/LICENSE.OpenMPT"]
+
+[[dep]]
+id = "lib.psflib"
+spdx = "MIT"
+source = "external/psflib"
+texts = ["external/psflib/LICENSE"]
+
+[[dep]]
+id = "lib.mbedtls"
+spdx = "Apache-2.0"
+source = "external/mbedtls"
+texts = ["external/mbedtls/LICENSE"]
+note = "Upstream dual-licenses Apache-2.0 OR GPL-2.0-or-later; distributed here under Apache-2.0."
+
+[[dep]]
+id = "lib.libsoxr"
+spdx = "LGPL-2.1-or-later"
+source = "external/libsoxr"
+texts = ["external/libsoxr/COPYING.LGPL"]
+
+[[dep]]
+id = "lib.libresidfp"
+spdx = "GPL-2.0-or-later"
+source = "external/libresidfp"
+texts = ["external/libresidfp/LICENSE"]
+
+[[dep]]
+id = "lib.resid"
+spdx = "GPL-3.0-or-later"
+source = "external/resid"
+texts = ["external/resid/COPYING"]
+
+[[dep]]
+id = "lib.libbinio"
+spdx = "LGPL-2.1-or-later"
+source = "external/libbinio"
+texts = ["external/libbinio/COPYING"]
+
+[[dep]]
+id = "lib.miniaudio"
+spdx = "Unlicense OR MIT-0"
+source = "external/miniaudio"
+texts = ["external/miniaudio/LICENSE"]

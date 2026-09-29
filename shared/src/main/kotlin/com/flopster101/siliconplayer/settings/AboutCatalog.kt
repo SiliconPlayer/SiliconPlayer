@@ -167,7 +167,7 @@ internal object AboutCatalog {
             name = DecoderNames.KLYSTRACK,
             description = "Klystrack-plus module replay core using the klystron audio engine.",
             author = "Georgy Saraykin (LTVA1) and Klystrack-plus contributors",
-            license = "zlib License",
+            license = "MIT License",
             links = listOf(
                 AboutEntityLink("Project", "https://github.com/LTVA1/klystrack"),
                 AboutEntityLink("Source", "https://github.com/LTVA1/klystrack")
@@ -341,6 +341,20 @@ internal object AboutCatalog {
 
     fun resolveVersion(entityId: String): String? {
         return generatedVersionResolver(entityId)
+    }
+
+    private val generatedLicenseTextResolver: (String) -> String? = { entityId ->
+        try {
+            val clazz = Class.forName("com.flopster101.siliconplayer.GeneratedLicenseTexts")
+            val method = clazz.getMethod("textForId", String::class.java)
+            method.invoke(null, entityId) as? String
+        } catch (_: Throwable) {
+            null
+        }
+    }
+
+    fun resolveLicenseText(entityId: String): String? {
+        return generatedLicenseTextResolver(entityId)
     }
 
     fun resolveCoreForPlugin(pluginName: String): AboutEntity? {

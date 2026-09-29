@@ -49,15 +49,6 @@ fun parseBooleanGradleProperty(value: String?): Boolean {
     }
 }
 
-fun parseCsvGradleProperty(value: String?): Set<String> {
-    if (value.isNullOrBlank()) return emptySet()
-    return value
-        .split(',')
-        .map { it.trim() }
-        .filter { it.isNotEmpty() }
-        .toSet()
-}
-
 fun gitShortSha(): String {
     return try {
         val result = runProcessAndCapture(
@@ -74,190 +65,33 @@ fun gitShortSha(): String {
     }
 }
 
-fun gitCommandOutput(workingDir: File, vararg args: String): String? {
-    return try {
-        val result = runProcessAndCapture(
-            command = args.toList(),
-            workingDir = workingDir
-        )
-        if (result.exitCode == 0) {
-            result.output.trim().ifBlank { null }
-        } else {
-            null
-        }
-    } catch (_: Exception) {
-        null
-    }
-}
-
-fun resolveGitVersionString(repoDir: File): String? {
-    return resolveGitVersionString(repoDir, useTag = true, tagPatterns = listOf("*"))
-}
-
-fun resolveLatestTagByPattern(repoDir: File, patterns: List<String>): String? {
-    if (!repoDir.isDirectory) return null
-    val normalizedPatterns = patterns.map { it.trim() }.filter { it.isNotEmpty() }
-    val effectivePatterns = if (normalizedPatterns.isEmpty()) listOf("*") else normalizedPatterns
-    for (pattern in effectivePatterns) {
-        val listed = gitCommandOutput(
-            repoDir,
-            "git",
-            "tag",
-            "--list",
-            pattern,
-            "--sort=-version:refname"
-        ) ?: continue
-        val first = listed
-            .lineSequence()
-            .map { it.trim() }
-            .firstOrNull { it.isNotEmpty() }
-        if (!first.isNullOrBlank()) {
-            return first
-        }
-    }
-    return null
-}
-
-fun resolveGitVersionString(
-    repoDir: File,
-    useTag: Boolean,
-    tagPatterns: List<String>
-): String? {
-    if (!repoDir.isDirectory) return null
-    val shortSha = gitCommandOutput(repoDir, "git", "rev-parse", "--short=8", "HEAD") ?: return null
-    if (!useTag) {
-        return shortSha
-    }
-    val selectedTag = resolveLatestTagByPattern(repoDir, tagPatterns)
-    return if (selectedTag.isNullOrBlank()) shortSha else "$selectedTag-$shortSha"
-}
-
-fun escapeKotlinString(value: String): String {
-    return value
-        .replace("\\", "\\\\")
-        .replace("\"", "\\\"")
-}
-
-val aboutVersionSources = linkedMapOf(
-    "core.ffmpeg" to "external/ffmpeg",
-    "core.libopenmpt" to "external/libopenmpt",
-    "core.vgmplay" to "external/libvgm",
-    "core.gme" to "external/libgme",
-    "core.libsidplayfp" to "external/libsidplayfp",
-    "core.lazyusf2" to "external/lazyusf2",
-    "core.vio2sf" to "external/2sf/vio2sf",
-    "core.sc68" to "external/sc68",
-    "core.adplug" to "external/adplug",
-    "core.uade" to "external/uade",
-    "core.hivelytracker" to "external/hivelytracker",
-    "core.klystrack" to "external/klystrack",
-    "core.furnace" to "external/furnace",
-    "lib.psflib" to "external/psflib",
-    "lib.libsoxr" to "external/libsoxr",
-    "lib.mbedtls" to "external/mbedtls",
-    "lib.libresidfp" to "external/libresidfp",
-    "lib.resid" to "external/resid",
-    "lib.libbinio" to "external/libbinio",
-    "lib.miniaudio" to "external/miniaudio"
-)
-
-// Prefer dependency-specific release tag families where upstream uses multiple namespaces.
-val aboutVersionTagPatterns = mapOf(
-    "core.libopenmpt" to listOf("libopenmpt-*", "OpenMPT-*")
-)
-
-// Build-time toggle:
-//   -PaboutVersionDisableTagsFor=core.libopenmpt,core.lazyusf2
-// IDs not listed here continue using tag+hash when tags exist.
-val aboutVersionDisableTagsFor = parseCsvGradleProperty(
-    providers.gradleProperty("aboutVersionDisableTagsFor").orNull
-)
-
-val aboutVersionOverrides = mapOf(
-    "core.sc68" to "r713"
-)
-
+val aboutToml = rootProject.file("tools/licenses.toml")
+val aboutScript = rootProject.file("tools/generate-about.py")
 val generatedAboutVersionDir = layout.buildDirectory.dir("generated/source/aboutVersions/main")
-val generatedAboutVersionFile = generatedAboutVersionDir.map {
-    File(it.asFile, "com/flopster101/siliconplayer/GeneratedAboutVersions.java")
-}
+val generatedAboutMetaDir = layout.buildDirectory.dir("generated/about/main")
 
-val generateAboutVersions by tasks.registering {
+val generateAboutVersions by tasks.registering(Exec::class) {
     group = "build setup"
-    description = "Generate About versions from submodule git metadata."
-    outputs.file(generatedAboutVersionFile)
-    inputs.property("aboutVersionDisableTagsFor", aboutVersionDisableTagsFor.toList().sorted().joinToString(","))
+    description = "Generate About versions and license texts from tools/licenses.toml."
+    val disableTags = providers.gradleProperty("aboutVersionDisableTagsFor").orNull ?: ""
+    inputs.file(aboutToml)
+    inputs.file(aboutScript)
+    inputs.property("aboutVersionDisableTagsFor", disableTags)
     inputs.property(
-        "aboutVersionTagPatterns",
-        aboutVersionTagPatterns
-            .toSortedMap()
-            .entries
-            .joinToString("|") { (id, patterns) -> "$id=${patterns.joinToString(",")}" }
+        "aboutSourceHeads",
+        runProcessAndCapture(listOf("git", "submodule", "status"), rootProject.projectDir).output
     )
-    inputs.property(
-        "aboutVersionOverrides",
-        aboutVersionOverrides
-            .toSortedMap()
-            .entries
-            .joinToString("|") { (id, value) -> "$id=$value" }
+    outputs.dir(generatedAboutVersionDir)
+    outputs.dir(generatedAboutMetaDir)
+    commandLine(
+        "python3",
+        aboutScript.absolutePath,
+        "--repo", rootProject.projectDir.absolutePath,
+        "--toml", aboutToml.absolutePath,
+        "--java-out", generatedAboutVersionDir.get().asFile.absolutePath,
+        "--meta-out", generatedAboutMetaDir.get().asFile.absolutePath,
+        "--disable-tags-for", disableTags
     )
-    inputs.property(
-        "aboutVersionSourceHeads",
-        aboutVersionSources
-            .entries
-            .joinToString("|") { (id, path) ->
-                val sourceDir = rootProject.file(path)
-                val head = gitCommandOutput(sourceDir, "git", "rev-parse", "HEAD") ?: "missing"
-                "$id=$head"
-            }
-    )
-    doLast {
-        val resolved = linkedMapOf<String, String>()
-        for ((id, path) in aboutVersionSources) {
-            val sourceDir = rootProject.file(path)
-            val useTag = id !in aboutVersionDisableTagsFor
-            val tagPatterns = aboutVersionTagPatterns[id] ?: listOf("*")
-            val gitVersion = resolveGitVersionString(
-                repoDir = sourceDir,
-                useTag = useTag,
-                tagPatterns = tagPatterns
-            )
-            val forcedVersion = aboutVersionOverrides[id]
-            resolved[id] = forcedVersion ?: gitVersion ?: "unknown"
-        }
-
-        val outFile = generatedAboutVersionFile.get()
-        outFile.parentFile.mkdirs()
-        val mapBody = resolved.entries.joinToString("\n") { (id, version) ->
-            "        map.put(\"${escapeKotlinString(id)}\", \"${escapeKotlinString(version)}\");"
-        }
-        outFile.writeText(
-            """
-            |package com.flopster101.siliconplayer;
-            |
-            |import java.util.Collections;
-            |import java.util.LinkedHashMap;
-            |import java.util.Map;
-            |
-            |public final class GeneratedAboutVersions {
-            |    private static final Map<String, String> BY_ID;
-            |
-            |    static {
-            |        Map<String, String> map = new LinkedHashMap<>();
-            |$mapBody
-            |        BY_ID = Collections.unmodifiableMap(map);
-            |    }
-            |
-            |    private GeneratedAboutVersions() {
-            |    }
-            |
-            |    public static String versionForId(String entityId) {
-            |        return BY_ID.get(entityId);
-            |    }
-            |}
-            |""".trimMargin()
-        )
-    }
 }
 
 extensions.configure<com.android.build.api.dsl.ApplicationExtension>("android") {
@@ -662,6 +496,7 @@ val syncProjectMPresetAssets = tasks.register("syncProjectMPresetAssets") {
 }
 
 tasks.named("preBuild").configure {
+    dependsOn(generateAboutVersions)
     dependsOn(syncUadeRuntimeAssets)
     dependsOn(syncProjectMPresetAssets)
     dependsOn(syncPrebuiltNativeLibs)

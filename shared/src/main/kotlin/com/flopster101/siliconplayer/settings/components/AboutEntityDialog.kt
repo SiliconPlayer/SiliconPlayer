@@ -19,9 +19,12 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Description
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.FilledTonalButton
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -30,6 +33,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
@@ -158,6 +162,8 @@ private fun AboutEntityDialogContent(
 ) {
     val uriHandler = LocalUriHandler.current
     val versionLabel = remember(entity.id) { AboutCatalog.resolveVersion(entity.id) }
+    val licenseText = remember(entity.id) { AboutCatalog.resolveLicenseText(entity.id) }
+    var showLicenseText by remember { mutableStateOf(false) }
     val configuration = LocalWindowSizeInfo.current
     val maxHeight = configuration.screenHeightDp.dp * 0.60f
     val scrollState = rememberScrollState()
@@ -195,6 +201,16 @@ private fun AboutEntityDialogContent(
                 label = "License",
                 value = entity.license
             )
+            if (!licenseText.isNullOrBlank()) {
+                TextButton(onClick = { showLicenseText = true }) {
+                    Icon(
+                        imageVector = Icons.Filled.Description,
+                        contentDescription = null
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text("View license text")
+                }
+            }
             if (!versionLabel.isNullOrBlank()) {
                 AboutEntityInfoLine(
                     label = "Version",
@@ -240,6 +256,13 @@ private fun AboutEntityDialogContent(
                     .graphicsLayer(alpha = scrollbarAlpha)
             )
         }
+    }
+    if (showLicenseText && !licenseText.isNullOrBlank()) {
+        AboutLicenseTextDialog(
+            entity = entity,
+            text = licenseText,
+            onDismiss = { showLicenseText = false }
+        )
     }
 }
 

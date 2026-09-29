@@ -30,5 +30,7 @@ package() {
     install -Dm644 packaging/arch/siliconplayer.desktop "$pkgdir/usr/share/applications/siliconplayer.desktop"
     install -Dm644 siliconplayer.png "$pkgdir/usr/share/icons/hicolor/256x256/apps/siliconplayer.png"
     install -Dm644 LICENSE "$pkgdir/usr/share/licenses/siliconplayer/LICENSE"
-    install -Dm644 external/ffmpeg/COPYING.LGPLv2.1 "$pkgdir/usr/share/licenses/siliconplayer/COPYING.FFmpeg"
+    for text in desktop/build/generated/about/main/texts/*; do
+        install -Dm644 "$text" "$pkgdir/usr/share/licenses/siliconplayer/$(basename "$text")"
+    done
 }
