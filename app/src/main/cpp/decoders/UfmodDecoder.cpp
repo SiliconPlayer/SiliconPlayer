@@ -28,7 +28,7 @@ bool UfmodDecoder::open(const char* path) {
 
     context = ufmod_load(fileData.data(), fileData.size(), static_cast<unsigned int>(sampleRate));
     if (!context) {
-        LOGE("uFMOD rejected %s", path ? path : "<null>");
+        LOGE("uFMOD-C rejected %s", path ? path : "<null>");
         fileData.clear();
         return false;
     }

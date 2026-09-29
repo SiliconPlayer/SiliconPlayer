@@ -42,7 +42,7 @@ public:
     std::string getCoreStringInfo(const char* name) override;
     int getCoreIntInfo(const char* name, int fallback = 0) override;
 
-    const char* getName() const override { return "uFMOD"; }
+    const char* getName() const override { return "uFMOD-C"; }
 
 private:
     ufmod_t* context = nullptr;

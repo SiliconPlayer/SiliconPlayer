@@ -5,7 +5,7 @@ internal object DecoderNames {
     const val PLATFORM_DOLBY = "System Dolby"
     const val LIB_OPEN_MPT = "LibOpenMPT"
     const val LIBXMP = "libxmp"
-    const val UFMOD = "uFMOD"
+    const val UFMOD = "uFMOD-C"
     const val AYFLY = "ayfly"
     const val VGM_PLAY = "VGMPlay"
     const val GAME_MUSIC_EMU = "Game Music Emu"
@@ -48,7 +48,7 @@ internal fun canonicalDecoderNameForAlias(coreName: String?): String? {
         "ffmpeg" -> DecoderNames.FFMPEG
         "libopenmpt", "openmpt" -> DecoderNames.LIB_OPEN_MPT
         "libxmp", "xmp" -> DecoderNames.LIBXMP
-        "ufmod", "u fmod" -> DecoderNames.UFMOD
+        "ufmod-c", "ufmod", "u fmod" -> DecoderNames.UFMOD
         "ayfly", "libayfly" -> DecoderNames.AYFLY
         "vgmplay" -> DecoderNames.VGM_PLAY
         "game music emu", "libgme", "gme" -> DecoderNames.GAME_MUSIC_EMU

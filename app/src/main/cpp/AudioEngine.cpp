@@ -145,7 +145,7 @@ namespace {
             ufmodStaticInfo.optionApplyPolicy = [](const char*) {
                 return AudioDecoder::OPTION_APPLY_REQUIRES_PLAYBACK_RESTART;
             };
-            DecoderRegistry::getInstance().registerDecoder("uFMOD", getStaticUfmodExtensions(), []() {
+            DecoderRegistry::getInstance().registerDecoder("uFMOD-C", getStaticUfmodExtensions(), []() {
                 return DecoderPluginLoader::getInstance().createDecoder("libsiliconplayer_ufmod_decoder.so");
             }, 18, std::move(ufmodStaticInfo));
 

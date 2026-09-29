@@ -206,6 +206,18 @@ internal object AboutCatalog {
             links = listOf(
                 AboutEntityLink("Source", "https://github.com/SiliconPlayer/libxmp")
             )
+        ),
+        AboutEntity(
+            id = "core.ufmod",
+            kind = AboutEntityKind.Core,
+            name = DecoderNames.UFMOD,
+            description = "uFMOD rewritten in C for portable XM playback.",
+            author = "Flopster101, Asterix and Quantum",
+            license = "MIT",
+            links = listOf(
+                AboutEntityLink("Project", "https://ufmod.sourceforge.io/"),
+                AboutEntityLink("Source", "https://github.com/Flopster101/uFMOD-C")
+            )
         )
     )
 
@@ -437,7 +449,8 @@ internal object AboutCatalog {
         DecoderNames.KLYSTRACK to "core.klystrack",
         DecoderNames.FURNACE to "core.furnace",
         DecoderNames.AYFLY to "core.ayfly",
-        DecoderNames.LIBXMP to "core.libxmp"
+        DecoderNames.LIBXMP to "core.libxmp",
+        DecoderNames.UFMOD to "core.ufmod"
     )
 
     private val entityById: Map<String, AboutEntity> = (coreEntries + libraryEntries).associateBy { it.id }

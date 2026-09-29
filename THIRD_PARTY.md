@@ -40,6 +40,7 @@ package under `/usr/share/licenses/siliconplayer/`.
 | lib.fftw | GPL-2.0-or-later | v0.6pre18-ba46d842 | `external/furnace` @ `ba46d842807c` |
 | lib.fmt | MIT | v0.6pre18-ba46d842 | `external/furnace` @ `ba46d842807c` |
 | lib.libsndfile | LGPL-2.1-or-later | v0.6pre18-ba46d842 | `external/furnace` @ `ba46d842807c` |
+| core.ufmod | MIT | fddf70d8 | `external/ufmod_c` @ `fddf70d8d712` |
 
 **core.vgmplay**: No single license text upstream; per-chip sources carry their own notices.
 

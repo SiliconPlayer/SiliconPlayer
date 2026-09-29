@@ -12,7 +12,7 @@ class DesktopDecodersTest {
         "FFmpeg",
         "LibOpenMPT",
         "libxmp",
-        "uFMOD",
+        "uFMOD-C",
         "ayfly",
         "VGMPlay",
         "Game Music Emu",
@@ -89,7 +89,7 @@ class DesktopDecodersTest {
     @Test
     fun testUfmodDecoder() {
         testSingleDecoder(
-            "uFMOD",
+            "uFMOD-C",
             "/home/flopster101/Music/SyncedMusic/TrackerMusic/FORMAT-Modtracker/spin_me_round.xm"
         )
     }

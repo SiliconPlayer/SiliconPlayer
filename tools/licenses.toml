@@ -197,3 +197,9 @@ spdx = "LGPL-2.1-or-later"
 source = "external/furnace"
 texts = ["external/furnace/extern/libsndfile-modified/COPYING"]
 note = "Shipped as built by the furnace tree; version follows core.furnace."
+
+[[dep]]
+id = "core.ufmod"
+spdx = "MIT"
+source = "external/ufmod_c"
+texts = ["external/ufmod_c/LICENSE"]

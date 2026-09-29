@@ -9,7 +9,7 @@ class SettingsNavigationTest {
 
     @Test
     fun testCanOpenCoreSettingsForKnownDecodersAndAliases() {
-        assertTrue(canOpenCoreSettingsForDecoder("uFMOD"))
+        assertTrue(canOpenCoreSettingsForDecoder("uFMOD-C"))
         assertTrue(canOpenCoreSettingsForDecoder("ufmod"))
         assertTrue(canOpenCoreSettingsForDecoder("LibOpenMPT"))
         assertTrue(canOpenCoreSettingsForDecoder("openmpt"))
@@ -53,7 +53,7 @@ class SettingsNavigationTest {
             settingsRoute = settingsRoute,
             settingsRouteHistory = settingsRouteHistory,
             settingsReturnView = settingsReturnView,
-            lastUsedCoreName = "uFMOD",
+            lastUsedCoreName = "uFMOD-C",
             setSettingsRoute = { settingsRoute = it },
             setSettingsRouteHistory = { settingsRouteHistory = it },
             setSettingsReturnView = { settingsReturnView = it },
