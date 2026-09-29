@@ -251,8 +251,8 @@ set_target_properties(libresidfp_prebuilt PROPERTIES IMPORTED_LOCATION "${PREBUI
 add_library(libsidplayfp_prebuilt SHARED IMPORTED)
 set_target_properties(libsidplayfp_prebuilt PROPERTIES IMPORTED_LOCATION "${PREBUILT_DIR}/lib/libsidplayfp.so")
 
-add_library(libresid_prebuilt STATIC IMPORTED)
-set_target_properties(libresid_prebuilt PROPERTIES IMPORTED_LOCATION "${PREBUILT_DIR}/lib/libresid.a")
+add_library(libresid_prebuilt SHARED IMPORTED)
+set_target_properties(libresid_prebuilt PROPERTIES IMPORTED_LOCATION "${PREBUILT_DIR}/lib/libresid.so")
 
 add_library(siliconplayer_libsidplayfp_decoder SHARED
     "${APP_CPP_DIR}/decoders/LibSidPlayFpDecoder.cpp"
