@@ -179,8 +179,9 @@ IVisualizerRenderer* SiliconVisPipeline::getActiveRenderer() {
 }
 
 bool SiliconVisPipeline::wantsMsaa() const {
-    return currentMode_ == SILICON_VIS_MODE_CHANNEL_SCOPE &&
-            channelScope_.getWaveRenderMode() == 1;
+    // Fast is a channel-scope-only opt-out; every other mode resolves
+    // through the multisample target whenever the GPU offers one.
+    return currentMode_ != SILICON_VIS_MODE_CHANNEL_SCOPE || scopeAntialiasMethod_ != 1;
 }
 
 bool SiliconVisPipeline::probeMsaaSupport() {
@@ -188,7 +189,10 @@ bool SiliconVisPipeline::probeMsaaSupport() {
     msaaProbed_ = true;
     GLint maxSamples = 0;
     glGetIntegerv(GL_MAX_SAMPLES, &maxSamples);
-    msaaSupported_ = maxSamples >= 4;
+    // Two-sample devices still resolve visibly smoother edges; cap at 4,
+    // past which resolve bandwidth starts to cost on older GPUs.
+    msaaMaxSamples_ = maxSamples >= 2 ? std::min<GLint>(maxSamples, 4) : 0;
+    msaaSupported_ = msaaMaxSamples_ > 0;
     return msaaSupported_;
 }
 
@@ -200,7 +204,7 @@ bool SiliconVisPipeline::ensureMsaaTarget(int32_t width, int32_t height) {
     if (!probeMsaaSupport()) {
         return false;
     }
-    msaaSamples_ = 4;
+    msaaSamples_ = msaaMaxSamples_;
 
     glGenFramebuffers(1, &msaaFbo_);
     glGenRenderbuffers(1, &msaaColorRb_);
@@ -216,7 +220,7 @@ bool SiliconVisPipeline::ensureMsaaTarget(int32_t width, int32_t height) {
     const GLenum status = glCheckFramebufferStatus(GL_FRAMEBUFFER);
     glBindFramebuffer(GL_FRAMEBUFFER, 0);
     if (status != GL_FRAMEBUFFER_COMPLETE) {
-        VIS_LOGW("Scope MSAA: framebuffer incomplete (0x%x), falling back", status);
+        VIS_LOGW("Vis MSAA: framebuffer incomplete (0x%x), falling back", status);
         releaseMsaaTarget();
         return false;
     }
@@ -304,10 +308,13 @@ void SiliconVisPipeline::render() {
 
     glViewport(0, 0, widthPx_, heightPx_);
 
-    // The AA wave mode needs hardware multisampling: the window surface has a
-    // fixed sample config, so render into an MSAA FBO and resolve to the
-    // default framebuffer. Other modes draw directly.
-    const bool useMsaa = wantsMsaa() && probeMsaaSupport() && ensureMsaaTarget(widthPx_, heightPx_);
+    // Every mode resolves through the multisample target when the GPU
+    // offers one: traces, bars, grids and glyph edges all antialias at
+    // once. Fast-lines mode (channel scope opt-out) feathers traces
+    // in-shader instead and draws directly; devices without MSAA fall
+    // back to direct rendering with feathered traces automatically.
+    const bool useMsaa = wantsMsaa() && probeMsaaSupport() &&
+        ensureMsaaTarget(widthPx_, heightPx_);
     if (useMsaa) {
         glBindFramebuffer(GL_FRAMEBUFFER, msaaFbo_);
     } else {
@@ -328,9 +335,9 @@ void SiliconVisPipeline::render() {
         glBindFramebuffer(GL_DRAW_FRAMEBUFFER, static_cast<GLuint>(targetFbo_));
         glBindFramebuffer(GL_READ_FRAMEBUFFER, msaaFbo_);
         glBlitFramebuffer(
-                0, 0, msaaWidth_, msaaHeight_,
-                0, 0, widthPx_, heightPx_,
-                GL_COLOR_BUFFER_BIT, GL_NEAREST);
+            0, 0, msaaWidth_, msaaHeight_,
+            0, 0, widthPx_, heightPx_,
+            GL_COLOR_BUFFER_BIT, GL_NEAREST);
         glBindFramebuffer(GL_FRAMEBUFFER, static_cast<GLuint>(targetFbo_));
     }
 }
