@@ -1,5 +1,6 @@
 // Double-wide libm shims: float entry points resolve past Debian glibc
-// (sqrtf/atan2f/log10f 2.43, cosh/sinh 2.44); the double forms are ancient.
+// (sqrtf/atan2f/log10f 2.43, cosh/sinh 2.44), and hypot gained a 2.35
+// version node; the double forms used here are ancient.
 #include <math.h>
 
 float __wrap_sqrtf(float x) { return (float)sqrt((double)x); }
@@ -7,3 +8,13 @@ float __wrap_atan2f(float y, float x) { return (float)atan2((double)y, (double)x
 float __wrap_log10f(float x) { return (float)log10((double)x); }
 double __wrap_cosh(double x) { double e = exp(x); return 0.5 * (e + 1.0 / e); }
 double __wrap_sinh(double x) { double e = exp(x); return 0.5 * (e - 1.0 / e); }
+// Scale-first hypot: no intermediate overflow, only fabs/sqrt underneath.
+double __wrap_hypot(double x, double y) {
+    double ax = fabs(x);
+    double ay = fabs(y);
+    double m = ax > ay ? ax : ay;
+    if (m == 0.0) return 0.0;
+    double sx = ax / m;
+    double sy = ay / m;
+    return m * sqrt(sx * sx + sy * sy);
+}

@@ -290,7 +290,7 @@ build_ffmpeg() {
             --disable-cuda --disable-cuvid --disable-nvdec --disable-nvenc \
             --disable-dxva2 --disable-d3d11va --disable-videotoolbox \
             --extra-cflags="-fPIC $DEP_OPT_FLAGS" \
-            --extra-ldflags="$BUILD_DIR/wrap_libm.o -L$INSTALL_DIR/lib -lm -Wl,--wrap,sqrtf -Wl,--wrap,atan2f -Wl,--wrap,log10f -Wl,--wrap,cosh -Wl,--wrap,sinh"
+            --extra-ldflags="$BUILD_DIR/wrap_libm.o -L$INSTALL_DIR/lib -lm -Wl,--wrap,sqrtf -Wl,--wrap,atan2f -Wl,--wrap,log10f -Wl,--wrap,cosh -Wl,--wrap,sinh -Wl,--wrap,hypot"
         make -j"$NPROC"
         make install
     )
