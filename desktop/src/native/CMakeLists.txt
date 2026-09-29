@@ -282,9 +282,6 @@ add_custom_command(TARGET siliconplayer_libsidplayfp_decoder POST_BUILD
     COMMAND ${CMAKE_COMMAND} -E copy_if_different
     "${PREBUILT_DIR}/lib/libsidplayfp.so"
     "${CMAKE_CURRENT_BINARY_DIR}/libsidplayfp.so.6"
-    COMMAND ${CMAKE_COMMAND} -E copy_if_different
-    "${PREBUILT_DIR}/lib/libresid.so"
-    "${CMAKE_CURRENT_BINARY_DIR}/libresid.so"
 )
 
 # 6. uFMOD Decoder
