@@ -337,6 +337,21 @@ internal object AboutCatalog {
             )
         ),
         AboutEntity(
+            id = "lib.roboto",
+            kind = AboutEntityKind.Library,
+            name = "Roboto",
+            description = "Typeface used for the VU meter labels and readouts.",
+            author = "Christian Robertson and contributors",
+            license = "Apache-2.0",
+            links = listOf(
+                AboutEntityLink("Project", "https://fonts.google.com/specimen/Roboto"),
+                AboutEntityLink("Source", "https://github.com/google/roboto")
+            ),
+            integrationNotes = listOf(
+                "Only the Medium weight ships, shared by the Android and desktop VU meters."
+            )
+        ),
+        AboutEntity(
             id = "lib.smbj",
             kind = AboutEntityKind.Library,
             name = "SMBJ",

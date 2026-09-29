@@ -25,8 +25,10 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
+import androidx.core.content.res.ResourcesCompat
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
+import com.flopster101.siliconplayer.R
 import com.flopster101.siliconplayer.VisualizationVuAnchor
 import kotlin.math.log10
 import kotlin.math.pow
@@ -344,7 +346,10 @@ private class VuMetersGlCoreRenderer(private val context: Context) {
     private var surfaceWidth = 1
     private var surfaceHeight = 1
     private val bgRenderer = GlArtworkBackgroundRenderer(context)
-    private val fontAtlas = GlFontAtlas(typeface = Typeface.DEFAULT_BOLD, baseFontSizePx = 32f)
+    private val fontAtlas = GlFontAtlas(
+        typeface = ResourcesCompat.getFont(context, R.font.roboto_medium) ?: Typeface.DEFAULT_BOLD,
+        baseFontSizePx = 32f
+    )
     private val textProgram = GlTextProgram()
     private val textBatch = GlTextBatchBuilder(256)
     private var textVertexBuffer: FloatBuffer? = null
