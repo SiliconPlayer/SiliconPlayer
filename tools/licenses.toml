@@ -140,3 +140,39 @@ id = "lib.miniaudio"
 spdx = "Unlicense OR MIT-0"
 source = "external/miniaudio"
 texts = ["external/miniaudio/LICENSE"]
+
+[[dep]]
+id = "core.ayfly"
+spdx = "GPL-2.0-or-later"
+source = "external/ayfly"
+note = "No standalone license file upstream; the grant lives in the source headers."
+
+[[dep]]
+id = "core.libxmp"
+spdx = "MIT"
+source = "external/libxmp"
+texts = ["external/libxmp/docs/COPYING"]
+
+[[dep]]
+id = "lib.smbj"
+spdx = "Apache-2.0"
+override = "0.14.0"
+note = "JVM dependency; version pinned from gradle/libs.versions.toml."
+
+[[dep]]
+id = "lib.smbj_rpc"
+spdx = "BSD-3-Clause"
+override = "0.11.1.1"
+note = "JVM dependency; version pinned from gradle/libs.versions.toml."
+
+[[dep]]
+id = "lib.json"
+spdx = "LicenseRef-JSON"
+override = "20240303"
+note = "Desktop bundles org.json:json; Android uses the framework copy."
+
+[[dep]]
+id = "lib.projectm"
+spdx = "LGPL-2.1-or-later"
+source = "external/projectm"
+texts = ["external/projectm/LICENSE.txt"]

@@ -44,7 +44,7 @@ internal object AboutCatalog {
             license = "BSD-3-Clause",
             links = listOf(
                 AboutEntityLink("Project", "https://lib.openmpt.org/"),
-                AboutEntityLink("Source", "https://github.com/OpenMPT/openmpt.git")
+                AboutEntityLink("Source", "https://github.com/SiliconPlayer/openmpt.git")
             )
         ),
         AboutEntity(
@@ -55,7 +55,7 @@ internal object AboutCatalog {
             author = "Valley Bell and libvgm contributors",
             license = "Mixed per-chip licenses (BSD/LGPL/GPL and others; see upstream sources)",
             links = listOf(
-                AboutEntityLink("Source", "https://github.com/ValleyBell/libvgm.git")
+                AboutEntityLink("Source", "https://github.com/SiliconPlayer/libvgm")
             )
         ),
         AboutEntity(
@@ -66,7 +66,7 @@ internal object AboutCatalog {
             author = "Shay Green, libgme maintainers, and contributors",
             license = "LGPL-2.1+ (some optional emulation paths are GPL-2.0+)",
             links = listOf(
-                AboutEntityLink("Source", "https://github.com/libgme/game-music-emu.git")
+                AboutEntityLink("Source", "https://github.com/SiliconPlayer/game-music-emu")
             )
         ),
         AboutEntity(
@@ -100,7 +100,7 @@ internal object AboutCatalog {
             author = "lazyusf2 and Mupen64plus contributors",
             license = "GPL-2.0-or-later",
             links = listOf(
-                AboutEntityLink("Source", "https://bitbucket.org/losnoco/lazyusf2/")
+                AboutEntityLink("Source", "https://github.com/SiliconPlayer/lazyusf2")
             )
         ),
         AboutEntity(
@@ -135,7 +135,7 @@ internal object AboutCatalog {
             license = "LGPL-2.1-or-later",
             links = listOf(
                 AboutEntityLink("Project", "https://adplug.github.io/"),
-                AboutEntityLink("Source", "https://github.com/adplug/adplug")
+                AboutEntityLink("Source", "https://github.com/SiliconPlayer/adplug")
             )
         ),
         AboutEntity(
@@ -147,7 +147,7 @@ internal object AboutCatalog {
             license = "GPL-2.0-or-later",
             links = listOf(
                 AboutEntityLink("Project", "https://zakalwe.fi/uade/"),
-                AboutEntityLink("Source", "https://github.com/viznut/uade")
+                AboutEntityLink("Source", "https://gitlab.com/mvtiaine/uade")
             )
         ),
         AboutEntity(
@@ -158,7 +158,7 @@ internal object AboutCatalog {
             author = "Xeron, Xigh, and HivelyTracker contributors",
             license = "BSD-3-Clause",
             links = listOf(
-                AboutEntityLink("Source", "https://github.com/pete-gordon/hivelytracker")
+                AboutEntityLink("Source", "https://github.com/SiliconPlayer/hivelytracker")
             )
         ),
         AboutEntity(
@@ -170,7 +170,7 @@ internal object AboutCatalog {
             license = "MIT License",
             links = listOf(
                 AboutEntityLink("Project", "https://github.com/LTVA1/klystrack"),
-                AboutEntityLink("Source", "https://github.com/LTVA1/klystrack")
+                AboutEntityLink("Source", "https://github.com/SiliconPlayer/klystrack")
             )
         ),
         AboutEntity(
@@ -183,6 +183,28 @@ internal object AboutCatalog {
             links = listOf(
                 AboutEntityLink("Project", "https://tildearrow.org/furnace/"),
                 AboutEntityLink("Source", "https://github.com/tildearrow/furnace")
+            )
+        ),
+        AboutEntity(
+            id = "core.ayfly",
+            kind = AboutEntityKind.Core,
+            name = DecoderNames.AYFLY,
+            description = "ZX Spectrum and AY-8910 music player library.",
+            author = "Deryabin Andrew and contributors",
+            license = "GPL-2.0-or-later",
+            links = listOf(
+                AboutEntityLink("Source", "https://github.com/SiliconPlayer/ayfly")
+            )
+        ),
+        AboutEntity(
+            id = "core.libxmp",
+            kind = AboutEntityKind.Core,
+            name = DecoderNames.LIBXMP,
+            description = "Module player engine covering MOD, XM, S3M, IT and legacy tracker formats.",
+            author = "Claudio Matsuoka, Hipolito Carraro Jr. and contributors",
+            license = "MIT",
+            links = listOf(
+                AboutEntityLink("Source", "https://github.com/SiliconPlayer/libxmp")
             )
         )
     )
@@ -296,10 +318,63 @@ internal object AboutCatalog {
             license = "Public Domain (Unlicense) / MIT-0",
             links = listOf(
                 AboutEntityLink("Project", "https://miniaud.io/"),
-                AboutEntityLink("Source", "https://github.com/mackron/miniaudio")
+                AboutEntityLink("Source", "https://github.com/SiliconPlayer/miniaudio.git")
             ),
             integrationNotes = listOf(
                 "Provides unified audio output backend handling across AAudio, OpenSL ES, and desktop audio pipelines."
+            )
+        ),
+        AboutEntity(
+            id = "lib.smbj",
+            kind = AboutEntityKind.Library,
+            name = "SMBJ",
+            description = "SMB2/3 client for network share browsing and streaming.",
+            author = "Hierynomus and contributors",
+            license = "Apache-2.0",
+            links = listOf(
+                AboutEntityLink("Source", "https://github.com/hierynomus/smbj")
+            ),
+            integrationNotes = listOf(
+                "Used by both file browsers for SMB share access."
+            )
+        ),
+        AboutEntity(
+            id = "lib.smbj_rpc",
+            kind = AboutEntityKind.Library,
+            name = "SMBJ-RPC",
+            description = "DCE-RPC over SMB2 backing SMBJ share connections.",
+            author = "Rapid7 and contributors",
+            license = "BSD-3-Clause",
+            links = listOf(
+                AboutEntityLink("Source", "https://github.com/rapid7/smbj-rpc")
+            )
+        ),
+        AboutEntity(
+            id = "lib.json",
+            kind = AboutEntityKind.Library,
+            name = "JSON-Java",
+            description = "JSON parser bundled with the desktop build.",
+            author = "JSON.org contributors",
+            license = "JSON License",
+            links = listOf(
+                AboutEntityLink("Source", "https://github.com/stleary/JSON-java")
+            ),
+            integrationNotes = listOf(
+                "Bundled on desktop; Android resolves org.json from the framework."
+            )
+        ),
+        AboutEntity(
+            id = "lib.projectm",
+            kind = AboutEntityKind.Library,
+            name = "projectM",
+            description = "MilkDrop-compatible music visualizer SDK.",
+            author = "projectM Team",
+            license = "LGPL-2.1-or-later",
+            links = listOf(
+                AboutEntityLink("Source", "https://github.com/projectM-visualizer/projectm")
+            ),
+            integrationNotes = listOf(
+                "Renders the projectM visualization backend on both platforms."
             )
         )
     )
@@ -318,7 +393,9 @@ internal object AboutCatalog {
         DecoderNames.UADE to "core.uade",
         DecoderNames.HIVELY_TRACKER to "core.hivelytracker",
         DecoderNames.KLYSTRACK to "core.klystrack",
-        DecoderNames.FURNACE to "core.furnace"
+        DecoderNames.FURNACE to "core.furnace",
+        DecoderNames.AYFLY to "core.ayfly",
+        DecoderNames.LIBXMP to "core.libxmp"
     )
 
     private val entityById: Map<String, AboutEntity> = (coreEntries + libraryEntries).associateBy { it.id }

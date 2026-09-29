@@ -31,9 +31,23 @@ package under `/usr/share/licenses/siliconplayer/`.
 | lib.resid | GPL-3.0-or-later | 3bf8eff2 | `external/resid` @ `3bf8eff22bc8` |
 | lib.libbinio | LGPL-2.1-or-later | start-79d597dd | `external/libbinio` @ `79d597dde206` |
 | lib.miniaudio | Unlicense OR MIT-0 | 0.11.25-f9614af6 | `external/miniaudio` @ `f9614af67ef1` |
+| core.ayfly | GPL-2.0-or-later | 558275b8 | `external/ayfly` @ `558275b850b0` |
+| core.libxmp | MIT | xmp-4.0.6-2f65a1f3 | `external/libxmp` @ `2f65a1f3a587` |
+| lib.smbj | Apache-2.0 | 0.14.0 | in-tree |
+| lib.smbj_rpc | BSD-3-Clause | 0.11.1.1 | in-tree |
+| lib.json | LicenseRef-JSON | 20240303 | in-tree |
+| lib.projectm | LGPL-2.1-or-later | v4.1.7-359bf780 | `external/projectm` @ `359bf7801e20` |
 
 **core.vgmplay**: No single license text upstream; per-chip sources carry their own notices.
 
 **core.uade**: Upstream ships a composite notice plus GPL and LGPL texts; all three ride along.
 
 **lib.mbedtls**: Upstream dual-licenses Apache-2.0 OR GPL-2.0-or-later; distributed here under Apache-2.0.
+
+**core.ayfly**: No standalone license file upstream; the grant lives in the source headers.
+
+**lib.smbj**: JVM dependency; version pinned from gradle/libs.versions.toml.
+
+**lib.smbj_rpc**: JVM dependency; version pinned from gradle/libs.versions.toml.
+
+**lib.json**: Desktop bundles org.json:json; Android uses the framework copy.
