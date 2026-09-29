@@ -364,6 +364,13 @@ build_ayfly() {
     cp "$PROJECT_PATH/src/libayfly/z80ex/include/"*.h "$INSTALL_DIR/include/ayfly/" 2>/dev/null || true
 }
 
+# Compiler wrapper appending -std=gnu++17 last, so it wins over any older
+# -std the CMake standard machinery emits. The player libs need C++11+.
+make_cxx17_wrapper() {
+    printf '#!/bin/sh\nexec "%s" "$@" -std=gnu++17\n' "$CXX" > "$1/cxx17.sh"
+    chmod +x "$1/cxx17.sh"
+}
+
 build_libvgm() {
     local PROJECT_PATH="$ABSOLUTE_PATH/libvgm"
     local BUILD_DIR="$PROJECT_PATH/build_desktop_${ARCH}"
@@ -371,12 +378,18 @@ build_libvgm() {
     if [ "$FORCE_CLEAN" -ne 1 ] && [ -f "$INSTALL_DIR/lib/libvgm-player.so" ]; then return 0; fi
     echo "Building libvgm for host..."
     rm -rf "$BUILD_DIR" && mkdir -p "$BUILD_DIR"
+    make_cxx17_wrapper "$BUILD_DIR"
     cmake $CMAKE_COMMON_FLAGS -S "$PROJECT_PATH" -B "$BUILD_DIR" \
         -DCMAKE_BUILD_TYPE=Release -DCMAKE_C_FLAGS="$CFLAGS" -DCMAKE_CXX_FLAGS="$CXXFLAGS -std=c++17" \
+        -DCMAKE_CXX_COMPILER="$BUILD_DIR/cxx17.sh" \
+        -DCMAKE_CXX_STANDARD=17 -DCMAKE_CXX_STANDARD_REQUIRED=ON \
         -DCMAKE_POSITION_INDEPENDENT_CODE=ON \
         -DLIBRARY_TYPE=SHARED -DBUILD_LIBAUDIO=OFF -DBUILD_LIBEMU=ON -DBUILD_LIBPLAYER=ON \
         -DBUILD_TESTS=OFF -DBUILD_PLAYER=OFF -DBUILD_VGM2WAV=OFF -DUTIL_CHARSET_CONV=ON \
         -DCMAKE_INSTALL_PREFIX="$INSTALL_DIR"
+    # Log what the CMake standard machinery emits. The wrapper below
+    # appends the effective standard last, so it wins regardless.
+    grep '^CXX_FLAGS' "$BUILD_DIR/player/CMakeFiles/vgm-player.dir/flags.make" 2>/dev/null | grep -o '\-std=[^ ]*' | tr '\n' ' ' || true; echo
     cmake --build "$BUILD_DIR" -j"$NPROC"
     cmake --install "$BUILD_DIR"
     mkdir -p "$INSTALL_DIR/include/vgm/player" "$INSTALL_DIR/include/vgm/utils" "$INSTALL_DIR/include/vgm/emu"
@@ -616,8 +629,11 @@ build_adplug() {
     if [ ! -f "$INSTALL_DIR/lib/libbinio.so" ]; then build_libbinio; fi
     echo "Building adplug for host..."
     rm -rf "$BUILD_DIR" && mkdir -p "$BUILD_DIR"
+    make_cxx17_wrapper "$BUILD_DIR"
     cmake $CMAKE_COMMON_FLAGS -S "$PROJECT_PATH" -B "$BUILD_DIR" \
         -DCMAKE_BUILD_TYPE=Release -DCMAKE_C_FLAGS="$CFLAGS" -DCMAKE_CXX_FLAGS="$CXXFLAGS" \
+        -DCMAKE_CXX_COMPILER="$BUILD_DIR/cxx17.sh" \
+        -DCMAKE_CXX_STANDARD=17 -DCMAKE_CXX_STANDARD_REQUIRED=ON \
         -DCMAKE_POSITION_INDEPENDENT_CODE=ON -DBUILD_SHARED_LIBS=ON \
         -DCMAKE_PREFIX_PATH="$INSTALL_DIR" -DCMAKE_INSTALL_PREFIX="$INSTALL_DIR"
     cmake --build "$BUILD_DIR" -j"$NPROC"
