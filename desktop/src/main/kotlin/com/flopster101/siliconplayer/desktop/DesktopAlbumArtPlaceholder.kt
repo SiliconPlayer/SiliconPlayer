@@ -367,6 +367,14 @@ internal fun AlbumArtPlaceholder(
         else -> false
     }
 
+    // Desktop density is a UI scale factor, not physical dpi: derive
+    // pixels-per-dp from the display resolution to match mobile widths.
+    val pixelsPerDp = remember {
+        runCatching {
+            (java.awt.Toolkit.getDefaultToolkit().screenResolution / 160f).coerceIn(0.5f, 2.0f)
+        }.getOrDefault(1f)
+    }
+
     val glFrame = remember(
         visualizationMode,
         isPlaying,
@@ -400,6 +408,7 @@ internal fun AlbumArtPlaceholder(
         visualAlpha,
         contrastMode,
         monochromeBackdrop,
+        pixelsPerDp,
         artwork,
         placeholderIconImage,
         scopeNameMaps
@@ -442,9 +451,9 @@ internal fun AlbumArtPlaceholder(
             noteFormat = channelScopePrefs.textNoteFormat,
             paddingPx = channelScopePrefs.textPaddingDp.toFloat(),
             gridColorArgb = channelScopeGridColor.toArgb(),
-            gridWidthPx = channelScopePrefs.gridWidthDp.toFloat(),
+            gridWidthPx = (channelScopePrefs.gridWidthDp * pixelsPerDp).coerceAtLeast(1f),
             lineColorArgb = channelScopeLineColor.toArgb(),
-            lineWidthPx = channelScopePrefs.lineWidthDp.toFloat(),
+            lineWidthPx = (channelScopePrefs.lineWidthDp * pixelsPerDp).coerceAtLeast(1f),
             vuColorArgb = channelScopeVuColor.toArgb(),
             textPalette = channelScopeTextPalette,
             instrumentNamesByIndex = scopeNameMaps.instrumentNamesByIndex,
@@ -463,9 +472,9 @@ internal fun AlbumArtPlaceholder(
             oscWindowMs = visualizationOscWindowMs,
             oscTriggerMode = visualizationOscTriggerModeNative,
             oscWaveColorArgb = oscColor.toArgb(),
-            oscLineWidthPx = oscLineWidthDp.toFloat(),
+            oscLineWidthPx = (oscLineWidthDp * pixelsPerDp).coerceAtLeast(1f),
             oscGridColorArgb = gridColor.toArgb(),
-            oscGridWidthPx = oscGridWidthDp.toFloat(),
+            oscGridWidthPx = (oscGridWidthDp * pixelsPerDp).coerceAtLeast(1f),
             oscShowCenterLine = oscCenterLineEnabled,
             oscShowGrid = oscVerticalGridEnabled,
             barCount = barCount,
