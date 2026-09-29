@@ -3,6 +3,8 @@
 #include <algorithm>
 #include <cctype>
 #include <chrono>
+// Upstream filePlayer.h uses UINT_MAX without including <climits>.
+#include <climits>
 #include <cmath>
 #include <cstdlib>
 #include <cstring>
