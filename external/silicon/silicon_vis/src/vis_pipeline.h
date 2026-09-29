@@ -95,15 +95,15 @@ private:
     float visualAlpha_ = 1.0f;
     GLuint targetFbo_ = 0;
 
-    // Multisampled offscreen target for the AA wave render mode. Only used
-    // when the active renderer opts in; other modes render straight to the
-    // window surface.
+    // Multisampled offscreen target every mode resolves through when
+    // the GPU offers multisampling; falls back to direct rendering.
     GLuint msaaFbo_ = 0;
     GLuint msaaColorRb_ = 0;
     GLuint msaaDepthRb_ = 0;
     int32_t msaaWidth_ = 0;
     int32_t msaaHeight_ = 0;
     int msaaSamples_ = 0;
+    int msaaMaxSamples_ = 0;
     bool msaaProbed_ = false;
     bool msaaSupported_ = false;
 
