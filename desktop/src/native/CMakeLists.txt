@@ -56,7 +56,6 @@ set(COMMON_INCLUDES
     "${EXTERNAL_DIR}/miniaudio"
     "${EXTERNAL_DIR}/libopenmpt"
     "${EXTERNAL_DIR}/libsidplayfp/src"
-    "${EXTERNAL_DIR}/libusb/libusb"
     "${EXTERNAL_DIR}/silicon/silicon_vis/include"
     "${EXTERNAL_DIR}/silicon/silicon_vis/src"
     "${EXTERNAL_DIR}/projectm/src/api/include"
@@ -121,6 +120,7 @@ target_include_directories(siliconplayer_desktop PRIVATE ${COMMON_INCLUDES})
 
 target_compile_definitions(siliconplayer_desktop PRIVATE
     _GNU_SOURCE
+    SILICONPLAYER_DESKTOP_NO_UAC
     MA_NO_DECODING
     MA_NO_ENCODING
     MA_NO_RESOURCE_MANAGER

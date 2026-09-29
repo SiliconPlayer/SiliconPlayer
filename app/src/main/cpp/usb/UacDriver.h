@@ -7,7 +7,10 @@
 #include <string>
 #include <thread>
 #include <vector>
+// Desktop sets SILICONPLAYER_DESKTOP_NO_UAC: no USB backend, so no libusb.
+#ifndef SILICONPLAYER_DESKTOP_NO_UAC
 #include <libusb.h>
+#endif
 
 namespace siliconplayer::usb {
 
@@ -100,11 +103,13 @@ private:
     bool startIsoPump();
     void stopIsoPump();
 
+#ifndef SILICONPLAYER_DESKTOP_NO_UAC
     static void LIBUSB_CALL onIsoTrampoline(libusb_transfer* xfr);
     void onIso(libusb_transfer* xfr);
 
     static void LIBUSB_CALL onFeedbackTrampoline(libusb_transfer* xfr);
     void onFeedback(libusb_transfer* xfr);
+#endif
 
     int drainRing(uint8_t* dst, int bytes);
 
@@ -114,8 +119,12 @@ private:
     std::atomic<size_t> ringTail_{0};
 
     mutable std::mutex mutex_;
+#ifndef SILICONPLAYER_DESKTOP_NO_UAC
     libusb_context* ctx_ = nullptr;
     libusb_device_handle* device_ = nullptr;
+#else
+    void* device_ = nullptr;
+#endif
     int fd_ = -1;
     std::atomic<bool> contextReady_{false};
 
@@ -125,10 +134,12 @@ private:
     bool interfaceClaimed_ = false;
     bool controlClaimed_ = false;
 
+#ifndef SILICONPLAYER_DESKTOP_NO_UAC
     std::vector<libusb_transfer*> transfers_;
     std::vector<std::vector<uint8_t>> transferBuffers_;
     std::vector<libusb_transfer*> feedbackTransfers_;
     std::vector<std::vector<uint8_t>> feedbackBuffers_;
+#endif
     std::atomic<int> inflight_{0};
 
     std::atomic<long> writtenFrames_{0};
