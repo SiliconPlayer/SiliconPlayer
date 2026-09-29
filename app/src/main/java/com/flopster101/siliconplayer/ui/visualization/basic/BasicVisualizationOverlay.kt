@@ -36,6 +36,7 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.PlatformTextStyle
 import androidx.compose.ui.text.style.TextAlign
+import com.flopster101.siliconplayer.AppDefaults
 import com.flopster101.siliconplayer.VisualizationChannelScopeLayout
 import com.flopster101.siliconplayer.VisualizationChannelScopeTextAnchor
 import com.flopster101.siliconplayer.VisualizationChannelScopeTextColorMode
@@ -298,7 +299,11 @@ fun BasicVisualizationOverlay(
         customColor = channelScopeVuCustomColor
     )
     val barBackgroundColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.82f)
-    val density = LocalDensity.current.density
+    // Traces are hairlines: widen on sparse screens, never past 1px per dp.
+    val density = LocalDensity.current.density.coerceIn(
+        AppDefaults.Visualization.tracePixelsPerDpMin,
+        AppDefaults.Visualization.tracePixelsPerDpMax
+    )
     val primaryColor = MaterialTheme.colorScheme.primary
     val surfaceVariantColor = MaterialTheme.colorScheme.surfaceVariant
     val visUsesArtworkColor = when (mode) {
@@ -432,9 +437,9 @@ fun BasicVisualizationOverlay(
                         oscWindowMs = oscWindowMs,
                         oscTriggerMode = oscTriggerMode,
                         oscWaveColorArgb = oscColor.toArgb(),
-                        oscLineWidthPx = oscLineWidthDp.toFloat(),
+                        oscLineWidthPx = (oscLineWidthDp * density).coerceAtLeast(1f),
                         oscGridColorArgb = oscGridColor.toArgb(),
-                        oscGridWidthPx = oscGridWidthDp.toFloat(),
+                        oscGridWidthPx = (oscGridWidthDp * density).coerceAtLeast(1f),
                         oscShowCenterLine = oscCenterLineEnabled,
                         oscShowGrid = oscVerticalGridEnabled,
                         contrastMode = oscContrastMode,
@@ -464,8 +469,8 @@ fun BasicVisualizationOverlay(
                         oscStereo = oscStereo,
                         oscColor = oscColor,
                         gridColor = oscGridColor,
-                        lineWidthPx = oscLineWidthDp.toFloat(),
-                        gridWidthPx = oscGridWidthDp.toFloat(),
+                        lineWidthPx = (oscLineWidthDp * density).coerceAtLeast(1f),
+                        gridWidthPx = (oscGridWidthDp * density).coerceAtLeast(1f),
                         showVerticalGrid = oscVerticalGridEnabled,
                         showCenterLine = oscCenterLineEnabled,
                         modifier = modifier
@@ -604,8 +609,8 @@ fun BasicVisualizationOverlay(
                             channelHistories = channelScopeHistories,
                             lineColor = channelScopeLineColor,
                             gridColor = channelScopeGridColor,
-                            lineWidthPx = channelScopeLineWidthDp.toFloat(),
-                            gridWidthPx = channelScopeGridWidthDp.toFloat(),
+                            lineWidthPx = (channelScopeLineWidthDp * density).coerceAtLeast(1f),
+                            gridWidthPx = (channelScopeGridWidthDp * density).coerceAtLeast(1f),
                             showVerticalGrid = channelScopeVerticalGridEnabled,
                             showCenterLine = channelScopeCenterLineEnabled,
                             triggerModeNative = channelScopeTriggerModeNative,
@@ -658,9 +663,9 @@ fun BasicVisualizationOverlay(
                             noteFormat = channelScopeTextNoteFormat,
                             paddingPx = paddingPx,
                             gridColorArgb = channelScopeGridColor.toArgb(),
-                            gridWidthPx = channelScopeGridWidthDp.toFloat(),
+                            gridWidthPx = (channelScopeGridWidthDp * density).coerceAtLeast(1f),
                             lineColorArgb = channelScopeLineColor.toArgb(),
-                            lineWidthPx = channelScopeLineWidthDp.toFloat(),
+                            lineWidthPx = (channelScopeLineWidthDp * density).coerceAtLeast(1f),
                             vuColorArgb = channelScopeVuColor.toArgb(),
                             textPalette = com.flopster101.siliconplayer.ui.visualization.channel.GlChannelScopeTextPalette(
                                 channelArgb = channelScopeTextPalette.channel.toArgb(),
@@ -726,7 +731,7 @@ fun BasicVisualizationOverlay(
                         vuEnabled = channelScopeTextVuEnabled,
                         vuAnchor = channelScopeTextVuAnchor,
                         vuColor = channelScopeVuColor,
-                        vuInsetPx = channelScopeGridWidthDp.toFloat().coerceAtLeast(1f),
+                        vuInsetPx = (channelScopeGridWidthDp * density).coerceAtLeast(1f),
                         textPalette = channelScopeTextPalette,
                         modifier = Modifier.fillMaxSize()
                     )
@@ -748,8 +753,8 @@ fun BasicVisualizationOverlay(
                             channelHistories = heldScopeSnapshot.histories,
                             lineColor = channelScopeLineColor,
                             gridColor = channelScopeGridColor,
-                            lineWidthPx = channelScopeLineWidthDp.toFloat(),
-                            gridWidthPx = channelScopeGridWidthDp.toFloat(),
+                            lineWidthPx = (channelScopeLineWidthDp * density).coerceAtLeast(1f),
+                            gridWidthPx = (channelScopeGridWidthDp * density).coerceAtLeast(1f),
                             showVerticalGrid = channelScopeVerticalGridEnabled,
                             showCenterLine = channelScopeCenterLineEnabled,
                             triggerModeNative = channelScopeTriggerModeNative,
@@ -784,7 +789,7 @@ fun BasicVisualizationOverlay(
                                 vuEnabled = channelScopeTextVuEnabled,
                                 vuAnchor = channelScopeTextVuAnchor,
                                 vuColor = channelScopeVuColor,
-                                vuInsetPx = channelScopeGridWidthDp.toFloat().coerceAtLeast(1f),
+                                vuInsetPx = (channelScopeGridWidthDp * density).coerceAtLeast(1f),
                                 textPalette = channelScopeTextPalette,
                                 modifier = Modifier.fillMaxSize()
                             )

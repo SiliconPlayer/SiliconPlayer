@@ -60,6 +60,9 @@ object AppDefaults {
         val performanceMode = VisualizationPerformanceMode.Auto
         const val showDebugInfo = false
         val fullscreenMode = VisualizationFullscreenMode.Complete
+        // Scope/osc traces are hairlines: widen on sparse screens, never past 1px per dp.
+        const val tracePixelsPerDpMin = 0.5f
+        const val tracePixelsPerDpMax = 1f
 
         object Bars {
             const val count = 40
