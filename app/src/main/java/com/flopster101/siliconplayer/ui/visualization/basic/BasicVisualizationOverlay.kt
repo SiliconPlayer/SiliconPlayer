@@ -36,6 +36,7 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.PlatformTextStyle
 import androidx.compose.ui.text.style.TextAlign
+import com.flopster101.siliconplayer.AppDefaults
 import com.flopster101.siliconplayer.VisualizationChannelScopeLayout
 import com.flopster101.siliconplayer.VisualizationChannelScopeTextAnchor
 import com.flopster101.siliconplayer.VisualizationChannelScopeTextColorMode
@@ -298,7 +299,11 @@ fun BasicVisualizationOverlay(
         customColor = channelScopeVuCustomColor
     )
     val barBackgroundColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.82f)
-    val density = LocalDensity.current.density
+    // Traces are hairlines: widen on sparse screens, never past 1px per dp.
+    val density = LocalDensity.current.density.coerceIn(
+        AppDefaults.Visualization.tracePixelsPerDpMin,
+        AppDefaults.Visualization.tracePixelsPerDpMax
+    )
     val primaryColor = MaterialTheme.colorScheme.primary
     val surfaceVariantColor = MaterialTheme.colorScheme.surfaceVariant
     val visUsesArtworkColor = when (mode) {

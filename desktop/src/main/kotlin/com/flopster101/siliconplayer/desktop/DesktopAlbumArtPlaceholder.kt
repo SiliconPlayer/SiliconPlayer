@@ -368,10 +368,13 @@ internal fun AlbumArtPlaceholder(
     }
 
     // Desktop density is a UI scale factor, not physical dpi: derive
-    // pixels-per-dp from the display resolution to match mobile widths.
+    // pixels-per-dp from the display resolution, hairline-capped like mobile.
     val pixelsPerDp = remember {
         runCatching {
-            (java.awt.Toolkit.getDefaultToolkit().screenResolution / 160f).coerceIn(0.5f, 2.0f)
+            (java.awt.Toolkit.getDefaultToolkit().screenResolution / 160f).coerceIn(
+                AppDefaults.Visualization.tracePixelsPerDpMin,
+                AppDefaults.Visualization.tracePixelsPerDpMax
+            )
         }.getOrDefault(1f)
     }
 
