@@ -457,6 +457,7 @@ internal fun AlbumArtPlaceholder(
             channelScopeDcRemovalEnabled = channelScopePrefs.dcRemovalEnabled,
             channelScopeTriggerMode = channelScopePrefs.triggerModeNative,
             channelScopeWaveRenderMode = channelScopePrefs.waveRenderMode.nativeValue,
+            channelScopeAntialiasMethod = channelScopePrefs.antialiasMethod.nativeValue,
             channelScopeTrackTransition = channelScopePrefs.trackTransition.nativeValue,
             oscStereo = oscStereo,
             oscWindowMs = visualizationOscWindowMs,

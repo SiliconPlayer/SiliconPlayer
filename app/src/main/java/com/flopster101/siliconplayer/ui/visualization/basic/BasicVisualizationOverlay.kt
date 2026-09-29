@@ -122,6 +122,7 @@ fun BasicVisualizationOverlay(
     channelScopeChipNamesByChannelIndex: Map<Int, String>,
     channelScopeTriggerModeNative: Int,
     channelScopeWaveRenderModeNative: Int = 1,
+    channelScopeAntialiasMethodNative: Int = 0,
     // Track transition: 0 instant, 1 slide-fade reveal, 2 crossfade
     channelScopeTrackTransition: Int = 1,
     channelScopeTriggerIndices: IntArray,
@@ -678,6 +679,7 @@ fun BasicVisualizationOverlay(
                             channelScopeDcRemovalEnabled = channelScopeDcRemovalEnabled,
                             channelScopeTriggerMode = channelScopeTriggerModeNative,
                             channelScopeWaveRenderMode = channelScopeWaveRenderModeNative,
+                            channelScopeAntialiasMethod = channelScopeAntialiasMethodNative,
                             channelScopeTrackTransition = channelScopeTrackTransition
                         )
                         if (channelScopeRenderBackend == VisualizationRenderBackend.OpenGlSurface) {

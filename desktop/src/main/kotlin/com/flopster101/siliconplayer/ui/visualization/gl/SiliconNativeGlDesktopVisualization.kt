@@ -100,6 +100,7 @@ data class SiliconNativeGlFrame(
     val channelScopeDcRemovalEnabled: Boolean = true,
     val channelScopeTriggerMode: Int = 0,
     val channelScopeWaveRenderMode: Int = 1,
+    val channelScopeAntialiasMethod: Int = 0,
     val channelScopeTrackTransition: Int = 1,
     // Oscilloscope options
     val oscStereo: Boolean = false,
@@ -525,6 +526,7 @@ private class SiliconNativeDesktopRenderThread(
                     SiliconVisNativeBridge.nativeSetShowArtworkBackground(visHandle, frame.showArtworkBackground)
                     SiliconVisNativeBridge.nativeSetBackdropMonochrome(visHandle, frame.monochromeBackdrop)
                     SiliconVisNativeBridge.nativeSetVisualAlpha(visHandle, frame.visualAlpha)
+                    SiliconVisNativeBridge.nativeSetChannelScopeAntialiasMethod(visHandle, frame.channelScopeAntialiasMethod)
 
                     when (frame.mode) {
                         1 -> { // Bars

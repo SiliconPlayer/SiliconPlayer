@@ -153,6 +153,7 @@ data class SiliconNativeGlFrame(
     val channelScopeDcRemovalEnabled: Boolean = true,
     val channelScopeTriggerMode: Int = 0,
     val channelScopeWaveRenderMode: Int = 1,
+    val channelScopeAntialiasMethod: Int = 0,
     // Track transition: 0 instant, 1 slide-fade reveal, 2 crossfade
     val channelScopeTrackTransition: Int = 1,
     // Oscilloscope options
@@ -759,6 +760,7 @@ internal class SiliconNativeTextureRenderThread(
                     SiliconVisNativeBridge.nativeSetShowArtworkBackground(visHandle, frame.showArtworkBackground)
                     SiliconVisNativeBridge.nativeSetBackdropMonochrome(visHandle, frame.monochromeBackdrop)
                     SiliconVisNativeBridge.nativeSetVisualAlpha(visHandle, frame.visualAlpha)
+                    SiliconVisNativeBridge.nativeSetChannelScopeAntialiasMethod(visHandle, frame.channelScopeAntialiasMethod)
 
                     if (frame.mode == 100 && !projectMAttached) {
                         val appContext = context.applicationContext

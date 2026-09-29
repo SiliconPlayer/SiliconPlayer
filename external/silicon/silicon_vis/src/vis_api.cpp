@@ -118,6 +118,12 @@ void silicon_vis_set_visual_alpha(SiliconVisHandle handle, float alpha) {
     pipeline->setVisualAlpha(alpha);
 }
 
+void silicon_vis_set_channel_scope_antialias_method(SiliconVisHandle handle, int32_t method) {
+    if (!handle) return;
+    auto* pipeline = static_cast<SiliconVisPipeline*>(handle);
+    pipeline->setChannelScopeAntialiasMethod(method);
+}
+
 void silicon_vis_set_font_atlas(
     SiliconVisHandle handle,
     const uint8_t* rgbaPixels,

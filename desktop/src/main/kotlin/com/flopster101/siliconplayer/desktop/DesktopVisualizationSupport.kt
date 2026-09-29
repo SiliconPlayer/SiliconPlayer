@@ -94,6 +94,7 @@ import com.flopster101.siliconplayer.VisualizationChannelScopeTextFont
 import com.flopster101.siliconplayer.VisualizationChannelScopeTextAnchor
 import com.flopster101.siliconplayer.VisualizationChannelScopeTrackTransition
 import com.flopster101.siliconplayer.VisualizationChannelScopeTriggerAlgorithm
+import com.flopster101.siliconplayer.VisualizationChannelScopeAntialiasMethod
 import com.flopster101.siliconplayer.VisualizationChannelScopeWaveRenderMode
 import com.flopster101.siliconplayer.VisualizationFullscreenMode
 import com.flopster101.siliconplayer.VisualizationMode
@@ -209,6 +210,9 @@ internal object ChannelScopePrefsSupport {
             // Desktop defaults to antialiased waves; mobile keeps Off for GPU reasons.
             waveRenderMode = VisualizationChannelScopeWaveRenderMode.fromStorage(
                 prefs.getString(AppPreferenceKeys.VISUALIZATION_CHANNEL_SCOPE_WAVE_RENDER_MODE, VisualizationChannelScopeWaveRenderMode.Antialiased.storageValue)
+            ),
+            antialiasMethod = VisualizationChannelScopeAntialiasMethod.fromStorage(
+                prefs.getString(AppPreferenceKeys.VISUALIZATION_CHANNEL_SCOPE_ANTIALIAS_METHOD, d.antialiasMethod.storageValue)
             ),
             trackTransition = VisualizationChannelScopeTrackTransition.fromStorage(
                 prefs.getString(AppPreferenceKeys.VISUALIZATION_CHANNEL_SCOPE_TRACK_TRANSITION, d.trackTransition.storageValue)

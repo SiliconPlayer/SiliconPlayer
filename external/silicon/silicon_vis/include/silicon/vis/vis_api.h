@@ -51,6 +51,7 @@ SILICON_VIS_API void silicon_vis_set_show_artwork_background(SiliconVisHandle ha
 // Target state for the monochrome fallback backdrop; the renderer eases toward it.
 SILICON_VIS_API void silicon_vis_set_backdrop_monochrome(SiliconVisHandle handle, bool enabled);
 SILICON_VIS_API void silicon_vis_set_visual_alpha(SiliconVisHandle handle, float alpha);
+SILICON_VIS_API void silicon_vis_set_channel_scope_antialias_method(SiliconVisHandle handle, int32_t method);
 // Offscreen FBO the frame resolves into instead of the window surface (0 = window).
 SILICON_VIS_API void silicon_vis_set_render_target_fbo(SiliconVisHandle handle, uint32_t fbo);
 

@@ -31,6 +31,7 @@ object SiliconVisNativeBridge {
     external fun nativeSetShowArtworkBackground(handle: Long, show: Boolean)
     external fun nativeSetBackdropMonochrome(handle: Long, enabled: Boolean)
     external fun nativeSetVisualAlpha(handle: Long, alpha: Float)
+    external fun nativeSetChannelScopeAntialiasMethod(handle: Long, method: Int)
     external fun nativeAttachProjectM(handle: Long, setIds: Array<String>, setDirs: Array<String>, startPresetKey: String?)
     external fun nativeAttachProjectMWithKeys(handle: Long, setIds: Array<String>, setDirs: Array<String>, presetKeys: Array<String>, startPresetKey: String?)
     external fun nativeDetachProjectM(handle: Long)

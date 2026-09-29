@@ -1,5 +1,6 @@
 package com.flopster101.siliconplayer.ui.screens
 
+import com.flopster101.siliconplayer.VisualizationChannelScopeAntialiasMethod
 import com.flopster101.siliconplayer.VisualizationChannelScopeBackgroundMode
 import com.flopster101.siliconplayer.VisualizationChannelScopeLayout
 import com.flopster101.siliconplayer.VisualizationChannelScopeTextColorMode
@@ -22,6 +23,7 @@ internal data class ChannelScopePrefs(
     val triggerModeNative: Int,
     val triggerAlgorithmNative: Int,
     val waveRenderMode: VisualizationChannelScopeWaveRenderMode,
+    val antialiasMethod: VisualizationChannelScopeAntialiasMethod = com.flopster101.siliconplayer.AppDefaults.Visualization.ChannelScope.antialiasMethod,
     val trackTransition: VisualizationChannelScopeTrackTransition,
     val fpsMode: VisualizationOscFpsMode,
     val lineWidthDp: Int,
