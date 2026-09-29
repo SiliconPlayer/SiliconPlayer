@@ -29,7 +29,7 @@ internal object AboutCatalog {
             name = DecoderNames.FFMPEG,
             description = "General-purpose decoding backend used for mainstream audio containers and codecs.",
             author = "FFmpeg Project contributors",
-            license = "LGPL-2.1+ (can become GPL when GPL components are enabled)",
+            license = "LGPL-2.1-or-later",
             links = listOf(
                 AboutEntityLink("Project", "https://ffmpeg.org/"),
                 AboutEntityLink("Source", "https://git.ffmpeg.org/ffmpeg.git")
@@ -64,7 +64,7 @@ internal object AboutCatalog {
             name = DecoderNames.GAME_MUSIC_EMU,
             description = "Multi-system game music emulator for formats like NSF, SPC, GBS, HES, and others.",
             author = "Shay Green, libgme maintainers, and contributors",
-            license = "LGPL-2.1+ (some optional emulation paths are GPL-2.0+)",
+            license = "LGPL-2.1-or-later",
             links = listOf(
                 AboutEntityLink("Source", "https://github.com/SiliconPlayer/game-music-emu")
             )
