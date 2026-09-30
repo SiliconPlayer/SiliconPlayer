@@ -8,16 +8,20 @@ url="https://github.com/SiliconPlayer/SiliconPlayer"
 license=('GPL-3.0-or-later')
 # System JRE on purpose: the release distributable's bundled runtime is dropped.
 depends=('java-runtime>=17' 'alsa-lib' 'libpulse' 'libgl' 'libx11' 'dbus' 'hicolor-icon-theme')
-makedepends=('cmake' 'git' 'imagemagick' 'jdk-openjdk')
-# Building also configures the Android module, so an Android SDK with
-# cmdline-tools + platform 34 is required (ANDROID_HOME or ~/Android/Sdk).
-source=("$pkgname::git+$url.git#branch=kmp-new")
+makedepends=('git' 'cmake' 'ninja' 'pkgconf' 'perl' 'nasm' 'xa' 'jdk-openjdk'
+             'alsa-lib' 'libpulse' 'libx11' 'libgl' 'zlib')
+source=("$pkgname::git+$url.git#branch=master")
 sha256sums=('SKIP')
+
+prepare() {
+    cd "$pkgname"
+    git submodule update --init --recursive
+}
 
 build() {
     cd "$pkgname"
+    BUILD_FFMPEG_SOURCE=1 ./external/build_deps_desktop.sh x86_64 all
     ./gradlew :desktop:createReleaseDistributable --no-daemon
-    convert desktop/src/main/resources/app_icon.webp -resize 256x256 siliconplayer.png
 }
 
 package() {
@@ -25,10 +29,9 @@ package() {
     local appdir="desktop/build/compose/binaries/main-release/app/SiliconPlayer"
     install -dm755 "$pkgdir/usr/lib/siliconplayer/app"
     cp -a "$appdir/lib/app/." "$pkgdir/usr/lib/siliconplayer/app/"
-    rm -rf "$pkgdir/usr/lib/siliconplayer/app/runtime"
-    install -Dm755 packaging/arch/siliconplayer.sh "$pkgdir/usr/bin/siliconplayer"
-    install -Dm644 packaging/arch/siliconplayer.desktop "$pkgdir/usr/share/applications/siliconplayer.desktop"
-    install -Dm644 siliconplayer.png "$pkgdir/usr/share/icons/hicolor/256x256/apps/siliconplayer.png"
+    install -Dm755 desktop/packaging/arch/siliconplayer.sh "$pkgdir/usr/bin/siliconplayer"
+    install -Dm644 desktop/packaging/arch/siliconplayer.desktop "$pkgdir/usr/share/applications/siliconplayer.desktop"
+    install -Dm644 desktop/packaging/SiliconPlayer.png "$pkgdir/usr/share/icons/hicolor/192x192/apps/siliconplayer.png"
     install -Dm644 LICENSE "$pkgdir/usr/share/licenses/siliconplayer/LICENSE"
     for text in desktop/build/generated/about/main/texts/*; do
         install -Dm644 "$text" "$pkgdir/usr/share/licenses/siliconplayer/$(basename "$text")"
