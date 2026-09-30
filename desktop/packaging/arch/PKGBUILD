@@ -8,8 +8,8 @@ url="https://github.com/SiliconPlayer/SiliconPlayer"
 license=('GPL-3.0-or-later')
 # System JRE on purpose: the release distributable's bundled runtime is dropped.
 depends=('java-runtime>=17' 'alsa-lib' 'libpulse' 'libgl' 'libx11' 'dbus' 'hicolor-icon-theme')
-makedepends=('git' 'cmake' 'ninja' 'pkgconf' 'perl' 'nasm' 'xa' 'jdk-openjdk'
-             'alsa-lib' 'libpulse' 'libx11' 'libgl' 'zlib')
+makedepends=('git' 'cmake' 'ninja' 'pkgconf' 'perl' 'python' 'nasm' 'xa'
+             'jdk17-openjdk' 'alsa-lib' 'libpulse' 'libx11' 'libgl' 'zlib')
 source=("$pkgname::git+$url.git#branch=master")
 sha256sums=('SKIP')
 
@@ -20,8 +20,11 @@ prepare() {
 
 build() {
     cd "$pkgname"
+    export JAVA_HOME=/usr/lib/jvm/java-17-openjdk
     BUILD_FFMPEG_SOURCE=1 ./external/build_deps_desktop.sh x86_64 all
-    ./gradlew :desktop:createReleaseDistributable --no-daemon
+    # Configure-on-demand keeps the Android module unconfigured,
+    # so no Android SDK is needed for a desktop-only build.
+    ./gradlew :desktop:createReleaseDistributable --no-daemon -Dorg.gradle.configureondemand=true
 }
 
 package() {

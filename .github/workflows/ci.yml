@@ -269,6 +269,58 @@ jobs:
           path: desktop/build/compose/binaries/main-release/SiliconPlayer-*.tar.gz
           if-no-files-found: error
 
+  arch:
+    name: Build Arch package
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    container:
+      image: archlinux:base-devel
+    env:
+      JAVA_TOOL_OPTIONS: -Dfile.encoding=UTF8
+
+    steps:
+      - name: Install container prerequisites
+        run: |
+          pacman -Syu --noconfirm git sudo
+          useradd -m builder
+          printf 'builder ALL=(ALL) NOPASSWD: ALL\n' > /etc/sudoers.d/builder
+
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          submodules: recursive
+
+      - name: Get short commit hash
+        id: vars
+        run: echo "short_sha=$(git rev-parse --short HEAD)" >> "$GITHUB_OUTPUT"
+
+      - name: Get app version
+        id: version
+        run: |
+          VERSION_NAME=$(grep -oP '^siliconplayer\.version=\K.+' gradle.properties)
+          echo "version_name=${VERSION_NAME}" >> "$GITHUB_OUTPUT"
+
+      - name: Build package
+        run: |
+          set -euo pipefail
+          rm -rf /tmp/archpkg && mkdir -p /tmp/archpkg
+          cp desktop/packaging/arch/PKGBUILD desktop/packaging/arch/siliconplayer.sh desktop/packaging/arch/siliconplayer.desktop /tmp/archpkg/
+          cd /tmp/archpkg
+          sed -i "s|^source=.*|source=(\"siliconplayer::git+file://${GITHUB_WORKSPACE}\")|" PKGBUILD
+          git config --global --add safe.directory "${GITHUB_WORKSPACE}"
+          chown -R builder:builder /tmp/archpkg
+          su builder -c "git config --global --add safe.directory '${GITHUB_WORKSPACE}'"
+          su builder -c 'cd /tmp/archpkg && makepkg -s --noconfirm'
+
+      - name: Upload Arch package artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: SiliconPlayer-${{ steps.version.outputs.version_name }}-${{ steps.vars.outputs.short_sha }}-x86_64-pkg
+          path: /tmp/archpkg/siliconplayer-*.pkg.tar.zst
+          if-no-files-found: error
+
   publish:
     name: Publish experimental release
     needs: [build, desktop]
