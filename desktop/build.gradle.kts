@@ -110,7 +110,6 @@ compose.desktop {
         mainClass = "com.flopster101.siliconplayer.desktop.MainKt"
         nativeDistributions {
             targetFormats(
-                org.jetbrains.compose.desktop.application.dsl.TargetFormat.Deb,
                 org.jetbrains.compose.desktop.application.dsl.TargetFormat.AppImage
             )
             packageName = "SiliconPlayer"

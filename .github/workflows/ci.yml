@@ -170,7 +170,7 @@ jobs:
           if-no-files-found: error
 
   desktop:
-    name: Build desktop AppImage
+    name: Build desktop packages
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -196,7 +196,7 @@ jobs:
           sudo apt-get install -y autoconf automake libtool pkg-config cmake ninja-build perl
           sudo apt-get install -y xa65 || sudo apt-get install -y xa
           sudo apt-get install -y libasound2-dev libpulse-dev libx11-dev libgl1-mesa-dev zlib1g-dev
-          sudo apt-get install -y libfuse2
+          sudo apt-get install -y libfuse2 fakeroot
           command -v xa
 
       - name: Configure git identity for patch application
@@ -233,6 +233,11 @@ jobs:
       - name: Package AppImage
         run: ./desktop/package-appimage.sh
 
+      - name: Package deb and bare tarball
+        run: |
+          ./desktop/package-deb.sh
+          ./desktop/package-tarball.sh
+
       - name: Get short commit hash
         id: vars
         run: echo "short_sha=$(git rev-parse --short HEAD)" >> "$GITHUB_OUTPUT"
@@ -246,8 +251,22 @@ jobs:
       - name: Upload AppImage artifact
         uses: actions/upload-artifact@v4
         with:
-          name: SiliconPlayer-${{ steps.version.outputs.version_name }}-${{ steps.vars.outputs.short_sha }}-x86_64
+          name: SiliconPlayer-${{ steps.version.outputs.version_name }}-${{ steps.vars.outputs.short_sha }}-x86_64-appimage
           path: desktop/build/compose/binaries/main-release/SiliconPlayer-*.AppImage
+          if-no-files-found: error
+
+      - name: Upload deb artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: SiliconPlayer-${{ steps.version.outputs.version_name }}-${{ steps.vars.outputs.short_sha }}-x86_64-deb
+          path: desktop/build/compose/binaries/main-release/SiliconPlayer-*.deb
+          if-no-files-found: error
+
+      - name: Upload bare tarball artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: SiliconPlayer-${{ steps.version.outputs.version_name }}-${{ steps.vars.outputs.short_sha }}-x86_64-bare
+          path: desktop/build/compose/binaries/main-release/SiliconPlayer-*.tar.gz
           if-no-files-found: error
 
   publish:
@@ -310,4 +329,6 @@ jobs:
             --title "SiliconPlayer ${VERSION_BASE} (build ${BUILD})" \
             --notes "$NOTES" \
             release-artifacts/SiliconPlayer-*.apk \
-            release-artifacts/SiliconPlayer-*.AppImage
+            release-artifacts/SiliconPlayer-*.AppImage \
+            release-artifacts/SiliconPlayer-*.deb \
+            release-artifacts/SiliconPlayer-*.tar.gz
