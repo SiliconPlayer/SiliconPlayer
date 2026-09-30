@@ -323,7 +323,7 @@ jobs:
 
   publish:
     name: Publish experimental release
-    needs: [build, desktop]
+    needs: [build, desktop, arch]
     if: github.event_name == 'push' && github.ref == 'refs/heads/master'
     runs-on: ubuntu-latest
     permissions:
@@ -383,4 +383,5 @@ jobs:
             release-artifacts/SiliconPlayer-*.apk \
             release-artifacts/SiliconPlayer-*.AppImage \
             release-artifacts/SiliconPlayer-*.deb \
-            release-artifacts/SiliconPlayer-*.tar.gz
+            release-artifacts/SiliconPlayer-*.tar.gz \
+            release-artifacts/siliconplayer-[0-9]*.pkg.tar.zst
