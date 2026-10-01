@@ -579,6 +579,10 @@ internal fun HomeScreen(
                                                         pinnedFileActionTarget = null
                                                         pinnedFolderActionTarget = pinnedEntry
                                                     }
+                                                    .contextMenuSecondaryClick {
+                                                        pinnedFileActionTarget = null
+                                                        pinnedFolderActionTarget = pinnedEntry
+                                                    }
                                                     .combinedClickable(
                                                         onClick = { onOpenPinnedFolder(pinnedEntry) },
                                                         onLongClick = {
@@ -802,6 +806,10 @@ internal fun HomeScreen(
                                                 modifier = Modifier
                                                     .fillMaxWidth()
                                                     .tvKeyLongPress {
+                                                        pinnedFolderActionTarget = null
+                                                        pinnedFileActionTarget = pinnedEntry
+                                                    }
+                                                    .contextMenuSecondaryClick {
                                                         pinnedFolderActionTarget = null
                                                         pinnedFileActionTarget = pinnedEntry
                                                     }
@@ -1176,6 +1184,10 @@ internal fun HomeScreen(
                                                         modifier = Modifier
                                                             .fillMaxWidth()
                                                             .tvKeyLongPress {
+                                                                fileActionTargetEntry = null
+                                                                folderActionTargetEntry = entry
+                                                            }
+                                                            .contextMenuSecondaryClick {
                                                                 fileActionTargetEntry = null
                                                                 folderActionTargetEntry = entry
                                                             }
@@ -1568,6 +1580,10 @@ internal fun HomeScreen(
                                                             modifier = Modifier
                                                                 .fillMaxWidth()
                                                                 .tvKeyLongPress {
+                                                                    folderActionTargetEntry = null
+                                                                    fileActionTargetEntry = entry
+                                                                }
+                                                                .contextMenuSecondaryClick {
                                                                     folderActionTargetEntry = null
                                                                     fileActionTargetEntry = entry
                                                                 }

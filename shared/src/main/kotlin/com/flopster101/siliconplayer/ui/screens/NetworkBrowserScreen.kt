@@ -124,6 +124,7 @@ import androidx.compose.ui.unit.DpOffset
 import androidx.compose.ui.unit.dp
 import com.flopster101.siliconplayer.NetworkNode
 import com.flopster101.siliconplayer.NetworkNodeType
+import com.flopster101.siliconplayer.contextMenuSecondaryClick
 import com.flopster101.siliconplayer.tvKeyLongPress
 import com.flopster101.siliconplayer.NetworkSourceKind
 import com.flopster101.siliconplayer.SmbSourceSpec
@@ -2075,6 +2076,7 @@ internal fun NetworkBrowserScreen(
                                                         }
                                                     }
                                                 )
+                                                .contextMenuSecondaryClick { expandedEntryMenuNodeId = entry.id }
                                                 .focusable()
                                                 .padding(
                                                     horizontal = if (isWatch) 10.dp else 16.dp,

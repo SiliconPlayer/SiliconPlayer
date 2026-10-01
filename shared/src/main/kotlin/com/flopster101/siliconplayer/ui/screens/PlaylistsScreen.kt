@@ -5,6 +5,7 @@ import com.flopster101.siliconplayer.PlaylistSortMode
 import com.flopster101.siliconplayer.formatSourceIdForDisplay
 import com.flopster101.siliconplayer.moveStoredPlaylist
 import com.flopster101.siliconplayer.AppPreferenceKeys
+import com.flopster101.siliconplayer.contextMenuSecondaryClick
 import androidx.compose.material3.Switch
 import com.flopster101.siliconplayer.PlaylistCoverGenerationMode
 import com.flopster101.siliconplayer.readPlaylistCoverGenerationMode
@@ -4032,6 +4033,7 @@ private fun AlbumLibraryGridCard(
         modifier = modifier
             .fillMaxWidth()
             .clip(MaterialTheme.shapes.large)
+            .contextMenuSecondaryClick(contextMenu?.let { { menuExpanded = true } })
             .combinedClickable(
                 onClick = onClick,
                 onLongClick = contextMenu?.let { { menuExpanded = true } }
@@ -4392,6 +4394,7 @@ private fun LibraryTrackListRow(
         modifier = Modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(12.dp))
+            .contextMenuSecondaryClick(actions?.let { { menuExpanded = true } })
             .combinedClickable(
                 onClick = onClick,
                 onLongClick = actions?.let { { menuExpanded = true } }
@@ -4841,6 +4844,7 @@ private fun LibraryArtistCompactRow(
                         .background(MaterialTheme.colorScheme.surfaceContainerLow)
                 }
             )
+            .contextMenuSecondaryClick(contextMenu?.let { { menuExpanded = true } })
             .combinedClickable(
                 onClick = onClick,
                 onLongClick = contextMenu?.let { { menuExpanded = true } }
@@ -4974,6 +4978,7 @@ private fun AlbumLibraryListRow(
                         .background(MaterialTheme.colorScheme.surfaceContainerLow)
                 }
             )
+            .contextMenuSecondaryClick(contextMenu?.let { { menuExpanded = true } })
             .combinedClickable(
                 onClick = onClick,
                 onLongClick = contextMenu?.let { { menuExpanded = true } }
@@ -5031,6 +5036,7 @@ private fun ArtistLibraryRow(
             .fillMaxWidth()
             .clip(RoundedCornerShape(14.dp))
             .background(MaterialTheme.colorScheme.surfaceContainerLow)
+            .contextMenuSecondaryClick { menuExpanded = true }
             .combinedClickable(
                 onClick = onClick,
                 onLongClick = { menuExpanded = true }
@@ -7490,6 +7496,7 @@ private fun PlaylistTrackRow(
                     }
                     .clip(RoundedCornerShape(14.dp))
                     .background(rowHighlightColor)
+                    .contextMenuSecondaryClick { menuExpanded = true }
                     .let { base ->
                         if (editModeEnabled) {
                             base.clickable(onClick = onToggleSelect)
@@ -8395,6 +8402,7 @@ private fun PlaylistLibraryFlatRow(
         Row(
             modifier = modifier
                 .let { if (isDragged) it.background(MaterialTheme.colorScheme.surfaceContainerHigh, shape = RoundedCornerShape(12.dp)) else it }
+                .contextMenuSecondaryClick { menuExpanded = true }
                 .clickable(onClick = onClick)
                 .padding(start = 6.dp, top = 10.dp, end = 2.dp, bottom = 10.dp),
             horizontalArrangement = Arrangement.spacedBy(12.dp),

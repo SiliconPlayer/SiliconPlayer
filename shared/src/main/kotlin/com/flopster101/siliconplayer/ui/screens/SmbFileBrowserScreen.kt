@@ -114,6 +114,7 @@ import com.flopster101.siliconplayer.buildSmbSourceId
 import com.flopster101.siliconplayer.decodePercentEncodedForDisplay
 import com.flopster101.siliconplayer.NetworkNode
 import com.flopster101.siliconplayer.resolveSmbDisplayHost
+import com.flopster101.siliconplayer.contextMenuSecondaryClick
 import com.flopster101.siliconplayer.tvKeyLongPress
 import com.flopster101.siliconplayer.fileMatchesSupportedExtensions
 import com.flopster101.siliconplayer.inferredPrimaryExtensionForName
@@ -2277,12 +2278,14 @@ private fun SmbEntryRow(
     } else {
         if (isSelected) MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.6f) else MaterialTheme.colorScheme.surface.copy(alpha = 0f)
     }
+    var menuExpanded by remember { mutableStateOf(false) }
     Row(
         modifier = Modifier
             .fillMaxWidth()
             .clip(selectionShape)
             .background(rowBackground)
             .tvKeyLongPress(onLongClick)
+            .contextMenuSecondaryClick { menuExpanded = true }
             .combinedClickable(
                 onClick = onClick,
                 onLongClick = onLongClick
@@ -2373,7 +2376,6 @@ private fun SmbEntryRow(
                 )
             }
         } else if (!isWatch && !showFavoriteToggle) {
-            var menuExpanded by remember { mutableStateOf(false) }
             Spacer(modifier = Modifier.width(4.dp))
             Box(
                 modifier = Modifier

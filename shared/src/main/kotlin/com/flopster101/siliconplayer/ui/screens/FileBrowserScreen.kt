@@ -123,6 +123,7 @@ import com.flopster101.siliconplayer.parseHttpSourceSpecFromInput
 import com.flopster101.siliconplayer.parseSmbSourceSpecFromInput
 import com.flopster101.siliconplayer.folderTitleForDisplay
 import com.flopster101.siliconplayer.isSupportedPlaylistFile
+import com.flopster101.siliconplayer.contextMenuSecondaryClick
 import com.flopster101.siliconplayer.tvKeyLongPress
 import com.flopster101.siliconplayer.data.buildArchiveSourceId
 import com.flopster101.siliconplayer.data.buildArchiveDirectoryPath
@@ -1181,6 +1182,11 @@ internal fun FileBrowserScreen(
                             Column(
                                 modifier = Modifier
                                     .weight(1f)
+                                    .contextMenuSecondaryClick {
+                                        if (resolveCurrentFolderPathForActions() != null) {
+                                            currentFolderMenuExpanded = true
+                                        }
+                                    }
                                     .combinedClickable(
                                         onClick = {
                                             if (showLocalStorageSelector) {
@@ -1732,6 +1738,11 @@ internal fun FileBrowserScreen(
                                     modifier = Modifier
                                         .fillMaxWidth()
                                         .padding(bottom = 6.dp)
+                                        .contextMenuSecondaryClick {
+                                            if (resolveCurrentFolderPathForActions() != null) {
+                                                currentFolderMenuExpanded = true
+                                            }
+                                        }
                                         .combinedClickable(
                                             onClick = {
                                                 if (showLocalStorageSelector) {
@@ -2913,6 +2924,7 @@ fun FileItemRow(
             "$format • ${formatFileSizeHumanReadable(item.size)}"
         }
     }
+    var menuExpanded by remember { mutableStateOf(false) }
 
     Row(
         modifier = Modifier
@@ -2935,6 +2947,7 @@ fun FileItemRow(
             .then(if (rowFocusRequester != null) Modifier.focusRequester(rowFocusRequester) else Modifier)
             .onFocusChanged { state -> if (state.isFocused) onFocused?.invoke() }
             .tvKeyLongPress(onLongClick)
+            .contextMenuSecondaryClick { menuExpanded = true }
             .combinedClickable(
                 onClick = onClick,
                 onLongClick = onLongClick
@@ -3156,7 +3169,6 @@ fun FileItemRow(
                 )
             }
         } else if (!isWatch && !showFavoriteToggle) {
-            var menuExpanded by remember { mutableStateOf(false) }
             Spacer(modifier = Modifier.width(4.dp))
             Box(
                 modifier = Modifier

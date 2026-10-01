@@ -105,6 +105,7 @@ import com.flopster101.siliconplayer.RemoteExportCancelledException
 import com.flopster101.siliconplayer.AppDefaults
 import com.flopster101.siliconplayer.AppPreferenceKeys
 import com.flopster101.siliconplayer.HomePinnedEntry
+import com.flopster101.siliconplayer.contextMenuSecondaryClick
 import com.flopster101.siliconplayer.tvKeyLongPress
 import com.flopster101.siliconplayer.PINNED_HOME_ENTRIES_LIMIT
 import com.flopster101.siliconplayer.RecentPathEntry
@@ -2239,12 +2240,14 @@ private fun HttpEntryRow(
     } else {
         if (isSelected) MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.6f) else MaterialTheme.colorScheme.surface.copy(alpha = 0f)
     }
+    var menuExpanded by remember { mutableStateOf(false) }
     Row(
         modifier = Modifier
             .fillMaxWidth()
             .clip(selectionShape)
             .background(rowBackground)
             .tvKeyLongPress(onLongClick)
+            .contextMenuSecondaryClick { menuExpanded = true }
             .combinedClickable(
                 onClick = onClick,
                 onLongClick = onLongClick
@@ -2322,7 +2325,6 @@ private fun HttpEntryRow(
                 )
             }
         } else if (!isWatch && !showFavoriteToggle) {
-            var menuExpanded by remember { mutableStateOf(false) }
             Spacer(modifier = Modifier.width(4.dp))
             Box(
                 modifier = Modifier

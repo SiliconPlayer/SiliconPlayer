@@ -129,6 +129,7 @@ import androidx.compose.ui.unit.dp
 import com.flopster101.siliconplayer.NativeBridge
 import com.flopster101.siliconplayer.buildDecoderExtensionArtworkHintMap
 import com.flopster101.siliconplayer.canonicalDecoderNameForAlias
+import com.flopster101.siliconplayer.contextMenuSecondaryClick
 import com.flopster101.siliconplayer.tvKeyLongPress
 import com.flopster101.siliconplayer.DecoderArtworkHint
 import com.flopster101.siliconplayer.decodePercentEncodedForDisplay
@@ -1641,6 +1642,7 @@ internal fun BrowserToolbarSelectorLabel(
             .then(focusModifier)
             .clip(RoundedCornerShape(8.dp))
             .tvKeyLongPress(if (enabled) onLongClick else null)
+            .contextMenuSecondaryClick(if (enabled) onLongClick else null)
             .combinedClickable(
                 enabled = enabled,
                 onClick = onClick,
