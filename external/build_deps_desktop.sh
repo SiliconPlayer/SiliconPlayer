@@ -271,6 +271,10 @@ build_mbedtls() {
 build_ffmpeg() {
     local PROJECT_PATH="$ABSOLUTE_PATH/ffmpeg"
     local BUILD_DIR="$PROJECT_PATH/build_desktop_${ARCH}"
+    local MBEDTLS_ENABLE_FLAG=""
+    local MBEDTLS_EXTRA_CFLAGS=""
+    local MBEDTLS_EXTRA_LDFLAGS=""
+    local MBEDTLS_EXTRA_LIBS=""
     if [ ! -d "$PROJECT_PATH" ]; then return 0; fi
     if [ "$TARGET_LIB" = "all" ] && [ "${BUILD_FFMPEG_SOURCE:-0}" -ne 1 ]; then
         echo "Note: Using system FFmpeg for desktop. (Run '$0 ffmpeg' to build submodule ffmpeg from source)."
@@ -283,14 +287,25 @@ build_ffmpeg() {
         cd "$PROJECT_PATH"
         make clean >/dev/null 2>&1 || true
         "$CC" -fPIC -c "$ABSOLUTE_PATH/../desktop/src/native/LibmCompatWrappers.c" -o "$BUILD_DIR/wrap_libm.o"
+        if [ -f "$INSTALL_DIR/lib/libmbedtls.a" ] && [ -f "$INSTALL_DIR/include/mbedtls/ssl.h" ]; then
+            echo "mbedTLS detected -> enabling FFmpeg HTTPS/TLS support"
+            MBEDTLS_ENABLE_FLAG="--enable-mbedtls --enable-version3"
+            MBEDTLS_EXTRA_CFLAGS="-I$INSTALL_DIR/include"
+            MBEDTLS_EXTRA_LDFLAGS="-L$INSTALL_DIR/lib"
+            MBEDTLS_EXTRA_LIBS="-lmbedtls -lmbedx509 -lmbedcrypto -lp256m -leverest"
+        else
+            echo "mbedTLS not available -> FFmpeg HTTPS/TLS protocols will be unavailable"
+        fi
         ./configure --prefix="$INSTALL_DIR" --enable-shared --disable-static --disable-doc --disable-programs \
             --disable-avdevice --disable-avfilter --disable-swscale --disable-asm \
             --disable-encoders --disable-muxers \
             --disable-vaapi --disable-vdpau --disable-vulkan --disable-libdrm \
             --disable-cuda --disable-cuvid --disable-nvdec --disable-nvenc \
             --disable-dxva2 --disable-d3d11va --disable-videotoolbox \
-            --extra-cflags="-fPIC $DEP_OPT_FLAGS" \
-            --extra-ldflags="$BUILD_DIR/wrap_libm.o -L$INSTALL_DIR/lib -lm -Wl,--wrap,sqrtf -Wl,--wrap,atan2f -Wl,--wrap,log10f -Wl,--wrap,cosh -Wl,--wrap,sinh -Wl,--wrap,hypot"
+            $MBEDTLS_ENABLE_FLAG \
+            --extra-cflags="-fPIC $DEP_OPT_FLAGS $MBEDTLS_EXTRA_CFLAGS" \
+            --extra-ldflags="$BUILD_DIR/wrap_libm.o -L$INSTALL_DIR/lib $MBEDTLS_EXTRA_LDFLAGS -lm -Wl,--wrap,sqrtf -Wl,--wrap,atan2f -Wl,--wrap,log10f -Wl,--wrap,cosh -Wl,--wrap,sinh -Wl,--wrap,hypot" \
+            --extra-libs="$MBEDTLS_EXTRA_LIBS"
         make -j"$NPROC"
         make install
     )
