@@ -628,6 +628,7 @@ void StarfieldRenderer::render() {
     const float sizeK = std::min(h, 1080.0f) / 1080.0f;
     const float depthRange = std::max(1e-3f, 1.0f - nearPlane_);
     int32_t lineCount = 0;
+    int32_t pointCount = 0;
 
     for (int32_t i = 0; i < count; ++i) {
         if (dt > 0.0f) {
@@ -655,10 +656,16 @@ void StarfieldRenderer::render() {
         const float fadeIn = std::min(1.0f, starAge_[i] / 0.35f);
         const float fadeOut = std::clamp((z - nearPlane_) / (depthRange * 0.10f), 0.0f, 1.0f);
         const float env = fadeIn * fadeOut;
-        pos_[static_cast<size_t>(i) * 2] = x;
-        pos_[static_cast<size_t>(i) * 2 + 1] = y;
-        size_[i] = sz;
-        alphaArr_[i] = std::min(1.0f, al) * env;
+        // Off-viewport points rasterize as clamped edge slivers on
+        // mobile GPUs (desktop GL discards them): cull on the CPU.
+        const float pr = sz * 0.5f;
+        if (x >= -pr && x <= w + pr && y >= -pr && y <= h + pr) {
+            pos_[static_cast<size_t>(pointCount) * 2] = x;
+            pos_[static_cast<size_t>(pointCount) * 2 + 1] = y;
+            size_[pointCount] = sz;
+            alphaArr_[pointCount] = std::min(1.0f, al) * env;
+            ++pointCount;
+        }
         if (streaks_ && env > 0.004f) {
             // Lines take no per-star alpha: grow/shrink the streak instead.
             const float zp = z + spd * 0.016f * streakLength_ * 8.0f;
@@ -703,7 +710,7 @@ void StarfieldRenderer::render() {
     // Streak flight draws lines only; the tip dots read as beads.
     if (!streaks_) {
         drawPoints(
-            pos_.data(), size_.data(), alphaArr_.data(), count, softness_, 1.0f,
+            pos_.data(), size_.data(), alphaArr_.data(), pointCount, softness_, 1.0f,
             std::min(flashBoost, 3.0f));
     }
 
