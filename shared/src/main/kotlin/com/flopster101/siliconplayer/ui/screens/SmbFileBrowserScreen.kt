@@ -3,6 +3,8 @@ package com.flopster101.siliconplayer.ui.screens
 import com.flopster101.siliconplayer.NetworkCredentialStore
 import com.flopster101.siliconplayer.StoredPlaylist
 import com.flopster101.siliconplayer.TrackTextInputActive
+import com.flopster101.siliconplayer.ctrlClickToSelect
+import com.flopster101.siliconplayer.shiftClickToSelect
 import com.flopster101.siliconplayer.trackPullRefreshInput
 import com.flopster101.siliconplayer.ui.dialogs.AddToPlaylistChooserDialog
 import com.flopster101.siliconplayer.ui.dialogs.PlayWithDialog
@@ -1398,19 +1400,36 @@ internal fun SmbFileBrowserScreen(
                             onSelect = {
                                 browserSelectionController.enterSelectionWith(entrySelectionKey)
                             },
+                            onShiftClick = {
+                                val didSelectRange = browserSelectionController.selectRangeTo(
+                                    key = entrySelectionKey,
+                                    orderedKeys = stateFilteredEntries.map { stateEntry ->
+                                        entrySelectionKeyFor(stateEntry)
+                                    }
+                                )
+                                if (!didSelectRange) {
+                                    browserSelectionController.enterSelectionWith(entrySelectionKey)
+                                }
+                            },
+                            onCtrlClick = {
+                                if (browserSelectionController.isSelectionMode) {
+                                    browserSelectionController.toggleSelection(entrySelectionKey)
+                                } else {
+                                    browserSelectionController.enterSelectionWith(entrySelectionKey)
+                                }
+                            },
                             onLongClick = {
                                 if (isWatch) {
                                     watchActionTargetEntry = entry
                                 } else {
                                     if (browserSelectionController.isSelectionMode) {
                                         val didSelectRange =
-                                            browserSelectionController.selectedKeys.size == 1 &&
-                                                browserSelectionController.selectRangeTo(
-                                                    key = entrySelectionKey,
-                                                    orderedKeys = stateFilteredEntries.map { stateEntry ->
-                                                        entrySelectionKeyFor(stateEntry)
-                                                    }
-                                                )
+                                            browserSelectionController.selectRangeTo(
+                                                key = entrySelectionKey,
+                                                orderedKeys = stateFilteredEntries.map { stateEntry ->
+                                                    entrySelectionKeyFor(stateEntry)
+                                                }
+                                            )
                                         if (!didSelectRange) {
                                             browserSelectionController.toggleSelection(entrySelectionKey)
                                         }
@@ -2243,6 +2262,8 @@ private fun SmbEntryRow(
     onShowInfo: (() -> Unit)? = null,
     onSelect: (() -> Unit)? = null,
     onLongClick: (() -> Unit)? = null,
+    onCtrlClick: (() -> Unit)? = null,
+    onShiftClick: (() -> Unit)? = null,
     onClick: () -> Unit
 ) {
     val visualKind = if (showAsShare) {
@@ -2291,6 +2312,8 @@ private fun SmbEntryRow(
             .background(rowBackground)
             .tvKeyLongPress(onLongClick)
             .contextMenuSecondaryClick { menuExpanded = true }
+            .ctrlClickToSelect(onCtrlClick)
+            .shiftClickToSelect(onShiftClick)
             .combinedClickable(
                 onClick = onClick,
                 onLongClick = onLongClick

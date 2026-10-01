@@ -6,6 +6,7 @@ import com.flopster101.siliconplayer.formatSourceIdForDisplay
 import com.flopster101.siliconplayer.moveStoredPlaylist
 import com.flopster101.siliconplayer.AppPreferenceKeys
 import com.flopster101.siliconplayer.contextMenuSecondaryClick
+import com.flopster101.siliconplayer.ctrlClickToSelect
 import androidx.compose.material3.Switch
 import com.flopster101.siliconplayer.PlaylistCoverGenerationMode
 import com.flopster101.siliconplayer.readPlaylistCoverGenerationMode
@@ -5420,6 +5421,12 @@ private fun LazyListScope.playlistDetailContent(
                 editModeEnabled = isEditMode,
                 isSelected = selectedEntryIds.contains(entry.id),
                 onToggleSelect = { onToggleSelectEntry(entry.id) },
+                onCtrlClick = {
+                    if (!isEditMode) {
+                        onEditModeChanged(true)
+                    }
+                    onToggleSelectEntry(entry.id)
+                },
                 canReorder = canReorderEntries,
                 canMoveUp = canMoveUp,
                 canMoveDown = canMoveDown,
@@ -7166,6 +7173,7 @@ private fun PlaylistTrackRow(
     editModeEnabled: Boolean,
     isSelected: Boolean = false,
     onToggleSelect: () -> Unit = {},
+    onCtrlClick: (() -> Unit)? = null,
     canReorder: Boolean,
     canMoveUp: Boolean,
     canMoveDown: Boolean,
@@ -7498,6 +7506,7 @@ private fun PlaylistTrackRow(
                     .clip(RoundedCornerShape(14.dp))
                     .background(rowHighlightColor)
                     .contextMenuSecondaryClick { menuExpanded = true }
+                    .ctrlClickToSelect(onCtrlClick)
                     .let { base ->
                         if (editModeEnabled) {
                             base.clickable(onClick = onToggleSelect)

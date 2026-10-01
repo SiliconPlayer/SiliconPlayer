@@ -7,6 +7,8 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import com.flopster101.siliconplayer.TrackTextInputActive
+import com.flopster101.siliconplayer.ctrlClickToSelect
+import com.flopster101.siliconplayer.shiftClickToSelect
 import com.flopster101.siliconplayer.trackPullRefreshInput
 import com.flopster101.siliconplayer.platform.LocalAppCacheDir
 import com.flopster101.siliconplayer.platform.LocalAppPreferences
@@ -1347,19 +1349,36 @@ internal fun HttpFileBrowserScreen(
                             onSelect = {
                                 browserSelectionController.enterSelectionWith(entrySelectionKey)
                             },
+                            onShiftClick = {
+                                val didSelectRange = browserSelectionController.selectRangeTo(
+                                    key = entrySelectionKey,
+                                    orderedKeys = stateFilteredEntries.map { stateEntry ->
+                                        entrySelectionKeyFor(stateEntry)
+                                    }
+                                )
+                                if (!didSelectRange) {
+                                    browserSelectionController.enterSelectionWith(entrySelectionKey)
+                                }
+                            },
+                            onCtrlClick = {
+                                if (browserSelectionController.isSelectionMode) {
+                                    browserSelectionController.toggleSelection(entrySelectionKey)
+                                } else {
+                                    browserSelectionController.enterSelectionWith(entrySelectionKey)
+                                }
+                            },
                             onLongClick = {
                                 if (isWatch) {
                                     watchActionTargetEntry = entry
                                 } else {
                                     if (browserSelectionController.isSelectionMode) {
                                         val didSelectRange =
-                                            browserSelectionController.selectedKeys.size == 1 &&
-                                                browserSelectionController.selectRangeTo(
-                                                    key = entrySelectionKey,
-                                                    orderedKeys = stateFilteredEntries.map { stateEntry ->
-                                                        entrySelectionKeyFor(stateEntry)
-                                                    }
-                                                )
+                                            browserSelectionController.selectRangeTo(
+                                                key = entrySelectionKey,
+                                                orderedKeys = stateFilteredEntries.map { stateEntry ->
+                                                    entrySelectionKeyFor(stateEntry)
+                                                }
+                                            )
                                         if (!didSelectRange) {
                                             browserSelectionController.toggleSelection(entrySelectionKey)
                                         }
@@ -2207,6 +2226,8 @@ private fun HttpEntryRow(
     onShowInfo: (() -> Unit)? = null,
     onSelect: (() -> Unit)? = null,
     onLongClick: (() -> Unit)? = null,
+    onCtrlClick: (() -> Unit)? = null,
+    onShiftClick: (() -> Unit)? = null,
     onClick: () -> Unit
 ) {
     val visualKind = browserRemoteEntryVisualKind(
@@ -2253,6 +2274,8 @@ private fun HttpEntryRow(
             .background(rowBackground)
             .tvKeyLongPress(onLongClick)
             .contextMenuSecondaryClick { menuExpanded = true }
+            .ctrlClickToSelect(onCtrlClick)
+            .shiftClickToSelect(onShiftClick)
             .combinedClickable(
                 onClick = onClick,
                 onLongClick = onLongClick

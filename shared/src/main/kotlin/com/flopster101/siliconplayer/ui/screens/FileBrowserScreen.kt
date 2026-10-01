@@ -126,6 +126,8 @@ import com.flopster101.siliconplayer.parseSmbSourceSpecFromInput
 import com.flopster101.siliconplayer.folderTitleForDisplay
 import com.flopster101.siliconplayer.isSupportedPlaylistFile
 import com.flopster101.siliconplayer.contextMenuSecondaryClick
+import com.flopster101.siliconplayer.ctrlClickToSelect
+import com.flopster101.siliconplayer.shiftClickToSelect
 import com.flopster101.siliconplayer.trackPullRefreshInput
 import com.flopster101.siliconplayer.tvKeyLongPress
 import com.flopster101.siliconplayer.data.buildArchiveSourceId
@@ -1863,17 +1865,25 @@ internal fun FileBrowserScreen(
                                             } else {
                                                 if (browserSelectionController.isSelectionMode) {
                                                     val didSelectRange =
-                                                        browserSelectionController.selectedKeys.size == 1 &&
-                                                            browserSelectionController.selectRangeTo(
-                                                                key = entryKey,
-                                                                orderedKeys = filteredFileList.map { it.file.absolutePath }
-                                                            )
+                                                        browserSelectionController.selectRangeTo(
+                                                            key = entryKey,
+                                                            orderedKeys = filteredFileList.map { it.file.absolutePath }
+                                                        )
                                                     if (!didSelectRange) {
                                                         browserSelectionController.toggleSelection(entryKey)
                                                     }
                                                 } else {
                                                     browserSelectionController.enterSelectionWith(entryKey)
                                                 }
+                                            }
+                                        },
+                                        onShiftClick = {
+                                            val didSelectRange = browserSelectionController.selectRangeTo(
+                                                key = entryKey,
+                                                orderedKeys = filteredFileList.map { it.file.absolutePath }
+                                            )
+                                            if (!didSelectRange) {
+                                                browserSelectionController.enterSelectionWith(entryKey)
                                             }
                                         },
                                         onClick = {
@@ -1891,6 +1901,13 @@ internal fun FileBrowserScreen(
                                         onPinToHome = { pinItemToHome(item) },
                                         onShowInfo = { showItemInfoDialog(item) },
                                         onSelect = { browserSelectionController.enterSelectionWith(entryKey) },
+                                        onCtrlClick = {
+                                            if (browserSelectionController.isSelectionMode) {
+                                                browserSelectionController.toggleSelection(entryKey)
+                                            } else {
+                                                browserSelectionController.enterSelectionWith(entryKey)
+                                            }
+                                        },
                                         onDelete = if (!item.isDirectory && !item.isArchive) {
                                             { pendingDeleteFilePaths = listOf(item.file.absolutePath) }
                                         } else {
@@ -2805,6 +2822,8 @@ fun FileItemRow(
     rowFocusRequester: FocusRequester? = null,
     onFocused: (() -> Unit)? = null,
     onLongClick: (() -> Unit)? = null,
+    onCtrlClick: (() -> Unit)? = null,
+    onShiftClick: (() -> Unit)? = null,
     onClick: () -> Unit,
     onToggleFavorite: () -> Unit = {},
     onAddToPlaylist: (() -> Unit)? = null,
@@ -2957,6 +2976,8 @@ fun FileItemRow(
             .onFocusChanged { state -> if (state.isFocused) onFocused?.invoke() }
             .tvKeyLongPress(onLongClick)
             .contextMenuSecondaryClick { menuExpanded = true }
+            .ctrlClickToSelect(onCtrlClick)
+            .shiftClickToSelect(onShiftClick)
             .combinedClickable(
                 onClick = onClick,
                 onLongClick = onLongClick
