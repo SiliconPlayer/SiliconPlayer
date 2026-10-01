@@ -23,6 +23,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Computer
 import androidx.compose.material.icons.filled.Folder
 import androidx.compose.material.icons.filled.MusicNote
 import androidx.compose.material.icons.filled.PhoneAndroid
@@ -64,6 +65,7 @@ import com.flopster101.siliconplayer.inferredDisplayTitleForName
 import com.flopster101.siliconplayer.platform.LocalStorageLocationsProvider
 import com.flopster101.siliconplayer.platform.PlatformBackHandler
 import com.flopster101.siliconplayer.platform.StorageLocationKind
+import com.flopster101.siliconplayer.ui.icons.TagIcon
 import com.flopster101.siliconplayer.ui.screens.formatFileSize
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -154,8 +156,9 @@ private fun StorageFilePickerContent(
                 rootPath = location.directory.absolutePath,
                 label = location.name,
                 icon = when (location.kind) {
-                    StorageLocationKind.ROOT -> Icons.Default.Folder
+                    StorageLocationKind.ROOT -> TagIcon
                     StorageLocationKind.INTERNAL -> Icons.Default.PhoneAndroid
+                    StorageLocationKind.USER_HOME -> Icons.Default.Computer
                     StorageLocationKind.SD -> Icons.Default.SdCard
                     StorageLocationKind.USB -> Icons.Default.Usb
                 }

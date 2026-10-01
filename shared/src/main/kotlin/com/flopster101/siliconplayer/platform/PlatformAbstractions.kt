@@ -217,6 +217,7 @@ data class PlatformStorageLocation(
 enum class StorageLocationKind {
     ROOT,
     INTERNAL,
+    USER_HOME,
     SD,
     USB
 }
@@ -229,9 +230,9 @@ val LocalStorageLocationsProvider = staticCompositionLocalOf<() -> List<Platform
         if (userHome.exists() && userHome.isDirectory) {
             results += PlatformStorageLocation(
                 id = userHome.absolutePath,
-                kind = StorageLocationKind.INTERNAL,
-                typeLabel = "Home",
-                name = userHome.name.ifBlank { "Home" },
+                kind = StorageLocationKind.USER_HOME,
+                typeLabel = "User home",
+                name = userHome.name.ifBlank { "User home" },
                 directory = userHome
             )
             seen += userHome.absolutePath

@@ -24,6 +24,7 @@ import com.flopster101.siliconplayer.platform.AppPreferences
 import com.flopster101.siliconplayer.ui.icons.FileGameIcon
 import com.flopster101.siliconplayer.ui.icons.FileTrackedIcon
 import com.flopster101.siliconplayer.ui.icons.FileUnsupportedIcon
+import com.flopster101.siliconplayer.ui.icons.TagIcon
 import com.flopster101.siliconplayer.ui.icons.FolderZipIcon
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.filled.StarBorder
@@ -60,6 +61,7 @@ import androidx.compose.material.icons.filled.PlaylistAdd
 import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material.icons.filled.Photo
 import androidx.compose.material.icons.filled.Save
+import androidx.compose.material.icons.filled.Computer
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.MoreHoriz
 import androidx.compose.material.icons.filled.SdCard
@@ -1232,7 +1234,7 @@ internal fun FileBrowserScreen(
                                             DropdownMenuItem(
                                                 text = {
                                                     Column {
-                                                        Text("Home")
+                                                        Text("Browser home")
                                                         Text(
                                                             "Storage locations",
                                                             style = MaterialTheme.typography.labelSmall,
@@ -2756,10 +2758,11 @@ private typealias StorageKind = StorageLocationKind
 
 private fun iconForStorageKind(kind: StorageKind, isTablet: Boolean = false): ImageVector {
     return when (kind) {
-        StorageKind.ROOT -> Icons.Default.Folder
+        StorageKind.ROOT -> TagIcon
         StorageKind.INTERNAL -> {
             if (isTablet) Icons.Default.TabletAndroid else Icons.Default.PhoneAndroid
         }
+        StorageKind.USER_HOME -> Icons.Default.Computer
         StorageKind.SD -> Icons.Default.SdCard
         StorageKind.USB -> Icons.Default.Usb
     }
