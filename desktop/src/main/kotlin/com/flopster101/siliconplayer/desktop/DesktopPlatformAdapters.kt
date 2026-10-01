@@ -163,20 +163,23 @@ class DesktopAudioRouteManager(
     // Device enumeration spins a transient miniaudio context; re-query at
     // most every few seconds so chip recompositions stay allocation-free.
     private var cachedName: String? = null
+    private var cachedType: AudioOutputRouteType? = null
     private var cachedAtMs: Long = 0L
 
     @Composable
     override fun rememberCurrentRoute(): AudioOutputRouteInfo {
         val now = System.currentTimeMillis()
-        val name = synchronized(this) {
+        val (name, type) = synchronized(this) {
             if (cachedName == null || now - cachedAtMs > 5000L) {
                 cachedName = runCatching { NativeBridge.getAudioOutputRouteName() }
                     .getOrNull()?.trim()?.takeIf { it.isNotEmpty() }
+                cachedType = runCatching { NativeBridge.getAudioOutputRouteClass() }
+                    .getOrNull()?.let { AudioOutputRouteType.entries.getOrNull(it) }
                 cachedAtMs = now
             }
-            cachedName
-        } ?: "System Output"
-        return AudioOutputRouteInfo(AudioOutputRouteType.Speaker, name)
+            (cachedName ?: "System Output") to (cachedType ?: AudioOutputRouteType.Speaker)
+        }
+        return AudioOutputRouteInfo(type, name)
     }
 
     // Desktop has no system output switcher; the dialog's action button

@@ -98,6 +98,8 @@ import androidx.compose.material.icons.filled.SkipNext
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.filled.StarBorder
 import com.flopster101.siliconplayer.ui.icons.AirwaveIcon
+import com.flopster101.siliconplayer.ui.icons.CableIcon
+import com.flopster101.siliconplayer.ui.icons.HdmiIcon
 import com.flopster101.siliconplayer.ui.icons.SettingsApplicationsIcon
 import androidx.compose.material.icons.filled.Stop
 import androidx.compose.material.icons.sharp.Stop
@@ -2979,6 +2981,8 @@ private fun AudioOutputRoutePill(
                     AudioOutputRouteType.Bluetooth -> Icons.Default.Bluetooth
                     AudioOutputRouteType.Headphones -> Icons.Default.Headphones
                     AudioOutputRouteType.Usb -> Icons.Default.Usb
+                    AudioOutputRouteType.Hdmi -> HdmiIcon
+                    AudioOutputRouteType.Spdif -> CableIcon
                     AudioOutputRouteType.Speaker -> Icons.AutoMirrored.Filled.VolumeUp
                 },
                 contentDescription = null,

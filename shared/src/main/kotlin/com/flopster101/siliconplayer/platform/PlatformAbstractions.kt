@@ -99,7 +99,9 @@ enum class AudioOutputRouteType {
     Speaker,
     Headphones,
     Usb,
-    Bluetooth
+    Bluetooth,
+    Hdmi,
+    Spdif
 }
 
 data class AudioOutputRouteInfo(

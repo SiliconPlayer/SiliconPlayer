@@ -37,6 +37,8 @@ import com.flopster101.siliconplayer.isWatchDevice
 import com.flopster101.siliconplayer.platform.AudioOutputRouteType
 import com.flopster101.siliconplayer.platform.openAudioOutputSwitcher
 import com.flopster101.siliconplayer.platform.resolveCurrentAudioOutputRoute
+import com.flopster101.siliconplayer.ui.icons.CableIcon
+import com.flopster101.siliconplayer.ui.icons.HdmiIcon
 
 internal data class AudioOutputDeviceItem(
     val id: String,
@@ -322,6 +324,8 @@ internal fun AudioOutputDeviceDialog(
                             AudioOutputRouteType.Bluetooth -> Icons.Default.Bluetooth
                             AudioOutputRouteType.Headphones -> Icons.Default.Headphones
                             AudioOutputRouteType.Usb -> Icons.Default.Usb
+                            AudioOutputRouteType.Hdmi -> HdmiIcon
+                            AudioOutputRouteType.Spdif -> CableIcon
                             AudioOutputRouteType.Speaker -> Icons.AutoMirrored.Filled.VolumeUp
                         },
                         contentDescription = null,
@@ -452,6 +456,8 @@ internal fun AudioOutputDeviceDialog(
                                             AudioOutputRouteType.Bluetooth -> Icons.Default.Bluetooth
                                             AudioOutputRouteType.Headphones -> Icons.Default.Headphones
                                             AudioOutputRouteType.Usb -> Icons.Default.Usb
+                                            AudioOutputRouteType.Hdmi -> HdmiIcon
+                                            AudioOutputRouteType.Spdif -> CableIcon
                                             AudioOutputRouteType.Speaker -> Icons.AutoMirrored.Filled.VolumeUp
                                         },
                                         contentDescription = null,

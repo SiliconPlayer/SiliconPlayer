@@ -77,6 +77,8 @@ import com.flopster101.siliconplayer.resolveDecoderArtworkHintForFileName
 import com.flopster101.siliconplayer.sourceIdForCachedFileName
 import com.flopster101.siliconplayer.stripRemoteCacheHashPrefix
 import com.flopster101.siliconplayer.ui.icons.ConversionPathIcon
+import com.flopster101.siliconplayer.ui.icons.CableIcon
+import com.flopster101.siliconplayer.ui.icons.HdmiIcon
 import java.io.File
 import java.util.Locale
 
@@ -335,6 +337,8 @@ internal fun AudioOutputDetailsDialog(
                                 AudioOutputRouteType.Bluetooth -> Icons.Default.Bluetooth
                                 AudioOutputRouteType.Headphones -> Icons.Default.Headphones
                                 AudioOutputRouteType.Usb -> Icons.Default.Usb
+                                AudioOutputRouteType.Hdmi -> HdmiIcon
+                                AudioOutputRouteType.Spdif -> CableIcon
                                 AudioOutputRouteType.Speaker -> Icons.AutoMirrored.Filled.VolumeUp
                             },
                             contentDescription = null,
@@ -501,6 +505,8 @@ internal fun AudioOutputDetailsDialog(
                                 val sinkBadgeText = when (routeInfo.type) {
                                     AudioOutputRouteType.Speaker -> speakerBadgeText
                                     AudioOutputRouteType.Headphones -> "Wired"
+                                    AudioOutputRouteType.Hdmi -> "HDMI"
+                                    AudioOutputRouteType.Spdif -> "S/PDIF"
                                     AudioOutputRouteType.Usb -> if (isBitPerfectActive) "Bit-Perfect" else "USB"
                                     AudioOutputRouteType.Bluetooth -> "A2DP"
                                 }
@@ -519,6 +525,8 @@ internal fun AudioOutputDetailsDialog(
                                                 AudioOutputRouteType.Bluetooth -> Icons.Default.Bluetooth
                                                 AudioOutputRouteType.Headphones -> Icons.Default.Headphones
                                                 AudioOutputRouteType.Usb -> Icons.Default.Usb
+                                                AudioOutputRouteType.Hdmi -> HdmiIcon
+                                                AudioOutputRouteType.Spdif -> CableIcon
                                                 AudioOutputRouteType.Speaker -> Icons.AutoMirrored.Filled.VolumeUp
                                             },
                                             contentDescription = null,
