@@ -35,6 +35,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
@@ -212,6 +213,8 @@ class PlaybackService : Service() {
         pushNotification()
     }
     private var artworkLoadGeneration = 0L
+    private var artworkRetryKey: String? = null
+    private var artworkRetryAttempts = 0
     private val ticker = object : Runnable {
         override fun run() {
             val self = this
@@ -1325,10 +1328,52 @@ class PlaybackService : Service() {
         )
     }
 
+    // Polls the shared memory cache while the UI's own load for this track
+    // is still in flight, so the notification piggybacks it instead of
+    // duplicating the scan. Null when nothing lands in time or on staleness.
+    private suspend fun awaitInFlightSharedArtwork(
+        path: String?,
+        requestUrl: String?,
+        artworkKey: String,
+        generation: Long
+    ): Bitmap? {
+        val localFile = path
+            ?.takeIf { Uri.parse(it).scheme.isNullOrBlank() || Uri.parse(it).scheme.equals("file", ignoreCase = true) }
+            ?.let(::File)
+            ?.takeIf { it.exists() && it.isFile }
+        val deadline = SystemClock.uptimeMillis() + ARTWORK_SHARED_CACHE_GRACE_MS
+        while (SystemClock.uptimeMillis() < deadline) {
+            if (
+                generation != artworkLoadGeneration ||
+                    currentArtworkKey != artworkKey ||
+                    currentPath != path
+            ) return null
+            peekCachedArtworkBitmapForSource(
+                displayFile = localFile,
+                sourceId = path,
+                requestUrl = requestUrl
+            )?.let { return it }
+            delay(ARTWORK_SHARED_CACHE_POLL_MS)
+        }
+        return null
+    }
+
     private fun scheduleArtworkLoad(path: String?, requestUrl: String?, artworkKey: String) {
         val generation = ++artworkLoadGeneration
         serviceScope.launch {
-            val loadedArtwork = withContext(Dispatchers.IO) {
+            // The UI fires the same load at track start into the shared memory
+            // cache; piggyback it instead of running a second slow scan
+            // serialized behind it on the retriever lock.
+            val sharedArtwork = awaitInFlightSharedArtwork(path, requestUrl, artworkKey, generation)
+            if (
+                generation != artworkLoadGeneration ||
+                    currentArtworkKey != artworkKey ||
+                    currentPath != path
+            ) {
+                retryArtworkLoadIfMissing()
+                return@launch
+            }
+            val loadedArtwork = sharedArtwork ?: withContext(Dispatchers.IO) {
                 loadArtworkForPlaybackSource(path, requestUrl)
             }
             if (
@@ -1336,6 +1381,7 @@ class PlaybackService : Service() {
                     currentArtworkKey != artworkKey ||
                     currentPath != path
             ) {
+                retryArtworkLoadIfMissing()
                 return@launch
             }
             currentArtwork = loadedArtwork
@@ -1343,7 +1389,40 @@ class PlaybackService : Service() {
             lastNotificationArtworkKey = null
             updateMediaSessionState()
             pushNotification()
+            if (loadedArtwork != null) {
+                artworkRetryKey = null
+                artworkRetryAttempts = 0
+            } else {
+                retryArtworkLoadIfMissing()
+            }
         }
+    }
+
+    // A nulled or superseded first load must not pin the notification artless:
+    // transient misses heal on a later attempt. Bounded so genuinely artless
+    // tracks go quiet instead of polling the server forever.
+    private fun retryArtworkLoadIfMissing() {
+        val key = currentArtworkKey ?: return
+        if (currentArtwork != null) {
+            artworkRetryKey = null
+            artworkRetryAttempts = 0
+            return
+        }
+        if (artworkRetryKey != key) {
+            artworkRetryKey = key
+            artworkRetryAttempts = 0
+        }
+        if (artworkRetryAttempts >= ARTWORK_LOAD_MAX_RETRIES) return
+        artworkRetryAttempts += 1
+        handler.postDelayed({
+            if (currentArtwork == null && currentArtworkKey == key) {
+                scheduleArtworkLoad(
+                    path = currentPath,
+                    requestUrl = currentRequestUrl,
+                    artworkKey = key
+                )
+            }
+        }, ARTWORK_LOAD_RETRY_DELAY_MS)
     }
 
     private fun computeInSampleSize(width: Int, height: Int, maxDimension: Int): Int {
@@ -1452,6 +1531,10 @@ class PlaybackService : Service() {
         private const val PREF_SESSION_CURRENT_PATH = "session_current_path"
         private const val PREF_SESSION_CURRENT_REQUEST_URL = "session_current_request_url"
         private const val RESUME_POSITION_DURATION_EPSILON_SECONDS = 0.05
+        private const val ARTWORK_LOAD_MAX_RETRIES = 3
+        private const val ARTWORK_LOAD_RETRY_DELAY_MS = 5000L
+        private const val ARTWORK_SHARED_CACHE_GRACE_MS = 3000L
+        private const val ARTWORK_SHARED_CACHE_POLL_MS = 250L
         private const val EXTRA_PATH = "extra_path"
         private const val EXTRA_REQUEST_URL = "extra_request_url"
         private const val EXTRA_TITLE = "extra_title"
