@@ -2705,6 +2705,8 @@ fun main(args: Array<String>) = application {
                                     artwork = session.artwork,
                                     noArtworkIcon = placeholderArtworkIconForFile(session.currentFile, session.decoderName),
                                     requestInitialFocus = true,
+                                    requestSeekBarInitialFocus = true,
+                                    moveFocus = { direction -> desktopFocusManager?.moveFocus(direction) == true },
                                     repeatMode = session.repeatMode,
                                     canCycleRepeatMode = supportsLiveRepeatMode(session.playbackCapabilitiesFlags),
                                     canSeek = session.canSeek,

@@ -36,8 +36,7 @@ internal fun Modifier.dialogScrollableContentNavigation(
 
     fun requestActionFocus(): Boolean {
         return if (actionFocusRequester != null) {
-            actionFocusRequester.requestFocus()
-            true
+            runCatching { actionFocusRequester.requestFocus() }.isSuccess
         } else {
             false
         }

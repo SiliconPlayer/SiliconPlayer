@@ -138,6 +138,7 @@ import androidx.compose.ui.input.key.key
 import androidx.compose.ui.input.key.type
 import androidx.compose.ui.input.key.KeyEventType
 import androidx.compose.ui.input.key.isCtrlPressed
+import androidx.compose.ui.focus.FocusDirection
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.focus.onFocusChanged
@@ -795,6 +796,8 @@ internal fun PlayerScreen(
     onCollapseBySwipe: () -> Unit = onBack,
     enableCollapseGesture: Boolean = true,
     requestInitialFocus: Boolean = false,
+    requestSeekBarInitialFocus: Boolean = false,
+    moveFocus: ((FocusDirection) -> Boolean)? = null,
     isPlaying: Boolean,
     canResumeStoppedTrack: Boolean = false,
     onPlay: () -> Unit,
@@ -1275,10 +1278,35 @@ internal fun PlayerScreen(
     val transportAnchorFocusRequester = remember { FocusRequester() }
     val actionStripFirstFocusRequester = remember { FocusRequester() }
     val playerRootFocusRequester = remember { FocusRequester() }
+    val seekFocusRequester = remember { FocusRequester() }
+    val seekExitDownRequester = remember { FocusRequester() }
+    var seekBarFocused by remember { mutableStateOf(false) }
+    // Focus requests must never crash: several targets live in TV-conditional
+    // subtrees, so an unattached requester fails silently instead of throwing.
+    fun safeFocusRequest(requester: FocusRequester): Boolean {
+        return try {
+            requester.requestFocus()
+            true
+        } catch (_: IllegalStateException) {
+            false
+        }
+    }
 
     LaunchedEffect(requestInitialFocus) {
         if (requestInitialFocus) {
             playerRootFocusRequester.requestFocus()
+        }
+    }
+    LaunchedEffect(requestSeekBarInitialFocus) {
+        if (requestSeekBarInitialFocus) {
+            safeFocusRequest(seekFocusRequester)
+            // The mini bar exit animation disposes its focused node after
+            // commit, clearing focus again: re-land once it has settled.
+            // Shortcuts work unfocused meanwhile via the preview handler.
+            delay(350)
+            if (!seekBarFocused) {
+                safeFocusRequest(seekFocusRequester)
+            }
         }
     }
 
@@ -1302,6 +1330,48 @@ internal fun PlayerScreen(
                 // Text input owns the keyboard; shortcuts yield while it is active.
                 if (textInputTracker.hasActiveInput) {
                     return@onPreviewKeyEvent false
+                }
+                // Seek bar focused: full player shortcuts. Focus out in the
+                // UI: TV-style navigation only, Enter/Space confirm natively.
+                if (!seekBarFocused) {
+                    val navDirection = when (keyEvent.key) {
+                        Key.DirectionLeft -> FocusDirection.Left
+                        Key.DirectionRight -> FocusDirection.Right
+                        Key.DirectionUp -> FocusDirection.Up
+                        Key.DirectionDown -> FocusDirection.Down
+                        else -> null
+                    }
+                    if (navDirection != null) {
+                        // Custom links may target an unattached requester.
+                        val moved = try {
+                            moveFocus?.invoke(navDirection) == true
+                        } catch (_: IllegalStateException) {
+                            false
+                        }
+                        return@onPreviewKeyEvent moved
+                    }
+                    return@onPreviewKeyEvent false
+                }
+                if (keyEvent.key == Key.DirectionUp || keyEvent.key == Key.DirectionDown) {
+                    // Desktop drives focus out explicitly: search from the
+                    // slider is unreliable, fall back to direct requests.
+                    if (moveFocus != null) {
+                        val leaveDirection = if (keyEvent.key == Key.DirectionUp) FocusDirection.Up else FocusDirection.Down
+                        val moved = try {
+                            moveFocus(leaveDirection)
+                        } catch (_: IllegalStateException) {
+                            false
+                        }
+                        if (moved) {
+                            return@onPreviewKeyEvent true
+                        }
+                        if (keyEvent.key == Key.DirectionUp) {
+                            safeFocusRequest(topArrowFocusRequester)
+                        } else {
+                            safeFocusRequest(seekExitDownRequester)
+                        }
+                        return@onPreviewKeyEvent true
+                    }
                 }
                 handlePlayerGlobalKeyDown(
                     keyEvent = keyEvent,
@@ -1712,7 +1782,9 @@ internal fun PlayerScreen(
                                             modifier = Modifier
                                                 .size(32.dp)
                                                 .focusProperties {
-                                                    down = transportAnchorFocusRequester
+                                                    if (!requestSeekBarInitialFocus) {
+                                                        down = transportAnchorFocusRequester
+                                                    }
                                                 }
                                                 .clip(CircleShape)
                                                 .playerFocusHalo(enabled = pathOrUrl != null, shape = CircleShape)
@@ -1760,6 +1832,9 @@ internal fun PlayerScreen(
                                     onSeekInteractionChanged = { isTimelineTouchActive = it },
                                     focusRequester = primaryContentFocusRequester,
                                     upFocusRequester = topArrowFocusRequester,
+                                    seekFocusRequester = seekFocusRequester,
+                                    onSeekBarFocusedChange = { seekBarFocused = it },
+                                    seekFocusHaloEnabled = true,
                                     layoutScale = landscapeLayoutScale
                                 )
 
@@ -1779,6 +1854,8 @@ internal fun PlayerScreen(
                                     canPreviousTrack = canPreviousTrack,
                                     canNextTrack = canNextTrack,
                                     canCycleRepeatMode = canCycleRepeatMode,
+                                    yieldInitialFocusToSeekBar = requestSeekBarInitialFocus,
+                                    seekExitDownRequester = if (requestSeekBarInitialFocus) seekExitDownRequester else null,
                                     onPlayPause = {
                                         if (isPlaying) {
                                             onPause()
@@ -2002,7 +2079,9 @@ internal fun PlayerScreen(
                                                 modifier = Modifier
                                                     .size(32.dp)
                                                     .focusProperties {
-                                                        down = transportAnchorFocusRequester
+                                                        if (!requestSeekBarInitialFocus) {
+                                                            down = transportAnchorFocusRequester
+                                                        }
                                                     }
                                                     .clip(CircleShape)
                                                     .playerFocusHalo(enabled = pathOrUrl != null, shape = CircleShape)
@@ -2054,6 +2133,9 @@ internal fun PlayerScreen(
                                             onSeekInteractionChanged = { isTimelineTouchActive = it },
                                             focusRequester = primaryContentFocusRequester,
                                             upFocusRequester = topArrowFocusRequester,
+                                            seekFocusRequester = seekFocusRequester,
+                                            onSeekBarFocusedChange = { seekBarFocused = it },
+                                            seekFocusHaloEnabled = true,
                                             layoutScale = portraitTimelineScale
                                         )
                                     }
@@ -2072,6 +2154,8 @@ internal fun PlayerScreen(
                                         canPreviousTrack = canPreviousTrack,
                                         canNextTrack = canNextTrack,
                                         canCycleRepeatMode = canCycleRepeatMode,
+                                        yieldInitialFocusToSeekBar = requestSeekBarInitialFocus,
+                                        seekExitDownRequester = if (requestSeekBarInitialFocus) seekExitDownRequester else null,
                                         onPlayPause = {
                                             if (isPlaying) {
                                                 onPause()
@@ -3906,7 +3990,9 @@ private fun TransportControls(
     layoutScale: Float = 1f,
     transportAnchorFocusRequester: FocusRequester? = null,
     actionStripFirstFocusRequester: FocusRequester? = null,
-    spacedByRow: Boolean = false
+    spacedByRow: Boolean = false,
+    yieldInitialFocusToSeekBar: Boolean = false,
+    seekExitDownRequester: FocusRequester? = null
 ) {
     val remoteLoadActive = remoteLoadUiState != null
     val remotePreloadUiState = RemotePreloadUiStateHolder.current
@@ -3940,7 +4026,7 @@ private fun TransportControls(
 
     val previousTrackFocusRequester = remember { FocusRequester() }
     val repeatModeFocusRequester = remember { FocusRequester() }
-    val playPauseFocusRequester = transportAnchorFocusRequester ?: remember { FocusRequester() }
+    val playPauseFocusRequester = seekExitDownRequester ?: transportAnchorFocusRequester ?: remember { FocusRequester() }
     val stopFocusRequester = remember { FocusRequester() }
     val nextTrackFocusRequester = remember { FocusRequester() }
     var initialTransportFocusAssigned by remember { mutableStateOf(false) }
@@ -3954,7 +4040,7 @@ private fun TransportControls(
         canFocusRepeatMode,
         canFocusNextTrack
     ) {
-        if (initialTransportFocusAssigned) return@LaunchedEffect
+        if (initialTransportFocusAssigned || yieldInitialFocusToSeekBar) return@LaunchedEffect
         delay(90)
         val requester = firstAvailableRequester(
             canFocusPlayPause to playPauseFocusRequester,
@@ -4038,9 +4124,7 @@ private fun TransportControls(
                                 canFocusRepeatMode to repeatModeFocusRequester,
                                 canFocusStop to stopFocusRequester
                             ) ?: stopFocusRequester
-                            down = firstAvailableRequester(
-                                (actionStripFirstFocusRequester != null) to (actionStripFirstFocusRequester ?: stopFocusRequester)
-                            ) ?: stopFocusRequester
+                            down = stopFocusRequester
                         }
                         .playerFocusHalo()
                         .focusable(),
@@ -4087,9 +4171,7 @@ private fun TransportControls(
                                     canFocusStop to stopFocusRequester,
                                     canFocusPreviousTrack to previousTrackFocusRequester
                                 ) ?: previousTrackFocusRequester
-                                down = firstAvailableRequester(
-                                    (actionStripFirstFocusRequester != null) to (actionStripFirstFocusRequester ?: previousTrackFocusRequester)
-                                ) ?: previousTrackFocusRequester
+                                down = previousTrackFocusRequester
                             }
                             .playerFocusHalo(enabled = previousTransportEnabled)
                             .focusable(enabled = previousTransportEnabled),
@@ -4148,9 +4230,7 @@ private fun TransportControls(
                                 canFocusPreviousTrack to previousTrackFocusRequester,
                                 canFocusPlayPause to playPauseFocusRequester
                             ) ?: playPauseFocusRequester
-                            down = firstAvailableRequester(
-                                (actionStripFirstFocusRequester != null) to (actionStripFirstFocusRequester ?: playPauseFocusRequester)
-                            ) ?: playPauseFocusRequester
+                            down = playPauseFocusRequester
                         }
                         .playerFocusHalo(enabled = (hasTrack || canResumeStoppedTrack) && !controlsBusy)
                         .focusable(enabled = (hasTrack || canResumeStoppedTrack) && !controlsBusy),
@@ -4214,9 +4294,7 @@ private fun TransportControls(
                                     canFocusPlayPause to playPauseFocusRequester,
                                     canFocusNextTrack to nextTrackFocusRequester
                                 ) ?: nextTrackFocusRequester
-                                down = firstAvailableRequester(
-                                    (actionStripFirstFocusRequester != null) to (actionStripFirstFocusRequester ?: nextTrackFocusRequester)
-                                ) ?: nextTrackFocusRequester
+                                down = nextTrackFocusRequester
                             }
                             .playerFocusHalo(enabled = nextTransportEnabled)
                             .focusable(enabled = nextTransportEnabled),
@@ -4302,9 +4380,7 @@ private fun TransportControls(
                                 canFocusNextTrack to nextTrackFocusRequester,
                                 canFocusRepeatMode to repeatModeFocusRequester
                             ) ?: repeatModeFocusRequester
-                            down = firstAvailableRequester(
-                                (actionStripFirstFocusRequester != null) to (actionStripFirstFocusRequester ?: repeatModeFocusRequester)
-                            ) ?: repeatModeFocusRequester
+                            down = repeatModeFocusRequester
                         }
                         .playerFocusHalo(enabled = canCycleRepeatMode && !controlsBusy)
                         .focusable(enabled = canCycleRepeatMode && !controlsBusy),
@@ -4902,6 +4978,9 @@ private fun TimelineSection(
     seekInProgress: Boolean,
     focusRequester: FocusRequester? = null,
     upFocusRequester: FocusRequester? = null,
+    seekFocusRequester: FocusRequester? = null,
+    onSeekBarFocusedChange: ((Boolean) -> Unit)? = null,
+    seekFocusHaloEnabled: Boolean = true,
     layoutScale: Float = 1f,
     onToggleDurationDisplayMode: () -> Unit,
     onSeekInteractionChanged: (Boolean) -> Unit,
@@ -4943,6 +5022,9 @@ private fun TimelineSection(
             onSeekInteractionChanged = onSeekInteractionChanged,
             onValueChange = onSliderValueChange,
             onValueChangeFinished = onSliderValueChangeFinished,
+            focusRequester = seekFocusRequester,
+            onFocusedChange = onSeekBarFocusedChange,
+            focusHaloEnabled = seekFocusHaloEnabled,
             modifier = Modifier
                 .then(
                     if (focusRequester != null) {
@@ -4997,6 +5079,9 @@ private fun PlayerTimelineHost(
     onSeekInteractionChanged: (Boolean) -> Unit,
     focusRequester: FocusRequester?,
     upFocusRequester: FocusRequester?,
+    seekFocusRequester: FocusRequester? = null,
+    onSeekBarFocusedChange: ((Boolean) -> Unit)? = null,
+    seekFocusHaloEnabled: Boolean = true,
     layoutScale: Float
 ) {
     var isSeeking by remember { mutableStateOf(false) }
@@ -5015,6 +5100,9 @@ private fun PlayerTimelineHost(
         seekInProgress = seekInProgress,
         focusRequester = focusRequester,
         upFocusRequester = upFocusRequester,
+        seekFocusRequester = seekFocusRequester,
+        onSeekBarFocusedChange = onSeekBarFocusedChange,
+        seekFocusHaloEnabled = seekFocusHaloEnabled,
         layoutScale = layoutScale,
         onToggleDurationDisplayMode = onToggleRemaining,
         onSeekInteractionChanged = { v ->
@@ -5049,7 +5137,10 @@ internal fun LineageStyleSeekBar(
     onSeekInteractionChanged: (Boolean) -> Unit,
     onValueChange: (Float) -> Unit,
     onValueChangeFinished: () -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    focusRequester: FocusRequester? = null,
+    onFocusedChange: ((Boolean) -> Unit)? = null,
+    focusHaloEnabled: Boolean = true
 ) {
     val effectiveActiveColor = if (forceMonochromeWhite) androidx.compose.ui.graphics.Color.White else activeColor
     val effectiveInactiveColor = if (forceMonochromeWhite) androidx.compose.ui.graphics.Color.White.copy(alpha = 0.30f) else inactiveColor
@@ -5094,8 +5185,16 @@ internal fun LineageStyleSeekBar(
 
     Canvas(
         modifier = modifier
-            .playerFocusHalo(enabled = true, shape = RoundedCornerShape(10.dp))
+            .playerFocusHalo(enabled = focusHaloEnabled, shape = RoundedCornerShape(10.dp))
             .focusable()
+            .then(if (focusRequester != null) Modifier.focusRequester(focusRequester) else Modifier)
+            .then(
+                if (onFocusedChange != null) {
+                    Modifier.onFocusChanged { onFocusedChange(it.hasFocus) }
+                } else {
+                    Modifier
+                }
+            )
             .onPreviewKeyEvent { keyEvent ->
                 if (
                     !enabled ||
