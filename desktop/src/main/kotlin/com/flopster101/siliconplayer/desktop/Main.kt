@@ -15,7 +15,10 @@ import androidx.compose.material.icons.filled.MusicNote
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.FocusDirection
+import androidx.compose.ui.focus.FocusManager
 import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Window
@@ -569,6 +572,7 @@ fun main(args: Array<String>) = application {
     var showTrackInfoDialog by remember { mutableStateOf(false) }
     var dismissAudioEffectsDialogHandler by remember { mutableStateOf<(() -> Boolean)?>(null) }
     var toggleMasterMuteHandler by remember { mutableStateOf<(() -> Boolean)?>(null) }
+    var desktopFocusManager by remember { mutableStateOf<FocusManager?>(null) }
     var showSubtuneSelectorDialog by remember { mutableStateOf(false) }
     var showPlaylistSelectorDialog by remember { mutableStateOf(false) }
     var selectorImportEntries by remember { mutableStateOf<List<PlaylistTrackEntry>?>(null) }
@@ -651,6 +655,21 @@ fun main(args: Array<String>) = application {
         onKeyEvent = { keyEvent ->
             if (keyEvent.type == KeyEventType.KeyDown) {
                 if (textInputTracker.hasActiveInput) return@Window false
+                if (!isPlayerExpanded) {
+                    // Miniplayer never drives playback: arrows move focus
+                    // TV-style, Space/Enter fall through to the focused control.
+                    val focusDirection = when (keyEvent.key) {
+                        Key.DirectionLeft -> FocusDirection.Left
+                        Key.DirectionRight -> FocusDirection.Right
+                        Key.DirectionUp -> FocusDirection.Up
+                        Key.DirectionDown -> FocusDirection.Down
+                        else -> null
+                    }
+                    if (focusDirection != null) {
+                        return@Window desktopFocusManager?.moveFocus(focusDirection) == true
+                    }
+                    return@Window false
+                }
                 if (keyEvent.key == Key.I) {
                     if (session.currentFile != null) {
                         if (isPlayerExpanded) {
@@ -1270,6 +1289,10 @@ fun main(args: Array<String>) = application {
                         false
                     }
                 }
+            }
+            val contentFocusManager = LocalFocusManager.current
+            SideEffect {
+                desktopFocusManager = contentFocusManager
             }
             SideEffect {
                 toggleMasterMuteHandler = {
