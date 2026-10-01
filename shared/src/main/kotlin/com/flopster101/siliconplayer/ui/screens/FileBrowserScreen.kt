@@ -126,6 +126,7 @@ import com.flopster101.siliconplayer.parseSmbSourceSpecFromInput
 import com.flopster101.siliconplayer.folderTitleForDisplay
 import com.flopster101.siliconplayer.isSupportedPlaylistFile
 import com.flopster101.siliconplayer.contextMenuSecondaryClick
+import com.flopster101.siliconplayer.trackPullRefreshInput
 import com.flopster101.siliconplayer.tvKeyLongPress
 import com.flopster101.siliconplayer.data.buildArchiveSourceId
 import com.flopster101.siliconplayer.data.buildArchiveDirectoryPath
@@ -324,6 +325,7 @@ internal fun FileBrowserScreen(
     val coroutineScope = rememberCoroutineScope()
     var directoryLoadJob by remember { mutableStateOf<Job?>(null) }
     var isPullRefreshing by remember { mutableStateOf(false) }
+    var pullRefreshAllowed by remember { mutableStateOf(true) }
     var directoryAnimationEpoch by remember { mutableIntStateOf(0) }
     val loadingLogLines = remember { mutableStateListOf<String>() }
     val archiveMountRoots = remember { mutableStateMapOf<String, ArchiveMountInfo>() }
@@ -1597,7 +1599,8 @@ internal fun FileBrowserScreen(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(paddingValues)
-                .pullRefresh(pullRefreshState)
+                .trackPullRefreshInput { pullRefreshAllowed = it }
+                .pullRefresh(pullRefreshState, enabled = pullRefreshAllowed)
         ) {
             AnimatedContent(
                 targetState = browserContentState.pane,

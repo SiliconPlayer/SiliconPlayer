@@ -7,6 +7,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import com.flopster101.siliconplayer.TrackTextInputActive
+import com.flopster101.siliconplayer.trackPullRefreshInput
 import com.flopster101.siliconplayer.platform.LocalAppCacheDir
 import com.flopster101.siliconplayer.platform.LocalAppPreferences
 import com.flopster101.siliconplayer.platform.LocalIsRoundScreen
@@ -259,6 +260,7 @@ internal fun HttpFileBrowserScreen(
     }
     var loadRequestSequence by remember(screenSessionKey) { mutableStateOf(0) }
     var isPullRefreshing by remember(screenSessionKey) { mutableStateOf(false) }
+    var pullRefreshAllowed by remember(screenSessionKey) { mutableStateOf(true) }
     var loadingPartialEntries by remember(screenSessionKey) { mutableStateOf<List<HttpBrowserEntry>>(emptyList()) }
     var loadingLoadedCount by remember(screenSessionKey) { mutableStateOf(0) }
     var loadCancelState by remember(screenSessionKey) { mutableStateOf<HttpLoadingCancelState?>(null) }
@@ -1584,7 +1586,8 @@ internal fun HttpFileBrowserScreen(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(paddingValues)
-                .pullRefresh(pullRefreshState)
+                .trackPullRefreshInput { pullRefreshAllowed = it }
+                .pullRefresh(pullRefreshState, enabled = pullRefreshAllowed)
         ) {
             if (isConstrainedBrowserDevice) {
                 renderBrowserContent(browserContentState)

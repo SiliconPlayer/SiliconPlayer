@@ -3,6 +3,7 @@ package com.flopster101.siliconplayer.ui.screens
 import com.flopster101.siliconplayer.NetworkCredentialStore
 import com.flopster101.siliconplayer.StoredPlaylist
 import com.flopster101.siliconplayer.TrackTextInputActive
+import com.flopster101.siliconplayer.trackPullRefreshInput
 import com.flopster101.siliconplayer.ui.dialogs.AddToPlaylistChooserDialog
 import com.flopster101.siliconplayer.ui.dialogs.PlayWithDialog
 import com.flopster101.siliconplayer.platform.LocalAppCacheDir
@@ -238,6 +239,7 @@ internal fun SmbFileBrowserScreen(
     var entries by remember(screenSessionKey) { mutableStateOf<List<SmbBrowserEntry>>(emptyList()) }
     var isLoading by remember(screenSessionKey) { mutableStateOf(false) }
     var isPullRefreshing by remember(screenSessionKey) { mutableStateOf(false) }
+    var pullRefreshAllowed by remember(screenSessionKey) { mutableStateOf(true) }
     var errorMessage by remember(screenSessionKey) { mutableStateOf<String?>(null) }
     var listJob by remember(screenSessionKey) { mutableStateOf<Job?>(null) }
     val loadingLogLines = remember(screenSessionKey) { mutableStateListOf<String>() }
@@ -1625,7 +1627,8 @@ internal fun SmbFileBrowserScreen(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(paddingValues)
-                .pullRefresh(pullRefreshState)
+                .trackPullRefreshInput { pullRefreshAllowed = it }
+                .pullRefresh(pullRefreshState, enabled = pullRefreshAllowed)
         ) {
             if (isConstrainedBrowserDevice) {
                 renderBrowserContent(browserContentState)
