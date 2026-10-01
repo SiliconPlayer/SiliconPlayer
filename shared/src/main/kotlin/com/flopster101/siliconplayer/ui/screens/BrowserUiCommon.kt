@@ -69,6 +69,7 @@ import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Photo
+import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.SelectAll
 import androidx.compose.material.icons.filled.VideoFile
@@ -1678,6 +1679,23 @@ internal fun BrowserToolbarSearchButton(
         Icon(
             imageVector = Icons.Default.Search,
             contentDescription = "Search this folder",
+            modifier = Modifier.size(20.dp)
+        )
+    }
+}
+
+@Composable
+internal fun BrowserToolbarRefreshButton(
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    IconButton(
+        onClick = onClick,
+        modifier = modifier.size(40.dp)
+    ) {
+        Icon(
+            imageVector = Icons.Default.Refresh,
+            contentDescription = "Refresh",
             modifier = Modifier.size(20.dp)
         )
     }

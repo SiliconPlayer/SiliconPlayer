@@ -559,6 +559,27 @@ internal fun FileBrowserScreen(
         onBrowserLocationChanged(BrowserLaunchState())
     }
 
+    fun refreshBrowser() {
+        if (isPullRefreshing) return
+        coroutineScope.launch {
+            isPullRefreshing = true
+            if (currentDirectory == null) {
+                storageLocationsRefreshToken += 1
+                delay(240)
+            } else {
+                val refreshDir = currentDirectory ?: selectedLocation?.directory
+                if (refreshDir != null) {
+                    loadDirectoryAsync(refreshDir)
+                }
+                val waitDeadline = System.currentTimeMillis() + 2200L
+                while (isLoadingDirectory && System.currentTimeMillis() < waitDeadline) {
+                    delay(24)
+                }
+            }
+            isPullRefreshing = false
+        }
+    }
+
     fun openLocation(location: StorageLocation) {
         launchAutoScrollTargetKey = null
         browserNavDirection = BrowserPageNavDirection.Forward
@@ -1534,6 +1555,9 @@ internal fun FileBrowserScreen(
                                     ),
                                     onCancel = { browserSelectionController.exitSelectionMode() }
                                 )
+                                BrowserToolbarRefreshButton(
+                                    onClick = { refreshBrowser() }
+                                )
                                 BrowserToolbarSearchButton(
                                     onClick = {
                                         if (browserSearchController.isVisible) {
@@ -1562,30 +1586,9 @@ internal fun FileBrowserScreen(
                 browserSearchController.hide()
             }
         }
-        fun triggerPullRefresh() {
-            if (isPullRefreshing) return
-            coroutineScope.launch {
-                isPullRefreshing = true
-                if (currentDirectory == null) {
-                    storageLocationsRefreshToken += 1
-                    delay(240)
-                } else {
-                    val refreshDir = currentDirectory ?: selectedLocation?.directory
-                    if (refreshDir != null) {
-                        loadDirectoryAsync(refreshDir)
-                    }
-                    val waitDeadline = System.currentTimeMillis() + 2200L
-                    while (isLoadingDirectory && System.currentTimeMillis() < waitDeadline) {
-                        delay(24)
-                    }
-                }
-                isPullRefreshing = false
-            }
-        }
-
         val pullRefreshState = rememberPullRefreshState(
             refreshing = isPullRefreshing,
-            onRefresh = { triggerPullRefresh() }
+            onRefresh = { refreshBrowser() }
         )
         val directoryScrollbarAlpha = rememberDialogLazyListScrollbarAlpha(
             enabled = browserContentState.pane == BrowserPane.DirectoryEntries,
