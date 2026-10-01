@@ -1,5 +1,6 @@
 package com.flopster101.siliconplayer
 
+import com.flopster101.siliconplayer.TrackTextInputActive
 import com.flopster101.siliconplayer.onGloballyPositionedDeferred
 import com.flopster101.siliconplayer.onSizeChangedDeferred
 import com.flopster101.siliconplayer.ui.dialogs.ColorPickerDialog
@@ -87,6 +88,7 @@ internal fun SettingsTextInputDialog(
     confirmLabel: String = "Save",
     dismissLabel: String = "Cancel"
 ) {
+    TrackTextInputActive()
     var input by remember(initialValue) { mutableStateOf(initialValue) }
     if (isWatchDevice()) {
         WatchDialogContainer(
@@ -265,6 +267,7 @@ internal fun SettingsSearchableMultiSelectDialog(
     onConfirm: (Set<String>) -> Unit,
     searchPlaceholder: String = "Search..."
 ) {
+    TrackTextInputActive()
     var pendingSelected by remember(title, selectedValues) { mutableStateOf(selectedValues) }
     var searchQuery by remember(title) { mutableStateOf("") }
     val listState = rememberLazyListState()
@@ -736,6 +739,7 @@ internal fun CacheSizeLimitDialog(
     onDismiss: () -> Unit,
     onConfirmBytes: (Long) -> Unit
 ) {
+    TrackTextInputActive()
     var unit by remember {
         mutableStateOf(
             if (initialBytes < CacheSizeUnit.GB.bytesPerUnit.toLong()) CacheSizeUnit.MB else CacheSizeUnit.GB

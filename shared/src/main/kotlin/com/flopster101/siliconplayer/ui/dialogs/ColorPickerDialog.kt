@@ -50,6 +50,7 @@ import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import com.flopster101.siliconplayer.TrackTextInputActive
 import com.flopster101.siliconplayer.WatchDialogContainer
 import com.flopster101.siliconplayer.adaptiveDialogModifier
 import com.flopster101.siliconplayer.adaptiveDialogProperties
@@ -146,6 +147,7 @@ fun ColorPickerDialog(
     onDismiss: () -> Unit,
     onConfirm: (Int) -> Unit
 ) {
+    TrackTextInputActive()
     var mode by rememberSaveable { mutableStateOf(ColorPickerMode.Rgb) }
 
     var red by remember(initialArgb) { mutableIntStateOf((initialArgb shr 16) and 0xFF) }

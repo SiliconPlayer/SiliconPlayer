@@ -6,6 +6,7 @@ import androidx.compose.material3.AlertDialog
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
+import com.flopster101.siliconplayer.TrackTextInputActive
 import com.flopster101.siliconplayer.platform.LocalAppCacheDir
 import com.flopster101.siliconplayer.platform.LocalAppPreferences
 import com.flopster101.siliconplayer.platform.LocalIsRoundScreen
@@ -1768,6 +1769,7 @@ internal fun HttpFileBrowserScreen(
     }
 
     if (authDialogVisible) {
+    TrackTextInputActive()
         val hasCredentials = authDialogUsername.trim().isNotEmpty() || authDialogPassword.trim().isNotEmpty()
         val onAuthConfirm = {
             val normalizedUsername = authDialogUsername.trim().ifBlank { null }

@@ -2,6 +2,7 @@ package com.flopster101.siliconplayer.ui.screens
 
 import com.flopster101.siliconplayer.NetworkCredentialStore
 import com.flopster101.siliconplayer.StoredPlaylist
+import com.flopster101.siliconplayer.TrackTextInputActive
 import com.flopster101.siliconplayer.ui.dialogs.AddToPlaylistChooserDialog
 import com.flopster101.siliconplayer.ui.dialogs.PlayWithDialog
 import com.flopster101.siliconplayer.platform.LocalAppCacheDir
@@ -1808,6 +1809,7 @@ internal fun SmbFileBrowserScreen(
         )
     }
     if (authDialogVisible) {
+    TrackTextInputActive()
         val hasCredentials = authDialogUsername.trim().isNotEmpty() || authDialogPassword.trim().isNotEmpty()
         val onAuthConfirm = {
             val normalizedUsername = authDialogUsername.trim().ifBlank { null }

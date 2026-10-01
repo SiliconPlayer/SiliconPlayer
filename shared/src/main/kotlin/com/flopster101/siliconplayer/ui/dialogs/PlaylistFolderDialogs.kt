@@ -23,6 +23,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.flopster101.siliconplayer.PlaylistFolder
+import com.flopster101.siliconplayer.TrackTextInputActive
 import com.flopster101.siliconplayer.resolveFolderPath
 
 @Composable
@@ -34,6 +35,7 @@ internal fun NewFolderDialog(
     onConfirm: (String) -> Unit,
     onDismiss: () -> Unit
 ) {
+    TrackTextInputActive()
     val defaultTitle = remember(existingTitles, initialTitle) {
         val base = initialTitle?.trim()?.takeIf { it.isNotBlank() } ?: "New folder"
         var candidate = base
@@ -68,6 +70,7 @@ internal fun RenameFolderDialog(
     onConfirm: (String) -> Unit,
     onDismiss: () -> Unit
 ) {
+    TrackTextInputActive()
     var title by remember(currentTitle) { mutableStateOf(currentTitle) }
     val isRenamed = title.isNotBlank() && title.trim() != currentTitle.trim()
     FloatingActionDialog(

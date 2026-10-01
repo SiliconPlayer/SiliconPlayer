@@ -23,6 +23,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import com.flopster101.siliconplayer.TrackTextInputActive
 import com.flopster101.siliconplayer.WatchDialogContainer
 import com.flopster101.siliconplayer.adaptiveDialogModifier
 import com.flopster101.siliconplayer.adaptiveDialogProperties
@@ -37,6 +38,7 @@ internal fun UrlOrPathDialog(
     onDismiss: () -> Unit,
     onOpen: () -> Unit
 ) {
+    TrackTextInputActive()
     if (isWatchDevice()) {
         WatchDialogContainer(
             title = "Open URL or path",

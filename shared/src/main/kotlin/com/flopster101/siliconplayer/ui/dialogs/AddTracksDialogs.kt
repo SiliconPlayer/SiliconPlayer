@@ -32,6 +32,7 @@ import androidx.compose.material.icons.filled.LibraryMusic
 import androidx.compose.material.icons.filled.Link
 import androidx.compose.material.icons.filled.MusicNote
 import androidx.compose.material.icons.filled.Search
+import com.flopster101.siliconplayer.TrackTextInputActive
 import com.flopster101.siliconplayer.ui.icons.FileGameIcon
 import com.flopster101.siliconplayer.ui.icons.FileTrackedIcon
 import androidx.compose.material3.ButtonDefaults
@@ -353,6 +354,7 @@ internal fun AddDirectUrlDialog(
     onConfirm: (url: String, title: String?, artist: String?) -> Unit,
     onDismiss: () -> Unit
 ) {
+    TrackTextInputActive()
     var url by remember { mutableStateOf("") }
     var title by remember { mutableStateOf("") }
     var artist by remember { mutableStateOf("") }
@@ -469,6 +471,7 @@ private fun AddFromLibraryPickerSheetContent(
     onConfirm: () -> Unit,
     onDismiss: () -> Unit
 ) {
+    TrackTextInputActive()
     Column(
         modifier = Modifier
             .fillMaxWidth()

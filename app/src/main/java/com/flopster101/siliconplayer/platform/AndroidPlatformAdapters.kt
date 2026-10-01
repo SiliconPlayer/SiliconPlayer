@@ -487,6 +487,7 @@ fun ProvideAndroidPlatformAdapters(
     }
 
     CompositionLocalProvider(
+        com.flopster101.siliconplayer.LocalTextInputTracker provides remember { com.flopster101.siliconplayer.TextInputTracker() },
         LocalAppPreferences provides prefs,
         LocalPreferencesProvider provides prefsProvider,
         LocalIsWatchDevice provides isWatch,

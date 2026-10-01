@@ -44,6 +44,7 @@ import androidx.compose.material.icons.filled.FileOpen
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import com.flopster101.siliconplayer.parsePlaylistDocument
 import com.flopster101.siliconplayer.duplicateStoredPlaylist
+import com.flopster101.siliconplayer.trackTextInputFocus
 import com.flopster101.siliconplayer.ui.dialogs.ColorPickerDialog
 import com.flopster101.siliconplayer.isSupportedPlaylistFile
 import com.flopster101.siliconplayer.ParsedPlaylistDocument
@@ -8910,6 +8911,7 @@ private fun LibrarySearchOverlay(
                 .fillMaxWidth()
                 .padding(horizontal = 16.dp, vertical = 8.dp)
                 .focusRequester(focusRequester)
+                .trackTextInputFocus()
         )
         LaunchedEffect(Unit) {
             focusRequester.requestFocus()

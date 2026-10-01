@@ -192,6 +192,7 @@ import com.flopster101.siliconplayer.rememberScrollStateScrollbarDragHandler
 import com.flopster101.siliconplayer.sanitizeRemoteCachedMetadataTitle
 import com.flopster101.siliconplayer.shouldRestartCurrentTrackOnPrevious
 import com.flopster101.siliconplayer.stripRemoteCacheHashPrefix
+import com.flopster101.siliconplayer.LocalTextInputTracker
 import com.flopster101.siliconplayer.tvKeyLongPress
 import com.flopster101.siliconplayer.ui.dialogs.dialogScrollableContentNavigation
 import com.flopster101.siliconplayer.ui.dialogs.AudioOutputDetailsDialog
@@ -898,6 +899,7 @@ internal fun PlayerScreen(
     var showVisualizationOptionsSheet by remember { mutableStateOf(false) }
     var showChannelControlDialog by remember { mutableStateOf(false) }
     var showAudioOutputDetailsDialog by remember { mutableStateOf(false) }
+    val textInputTracker = LocalTextInputTracker.current
     var showVisualizationModeBadge by remember { mutableStateOf(false) }
     var visualizationModeBadgeText by remember { mutableStateOf(visualizationMode.label) }
     var lastVisualizationModeForBadge by remember { mutableStateOf<VisualizationMode?>(null) }
@@ -1295,6 +1297,10 @@ internal fun PlayerScreen(
             .onPreviewKeyEvent { keyEvent ->
                 // Only handle key down events to avoid double-triggering
                 if (keyEvent.type != KeyEventType.KeyDown) {
+                    return@onPreviewKeyEvent false
+                }
+                // Text input owns the keyboard; shortcuts yield while it is active.
+                if (textInputTracker.hasActiveInput) {
                     return@onPreviewKeyEvent false
                 }
                 handlePlayerGlobalKeyDown(

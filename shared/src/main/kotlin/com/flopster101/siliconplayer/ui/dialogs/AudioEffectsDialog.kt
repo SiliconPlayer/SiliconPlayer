@@ -1,5 +1,6 @@
 package com.flopster101.siliconplayer.ui.dialogs
 
+import com.flopster101.siliconplayer.TrackTextInputActive
 import com.flopster101.siliconplayer.onGloballyPositionedDeferred
 import com.flopster101.siliconplayer.onSizeChangedDeferred
 import com.flopster101.siliconplayer.VerticalScrollbarTrack
@@ -122,6 +123,7 @@ fun AudioEffectsDialog(
     onDismiss: () -> Unit,
     onConfirm: () -> Unit
 ) {
+    TrackTextInputActive()
     var selectedTabIndex by remember { mutableIntStateOf(0) }
     val tabTitles = remember { listOf("Volume", "DSP") }
     var pendingResetTarget by remember { mutableStateOf<String?>(null) }

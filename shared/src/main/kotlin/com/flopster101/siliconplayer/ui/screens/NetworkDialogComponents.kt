@@ -1,5 +1,6 @@
 package com.flopster101.siliconplayer.ui.screens
 
+import com.flopster101.siliconplayer.TrackTextInputActive
 import com.flopster101.siliconplayer.onGloballyPositionedDeferred
 import com.flopster101.siliconplayer.onSizeChangedDeferred
 import com.flopster101.siliconplayer.VerticalScrollbarTrack
@@ -74,6 +75,7 @@ internal fun NetworkCreateFolderDialog(
     onDismiss: () -> Unit,
     onConfirm: () -> Unit
 ) {
+    TrackTextInputActive()
     val isWatch = isWatchDevice()
     val titleText = if (isEditing) "Edit folder" else "Create folder"
     val confirmText = if (isEditing) "Save" else "Create"
@@ -155,6 +157,7 @@ internal fun NetworkRemoteSourceDialog(
     onDismiss: () -> Unit,
     onConfirm: () -> Unit
 ) {
+    TrackTextInputActive()
     val isWatch = isWatchDevice()
     val titleText = if (isEditing) "Edit remote source" else "Add remote source"
     val confirmText = if (isEditing) "Save" else "Add"
@@ -265,6 +268,7 @@ internal fun NetworkSmbSourceDialog(
     onDismiss: () -> Unit,
     onConfirm: () -> Unit
 ) {
+    TrackTextInputActive()
     val isWatch = isWatchDevice()
     val titleText = if (isEditing) "Edit SMB share" else "Add SMB share"
     val confirmText = if (isEditing) "Save" else "Add"
@@ -666,6 +670,7 @@ internal fun NetworkHttpSourceDialog(
     onDismiss: () -> Unit,
     onConfirm: () -> Unit
 ) {
+    TrackTextInputActive()
     val isWatch = isWatchDevice()
     val titleText = if (isEditing) "Edit HTTP/HTTPS server" else "Add HTTP/HTTPS server"
     val confirmText = if (isEditing) "Save" else "Add"

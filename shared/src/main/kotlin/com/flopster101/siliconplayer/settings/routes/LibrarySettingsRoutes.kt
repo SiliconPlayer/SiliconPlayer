@@ -44,6 +44,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import com.flopster101.siliconplayer.TrackTextInputActive
 import com.flopster101.siliconplayer.library.LibraryContract
 import com.flopster101.siliconplayer.library.LibraryScanRoot
 import com.flopster101.siliconplayer.library.LibrarySourceStatus
@@ -478,6 +479,7 @@ internal fun LibraryScannerRouteContent() {
     }
 
     if (showAddRootDialog) {
+    TrackTextInputActive()
         AlertDialog(
             onDismissRequest = {
                 showAddRootDialog = false
@@ -518,6 +520,7 @@ internal fun LibraryScannerRouteContent() {
     }
 
     if (showExtensionsDialog) {
+    TrackTextInputActive()
         AlertDialog(
             onDismissRequest = { showExtensionsDialog = false },
             title = { Text("File types") },

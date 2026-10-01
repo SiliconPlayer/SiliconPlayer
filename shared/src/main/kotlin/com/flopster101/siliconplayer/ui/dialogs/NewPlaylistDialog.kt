@@ -9,6 +9,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import com.flopster101.siliconplayer.TrackTextInputActive
 
 /**
  * Common new-playlist dialog: name field with a deduplicated
@@ -43,6 +44,7 @@ internal fun NewPlaylistDialog(
         confirmEnabled = true,
         onConfirm = { onConfirm(title.trim().ifBlank { defaultTitle }) }
     ) {
+        TrackTextInputActive()
         OutlinedTextField(
             value = title,
             onValueChange = { title = it },

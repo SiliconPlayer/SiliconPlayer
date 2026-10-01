@@ -324,6 +324,7 @@ fun main(args: Array<String>) = application {
         configDir = DesktopPaths.configDir()
     )
     val session = remember { DesktopPlaybackSession() }
+    val textInputTracker = remember { com.flopster101.siliconplayer.TextInputTracker() }
     val restoredGeometry = remember { loadDesktopWindowGeometry(DesktopPaths.configDir()) }
     val windowState = rememberWindowState(
         width = (restoredGeometry?.widthDp ?: DesktopWindowDefaultWidthDp).dp,
@@ -649,6 +650,7 @@ fun main(args: Array<String>) = application {
         },
         onKeyEvent = { keyEvent ->
             if (keyEvent.type == KeyEventType.KeyDown) {
+                if (textInputTracker.hasActiveInput) return@Window false
                 if (keyEvent.key == Key.I) {
                     if (session.currentFile != null) {
                         if (isPlayerExpanded) {
@@ -689,7 +691,8 @@ fun main(args: Array<String>) = application {
             backDispatcher = backDispatcher,
             stopPlaybackForRefresh = { session.stop() },
             openAudioSettings = { enterSettings(SettingsRoute.GeneralAudio) },
-            toastHandler = ToastHandler { msg -> toasts.add(ToastItem(nextToastId++, msg)) }
+            toastHandler = ToastHandler { msg -> toasts.add(ToastItem(nextToastId++, msg)) },
+            textInputTracker = textInputTracker
         ) {
             val prefs = LocalAppPreferences.current
             val configDir = LocalAppConfigDir.current

@@ -60,6 +60,7 @@ import androidx.compose.material.icons.filled.AudioFile
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Description
 import androidx.compose.material.icons.filled.Folder
+import com.flopster101.siliconplayer.trackTextInputFocus
 import com.flopster101.siliconplayer.ui.icons.FileGameIcon
 import com.flopster101.siliconplayer.ui.icons.FileTrackedIcon
 import com.flopster101.siliconplayer.ui.icons.FileUnsupportedIcon
@@ -1882,7 +1883,7 @@ internal fun BrowserSearchToolbarRow(
                 OutlinedTextField(
                     value = queryInput,
                     onValueChange = onQueryInputChanged,
-                    modifier = Modifier.weight(1f),
+                    modifier = Modifier.weight(1f).trackTextInputFocus(),
                     singleLine = true,
                     label = { Text("Search this folder") }
                 )

@@ -38,6 +38,7 @@ import androidx.compose.material.icons.filled.SwapVert
 import androidx.compose.material.icons.outlined.AddCircle
 import com.flopster101.siliconplayer.FAVORITES_PLAYLIST_ID
 import com.flopster101.siliconplayer.PlaylistTrackEntry
+import com.flopster101.siliconplayer.TrackTextInputActive
 import com.flopster101.siliconplayer.favoritesAsStoredPlaylist
 import com.flopster101.siliconplayer.AppPreferenceKeys
 import com.flopster101.siliconplayer.readPlaylistLibraryState
@@ -151,6 +152,7 @@ private fun AddToPlaylistSheetContent(
     onRemoveFromPlaylist: (playlistId: String) -> Unit,
     onDismiss: () -> Unit
 ) {
+    TrackTextInputActive()
     var query by remember { mutableStateOf("") }
     var showNewPlaylistDialog by remember { mutableStateOf(false) }
     var selectedSortMode by rememberSaveable { mutableStateOf(PlaylistSortMode.RecentlyUpdated) }

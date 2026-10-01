@@ -9,6 +9,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import com.flopster101.siliconplayer.TrackTextInputActive
 
 /**
  * Common rename-playlist dialog: prefilled with current title,
@@ -29,6 +30,7 @@ internal fun RenamePlaylistDialog(
         confirmEnabled = isRenamed,
         onConfirm = { onConfirm(title.trim()) }
     ) {
+        TrackTextInputActive()
         OutlinedTextField(
             value = title,
             onValueChange = { title = it },

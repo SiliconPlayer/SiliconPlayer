@@ -65,6 +65,7 @@ import com.flopster101.siliconplayer.PlaylistTrackEntry
 import com.flopster101.siliconplayer.RemoteLoadPhase
 import com.flopster101.siliconplayer.RemoteLoadUiState
 import com.flopster101.siliconplayer.SubtuneEntry
+import com.flopster101.siliconplayer.TrackTextInputActive
 import com.flopster101.siliconplayer.WatchDialogContainer
 import com.flopster101.siliconplayer.isWatchDevice
 import com.flopster101.siliconplayer.adaptiveDialogModifier
@@ -91,6 +92,7 @@ internal fun ManualSmbAuthenticationDialog(
     onDismiss: () -> Unit,
     onConfirm: () -> Unit
 ) {
+    TrackTextInputActive()
     val hasCredentials = username.trim().isNotEmpty() || password.trim().isNotEmpty()
     if (isWatchDevice()) {
         WatchDialogContainer(
@@ -279,6 +281,7 @@ internal fun ManualHttpAuthenticationDialog(
     onDismiss: () -> Unit,
     onConfirm: () -> Unit
 ) {
+    TrackTextInputActive()
     val hasCredentials = username.trim().isNotEmpty() || password.trim().isNotEmpty()
     val endpointLabel = buildString {
         append(requestSpec.scheme)

@@ -194,6 +194,7 @@ fun ProvideDesktopPlatformAdapters(
     stopPlaybackForRefresh: () -> Unit = {},
     openAudioSettings: () -> Unit = {},
     toastHandler: ToastHandler = remember { ToastHandler { msg -> println("[SiliconPlayer] $msg") } },
+    textInputTracker: com.flopster101.siliconplayer.TextInputTracker = remember { com.flopster101.siliconplayer.TextInputTracker() },
     content: @Composable () -> Unit
 ) {
     val prefsProvider = remember { DesktopPreferencesProvider() }
@@ -281,6 +282,7 @@ fun ProvideDesktopPlatformAdapters(
     }
 
     CompositionLocalProvider(
+        com.flopster101.siliconplayer.LocalTextInputTracker provides textInputTracker,
         LocalAppPreferences provides prefs,
         LocalPreferencesProvider provides prefsProvider,
         LocalIsWatchDevice provides false,

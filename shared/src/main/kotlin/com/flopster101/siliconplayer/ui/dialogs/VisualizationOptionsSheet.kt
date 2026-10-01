@@ -64,6 +64,7 @@ import com.flopster101.siliconplayer.ChoiceDialogOption
 import com.flopster101.siliconplayer.SettingsSingleChoiceDialog
 import com.flopster101.siliconplayer.SettingsValuePickerCard
 import com.flopster101.siliconplayer.StarfieldPreset
+import com.flopster101.siliconplayer.TrackTextInputActive
 import com.flopster101.siliconplayer.VisualizationChannelScopeTrackTransition
 import com.flopster101.siliconplayer.VisualizationChannelScopeWaveRenderMode
 import com.flopster101.siliconplayer.VisualizationMode
@@ -520,6 +521,7 @@ private fun ProjectMOptionsContent(
     onPresetSelected: (String) -> Unit,
     setLabels: Map<String, String>
 ) {
+    TrackTextInputActive()
     val prefs = LocalAppPreferences.current
     var randomStart by remember { mutableStateOf(prefs.getBoolean(AppPreferenceKeys.VISUALIZATION_PROJECTM_RANDOM_START, true)) }
     var presetDuration by remember { mutableStateOf(prefs.getString(AppPreferenceKeys.VISUALIZATION_PROJECTM_PRESET_DURATION_SECONDS, AppDefaults.Visualization.ProjectM.presetDurationSeconds.toString())?.toDoubleOrNull() ?: AppDefaults.Visualization.ProjectM.presetDurationSeconds) }
