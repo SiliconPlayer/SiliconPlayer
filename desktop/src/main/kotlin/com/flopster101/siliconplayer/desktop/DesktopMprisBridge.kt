@@ -17,6 +17,11 @@ import kotlin.math.log10
 import kotlin.math.pow
 
 private const val MICROSECONDS_PER_SECOND = 1_000_000.0
+// A failed cover load is retried, not pinned: the fetch races the player's
+// own artwork load (and a sleepy NAS). Artless tracks stop after the cap
+// instead of hammering the server every poll.
+private const val MAX_COVER_LOAD_ATTEMPTS = 6
+private const val COVER_LOAD_RETRY_INTERVAL_MS = 5_000L
 private const val MPRIS_VOLUME_MIN_DB = -20f
 private const val MPRIS_VOLUME_MAX_DB = 20f
 
@@ -88,6 +93,15 @@ internal class DesktopMprisBridge(private val session: DesktopPlaybackSession) {
     private var coverIdentity: String? = null
 
     @Volatile
+    private var coverLoadInflight = false
+
+    @Volatile
+    private var coverAttempts = 0
+
+    @Volatile
+    private var coverLastAttemptAt = 0L
+
+    @Volatile
     private var coverUrl: String? = null
 
     fun bind(commands: MprisCommands, volume: () -> Double) {
@@ -153,11 +167,38 @@ internal class DesktopMprisBridge(private val session: DesktopPlaybackSession) {
     // scan, JPEG encode), so it runs on its own thread: the D-Bus poll and every
     // method reply must stay IO-free or clients time out and drop the player.
     private fun refreshCover(identity: String?) {
-        if (identity == coverIdentity) return
-        coverIdentity = identity
-        coverUrl = null
-        if (identity == null) return
-        coverExecutor.execute { coverUrl = loadCoverUrl(identity) }
+        if (identity != coverIdentity) {
+            coverIdentity = identity
+            coverUrl = null
+            coverAttempts = 0
+            coverLoadInflight = false
+            if (identity == null) return
+            requestCoverLoad(identity)
+            return
+        }
+        if (identity == null || coverUrl != null || coverLoadInflight) return
+        if (coverAttempts >= MAX_COVER_LOAD_ATTEMPTS) return
+        if (System.currentTimeMillis() - coverLastAttemptAt < COVER_LOAD_RETRY_INTERVAL_MS) return
+        requestCoverLoad(identity)
+    }
+
+    private fun requestCoverLoad(identity: String) {
+        coverLoadInflight = true
+        coverAttempts += 1
+        coverLastAttemptAt = System.currentTimeMillis()
+        coverExecutor.execute {
+            try {
+                val url = loadCoverUrl(identity)
+                if (url != null && coverIdentity == identity) {
+                    coverUrl = url
+                }
+            } finally {
+                // A newer track already owns the flag with its own queued task.
+                if (coverIdentity == identity) {
+                    coverLoadInflight = false
+                }
+            }
+        }
     }
 
     // The recent-artwork cache already holds a JPEG per source, so the media
