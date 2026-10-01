@@ -229,6 +229,10 @@ internal fun AudioOutputDetailsDialog(
         }
     }
 
+    val speakerBadgeText = remember(backendLabel) {
+        if (backendLabel == inspector.inactiveBackendLabel) "Internal" else backendLabel
+    }
+
     if (isWatchDevice()) {
         WatchDialogContainer(
             title = "Audio output",
@@ -495,7 +499,7 @@ internal fun AudioOutputDetailsDialog(
 
                                 // Node 4 (or 3): Output Endpoint
                                 val sinkBadgeText = when (routeInfo.type) {
-                                    AudioOutputRouteType.Speaker -> "Internal"
+                                    AudioOutputRouteType.Speaker -> speakerBadgeText
                                     AudioOutputRouteType.Headphones -> "Wired"
                                     AudioOutputRouteType.Usb -> if (isBitPerfectActive) "Bit-Perfect" else "USB"
                                     AudioOutputRouteType.Bluetooth -> "A2DP"
