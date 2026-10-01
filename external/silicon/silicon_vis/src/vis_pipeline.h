@@ -106,6 +106,7 @@ private:
     int msaaMaxSamples_ = 0;
     bool msaaProbed_ = false;
     bool msaaSupported_ = false;
+    bool msaaStarfieldBlocked_ = false;
 
     // 0 = hardware MSAA resolve, 1 = feathered fast lines (no FBO).
     int32_t scopeAntialiasMethod_ = 0;

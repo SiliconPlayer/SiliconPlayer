@@ -1,5 +1,6 @@
 #include "vis_pipeline.h"
 #include <algorithm>
+#include <cstring>
 
 namespace silicon::vis {
 
@@ -179,14 +180,18 @@ IVisualizerRenderer* SiliconVisPipeline::getActiveRenderer() {
 }
 
 bool SiliconVisPipeline::wantsMsaa() const {
-    // Fast is a channel-scope-only opt-out; every other mode resolves
-    // through the multisample target whenever the GPU offers one.
+    // Fast is a channel-scope-only opt-out; starfield additionally
+    // skips the resolve on Mali drivers, where it leaves edge
+    // residue behind. Every other GPU keeps the smoother path.
+    if (currentMode_ == SILICON_VIS_MODE_STARFIELD && msaaStarfieldBlocked_) return false;
     return currentMode_ != SILICON_VIS_MODE_CHANNEL_SCOPE || scopeAntialiasMethod_ != 1;
 }
 
 bool SiliconVisPipeline::probeMsaaSupport() {
     if (msaaProbed_) return msaaSupported_;
     msaaProbed_ = true;
+    const char* renderer = reinterpret_cast<const char*>(glGetString(GL_RENDERER));
+    msaaStarfieldBlocked_ = renderer != nullptr && std::strstr(renderer, "Mali") != nullptr;
     GLint maxSamples = 0;
     glGetIntegerv(GL_MAX_SAMPLES, &maxSamples);
     // Two-sample devices still resolve visibly smoother edges; cap at 4,
@@ -308,10 +313,11 @@ void SiliconVisPipeline::render() {
 
     glViewport(0, 0, widthPx_, heightPx_);
 
-    // Every mode resolves through the multisample target when the GPU
-    // offers one: traces, bars, grids and glyph edges all antialias at
-    // once. Fast-lines mode (channel scope opt-out) feathers traces
-    // in-shader instead and draws directly; devices without MSAA fall
+    // Modes resolve through the multisample target when the GPU offers
+    // one: traces, bars, grids and glyph edges all antialias at once.
+    // Starfield opts out on Mali drivers (edge residue); fast-lines
+    // mode (channel scope opt-out) feathers traces in-shader instead
+    // and draws directly; devices without MSAA fall
     // back to direct rendering with feathered traces automatically.
     const bool useMsaa = wantsMsaa() && probeMsaaSupport() &&
         ensureMsaaTarget(widthPx_, heightPx_);
