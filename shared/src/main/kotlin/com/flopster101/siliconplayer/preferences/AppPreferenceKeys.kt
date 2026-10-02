@@ -182,6 +182,7 @@ internal object AppPreferenceKeys {
     const val VISUALIZATION_CHANNEL_SCOPE_WINDOW_MS = "visualization_channel_scope_window_ms"
     const val VISUALIZATION_CHANNEL_SCOPE_RENDER_BACKEND = "visualization_channel_scope_render_backend"
     const val VISUALIZATION_CHANNEL_SCOPE_DC_REMOVAL_ENABLED = "visualization_channel_scope_dc_removal_enabled"
+    const val VISUALIZATION_CHANNEL_SCOPE_WAVEFORM_CLIPPING_ENABLED = "visualization_channel_scope_waveform_clipping_enabled"
     const val VISUALIZATION_CHANNEL_SCOPE_GAIN_PERCENT = "visualization_channel_scope_gain_percent"
     const val VISUALIZATION_CHANNEL_SCOPE_CONTRAST_BACKDROP_ENABLED = "visualization_channel_scope_contrast_backdrop_enabled"
     const val VISUALIZATION_CHANNEL_SCOPE_TRIGGER_MODE = "visualization_channel_scope_trigger_mode"

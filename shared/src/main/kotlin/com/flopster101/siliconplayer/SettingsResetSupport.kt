@@ -164,6 +164,10 @@ internal fun resetVisualizationChannelScopeSettings(
             AppPreferenceKeys.VISUALIZATION_CHANNEL_SCOPE_DC_REMOVAL_ENABLED,
             AppDefaults.Visualization.ChannelScope.dcRemovalEnabled
         )
+        .putBoolean(
+            AppPreferenceKeys.VISUALIZATION_CHANNEL_SCOPE_WAVEFORM_CLIPPING_ENABLED,
+            AppDefaults.Visualization.ChannelScope.waveformClippingEnabled
+        )
         .putInt(
             AppPreferenceKeys.VISUALIZATION_CHANNEL_SCOPE_GAIN_PERCENT,
             AppDefaults.Visualization.ChannelScope.gainPercent

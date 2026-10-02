@@ -98,6 +98,7 @@ data class SiliconNativeGlFrame(
     val channelScopeWindowMs: Int = 30,
     val channelScopeGainPercent: Int = 100,
     val channelScopeDcRemovalEnabled: Boolean = true,
+    val channelScopeWaveformClippingEnabled: Boolean = true,
     val channelScopeTriggerMode: Int = 0,
     val channelScopeWaveRenderMode: Int = 1,
     val channelScopeAntialiasMethod: Int = 0,
@@ -601,7 +602,8 @@ private class SiliconNativeDesktopRenderThread(
                                 gainPercent = frame.channelScopeGainPercent,
                                 dcRemovalEnabled = frame.channelScopeDcRemovalEnabled,
                                 triggerMode = frame.channelScopeTriggerMode,
-                                waveRenderMode = frame.channelScopeWaveRenderMode
+                                waveRenderMode = frame.channelScopeWaveRenderMode,
+                                waveformClipping = frame.channelScopeWaveformClippingEnabled
                             )
                         }
                         5 -> { // Starfield

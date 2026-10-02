@@ -59,7 +59,8 @@ void ChannelScopeRenderer::setOptions(
     int32_t gainPercent,
     bool dcRemovalEnabled,
     int32_t triggerMode,
-    int32_t waveRenderMode
+    int32_t waveRenderMode,
+    bool waveformClipping
 ) {
     layout_ = layout;
     anchor_ = anchor;
@@ -80,6 +81,7 @@ void ChannelScopeRenderer::setOptions(
     dcRemovalEnabled_ = dcRemovalEnabled;
     triggerMode_ = triggerMode;
     waveRenderMode_ = std::clamp(waveRenderMode, 0, 2);
+    waveformClipping_ = waveformClipping;
 }
 
 void ChannelScopeRenderer::setChannelHistory(int32_t channel, const float* history, int32_t sampleCount) {
@@ -298,6 +300,13 @@ void ChannelScopeRenderer::buildGeometry() {
                 const bool crtMode = waveRenderMode_ == 2;
                 const float halfW = lineWidthPx_ * 0.5f;
                 const float barHalf = halfW + kWaveCrtSoftnessPx;
+                const float boundMargin = crtMode ? barHalf : halfW;
+                float minY = cellTop + boundMargin;
+                float maxY = cellBottom - boundMargin;
+                if (minY > maxY) {
+                    minY = centerY;
+                    maxY = centerY;
+                }
 
                 if (!crtMode) {
                     // Round-join stroke, the GL equivalent of Agg's default:
@@ -310,7 +319,8 @@ void ChannelScopeRenderer::buildGeometry() {
                     px.clear(); py.clear(); nx.clear(); ny.clear();
                     for (size_t i = 0; i < hist.size(); i += waveStride) {
                         const float x = cellLeft + i * stepX;
-                        const float y = centerY - (hist[i] * maxAmp);
+                        const float rawY = centerY - (hist[i] * maxAmp);
+                        const float y = waveformClipping_ ? std::clamp(rawY, minY, maxY) : rawY;
                         if (!px.empty()) {
                             const float ddx = x - px.back();
                             const float ddy = y - py.back();
@@ -321,7 +331,8 @@ void ChannelScopeRenderer::buildGeometry() {
                     }
                     const size_t lastIdx = hist.size() - 1;
                     const float lastX = cellLeft + lastIdx * stepX;
-                    const float lastY = centerY - (hist[lastIdx] * maxAmp);
+                    const float lastYRaw = centerY - (hist[lastIdx] * maxAmp);
+                    const float lastY = waveformClipping_ ? std::clamp(lastYRaw, minY, maxY) : lastYRaw;
                     if (px.empty() || px.back() != lastX || py.back() != lastY) {
                         px.push_back(lastX);
                         py.push_back(lastY);
@@ -400,9 +411,9 @@ void ChannelScopeRenderer::buildGeometry() {
                     for (size_t i = 0; i + 1 < hist.size(); i += waveStride) {
                         size_t j = std::min(i + static_cast<size_t>(waveStride), hist.size() - 1);
                         float x0 = cellLeft + i * stepX;
-                        float y0 = centerY - (hist[i] * maxAmp);
+                        float rawY0 = centerY - (hist[i] * maxAmp);
+                        float y0 = waveformClipping_ ? std::clamp(rawY0, minY, maxY) : rawY0;
                         float x1 = cellLeft + j * stepX;
-                        float y1 = centerY - (hist[j] * maxAmp);
 
                         float bx1 = x1 + kWaveCrtColumnOverlapPx;
 

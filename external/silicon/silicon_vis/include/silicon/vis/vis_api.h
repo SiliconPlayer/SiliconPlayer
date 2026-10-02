@@ -96,7 +96,8 @@ SILICON_VIS_API void silicon_vis_set_channel_scope_options(
     int32_t gainPercent,
     bool dcRemovalEnabled,
     int32_t triggerMode,
-    SiliconVisWaveRenderMode waveRenderMode
+    SiliconVisWaveRenderMode waveRenderMode,
+    bool waveformClipping = true
 );
 
 SILICON_VIS_API void silicon_vis_set_oscilloscope_options(

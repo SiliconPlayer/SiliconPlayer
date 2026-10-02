@@ -121,6 +121,7 @@ object AppDefaults {
             const val windowMs = 30
             val renderBackend = VisualizationRenderBackend.OpenGlSurface
             const val dcRemovalEnabled = true
+            const val waveformClippingEnabled = true
             const val gainPercent = 240
             const val contrastBackdropEnabled = true
             val triggerMode = VisualizationOscTriggerMode.Rising

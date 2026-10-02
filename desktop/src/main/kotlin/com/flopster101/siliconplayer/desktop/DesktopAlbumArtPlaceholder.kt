@@ -508,6 +508,7 @@ internal fun AlbumArtPlaceholder(
             channelScopeWindowMs = channelScopePrefs.windowMs,
             channelScopeGainPercent = channelScopePrefs.gainPercent,
             channelScopeDcRemovalEnabled = channelScopePrefs.dcRemovalEnabled,
+            channelScopeWaveformClippingEnabled = channelScopePrefs.waveformClippingEnabled,
             channelScopeTriggerMode = channelScopePrefs.triggerModeNative,
             channelScopeWaveRenderMode = channelScopePrefs.waveRenderMode.nativeValue,
             channelScopeAntialiasMethod = channelScopePrefs.antialiasMethod.nativeValue,

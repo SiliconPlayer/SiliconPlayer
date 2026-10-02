@@ -1475,6 +1475,7 @@ internal object ChannelScopePrefsSupport {
         private const val KEY_WINDOW_MS = "visualization_channel_scope_window_ms"
         private const val KEY_RENDER_BACKEND = "visualization_channel_scope_render_backend"
         private const val KEY_DC_REMOVAL_ENABLED = "visualization_channel_scope_dc_removal_enabled"
+        private const val KEY_WAVEFORM_CLIPPING_ENABLED = "visualization_channel_scope_waveform_clipping_enabled"
         private const val KEY_GAIN_PERCENT = "visualization_channel_scope_gain_percent"
         private const val KEY_CONTRAST_BACKDROP_ENABLED = "visualization_channel_scope_contrast_backdrop_enabled"
         private const val KEY_TRIGGER_MODE = "visualization_channel_scope_trigger_mode"
@@ -1557,6 +1558,10 @@ internal object ChannelScopePrefsSupport {
                 dcRemovalEnabled = sharedPrefs.getBoolean(
                     KEY_DC_REMOVAL_ENABLED,
                     AppDefaults.Visualization.ChannelScope.dcRemovalEnabled
+                ),
+                waveformClippingEnabled = sharedPrefs.getBoolean(
+                    KEY_WAVEFORM_CLIPPING_ENABLED,
+                    AppDefaults.Visualization.ChannelScope.waveformClippingEnabled
                 ),
                 gainPercent = sharedPrefs.getInt(
                     KEY_GAIN_PERCENT,
@@ -2986,6 +2991,7 @@ internal fun AlbumArtPlaceholder(
                     channelScopeWindowMs = channelScopePrefs.windowMs,
                     channelScopeGainPercent = channelScopePrefs.gainPercent,
                     channelScopeDcRemovalEnabled = channelScopePrefs.dcRemovalEnabled,
+                    channelScopeWaveformClippingEnabled = channelScopePrefs.waveformClippingEnabled,
                     channelScopeRenderBackend = channelScopePrefs.renderBackend,
                     channelScopeLineWidthDp = channelScopePrefs.lineWidthDp,
                     channelScopeGridWidthDp = channelScopePrefs.gridWidthDp,

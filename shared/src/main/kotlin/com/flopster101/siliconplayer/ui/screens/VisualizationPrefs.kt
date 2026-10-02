@@ -18,6 +18,7 @@ internal data class ChannelScopePrefs(
     val windowMs: Int,
     val renderBackend: VisualizationRenderBackend,
     val dcRemovalEnabled: Boolean,
+    val waveformClippingEnabled: Boolean = com.flopster101.siliconplayer.AppDefaults.Visualization.ChannelScope.waveformClippingEnabled,
     val gainPercent: Int,
     val contrastBackdropEnabled: Boolean,
     val triggerModeNative: Int,

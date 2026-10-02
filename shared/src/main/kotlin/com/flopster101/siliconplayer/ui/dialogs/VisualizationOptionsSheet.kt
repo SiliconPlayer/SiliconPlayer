@@ -183,7 +183,8 @@ private fun OptionsSheetContent(
                     trackInputGain = trackInputGain,
                     onTrackInputGainChange = onTrackInputGainChange,
                     showChannelLabels = showChannelLabels,
-                    onShowChannelLabelsChange = onShowChannelLabelsChange
+                    onShowChannelLabelsChange = onShowChannelLabelsChange,
+                    resetNonce = resetNonce
                 )
                 VisualizationMode.ProjectM -> ProjectMOptionsContent(
                     savedPreset = savedProjectMPreset,
@@ -216,10 +217,19 @@ private fun ChannelScopeOptionsContent(
     trackInputGain: Int,
     onTrackInputGainChange: (Int) -> Unit,
     showChannelLabels: Boolean,
-    onShowChannelLabelsChange: (Boolean) -> Unit
+    onShowChannelLabelsChange: (Boolean) -> Unit,
+    resetNonce: Int = 0
 ) {
     val prefs = LocalAppPreferences.current
-    var waveRenderMode by remember {
+    var waveformClippingEnabled by remember(resetNonce) {
+        mutableStateOf(
+            prefs.getBoolean(
+                AppPreferenceKeys.VISUALIZATION_CHANNEL_SCOPE_WAVEFORM_CLIPPING_ENABLED,
+                AppDefaults.Visualization.ChannelScope.waveformClippingEnabled
+            )
+        )
+    }
+    var waveRenderMode by remember(resetNonce) {
         mutableStateOf(
             VisualizationChannelScopeWaveRenderMode.fromStorage(
                 prefs.getString(
@@ -230,7 +240,7 @@ private fun ChannelScopeOptionsContent(
         )
     }
     var showWaveRenderModeDialog by remember { mutableStateOf(false) }
-    var trackTransition by remember {
+    var trackTransition by remember(resetNonce) {
         mutableStateOf(
             VisualizationChannelScopeTrackTransition.fromStorage(
                 prefs.getString(
@@ -264,6 +274,18 @@ private fun ChannelScopeOptionsContent(
             subtitle = "Show channel label overlay",
             checked = showChannelLabels,
             onCheckedChange = onShowChannelLabelsChange
+        )
+        DialogToggleRow(
+            title = "Waveform clipping",
+            subtitle = "Constrain waveforms to ceiling and floor",
+            checked = waveformClippingEnabled,
+            onCheckedChange = { enabled ->
+                waveformClippingEnabled = enabled
+                prefs.edit().putBoolean(
+                    AppPreferenceKeys.VISUALIZATION_CHANNEL_SCOPE_WAVEFORM_CLIPPING_ENABLED,
+                    enabled
+                ).apply()
+            }
         )
         SettingsValuePickerCard(
             title = "Wave rendering",

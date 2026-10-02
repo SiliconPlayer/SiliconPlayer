@@ -40,12 +40,14 @@ public:
         int32_t gainPercent = 100,
         bool dcRemovalEnabled = true,
         int32_t triggerMode = 0,
-        int32_t waveRenderMode = 1
+        int32_t waveRenderMode = 1,
+        bool waveformClipping = true
     );
 
     int32_t getWindowMs() const { return windowMs_; }
     int32_t getGainPercent() const { return gainPercent_; }
     bool isDcRemovalEnabled() const { return dcRemovalEnabled_; }
+    bool isWaveformClippingEnabled() const { return waveformClipping_; }
     int32_t getTriggerMode() const { return triggerMode_; }
     int32_t getWaveRenderMode() const { return waveRenderMode_; }
     void setFastLinesEnabled(bool enabled) { fastLinesEnabled_ = enabled; }
@@ -88,6 +90,7 @@ private:
     int32_t windowMs_ = 30;
     int32_t gainPercent_ = 100;
     bool dcRemovalEnabled_ = true;
+    bool waveformClipping_ = true;
     int32_t triggerMode_ = 0;
     int32_t waveRenderMode_ = 1;
     bool fastLinesEnabled_ = false;

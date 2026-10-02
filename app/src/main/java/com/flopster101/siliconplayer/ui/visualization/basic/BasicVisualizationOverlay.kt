@@ -130,6 +130,7 @@ fun BasicVisualizationOverlay(
     channelScopeWindowMs: Int = 30,
     channelScopeGainPercent: Int = 100,
     channelScopeDcRemovalEnabled: Boolean = true,
+    channelScopeWaveformClippingEnabled: Boolean = true,
     channelScopeRenderBackend: VisualizationRenderBackend,
     channelScopeLineWidthDp: Int,
     channelScopeGridWidthDp: Int,
@@ -616,6 +617,7 @@ fun BasicVisualizationOverlay(
                             triggerModeNative = channelScopeTriggerModeNative,
                             triggerIndices = channelScopeTriggerIndices,
                             layoutStrategy = channelScopeLayout,
+                            waveformClippingEnabled = channelScopeWaveformClippingEnabled,
                             outerCornerRadiusPx = channelScopeCornerRadiusPx,
                             modifier = Modifier.fillMaxSize()
                         )
@@ -682,6 +684,7 @@ fun BasicVisualizationOverlay(
                             channelScopeWindowMs = channelScopeWindowMs,
                             channelScopeGainPercent = channelScopeGainPercent,
                             channelScopeDcRemovalEnabled = channelScopeDcRemovalEnabled,
+                            channelScopeWaveformClippingEnabled = channelScopeWaveformClippingEnabled,
                             channelScopeTriggerMode = channelScopeTriggerModeNative,
                             channelScopeWaveRenderMode = channelScopeWaveRenderModeNative,
                             channelScopeAntialiasMethod = channelScopeAntialiasMethodNative,
@@ -760,6 +763,7 @@ fun BasicVisualizationOverlay(
                             triggerModeNative = channelScopeTriggerModeNative,
                             triggerIndices = heldScopeSnapshot.triggerIndices,
                             layoutStrategy = heldScopeSnapshot.layout,
+                            waveformClippingEnabled = channelScopeWaveformClippingEnabled,
                             outerCornerRadiusPx = channelScopeCornerRadiusPx,
                             modifier = Modifier.fillMaxSize()
                         )

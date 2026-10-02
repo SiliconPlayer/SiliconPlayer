@@ -30,6 +30,7 @@ internal fun VisualizationAdvancedChannelScopeRouteContent(
                         val scopeWindowKey = "visualization_channel_scope_window_ms"
                         val scopeRenderBackendKey = "visualization_channel_scope_render_backend"
                         val scopeDcRemovalEnabledKey = "visualization_channel_scope_dc_removal_enabled"
+                        val scopeWaveformClippingEnabledKey = "visualization_channel_scope_waveform_clipping_enabled"
                         val scopeGainPercentKey = "visualization_channel_scope_gain_percent"
                         val scopeContrastBackdropEnabledKey =
                             AppPreferenceKeys.VISUALIZATION_CHANNEL_SCOPE_CONTRAST_BACKDROP_ENABLED
@@ -147,6 +148,14 @@ internal fun VisualizationAdvancedChannelScopeRouteContent(
                                 prefs.getBoolean(
                                     scopeDcRemovalEnabledKey,
                                     AppDefaults.Visualization.ChannelScope.dcRemovalEnabled
+                                )
+                            )
+                        }
+                        var scopeWaveformClippingEnabled by remember {
+                            mutableStateOf(
+                                prefs.getBoolean(
+                                    scopeWaveformClippingEnabledKey,
+                                    AppDefaults.Visualization.ChannelScope.waveformClippingEnabled
                                 )
                             )
                         }
@@ -501,6 +510,7 @@ internal fun VisualizationAdvancedChannelScopeRouteContent(
                                 scopeWindowKey,
                                 scopeRenderBackendKey,
                                 scopeDcRemovalEnabledKey,
+                                scopeWaveformClippingEnabledKey,
                                 scopeGainPercentKey,
                                 scopeContrastBackdropEnabledKey,
                                 scopeTriggerKey,
@@ -587,6 +597,10 @@ internal fun VisualizationAdvancedChannelScopeRouteContent(
                             scopeDcRemovalEnabled = prefs.getBoolean(
                                 scopeDcRemovalEnabledKey,
                                 AppDefaults.Visualization.ChannelScope.dcRemovalEnabled
+                            )
+                            scopeWaveformClippingEnabled = prefs.getBoolean(
+                                scopeWaveformClippingEnabledKey,
+                                AppDefaults.Visualization.ChannelScope.waveformClippingEnabled
                             )
                             scopeGainPercent = prefs.getInt(
                                 scopeGainPercentKey,
@@ -844,6 +858,16 @@ internal fun VisualizationAdvancedChannelScopeRouteContent(
                             onCheckedChange = { enabled ->
                                 scopeDcRemovalEnabled = enabled
                                 prefs.edit().putBoolean(scopeDcRemovalEnabledKey, enabled).apply()
+                            }
+                        )
+                        SettingsRowSpacer()
+                        PlayerSettingToggleCard(
+                            title = "Waveform clipping",
+                            description = "Constrain channel waveforms to their cell ceiling and floor.",
+                            checked = scopeWaveformClippingEnabled,
+                            onCheckedChange = { enabled ->
+                                scopeWaveformClippingEnabled = enabled
+                                prefs.edit().putBoolean(scopeWaveformClippingEnabledKey, enabled).apply()
                             }
                         )
                         SettingsRowSpacer()

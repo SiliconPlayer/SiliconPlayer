@@ -198,6 +198,7 @@ internal object ChannelScopePrefsSupport {
                 d.renderBackend
             ),
             dcRemovalEnabled = prefs.getBoolean(AppPreferenceKeys.VISUALIZATION_CHANNEL_SCOPE_DC_REMOVAL_ENABLED, d.dcRemovalEnabled),
+            waveformClippingEnabled = prefs.getBoolean(AppPreferenceKeys.VISUALIZATION_CHANNEL_SCOPE_WAVEFORM_CLIPPING_ENABLED, d.waveformClippingEnabled),
             gainPercent = prefs.getInt(AppPreferenceKeys.VISUALIZATION_CHANNEL_SCOPE_GAIN_PERCENT, d.gainPercent)
                 .coerceIn(d.gainRangePercent.first, d.gainRangePercent.last),
             contrastBackdropEnabled = prefs.getBoolean(AppPreferenceKeys.VISUALIZATION_CHANNEL_SCOPE_CONTRAST_BACKDROP_ENABLED, d.contrastBackdropEnabled),

@@ -26,6 +26,7 @@ fun ChannelScopeVisualization(
     triggerModeNative: Int,
     triggerIndices: IntArray,
     layoutStrategy: VisualizationChannelScopeLayout,
+    waveformClippingEnabled: Boolean = true,
     outerCornerRadiusPx: Float = 0f,
     modifier: Modifier = Modifier
 ) {
@@ -108,13 +109,18 @@ fun ChannelScopeVisualization(
                     )
                 }
 
+                val halfW = scopeLineWidth * 0.5f
+                val minY = top + halfW
+                val maxY = top + cellHeight - halfW
                 for (i in 1 until visibleSamples) {
-                    val samplePrev = history[(startIndex + i - 1).coerceIn(0, history.lastIndex)].coerceIn(-1f, 1f)
-                    val sampleNext = history[(startIndex + i).coerceIn(0, history.lastIndex)].coerceIn(-1f, 1f)
+                    val samplePrev = history[(startIndex + i - 1).coerceIn(0, history.lastIndex)]
+                    val sampleNext = history[(startIndex + i).coerceIn(0, history.lastIndex)]
                     val x0 = left + (i - 1) * stepX
                     val x1 = left + i * stepX
-                    val y0 = centerY - (samplePrev * ampScale)
-                    val y1 = centerY - (sampleNext * ampScale)
+                    val rawY0 = centerY - (samplePrev * ampScale)
+                    val rawY1 = centerY - (sampleNext * ampScale)
+                    val y0 = if (waveformClippingEnabled && minY < maxY) rawY0.coerceIn(minY, maxY) else rawY0
+                    val y1 = if (waveformClippingEnabled && minY < maxY) rawY1.coerceIn(minY, maxY) else rawY1
                     drawLine(
                         color = lineColor,
                         start = Offset(x0, y0),
