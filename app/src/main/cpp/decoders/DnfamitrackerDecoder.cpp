@@ -318,6 +318,9 @@ std::string DnfamitrackerDecoder::getCoreStringInfo(const char* name) {
     if (key == "comment") {
         return comment;
     }
+    if (key == "instrumentNames") {
+        return getInstrumentNamesInfoLocked();
+    }
     return "";
 }
 
@@ -340,6 +343,23 @@ int DnfamitrackerDecoder::getCoreIntInfo(const char* name, int fallback) {
         }
     }
     return fallback;
+}
+
+std::string DnfamitrackerDecoder::getInstrumentNamesInfoLocked() {
+    if (!player || !player->GetDocument()) {
+        return "";
+    }
+    CFTMDocument* doc = player->GetDocument();
+    std::string names;
+    for (int i = 0; i < CInstrumentManager::MAX_INSTRUMENTS; ++i) {
+        if (!names.empty()) {
+            names.push_back('\n');
+        }
+        names.append(std::to_string(i + 1));
+        names.append(". ");
+        names.append(doc->GetInstrumentName(static_cast<unsigned int>(i)));
+    }
+    return names;
 }
 
 void DnfamitrackerDecoder::updateScopeSnapshotLocked() {

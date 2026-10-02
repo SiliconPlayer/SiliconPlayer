@@ -1238,6 +1238,12 @@ std::string AudioEngine::getKlystrackInstrumentNames() {
     return decoder->getCoreStringInfo("instrumentNames");
 }
 
+std::string AudioEngine::getDnfamitrackerInstrumentNames() {
+    std::lock_guard<std::mutex> lock(decoderMutex);
+    if (!decoder) return "";
+    return decoder->getCoreStringInfo("instrumentNames");
+}
+
 std::string AudioEngine::getFurnaceInstrumentNames() {
     std::lock_guard<std::mutex> lock(decoderMutex);
     if (!decoder) return "";

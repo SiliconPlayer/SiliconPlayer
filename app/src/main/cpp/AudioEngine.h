@@ -236,6 +236,7 @@ public:
     int getKlystrackSongLengthRows();
     int getKlystrackCurrentRow();
     std::string getKlystrackInstrumentNames();
+    std::string getDnfamitrackerInstrumentNames();
     std::string getFurnaceInstrumentNames();
     std::string getFurnaceSampleNames();
     std::string getFurnaceFormatName();

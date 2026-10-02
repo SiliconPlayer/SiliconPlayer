@@ -12,5 +12,6 @@ internal object DesktopChannelScopeNameSource : ChannelScopeNameSource {
     override fun furnaceSampleNames(): String = NativeBridge.getFurnaceSampleNames()
     override fun klystrackInstrumentNames(): String = NativeBridge.getKlystrackInstrumentNames()
     override fun hivelyInstrumentNames(): String = NativeBridge.getHivelyInstrumentNames()
+    override fun dnfamitrackerInstrumentNames(): String = NativeBridge.getDnfamitrackerInstrumentNames()
     override fun decoderToggleChannelNames(): Array<String> = NativeBridge.getDecoderToggleChannelNames()
 }

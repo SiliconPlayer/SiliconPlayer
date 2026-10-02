@@ -2104,6 +2104,12 @@ Java_com_flopster101_siliconplayer_NativeBridge_getKlystrackInstrumentNames(JNIE
 }
 
 extern "C" JNIEXPORT jstring JNICALL
+Java_com_flopster101_siliconplayer_NativeBridge_getDnfamitrackerInstrumentNames(JNIEnv* env, jobject) {
+    if (audioEngine == nullptr) return toJString(env, "");
+    return toJString(env, audioEngine->getDnfamitrackerInstrumentNames());
+}
+
+extern "C" JNIEXPORT jstring JNICALL
 Java_com_flopster101_siliconplayer_NativeBridge_getFurnaceInstrumentNames(JNIEnv* env, jobject) {
     if (audioEngine == nullptr) return toJString(env, "");
     return toJString(env, audioEngine->getFurnaceInstrumentNames());
