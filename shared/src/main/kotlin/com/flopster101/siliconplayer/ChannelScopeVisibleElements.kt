@@ -151,6 +151,26 @@ internal fun channelScopeVisibleElementOptions(): List<ChannelScopeVisibleElemen
             coreId = "sc68",
             coreLabel = "SC68",
             elementId = ChannelScopeVisibleElementId.Volume
+        ),
+        ChannelScopeVisibleElementOption(
+            coreId = "dnfamitracker",
+            coreLabel = "Dn-FamiTracker",
+            elementId = ChannelScopeVisibleElementId.Volume
+        ),
+        ChannelScopeVisibleElementOption(
+            coreId = "dnfamitracker",
+            coreLabel = "Dn-FamiTracker",
+            elementId = ChannelScopeVisibleElementId.EffectPrimary
+        ),
+        ChannelScopeVisibleElementOption(
+            coreId = "dnfamitracker",
+            coreLabel = "Dn-FamiTracker",
+            elementId = ChannelScopeVisibleElementId.EffectSecondary
+        ),
+        ChannelScopeVisibleElementOption(
+            coreId = "dnfamitracker",
+            coreLabel = "Dn-FamiTracker",
+            elementId = ChannelScopeVisibleElementId.Instrument
         )
     )
 }
@@ -202,6 +222,7 @@ internal fun channelScopeCoreIdForDecoderName(decoderName: String?): String? {
         DecoderNames.SC68 -> "sc68"
         DecoderNames.KLYSTRACK -> "klystrack"
         DecoderNames.HIVELY_TRACKER -> "hivelytracker"
+        DecoderNames.LIB_DN_FAMITRACKER -> "dnfamitracker"
         DecoderNames.UADE -> "uade"
         else -> null
     }
