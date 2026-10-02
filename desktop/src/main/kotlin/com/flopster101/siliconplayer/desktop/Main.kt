@@ -579,6 +579,9 @@ fun main(args: Array<String>) = application {
     var selectorImportTitle by remember { mutableStateOf<String?>(null) }
     var selectorImportDialogTitle by remember { mutableStateOf("Add to playlist") }
     var externalTrackInfoDialogRequestToken by remember { mutableIntStateOf(0) }
+    // Tracks whether the capture-phase Space handler ate the down-stroke,
+    // so the up-stroke is only eaten when down was.
+    var windowSpaceDownConsumed by remember { mutableStateOf(false) }
 
     val toasts = remember { mutableStateListOf<ToastItem>() }
     var nextToastId by remember { mutableStateOf(0L) }
@@ -610,6 +613,20 @@ fun main(args: Array<String>) = application {
         title = windowTitle,
         icon = painterResource("app_icon.webp"),
         onPreviewKeyEvent = { keyEvent ->
+            // Capture-phase Space: always play/pause when expanded, never
+            // control activation. The player panel only covers part of the
+            // layout (the header pill lives outside it), so this must sit
+            // above every subtree. Only Enter activates focused controls.
+            if (isPlayerExpanded && !textInputTracker.hasActiveInput && keyEvent.key == Key.Spacebar) {
+                if (keyEvent.type == KeyEventType.KeyDown) {
+                    windowSpaceDownConsumed = true
+                    session.togglePlayPause()
+                    return@Window true
+                }
+                val consumed = windowSpaceDownConsumed
+                windowSpaceDownConsumed = false
+                return@Window consumed
+            }
             // Capture-phase Escape: a focused child must never swallow back.
             if (keyEvent.type == KeyEventType.KeyDown && keyEvent.key == Key.Escape) {
                 if (backDispatcher.onBackPressed()) {
@@ -679,10 +696,6 @@ fun main(args: Array<String>) = application {
                         }
                         return@Window true
                     }
-                }
-                if (keyEvent.key == Key.Spacebar) {
-                    session.togglePlayPause()
-                    return@Window true
                 }
                 if (keyEvent.key == Key.DirectionLeft || keyEvent.key == Key.DirectionRight) {
                     if (session.canSeek && session.durationSeconds > 0.0) {

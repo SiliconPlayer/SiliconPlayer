@@ -1299,6 +1299,11 @@ internal fun PlayerScreen(
             playerRootFocusRequester.requestFocus()
         }
     }
+    // Tracks whether this handler ate the space down-stroke, so the
+    // up-stroke is only eaten when down was (a control pressed while
+    // trackless must still receive its release).
+    val spaceDownConsumed = remember { mutableStateOf(false) }
+
     LaunchedEffect(requestSeekBarInitialFocus) {
         if (requestSeekBarInitialFocus) {
             safeFocusRequest(seekFocusRequester)
@@ -1333,8 +1338,24 @@ internal fun PlayerScreen(
                 if (textInputTracker.hasActiveInput) {
                     return@onPreviewKeyEvent false
                 }
+                // Space is always play/pause here, never control activation:
+                // the preview runs before the focused control sees either
+                // stroke. The up-stroke must be eaten too: it is what the
+                // focused control would click on.
+                if (keyEvent.key == Key.Spacebar) {
+                    if (keyEvent.type == KeyEventType.KeyDown) {
+                        spaceDownConsumed.value = hasTrack || canResumeStoppedTrack
+                        if (spaceDownConsumed.value) {
+                            if (isPlaying) onPause() else onPlay()
+                        }
+                        return@onPreviewKeyEvent spaceDownConsumed.value
+                    }
+                    val consumed = spaceDownConsumed.value
+                    spaceDownConsumed.value = false
+                    return@onPreviewKeyEvent consumed
+                }
                 // Seek bar focused: full player shortcuts. Focus out in the
-                // UI: TV-style navigation only, Enter/Space confirm natively.
+                // UI: TV-style navigation only, Enter confirms natively.
                 if (!seekBarFocused) {
                     val navDirection = when (keyEvent.key) {
                         Key.DirectionLeft -> FocusDirection.Left
@@ -1378,8 +1399,6 @@ internal fun PlayerScreen(
                 handlePlayerGlobalKeyDown(
                     keyEvent = keyEvent,
                     hasTrack = hasTrack,
-                    canResumeStoppedTrack = canResumeStoppedTrack,
-                    isPlaying = isPlaying,
                     canPreviousSubtune = canPreviousSubtune,
                     canNextSubtune = canNextSubtune,
                     canPreviousTrack = canPreviousTrack,
@@ -1387,8 +1406,6 @@ internal fun PlayerScreen(
                     canSeek = canSeek,
                     durationSeconds = durationSeconds,
                     canCycleRepeatMode = canCycleRepeatMode,
-                    onPlay = onPlay,
-                    onPause = onPause,
                     onPreviousSubtune = onPreviousSubtune,
                     onNextSubtune = onNextSubtune,
                     onPreviousTrack = onPreviousTrack,
@@ -2485,8 +2502,6 @@ internal fun PlayerScreen(
 private fun handlePlayerGlobalKeyDown(
     keyEvent: androidx.compose.ui.input.key.KeyEvent,
     hasTrack: Boolean,
-    canResumeStoppedTrack: Boolean,
-    isPlaying: Boolean,
     canPreviousSubtune: Boolean,
     canNextSubtune: Boolean,
     canPreviousTrack: Boolean,
@@ -2494,8 +2509,6 @@ private fun handlePlayerGlobalKeyDown(
     canSeek: Boolean,
     durationSeconds: Double,
     canCycleRepeatMode: Boolean,
-    onPlay: () -> Unit,
-    onPause: () -> Unit,
     onPreviousSubtune: () -> Unit,
     onNextSubtune: () -> Unit,
     onPreviousTrack: () -> Unit,
@@ -2505,12 +2518,6 @@ private fun handlePlayerGlobalKeyDown(
     onStopAndClear: () -> Unit
 ): Boolean {
     return when (keyEvent.key) {
-        Key.Spacebar -> {
-            if (hasTrack || canResumeStoppedTrack) {
-                if (isPlaying) onPause() else onPlay()
-                true
-            } else false
-        }
         Key.DirectionLeft -> {
             if (keyEvent.isCtrlPressed && canPreviousSubtune) {
                 onPreviousSubtune()
