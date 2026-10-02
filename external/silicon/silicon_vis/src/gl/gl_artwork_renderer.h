@@ -40,6 +40,7 @@ private:
         GLuint artworkTexture = 0;
         int32_t artworkW = 0;
         int32_t artworkH = 0;
+        GLuint blurTexture = 0;
         GLuint iconTexture = 0;
         int32_t iconW = 0;
         int32_t iconH = 0;
@@ -48,12 +49,14 @@ private:
         // prev_ shares a texture with the live state when its channel did not
         // change in the swap; only owned textures are released afterwards.
         bool ownsArtwork = false;
+        bool ownsBlur = false;
         bool ownsIcon = false;
     };
 
     ContentState currentState() const;
     void releasePrevState();
     void drawArtworkOrFallback(const ContentState& state, float surfaceWidth, float surfaceHeight, float density, float alpha);
+    void drawBlurFill(const ContentState& state, float surfaceWidth, float surfaceHeight, float alpha);
     void drawGradientBackground(const ContentState& state, float surfaceWidth, float surfaceHeight, float density, bool drawCircle, float monoMix, float alpha);
 
     ContentState prev_;
@@ -88,6 +91,7 @@ private:
     GLint contrastCoordLoc_ = -1;
 
     GLuint artworkTextureId_ = 0;
+    GLuint artworkBlurTextureId_ = 0;
     std::vector<uint8_t> pendingArtworkPixels_;
     int32_t artworkWidth_ = 0;
     int32_t artworkHeight_ = 0;

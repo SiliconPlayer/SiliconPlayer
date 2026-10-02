@@ -169,6 +169,10 @@ void GlArtworkRenderer::release() {
         glDeleteTextures(1, &iconTextureId_);
         iconTextureId_ = 0;
     }
+    if (artworkBlurTextureId_ != 0) {
+        glDeleteTextures(1, &artworkBlurTextureId_);
+        artworkBlurTextureId_ = 0;
+    }
     bgProgram_.release();
     texProgram_.release();
     contrastProgram_.release();
@@ -226,6 +230,78 @@ void GlArtworkRenderer::setContrastMode(SiliconVisContrastMode mode) {
     contrastMode_ = mode;
 }
 
+// Blurred-fill thumbnail: box-downscale to a tiny image plus one 3x3
+// smoothing pass. Upscaled with linear filtering it reads as a creamy
+// backdrop behind non-square artwork. Shared computeBlurThumbArgb ports
+// this function byte-exactly so the Compose canvas blurs identically.
+static bool buildBlurThumb(const std::vector<uint8_t>& src, int32_t srcW, int32_t srcH,
+                           std::vector<uint8_t>& dst, int32_t& dstW, int32_t& dstH) {
+    if (src.empty() || srcW <= 0 || srcH <= 0) return false;
+    constexpr int32_t kThumbLongEdge = 48;
+    const int32_t longEdge = std::max(srcW, srcH);
+    const int32_t thumbLong = std::min(kThumbLongEdge, longEdge);
+    dstW = std::max<int32_t>(1, static_cast<int32_t>(static_cast<int64_t>(srcW) * thumbLong / longEdge));
+    dstH = std::max<int32_t>(1, static_cast<int32_t>(static_cast<int64_t>(srcH) * thumbLong / longEdge));
+    dst.assign(static_cast<size_t>(dstW) * static_cast<size_t>(dstH) * 4, 0);
+    for (int32_t y = 0; y < dstH; ++y) {
+        const int32_t y0 = static_cast<int32_t>(static_cast<int64_t>(y) * srcH / dstH);
+        const int32_t y1 = std::max(y0 + 1, static_cast<int32_t>(static_cast<int64_t>(y + 1) * srcH / dstH));
+        for (int32_t x = 0; x < dstW; ++x) {
+            const int32_t x0 = static_cast<int32_t>(static_cast<int64_t>(x) * srcW / dstW);
+            const int32_t x1 = std::max(x0 + 1, static_cast<int32_t>(static_cast<int64_t>(x + 1) * srcW / dstW));
+            int64_t r = 0;
+            int64_t g = 0;
+            int64_t b = 0;
+            int64_t a = 0;
+            for (int32_t sy = y0; sy < y1; ++sy) {
+                for (int32_t sx = x0; sx < x1; ++sx) {
+                    const uint8_t* px = &src[(static_cast<size_t>(sy) * static_cast<size_t>(srcW) + static_cast<size_t>(sx)) * 4];
+                    r += px[0];
+                    g += px[1];
+                    b += px[2];
+                    a += px[3];
+                }
+            }
+            const int64_t n = static_cast<int64_t>(x1 - x0) * (y1 - y0);
+            uint8_t* out = &dst[(static_cast<size_t>(y) * static_cast<size_t>(dstW) + static_cast<size_t>(x)) * 4];
+            out[0] = static_cast<uint8_t>(r / n);
+            out[1] = static_cast<uint8_t>(g / n);
+            out[2] = static_cast<uint8_t>(b / n);
+            out[3] = static_cast<uint8_t>(a / n);
+        }
+    }
+    // Melt the block edges the bilinear upscale would otherwise keep.
+    const std::vector<uint8_t> pre = dst;
+    for (int32_t y = 0; y < dstH; ++y) {
+        for (int32_t x = 0; x < dstW; ++x) {
+            int64_t r = 0;
+            int64_t g = 0;
+            int64_t b = 0;
+            int64_t a = 0;
+            int n = 0;
+            for (int32_t ky = -1; ky <= 1; ++ky) {
+                for (int32_t kx = -1; kx <= 1; ++kx) {
+                    const int32_t sx = x + kx;
+                    const int32_t sy = y + ky;
+                    if (sx < 0 || sy < 0 || sx >= dstW || sy >= dstH) continue;
+                    const uint8_t* px = &pre[(static_cast<size_t>(sy) * static_cast<size_t>(dstW) + static_cast<size_t>(sx)) * 4];
+                    r += px[0];
+                    g += px[1];
+                    b += px[2];
+                    a += px[3];
+                    ++n;
+                }
+            }
+            uint8_t* out = &dst[(static_cast<size_t>(y) * static_cast<size_t>(dstW) + static_cast<size_t>(x)) * 4];
+            out[0] = static_cast<uint8_t>(r / n);
+            out[1] = static_cast<uint8_t>(g / n);
+            out[2] = static_cast<uint8_t>(b / n);
+            out[3] = static_cast<uint8_t>(a / n);
+        }
+    }
+    return true;
+}
+
 void GlArtworkRenderer::ensureArtworkTexture() {
     if (!artworkTextureDirty_) return;
     artworkTextureDirty_ = false;
@@ -233,6 +309,10 @@ void GlArtworkRenderer::ensureArtworkTexture() {
     if (artworkTextureId_ != 0) {
         glDeleteTextures(1, &artworkTextureId_);
         artworkTextureId_ = 0;
+    }
+    if (artworkBlurTextureId_ != 0) {
+        glDeleteTextures(1, &artworkBlurTextureId_);
+        artworkBlurTextureId_ = 0;
     }
 
     if (!pendingArtworkPixels_.empty() && artworkWidth_ > 0 && artworkHeight_ > 0) {
@@ -244,6 +324,22 @@ void GlArtworkRenderer::ensureArtworkTexture() {
         glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
         glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, artworkWidth_, artworkHeight_, 0, GL_RGBA, GL_UNSIGNED_BYTE, pendingArtworkPixels_.data());
         glBindTexture(GL_TEXTURE_2D, 0);
+
+        // Blurred-fill backdrop for non-square artwork: a thumbnail this
+        // small upscaled with linear filtering reads as a creamy blur.
+        std::vector<uint8_t> thumb;
+        int32_t thumbW = 0;
+        int32_t thumbH = 0;
+        if (buildBlurThumb(pendingArtworkPixels_, artworkWidth_, artworkHeight_, thumb, thumbW, thumbH)) {
+            glGenTextures(1, &artworkBlurTextureId_);
+            glBindTexture(GL_TEXTURE_2D, artworkBlurTextureId_);
+            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+            glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, thumbW, thumbH, 0, GL_RGBA, GL_UNSIGNED_BYTE, thumb.data());
+            glBindTexture(GL_TEXTURE_2D, 0);
+        }
     }
 }
 
@@ -324,6 +420,7 @@ GlArtworkRenderer::ContentState GlArtworkRenderer::currentState() const {
     s.artworkTexture = artworkTextureId_;
     s.artworkW = artworkWidth_;
     s.artworkH = artworkHeight_;
+    s.blurTexture = artworkBlurTextureId_;
     s.iconTexture = iconTextureId_;
     s.iconW = iconWidth_;
     s.iconH = iconHeight_;
@@ -336,12 +433,17 @@ void GlArtworkRenderer::releasePrevState() {
     if (prev_.ownsArtwork && prev_.artworkTexture != 0) {
         glDeleteTextures(1, &prev_.artworkTexture);
     }
+    if (prev_.ownsBlur && prev_.blurTexture != 0) {
+        glDeleteTextures(1, &prev_.blurTexture);
+    }
     if (prev_.ownsIcon && prev_.iconTexture != 0) {
         glDeleteTextures(1, &prev_.iconTexture);
     }
     prev_.artworkTexture = 0;
+    prev_.blurTexture = 0;
     prev_.iconTexture = 0;
     prev_.ownsArtwork = false;
+    prev_.ownsBlur = false;
     prev_.ownsIcon = false;
     prev_.artworkW = prev_.artworkH = 0;
     prev_.iconW = prev_.iconH = 0;
@@ -383,7 +485,9 @@ void GlArtworkRenderer::draw(float surfaceWidth, float surfaceHeight, float dens
         prev_ = currentState();
         if (artworkTextureDirty_) {
             prev_.ownsArtwork = true;
+            prev_.ownsBlur = true;
             artworkTextureId_ = 0;
+            artworkBlurTextureId_ = 0;
         }
         if (iconTextureDirty_) {
             prev_.ownsIcon = true;
@@ -471,6 +575,7 @@ void GlArtworkRenderer::drawArtworkOrFallback(const ContentState& state, float s
     if (alpha <= 0.001f) return;
     if (state.artworkTexture != 0 && state.artworkW > 0 && state.artworkH > 0) {
         drawGradientBackground(state, surfaceWidth, surfaceHeight, density, /*drawCircle=*/false, 0.0f, alpha);
+        drawBlurFill(state, surfaceWidth, surfaceHeight, alpha);
         // Draw real artwork textured quad (aspect fit, centered)
         glEnable(GL_BLEND);
         glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
@@ -542,6 +647,60 @@ void GlArtworkRenderer::drawArtworkOrFallback(const ContentState& state, float s
             glBindTexture(GL_TEXTURE_2D, 0);
         }
     }
+}
+
+void GlArtworkRenderer::drawBlurFill(const ContentState& state, float surfaceWidth, float surfaceHeight, float alpha) {
+    if (state.blurTexture == 0 || state.artworkW <= 0 || state.artworkH <= 0) return;
+    if (surfaceWidth <= 0.0f || surfaceHeight <= 0.0f) return;
+    const float artAspect = static_cast<float>(state.artworkW) / static_cast<float>(state.artworkH);
+    const float canvasAspect = surfaceWidth / surfaceHeight;
+    // The fit quad already covers the canvas when aspects agree (IEEE
+    // division is correctly rounded, so equal ratios compare equal); any
+    // difference leaves real bands, however thin, that the fill must cover.
+    if (artAspect == canvasAspect) return;
+
+    // Aspect-fill crop of the (same-aspect) thumbnail over the full canvas.
+    float u0 = 0.0f;
+    float v0 = 0.0f;
+    float u1 = 1.0f;
+    float v1 = 1.0f;
+    if (artAspect > canvasAspect) {
+        const float frac = canvasAspect / artAspect;
+        u0 = (1.0f - frac) * 0.5f;
+        u1 = 1.0f - u0;
+    } else {
+        const float frac = artAspect / canvasAspect;
+        v0 = (1.0f - frac) * 0.5f;
+        v1 = 1.0f - v0;
+    }
+
+    glEnable(GL_BLEND);
+    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+
+    texProgram_.use();
+    glUniform2f(texResLoc_, surfaceWidth, surfaceHeight);
+    glUniform4f(texColorLoc_, 1.0f, 1.0f, 1.0f, alpha);
+    glUniform1f(texMonoLoc_, 0.0f);
+    glUniform1i(texSamplerLoc_, 0);
+
+    glActiveTexture(GL_TEXTURE0);
+    glBindTexture(GL_TEXTURE_2D, state.blurTexture);
+
+    float quad[24];
+    GlPrimitives::generateTexturedQuad(0.0f, 0.0f, surfaceWidth, surfaceHeight, u0, v0, u1, v1, quad);
+
+    glBindBuffer(GL_ARRAY_BUFFER, 0);
+    glEnableVertexAttribArray(texPosLoc_);
+    glVertexAttribPointer(texPosLoc_, 2, GL_FLOAT, GL_FALSE, 4 * sizeof(float), quad);
+
+    glEnableVertexAttribArray(texCoordLoc_);
+    glVertexAttribPointer(texCoordLoc_, 2, GL_FLOAT, GL_FALSE, 4 * sizeof(float), &quad[2]);
+
+    glDrawArrays(GL_TRIANGLES, 0, 6);
+
+    glDisableVertexAttribArray(texPosLoc_);
+    glDisableVertexAttribArray(texCoordLoc_);
+    glBindTexture(GL_TEXTURE_2D, 0);
 }
 
 void GlArtworkRenderer::drawContrastBackdrop(float surfaceWidth, float surfaceHeight) {

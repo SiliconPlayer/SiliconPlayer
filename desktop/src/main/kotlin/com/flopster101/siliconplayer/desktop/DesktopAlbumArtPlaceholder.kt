@@ -9,6 +9,7 @@ import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
@@ -42,10 +43,12 @@ import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Canvas
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ColorFilter
+import androidx.compose.ui.graphics.FilterQuality
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.drawscope.CanvasDrawScope
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.graphics.toComposeImageBitmap
 import androidx.compose.ui.graphics.vector.rememberVectorPainter
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.unit.Density
@@ -66,7 +69,14 @@ import com.flopster101.siliconplayer.isChannelScopeVisibleElementEnabled
 import com.flopster101.siliconplayer.supportsChannelScopeNoteText
 import com.flopster101.siliconplayer.desktop.DesktopChannelScopeNameSource
 import com.flopster101.siliconplayer.pluginNameForCoreName
+import com.flopster101.siliconplayer.ui.visualization.artworkNeedsBlurFill
 import com.flopster101.siliconplayer.ui.visualization.channel.ChannelScopeNameMaps
+import com.flopster101.siliconplayer.ui.visualization.blurThumbPixels
+import java.nio.ByteBuffer
+import java.nio.ByteOrder
+import org.jetbrains.skia.ColorAlphaType
+import org.jetbrains.skia.ColorType
+import org.jetbrains.skia.ImageInfo
 import com.flopster101.siliconplayer.ui.visualization.channel.GlChannelScopeTextPalette
 import com.flopster101.siliconplayer.ui.visualization.channel.loadChannelScopeNameMaps
 import com.flopster101.siliconplayer.ui.visualization.gl.SiliconNativeGlDesktopVisualization
@@ -132,6 +142,19 @@ private fun resolveChannelScopeVuColor(
         VisualizationChannelScopeTextColorMode.White -> Color.White
         VisualizationChannelScopeTextColorMode.Custom -> customColor
     }
+}
+
+@Composable
+private fun rememberArtworkBlurFill(artwork: ImageBitmap?): ImageBitmap? = remember(artwork) {
+    // Same thumbnail bytes as the native GL renderer: ARGB ints in native
+    // order are BGRA bytes on little-endian, which is every target here.
+    val thumb = artwork?.blurThumbPixels() ?: return@remember null
+    runCatching {
+        val bytes = ByteArray(thumb.width * thumb.height * 4)
+        ByteBuffer.wrap(bytes).order(ByteOrder.nativeOrder()).asIntBuffer().put(thumb.argb)
+        val info = ImageInfo(thumb.width, thumb.height, ColorType.BGRA_8888, ColorAlphaType.UNPREMUL)
+        org.jetbrains.skia.Image.makeRaster(info, bytes, thumb.width * 4).toComposeImageBitmap()
+    }.getOrNull()
 }
 
 @Composable
@@ -219,13 +242,31 @@ internal fun AlbumArtPlaceholder(
             ),
             shape = RoundedCornerShape(artworkCornerRadiusDp.coerceIn(0, 48).dp)
         ) {
-            Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+            BoxWithConstraints(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                 if (artwork != null) {
+                    // Same fit-plus-blurred-fill as every other canvas; the
+                    // user-chosen crop mode arrives as a later setting.
+                    val blurFill = rememberArtworkBlurFill(artwork)
+                    if (blurFill != null && artworkNeedsBlurFill(
+                            artworkWidth = artwork.width,
+                            artworkHeight = artwork.height,
+                            canvasWidth = maxWidth.value,
+                            canvasHeight = maxHeight.value
+                        )
+                    ) {
+                        Image(
+                            bitmap = blurFill,
+                            contentDescription = null,
+                            modifier = Modifier.fillMaxSize(),
+                            contentScale = ContentScale.Crop,
+                            filterQuality = FilterQuality.Medium
+                        )
+                    }
                     Image(
                         bitmap = artwork,
                         contentDescription = "Album Artwork",
                         modifier = Modifier.fillMaxSize(),
-                        contentScale = ContentScale.Crop
+                        contentScale = ContentScale.Fit
                     )
                 } else {
                     Box(

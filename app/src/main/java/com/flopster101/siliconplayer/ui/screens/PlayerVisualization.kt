@@ -6,6 +6,7 @@ import com.flopster101.siliconplayer.VisualizationPerformanceMode
 import com.flopster101.siliconplayer.resolveEffectiveVisualizationPerformanceMode
 import com.flopster101.siliconplayer.ui.visualization.channel.resolveChannelGrid
 import android.content.Context
+import android.graphics.Bitmap
 import android.os.Build
 import android.os.Process
 import android.hardware.display.DisplayManager
@@ -23,6 +24,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxScope
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
@@ -62,7 +64,9 @@ import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.FilterQuality
 import androidx.compose.ui.graphics.ImageBitmap
+import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.graphics.toArgb
@@ -105,7 +109,9 @@ import com.flopster101.siliconplayer.pluginNameForCoreName
 import com.flopster101.siliconplayer.readChannelScopeVisibleElementSelection
 import com.flopster101.siliconplayer.supportsChannelScopeVisualization
 import com.flopster101.siliconplayer.visualizationRenderBackendForMode
+import com.flopster101.siliconplayer.ui.visualization.artworkNeedsBlurFill
 import com.flopster101.siliconplayer.ui.visualization.basic.BasicVisualizationOverlay
+import com.flopster101.siliconplayer.ui.visualization.blurThumbPixels
 import com.flopster101.siliconplayer.ui.visualization.channel.ChannelScopeChannelTextState
 import com.flopster101.siliconplayer.ui.visualization.channel.ChannelScopeNameSource
 import com.flopster101.siliconplayer.ui.visualization.channel.loadChannelScopeNameMaps
@@ -132,14 +138,28 @@ private data class AlbumArtCrossfadeState(
     val placeholderIcon: ImageVector
 )
 
+// Platform upload for the shared blur math: same thumbnail bytes as the
+// native GL renderer, wrapped in a framework bitmap for the canvas.
+@Composable
+private fun rememberArtworkBlurFill(artwork: ImageBitmap?): ImageBitmap? = remember(artwork) {
+    val thumb = artwork?.blurThumbPixels() ?: return@remember null
+    runCatching {
+        Bitmap.createBitmap(thumb.argb, 0, thumb.width, thumb.width, thumb.height, Bitmap.Config.ARGB_8888)
+            .asImageBitmap()
+    }.getOrNull()
+}
+
 @Composable
 private fun AlbumArtVisual(
     artwork: ImageBitmap?,
     placeholderIcon: ImageVector,
     modifier: Modifier = Modifier
 ) {
+    // Blurred-fill thumbnail shares the artwork's track-keyed lifecycle, so
+    // crossfades and swipe previews carry it along for free.
+    val blurFill = rememberArtworkBlurFill(artwork)
     if (artwork != null) {
-        Box(
+        BoxWithConstraints(
             modifier = modifier.background(
                 brush = Brush.radialGradient(
                     colors = listOf(
@@ -150,6 +170,21 @@ private fun AlbumArtVisual(
             ),
             contentAlignment = Alignment.Center
         ) {
+            if (blurFill != null && artworkNeedsBlurFill(
+                    artworkWidth = artwork.width,
+                    artworkHeight = artwork.height,
+                    canvasWidth = maxWidth.value,
+                    canvasHeight = maxHeight.value
+                )
+            ) {
+                Image(
+                    bitmap = blurFill,
+                    contentDescription = null,
+                    contentScale = ContentScale.Crop,
+                    filterQuality = FilterQuality.Medium,
+                    modifier = Modifier.fillMaxSize()
+                )
+            }
             Image(
                 bitmap = artwork,
                 contentDescription = "Album artwork",
