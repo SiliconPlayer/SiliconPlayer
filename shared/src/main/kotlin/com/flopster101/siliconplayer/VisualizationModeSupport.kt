@@ -76,7 +76,8 @@ fun supportsChannelScopeVisualization(coreNameForUi: String?): Boolean {
         DecoderNames.UADE,
         DecoderNames.VGM_PLAY,
         DecoderNames.AD_PLUG,
-        DecoderNames.UFMOD -> true
+        DecoderNames.UFMOD,
+        DecoderNames.LIB_DN_FAMITRACKER -> true
         else -> false
     }
 }

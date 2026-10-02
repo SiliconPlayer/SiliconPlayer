@@ -226,6 +226,10 @@ include_directories(${CMAKE_CURRENT_BINARY_DIR}/libusb_gen)
     add_library(libfurnace SHARED IMPORTED)
     set_target_properties(libfurnace PROPERTIES IMPORTED_LOCATION "${PREBUILT_DIR}/lib/libfurnace.so")
 
+    # Import libdnfamitracker (Static)
+    add_library(libdnfamitracker STATIC IMPORTED)
+    set_target_properties(libdnfamitracker PROPERTIES IMPORTED_LOCATION "${PREBUILT_DIR}/lib/libdnfamitracker.a")
+
     # Import libsidplayfp + libresidfp (Shared)
     add_library(libsidplayfp SHARED IMPORTED)
     set_target_properties(libsidplayfp PROPERTIES IMPORTED_LOCATION "${PREBUILT_DIR}/lib/libsidplayfp.so")
@@ -758,6 +762,40 @@ include_directories(${CMAKE_CURRENT_BINARY_DIR}/libusb_gen)
     target_link_libraries(
             siliconplayer_furnace_decoder
             libfurnace
+            ${log-lib}
+            m
+    )
+
+    add_library(
+            siliconplayer_libdnfamitracker_decoder
+            SHARED
+            decoders/DnfamitrackerDecoder.cpp
+            decoders/DnfamitrackerDecoderPlugin.cpp
+            ChannelScopeSharedState.cpp
+    )
+    if (ANDROID)
+        target_compile_options(
+                siliconplayer_libdnfamitracker_decoder
+                PRIVATE
+                "-fvisibility=hidden"
+                "-fvisibility-inlines-hidden"
+        )
+        target_link_options(
+                siliconplayer_libdnfamitracker_decoder
+                PRIVATE
+                "-Wl,-z,max-page-size=16384"
+                "-Wl,-z,common-page-size=16384"
+        )
+    endif()
+    target_include_directories(
+            siliconplayer_libdnfamitracker_decoder
+            PRIVATE
+            "${PREBUILT_DIR}/include"
+            "${PREBUILT_DIR}/include/dnfamitracker"
+    )
+    target_link_libraries(
+            siliconplayer_libdnfamitracker_decoder
+            libdnfamitracker
             ${log-lib}
             m
     )

@@ -539,3 +539,21 @@ target_link_libraries(siliconplayer_furnace_decoder PRIVATE
     m
 )
 
+# 18. Dn-Famitracker Decoder
+add_library(libdnfamitracker_prebuilt STATIC IMPORTED)
+set_target_properties(libdnfamitracker_prebuilt PROPERTIES IMPORTED_LOCATION "${PREBUILT_DIR}/lib/libdnfamitracker.a")
+
+add_library(siliconplayer_libdnfamitracker_decoder SHARED
+    "${APP_CPP_DIR}/decoders/DnfamitrackerDecoder.cpp"
+    "${APP_CPP_DIR}/decoders/DnfamitrackerDecoderPlugin.cpp"
+    "${APP_CPP_DIR}/ChannelScopeSharedState.cpp"
+)
+target_include_directories(siliconplayer_libdnfamitracker_decoder PRIVATE
+    ${COMMON_INCLUDES}
+    "${PREBUILT_DIR}/include"
+    "${PREBUILT_DIR}/include/dnfamitracker"
+)
+target_link_libraries(siliconplayer_libdnfamitracker_decoder PRIVATE
+    libdnfamitracker_prebuilt
+    m
+)

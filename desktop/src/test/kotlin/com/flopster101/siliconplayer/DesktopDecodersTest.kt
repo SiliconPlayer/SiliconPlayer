@@ -25,7 +25,8 @@ class DesktopDecodersTest {
         "UADE",
         "HivelyTracker",
         "klystrack-plus",
-        "Furnace"
+        "Furnace",
+        "libdnfamitracker"
     )
 
     @Test
@@ -196,5 +197,36 @@ class DesktopDecodersTest {
             "Furnace",
             "/home/flopster101/Music/SyncedMusic/Mine/Furnace/A642_test.fur"
         )
+    }
+
+    @Test
+    fun testDnfamitrackerDecoder() {
+        val file = File("/home/flopster101/Music/SyncedMusic/Mine/Famistuff/240 bits_v2.dnm")
+        assertTrue("Test file must exist: ${file.absolutePath}", file.exists())
+        NativeBridge.loadAudioWithDecoder(file.absolutePath, "libdnfamitracker")
+        val currentDecoder = NativeBridge.getCurrentDecoderName()
+        assertEquals("Expected active decoder libdnfamitracker", "libdnfamitracker", currentDecoder)
+        NativeBridge.startEngineNative()
+        Thread.sleep(4000)
+        NativeBridge.getVisualizationWaveformScope(-1, 50, 0)
+        Thread.sleep(300)
+        val waveform = NativeBridge.getVisualizationWaveformScope(-1, 50, 0)
+        println("Waveform size: ${waveform.size}")
+        for (i in 0 until minOf(20, waveform.size)) {
+            println("sample[$i] = ${waveform[i]}")
+        }
+        var minVal = 1e9f
+        var maxVal = -1e9f
+        var jumps = 0
+        for (i in waveform.indices) {
+            minVal = minOf(minVal, waveform[i])
+            maxVal = maxOf(maxVal, waveform[i])
+            if (i > 0 && Math.abs(waveform[i] - waveform[i-1]) > 0.5f) {
+                jumps++
+            }
+        }
+        println("Scope stats: min=$minVal, max=$maxVal, jumps=$jumps")
+        NativeBridge.stopEngineNative()
+        NativeBridge.releaseCurrentDecoder()
     }
 }

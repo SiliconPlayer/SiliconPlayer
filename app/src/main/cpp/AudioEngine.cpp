@@ -522,6 +522,31 @@ namespace {
             }, []() {
                 return DecoderPluginLoader::getInstance().createDecoder("libsiliconplayer_furnace_decoder.so");
             }, 17, std::move(furnaceStaticInfo));
+
+            DecoderStaticInfo dnfamitrackerStaticInfo;
+            dnfamitrackerStaticInfo.hasPlaybackCapabilities = true;
+            dnfamitrackerStaticInfo.playbackCapabilities =
+                    AudioDecoder::PLAYBACK_CAP_SEEK |
+                    AudioDecoder::PLAYBACK_CAP_RELIABLE_DURATION |
+                    AudioDecoder::PLAYBACK_CAP_LIVE_REPEAT_MODE |
+                    AudioDecoder::PLAYBACK_CAP_DIRECT_SEEK |
+                    AudioDecoder::PLAYBACK_CAP_CUSTOM_SAMPLE_RATE;
+            dnfamitrackerStaticInfo.hasRepeatModeCapabilities = true;
+            dnfamitrackerStaticInfo.repeatModeCapabilities =
+                    AudioDecoder::REPEAT_CAP_TRACK |
+                    AudioDecoder::REPEAT_CAP_LOOP_POINT;
+            dnfamitrackerStaticInfo.hasTimelineMode = true;
+            dnfamitrackerStaticInfo.timelineMode = AudioDecoder::TimelineMode::Discontinuous;
+            dnfamitrackerStaticInfo.hasFixedSampleRateHz = true;
+            dnfamitrackerStaticInfo.fixedSampleRateHz = 0;
+            dnfamitrackerStaticInfo.optionApplyPolicy = [](const char*) {
+                return AudioDecoder::OPTION_APPLY_LIVE;
+            };
+            DecoderRegistry::getInstance().registerDecoder("libdnfamitracker", {
+                    "dnm", "0cc", "ftm", "dnft"
+            }, []() {
+                return DecoderPluginLoader::getInstance().createDecoder("libsiliconplayer_libdnfamitracker_decoder.so");
+            }, 16, std::move(dnfamitrackerStaticInfo));
         }
     };
 

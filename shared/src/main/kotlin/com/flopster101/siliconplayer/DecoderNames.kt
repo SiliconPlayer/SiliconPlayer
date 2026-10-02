@@ -19,6 +19,7 @@ internal object DecoderNames {
     const val HIVELY_TRACKER = "HivelyTracker"
     const val KLYSTRACK = "klystrack-plus"
     const val FURNACE = "Furnace"
+    const val LIB_DN_FAMITRACKER = "libdnfamitracker"
 
     val trackedFileDecoders: Set<String> = setOf(
         LIB_OPEN_MPT,
@@ -33,7 +34,8 @@ internal object DecoderNames {
         UADE,
         HIVELY_TRACKER,
         KLYSTRACK,
-        FURNACE
+        FURNACE,
+        LIB_DN_FAMITRACKER
     )
 
     val gameFileDecoders: Set<String> = setOf(
@@ -61,6 +63,7 @@ internal fun canonicalDecoderNameForAlias(coreName: String?): String? {
         "hivelytracker", "hively", "hvl", "ahx" -> DecoderNames.HIVELY_TRACKER
         "klystrack-plus", "klystrack", "kly", "kt" -> DecoderNames.KLYSTRACK
         "furnace", "fur", "dmf" -> DecoderNames.FURNACE
+        "libdnfamitracker", "dnfamitracker", "famitracker", "dn-famitracker", "dnft" -> DecoderNames.LIB_DN_FAMITRACKER
         "uade", "amiga" -> DecoderNames.UADE
         else -> null
     }
