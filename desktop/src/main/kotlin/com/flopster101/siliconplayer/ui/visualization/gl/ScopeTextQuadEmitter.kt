@@ -66,6 +66,7 @@ internal class ScopeTextQuadEmitter(glyphBuffer: ByteBuffer, val baseFontSizePx:
         }
         val out = FloatArray(quads * 48)
         var offset = 0
+        val shadowOffset = (scale * 2.8f).coerceIn(0.75f, 3.0f)
         for (run in runs) {
             val a = ((run.colorArgb ushr 24) and 0xFF) / 255f
             val r = ((run.colorArgb ushr 16) and 0xFF) / 255f
@@ -73,7 +74,7 @@ internal class ScopeTextQuadEmitter(glyphBuffer: ByteBuffer, val baseFontSizePx:
             val b = (run.colorArgb and 0xFF) / 255f
             val maxWidth = measurer.widthOf(run.text, textSizePx) + 1f
             if (shadowEnabled && a > 0f) {
-                offset = emitText(out, offset, run.text, run.xPx + 1.5f, run.yPx + 1.5f, scale, 0f, 0f, 0f, a * 0.75f, maxWidth)
+                offset = emitText(out, offset, run.text, run.xPx + shadowOffset, run.yPx + shadowOffset, scale, 0f, 0f, 0f, a * 0.50f, maxWidth)
             }
             offset = emitText(out, offset, run.text, run.xPx, run.yPx, scale, r, g, b, a, maxWidth)
         }

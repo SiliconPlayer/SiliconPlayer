@@ -53,13 +53,24 @@ class ScopeTextQuadsTest {
         assertEquals(30f, plain[8], 0.001f) // second glyph starts after first advance
         val shadowed = e.emitRuns(runs, 32f, shadowEnabled = true)
         assertEquals(4 * 48, shadowed.size)
-        assertEquals(11.5f, shadowed[0], 0.001f)
-        assertEquals(21.5f, shadowed[1], 0.001f)
+        assertEquals(12.8f, shadowed[0], 0.001f)
+        assertEquals(22.8f, shadowed[1], 0.001f)
     }
 
     @Test
     fun emptyRunsEmitNothing() {
         val e = emitter()
         assertTrue(e.emitRuns(emptyList(), 32f, shadowEnabled = true).isEmpty())
+    }
+
+    @Test
+    fun adaptsShadowOffsetAndAlphaForSmallerText() {
+        val e = emitter()
+        val runs = listOf(ChannelScopeTextRun("AB", 10f, 20f, 0xFF80D8FF.toInt()))
+        val shadowed = e.emitRuns(runs, 16f, shadowEnabled = true)
+        assertEquals(4 * 48, shadowed.size)
+        assertEquals(11.4f, shadowed[0], 0.001f)
+        assertEquals(21.4f, shadowed[1], 0.001f)
+        assertEquals(0.50f, shadowed[7], 0.001f)
     }
 }

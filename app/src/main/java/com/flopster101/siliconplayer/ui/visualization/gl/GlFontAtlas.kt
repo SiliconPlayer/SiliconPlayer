@@ -310,15 +310,16 @@ internal class GlTextBatchBuilder(initialQuadCapacity: Int = 512) {
         shadowR: Float = 0f,
         shadowG: Float = 0f,
         shadowB: Float = 0f,
-        shadowA: Float = 0.75f,
-        shadowOffsetPx: Float = 1.5f,
+        shadowA: Float = 0.50f,
+        shadowOffsetPx: Float = -1f,
         maxWidthPx: Float = Float.MAX_VALUE
     ): Float {
         if (maxWidthPx <= 0f) return 0f
         var cursorX = startX
         if (shadow && a > 0f) {
-            var sX = startX + shadowOffsetPx
-            val sY = startY + shadowOffsetPx
+            val offset = if (shadowOffsetPx > 0f) shadowOffsetPx else (scale * 2.8f).coerceIn(0.75f, 3.0f)
+            var sX = startX + offset
+            val sY = startY + offset
             for (i in 0 until text.length) {
                 val ch = text[i]
                 val glyph = atlas.getGlyph(ch) ?: continue

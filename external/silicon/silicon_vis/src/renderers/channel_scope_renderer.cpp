@@ -522,6 +522,9 @@ void ChannelScopeRenderer::drawText() {
     float effSlotW = 20.0f * slotScale * density_;
     float itemSpacing = 2.0f * density_;
 
+    const float shadowOffset = std::clamp(scale * 2.8f, 0.75f, 3.0f);
+    constexpr float shadowA = 0.50f;
+
     textBatcher_.clear();
 
     for (int col = 0; col < cols; ++col) {
@@ -549,7 +552,7 @@ void ChannelScopeRenderer::drawText() {
                 float bulletW = fontAtlas_.measureTextWidth("•", scale);
                 if (cursorX + bulletW + itemSpacing > maxRight) return;
                 gl::Color4f c = gl::argbToColor4f(palette_.separatorArgb);
-                textBatcher_.addText(fontAtlas_, "•", cursorX, originY, scale, c.r, c.g, c.b, c.a, shadowEnabled_, 0, 0, 0, 0.75f, 1.5f, maxRight - cursorX);
+                textBatcher_.addText(fontAtlas_, "•", cursorX, originY, scale, c.r, c.g, c.b, c.a, shadowEnabled_, 0, 0, 0, shadowA, shadowOffset, maxRight - cursorX);
                 cursorX += bulletW + itemSpacing;
             };
 
@@ -557,7 +560,7 @@ void ChannelScopeRenderer::drawText() {
             std::string chStr = "Ch " + std::to_string(ch + 1);
             if (cursorX < maxRight) {
                 gl::Color4f c = gl::argbToColor4f(palette_.channelArgb);
-                float dw = textBatcher_.addText(fontAtlas_, chStr, cursorX, originY, scale, c.r, c.g, c.b, c.a, shadowEnabled_, 0, 0, 0, 0.75f, 1.5f, maxRight - cursorX);
+                float dw = textBatcher_.addText(fontAtlas_, chStr, cursorX, originY, scale, c.r, c.g, c.b, c.a, shadowEnabled_, 0, 0, 0, shadowA, shadowOffset, maxRight - cursorX);
                 cursorX += dw + itemSpacing;
                 hasPrev = true;
             }
@@ -571,7 +574,7 @@ void ChannelScopeRenderer::drawText() {
                     gl::Color4f c = gl::argbToColor4f(palette_.noteArgb);
                     float tw = fontAtlas_.measureTextWidth(noteStr, scale);
                     float tx = cursorX + (noteSlotW - tw) * 0.5f;
-                    textBatcher_.addText(fontAtlas_, noteStr, tx, originY, scale, c.r, c.g, c.b, c.a, shadowEnabled_, 0, 0, 0, 0.75f, 1.5f, maxRight - tx);
+                    textBatcher_.addText(fontAtlas_, noteStr, tx, originY, scale, c.r, c.g, c.b, c.a, shadowEnabled_, 0, 0, 0, shadowA, shadowOffset, maxRight - tx);
                     cursorX += noteSlotW + itemSpacing;
                     hasPrev = true;
                 }

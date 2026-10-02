@@ -69,8 +69,8 @@ public:
         float scale,
         float r, float g, float b, float a,
         bool shadow = false,
-        float shadowR = 0.0f, float shadowG = 0.0f, float shadowB = 0.0f, float shadowA = 0.75f,
-        float shadowOffsetPx = 1.5f,
+        float shadowR = 0.0f, float shadowG = 0.0f, float shadowB = 0.0f, float shadowA = 0.50f,
+        float shadowOffsetPx = -1.0f,
         float maxWidthPx = 1e9f
     );
 

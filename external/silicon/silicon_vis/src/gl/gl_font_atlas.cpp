@@ -273,8 +273,11 @@ float GlTextBatchBuilder::addText(
 
     float cursorX = startX;
     if (shadow && a > 0.0f) {
-        float sX = startX + shadowOffsetPx;
-        float sY = startY + shadowOffsetPx;
+        float offset = (shadowOffsetPx > 0.0f)
+            ? shadowOffsetPx
+            : std::clamp(scale * 2.8f, 0.75f, 3.0f);
+        float sX = startX + offset;
+        float sY = startY + offset;
         for (char32_t cp : cps) {
             const Glyph* glyph = atlas.getGlyph(cp);
             if (!glyph) continue;

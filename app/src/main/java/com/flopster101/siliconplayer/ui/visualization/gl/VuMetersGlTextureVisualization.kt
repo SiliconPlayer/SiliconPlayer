@@ -459,7 +459,8 @@ private class VuMetersGlCoreRenderer(private val context: Context) {
                 r = labelR,
                 g = labelG,
                 b = labelB,
-                a = labelA
+                a = labelA,
+                shadow = true
             )
         }
         val vCount = textBatch.count
