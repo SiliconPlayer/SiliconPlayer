@@ -88,7 +88,8 @@ fun supportsChannelScopeNoteText(coreNameForUi: String?): Boolean {
         DecoderNames.LIBXMP,
         DecoderNames.FURNACE,
         DecoderNames.KLYSTRACK,
-        DecoderNames.HIVELY_TRACKER -> true
+        DecoderNames.HIVELY_TRACKER,
+        DecoderNames.LIB_DN_FAMITRACKER -> true
         else -> false
     }
 }
