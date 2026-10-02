@@ -223,4 +223,78 @@ class DesktopCacheMaintenanceTest {
         )
         assertTrue(!prefs.contains(AppPreferenceKeys.audioDspCoreBassEnabledKey("FFmpeg")))
     }
+
+    @Test
+    fun handlesProgressiveCacheCompanionFilesAndPolicies() {
+        val cacheRoot = tempDir("siliconplayer-streaming-cache-")
+        val audioFile1 = File(cacheRoot, "song1.flac").apply { writeBytes(ByteArray(200)) }
+        val chunks1 = File(cacheRoot, "song1.flac.chunks").apply { writeBytes(ByteArray(50)) }
+        val meta1 = File(cacheRoot, "song1.flac.meta").apply { writeBytes(ByteArray(20)) }
+        Thread.sleep(15)
+        val audioFile2 = File(cacheRoot, "song2.flac").apply { writeBytes(ByteArray(300)) }
+        val chunks2 = File(cacheRoot, "song2.flac.chunks").apply { writeBytes(ByteArray(60)) }
+        val meta2 = File(cacheRoot, "song2.flac.meta").apply { writeBytes(ByteArray(25)) }
+        audioFile1.setLastModified(System.currentTimeMillis() - 60_000)
+
+        val listed = listCachedSourceFiles(cacheRoot)
+        assertEquals(2, listed.size)
+        assertEquals(setOf("song1.flac", "song2.flac"), listed.map { it.fileName }.toSet())
+
+        val pruned = enforceRemoteCacheLimits(cacheRoot, maxTracks = 1, maxBytes = Long.MAX_VALUE)
+        assertEquals(1, pruned.deletedFiles)
+        assertFalse(audioFile1.exists())
+        assertFalse(chunks1.exists())
+        assertFalse(meta1.exists())
+        assertTrue(audioFile2.exists())
+        assertTrue(chunks2.exists())
+        assertTrue(meta2.exists())
+
+        val deleted = deleteSpecificRemoteCacheFiles(cacheRoot, setOf(audioFile2.absolutePath))
+        assertEquals(1, deleted.deletedFiles)
+        assertFalse(audioFile2.exists())
+        assertFalse(chunks2.exists())
+        assertFalse(meta2.exists())
+    }
+
+    @Test
+    fun appliesFileAndStreamingCachePoliciesOnLaunch() {
+        val prefs = CacheTestPrefs()
+        val fileCacheRoot = tempDir("siliconplayer-file-policy-")
+        val streamingCacheRoot = tempDir("siliconplayer-streaming-policy-")
+
+        val file1 = File(fileCacheRoot, "f1.mp3").apply { writeBytes(ByteArray(100)) }
+        file1.setLastModified(System.currentTimeMillis() - 60_000)
+        val file2 = File(fileCacheRoot, "f2.mp3").apply { writeBytes(ByteArray(100)) }
+
+        val stream1 = File(streamingCacheRoot, "s1.mp3").apply { writeBytes(ByteArray(100)) }
+        File(streamingCacheRoot, "s1.mp3.chunks").apply { writeBytes(ByteArray(20)) }
+        stream1.setLastModified(System.currentTimeMillis() - 60_000)
+        val stream2 = File(streamingCacheRoot, "s2.mp3").apply { writeBytes(ByteArray(100)) }
+        File(streamingCacheRoot, "s2.mp3.chunks").apply { writeBytes(ByteArray(20)) }
+
+        prefs.edit()
+            .putInt(AppPreferenceKeys.FILE_CACHE_MAX_TRACKS, 1)
+            .putInt(AppPreferenceKeys.STREAMING_CACHE_MAX_TRACKS, 1)
+            .apply()
+
+        val filePruned = applyFileSourceCachePolicy(prefs, fileCacheRoot)
+        assertFalse(filePruned.clearedOnLaunch)
+        assertEquals(1, filePruned.deletedFiles)
+        assertTrue(file2.exists())
+        assertFalse(file1.exists())
+
+        val streamPruned = applyStreamingSourceCachePolicy(prefs, streamingCacheRoot)
+        assertFalse(streamPruned.clearedOnLaunch)
+        assertEquals(1, streamPruned.deletedFiles)
+        assertTrue(stream2.exists())
+        assertFalse(stream1.exists())
+        assertFalse(File(streamingCacheRoot, "s1.mp3.chunks").exists())
+
+        prefs.edit().putBoolean(AppPreferenceKeys.STREAMING_CACHE_CLEAR_ON_LAUNCH, true).apply()
+        val streamCleared = applyStreamingSourceCachePolicy(prefs, streamingCacheRoot)
+        assertTrue(streamCleared.clearedOnLaunch)
+        assertEquals(1, streamCleared.deletedFiles)
+        assertFalse(stream2.exists())
+        assertFalse(File(streamingCacheRoot, "s2.mp3.chunks").exists())
+    }
 }

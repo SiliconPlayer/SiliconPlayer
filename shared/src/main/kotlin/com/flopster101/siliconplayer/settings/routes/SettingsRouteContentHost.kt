@@ -475,24 +475,32 @@ internal fun SettingsRouteContentHost(
                     SettingsRoute.UrlCache -> {
                         UrlCacheRouteContent(
                             state = UrlCacheRouteState(
-                                urlCacheClearOnLaunch = state.urlCacheClearOnLaunch,
-                                urlCacheMaxTracks = state.urlCacheMaxTracks,
-                                urlCacheMaxBytes = state.urlCacheMaxBytes,
+                                fileCacheClearOnLaunch = state.fileCacheClearOnLaunch,
+                                fileCacheMaxTracks = state.fileCacheMaxTracks,
+                                fileCacheMaxBytes = state.fileCacheMaxBytes,
+                                streamingCacheClearOnLaunch = state.streamingCacheClearOnLaunch,
+                                streamingCacheMaxTracks = state.streamingCacheMaxTracks,
+                                streamingCacheMaxBytes = state.streamingCacheMaxBytes,
                                 archiveCacheClearOnLaunch = state.archiveCacheClearOnLaunch,
                                 archiveCacheMaxMounts = state.archiveCacheMaxMounts,
                                 archiveCacheMaxBytes = state.archiveCacheMaxBytes,
                                 archiveCacheMaxAgeDays = state.archiveCacheMaxAgeDays
                             ),
                             actions = UrlCacheRouteActions(
-                                onUrlCacheClearOnLaunchChanged = actions.onUrlCacheClearOnLaunchChanged,
-                                onUrlCacheMaxTracksChanged = actions.onUrlCacheMaxTracksChanged,
-                                onUrlCacheMaxBytesChanged = actions.onUrlCacheMaxBytesChanged,
-                                onOpenCacheManager = actions.onOpenCacheManager,
+                                onFileCacheClearOnLaunchChanged = actions.onFileCacheClearOnLaunchChanged,
+                                onFileCacheMaxTracksChanged = actions.onFileCacheMaxTracksChanged,
+                                onFileCacheMaxBytesChanged = actions.onFileCacheMaxBytesChanged,
+                                onOpenFileCacheManager = actions.onOpenFileCacheManager,
+                                onClearFileCacheNow = actions.onClearFileCacheNow,
+                                onStreamingCacheClearOnLaunchChanged = actions.onStreamingCacheClearOnLaunchChanged,
+                                onStreamingCacheMaxTracksChanged = actions.onStreamingCacheMaxTracksChanged,
+                                onStreamingCacheMaxBytesChanged = actions.onStreamingCacheMaxBytesChanged,
+                                onOpenStreamingCacheManager = actions.onOpenStreamingCacheManager,
+                                onClearStreamingCacheNow = actions.onClearStreamingCacheNow,
                                 onArchiveCacheClearOnLaunchChanged = actions.onArchiveCacheClearOnLaunchChanged,
                                 onArchiveCacheMaxMountsChanged = actions.onArchiveCacheMaxMountsChanged,
                                 onArchiveCacheMaxBytesChanged = actions.onArchiveCacheMaxBytesChanged,
                                 onArchiveCacheMaxAgeDaysChanged = actions.onArchiveCacheMaxAgeDaysChanged,
-                                onClearUrlCacheNow = actions.onClearUrlCacheNow,
                                 onClearArchiveCacheNow = actions.onClearArchiveCacheNow
                             )
                         )
@@ -502,12 +510,26 @@ internal fun SettingsRouteContentHost(
                         CacheManagerSettingsRouteContent(
                             state = CacheManagerSettingsRouteState(
                                 route = currentRoute,
-                                cachedSourceFiles = state.cachedSourceFiles
+                                cachedSourceFiles = state.fileCachedSourceFiles
                             ),
                             actions = CacheManagerSettingsRouteActions(
                                 onRefreshCachedSourceFiles = actions.onRefreshCachedSourceFiles,
                                 onDeleteCachedSourceFiles = actions.onDeleteCachedSourceFiles,
                                 onExportCachedSourceFiles = actions.onExportCachedSourceFiles
+                            )
+                        )
+                    }
+
+                    SettingsRoute.StreamingCacheManager -> {
+                        CacheManagerSettingsRouteContent(
+                            state = CacheManagerSettingsRouteState(
+                                route = currentRoute,
+                                cachedSourceFiles = state.streamingCachedSourceFiles
+                            ),
+                            actions = CacheManagerSettingsRouteActions(
+                                onRefreshCachedSourceFiles = actions.onRefreshStreamingCachedSourceFiles,
+                                onDeleteCachedSourceFiles = actions.onDeleteStreamingCachedSourceFiles,
+                                onExportCachedSourceFiles = actions.onExportStreamingCachedSourceFiles
                             )
                         )
                     }
@@ -550,6 +572,7 @@ internal fun settingsSecondaryTitle(route: SettingsRoute, selectedPluginName: St
         SettingsRoute.PluginVgmPlay -> "VGMPlay core settings"
         SettingsRoute.UrlCache -> "Cache settings"
         SettingsRoute.CacheManager -> "Manage cached files"
+        SettingsRoute.StreamingCacheManager -> "Manage cached files"
         SettingsRoute.GeneralAudio -> "General audio"
         SettingsRoute.Library -> "Library"
         SettingsRoute.LibraryScanner -> "Storage scanner"

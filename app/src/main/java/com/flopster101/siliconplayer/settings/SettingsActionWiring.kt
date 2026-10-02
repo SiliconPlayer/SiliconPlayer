@@ -2,6 +2,9 @@ package com.flopster101.siliconplayer
 
 import android.content.Context
 import android.content.SharedPreferences
+import android.widget.Toast
+import java.io.File
+import kotlinx.coroutines.CoroutineScope
 
 internal fun clearAllSettingsFromMainAction(
     context: Context,
@@ -480,3 +483,603 @@ internal fun resetPluginSettingsFromMainAction(
             pluginCoreActions.onSidPlayFpReSidFpCombinedWaveformsStrengthChanged,
     )
 }
+
+internal fun updateAudioBackendPreferenceSelection(
+    prefs: SharedPreferences,
+    selectedBackend: AudioBackendPreference,
+    currentBackend: AudioBackendPreference,
+    currentPerformanceMode: AudioPerformanceMode,
+    currentBufferPreset: AudioBufferPreset,
+    onAudioBackendPreferenceChanged: (AudioBackendPreference) -> Unit,
+    onAudioPerformanceModeChanged: (AudioPerformanceMode) -> Unit,
+    onAudioBufferPresetChanged: (AudioBufferPreset) -> Unit
+) {
+    if (selectedBackend == currentBackend) return
+
+    prefs.edit()
+        .putString(
+            AppPreferenceKeys.audioPerformanceModeForBackend(currentBackend),
+            currentPerformanceMode.storageValue
+        )
+        .putString(
+            AppPreferenceKeys.audioBufferPresetForBackend(currentBackend),
+            currentBufferPreset.storageValue
+        )
+        .apply()
+
+    val restoredPerformanceMode = restoreAudioPerformanceModeForBackend(
+        prefs::contains,
+        prefs::getString,
+        selectedBackend
+    )
+
+    val restoredBufferPreset = restoreAudioBufferPresetForBackend(
+        prefs::contains,
+        prefs::getString,
+        selectedBackend
+    )
+
+    onAudioBackendPreferenceChanged(selectedBackend)
+    onAudioPerformanceModeChanged(restoredPerformanceMode)
+    onAudioBufferPresetChanged(restoredBufferPreset)
+}
+
+internal fun clearSavedNetworkSourcesFromSettings(
+    context: Context,
+    prefs: SharedPreferences,
+    onNetworkNodesChanged: (List<NetworkNode>) -> Unit
+) {
+    onNetworkNodesChanged(emptyList())
+    clearSavedNetworkSources(prefs)
+    Toast.makeText(context, "Saved network sources cleared", Toast.LENGTH_SHORT).show()
+}
+
+internal fun buildMainActivitySettingsScreenActions(
+    context: Context,
+    prefs: SharedPreferences,
+    appScope: CoroutineScope,
+    volumeDatabase: VolumeDatabase,
+    settingsStates: AppNavigationSettingsStates,
+    settingsPluginCoreActions: SettingsPluginCoreActions,
+    onBack: () -> Unit,
+    openSettingsRoute: (SettingsRoute, Boolean) -> Unit,
+    onOpenAudioEffects: () -> Unit,
+    masterVolumeDb: Float,
+    onMasterVolumeDbChanged: (Float) -> Unit,
+    pluginVolumeDb: Float,
+    onPluginVolumeDbChanged: (Float) -> Unit,
+    songVolumeDb: Float,
+    onSongVolumeDbChanged: (Float) -> Unit,
+    ignoreCoreVolumeForSong: Boolean,
+    onIgnoreCoreVolumeForSongChanged: (Boolean) -> Unit,
+    forceMono: Boolean,
+    onForceMonoChanged: (Boolean) -> Unit,
+    refreshCachedSourceFiles: () -> Unit,
+    refreshStreamingCachedSourceFiles: () -> Unit,
+    launchCacheExportDirectoryPicker: () -> Unit,
+    selectedFile: File?,
+    onAutoPlayOnTrackSelectChanged: (Boolean) -> Unit,
+    onOpenPlayerOnTrackSelectChanged: (Boolean) -> Unit,
+    onAutoPlayNextTrackOnEndChanged: (Boolean) -> Unit,
+    onPreloadNextCachedRemoteTrackChanged: (Boolean) -> Unit,
+    onPlaylistWrapNavigationChanged: (Boolean) -> Unit,
+    onPreviousRestartsAfterThresholdChanged: (Boolean) -> Unit,
+    onFadePauseResumeChanged: (Boolean) -> Unit,
+    onAudioFocusInterruptChanged: (Boolean) -> Unit,
+    onAudioDuckingChanged: (Boolean) -> Unit,
+    onPersistRepeatModeChanged: (Boolean) -> Unit,
+    themeMode: ThemeMode,
+    onThemeModeChanged: (ThemeMode) -> Unit,
+    onUseMonetChanged: (Boolean) -> Unit,
+    rememberBrowserLocation: Boolean,
+    onRememberBrowserLocationChanged: (Boolean) -> Unit,
+    onShowParentDirectoryEntryChanged: (Boolean) -> Unit,
+    onShowFileIconChipBackgroundChanged: (Boolean) -> Unit,
+    onSortArchivesBeforeFilesChanged: (Boolean) -> Unit,
+    onBrowserNameSortModeChanged: (BrowserNameSortMode) -> Unit,
+    onRecentFoldersLimitChanged: (Int) -> Unit,
+    onRecentFilesLimitChanged: (Int) -> Unit,
+    onPressBackTwiceToExitChanged: (Boolean) -> Unit,
+    onKeepScreenOnChanged: (Boolean) -> Unit,
+    onPlayerArtworkCornerRadiusDpChanged: (Int) -> Unit,
+    onShowAudioOutputRouteChipChanged: (Boolean) -> Unit,
+    onCanvasTapToSeekSecondsChanged: (Int) -> Unit,
+    onFilenameDisplayModeChanged: (FilenameDisplayMode) -> Unit,
+    onFilenameOnlyWhenTitleMissingChanged: (Boolean) -> Unit,
+    onUnknownTrackDurationSecondsChanged: (Int) -> Unit,
+    onEndFadeApplyToAllTracksChanged: (Boolean) -> Unit,
+    onEndFadeDurationMsChanged: (Int) -> Unit,
+    onEndFadeCurveChanged: (EndFadeCurve) -> Unit,
+    onVisualizationModeChanged: (VisualizationMode) -> Unit,
+    onEnabledVisualizationModesChanged: (Set<VisualizationMode>) -> Unit,
+    onVisualizationPerformanceModeChanged: (VisualizationPerformanceMode) -> Unit,
+    onVisualizationShowDebugInfoChanged: (Boolean) -> Unit,
+    onVisualizationKeepScreenOnChanged: (Boolean) -> Unit,
+    onVisualizationBarCountChanged: (Int) -> Unit,
+    onVisualizationBarSmoothingPercentChanged: (Int) -> Unit,
+    onVisualizationBarRoundnessDpChanged: (Int) -> Unit,
+    onVisualizationBarOverlayArtworkChanged: (Boolean) -> Unit,
+    onVisualizationBarUseThemeColorChanged: (Boolean) -> Unit,
+    onVisualizationBarRenderBackendChanged: (VisualizationRenderBackend) -> Unit,
+    onVisualizationOscStereoChanged: (Boolean) -> Unit,
+    onVisualizationVuAnchorChanged: (VisualizationVuAnchor) -> Unit,
+    onVisualizationVuUseThemeColorChanged: (Boolean) -> Unit,
+    onVisualizationVuSmoothingPercentChanged: (Int) -> Unit,
+    onVisualizationVuRenderBackendChanged: (VisualizationRenderBackend) -> Unit,
+    defaultScopeTextSizeSp: Int,
+    onRecentFoldersChanged: (List<RecentPathEntry>) -> Unit,
+    onRecentPlayedFilesChanged: (List<RecentPathEntry>) -> Unit,
+    onNetworkNodesChanged: (List<NetworkNode>) -> Unit,
+    preferredRepeatMode: RepeatMode,
+    onPreferredRepeatModeChanged: (RepeatMode) -> Unit,
+    lastBrowserLocationId: String?,
+    onLastBrowserLocationIdChanged: (String?) -> Unit,
+    lastBrowserDirectoryPath: String?,
+    onLastBrowserDirectoryPathChanged: (String?) -> Unit
+): SettingsScreenActions {
+    return SettingsScreenActions(
+        onBack = onBack,
+        onOpenAudioPlugins = { openSettingsRoute(SettingsRoute.AudioPlugins, false) },
+        onOpenGeneralAudio = { openSettingsRoute(SettingsRoute.GeneralAudio, false) },
+        onOpenLibrary = { openSettingsRoute(SettingsRoute.Library, false) },
+        onOpenLibraryScanner = { openSettingsRoute(SettingsRoute.LibraryScanner, false) },
+        onOpenHome = { openSettingsRoute(SettingsRoute.Home, false) },
+        onOpenFileBrowser = { openSettingsRoute(SettingsRoute.FileBrowser, false) },
+        onOpenNetwork = { openSettingsRoute(SettingsRoute.Network, false) },
+        onOpenAudioEffects = onOpenAudioEffects,
+        onClearAllAudioParameters = {
+            clearAllAudioParametersAction(
+                context = context,
+                prefs = prefs,
+                volumeDatabase = volumeDatabase,
+                onMasterVolumeDbChanged = onMasterVolumeDbChanged,
+                onPluginVolumeDbChanged = onPluginVolumeDbChanged,
+                onSongVolumeDbChanged = onSongVolumeDbChanged,
+                onIgnoreCoreVolumeForSongChanged = onIgnoreCoreVolumeForSongChanged,
+                onForceMonoChanged = onForceMonoChanged
+            )
+        },
+        onClearPluginAudioParameters = {
+            clearPluginAudioParametersAction(
+                context = context,
+                prefs = prefs,
+                onPluginVolumeDbChanged = onPluginVolumeDbChanged
+            )
+        },
+        onClearSongAudioParameters = {
+            clearSongAudioParametersAction(
+                context = context,
+                volumeDatabase = volumeDatabase,
+                onSongVolumeDbChanged = onSongVolumeDbChanged,
+                onIgnoreCoreVolumeForSongChanged = onIgnoreCoreVolumeForSongChanged
+            )
+            NativeBridge.setPluginGain(pluginVolumeDb)
+        },
+        onOpenPlayer = { openSettingsRoute(SettingsRoute.Player, false) },
+        onOpenVisualization = { openSettingsRoute(SettingsRoute.Visualization, false) },
+        onOpenVisualizationBasic = { openSettingsRoute(SettingsRoute.VisualizationBasic, false) },
+        onOpenVisualizationTrackTicker = { openSettingsRoute(SettingsRoute.VisualizationTrackTicker, false) },
+        onOpenVisualizationBasicBars = { openSettingsRoute(SettingsRoute.VisualizationBasicBars, false) },
+        onOpenVisualizationBasicOscilloscope = { openSettingsRoute(SettingsRoute.VisualizationBasicOscilloscope, false) },
+        onOpenVisualizationBasicVuMeters = { openSettingsRoute(SettingsRoute.VisualizationBasicVuMeters, false) },
+        onOpenVisualizationAdvanced = { openSettingsRoute(SettingsRoute.VisualizationAdvanced, false) },
+        onOpenVisualizationAdvancedChannelScope = {
+            openSettingsRoute(SettingsRoute.VisualizationAdvancedChannelScope, false)
+        },
+        onOpenVisualizationAdvancedStarfield = {
+            openSettingsRoute(SettingsRoute.VisualizationAdvancedStarfield, false)
+        },
+        onOpenVisualizationAdvancedProjectM = {
+            openSettingsRoute(SettingsRoute.VisualizationAdvancedProjectM, false)
+        },
+        onOpenVisualizationProjectMPacks = {
+            openSettingsRoute(SettingsRoute.VisualizationAdvancedProjectMPacks, false)
+        },
+        onOpenMisc = { openSettingsRoute(SettingsRoute.Misc, false) },
+        onOpenUrlCache = { openSettingsRoute(SettingsRoute.UrlCache, false) },
+        onOpenCacheManager = {
+            refreshCachedSourceFiles()
+            openSettingsRoute(SettingsRoute.CacheManager, false)
+        },
+        onOpenFileCacheManager = {
+            refreshCachedSourceFiles()
+            openSettingsRoute(SettingsRoute.CacheManager, false)
+        },
+        onOpenStreamingCacheManager = {
+            refreshStreamingCachedSourceFiles()
+            openSettingsRoute(SettingsRoute.StreamingCacheManager, false)
+        },
+        onOpenUi = { openSettingsRoute(SettingsRoute.Ui, false) },
+        onOpenAbout = { openSettingsRoute(SettingsRoute.About, false) },
+        pluginCoreActions = settingsPluginCoreActions,
+        onAutoPlayOnTrackSelectChanged = onAutoPlayOnTrackSelectChanged,
+        onOpenPlayerOnTrackSelectChanged = onOpenPlayerOnTrackSelectChanged,
+        onAutoPlayNextTrackOnEndChanged = onAutoPlayNextTrackOnEndChanged,
+        onPreloadNextCachedRemoteTrackChanged = onPreloadNextCachedRemoteTrackChanged,
+        onPlaylistWrapNavigationChanged = onPlaylistWrapNavigationChanged,
+        onPreviousRestartsAfterThresholdChanged = onPreviousRestartsAfterThresholdChanged,
+        onFadePauseResumeChanged = onFadePauseResumeChanged,
+        onRespondHeadphoneMediaButtonsChanged = { settingsStates.respondHeadphoneMediaButtons.value = it },
+        onPauseOnHeadphoneDisconnectChanged = { settingsStates.pauseOnHeadphoneDisconnect.value = it },
+        onAudioFocusInterruptChanged = {
+            updateAudioFocusInterruptAction(
+                context = context,
+                prefs = prefs,
+                enabled = it,
+                onAudioFocusInterruptChanged = onAudioFocusInterruptChanged
+            )
+        },
+        onAudioDuckingChanged = {
+            updateAudioDuckingAction(
+                context = context,
+                prefs = prefs,
+                enabled = it,
+                onAudioDuckingChanged = onAudioDuckingChanged
+            )
+        },
+        onAudioBackendPreferenceChanged = { selectedBackend ->
+            updateAudioBackendPreferenceSelection(
+                prefs = prefs,
+                selectedBackend = selectedBackend,
+                currentBackend = settingsStates.audioBackendPreference.value,
+                currentPerformanceMode = settingsStates.audioPerformanceMode.value,
+                currentBufferPreset = settingsStates.audioBufferPreset.value,
+                onAudioBackendPreferenceChanged = { settingsStates.audioBackendPreference.value = it },
+                onAudioPerformanceModeChanged = { settingsStates.audioPerformanceMode.value = it },
+                onAudioBufferPresetChanged = { settingsStates.audioBufferPreset.value = it }
+            )
+        },
+        onAudioPerformanceModeChanged = { settingsStates.audioPerformanceMode.value = it },
+        onAudioBufferPresetChanged = { settingsStates.audioBufferPreset.value = it },
+        onAudioResamplerPreferenceChanged = {
+            settingsStates.audioResamplerPreference.value = it
+            if (it == AudioResamplerPreference.Sox) {
+                settingsStates.pendingSoxExperimentalDialog.value = true
+            }
+        },
+        onAudioOutputLimiterEnabledChanged = { settingsStates.audioOutputLimiterEnabled.value = it },
+        onLookaheadClipperModeChanged = { settingsStates.lookaheadClipperMode.value = it },
+        onMultiChannelOutputModeChanged = { settingsStates.multiChannelOutputMode.value = it },
+        onAudioAllowBackendFallbackChanged = { settingsStates.audioAllowBackendFallback.value = it },
+        onBitPerfectUsbAudioChanged = { settingsStates.bitPerfectUsbAudio.value = it },
+        onOpenPlayerFromNotificationChanged = { settingsStates.openPlayerFromNotification.value = it },
+        onPersistRepeatModeChanged = onPersistRepeatModeChanged,
+        onThemeModeChanged = onThemeModeChanged,
+        onUseMonetChanged = onUseMonetChanged,
+        onRememberBrowserLocationChanged = onRememberBrowserLocationChanged,
+        onShowParentDirectoryEntryChanged = onShowParentDirectoryEntryChanged,
+        onShowFileIconChipBackgroundChanged = onShowFileIconChipBackgroundChanged,
+        onSortArchivesBeforeFilesChanged = onSortArchivesBeforeFilesChanged,
+        onBrowserNameSortModeChanged = onBrowserNameSortModeChanged,
+        onRecentFoldersLimitChanged = { onRecentFoldersLimitChanged(it.coerceIn(1, RECENTS_LIMIT_MAX)) },
+        onRecentFilesLimitChanged = { onRecentFilesLimitChanged(it.coerceIn(1, RECENTS_LIMIT_MAX)) },
+        onPressBackTwiceToExitChanged = onPressBackTwiceToExitChanged,
+        onUrlCacheClearOnLaunchChanged = { enabled ->
+            updateUrlCacheClearOnLaunchAction(
+                prefs = prefs,
+                enabled = enabled,
+                onUrlCacheClearOnLaunchChanged = { settingsStates.urlCacheClearOnLaunch.value = it }
+            )
+        },
+        onUrlCacheMaxTracksChanged = { value ->
+            updateUrlCacheMaxTracksAction(
+                value = value,
+                prefs = prefs,
+                appScope = appScope,
+                cacheRoot = File(context.cacheDir, REMOTE_SOURCE_CACHE_DIR),
+                urlCacheMaxBytes = settingsStates.urlCacheMaxBytes.value,
+                onUrlCacheMaxTracksChanged = { settingsStates.urlCacheMaxTracks.value = it },
+                onRefreshCachedSourceFiles = refreshCachedSourceFiles
+            )
+        },
+        onUrlCacheMaxBytesChanged = { value ->
+            updateUrlCacheMaxBytesAction(
+                value = value,
+                prefs = prefs,
+                appScope = appScope,
+                cacheRoot = File(context.cacheDir, REMOTE_SOURCE_CACHE_DIR),
+                urlCacheMaxTracks = settingsStates.urlCacheMaxTracks.value,
+                onUrlCacheMaxBytesChanged = { settingsStates.urlCacheMaxBytes.value = it },
+                onRefreshCachedSourceFiles = refreshCachedSourceFiles
+            )
+        },
+        onArchiveCacheClearOnLaunchChanged = { enabled ->
+            updateArchiveCacheClearOnLaunchAction(
+                prefs = prefs,
+                enabled = enabled,
+                onArchiveCacheClearOnLaunchChanged = { settingsStates.archiveCacheClearOnLaunch.value = it }
+            )
+        },
+        onArchiveCacheMaxMountsChanged = { value ->
+            updateArchiveCacheMaxMountsAction(
+                value = value,
+                prefs = prefs,
+                appScope = appScope,
+                cacheDir = context.cacheDir,
+                archiveCacheMaxBytes = settingsStates.archiveCacheMaxBytes.value,
+                archiveCacheMaxAgeDays = settingsStates.archiveCacheMaxAgeDays.value,
+                onArchiveCacheMaxMountsChanged = { settingsStates.archiveCacheMaxMounts.value = it }
+            )
+        },
+        onArchiveCacheMaxBytesChanged = { value ->
+            updateArchiveCacheMaxBytesAction(
+                value = value,
+                prefs = prefs,
+                appScope = appScope,
+                cacheDir = context.cacheDir,
+                archiveCacheMaxMounts = settingsStates.archiveCacheMaxMounts.value,
+                archiveCacheMaxAgeDays = settingsStates.archiveCacheMaxAgeDays.value,
+                onArchiveCacheMaxBytesChanged = { settingsStates.archiveCacheMaxBytes.value = it }
+            )
+        },
+        onArchiveCacheMaxAgeDaysChanged = { value ->
+            updateArchiveCacheMaxAgeDaysAction(
+                value = value,
+                prefs = prefs,
+                appScope = appScope,
+                cacheDir = context.cacheDir,
+                archiveCacheMaxMounts = settingsStates.archiveCacheMaxMounts.value,
+                archiveCacheMaxBytes = settingsStates.archiveCacheMaxBytes.value,
+                onArchiveCacheMaxAgeDaysChanged = { settingsStates.archiveCacheMaxAgeDays.value = it }
+            )
+        },
+        onClearUrlCacheNow = {
+            clearUrlCacheNowAction(
+                context = context,
+                prefs = prefs,
+                appScope = appScope,
+                cacheRoot = File(context.cacheDir, REMOTE_SOURCE_CACHE_DIR),
+                selectedFile = selectedFile,
+                onRefreshCachedSourceFiles = refreshCachedSourceFiles
+            )
+        },
+        onClearArchiveCacheNow = {
+            clearArchiveCacheNowAction(
+                context = context,
+                appScope = appScope,
+                cacheDir = context.cacheDir
+            )
+        },
+        onRefreshCachedSourceFiles = refreshCachedSourceFiles,
+        onDeleteCachedSourceFiles = { paths ->
+            deleteCachedSourceFilesAction(
+                context = context,
+                prefs = prefs,
+                appScope = appScope,
+                cacheRoot = File(context.cacheDir, REMOTE_SOURCE_CACHE_DIR),
+                selectedFile = selectedFile,
+                absolutePaths = paths,
+                onRefreshCachedSourceFiles = refreshCachedSourceFiles
+            )
+        },
+        onExportCachedSourceFiles = { paths ->
+            exportCachedSourceFilesAction(
+                context = context,
+                paths = paths,
+                onPendingCacheExportPathsChanged = { settingsStates.pendingCacheExportPaths.value = it },
+                launchDirectoryPicker = launchCacheExportDirectoryPicker
+            )
+        },
+        onStreamingCacheClearOnLaunchChanged = { enabled ->
+            updateStreamingCacheClearOnLaunchAction(
+                prefs = prefs,
+                enabled = enabled,
+                onStreamingCacheClearOnLaunchChanged = { settingsStates.streamingCacheClearOnLaunch.value = it }
+            )
+        },
+        onStreamingCacheMaxTracksChanged = { value ->
+            updateStreamingCacheMaxTracksAction(
+                value = value,
+                prefs = prefs,
+                appScope = appScope,
+                cacheRoot = File(context.cacheDir, PROGRESSIVE_REMOTE_SOURCE_CACHE_DIR),
+                streamingCacheMaxBytes = settingsStates.streamingCacheMaxBytes.value,
+                onStreamingCacheMaxTracksChanged = { settingsStates.streamingCacheMaxTracks.value = it },
+                onRefreshStreamingCachedSourceFiles = refreshStreamingCachedSourceFiles
+            )
+        },
+        onStreamingCacheMaxBytesChanged = { value ->
+            updateStreamingCacheMaxBytesAction(
+                value = value,
+                prefs = prefs,
+                appScope = appScope,
+                cacheRoot = File(context.cacheDir, PROGRESSIVE_REMOTE_SOURCE_CACHE_DIR),
+                streamingCacheMaxTracks = settingsStates.streamingCacheMaxTracks.value,
+                onStreamingCacheMaxBytesChanged = { settingsStates.streamingCacheMaxBytes.value = it },
+                onRefreshStreamingCachedSourceFiles = refreshStreamingCachedSourceFiles
+            )
+        },
+        onClearStreamingCacheNow = {
+            clearUrlCacheNowAction(
+                context = context,
+                prefs = prefs,
+                appScope = appScope,
+                cacheRoot = File(context.cacheDir, PROGRESSIVE_REMOTE_SOURCE_CACHE_DIR),
+                selectedFile = selectedFile,
+                onRefreshCachedSourceFiles = refreshStreamingCachedSourceFiles
+            )
+        },
+        onRefreshStreamingCachedSourceFiles = refreshStreamingCachedSourceFiles,
+        onDeleteStreamingCachedSourceFiles = { paths ->
+            deleteCachedSourceFilesAction(
+                context = context,
+                prefs = prefs,
+                appScope = appScope,
+                cacheRoot = File(context.cacheDir, PROGRESSIVE_REMOTE_SOURCE_CACHE_DIR),
+                selectedFile = selectedFile,
+                absolutePaths = paths,
+                onRefreshCachedSourceFiles = refreshStreamingCachedSourceFiles
+            )
+        },
+        onExportStreamingCachedSourceFiles = { paths ->
+            exportCachedSourceFilesAction(
+                context = context,
+                paths = paths,
+                onPendingCacheExportPathsChanged = { settingsStates.pendingCacheExportPaths.value = it },
+                launchDirectoryPicker = launchCacheExportDirectoryPicker
+            )
+        },
+        onKeepScreenOnChanged = onKeepScreenOnChanged,
+        onPlayerArtworkCornerRadiusDpChanged = { onPlayerArtworkCornerRadiusDpChanged(it.coerceIn(0, 48)) },
+        onShowAudioOutputRouteChipChanged = { enabled ->
+            onShowAudioOutputRouteChipChanged(enabled)
+            prefs.edit().putBoolean(AppPreferenceKeys.PLAYER_SHOW_AUDIO_OUTPUT_CHIP, enabled).apply()
+        },
+        onCanvasTapToSeekSecondsChanged = { value ->
+            val normalized = value.coerceAtLeast(0)
+            onCanvasTapToSeekSecondsChanged(normalized)
+            prefs.edit().putInt(AppPreferenceKeys.CANVAS_TAP_TO_SEEK_SECONDS, normalized).apply()
+        },
+        onFilenameDisplayModeChanged = { mode ->
+            onFilenameDisplayModeChanged(mode)
+            prefs.edit().putString(AppPreferenceKeys.FILENAME_DISPLAY_MODE, mode.storageValue).apply()
+        },
+        onFilenameOnlyWhenTitleMissingChanged = { enabled ->
+            onFilenameOnlyWhenTitleMissingChanged(enabled)
+            prefs.edit().putBoolean(AppPreferenceKeys.FILENAME_ONLY_WHEN_TITLE_MISSING, enabled).apply()
+        },
+        onUnknownTrackDurationSecondsChanged = onUnknownTrackDurationSecondsChanged,
+        onEndFadeApplyToAllTracksChanged = onEndFadeApplyToAllTracksChanged,
+        onEndFadeDurationMsChanged = onEndFadeDurationMsChanged,
+        onEndFadeCurveChanged = onEndFadeCurveChanged,
+        onVisualizationModeChanged = onVisualizationModeChanged,
+        onEnabledVisualizationModesChanged = onEnabledVisualizationModesChanged,
+        onVisualizationPerformanceModeChanged = { mode ->
+            onVisualizationPerformanceModeChanged(mode)
+            prefs.edit().putString(AppPreferenceKeys.VISUALIZATION_PERFORMANCE_MODE, mode.storageValue).apply()
+        },
+        onVisualizationShowDebugInfoChanged = onVisualizationShowDebugInfoChanged,
+        onVisualizationKeepScreenOnChanged = onVisualizationKeepScreenOnChanged,
+        onVisualizationBarCountChanged = onVisualizationBarCountChanged,
+        onVisualizationBarSmoothingPercentChanged = onVisualizationBarSmoothingPercentChanged,
+        onVisualizationBarRoundnessDpChanged = onVisualizationBarRoundnessDpChanged,
+        onVisualizationBarOverlayArtworkChanged = onVisualizationBarOverlayArtworkChanged,
+        onVisualizationBarUseThemeColorChanged = onVisualizationBarUseThemeColorChanged,
+        onVisualizationBarRenderBackendChanged = onVisualizationBarRenderBackendChanged,
+        onVisualizationOscStereoChanged = onVisualizationOscStereoChanged,
+        onVisualizationVuAnchorChanged = onVisualizationVuAnchorChanged,
+        onVisualizationVuUseThemeColorChanged = onVisualizationVuUseThemeColorChanged,
+        onVisualizationVuSmoothingPercentChanged = onVisualizationVuSmoothingPercentChanged,
+        onVisualizationVuRenderBackendChanged = onVisualizationVuRenderBackendChanged,
+        onResetVisualizationBarsSettings = {
+            resetVisualizationBarsSettingsAction(
+                prefs = prefs,
+                onBarCountChanged = onVisualizationBarCountChanged,
+                onBarSmoothingPercentChanged = onVisualizationBarSmoothingPercentChanged,
+                onBarRoundnessDpChanged = onVisualizationBarRoundnessDpChanged,
+                onBarOverlayArtworkChanged = onVisualizationBarOverlayArtworkChanged,
+                onBarUseThemeColorChanged = onVisualizationBarUseThemeColorChanged,
+                onBarRenderBackendChanged = onVisualizationBarRenderBackendChanged
+            )
+        },
+        onResetVisualizationOscilloscopeSettings = {
+            resetVisualizationOscilloscopeSettingsAction(
+                prefs = prefs,
+                onVisualizationOscStereoChanged = onVisualizationOscStereoChanged
+            )
+        },
+        onResetVisualizationVuSettings = {
+            resetVisualizationVuSettingsAction(
+                prefs = prefs,
+                onVisualizationVuAnchorChanged = onVisualizationVuAnchorChanged,
+                onVisualizationVuUseThemeColorChanged = onVisualizationVuUseThemeColorChanged,
+                onVisualizationVuSmoothingPercentChanged = onVisualizationVuSmoothingPercentChanged,
+                onVisualizationVuRenderBackendChanged = onVisualizationVuRenderBackendChanged
+            )
+        },
+        onResetVisualizationChannelScopeSettings = {
+            resetVisualizationChannelScopeSettingsAction(
+                prefs = prefs,
+                defaultScopeTextSizeSp = defaultScopeTextSizeSp
+            )
+        },
+        onResetVisualizationProjectMSettings = {
+            resetVisualizationProjectMSettingsAction(prefs = prefs)
+        },
+        onClearRecentHistory = {
+            clearRecentHistoryAction(
+                context = context,
+                prefs = prefs,
+                onRecentFoldersChanged = onRecentFoldersChanged,
+                onRecentPlayedFilesChanged = onRecentPlayedFilesChanged
+            )
+        },
+        onClearSavedNetworkSources = {
+            clearSavedNetworkSourcesFromSettings(
+                context = context,
+                prefs = prefs,
+                onNetworkNodesChanged = onNetworkNodesChanged
+            )
+        },
+        onClearAllSettings = {
+            clearAllSettingsUsingStateHolders(
+                context = context,
+                prefs = prefs,
+                defaultScopeTextSizeSp = defaultScopeTextSizeSp,
+                selectableVisualizationModes = selectableVisualizationModes,
+                onThemeModeChanged = onThemeModeChanged,
+                onUseMonetChanged = onUseMonetChanged,
+                settingsStates = settingsStates,
+                onAutoPlayOnTrackSelectChanged = onAutoPlayOnTrackSelectChanged,
+                onOpenPlayerOnTrackSelectChanged = onOpenPlayerOnTrackSelectChanged,
+                onAutoPlayNextTrackOnEndChanged = onAutoPlayNextTrackOnEndChanged,
+                onPreloadNextCachedRemoteTrackChanged = onPreloadNextCachedRemoteTrackChanged,
+                onPlaylistWrapNavigationChanged = onPlaylistWrapNavigationChanged,
+                onPreviousRestartsAfterThresholdChanged = onPreviousRestartsAfterThresholdChanged,
+                onFadePauseResumeChanged = onFadePauseResumeChanged,
+                onPersistRepeatModeChanged = onPersistRepeatModeChanged,
+                onPreferredRepeatModeChanged = onPreferredRepeatModeChanged,
+                onRememberBrowserLocationChanged = onRememberBrowserLocationChanged,
+                onShowParentDirectoryEntryChanged = onShowParentDirectoryEntryChanged,
+                onShowFileIconChipBackgroundChanged = onShowFileIconChipBackgroundChanged,
+                onBrowserNameSortModeChanged = onBrowserNameSortModeChanged,
+                onLastBrowserLocationIdChanged = onLastBrowserLocationIdChanged,
+                onLastBrowserDirectoryPathChanged = onLastBrowserDirectoryPathChanged,
+                onRecentFoldersLimitChanged = onRecentFoldersLimitChanged,
+                onRecentFilesLimitChanged = onRecentFilesLimitChanged,
+                onKeepScreenOnChanged = onKeepScreenOnChanged,
+                onPlayerArtworkCornerRadiusDpChanged = onPlayerArtworkCornerRadiusDpChanged,
+                onShowAudioOutputRouteChipChanged = onShowAudioOutputRouteChipChanged,
+                onCanvasTapToSeekSecondsChanged = onCanvasTapToSeekSecondsChanged,
+                onFilenameDisplayModeChanged = onFilenameDisplayModeChanged,
+                onFilenameOnlyWhenTitleMissingChanged = onFilenameOnlyWhenTitleMissingChanged,
+                onUnknownTrackDurationSecondsChanged = onUnknownTrackDurationSecondsChanged,
+                onEndFadeApplyToAllTracksChanged = onEndFadeApplyToAllTracksChanged,
+                onEndFadeDurationMsChanged = onEndFadeDurationMsChanged,
+                onEndFadeCurveChanged = onEndFadeCurveChanged,
+                onVisualizationModeChanged = onVisualizationModeChanged,
+                onEnabledVisualizationModesChanged = onEnabledVisualizationModesChanged,
+                onVisualizationPerformanceModeChanged = onVisualizationPerformanceModeChanged,
+                onVisualizationShowDebugInfoChanged = onVisualizationShowDebugInfoChanged,
+                onVisualizationKeepScreenOnChanged = onVisualizationKeepScreenOnChanged,
+                onVisualizationBarCountChanged = onVisualizationBarCountChanged,
+                onVisualizationBarSmoothingPercentChanged = onVisualizationBarSmoothingPercentChanged,
+                onVisualizationBarRoundnessDpChanged = onVisualizationBarRoundnessDpChanged,
+                onVisualizationBarOverlayArtworkChanged = onVisualizationBarOverlayArtworkChanged,
+                onVisualizationBarUseThemeColorChanged = onVisualizationBarUseThemeColorChanged,
+                onVisualizationBarRenderBackendChanged = onVisualizationBarRenderBackendChanged,
+                onVisualizationOscStereoChanged = onVisualizationOscStereoChanged,
+                onVisualizationVuAnchorChanged = onVisualizationVuAnchorChanged,
+                onVisualizationVuUseThemeColorChanged = onVisualizationVuUseThemeColorChanged,
+                onVisualizationVuSmoothingPercentChanged = onVisualizationVuSmoothingPercentChanged,
+                onVisualizationVuRenderBackendChanged = onVisualizationVuRenderBackendChanged
+            )
+        },
+        onClearAllPluginSettings = {
+            clearAllPluginSettingsUsingStateHolders(
+                context = context,
+                prefs = prefs,
+                settingsStates = settingsStates
+            )
+        },
+        onResetPluginSettings = { pluginName ->
+            resetPluginSettingsUsingStateHolders(
+                context = context,
+                prefs = prefs,
+                pluginName = pluginName,
+                settingsStates = settingsStates
+            )
+        }
+    )
+}
+

@@ -1,34 +1,54 @@
 package com.flopster101.siliconplayer.desktop
 
+import com.flopster101.siliconplayer.PROGRESSIVE_REMOTE_SOURCE_CACHE_DIR
 import com.flopster101.siliconplayer.REMOTE_SOURCE_CACHE_DIR
 import com.flopster101.siliconplayer.applyArchiveMountCachePolicy
-import com.flopster101.siliconplayer.applyRemoteSourceCachePolicy
+import com.flopster101.siliconplayer.applyFileSourceCachePolicy
+import com.flopster101.siliconplayer.applyStreamingSourceCachePolicy
 import com.flopster101.siliconplayer.platform.AppPreferences
 import com.flopster101.siliconplayer.readSessionResumeSnapshot
 import java.io.File
 
-// Startup cache policy mirroring MainActivity: clear/prune URL and archive caches, protecting
-// the cached file the session is about to reopen.
+// Startup cache policy mirroring MainActivity: clear/prune file, streaming, and archive caches,
+// protecting the cached file the session is about to reopen.
 internal fun applyDesktopCachePoliciesOnLaunch(
     prefs: AppPreferences,
     cacheDir: File,
     configDir: File
 ) {
-    val cacheRoot = File(cacheDir, REMOTE_SOURCE_CACHE_DIR)
-    val remoteResult = applyRemoteSourceCachePolicy(
+    val fileCacheRoot = File(cacheDir, REMOTE_SOURCE_CACHE_DIR)
+    val fileResult = applyFileSourceCachePolicy(
         prefs = prefs,
-        cacheRoot = cacheRoot,
-        protectedPaths = desktopResumedCachePaths(cacheRoot, configDir)
+        cacheRoot = fileCacheRoot,
+        protectedPaths = desktopResumedCachePaths(fileCacheRoot, configDir)
     )
-    if (remoteResult.clearedOnLaunch) {
+    if (fileResult.clearedOnLaunch) {
         println(
-            "[SiliconPlayer] cleared remote cache on launch: deleted=${remoteResult.deletedFiles} " +
-                "skipped=${remoteResult.skippedFiles} freed=${remoteResult.freedBytes}"
+            "[SiliconPlayer] cleared file cache on launch: deleted=${fileResult.deletedFiles} " +
+                "skipped=${fileResult.skippedFiles} freed=${fileResult.freedBytes}"
         )
-    } else if (remoteResult.deletedFiles > 0) {
+    } else if (fileResult.deletedFiles > 0) {
         println(
-            "[SiliconPlayer] pruned remote cache on launch: deleted=${remoteResult.deletedFiles} " +
-                "freed=${remoteResult.freedBytes} limits=(tracks=${remoteResult.maxTracks} bytes=${remoteResult.maxBytes})"
+            "[SiliconPlayer] pruned file cache on launch: deleted=${fileResult.deletedFiles} " +
+                "freed=${fileResult.freedBytes} limits=(tracks=${fileResult.maxTracks} bytes=${fileResult.maxBytes})"
+        )
+    }
+
+    val streamingCacheRoot = File(cacheDir, PROGRESSIVE_REMOTE_SOURCE_CACHE_DIR)
+    val streamingResult = applyStreamingSourceCachePolicy(
+        prefs = prefs,
+        cacheRoot = streamingCacheRoot,
+        protectedPaths = desktopResumedCachePaths(streamingCacheRoot, configDir)
+    )
+    if (streamingResult.clearedOnLaunch) {
+        println(
+            "[SiliconPlayer] cleared streaming cache on launch: deleted=${streamingResult.deletedFiles} " +
+                "skipped=${streamingResult.skippedFiles} freed=${streamingResult.freedBytes}"
+        )
+    } else if (streamingResult.deletedFiles > 0) {
+        println(
+            "[SiliconPlayer] pruned streaming cache on launch: deleted=${streamingResult.deletedFiles} " +
+                "freed=${streamingResult.freedBytes} limits=(tracks=${streamingResult.maxTracks} bytes=${streamingResult.maxBytes})"
         )
     }
 

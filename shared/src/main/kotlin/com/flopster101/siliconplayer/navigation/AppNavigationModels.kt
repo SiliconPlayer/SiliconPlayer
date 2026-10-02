@@ -18,6 +18,7 @@ enum class SettingsRoute {
     PluginVgmPlay,
     UrlCache,
     CacheManager,
+    StreamingCacheManager,
     GeneralAudio,
     Library,
     LibraryScanner,
@@ -59,6 +60,7 @@ internal fun settingsRouteOrder(route: SettingsRoute): Int = when (route) {
     SettingsRoute.PluginVgmPlay -> 2
     SettingsRoute.UrlCache -> 1
     SettingsRoute.CacheManager -> 2
+    SettingsRoute.StreamingCacheManager -> 2
     SettingsRoute.GeneralAudio -> 1
     SettingsRoute.Library -> 1
     SettingsRoute.LibraryScanner -> 2

@@ -67,26 +67,42 @@ internal data class GeneralAudioRouteActions(
 )
 
 internal data class UrlCacheRouteState(
-    val urlCacheClearOnLaunch: Boolean,
-    val urlCacheMaxTracks: Int,
-    val urlCacheMaxBytes: Long,
+    val fileCacheClearOnLaunch: Boolean,
+    val fileCacheMaxTracks: Int,
+    val fileCacheMaxBytes: Long,
+    val streamingCacheClearOnLaunch: Boolean,
+    val streamingCacheMaxTracks: Int,
+    val streamingCacheMaxBytes: Long,
     val archiveCacheClearOnLaunch: Boolean,
     val archiveCacheMaxMounts: Int,
     val archiveCacheMaxBytes: Long,
-    val archiveCacheMaxAgeDays: Int
+    val archiveCacheMaxAgeDays: Int,
+    val urlCacheClearOnLaunch: Boolean = fileCacheClearOnLaunch,
+    val urlCacheMaxTracks: Int = fileCacheMaxTracks,
+    val urlCacheMaxBytes: Long = fileCacheMaxBytes
 )
 
 internal data class UrlCacheRouteActions(
-    val onUrlCacheClearOnLaunchChanged: (Boolean) -> Unit,
-    val onUrlCacheMaxTracksChanged: (Int) -> Unit,
-    val onUrlCacheMaxBytesChanged: (Long) -> Unit,
+    val onFileCacheClearOnLaunchChanged: (Boolean) -> Unit,
+    val onFileCacheMaxTracksChanged: (Int) -> Unit,
+    val onFileCacheMaxBytesChanged: (Long) -> Unit,
+    val onOpenFileCacheManager: () -> Unit,
+    val onClearFileCacheNow: () -> Unit,
+    val onStreamingCacheClearOnLaunchChanged: (Boolean) -> Unit,
+    val onStreamingCacheMaxTracksChanged: (Int) -> Unit,
+    val onStreamingCacheMaxBytesChanged: (Long) -> Unit,
+    val onOpenStreamingCacheManager: () -> Unit,
+    val onClearStreamingCacheNow: () -> Unit,
     val onArchiveCacheClearOnLaunchChanged: (Boolean) -> Unit,
     val onArchiveCacheMaxMountsChanged: (Int) -> Unit,
     val onArchiveCacheMaxBytesChanged: (Long) -> Unit,
     val onArchiveCacheMaxAgeDaysChanged: (Int) -> Unit,
-    val onOpenCacheManager: () -> Unit,
-    val onClearUrlCacheNow: () -> Unit,
-    val onClearArchiveCacheNow: () -> Unit
+    val onClearArchiveCacheNow: () -> Unit,
+    val onOpenCacheManager: () -> Unit = onOpenFileCacheManager,
+    val onUrlCacheClearOnLaunchChanged: (Boolean) -> Unit = onFileCacheClearOnLaunchChanged,
+    val onUrlCacheMaxTracksChanged: (Int) -> Unit = onFileCacheMaxTracksChanged,
+    val onUrlCacheMaxBytesChanged: (Long) -> Unit = onFileCacheMaxBytesChanged,
+    val onClearUrlCacheNow: () -> Unit = onClearFileCacheNow
 )
 
 @Composable
@@ -213,12 +229,24 @@ internal fun UrlCacheRouteContent(
     state: UrlCacheRouteState,
     actions: UrlCacheRouteActions
 ) {
-    val urlCacheClearOnLaunch = state.urlCacheClearOnLaunch
-    val onUrlCacheClearOnLaunchChanged = actions.onUrlCacheClearOnLaunchChanged
-    val urlCacheMaxTracks = state.urlCacheMaxTracks
-    val onUrlCacheMaxTracksChanged = actions.onUrlCacheMaxTracksChanged
-    val urlCacheMaxBytes = state.urlCacheMaxBytes
-    val onUrlCacheMaxBytesChanged = actions.onUrlCacheMaxBytesChanged
+    val fileCacheClearOnLaunch = state.fileCacheClearOnLaunch
+    val onFileCacheClearOnLaunchChanged = actions.onFileCacheClearOnLaunchChanged
+    val fileCacheMaxTracks = state.fileCacheMaxTracks
+    val onFileCacheMaxTracksChanged = actions.onFileCacheMaxTracksChanged
+    val fileCacheMaxBytes = state.fileCacheMaxBytes
+    val onFileCacheMaxBytesChanged = actions.onFileCacheMaxBytesChanged
+    val onOpenFileCacheManager = actions.onOpenFileCacheManager
+    val onClearFileCacheNow = actions.onClearFileCacheNow
+
+    val streamingCacheClearOnLaunch = state.streamingCacheClearOnLaunch
+    val onStreamingCacheClearOnLaunchChanged = actions.onStreamingCacheClearOnLaunchChanged
+    val streamingCacheMaxTracks = state.streamingCacheMaxTracks
+    val onStreamingCacheMaxTracksChanged = actions.onStreamingCacheMaxTracksChanged
+    val streamingCacheMaxBytes = state.streamingCacheMaxBytes
+    val onStreamingCacheMaxBytesChanged = actions.onStreamingCacheMaxBytesChanged
+    val onOpenStreamingCacheManager = actions.onOpenStreamingCacheManager
+    val onClearStreamingCacheNow = actions.onClearStreamingCacheNow
+
     val archiveCacheClearOnLaunch = state.archiveCacheClearOnLaunch
     val onArchiveCacheClearOnLaunchChanged = actions.onArchiveCacheClearOnLaunchChanged
     val archiveCacheMaxMounts = state.archiveCacheMaxMounts
@@ -227,52 +255,94 @@ internal fun UrlCacheRouteContent(
     val onArchiveCacheMaxBytesChanged = actions.onArchiveCacheMaxBytesChanged
     val archiveCacheMaxAgeDays = state.archiveCacheMaxAgeDays
     val onArchiveCacheMaxAgeDaysChanged = actions.onArchiveCacheMaxAgeDaysChanged
-    val onOpenCacheManager = actions.onOpenCacheManager
-    val onClearUrlCacheNow = actions.onClearUrlCacheNow
     val onClearArchiveCacheNow = actions.onClearArchiveCacheNow
 
-    var showCacheTrackLimitDialog by remember { mutableStateOf(false) }
-    var showCacheSizeLimitDialog by remember { mutableStateOf(false) }
+    var showFileCacheTrackLimitDialog by remember { mutableStateOf(false) }
+    var showFileCacheSizeLimitDialog by remember { mutableStateOf(false) }
+    var showClearFileCacheConfirmDialog by remember { mutableStateOf(false) }
+
+    var showStreamingCacheTrackLimitDialog by remember { mutableStateOf(false) }
+    var showStreamingCacheSizeLimitDialog by remember { mutableStateOf(false) }
+    var showClearStreamingCacheConfirmDialog by remember { mutableStateOf(false) }
+
     var showArchiveMountLimitDialog by remember { mutableStateOf(false) }
     var showArchiveSizeLimitDialog by remember { mutableStateOf(false) }
     var showArchiveAgeLimitDialog by remember { mutableStateOf(false) }
-    var showClearCacheConfirmDialog by remember { mutableStateOf(false) }
     var showClearArchiveCacheConfirmDialog by remember { mutableStateOf(false) }
+
     SettingsSectionLabel("File cache")
     PlayerSettingToggleCard(
         title = "Clear cache on app launch",
         description = "Delete all cached files each time the app starts.",
-        checked = urlCacheClearOnLaunch,
-        onCheckedChange = onUrlCacheClearOnLaunchChanged
+        checked = fileCacheClearOnLaunch,
+        onCheckedChange = onFileCacheClearOnLaunchChanged
     )
     SettingsRowSpacer()
     SettingsItemCard(
         title = "Cache song limit",
-        description = "$urlCacheMaxTracks songs",
+        description = "$fileCacheMaxTracks songs",
         icon = Icons.Default.MoreHoriz,
-        onClick = { showCacheTrackLimitDialog = true }
+        onClick = { showFileCacheTrackLimitDialog = true }
     )
     SettingsRowSpacer()
     SettingsItemCard(
         title = "Cache size limit",
-        description = String.format(Locale.US, "%.2f GB", urlCacheMaxBytes / (1024.0 * 1024.0 * 1024.0)),
+        description = String.format(Locale.US, "%.2f GB", fileCacheMaxBytes / (1024.0 * 1024.0 * 1024.0)),
         icon = Icons.Default.MoreHoriz,
-        onClick = { showCacheSizeLimitDialog = true }
+        onClick = { showFileCacheSizeLimitDialog = true }
     )
     SettingsRowSpacer()
     SettingsItemCard(
         title = "Manage cached files",
         description = "Browse cached files, long-press multi-select, delete, and export.",
         icon = Icons.Default.MoreHoriz,
-        onClick = onOpenCacheManager
+        onClick = onOpenFileCacheManager
     )
     SettingsRowSpacer()
     SettingsItemCard(
         title = "Clear cache now",
         description = "Delete all currently cached files immediately.",
         icon = Icons.Default.Delete,
-        onClick = { showClearCacheConfirmDialog = true }
+        onClick = { showClearFileCacheConfirmDialog = true }
     )
+
+    Spacer(modifier = Modifier.height(16.dp))
+    SettingsSectionLabel("URL/Streaming cache")
+    PlayerSettingToggleCard(
+        title = "Clear cache on app launch",
+        description = "Delete streaming cache each time the app starts.",
+        checked = streamingCacheClearOnLaunch,
+        onCheckedChange = onStreamingCacheClearOnLaunchChanged
+    )
+    SettingsRowSpacer()
+    SettingsItemCard(
+        title = "Cache song limit",
+        description = "$streamingCacheMaxTracks songs",
+        icon = Icons.Default.MoreHoriz,
+        onClick = { showStreamingCacheTrackLimitDialog = true }
+    )
+    SettingsRowSpacer()
+    SettingsItemCard(
+        title = "Cache size limit",
+        description = String.format(Locale.US, "%.2f GB", streamingCacheMaxBytes / (1024.0 * 1024.0 * 1024.0)),
+        icon = Icons.Default.MoreHoriz,
+        onClick = { showStreamingCacheSizeLimitDialog = true }
+    )
+    SettingsRowSpacer()
+    SettingsItemCard(
+        title = "Manage cached files",
+        description = "Browse cached streaming files, long-press multi-select, delete, and export.",
+        icon = Icons.Default.MoreHoriz,
+        onClick = onOpenStreamingCacheManager
+    )
+    SettingsRowSpacer()
+    SettingsItemCard(
+        title = "Clear cache now",
+        description = "Delete all currently cached streaming files immediately.",
+        icon = Icons.Default.Delete,
+        onClick = { showClearStreamingCacheConfirmDialog = true }
+    )
+
     Spacer(modifier = Modifier.height(16.dp))
     SettingsSectionLabel("Archive cache")
     PlayerSettingToggleCard(
@@ -310,19 +380,19 @@ internal fun UrlCacheRouteContent(
         onClick = { showClearArchiveCacheConfirmDialog = true }
     )
 
-    if (showCacheTrackLimitDialog) {
+    if (showFileCacheTrackLimitDialog) {
         SettingsTextInputDialog(
             title = "Cache song limit",
             fieldLabel = "Max songs",
-            initialValue = urlCacheMaxTracks.toString(),
+            initialValue = fileCacheMaxTracks.toString(),
             placeholder = "100",
             keyboardType = androidx.compose.ui.text.input.KeyboardType.Number,
             sanitizer = { input -> input.filter { it.isDigit() }.take(6) },
-            onDismiss = { showCacheTrackLimitDialog = false },
+            onDismiss = { showFileCacheTrackLimitDialog = false },
             onConfirm = { input ->
                 val parsed = input.trim().toIntOrNull()
                 if (parsed != null && parsed > 0) {
-                    onUrlCacheMaxTracksChanged(parsed)
+                    onFileCacheMaxTracksChanged(parsed)
                     true
                 } else {
                     false
@@ -331,11 +401,40 @@ internal fun UrlCacheRouteContent(
         )
     }
 
-    if (showCacheSizeLimitDialog) {
+    if (showFileCacheSizeLimitDialog) {
         CacheSizeLimitDialog(
-            initialBytes = urlCacheMaxBytes,
-            onDismiss = { showCacheSizeLimitDialog = false },
-            onConfirmBytes = onUrlCacheMaxBytesChanged
+            initialBytes = fileCacheMaxBytes,
+            onDismiss = { showFileCacheSizeLimitDialog = false },
+            onConfirmBytes = onFileCacheMaxBytesChanged
+        )
+    }
+
+    if (showStreamingCacheTrackLimitDialog) {
+        SettingsTextInputDialog(
+            title = "Cache song limit",
+            fieldLabel = "Max songs",
+            initialValue = streamingCacheMaxTracks.toString(),
+            placeholder = "100",
+            keyboardType = androidx.compose.ui.text.input.KeyboardType.Number,
+            sanitizer = { input -> input.filter { it.isDigit() }.take(6) },
+            onDismiss = { showStreamingCacheTrackLimitDialog = false },
+            onConfirm = { input ->
+                val parsed = input.trim().toIntOrNull()
+                if (parsed != null && parsed > 0) {
+                    onStreamingCacheMaxTracksChanged(parsed)
+                    true
+                } else {
+                    false
+                }
+            }
+        )
+    }
+
+    if (showStreamingCacheSizeLimitDialog) {
+        CacheSizeLimitDialog(
+            initialBytes = streamingCacheMaxBytes,
+            onDismiss = { showStreamingCacheSizeLimitDialog = false },
+            onConfirmBytes = onStreamingCacheMaxBytesChanged
         )
     }
 
@@ -389,13 +488,23 @@ internal fun UrlCacheRouteContent(
         )
     }
 
-    if (showClearCacheConfirmDialog) {
+    if (showClearFileCacheConfirmDialog) {
         SettingsConfirmDialog(
             title = "Clear cached files now?",
             message = "This will remove all cached files, except the currently active one if it is being played.",
             confirmLabel = "Clear cache",
-            onDismiss = { showClearCacheConfirmDialog = false },
-            onConfirm = onClearUrlCacheNow
+            onDismiss = { showClearFileCacheConfirmDialog = false },
+            onConfirm = onClearFileCacheNow
+        )
+    }
+
+    if (showClearStreamingCacheConfirmDialog) {
+        SettingsConfirmDialog(
+            title = "Clear streaming cache now?",
+            message = "This will remove all cached streaming files, except the currently active one if it is being played.",
+            confirmLabel = "Clear cache",
+            onDismiss = { showClearStreamingCacheConfirmDialog = false },
+            onConfirm = onClearStreamingCacheNow
         )
     }
 

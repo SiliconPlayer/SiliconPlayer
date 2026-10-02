@@ -122,11 +122,15 @@ internal data class AppNavigationSettingsStates(
     val urlCacheClearOnLaunch: MutableState<Boolean>,
     val urlCacheMaxTracks: MutableIntState,
     val urlCacheMaxBytes: MutableLongState,
+    val streamingCacheClearOnLaunch: MutableState<Boolean>,
+    val streamingCacheMaxTracks: MutableIntState,
+    val streamingCacheMaxBytes: MutableLongState,
     val archiveCacheClearOnLaunch: MutableState<Boolean>,
     val archiveCacheMaxMounts: MutableIntState,
     val archiveCacheMaxBytes: MutableLongState,
     val archiveCacheMaxAgeDays: MutableIntState,
     val cachedSourceFiles: MutableState<List<CachedSourceFile>>,
+    val streamingCachedSourceFiles: MutableState<List<CachedSourceFile>>,
     val pendingCacheExportPaths: MutableState<List<String>>,
     val audioAllowBackendFallback: MutableState<Boolean>,
     val bitPerfectUsbAudio: MutableState<Boolean>,
@@ -615,6 +619,15 @@ internal fun rememberAppNavigationSettingsStates(
     val urlCacheMaxBytes = remember {
         mutableLongStateOf(prefs.getLong(AppPreferenceKeys.URL_CACHE_MAX_BYTES, SOURCE_CACHE_MAX_BYTES_DEFAULT))
     }
+    val streamingCacheClearOnLaunch = remember {
+        mutableStateOf(prefs.getBoolean(AppPreferenceKeys.STREAMING_CACHE_CLEAR_ON_LAUNCH, false))
+    }
+    val streamingCacheMaxTracks = remember {
+        mutableIntStateOf(prefs.getInt(AppPreferenceKeys.STREAMING_CACHE_MAX_TRACKS, SOURCE_CACHE_MAX_TRACKS_DEFAULT))
+    }
+    val streamingCacheMaxBytes = remember {
+        mutableLongStateOf(prefs.getLong(AppPreferenceKeys.STREAMING_CACHE_MAX_BYTES, SOURCE_CACHE_MAX_BYTES_DEFAULT))
+    }
     val archiveCacheClearOnLaunch = remember {
         mutableStateOf(prefs.getBoolean(AppPreferenceKeys.ARCHIVE_CACHE_CLEAR_ON_LAUNCH, false))
     }
@@ -628,6 +641,7 @@ internal fun rememberAppNavigationSettingsStates(
         mutableIntStateOf(prefs.getInt(AppPreferenceKeys.ARCHIVE_CACHE_MAX_AGE_DAYS, ARCHIVE_CACHE_MAX_AGE_DAYS_DEFAULT))
     }
     val cachedSourceFiles = remember { mutableStateOf<List<CachedSourceFile>>(emptyList()) }
+    val streamingCachedSourceFiles = remember { mutableStateOf<List<CachedSourceFile>>(emptyList()) }
     val pendingCacheExportPaths = remember { mutableStateOf<List<String>>(emptyList()) }
     val audioAllowBackendFallback = remember {
         mutableStateOf(prefs.getBoolean(AppPreferenceKeys.AUDIO_ALLOW_BACKEND_FALLBACK, true))
@@ -749,11 +763,15 @@ internal fun rememberAppNavigationSettingsStates(
         urlCacheClearOnLaunch = urlCacheClearOnLaunch,
         urlCacheMaxTracks = urlCacheMaxTracks,
         urlCacheMaxBytes = urlCacheMaxBytes,
+        streamingCacheClearOnLaunch = streamingCacheClearOnLaunch,
+        streamingCacheMaxTracks = streamingCacheMaxTracks,
+        streamingCacheMaxBytes = streamingCacheMaxBytes,
         archiveCacheClearOnLaunch = archiveCacheClearOnLaunch,
         archiveCacheMaxMounts = archiveCacheMaxMounts,
         archiveCacheMaxBytes = archiveCacheMaxBytes,
         archiveCacheMaxAgeDays = archiveCacheMaxAgeDays,
         cachedSourceFiles = cachedSourceFiles,
+        streamingCachedSourceFiles = streamingCachedSourceFiles,
         pendingCacheExportPaths = pendingCacheExportPaths,
         audioAllowBackendFallback = audioAllowBackendFallback,
         bitPerfectUsbAudio = bitPerfectUsbAudio,

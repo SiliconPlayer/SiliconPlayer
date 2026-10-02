@@ -142,6 +142,54 @@ internal fun updateUrlCacheMaxBytesAction(
     }
 }
 
+internal fun updateStreamingCacheMaxTracksAction(
+    value: Int,
+    prefs: SharedPreferences,
+    appScope: CoroutineScope,
+    cacheRoot: File,
+    streamingCacheMaxBytes: Long,
+    onStreamingCacheMaxTracksChanged: (Int) -> Unit,
+    onRefreshStreamingCachedSourceFiles: () -> Unit
+) {
+    val maxTracks = value.coerceAtLeast(1)
+    onStreamingCacheMaxTracksChanged(maxTracks)
+    prefs.edit().putInt(AppPreferenceKeys.STREAMING_CACHE_MAX_TRACKS, maxTracks).apply()
+    appScope.launch(Dispatchers.IO) {
+        enforceRemoteCacheLimits(
+            cacheRoot = cacheRoot,
+            maxTracks = maxTracks,
+            maxBytes = streamingCacheMaxBytes
+        )
+        withContext(Dispatchers.Main.immediate) {
+            onRefreshStreamingCachedSourceFiles()
+        }
+    }
+}
+
+internal fun updateStreamingCacheMaxBytesAction(
+    value: Long,
+    prefs: SharedPreferences,
+    appScope: CoroutineScope,
+    cacheRoot: File,
+    streamingCacheMaxTracks: Int,
+    onStreamingCacheMaxBytesChanged: (Long) -> Unit,
+    onRefreshStreamingCachedSourceFiles: () -> Unit
+) {
+    val maxBytes = value.coerceAtLeast(1L)
+    onStreamingCacheMaxBytesChanged(maxBytes)
+    prefs.edit().putLong(AppPreferenceKeys.STREAMING_CACHE_MAX_BYTES, maxBytes).apply()
+    appScope.launch(Dispatchers.IO) {
+        enforceRemoteCacheLimits(
+            cacheRoot = cacheRoot,
+            maxTracks = streamingCacheMaxTracks,
+            maxBytes = maxBytes
+        )
+        withContext(Dispatchers.Main.immediate) {
+            onRefreshStreamingCachedSourceFiles()
+        }
+    }
+}
+
 internal fun updateAudioFocusInterruptAction(
     context: Context,
     prefs: SharedPreferences,
@@ -171,6 +219,15 @@ internal fun updateUrlCacheClearOnLaunchAction(
 ) {
     onUrlCacheClearOnLaunchChanged(enabled)
     prefs.edit().putBoolean(AppPreferenceKeys.URL_CACHE_CLEAR_ON_LAUNCH, enabled).apply()
+}
+
+internal fun updateStreamingCacheClearOnLaunchAction(
+    prefs: SharedPreferences,
+    enabled: Boolean,
+    onStreamingCacheClearOnLaunchChanged: (Boolean) -> Unit
+) {
+    onStreamingCacheClearOnLaunchChanged(enabled)
+    prefs.edit().putBoolean(AppPreferenceKeys.STREAMING_CACHE_CLEAR_ON_LAUNCH, enabled).apply()
 }
 
 internal fun updateArchiveCacheClearOnLaunchAction(

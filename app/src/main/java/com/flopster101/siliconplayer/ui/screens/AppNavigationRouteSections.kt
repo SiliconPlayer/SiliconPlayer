@@ -353,6 +353,24 @@ internal fun AppNavigationSettingsRouteSection(
     }
 }
 
+@Composable
+internal fun MainSettingsRouteSection(
+    mainPadding: PaddingValues,
+    route: SettingsRoute,
+    bottomContentPadding: androidx.compose.ui.unit.Dp,
+    state: SettingsScreenState,
+    actions: SettingsScreenActions
+) {
+    AppNavigationSettingsRouteSection(mainPadding = mainPadding) {
+        SettingsScreen(
+            route = route,
+            bottomContentPadding = bottomContentPadding,
+            state = state,
+            actions = actions
+        )
+    }
+}
+
 @OptIn(ExperimentalComposeUiApi::class)
 @Composable
 internal fun AppNavigationMainScaffoldSection(

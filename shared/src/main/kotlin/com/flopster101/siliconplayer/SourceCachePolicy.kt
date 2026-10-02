@@ -27,14 +27,23 @@ internal data class ArchiveCacheLaunchPolicyResult(
     val maxAgeDays: Int
 )
 
-internal fun applyRemoteSourceCachePolicy(
+internal fun applyFileSourceCachePolicy(
     prefs: AppPreferences,
     cacheRoot: File,
     protectedPaths: Set<String> = emptySet()
 ): RemoteCacheLaunchPolicyResult {
-    val clearOnLaunch = prefs.getBoolean(AppPreferenceKeys.URL_CACHE_CLEAR_ON_LAUNCH, false)
-    val maxTracks = prefs.getInt(AppPreferenceKeys.URL_CACHE_MAX_TRACKS, SOURCE_CACHE_MAX_TRACKS_DEFAULT)
-    val maxBytes = prefs.getLong(AppPreferenceKeys.URL_CACHE_MAX_BYTES, SOURCE_CACHE_MAX_BYTES_DEFAULT)
+    val clearOnLaunch = prefs.getBoolean(
+        AppPreferenceKeys.FILE_CACHE_CLEAR_ON_LAUNCH,
+        prefs.getBoolean(AppPreferenceKeys.URL_CACHE_CLEAR_ON_LAUNCH, false)
+    )
+    val maxTracks = prefs.getInt(
+        AppPreferenceKeys.FILE_CACHE_MAX_TRACKS,
+        prefs.getInt(AppPreferenceKeys.URL_CACHE_MAX_TRACKS, SOURCE_CACHE_MAX_TRACKS_DEFAULT)
+    )
+    val maxBytes = prefs.getLong(
+        AppPreferenceKeys.FILE_CACHE_MAX_BYTES,
+        prefs.getLong(AppPreferenceKeys.URL_CACHE_MAX_BYTES, SOURCE_CACHE_MAX_BYTES_DEFAULT)
+    )
     if (!cacheRoot.exists()) {
         return RemoteCacheLaunchPolicyResult(clearOnLaunch, 0, 0, 0L, maxTracks, maxBytes)
     }
@@ -59,6 +68,45 @@ internal fun applyRemoteSourceCachePolicy(
         maxBytes = maxBytes
     )
 }
+
+internal fun applyStreamingSourceCachePolicy(
+    prefs: AppPreferences,
+    cacheRoot: File,
+    protectedPaths: Set<String> = emptySet()
+): RemoteCacheLaunchPolicyResult {
+    val clearOnLaunch = prefs.getBoolean(AppPreferenceKeys.STREAMING_CACHE_CLEAR_ON_LAUNCH, false)
+    val maxTracks = prefs.getInt(AppPreferenceKeys.STREAMING_CACHE_MAX_TRACKS, SOURCE_CACHE_MAX_TRACKS_DEFAULT)
+    val maxBytes = prefs.getLong(AppPreferenceKeys.STREAMING_CACHE_MAX_BYTES, SOURCE_CACHE_MAX_BYTES_DEFAULT)
+    if (!cacheRoot.exists()) {
+        return RemoteCacheLaunchPolicyResult(clearOnLaunch, 0, 0, 0L, maxTracks, maxBytes)
+    }
+    if (clearOnLaunch) {
+        val result = clearRemoteCacheFiles(cacheRoot, protectedPaths)
+        return RemoteCacheLaunchPolicyResult(
+            clearedOnLaunch = true,
+            deletedFiles = result.deletedFiles,
+            skippedFiles = result.skippedFiles,
+            freedBytes = result.freedBytes,
+            maxTracks = maxTracks,
+            maxBytes = maxBytes
+        )
+    }
+    val result = enforceRemoteCacheLimits(cacheRoot, maxTracks, maxBytes, protectedPaths)
+    return RemoteCacheLaunchPolicyResult(
+        clearedOnLaunch = false,
+        deletedFiles = result.deletedFiles,
+        skippedFiles = 0,
+        freedBytes = result.freedBytes,
+        maxTracks = maxTracks,
+        maxBytes = maxBytes
+    )
+}
+
+internal fun applyRemoteSourceCachePolicy(
+    prefs: AppPreferences,
+    cacheRoot: File,
+    protectedPaths: Set<String> = emptySet()
+): RemoteCacheLaunchPolicyResult = applyFileSourceCachePolicy(prefs, cacheRoot, protectedPaths)
 
 internal fun applyArchiveMountCachePolicy(
     prefs: AppPreferences,
@@ -90,18 +138,43 @@ internal fun applyArchiveMountCachePolicy(
     )
 }
 
-internal fun enforceRemoteCacheLimitsFromPrefs(
+internal fun enforceFileCacheLimitsFromPrefs(
     prefs: AppPreferences,
     cacheRoot: File,
     protectedPaths: Set<String> = emptySet()
 ): RemoteCachePruneResult {
     return enforceRemoteCacheLimits(
         cacheRoot = cacheRoot,
-        maxTracks = prefs.getInt(AppPreferenceKeys.URL_CACHE_MAX_TRACKS, SOURCE_CACHE_MAX_TRACKS_DEFAULT),
-        maxBytes = prefs.getLong(AppPreferenceKeys.URL_CACHE_MAX_BYTES, SOURCE_CACHE_MAX_BYTES_DEFAULT),
+        maxTracks = prefs.getInt(
+            AppPreferenceKeys.FILE_CACHE_MAX_TRACKS,
+            prefs.getInt(AppPreferenceKeys.URL_CACHE_MAX_TRACKS, SOURCE_CACHE_MAX_TRACKS_DEFAULT)
+        ),
+        maxBytes = prefs.getLong(
+            AppPreferenceKeys.FILE_CACHE_MAX_BYTES,
+            prefs.getLong(AppPreferenceKeys.URL_CACHE_MAX_BYTES, SOURCE_CACHE_MAX_BYTES_DEFAULT)
+        ),
         protectedPaths = protectedPaths
     )
 }
+
+internal fun enforceStreamingCacheLimitsFromPrefs(
+    prefs: AppPreferences,
+    cacheRoot: File,
+    protectedPaths: Set<String> = emptySet()
+): RemoteCachePruneResult {
+    return enforceRemoteCacheLimits(
+        cacheRoot = cacheRoot,
+        maxTracks = prefs.getInt(AppPreferenceKeys.STREAMING_CACHE_MAX_TRACKS, SOURCE_CACHE_MAX_TRACKS_DEFAULT),
+        maxBytes = prefs.getLong(AppPreferenceKeys.STREAMING_CACHE_MAX_BYTES, SOURCE_CACHE_MAX_BYTES_DEFAULT),
+        protectedPaths = protectedPaths
+    )
+}
+
+internal fun enforceRemoteCacheLimitsFromPrefs(
+    prefs: AppPreferences,
+    cacheRoot: File,
+    protectedPaths: Set<String> = emptySet()
+): RemoteCachePruneResult = enforceFileCacheLimitsFromPrefs(prefs, cacheRoot, protectedPaths)
 
 internal fun enforceArchiveMountCacheLimitsFromPrefs(
     prefs: AppPreferences,

@@ -343,6 +343,7 @@ class MainActivity : ComponentActivity() {
                 .getPreferences(AppPreferenceKeys.PREFS_NAME)
         )
         applyRemoteSourceCachePolicyOnLaunch(this, cacheDir)
+        applyStreamingSourceCachePolicyOnLaunch(this, cacheDir)
         applyArchiveMountCachePolicyOnLaunch(this, cacheDir)
         if (shouldOpenPlayerFromNotification(intent)) {
             notificationOpenPlayerSignal++
@@ -499,7 +500,7 @@ private fun resolveAutoDarkThemePreference(context: Context, systemDarkTheme: Bo
 
 private const val HOME_BACK_EXIT_TIMEOUT_MS = 2_000L
 
-private data class PendingPlaylistSubtuneSelection(
+internal data class PendingPlaylistSubtuneSelection(
     val sourceId: String,
     val subtuneIndex: Int
 )
@@ -538,7 +539,7 @@ private fun buildFavoritesPlaybackPlaylist(entries: List<PlaylistTrackEntry>): S
     )
 }
 
-private fun parsePlaylistFileDocument(
+internal fun parsePlaylistFileDocument(
     file: File,
     sourceIdHint: String?
 ): ParsedPlaylistDocument? {
@@ -550,7 +551,7 @@ private fun parsePlaylistFileDocument(
     }.getOrNull()
 }
 
-private fun openPlaylistEntry(
+internal fun openPlaylistEntry(
     context: Context,
     entry: PlaylistTrackEntry,
     playlist: StoredPlaylist?,
@@ -592,7 +593,7 @@ private fun openPlaylistEntry(
     }
 }
 
-private fun playAdjacentPlaylistEntry(
+internal fun playAdjacentPlaylistEntry(
     context: Context,
     activePlaylist: StoredPlaylist?,
     currentEntryId: String?,
@@ -643,7 +644,7 @@ private fun playAdjacentPlaylistEntry(
     return true
 }
 
-private fun openPlaylistDocument(
+internal fun openPlaylistDocument(
     context: Context,
     document: ParsedPlaylistDocument,
     trackLoadDelegates: AppNavigationTrackLoadDelegates,
@@ -682,7 +683,7 @@ private fun openPlaylistDocument(
     )
 }
 
-private fun playAdjacentBrowserFileFromAnchor(
+internal fun playAdjacentBrowserFileFromAnchor(
     context: Context,
     anchorPath: String?,
     offset: Int,
@@ -1353,162 +1354,7 @@ private fun openAudioEffectsDialogFromSettings(
     onShowAudioEffectsDialogChanged(true)
 }
 
-private fun updateAudioBackendPreferenceSelection(
-    prefs: android.content.SharedPreferences,
-    selectedBackend: AudioBackendPreference,
-    currentBackend: AudioBackendPreference,
-    currentPerformanceMode: AudioPerformanceMode,
-    currentBufferPreset: AudioBufferPreset,
-    onAudioBackendPreferenceChanged: (AudioBackendPreference) -> Unit,
-    onAudioPerformanceModeChanged: (AudioPerformanceMode) -> Unit,
-    onAudioBufferPresetChanged: (AudioBufferPreset) -> Unit
-) {
-    if (selectedBackend == currentBackend) return
 
-    prefs.edit()
-        .putString(
-            AppPreferenceKeys.audioPerformanceModeForBackend(currentBackend),
-            currentPerformanceMode.storageValue
-        )
-        .putString(
-            AppPreferenceKeys.audioBufferPresetForBackend(currentBackend),
-            currentBufferPreset.storageValue
-        )
-        .apply()
-
-    val restoredPerformanceMode = restoreAudioPerformanceModeForBackend(
-        prefs::contains,
-        prefs::getString,
-        selectedBackend
-    )
-
-    val restoredBufferPreset = restoreAudioBufferPresetForBackend(
-        prefs::contains,
-        prefs::getString,
-        selectedBackend
-    )
-
-    onAudioBackendPreferenceChanged(selectedBackend)
-    onAudioPerformanceModeChanged(restoredPerformanceMode)
-    onAudioBufferPresetChanged(restoredBufferPreset)
-}
-
-private fun clearSavedNetworkSourcesFromSettings(
-    context: Context,
-    prefs: android.content.SharedPreferences,
-    onNetworkNodesChanged: (List<NetworkNode>) -> Unit
-) {
-    onNetworkNodesChanged(emptyList())
-    clearSavedNetworkSources(prefs)
-    Toast.makeText(context, "Saved network sources cleared", Toast.LENGTH_SHORT).show()
-}
-
-private fun clearAllSettingsAndUiState(
-    context: Context,
-    prefs: android.content.SharedPreferences,
-    defaultScopeTextSizeSp: Int,
-    onThemeModeChanged: (ThemeMode) -> Unit,
-    onUseMonetChanged: (Boolean) -> Unit,
-    settingsStates: AppNavigationSettingsStates,
-    onAutoPlayOnTrackSelectChanged: (Boolean) -> Unit,
-    onOpenPlayerOnTrackSelectChanged: (Boolean) -> Unit,
-    onAutoPlayNextTrackOnEndChanged: (Boolean) -> Unit,
-    onPreloadNextCachedRemoteTrackChanged: (Boolean) -> Unit,
-    onPlaylistWrapNavigationChanged: (Boolean) -> Unit,
-    onPreviousRestartsAfterThresholdChanged: (Boolean) -> Unit,
-    onFadePauseResumeChanged: (Boolean) -> Unit,
-    onPersistRepeatModeChanged: (Boolean) -> Unit,
-    onPreferredRepeatModeChanged: (RepeatMode) -> Unit,
-    onRememberBrowserLocationChanged: (Boolean) -> Unit,
-    onShowParentDirectoryEntryChanged: (Boolean) -> Unit,
-    onShowFileIconChipBackgroundChanged: (Boolean) -> Unit,
-    onBrowserNameSortModeChanged: (BrowserNameSortMode) -> Unit,
-    onLastBrowserLocationIdChanged: (String?) -> Unit,
-    onLastBrowserDirectoryPathChanged: (String?) -> Unit,
-    onRecentFoldersLimitChanged: (Int) -> Unit,
-    onRecentFilesLimitChanged: (Int) -> Unit,
-    onKeepScreenOnChanged: (Boolean) -> Unit,
-    onPlayerArtworkCornerRadiusDpChanged: (Int) -> Unit,
-    onShowAudioOutputRouteChipChanged: (Boolean) -> Unit,
-    onCanvasTapToSeekSecondsChanged: (Int) -> Unit,
-    onFilenameDisplayModeChanged: (FilenameDisplayMode) -> Unit,
-    onFilenameOnlyWhenTitleMissingChanged: (Boolean) -> Unit,
-    onUnknownTrackDurationSecondsChanged: (Int) -> Unit,
-    onEndFadeApplyToAllTracksChanged: (Boolean) -> Unit,
-    onEndFadeDurationMsChanged: (Int) -> Unit,
-    onEndFadeCurveChanged: (EndFadeCurve) -> Unit,
-    onVisualizationModeChanged: (VisualizationMode) -> Unit,
-    onEnabledVisualizationModesChanged: (Set<VisualizationMode>) -> Unit,
-    onVisualizationPerformanceModeChanged: (VisualizationPerformanceMode) -> Unit,
-    onVisualizationShowDebugInfoChanged: (Boolean) -> Unit,
-    onVisualizationKeepScreenOnChanged: (Boolean) -> Unit,
-    onVisualizationBarCountChanged: (Int) -> Unit,
-    onVisualizationBarSmoothingPercentChanged: (Int) -> Unit,
-    onVisualizationBarRoundnessDpChanged: (Int) -> Unit,
-    onVisualizationBarOverlayArtworkChanged: (Boolean) -> Unit,
-    onVisualizationBarUseThemeColorChanged: (Boolean) -> Unit,
-    onVisualizationBarRenderBackendChanged: (VisualizationRenderBackend) -> Unit,
-    onVisualizationOscStereoChanged: (Boolean) -> Unit,
-    onVisualizationVuAnchorChanged: (VisualizationVuAnchor) -> Unit,
-    onVisualizationVuUseThemeColorChanged: (Boolean) -> Unit,
-    onVisualizationVuSmoothingPercentChanged: (Int) -> Unit,
-    onVisualizationVuRenderBackendChanged: (VisualizationRenderBackend) -> Unit
-) {
-    clearAllSettingsUsingStateHolders(
-        context = context,
-        prefs = prefs,
-        defaultScopeTextSizeSp = defaultScopeTextSizeSp,
-        selectableVisualizationModes = selectableVisualizationModes,
-        onThemeModeChanged = onThemeModeChanged,
-        onUseMonetChanged = onUseMonetChanged,
-        settingsStates = settingsStates,
-        onAutoPlayOnTrackSelectChanged = onAutoPlayOnTrackSelectChanged,
-        onOpenPlayerOnTrackSelectChanged = onOpenPlayerOnTrackSelectChanged,
-        onAutoPlayNextTrackOnEndChanged = onAutoPlayNextTrackOnEndChanged,
-        onPreloadNextCachedRemoteTrackChanged = onPreloadNextCachedRemoteTrackChanged,
-        onPlaylistWrapNavigationChanged = onPlaylistWrapNavigationChanged,
-        onPreviousRestartsAfterThresholdChanged = onPreviousRestartsAfterThresholdChanged,
-        onFadePauseResumeChanged = onFadePauseResumeChanged,
-        onPersistRepeatModeChanged = onPersistRepeatModeChanged,
-        onPreferredRepeatModeChanged = onPreferredRepeatModeChanged,
-        onRememberBrowserLocationChanged = onRememberBrowserLocationChanged,
-        onShowParentDirectoryEntryChanged = onShowParentDirectoryEntryChanged,
-        onShowFileIconChipBackgroundChanged = onShowFileIconChipBackgroundChanged,
-        onBrowserNameSortModeChanged = onBrowserNameSortModeChanged,
-        onLastBrowserLocationIdChanged = onLastBrowserLocationIdChanged,
-        onLastBrowserDirectoryPathChanged = onLastBrowserDirectoryPathChanged,
-        onRecentFoldersLimitChanged = onRecentFoldersLimitChanged,
-        onRecentFilesLimitChanged = onRecentFilesLimitChanged,
-        onKeepScreenOnChanged = onKeepScreenOnChanged,
-        onPlayerArtworkCornerRadiusDpChanged = onPlayerArtworkCornerRadiusDpChanged,
-        onShowAudioOutputRouteChipChanged = onShowAudioOutputRouteChipChanged,
-        onCanvasTapToSeekSecondsChanged = onCanvasTapToSeekSecondsChanged,
-        onFilenameDisplayModeChanged = onFilenameDisplayModeChanged,
-        onFilenameOnlyWhenTitleMissingChanged = onFilenameOnlyWhenTitleMissingChanged,
-        onUnknownTrackDurationSecondsChanged = onUnknownTrackDurationSecondsChanged,
-        onEndFadeApplyToAllTracksChanged = onEndFadeApplyToAllTracksChanged,
-        onEndFadeDurationMsChanged = onEndFadeDurationMsChanged,
-        onEndFadeCurveChanged = onEndFadeCurveChanged,
-        onVisualizationModeChanged = onVisualizationModeChanged,
-        onEnabledVisualizationModesChanged = onEnabledVisualizationModesChanged,
-        onVisualizationPerformanceModeChanged = onVisualizationPerformanceModeChanged,
-        onVisualizationShowDebugInfoChanged = onVisualizationShowDebugInfoChanged,
-        onVisualizationKeepScreenOnChanged = onVisualizationKeepScreenOnChanged,
-        onVisualizationBarCountChanged = onVisualizationBarCountChanged,
-        onVisualizationBarSmoothingPercentChanged = onVisualizationBarSmoothingPercentChanged,
-        onVisualizationBarRoundnessDpChanged = onVisualizationBarRoundnessDpChanged,
-        onVisualizationBarOverlayArtworkChanged = onVisualizationBarOverlayArtworkChanged,
-        onVisualizationBarUseThemeColorChanged = onVisualizationBarUseThemeColorChanged,
-        onVisualizationBarRenderBackendChanged = onVisualizationBarRenderBackendChanged,
-        onVisualizationOscStereoChanged = onVisualizationOscStereoChanged,
-        onVisualizationVuAnchorChanged = onVisualizationVuAnchorChanged,
-        onVisualizationVuUseThemeColorChanged = onVisualizationVuUseThemeColorChanged,
-        onVisualizationVuSmoothingPercentChanged = onVisualizationVuSmoothingPercentChanged,
-        onVisualizationVuRenderBackendChanged = onVisualizationVuRenderBackendChanged
-    )
-    // Settings only: domain-backed state (network, recents, playlists) and the
-    // active session stay intact; the nuclear reset is a separate action.
-}
 
 @Composable
 private fun HomeExitBackHandler(
@@ -2430,39 +2276,18 @@ private fun AppNavigation(
         onCachedSourceFilesChanged = { settingsStates.cachedSourceFiles.value = it }
     )
 
-    val cacheExportDirectoryLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.OpenDocumentTree()
-    ) { treeUri ->
-        val selectedPaths = settingsStates.pendingCacheExportPaths.value
-        settingsStates.pendingCacheExportPaths.value = emptyList()
-        if (treeUri == null || selectedPaths.isEmpty()) {
-            if (selectedPaths.isNotEmpty()) {
-                Toast.makeText(context, "Export canceled", Toast.LENGTH_SHORT).show()
-            }
-            return@rememberLauncherForActivityResult
-        }
-        appScope.launch(Dispatchers.IO) {
-            val result = exportCachedFilesToTree(
-                context = context,
-                treeUri = treeUri,
-                selectedPaths = selectedPaths
-            )
-            if (result.invalidDestination) {
-                withContext(Dispatchers.Main.immediate) {
-                    Toast.makeText(context, "Export failed: invalid destination", Toast.LENGTH_SHORT).show()
-                }
-                return@launch
-            }
-            withContext(Dispatchers.Main.immediate) {
-                Toast.makeText(
-                    context,
-                    "Exported ${result.exportedCount} file(s)" +
-                        if (result.failedCount > 0) " (${result.failedCount} failed)" else "",
-                    Toast.LENGTH_SHORT
-                ).show()
-            }
-        }
-    }
+    val refreshStreamingCachedSourceFiles = buildRefreshCachedSourceFilesDelegate(
+        appScope = appScope,
+        cacheRoot = File(context.cacheDir, PROGRESSIVE_REMOTE_SOURCE_CACHE_DIR),
+        onCachedSourceFilesChanged = { settingsStates.streamingCachedSourceFiles.value = it }
+    )
+
+    val cacheExportDirectoryLauncher = rememberCacheExportDirectoryLauncher(
+        context = context,
+        appScope = appScope,
+        pendingPathsProvider = { settingsStates.pendingCacheExportPaths.value },
+        onClearPendingPaths = { settingsStates.pendingCacheExportPaths.value = emptyList() }
+    )
 
     AppNavigationPendingOpenEffects(
         currentView = currentView,
@@ -2473,6 +2298,7 @@ private fun AppNavigation(
         openPlayerOnTrackSelect = openPlayerOnTrackSelect,
         supportedExtensions = supportedExtensions,
         onRefreshCachedSourceFiles = refreshCachedSourceFiles,
+        onRefreshStreamingCachedSourceFiles = refreshStreamingCachedSourceFiles,
         onSelectedFileChanged = { selectedFile = it },
         onLoadSongVolumeForFile = loadSongVolumeForFile,
         onApplyRepeatModeToNative = { applyRepeatModeToNative(activeRepeatMode) },
@@ -2636,127 +2462,6 @@ private fun AppNavigation(
         )
     }
 
-    val playbackStateDelegates = AppNavigationPlaybackStateDelegates(
-        context = context,
-        prefs = prefs,
-        selectedFileProvider = { selectedFile },
-        onSelectedFileChanged = { selectedFile = it },
-        currentPlaybackSourceIdProvider = { settingsStates.currentPlaybackSourceId.value },
-        currentPlaybackRequestUrlProvider = { currentPlaybackRequestUrl },
-        onCurrentPlaybackSourceIdChanged = { updateCurrentPlaybackSource(it) },
-        isPlayingProvider = { isPlaying },
-        lastBrowserLocationIdProvider = { lastBrowserLocationId },
-        isLocalPlayableFile = isLocalPlayableFile,
-        metadataTitleProvider = { currentEffectiveTitle() },
-        metadataArtistProvider = { currentEffectiveArtist() },
-        refreshRepeatModeForTrack = { runtimeDelegates.refreshRepeatModeForTrack() },
-        refreshSubtuneState = { runtimeDelegates.refreshSubtuneState() },
-        addRecentPlayedTrack = { path, locationId, title, artist ->
-            addRecentPlayedTrackFromPlaybackContext(path, locationId, title, artist)
-        },
-        syncPlaybackService = { runtimeDelegates.syncPlaybackService() },
-        readNativeTrackSnapshot = { readNativeTrackSnapshot() },
-        ignoreCoreVolumeForCurrentSongProvider = {
-            if (showAudioEffectsDialog) tempIgnoreCoreVolumeForSong else ignoreCoreVolumeForSong
-        },
-        onLastUsedCoreNameChanged = { lastUsedCoreName = it },
-        onPluginVolumeDbChanged = { pluginVolumeDb = it },
-        onPluginGainChanged = { NativeBridge.setPluginGain(it) },
-        onDurationChanged = { duration = it },
-        onPositionChanged = { position = it },
-        onIsPlayingChanged = { isPlaying = it },
-        onSeekInProgressChanged = {
-            seekInProgress = it
-            if (!it) deferredPlaybackSeek = null
-        },
-        onSeekUiBusyChanged = { seekUiBusy = it },
-        onSeekStartedAtMsChanged = { seekStartedAtMs = it },
-        onSeekRequestedAtMsChanged = { seekRequestedAtMs = it },
-        onMetadataTitleChanged = { metadataTitle = it },
-        onMetadataArtistChanged = { metadataArtist = it },
-        onMetadataSampleRateChanged = { metadataSampleRate = it },
-        onMetadataChannelCountChanged = { metadataChannelCount = it },
-        onMetadataBitDepthLabelChanged = { metadataBitDepthLabel = it },
-        onSubtuneCountChanged = { subtuneCount = it },
-        onCurrentSubtuneIndexChanged = { currentSubtuneIndex = it },
-        onSubtuneEntriesCleared = { subtuneEntries = emptyList() },
-        onShowSubtuneSelectorDialogChanged = { showSubtuneSelectorDialog = it },
-        onRepeatModeCapabilitiesFlagsChanged = { repeatModeCapabilitiesFlags = it },
-        onPlaybackCapabilitiesFlagsChanged = { playbackCapabilitiesFlags = it },
-        onArtworkBitmapCleared = {
-            artworkBitmap = null
-            artworkResolvedTrackKey = null
-            artworkReloadToken += 1
-        },
-        onIgnoreCoreVolumeForSongChanged = { ignoreCoreVolumeForSong = it },
-        onLastStoppedChanged = { file, sourceId ->
-            lastStoppedFile = file
-            lastStoppedSourceId = sourceId
-        },
-        onStopEngine = { NativeBridge.releaseCurrentDecoder() },
-        onMetadataAlbumChanged = { metadataAlbum = it },
-    )
-
-    val trackLoadDelegates = AppNavigationTrackLoadDelegates(
-        appScope = appScope,
-        context = context,
-        prefs = prefs,
-        repository = repository,
-        cacheRootProvider = { File(context.cacheDir, REMOTE_SOURCE_CACHE_DIR) },
-        lastBrowserLocationIdProvider = { lastBrowserLocationId },
-        isPlayingProvider = { isPlaying },
-        onResetPlayback = {
-            deferredPlaybackSeek = null
-            playbackStateDelegates.resetAndOptionallyKeepLastTrack(keepLastTrack = false)
-        },
-        onSelectedFileChanged = { selectedFile = it },
-        onCurrentPlaybackSourceIdChanged = { updateCurrentPlaybackSource(it) },
-        onCurrentPlaybackRequestUrlChanged = { currentPlaybackRequestUrl = it },
-        onActivePlaylistChanged = { activePlaylist = it },
-        onActivePlaylistEntryIdChanged = { activePlaylistEntryId = it },
-        onActivePlaylistShuffleActiveChanged = { activePlaylistShuffleActive = it },
-        onPendingPlaylistSubtuneSelectionChanged = { sourceId, subtuneIndex ->
-            pendingPlaylistSubtuneSelection =
-                if (!sourceId.isNullOrBlank() && subtuneIndex != null) {
-                    PendingPlaylistSubtuneSelection(sourceId, subtuneIndex)
-                } else {
-                    null
-                }
-        },
-        onVisiblePlayableFilesChanged = { visiblePlayableFiles = it },
-        onPlayerSurfaceVisibleChanged = { isPlayerSurfaceVisible = it },
-        loadSongVolumeForFile = loadSongVolumeForFile,
-        onSongVolumeDbChanged = { songVolumeDb = it },
-        onSongGainChanged = { NativeBridge.setSongGain(it) },
-        onResolvedDecoderState = { decoderName ->
-            playbackStateDelegates.applyResolvedDecoderState(decoderName)
-        },
-        readNativeTrackSnapshot = { readNativeTrackSnapshot() },
-        applyNativeTrackSnapshot = { snapshot -> playbackStateDelegates.applyNativeTrackSnapshot(snapshot) },
-        refreshSubtuneState = { runtimeDelegates.refreshSubtuneState() },
-        onPositionChanged = { position = it },
-        onArtworkBitmapCleared = {
-            artworkBitmap = null
-            artworkResolvedTrackKey = null
-            artworkReloadToken += 1
-        },
-        onIsPlayingChanged = { isPlaying = it },
-        refreshRepeatModeForTrack = { runtimeDelegates.refreshRepeatModeForTrack() },
-        onAddRecentPlayedTrack = { path, locationId, title, artist ->
-            addRecentPlayedTrackFromPlaybackContext(path, locationId, title, artist)
-        },
-        metadataTitleProvider = { currentEffectiveTitle() },
-        metadataArtistProvider = { currentEffectiveArtist() },
-        onStartEngine = { NativeBridge.startEngine() },
-        scheduleRecentTrackMetadataRefresh = { sourceId, locationId ->
-            scheduleRecentTrackMetadataRefreshFromPlaybackContext(sourceId, locationId)
-        },
-        onPlayerExpandedChanged = { isPlayerExpanded = it },
-        onPlaybackStartInProgressChanged = { playbackStartInProgress = it },
-        syncPlaybackService = { runtimeDelegates.syncPlaybackService() },
-        onDeferredPlaybackSeekChanged = { deferredPlaybackSeek = it }
-    )
-
     LaunchedEffect(selectedFile?.absolutePath, settingsStates.currentPlaybackSourceId.value) {
         val activeSourceId = settingsStates.currentPlaybackSourceId.value ?: selectedFile?.absolutePath
         if (deferredPlaybackSeek?.sourceId != activeSourceId) {
@@ -2804,89 +2509,102 @@ private fun AppNavigation(
         }
     }
 
-    val playbackSessionCoordinator = buildPlaybackSessionCoordinator(
-        runtimeDelegates = runtimeDelegates,
-        trackLoadDelegates = trackLoadDelegates
-    )
-
-    val manualOpenDelegates = AppNavigationManualOpenDelegates(
+    val (
+        playbackStateDelegates,
+        trackLoadDelegates,
+        playbackSessionCoordinator,
+        manualOpenDelegates
+    ) = buildAppNavigationPlaybackDelegatesBundle(
         context = context,
+        prefs = prefs,
         appScope = appScope,
         repository = repository,
         storageDescriptors = storageDescriptors,
-        openPlayerOnTrackSelectProvider = { openPlayerOnTrackSelect },
+        runtimeDelegates = runtimeDelegates,
+        selectedFileProvider = { selectedFile },
+        onSelectedFileChanged = { selectedFile = it },
+        currentPlaybackSourceIdProvider = { settingsStates.currentPlaybackSourceId.value },
+        onCurrentPlaybackSourceIdChanged = { updateCurrentPlaybackSource(it) },
+        currentPlaybackRequestUrlProvider = { currentPlaybackRequestUrl },
+        onCurrentPlaybackRequestUrlChanged = { currentPlaybackRequestUrl = it },
+        isPlayingProvider = { isPlaying },
+        onIsPlayingChanged = { isPlaying = it },
+        lastBrowserLocationIdProvider = { lastBrowserLocationId },
+        isLocalPlayableFile = isLocalPlayableFile,
+        metadataTitleProvider = { currentEffectiveTitle() },
+        metadataArtistProvider = { currentEffectiveArtist() },
+        readNativeTrackSnapshot = { readNativeTrackSnapshot() },
+        ignoreCoreVolumeForCurrentSongProvider = {
+            if (showAudioEffectsDialog) tempIgnoreCoreVolumeForSong else ignoreCoreVolumeForSong
+        },
+        onLastUsedCoreNameChanged = { lastUsedCoreName = it },
+        onPluginVolumeDbChanged = { pluginVolumeDb = it },
+        onDurationChanged = { duration = it },
+        onPositionChanged = { position = it },
+        onSeekInProgressChanged = {
+            seekInProgress = it
+            if (!it) deferredPlaybackSeek = null
+        },
+        onSeekUiBusyChanged = { seekUiBusy = it },
+        onSeekStartedAtMsChanged = { seekStartedAtMs = it },
+        onSeekRequestedAtMsChanged = { seekRequestedAtMs = it },
+        onMetadataTitleChanged = { metadataTitle = it },
+        onMetadataArtistChanged = { metadataArtist = it },
+        onMetadataAlbumChanged = { metadataAlbum = it },
+        onMetadataSampleRateChanged = { metadataSampleRate = it },
+        onMetadataChannelCountChanged = { metadataChannelCount = it },
+        onMetadataBitDepthLabelChanged = { metadataBitDepthLabel = it },
+        onSubtuneCountChanged = { subtuneCount = it },
+        onCurrentSubtuneIndexChanged = { currentSubtuneIndex = it },
+        onSubtuneEntriesCleared = { subtuneEntries = emptyList() },
+        onShowSubtuneSelectorDialogChanged = { showSubtuneSelectorDialog = it },
+        onRepeatModeCapabilitiesFlagsChanged = { repeatModeCapabilitiesFlags = it },
+        onPlaybackCapabilitiesFlagsChanged = { playbackCapabilitiesFlags = it },
+        onArtworkCleared = {
+            artworkBitmap = null
+            artworkResolvedTrackKey = null
+            artworkReloadToken += 1
+        },
+        onIgnoreCoreVolumeForSongChanged = { ignoreCoreVolumeForSong = it },
+        onLastStoppedChanged = { file, sourceId ->
+            lastStoppedFile = file
+            lastStoppedSourceId = sourceId
+        },
+        addRecentPlayedTrackFromPlaybackContext = { path, locationId, title, artist ->
+            addRecentPlayedTrackFromPlaybackContext(path, locationId, title, artist)
+        },
+        scheduleRecentTrackMetadataRefreshFromPlaybackContext = { sourceId, locationId ->
+            scheduleRecentTrackMetadataRefreshFromPlaybackContext(sourceId, locationId)
+        },
+        loadSongVolumeForFile = loadSongVolumeForFile,
+        onSongVolumeDbChanged = { songVolumeDb = it },
+        onActivePlaylistChanged = { activePlaylist = it },
+        onActivePlaylistEntryIdChanged = { activePlaylistEntryId = it },
+        onActivePlaylistShuffleActiveChanged = { activePlaylistShuffleActive = it },
+        onPendingPlaylistSubtuneSelectionChanged = { sourceId, subtuneIndex ->
+            pendingPlaylistSubtuneSelection =
+                if (!sourceId.isNullOrBlank() && subtuneIndex != null) {
+                    PendingPlaylistSubtuneSelection(sourceId, subtuneIndex)
+                } else {
+                    null
+                }
+        },
+        onVisiblePlayableFilesChanged = { visiblePlayableFiles = it },
+        onPlayerSurfaceVisibleChanged = { isPlayerSurfaceVisible = it },
         isPlayerExpandedProvider = { isPlayerExpanded },
+        onPlayerExpandedChanged = { isPlayerExpanded = it },
+        onPlaybackStartInProgressChanged = { playbackStartInProgress = it },
+        onDeferredPlaybackSeekChanged = { deferredPlaybackSeek = it },
+        openPlayerOnTrackSelectProvider = { openPlayerOnTrackSelect },
         activeRepeatModeProvider = { activeRepeatMode },
-        selectedFileAbsolutePathProvider = { selectedFile?.absolutePath },
         urlCacheMaxTracksProvider = { settingsStates.urlCacheMaxTracks.value },
         urlCacheMaxBytesProvider = { settingsStates.urlCacheMaxBytes.value },
         currentRemoteLoadJobProvider = { settingsStates.remoteLoadJob.value },
         onRemoteLoadUiStateChanged = { settingsStates.remoteLoadUiState.value = it },
         onRemoteLoadJobChanged = { settingsStates.remoteLoadJob.value = it },
-        onResetPlayback = { playbackStateDelegates.resetAndOptionallyKeepLastTrack(keepLastTrack = false) },
-        onSelectedFileChanged = { selectedFile = it },
-        onCurrentPlaybackSourceIdChanged = { settingsStates.currentPlaybackSourceId.value = it },
-        onCurrentPlaybackRequestUrlChanged = { currentPlaybackRequestUrl = it },
-        onVisiblePlayableFilesChanged = { visiblePlayableFiles = it },
-        onPlayerSurfaceVisibleChanged = { isPlayerSurfaceVisible = it },
-        onSongVolumeDbChanged = { songVolumeDb = it },
-        onSongGainChanged = { NativeBridge.setSongGain(it) },
-        onResolvedDecoderState = { decoderName ->
-            playbackStateDelegates.applyResolvedDecoderState(decoderName)
-        },
-        applyNativeTrackSnapshot = { snapshot -> playbackStateDelegates.applyNativeTrackSnapshot(snapshot) },
-        refreshSubtuneState = { runtimeDelegates.refreshSubtuneState() },
-        onPositionChanged = { position = it },
-        onArtworkBitmapCleared = {
-            artworkBitmap = null
-            artworkResolvedTrackKey = null
-            artworkReloadToken += 1
-        },
-        refreshRepeatModeForTrack = { runtimeDelegates.refreshRepeatModeForTrack() },
-        onAddRecentPlayedTrack = { path, locationId, title, artist ->
-            addRecentPlayedTrackFromPlaybackContext(path, locationId, title, artist)
-        },
-        metadataTitleProvider = { currentEffectiveTitle() },
-        metadataArtistProvider = { currentEffectiveArtist() },
         applyRepeatModeToNative = { mode -> applyRepeatModeToNative(mode) },
-        onStartEngine = { NativeBridge.startEngine() },
-        onIsPlayingChanged = { isPlaying = it },
-        scheduleRecentTrackMetadataRefresh = { sourceId, locationId ->
-            scheduleRecentTrackMetadataRefreshFromPlaybackContext(sourceId, locationId)
-        },
-        onPlayerExpandedChanged = { isPlayerExpanded = it },
-        syncPlaybackService = playbackSessionCoordinator.syncPlaybackService,
-        onBrowserLaunchTargetChanged = { launchState ->
-            var normalizedLaunchState = launchState
-            val isArchiveLogicalLocation = resolveBrowserLocationModel(
-                initialLocationId = launchState.locationId,
-                initialDirectoryPath = launchState.directoryPath,
-                initialSmbSourceNodeId = launchState.smbSourceNodeId,
-                initialHttpSourceNodeId = launchState.httpSourceNodeId,
-                initialHttpRootPath = launchState.httpRootPath
-            ) is BrowserLocationModel.ArchiveLogical
-            if (!isArchiveLogicalLocation) {
-                normalizedLaunchState = normalizedLaunchState.copy(
-                    smbSourceNodeId = null,
-                    httpSourceNodeId = null,
-                    httpRootPath = null
-                )
-            }
-            browserNavigator.updateLaunchState(normalizedLaunchState)
-        },
-        onCurrentViewChanged = { currentView = it },
-        onAddRecentFolder = { path, locationId, sourceNodeId ->
-            runtimeDelegates.addRecentFolder(path, locationId, sourceNodeId)
-        },
-        onApplyTrackSelection = { file, autoStart, expandOverride, sourceIdOverride, initialSubtuneIndex ->
-            trackLoadDelegates.applyTrackSelection(
-                file = file,
-                autoStart = autoStart,
-                expandOverride = expandOverride,
-                sourceIdOverride = sourceIdOverride,
-                initialSubtuneIndex = initialSubtuneIndex
-            )
-        }
+        browserNavigator = browserNavigator,
+        onCurrentViewChanged = { currentView = it }
     )
 
     val libraryActions = createLibraryActionHandlers(
@@ -2906,88 +2624,29 @@ private fun AppNavigation(
     val onPlayLibraryTracksAction = libraryActions.onPlay
     val onShuffleLibraryTracksAction = libraryActions.onShuffle
 
-    val openParsedPlaylistDocumentAction: (ParsedPlaylistDocument, String?) -> Unit = { document, entryId ->
-        openPlaylistDocument(
-            context = context,
-            document = document,
-            trackLoadDelegates = trackLoadDelegates,
-            manualOpenDelegates = manualOpenDelegates,
-            autoPlayOnTrackSelect = autoPlayOnTrackSelect,
-            openPlayerOnTrackSelect = openPlayerOnTrackSelect,
-            onActivePlaylistChanged = {
-                activePlaylist = it
-                activePlaylistShuffleActive = false
-            },
-            onActivePlaylistEntryIdChanged = { activePlaylistEntryId = it },
-            onShowPlaylistSelectorDialogChanged = { showPlaylistSelectorDialog = it },
-            onPendingPlaylistSubtuneSelectionChanged = { pendingPlaylistSubtuneSelection = it },
-            selectedEntryId = entryId
-        )
-    }
-    val handlePlaylistFileSelectionAction: (File, String?) -> Unit = { file, sourceIdHint ->
-        val parsed = parsePlaylistFileDocument(file, sourceIdHint)
-        if (parsed == null || parsed.entries.isEmpty()) {
-            Toast.makeText(context, "Unable to open playlist", Toast.LENGTH_SHORT).show()
-        } else {
-            pendingBrowserPlaylistDocument = parsed
-            showPlaylistPreviewDialog = false
-            showPlaylistOpenActionDialog = true
-        }
-    }
-    val openPlaylistFileImmediatelyAction: (File, String?) -> Unit = { file, sourceIdHint ->
-        val parsed = parsePlaylistFileDocument(file, sourceIdHint)
-        if (parsed == null || parsed.entries.isEmpty()) {
-            Toast.makeText(context, "Unable to open playlist", Toast.LENGTH_SHORT).show()
-        } else {
-            openParsedPlaylistDocumentAction(parsed, null)
-            pendingBrowserPlaylistDocument = null
-            showPlaylistOpenActionDialog = false
-            showPlaylistPreviewDialog = false
-        }
-    }
-    val playPendingBrowserPlaylistAction: () -> Unit = {
-        pendingBrowserPlaylistDocument?.let { document ->
-            openParsedPlaylistDocumentAction(document, null)
-            pendingBrowserPlaylistDocument = null
-            showPlaylistOpenActionDialog = false
-            showPlaylistPreviewDialog = false
-        }
-    }
-    val openPendingBrowserPlaylistEntryAction: (PlaylistTrackEntry) -> Unit = { entry ->
-        pendingBrowserPlaylistDocument?.let { document ->
-            openParsedPlaylistDocumentAction(document, entry.id)
-            pendingBrowserPlaylistDocument = null
-            showPlaylistOpenActionDialog = false
-            showPlaylistPreviewDialog = false
-        }
-    }
-    val dismissPendingBrowserPlaylistAction: () -> Unit = {
-        pendingBrowserPlaylistDocument = null
-        showPlaylistOpenActionDialog = false
-        showPlaylistPreviewDialog = false
-    }
-    val browsePendingBrowserPlaylistAction: () -> Unit = {
-        if (pendingBrowserPlaylistDocument == null) {
-            showPlaylistPreviewDialog = false
-        } else {
-            showPlaylistPreviewDialog = true
-        }
-    }
-    val playPlaylistEntryAction: (PlaylistTrackEntry, StoredPlaylist?, Boolean?) -> Unit = { entry, playlist, expandOverride ->
-        openPlaylistEntry(
-            context = context,
-            entry = entry,
-            playlist = playlist,
-            trackLoadDelegates = trackLoadDelegates,
-            manualOpenDelegates = manualOpenDelegates,
-            autoPlayOnTrackSelect = autoPlayOnTrackSelect,
-            openPlayerOnTrackSelect = openPlayerOnTrackSelect,
-            expandOverride = expandOverride ?: openPlayerOnTrackSelect,
-            onActivePlaylistChanged = { activePlaylist = it },
-            onActivePlaylistEntryIdChanged = { activePlaylistEntryId = it },
-            onPendingPlaylistSubtuneSelectionChanged = { pendingPlaylistSubtuneSelection = it }
-        )
-    }
+    val playlistActionHandlers = buildAppNavigationPlaylistActionHandlers(
+        context = context,
+        trackLoadDelegates = trackLoadDelegates,
+        manualOpenDelegates = manualOpenDelegates,
+        autoPlayOnTrackSelect = autoPlayOnTrackSelect,
+        openPlayerOnTrackSelect = openPlayerOnTrackSelect,
+        pendingBrowserPlaylistDocumentProvider = { pendingBrowserPlaylistDocument },
+        onPendingBrowserPlaylistDocumentChanged = { pendingBrowserPlaylistDocument = it },
+        onActivePlaylistChanged = { activePlaylist = it },
+        onActivePlaylistEntryIdChanged = { activePlaylistEntryId = it },
+        onActivePlaylistShuffleActiveChanged = { activePlaylistShuffleActive = it },
+        onShowPlaylistSelectorDialogChanged = { showPlaylistSelectorDialog = it },
+        onShowPlaylistOpenActionDialogChanged = { showPlaylistOpenActionDialog = it },
+        onShowPlaylistPreviewDialogChanged = { showPlaylistPreviewDialog = it },
+        onPendingPlaylistSubtuneSelectionChanged = { pendingPlaylistSubtuneSelection = it }
+    )
+    val openPlaylistFileImmediatelyAction = playlistActionHandlers.openPlaylistFileImmediately
+    val playPendingBrowserPlaylistAction = playlistActionHandlers.playPendingBrowserPlaylist
+    val openPendingBrowserPlaylistEntryAction = playlistActionHandlers.openPendingBrowserPlaylistEntry
+    val dismissPendingBrowserPlaylistAction = playlistActionHandlers.dismissPendingBrowserPlaylist
+    val browsePendingBrowserPlaylistAction = playlistActionHandlers.browsePendingBrowserPlaylist
+    val playPlaylistEntryAction = playlistActionHandlers.playPlaylistEntry
+    val handlePlaylistFileSelectionAction = playlistActionHandlers.handlePlaylistFileSelection
 
     val onAddLibraryTracksToFavoritesAction = libraryActions.onAddFavorites
     val onRemoveLibraryTracksFromFavoritesAction = libraryActions.onRemoveFavorites
@@ -3064,312 +2723,87 @@ private fun AppNavigation(
             manualOpenDelegates.applyManualInputSelection(rawInput, options, expandOverride)
         }
     )
-    val playAdjacentActivePlaylistEntryAction: (Int, Boolean?, Boolean) -> Boolean =
-        { offset, wrapOverride, notifyWrap ->
-            val currentPlaylistEntryId = currentPlaylistNavigationEntryId
-            if (
-                activePlaylist?.entries?.isNotEmpty() == true &&
-                    !currentPlaylistEntryId.isNullOrBlank()
-            ) {
-                if (usesSelfContainedPlaylistQueue) {
-                    playAdjacentPlaylistEntry(
-                        context = context,
-                        activePlaylist = activePlaylist,
-                        currentEntryId = currentPlaylistEntryId,
-                        offset = offset,
-                        wrapOverride = wrapOverride,
-                        playlistWrapNavigation = playlistWrapNavigation,
-                        notifyWrap = notifyWrap,
-                        expandOverride = isPlayerExpanded,
-                        trackLoadDelegates = trackLoadDelegates,
-                        manualOpenDelegates = manualOpenDelegates,
-                        autoPlayOnTrackSelect = autoPlayOnTrackSelect,
-                        openPlayerOnTrackSelect = openPlayerOnTrackSelect,
-                        onActivePlaylistChanged = { activePlaylist = it },
-                        onActivePlaylistEntryIdChanged = { activePlaylistEntryId = it },
-                        onPendingPlaylistSubtuneSelectionChanged = { pendingPlaylistSubtuneSelection = it }
-                    )
-                } else {
-                    playAdjacentBrowserFileFromAnchor(
-                        context = context,
-                        anchorPath = activePlaylist?.sourceIdHint,
-                        offset = offset,
-                        wrapOverride = wrapOverride,
-                        playlistWrapNavigation = playlistWrapNavigation,
-                        notifyWrap = notifyWrap,
-                        activePlaylist = activePlaylist,
-                        repository = repository,
-                        visiblePlayableFiles = visiblePlayableFiles,
-                        playlistLibraryState = playlistLibraryState,
-                        trackLoadDelegates = trackLoadDelegates,
-                        manualOpenDelegates = manualOpenDelegates,
-                        openPlayerOnTrackSelect = openPlayerOnTrackSelect,
-                        expandOverride = isPlayerExpanded,
-                        onPlaylistLibraryStateChanged = onPlaylistLibraryStateChanged,
-                        onActivePlaylistChanged = { activePlaylist = it },
-                        onActivePlaylistEntryIdChanged = { activePlaylistEntryId = it },
-                        onShowPlaylistSelectorDialogChanged = { showPlaylistSelectorDialog = it },
-                        onPendingPlaylistSubtuneSelectionChanged = { pendingPlaylistSubtuneSelection = it }
-                    ) || trackNavDelegates.playAdjacentTrack(
-                        offset = offset,
-                        notifyWrap = notifyWrap,
-                        wrapOverride = wrapOverride
-                    )
-                }
-            } else {
-                trackNavDelegates.playAdjacentTrack(
-                    offset = offset,
-                    notifyWrap = notifyWrap,
-                    wrapOverride = wrapOverride
-                )
-            }
-        }
-    val playAdjacentTrackFromUiAction: (Int, Boolean) -> Boolean = { offset, stopAtBoundary ->
-        val wrapAtBoundary = activeRepeatMode != RepeatMode.None
-        val moved = if (
-            activePlaylist?.entries?.isNotEmpty() == true &&
-                !currentPlaylistNavigationEntryId.isNullOrBlank()
-        ) {
-            playAdjacentPlaylistEntry(
-                context = context,
-                activePlaylist = activePlaylist,
-                currentEntryId = currentPlaylistNavigationEntryId,
-                offset = offset,
-                wrapOverride = false,
-                playlistWrapNavigation = playlistWrapNavigation,
-                notifyWrap = false,
-                expandOverride = isPlayerExpanded,
-                trackLoadDelegates = trackLoadDelegates,
-                manualOpenDelegates = manualOpenDelegates,
-                autoPlayOnTrackSelect = autoPlayOnTrackSelect,
-                openPlayerOnTrackSelect = openPlayerOnTrackSelect,
-                onActivePlaylistChanged = { activePlaylist = it },
-                onActivePlaylistEntryIdChanged = { activePlaylistEntryId = it },
-                onPendingPlaylistSubtuneSelectionChanged = { pendingPlaylistSubtuneSelection = it }
-            ) || playAdjacentBrowserFileFromAnchor(
-                context = context,
-                anchorPath = activePlaylist?.sourceIdHint,
-                offset = offset,
-                wrapOverride = wrapAtBoundary,
-                playlistWrapNavigation = playlistWrapNavigation,
-                notifyWrap = true,
-                activePlaylist = activePlaylist,
-                repository = repository,
-                visiblePlayableFiles = visiblePlayableFiles,
-                playlistLibraryState = playlistLibraryState,
-                trackLoadDelegates = trackLoadDelegates,
-                manualOpenDelegates = manualOpenDelegates,
-                openPlayerOnTrackSelect = openPlayerOnTrackSelect,
-                expandOverride = isPlayerExpanded,
-                onPlaylistLibraryStateChanged = onPlaylistLibraryStateChanged,
-                onActivePlaylistChanged = { activePlaylist = it },
-                onActivePlaylistEntryIdChanged = { activePlaylistEntryId = it },
-                onShowPlaylistSelectorDialogChanged = { showPlaylistSelectorDialog = it },
-                onPendingPlaylistSubtuneSelectionChanged = { pendingPlaylistSubtuneSelection = it }
-            )
-        } else {
-            val activeSourceId = settingsStates.currentPlaybackSourceId.value ?: selectedFile?.absolutePath
-            if (isRemoteQueuePlaybackSource(activeSourceId)) {
-                false
-            } else {
-                val localAnchorPath = selectedFile?.absolutePath
-                if (localAnchorPath != null) {
-                    playAdjacentBrowserFileFromAnchor(
-                        context = context,
-                        anchorPath = localAnchorPath,
-                        offset = offset,
-                        wrapOverride = wrapAtBoundary,
-                        playlistWrapNavigation = playlistWrapNavigation,
-                        notifyWrap = true,
-                        activePlaylist = null,
-                        repository = repository,
-                        visiblePlayableFiles = visiblePlayableFiles,
-                        playlistLibraryState = playlistLibraryState,
-                        trackLoadDelegates = trackLoadDelegates,
-                        manualOpenDelegates = manualOpenDelegates,
-                        openPlayerOnTrackSelect = openPlayerOnTrackSelect,
-                        expandOverride = isPlayerExpanded,
-                        onPlaylistLibraryStateChanged = onPlaylistLibraryStateChanged,
-                        onActivePlaylistChanged = { activePlaylist = it },
-                        onActivePlaylistEntryIdChanged = { activePlaylistEntryId = it },
-                        onShowPlaylistSelectorDialogChanged = { showPlaylistSelectorDialog = it },
-                        onPendingPlaylistSubtuneSelectionChanged = { pendingPlaylistSubtuneSelection = it }
-                    )
-                } else {
-                    false
-                }
-            }
-        } || trackNavDelegates.playAdjacentTrack(
-            offset = offset,
-            notifyWrap = true,
-            wrapOverride = wrapAtBoundary
-        )
-        if (!moved && stopAtBoundary && offset > 0 && !wrapAtBoundary) {
-            stopAndEmptyTrackAction(context, playbackStateDelegates)
-            true
-        } else {
-            moved
-        }
-    }
-    val playPreviousTrackFromUiAction: () -> Boolean = {
-        val restartCurrentSelection = {
-            position = 0.0
-            appScope.launch {
-                withContext(Dispatchers.PlaybackIo) {
-                    NativeBridge.seekTo(0.0)
-                }
-                playbackSessionCoordinator.syncPlaybackService()
-            }
-        }
-        val currentEntryId = currentPlaylistNavigationEntryId
-        val playlistEntries = activePlaylist?.entries
-        val usePlaylistNavigation = playlistEntries?.isNotEmpty() == true &&
-            !currentEntryId.isNullOrBlank()
-        if (!usePlaylistNavigation) {
-            trackNavDelegates.handlePreviousTrackAction()
-        } else {
-            val currentIndex = playlistEntries
-                ?.indexOfFirst { entry -> entry.id == currentEntryId }
-                ?: -1
-            val hasPreviousTrack = if (playlistWrapNavigation) {
-                currentIndex >= 0 && playlistEntries.isNotEmpty()
-            } else {
-                currentIndex > 0 && playlistEntries.isNotEmpty()
-            }
-            when (
-                resolvePreviousTrackAction(
-                    previousRestartsAfterThreshold = previousRestartsAfterThreshold,
-                    hasTrackLoaded = selectedFile != null,
-                    positionSeconds = position,
-                    hasPreviousTrack = hasPreviousTrack
-                )
-            ) {
-                PreviousTrackAction.RestartCurrent -> {
-                    restartCurrentSelection()
-                    true
-                }
-
-                PreviousTrackAction.PlayPreviousTrack -> {
-                    val moved = playAdjacentTrackFromUiAction(-1, false)
-                    if (moved) {
-                        true
-                    } else if (selectedFile != null) {
-                        restartCurrentSelection()
-                        true
-                    } else {
-                        false
-                    }
-                }
-
-                PreviousTrackAction.NoAction -> {
-                    false
-                }
-            }
-        }
-    }
-
-    // Gapless handoff for the platform Dolby core: resolve the track the
-    // advance path would play next (local files only; remote URLs stay on
-    // the normal transition). Mirrors playAdjacentTrackAction's index math.
-    val nextPlatformHandoffPath: () -> String? = {
-        val wrap = playlistWrapNavigation || activeRepeatMode == RepeatMode.Playlist
-        val entries = activePlaylist?.entries
-        val entryId = currentPlaylistNavigationEntryId
-        if (usesSelfContainedPlaylistQueue && !entries.isNullOrEmpty() && !entryId.isNullOrBlank()) {
-            val index = entries.indexOfFirst { it.id == entryId }
-            val size = entries.size
-            val next = if (index >= 0) {
-                if (wrap) entries[(index + 1) % size] else entries.getOrNull(index + 1)
-            } else null
-            next?.source?.let { src -> File(src).takeIf { it.isFile }?.absolutePath }
-        } else {
-            val index = currentTrackIndexForList(selectedFile, visiblePlayableFiles)
-            val size = visiblePlayableFiles.size
-            if (index >= 0 && size > 0) {
-                val target = if (wrap) visiblePlayableFiles[(index + 1) % size] else visiblePlayableFiles.getOrNull(index + 1)
-                target?.absolutePath
-            } else null
-        }
-    }
-
-    AppNavigationPlaybackPollEffects(
-        selectedFile = selectedFile,
-        isPlayingProvider = { isPlaying },
+    val playbackNavActions = buildAppNavigationPlaybackNavigationActions(
+        context = context,
+        appScope = appScope,
+        activeRepeatModeProvider = { activeRepeatMode },
+        activePlaylistProvider = { activePlaylist },
+        currentPlaylistNavigationEntryIdProvider = { currentPlaylistNavigationEntryId },
+        usesSelfContainedPlaylistQueueProvider = { usesSelfContainedPlaylistQueue },
+        playlistWrapNavigationProvider = { playlistWrapNavigation },
+        previousRestartsAfterThresholdProvider = { previousRestartsAfterThreshold },
         selectedFileProvider = { selectedFile },
-        isAnimatingProvider = { playerTransition.isAnyAnimating },
-        deferredPlaybackSeekProvider = { deferredPlaybackSeek },
+        visiblePlayableFilesProvider = { visiblePlayableFiles },
+        positionProvider = { position },
+        onPositionChanged = { position = it },
+        repository = repository,
+        playlistLibraryStateProvider = { playlistLibraryState },
+        onPlaylistLibraryStateChanged = onPlaylistLibraryStateChanged,
+        onActivePlaylistChanged = { activePlaylist = it },
+        onActivePlaylistEntryIdChanged = { activePlaylistEntryId = it },
+        onShowPlaylistSelectorDialogChanged = { showPlaylistSelectorDialog = it },
+        onPendingPlaylistSubtuneSelectionChanged = { pendingPlaylistSubtuneSelection = it },
+        trackLoadDelegates = trackLoadDelegates,
+        manualOpenDelegates = manualOpenDelegates,
+        trackNavDelegates = trackNavDelegates,
+        playbackStateDelegates = playbackStateDelegates,
+        syncPlaybackService = playbackSessionCoordinator.syncPlaybackService,
+        autoPlayOnTrackSelect = autoPlayOnTrackSelect,
+        openPlayerOnTrackSelect = openPlayerOnTrackSelect,
+        isPlayerExpandedProvider = { isPlayerExpanded },
+        currentPlaybackSourceIdProvider = { settingsStates.currentPlaybackSourceId.value }
+    )
+    val playAdjacentActivePlaylistEntryAction = playbackNavActions.playAdjacentActivePlaylistEntry
+    val playAdjacentTrackFromUiAction = playbackNavActions.playAdjacentTrackFromUi
+    val playPreviousTrackFromUiAction = playbackNavActions.playPreviousTrackFromUi
+    val nextPlatformHandoffPath = playbackNavActions.nextPlatformHandoffPath
+
+    val cancelRemoteNextTrackPreload = rememberRemoteNextTrackPreloadCanceller(
+        context = context,
+        isPlaying,
+        selectedFile = selectedFile,
+        currentPlaybackSourceId = settingsStates.currentPlaybackSourceId.value,
+        currentPlaybackRequestUrl = currentPlaybackRequestUrl,
+        activeRepeatMode = activeRepeatMode,
+        preloadNextCachedRemoteTrack = preloadNextCachedRemoteTrack,
+        playlistWrapNavigation = playlistWrapNavigation,
+        urlOrPathForceCaching = settingsStates.urlOrPathForceCaching.value,
+        visiblePlayableFiles = visiblePlayableFiles,
+        visiblePlayableSourceIds = RemotePlayableSourceIdsHolder.current
+    )
+
+    AppNavigationCombinedPlaybackRuntimeEffects(
+        context = context,
+        prefs = prefs,
+        appScope = appScope,
+        settingsStates = settingsStates,
+        runtimeDelegates = runtimeDelegates,
+        playbackStateDelegates = playbackStateDelegates,
+        playbackSessionCoordinator = playbackSessionCoordinator,
+        selectedFile = selectedFile,
+        currentPlaybackRequestUrl = currentPlaybackRequestUrl,
+        isPlaying = isPlaying,
+        playerTransitionIsAnyAnimating = playerTransition.isAnyAnimating,
+        deferredPlaybackSeek = deferredPlaybackSeek,
         seekInProgress = seekInProgress,
         seekStartedAtMs = seekStartedAtMs,
         seekRequestedAtMs = seekRequestedAtMs,
         seekUiBusyThresholdMs = seekUiBusyThresholdMs,
-        duration = effectiveDuration,
-        durationOverrideSeconds = playlistDurationOverride,
-        subtuneCountProvider = { subtuneCount },
-        currentSubtuneIndexProvider = { currentSubtuneIndex },
-        activeRepeatModeProvider = { activeRepeatMode },
-        nextTrackPathProvider = nextPlatformHandoffPath,
-        currentPlaybackSourceIdProvider = { settingsStates.currentPlaybackSourceId.value },
-        playbackWatchPath = settingsStates.playbackWatchPath.value,
-        metadataTitleProvider = { metadataTitle },
-        metadataArtistProvider = { metadataArtist },
-        lastBrowserLocationId = lastBrowserLocationId,
-        onSeekInProgressChanged = {
-            seekInProgress = it
-            if (!it) deferredPlaybackSeek = null
-        },
-        onSeekStartedAtMsChanged = { seekStartedAtMs = it },
-        onSeekRequestedAtMsChanged = { seekRequestedAtMs = it },
-        onSeekUiBusyChanged = { seekUiBusy = it },
-        onDurationChanged = { duration = it },
-        onPositionChanged = { position = it },
-        onIsPlayingChanged = { isPlaying = it },
-        onPlaybackWatchPathChanged = { settingsStates.playbackWatchPath.value = it },
-        onMetadataTitleChanged = { metadataTitle = it },
-        onMetadataArtistChanged = { metadataArtist = it },
-        onSubtuneCursorChanged = { _ ->
-            playbackStateDelegates.applyNativeTrackSnapshot(readNativeTrackSnapshot())
-            runtimeDelegates.refreshSubtuneState()
-            runtimeDelegates.refreshRepeatModeForTrack()
-        },
-        onAddRecentPlayedTrack = { path, locationId, title, artist ->
-            addRecentPlayedTrackFromPlaybackContext(path, locationId, title, artist)
-        },
-        onPlayAdjacentTrack = { offset, wrapOverride, notifyWrap ->
-            playAdjacentActivePlaylistEntryAction(offset, wrapOverride, notifyWrap)
-        },
-        onRestartCurrentTrack = {
-            position = 0.0
-            appScope.launch {
-                withContext(Dispatchers.PlaybackIo) {
-                    NativeBridge.seekTo(0.0)
-                }
-                runtimeDelegates.syncPlaybackService()
-            }
-        },
-        onStopPlaybackAndUnload = {
-            stopAndEmptyTrackAction(context, playbackStateDelegates)
-        },
-        isLocalPlayableFile = isLocalPlayableFile,
-        onMetadataAlbumChanged = { metadataAlbum = it },
-        metadataAlbumProvider = { metadataAlbum },
-        onMetadataSampleRateChanged = { metadataSampleRate = it },
-        onMetadataChannelCountChanged = { metadataChannelCount = it },
-        onMetadataBitDepthLabelChanged = { metadataBitDepthLabel = it },
-        onLastUsedCoreNameChanged = { lastUsedCoreName = it },
-        onSubtuneCountChanged = { subtuneCount = it },
-        onCurrentSubtuneIndexChanged = { currentSubtuneIndex = it },
-        onRepeatModeCapabilitiesFlagsChanged = { repeatModeCapabilitiesFlags = it },
-        onPlaybackCapabilitiesFlagsChanged = { playbackCapabilitiesFlags = it },
-    )
-
-    AppNavigationTrackPreferenceEffects(
-        context = context,
-        prefs = prefs,
-        selectedFile = selectedFile,
-        currentPlaybackSourceId = settingsStates.currentPlaybackSourceId.value,
-        currentPlaybackRequestUrl = currentPlaybackRequestUrl,
-        artworkReloadToken = artworkReloadToken,
+        effectiveDuration = effectiveDuration,
+        playlistDurationOverride = playlistDurationOverride,
+        subtuneCount = subtuneCount,
+        currentSubtuneIndex = currentSubtuneIndex,
+        activeRepeatMode = activeRepeatMode,
         preferredRepeatMode = preferredRepeatMode,
+        persistRepeatMode = persistRepeatMode,
+        nextPlatformHandoffPath = nextPlatformHandoffPath,
+        metadataTitle = metadataTitle,
+        metadataArtist = metadataArtist,
+        metadataAlbum = metadataAlbum,
+        effectiveMetadataTitle = effectiveMetadataTitle,
+        effectiveMetadataArtist = effectiveMetadataArtist,
+        lastBrowserLocationId = lastBrowserLocationId,
+        isLocalPlayableFile = isLocalPlayableFile,
         isPlayerSurfaceVisible = isPlayerSurfaceVisible,
         autoPlayOnTrackSelect = autoPlayOnTrackSelect,
         openPlayerOnTrackSelect = openPlayerOnTrackSelect,
@@ -3384,10 +2818,40 @@ private fun AppNavigation(
         showFileIconChipBackground = showFileIconChipBackground,
         sortArchivesBeforeFiles = sortArchivesBeforeFiles,
         browserNameSortMode = browserNameSortMode,
+        artworkReloadToken = artworkReloadToken,
+        unknownTrackDurationSeconds = unknownTrackDurationSeconds,
+        notificationOpenSignal = MainActivity.notificationOpenPlayerSignal,
+        readNativeTrackSnapshot = { readNativeTrackSnapshot() },
+        addRecentPlayedTrackFromPlaybackContext = { path, locationId, title, artist ->
+            addRecentPlayedTrackFromPlaybackContext(path, locationId, title, artist)
+        },
+        playAdjacentActivePlaylistEntryAction = { offset, wrapOverride, notifyWrap ->
+            playAdjacentActivePlaylistEntryAction(offset, wrapOverride, notifyWrap)
+        },
+        applyNetworkSourceMetadata = { sourceId, title, artist ->
+            applyNetworkSourceMetadata(sourceId, title, artist)
+        },
+        onSeekInProgressChanged = { seekInProgress = it },
+        onDeferredPlaybackSeekCleared = { deferredPlaybackSeek = null },
+        onSeekStartedAtMsChanged = { seekStartedAtMs = it },
+        onSeekRequestedAtMsChanged = { seekRequestedAtMs = it },
+        onSeekUiBusyChanged = { seekUiBusy = it },
+        onDurationChanged = { duration = it },
+        onPositionChanged = { position = it },
+        onIsPlayingChanged = { isPlaying = it },
+        onMetadataTitleChanged = { metadataTitle = it },
+        onMetadataArtistChanged = { metadataArtist = it },
+        onMetadataAlbumChanged = { metadataAlbum = it },
+        onMetadataSampleRateChanged = { metadataSampleRate = it },
+        onMetadataChannelCountChanged = { metadataChannelCount = it },
+        onMetadataBitDepthLabelChanged = { metadataBitDepthLabel = it },
+        onLastUsedCoreNameChanged = { lastUsedCoreName = it },
+        onSubtuneCountChanged = { subtuneCount = it },
+        onCurrentSubtuneIndexChanged = { currentSubtuneIndex = it },
+        onRepeatModeCapabilitiesFlagsChanged = { repeatModeCapabilitiesFlags = it },
+        onPlaybackCapabilitiesFlagsChanged = { playbackCapabilitiesFlags = it },
         onArtworkBitmapChanged = { artworkBitmap = it },
         onArtworkResolvedTrackKeyChanged = { artworkResolvedTrackKey = it },
-        refreshRepeatModeForTrack = { runtimeDelegates.refreshRepeatModeForTrack() },
-        refreshSubtuneState = { runtimeDelegates.refreshSubtuneState() },
         resetSubtuneUiState = {
             subtuneCount = 0
             currentSubtuneIndex = 0
@@ -3404,72 +2868,6 @@ private fun AppNavigation(
             lastBrowserDirectoryPath = null
         }
     )
-
-    val cancelRemoteNextTrackPreload = rememberRemoteNextTrackPreloadCanceller(
-        context = context,
-        isPlaying,
-        selectedFile = selectedFile,
-        currentPlaybackSourceId = settingsStates.currentPlaybackSourceId.value,
-        currentPlaybackRequestUrl = currentPlaybackRequestUrl,
-        activeRepeatMode = activeRepeatMode,
-        preloadNextCachedRemoteTrack = preloadNextCachedRemoteTrack,
-        playlistWrapNavigation = playlistWrapNavigation,
-        urlOrPathForceCaching = settingsStates.urlOrPathForceCaching.value,
-        visiblePlayableFiles = visiblePlayableFiles,
-        visiblePlayableSourceIds = RemotePlayableSourceIdsHolder.current
-    )
-
-    AppNavigationCoreEffectsFromSettingsStates(
-        prefs = prefs,
-        settingsStates = settingsStates,
-        unknownTrackDurationSeconds = unknownTrackDurationSeconds,
-        applyCoreOptionWithPolicyFn = { coreName, optionName, optionValue, policy, optionLabel ->
-            playbackStateDelegates.applyCoreOptionWithPolicy(
-                coreName = coreName,
-                optionName = optionName,
-                optionValue = optionValue,
-                policy = policy,
-                optionLabel = optionLabel
-            )
-        }
-    )
-
-    val notificationOpenSignal = MainActivity.notificationOpenPlayerSignal
-
-    AppNavigationPlaybackEffects(
-        context = context,
-        prefs = prefs,
-        respondHeadphoneMediaButtons = settingsStates.respondHeadphoneMediaButtons.value,
-        pauseOnHeadphoneDisconnect = settingsStates.pauseOnHeadphoneDisconnect.value,
-        audioBackendPreference = settingsStates.audioBackendPreference.value,
-        audioPerformanceMode = settingsStates.audioPerformanceMode.value,
-        audioBufferPreset = settingsStates.audioBufferPreset.value,
-        audioResamplerPreference = settingsStates.audioResamplerPreference.value,
-        audioOutputLimiterEnabled = settingsStates.audioOutputLimiterEnabled.value,
-        lookaheadClipperMode = settingsStates.lookaheadClipperMode.value,
-        multiChannelOutputMode = settingsStates.multiChannelOutputMode.value,
-        audioAllowBackendFallback = settingsStates.audioAllowBackendFallback.value,
-        bitPerfectUsbAudio = settingsStates.bitPerfectUsbAudio.value,
-        pendingSoxExperimentalDialog = settingsStates.pendingSoxExperimentalDialog.value,
-        onPendingSoxExperimentalDialogChanged = { settingsStates.pendingSoxExperimentalDialog.value = it },
-        onShowSoxExperimentalDialogChanged = { settingsStates.showSoxExperimentalDialog.value = it },
-        openPlayerFromNotification = settingsStates.openPlayerFromNotification.value,
-        persistRepeatMode = persistRepeatMode,
-        preferredRepeatMode = preferredRepeatMode,
-        selectedFile = selectedFile,
-        currentPlaybackSourceId = settingsStates.currentPlaybackSourceId.value,
-        isPlaying = isPlaying,
-        metadataTitle = effectiveMetadataTitle,
-        metadataArtist = effectiveMetadataArtist,
-        duration = effectiveDuration,
-        notificationOpenSignal = notificationOpenSignal,
-        syncPlaybackService = playbackSessionCoordinator.syncPlaybackService,
-        restorePlayerStateFromSessionAndNative = playbackSessionCoordinator.restorePlayerStateFromSessionAndNative
-    )
-    LaunchedEffect(settingsStates.currentPlaybackSourceId.value, metadataTitle, metadataArtist) {
-        val sourceId = settingsStates.currentPlaybackSourceId.value ?: return@LaunchedEffect
-        applyNetworkSourceMetadata(sourceId, metadataTitle, metadataArtist)
-    }
 
     if (!storagePermissionState.hasPermission) {
         StoragePermissionRequiredScreen(
@@ -4201,551 +3599,198 @@ private fun AppNavigation(
         )
     }
 
-    val settingsRouteContent: @Composable (androidx.compose.foundation.layout.PaddingValues) -> Unit = { mainPadding ->
-        AppNavigationSettingsRouteSection(mainPadding = mainPadding) {
-            val settingsPluginCoreActions = buildSettingsPluginCoreActionsFromStateHolders(
-                settingsStates = settingsStates,
-                onOpenVgmPlayChipSettings = {
-                    openSettingsRoute(SettingsRoute.PluginVgmPlayChipSettings, false)
-                },
-                onPluginSelected = { pluginName ->
-                    selectedPluginName = pluginName
-                    openSettingsRoute(SettingsRoute.PluginDetail, false)
-                },
-                onPluginEnabledChanged = { pluginName, enabled ->
-                    NativeBridge.setDecoderEnabled(pluginName, enabled)
-                    savePluginConfiguration(prefs, pluginName)
-                    decoderIconHintsVersion++
-                },
-                onPluginPriorityChanged = { pluginName, priority ->
-                    NativeBridge.setDecoderPriority(pluginName, priority)
-                    normalizeDecoderPriorityValues()
-                    persistAllPluginConfigurations(prefs)
-                    decoderIconHintsVersion++
-                },
-                onPluginPriorityOrderChanged = { orderedPluginNames ->
-                    applyDecoderPriorityOrder(orderedPluginNames, prefs)
-                    decoderIconHintsVersion++
-                },
-                onPluginExtensionsChanged = { pluginName, extensions ->
-                    NativeBridge.setDecoderEnabledExtensions(pluginName, extensions)
-                    savePluginConfiguration(prefs, pluginName)
-                    decoderIconHintsVersion++
-                }
-            )
-            SettingsScreen(
-                                route = settingsRoute,
-                                bottomContentPadding = miniPlayerListInset,
-                                state = buildSettingsScreenStateFromStateHolders(
-                                    selectedPluginName = selectedPluginName,
-                                    autoPlayOnTrackSelect = autoPlayOnTrackSelect,
-                                    openPlayerOnTrackSelect = openPlayerOnTrackSelect,
-                                    autoPlayNextTrackOnEnd = autoPlayNextTrackOnEnd,
-                                    preloadNextCachedRemoteTrack = preloadNextCachedRemoteTrack,
-                                    playlistWrapNavigation = playlistWrapNavigation,
-                                    previousRestartsAfterThreshold = previousRestartsAfterThreshold,
-                                    fadePauseResume = fadePauseResume,
-                                    audioFocusInterrupt = audioFocusInterrupt,
-                                    audioDucking = audioDucking,
-                                    persistRepeatMode = persistRepeatMode,
-                                    themeMode = themeMode,
-                                    useMonet = useMonet,
-                                    monetAvailable = monetAvailable,
-                                    rememberBrowserLocation = rememberBrowserLocation,
-                                    showParentDirectoryEntry = showParentDirectoryEntry,
-                                    showFileIconChipBackground = showFileIconChipBackground,
-                            sortArchivesBeforeFiles = sortArchivesBeforeFiles,
-                                    browserNameSortMode = browserNameSortMode,
-                                    recentFoldersLimit = recentFoldersLimit,
-                                    recentFilesLimit = recentFilesLimit,
-                                    pressBackTwiceToExit = pressBackTwiceToExit,
-                                    keepScreenOn = keepScreenOn,
-                                    playerArtworkCornerRadiusDp = playerArtworkCornerRadiusDp,
-                                    showAudioOutputRouteChip = showAudioOutputRouteChip,
-                                    canvasTapToSeekSeconds = canvasTapToSeekSeconds,
-                                    filenameDisplayMode = filenameDisplayMode,
-filenameOnlyWhenTitleMissing = filenameOnlyWhenTitleMissing,
-                                    unknownTrackDurationSeconds = unknownTrackDurationSeconds,
-                                    endFadeApplyToAllTracks = endFadeApplyToAllTracks,
-                                    endFadeDurationMs = endFadeDurationMs,
-                                    endFadeCurve = endFadeCurve,
-                                    visualizationMode = visualizationMode,
-                                    enabledVisualizationModes = enabledVisualizationModes,
-                                    visualizationPerformanceMode = visualizationPerformanceMode,
-                                    visualizationShowDebugInfo = visualizationShowDebugInfo,
-                                    visualizationKeepScreenOn = visualizationKeepScreenOn,
-                                    visualizationBarCount = visualizationBarCount,
-                                    visualizationBarSmoothingPercent = visualizationBarSmoothingPercent,
-                                    visualizationBarRoundnessDp = visualizationBarRoundnessDp,
-                                    visualizationBarOverlayArtwork = visualizationBarOverlayArtwork,
-                                    visualizationBarUseThemeColor = visualizationBarUseThemeColor,
-                                    visualizationBarRenderBackend = visualizationBarRenderBackend,
-                                    visualizationOscStereo = visualizationOscStereo,
-                                    visualizationVuAnchor = visualizationVuAnchor,
-                                    visualizationVuUseThemeColor = visualizationVuUseThemeColor,
-                                    visualizationVuSmoothingPercent = visualizationVuSmoothingPercent,
-                                    visualizationVuRenderBackend = visualizationVuRenderBackend,
-                                    ffmpegCapabilities = ffmpegCapabilities,
-                                    openMptCapabilities = openMptCapabilities,
-                                    vgmPlayCapabilities = vgmPlayCapabilities,
-                                    settingsStates = settingsStates
-                                ),
-                                actions = SettingsScreenActions(
-                                    onBack = {
-                            if (!popSettingsRoute()) {
-                                exitSettingsToReturnView()
-                            }
-                        },
-                                    onOpenAudioPlugins = { openSettingsRoute(SettingsRoute.AudioPlugins, false) },
-                                    onOpenGeneralAudio = { openSettingsRoute(SettingsRoute.GeneralAudio, false) },
-                                    onOpenLibrary = { openSettingsRoute(SettingsRoute.Library, false) },
-                                    onOpenLibraryScanner = { openSettingsRoute(SettingsRoute.LibraryScanner, false) },
-                                    onOpenHome = { openSettingsRoute(SettingsRoute.Home, false) },
-                                    onOpenFileBrowser = { openSettingsRoute(SettingsRoute.FileBrowser, false) },
-                                    onOpenNetwork = { openSettingsRoute(SettingsRoute.Network, false) },
-                                    onOpenAudioEffects = {
-                            openAudioEffectsDialogFromSettings(
-                                masterVolumeDb = masterVolumeDb,
-                                pluginVolumeDb = pluginVolumeDb,
-                                songVolumeDb = songVolumeDb,
-                                ignoreCoreVolumeForSong = ignoreCoreVolumeForSong,
-                                forceMono = forceMono,
-                                onTempMasterVolumeDbChanged = { tempMasterVolumeDb = it },
-                                onTempPluginVolumeDbChanged = { tempPluginVolumeDb = it },
-                                onTempSongVolumeDbChanged = { tempSongVolumeDb = it },
-                                onTempIgnoreCoreVolumeForSongChanged = { tempIgnoreCoreVolumeForSong = it },
-                                onTempForceMonoChanged = { tempForceMono = it },
-                                onShowAudioEffectsDialogChanged = { showAudioEffectsDialog = it }
-                            )
-                        },
-                                    onClearAllAudioParameters = {
-                            clearAllAudioParametersAction(
-                                context = context,
-                                prefs = prefs,
-                                volumeDatabase = volumeDatabase,
-                                onMasterVolumeDbChanged = { masterVolumeDb = it },
-                                onPluginVolumeDbChanged = { pluginVolumeDb = it },
-                                onSongVolumeDbChanged = { songVolumeDb = it },
-                                onIgnoreCoreVolumeForSongChanged = { ignoreCoreVolumeForSong = it },
-                                onForceMonoChanged = { forceMono = it }
-                            )
-                        },
-                                    onClearPluginAudioParameters = {
-                            clearPluginAudioParametersAction(
-                                context = context,
-                                prefs = prefs,
-                                onPluginVolumeDbChanged = { pluginVolumeDb = it }
-                            )
-                        },
-                                    onClearSongAudioParameters = {
-                            clearSongAudioParametersAction(
-                                context = context,
-                                volumeDatabase = volumeDatabase,
-                                onSongVolumeDbChanged = { songVolumeDb = it },
-                                onIgnoreCoreVolumeForSongChanged = { ignoreCoreVolumeForSong = it }
-                            )
-                            NativeBridge.setPluginGain(pluginVolumeDb)
-                        },
-                                    onOpenPlayer = { openSettingsRoute(SettingsRoute.Player, false) },
-                                    onOpenVisualization = { openSettingsRoute(SettingsRoute.Visualization, false) },
-                                    onOpenVisualizationBasic = { openSettingsRoute(SettingsRoute.VisualizationBasic, false) },
-                                    onOpenVisualizationTrackTicker = { openSettingsRoute(SettingsRoute.VisualizationTrackTicker, false) },
-                                    onOpenVisualizationBasicBars = { openSettingsRoute(SettingsRoute.VisualizationBasicBars, false) },
-                                    onOpenVisualizationBasicOscilloscope = { openSettingsRoute(SettingsRoute.VisualizationBasicOscilloscope, false) },
-                                    onOpenVisualizationBasicVuMeters = { openSettingsRoute(SettingsRoute.VisualizationBasicVuMeters, false) },
-                                    onOpenVisualizationAdvanced = { openSettingsRoute(SettingsRoute.VisualizationAdvanced, false) },
-                                    onOpenVisualizationAdvancedChannelScope = {
-                            openSettingsRoute(SettingsRoute.VisualizationAdvancedChannelScope, false)
-                        },
-                                    onOpenVisualizationAdvancedStarfield = {
-                            openSettingsRoute(SettingsRoute.VisualizationAdvancedStarfield, false)
-                        },
-                                    onOpenVisualizationAdvancedProjectM = {
-                            openSettingsRoute(SettingsRoute.VisualizationAdvancedProjectM, false)
-                        },
-                                    onOpenVisualizationProjectMPacks = {
-                            openSettingsRoute(SettingsRoute.VisualizationAdvancedProjectMPacks, false)
-                        },
-                                    onOpenMisc = { openSettingsRoute(SettingsRoute.Misc, false) },
-                                    onOpenUrlCache = { openSettingsRoute(SettingsRoute.UrlCache, false) },
-                                    onOpenCacheManager = {
-                            refreshCachedSourceFiles()
-                            openSettingsRoute(SettingsRoute.CacheManager, false)
-                        },
-                                    onOpenUi = { openSettingsRoute(SettingsRoute.Ui, false) },
-                                    onOpenAbout = { openSettingsRoute(SettingsRoute.About, false) },
-                                    pluginCoreActions = settingsPluginCoreActions,
-                                    onAutoPlayOnTrackSelectChanged = { autoPlayOnTrackSelect = it },
-                                    onOpenPlayerOnTrackSelectChanged = { openPlayerOnTrackSelect = it },
-                                    onAutoPlayNextTrackOnEndChanged = { autoPlayNextTrackOnEnd = it },
-                                    onPreloadNextCachedRemoteTrackChanged = { preloadNextCachedRemoteTrack = it },
-                                    onPlaylistWrapNavigationChanged = { playlistWrapNavigation = it },
-                                    onPreviousRestartsAfterThresholdChanged = { previousRestartsAfterThreshold = it },
-                                    onFadePauseResumeChanged = { fadePauseResume = it },
-                                    onRespondHeadphoneMediaButtonsChanged = { settingsStates.respondHeadphoneMediaButtons.value = it },
-                                    onPauseOnHeadphoneDisconnectChanged = { settingsStates.pauseOnHeadphoneDisconnect.value = it },
-                                    onAudioFocusInterruptChanged = {
-                            updateAudioFocusInterruptAction(
-                                context = context,
-                                prefs = prefs,
-                                enabled = it,
-                                onAudioFocusInterruptChanged = { audioFocusInterrupt = it }
-                            )
-                        },
-                                    onAudioDuckingChanged = {
-                            updateAudioDuckingAction(
-                                context = context,
-                                prefs = prefs,
-                                enabled = it,
-                                onAudioDuckingChanged = { audioDucking = it }
-                            )
-                        },
-                                    onAudioBackendPreferenceChanged = { selectedBackend ->
-                            updateAudioBackendPreferenceSelection(
-                                prefs = prefs,
-                                selectedBackend = selectedBackend,
-                                currentBackend = settingsStates.audioBackendPreference.value,
-                                currentPerformanceMode = settingsStates.audioPerformanceMode.value,
-                                currentBufferPreset = settingsStates.audioBufferPreset.value,
-                                onAudioBackendPreferenceChanged = { settingsStates.audioBackendPreference.value = it },
-                                onAudioPerformanceModeChanged = { settingsStates.audioPerformanceMode.value = it },
-                                onAudioBufferPresetChanged = { settingsStates.audioBufferPreset.value = it }
-                            )
-                        },
-                                    onAudioPerformanceModeChanged = { settingsStates.audioPerformanceMode.value = it },
-                                    onAudioBufferPresetChanged = { settingsStates.audioBufferPreset.value = it },
-                                    onAudioResamplerPreferenceChanged = {
-                            settingsStates.audioResamplerPreference.value = it
-                            if (it == AudioResamplerPreference.Sox) {
-                                settingsStates.pendingSoxExperimentalDialog.value = true
-                            }
-                        },
-                                    onAudioOutputLimiterEnabledChanged = { settingsStates.audioOutputLimiterEnabled.value = it },
-                                    onLookaheadClipperModeChanged = { settingsStates.lookaheadClipperMode.value = it },
-                                    onMultiChannelOutputModeChanged = { settingsStates.multiChannelOutputMode.value = it },
-                                    onAudioAllowBackendFallbackChanged = { settingsStates.audioAllowBackendFallback.value = it },
-                                    onBitPerfectUsbAudioChanged = { settingsStates.bitPerfectUsbAudio.value = it },
-                                    onOpenPlayerFromNotificationChanged = { settingsStates.openPlayerFromNotification.value = it },
-                                    onPersistRepeatModeChanged = { persistRepeatMode = it },
-                                    onThemeModeChanged = onThemeModeChanged,
-                                    onUseMonetChanged = onUseMonetChanged,
-                                    onRememberBrowserLocationChanged = { rememberBrowserLocation = it },
-                                    onShowParentDirectoryEntryChanged = { showParentDirectoryEntry = it },
-                                    onShowFileIconChipBackgroundChanged = { showFileIconChipBackground = it },
-                                    onSortArchivesBeforeFilesChanged = { sortArchivesBeforeFiles = it },
-                                    onBrowserNameSortModeChanged = { browserNameSortMode = it },
-                                    onRecentFoldersLimitChanged = { recentFoldersLimit = it.coerceIn(1, RECENTS_LIMIT_MAX) },
-                                    onRecentFilesLimitChanged = { recentFilesLimit = it.coerceIn(1, RECENTS_LIMIT_MAX) },
-                                    onPressBackTwiceToExitChanged = { pressBackTwiceToExit = it },
-                                    onUrlCacheClearOnLaunchChanged = { enabled ->
-                            updateUrlCacheClearOnLaunchAction(
-                                prefs = prefs,
-                                enabled = enabled,
-                                onUrlCacheClearOnLaunchChanged = { settingsStates.urlCacheClearOnLaunch.value = it }
-                            )
-                        },
-                                    onUrlCacheMaxTracksChanged = { value ->
-                            updateUrlCacheMaxTracksAction(
-                                value = value,
-                                prefs = prefs,
-                                appScope = appScope,
-                                cacheRoot = File(context.cacheDir, REMOTE_SOURCE_CACHE_DIR),
-                                urlCacheMaxBytes = settingsStates.urlCacheMaxBytes.value,
-                                onUrlCacheMaxTracksChanged = { settingsStates.urlCacheMaxTracks.value = it },
-                                onRefreshCachedSourceFiles = refreshCachedSourceFiles
-                            )
-                        },
-                                    onUrlCacheMaxBytesChanged = { value ->
-                            updateUrlCacheMaxBytesAction(
-                                value = value,
-                                prefs = prefs,
-                                appScope = appScope,
-                                cacheRoot = File(context.cacheDir, REMOTE_SOURCE_CACHE_DIR),
-                                urlCacheMaxTracks = settingsStates.urlCacheMaxTracks.value,
-                                onUrlCacheMaxBytesChanged = { settingsStates.urlCacheMaxBytes.value = it },
-                                onRefreshCachedSourceFiles = refreshCachedSourceFiles
-                            )
-                        },
-                                    onArchiveCacheClearOnLaunchChanged = { enabled ->
-                            updateArchiveCacheClearOnLaunchAction(
-                                prefs = prefs,
-                                enabled = enabled,
-                                onArchiveCacheClearOnLaunchChanged = { settingsStates.archiveCacheClearOnLaunch.value = it }
-                            )
-                        },
-                                    onArchiveCacheMaxMountsChanged = { value ->
-                            updateArchiveCacheMaxMountsAction(
-                                value = value,
-                                prefs = prefs,
-                                appScope = appScope,
-                                cacheDir = context.cacheDir,
-                                archiveCacheMaxBytes = settingsStates.archiveCacheMaxBytes.value,
-                                archiveCacheMaxAgeDays = settingsStates.archiveCacheMaxAgeDays.value,
-                                onArchiveCacheMaxMountsChanged = { settingsStates.archiveCacheMaxMounts.value = it }
-                            )
-                        },
-                                    onArchiveCacheMaxBytesChanged = { value ->
-                            updateArchiveCacheMaxBytesAction(
-                                value = value,
-                                prefs = prefs,
-                                appScope = appScope,
-                                cacheDir = context.cacheDir,
-                                archiveCacheMaxMounts = settingsStates.archiveCacheMaxMounts.value,
-                                archiveCacheMaxAgeDays = settingsStates.archiveCacheMaxAgeDays.value,
-                                onArchiveCacheMaxBytesChanged = { settingsStates.archiveCacheMaxBytes.value = it }
-                            )
-                        },
-                                    onArchiveCacheMaxAgeDaysChanged = { value ->
-                            updateArchiveCacheMaxAgeDaysAction(
-                                value = value,
-                                prefs = prefs,
-                                appScope = appScope,
-                                cacheDir = context.cacheDir,
-                                archiveCacheMaxMounts = settingsStates.archiveCacheMaxMounts.value,
-                                archiveCacheMaxBytes = settingsStates.archiveCacheMaxBytes.value,
-                                onArchiveCacheMaxAgeDaysChanged = { settingsStates.archiveCacheMaxAgeDays.value = it }
-                            )
-                        },
-                                    onClearUrlCacheNow = {
-                            clearUrlCacheNowAction(
-                                context = context,
-                                prefs = prefs,
-                                appScope = appScope,
-                                cacheRoot = File(context.cacheDir, REMOTE_SOURCE_CACHE_DIR),
-                                selectedFile = selectedFile,
-                                onRefreshCachedSourceFiles = refreshCachedSourceFiles
-                            )
-                        },
-                                    onClearArchiveCacheNow = {
-                            clearArchiveCacheNowAction(
-                                context = context,
-                                appScope = appScope,
-                                cacheDir = context.cacheDir
-                            )
-                        },
-                                    onRefreshCachedSourceFiles = refreshCachedSourceFiles,
-                                    onDeleteCachedSourceFiles = { paths ->
-                            deleteCachedSourceFilesAction(
-                                context = context,
-                                prefs = prefs,
-                                appScope = appScope,
-                                cacheRoot = File(context.cacheDir, REMOTE_SOURCE_CACHE_DIR),
-                                selectedFile = selectedFile,
-                                absolutePaths = paths,
-                                onRefreshCachedSourceFiles = refreshCachedSourceFiles
-                            )
-                        },
-                                    onExportCachedSourceFiles = { paths ->
-                            exportCachedSourceFilesAction(
-                                context = context,
-                                paths = paths,
-                                onPendingCacheExportPathsChanged = { settingsStates.pendingCacheExportPaths.value = it },
-                                launchDirectoryPicker = { cacheExportDirectoryLauncher.launch(null) }
-                            )
-                        },
-                                    onKeepScreenOnChanged = { keepScreenOn = it },
-                                    onPlayerArtworkCornerRadiusDpChanged = { value ->
-                            playerArtworkCornerRadiusDp = value.coerceIn(0, 48)
-                        },
-                                    onShowAudioOutputRouteChipChanged = { enabled ->
-                            showAudioOutputRouteChip = enabled
-                            prefs.edit().putBoolean(AppPreferenceKeys.PLAYER_SHOW_AUDIO_OUTPUT_CHIP, enabled).apply()
-                        },
-                                    onCanvasTapToSeekSecondsChanged = { value ->
-                            val normalized = value.coerceAtLeast(0)
-                            canvasTapToSeekSeconds = normalized
-                            prefs.edit().putInt(AppPreferenceKeys.CANVAS_TAP_TO_SEEK_SECONDS, normalized).apply()
-                        },
-                                    onFilenameDisplayModeChanged = { mode ->
-                            filenameDisplayMode = mode
-                            prefs.edit().putString(AppPreferenceKeys.FILENAME_DISPLAY_MODE, mode.storageValue).apply()
-                        },
-                                    onFilenameOnlyWhenTitleMissingChanged = { enabled ->
-                            filenameOnlyWhenTitleMissing = enabled
-                            prefs.edit().putBoolean(AppPreferenceKeys.FILENAME_ONLY_WHEN_TITLE_MISSING, enabled).apply()
-                        },
-                                    onUnknownTrackDurationSecondsChanged = { value ->
-                            unknownTrackDurationSeconds = value
-                        },
-                                    onEndFadeApplyToAllTracksChanged = { enabled ->
-                            endFadeApplyToAllTracks = enabled
-                        },
-                                    onEndFadeDurationMsChanged = { value ->
-                            endFadeDurationMs = value
-                        },
-                                    onEndFadeCurveChanged = { curve ->
-                            endFadeCurve = curve
-                        },
-                                    onVisualizationModeChanged = { mode ->
-                            setVisualizationMode(mode)
-                        },
-                                    onEnabledVisualizationModesChanged = { modes ->
-                            setEnabledVisualizationModes(modes)
-                        },
-                                    onVisualizationPerformanceModeChanged = { mode ->
-                                        visualizationPerformanceMode = mode
-                                        prefs.edit().putString(AppPreferenceKeys.VISUALIZATION_PERFORMANCE_MODE, mode.storageValue).apply()
-                                    },
-                                    onVisualizationShowDebugInfoChanged = { enabled ->
-                            visualizationShowDebugInfo = enabled
-                        },
-                                    onVisualizationKeepScreenOnChanged = { enabled ->
-                            visualizationKeepScreenOn = enabled
-                        },
-                                    onVisualizationBarCountChanged = { value ->
-                            visualizationBarCount = value
-                        },
-                                    onVisualizationBarSmoothingPercentChanged = { value ->
-                            visualizationBarSmoothingPercent = value
-                        },
-                                    onVisualizationBarRoundnessDpChanged = { value ->
-                            visualizationBarRoundnessDp = value
-                        },
-                                    onVisualizationBarOverlayArtworkChanged = { enabled ->
-                            visualizationBarOverlayArtwork = enabled
-                        },
-                                    onVisualizationBarUseThemeColorChanged = { enabled ->
-                            visualizationBarUseThemeColor = enabled
-                        },
-                                    onVisualizationBarRenderBackendChanged = { backend ->
-                            visualizationBarRenderBackend = backend
-                        },
-                                    onVisualizationOscStereoChanged = { enabled ->
-                            visualizationOscStereo = enabled
-                        },
-                                    onVisualizationVuAnchorChanged = { anchor ->
-                            visualizationVuAnchor = anchor
-                        },
-                                    onVisualizationVuUseThemeColorChanged = { enabled ->
-                            visualizationVuUseThemeColor = enabled
-                        },
-                                    onVisualizationVuSmoothingPercentChanged = { value ->
-                            visualizationVuSmoothingPercent = value
-                        },
-                                    onVisualizationVuRenderBackendChanged = { backend ->
-                            visualizationVuRenderBackend = backend
-                        },
-                                    onResetVisualizationBarsSettings = {
-                            resetVisualizationBarsSettingsAction(
-                                prefs = prefs,
-                                onBarCountChanged = { visualizationBarCount = it },
-                                onBarSmoothingPercentChanged = { visualizationBarSmoothingPercent = it },
-                                onBarRoundnessDpChanged = { visualizationBarRoundnessDp = it },
-                                onBarOverlayArtworkChanged = { visualizationBarOverlayArtwork = it },
-                                onBarUseThemeColorChanged = { visualizationBarUseThemeColor = it },
-                                onBarRenderBackendChanged = { visualizationBarRenderBackend = it }
-                            )
-                        },
-                                    onResetVisualizationOscilloscopeSettings = {
-                            resetVisualizationOscilloscopeSettingsAction(
-                                prefs = prefs,
-                                onVisualizationOscStereoChanged = { visualizationOscStereo = it }
-                            )
-                        },
-                                    onResetVisualizationVuSettings = {
-                            resetVisualizationVuSettingsAction(
-                                prefs = prefs,
-                                onVisualizationVuAnchorChanged = { visualizationVuAnchor = it },
-                                onVisualizationVuUseThemeColorChanged = { visualizationVuUseThemeColor = it },
-                                onVisualizationVuSmoothingPercentChanged = { visualizationVuSmoothingPercent = it },
-                                onVisualizationVuRenderBackendChanged = { visualizationVuRenderBackend = it }
-                            )
-                        },
-                                    onResetVisualizationChannelScopeSettings = {
-                            resetVisualizationChannelScopeSettingsAction(
-                                prefs = prefs,
-                                defaultScopeTextSizeSp = defaultScopeTextSizeSp
-                            )
-                        },
-                                    onResetVisualizationProjectMSettings = {
-                            resetVisualizationProjectMSettingsAction(prefs = prefs)
-                        },
-                                    onClearRecentHistory = {
-                            clearRecentHistoryAction(
-                                context = context,
-                                prefs = prefs,
-                                onRecentFoldersChanged = { recentFolders = it },
-                                onRecentPlayedFilesChanged = { recentPlayedFiles = it }
-                            )
-                        },
-                                    onClearSavedNetworkSources = {
-                            clearSavedNetworkSourcesFromSettings(
-                                context = context,
-                                prefs = prefs,
-                                onNetworkNodesChanged = { networkNodes = it }
-                            )
-                        },
-                                    onClearAllSettings = {
-                            clearAllSettingsAndUiState(
-                                context = context,
-                                prefs = prefs,
-                                defaultScopeTextSizeSp = defaultScopeTextSizeSp,
-                                onThemeModeChanged = onThemeModeChanged,
-                                onUseMonetChanged = onUseMonetChanged,
-                                settingsStates = settingsStates,
-                                onAutoPlayOnTrackSelectChanged = { autoPlayOnTrackSelect = it },
-                                onOpenPlayerOnTrackSelectChanged = { openPlayerOnTrackSelect = it },
-                                onAutoPlayNextTrackOnEndChanged = { autoPlayNextTrackOnEnd = it },
-                                onPreloadNextCachedRemoteTrackChanged = { preloadNextCachedRemoteTrack = it },
-                                onPlaylistWrapNavigationChanged = { playlistWrapNavigation = it },
-                                onPreviousRestartsAfterThresholdChanged = { previousRestartsAfterThreshold = it },
-                                onFadePauseResumeChanged = { fadePauseResume = it },
-                                onPersistRepeatModeChanged = { persistRepeatMode = it },
-                                onPreferredRepeatModeChanged = { preferredRepeatMode = it },
-                                onRememberBrowserLocationChanged = { rememberBrowserLocation = it },
-                                onShowParentDirectoryEntryChanged = { showParentDirectoryEntry = it },
-                                onShowFileIconChipBackgroundChanged = { showFileIconChipBackground = it },
-                                onBrowserNameSortModeChanged = { browserNameSortMode = it },
-                                onLastBrowserLocationIdChanged = { lastBrowserLocationId = it },
-                                onLastBrowserDirectoryPathChanged = { lastBrowserDirectoryPath = it },
-                                onRecentFoldersLimitChanged = { recentFoldersLimit = it },
-                                onRecentFilesLimitChanged = { recentFilesLimit = it },
-                                onKeepScreenOnChanged = { keepScreenOn = it },
-                                onPlayerArtworkCornerRadiusDpChanged = { playerArtworkCornerRadiusDp = it },
-                                onShowAudioOutputRouteChipChanged = { showAudioOutputRouteChip = it },
-                                onCanvasTapToSeekSecondsChanged = { canvasTapToSeekSeconds = it },
-                                onFilenameDisplayModeChanged = { filenameDisplayMode = it },
-                                onFilenameOnlyWhenTitleMissingChanged = { filenameOnlyWhenTitleMissing = it },
-                                onUnknownTrackDurationSecondsChanged = { unknownTrackDurationSeconds = it },
-                                onEndFadeApplyToAllTracksChanged = { endFadeApplyToAllTracks = it },
-                                onEndFadeDurationMsChanged = { endFadeDurationMs = it },
-                                onEndFadeCurveChanged = { endFadeCurve = it },
-                                onVisualizationModeChanged = { setVisualizationMode(it) },
-                                onEnabledVisualizationModesChanged = { setEnabledVisualizationModes(it) },
-                                onVisualizationPerformanceModeChanged = { visualizationPerformanceMode = it },
-                                onVisualizationShowDebugInfoChanged = { visualizationShowDebugInfo = it },
-                                onVisualizationKeepScreenOnChanged = { visualizationKeepScreenOn = it },
-                                onVisualizationBarCountChanged = { visualizationBarCount = it },
-                                onVisualizationBarSmoothingPercentChanged = { visualizationBarSmoothingPercent = it },
-                                onVisualizationBarRoundnessDpChanged = { visualizationBarRoundnessDp = it },
-                                onVisualizationBarOverlayArtworkChanged = { visualizationBarOverlayArtwork = it },
-                                onVisualizationBarUseThemeColorChanged = { visualizationBarUseThemeColor = it },
-                                onVisualizationBarRenderBackendChanged = { visualizationBarRenderBackend = it },
-                                onVisualizationOscStereoChanged = { visualizationOscStereo = it },
-                                onVisualizationVuAnchorChanged = { visualizationVuAnchor = it },
-                                onVisualizationVuUseThemeColorChanged = { visualizationVuUseThemeColor = it },
-                                onVisualizationVuSmoothingPercentChanged = { visualizationVuSmoothingPercent = it },
-                                onVisualizationVuRenderBackendChanged = { visualizationVuRenderBackend = it }
-                            )
-                        },
-                                    onClearAllPluginSettings = {
-                            clearAllPluginSettingsUsingStateHolders(
-                                context = context,
-                                prefs = prefs,
-                                settingsStates = settingsStates
-                            )
-                        },
-                                    onResetPluginSettings = { pluginName ->
-                            resetPluginSettingsUsingStateHolders(
-                                context = context,
-                                prefs = prefs,
-                                pluginName = pluginName,
-                                settingsStates = settingsStates
-                            )
-                        },
-                                )
-                            )
+    val settingsPluginCoreActions = buildSettingsPluginCoreActionsFromStateHolders(
+        settingsStates = settingsStates,
+        onOpenVgmPlayChipSettings = {
+            openSettingsRoute(SettingsRoute.PluginVgmPlayChipSettings, false)
+        },
+        onPluginSelected = { pluginName ->
+            selectedPluginName = pluginName
+            openSettingsRoute(SettingsRoute.PluginDetail, false)
+        },
+        onPluginEnabledChanged = { pluginName, enabled ->
+            NativeBridge.setDecoderEnabled(pluginName, enabled)
+            savePluginConfiguration(prefs, pluginName)
+            decoderIconHintsVersion++
+        },
+        onPluginPriorityChanged = { pluginName, priority ->
+            NativeBridge.setDecoderPriority(pluginName, priority)
+            normalizeDecoderPriorityValues()
+            persistAllPluginConfigurations(prefs)
+            decoderIconHintsVersion++
+        },
+        onPluginPriorityOrderChanged = { orderedPluginNames ->
+            applyDecoderPriorityOrder(orderedPluginNames, prefs)
+            decoderIconHintsVersion++
+        },
+        onPluginExtensionsChanged = { pluginName, extensions ->
+            NativeBridge.setDecoderEnabledExtensions(pluginName, extensions)
+            savePluginConfiguration(prefs, pluginName)
+            decoderIconHintsVersion++
         }
+    )
+    val settingsScreenActions = buildMainActivitySettingsScreenActions(
+        context = context,
+        prefs = prefs,
+        appScope = appScope,
+        volumeDatabase = volumeDatabase,
+        settingsStates = settingsStates,
+        settingsPluginCoreActions = settingsPluginCoreActions,
+        onBack = {
+            if (!popSettingsRoute()) {
+                exitSettingsToReturnView()
+            }
+        },
+        openSettingsRoute = openSettingsRoute,
+        onOpenAudioEffects = {
+            openAudioEffectsDialogFromSettings(
+                masterVolumeDb = masterVolumeDb,
+                pluginVolumeDb = pluginVolumeDb,
+                songVolumeDb = songVolumeDb,
+                ignoreCoreVolumeForSong = ignoreCoreVolumeForSong,
+                forceMono = forceMono,
+                onTempMasterVolumeDbChanged = { tempMasterVolumeDb = it },
+                onTempPluginVolumeDbChanged = { tempPluginVolumeDb = it },
+                onTempSongVolumeDbChanged = { tempSongVolumeDb = it },
+                onTempIgnoreCoreVolumeForSongChanged = { tempIgnoreCoreVolumeForSong = it },
+                onTempForceMonoChanged = { tempForceMono = it },
+                onShowAudioEffectsDialogChanged = { showAudioEffectsDialog = it }
+            )
+        },
+        masterVolumeDb = masterVolumeDb,
+        onMasterVolumeDbChanged = { masterVolumeDb = it },
+        pluginVolumeDb = pluginVolumeDb,
+        onPluginVolumeDbChanged = { pluginVolumeDb = it },
+        songVolumeDb = songVolumeDb,
+        onSongVolumeDbChanged = { songVolumeDb = it },
+        ignoreCoreVolumeForSong = ignoreCoreVolumeForSong,
+        onIgnoreCoreVolumeForSongChanged = { ignoreCoreVolumeForSong = it },
+        forceMono = forceMono,
+        onForceMonoChanged = { forceMono = it },
+        refreshCachedSourceFiles = refreshCachedSourceFiles,
+        refreshStreamingCachedSourceFiles = refreshStreamingCachedSourceFiles,
+        launchCacheExportDirectoryPicker = { cacheExportDirectoryLauncher.launch(null) },
+        selectedFile = selectedFile,
+        onAutoPlayOnTrackSelectChanged = { autoPlayOnTrackSelect = it },
+        onOpenPlayerOnTrackSelectChanged = { openPlayerOnTrackSelect = it },
+        onAutoPlayNextTrackOnEndChanged = { autoPlayNextTrackOnEnd = it },
+        onPreloadNextCachedRemoteTrackChanged = { preloadNextCachedRemoteTrack = it },
+        onPlaylistWrapNavigationChanged = { playlistWrapNavigation = it },
+        onPreviousRestartsAfterThresholdChanged = { previousRestartsAfterThreshold = it },
+        onFadePauseResumeChanged = { fadePauseResume = it },
+        onAudioFocusInterruptChanged = { audioFocusInterrupt = it },
+        onAudioDuckingChanged = { audioDucking = it },
+        onPersistRepeatModeChanged = { persistRepeatMode = it },
+        themeMode = themeMode,
+        onThemeModeChanged = onThemeModeChanged,
+        onUseMonetChanged = onUseMonetChanged,
+        rememberBrowserLocation = rememberBrowserLocation,
+        onRememberBrowserLocationChanged = { rememberBrowserLocation = it },
+        onShowParentDirectoryEntryChanged = { showParentDirectoryEntry = it },
+        onShowFileIconChipBackgroundChanged = { showFileIconChipBackground = it },
+        onSortArchivesBeforeFilesChanged = { sortArchivesBeforeFiles = it },
+        onBrowserNameSortModeChanged = { browserNameSortMode = it },
+        onRecentFoldersLimitChanged = { recentFoldersLimit = it },
+        onRecentFilesLimitChanged = { recentFilesLimit = it },
+        onPressBackTwiceToExitChanged = { pressBackTwiceToExit = it },
+        onKeepScreenOnChanged = { keepScreenOn = it },
+        onPlayerArtworkCornerRadiusDpChanged = { playerArtworkCornerRadiusDp = it },
+        onShowAudioOutputRouteChipChanged = { showAudioOutputRouteChip = it },
+        onCanvasTapToSeekSecondsChanged = { canvasTapToSeekSeconds = it },
+        onFilenameDisplayModeChanged = { filenameDisplayMode = it },
+        onFilenameOnlyWhenTitleMissingChanged = { filenameOnlyWhenTitleMissing = it },
+        onUnknownTrackDurationSecondsChanged = { unknownTrackDurationSeconds = it },
+        onEndFadeApplyToAllTracksChanged = { endFadeApplyToAllTracks = it },
+        onEndFadeDurationMsChanged = { endFadeDurationMs = it },
+        onEndFadeCurveChanged = { endFadeCurve = it },
+        onVisualizationModeChanged = { setVisualizationMode(it) },
+        onEnabledVisualizationModesChanged = { setEnabledVisualizationModes(it) },
+        onVisualizationPerformanceModeChanged = { visualizationPerformanceMode = it },
+        onVisualizationShowDebugInfoChanged = { visualizationShowDebugInfo = it },
+        onVisualizationKeepScreenOnChanged = { visualizationKeepScreenOn = it },
+        onVisualizationBarCountChanged = { visualizationBarCount = it },
+        onVisualizationBarSmoothingPercentChanged = { visualizationBarSmoothingPercent = it },
+        onVisualizationBarRoundnessDpChanged = { visualizationBarRoundnessDp = it },
+        onVisualizationBarOverlayArtworkChanged = { visualizationBarOverlayArtwork = it },
+        onVisualizationBarUseThemeColorChanged = { visualizationBarUseThemeColor = it },
+        onVisualizationBarRenderBackendChanged = { visualizationBarRenderBackend = it },
+        onVisualizationOscStereoChanged = { visualizationOscStereo = it },
+        onVisualizationVuAnchorChanged = { visualizationVuAnchor = it },
+        onVisualizationVuUseThemeColorChanged = { visualizationVuUseThemeColor = it },
+        onVisualizationVuSmoothingPercentChanged = { visualizationVuSmoothingPercent = it },
+        onVisualizationVuRenderBackendChanged = { visualizationVuRenderBackend = it },
+        defaultScopeTextSizeSp = defaultScopeTextSizeSp,
+        onRecentFoldersChanged = { recentFolders = it },
+        onRecentPlayedFilesChanged = { recentPlayedFiles = it },
+        onNetworkNodesChanged = { networkNodes = it },
+        preferredRepeatMode = preferredRepeatMode,
+        onPreferredRepeatModeChanged = { preferredRepeatMode = it },
+        lastBrowserLocationId = lastBrowserLocationId,
+        onLastBrowserLocationIdChanged = { lastBrowserLocationId = it },
+        lastBrowserDirectoryPath = lastBrowserDirectoryPath,
+        onLastBrowserDirectoryPathChanged = { lastBrowserDirectoryPath = it }
+    )
+    val settingsRouteContent: @Composable (androidx.compose.foundation.layout.PaddingValues) -> Unit = { mainPadding ->
+        MainSettingsRouteSection(
+            mainPadding = mainPadding,
+            route = settingsRoute,
+            bottomContentPadding = miniPlayerListInset,
+            state = buildSettingsScreenStateFromStateHolders(
+                selectedPluginName = selectedPluginName,
+                autoPlayOnTrackSelect = autoPlayOnTrackSelect,
+                openPlayerOnTrackSelect = openPlayerOnTrackSelect,
+                autoPlayNextTrackOnEnd = autoPlayNextTrackOnEnd,
+                preloadNextCachedRemoteTrack = preloadNextCachedRemoteTrack,
+                playlistWrapNavigation = playlistWrapNavigation,
+                previousRestartsAfterThreshold = previousRestartsAfterThreshold,
+                fadePauseResume = fadePauseResume,
+                audioFocusInterrupt = audioFocusInterrupt,
+                audioDucking = audioDucking,
+                persistRepeatMode = persistRepeatMode,
+                themeMode = themeMode,
+                useMonet = useMonet,
+                monetAvailable = monetAvailable,
+                rememberBrowserLocation = rememberBrowserLocation,
+                showParentDirectoryEntry = showParentDirectoryEntry,
+                showFileIconChipBackground = showFileIconChipBackground,
+                sortArchivesBeforeFiles = sortArchivesBeforeFiles,
+                browserNameSortMode = browserNameSortMode,
+                recentFoldersLimit = recentFoldersLimit,
+                recentFilesLimit = recentFilesLimit,
+                pressBackTwiceToExit = pressBackTwiceToExit,
+                keepScreenOn = keepScreenOn,
+                playerArtworkCornerRadiusDp = playerArtworkCornerRadiusDp,
+                showAudioOutputRouteChip = showAudioOutputRouteChip,
+                canvasTapToSeekSeconds = canvasTapToSeekSeconds,
+                filenameDisplayMode = filenameDisplayMode,
+                filenameOnlyWhenTitleMissing = filenameOnlyWhenTitleMissing,
+                unknownTrackDurationSeconds = unknownTrackDurationSeconds,
+                endFadeApplyToAllTracks = endFadeApplyToAllTracks,
+                endFadeDurationMs = endFadeDurationMs,
+                endFadeCurve = endFadeCurve,
+                visualizationMode = visualizationMode,
+                enabledVisualizationModes = enabledVisualizationModes,
+                visualizationPerformanceMode = visualizationPerformanceMode,
+                visualizationShowDebugInfo = visualizationShowDebugInfo,
+                visualizationKeepScreenOn = visualizationKeepScreenOn,
+                visualizationBarCount = visualizationBarCount,
+                visualizationBarSmoothingPercent = visualizationBarSmoothingPercent,
+                visualizationBarRoundnessDp = visualizationBarRoundnessDp,
+                visualizationBarOverlayArtwork = visualizationBarOverlayArtwork,
+                visualizationBarUseThemeColor = visualizationBarUseThemeColor,
+                visualizationBarRenderBackend = visualizationBarRenderBackend,
+                visualizationOscStereo = visualizationOscStereo,
+                visualizationVuAnchor = visualizationVuAnchor,
+                visualizationVuUseThemeColor = visualizationVuUseThemeColor,
+                visualizationVuSmoothingPercent = visualizationVuSmoothingPercent,
+                visualizationVuRenderBackend = visualizationVuRenderBackend,
+                ffmpegCapabilities = ffmpegCapabilities,
+                openMptCapabilities = openMptCapabilities,
+                vgmPlayCapabilities = vgmPlayCapabilities,
+                settingsStates = settingsStates
+            ),
+            actions = settingsScreenActions
+        )
     }
 
     Box(modifier = Modifier.fillMaxSize()) {

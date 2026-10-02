@@ -30,6 +30,7 @@ internal fun AppNavigationPendingOpenEffects(
     openPlayerOnTrackSelect: Boolean,
     supportedExtensions: Set<String>,
     onRefreshCachedSourceFiles: () -> Unit,
+    onRefreshStreamingCachedSourceFiles: () -> Unit = {},
     onSelectedFileChanged: (File?) -> Unit,
     onLoadSongVolumeForFile: (String) -> Unit,
     onApplyRepeatModeToNative: () -> Unit,
@@ -44,9 +45,12 @@ internal fun AppNavigationPendingOpenEffects(
 ) {
     LaunchedEffect(currentView, settingsRoute) {
         if (currentView == MainView.Settings &&
-            (settingsRoute == SettingsRoute.UrlCache || settingsRoute == SettingsRoute.CacheManager)
+            (settingsRoute == SettingsRoute.UrlCache ||
+                settingsRoute == SettingsRoute.CacheManager ||
+                settingsRoute == SettingsRoute.StreamingCacheManager)
         ) {
             onRefreshCachedSourceFiles()
+            onRefreshStreamingCachedSourceFiles()
         }
     }
 

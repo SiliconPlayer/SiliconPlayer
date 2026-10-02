@@ -17,6 +17,7 @@ import com.flopster101.siliconplayer.AudioResamplerPreference
 import com.flopster101.siliconplayer.BrowserNameSortMode
 import com.flopster101.siliconplayer.CachedSourceFile
 import com.flopster101.siliconplayer.CorePreferenceKeys
+import com.flopster101.siliconplayer.PROGRESSIVE_REMOTE_SOURCE_CACHE_DIR
 import com.flopster101.siliconplayer.REMOTE_SOURCE_CACHE_DIR
 import com.flopster101.siliconplayer.SOURCE_CACHE_MAX_BYTES_DEFAULT
 import com.flopster101.siliconplayer.SOURCE_CACHE_MAX_TRACKS_DEFAULT
@@ -24,7 +25,9 @@ import com.flopster101.siliconplayer.clearRemoteCacheFiles
 import com.flopster101.siliconplayer.clearSavedNetworkSources
 import com.flopster101.siliconplayer.deleteDomainFile
 import com.flopster101.siliconplayer.enforceArchiveMountCacheLimitsFromPrefs
+import com.flopster101.siliconplayer.enforceFileCacheLimitsFromPrefs
 import com.flopster101.siliconplayer.enforceRemoteCacheLimitsFromPrefs
+import com.flopster101.siliconplayer.enforceStreamingCacheLimitsFromPrefs
 import com.flopster101.siliconplayer.data.ARCHIVE_CACHE_MAX_AGE_DAYS_DEFAULT
 import com.flopster101.siliconplayer.data.ARCHIVE_CACHE_MAX_BYTES_DEFAULT
 import com.flopster101.siliconplayer.data.ARCHIVE_CACHE_MAX_MOUNTS_DEFAULT
@@ -158,9 +161,20 @@ internal fun rememberDesktopSettings(
     fun refreshCachedSourceFiles() {
         changeToken++
     }
+
+    val streamingCacheRoot = remember(cacheDir) { File(cacheDir, PROGRESSIVE_REMOTE_SOURCE_CACHE_DIR) }
+    var streamingChangeToken by remember { mutableIntStateOf(0) }
+    val streamingCachedSourceFiles = remember(streamingChangeToken, streamingCacheRoot) {
+        listCachedSourceFiles(streamingCacheRoot)
+    }
+    fun refreshStreamingCachedSourceFiles() {
+        streamingChangeToken++
+    }
+
     DisposableEffect(prefs) {
         val listener = AppPreferences.OnChangeListener { _, _ ->
             changeToken++
+            streamingChangeToken++
         }
         prefs.addListener(listener)
         onDispose { prefs.removeListener(listener) }
@@ -375,11 +389,19 @@ internal fun rememberDesktopSettings(
             urlCacheClearOnLaunch = prefs.getBoolean(AppPreferenceKeys.URL_CACHE_CLEAR_ON_LAUNCH, false),
             urlCacheMaxTracks = prefs.getInt(AppPreferenceKeys.URL_CACHE_MAX_TRACKS, SOURCE_CACHE_MAX_TRACKS_DEFAULT),
             urlCacheMaxBytes = prefs.getLong(AppPreferenceKeys.URL_CACHE_MAX_BYTES, SOURCE_CACHE_MAX_BYTES_DEFAULT),
+            fileCacheClearOnLaunch = prefs.getBoolean(AppPreferenceKeys.FILE_CACHE_CLEAR_ON_LAUNCH, prefs.getBoolean(AppPreferenceKeys.URL_CACHE_CLEAR_ON_LAUNCH, false)),
+            fileCacheMaxTracks = prefs.getInt(AppPreferenceKeys.FILE_CACHE_MAX_TRACKS, prefs.getInt(AppPreferenceKeys.URL_CACHE_MAX_TRACKS, SOURCE_CACHE_MAX_TRACKS_DEFAULT)),
+            fileCacheMaxBytes = prefs.getLong(AppPreferenceKeys.FILE_CACHE_MAX_BYTES, prefs.getLong(AppPreferenceKeys.URL_CACHE_MAX_BYTES, SOURCE_CACHE_MAX_BYTES_DEFAULT)),
+            streamingCacheClearOnLaunch = prefs.getBoolean(AppPreferenceKeys.STREAMING_CACHE_CLEAR_ON_LAUNCH, false),
+            streamingCacheMaxTracks = prefs.getInt(AppPreferenceKeys.STREAMING_CACHE_MAX_TRACKS, SOURCE_CACHE_MAX_TRACKS_DEFAULT),
+            streamingCacheMaxBytes = prefs.getLong(AppPreferenceKeys.STREAMING_CACHE_MAX_BYTES, SOURCE_CACHE_MAX_BYTES_DEFAULT),
             archiveCacheClearOnLaunch = prefs.getBoolean(AppPreferenceKeys.ARCHIVE_CACHE_CLEAR_ON_LAUNCH, false),
             archiveCacheMaxMounts = prefs.getInt(AppPreferenceKeys.ARCHIVE_CACHE_MAX_MOUNTS, ARCHIVE_CACHE_MAX_MOUNTS_DEFAULT),
             archiveCacheMaxBytes = prefs.getLong(AppPreferenceKeys.ARCHIVE_CACHE_MAX_BYTES, ARCHIVE_CACHE_MAX_BYTES_DEFAULT),
             archiveCacheMaxAgeDays = prefs.getInt(AppPreferenceKeys.ARCHIVE_CACHE_MAX_AGE_DAYS, ARCHIVE_CACHE_MAX_AGE_DAYS_DEFAULT),
             cachedSourceFiles = cachedSourceFiles,
+            fileCachedSourceFiles = cachedSourceFiles,
+            streamingCachedSourceFiles = streamingCachedSourceFiles,
             keepScreenOn = prefs.getBoolean(AppPreferenceKeys.KEEP_SCREEN_ON, false),
             playerArtworkCornerRadiusDp = prefs.getInt(AppPreferenceKeys.PLAYER_ARTWORK_CORNER_RADIUS_DP, 16),
             showAudioOutputRouteChip = prefs.getBoolean(AppPreferenceKeys.PLAYER_SHOW_AUDIO_OUTPUT_CHIP, true),
@@ -471,6 +493,8 @@ internal fun rememberDesktopSettings(
             onOpenMisc = { openSettingsRoute(SettingsRoute.Misc) },
             onOpenUrlCache = { openSettingsRoute(SettingsRoute.UrlCache) },
             onOpenCacheManager = { openSettingsRoute(SettingsRoute.CacheManager) },
+            onOpenFileCacheManager = { openSettingsRoute(SettingsRoute.CacheManager) },
+            onOpenStreamingCacheManager = { openSettingsRoute(SettingsRoute.StreamingCacheManager) },
             onOpenUi = { openSettingsRoute(SettingsRoute.Ui) },
             onOpenAbout = { openSettingsRoute(SettingsRoute.About) },
             pluginCoreActions = SettingsPluginCoreActions(
@@ -692,24 +716,78 @@ internal fun rememberDesktopSettings(
             onRecentFoldersLimitChanged = { putInt(AppPreferenceKeys.RECENT_FOLDERS_LIMIT, it) },
             onRecentFilesLimitChanged = { putInt(AppPreferenceKeys.RECENT_PLAYED_FILES_LIMIT, it) },
             onPressBackTwiceToExitChanged = { putBool(AppPreferenceKeys.PRESS_BACK_TWICE_TO_EXIT, it) },
-            onUrlCacheClearOnLaunchChanged = { putBool(AppPreferenceKeys.URL_CACHE_CLEAR_ON_LAUNCH, it) },
+            onUrlCacheClearOnLaunchChanged = {
+                putBool(AppPreferenceKeys.URL_CACHE_CLEAR_ON_LAUNCH, it)
+                putBool(AppPreferenceKeys.FILE_CACHE_CLEAR_ON_LAUNCH, it)
+            },
             onUrlCacheMaxTracksChanged = { value ->
                 putInt(AppPreferenceKeys.URL_CACHE_MAX_TRACKS, value)
+                putInt(AppPreferenceKeys.FILE_CACHE_MAX_TRACKS, value)
                 scope.launch {
                     withContext(Dispatchers.IO) {
-                        enforceRemoteCacheLimitsFromPrefs(prefs, remoteCacheRoot)
+                        enforceFileCacheLimitsFromPrefs(prefs, remoteCacheRoot)
                     }
                     refreshCachedSourceFiles()
                 }
             },
             onUrlCacheMaxBytesChanged = {
-                prefs.edit().putLong(AppPreferenceKeys.URL_CACHE_MAX_BYTES, it).apply()
+                prefs.edit()
+                    .putLong(AppPreferenceKeys.URL_CACHE_MAX_BYTES, it)
+                    .putLong(AppPreferenceKeys.FILE_CACHE_MAX_BYTES, it)
+                    .apply()
                 changeToken++
                 scope.launch {
                     withContext(Dispatchers.IO) {
-                        enforceRemoteCacheLimitsFromPrefs(prefs, remoteCacheRoot)
+                        enforceFileCacheLimitsFromPrefs(prefs, remoteCacheRoot)
                     }
                     refreshCachedSourceFiles()
+                }
+            },
+            onFileCacheClearOnLaunchChanged = {
+                putBool(AppPreferenceKeys.FILE_CACHE_CLEAR_ON_LAUNCH, it)
+                putBool(AppPreferenceKeys.URL_CACHE_CLEAR_ON_LAUNCH, it)
+            },
+            onFileCacheMaxTracksChanged = { value ->
+                putInt(AppPreferenceKeys.FILE_CACHE_MAX_TRACKS, value)
+                putInt(AppPreferenceKeys.URL_CACHE_MAX_TRACKS, value)
+                scope.launch {
+                    withContext(Dispatchers.IO) {
+                        enforceFileCacheLimitsFromPrefs(prefs, remoteCacheRoot)
+                    }
+                    refreshCachedSourceFiles()
+                }
+            },
+            onFileCacheMaxBytesChanged = {
+                prefs.edit()
+                    .putLong(AppPreferenceKeys.FILE_CACHE_MAX_BYTES, it)
+                    .putLong(AppPreferenceKeys.URL_CACHE_MAX_BYTES, it)
+                    .apply()
+                changeToken++
+                scope.launch {
+                    withContext(Dispatchers.IO) {
+                        enforceFileCacheLimitsFromPrefs(prefs, remoteCacheRoot)
+                    }
+                    refreshCachedSourceFiles()
+                }
+            },
+            onStreamingCacheClearOnLaunchChanged = { putBool(AppPreferenceKeys.STREAMING_CACHE_CLEAR_ON_LAUNCH, it) },
+            onStreamingCacheMaxTracksChanged = { value ->
+                putInt(AppPreferenceKeys.STREAMING_CACHE_MAX_TRACKS, value)
+                scope.launch {
+                    withContext(Dispatchers.IO) {
+                        enforceStreamingCacheLimitsFromPrefs(prefs, streamingCacheRoot)
+                    }
+                    refreshStreamingCachedSourceFiles()
+                }
+            },
+            onStreamingCacheMaxBytesChanged = {
+                prefs.edit().putLong(AppPreferenceKeys.STREAMING_CACHE_MAX_BYTES, it).apply()
+                streamingChangeToken++
+                scope.launch {
+                    withContext(Dispatchers.IO) {
+                        enforceStreamingCacheLimitsFromPrefs(prefs, streamingCacheRoot)
+                    }
+                    refreshStreamingCachedSourceFiles()
                 }
             },
             onArchiveCacheClearOnLaunchChanged = { putBool(AppPreferenceKeys.ARCHIVE_CACHE_CLEAR_ON_LAUNCH, it) },
@@ -746,6 +824,22 @@ internal fun rememberDesktopSettings(
                     toastHandler.showToast("Deleted ${result.deletedFiles} file(s)$suffix")
                 }
             },
+            onClearFileCacheNow = {
+                scope.launch(Dispatchers.IO) {
+                    val result = clearRemoteCacheFiles(remoteCacheRoot, protectedCachePaths)
+                    refreshCachedSourceFiles()
+                    val suffix = if (result.skippedFiles > 0) " (${result.skippedFiles} protected)" else ""
+                    toastHandler.showToast("Deleted ${result.deletedFiles} file(s)$suffix")
+                }
+            },
+            onClearStreamingCacheNow = {
+                scope.launch(Dispatchers.IO) {
+                    val result = clearRemoteCacheFiles(streamingCacheRoot, protectedCachePaths)
+                    refreshStreamingCachedSourceFiles()
+                    val suffix = if (result.skippedFiles > 0) " (${result.skippedFiles} protected)" else ""
+                    toastHandler.showToast("Deleted ${result.deletedFiles} file(s)$suffix")
+                }
+            },
             onClearArchiveCacheNow = {
                 scope.launch(Dispatchers.IO) {
                     val result = clearArchiveMountCache(cacheDir)
@@ -767,6 +861,30 @@ internal fun rememberDesktopSettings(
                 }
             },
             onExportCachedSourceFiles = { paths ->
+                val files = paths.mapNotNull { path ->
+                    File(path).takeIf { it.exists() && it.isFile }
+                }
+                if (files.isEmpty()) {
+                    toastHandler.showToast("No files selected")
+                } else {
+                    fileExportHandler.exportFiles(files)
+                }
+            },
+            onRefreshStreamingCachedSourceFiles = {
+                scope.launch(Dispatchers.IO) {
+                    listCachedSourceFiles(streamingCacheRoot)
+                    refreshStreamingCachedSourceFiles()
+                }
+            },
+            onDeleteStreamingCachedSourceFiles = { paths ->
+                scope.launch(Dispatchers.IO) {
+                    val result = deleteSpecificRemoteCacheFiles(streamingCacheRoot, paths.toSet(), protectedCachePaths)
+                    refreshStreamingCachedSourceFiles()
+                    val suffix = if (result.skippedFiles > 0) " (${result.skippedFiles} protected)" else ""
+                    toastHandler.showToast("Deleted ${result.deletedFiles} file(s)$suffix")
+                }
+            },
+            onExportStreamingCachedSourceFiles = { paths ->
                 val files = paths.mapNotNull { path ->
                     File(path).takeIf { it.exists() && it.isFile }
                 }

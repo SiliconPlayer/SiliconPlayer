@@ -118,6 +118,7 @@ internal class ProgressiveRandomAccessCache(
         if (parent != null && !parent.exists()) {
             parent.mkdirs()
         }
+        parent?.let { rememberSourceForCachedFile(it, files.dataFile.name, transport.sourceId) }
         if (!progressiveRandomAccessMetaMatches(files.metaFile, transport.sizeBytes, chunkSizeBytes)) {
             runCatching { files.dataFile.delete() }
             runCatching { files.chunkMapFile.delete() }

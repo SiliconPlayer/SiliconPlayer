@@ -46,6 +46,7 @@ import com.flopster101.siliconplayer.SourceEntryAction
 import com.flopster101.siliconplayer.NetworkNode
 import com.flopster101.siliconplayer.NetworkCredentialStore
 import com.flopster101.siliconplayer.NetworkNodesHolder
+import com.flopster101.siliconplayer.PROGRESSIVE_REMOTE_SOURCE_CACHE_DIR
 import com.flopster101.siliconplayer.REMOTE_SOURCE_CACHE_DIR
 import com.flopster101.siliconplayer.platform.LocalAppCacheDir
 import com.flopster101.siliconplayer.platform.LocalAppConfigDir
@@ -2561,8 +2562,9 @@ fun main(args: Array<String>) = application {
                                         val settingsCacheDir = LocalAppCacheDir.current
                                         val settingsProtectedCachePaths = remember(session.currentFile, settingsCacheDir) {
                                             val path = session.currentFile?.absolutePath
-                                            val cachePrefix = File(settingsCacheDir, REMOTE_SOURCE_CACHE_DIR).absolutePath + File.separator
-                                            if (path != null && path.startsWith(cachePrefix)) setOf(path) else emptySet()
+                                            val filePrefix = File(settingsCacheDir, REMOTE_SOURCE_CACHE_DIR).absolutePath + File.separator
+                                            val progressivePrefix = File(settingsCacheDir, PROGRESSIVE_REMOTE_SOURCE_CACHE_DIR).absolutePath + File.separator
+                                            if (path != null && (path.startsWith(filePrefix) || path.startsWith(progressivePrefix))) setOf(path) else emptySet()
                                         }
                                         val (desktopSettingsState, desktopSettingsActions) = rememberDesktopSettings(
                                             selectedPluginName = selectedPluginName,
