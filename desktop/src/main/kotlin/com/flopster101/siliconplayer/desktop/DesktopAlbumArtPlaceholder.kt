@@ -40,6 +40,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Canvas
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ColorFilter
@@ -54,6 +55,7 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.isSpecified
 import com.flopster101.siliconplayer.AppDefaults
 import com.flopster101.siliconplayer.ArtworkSwipePreviewState
 import com.flopster101.siliconplayer.ChannelScopeVisibleElementId
@@ -242,7 +244,19 @@ internal fun AlbumArtPlaceholder(
             ),
             shape = RoundedCornerShape(artworkCornerRadiusDp.coerceIn(0, 48).dp)
         ) {
-            BoxWithConstraints(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+            BoxWithConstraints(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(
+                        brush = Brush.radialGradient(
+                            colors = listOf(
+                                MaterialTheme.colorScheme.primary.copy(alpha = 0.28f),
+                                MaterialTheme.colorScheme.surfaceVariant
+                            )
+                        )
+                    ),
+                contentAlignment = Alignment.Center
+            ) {
                 if (artwork != null) {
                     // Same fit-plus-blurred-fill as every other canvas; the
                     // user-chosen crop mode arrives as a later setting.
@@ -269,9 +283,18 @@ internal fun AlbumArtPlaceholder(
                         contentScale = ContentScale.Fit
                     )
                 } else {
+                    val minDim = if (maxWidth.isSpecified && maxHeight.isSpecified) minOf(maxWidth, maxHeight) else 0.dp
+                    val circleRadius = if (minDim > 0.dp) {
+                        minOf(60.dp, minDim * 0.35f)
+                    } else {
+                        36.dp
+                    }
+                    val circleDiameter = circleRadius * 2
+                    val iconSize = minOf(64.dp, circleRadius * (64f / 60f))
+
                     Box(
                         modifier = Modifier
-                            .size(120.dp)
+                            .size(circleDiameter)
                             .clip(CircleShape)
                             .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.14f)),
                         contentAlignment = Alignment.Center
@@ -280,7 +303,7 @@ internal fun AlbumArtPlaceholder(
                             imageVector = placeholderIcon,
                             contentDescription = "No album artwork",
                             tint = MaterialTheme.colorScheme.primary,
-                            modifier = Modifier.size(64.dp)
+                            modifier = Modifier.size(iconSize)
                         )
                     }
                 }

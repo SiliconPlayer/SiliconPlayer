@@ -310,7 +310,7 @@ internal class GlArtworkBackgroundRenderer(private val context: Context) {
         if (frame.placeholderIconResId != 0) {
             ensureIconTexture(frame.placeholderIconResId, frame.primaryColorArgb)
             if (iconTextureId != 0) {
-                val iconSizePx = min(72f * density, circleRadiusPx * 1.25f)
+                val iconSizePx = min(64f * density, circleRadiusPx * (64f / 60f))
                 val iconX = (surfaceWidth - iconSizePx) * 0.5f
                 val iconY = (surfaceHeight - iconSizePx) * 0.5f
 
@@ -581,8 +581,7 @@ internal class GlArtworkBackgroundRenderer(private val context: Context) {
                 vec4 bg = mix(uCenterColor, uEdgeColor, gradT);
 
                 // Centered circle with smooth anti-aliased edge
-                float edge = 1.5;
-                float circleAlpha = 1.0 - smoothstep(uCircleRadiusPx - edge, uCircleRadiusPx + edge, distFromCenter);
+                float circleAlpha = clamp(uCircleRadiusPx - distFromCenter + 0.5, 0.0, 1.0);
                 vec4 color = mix(bg, vec4(uCircleColor.rgb, 1.0), uCircleColor.a * circleAlpha);
 
                 gl_FragColor = color;

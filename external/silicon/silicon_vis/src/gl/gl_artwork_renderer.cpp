@@ -37,14 +37,8 @@ static const char* BG_FRAGMENT_SHADER = R"(
         float t = clamp(dist / max(maxDist, 1.0), 0.0, 1.0);
         vec4 bg = mix(uCenterColor, uEdgeColor, t * t);
 
-        vec4 col;
-        if (dist <= uCircleRadius) {
-            float edgeDist = uCircleRadius - dist;
-            float alpha = clamp(edgeDist / 1.5, 0.0, 1.0) * uCircleColor.a;
-            col = mix(bg, vec4(uCircleColor.rgb, 1.0), alpha);
-        } else {
-            col = bg;
-        }
+        float alpha = clamp(uCircleRadius - dist + 0.5, 0.0, 1.0) * uCircleColor.a;
+        vec4 col = mix(bg, vec4(uCircleColor.rgb, 1.0), alpha);
         gl_FragColor = vec4(col.rgb, col.a * uAlpha);
     }
 )";
@@ -617,7 +611,7 @@ void GlArtworkRenderer::drawArtworkOrFallback(const ContentState& state, float s
         // Draw centered placeholder icon inside the circle disc if available
         float circleRadiusPx = std::min(60.0f * std::max(1.0f, density), std::min(surfaceWidth, surfaceHeight) * 0.35f);
         if (state.iconTexture != 0 && state.iconW > 0 && state.iconH > 0) {
-            float iconSizePx = std::min(72.0f * std::max(1.0f, density), circleRadiusPx * 1.25f);
+            float iconSizePx = std::min(64.0f * std::max(1.0f, density), circleRadiusPx * (64.0f / 60.0f));
             float iconX = (surfaceWidth - iconSizePx) * 0.5f;
             float iconY = (surfaceHeight - iconSizePx) * 0.5f;
 

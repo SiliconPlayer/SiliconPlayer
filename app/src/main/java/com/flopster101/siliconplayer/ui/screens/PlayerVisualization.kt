@@ -216,7 +216,7 @@ private fun AlbumArtVisual(
                 36.dp
             }
             val circleDiameter = circleRadius * 2
-            val iconSize = minOf(72.dp, circleRadius * 1.25f)
+            val iconSize = minOf(64.dp, circleRadius * (64f / 60f))
 
             Box(
                 modifier = Modifier
