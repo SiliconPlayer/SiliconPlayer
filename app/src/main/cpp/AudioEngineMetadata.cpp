@@ -1244,6 +1244,12 @@ std::string AudioEngine::getDnfamitrackerInstrumentNames() {
     return decoder->getCoreStringInfo("instrumentNames");
 }
 
+std::string AudioEngine::getDnfamitrackerSampleNames() {
+    std::lock_guard<std::mutex> lock(decoderMutex);
+    if (!decoder) return "";
+    return decoder->getCoreStringInfo("sampleNames");
+}
+
 std::string AudioEngine::getFurnaceInstrumentNames() {
     std::lock_guard<std::mutex> lock(decoderMutex);
     if (!decoder) return "";

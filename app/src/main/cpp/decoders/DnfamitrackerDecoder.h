@@ -61,6 +61,7 @@ private:
     void closeLocked();
     void updateScopeSnapshotLocked();
     std::string getInstrumentNamesInfoLocked();
+    std::string getSampleNamesInfoLocked();
 
     std::unique_ptr<CFTMPlayer> player;
     mutable std::mutex decodeMutex;

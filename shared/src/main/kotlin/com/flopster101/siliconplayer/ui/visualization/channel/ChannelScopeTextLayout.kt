@@ -576,6 +576,7 @@ interface ChannelScopeNameSource {
     fun klystrackInstrumentNames(): String
     fun hivelyInstrumentNames(): String
     fun dnfamitrackerInstrumentNames(): String
+    fun dnfamitrackerSampleNames(): String
     fun decoderToggleChannelNames(): Array<String>
 }
 
@@ -616,6 +617,7 @@ fun loadChannelScopeNameMaps(pluginName: String?, source: ChannelScopeNameSource
         )
         com.flopster101.siliconplayer.DecoderNames.LIB_DN_FAMITRACKER -> ChannelScopeNameMaps(
             instrumentNamesByIndex = parseChannelScopeIndexedNames(source.dnfamitrackerInstrumentNames()),
+            sampleNamesByIndex = parseChannelScopeIndexedNames(source.dnfamitrackerSampleNames()),
             chipNamesByChannelIndex = source.decoderToggleChannelNames()
                 .mapIndexed { index, name -> index to name }
                 .toMap()

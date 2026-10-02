@@ -353,6 +353,7 @@ object NativeBridge {
     external fun getKlystrackInstrumentNames(): String
     external fun getFurnaceInstrumentNames(): String
     external fun getDnfamitrackerInstrumentNames(): String
+    external fun getDnfamitrackerSampleNames(): String
     external fun getFurnaceSampleNames(): String
     external fun getFurnaceFormatName(): String
     external fun getFurnaceSongVersion(): Int

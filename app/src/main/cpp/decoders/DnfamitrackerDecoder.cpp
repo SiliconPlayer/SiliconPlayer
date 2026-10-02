@@ -232,18 +232,12 @@ std::vector<int32_t> DnfamitrackerDecoder::getChannelScopeTextState(int maxChann
     if (!isOpen || !player) {
         return {};
     }
-    // The library DPCM branch calls GetInstrument() without a range check,
-    // so query every other channel individually and report DPCM as empty.
     const int count = std::min(maxChannels, player->GetChannelCount());
     if (count <= 0) {
         return {};
     }
     std::vector<int32_t> result(static_cast<size_t>(count) * 10, -1);
     for (int i = 0; i < count; ++i) {
-        const char* name = player->GetChannelName(i);
-        if (name && std::string(name) == "DPCM") {
-            continue;
-        }
         player->GetChannelDisplayState(i, &result[static_cast<size_t>(i) * 10], 10);
     }
     return result;
@@ -321,6 +315,9 @@ std::string DnfamitrackerDecoder::getCoreStringInfo(const char* name) {
     if (key == "instrumentNames") {
         return getInstrumentNamesInfoLocked();
     }
+    if (key == "sampleNames") {
+        return getSampleNamesInfoLocked();
+    }
     return "";
 }
 
@@ -358,6 +355,24 @@ std::string DnfamitrackerDecoder::getInstrumentNamesInfoLocked() {
         names.append(std::to_string(i + 1));
         names.append(". ");
         names.append(doc->GetInstrumentName(static_cast<unsigned int>(i)));
+    }
+    return names;
+}
+
+std::string DnfamitrackerDecoder::getSampleNamesInfoLocked() {
+    if (!player || !player->GetDocument()) {
+        return "";
+    }
+    CFTMDocument* doc = player->GetDocument();
+    std::string names;
+    const unsigned int count = doc->GetSampleCount();
+    for (unsigned int i = 0; i < count; ++i) {
+        if (!names.empty()) {
+            names.push_back('\n');
+        }
+        names.append(std::to_string(i + 1));
+        names.append(". ");
+        names.append(doc->GetSampleName(i));
     }
     return names;
 }

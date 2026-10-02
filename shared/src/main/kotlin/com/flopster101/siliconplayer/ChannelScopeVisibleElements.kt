@@ -171,6 +171,11 @@ internal fun channelScopeVisibleElementOptions(): List<ChannelScopeVisibleElemen
             coreId = "dnfamitracker",
             coreLabel = "Dn-FamiTracker",
             elementId = ChannelScopeVisibleElementId.Instrument
+        ),
+        ChannelScopeVisibleElementOption(
+            coreId = "dnfamitracker",
+            coreLabel = "Dn-FamiTracker",
+            elementId = ChannelScopeVisibleElementId.Sample
         )
     )
 }
