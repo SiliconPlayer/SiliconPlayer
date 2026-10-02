@@ -4,6 +4,8 @@
 #include <chrono>
 #include <cmath>
 
+constexpr float kDnfamitrackerScopeGain = 0.5f;
+
 DnfamitrackerDecoder::DnfamitrackerDecoder()
     : channelScopeState(std::make_shared<ChannelScopeSharedState>()) {
 }
@@ -368,6 +370,11 @@ void DnfamitrackerDecoder::updateScopeSnapshotLocked() {
     for (int ch = 0; ch < count; ++ch) {
         player->GetChannelWaveform(ch, &scopeRawScratch[static_cast<size_t>(ch) * ChannelScopeSharedState::kMaxSamples], ChannelScopeSharedState::kMaxSamples);
         scopeVuScratch[static_cast<size_t>(ch)] = player->GetChannelVU(ch);
+    }
+
+    // Chip-level waves peak near full scale; match the other scope feeds.
+    for (float& sample : scopeRawScratch) {
+        sample *= kDnfamitrackerScopeGain;
     }
 
     channelScopeState->publish(scopeRawScratch, scopeVuScratch, count, ++channelScopeSourceSerial, true);
