@@ -33,6 +33,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
+import androidx.compose.material3.SheetState
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberModalBottomSheetState
@@ -243,11 +244,14 @@ internal fun VisualizationModePickerDialog(
         return
     }
 
+    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = false)
+
     ModalBottomSheet(
         onDismissRequest = onDismiss,
-        sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = false)
+        sheetState = sheetState
     ) {
         PickerSheetContent(
+            sheetState = sheetState,
             availableModes = availableModes,
             selectedMode = selectedMode,
             onSelectMode = onSelectMode,
@@ -264,8 +268,10 @@ internal fun VisualizationModePickerDialog(
     }
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun PickerSheetContent(
+    sheetState: SheetState,
     availableModes: List<VisualizationMode>,
     selectedMode: VisualizationMode,
     onSelectMode: (VisualizationMode) -> Unit,
@@ -276,9 +282,12 @@ private fun PickerSheetContent(
     keepScreenOnState: Boolean,
     onKeepScreenOnChange: (Boolean) -> Unit
 ) {
+    val scrollState = rememberScrollState()
+
     Column(
         modifier = Modifier
             .fillMaxWidth()
+            .sheetMouseScrollControls(sheetState, scrollState)
             .navigationBarsPadding()
     ) {
         // 1. Header Bar: Title (left) + Settings IconButton (right)
@@ -313,7 +322,7 @@ private fun PickerSheetContent(
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .verticalScroll(rememberScrollState())
+                .verticalScroll(scrollState)
                 .padding(horizontal = 20.dp, vertical = 8.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {

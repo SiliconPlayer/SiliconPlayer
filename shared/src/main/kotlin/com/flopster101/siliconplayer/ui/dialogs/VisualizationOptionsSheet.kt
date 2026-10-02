@@ -43,6 +43,7 @@ import androidx.compose.material3.SliderDefaults
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.SheetState
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -114,11 +115,13 @@ internal fun VisualizationOptionsSheet(
     onDismiss: () -> Unit,
     resetNonce: Int = 0
 ) {
+    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = false)
     ModalBottomSheet(
         onDismissRequest = onDismiss,
-        sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = false)
+        sheetState = sheetState
     ) {
         OptionsSheetContent(
+            sheetState = sheetState,
             mode = mode,
             globalInputGain = globalInputGain,
             onGlobalInputGainChange = onGlobalInputGainChange,
@@ -135,8 +138,10 @@ internal fun VisualizationOptionsSheet(
     }
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun OptionsSheetContent(
+    sheetState: SheetState,
     mode: VisualizationMode,
     globalInputGain: Int,
     onGlobalInputGainChange: (Int) -> Unit,
@@ -150,9 +155,12 @@ private fun OptionsSheetContent(
     onResetDefaults: () -> Unit,
     resetNonce: Int = 0
 ) {
+    val scrollState = rememberScrollState()
+
     Column(
         modifier = Modifier
             .fillMaxWidth()
+            .sheetMouseScrollControls(sheetState, scrollState)
             .navigationBarsPadding()
     ) {
         Row(
@@ -172,7 +180,7 @@ private fun OptionsSheetContent(
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .verticalScroll(rememberScrollState())
+                .verticalScroll(scrollState)
                 .padding(horizontal = 20.dp, vertical = 8.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {

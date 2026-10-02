@@ -24,10 +24,14 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.ScrollState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.SheetState
+import androidx.compose.material3.SheetValue
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.KeyboardArrowDown
@@ -52,9 +56,15 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.composed
+import androidx.compose.ui.input.pointer.PointerEventPass
+import androidx.compose.ui.input.pointer.PointerEventType
+import androidx.compose.ui.input.pointer.pointerInput
+import kotlinx.coroutines.launch
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.rotate
@@ -619,3 +629,41 @@ internal fun DialogResetButton(
         Text(text = text, style = MaterialTheme.typography.labelSmall)
     }
 }
+
+@OptIn(ExperimentalMaterial3Api::class)
+internal fun Modifier.sheetMouseScrollControls(
+    sheetState: SheetState,
+    canScrollUp: () -> Boolean
+): Modifier = composed {
+    val scope = rememberCoroutineScope()
+    pointerInput(sheetState) {
+        awaitPointerEventScope {
+            while (true) {
+                val event = awaitPointerEvent(PointerEventPass.Initial)
+                if (event.type == PointerEventType.Scroll) {
+                    val delta = event.changes.firstOrNull()?.scrollDelta?.y ?: 0f
+                    if (delta > 0.05f) {
+                        if (sheetState.targetValue == SheetValue.PartiallyExpanded) {
+                            scope.launch { sheetState.expand() }
+                            event.changes.forEach { it.consume() }
+                        }
+                    } else if (delta < -0.05f) {
+                        if (!canScrollUp() && sheetState.targetValue == SheetValue.Expanded && sheetState.hasPartiallyExpandedState) {
+                            scope.launch { sheetState.partialExpand() }
+                            event.changes.forEach { it.consume() }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+internal fun Modifier.sheetMouseScrollControls(
+    sheetState: SheetState,
+    scrollState: ScrollState? = null
+): Modifier = sheetMouseScrollControls(
+    sheetState = sheetState,
+    canScrollUp = { scrollState?.let { it.value > 0 } ?: false }
+)

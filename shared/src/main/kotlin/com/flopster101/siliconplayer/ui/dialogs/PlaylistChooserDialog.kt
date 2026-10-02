@@ -56,6 +56,7 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.SheetState
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -122,11 +123,13 @@ internal fun AddToPlaylistChooserDialog(
         }
     }
 
+    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = false)
     ModalBottomSheet(
         onDismissRequest = onDismiss,
-        sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = false)
+        sheetState = sheetState
     ) {
         AddToPlaylistSheetContent(
+            sheetState = sheetState,
             playlists = playlists,
             favorites = effectiveFavorites,
             showFavorites = effectiveShowFavorites,
@@ -140,8 +143,10 @@ internal fun AddToPlaylistChooserDialog(
     }
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun AddToPlaylistSheetContent(
+    sheetState: SheetState,
     playlists: List<StoredPlaylist>,
     favorites: List<PlaylistTrackEntry>,
     showFavorites: Boolean,
@@ -196,7 +201,12 @@ private fun AddToPlaylistSheetContent(
     val otherPlaylists = remember(filteredPlaylists, savedInIds) {
         filteredPlaylists.filter { it.id !in savedInIds }
     }
-    Column(modifier = Modifier.fillMaxWidth()) {
+    val scrollState = rememberScrollState()
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .sheetMouseScrollControls(sheetState, scrollState)
+    ) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
@@ -302,7 +312,7 @@ private fun AddToPlaylistSheetContent(
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .verticalScroll(rememberScrollState())
+                .verticalScroll(scrollState)
                 .padding(start = 16.dp, end = 16.dp, bottom = 24.dp),
             verticalArrangement = Arrangement.spacedBy(4.dp)
         ) {
