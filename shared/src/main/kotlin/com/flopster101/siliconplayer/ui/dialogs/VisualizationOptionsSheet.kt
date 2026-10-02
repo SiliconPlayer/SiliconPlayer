@@ -62,7 +62,6 @@ import com.flopster101.siliconplayer.AppDefaults
 import com.flopster101.siliconplayer.AppPreferenceKeys
 import com.flopster101.siliconplayer.ChoiceDialogOption
 import com.flopster101.siliconplayer.SettingsSingleChoiceDialog
-import com.flopster101.siliconplayer.SettingsValuePickerCard
 import com.flopster101.siliconplayer.StarfieldPreset
 import com.flopster101.siliconplayer.TrackTextInputActive
 import com.flopster101.siliconplayer.VisualizationChannelScopeTrackTransition
@@ -287,15 +286,15 @@ private fun ChannelScopeOptionsContent(
                 ).apply()
             }
         )
-        SettingsValuePickerCard(
+        DialogValuePickerRow(
             title = "Wave rendering",
-            description = "Antialiased smooths trace edges. CRT renders steep transitions softer and dimmer, like a phosphor screen.",
+            subtitle = "Antialiased smooths trace edges. CRT renders steep transitions softer and dimmer, like a phosphor screen.",
             value = waveRenderMode.label,
             onClick = { showWaveRenderModeDialog = true }
         )
-        SettingsValuePickerCard(
+        DialogValuePickerRow(
             title = "Track transition",
-            description = "How the previous song's layout leaves when the track changes.",
+            subtitle = "How the previous song's layout leaves when the track changes.",
             value = trackTransition.label,
             onClick = { showTrackTransitionDialog = true }
         )
@@ -451,9 +450,9 @@ private fun StarfieldOptionsContent(resetNonce: Int) {
     var showPresetDialog by remember { mutableStateOf(false) }
 
     Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
-        SettingsValuePickerCard(
+        DialogValuePickerRow(
             title = "Flight preset",
-            description = "Preset slot under edit. Tuning below rewrites it.",
+            subtitle = "Preset slot under edit. Tuning below rewrites it.",
             value = activePreset.label,
             onClick = { showPresetDialog = true }
         )
