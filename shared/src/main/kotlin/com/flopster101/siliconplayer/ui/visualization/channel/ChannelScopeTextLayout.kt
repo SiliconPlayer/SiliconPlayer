@@ -222,9 +222,13 @@ internal fun layoutChannelScopeCellRuns(
         cursorX += sepWidth + itemSpacing
     }
     if (fields.channel != null && cursorX < maxRight) {
-        runs += ChannelScopeTextRun(fields.channel, cursorX, originY, palette.channelArgb)
-        cursorX += measurer.widthOf(fields.channel, textSizePx) + itemSpacing
-        hasPrevious = true
+        val remainingW = maxRight - cursorX
+        val channelText = truncateChannelScopeText(fields.channel, measurer, textSizePx, remainingW)
+        if (channelText != null) {
+            runs += ChannelScopeTextRun(channelText, cursorX, originY, palette.channelArgb)
+            cursorX += measurer.widthOf(channelText, textSizePx) + itemSpacing
+            hasPrevious = true
+        }
     }
     if (fields.note != null) {
         drawSeparator()
@@ -601,7 +605,10 @@ fun loadChannelScopeNameMaps(pluginName: String?, source: ChannelScopeNameSource
         )
         com.flopster101.siliconplayer.DecoderNames.FURNACE -> ChannelScopeNameMaps(
             instrumentNamesByIndex = parseChannelScopeIndexedNames(source.furnaceInstrumentNames()),
-            sampleNamesByIndex = parseChannelScopeIndexedNames(source.furnaceSampleNames())
+            sampleNamesByIndex = parseChannelScopeIndexedNames(source.furnaceSampleNames()),
+            chipNamesByChannelIndex = source.decoderToggleChannelNames()
+                .mapIndexed { index, name -> index to name }
+                .toMap()
         )
         com.flopster101.siliconplayer.DecoderNames.KLYSTRACK -> ChannelScopeNameMaps(
             instrumentNamesByIndex = parseChannelScopeIndexedNames(source.klystrackInstrumentNames())

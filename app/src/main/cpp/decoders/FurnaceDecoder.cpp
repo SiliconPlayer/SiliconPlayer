@@ -12,6 +12,7 @@
 #include <fstream>
 #include <iterator>
 #include <limits>
+#include <unordered_map>
 
 #include <furnace/engine/engine.h>
 
@@ -31,6 +32,118 @@ constexpr short kFurnaceOscResetSample = static_cast<short>(0xfffe);
 constexpr int kMaxChannelScopeChannels = 64;
 constexpr float kFurnaceDefaultScopeGain = 0.5f;
 constexpr float kFurnaceTsuScopeGain = 1.0f;
+
+std::string cleanFurnaceChipName(DivSystem sys, const char* rawSysName) {
+    switch (sys) {
+        case DIV_SYSTEM_NES:
+            return "Ricoh 2A03";
+        case DIV_SYSTEM_C64_6581:
+            return "SID 6581";
+        case DIV_SYSTEM_C64_8580:
+            return "SID 8580";
+        case DIV_SYSTEM_AMIGA:
+            return "Paula";
+        case DIV_SYSTEM_SNES:
+            return "Nintendo S-SMP";
+        case DIV_SYSTEM_FDS:
+            return "Famicom Disk System";
+        case DIV_SYSTEM_SMS:
+            return "TI SN76489";
+        case DIV_SYSTEM_GB:
+            return "Game Boy";
+        case DIV_SYSTEM_PCE:
+            return "PC Engine";
+        case DIV_SYSTEM_VRC6:
+            return "Konami VRC6";
+        case DIV_SYSTEM_VRC7:
+            return "Konami VRC7";
+        case DIV_SYSTEM_MMC5:
+            return "MMC5";
+        case DIV_SYSTEM_N163:
+            return "Namco 163";
+        case DIV_SYSTEM_YM2612:
+        case DIV_SYSTEM_YM2612_EXT:
+            return "Yamaha YM2612";
+        case DIV_SYSTEM_YM2151:
+            return "Yamaha YM2151";
+        case DIV_SYSTEM_OPLL:
+        case DIV_SYSTEM_OPLL_DRUMS:
+            return "Yamaha YM2413";
+        case DIV_SYSTEM_AY8910:
+            return "AY-3-8910";
+        case DIV_SYSTEM_AY8930:
+            return "AY8930";
+        case DIV_SYSTEM_SAA1099:
+            return "Philips SAA1099";
+        case DIV_SYSTEM_TIA:
+            return "Atari TIA";
+        case DIV_SYSTEM_VIC20:
+            return "Commodore VIC";
+        case DIV_SYSTEM_PET:
+            return "Commodore PET";
+        case DIV_SYSTEM_YM2203:
+        case DIV_SYSTEM_YM2203_EXT:
+            return "Yamaha YM2203";
+        case DIV_SYSTEM_YM2608:
+        case DIV_SYSTEM_YM2608_EXT:
+            return "Yamaha YM2608";
+        case DIV_SYSTEM_OPL:
+        case DIV_SYSTEM_OPL_DRUMS:
+            return "Yamaha YM3526 (OPL)";
+        case DIV_SYSTEM_OPL2:
+        case DIV_SYSTEM_OPL2_DRUMS:
+            return "Yamaha YM3812 (OPL2)";
+        case DIV_SYSTEM_OPL3:
+        case DIV_SYSTEM_OPL3_DRUMS:
+            return "Yamaha YMF262 (OPL3)";
+        case DIV_SYSTEM_POKEY:
+            return "Atari POKEY";
+        case DIV_SYSTEM_RF5C68:
+            return "Ricoh RF5C68";
+        case DIV_SYSTEM_QSOUND:
+            return "Capcom QSound";
+        case DIV_SYSTEM_VERA:
+            return "Commander X16 VERA";
+        default:
+            break;
+    }
+    if (rawSysName && rawSysName[0] != '\0') {
+        std::string s(rawSysName);
+        const std::string chipSuffix = " (chip)";
+        if (s.size() > chipSuffix.size() &&
+            s.compare(s.size() - chipSuffix.size(), chipSuffix.size(), chipSuffix) == 0) {
+            s.erase(s.size() - chipSuffix.size());
+        }
+        return s;
+    }
+    return "Chip";
+}
+
+std::string cleanFurnaceVoiceName(const std::string& rawVoiceName) {
+    if (rawVoiceName == "VRC6 Saw" || rawVoiceName == "VS") {
+        return "Sawtooth";
+    }
+    if (rawVoiceName == "VRC6 1") {
+        return "Pulse 1";
+    }
+    if (rawVoiceName == "VRC6 2") {
+        return "Pulse 2";
+    }
+    if (rawVoiceName == "FDS") {
+        return "Wavetable";
+    }
+    return rawVoiceName;
+}
+
+bool isGenericFurnaceVoiceName(const std::string& voiceName) {
+    if (voiceName.empty() || voiceName == "??") {
+        return true;
+    }
+    if (voiceName.rfind("Channel ", 0) == 0 || voiceName.rfind("Ch ", 0) == 0) {
+        return true;
+    }
+    return false;
+}
 
 std::vector<unsigned char> readBinaryFile(const std::string& path) {
     std::ifstream stream(path, std::ios::binary | std::ios::ate);
@@ -428,24 +541,74 @@ void FurnaceDecoder::syncToggleChannelsLocked() {
     }
 
     const int channelCount = std::clamp(engine->getTotalChannelCount(), 0, DIV_MAX_CHANS);
+    const int systemLen = std::clamp(static_cast<int>(engine->song.systemLen), 0, DIV_MAX_CHIPS);
+
+    int activeChipCount = 0;
+    std::unordered_map<int, int> chipTypeCount;
+    std::vector<int> chipInstance(static_cast<size_t>(systemLen), 1);
+
+    for (int c = 0; c < systemLen; ++c) {
+        const int chansOnChip = engine->song.systemChans[c];
+        const DivSystem sys = engine->song.system[c];
+        if (chansOnChip > 0 && sys != DIV_SYSTEM_NULL) {
+            activeChipCount++;
+            int count = ++chipTypeCount[static_cast<int>(sys)];
+            chipInstance[static_cast<size_t>(c)] = count;
+        }
+    }
+
     std::vector<std::string> nextNames;
     nextNames.reserve(static_cast<size_t>(channelCount));
 
     for (int i = 0; i < channelCount; ++i) {
-        std::string channelName;
+        std::string voiceName;
         const char* name = engine->getChannelName(i);
         if (name && name[0] != '\0' && std::strcmp(name, "??") != 0) {
-            channelName = name;
+            voiceName = name;
         } else {
             const char* shortName = engine->getChannelShortName(i);
             if (shortName && shortName[0] != '\0' && std::strcmp(shortName, "??") != 0) {
-                channelName = shortName;
+                voiceName = shortName;
             }
         }
-        if (channelName.empty()) {
-            channelName = "Channel " + std::to_string(i + 1);
+        voiceName = cleanFurnaceVoiceName(voiceName);
+
+        const bool isGenericName = isGenericFurnaceVoiceName(voiceName);
+        std::string finalChannelName;
+
+        if (activeChipCount <= 1) {
+            if (isGenericName) {
+                finalChannelName = "Ch " + std::to_string(i + 1);
+            } else {
+                finalChannelName = voiceName;
+            }
+        } else {
+            int chipIdx = (i < DIV_MAX_CHANS) ? engine->song.dispatchOfChan[i] : 0;
+            if (chipIdx < 0 || chipIdx >= systemLen) chipIdx = 0;
+            int firstChan = (i < DIV_MAX_CHANS) ? engine->song.dispatchFirstChan[i] : 0;
+            int chanInChip = std::max(0, i - firstChan);
+            DivSystem sys = (i < DIV_MAX_CHANS) ? engine->song.sysOfChan[i] : DIV_SYSTEM_NULL;
+            if (sys == DIV_SYSTEM_NULL && chipIdx < systemLen) {
+                sys = engine->song.system[chipIdx];
+            }
+
+            int instance = (chipIdx < static_cast<int>(chipInstance.size()))
+                    ? chipInstance[static_cast<size_t>(chipIdx)]
+                    : 1;
+            std::string chipName = cleanFurnaceChipName(sys, engine->getSystemName(sys));
+            std::string chipPrefix = chipName + " #" + std::to_string(instance);
+
+            if (isGenericName) {
+                finalChannelName = chipPrefix + " Ch " + std::to_string(chanInChip + 1);
+            } else {
+                if (!voiceName.empty() && voiceName.front() == '(' && voiceName.back() == ')') {
+                    finalChannelName = chipPrefix + " " + voiceName;
+                } else {
+                    finalChannelName = chipPrefix + " (" + voiceName + ")";
+                }
+            }
         }
-        nextNames.push_back(channelName);
+        nextNames.push_back(finalChannelName);
     }
 
     if (nextNames == toggleChannelNames &&

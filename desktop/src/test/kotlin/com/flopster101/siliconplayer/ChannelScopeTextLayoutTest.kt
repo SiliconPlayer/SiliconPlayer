@@ -121,13 +121,15 @@ class ChannelScopeTextLayoutTest {
             override fun furnaceSampleNames() = "1. Snare\n"
             override fun klystrackInstrumentNames() = ""
             override fun hivelyInstrumentNames() = ""
-            override fun decoderToggleChannelNames() = emptyArray<String>()
+            override fun decoderToggleChannelNames() = arrayOf("Pulse 1", "Pulse 2", "Triangle")
         }
         val maps = loadChannelScopeNameMaps(DecoderNames.FURNACE, source)
         assertEquals("Lead", maps.instrumentNamesByIndex[1])
         assertEquals("Bass", maps.instrumentNamesByIndex[2])
         assertEquals("Snare", maps.sampleNamesByIndex[1])
-        assertTrue(maps.chipNamesByChannelIndex.isEmpty())
+        assertEquals("Pulse 1", maps.chipNamesByChannelIndex[0])
+        assertEquals("Pulse 2", maps.chipNamesByChannelIndex[1])
+        assertEquals("Triangle", maps.chipNamesByChannelIndex[2])
         val empty = loadChannelScopeNameMaps("Nope", source)
         assertEquals(ChannelScopeNameMaps(), empty)
     }
