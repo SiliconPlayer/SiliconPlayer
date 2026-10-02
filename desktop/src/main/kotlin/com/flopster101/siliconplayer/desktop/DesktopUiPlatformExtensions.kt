@@ -156,6 +156,9 @@ internal fun readCurrentFormatName(decoderName: String?): String? {
             decoderName.matchesDecoderName(DecoderNames.KLYSTRACK) -> {
                 NativeBridge.getKlystrackFormatName().trim().takeIf { it.isNotEmpty() }
             }
+            decoderName.equals(DecoderNames.LIB_DN_FAMITRACKER, ignoreCase = true) -> {
+                NativeBridge.getDnfamitrackerFormatName().trim().takeIf { it.isNotEmpty() }
+            }
             decoderName.equals(DecoderNames.FURNACE, ignoreCase = true) -> {
                 NativeBridge.getFurnaceFormatName().trim().takeIf { it.isNotEmpty() }
             }

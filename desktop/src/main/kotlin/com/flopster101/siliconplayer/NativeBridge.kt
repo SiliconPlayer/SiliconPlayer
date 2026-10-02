@@ -354,6 +354,18 @@ object NativeBridge {
     external fun getFurnaceInstrumentNames(): String
     external fun getDnfamitrackerInstrumentNames(): String
     external fun getDnfamitrackerSampleNames(): String
+    external fun getDnfamitrackerFormatName(): String
+    external fun getDnfamitrackerSystemName(): String
+    external fun getDnfamitrackerExpansionChips(): String
+    external fun getDnfamitrackerCurrentSongTitle(): String
+    external fun getDnfamitrackerSongChannelCount(): Int
+    external fun getDnfamitrackerSongCount(): Int
+    external fun getDnfamitrackerFrameCount(): Int
+    external fun getDnfamitrackerRowsPerPattern(): Int
+    external fun getDnfamitrackerSongSpeed(): Int
+    external fun getDnfamitrackerSongTempo(): Int
+    external fun getDnfamitrackerCurrentFrame(): Int
+    external fun getDnfamitrackerCurrentRow(): Int
     external fun getFurnaceSampleNames(): String
     external fun getFurnaceFormatName(): String
     external fun getFurnaceSongVersion(): Int

@@ -1250,6 +1250,78 @@ std::string AudioEngine::getDnfamitrackerSampleNames() {
     return decoder->getCoreStringInfo("sampleNames");
 }
 
+std::string AudioEngine::getDnfamitrackerFormatName() {
+    std::lock_guard<std::mutex> lock(decoderMutex);
+    if (!decoder) return "";
+    return decoder->getCoreStringInfo("formatName");
+}
+
+std::string AudioEngine::getDnfamitrackerSystemName() {
+    std::lock_guard<std::mutex> lock(decoderMutex);
+    if (!decoder) return "";
+    return decoder->getCoreStringInfo("systemName");
+}
+
+std::string AudioEngine::getDnfamitrackerExpansionChips() {
+    std::lock_guard<std::mutex> lock(decoderMutex);
+    if (!decoder) return "";
+    return decoder->getCoreStringInfo("expansionChips");
+}
+
+std::string AudioEngine::getDnfamitrackerCurrentSongTitle() {
+    std::lock_guard<std::mutex> lock(decoderMutex);
+    if (!decoder) return "";
+    return decoder->getCoreStringInfo("currentSongTitle");
+}
+
+int AudioEngine::getDnfamitrackerSongChannelCount() {
+    std::lock_guard<std::mutex> lock(decoderMutex);
+    if (!decoder) return 0;
+    return decoder->getCoreIntInfo("songChannelCount", 0);
+}
+
+int AudioEngine::getDnfamitrackerSongCount() {
+    std::lock_guard<std::mutex> lock(decoderMutex);
+    if (!decoder) return 0;
+    return decoder->getCoreIntInfo("songCount", 0);
+}
+
+int AudioEngine::getDnfamitrackerFrameCount() {
+    std::lock_guard<std::mutex> lock(decoderMutex);
+    if (!decoder) return 0;
+    return decoder->getCoreIntInfo("frameCount", 0);
+}
+
+int AudioEngine::getDnfamitrackerRowsPerPattern() {
+    std::lock_guard<std::mutex> lock(decoderMutex);
+    if (!decoder) return 0;
+    return decoder->getCoreIntInfo("rowsPerPattern", 0);
+}
+
+int AudioEngine::getDnfamitrackerSongSpeed() {
+    std::lock_guard<std::mutex> lock(decoderMutex);
+    if (!decoder) return 0;
+    return decoder->getCoreIntInfo("songSpeed", 0);
+}
+
+int AudioEngine::getDnfamitrackerSongTempo() {
+    std::lock_guard<std::mutex> lock(decoderMutex);
+    if (!decoder) return 0;
+    return decoder->getCoreIntInfo("songTempo", 0);
+}
+
+int AudioEngine::getDnfamitrackerCurrentFrame() {
+    std::lock_guard<std::mutex> lock(decoderMutex);
+    if (!decoder) return -1;
+    return decoder->getCoreIntInfo("currentFrame", -1);
+}
+
+int AudioEngine::getDnfamitrackerCurrentRow() {
+    std::lock_guard<std::mutex> lock(decoderMutex);
+    if (!decoder) return -1;
+    return decoder->getCoreIntInfo("currentRow", -1);
+}
+
 std::string AudioEngine::getFurnaceInstrumentNames() {
     std::lock_guard<std::mutex> lock(decoderMutex);
     if (!decoder) return "";

@@ -73,6 +73,8 @@ private:
     void seekPlayerLocked(double seconds);
     std::string getInstrumentNamesInfoLocked();
     std::string getSampleNamesInfoLocked();
+    std::string getExpansionChipsInfoLocked();
+    std::string getCurrentSongTitleLocked();
 
     std::unique_ptr<CFTMPlayer> player;
     mutable std::mutex decodeMutex;

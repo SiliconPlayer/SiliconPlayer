@@ -238,6 +238,18 @@ public:
     std::string getKlystrackInstrumentNames();
     std::string getDnfamitrackerInstrumentNames();
     std::string getDnfamitrackerSampleNames();
+    std::string getDnfamitrackerFormatName();
+    std::string getDnfamitrackerSystemName();
+    std::string getDnfamitrackerExpansionChips();
+    std::string getDnfamitrackerCurrentSongTitle();
+    int getDnfamitrackerSongChannelCount();
+    int getDnfamitrackerSongCount();
+    int getDnfamitrackerFrameCount();
+    int getDnfamitrackerRowsPerPattern();
+    int getDnfamitrackerSongSpeed();
+    int getDnfamitrackerSongTempo();
+    int getDnfamitrackerCurrentFrame();
+    int getDnfamitrackerCurrentRow();
     std::string getFurnaceInstrumentNames();
     std::string getFurnaceSampleNames();
     std::string getFurnaceFormatName();

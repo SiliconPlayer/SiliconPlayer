@@ -241,6 +241,26 @@ internal fun TrackInfoCoreSections(
             if (metadata.hivelyTracker.instrumentNames.isNotBlank()) TrackInfoDetailsRow("Instrument names", metadata.hivelyTracker.instrumentNames)
         }
 
+        decoderName.equals(DecoderNames.LIB_DN_FAMITRACKER, ignoreCase = true) -> {
+            TrackInfoSectionHeader("Dn-FamiTracker")
+            if (metadata.dnfamitracker.formatName.isNotBlank()) TrackInfoDetailsRow("Format", metadata.dnfamitracker.formatName)
+            if (metadata.dnfamitracker.systemName.isNotBlank()) TrackInfoDetailsRow("System", metadata.dnfamitracker.systemName)
+            if (metadata.dnfamitracker.expansionChips.isNotBlank()) TrackInfoDetailsRow("Expansion chips", metadata.dnfamitracker.expansionChips)
+            if (metadata.dnfamitracker.songChannelCount > 0) TrackInfoDetailsRow("Channels", metadata.dnfamitracker.songChannelCount.toString())
+            if (metadata.dnfamitracker.songCount > 1) {
+                TrackInfoDetailsRow("Songs", metadata.dnfamitracker.songCount.toString())
+                if (metadata.dnfamitracker.currentSongTitle.isNotBlank()) TrackInfoDetailsRow("Current song", metadata.dnfamitracker.currentSongTitle)
+            }
+            if (metadata.dnfamitracker.frameCount > 0) TrackInfoDetailsRow("Frames", metadata.dnfamitracker.frameCount.toString())
+            if (metadata.dnfamitracker.rowsPerPattern > 0) TrackInfoDetailsRow("Rows per pattern", metadata.dnfamitracker.rowsPerPattern.toString())
+            if (metadata.dnfamitracker.songSpeed > 0) TrackInfoDetailsRow("Initial speed", metadata.dnfamitracker.songSpeed.toString())
+            if (metadata.dnfamitracker.songTempo > 0) TrackInfoDetailsRow("Initial tempo", "${metadata.dnfamitracker.songTempo} BPM")
+            if (metadata.dnfamitracker.currentFrame >= 0) TrackInfoDetailsRow("Current frame", metadata.dnfamitracker.currentFrame.toString())
+            if (metadata.dnfamitracker.currentRow >= 0) TrackInfoDetailsRow("Current row", metadata.dnfamitracker.currentRow.toString())
+            if (metadata.dnfamitracker.instrumentNames.isNotBlank()) TrackInfoDetailsRow("Instrument names", metadata.dnfamitracker.instrumentNames)
+            if (metadata.dnfamitracker.sampleNames.isNotBlank()) TrackInfoDetailsRow("Sample names", metadata.dnfamitracker.sampleNames)
+        }
+
         decoderName.matchesDecoderName(DecoderNames.KLYSTRACK) -> {
             TrackInfoSectionHeader(DecoderNames.KLYSTRACK)
             if (metadata.klystrack.formatName.isNotBlank()) TrackInfoDetailsRow("Format", metadata.klystrack.formatName)
@@ -491,6 +511,26 @@ internal fun appendCoreTrackInfoCopyRows(
             if (metadata.hivelyTracker.currentTempo > 0) row("Current tempo", metadata.hivelyTracker.currentTempo.toString())
             if (metadata.hivelyTracker.mixGainPercent > 0) row("Mix gain", "${metadata.hivelyTracker.mixGainPercent}%")
             if (metadata.hivelyTracker.instrumentNames.isNotBlank()) row("Instrument names", metadata.hivelyTracker.instrumentNames)
+        }
+
+        decoderName.equals(DecoderNames.LIB_DN_FAMITRACKER, ignoreCase = true) -> {
+            builder.append('\n').append("[Dn-FamiTracker]").append('\n')
+            if (metadata.dnfamitracker.formatName.isNotBlank()) row("Format", metadata.dnfamitracker.formatName)
+            if (metadata.dnfamitracker.systemName.isNotBlank()) row("System", metadata.dnfamitracker.systemName)
+            if (metadata.dnfamitracker.expansionChips.isNotBlank()) row("Expansion chips", metadata.dnfamitracker.expansionChips)
+            if (metadata.dnfamitracker.songChannelCount > 0) row("Channels", metadata.dnfamitracker.songChannelCount.toString())
+            if (metadata.dnfamitracker.songCount > 1) {
+                row("Songs", metadata.dnfamitracker.songCount.toString())
+                if (metadata.dnfamitracker.currentSongTitle.isNotBlank()) row("Current song", metadata.dnfamitracker.currentSongTitle)
+            }
+            if (metadata.dnfamitracker.frameCount > 0) row("Frames", metadata.dnfamitracker.frameCount.toString())
+            if (metadata.dnfamitracker.rowsPerPattern > 0) row("Rows per pattern", metadata.dnfamitracker.rowsPerPattern.toString())
+            if (metadata.dnfamitracker.songSpeed > 0) row("Initial speed", metadata.dnfamitracker.songSpeed.toString())
+            if (metadata.dnfamitracker.songTempo > 0) row("Initial tempo", "${metadata.dnfamitracker.songTempo} BPM")
+            if (metadata.dnfamitracker.currentFrame >= 0) row("Current frame", metadata.dnfamitracker.currentFrame.toString())
+            if (metadata.dnfamitracker.currentRow >= 0) row("Current row", metadata.dnfamitracker.currentRow.toString())
+            if (metadata.dnfamitracker.instrumentNames.isNotBlank()) row("Instrument names", metadata.dnfamitracker.instrumentNames)
+            if (metadata.dnfamitracker.sampleNames.isNotBlank()) row("Sample names", metadata.dnfamitracker.sampleNames)
         }
 
         decoderName.matchesDecoderName(DecoderNames.KLYSTRACK) -> {

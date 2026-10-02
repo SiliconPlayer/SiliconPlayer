@@ -2116,6 +2116,78 @@ Java_com_flopster101_siliconplayer_NativeBridge_getDnfamitrackerSampleNames(JNIE
 }
 
 extern "C" JNIEXPORT jstring JNICALL
+Java_com_flopster101_siliconplayer_NativeBridge_getDnfamitrackerFormatName(JNIEnv* env, jobject) {
+    if (audioEngine == nullptr) return toJString(env, "");
+    return toJString(env, audioEngine->getDnfamitrackerFormatName());
+}
+
+extern "C" JNIEXPORT jstring JNICALL
+Java_com_flopster101_siliconplayer_NativeBridge_getDnfamitrackerSystemName(JNIEnv* env, jobject) {
+    if (audioEngine == nullptr) return toJString(env, "");
+    return toJString(env, audioEngine->getDnfamitrackerSystemName());
+}
+
+extern "C" JNIEXPORT jstring JNICALL
+Java_com_flopster101_siliconplayer_NativeBridge_getDnfamitrackerExpansionChips(JNIEnv* env, jobject) {
+    if (audioEngine == nullptr) return toJString(env, "");
+    return toJString(env, audioEngine->getDnfamitrackerExpansionChips());
+}
+
+extern "C" JNIEXPORT jstring JNICALL
+Java_com_flopster101_siliconplayer_NativeBridge_getDnfamitrackerCurrentSongTitle(JNIEnv* env, jobject) {
+    if (audioEngine == nullptr) return toJString(env, "");
+    return toJString(env, audioEngine->getDnfamitrackerCurrentSongTitle());
+}
+
+extern "C" JNIEXPORT jint JNICALL
+Java_com_flopster101_siliconplayer_NativeBridge_getDnfamitrackerSongChannelCount(JNIEnv*, jobject) {
+    if (audioEngine == nullptr) return 0;
+    return static_cast<jint>(audioEngine->getDnfamitrackerSongChannelCount());
+}
+
+extern "C" JNIEXPORT jint JNICALL
+Java_com_flopster101_siliconplayer_NativeBridge_getDnfamitrackerSongCount(JNIEnv*, jobject) {
+    if (audioEngine == nullptr) return 0;
+    return static_cast<jint>(audioEngine->getDnfamitrackerSongCount());
+}
+
+extern "C" JNIEXPORT jint JNICALL
+Java_com_flopster101_siliconplayer_NativeBridge_getDnfamitrackerFrameCount(JNIEnv*, jobject) {
+    if (audioEngine == nullptr) return 0;
+    return static_cast<jint>(audioEngine->getDnfamitrackerFrameCount());
+}
+
+extern "C" JNIEXPORT jint JNICALL
+Java_com_flopster101_siliconplayer_NativeBridge_getDnfamitrackerRowsPerPattern(JNIEnv*, jobject) {
+    if (audioEngine == nullptr) return 0;
+    return static_cast<jint>(audioEngine->getDnfamitrackerRowsPerPattern());
+}
+
+extern "C" JNIEXPORT jint JNICALL
+Java_com_flopster101_siliconplayer_NativeBridge_getDnfamitrackerSongSpeed(JNIEnv*, jobject) {
+    if (audioEngine == nullptr) return 0;
+    return static_cast<jint>(audioEngine->getDnfamitrackerSongSpeed());
+}
+
+extern "C" JNIEXPORT jint JNICALL
+Java_com_flopster101_siliconplayer_NativeBridge_getDnfamitrackerSongTempo(JNIEnv*, jobject) {
+    if (audioEngine == nullptr) return 0;
+    return static_cast<jint>(audioEngine->getDnfamitrackerSongTempo());
+}
+
+extern "C" JNIEXPORT jint JNICALL
+Java_com_flopster101_siliconplayer_NativeBridge_getDnfamitrackerCurrentFrame(JNIEnv*, jobject) {
+    if (audioEngine == nullptr) return 0;
+    return static_cast<jint>(audioEngine->getDnfamitrackerCurrentFrame());
+}
+
+extern "C" JNIEXPORT jint JNICALL
+Java_com_flopster101_siliconplayer_NativeBridge_getDnfamitrackerCurrentRow(JNIEnv*, jobject) {
+    if (audioEngine == nullptr) return 0;
+    return static_cast<jint>(audioEngine->getDnfamitrackerCurrentRow());
+}
+
+extern "C" JNIEXPORT jstring JNICALL
 Java_com_flopster101_siliconplayer_NativeBridge_getFurnaceInstrumentNames(JNIEnv* env, jobject) {
     if (audioEngine == nullptr) return toJString(env, "");
     return toJString(env, audioEngine->getFurnaceInstrumentNames());

@@ -193,6 +193,23 @@ internal data class HivelyTrackerMetadata(
     val instrumentNames: String = ""
 )
 
+internal data class DnfamitrackerMetadata(
+    val formatName: String = "",
+    val systemName: String = "",
+    val expansionChips: String = "",
+    val songChannelCount: Int = 0,
+    val songCount: Int = 0,
+    val currentSongTitle: String = "",
+    val frameCount: Int = 0,
+    val rowsPerPattern: Int = 0,
+    val songSpeed: Int = 0,
+    val songTempo: Int = 0,
+    val currentFrame: Int = -1,
+    val currentRow: Int = -1,
+    val instrumentNames: String = "",
+    val sampleNames: String = ""
+)
+
 internal data class KlystrackMetadata(
     val formatName: String = "",
     val trackCount: Int = 0,
@@ -272,6 +289,7 @@ internal data class TrackInfoLiveMetadata(
     val adplug: AdplugMetadata = AdplugMetadata(),
     val hivelyTracker: HivelyTrackerMetadata = HivelyTrackerMetadata(),
     val klystrack: KlystrackMetadata = KlystrackMetadata(),
+    val dnfamitracker: DnfamitrackerMetadata = DnfamitrackerMetadata(),
     val furnace: FurnaceMetadata = FurnaceMetadata(),
     val uade: UadeMetadata = UadeMetadata()
 )
@@ -520,6 +538,25 @@ private fun queryTrackInfoLiveMetadata(decoderName: String?): TrackInfoLiveMetad
                 currentTempo = NativeBridge.getHivelyCurrentTempo(),
                 mixGainPercent = NativeBridge.getHivelyMixGainPercent(),
                 instrumentNames = NativeBridge.getHivelyInstrumentNames()
+            )
+        )
+
+        decoderName.equals(DecoderNames.LIB_DN_FAMITRACKER, ignoreCase = true) -> common.copy(
+            dnfamitracker = DnfamitrackerMetadata(
+                formatName = NativeBridge.getDnfamitrackerFormatName(),
+                systemName = NativeBridge.getDnfamitrackerSystemName(),
+                expansionChips = NativeBridge.getDnfamitrackerExpansionChips(),
+                songChannelCount = NativeBridge.getDnfamitrackerSongChannelCount(),
+                songCount = NativeBridge.getDnfamitrackerSongCount(),
+                currentSongTitle = NativeBridge.getDnfamitrackerCurrentSongTitle(),
+                frameCount = NativeBridge.getDnfamitrackerFrameCount(),
+                rowsPerPattern = NativeBridge.getDnfamitrackerRowsPerPattern(),
+                songSpeed = NativeBridge.getDnfamitrackerSongSpeed(),
+                songTempo = NativeBridge.getDnfamitrackerSongTempo(),
+                currentFrame = NativeBridge.getDnfamitrackerCurrentFrame(),
+                currentRow = NativeBridge.getDnfamitrackerCurrentRow(),
+                instrumentNames = NativeBridge.getDnfamitrackerInstrumentNames(),
+                sampleNames = NativeBridge.getDnfamitrackerSampleNames()
             )
         )
 

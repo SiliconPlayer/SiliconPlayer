@@ -406,6 +406,12 @@ std::string DnfamitrackerDecoder::getCoreStringInfo(const char* name) {
     if (key == "sampleNames") {
         return getSampleNamesInfoLocked();
     }
+    if (key == "expansionChips") {
+        return getExpansionChipsInfoLocked();
+    }
+    if (key == "currentSongTitle") {
+        return getCurrentSongTitleLocked();
+    }
     return "";
 }
 
@@ -421,6 +427,25 @@ int DnfamitrackerDecoder::getCoreIntInfo(const char* name, int fallback) {
     }
     if (key == "songChannelCount") {
         return player ? player->GetChannelCount() : fallback;
+    }
+    if (key == "songCount") {
+        return player ? player->GetSubtuneCount() : fallback;
+    }
+    if (player && player->GetDocument()) {
+        CFTMDocument* doc = player->GetDocument();
+        const int track = player->GetCurrentSubtune();
+        if (key == "frameCount") {
+            return doc->GetFrameCount(track);
+        }
+        if (key == "rowsPerPattern") {
+            return doc->GetPatternLength(track);
+        }
+        if (key == "songSpeed") {
+            return doc->GetSongSpeed(track);
+        }
+        if (key == "songTempo") {
+            return doc->GetSongTempo(track);
+        }
     }
     if (key == "fileVersion") {
         if (player && player->GetDocument()) {
@@ -463,6 +488,57 @@ std::string DnfamitrackerDecoder::getSampleNamesInfoLocked() {
         names.append(doc->GetSampleName(i));
     }
     return names;
+}
+
+std::string DnfamitrackerDecoder::getExpansionChipsInfoLocked() {
+    if (!player || !player->GetDocument()) {
+        return "";
+    }
+    const unsigned char chips = player->GetDocument()->GetExpansionChip();
+    std::string names;
+    const auto append = [&names](const char* chip) {
+        if (!names.empty()) {
+            names.append(" + ");
+        }
+        names.append(chip);
+    };
+    if (chips & SNDCHIP_VRC6) {
+        append("Konami VRC6");
+    }
+    if (chips & SNDCHIP_VRC7) {
+        append("Konami VRC7");
+    }
+    if (chips & SNDCHIP_FDS) {
+        append("Famicom Disk System");
+    }
+    if (chips & SNDCHIP_MMC5) {
+        append("Nintendo MMC5");
+    }
+    if (chips & SNDCHIP_N163) {
+        append("Namco N163");
+    }
+    if (chips & SNDCHIP_S5B) {
+        append("Sunsoft 5B");
+    }
+    return names;
+}
+
+std::string DnfamitrackerDecoder::getCurrentSongTitleLocked() {
+    if (!player || !player->GetDocument()) {
+        return "";
+    }
+    const int index = player->GetCurrentSubtune();
+    CPatternData* track = player->GetDocument()->GetTrack(static_cast<unsigned int>(index));
+    if (track) {
+        std::string t = track->GetTitle();
+        if (!t.empty()) {
+            return t;
+        }
+    }
+    if (player->GetSubtuneCount() <= 1) {
+        return title;
+    }
+    return "Track " + std::to_string(index + 1);
 }
 
 void DnfamitrackerDecoder::updateScopeSnapshotLocked() {
