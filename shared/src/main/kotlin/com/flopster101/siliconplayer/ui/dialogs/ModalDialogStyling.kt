@@ -403,9 +403,13 @@ internal fun DialogIntSliderRow(
     dragSnap: Int = 1,
     unitLabel: String = "",
     enabled: Boolean = true,
+    valueToFraction: ((Int) -> Float)? = null,
+    fractionToValue: ((Float) -> Int)? = null,
+    onStepChange: ((Boolean) -> Unit)? = null,
     onValueChange: (Int) -> Unit
 ) {
     val contentAlpha = if (enabled) 1f else 0.38f
+    val isNonLinear = valueToFraction != null && fractionToValue != null
     Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
         Row(
             modifier = Modifier.fillMaxWidth(),
@@ -432,7 +436,13 @@ internal fun DialogIntSliderRow(
             horizontalArrangement = Arrangement.spacedBy(8.dp)
         ) {
             OutlinedIconButton(
-                onClick = { onValueChange((value - step).coerceIn(valueRange)) },
+                onClick = {
+                    if (onStepChange != null) {
+                        onStepChange(false)
+                    } else {
+                        onValueChange((value - step).coerceIn(valueRange))
+                    }
+                },
                 enabled = enabled && value > valueRange.first,
                 modifier = Modifier.size(32.dp),
                 shape = RoundedCornerShape(8.dp)
@@ -445,11 +455,19 @@ internal fun DialogIntSliderRow(
             }
 
             Slider(
-                value = value.toFloat().coerceIn(valueRange.first.toFloat(), valueRange.last.toFloat()),
-                onValueChange = { floatVal ->
-                    onValueChange(snapToStep(floatVal, valueRange, dragSnap))
+                value = if (isNonLinear) {
+                    valueToFraction!!(value).coerceIn(0f, 1f)
+                } else {
+                    value.toFloat().coerceIn(valueRange.first.toFloat(), valueRange.last.toFloat())
                 },
-                valueRange = valueRange.first.toFloat()..valueRange.last.toFloat(),
+                onValueChange = { floatVal ->
+                    if (isNonLinear) {
+                        onValueChange(fractionToValue!!(floatVal.coerceIn(0f, 1f)))
+                    } else {
+                        onValueChange(snapToStep(floatVal, valueRange, dragSnap))
+                    }
+                },
+                valueRange = if (isNonLinear) 0f..1f else valueRange.first.toFloat()..valueRange.last.toFloat(),
                 enabled = enabled,
                 modifier = Modifier.weight(1f),
                 colors = SliderDefaults.colors(
@@ -460,7 +478,13 @@ internal fun DialogIntSliderRow(
             )
 
             OutlinedIconButton(
-                onClick = { onValueChange((value + step).coerceIn(valueRange)) },
+                onClick = {
+                    if (onStepChange != null) {
+                        onStepChange(true)
+                    } else {
+                        onValueChange((value + step).coerceIn(valueRange))
+                    }
+                },
                 enabled = enabled && value < valueRange.last,
                 modifier = Modifier.size(32.dp),
                 shape = RoundedCornerShape(8.dp)

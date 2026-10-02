@@ -166,7 +166,7 @@ object AppDefaults {
             const val textVuCustomColorArgb = 0xFFFFFFFF.toInt()
 
             val windowRangeMs = 5..200
-            val gainRangePercent = 25..1000
+            val gainRangePercent = 10..5000
             val lineWidthRangeDp = 1..12
             val gridWidthRangeDp = 1..8
             val textPaddingRangeDp = 0..24

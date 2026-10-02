@@ -71,6 +71,7 @@ import com.flopster101.siliconplayer.platform.LocalAppPreferences
 import com.flopster101.siliconplayer.ui.screens.starfieldActivePreset
 import com.flopster101.siliconplayer.ui.screens.starfieldKeysFor
 import com.flopster101.siliconplayer.ui.screens.starfieldPresetTuneFor
+import com.flopster101.siliconplayer.ui.visualization.channel.ChannelScopeGainMapping
 import com.flopster101.siliconplayer.ui.visualization.gl.SiliconVisNativeBridge
 import kotlinx.coroutines.delay
 import java.util.Locale
@@ -255,17 +256,27 @@ private fun ChannelScopeOptionsContent(
         DialogIntSliderRow(
             title = "Gain (current track)",
             value = trackInputGain,
-            valueRange = 10..500,
-            step = 5,
+            valueRange = AppDefaults.Visualization.ChannelScope.gainRangePercent,
+            step = 10,
             unitLabel = "%",
+            valueToFraction = { ChannelScopeGainMapping.gainPercentToFraction(it) },
+            fractionToValue = { ChannelScopeGainMapping.fractionToGainPercent(it) },
+            onStepChange = { increase ->
+                onTrackInputGainChange(ChannelScopeGainMapping.nudgeGainPercent(trackInputGain, increase))
+            },
             onValueChange = onTrackInputGainChange
         )
         DialogIntSliderRow(
             title = "Gain (all tracks)",
             value = globalInputGain,
-            valueRange = 10..500,
-            step = 5,
+            valueRange = AppDefaults.Visualization.ChannelScope.gainRangePercent,
+            step = 10,
             unitLabel = "%",
+            valueToFraction = { ChannelScopeGainMapping.gainPercentToFraction(it) },
+            fractionToValue = { ChannelScopeGainMapping.fractionToGainPercent(it) },
+            onStepChange = { increase ->
+                onGlobalInputGainChange(ChannelScopeGainMapping.nudgeGainPercent(globalInputGain, increase))
+            },
             onValueChange = onGlobalInputGainChange
         )
         DialogToggleRow(

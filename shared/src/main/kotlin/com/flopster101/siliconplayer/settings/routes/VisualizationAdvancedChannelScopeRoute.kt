@@ -18,6 +18,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import com.flopster101.siliconplayer.ui.visualization.channel.ChannelScopeGainMapping
 import java.util.Locale
 
 
@@ -1179,8 +1180,11 @@ internal fun VisualizationAdvancedChannelScopeRouteContent(
                                 title = "Scope gain",
                                 unitLabel = "%",
                                 range = AppDefaults.Visualization.ChannelScope.gainRangePercent,
-                                step = 5,
+                                step = 10,
                                 currentValue = scopeGainPercent,
+                                valueToFraction = { ChannelScopeGainMapping.gainPercentToFraction(it) },
+                                fractionToValue = { ChannelScopeGainMapping.fractionToGainPercent(it) },
+                                stepNudge = { current, increase -> ChannelScopeGainMapping.nudgeGainPercent(current, increase) },
                                 onDismiss = { showGainDialog = false },
                                 onConfirm = { value ->
                                     val clamped = value.coerceIn(

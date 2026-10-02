@@ -956,12 +956,16 @@ internal fun SteppedIntSliderDialog(
     showNudgeButtons: Boolean = true,
     nudgeStep: Int = step,
     valueLabelFormatter: ((Int) -> String)? = null,
-    confirmLabel: String = "Save"
+    confirmLabel: String = "Save",
+    valueToFraction: ((Int) -> Float)? = null,
+    fractionToValue: ((Float) -> Int)? = null,
+    stepNudge: ((current: Int, increase: Boolean) -> Int)? = null
 ) {
     val safeStep = step.coerceAtLeast(1)
     val min = range.first
     val max = range.last
     val stepCount = ((max - min) / safeStep).coerceAtLeast(1)
+    val isNonLinear = valueToFraction != null && fractionToValue != null
     var value by remember { mutableIntStateOf(currentValue.coerceIn(min, max)) }
     val safeNudgeStep = nudgeStep.coerceAtLeast(1)
 
@@ -988,7 +992,9 @@ internal fun SteppedIntSliderDialog(
             ) {
                 if (showNudgeButtons) {
                     OutlinedButton(
-                        onClick = { value = normalize(value - safeNudgeStep) },
+                        onClick = {
+                            value = if (stepNudge != null) stepNudge(value, false) else normalize(value - safeNudgeStep)
+                        },
                         enabled = value > min,
                         modifier = Modifier.width(48.dp),
                         shape = RoundedCornerShape(12.dp)
@@ -1000,17 +1006,19 @@ internal fun SteppedIntSliderDialog(
                     }
                 }
                 Slider(
-                    value = value.toFloat(),
+                    value = if (isNonLinear) valueToFraction!!(value).coerceIn(0f, 1f) else value.toFloat(),
                     onValueChange = { raw ->
-                        value = normalize(raw.roundToInt())
+                        value = if (isNonLinear) fractionToValue!!(raw.coerceIn(0f, 1f)) else normalize(raw.roundToInt())
                     },
-                    valueRange = min.toFloat()..max.toFloat(),
-                    steps = (stepCount - 1).coerceAtLeast(0),
+                    valueRange = if (isNonLinear) 0f..1f else min.toFloat()..max.toFloat(),
+                    steps = if (isNonLinear) 0 else (stepCount - 1).coerceAtLeast(0),
                     modifier = Modifier.weight(1f)
                 )
                 if (showNudgeButtons) {
                     OutlinedButton(
-                        onClick = { value = normalize(value + safeNudgeStep) },
+                        onClick = {
+                            value = if (stepNudge != null) stepNudge(value, true) else normalize(value + safeNudgeStep)
+                        },
                         enabled = value < max,
                         modifier = Modifier.width(48.dp),
                         shape = RoundedCornerShape(12.dp)
@@ -1064,7 +1072,9 @@ internal fun SteppedIntSliderDialog(
                     ) {
                         if (showNudgeButtons) {
                             OutlinedButton(
-                                onClick = { value = normalize(value - safeNudgeStep) },
+                                onClick = {
+                                    value = if (stepNudge != null) stepNudge(value, false) else normalize(value - safeNudgeStep)
+                                },
                                 enabled = value > min,
                                 modifier = Modifier.width(56.dp)
                             ) {
@@ -1075,17 +1085,19 @@ internal fun SteppedIntSliderDialog(
                             }
                         }
                         Slider(
-                            value = value.toFloat(),
+                            value = if (isNonLinear) valueToFraction!!(value).coerceIn(0f, 1f) else value.toFloat(),
                             onValueChange = { raw ->
-                                value = normalize(raw.roundToInt())
+                                value = if (isNonLinear) fractionToValue!!(raw.coerceIn(0f, 1f)) else normalize(raw.roundToInt())
                             },
-                            valueRange = min.toFloat()..max.toFloat(),
-                            steps = (stepCount - 1).coerceAtLeast(0),
+                            valueRange = if (isNonLinear) 0f..1f else min.toFloat()..max.toFloat(),
+                            steps = if (isNonLinear) 0 else (stepCount - 1).coerceAtLeast(0),
                             modifier = Modifier.weight(1f)
                         )
                         if (showNudgeButtons) {
                             OutlinedButton(
-                                onClick = { value = normalize(value + safeNudgeStep) },
+                                onClick = {
+                                    value = if (stepNudge != null) stepNudge(value, true) else normalize(value + safeNudgeStep)
+                                },
                                 enabled = value < max,
                                 modifier = Modifier.width(56.dp)
                             ) {
