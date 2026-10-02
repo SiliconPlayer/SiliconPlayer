@@ -11,6 +11,8 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
@@ -166,26 +168,29 @@ internal fun SettingsSectionLabel(text: String) {
 internal fun SettingsItemCard(
     title: String,
     description: String,
-    icon: ImageVector,
+    icon: ImageVector? = null,
     iconTint: Color? = null,
     onClick: () -> Unit,
     enabled: Boolean = true,
-    leadingContent: (@Composable () -> Unit)? = null
+    showChevron: Boolean = false,
+    leadingContent: (@Composable () -> Unit)? = null,
+    trailingContent: (@Composable () -> Unit)? = null
 ) {
     val isWatch = LocalIsWatchDevice.current
     val contentAlpha = if (enabled) 1f else 0.38f
     SettingsRowContainer(onClick = onClick, enabled = enabled) {
         if (leadingContent != null) {
             leadingContent()
-        } else {
+            Spacer(modifier = Modifier.width(if (isWatch) 8.dp else 12.dp))
+        } else if (icon != null) {
             Icon(
                 imageVector = icon,
                 contentDescription = null,
                 tint = iconTint ?: MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = contentAlpha),
                 modifier = if (isWatch) Modifier.size(20.dp) else Modifier.size(24.dp)
             )
+            Spacer(modifier = Modifier.width(if (isWatch) 8.dp else 12.dp))
         }
-        Spacer(modifier = Modifier.width(if (isWatch) 8.dp else 12.dp))
         Column(modifier = Modifier.weight(1f)) {
             Text(
                 text = title,
@@ -200,6 +205,18 @@ internal fun SettingsItemCard(
                     color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = contentAlpha)
                 )
             }
+        }
+        if (trailingContent != null) {
+            Spacer(modifier = Modifier.width(if (isWatch) 8.dp else 12.dp))
+            trailingContent()
+        } else if (showChevron) {
+            Spacer(modifier = Modifier.width(if (isWatch) 8.dp else 12.dp))
+            Icon(
+                imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = contentAlpha),
+                modifier = if (isWatch) Modifier.size(20.dp) else Modifier.size(24.dp)
+            )
         }
     }
 }

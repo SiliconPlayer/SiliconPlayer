@@ -20,7 +20,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.MoreHoriz
+import androidx.compose.material.icons.filled.DeleteForever
 import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -358,7 +358,7 @@ internal fun AudioPluginsRouteContent(
     SettingsItemCard(
         title = "Clear all core settings",
         description = "Reset all core settings to defaults without changing app settings.",
-        icon = Icons.Default.MoreHoriz,
+        icon = Icons.Default.DeleteForever,
         onClick = onRequestClearPluginSettings
     )
     SettingsRowSpacer()

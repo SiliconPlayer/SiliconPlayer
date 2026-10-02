@@ -616,7 +616,6 @@ internal fun LibraryScannerRouteContent() {
     SettingsItemCard(
         title = "File types",
         description = extensions.ifBlank { "Default set" },
-        icon = Icons.AutoMirrored.Filled.KeyboardArrowRight,
         onClick = {
             extensionsInput = extensions
             showExtensionsDialog = true

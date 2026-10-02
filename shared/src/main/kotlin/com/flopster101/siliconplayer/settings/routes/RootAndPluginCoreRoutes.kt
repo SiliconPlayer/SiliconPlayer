@@ -3,13 +3,14 @@ package com.flopster101.siliconplayer
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.height
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Build
+import androidx.compose.material.icons.filled.DeleteForever
 import androidx.compose.material.icons.filled.Folder
 import androidx.compose.material.icons.filled.GraphicEq
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.LibraryMusic
 import androidx.compose.material.icons.filled.Link
-import androidx.compose.material.icons.filled.MoreHoriz
 import androidx.compose.material.icons.filled.Palette
 import androidx.compose.material.icons.filled.Public
 import androidx.compose.material.icons.filled.Slideshow
@@ -106,6 +107,7 @@ internal fun RootRouteContent(
         title = "Audio cores",
         description = "Configure each playback core.",
         icon = Icons.Default.GraphicEq,
+        showChevron = true,
         onClick = onOpenAudioPlugins
     )
     SettingsRowSpacer()
@@ -113,6 +115,7 @@ internal fun RootRouteContent(
         title = "General audio settings",
         description = "Global output and playback behavior.",
         icon = Icons.Default.Tune,
+        showChevron = true,
         onClick = onOpenGeneralAudio
     )
     SettingsRowSpacer()
@@ -120,6 +123,7 @@ internal fun RootRouteContent(
         title = "Library",
         description = "Media sources, scanner folders and file types.",
         icon = Icons.Default.LibraryMusic,
+        showChevron = true,
         onClick = onOpenLibrary
     )
     SettingsRowSpacer()
@@ -127,6 +131,7 @@ internal fun RootRouteContent(
         title = "Player settings",
         description = "Player behavior and interaction preferences.",
         icon = Icons.Default.Slideshow,
+        showChevron = true,
         onClick = onOpenPlayer
     )
     SettingsRowSpacer()
@@ -134,6 +139,7 @@ internal fun RootRouteContent(
         title = "Home settings",
         description = "Configure recents shown on the Home page.",
         icon = Icons.Default.Home,
+        showChevron = true,
         onClick = onOpenHome
     )
     SettingsRowSpacer()
@@ -141,6 +147,7 @@ internal fun RootRouteContent(
         title = "File browser settings",
         description = "Sorting and behavior preferences for the library browser.",
         icon = Icons.Default.Folder,
+        showChevron = true,
         onClick = onOpenFileBrowser
     )
     SettingsRowSpacer()
@@ -148,6 +155,7 @@ internal fun RootRouteContent(
         title = "Network settings",
         description = "Manage network source behavior and saved entries.",
         icon = Icons.Default.Public,
+        showChevron = true,
         onClick = onOpenNetwork
     )
     SettingsRowSpacer()
@@ -155,6 +163,7 @@ internal fun RootRouteContent(
         title = "Visualization settings",
         description = "Configure player visualizers and rendering style.",
         icon = Icons.Default.GraphicEq,
+        showChevron = true,
         onClick = onOpenVisualization
     )
 
@@ -164,13 +173,15 @@ internal fun RootRouteContent(
         title = "Cache settings",
         description = "Cached file behavior, limits, and cleanup.",
         icon = Icons.Default.Link,
+        showChevron = true,
         onClick = onOpenUrlCache
     )
     SettingsRowSpacer()
     SettingsItemCard(
         title = "Misc settings",
         description = "Other app-wide preferences and utilities.",
-        icon = Icons.Default.MoreHoriz,
+        icon = Icons.Default.Build,
+        showChevron = true,
         onClick = onOpenMisc
     )
 
@@ -180,6 +191,7 @@ internal fun RootRouteContent(
         title = "UI settings",
         description = "Appearance and layout preferences.",
         icon = Icons.Default.Palette,
+        showChevron = true,
         onClick = onOpenUi
     )
 
@@ -189,6 +201,7 @@ internal fun RootRouteContent(
         title = "About",
         description = "App information, versions, and credits.",
         icon = Icons.Default.Info,
+        showChevron = true,
         onClick = onOpenAbout
     )
 
@@ -197,7 +210,7 @@ internal fun RootRouteContent(
     SettingsItemCard(
         title = "Clear all app settings",
         description = "Reset app settings to defaults. Core settings are kept.",
-        icon = Icons.Default.MoreHoriz,
+        icon = Icons.Default.DeleteForever,
         onClick = onRequestClearAllSettings
     )
 }

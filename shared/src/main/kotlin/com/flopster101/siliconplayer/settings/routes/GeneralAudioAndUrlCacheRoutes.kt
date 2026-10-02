@@ -6,7 +6,6 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Info
-import androidx.compose.material.icons.filled.MoreHoriz
 import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
@@ -281,21 +280,19 @@ internal fun UrlCacheRouteContent(
     SettingsItemCard(
         title = "Cache song limit",
         description = "$fileCacheMaxTracks songs",
-        icon = Icons.Default.MoreHoriz,
         onClick = { showFileCacheTrackLimitDialog = true }
     )
     SettingsRowSpacer()
     SettingsItemCard(
         title = "Cache size limit",
         description = String.format(Locale.US, "%.2f GB", fileCacheMaxBytes / (1024.0 * 1024.0 * 1024.0)),
-        icon = Icons.Default.MoreHoriz,
         onClick = { showFileCacheSizeLimitDialog = true }
     )
     SettingsRowSpacer()
     SettingsItemCard(
         title = "Manage cached files",
         description = "Browse cached files, long-press multi-select, delete, and export.",
-        icon = Icons.Default.MoreHoriz,
+        showChevron = true,
         onClick = onOpenFileCacheManager
     )
     SettingsRowSpacer()
@@ -318,21 +315,19 @@ internal fun UrlCacheRouteContent(
     SettingsItemCard(
         title = "Cache song limit",
         description = "$streamingCacheMaxTracks songs",
-        icon = Icons.Default.MoreHoriz,
         onClick = { showStreamingCacheTrackLimitDialog = true }
     )
     SettingsRowSpacer()
     SettingsItemCard(
         title = "Cache size limit",
         description = String.format(Locale.US, "%.2f GB", streamingCacheMaxBytes / (1024.0 * 1024.0 * 1024.0)),
-        icon = Icons.Default.MoreHoriz,
         onClick = { showStreamingCacheSizeLimitDialog = true }
     )
     SettingsRowSpacer()
     SettingsItemCard(
         title = "Manage cached files",
         description = "Browse cached streaming files, long-press multi-select, delete, and export.",
-        icon = Icons.Default.MoreHoriz,
+        showChevron = true,
         onClick = onOpenStreamingCacheManager
     )
     SettingsRowSpacer()
@@ -355,21 +350,18 @@ internal fun UrlCacheRouteContent(
     SettingsItemCard(
         title = "Archive mount limit",
         description = "$archiveCacheMaxMounts mounted archives",
-        icon = Icons.Default.MoreHoriz,
         onClick = { showArchiveMountLimitDialog = true }
     )
     SettingsRowSpacer()
     SettingsItemCard(
         title = "Archive cache size limit",
         description = String.format(Locale.US, "%.2f GB", archiveCacheMaxBytes / (1024.0 * 1024.0 * 1024.0)),
-        icon = Icons.Default.MoreHoriz,
         onClick = { showArchiveSizeLimitDialog = true }
     )
     SettingsRowSpacer()
     SettingsItemCard(
         title = "Archive max age",
         description = "$archiveCacheMaxAgeDays days",
-        icon = Icons.Default.MoreHoriz,
         onClick = { showArchiveAgeLimitDialog = true }
     )
     SettingsRowSpacer()

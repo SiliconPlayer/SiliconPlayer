@@ -13,7 +13,6 @@ import androidx.compose.material.icons.filled.Equalizer
 import androidx.compose.material.icons.filled.Fullscreen
 import androidx.compose.material.icons.filled.GraphicEq
 import androidx.compose.material.icons.filled.MonitorHeart
-import androidx.compose.material.icons.filled.MoreHoriz
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.filled.Tune
 import androidx.compose.runtime.remember
@@ -221,7 +220,6 @@ internal fun PlayerRouteContent(
     SettingsItemCard(
         title = "Unknown track duration",
         description = "${unknownTrackDurationSeconds}s (default 180s)",
-        icon = Icons.Default.MoreHoriz,
         onClick = { showUnknownDurationDialog = true }
     )
     if (showUnknownDurationDialog) {
@@ -257,14 +255,12 @@ internal fun PlayerRouteContent(
     SettingsItemCard(
         title = "Fade duration",
         description = String.format(Locale.US, "%.1f seconds", endFadeDurationMs / 1000.0),
-        icon = Icons.Default.MoreHoriz,
         onClick = { showEndFadeDurationDialog = true }
     )
     SettingsRowSpacer()
     SettingsItemCard(
         title = "Fade curve",
         description = endFadeCurve.label,
-        icon = Icons.Default.MoreHoriz,
         onClick = { showEndFadeCurveDialog = true }
     )
 
@@ -418,7 +414,6 @@ internal fun PlayerRouteContent(
     SettingsItemCard(
         title = "Double-tap canvas to seek",
         description = if (canvasTapToSeekSeconds <= 0) "Disabled" else "${canvasTapToSeekSeconds} seconds",
-        icon = Icons.Default.MoreHoriz,
         onClick = { showCanvasTapToSeekDialog = true }
     )
     if (showCanvasTapToSeekDialog) {
@@ -451,7 +446,6 @@ internal fun PlayerRouteContent(
             FilenameDisplayMode.Never -> "Never show filename"
             FilenameDisplayMode.TrackerOnly -> "Show for tracker/chiptune formats only"
         },
-        icon = Icons.Default.MoreHoriz,
         onClick = { showFilenameDisplayDialog = true }
     )
     if (showFilenameDisplayDialog) {
@@ -593,6 +587,7 @@ internal fun VisualizationRouteContent(
         title = "Basic visualization settings",
         description = "Configure Bars, Oscilloscope, and VU meters.",
         icon = Icons.Default.GraphicEq,
+        showChevron = true,
         onClick = onOpenVisualizationBasic
     )
     Spacer(modifier = Modifier.height(16.dp))
@@ -602,6 +597,7 @@ internal fun VisualizationRouteContent(
         title = "Track ticker",
         description = "Show the new track's title, artist and format on song change in fullscreen.",
         icon = Icons.Default.Fullscreen,
+        showChevron = true,
         onClick = onOpenVisualizationTrackTicker
     )
     Spacer(modifier = Modifier.height(16.dp))
@@ -611,6 +607,7 @@ internal fun VisualizationRouteContent(
         title = "Advanced visualization settings",
         description = "Configure specialized visualizations per core.",
         icon = Icons.Default.Tune,
+        showChevron = true,
         onClick = onOpenVisualizationAdvanced
     )
 
@@ -718,6 +715,7 @@ internal fun VisualizationBasicRouteContent(
             title = page.title,
             description = page.description,
             icon = icon,
+            showChevron = true,
             onClick = {
                 when (page.route) {
                     SettingsRoute.VisualizationBasicBars -> onOpenVisualizationBasicBars()
@@ -765,6 +763,7 @@ internal fun VisualizationAdvancedRouteContent(
                 title = page.title,
                 description = page.description,
                 icon = icon,
+                showChevron = true,
                 onClick = {
                     when (page.route) {
                         SettingsRoute.VisualizationAdvancedChannelScope -> onOpenVisualizationAdvancedChannelScope()

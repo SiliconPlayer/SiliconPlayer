@@ -7,7 +7,6 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.DeleteForever
 import androidx.compose.material.icons.filled.Folder
-import androidx.compose.material.icons.filled.MoreHoriz
 import androidx.compose.material.icons.filled.MusicNote
 import androidx.compose.material.icons.filled.Public
 import androidx.compose.runtime.Composable
@@ -150,7 +149,7 @@ internal fun MiscRouteContent(
     SettingsItemCard(
         title = "Clear home recents",
         description = "Remove recent folders and recently played shortcuts from the Home screen.",
-        icon = Icons.Default.MoreHoriz,
+        icon = Icons.Default.DeleteForever,
         onClick = actions.onClearRecentHistory
     )
 }
