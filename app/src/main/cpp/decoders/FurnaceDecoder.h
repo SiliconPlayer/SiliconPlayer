@@ -78,6 +78,10 @@ public:
     const char* getName() const override { return "Furnace"; }
     static std::vector<std::string> getSupportedExtensions();
 
+    // Code toggle for the scope DC blocker; exposed for the planned
+    // per-core channel scope settings. Defaults on.
+    void setScopeDcBlockEnabled(bool enabled) { scopeDcBlockEnabled = enabled; }
+
 private:
     struct SeekPoint {
         double seconds = 0.0;
@@ -129,6 +133,8 @@ private:
     std::vector<float> rightScratch;
     std::shared_ptr<ChannelScopeSharedState> channelScopeState;
     uint64_t channelScopeSourceSerial = 0;
+    std::vector<float> scopeDcEstimate;
+    bool scopeDcBlockEnabled = true;
 
     void closeInternalLocked();
     void refreshMetadataLocked();

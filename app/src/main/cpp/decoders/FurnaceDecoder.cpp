@@ -32,6 +32,7 @@ constexpr short kFurnaceOscResetSample = static_cast<short>(0xfffe);
 constexpr int kMaxChannelScopeChannels = 64;
 constexpr float kFurnaceDefaultScopeGain = 0.5f;
 constexpr float kFurnaceTsuScopeGain = 1.0f;
+constexpr float kFurnaceScopeDcFollow = 0.0025f;
 
 std::string cleanFurnaceChipName(DivSystem sys, const char* rawSysName) {
     switch (sys) {
@@ -231,8 +232,6 @@ void captureFurnaceOscBufferWindow(
     const unsigned short needle = static_cast<unsigned short>(oscBuffer->needle >> OSCBUF_PREC);
     const unsigned short start = static_cast<unsigned short>(needle - windowSize);
     float currentSample = 0.0f;
-    float minValue = 1.0f;
-    float maxValue = -1.0f;
 
     for (int i = 0; i < samplesPerChannel; ++i) {
         const int sourceOffset = (i * windowSize) / samplesPerChannel;
@@ -246,19 +245,8 @@ void captureFurnaceOscBufferWindow(
             currentSample = 0.0f;
         } else {
             currentSample = static_cast<float>(rawSample) / 32768.0f;
-            if (currentSample < minValue) minValue = currentSample;
-            if (currentSample > maxValue) maxValue = currentSample;
         }
         destination[i] = currentSample;
-    }
-
-    // Chip DAC taps are unipolar (NES/GB put unsigned output); upstream's own
-    // per-channel scope centers each window the same way by default.
-    if (maxValue > minValue) {
-        const float midpoint = (minValue + maxValue) * 0.5f;
-        for (int i = 0; i < samplesPerChannel; ++i) {
-            destination[i] -= midpoint;
-        }
     }
 }
 } // namespace
@@ -401,6 +389,7 @@ void FurnaceDecoder::closeInternalLocked() {
     subtuneDurations.clear();
     leftScratch.clear();
     rightScratch.clear();
+    scopeDcEstimate.clear();
     channelScopeSourceSerial = 0;
     if (channelScopeState) {
         channelScopeState->clear();
@@ -1143,6 +1132,9 @@ void FurnaceDecoder::captureChannelScopeSnapshotLocked() {
     );
     std::vector<float> vu(static_cast<size_t>(totalChannels), 0.0f);
     const int trailingSamples = std::clamp(sampleRateHz / 50, 64, 2048);
+    if (scopeDcEstimate.size() != static_cast<size_t>(totalChannels)) {
+        scopeDcEstimate.assign(static_cast<size_t>(totalChannels), 0.0f);
+    }
 
     for (int channel = 0; channel < totalChannels; ++channel) {
         const size_t channelOffset =
@@ -1155,9 +1147,20 @@ void FurnaceDecoder::captureChannelScopeSnapshotLocked() {
         );
 
         const float gain = furnaceChannelScopeGain(engine->song.sysOfChan[channel]);
-        if (gain != 1.0f) {
+        float* samples = raw.data() + channelOffset;
+        if (!scopeDcBlockEnabled) {
+            if (gain != 1.0f) {
+                for (int sample = 0; sample < ChannelScopeSharedState::kMaxSamples; ++sample) {
+                    samples[sample] *= gain;
+                }
+            }
+        } else {
+            // Taps arrive raw from the osc buffer; center them with a
+            // persistent one-pole follower instead of per-window means.
+            float& dc = scopeDcEstimate[static_cast<size_t>(channel)];
             for (int sample = 0; sample < ChannelScopeSharedState::kMaxSamples; ++sample) {
-                raw[channelOffset + static_cast<size_t>(sample)] *= gain;
+                dc += (samples[sample] - dc) * kFurnaceScopeDcFollow;
+                samples[sample] = (samples[sample] - dc) * gain;
             }
         }
 
