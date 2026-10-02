@@ -57,6 +57,10 @@ public:
 
     const char* getName() const override { return "libdnfamitracker"; }
 
+    // Code toggle for the scope DC blocker; exposed for the planned
+    // per-core channel scope settings. Defaults on.
+    void setScopeDcBlockEnabled(bool enabled) { scopeDcBlockEnabled = enabled; }
+
 private:
     void closeLocked();
     void updateScopeSnapshotLocked();
@@ -68,6 +72,8 @@ private:
     std::shared_ptr<ChannelScopeSharedState> channelScopeState;
     std::vector<float> scopeRawScratch;
     std::vector<float> scopeVuScratch;
+    std::vector<float> scopeDcEstimate;
+    bool scopeDcBlockEnabled = true;
     uint32_t channelScopeSourceSerial = 0;
     int sampleRate = 48000;
     int repeatMode = 0;

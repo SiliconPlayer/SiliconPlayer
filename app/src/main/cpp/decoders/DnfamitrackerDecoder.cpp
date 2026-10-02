@@ -5,6 +5,7 @@
 #include <cmath>
 
 constexpr float kDnfamitrackerScopeGain = 0.5f;
+constexpr float kDnfamitrackerScopeDcFollow = 0.0025f;
 
 DnfamitrackerDecoder::DnfamitrackerDecoder()
     : channelScopeState(std::make_shared<ChannelScopeSharedState>()) {
@@ -54,6 +55,7 @@ void DnfamitrackerDecoder::closeLocked() {
         channelScopeState->clear();
     }
     player.reset();
+    scopeDcEstimate.clear();
     title.clear();
     artist.clear();
     copyright.clear();
@@ -401,15 +403,32 @@ void DnfamitrackerDecoder::updateScopeSnapshotLocked() {
     if (scopeVuScratch.size() != static_cast<size_t>(count)) {
         scopeVuScratch.assign(static_cast<size_t>(count), 0.0f);
     }
+    if (scopeDcEstimate.size() != static_cast<size_t>(count)) {
+        scopeDcEstimate.assign(static_cast<size_t>(count), 0.0f);
+    }
 
     for (int ch = 0; ch < count; ++ch) {
         player->GetChannelWaveform(ch, &scopeRawScratch[static_cast<size_t>(ch) * ChannelScopeSharedState::kMaxSamples], ChannelScopeSharedState::kMaxSamples);
         scopeVuScratch[static_cast<size_t>(ch)] = player->GetChannelVU(ch);
     }
 
+    // Taps arrive raw (unipolar, held levels); center them with a persistent
+    // one-pole DC blocker like GME's blip high-pass. Per-chunk mean removal
+    // would re-offset held steps and hop the baseline between chunks.
     // Chip-level waves peak near full scale; match the other scope feeds.
-    for (float& sample : scopeRawScratch) {
-        sample *= kDnfamitrackerScopeGain;
+    for (int ch = 0; ch < count; ++ch) {
+        float* samples = &scopeRawScratch[static_cast<size_t>(ch) * ChannelScopeSharedState::kMaxSamples];
+        if (!scopeDcBlockEnabled) {
+            for (int i = 0; i < ChannelScopeSharedState::kMaxSamples; ++i) {
+                samples[i] *= kDnfamitrackerScopeGain;
+            }
+            continue;
+        }
+        float& dc = scopeDcEstimate[static_cast<size_t>(ch)];
+        for (int i = 0; i < ChannelScopeSharedState::kMaxSamples; ++i) {
+            dc += (samples[i] - dc) * kDnfamitrackerScopeDcFollow;
+            samples[i] = (samples[i] - dc) * kDnfamitrackerScopeGain;
+        }
     }
 
     channelScopeState->publish(scopeRawScratch, scopeVuScratch, count, ++channelScopeSourceSerial, true);
