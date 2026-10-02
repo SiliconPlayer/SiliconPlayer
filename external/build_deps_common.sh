@@ -37,6 +37,7 @@ ALL_DEPENDENCY_LIBS=(
     klystrack
     furnace
     projectm
+    dnfamitracker
 )
 
 detect_linux_family() {
@@ -305,6 +306,9 @@ normalize_lib_name() {
         projectm|projectM|libprojectm|libprojectM)
             echo "projectm"
             ;;
+        dnfamitracker|libdnfamitracker|famitracker|dn-famitracker|dnft)
+            echo "dnfamitracker"
+            ;;
         *)
             echo "$lib"
             ;;
@@ -330,12 +334,44 @@ target_has_lib() {
     return 1
 }
 
+dep_source_rev() {
+    local project_path="$1"
+    local rev
+    rev=$(git -C "$project_path" rev-parse HEAD 2>/dev/null) || return 1
+    if ! git -C "$project_path" diff --quiet HEAD 2>/dev/null || \
+       ! git -C "$project_path" diff --cached --quiet 2>/dev/null; then
+        rev="${rev}-dirty"
+    fi
+    echo "$rev"
+}
+
+dep_source_stamp_matches() {
+    local install_dir="$1"
+    local lib="$2"
+    local project_path="$3"
+    local stamp="$install_dir/lib/.${lib}_gitrev"
+    [ -f "$stamp" ] || return 1
+    local rev
+    rev=$(dep_source_rev "$project_path") || return 0
+    [ "$(cat "$stamp" 2>/dev/null)" = "$rev" ]
+}
+
+dep_write_source_stamp() {
+    local install_dir="$1"
+    local lib="$2"
+    local project_path="$3"
+    local rev
+    rev=$(dep_source_rev "$project_path") || return 0
+    mkdir -p "$install_dir/lib"
+    echo "$rev" > "$install_dir/lib/.${lib}_gitrev"
+}
+
 is_valid_lib() {
     local lib="$1"
     local normalized
     normalized="$(normalize_lib_name "$lib")"
     case "$normalized" in
-        all|libsoxr|mbedtls|ffmpeg|libopenmpt|libxmp|libayfly|ufmod|libvgm|libgme|libresid|libresidfp|libsidplayfp|crsid|lazyusf2|psflib|vio2sf|fluidsynth|sc68|libbinio|adplug|libzakalwe|bencodetools|vasm|uade|hivelytracker|klystrack|furnace|projectm)
+        all|libsoxr|mbedtls|ffmpeg|libopenmpt|libxmp|libayfly|ufmod|libvgm|libgme|libresid|libresidfp|libsidplayfp|crsid|lazyusf2|psflib|vio2sf|fluidsynth|sc68|libbinio|adplug|libzakalwe|bencodetools|vasm|uade|hivelytracker|klystrack|furnace|projectm|dnfamitracker)
             return 0
             ;;
         *)

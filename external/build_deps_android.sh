@@ -2388,15 +2388,89 @@ build_projectm() {
 }
 
 # -----------------------------------------------------------------------------
+# Function: Build dnfamitracker
+# -----------------------------------------------------------------------------
+build_dnfamitracker() {
+    local ABI=$1
+    echo "Building dnfamitracker for $ABI..."
+
+    local INSTALL_DIR="$ABSOLUTE_PATH/../app/src/main/cpp/prebuilt/$ABI"
+    local PROJECT_PATH="$ABSOLUTE_PATH/dnfamitracker"
+    local BUILD_DIR="$PROJECT_PATH/build_android_${ABI}"
+
+    if [ ! -d "$PROJECT_PATH" ]; then
+        echo "dnfamitracker source not found at $PROJECT_PATH (skipping)."
+        return 0
+    fi
+
+    if [ "$FORCE_CLEAN" -ne 1 ] && [ -f "$INSTALL_DIR/lib/libdnfamitracker.a" ] && \
+       [ -f "$INSTALL_DIR/include/dnfamitracker/FTMPlayer.h" ] && \
+       dep_source_stamp_matches "$INSTALL_DIR" dnfamitracker "$PROJECT_PATH"; then
+        echo "dnfamitracker already built for $ABI -> skipping"
+        return 0
+    fi
+
+    rm -rf "$BUILD_DIR"
+    mkdir -p "$BUILD_DIR" "$INSTALL_DIR/lib" "$INSTALL_DIR/include/dnfamitracker"
+
+    cmake -Wno-dev -Wno-deprecated \
+        -S "$PROJECT_PATH" \
+        -B "$BUILD_DIR" \
+        -DCMAKE_TOOLCHAIN_FILE="$ANDROID_NDK_HOME/build/cmake/android.toolchain.cmake" \
+        -DCMAKE_POLICY_VERSION_MINIMUM=3.5 \
+        -DANDROID_ABI="$ABI" \
+        -DANDROID_PLATFORM="android-$ANDROID_API" \
+        -DCMAKE_C_FLAGS="$DEP_OPT_FLAGS" \
+        -DCMAKE_CXX_FLAGS="$DEP_OPT_FLAGS -Wno-format-security" \
+        -DCMAKE_C_FLAGS_RELEASE="$DEP_OPT_FLAGS -DNDEBUG" \
+        -DCMAKE_CXX_FLAGS_RELEASE="$DEP_OPT_FLAGS -Wno-format-security -DNDEBUG" \
+        -DCMAKE_BUILD_TYPE=Release \
+        -DCMAKE_POSITION_INDEPENDENT_CODE=ON \
+        -DBUILD_LIB=ON \
+        -DBUILD_CLI=OFF \
+        -DBUILD_GUI=OFF \
+        -DCMAKE_INSTALL_PREFIX="$INSTALL_DIR"
+
+    cmake --build "$BUILD_DIR" --target dnfamitracker -j"$NPROC"
+
+    local BUILT_LIB="$BUILD_DIR/libdnfamitracker.a"
+    local SAMPLERATE_LIB="$BUILD_DIR/Source/libsamplerate/src/libsamplerate.a"
+    if [ ! -f "$BUILT_LIB" ]; then
+        echo "Error: libdnfamitracker.a not found after build."
+        return 1
+    fi
+
+    cp "$BUILT_LIB" "$INSTALL_DIR/lib/libdnfamitracker.a"
+    if [ -f "$SAMPLERATE_LIB" ]; then
+        cp "$SAMPLERATE_LIB" "$INSTALL_DIR/lib/libsamplerate.a"
+        local MERGE_DIR="$BUILD_DIR/mri_merge"
+        rm -rf "$MERGE_DIR" && mkdir -p "$MERGE_DIR"
+        (
+            cd "$MERGE_DIR"
+            "$AR" x "$BUILT_LIB"
+            "$AR" x "$SAMPLERATE_LIB"
+            "$AR" rcs "$INSTALL_DIR/lib/libdnfamitracker.a" *.o
+            "$RANLIB" "$INSTALL_DIR/lib/libdnfamitracker.a"
+        )
+    fi
+
+    mkdir -p "$INSTALL_DIR/include/dnfamitracker"
+    cp -r "$PROJECT_PATH/Source/"* "$INSTALL_DIR/include/dnfamitracker/"
+    find "$INSTALL_DIR/include/dnfamitracker" \( -name "*.cpp" -o -name "*.c" \) -delete 2>/dev/null || true
+    cp "$PROJECT_PATH/Source/libsamplerate/include/samplerate.h" "$INSTALL_DIR/include/dnfamitracker/" 2>/dev/null || true
+    dep_write_source_stamp "$INSTALL_DIR" dnfamitracker "$PROJECT_PATH"
+}
+
+# -----------------------------------------------------------------------------
 # Argument Parsing
 # -----------------------------------------------------------------------------
 usage() {
     echo "Usage: $0 <abi|all> <lib|all[,lib2,...]> [clean]"
     echo "  ABI: all, all_legacy, arm64-v8a, armeabi-v7a, x86_64, x86"
     echo "  Prefixed forms: android, android_all, android_arm64-v8a, android_armeabi-v7a, android_x86_64, android_x86, android_legacy"
-    echo "  LIB: all, libsoxr, mbedtls, ffmpeg, libopenmpt, libxmp, libayfly, ufmod, libvgm, libgme, libresid, libresidfp, libsidplayfp, crsid, lazyusf2, psflib, vio2sf, fluidsynth, sc68, libbinio, adplug, libzakalwe, bencodetools, vasm, uade, hivelytracker, klystrack, furnace, projectm"
+    echo "  LIB: all, libsoxr, mbedtls, ffmpeg, libopenmpt, libxmp, libayfly, ufmod, libvgm, libgme, libresid, libresidfp, libsidplayfp, crsid, lazyusf2, psflib, vio2sf, fluidsynth, sc68, libbinio, adplug, libzakalwe, bencodetools, vasm, uade, hivelytracker, klystrack, furnace, projectm, dnfamitracker"
     echo "  clean (optional): force rebuild (bypass already-built skip checks)"
-    echo "  Aliases: sox/soxr, gme, xmp, ayfly, resid/residfp, sid/sidplayfp, crsid/cRSID/libcrsid, usf/lazyusf, psf, 2sf/twosf, fluid/libfluidsynth, libsc68, binio, libadplug, zakalwe, bencode, assembler/vasm, libuade, hvl/hively, kly/kt, fur"
+    echo "  Aliases: sox/soxr, gme, xmp, ayfly, resid/residfp, sid/sidplayfp, crsid/cRSID/libcrsid, usf/lazyusf, psf, 2sf/twosf, fluid/libfluidsynth, libsc68, binio, libadplug, zakalwe, bencode, assembler/vasm, libuade, hvl/hively, kly/kt, fur, dnfamitracker/dnft"
 }
 
 if [ "$#" -eq 1 ]; then
@@ -2530,6 +2604,9 @@ normalize_lib_name() {
         projectm|projectM|libprojectm|libprojectM)
             echo "projectm"
             ;;
+        dnfamitracker|libdnfamitracker|famitracker|dn-famitracker|dnft)
+            echo "dnfamitracker"
+            ;;
         *)
             echo "$lib"
             ;;
@@ -2571,7 +2648,7 @@ is_valid_abi() {
 is_valid_lib() {
     local lib="$1"
     case "$lib" in
-        all|libsoxr|mbedtls|ffmpeg|libopenmpt|libxmp|libayfly|ufmod|libvgm|libgme|libresid|libresidfp|libsidplayfp|crsid|lazyusf2|psflib|vio2sf|fluidsynth|sc68|libbinio|adplug|libzakalwe|bencodetools|vasm|uade|hivelytracker|klystrack|furnace|projectm)
+        all|libsoxr|mbedtls|ffmpeg|libopenmpt|libxmp|libayfly|ufmod|libvgm|libgme|libresid|libresidfp|libsidplayfp|crsid|lazyusf2|psflib|vio2sf|fluidsynth|sc68|libbinio|adplug|libzakalwe|bencodetools|vasm|uade|hivelytracker|klystrack|furnace|projectm|dnfamitracker)
             return 0
             ;;
         *)
@@ -2616,7 +2693,7 @@ clean_target_artifacts() {
 
     # Resolve lib list
     if [ "$TARGET_LIB" = "all" ]; then
-            lib_list=(libsoxr mbedtls ffmpeg libopenmpt libxmp libayfly ufmod libvgm libgme libresid libresidfp libsidplayfp crsid lazyusf2 psflib vio2sf fluidsynth sc68 libbinio adplug libzakalwe bencodetools vasm uade hivelytracker klystrack furnace projectm)
+            lib_list=(libsoxr mbedtls ffmpeg libopenmpt libxmp libayfly ufmod libvgm libgme libresid libresidfp libsidplayfp crsid lazyusf2 psflib vio2sf fluidsynth sc68 libbinio adplug libzakalwe bencodetools vasm uade hivelytracker klystrack furnace projectm dnfamitracker)
     else
         IFS=',' read -r -a requested <<< "$TARGET_LIB"
         for raw in "${requested[@]}"; do
@@ -2660,6 +2737,7 @@ clean_target_artifacts() {
             klystrack)      PROJ="$ABSOLUTE_PATH/klystrack"; CMAKE=1 ;;
             furnace)        PROJ="$ABSOLUTE_PATH/furnace"; CMAKE=1 ;;
             projectm)       PROJ="$ABSOLUTE_PATH/projectm"; CMAKE=1 ;;
+            dnfamitracker)  PROJ="$ABSOLUTE_PATH/dnfamitracker"; CMAKE=1 ;;
         esac
 
         # Clean CMake build_android_* directories
@@ -2746,6 +2824,7 @@ clean_target_artifacts() {
                 klystrack) rm -f "$inst/lib/libklystrack.so" 2>/dev/null || true; rm -rf "$inst/include/klystrack" 2>/dev/null || true ;;
                 furnace)   rm -f "$inst/lib/libfurnace.so" 2>/dev/null || true; rm -rf "$inst/include/furnace" 2>/dev/null || true ;;
                 projectm)  rm -f "$inst/lib/libprojectM-4.so" "$inst/lib/libprojectM-4.so."* "$inst/lib/.libprojectm_build_stamp" 2>/dev/null || true; rm -rf "$inst/include/projectM-4" 2>/dev/null || true ;;
+                dnfamitracker) rm -f "$inst/lib/libdnfamitracker.a" "$inst/lib/libsamplerate.a" "$inst/lib/.dnfamitracker_gitrev" 2>/dev/null || true; rm -rf "$inst/include/dnfamitracker" 2>/dev/null || true ;;
             esac
         done
     done
@@ -2972,6 +3051,10 @@ for ABI in "${ABIS[@]}"; do
 
     if target_has_lib "projectm"; then
         build_projectm "$ABI"
+    fi
+
+    if target_has_lib "dnfamitracker"; then
+        build_dnfamitracker "$ABI"
     fi
 done
 

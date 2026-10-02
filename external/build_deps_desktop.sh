@@ -12,9 +12,9 @@ PREBUILT_BASE="$DESKTOP_DIR/prebuilt"
 usage() {
     echo "Usage: $0 <arch|all> <lib|all[,lib2,...]> [clean]"
     echo "  ARCH: main (x86_64, aarch64), legacy (armv7, x86), x86_64, aarch64, x86, armv7"
-    echo "  LIB: all, libsoxr, mbedtls, ffmpeg, libopenmpt, libxmp, libayfly, ufmod, libvgm, libgme, libresid, libresidfp, libsidplayfp, crsid, lazyusf2, psflib, vio2sf, fluidsynth, sc68, libbinio, adplug, libzakalwe, bencodetools, vasm, uade, hivelytracker, klystrack, furnace, projectm"
+    echo "  LIB: all, libsoxr, mbedtls, ffmpeg, libopenmpt, libxmp, libayfly, ufmod, libvgm, libgme, libresid, libresidfp, libsidplayfp, crsid, lazyusf2, psflib, vio2sf, fluidsynth, sc68, libbinio, adplug, libzakalwe, bencodetools, vasm, uade, hivelytracker, klystrack, furnace, projectm, dnfamitracker"
     echo "  clean (optional): force rebuild (bypass already-built skip checks)"
-    echo "  Aliases: sox/soxr, gme, xmp, ayfly, resid/residfp, sid/sidplayfp, crsid/cRSID/libcrsid, usf/lazyusf, psf, 2sf/twosf, fluid/libfluidsynth, libsc68, binio, libadplug, zakalwe, bencode, assembler/vasm, libuade, hvl/hively, kly/kt, fur"
+    echo "  Aliases: sox/soxr, gme, xmp, ayfly, resid/residfp, sid/sidplayfp, crsid/cRSID/libcrsid, usf/lazyusf, psf, 2sf/twosf, fluid/libfluidsynth, libsc68, binio, libadplug, zakalwe, bencode, assembler/vasm, libuade, hvl/hively, kly/kt, fur, dnfamitracker/dnft"
 }
 
 if [ "$#" -eq 0 ]; then
@@ -176,6 +176,7 @@ clean_target_artifacts() {
             klystrack)      PROJ="$ABSOLUTE_PATH/klystrack" ;;
             furnace)        PROJ="$ABSOLUTE_PATH/furnace" ;;
             projectm)       PROJ="$ABSOLUTE_PATH/projectm" ;;
+            dnfamitracker)  PROJ="$ABSOLUTE_PATH/dnfamitracker" ;;
         esac
 
         [ -n "$PROJ" ] && rm -rf "$PROJ/build_desktop_${ARCH}" 2>/dev/null || true
@@ -208,6 +209,7 @@ clean_target_artifacts() {
             klystrack) rm -f "$INSTALL_DIR/lib/libklystrack.so"* 2>/dev/null || true; rm -rf "$INSTALL_DIR/include/klystrack" 2>/dev/null || true ;;
             furnace) rm -f "$INSTALL_DIR/lib/libfurnace.so"* "$INSTALL_DIR/lib/libfftw3.so"* "$INSTALL_DIR/lib/libfmt.so"* "$INSTALL_DIR/lib/libsndfile.so"* 2>/dev/null || true; rm -rf "$INSTALL_DIR/include/furnace" 2>/dev/null || true ;;
             projectm) rm -f "$INSTALL_DIR/lib/libprojectM"*.so* 2>/dev/null || true; rm -rf "$INSTALL_DIR/include/projectM"* 2>/dev/null || true ;;
+            dnfamitracker) rm -f "$INSTALL_DIR/lib/libdnfamitracker.a" "$INSTALL_DIR/lib/libsamplerate.a" "$INSTALL_DIR/lib/.dnfamitracker_gitrev" 2>/dev/null || true; rm -rf "$INSTALL_DIR/include/dnfamitracker" 2>/dev/null || true ;;
         esac
     done
 
@@ -1040,6 +1042,50 @@ build_projectm() {
     fi
 }
 
+build_dnfamitracker() {
+    local PROJECT_PATH="$ABSOLUTE_PATH/dnfamitracker"
+    local BUILD_DIR="$PROJECT_PATH/build_desktop_${ARCH}"
+    if [ ! -d "$PROJECT_PATH" ]; then return 0; fi
+    if [ "$FORCE_CLEAN" -ne 1 ] && [ -f "$INSTALL_DIR/lib/libdnfamitracker.a" ] && \
+       dep_source_stamp_matches "$INSTALL_DIR" dnfamitracker "$PROJECT_PATH"; then return 0; fi
+    echo "Building dnfamitracker for host..."
+    rm -rf "$BUILD_DIR" && mkdir -p "$BUILD_DIR" "$INSTALL_DIR/lib" "$INSTALL_DIR/include/dnfamitracker"
+    cmake $CMAKE_COMMON_FLAGS -S "$PROJECT_PATH" -B "$BUILD_DIR" \
+        -DCMAKE_BUILD_TYPE=Release \
+        -DCMAKE_C_FLAGS="$CFLAGS" \
+        -DCMAKE_CXX_FLAGS="$CXXFLAGS -Wno-format-security" \
+        -DCMAKE_POSITION_INDEPENDENT_CODE=ON \
+        -DBUILD_LIB=ON \
+        -DBUILD_CLI=OFF \
+        -DBUILD_GUI=OFF \
+        -DCMAKE_INSTALL_PREFIX="$INSTALL_DIR"
+    cmake --build "$BUILD_DIR" --target dnfamitracker -j"$NPROC"
+    local BUILT_LIB="$BUILD_DIR/libdnfamitracker.a"
+    local SAMPLERATE_LIB="$BUILD_DIR/Source/libsamplerate/src/libsamplerate.a"
+    if [ ! -f "$BUILT_LIB" ]; then
+        echo "Error: libdnfamitracker.a not found after build."
+        return 1
+    fi
+    cp "$BUILT_LIB" "$INSTALL_DIR/lib/libdnfamitracker.a"
+    if [ -f "$SAMPLERATE_LIB" ]; then
+        cp "$SAMPLERATE_LIB" "$INSTALL_DIR/lib/libsamplerate.a"
+        local MERGE_DIR="$BUILD_DIR/mri_merge"
+        rm -rf "$MERGE_DIR" && mkdir -p "$MERGE_DIR"
+        (
+            cd "$MERGE_DIR"
+            "$AR" x "$BUILT_LIB"
+            "$AR" x "$SAMPLERATE_LIB"
+            "$AR" rcs "$INSTALL_DIR/lib/libdnfamitracker.a" *.o
+            "$RANLIB" "$INSTALL_DIR/lib/libdnfamitracker.a"
+        )
+    fi
+    mkdir -p "$INSTALL_DIR/include/dnfamitracker"
+    cp -r "$PROJECT_PATH/Source/"* "$INSTALL_DIR/include/dnfamitracker/"
+    find "$INSTALL_DIR/include/dnfamitracker" \( -name "*.cpp" -o -name "*.c" \) -delete 2>/dev/null || true
+    cp "$PROJECT_PATH/Source/libsamplerate/include/samplerate.h" "$INSTALL_DIR/include/dnfamitracker/" 2>/dev/null || true
+    dep_write_source_stamp "$INSTALL_DIR" dnfamitracker "$PROJECT_PATH"
+}
+
 # Run build targets
 for ARCH in "${TARGET_ARCHES[@]}"; do
     configure_desktop_toolchain "$ARCH"
@@ -1089,6 +1135,7 @@ for ARCH in "${TARGET_ARCHES[@]}"; do
     if target_has_lib "klystrack"; then build_klystrack; fi
     if target_has_lib "furnace"; then build_furnace; fi
     if target_has_lib "projectm"; then build_projectm; fi
+    if target_has_lib "dnfamitracker"; then build_dnfamitracker; fi
 
     echo "========================================"
     echo "Desktop Dependency Build Complete for $ARCH!"
