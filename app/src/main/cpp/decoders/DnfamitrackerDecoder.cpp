@@ -74,28 +74,24 @@ int DnfamitrackerDecoder::read(float* buffer, int numFrames) {
     }
 
     const int mode = normalizeRepeatMode(repeatMode);
-    const double restartSeconds =
-            (mode == 2 && loopLengthSeconds > 0.0) ? loopStartSeconds : 0.0;
-    if (durationReliable && duration > 0.0) {
+    const bool restartTrack = mode == 1 || mode == 3;
+    if (durationReliable && duration > 0.0 && restartTrack) {
         double positionSeconds = player->GetCurrentTimeSeconds();
         if (positionSeconds >= duration) {
-            if (mode == 0) {
-                return 0;
-            }
-            seekPlayerLocked(restartSeconds);
+            seekPlayerLocked(0.0);
             positionSeconds = player->GetCurrentTimeSeconds();
         }
         const double quantumSeconds =
                 sampleRate > 0 ? static_cast<double>(numFrames) / sampleRate : 0.0;
         const double remainingSeconds = duration - positionSeconds;
-        if (mode != 0 && quantumSeconds > 0.0 && remainingSeconds < quantumSeconds) {
+        if (quantumSeconds > 0.0 && remainingSeconds < quantumSeconds) {
             const int firstFrames =
                     std::max(0, static_cast<int>(remainingSeconds * sampleRate));
             int rendered = 0;
             if (firstFrames > 0) {
                 rendered = player->Render(buffer, firstFrames);
             }
-            seekPlayerLocked(restartSeconds);
+            seekPlayerLocked(0.0);
             const int restFrames = numFrames - firstFrames;
             if (restFrames > 0) {
                 rendered += player->Render(buffer + rendered * 2, restFrames);
@@ -103,12 +99,15 @@ int DnfamitrackerDecoder::read(float* buffer, int numFrames) {
             updateScopeSnapshotLocked();
             return rendered;
         }
+    } else if (durationReliable && duration > 0.0 && mode == 0 &&
+               player->GetCurrentTimeSeconds() >= duration) {
+        return 0;
     }
 
     int rendered = player->Render(buffer, numFrames);
 
     if (rendered < numFrames && mode != 0) {
-        seekPlayerLocked(restartSeconds);
+        seekPlayerLocked(0.0);
         int remaining = numFrames - rendered;
         int secondPass = player->Render(buffer + rendered * 2, remaining);
         rendered += secondPass;
