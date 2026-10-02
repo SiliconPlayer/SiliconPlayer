@@ -113,6 +113,11 @@ import com.flopster101.siliconplayer.ui.dialogs.TrackInfoDialog
 import com.flopster101.siliconplayer.ui.dialogs.UrlOrPathDialog
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.input.key.KeyEventType
+import androidx.compose.ui.input.key.isAltPressed
+import androidx.compose.ui.input.key.isCtrlPressed
+import androidx.compose.ui.input.key.isShiftPressed
+import androidx.compose.ui.input.key.nativeKeyCode
+import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.input.key.key
 import androidx.compose.ui.input.key.type
 import androidx.compose.ui.platform.LocalClipboardManager
@@ -256,6 +261,7 @@ private val MiniPlayerDockVerticalPadding = 6.dp
 private val DesktopNavigationBarInset = 16.dp
 private const val MasterMuteGainDb = -90f
 private const val KeyboardSeekStepSeconds = 5.0
+private const val AwtVkPause = 19
 
 private data class ToastItem(val id: Long, val message: String)
 
@@ -1629,7 +1635,7 @@ fun main(args: Array<String>) = application {
             }
             val currentTrackPath = session.currentSourceId
             val isCurrentTrackFavorited = currentTrackPath != null &&
-                playlistLibraryState.favorites.any { it.source == currentTrackPath }
+                playlistLibraryState.favorites.any { samePath(it.source, currentTrackPath) }
 
             val miniPreviewLiftPx = with(LocalDensity.current) { 28.dp.toPx() }
             val playerPreviewScreenHeightPx = with(LocalDensity.current) { windowState.size.height.toPx() }
@@ -1639,6 +1645,59 @@ fun main(args: Array<String>) = application {
                 activeCoreName = session.decoderName,
                 isPlayerSurfaceVisible = isPlayerSurfaceVisible
             )
+            // Shared shortcut actions; the player buttons delegate to these
+            // too, so shortcuts and UI can never diverge.
+            fun goPreviousTrack() {
+                playQueuePreviousTrack(
+                    playlistWrapOverride = false,
+                    browserWrapOverride = session.repeatMode != RepeatMode.None,
+                    notifyWrap = true
+                )
+            }
+            fun goNextTrack() {
+                playQueueAdjacentTrack(
+                    1,
+                    stopAtBoundary = true,
+                    playlistWrapOverride = false,
+                    browserWrapOverride = session.repeatMode != RepeatMode.None,
+                    notifyWrap = true
+                )
+            }
+            fun seekKeyboardStep(stepSeconds: Double) {
+                if (session.canSeek && session.durationSeconds > 0.0) {
+                    session.seekTo(session.positionSeconds + stepSeconds)
+                }
+            }
+            fun cycleRepeatModeWithToast() {
+                session.cycleRepeatMode()?.let { next ->
+                    preferredRepeatMode = next
+                    toastHandler.showToast(next.label)
+                }
+            }
+            fun toggleFavoriteTrack() {
+                val entry = buildCurrentTrackEntry() ?: return
+                togglePlaylistEntryFavorite(entry)
+            }
+            var lastNonOffVisualizationMode by remember { mutableStateOf<VisualizationMode?>(null) }
+            fun toggleVisualization() {
+                val current = visualizationUiState.mode
+                if (current == VisualizationMode.Off) {
+                    visualizationUiState.onSelectMode(
+                        lastNonOffVisualizationMode?.takeIf { visualizationUiState.availableModes.contains(it) }
+                            ?: visualizationUiState.availableModes.firstOrNull { it != VisualizationMode.Off }
+                            ?: VisualizationMode.Off
+                    )
+                } else {
+                    lastNonOffVisualizationMode = current
+                    visualizationUiState.onSelectMode(VisualizationMode.Off)
+                }
+            }
+            fun cycleVisualizationMode(step: Int) {
+                val modes = visualizationUiState.availableModes
+                if (modes.isEmpty()) return
+                val index = modes.indexOf(visualizationUiState.mode).takeIf { it >= 0 } ?: 0
+                visualizationUiState.onSelectMode(modes[(index + step + modes.size) % modes.size])
+            }
 
             SiliconPlayerBaseTheme(darkTheme = darkTheme) {
                 // Drops are external opens; honor the same Play-with gate as Android.
@@ -1726,7 +1785,96 @@ fun main(args: Array<String>) = application {
                     color = MaterialTheme.colorScheme.background,
                     contentColor = MaterialTheme.colorScheme.onBackground
                 ) {
-                    Box(modifier = Modifier.fillMaxSize()) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .onPreviewKeyEvent { keyEvent ->
+                                if (keyEvent.type != KeyEventType.KeyDown) return@onPreviewKeyEvent false
+                                // Shortcuts yield to text input everywhere.
+                                if (textInputTracker.hasActiveInput) return@onPreviewKeyEvent false
+                                // Transport globals: work anywhere the window has focus.
+                                if (keyEvent.isAltPressed && !keyEvent.isCtrlPressed) {
+                                    when (keyEvent.key) {
+                                        Key.DirectionLeft -> { goPreviousTrack(); return@onPreviewKeyEvent true }
+                                        Key.DirectionRight -> { goNextTrack(); return@onPreviewKeyEvent true }
+                                    }
+                                }
+                                if (keyEvent.isCtrlPressed && !keyEvent.isAltPressed) {
+                                    when (keyEvent.key) {
+                                        Key.DirectionLeft -> {
+                                            seekKeyboardStep(-KeyboardSeekStepSeconds)
+                                            return@onPreviewKeyEvent true
+                                        }
+                                        Key.DirectionRight -> {
+                                            seekKeyboardStep(KeyboardSeekStepSeconds)
+                                            return@onPreviewKeyEvent true
+                                        }
+                                        Key.Home -> {
+                                            if (session.currentFile != null) session.seekTo(0.0)
+                                            return@onPreviewKeyEvent true
+                                        }
+                                    }
+                                }
+                                if (keyEvent.isShiftPressed && !keyEvent.isCtrlPressed && !keyEvent.isAltPressed) {
+                                    if (isPlayerExpanded) {
+                                        when (keyEvent.key) {
+                                            Key.DirectionLeft -> {
+                                                if (session.subtuneCount > 1 && session.subtuneIndex > 0) {
+                                                    session.previousSubtune()
+                                                }
+                                                return@onPreviewKeyEvent true
+                                            }
+                                            Key.DirectionRight -> {
+                                                if (session.subtuneCount > 1 &&
+                                                    session.subtuneIndex + 1 < session.subtuneCount
+                                                ) {
+                                                    session.nextSubtune()
+                                                }
+                                                return@onPreviewKeyEvent true
+                                            }
+                                        }
+                                    }
+                                }
+                                if (!keyEvent.isCtrlPressed && !keyEvent.isAltPressed && !keyEvent.isShiftPressed) {
+                                    if (keyEvent.key == Key.Break || keyEvent.key.nativeKeyCode == AwtVkPause) {
+                                        session.togglePlayPause()
+                                        return@onPreviewKeyEvent true
+                                    }
+                                    when (keyEvent.key) {
+                                        Key.MediaPlayPause, Key.MediaPlay, Key.MediaPause -> {
+                                            session.togglePlayPause()
+                                            return@onPreviewKeyEvent true
+                                        }
+                                    }
+                                    // Player state: only when maximized.
+                                    if (isPlayerExpanded) {
+                                        when (keyEvent.key) {
+                                            Key.R -> {
+                                                cycleRepeatModeWithToast()
+                                                return@onPreviewKeyEvent true
+                                            }
+                                            Key.F -> {
+                                                toggleFavoriteTrack()
+                                                return@onPreviewKeyEvent true
+                                            }
+                                            Key.V -> {
+                                                toggleVisualization()
+                                                return@onPreviewKeyEvent true
+                                            }
+                                            Key.PageUp -> {
+                                                cycleVisualizationMode(-1)
+                                                return@onPreviewKeyEvent true
+                                            }
+                                            Key.PageDown -> {
+                                                cycleVisualizationMode(1)
+                                                return@onPreviewKeyEvent true
+                                            }
+                                        }
+                                    }
+                                }
+                                false
+                            }
+                    ) {
                         MainNavigationScaffold(
                             currentView = currentView,
                             onOpenPlayerSurface = {
@@ -2726,13 +2874,7 @@ fun main(args: Array<String>) = application {
                                     hasReliableDuration = session.hasReliableDuration,
                                     playbackCapabilitiesFlags = session.playbackCapabilitiesFlags,
                                     onSeek = { seconds -> session.seekTo(seconds) },
-                                    onPreviousTrack = {
-                                        playQueuePreviousTrack(
-                                            playlistWrapOverride = false,
-                                            browserWrapOverride = session.repeatMode != RepeatMode.None,
-                                            notifyWrap = true
-                                        )
-                                    },
+                                    onPreviousTrack = { goPreviousTrack() },
                                     onForcePreviousTrack = {
                                         playQueueAdjacentTrack(
                                             -1,
@@ -2742,15 +2884,7 @@ fun main(args: Array<String>) = application {
                                             notifyWrap = true
                                         )
                                     },
-                                    onNextTrack = {
-                                        playQueueAdjacentTrack(
-                                            1,
-                                            stopAtBoundary = true,
-                                            playlistWrapOverride = false,
-                                            browserWrapOverride = session.repeatMode != RepeatMode.None,
-                                            notifyWrap = true
-                                        )
-                                    },
+                                    onNextTrack = { goNextTrack() },
                                     onPreviousSubtune = { session.previousSubtune() },
                                     onNextSubtune = { session.nextSubtune() },
                                     onOpenSubtuneSelector = { showSubtuneSelectorDialog = true },
@@ -2780,12 +2914,7 @@ fun main(args: Array<String>) = application {
                                     titleCurrentSubtuneIndex = session.subtuneIndex,
                                     titleSubtuneCount = session.subtuneCount,
                                     subtuneTitleClickable = session.subtuneCount > 1,
-                                    onCycleRepeatMode = {
-                                        session.cycleRepeatMode()?.let { next ->
-                                            preferredRepeatMode = next
-                                            toastHandler.showToast(next.label)
-                                        }
-                                    },
+                                    onCycleRepeatMode = { cycleRepeatModeWithToast() },
                                     canOpenCoreSettings = canOpenCoreSettingsForDecoder(
                                         session.decoderName ?: session.lastUsedCoreName
                                     ),
@@ -2863,27 +2992,7 @@ fun main(args: Array<String>) = application {
                                     filenameDisplayMode = playerFilenameDisplayMode,
                                     filenameOnlyWhenTitleMissing = playerFilenameOnlyWhenTitleMissing,
                                     isTrackFavorited = isCurrentTrackFavorited,
-                                    onToggleFavoriteTrack = {
-                                        val path = session.currentFile?.absolutePath ?: return@PlayerScreen
-                                        val existing = playlistLibraryState.favorites.firstOrNull { it.source == path }
-                                        onPlaylistLibraryStateChanged(
-                                            if (existing != null) {
-                                                removeFavoriteTrack(playlistLibraryState, existing.id)
-                                            } else {
-                                                upsertFavoriteTrack(
-                                                    playlistLibraryState,
-                                                    PlaylistTrackEntry(
-                                                        id = java.util.UUID.randomUUID().toString(),
-                                                        source = path,
-                                                        title = session.title.ifBlank { session.currentFile?.nameWithoutExtension.orEmpty() },
-                                                        artist = session.artist.takeUnless { it.isBlank() },
-                                                        album = session.album.takeUnless { it.isBlank() },
-                                                        addedAtMs = System.currentTimeMillis()
-                                                    )
-                                                )
-                                            }
-                                        )
-                                    },
+                                    onToggleFavoriteTrack = { toggleFavoriteTrack() },
                                     onOpenAudioEffects = { openAudioEffectsDialog() }
                                 )
                             }
