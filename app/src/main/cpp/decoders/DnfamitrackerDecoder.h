@@ -61,11 +61,16 @@ public:
     // per-core channel scope settings. Defaults on.
     void setScopeDcBlockEnabled(bool enabled) { scopeDcBlockEnabled = enabled; }
 
+    // Fast approximate seeks land on the target row without emulating the
+    // ticks in between. Defaults on; enable exact for sample-accurate state.
+    void setSeekExactEnabled(bool enabled) { seekExactEnabled = enabled; }
+
 private:
     void closeLocked();
     void updateScopeSnapshotLocked();
     static int normalizeRepeatMode(int mode);
     void refreshTimelineLocked();
+    void seekPlayerLocked(double seconds);
     std::string getInstrumentNamesInfoLocked();
     std::string getSampleNamesInfoLocked();
 
@@ -76,6 +81,7 @@ private:
     std::vector<float> scopeVuScratch;
     std::vector<float> scopeDcEstimate;
     bool scopeDcBlockEnabled = true;
+    bool seekExactEnabled = false;
     uint32_t channelScopeSourceSerial = 0;
     int sampleRate = 48000;
     int repeatMode = 0;

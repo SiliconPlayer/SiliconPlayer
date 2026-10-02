@@ -82,7 +82,7 @@ int DnfamitrackerDecoder::read(float* buffer, int numFrames) {
             if (mode == 0) {
                 return 0;
             }
-            player->Seek(restartSeconds);
+            seekPlayerLocked(restartSeconds);
             positionSeconds = player->GetCurrentTimeSeconds();
         }
         const double quantumSeconds =
@@ -95,7 +95,7 @@ int DnfamitrackerDecoder::read(float* buffer, int numFrames) {
             if (firstFrames > 0) {
                 rendered = player->Render(buffer, firstFrames);
             }
-            player->Seek(restartSeconds);
+            seekPlayerLocked(restartSeconds);
             const int restFrames = numFrames - firstFrames;
             if (restFrames > 0) {
                 rendered += player->Render(buffer + rendered * 2, restFrames);
@@ -108,7 +108,7 @@ int DnfamitrackerDecoder::read(float* buffer, int numFrames) {
     int rendered = player->Render(buffer, numFrames);
 
     if (rendered < numFrames && mode != 0) {
-        player->Seek(restartSeconds);
+        seekPlayerLocked(restartSeconds);
         int remaining = numFrames - rendered;
         int secondPass = player->Render(buffer + rendered * 2, remaining);
         rendered += secondPass;
@@ -134,7 +134,7 @@ void DnfamitrackerDecoder::seek(double seconds) {
             targetSeconds = std::min(targetSeconds, duration);
         }
     }
-    player->Seek(targetSeconds);
+    seekPlayerLocked(targetSeconds);
 }
 
 double DnfamitrackerDecoder::getDuration() {
@@ -287,6 +287,14 @@ int DnfamitrackerDecoder::normalizeRepeatMode(int mode) {
         return 0;
     }
     return mode;
+}
+
+void DnfamitrackerDecoder::seekPlayerLocked(double seconds) {
+    if (seekExactEnabled) {
+        player->Seek(seconds);
+    } else {
+        player->SeekFast(seconds);
+    }
 }
 
 void DnfamitrackerDecoder::refreshTimelineLocked() {
