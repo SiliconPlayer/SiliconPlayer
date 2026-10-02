@@ -109,3 +109,7 @@
 	path = external/ufmod_c
 	url = https://github.com/Flopster101/uFMOD-C
 	ignore = dirty
+[submodule "external/dnfamitracker"]
+	path = external/dnfamitracker
+	url = https://github.com/SiliconPlayer/Dn-FamiTracker
+	ignore = dirty
