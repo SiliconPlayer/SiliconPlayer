@@ -15,6 +15,11 @@ import com.flopster101.siliconplayer.data.parseArchiveSourceId
 import com.flopster101.siliconplayer.data.resolveArchiveContainerParentLocation
 import java.io.File
 import java.util.Locale
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+
+private val fallbackRecentScope by lazy { CoroutineScope(SupervisorJob() + Dispatchers.IO) }
 
 internal fun playRecentFileEntryAction(
     cacheRoot: File,
@@ -23,7 +28,9 @@ internal fun playRecentFileEntryAction(
     openPlayerOnTrackSelect: Boolean,
     onApplyTrackSelection: (File, Boolean, Boolean?, String?, String?, Boolean) -> Unit,
     onApplyManualInputSelection: (String) -> Unit,
-    onOpenPlaylistFile: (File, String?) -> Unit
+    onOpenPlaylistFile: (File, String?) -> Unit,
+    coroutineScope: CoroutineScope? = null,
+    showHiddenFilesAndFolders: Boolean = false
 ) {
     val playbackInput = resolveRecentPlaybackInput(entry, networkNodes)
     val normalized = normalizeSourceIdentity(playbackInput)
@@ -38,6 +45,15 @@ internal fun playRecentFileEntryAction(
             onOpenPlaylistFile(localPlaylist, normalized)
             return
         }
+    }
+    val isSmb = scheme == "smb" || parseSmbSourceSpecFromInput(entry.path) != null
+    if (isSmb) {
+        loadSmbRecentFolderContext(
+            scope = coroutineScope ?: fallbackRecentScope,
+            entry = entry,
+            networkNodes = networkNodes,
+            showHiddenFilesAndFolders = showHiddenFilesAndFolders
+        )
     }
     val isRemote = scheme == "http" || scheme == "https" || scheme == "smb"
     if (isRemote && !normalized.isNullOrBlank()) {

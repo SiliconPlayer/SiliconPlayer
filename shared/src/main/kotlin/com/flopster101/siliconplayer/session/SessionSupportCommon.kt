@@ -378,3 +378,12 @@ internal fun storagePresentationForPath(path: String): StoragePresentation {
         else -> StoragePresentation("Local", Icons.Default.Folder)
     }
 }
+
+internal fun isRemoteQueuePlaybackSource(sourceId: String?): Boolean {
+    val normalizedSourceId = normalizeSourceIdentity(sourceId) ?: return false
+    val scheme = normalizedSourceId.substringBefore(':', missingDelimiterValue = "").lowercase(Locale.ROOT)
+    return when (scheme) {
+        "http", "https", "smb" -> true
+        else -> false
+    }
+}

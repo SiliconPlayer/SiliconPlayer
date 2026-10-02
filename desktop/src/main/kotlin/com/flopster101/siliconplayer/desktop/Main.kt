@@ -54,6 +54,7 @@ import com.flopster101.siliconplayer.MANUAL_INPUT_INVALID_MESSAGE
 import com.flopster101.siliconplayer.resolveManualSourceInput
 import com.flopster101.siliconplayer.RemotePlayableSourceIdsHolder
 import com.flopster101.siliconplayer.RemoteLoadUiStateHolder
+import com.flopster101.siliconplayer.loadSmbRecentFolderContext
 import com.flopster101.siliconplayer.platform.rememberRemoteSourceExportSupport
 import com.flopster101.siliconplayer.formatSourceIdForDisplay
 import com.flopster101.siliconplayer.resolvePlaybackSourceLabel
@@ -360,6 +361,7 @@ fun main(args: Array<String>) = application {
     var miniDismissOffsetPx by remember { mutableFloatStateOf(0f) }
     val miniDismissSettle = remember { Animatable(0f) }
     val miniDismissScope = rememberCoroutineScope()
+    val desktopSmbFolderScope = rememberCoroutineScope()
     var miniDismissWidthPx by remember { mutableFloatStateOf(0f) }
     var miniDismissSettling by remember { mutableStateOf(false) }
     val supportedExtensions = remember {
@@ -1067,7 +1069,25 @@ fun main(args: Array<String>) = application {
                 }
                 return false
             }
-            fun playAdjacentSiblingTrack(offset: Int, wrapOverride: Boolean?): Boolean {
+            fun playAdjacentSiblingTrack(
+                offset: Int,
+                wrapOverride: Boolean?,
+                notifyWrap: Boolean = false
+            ): Boolean {
+                val activeSourceId = session.currentSourceId ?: session.currentFile?.path
+                val remoteQueue = RemotePlayableSourceIdsHolder.resolvedCurrentOrLastForSource(activeSourceId)
+                if (remoteQueue.isNotEmpty()) {
+                    val index = remoteQueue.indexOfFirst { samePath(it, activeSourceId) }
+                    if (index >= 0) {
+                        val shouldWrap = wrapOverride ?: playlistWrapNavigation
+                        val targetIndex = resolveAdjacentIndex(index, offset, remoteQueue.size, shouldWrap) ?: return false
+                        if (shouldWrap && targetIndex != index + offset && notifyWrap) {
+                            toastHandler.showToast(if (offset < 0) "Wrapped to last track" else "Wrapped to first track")
+                        }
+                        playSource(remoteQueue[targetIndex])
+                        return true
+                    }
+                }
                 val current = session.currentFile ?: return false
                 val siblings = listSiblingTracks(current)
                 if (siblings.isEmpty()) return false
@@ -1088,7 +1108,7 @@ fun main(args: Array<String>) = application {
                 notifyWrap: Boolean = false
             ): Boolean {
                 val moved = playAdjacentPlaylistEntry(offset, playlistWrapOverride, notifyWrap) ||
-                    playAdjacentSiblingTrack(offset, browserWrapOverride)
+                    playAdjacentSiblingTrack(offset, browserWrapOverride, notifyWrap)
                 if (!moved && stopAtBoundary && offset > 0 &&
                     !(browserWrapOverride ?: playlistWrapNavigation)
                 ) {
@@ -1942,6 +1962,15 @@ fun main(args: Array<String>) = application {
                                                 }
                                             },
                                             onPlayPinnedFile = { entry ->
+                                                loadSmbRecentFolderContext(
+                                                    scope = desktopSmbFolderScope,
+                                                    entry = entry.asRecentPathEntry(),
+                                                    networkNodes = networkNodes,
+                                                    showHiddenFilesAndFolders = prefs.getBoolean(
+                                                        AppPreferenceKeys.BROWSER_SHOW_HIDDEN_FILES_AND_FOLDERS,
+                                                        AppDefaults.Browser.showHiddenFilesAndFolders
+                                                    )
+                                                )
                                                 playSource(entry.path, entry.title, entry.artist)
                                             },
                                             onOpenRecentFolder = { entry ->
@@ -1953,6 +1982,15 @@ fun main(args: Array<String>) = application {
                                                 )
                                             },
                                             onPlayRecentFile = { entry ->
+                                                loadSmbRecentFolderContext(
+                                                    scope = desktopSmbFolderScope,
+                                                    entry = entry,
+                                                    networkNodes = networkNodes,
+                                                    showHiddenFilesAndFolders = prefs.getBoolean(
+                                                        AppPreferenceKeys.BROWSER_SHOW_HIDDEN_FILES_AND_FOLDERS,
+                                                        AppDefaults.Browser.showHiddenFilesAndFolders
+                                                    )
+                                                )
                                                 playSource(entry.path, entry.title, entry.artist)
                                             },
                                             onPinRecentFolder = { entry ->

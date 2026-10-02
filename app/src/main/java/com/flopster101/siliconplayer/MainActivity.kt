@@ -778,14 +778,6 @@ private fun playAdjacentBrowserFileFromAnchor(
     return true
 }
 
-private fun isRemoteQueuePlaybackSource(sourceId: String?): Boolean {
-    val normalizedSourceId = normalizeSourceIdentity(sourceId) ?: return false
-    return when (Uri.parse(normalizedSourceId).scheme?.lowercase()) {
-        "http", "https", "smb" -> true
-        else -> false
-    }
-}
-
 private fun resolveActivePlaylistMetadataEntry(
     activePlaylist: StoredPlaylist?,
     activePlaylistEntryId: String?,

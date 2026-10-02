@@ -6,6 +6,7 @@ import android.widget.Toast
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.unit.Dp
@@ -57,6 +58,11 @@ internal fun AppNavigationHomeContentSection(
     onOpenUrlOrPath: (() -> Unit)? = null,
     onOpenPinnedPlaylist: (String) -> Unit = {}
 ) {
+    val homeScope = rememberCoroutineScope()
+    val showHiddenFilesAndFolders = prefs.getBoolean(
+        AppPreferenceKeys.BROWSER_SHOW_HIDDEN_FILES_AND_FOLDERS,
+        AppDefaults.Browser.showHiddenFilesAndFolders
+    )
     AppNavigationHomeRouteSection(
         mainPadding = mainPadding,
         onOpenPlayerSurface = onOpenPlayerSurface,
@@ -121,7 +127,9 @@ internal fun AppNavigationHomeContentSection(
                 onApplyManualInputSelection = { rawInput ->
                     manualOpenDelegates.applyManualInputSelection(rawInput)
                 },
-                onOpenPlaylistFile = onPlaylistFileSelected
+                onOpenPlaylistFile = onPlaylistFileSelected,
+                coroutineScope = homeScope,
+                showHiddenFilesAndFolders = showHiddenFilesAndFolders
             )
         },
         onOpenRecentFolder = { entry ->
@@ -152,7 +160,9 @@ internal fun AppNavigationHomeContentSection(
                 onApplyManualInputSelection = { rawInput ->
                     manualOpenDelegates.applyManualInputSelection(rawInput)
                 },
-                onOpenPlaylistFile = onPlaylistFileSelected
+                onOpenPlaylistFile = onPlaylistFileSelected,
+                coroutineScope = homeScope,
+                showHiddenFilesAndFolders = showHiddenFilesAndFolders
             )
         },
         onPinRecentFolder = { entry ->

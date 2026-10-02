@@ -13,6 +13,7 @@ import com.flopster101.siliconplayer.resolveAdjacentIndex
 import com.flopster101.siliconplayer.resolvePreviousTrackAction
 import com.flopster101.siliconplayer.resolveResumeTarget
 import com.flopster101.siliconplayer.samePath
+import com.flopster101.siliconplayer.isRemoteQueuePlaybackSource
 import com.flopster101.siliconplayer.data.resolveArchiveSourceToMountedFile
 import java.io.File
 import kotlin.coroutines.coroutineContext
@@ -155,7 +156,9 @@ internal fun playAdjacentTrackAction(
     onApplyTrackSelection: (file: File, autoStart: Boolean, expandOverride: Boolean?) -> Unit,
     onApplyManualInputSelection: (rawInput: String, options: ManualSourceOpenOptions, expandOverride: Boolean?) -> Unit
 ): Boolean {
-    val hasLocalPlaylist = visiblePlayableFiles.isNotEmpty()
+    val activeSourceId = currentPlaybackSourceId ?: selectedFile?.absolutePath
+    val isRemote = isRemoteQueuePlaybackSource(activeSourceId)
+    val hasLocalPlaylist = !isRemote && visiblePlayableFiles.isNotEmpty()
     val playlistSize = if (hasLocalPlaylist) {
         visiblePlayableFiles.size
     } else {
@@ -168,7 +171,6 @@ internal fun playAdjacentTrackAction(
             visiblePlayableFiles = visiblePlayableFiles
         )
     } else {
-        val activeSourceId = currentPlaybackSourceId ?: selectedFile?.absolutePath
         if (activeSourceId.isNullOrBlank()) {
             -1
         } else {
@@ -210,7 +212,9 @@ internal fun handlePreviousTrackAction(
     onRestartCurrent: () -> Unit,
     onPlayAdjacentTrack: (Int) -> Boolean
 ): Boolean {
-    val hasLocalPlaylist = visiblePlayableFiles.isNotEmpty()
+    val activeSourceId = currentPlaybackSourceId ?: selectedFile?.absolutePath
+    val isRemote = isRemoteQueuePlaybackSource(activeSourceId)
+    val hasLocalPlaylist = !isRemote && visiblePlayableFiles.isNotEmpty()
     val activePlaylistSize = if (hasLocalPlaylist) {
         visiblePlayableFiles.size
     } else {
@@ -223,7 +227,6 @@ internal fun handlePreviousTrackAction(
             visiblePlayableFiles = visiblePlayableFiles
         )
     } else {
-        val activeSourceId = currentPlaybackSourceId ?: selectedFile?.absolutePath
         if (activeSourceId.isNullOrBlank()) {
             -1
         } else {
