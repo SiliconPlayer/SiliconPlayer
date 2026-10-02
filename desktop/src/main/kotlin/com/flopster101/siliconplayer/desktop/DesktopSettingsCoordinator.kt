@@ -328,7 +328,7 @@ internal fun rememberDesktopSettings(
         }
     }
 
-    val state = remember(changeToken, selectedPluginName) {
+    val state = remember(changeToken, streamingChangeToken, selectedPluginName) {
         // Pipeline perf/buffer are per-backend like Android, resolved through the shared chain.
         val backendPreference = AudioBackendPreference.fromStorage(
             prefs.getString(AppPreferenceKeys.AUDIO_BACKEND_PREFERENCE, "auto")
@@ -441,7 +441,7 @@ internal fun rememberDesktopSettings(
     // Box shares the built core callbacks with clear/reset below; plain array
     // (not state) so capturing during composition never recomposes.
     val coreActionsBox = remember { arrayOfNulls<SettingsPluginCoreActions>(1) }
-    val actions = remember(openSettingsRoute, popSettingsRoute, exitSettingsToReturnView) {
+    val actions = remember(openSettingsRoute, popSettingsRoute, exitSettingsToReturnView, protectedCachePaths) {
         SettingsScreenActions(
             onBack = {
                 if (!popSettingsRoute()) {
@@ -492,9 +492,18 @@ internal fun rememberDesktopSettings(
             onOpenVisualizationProjectMPacks = { openSettingsRoute(SettingsRoute.VisualizationAdvancedProjectMPacks) },
             onOpenMisc = { openSettingsRoute(SettingsRoute.Misc) },
             onOpenUrlCache = { openSettingsRoute(SettingsRoute.UrlCache) },
-            onOpenCacheManager = { openSettingsRoute(SettingsRoute.CacheManager) },
-            onOpenFileCacheManager = { openSettingsRoute(SettingsRoute.CacheManager) },
-            onOpenStreamingCacheManager = { openSettingsRoute(SettingsRoute.StreamingCacheManager) },
+            onOpenCacheManager = {
+                refreshCachedSourceFiles()
+                openSettingsRoute(SettingsRoute.CacheManager)
+            },
+            onOpenFileCacheManager = {
+                refreshCachedSourceFiles()
+                openSettingsRoute(SettingsRoute.CacheManager)
+            },
+            onOpenStreamingCacheManager = {
+                refreshStreamingCachedSourceFiles()
+                openSettingsRoute(SettingsRoute.StreamingCacheManager)
+            },
             onOpenUi = { openSettingsRoute(SettingsRoute.Ui) },
             onOpenAbout = { openSettingsRoute(SettingsRoute.About) },
             pluginCoreActions = SettingsPluginCoreActions(
@@ -817,44 +826,51 @@ internal fun rememberDesktopSettings(
                 }
             },
             onClearUrlCacheNow = {
-                scope.launch(Dispatchers.IO) {
-                    val result = clearRemoteCacheFiles(remoteCacheRoot, protectedCachePaths)
+                scope.launch {
+                    val result = withContext(Dispatchers.IO) {
+                        clearRemoteCacheFiles(remoteCacheRoot, protectedCachePaths)
+                    }
                     refreshCachedSourceFiles()
                     val suffix = if (result.skippedFiles > 0) " (${result.skippedFiles} protected)" else ""
                     toastHandler.showToast("Deleted ${result.deletedFiles} file(s)$suffix")
                 }
             },
             onClearFileCacheNow = {
-                scope.launch(Dispatchers.IO) {
-                    val result = clearRemoteCacheFiles(remoteCacheRoot, protectedCachePaths)
+                scope.launch {
+                    val result = withContext(Dispatchers.IO) {
+                        clearRemoteCacheFiles(remoteCacheRoot, protectedCachePaths)
+                    }
                     refreshCachedSourceFiles()
                     val suffix = if (result.skippedFiles > 0) " (${result.skippedFiles} protected)" else ""
                     toastHandler.showToast("Deleted ${result.deletedFiles} file(s)$suffix")
                 }
             },
             onClearStreamingCacheNow = {
-                scope.launch(Dispatchers.IO) {
-                    val result = clearRemoteCacheFiles(streamingCacheRoot, protectedCachePaths)
+                scope.launch {
+                    val result = withContext(Dispatchers.IO) {
+                        clearRemoteCacheFiles(streamingCacheRoot, protectedCachePaths)
+                    }
                     refreshStreamingCachedSourceFiles()
                     val suffix = if (result.skippedFiles > 0) " (${result.skippedFiles} protected)" else ""
                     toastHandler.showToast("Deleted ${result.deletedFiles} file(s)$suffix")
                 }
             },
             onClearArchiveCacheNow = {
-                scope.launch(Dispatchers.IO) {
-                    val result = clearArchiveMountCache(cacheDir)
+                scope.launch {
+                    val result = withContext(Dispatchers.IO) {
+                        clearArchiveMountCache(cacheDir)
+                    }
                     toastHandler.showToast("Deleted ${result.deletedMounts} mount(s)")
                 }
             },
             onRefreshCachedSourceFiles = {
-                scope.launch(Dispatchers.IO) {
-                    listCachedSourceFiles(remoteCacheRoot)
-                    refreshCachedSourceFiles()
-                }
+                refreshCachedSourceFiles()
             },
             onDeleteCachedSourceFiles = { paths ->
-                scope.launch(Dispatchers.IO) {
-                    val result = deleteSpecificRemoteCacheFiles(remoteCacheRoot, paths.toSet(), protectedCachePaths)
+                scope.launch {
+                    val result = withContext(Dispatchers.IO) {
+                        deleteSpecificRemoteCacheFiles(remoteCacheRoot, paths.toSet(), protectedCachePaths)
+                    }
                     refreshCachedSourceFiles()
                     val suffix = if (result.skippedFiles > 0) " (${result.skippedFiles} protected)" else ""
                     toastHandler.showToast("Deleted ${result.deletedFiles} file(s)$suffix")
@@ -871,14 +887,13 @@ internal fun rememberDesktopSettings(
                 }
             },
             onRefreshStreamingCachedSourceFiles = {
-                scope.launch(Dispatchers.IO) {
-                    listCachedSourceFiles(streamingCacheRoot)
-                    refreshStreamingCachedSourceFiles()
-                }
+                refreshStreamingCachedSourceFiles()
             },
             onDeleteStreamingCachedSourceFiles = { paths ->
-                scope.launch(Dispatchers.IO) {
-                    val result = deleteSpecificRemoteCacheFiles(streamingCacheRoot, paths.toSet(), protectedCachePaths)
+                scope.launch {
+                    val result = withContext(Dispatchers.IO) {
+                        deleteSpecificRemoteCacheFiles(streamingCacheRoot, paths.toSet(), protectedCachePaths)
+                    }
                     refreshStreamingCachedSourceFiles()
                     val suffix = if (result.skippedFiles > 0) " (${result.skippedFiles} protected)" else ""
                     toastHandler.showToast("Deleted ${result.deletedFiles} file(s)$suffix")
