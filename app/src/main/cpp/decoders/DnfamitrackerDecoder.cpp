@@ -40,7 +40,7 @@ bool DnfamitrackerDecoder::open(const char* path) {
         comment = doc->GetSongComment();
     }
 
-    duration = player->GetDuration(player->GetCurrentSubtune());
+    refreshTimelineLocked();
     isOpen = true;
     return true;
 }
@@ -61,6 +61,9 @@ void DnfamitrackerDecoder::closeLocked() {
     copyright.clear();
     comment.clear();
     duration = 0.0;
+    durationReliable = false;
+    loopStartSeconds = 0.0;
+    loopLengthSeconds = 0.0;
     isOpen = false;
 }
 
@@ -70,10 +73,42 @@ int DnfamitrackerDecoder::read(float* buffer, int numFrames) {
         return 0;
     }
 
+    const int mode = normalizeRepeatMode(repeatMode);
+    const double restartSeconds =
+            (mode == 2 && loopLengthSeconds > 0.0) ? loopStartSeconds : 0.0;
+    if (durationReliable && duration > 0.0) {
+        double positionSeconds = player->GetCurrentTimeSeconds();
+        if (positionSeconds >= duration) {
+            if (mode == 0) {
+                return 0;
+            }
+            player->Seek(restartSeconds);
+            positionSeconds = player->GetCurrentTimeSeconds();
+        }
+        const double quantumSeconds =
+                sampleRate > 0 ? static_cast<double>(numFrames) / sampleRate : 0.0;
+        const double remainingSeconds = duration - positionSeconds;
+        if (mode != 0 && quantumSeconds > 0.0 && remainingSeconds < quantumSeconds) {
+            const int firstFrames =
+                    std::max(0, static_cast<int>(remainingSeconds * sampleRate));
+            int rendered = 0;
+            if (firstFrames > 0) {
+                rendered = player->Render(buffer, firstFrames);
+            }
+            player->Seek(restartSeconds);
+            const int restFrames = numFrames - firstFrames;
+            if (restFrames > 0) {
+                rendered += player->Render(buffer + rendered * 2, restFrames);
+            }
+            updateScopeSnapshotLocked();
+            return rendered;
+        }
+    }
+
     int rendered = player->Render(buffer, numFrames);
 
-    if (rendered < numFrames && repeatMode == 1) {
-        player->Seek(0.0);
+    if (rendered < numFrames && mode != 0) {
+        player->Seek(restartSeconds);
         int remaining = numFrames - rendered;
         int secondPass = player->Render(buffer + rendered * 2, remaining);
         rendered += secondPass;
@@ -89,7 +124,17 @@ void DnfamitrackerDecoder::seek(double seconds) {
     if (!isOpen || !player) {
         return;
     }
-    player->Seek(std::max(0.0, seconds));
+    double targetSeconds = std::max(0.0, seconds);
+    if (durationReliable && duration > 0.0) {
+        if (normalizeRepeatMode(repeatMode) == 2 && loopLengthSeconds > 0.0 &&
+            targetSeconds > duration) {
+            targetSeconds =
+                    loopStartSeconds + std::fmod(targetSeconds - duration, loopLengthSeconds);
+        } else {
+            targetSeconds = std::min(targetSeconds, duration);
+        }
+    }
+    player->Seek(targetSeconds);
 }
 
 double DnfamitrackerDecoder::getDuration() {
@@ -156,7 +201,7 @@ bool DnfamitrackerDecoder::selectSubtune(int index) {
     }
     bool result = player->SelectSubtune(index);
     if (result) {
-        duration = player->GetDuration(index);
+        refreshTimelineLocked();
     }
     return result;
 }
@@ -214,7 +259,15 @@ double DnfamitrackerDecoder::getPlaybackPositionSeconds() {
     if (!isOpen || !player) {
         return 0.0;
     }
-    return player->GetCurrentTimeSeconds();
+    const double positionSeconds = player->GetCurrentTimeSeconds();
+    if (durationReliable && duration > 0.0 && positionSeconds >= duration) {
+        if (normalizeRepeatMode(repeatMode) == 2 && loopLengthSeconds > 0.0) {
+            return loopStartSeconds +
+                    std::fmod(positionSeconds - duration, loopLengthSeconds);
+        }
+        return duration;
+    }
+    return positionSeconds;
 }
 
 AudioDecoder::TimelineMode DnfamitrackerDecoder::getTimelineMode() const {
@@ -227,6 +280,32 @@ int DnfamitrackerDecoder::getPlaybackCapabilities() const {
            PLAYBACK_CAP_LIVE_REPEAT_MODE |
            PLAYBACK_CAP_DIRECT_SEEK |
            PLAYBACK_CAP_CUSTOM_SAMPLE_RATE;
+}
+
+int DnfamitrackerDecoder::normalizeRepeatMode(int mode) {
+    if (mode < 0 || mode > 3) {
+        return 0;
+    }
+    return mode;
+}
+
+void DnfamitrackerDecoder::refreshTimelineLocked() {
+    durationReliable = false;
+    loopStartSeconds = 0.0;
+    loopLengthSeconds = 0.0;
+    if (!player || !player->GetDocument()) {
+        return;
+    }
+    const int track = player->GetCurrentSubtune();
+    duration = player->GetDuration(track);
+    if (duration <= 0.0) {
+        duration = 0.0;
+        return;
+    }
+    durationReliable = true;
+    const double withLoop = player->GetDocument()->GetStandardLength(track, 1);
+    loopLengthSeconds = std::max(0.0, withLoop - duration);
+    loopStartSeconds = std::clamp(duration - loopLengthSeconds, 0.0, duration);
 }
 
 std::vector<int32_t> DnfamitrackerDecoder::getChannelScopeTextState(int maxChannels) {

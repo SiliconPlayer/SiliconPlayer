@@ -64,6 +64,8 @@ public:
 private:
     void closeLocked();
     void updateScopeSnapshotLocked();
+    static int normalizeRepeatMode(int mode);
+    void refreshTimelineLocked();
     std::string getInstrumentNamesInfoLocked();
     std::string getSampleNamesInfoLocked();
 
@@ -78,6 +80,9 @@ private:
     int sampleRate = 48000;
     int repeatMode = 0;
     double duration = 0.0;
+    bool durationReliable = false;
+    double loopStartSeconds = 0.0;
+    double loopLengthSeconds = 0.0;
     std::string title;
     std::string artist;
     std::string copyright;
