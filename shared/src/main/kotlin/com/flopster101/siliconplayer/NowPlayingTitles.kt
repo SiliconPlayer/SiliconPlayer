@@ -16,6 +16,20 @@ fun subtuneBadgeText(currentSubtuneIndex: Int, subtuneCount: Int): String? {
     return "[$shownIndex/$subtuneCount]"
 }
 
+// Second-line text under a track title: artist and album combined,
+// blank when neither exists so the line is hidden entirely.
+fun formatArtistAlbumLine(artist: String, album: String): String {
+    return when {
+        album.isNotBlank() && artist.isNotBlank() -> "$artist • $album"
+        album.isNotBlank() -> album
+        else -> artist
+    }
+}
+
+fun formatBadgedTitle(title: String, subtuneBadge: String?): String {
+    return if (subtuneBadge != null) "$title $subtuneBadge" else title
+}
+
 fun resolveSubtuneNowPlayingText(
     fileTitle: String,
     fileAlbum: String,

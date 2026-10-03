@@ -86,6 +86,8 @@ import com.flopster101.siliconplayer.AppPreferenceKeys
 import com.flopster101.siliconplayer.DecoderNames
 import com.flopster101.siliconplayer.NativeBridge
 import com.flopster101.siliconplayer.RepeatMode
+import com.flopster101.siliconplayer.formatArtistAlbumLine
+import com.flopster101.siliconplayer.formatBadgedTitle
 import com.flopster101.siliconplayer.StarfieldPreset
 import com.flopster101.siliconplayer.VisualizationChannelScopeBackgroundMode
 import com.flopster101.siliconplayer.VisualizationChannelScopeLayout
@@ -951,6 +953,8 @@ private fun FullscreenSeekBar(
 private fun FullscreenBottomControls(
     displayTitle: String,
     displayArtist: String,
+    album: String = "",
+    subtuneBadge: String? = null,
     isPlaying: Boolean,
     onPlay: () -> Unit,
     onPause: () -> Unit,
@@ -991,8 +995,10 @@ private fun FullscreenBottomControls(
                         switcherContent()
                     }
                 }
+                val compactArtistAlbumLine = formatArtistAlbumLine(displayArtist, album)
+                val compactTitleLine = formatBadgedTitle(displayTitle, subtuneBadge)
                 Text(
-                    text = if (displayArtist.isNotBlank()) "$displayArtist — $displayTitle" else displayTitle,
+                    text = if (compactArtistAlbumLine.isNotBlank()) "$compactArtistAlbumLine — $compactTitleLine" else compactTitleLine,
                     color = Color.White,
                     style = MaterialTheme.typography.titleSmall,
                     maxLines = 1,
@@ -1050,15 +1056,16 @@ private fun FullscreenBottomControls(
                     ) {
                         Column(modifier = Modifier.weight(1f)) {
                             Text(
-                                text = displayTitle,
+                                text = formatBadgedTitle(displayTitle, subtuneBadge),
                                 color = Color.White,
                                 style = MaterialTheme.typography.titleMedium,
                                 maxLines = 1,
                                 overflow = TextOverflow.Ellipsis
                             )
-                            if (displayArtist.isNotBlank()) {
+                            val artistAlbumLine = formatArtistAlbumLine(displayArtist, album)
+                            if (artistAlbumLine.isNotBlank()) {
                                 Text(
-                                    text = displayArtist,
+                                    text = artistAlbumLine,
                                     color = Color.White.copy(alpha = 0.80f),
                                     style = MaterialTheme.typography.bodySmall,
                                     maxLines = 1,
@@ -1084,15 +1091,16 @@ private fun FullscreenBottomControls(
                     }
                 } else {
                     Text(
-                        text = displayTitle,
+                        text = formatBadgedTitle(displayTitle, subtuneBadge),
                         color = Color.White,
                         style = MaterialTheme.typography.titleMedium,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis
                     )
-                    if (displayArtist.isNotBlank()) {
+                    val artistAlbumLine = formatArtistAlbumLine(displayArtist, album)
+                    if (artistAlbumLine.isNotBlank()) {
                         Text(
-                            text = displayArtist,
+                            text = artistAlbumLine,
                             color = Color.White.copy(alpha = 0.80f),
                             style = MaterialTheme.typography.bodySmall,
                             maxLines = 1,
@@ -1168,16 +1176,12 @@ private fun FullscreenTrackTicker(
                     .padding(horizontal = 14.dp, vertical = 10.dp)
             ) {
                 Text(
-                    text = if (subtuneBadge != null) "$title $subtuneBadge" else title,
+                    text = formatBadgedTitle(title, subtuneBadge),
                     style = MaterialTheme.typography.titleMedium,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis
                 )
-                val artistAlbumLine = when {
-                    album.isNotBlank() && artist.isNotBlank() -> "$artist • $album"
-                    album.isNotBlank() -> album
-                    else -> artist
-                }
+                val artistAlbumLine = formatArtistAlbumLine(artist, album)
                 if (artistAlbumLine.isNotBlank()) {
                     Text(
                         text = artistAlbumLine,
@@ -1397,6 +1401,8 @@ internal fun FullscreenVisualizationOverlay(
                     FullscreenBottomControls(
                         displayTitle = displayTitle,
                         displayArtist = displayArtist,
+                        album = album,
+                        subtuneBadge = subtuneBadge,
                         isPlaying = isPlaying,
                         onPlay = onPlay,
                         onPause = onPause,

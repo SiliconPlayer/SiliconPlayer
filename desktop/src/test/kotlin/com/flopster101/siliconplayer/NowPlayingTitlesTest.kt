@@ -59,6 +59,28 @@ class NowPlayingTitlesTest {
     }
 
     @Test
+    fun artistAlbumLineCombinesBoth() {
+        assertEquals("Artist • Album", formatArtistAlbumLine("Artist", "Album"))
+    }
+
+    @Test
+    fun artistAlbumLineHidesWhenBothBlank() {
+        assertEquals("", formatArtistAlbumLine("", ""))
+    }
+
+    @Test
+    fun artistAlbumLineKeepsSoleSurvivor() {
+        assertEquals("Album", formatArtistAlbumLine("", "Album"))
+        assertEquals("Artist", formatArtistAlbumLine("Artist", ""))
+    }
+
+    @Test
+    fun badgedTitleAppendsBadge() {
+        assertEquals("Song [2/3]", formatBadgedTitle("Song", "[2/3]"))
+        assertEquals("Song", formatBadgedTitle("Song", null))
+    }
+
+    @Test
     fun badgeHiddenWithoutSubtunes() {
         assertEquals(null, subtuneBadgeText(0, 1))
         assertEquals(null, subtuneBadgeText(0, 0))
