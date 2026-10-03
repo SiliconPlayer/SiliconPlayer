@@ -254,6 +254,7 @@ internal fun FileBrowserScreen(
     initialHttpSourceNodeId: Long? = null,
     initialHttpRootPath: String? = null,
     restoreFocusedItemRequestToken: Int = 0,
+    refreshRequestToken: Int = 0,
     onFileSelected: (File, String?) -> Unit,
     onPlaylistFileSelected: (File, String?) -> Unit = { _, _ -> },
     onVisiblePlayableFilesChanged: (List<File>) -> Unit = {},
@@ -580,6 +581,11 @@ internal fun FileBrowserScreen(
             }
             isPullRefreshing = false
         }
+    }
+
+    LaunchedEffect(refreshRequestToken) {
+        if (refreshRequestToken <= 0) return@LaunchedEffect
+        refreshBrowser()
     }
 
     fun openLocation(location: StorageLocation) {

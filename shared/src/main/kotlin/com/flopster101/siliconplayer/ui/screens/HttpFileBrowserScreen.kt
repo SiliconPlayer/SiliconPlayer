@@ -200,7 +200,8 @@ internal fun HttpFileBrowserScreen(
     onToggleFavoriteSource: (String, String) -> Unit = { _, _ -> },
     onAddSourceToPlaylist: (String, String, String?, String) -> Unit = { _, _, _, _ -> },
     onRemoveSourceFromPlaylist: (String, String) -> Unit = { _, _ -> },
-    networkNodes: List<NetworkNode> = emptyList()
+    networkNodes: List<NetworkNode> = emptyList(),
+    refreshRequestToken: Int = 0
 ) {
     val browserPrefs = LocalAppPreferences.current
     val toastHandler = LocalToastHandler.current
@@ -662,13 +663,11 @@ internal fun HttpFileBrowserScreen(
         return listStateMap.getOrPut(path) { LazyListState() }
     }
     val activeEntriesListState = listStateFor(browserContentState.path)
-    val pullRefreshState = rememberPullRefreshState(
-        refreshing = isPullRefreshing,
-        onRefresh = {
-            if (isPullRefreshing || isLoading) return@rememberPullRefreshState
-            coroutineScope.launch {
-                isPullRefreshing = true
-                openDirectory(
+    fun refreshBrowser() {
+        if (isPullRefreshing || isLoading) return
+        coroutineScope.launch {
+            isPullRefreshing = true
+            openDirectory(
                     targetSpec = currentSpec,
                     cancelState = HttpLoadingCancelState(
                         previousSpec = currentSpec,
@@ -683,8 +682,17 @@ internal fun HttpFileBrowserScreen(
                     delay(24)
                 }
                 isPullRefreshing = false
-            }
         }
+    }
+
+    LaunchedEffect(refreshRequestToken) {
+        if (refreshRequestToken <= 0) return@LaunchedEffect
+        refreshBrowser()
+    }
+
+    val pullRefreshState = rememberPullRefreshState(
+        refreshing = isPullRefreshing,
+        onRefresh = { refreshBrowser() }
     )
     val directoryScrollbarAlpha = rememberDialogLazyListScrollbarAlpha(
         enabled = browserContentState.pane == HttpBrowserPane.Entries,

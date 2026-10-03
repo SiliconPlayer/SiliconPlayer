@@ -355,6 +355,7 @@ fun main(args: Array<String>) = application {
     val backDispatcher = remember { DesktopBackDispatcher() }
 
     var currentView by remember { mutableStateOf(MainView.Home) }
+    var browserRefreshToken by remember { mutableStateOf(0) }
     var isPlayerExpanded by remember { mutableStateOf(false) }
     var isPlayerSurfaceVisible by remember { mutableStateOf(false) }
     var miniExpandPreviewProgress by remember { mutableFloatStateOf(0f) }
@@ -1868,6 +1869,15 @@ fun main(args: Array<String>) = application {
                                             return@onPreviewKeyEvent true
                                         }
                                     }
+                                    // Browser state: only when the file explorer is visible.
+                                    if (currentView == MainView.Browser && !isPlayerExpanded) {
+                                        when (keyEvent.key) {
+                                            Key.F5 -> {
+                                                browserRefreshToken += 1
+                                                return@onPreviewKeyEvent true
+                                            }
+                                        }
+                                    }
                                     // Player state: only when maximized.
                                     if (isPlayerExpanded) {
                                         when (keyEvent.key) {
@@ -2202,7 +2212,8 @@ fun main(args: Array<String>) = application {
                                                     onPinHomeEntry = ::pinHomeEntry,
                                                     playlists = emptyList(),
                                                     favoriteSourceIds = emptySet(),
-                                                    networkNodes = networkNodes
+                                                    networkNodes = networkNodes,
+                                                    refreshRequestToken = browserRefreshToken
                                                 )
                                             }
                                         } else if (browserRenderState.renderMode == BrowserRouteMode.Http) {
@@ -2232,6 +2243,7 @@ fun main(args: Array<String>) = application {
                                                     onPlaylistFileSelected = { file, _ -> playFile(file) },
                                                     pinnedHomeEntries = pinnedEntries,
                                                     onPinHomeEntry = ::pinHomeEntry,
+                                                    refreshRequestToken = browserRefreshToken,
                                                     playlists = emptyList(),
                                                     favoriteSourceIds = emptySet(),
                                                     networkNodes = networkNodes
@@ -2261,7 +2273,8 @@ fun main(args: Array<String>) = application {
                                                     }
                                                 },
                                                 pinnedHomeEntries = pinnedEntries,
-                                                onPinHomeEntry = ::pinHomeEntry
+                                                onPinHomeEntry = ::pinHomeEntry,
+                                                refreshRequestToken = browserRefreshToken
                                             )
                                         }
                                     }

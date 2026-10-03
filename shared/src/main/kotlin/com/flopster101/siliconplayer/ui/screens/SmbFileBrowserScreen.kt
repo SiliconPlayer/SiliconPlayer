@@ -193,7 +193,8 @@ internal fun SmbFileBrowserScreen(
     onToggleFavoriteSource: (String, String) -> Unit = { _, _ -> },
     onAddSourceToPlaylist: (String, String, String?, String) -> Unit = { _, _, _, _ -> },
     onRemoveSourceFromPlaylist: (String, String) -> Unit = { _, _ -> },
-    networkNodes: List<NetworkNode> = emptyList()
+    networkNodes: List<NetworkNode> = emptyList(),
+    refreshRequestToken: Int = 0
 ) {
     val browserPrefs = LocalAppPreferences.current
     val toastHandler = LocalToastHandler.current
@@ -478,20 +479,27 @@ internal fun SmbFileBrowserScreen(
         }
     }
 
+    fun refreshBrowser() {
+        if (isPullRefreshing) return
+        coroutineScope.launch {
+            isPullRefreshing = true
+            loadCurrentDirectory()
+            val waitDeadline = System.currentTimeMillis() + 2500L
+            while (isLoading && System.currentTimeMillis() < waitDeadline) {
+                delay(24)
+            }
+            isPullRefreshing = false
+        }
+    }
+
+    LaunchedEffect(refreshRequestToken) {
+        if (refreshRequestToken <= 0) return@LaunchedEffect
+        refreshBrowser()
+    }
+
     val pullRefreshState = rememberPullRefreshState(
         refreshing = isPullRefreshing,
-        onRefresh = {
-            if (isPullRefreshing) return@rememberPullRefreshState
-            coroutineScope.launch {
-                isPullRefreshing = true
-                loadCurrentDirectory()
-                val waitDeadline = System.currentTimeMillis() + 2500L
-                while (isLoading && System.currentTimeMillis() < waitDeadline) {
-                    delay(24)
-                }
-                isPullRefreshing = false
-            }
-        }
+        onRefresh = { refreshBrowser() }
     )
 
     fun openDirectory(
