@@ -121,6 +121,8 @@ class ChannelScopeTextLayoutTest {
             override fun furnaceSampleNames() = "1. Snare\n"
             override fun klystrackInstrumentNames() = ""
             override fun hivelyInstrumentNames() = ""
+            override fun dnfamitrackerInstrumentNames() = ""
+            override fun dnfamitrackerSampleNames() = ""
             override fun decoderToggleChannelNames() = arrayOf("Pulse 1", "Pulse 2", "Triangle")
         }
         val maps = loadChannelScopeNameMaps(DecoderNames.FURNACE, source)
