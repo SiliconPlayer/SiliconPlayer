@@ -33,6 +33,36 @@ internal fun shouldRestartCurrentTrackOnPrevious(
         positionSeconds > PREVIOUS_RESTART_THRESHOLD_SECONDS
 }
 
+// Single definition of the prev/next transport decision: multi-subtune
+// selections step through subtunes, plain tracks step through the queue.
+internal data class SubtuneTransportState(
+    val hasTrack: Boolean = false,
+    val currentSubtuneIndex: Int = 0,
+    val subtuneCount: Int = 0,
+    val canPreviousSubtune: Boolean = false,
+    val canNextSubtune: Boolean = false,
+    val canPreviousTrack: Boolean = false,
+    val canNextTrack: Boolean = false,
+    val previousRestartsAfterThreshold: Boolean = true
+) {
+    val useSubtuneTransport: Boolean get() = subtuneCount > 1
+    val hasSubtuneBefore: Boolean
+        get() = useSubtuneTransport && currentSubtuneIndex > 0 && canPreviousSubtune
+    val hasSubtuneAfter: Boolean
+        get() = useSubtuneTransport && currentSubtuneIndex < subtuneCount - 1 && canNextSubtune
+    val previousEnabled: Boolean
+        get() = if (useSubtuneTransport) hasTrack else hasTrack && canPreviousTrack
+    val nextEnabled: Boolean
+        get() = if (useSubtuneTransport) hasTrack else hasTrack && canNextTrack
+    fun previousWantsRestart(positionSeconds: Double): Boolean {
+        return useSubtuneTransport && shouldRestartCurrentTrackOnPrevious(
+            previousRestartsAfterThreshold = previousRestartsAfterThreshold,
+            hasTrackLoaded = hasTrack,
+            positionSeconds = positionSeconds
+        )
+    }
+}
+
 internal fun pluginNameForCoreName(coreName: String?): String? {
     return canonicalDecoderNameForAlias(coreName)
 }

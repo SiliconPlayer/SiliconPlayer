@@ -47,6 +47,8 @@ import androidx.compose.material.icons.filled.MonitorHeart
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material.icons.filled.KeyboardDoubleArrowLeft
+import androidx.compose.material.icons.filled.KeyboardDoubleArrowRight
 import androidx.compose.material.icons.filled.SkipNext
 import androidx.compose.material.icons.filled.SkipPrevious
 import androidx.compose.material.icons.filled.VisibilityOff
@@ -87,6 +89,7 @@ import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
 import com.flopster101.siliconplayer.RepeatMode
+import com.flopster101.siliconplayer.SubtuneTransportState
 import com.flopster101.siliconplayer.formatArtistAlbumLine
 import com.flopster101.siliconplayer.formatBadgedTitle
 import com.flopster101.siliconplayer.formatDurationWithUnknown
@@ -154,6 +157,11 @@ private fun FullscreenTransportControls(
     onNextTrack: () -> Unit,
     canPreviousTrack: Boolean,
     canNextTrack: Boolean,
+    positionSecondsProvider: () -> Double = { 0.0 },
+    subtuneTransport: SubtuneTransportState = SubtuneTransportState(),
+    onPreviousSubtune: () -> Unit = {},
+    onNextSubtune: () -> Unit = {},
+    onRestartCurrentSelection: () -> Unit = {},
     modifier: Modifier = Modifier,
     showExtras: Boolean = false,
     repeatMode: RepeatMode = RepeatMode.None,
@@ -180,8 +188,14 @@ private fun FullscreenTransportControls(
         }
 
         FilledTonalIconButton(
-            onClick = onPreviousTrack,
-            enabled = canPreviousTrack,
+            onClick = {
+                when {
+                    subtuneTransport.previousWantsRestart(positionSecondsProvider()) -> onRestartCurrentSelection()
+                    subtuneTransport.hasSubtuneBefore -> onPreviousSubtune()
+                    else -> onPreviousTrack()
+                }
+            },
+            enabled = subtuneTransport.previousEnabled,
             modifier = Modifier.size(48.dp),
             colors = IconButtonDefaults.filledTonalIconButtonColors(
                 containerColor = Color.White.copy(alpha = 0.14f),
@@ -190,7 +204,19 @@ private fun FullscreenTransportControls(
                 disabledContentColor = Color.White.copy(alpha = 0.38f)
             )
         ) {
-            Icon(Icons.Default.SkipPrevious, contentDescription = "Previous", modifier = Modifier.size(24.dp))
+            Icon(
+                imageVector = if (subtuneTransport.useSubtuneTransport) {
+                    Icons.Default.KeyboardDoubleArrowLeft
+                } else {
+                    Icons.Default.SkipPrevious
+                },
+                contentDescription = if (subtuneTransport.useSubtuneTransport) {
+                    "Previous subtune"
+                } else {
+                    "Previous track"
+                },
+                modifier = Modifier.size(24.dp)
+            )
         }
 
         FilledIconButton(
@@ -209,8 +235,8 @@ private fun FullscreenTransportControls(
         }
 
         FilledTonalIconButton(
-            onClick = onNextTrack,
-            enabled = canNextTrack,
+            onClick = if (subtuneTransport.hasSubtuneAfter) onNextSubtune else onNextTrack,
+            enabled = subtuneTransport.nextEnabled,
             modifier = Modifier.size(48.dp),
             colors = IconButtonDefaults.filledTonalIconButtonColors(
                 containerColor = Color.White.copy(alpha = 0.14f),
@@ -219,7 +245,19 @@ private fun FullscreenTransportControls(
                 disabledContentColor = Color.White.copy(alpha = 0.38f)
             )
         ) {
-            Icon(Icons.Default.SkipNext, contentDescription = "Next", modifier = Modifier.size(24.dp))
+            Icon(
+                imageVector = if (subtuneTransport.useSubtuneTransport) {
+                    Icons.Default.KeyboardDoubleArrowRight
+                } else {
+                    Icons.Default.SkipNext
+                },
+                contentDescription = if (subtuneTransport.useSubtuneTransport) {
+                    "Next subtune"
+                } else {
+                    "Next track"
+                },
+                modifier = Modifier.size(24.dp)
+            )
         }
 
         if (showExtras) {
@@ -488,6 +526,10 @@ private fun FullscreenBottomControls(
     onNextTrack: () -> Unit,
     canPreviousTrack: Boolean,
     canNextTrack: Boolean,
+    subtuneTransport: SubtuneTransportState = SubtuneTransportState(),
+    onPreviousSubtune: () -> Unit = {},
+    onNextSubtune: () -> Unit = {},
+    onRestartCurrentSelection: () -> Unit = {},
     positionSecondsProvider: () -> Double,
     durationSeconds: Double,
     durationReliable: Boolean = true,
@@ -541,6 +583,11 @@ private fun FullscreenBottomControls(
                     onNextTrack = onNextTrack,
                     canPreviousTrack = canPreviousTrack,
                     canNextTrack = canNextTrack,
+                    positionSecondsProvider = positionSecondsProvider,
+                    subtuneTransport = subtuneTransport,
+                    onPreviousSubtune = onPreviousSubtune,
+                    onNextSubtune = onNextSubtune,
+                    onRestartCurrentSelection = onRestartCurrentSelection,
                     modifier = Modifier.fillMaxWidth()
                 )
                 if (durationSeconds > 0.0) {
@@ -612,6 +659,11 @@ private fun FullscreenBottomControls(
                             onNextTrack = onNextTrack,
                             canPreviousTrack = canPreviousTrack,
                             canNextTrack = canNextTrack,
+                            positionSecondsProvider = positionSecondsProvider,
+                            subtuneTransport = subtuneTransport,
+                            onPreviousSubtune = onPreviousSubtune,
+                            onNextSubtune = onNextSubtune,
+                            onRestartCurrentSelection = onRestartCurrentSelection,
                             showExtras = true,
                             repeatMode = repeatMode,
                             onStopAndClear = onStopAndClear,
@@ -654,6 +706,11 @@ private fun FullscreenBottomControls(
                         onNextTrack = onNextTrack,
                         canPreviousTrack = canPreviousTrack,
                         canNextTrack = canNextTrack,
+                        positionSecondsProvider = positionSecondsProvider,
+                        subtuneTransport = subtuneTransport,
+                        onPreviousSubtune = onPreviousSubtune,
+                        onNextSubtune = onNextSubtune,
+                        onRestartCurrentSelection = onRestartCurrentSelection,
                         modifier = Modifier.fillMaxWidth(),
                         showExtras = true,
                         repeatMode = repeatMode,
@@ -772,6 +829,10 @@ internal fun FullscreenVisualizationOverlay(
     onSwipePreviousTrack: () -> Unit = onPreviousTrack,
     canPreviousTrack: Boolean,
     canNextTrack: Boolean,
+    subtuneTransport: SubtuneTransportState = SubtuneTransportState(),
+    onPreviousSubtune: () -> Unit = {},
+    onNextSubtune: () -> Unit = {},
+    onRestartCurrentSelection: () -> Unit = {},
     positionSecondsProvider: () -> Double,
     durationSeconds: Double,
     canSeek: Boolean = true,
@@ -955,6 +1016,11 @@ internal fun FullscreenVisualizationOverlay(
                         onNextTrack = onNextTrack,
                         canPreviousTrack = canPreviousTrack,
                         canNextTrack = canNextTrack,
+                        positionSecondsProvider = positionSecondsProvider,
+                        subtuneTransport = subtuneTransport,
+                        onPreviousSubtune = onPreviousSubtune,
+                        onNextSubtune = onNextSubtune,
+                        onRestartCurrentSelection = onRestartCurrentSelection,
                         modifier = Modifier
                             .fillMaxWidth()
                             .background(FullscreenBottomScrimBrush)
@@ -976,6 +1042,10 @@ internal fun FullscreenVisualizationOverlay(
                         onNextTrack = onNextTrack,
                         canPreviousTrack = canPreviousTrack,
                         canNextTrack = canNextTrack,
+                        subtuneTransport = subtuneTransport,
+                        onPreviousSubtune = onPreviousSubtune,
+                        onNextSubtune = onNextSubtune,
+                        onRestartCurrentSelection = onRestartCurrentSelection,
                         positionSecondsProvider = positionSecondsProvider,
                         durationSeconds = durationSeconds,
                         durationReliable = hasReliableDuration,

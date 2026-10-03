@@ -195,7 +195,7 @@ import com.flopster101.siliconplayer.RemotePreloadUiStateHolder
 import com.flopster101.siliconplayer.rememberDialogScrollbarAlpha
 import com.flopster101.siliconplayer.rememberScrollStateScrollbarDragHandler
 import com.flopster101.siliconplayer.sanitizeRemoteCachedMetadataTitle
-import com.flopster101.siliconplayer.shouldRestartCurrentTrackOnPrevious
+import com.flopster101.siliconplayer.SubtuneTransportState
 import com.flopster101.siliconplayer.stripRemoteCacheHashPrefix
 import com.flopster101.siliconplayer.LocalTextInputTracker
 import com.flopster101.siliconplayer.tvKeyLongPress
@@ -2304,6 +2304,19 @@ internal fun PlayerScreen(
         onSwipePreviousTrack = onForcePreviousTrack,
         canPreviousTrack = canPreviousTrack,
         canNextTrack = canNextTrack,
+        subtuneTransport = SubtuneTransportState(
+            hasTrack = hasTrack,
+            currentSubtuneIndex = currentSubtuneIndex,
+            subtuneCount = subtuneCount,
+            canPreviousSubtune = canPreviousSubtune,
+            canNextSubtune = canNextSubtune,
+            canPreviousTrack = canPreviousTrack,
+            canNextTrack = canNextTrack,
+            previousRestartsAfterThreshold = previousRestartsAfterThreshold
+        ),
+        onPreviousSubtune = onPreviousSubtune,
+        onNextSubtune = onNextSubtune,
+        onRestartCurrentSelection = { onSeek(0.0) },
         positionSecondsProvider = stablePositionProvider,
         durationSeconds = durationSeconds,
         canSeek = canSeek && durationSeconds > 0.0,
@@ -4015,26 +4028,28 @@ private fun TransportControls(
     val remotePreloadUiState = RemotePreloadUiStateHolder.current
     val showLoadingIndicator = playbackStartInProgress || remoteLoadActive
     val controlsBusy = seekInProgress || playbackStartInProgress
-    val useSubtuneTransport = subtuneCount > 1
-    val hasSubtuneBefore = useSubtuneTransport && currentSubtuneIndex > 0 && canPreviousSubtune
-    val hasSubtuneAfter = useSubtuneTransport && currentSubtuneIndex < (subtuneCount - 1) && canNextSubtune
+    val subtuneTransport = SubtuneTransportState(
+        hasTrack = hasTrack,
+        currentSubtuneIndex = currentSubtuneIndex,
+        subtuneCount = subtuneCount,
+        canPreviousSubtune = canPreviousSubtune,
+        canNextSubtune = canNextSubtune,
+        canPreviousTrack = canPreviousTrack,
+        canNextTrack = canNextTrack,
+        previousRestartsAfterThreshold = previousRestartsAfterThreshold
+    )
     val latestPositionProvider by rememberUpdatedState(positionSecondsProvider)
     val previousTransportTapAction: () -> Unit = {
         val pos = latestPositionProvider()
-        val restart = useSubtuneTransport && shouldRestartCurrentTrackOnPrevious(
-            previousRestartsAfterThreshold = previousRestartsAfterThreshold,
-            hasTrackLoaded = hasTrack,
-            positionSeconds = pos
-        )
         when {
-            restart -> onRestartCurrentSelection()
-            hasSubtuneBefore -> onPreviousSubtune()
+            subtuneTransport.previousWantsRestart(pos) -> onRestartCurrentSelection()
+            subtuneTransport.hasSubtuneBefore -> onPreviousSubtune()
             else -> onPreviousTrack()
         }
     }
-    val nextTransportTapAction = if (hasSubtuneAfter) onNextSubtune else onNextTrack
-    val previousTransportEnabled = if (useSubtuneTransport) hasTrack else hasTrack && canPreviousTrack
-    val nextTransportEnabled = if (useSubtuneTransport) hasTrack else hasTrack && canNextTrack
+    val nextTransportTapAction = if (subtuneTransport.hasSubtuneAfter) onNextSubtune else onNextTrack
+    val previousTransportEnabled = subtuneTransport.previousEnabled
+    val nextTransportEnabled = subtuneTransport.nextEnabled
     val canFocusPreviousTrack = previousTransportEnabled
     val canFocusRepeatMode = canCycleRepeatMode && !controlsBusy
     val canFocusPlayPause = (hasTrack || canResumeStoppedTrack) && !controlsBusy
@@ -4167,7 +4182,7 @@ private fun TransportControls(
                             .focusRequester(previousTrackFocusRequester)
                             .matchParentSize()
                             .tvKeyLongPress(
-                                if (useSubtuneTransport && previousTransportEnabled) {
+                                if (subtuneTransport.useSubtuneTransport && previousTransportEnabled) {
                                     onForcePreviousTrack
                                 } else {
                                     null
@@ -4199,12 +4214,12 @@ private fun TransportControls(
                         )
                     ) {
                         Icon(
-                            imageVector = if (useSubtuneTransport) {
+                            imageVector = if (subtuneTransport.useSubtuneTransport) {
                                 Icons.Default.KeyboardDoubleArrowLeft
                             } else {
                                 Icons.Default.SkipPrevious
                             },
-                            contentDescription = if (useSubtuneTransport) {
+                            contentDescription = if (subtuneTransport.useSubtuneTransport) {
                                 "Previous subtune"
                             } else {
                                 "Previous track"
@@ -4212,7 +4227,7 @@ private fun TransportControls(
                             modifier = Modifier.size(sideTransportIconSize)
                         )
                     }
-                    if (useSubtuneTransport) {
+                    if (subtuneTransport.useSubtuneTransport) {
                         Box(
                             modifier = Modifier
                                 .matchParentSize()
@@ -4290,7 +4305,7 @@ private fun TransportControls(
                             .focusRequester(nextTrackFocusRequester)
                             .matchParentSize()
                             .tvKeyLongPress(
-                                if (useSubtuneTransport && nextTransportEnabled) {
+                                if (subtuneTransport.useSubtuneTransport && nextTransportEnabled) {
                                     onNextTrack
                                 } else {
                                     null
@@ -4322,12 +4337,12 @@ private fun TransportControls(
                         )
                     ) {
                         Icon(
-                            imageVector = if (useSubtuneTransport) {
+                            imageVector = if (subtuneTransport.useSubtuneTransport) {
                                 Icons.Default.KeyboardDoubleArrowRight
                             } else {
                                 Icons.Default.SkipNext
                             },
-                            contentDescription = if (useSubtuneTransport) {
+                            contentDescription = if (subtuneTransport.useSubtuneTransport) {
                                 "Next subtune"
                             } else {
                                 "Next track"
@@ -4335,7 +4350,7 @@ private fun TransportControls(
                             modifier = Modifier.size(sideTransportIconSize)
                         )
                     }
-                    if (useSubtuneTransport) {
+                    if (subtuneTransport.useSubtuneTransport) {
                         Box(
                             modifier = Modifier
                                 .matchParentSize()
