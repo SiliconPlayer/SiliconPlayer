@@ -280,17 +280,56 @@ jobs:
       JAVA_TOOL_OPTIONS: -Dfile.encoding=UTF8
 
     steps:
+      - name: Restore pacman package cache
+        uses: actions/cache@v4
+        with:
+          path: /var/cache/pacman/pkg
+          key: arch-pacman-pkgs
+          restore-keys: arch-pacman-pkgs
+
       - name: Install container prerequisites
         run: |
           pacman -Syu --noconfirm git sudo
           useradd -m builder
           printf 'builder ALL=(ALL) NOPASSWD: ALL\n' > /etc/sudoers.d/builder
+          mkdir -p /home/builder/.gradle
 
       - name: Checkout repository
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
           submodules: recursive
+
+      - name: Compute desktop deps cache key
+        id: deps-cache-key
+        shell: bash
+        run: |
+          set -euo pipefail
+          EXTERNAL_TREE_HASH="$(git rev-parse HEAD:external)"
+          echo "key=desktop-deps-${{ runner.os }}-x86_64-${EXTERNAL_TREE_HASH}" >> "${GITHUB_OUTPUT}"
+
+      - name: Restore desktop deps cache
+        id: deps-cache
+        uses: actions/cache@v4
+        with:
+          # Same key as the desktop job: identical script, identical
+          # outputs, so a warm desktop cache skips the dep build here too.
+          # desktop/prebuilt is gitignored, so it is staged into the
+          # makepkg tree by copy below instead of via the git source.
+          path: ${{ github.workspace }}/desktop/prebuilt
+          key: ${{ steps.deps-cache-key.outputs.key }}
+
+      - name: Restore Gradle home cache
+        uses: actions/cache@v4
+        with:
+          path: /home/builder/.gradle
+          key: arch-gradle-${{ hashFiles('gradle/wrapper/gradle-wrapper.properties', '**/*.gradle.kts') }}
+          restore-keys: arch-gradle-
+
+      - name: Fix cache ownership for builder
+        run: |
+          mkdir -p "${GITHUB_WORKSPACE}/desktop/prebuilt"
+          chown -R builder:builder /home/builder/.gradle "${GITHUB_WORKSPACE}/desktop/prebuilt"
 
       - name: Get short commit hash
         id: vars
@@ -305,14 +344,11 @@ jobs:
       - name: Build package
         run: |
           set -euo pipefail
-          rm -rf /tmp/archpkg && mkdir -p /tmp/archpkg
+          rm -rf /tmp/archpkg && mkdir -p /tmp/archpkg/src
+          cp -a "${GITHUB_WORKSPACE}" /tmp/archpkg/src/siliconplayer
           cp desktop/packaging/arch/PKGBUILD desktop/packaging/arch/siliconplayer.sh desktop/packaging/arch/siliconplayer.desktop /tmp/archpkg/
-          cd /tmp/archpkg
-          sed -i "s|^source=.*|source=(\"siliconplayer::git+file://${GITHUB_WORKSPACE}\")|" PKGBUILD
-          git config --global --add safe.directory "${GITHUB_WORKSPACE}"
           chown -R builder:builder /tmp/archpkg
-          su builder -c "git config --global --add safe.directory '${GITHUB_WORKSPACE}'"
-          su builder -c 'cd /tmp/archpkg && makepkg -s --noconfirm'
+          su builder -c 'cd /tmp/archpkg && makepkg -se --noconfirm'
 
       - name: Upload Arch package artifact
         uses: actions/upload-artifact@v4
