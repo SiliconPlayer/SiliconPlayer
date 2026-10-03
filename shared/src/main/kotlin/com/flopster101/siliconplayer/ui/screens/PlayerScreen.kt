@@ -76,6 +76,7 @@ import androidx.compose.material.icons.automirrored.filled.List
 import androidx.compose.material.icons.automirrored.filled.PlaylistAdd
 import androidx.compose.material.icons.automirrored.filled.VolumeUp
 import com.flopster101.siliconplayer.StoredPlaylist
+import com.flopster101.siliconplayer.subtuneBadgeText
 import com.flopster101.siliconplayer.ui.dialogs.AddToPlaylistChooserDialog
 import androidx.compose.material.icons.filled.AudioFile
 import androidx.compose.material.icons.filled.Check
@@ -1187,6 +1188,9 @@ internal fun PlayerScreen(
     }
     val displayFilename = file?.let { toDisplayFilename(it) }.orEmpty()
     val tickerTrackKey = file?.absolutePath ?: pathOrUrl?.takeIf { it.isNotBlank() }
+    val tickerSubtuneBadge = remember(titleCurrentSubtuneIndex, titleSubtuneCount) {
+        subtuneBadgeText(titleCurrentSubtuneIndex, titleSubtuneCount)
+    }
     val tickerFormatLabel = remember(file?.absolutePath, pathOrUrl) {
         val rawName = file?.name
             ?: pathOrUrl
@@ -2289,6 +2293,8 @@ internal fun PlayerScreen(
         onExitFullscreen = { isVisualizationFullscreen = false },
         displayTitle = displayTitle,
         displayArtist = displayArtist,
+        album = album,
+        subtuneBadge = tickerSubtuneBadge,
         isPlaying = isPlaying,
         onPlay = onPlay,
         onPause = onPause,

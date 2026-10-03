@@ -9,6 +9,13 @@ data class ResolvedNowPlayingText(
 // collection, so it moves to the album line and the current subtune name
 // becomes the track title. Decoders without per-subtune names either return
 // blank or echo the file title (AdPlug, cRSID); both keep today's display.
+// Badge shown next to the track title while a multi-subtune file plays.
+fun subtuneBadgeText(currentSubtuneIndex: Int, subtuneCount: Int): String? {
+    if (subtuneCount <= 1) return null
+    val shownIndex = (currentSubtuneIndex + 1).coerceIn(1, subtuneCount)
+    return "[$shownIndex/$subtuneCount]"
+}
+
 fun resolveSubtuneNowPlayingText(
     fileTitle: String,
     fileAlbum: String,

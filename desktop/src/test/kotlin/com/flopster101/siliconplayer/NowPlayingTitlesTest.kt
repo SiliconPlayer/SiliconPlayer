@@ -54,6 +54,17 @@ class NowPlayingTitlesTest {
     }
 
     @Test
+    fun badgeShowsOneBasedPosition() {
+        assertEquals("[2/3]", subtuneBadgeText(1, 3))
+    }
+
+    @Test
+    fun badgeHiddenWithoutSubtunes() {
+        assertEquals(null, subtuneBadgeText(0, 1))
+        assertEquals(null, subtuneBadgeText(0, 0))
+    }
+
+    @Test
     fun blankFileTitleFallsBackToFileAlbum() {
         val resolved = resolveSubtuneNowPlayingText(
             fileTitle = "  ",

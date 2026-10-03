@@ -1133,6 +1133,8 @@ private fun FullscreenTrackTicker(
     trackKey: String?,
     title: String,
     artist: String,
+    album: String = "",
+    subtuneBadge: String? = null,
     formatLabel: String?,
     trackDurationSeconds: Double,
     trackDurationReliable: Boolean,
@@ -1166,14 +1168,19 @@ private fun FullscreenTrackTicker(
                     .padding(horizontal = 14.dp, vertical = 10.dp)
             ) {
                 Text(
-                    text = title,
+                    text = if (subtuneBadge != null) "$title $subtuneBadge" else title,
                     style = MaterialTheme.typography.titleMedium,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis
                 )
-                if (artist.isNotBlank()) {
+                val artistAlbumLine = when {
+                    album.isNotBlank() && artist.isNotBlank() -> "$artist • $album"
+                    album.isNotBlank() -> album
+                    else -> artist
+                }
+                if (artistAlbumLine.isNotBlank()) {
                     Text(
-                        text = artist,
+                        text = artistAlbumLine,
                         color = Color.White.copy(alpha = 0.80f),
                         style = MaterialTheme.typography.bodySmall,
                         maxLines = 1,
@@ -1224,6 +1231,8 @@ internal fun FullscreenVisualizationOverlay(
     visualizationContent: @Composable () -> Unit,
     displayTitle: String,
     displayArtist: String,
+    album: String = "",
+    subtuneBadge: String? = null,
     isPlaying: Boolean,
     onPlay: () -> Unit,
     onPause: () -> Unit,
@@ -1326,6 +1335,8 @@ internal fun FullscreenVisualizationOverlay(
             trackKey = tickerTrackKey,
             title = displayTitle,
             artist = displayArtist,
+            album = album,
+            subtuneBadge = subtuneBadge,
             formatLabel = tickerFormatLabel,
             trackDurationSeconds = durationSeconds,
             trackDurationReliable = hasReliableDuration,
