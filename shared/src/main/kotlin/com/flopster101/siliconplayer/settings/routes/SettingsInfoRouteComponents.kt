@@ -2,8 +2,10 @@ package com.flopster101.siliconplayer
 
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -12,11 +14,10 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.GraphicEq
 import androidx.compose.material.icons.filled.Link
-import androidx.compose.material3.Button
+import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -34,6 +35,8 @@ import androidx.compose.ui.graphics.ColorFilter
 import com.flopster101.siliconplayer.platform.LocalAppVersionInfo
 import com.flopster101.siliconplayer.ui.icons.AboutAppIconColor
 import com.flopster101.siliconplayer.ui.icons.AboutAppIconMonochrome
+import com.flopster101.siliconplayer.ui.icons.BalanceIcon
+import com.flopster101.siliconplayer.ui.icons.GithubIcon
 
 @Composable
 internal fun AboutSettingsBody(
@@ -41,10 +44,15 @@ internal fun AboutSettingsBody(
 ) {
     val uriHandler = LocalUriHandler.current
     val versionInfo = LocalAppVersionInfo.current
-    val versionLabel = "v${versionInfo.versionName}-${versionInfo.abiOrArch}-${versionInfo.gitSha}"
+    val versionLabel = if (versionInfo.platform.isNotBlank()) {
+        "v${versionInfo.versionName}-${versionInfo.platform}-${versionInfo.abiOrArch}-${versionInfo.gitSha}"
+    } else {
+        "v${versionInfo.versionName}-${versionInfo.abiOrArch}-${versionInfo.gitSha}"
+    }
     val coreEntries = remember { AboutCatalog.cores }
     val libraryEntries = remember { AboutCatalog.libraries }
     var selectedAboutEntry by remember { mutableStateOf<AboutEntity?>(null) }
+    var showAppLicense by remember { mutableStateOf(false) }
     Column(
         modifier = Modifier.fillMaxWidth()
     ) {
@@ -83,34 +91,29 @@ internal fun AboutSettingsBody(
         ) {
             Column(modifier = Modifier.padding(16.dp)) {
                 Text(
-                    text = "Android music player focused on mainstream and tracker/module formats.",
+                    text = "Open-source, multi-format chiptune, tracker and modern music player.",
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurface
                 )
-                Spacer(modifier = Modifier.size(10.dp))
-                Text(
-                    text = "UI: Jetpack Compose Material 3",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-                Spacer(modifier = Modifier.size(6.dp))
-                Text(
-                    text = "License: GPL v3",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
                 Spacer(modifier = Modifier.size(14.dp))
-                Button(
-                    onClick = {
-                        uriHandler.openUri("https://github.com/Flopster101/SiliconPlayer")
-                    },
-                    shape = RoundedCornerShape(14.dp)
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(10.dp),
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Text("Open GitHub Repository")
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Icon(
-                        imageVector = Icons.AutoMirrored.Filled.ArrowForward,
-                        contentDescription = null
+                    AboutActionButton(
+                        icon = GithubIcon,
+                        label = "GitHub",
+                        onClick = {
+                            uriHandler.openUri("https://github.com/SiliconPlayer/SiliconPlayer")
+                        }
+                    )
+                    AboutActionButton(
+                        icon = BalanceIcon,
+                        label = "GPL v3",
+                        onClick = {
+                            showAppLicense = true
+                        }
                     )
                 }
             }
@@ -147,6 +150,41 @@ internal fun AboutSettingsBody(
         AboutEntityDialog(
             entity = entity,
             onDismiss = { selectedAboutEntry = null }
+        )
+    }
+
+    if (showAppLicense) {
+        val appLicenseText = remember {
+            AboutCatalog.resolveLicenseText(AboutCatalog.applicationEntity.id) ?: ""
+        }
+        AboutLicenseTextDialog(
+            entity = AboutCatalog.applicationEntity,
+            text = appLicenseText,
+            onDismiss = { showAppLicense = false }
+        )
+    }
+}
+
+@Composable
+private fun AboutActionButton(
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    label: String,
+    onClick: () -> Unit
+) {
+    FilledTonalButton(
+        onClick = onClick,
+        shape = RoundedCornerShape(14.dp),
+        contentPadding = PaddingValues(horizontal = 14.dp, vertical = 8.dp)
+    ) {
+        Icon(
+            imageVector = icon,
+            contentDescription = null,
+            modifier = Modifier.size(18.dp)
+        )
+        Spacer(modifier = Modifier.width(8.dp))
+        Text(
+            text = label,
+            style = MaterialTheme.typography.labelLarge
         )
     }
 }

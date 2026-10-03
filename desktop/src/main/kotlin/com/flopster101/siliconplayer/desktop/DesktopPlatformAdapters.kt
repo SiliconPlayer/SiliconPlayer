@@ -259,8 +259,12 @@ fun ProvideDesktopPlatformAdapters(
     }
 
     val appVersionInfo = remember {
+        val os = System.getProperty("os.name")?.lowercase()?.let {
+            if (it.contains("linux")) "linux" else if (it.contains("mac") || it.contains("darwin")) "macos" else if (it.contains("win")) "windows" else it
+        } ?: "linux"
         AppVersionInfo(
             versionName = DesktopBuildConfig.VERSION_NAME,
+            platform = os,
             abiOrArch = System.getProperty("os.arch") ?: "desktop",
             gitSha = DesktopBuildConfig.GIT_SHA
         )

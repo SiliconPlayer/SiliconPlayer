@@ -380,6 +380,7 @@ fun ProvideAndroidPlatformAdapters(
     val appVersionInfo = remember {
         AppVersionInfo(
             versionName = com.flopster101.siliconplayer.BuildConfig.VERSION_NAME,
+            platform = "android",
             abiOrArch = Build.SUPPORTED_ABIS.firstOrNull()?.replace("-", "") ?: "unknown",
             gitSha = com.flopster101.siliconplayer.BuildConfig.GIT_SHA
         )

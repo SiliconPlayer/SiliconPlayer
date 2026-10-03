@@ -268,3 +268,9 @@ id = "lib.roboto"
 spdx = "Apache-2.0"
 texts = ["tools/licenses/Apache-2.0.txt"]
 note = "Bundled Roboto Medium; VU meter typeface on Android and desktop."
+
+[[dep]]
+id = "app.siliconplayer"
+spdx = "GPL-3.0"
+texts = ["LICENSE"]
+note = "Silicon Player application license."

@@ -169,6 +169,7 @@ val LocalProjectMOptionsProvider = staticCompositionLocalOf<ProjectMOptionsProvi
 
 data class AppVersionInfo(
     val versionName: String,
+    val platform: String = "",
     val abiOrArch: String,
     val gitSha: String
 )
@@ -176,6 +177,7 @@ data class AppVersionInfo(
 val LocalAppVersionInfo = staticCompositionLocalOf {
     AppVersionInfo(
         versionName = "1.0.0",
+        platform = "linux",
         abiOrArch = System.getProperty("os.arch") ?: "unknown",
         gitSha = "dev"
     )
