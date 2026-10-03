@@ -43,6 +43,8 @@ public:
     double getPlaybackPositionSeconds() override;
     TimelineMode getTimelineMode() const override;
     int getPlaybackCapabilities() const override;
+    void setOption(const char* name, const char* value) override;
+    int getOptionApplyPolicy(const char* name) const override;
 
     std::shared_ptr<ChannelScopeSharedState> getChannelScopeSharedState() const override { return channelScopeState; }
     std::vector<int32_t> getChannelScopeTextState(int maxChannels) override;

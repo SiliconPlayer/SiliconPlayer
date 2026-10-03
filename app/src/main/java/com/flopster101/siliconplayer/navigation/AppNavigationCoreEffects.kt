@@ -19,6 +19,7 @@ internal fun AppNavigationCoreEffects(
     adPlugCoreSampleRateHz: Int,
     hivelyTrackerCoreSampleRateHz: Int,
     klystrackCoreSampleRateHz: Int,
+    dnfamitrackerCoreSampleRateHz: Int,
     furnaceCoreSampleRateHz: Int,
     uadeCoreSampleRateHz: Int,
     xmpCoreSampleRateHz: Int,
@@ -49,6 +50,8 @@ internal fun AppNavigationCoreEffects(
     hivelyTrackerPanningMode: Int,
     hivelyTrackerMixGainPercent: Int,
     klystrackPlayerQuality: Int,
+    dnfamitrackerSeekExact: Boolean,
+    dnfamitrackerScopeDcBlock: Boolean,
     furnaceYm2612Core: Int,
     furnaceSnCore: Int,
     furnaceNesCore: Int,
@@ -303,6 +306,25 @@ internal fun AppNavigationCoreEffects(
         prefs.edit().putInt(CorePreferenceKeys.CORE_RATE_KLYSTRACK, normalized).apply()
         NativeBridge.setCoreOutputSampleRate(DecoderNames.KLYSTRACK, normalized)
     }
+    LaunchedEffect(klystrackCoreSampleRateHz) {
+        val normalized = if (klystrackCoreSampleRateHz <= 0) {
+            0
+        } else {
+            klystrackCoreSampleRateHz.coerceIn(8000, 192000)
+        }
+        prefs.edit().putInt(CorePreferenceKeys.CORE_RATE_KLYSTRACK, normalized).apply()
+        NativeBridge.setCoreOutputSampleRate(DecoderNames.KLYSTRACK, normalized)
+    }
+
+    LaunchedEffect(dnfamitrackerCoreSampleRateHz) {
+        val normalized = if (dnfamitrackerCoreSampleRateHz <= 0) {
+            0
+        } else {
+            dnfamitrackerCoreSampleRateHz.coerceIn(8000, 192000)
+        }
+        prefs.edit().putInt(CorePreferenceKeys.CORE_RATE_DNFAMITRACKER, normalized).apply()
+        NativeBridge.setCoreOutputSampleRate(DecoderNames.LIB_DN_FAMITRACKER, normalized)
+    }
 
     LaunchedEffect(furnaceCoreSampleRateHz) {
         val normalized = if (furnaceCoreSampleRateHz <= 0) {
@@ -515,6 +537,28 @@ internal fun AppNavigationCoreEffects(
             optionValue = normalized.toString(),
             policy = CoreOptionApplyPolicy.Live,
             optionLabel = "Replay quality"
+        )
+    }
+
+    LaunchedEffect(dnfamitrackerSeekExact) {
+        prefs.edit().putBoolean(CorePreferenceKeys.DNFAMITRACKER_SEEK_EXACT, dnfamitrackerSeekExact).apply()
+        applyCoreOptionWithPolicy(
+            coreName = DecoderNames.LIB_DN_FAMITRACKER,
+            optionName = DnfamitrackerOptionKeys.SEEK_EXACT,
+            optionValue = dnfamitrackerSeekExact.toString(),
+            policy = CoreOptionApplyPolicy.Live,
+            optionLabel = "Exact seeking"
+        )
+    }
+
+    LaunchedEffect(dnfamitrackerScopeDcBlock) {
+        prefs.edit().putBoolean(CorePreferenceKeys.DNFAMITRACKER_SCOPE_DC_BLOCK, dnfamitrackerScopeDcBlock).apply()
+        applyCoreOptionWithPolicy(
+            coreName = DecoderNames.LIB_DN_FAMITRACKER,
+            optionName = DnfamitrackerOptionKeys.SCOPE_DC_BLOCK,
+            optionValue = dnfamitrackerScopeDcBlock.toString(),
+            policy = CoreOptionApplyPolicy.Live,
+            optionLabel = "Scope DC blocker"
         )
     }
 
@@ -1133,6 +1177,7 @@ internal fun AppNavigationCoreEffectsFromSettingsStates(
         adPlugCoreSampleRateHz = settingsStates.adPlugCoreSampleRateHz.intValue,
         hivelyTrackerCoreSampleRateHz = settingsStates.hivelyTrackerCoreSampleRateHz.intValue,
         klystrackCoreSampleRateHz = settingsStates.klystrackCoreSampleRateHz.intValue,
+        dnfamitrackerCoreSampleRateHz = settingsStates.dnfamitrackerCoreSampleRateHz.intValue,
         furnaceCoreSampleRateHz = settingsStates.furnaceCoreSampleRateHz.intValue,
         uadeCoreSampleRateHz = settingsStates.uadeCoreSampleRateHz.intValue,
         xmpCoreSampleRateHz = settingsStates.xmpCoreSampleRateHz.intValue,
@@ -1163,6 +1208,8 @@ internal fun AppNavigationCoreEffectsFromSettingsStates(
         hivelyTrackerPanningMode = settingsStates.hivelyTrackerPanningMode.intValue,
         hivelyTrackerMixGainPercent = settingsStates.hivelyTrackerMixGainPercent.intValue,
         klystrackPlayerQuality = settingsStates.klystrackPlayerQuality.intValue,
+        dnfamitrackerSeekExact = settingsStates.dnfamitrackerSeekExact.value,
+        dnfamitrackerScopeDcBlock = settingsStates.dnfamitrackerScopeDcBlock.value,
         furnaceYm2612Core = settingsStates.furnaceYm2612Core.intValue,
         furnaceSnCore = settingsStates.furnaceSnCore.intValue,
         furnaceNesCore = settingsStates.furnaceNesCore.intValue,

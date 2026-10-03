@@ -71,7 +71,9 @@ import com.flopster101.siliconplayer.GmeOptionKeys
 import com.flopster101.siliconplayer.HivelyTrackerDefaults
 import com.flopster101.siliconplayer.HivelyTrackerOptionKeys
 import com.flopster101.siliconplayer.KlystrackDefaults
+import com.flopster101.siliconplayer.DnfamitrackerDefaults
 import com.flopster101.siliconplayer.KlystrackOptionKeys
+import com.flopster101.siliconplayer.DnfamitrackerOptionKeys
 import com.flopster101.siliconplayer.LazyUsf2Defaults
 import com.flopster101.siliconplayer.LazyUsf2OptionKeys
 import com.flopster101.siliconplayer.Sc68Defaults
@@ -216,6 +218,7 @@ internal fun rememberDesktopSettings(
             adPlugSampleRateHz = prefs.getInt(CorePreferenceKeys.CORE_RATE_ADPLUG, AdPlugDefaults.coreSampleRateHz),
             hivelyTrackerSampleRateHz = prefs.getInt(CorePreferenceKeys.CORE_RATE_HIVELYTRACKER, HivelyTrackerDefaults.coreSampleRateHz),
             klystrackSampleRateHz = prefs.getInt(CorePreferenceKeys.CORE_RATE_KLYSTRACK, KlystrackDefaults.coreSampleRateHz),
+            dnfamitrackerSampleRateHz = prefs.getInt(CorePreferenceKeys.CORE_RATE_DNFAMITRACKER, DnfamitrackerDefaults.coreSampleRateHz),
             furnaceSampleRateHz = prefs.getInt(CorePreferenceKeys.CORE_RATE_FURNACE, FurnaceDefaults.coreSampleRateHz),
             uadeSampleRateHz = prefs.getInt(CorePreferenceKeys.CORE_RATE_UADE, UadeDefaults.coreSampleRateHz),
             xmpSampleRateHz = prefs.getInt(CorePreferenceKeys.CORE_RATE_XMP, XmpDefaults.coreSampleRateHz),
@@ -246,6 +249,8 @@ internal fun rememberDesktopSettings(
             hivelyTrackerPanningMode = prefs.getInt(CorePreferenceKeys.HIVELYTRACKER_PANNING_MODE, HivelyTrackerDefaults.panningMode),
             hivelyTrackerMixGainPercent = prefs.getInt(CorePreferenceKeys.HIVELYTRACKER_MIX_GAIN_PERCENT, HivelyTrackerDefaults.mixGainPercent),
             klystrackPlayerQuality = prefs.getInt(CorePreferenceKeys.KLYSTRACK_PLAYER_QUALITY, KlystrackDefaults.playerQuality),
+            dnfamitrackerSeekExact = prefs.getBoolean(CorePreferenceKeys.DNFAMITRACKER_SEEK_EXACT, DnfamitrackerDefaults.seekExact),
+            dnfamitrackerScopeDcBlock = prefs.getBoolean(CorePreferenceKeys.DNFAMITRACKER_SCOPE_DC_BLOCK, DnfamitrackerDefaults.scopeDcBlock),
             furnaceYm2612Core = prefs.getInt(CorePreferenceKeys.FURNACE_YM2612_CORE, FurnaceDefaults.ym2612Core),
             furnaceSnCore = prefs.getInt(CorePreferenceKeys.FURNACE_SN_CORE, FurnaceDefaults.snCore),
             furnaceNesCore = prefs.getInt(CorePreferenceKeys.FURNACE_NES_CORE, FurnaceDefaults.nesCore),
@@ -543,6 +548,7 @@ internal fun rememberDesktopSettings(
                 onAdPlugSampleRateChanged = { putInt(CorePreferenceKeys.CORE_RATE_ADPLUG, it) },
                 onHivelyTrackerSampleRateChanged = { putInt(CorePreferenceKeys.CORE_RATE_HIVELYTRACKER, it) },
                 onKlystrackSampleRateChanged = { putInt(CorePreferenceKeys.CORE_RATE_KLYSTRACK, it) },
+                onDnfamitrackerSampleRateChanged = { putInt(CorePreferenceKeys.CORE_RATE_DNFAMITRACKER, it) },
                 onFurnaceSampleRateChanged = { putInt(CorePreferenceKeys.CORE_RATE_FURNACE, it) },
                 onUadeSampleRateChanged = { putInt(CorePreferenceKeys.CORE_RATE_UADE, it) },
                 onXmpSampleRateChanged = { putInt(CorePreferenceKeys.CORE_RATE_XMP, it) },
@@ -573,6 +579,8 @@ internal fun rememberDesktopSettings(
                 onHivelyTrackerPanningModeChanged = { putInt(CorePreferenceKeys.HIVELYTRACKER_PANNING_MODE, it) },
                 onHivelyTrackerMixGainPercentChanged = { putInt(CorePreferenceKeys.HIVELYTRACKER_MIX_GAIN_PERCENT, it) },
                 onKlystrackPlayerQualityChanged = { putInt(CorePreferenceKeys.KLYSTRACK_PLAYER_QUALITY, it) },
+                onDnfamitrackerSeekExactChanged = { putBool(CorePreferenceKeys.DNFAMITRACKER_SEEK_EXACT, it) },
+                onDnfamitrackerScopeDcBlockChanged = { putBool(CorePreferenceKeys.DNFAMITRACKER_SCOPE_DC_BLOCK, it) },
                 onFurnaceYm2612CoreChanged = { putInt(CorePreferenceKeys.FURNACE_YM2612_CORE, it) },
                 onFurnaceSnCoreChanged = { putInt(CorePreferenceKeys.FURNACE_SN_CORE, it) },
                 onFurnaceNesCoreChanged = { putInt(CorePreferenceKeys.FURNACE_NES_CORE, it) },
@@ -1361,6 +1369,11 @@ private val DesktopCoreDecoderResets: Map<String, DesktopCoreDecoderReset> = map
         prefKeys = listOf(CorePreferenceKeys.CORE_RATE_KLYSTRACK, CorePreferenceKeys.KLYSTRACK_PLAYER_QUALITY),
         optionNames = listOf(KlystrackOptionKeys.PLAYER_QUALITY),
         reset = { a -> a.onKlystrackSampleRateChanged(0); a.onKlystrackPlayerQualityChanged(0) }
+    ),
+    DecoderNames.LIB_DN_FAMITRACKER to DesktopCoreDecoderReset(
+        prefKeys = listOf(CorePreferenceKeys.CORE_RATE_DNFAMITRACKER, CorePreferenceKeys.DNFAMITRACKER_SEEK_EXACT, CorePreferenceKeys.DNFAMITRACKER_SCOPE_DC_BLOCK),
+        optionNames = listOf(DnfamitrackerOptionKeys.SEEK_EXACT, DnfamitrackerOptionKeys.SCOPE_DC_BLOCK),
+        reset = { a -> a.onDnfamitrackerSampleRateChanged(DnfamitrackerDefaults.coreSampleRateHz); a.onDnfamitrackerSeekExactChanged(DnfamitrackerDefaults.seekExact); a.onDnfamitrackerScopeDcBlockChanged(DnfamitrackerDefaults.scopeDcBlock) }
     ),
     DecoderNames.FURNACE to DesktopCoreDecoderReset(
         prefKeys = listOf(

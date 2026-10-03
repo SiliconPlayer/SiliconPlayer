@@ -23,6 +23,7 @@ import com.flopster101.siliconplayer.pluginsettings.FurnaceSettings
 import com.flopster101.siliconplayer.pluginsettings.GmeSettings
 import com.flopster101.siliconplayer.pluginsettings.HivelyTrackerSettings
 import com.flopster101.siliconplayer.pluginsettings.KlystrackSettings
+import com.flopster101.siliconplayer.pluginsettings.DnfamitrackerSettings
 import com.flopster101.siliconplayer.pluginsettings.LazyUsf2Settings
 import com.flopster101.siliconplayer.pluginsettings.OpenMptSettings
 import com.flopster101.siliconplayer.pluginsettings.PluginSettings
@@ -51,6 +52,7 @@ internal data class PluginDetailRouteState(
     val adPlugSampleRateHz: Int,
     val hivelyTrackerSampleRateHz: Int,
     val klystrackSampleRateHz: Int,
+    val dnfamitrackerSampleRateHz: Int,
     val furnaceSampleRateHz: Int,
     val uadeSampleRateHz: Int,
     val xmpSampleRateHz: Int,
@@ -116,6 +118,8 @@ internal data class PluginDetailRouteState(
     val hivelyTrackerPanningMode: Int,
     val hivelyTrackerMixGainPercent: Int,
     val klystrackPlayerQuality: Int,
+    val dnfamitrackerSeekExact: Boolean,
+    val dnfamitrackerScopeDcBlock: Boolean,
     val furnaceYm2612Core: Int,
     val furnaceSnCore: Int,
     val furnaceNesCore: Int,
@@ -143,6 +147,7 @@ internal data class PluginDetailRouteActions(
     val onAdPlugSampleRateChanged: (Int) -> Unit,
     val onHivelyTrackerSampleRateChanged: (Int) -> Unit,
     val onKlystrackSampleRateChanged: (Int) -> Unit,
+    val onDnfamitrackerSampleRateChanged: (Int) -> Unit,
     val onFurnaceSampleRateChanged: (Int) -> Unit,
     val onUadeSampleRateChanged: (Int) -> Unit,
     val onXmpSampleRateChanged: (Int) -> Unit,
@@ -209,6 +214,8 @@ internal data class PluginDetailRouteActions(
     val onHivelyTrackerPanningModeChanged: (Int) -> Unit,
     val onHivelyTrackerMixGainPercentChanged: (Int) -> Unit,
     val onKlystrackPlayerQualityChanged: (Int) -> Unit,
+    val onDnfamitrackerSeekExactChanged: (Boolean) -> Unit,
+    val onDnfamitrackerScopeDcBlockChanged: (Boolean) -> Unit,
     val onFurnaceYm2612CoreChanged: (Int) -> Unit,
     val onFurnaceSnCoreChanged: (Int) -> Unit,
     val onFurnaceNesCoreChanged: (Int) -> Unit,
@@ -304,6 +311,7 @@ internal fun PluginDetailRouteContent(
         DecoderNames.AD_PLUG -> state.adPlugSampleRateHz
         DecoderNames.HIVELY_TRACKER -> state.hivelyTrackerSampleRateHz
         DecoderNames.KLYSTRACK -> state.klystrackSampleRateHz
+        DecoderNames.LIB_DN_FAMITRACKER -> state.dnfamitrackerSampleRateHz
         DecoderNames.FURNACE -> state.furnaceSampleRateHz
         DecoderNames.UADE -> state.uadeSampleRateHz
         DecoderNames.LIBXMP -> state.xmpSampleRateHz
@@ -323,6 +331,7 @@ internal fun PluginDetailRouteContent(
         DecoderNames.AD_PLUG -> actions.onAdPlugSampleRateChanged
         DecoderNames.HIVELY_TRACKER -> actions.onHivelyTrackerSampleRateChanged
         DecoderNames.KLYSTRACK -> actions.onKlystrackSampleRateChanged
+        DecoderNames.LIB_DN_FAMITRACKER -> actions.onDnfamitrackerSampleRateChanged
         DecoderNames.FURNACE -> actions.onFurnaceSampleRateChanged
         DecoderNames.UADE -> actions.onUadeSampleRateChanged
         DecoderNames.SC68 -> actions.onSc68SamplingRateHzChanged
@@ -523,6 +532,13 @@ internal fun PluginDetailRouteContent(
         DecoderNames.KLYSTRACK -> KlystrackSettings(
             playerQuality = state.klystrackPlayerQuality,
             onPlayerQualityChanged = actions.onKlystrackPlayerQualityChanged
+        )
+
+        DecoderNames.LIB_DN_FAMITRACKER -> DnfamitrackerSettings(
+            seekExact = state.dnfamitrackerSeekExact,
+            scopeDcBlock = state.dnfamitrackerScopeDcBlock,
+            onSeekExactChanged = actions.onDnfamitrackerSeekExactChanged,
+            onScopeDcBlockChanged = actions.onDnfamitrackerScopeDcBlockChanged
         )
 
         DecoderNames.FURNACE -> FurnaceSettings(

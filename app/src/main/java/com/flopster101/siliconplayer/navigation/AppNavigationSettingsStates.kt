@@ -26,6 +26,7 @@ internal data class AppNavigationSettingsStates(
     val adPlugCoreSampleRateHz: MutableIntState,
     val hivelyTrackerCoreSampleRateHz: MutableIntState,
     val klystrackCoreSampleRateHz: MutableIntState,
+    val dnfamitrackerCoreSampleRateHz: MutableIntState,
     val furnaceCoreSampleRateHz: MutableIntState,
     val uadeCoreSampleRateHz: MutableIntState,
     val xmpCoreSampleRateHz: MutableIntState,
@@ -56,6 +57,8 @@ internal data class AppNavigationSettingsStates(
     val hivelyTrackerPanningMode: MutableIntState,
     val hivelyTrackerMixGainPercent: MutableIntState,
     val klystrackPlayerQuality: MutableIntState,
+    val dnfamitrackerSeekExact: MutableState<Boolean>,
+    val dnfamitrackerScopeDcBlock: MutableState<Boolean>,
     val furnaceYm2612Core: MutableIntState,
     val furnaceSnCore: MutableIntState,
     val furnaceNesCore: MutableIntState,
@@ -191,6 +194,14 @@ internal fun rememberAppNavigationSettingsStates(
             )
         )
     }
+    val dnfamitrackerCoreSampleRateHz = remember {
+        mutableIntStateOf(
+            prefs.getInt(
+                CorePreferenceKeys.CORE_RATE_DNFAMITRACKER,
+                DnfamitrackerDefaults.coreSampleRateHz
+            )
+        )
+    }
     val furnaceCoreSampleRateHz = remember {
         mutableIntStateOf(
             prefs.getInt(
@@ -303,6 +314,22 @@ internal fun rememberAppNavigationSettingsStates(
             prefs.getInt(
                 CorePreferenceKeys.KLYSTRACK_PLAYER_QUALITY,
                 KlystrackDefaults.playerQuality
+            )
+        )
+    }
+    val dnfamitrackerSeekExact = remember {
+        mutableStateOf(
+            prefs.getBoolean(
+                CorePreferenceKeys.DNFAMITRACKER_SEEK_EXACT,
+                DnfamitrackerDefaults.seekExact
+            )
+        )
+    }
+    val dnfamitrackerScopeDcBlock = remember {
+        mutableStateOf(
+            prefs.getBoolean(
+                CorePreferenceKeys.DNFAMITRACKER_SCOPE_DC_BLOCK,
+                DnfamitrackerDefaults.scopeDcBlock
             )
         )
     }
@@ -667,6 +694,7 @@ internal fun rememberAppNavigationSettingsStates(
         adPlugCoreSampleRateHz = adPlugCoreSampleRateHz,
         hivelyTrackerCoreSampleRateHz = hivelyTrackerCoreSampleRateHz,
         klystrackCoreSampleRateHz = klystrackCoreSampleRateHz,
+        dnfamitrackerCoreSampleRateHz = dnfamitrackerCoreSampleRateHz,
         furnaceCoreSampleRateHz = furnaceCoreSampleRateHz,
         uadeCoreSampleRateHz = uadeCoreSampleRateHz,
         xmpCoreSampleRateHz = xmpCoreSampleRateHz,
@@ -697,6 +725,8 @@ internal fun rememberAppNavigationSettingsStates(
         hivelyTrackerPanningMode = hivelyTrackerPanningMode,
         hivelyTrackerMixGainPercent = hivelyTrackerMixGainPercent,
         klystrackPlayerQuality = klystrackPlayerQuality,
+        dnfamitrackerSeekExact = dnfamitrackerSeekExact,
+        dnfamitrackerScopeDcBlock = dnfamitrackerScopeDcBlock,
         furnaceYm2612Core = furnaceYm2612Core,
         furnaceSnCore = furnaceSnCore,
         furnaceNesCore = furnaceNesCore,

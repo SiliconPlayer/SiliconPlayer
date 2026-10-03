@@ -7,6 +7,22 @@
 constexpr float kDnfamitrackerScopeGain = 0.5f;
 constexpr float kDnfamitrackerScopeDcFollow = 0.0025f;
 
+bool parseBoolOptionString(const char* value, bool fallback) {
+    if (!value) {
+        return fallback;
+    }
+    const std::string text(value);
+    if (text == "1" || text == "true" || text == "TRUE" || text == "True" ||
+        text == "yes" || text == "YES" || text == "on" || text == "ON") {
+        return true;
+    }
+    if (text == "0" || text == "false" || text == "FALSE" || text == "False" ||
+        text == "no" || text == "NO" || text == "off" || text == "OFF") {
+        return false;
+    }
+    return fallback;
+}
+
 DnfamitrackerDecoder::DnfamitrackerDecoder()
     : channelScopeState(std::make_shared<ChannelScopeSharedState>()) {
 }
@@ -279,6 +295,31 @@ int DnfamitrackerDecoder::getPlaybackCapabilities() const {
            PLAYBACK_CAP_LIVE_REPEAT_MODE |
            PLAYBACK_CAP_DIRECT_SEEK |
            PLAYBACK_CAP_CUSTOM_SAMPLE_RATE;
+}
+
+void DnfamitrackerDecoder::setOption(const char* name, const char* value) {
+    if (!name) {
+        return;
+    }
+    std::lock_guard<std::mutex> lock(decodeMutex);
+    const std::string optionName(name);
+    if (optionName == "dnfamitracker.seek_exact") {
+        seekExactEnabled = parseBoolOptionString(value, seekExactEnabled);
+    } else if (optionName == "dnfamitracker.scope_dc_block") {
+        scopeDcBlockEnabled = parseBoolOptionString(value, scopeDcBlockEnabled);
+    }
+}
+
+int DnfamitrackerDecoder::getOptionApplyPolicy(const char* name) const {
+    if (!name) {
+        return OPTION_APPLY_LIVE;
+    }
+    const std::string optionName(name);
+    if (optionName == "dnfamitracker.seek_exact" ||
+        optionName == "dnfamitracker.scope_dc_block") {
+        return OPTION_APPLY_LIVE;
+    }
+    return OPTION_APPLY_LIVE;
 }
 
 int DnfamitrackerDecoder::normalizeRepeatMode(int mode) {

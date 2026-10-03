@@ -77,6 +77,7 @@ import com.flopster101.siliconplayer.FurnaceOptionKeys
 import com.flopster101.siliconplayer.GmeOptionKeys
 import com.flopster101.siliconplayer.HivelyTrackerOptionKeys
 import com.flopster101.siliconplayer.KlystrackOptionKeys
+import com.flopster101.siliconplayer.DnfamitrackerOptionKeys
 import com.flopster101.siliconplayer.LazyUsf2OptionKeys
 import com.flopster101.siliconplayer.Sc68OptionKeys
 import com.flopster101.siliconplayer.SidPlayFpOptionKeys
@@ -3477,6 +3478,7 @@ private fun pushDesktopCorePrefToNative(
         CorePreferenceKeys.CORE_RATE_AYFLY -> pushDesktopCoreRate(DecoderNames.AYFLY, clampedRate(prefs.getInt(key, 0)))
         CorePreferenceKeys.CORE_RATE_HIVELYTRACKER -> pushDesktopCoreRate(DecoderNames.HIVELY_TRACKER, clampedRate(prefs.getInt(key, 0)))
         CorePreferenceKeys.CORE_RATE_KLYSTRACK -> pushDesktopCoreRate(DecoderNames.KLYSTRACK, clampedRate(prefs.getInt(key, 0)))
+        CorePreferenceKeys.CORE_RATE_DNFAMITRACKER -> pushDesktopCoreRate(DecoderNames.LIB_DN_FAMITRACKER, clampedRate(prefs.getInt(key, 0)))
         CorePreferenceKeys.CORE_RATE_FURNACE -> pushDesktopCoreRate(DecoderNames.FURNACE, clampedRate(prefs.getInt(key, 0)))
         CorePreferenceKeys.CORE_RATE_UADE -> pushDesktopCoreRate(DecoderNames.UADE, clampedRate(prefs.getInt(key, 0)))
         CorePreferenceKeys.CORE_RATE_SC68 -> pushDesktopCoreRate(DecoderNames.SC68, clampedRate(prefs.getInt(key, 0)))
@@ -3533,6 +3535,10 @@ private fun pushDesktopCorePrefToNative(
         }
         CorePreferenceKeys.KLYSTRACK_PLAYER_QUALITY ->
             opt(DecoderNames.KLYSTRACK, KlystrackOptionKeys.PLAYER_QUALITY, prefs.getInt(key, 0).coerceIn(0, 4).toString(), CoreOptionApplyPolicy.Live, "Replay quality")
+        CorePreferenceKeys.DNFAMITRACKER_SEEK_EXACT ->
+            opt(DecoderNames.LIB_DN_FAMITRACKER, DnfamitrackerOptionKeys.SEEK_EXACT, prefs.getBoolean(key, false).toString(), CoreOptionApplyPolicy.Live, "Exact seeking")
+        CorePreferenceKeys.DNFAMITRACKER_SCOPE_DC_BLOCK ->
+            opt(DecoderNames.LIB_DN_FAMITRACKER, DnfamitrackerOptionKeys.SCOPE_DC_BLOCK, prefs.getBoolean(key, true).toString(), CoreOptionApplyPolicy.Live, "Scope DC blocker")
         CorePreferenceKeys.FURNACE_YM2612_CORE ->
             opt(DecoderNames.FURNACE, FurnaceOptionKeys.YM2612_CORE, prefs.getInt(key, 0).coerceIn(0, 2).toString(), CoreOptionApplyPolicy.RequiresPlaybackRestart, "YM2612 core")
         CorePreferenceKeys.FURNACE_SN_CORE ->

@@ -790,6 +790,7 @@ internal fun clearAllSettingsAction(
     adPlugCoreSampleRateHz: Int,
     hivelyTrackerCoreSampleRateHz: Int,
     klystrackCoreSampleRateHz: Int,
+    dnfamitrackerCoreSampleRateHz: Int,
     furnaceCoreSampleRateHz: Int,
     uadeCoreSampleRateHz: Int,
     xmpCoreSampleRateHz: Int,
@@ -855,6 +856,8 @@ internal fun clearAllSettingsAction(
     hivelyTrackerPanningMode: Int,
     hivelyTrackerMixGainPercent: Int,
     klystrackPlayerQuality: Int,
+    dnfamitrackerSeekExact: Boolean,
+    dnfamitrackerScopeDcBlock: Boolean,
     furnaceYm2612Core: Int,
     furnaceSnCore: Int,
     furnaceNesCore: Int,
@@ -943,10 +946,13 @@ internal fun clearAllSettingsAction(
     onUadePanningModeChanged: (Int) -> Unit,
     onHivelyTrackerCoreSampleRateHzChanged: (Int) -> Unit,
     onKlystrackCoreSampleRateHzChanged: (Int) -> Unit,
+    onDnfamitrackerCoreSampleRateHzChanged: (Int) -> Unit,
     onFurnaceCoreSampleRateHzChanged: (Int) -> Unit,
     onHivelyTrackerPanningModeChanged: (Int) -> Unit,
     onHivelyTrackerMixGainPercentChanged: (Int) -> Unit,
     onKlystrackPlayerQualityChanged: (Int) -> Unit,
+    onDnfamitrackerSeekExactChanged: (Boolean) -> Unit,
+    onDnfamitrackerScopeDcBlockChanged: (Boolean) -> Unit,
     onFurnaceYm2612CoreChanged: (Int) -> Unit,
     onFurnaceSnCoreChanged: (Int) -> Unit,
     onFurnaceNesCoreChanged: (Int) -> Unit,
@@ -979,6 +985,7 @@ internal fun clearAllSettingsAction(
         CorePreferenceKeys.CORE_RATE_ADPLUG to adPlugCoreSampleRateHz,
         CorePreferenceKeys.CORE_RATE_HIVELYTRACKER to hivelyTrackerCoreSampleRateHz,
         CorePreferenceKeys.CORE_RATE_KLYSTRACK to klystrackCoreSampleRateHz,
+        CorePreferenceKeys.CORE_RATE_DNFAMITRACKER to dnfamitrackerCoreSampleRateHz,
         CorePreferenceKeys.CORE_RATE_FURNACE to furnaceCoreSampleRateHz,
         CorePreferenceKeys.CORE_RATE_UADE to uadeCoreSampleRateHz,
         CorePreferenceKeys.VIO2SF_INTERPOLATION_QUALITY to vio2sfInterpolationQuality,
@@ -1004,6 +1011,7 @@ internal fun clearAllSettingsAction(
         CorePreferenceKeys.HIVELYTRACKER_PANNING_MODE to hivelyTrackerPanningMode,
         CorePreferenceKeys.HIVELYTRACKER_MIX_GAIN_PERCENT to hivelyTrackerMixGainPercent,
         CorePreferenceKeys.KLYSTRACK_PLAYER_QUALITY to klystrackPlayerQuality,
+
         CorePreferenceKeys.FURNACE_YM2612_CORE to furnaceYm2612Core,
         CorePreferenceKeys.FURNACE_SN_CORE to furnaceSnCore,
         CorePreferenceKeys.FURNACE_NES_CORE to furnaceNesCore,
@@ -1056,7 +1064,9 @@ internal fun clearAllSettingsAction(
         CorePreferenceKeys.SIDPLAYFP_RESIDFP_FAST_SAMPLING to sidPlayFpReSidFpFastSampling,
         CorePreferenceKeys.OPENMPT_AMIGA_RESAMPLER_APPLY_ALL_MODULES to openMptAmigaResamplerApplyAllModules,
         CorePreferenceKeys.OPENMPT_FT2_XM_VOLUME_RAMPING to openMptFt2XmVolumeRamping,
-        CorePreferenceKeys.OPENMPT_SURROUND_ENABLED to openMptSurroundEnabled
+        CorePreferenceKeys.OPENMPT_SURROUND_ENABLED to openMptSurroundEnabled,
+        CorePreferenceKeys.DNFAMITRACKER_SEEK_EXACT to dnfamitrackerSeekExact,
+        CorePreferenceKeys.DNFAMITRACKER_SCOPE_DC_BLOCK to dnfamitrackerScopeDcBlock
     )
     val vgmChipCoreSnapshot = vgmPlayChipCoreSelections
 
@@ -1139,10 +1149,13 @@ internal fun clearAllSettingsAction(
     onUadePanningModeChanged(UadeDefaults.panningMode)
     onHivelyTrackerCoreSampleRateHzChanged(HivelyTrackerDefaults.coreSampleRateHz)
     onKlystrackCoreSampleRateHzChanged(KlystrackDefaults.coreSampleRateHz)
+    onDnfamitrackerCoreSampleRateHzChanged(DnfamitrackerDefaults.coreSampleRateHz)
     onFurnaceCoreSampleRateHzChanged(FurnaceDefaults.coreSampleRateHz)
     onHivelyTrackerPanningModeChanged(HivelyTrackerDefaults.panningMode)
     onHivelyTrackerMixGainPercentChanged(HivelyTrackerDefaults.mixGainPercent)
     onKlystrackPlayerQualityChanged(KlystrackDefaults.playerQuality)
+    onDnfamitrackerSeekExactChanged(DnfamitrackerDefaults.seekExact)
+    onDnfamitrackerScopeDcBlockChanged(DnfamitrackerDefaults.scopeDcBlock)
     onFurnaceYm2612CoreChanged(FurnaceDefaults.ym2612Core)
     onFurnaceSnCoreChanged(FurnaceDefaults.snCore)
     onFurnaceNesCoreChanged(FurnaceDefaults.nesCore)
@@ -1203,6 +1216,7 @@ internal fun clearAllPluginSettingsAction(
     onAdPlugCoreSampleRateHzChanged: (Int) -> Unit,
     onHivelyTrackerCoreSampleRateHzChanged: (Int) -> Unit,
     onKlystrackCoreSampleRateHzChanged: (Int) -> Unit,
+    onDnfamitrackerCoreSampleRateHzChanged: (Int) -> Unit,
     onFurnaceCoreSampleRateHzChanged: (Int) -> Unit,
     onUadeCoreSampleRateHzChanged: (Int) -> Unit,
     onAdPlugOplEngineChanged: (Int) -> Unit,
@@ -1222,6 +1236,8 @@ internal fun clearAllPluginSettingsAction(
     onHivelyTrackerPanningModeChanged: (Int) -> Unit,
     onHivelyTrackerMixGainPercentChanged: (Int) -> Unit,
     onKlystrackPlayerQualityChanged: (Int) -> Unit,
+    onDnfamitrackerSeekExactChanged: (Boolean) -> Unit,
+    onDnfamitrackerScopeDcBlockChanged: (Boolean) -> Unit,
     onFurnaceYm2612CoreChanged: (Int) -> Unit,
     onFurnaceSnCoreChanged: (Int) -> Unit,
     onFurnaceNesCoreChanged: (Int) -> Unit,
@@ -1292,6 +1308,7 @@ internal fun clearAllPluginSettingsAction(
     onAdPlugCoreSampleRateHzChanged(AdPlugDefaults.coreSampleRateHz)
     onHivelyTrackerCoreSampleRateHzChanged(HivelyTrackerDefaults.coreSampleRateHz)
     onKlystrackCoreSampleRateHzChanged(KlystrackDefaults.coreSampleRateHz)
+    onDnfamitrackerCoreSampleRateHzChanged(DnfamitrackerDefaults.coreSampleRateHz)
     onFurnaceCoreSampleRateHzChanged(FurnaceDefaults.coreSampleRateHz)
     onUadeCoreSampleRateHzChanged(UadeDefaults.coreSampleRateHz)
     onXmpCoreSampleRateHzChanged(XmpDefaults.coreSampleRateHz)
@@ -1321,6 +1338,8 @@ internal fun clearAllPluginSettingsAction(
     onHivelyTrackerPanningModeChanged(HivelyTrackerDefaults.panningMode)
     onHivelyTrackerMixGainPercentChanged(HivelyTrackerDefaults.mixGainPercent)
     onKlystrackPlayerQualityChanged(KlystrackDefaults.playerQuality)
+    onDnfamitrackerSeekExactChanged(DnfamitrackerDefaults.seekExact)
+    onDnfamitrackerScopeDcBlockChanged(DnfamitrackerDefaults.scopeDcBlock)
     onFurnaceYm2612CoreChanged(FurnaceDefaults.ym2612Core)
     onFurnaceSnCoreChanged(FurnaceDefaults.snCore)
     onFurnaceNesCoreChanged(FurnaceDefaults.nesCore)
@@ -1381,6 +1400,7 @@ internal fun clearAllPluginSettingsAction(
         remove(CorePreferenceKeys.CORE_RATE_ADPLUG)
         remove(CorePreferenceKeys.CORE_RATE_HIVELYTRACKER)
         remove(CorePreferenceKeys.CORE_RATE_KLYSTRACK)
+        remove(CorePreferenceKeys.CORE_RATE_DNFAMITRACKER)
         remove(CorePreferenceKeys.CORE_RATE_FURNACE)
         remove(CorePreferenceKeys.CORE_RATE_UADE)
         remove(CorePreferenceKeys.VIO2SF_INTERPOLATION_QUALITY)
@@ -1400,6 +1420,8 @@ internal fun clearAllPluginSettingsAction(
         remove(CorePreferenceKeys.HIVELYTRACKER_PANNING_MODE)
         remove(CorePreferenceKeys.HIVELYTRACKER_MIX_GAIN_PERCENT)
         remove(CorePreferenceKeys.KLYSTRACK_PLAYER_QUALITY)
+        remove(CorePreferenceKeys.DNFAMITRACKER_SEEK_EXACT)
+        remove(CorePreferenceKeys.DNFAMITRACKER_SCOPE_DC_BLOCK)
         remove(CorePreferenceKeys.FURNACE_YM2612_CORE)
         remove(CorePreferenceKeys.FURNACE_SN_CORE)
         remove(CorePreferenceKeys.FURNACE_NES_CORE)
@@ -1492,6 +1514,7 @@ internal fun resetPluginSettingsAction(
     onAdPlugCoreSampleRateHzChanged: (Int) -> Unit,
     onHivelyTrackerCoreSampleRateHzChanged: (Int) -> Unit,
     onKlystrackCoreSampleRateHzChanged: (Int) -> Unit,
+    onDnfamitrackerCoreSampleRateHzChanged: (Int) -> Unit,
     onFurnaceCoreSampleRateHzChanged: (Int) -> Unit,
     onUadeCoreSampleRateHzChanged: (Int) -> Unit,
     onAdPlugOplEngineChanged: (Int) -> Unit,
@@ -1511,6 +1534,8 @@ internal fun resetPluginSettingsAction(
     onHivelyTrackerPanningModeChanged: (Int) -> Unit,
     onHivelyTrackerMixGainPercentChanged: (Int) -> Unit,
     onKlystrackPlayerQualityChanged: (Int) -> Unit,
+    onDnfamitrackerSeekExactChanged: (Boolean) -> Unit,
+    onDnfamitrackerScopeDcBlockChanged: (Boolean) -> Unit,
     onFurnaceYm2612CoreChanged: (Int) -> Unit,
     onFurnaceSnCoreChanged: (Int) -> Unit,
     onFurnaceNesCoreChanged: (Int) -> Unit,
@@ -1843,6 +1868,17 @@ internal fun resetPluginSettingsAction(
             prefs.edit()
                 .remove(CorePreferenceKeys.CORE_RATE_KLYSTRACK)
                 .remove(CorePreferenceKeys.KLYSTRACK_PLAYER_QUALITY)
+                .apply()
+        }
+
+        DecoderNames.LIB_DN_FAMITRACKER -> {
+            onDnfamitrackerCoreSampleRateHzChanged(DnfamitrackerDefaults.coreSampleRateHz)
+            onDnfamitrackerSeekExactChanged(DnfamitrackerDefaults.seekExact)
+            onDnfamitrackerScopeDcBlockChanged(DnfamitrackerDefaults.scopeDcBlock)
+            prefs.edit()
+                .remove(CorePreferenceKeys.CORE_RATE_DNFAMITRACKER)
+                .remove(CorePreferenceKeys.DNFAMITRACKER_SEEK_EXACT)
+                .remove(CorePreferenceKeys.DNFAMITRACKER_SCOPE_DC_BLOCK)
                 .apply()
         }
 

@@ -12,6 +12,7 @@ object CorePreferenceKeys {
     const val CORE_RATE_ADPLUG = "core_rate_adplug"
     const val CORE_RATE_HIVELYTRACKER = "core_rate_hivelytracker"
     const val CORE_RATE_KLYSTRACK = "core_rate_klystrack"
+    const val CORE_RATE_DNFAMITRACKER = "core_rate_dnfamitracker"
     const val CORE_RATE_FURNACE = "core_rate_furnace"
     const val CORE_RATE_SC68 = "core_rate_sc68"
     const val CORE_RATE_UADE = "core_rate_uade"
@@ -69,6 +70,8 @@ object CorePreferenceKeys {
     const val HIVELYTRACKER_PANNING_MODE = "hivelytracker_panning_mode"
     const val HIVELYTRACKER_MIX_GAIN_PERCENT = "hivelytracker_mix_gain_percent"
     const val KLYSTRACK_PLAYER_QUALITY = "klystrack_player_quality"
+    const val DNFAMITRACKER_SEEK_EXACT = "dnfamitracker_seek_exact"
+    const val DNFAMITRACKER_SCOPE_DC_BLOCK = "dnfamitracker_scope_dc_block"
     const val FURNACE_YM2612_CORE = "furnace_ym2612_core"
     const val FURNACE_SN_CORE = "furnace_sn_core"
     const val FURNACE_NES_CORE = "furnace_nes_core"
@@ -196,6 +199,12 @@ object HivelyTrackerDefaults {
 object KlystrackDefaults {
     const val coreSampleRateHz = 0
     const val playerQuality = 2
+}
+
+object DnfamitrackerDefaults {
+    const val coreSampleRateHz = 0
+    const val seekExact = false
+    const val scopeDcBlock = true
 }
 
 object FurnaceDefaults {
