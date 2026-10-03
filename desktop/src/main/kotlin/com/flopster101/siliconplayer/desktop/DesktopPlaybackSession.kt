@@ -15,6 +15,7 @@ import com.flopster101.siliconplayer.GmeDefaults
 import com.flopster101.siliconplayer.GmeOptionKeys
 import com.flopster101.siliconplayer.NativeBridge
 import com.flopster101.siliconplayer.RepeatMode
+import com.flopster101.siliconplayer.resolveSubtuneNowPlayingText
 import com.flopster101.siliconplayer.SidPlayFpOptionKeys
 import com.flopster101.siliconplayer.SubtuneEntry
 import com.flopster101.siliconplayer.UadeOptionKeys
@@ -425,14 +426,18 @@ class DesktopPlaybackSession(
     }
 
     private fun refreshMetadata() {
-        val currentTitle = NativeBridge.getTrackTitle().trim()
+        val fileTitle = NativeBridge.getTrackTitle().trim()
         val currentArtist = NativeBridge.getTrackArtist().trim()
-        val currentAlbum = NativeBridge.getTrackAlbum().trim()
+        val fileAlbum = NativeBridge.getTrackAlbum().trim()
         val fileLeaf = currentFile?.nameWithoutExtension ?: "Unknown"
 
-        title = if (currentTitle.isNotBlank()) currentTitle else fileLeaf
+        subtuneCount = NativeBridge.getSubtuneCount()
+        subtuneIndex = NativeBridge.getCurrentSubtuneIndex().coerceIn(0, (subtuneCount - 1).coerceAtLeast(0))
+        val subtuneTitle = if (subtuneCount > 1) NativeBridge.getSubtuneTitle(subtuneIndex) else ""
+        val resolvedText = resolveSubtuneNowPlayingText(fileTitle, fileAlbum, subtuneCount, subtuneTitle)
+        title = if (resolvedText.title.isNotBlank()) resolvedText.title else fileLeaf
         artist = if (currentArtist.isNotBlank()) currentArtist else "Unknown Artist"
-        album = if (currentAlbum.isNotBlank()) currentAlbum else ""
+        album = resolvedText.album
         val currentDecoderName = NativeBridge.getCurrentDecoderName()
         decoderName = currentDecoderName
         currentDecoderName?.trim()?.takeIf { it.isNotEmpty() }?.let {
@@ -442,8 +447,6 @@ class DesktopPlaybackSession(
         channelCount = NativeBridge.getTrackChannelCount()
         bitDepthLabel = resolveTrackBitDepthLabel()
         durationSeconds = NativeBridge.getDuration()
-        subtuneIndex = NativeBridge.getCurrentSubtuneIndex()
-        subtuneCount = NativeBridge.getSubtuneCount()
         subtuneEntries = if (subtuneCount > 1) {
             (0 until subtuneCount).map { idx ->
                 val subTitle = NativeBridge.getSubtuneTitle(idx).trim()
