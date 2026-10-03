@@ -1185,7 +1185,6 @@ internal fun PlayerScreen(
         val parsed = formatDisplayArtist(artist)
         parsed.ifBlank { if (hasTrack) "Unknown Artist" else "Unknown" }
     }
-    val displayAlbum = album.ifBlank { if (hasTrack) "Unknown Album" else "" }
     val displayFilename = file?.let { toDisplayFilename(it) }.orEmpty()
     val tickerTrackKey = file?.absolutePath ?: pathOrUrl?.takeIf { it.isNotBlank() }
     val tickerFormatLabel = remember(file?.absolutePath, pathOrUrl) {
@@ -1780,7 +1779,7 @@ internal fun PlayerScreen(
                                 PortraitTrackMetadataBlock(
                                     title = displayTitle,
                                     artist = displayArtist,
-                                    album = "",
+                                    album = album,
                                     showLoadingPlaceholder = showMetadataLoadingPlaceholder,
                                     filename = displayFilename,
                                     filenameDisplayMode = filenameDisplayMode,
