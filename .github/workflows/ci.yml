@@ -300,6 +300,13 @@ jobs:
           fetch-depth: 0
           submodules: recursive
 
+      - name: Mark workspace as git safe directory
+        run: |
+          # In container jobs the checkout lands owned by the host uid, so
+          # every local git invocation trips over dubious ownership. The
+          # system config covers both root steps and su builder commands.
+          git config --system --add safe.directory "${GITHUB_WORKSPACE}"
+
       - name: Compute desktop deps cache key
         id: deps-cache-key
         shell: bash
