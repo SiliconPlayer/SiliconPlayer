@@ -69,6 +69,7 @@ public:
 
 private:
     void closeLocked();
+    void applyOutputGainLocked(float* buffer, int frames);
     void updateScopeSnapshotLocked();
     static int normalizeRepeatMode(int mode);
     void refreshTimelineLocked();

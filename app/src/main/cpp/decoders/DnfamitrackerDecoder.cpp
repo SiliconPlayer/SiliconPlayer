@@ -6,6 +6,8 @@
 
 constexpr float kDnfamitrackerScopeGain = 0.5f;
 constexpr float kDnfamitrackerScopeDcFollow = 0.0025f;
+// Measured against the sibling Furnace engine on the same songs (+4.4 dB).
+constexpr float kDnfamitrackerOutputGain = 1.67f;
 
 bool parseBoolOptionString(const char* value, bool fallback) {
     if (!value) {
@@ -66,6 +68,16 @@ void DnfamitrackerDecoder::close() {
     closeLocked();
 }
 
+void DnfamitrackerDecoder::applyOutputGainLocked(float* buffer, int frames) {
+    if (!buffer || frames <= 0) {
+        return;
+    }
+    const int count = frames * 2;
+    for (int i = 0; i < count; ++i) {
+        buffer[i] *= kDnfamitrackerOutputGain;
+    }
+}
+
 void DnfamitrackerDecoder::closeLocked() {
     if (channelScopeState) {
         channelScopeState->clear();
@@ -112,6 +124,7 @@ int DnfamitrackerDecoder::read(float* buffer, int numFrames) {
             if (restFrames > 0) {
                 rendered += player->Render(buffer + rendered * 2, restFrames);
             }
+            applyOutputGainLocked(buffer, rendered);
             updateScopeSnapshotLocked();
             return rendered;
         }
@@ -129,6 +142,7 @@ int DnfamitrackerDecoder::read(float* buffer, int numFrames) {
         rendered += secondPass;
     }
 
+    applyOutputGainLocked(buffer, rendered);
     updateScopeSnapshotLocked();
 
     return rendered;
