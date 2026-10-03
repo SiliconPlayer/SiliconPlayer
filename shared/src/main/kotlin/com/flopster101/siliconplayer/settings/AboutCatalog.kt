@@ -186,6 +186,21 @@ internal object AboutCatalog {
             )
         ),
         AboutEntity(
+            id = "core.dnfamitracker",
+            kind = AboutEntityKind.Core,
+            name = DecoderNames.LIB_DN_FAMITRACKER,
+            description = "NES/Famicom tracker playback for .dnm and .ftm modules, including expansion-chip audio. Fork of Dn-FamiTracker decoupled as a headless library, with adaptations for SiliconPlayer.",
+            author = "D.P.C.M., Jonathan Liss, Flopster101 and contributors",
+            license = "GPL-3.0-or-later",
+            links = listOf(
+                AboutEntityLink("Project", "https://github.com/Dn-Programming-Core-Management/Dn-FamiTracker"),
+                AboutEntityLink("Source", "https://github.com/SiliconPlayer/Dn-FamiTracker")
+            ),
+            integrationNotes = listOf(
+                "Fork of Dn-FamiTracker decoupled from the upstream MFC app as a headless playback library, with adaptations for SiliconPlayer."
+            )
+        ),
+        AboutEntity(
             id = "core.ayfly",
             kind = AboutEntityKind.Core,
             name = DecoderNames.AYFLY,
@@ -445,6 +460,105 @@ internal object AboutCatalog {
             integrationNotes = listOf(
                 "Shipped as built by the furnace tree; version follows core.furnace."
             )
+        ),
+        AboutEntity(
+            id = "lib.dnfamitracker_nsfplay",
+            kind = AboutEntityKind.Library,
+            name = "NSFPlay",
+            description = "NES APU and expansion-chip emulation used by Dn-FamiTracker.",
+            author = "Brad Smith and contributors",
+            license = "Informal permissive notice (see readme.txt)",
+            links = listOf(
+                AboutEntityLink("Source", "https://github.com/bbbradsmith/nsfplay")
+            ),
+            integrationNotes = listOf(
+                "Shipped as built by the Dn-FamiTracker tree; version follows core.dnfamitracker."
+            )
+        ),
+        AboutEntity(
+            id = "lib.dnfamitracker_emu2413_emu2149",
+            kind = AboutEntityKind.Library,
+            name = "emu2413 / emu2149",
+            description = "VRC7 and Sunsoft 5B sound emulation used by Dn-FamiTracker.",
+            author = "Mitsutaka Okazaki",
+            license = "MIT",
+            links = listOf(
+                AboutEntityLink("Source", "https://github.com/digital-sound-antiques/emu2413"),
+                AboutEntityLink("Source", "https://github.com/digital-sound-antiques/emu2149")
+            ),
+            integrationNotes = listOf(
+                "Shipped as built by the Dn-FamiTracker tree; version follows core.dnfamitracker."
+            )
+        ),
+        AboutEntity(
+            id = "lib.dnfamitracker_mesen",
+            kind = AboutEntityKind.Library,
+            name = "Mesen (FDS/N163 emulation)",
+            description = "FDS and N163 sound emulation used by Dn-FamiTracker.",
+            author = "Sour",
+            license = "GPL-3.0",
+            links = listOf(
+                AboutEntityLink("Source", "https://github.com/SourMesen/Mesen2")
+            ),
+            integrationNotes = listOf(
+                "Shipped as built by the Dn-FamiTracker tree; version follows core.dnfamitracker."
+            )
+        ),
+        AboutEntity(
+            id = "lib.dnfamitracker_blip_buffer",
+            kind = AboutEntityKind.Library,
+            name = "Blip_Buffer",
+            description = "Band-limited audio synthesis helper used by Dn-FamiTracker.",
+            author = "Shay Green",
+            license = "LGPL-2.1",
+            links = listOf(
+                AboutEntityLink("Source", "https://www.slack.net/~ant/libs/audio.html#Blip_Buffer")
+            ),
+            integrationNotes = listOf(
+                "Shipped as built by the Dn-FamiTracker tree; version follows core.dnfamitracker."
+            )
+        ),
+        AboutEntity(
+            id = "lib.dnfamitracker_nayuki_fft",
+            kind = AboutEntityKind.Library,
+            name = "Nayuki Small FFT",
+            description = "Free FFT routines used by Dn-FamiTracker.",
+            author = "Project Nayuki",
+            license = "MIT",
+            links = listOf(
+                AboutEntityLink("Source", "https://www.nayuki.io/page/free-small-fft-in-multiple-languages")
+            ),
+            integrationNotes = listOf(
+                "Shipped as built by the Dn-FamiTracker tree; version follows core.dnfamitracker."
+            )
+        ),
+        AboutEntity(
+            id = "lib.dnfamitracker_json",
+            kind = AboutEntityKind.Library,
+            name = "JSON for Modern C++",
+            description = "JSON helper used by Dn-FamiTracker.",
+            author = "Niels Lohmann",
+            license = "MIT",
+            links = listOf(
+                AboutEntityLink("Source", "https://github.com/nlohmann/json")
+            ),
+            integrationNotes = listOf(
+                "Shipped as built by the Dn-FamiTracker tree; version follows core.dnfamitracker."
+            )
+        ),
+        AboutEntity(
+            id = "lib.dnfamitracker_libsamplerate",
+            kind = AboutEntityKind.Library,
+            name = "libsamplerate",
+            description = "Sample-rate conversion used by Dn-FamiTracker.",
+            author = "Erik de Castro Lopo",
+            license = "BSD-2-Clause",
+            links = listOf(
+                AboutEntityLink("Source", "https://github.com/libsndfile/libsamplerate")
+            ),
+            integrationNotes = listOf(
+                "Shipped as built by the Dn-FamiTracker tree; version follows core.dnfamitracker."
+            )
         )
     )
 
@@ -463,6 +577,7 @@ internal object AboutCatalog {
         DecoderNames.HIVELY_TRACKER to "core.hivelytracker",
         DecoderNames.KLYSTRACK to "core.klystrack",
         DecoderNames.FURNACE to "core.furnace",
+        DecoderNames.LIB_DN_FAMITRACKER to "core.dnfamitracker",
         DecoderNames.AYFLY to "core.ayfly",
         DecoderNames.LIBXMP to "core.libxmp",
         DecoderNames.UFMOD to "core.ufmod"

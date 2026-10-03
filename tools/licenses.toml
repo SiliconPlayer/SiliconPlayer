@@ -87,10 +87,22 @@ source = "external/klystrack"
 texts = ["external/klystrack/LICENSE"]
 
 [[dep]]
+id = "core.dnfamitracker"
+spdx = "GPL-3.0-or-later"
+source = "external/dnfamitracker"
+texts = ["external/dnfamitracker/LICENSE-GPLv3.txt"]
+
+[[dep]]
 id = "core.furnace"
 spdx = "GPL-2.0-or-later"
 source = "external/furnace"
 texts = ["external/furnace/LICENSE"]
+
+[[dep]]
+id = "core.dnfamitracker"
+spdx = "GPL-3.0-or-later"
+source = "external/dnfamitracker"
+texts = ["external/dnfamitracker/LICENSE-GPLv3.txt", "external/dnfamitracker/LICENSE-GPLv2.txt", "external/dnfamitracker/LICENSE.md"]
 
 [[dep]]
 id = "lib.openmpt_dsp_effects"
@@ -197,6 +209,53 @@ spdx = "LGPL-2.1-or-later"
 source = "external/furnace"
 texts = ["external/furnace/extern/libsndfile-modified/COPYING"]
 note = "Shipped as built by the furnace tree; version follows core.furnace."
+
+[[dep]]
+id = "lib.dnfamitracker_nsfplay"
+spdx = "Informal permissive notice (see readme.txt)"
+source = "external/dnfamitracker"
+texts = ["external/dnfamitracker/Source/APU/nsfplay/readme.txt"]
+
+[[dep]]
+id = "lib.dnfamitracker_emu2413_emu2149"
+spdx = "MIT"
+source = "external/dnfamitracker"
+texts = ["external/dnfamitracker/Source/APU/digital-sound-antiques/LICENSE"]
+note = "Covers emu2413 (VRC7) and emu2149 (Sunsoft 5B) from digital-sound-antiques."
+
+[[dep]]
+id = "lib.dnfamitracker_mesen"
+spdx = "GPL-3.0"
+source = "external/dnfamitracker"
+texts = ["external/dnfamitracker/Source/APU/mesen/LICENSE"]
+note = "FDS and N163 sound emulation."
+
+[[dep]]
+id = "lib.dnfamitracker_blip_buffer"
+spdx = "LGPL-2.1"
+source = "external/dnfamitracker"
+texts = ["external/dnfamitracker/Source/Blip_Buffer/Blip_Buffer.cpp"]
+note = "The LGPL-2.1 grant lives in the Blip_Buffer.cpp file header; no standalone text is vendored upstream."
+
+[[dep]]
+id = "lib.dnfamitracker_nayuki_fft"
+spdx = "MIT"
+source = "external/dnfamitracker"
+texts = ["external/dnfamitracker/Source/FFT/FftComplex.hpp"]
+note = "The MIT grant lives in the FftComplex.hpp file header."
+
+[[dep]]
+id = "lib.dnfamitracker_json"
+spdx = "MIT"
+source = "external/dnfamitracker"
+texts = []
+note = "MIT (SPDX-License-Identifier in Source/json/json.hpp); the 900KB header cannot ride into the license viewer."
+
+[[dep]]
+id = "lib.dnfamitracker_libsamplerate"
+spdx = "BSD-2-Clause"
+source = "external/dnfamitracker"
+texts = ["external/dnfamitracker/Source/libsamplerate/COPYING"]
 
 [[dep]]
 id = "core.ufmod"
