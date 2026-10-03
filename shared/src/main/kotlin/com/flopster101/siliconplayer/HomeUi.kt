@@ -123,6 +123,23 @@ private fun homeGridColumns(maxWidth: Dp): Int = when {
     maxWidth < 1000.dp -> 2
     else -> 3
 }
+
+// Column-major split: fill each column top-to-bottom before starting the
+// next one, so recency order reads down column 1, then column 2, etc.
+internal fun <T> splitIntoColumns(items: List<T>, columnCount: Int): List<List<Pair<Int, T>>> {
+    if (items.isEmpty() || columnCount <= 0) return emptyList()
+    val columns = columnCount.coerceAtMost(items.size)
+    val baseRows = items.size / columns
+    val extra = items.size % columns
+    var start = 0
+    return List(columns) { column ->
+        val count = baseRows + if (column < extra) 1 else 0
+        val end = start + count
+        val slice = (start until end).map { index -> index to items[index] }
+        start = end
+        slice
+    }
+}
 private val HomeRecentIconChipShape = RoundedCornerShape(11.dp)
 private val HomeRecentIconChipSize = 38.dp
 private val HomeRecentIconGlyphSize = 26.dp
@@ -552,10 +569,8 @@ internal fun HomeScreen(
                 val gridCellWidth = (maxWidth - HomeGridCellSpacing * (gridColumns - 1)) / gridColumns
                 val gridColumnCount = minOf(gridColumns, sortedPinnedEntries.size)
                 val gridColumnItems = remember(sortedPinnedEntries, gridColumnCount) {
-                    List(gridColumnCount) { column ->
-                        sortedPinnedEntries.filterIndexed { index, _ ->
-                            index % gridColumnCount == column
-                        }
+                    splitIntoColumns(sortedPinnedEntries, gridColumnCount).map { column ->
+                        column.map { it.second }
                     }
                 }
                 Row(
@@ -1148,11 +1163,7 @@ internal fun HomeScreen(
                 val gridCellWidth = (maxWidth - HomeGridCellSpacing * (gridColumns - 1)) / gridColumns
                 val gridColumnCount = minOf(gridColumns, recentFolders.size)
                 val gridColumnItems = remember(recentFolders, gridColumnCount) {
-                    List(gridColumnCount) { column ->
-                        recentFolders.mapIndexedNotNull { index, entry ->
-                            if (index % gridColumnCount == column) index to entry else null
-                        }
-                    }
+                    splitIntoColumns(recentFolders, gridColumnCount)
                 }
                 Row(
                     modifier = Modifier.fillMaxWidth(),
@@ -1438,11 +1449,7 @@ internal fun HomeScreen(
                 val gridCellWidth = (maxWidth - HomeGridCellSpacing * (gridColumns - 1)) / gridColumns
                 val gridColumnCount = minOf(gridColumns, renderedRecentPlayedFiles.size)
                 val gridColumnItems = remember(renderedRecentPlayedFiles, gridColumnCount) {
-                    List(gridColumnCount) { column ->
-                        renderedRecentPlayedFiles.mapIndexedNotNull { index, entry ->
-                            if (index % gridColumnCount == column) index to entry else null
-                        }
-                    }
+                    splitIntoColumns(renderedRecentPlayedFiles, gridColumnCount)
                 }
                 Row(
                     modifier = Modifier.fillMaxWidth(),
