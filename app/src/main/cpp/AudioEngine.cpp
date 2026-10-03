@@ -440,7 +440,7 @@ namespace {
             };
             DecoderRegistry::getInstance().registerDecoder("UADE", getUadeSupportedExtensions(), []() {
                 return DecoderPluginLoader::getInstance().createDecoder("libsiliconplayer_uade_decoder.so");
-            }, 15, std::move(uadeStaticInfo));
+            }, 16, std::move(uadeStaticInfo));
 
             DecoderStaticInfo hivelyStaticInfo;
             hivelyStaticInfo.hasPlaybackCapabilities = true;
@@ -546,7 +546,7 @@ namespace {
                     "dnm", "0cc", "ftm", "dnft"
             }, []() {
                 return DecoderPluginLoader::getInstance().createDecoder("libsiliconplayer_libdnfamitracker_decoder.so");
-            }, 16, std::move(dnfamitrackerStaticInfo));
+            }, 15, std::move(dnfamitrackerStaticInfo));
         }
     };
 
