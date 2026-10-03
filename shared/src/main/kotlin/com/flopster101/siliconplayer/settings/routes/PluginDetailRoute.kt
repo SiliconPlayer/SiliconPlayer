@@ -237,7 +237,9 @@ internal fun PluginDetailRouteContent(
     actions: PluginDetailRouteActions
 ) {
     val pluginName = state.selectedPluginName ?: return
-    if (pluginName.equals(DecoderNames.PLATFORM_DOLBY, ignoreCase = true)) {
+    if (isDecoderSupportedOnCurrentPlatform(DecoderNames.PLATFORM_DOLBY) &&
+        pluginName.equals(DecoderNames.PLATFORM_DOLBY, ignoreCase = true)
+    ) {
         com.flopster101.siliconplayer.platform.LocalSettingsPlatformContent.current.PlatformDolbyDetailContent()
         return
     }

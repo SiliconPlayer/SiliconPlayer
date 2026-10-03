@@ -2,6 +2,7 @@ package com.flopster101.siliconplayer
 
 import com.flopster101.siliconplayer.AppPreferenceKeys
 import com.flopster101.siliconplayer.DecoderNames
+import com.flopster101.siliconplayer.isDecoderSupportedOnCurrentPlatform
 import com.flopster101.siliconplayer.onGloballyPositionedDeferred
 import com.flopster101.siliconplayer.onSizeChangedDeferred
 import com.flopster101.siliconplayer.platform.LocalAppPreferences
@@ -110,11 +111,14 @@ internal fun AudioPluginsRouteContent(
         onPluginPriorityOrderChanged(order)
     }
 
+    val showPlatformDolbyRow = isDecoderSupportedOnCurrentPlatform(DecoderNames.PLATFORM_DOLBY) &&
+        orderedPluginNames.none { it.equals(DecoderNames.PLATFORM_DOLBY, ignoreCase = true) }
     fun shapeForIndex(index: Int): RoundedCornerShape {
         // The virtual platform row renders after the native registry rows;
         // count it in the group so the merged MD3 corners converge cleanly
         // (row above it gets inner bottom corners, it gets outer bottom).
-        val last = orderedPluginNames.size
+        // Without it the last native row closes the group instead.
+        val last = if (showPlatformDolbyRow) orderedPluginNames.size else orderedPluginNames.size - 1
         return when {
             last <= 0 -> RoundedCornerShape(pluginRowOuterCorner)
             index == 0 -> RoundedCornerShape(
@@ -315,7 +319,7 @@ internal fun AudioPluginsRouteContent(
     // Platform (system Dolby) core: virtual entry, not part of the native
     // decoder registry. Lowest priority by design — it only claims DD-family
     // formats, and its toggle lives in the platform prefs, not the registry.
-    if (orderedPluginNames.none { it.equals(DecoderNames.PLATFORM_DOLBY, ignoreCase = true) }) {
+    if (showPlatformDolbyRow) {
         val platformPrefs = LocalAppPreferences.current
         val platformEnabled = remember {
             mutableStateOf(

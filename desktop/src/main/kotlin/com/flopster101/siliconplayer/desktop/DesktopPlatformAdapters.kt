@@ -5,6 +5,8 @@ import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.remember
 import androidx.compose.ui.graphics.toComposeImageBitmap
+import com.flopster101.siliconplayer.DecoderPlatform
+import com.flopster101.siliconplayer.LocalDecoderPlatform
 import com.flopster101.siliconplayer.NativeBridge
 import com.flopster101.siliconplayer.platform.AppPreferences
 import com.flopster101.siliconplayer.platform.AppVersionInfo
@@ -300,6 +302,7 @@ fun ProvideDesktopPlatformAdapters(
         LocalWindowSizeInfo provides windowSizeInfo,
         LocalProjectMOptionsProvider provides projectMOptionsProvider,
         LocalAppVersionInfo provides appVersionInfo,
+        LocalDecoderPlatform provides DecoderPlatform.Desktop,
         LocalSettingsPlatformContent provides object : SettingsPlatformContent {
             @Composable
             override fun LibrarySettingsContent(onOpenScanner: () -> Unit) {

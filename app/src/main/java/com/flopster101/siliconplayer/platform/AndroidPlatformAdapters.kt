@@ -30,6 +30,8 @@ import androidx.core.content.ContextCompat
 import kotlinx.coroutines.launch
 import androidx.compose.ui.graphics.asImageBitmap
 import com.flopster101.siliconplayer.AppPreferenceKeys
+import com.flopster101.siliconplayer.DecoderPlatform
+import com.flopster101.siliconplayer.LocalDecoderPlatform
 import com.flopster101.siliconplayer.isRoundScreenCompat
 import com.flopster101.siliconplayer.ui.visualization.gl.ProjectMPresetSets
 
@@ -508,6 +510,7 @@ fun ProvideAndroidPlatformAdapters(
         LocalWindowSizeInfo provides windowSizeInfo,
         LocalProjectMOptionsProvider provides projectMOptionsProvider,
         LocalAppVersionInfo provides appVersionInfo,
+        LocalDecoderPlatform provides DecoderPlatform.Android,
         LocalSettingsPlatformContent provides settingsPlatformContent,
         LocalAppCacheDir provides context.cacheDir,
         LocalAppConfigDir provides context.filesDir,
