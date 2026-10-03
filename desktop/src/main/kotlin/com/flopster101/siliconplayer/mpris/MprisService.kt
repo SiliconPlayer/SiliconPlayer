@@ -116,11 +116,12 @@ internal class MprisService(
             lastState = null
             loggedUnavailable = false
         }
-        // Sample immediately so a client that discovers us in the first moments
-        // already sees real state instead of the empty default.
+        // Sample synchronously before announcing: a client that discovers us in
+        // the first moments must already see real state, not the empty default.
+        pollOnce()
         ticker.scheduleWithFixedDelay(
             { pollOnce() },
-            0L,
+            MPRIS_POLL_INTERVAL_MS,
             MPRIS_POLL_INTERVAL_MS,
             TimeUnit.MILLISECONDS
         )

@@ -155,7 +155,8 @@ internal class DesktopMprisBridge(private val session: DesktopPlaybackSession) {
             loopStatus = mprisLoopStatusForRepeatMode(session.repeatMode),
             canGoNext = hasTrack,
             canGoPrevious = hasTrack,
-            canPlay = session.canResume() && !session.isPlaying,
+            // Clients skip unplayable players; a loaded track stays playable.
+            canPlay = session.canResume(),
             canPause = session.isPlaying,
             canSeek = session.canSeek,
             volume = volumeProvider(),
