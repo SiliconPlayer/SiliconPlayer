@@ -7,6 +7,10 @@ import android.graphics.Rect
 import android.graphics.Typeface
 import android.opengl.GLES20
 import android.opengl.GLUtils
+import android.os.Build
+import com.flopster101.siliconplayer.ui.visualization.channel.SCOPE_TEXT_BULLET_ADVANCE_RATIO
+import com.flopster101.siliconplayer.ui.visualization.channel.SCOPE_TEXT_BULLET_RAISE_RATIO
+import com.flopster101.siliconplayer.ui.visualization.channel.SCOPE_TEXT_BULLET_RADIUS_RATIO
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
 import java.nio.FloatBuffer
@@ -50,6 +54,30 @@ internal class GlFontAtlas(
     var lineHeightPx: Float = baseFontSizePx * 1.2f
         private set
 
+    // The bundled scope fonts lack U+2022; Minikin fallback metrics vary
+    // by device, so the bullet is generated with a normalized advance.
+    private fun hasBulletGlyph(paint: Paint): Boolean =
+        Build.VERSION.SDK_INT >= Build.VERSION_CODES.M && paint.hasGlyph("•")
+
+    private fun glyphAdvance(paint: Paint, ch: Char): Float {
+        if (ch == '•' && !hasBulletGlyph(paint)) return baseFontSizePx * SCOPE_TEXT_BULLET_ADVANCE_RATIO
+        return paint.measureText(ch.toString())
+    }
+
+    private fun drawGlyph(canvas: Canvas, paint: Paint, ch: Char, x: Float, drawY: Float, advance: Float) {
+        if (ch == '•' && !hasBulletGlyph(paint)) {
+            val r = advance * SCOPE_TEXT_BULLET_RADIUS_RATIO
+            canvas.drawCircle(
+                x + advance * 0.5f,
+                drawY - baseFontSizePx * SCOPE_TEXT_BULLET_RAISE_RATIO,
+                r,
+                paint
+            )
+        } else {
+            canvas.drawText(ch.toString(), x, drawY, paint)
+        }
+    }
+
     fun createAtlasUploadData(): AtlasUploadData {
         val paint = Paint(Paint.ANTI_ALIAS_FLAG or Paint.SUBPIXEL_TEXT_FLAG).apply {
             this.typeface = this@GlFontAtlas.typeface
@@ -74,7 +102,7 @@ internal class GlFontAtlas(
         val padding = 2
         var maxAdvance = paint.measureText("W")
         for (c in chars) {
-            val adv = paint.measureText(c.toString())
+            val adv = glyphAdvance(paint, c)
             if (adv > maxAdvance) maxAdvance = adv
         }
         val cellW = ceil(maxAdvance + (padding * 2)).toInt()
@@ -98,13 +126,13 @@ internal class GlFontAtlas(
         for (ch in chars) {
             val str = ch.toString()
             paint.getTextBounds(str, 0, str.length, rect)
-            val advance = paint.measureText(str).coerceAtLeast(1f)
+            val advance = glyphAdvance(paint, ch).coerceAtLeast(1f)
 
             val x = col * cellW + padding
             val y = row * cellH + padding
             val drawY = y + fontAscent
 
-            canvas.drawText(str, x.toFloat(), drawY, paint)
+            drawGlyph(canvas, paint, ch, x.toFloat(), drawY, advance)
 
             val u0 = x.toFloat() / atlasW.toFloat()
             val v0 = y.toFloat() / atlasH.toFloat()
@@ -175,7 +203,12 @@ internal class GlFontAtlas(
         }
 
         val padding = 2
-        val cellW = ceil(paint.measureText("W") + (padding * 2)).toInt()
+        var maxAdvance = paint.measureText("W")
+        for (c in chars) {
+            val adv = glyphAdvance(paint, c)
+            if (adv > maxAdvance) maxAdvance = adv
+        }
+        val cellW = ceil(maxAdvance + (padding * 2)).toInt()
         val cellH = ceil(lineHeightPx + (padding * 2)).toInt()
         val atlasW = 512
         // Grid columns must fit the atlas: a wide cell (bold/large face)
@@ -194,13 +227,13 @@ internal class GlFontAtlas(
         for (ch in chars) {
             val str = ch.toString()
             paint.getTextBounds(str, 0, str.length, rect)
-            val advance = paint.measureText(str)
+            val advance = glyphAdvance(paint, ch)
 
             val x = col * cellW + padding
             val y = row * cellH + padding
             val drawY = y + fontAscent
 
-            canvas.drawText(str, x.toFloat(), drawY, paint)
+            drawGlyph(canvas, paint, ch, x.toFloat(), drawY, advance)
 
             val u0 = x.toFloat() / atlasW.toFloat()
             val v0 = y.toFloat() / atlasH.toFloat()

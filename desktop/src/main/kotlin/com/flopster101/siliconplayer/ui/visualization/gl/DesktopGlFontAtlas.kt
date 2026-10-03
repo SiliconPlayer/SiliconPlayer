@@ -1,5 +1,8 @@
 package com.flopster101.siliconplayer.ui.visualization.gl
 
+import com.flopster101.siliconplayer.ui.visualization.channel.SCOPE_TEXT_BULLET_ADVANCE_RATIO
+import com.flopster101.siliconplayer.ui.visualization.channel.SCOPE_TEXT_BULLET_RAISE_RATIO
+import com.flopster101.siliconplayer.ui.visualization.channel.SCOPE_TEXT_BULLET_RADIUS_RATIO
 import java.awt.Color
 import java.awt.Font
 import java.awt.RenderingHints
@@ -48,14 +51,20 @@ internal object DesktopGlFontAtlas {
         val fontDescent = fm.descent.toFloat()
         val measuredLineHeight = fontAscent + fontDescent
         // The bundled pixel fonts miss symbols Android backfills from the
-        // system font (bullets, sharps, box drawing); rasterize those cells
-        // from a fallback face like Android's Minikin fallback does.
+        // system font (sharps, box drawing); those cells still rasterize
+        // from a fallback face like Android's Minikin fallback does. The
+        // bullet is generated instead: fallback metrics vary by device,
+        // so a centered dot with a normalized advance keeps it identical
+        // on both platforms.
         val fallbackFont = Font(Font.SANS_SERIF, style, requestedSize)
         dummyG.font = fallbackFont
         val fallbackFm = dummyG.fontMetrics
         dummyG.dispose()
         fun drawFontFor(ch: Char) = if (font.canDisplay(ch)) font else fallbackFont
-        fun advanceFor(ch: Char) = (if (font.canDisplay(ch)) fm else fallbackFm).charWidth(ch).toFloat()
+        fun advanceFor(ch: Char): Float {
+            if (ch == '\u2022' && !font.canDisplay(ch)) return baseFontSizePx * SCOPE_TEXT_BULLET_ADVANCE_RATIO
+            return (if (font.canDisplay(ch)) fm else fallbackFm).charWidth(ch).toFloat()
+        }
 
         val chars = ArrayList<Char>(160)
         for (c in 32..126) chars.add(c.toChar())
@@ -87,6 +96,7 @@ internal object DesktopGlFontAtlas {
         g2d.font = font
         g2d.color = Color.WHITE
         g2d.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING, RenderingHints.VALUE_TEXT_ANTIALIAS_ON)
+        g2d.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON)
         g2d.setRenderingHint(RenderingHints.KEY_FRACTIONALMETRICS, RenderingHints.VALUE_FRACTIONALMETRICS_ON)
 
         // struct Glyph: codepoint(int), u0, v0, u1, v1, widthPx, heightPx, advanceX, ascentPx (36 bytes)
@@ -100,8 +110,15 @@ internal object DesktopGlFontAtlas {
             val y = row * cellH + padding
             val drawY = (y + fontAscent).toInt()
 
-            g2d.font = drawFontFor(ch)
-            g2d.drawString(ch.toString(), x, drawY)
+            if (ch == '\u2022' && !font.canDisplay(ch)) {
+                val r = adv * SCOPE_TEXT_BULLET_RADIUS_RATIO
+                val cx = x + adv * 0.5f
+                val cy = drawY - baseFontSizePx * SCOPE_TEXT_BULLET_RAISE_RATIO
+                g2d.fillOval((cx - r).toInt(), (cy - r).toInt(), (r * 2f).toInt().coerceAtLeast(1), (r * 2f).toInt().coerceAtLeast(1))
+            } else {
+                g2d.font = drawFontFor(ch)
+                g2d.drawString(ch.toString(), x, drawY)
+            }
 
             val u0 = x.toFloat() / atlasW.toFloat()
             val v0 = y.toFloat() / atlasH.toFloat()

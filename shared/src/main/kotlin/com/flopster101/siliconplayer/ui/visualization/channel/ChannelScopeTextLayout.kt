@@ -5,6 +5,7 @@ import com.flopster101.siliconplayer.VisualizationChannelScopeTextAnchor
 import com.flopster101.siliconplayer.VisualizationChannelScopeTextFont
 import com.flopster101.siliconplayer.VisualizationNoteNameFormat
 import com.flopster101.siliconplayer.VisualizationVuAnchor
+import kotlin.math.max
 
 data class GlChannelScopeTextPalette(
     val channelArgb: Int = 0xFFCCCCCC.toInt(),
@@ -66,6 +67,13 @@ interface ChannelScopeTextMeasurer {
     fun widthOf(text: String, textSizePx: Float): Float
     fun lineHeightOf(textSizePx: Float): Float
 }
+
+// Generated fallback bullet (U+2022): the bundled scope fonts lack it and
+// device fallback metrics vary, so both atlas builders rasterize the same
+// centered dot with a normalized advance instead of a fallback face.
+const val SCOPE_TEXT_BULLET_ADVANCE_RATIO = 0.375f
+const val SCOPE_TEXT_BULLET_RADIUS_RATIO = 0.23f
+const val SCOPE_TEXT_BULLET_RAISE_RATIO = 0.25f
 
 // Wire format of the packed channel text states; mirrors NativeBridge on both platforms.
 internal const val CHANNEL_SCOPE_TEXT_STATE_STRIDE_SHARED = 10
@@ -213,12 +221,20 @@ internal fun layoutChannelScopeCellRuns(
     val runs = ArrayList<ChannelScopeTextRun>(8)
     var cursorX = cellLeft + padding
     var hasPrevious = false
-    fun drawSeparator() {
+    // Trailing air of the last placed run; centered slot text leaves
+    // margins on both sides, left-aligned text (approx.) none.
+    var prevTrail = 0f
+    // Center the dot in the visual gap: slot margins would otherwise
+    // strand it against one neighbor. Stays in [prevEnd, nextStart].
+    fun drawSeparator(nextLead: Float = 0f) {
         if (!hasPrevious || cursorX >= maxRight) return
         val bullet = "•"
         val sepWidth = measurer.widthOf(bullet, textSizePx)
         if (cursorX + sepWidth + itemSpacing > maxRight) return
-        runs += ChannelScopeTextRun(bullet, cursorX, originY, palette.separatorArgb)
+        val lower = cursorX - itemSpacing
+        val upper = max(lower, cursorX + itemSpacing + nextLead)
+        val bulletX = (cursorX + (nextLead - prevTrail) / 2f).coerceIn(lower, upper)
+        runs += ChannelScopeTextRun(bullet, bulletX, originY, palette.separatorArgb)
         cursorX += sepWidth + itemSpacing
     }
     if (fields.channel != null && cursorX < maxRight) {
@@ -228,33 +244,40 @@ internal fun layoutChannelScopeCellRuns(
             runs += ChannelScopeTextRun(channelText, cursorX, originY, palette.channelArgb)
             cursorX += measurer.widthOf(channelText, textSizePx) + itemSpacing
             hasPrevious = true
+            prevTrail = 0f
         }
     }
     if (fields.note != null) {
-        drawSeparator()
+        val noteLead = (noteSlotWidth - measurer.widthOf(fields.note, textSizePx)) * 0.5f
+        drawSeparator(noteLead)
         if (cursorX + noteSlotWidth <= maxRight) {
-            val textX = cursorX + (noteSlotWidth - measurer.widthOf(fields.note, textSizePx)) * 0.5f
+            val textX = cursorX + noteLead
             runs += ChannelScopeTextRun(fields.note, textX, originY, palette.noteArgb)
             cursorX += noteSlotWidth + itemSpacing
             hasPrevious = true
+            prevTrail = noteLead
         }
     }
     if (fields.volume != null) {
-        drawSeparator()
+        val volumeLead = (volumeSlotWidth - measurer.widthOf(fields.volume, textSizePx)) * 0.5f
+        drawSeparator(volumeLead)
         if (cursorX + volumeSlotWidth <= maxRight) {
-            val textX = cursorX + (volumeSlotWidth - measurer.widthOf(fields.volume, textSizePx)) * 0.5f
+            val textX = cursorX + volumeLead
             runs += ChannelScopeTextRun(fields.volume, textX, originY, palette.volumeArgb)
             cursorX += volumeSlotWidth + itemSpacing
             hasPrevious = true
+            prevTrail = volumeLead
         }
     }
     for (eff in fields.effects) {
-        drawSeparator()
+        val effLead = (effectSlotWidth - measurer.widthOf(eff, textSizePx)) * 0.5f
+        drawSeparator(effLead)
         if (cursorX + effectSlotWidth <= maxRight) {
-            val textX = cursorX + (effectSlotWidth - measurer.widthOf(eff, textSizePx)) * 0.5f
+            val textX = cursorX + effLead
             runs += ChannelScopeTextRun(eff, textX, originY, palette.effectArgb)
             cursorX += effectSlotWidth + itemSpacing
             hasPrevious = true
+            prevTrail = effLead
         }
     }
     if (fields.chip != null) {
@@ -266,6 +289,7 @@ internal fun layoutChannelScopeCellRuns(
                 runs += ChannelScopeTextRun(ellipsized, cursorX, originY, palette.channelArgb)
                 cursorX += measurer.widthOf(ellipsized, textSizePx) + itemSpacing
                 hasPrevious = true
+                prevTrail = 0f
             }
         }
     }
