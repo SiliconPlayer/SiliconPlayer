@@ -72,6 +72,7 @@ object CorePreferenceKeys {
     const val KLYSTRACK_PLAYER_QUALITY = "klystrack_player_quality"
     const val DNFAMITRACKER_SEEK_EXACT = "dnfamitracker_seek_exact"
     const val DNFAMITRACKER_SCOPE_DC_BLOCK = "dnfamitracker_scope_dc_block"
+    const val FURNACE_SCOPE_DC_BLOCK = "furnace_scope_dc_block"
     const val FURNACE_YM2612_CORE = "furnace_ym2612_core"
     const val FURNACE_SN_CORE = "furnace_sn_core"
     const val FURNACE_NES_CORE = "furnace_nes_core"
@@ -209,6 +210,7 @@ object DnfamitrackerDefaults {
 
 object FurnaceDefaults {
     const val coreSampleRateHz = 0
+    const val scopeDcBlock = true
     const val ym2612Core = 0
     const val snCore = 0
     const val nesCore = 0

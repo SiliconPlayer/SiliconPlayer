@@ -52,6 +52,7 @@ internal fun AppNavigationCoreEffects(
     klystrackPlayerQuality: Int,
     dnfamitrackerSeekExact: Boolean,
     dnfamitrackerScopeDcBlock: Boolean,
+    furnaceScopeDcBlock: Boolean,
     furnaceYm2612Core: Int,
     furnaceSnCore: Int,
     furnaceNesCore: Int,
@@ -557,6 +558,17 @@ internal fun AppNavigationCoreEffects(
             coreName = DecoderNames.LIB_DN_FAMITRACKER,
             optionName = DnfamitrackerOptionKeys.SCOPE_DC_BLOCK,
             optionValue = dnfamitrackerScopeDcBlock.toString(),
+            policy = CoreOptionApplyPolicy.Live,
+            optionLabel = "Scope DC blocker"
+        )
+    }
+
+    LaunchedEffect(furnaceScopeDcBlock) {
+        prefs.edit().putBoolean(CorePreferenceKeys.FURNACE_SCOPE_DC_BLOCK, furnaceScopeDcBlock).apply()
+        applyCoreOptionWithPolicy(
+            coreName = DecoderNames.FURNACE,
+            optionName = FurnaceOptionKeys.SCOPE_DC_BLOCK,
+            optionValue = furnaceScopeDcBlock.toString(),
             policy = CoreOptionApplyPolicy.Live,
             optionLabel = "Scope DC blocker"
         )
@@ -1210,6 +1222,7 @@ internal fun AppNavigationCoreEffectsFromSettingsStates(
         klystrackPlayerQuality = settingsStates.klystrackPlayerQuality.intValue,
         dnfamitrackerSeekExact = settingsStates.dnfamitrackerSeekExact.value,
         dnfamitrackerScopeDcBlock = settingsStates.dnfamitrackerScopeDcBlock.value,
+        furnaceScopeDcBlock = settingsStates.furnaceScopeDcBlock.value,
         furnaceYm2612Core = settingsStates.furnaceYm2612Core.intValue,
         furnaceSnCore = settingsStates.furnaceSnCore.intValue,
         furnaceNesCore = settingsStates.furnaceNesCore.intValue,

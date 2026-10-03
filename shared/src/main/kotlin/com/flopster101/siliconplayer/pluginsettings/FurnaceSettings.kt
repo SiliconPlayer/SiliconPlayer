@@ -3,8 +3,11 @@ package com.flopster101.siliconplayer.pluginsettings
 import androidx.compose.runtime.Composable
 import com.flopster101.siliconplayer.CoreChoiceSelectorCard
 import com.flopster101.siliconplayer.FurnaceConfig
+import com.flopster101.siliconplayer.PlayerSettingToggleCard
 
 internal class FurnaceSettings(
+    private val scopeDcBlock: Boolean,
+    private val onScopeDcBlockChanged: (Boolean) -> Unit,
     private val ym2612Core: Int,
     private val snCore: Int,
     private val nesCore: Int,
@@ -24,6 +27,15 @@ internal class FurnaceSettings(
     @Composable
     override fun buildSettings(builder: PluginSettingsBuilder) {
         builder.coreOptions {
+            custom {
+                PlayerSettingToggleCard(
+                    title = "Scope DC blocker",
+                    description = "Center channel scope waveforms with a persistent DC blocker.",
+                    checked = scopeDcBlock,
+                    onCheckedChange = onScopeDcBlockChanged
+                )
+            }
+            spacer()
             custom {
                 CoreChoiceSelectorCard(
                     title = "YM2612 core",

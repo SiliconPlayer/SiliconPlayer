@@ -17,6 +17,22 @@
 #include <furnace/engine/engine.h>
 
 namespace {
+bool parseBoolOptionString(const char* value, bool fallback) {
+    if (!value) {
+        return fallback;
+    }
+    const std::string text(value);
+    if (text == "1" || text == "true" || text == "TRUE" || text == "True" ||
+        text == "yes" || text == "YES" || text == "on" || text == "ON") {
+        return true;
+    }
+    if (text == "0" || text == "false" || text == "FALSE" || text == "False" ||
+        text == "no" || text == "NO" || text == "off" || text == "OFF") {
+        return false;
+    }
+    return fallback;
+}
+
 constexpr double kSeekEpsilonSeconds = 0.000001;
 constexpr double kLoopEpsilonSeconds = 0.000001;
 constexpr int kChannelScopeTextStride = 10;
@@ -1038,6 +1054,8 @@ void FurnaceDecoder::setOption(const char* name, const char* value) {
         optionDsidQuality = std::clamp(parseIntOptionString(value, optionDsidQuality), 0, 5);
     } else if (std::strcmp(name, "furnace.ay_core") == 0) {
         optionAyCore = std::clamp(parseIntOptionString(value, optionAyCore), 0, 1);
+    } else if (std::strcmp(name, "furnace.scope_dc_block") == 0) {
+        scopeDcBlockEnabled = parseBoolOptionString(value, scopeDcBlockEnabled);
     } else {
         return;
     }
@@ -1049,6 +1067,9 @@ void FurnaceDecoder::setOption(const char* name, const char* value) {
 
 int FurnaceDecoder::getOptionApplyPolicy(const char* name) const {
     if (!name) {
+        return OPTION_APPLY_LIVE;
+    }
+    if (std::strcmp(name, "furnace.scope_dc_block") == 0) {
         return OPTION_APPLY_LIVE;
     }
     if (std::strcmp(name, "furnace.ym2612_core") == 0 ||

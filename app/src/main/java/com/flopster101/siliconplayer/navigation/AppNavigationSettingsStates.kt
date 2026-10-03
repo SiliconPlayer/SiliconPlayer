@@ -59,6 +59,7 @@ internal data class AppNavigationSettingsStates(
     val klystrackPlayerQuality: MutableIntState,
     val dnfamitrackerSeekExact: MutableState<Boolean>,
     val dnfamitrackerScopeDcBlock: MutableState<Boolean>,
+    val furnaceScopeDcBlock: MutableState<Boolean>,
     val furnaceYm2612Core: MutableIntState,
     val furnaceSnCore: MutableIntState,
     val furnaceNesCore: MutableIntState,
@@ -330,6 +331,14 @@ internal fun rememberAppNavigationSettingsStates(
             prefs.getBoolean(
                 CorePreferenceKeys.DNFAMITRACKER_SCOPE_DC_BLOCK,
                 DnfamitrackerDefaults.scopeDcBlock
+            )
+        )
+    }
+    val furnaceScopeDcBlock = remember {
+        mutableStateOf(
+            prefs.getBoolean(
+                CorePreferenceKeys.FURNACE_SCOPE_DC_BLOCK,
+                FurnaceDefaults.scopeDcBlock
             )
         )
     }
@@ -727,6 +736,7 @@ internal fun rememberAppNavigationSettingsStates(
         klystrackPlayerQuality = klystrackPlayerQuality,
         dnfamitrackerSeekExact = dnfamitrackerSeekExact,
         dnfamitrackerScopeDcBlock = dnfamitrackerScopeDcBlock,
+        furnaceScopeDcBlock = furnaceScopeDcBlock,
         furnaceYm2612Core = furnaceYm2612Core,
         furnaceSnCore = furnaceSnCore,
         furnaceNesCore = furnaceNesCore,

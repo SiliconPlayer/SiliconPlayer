@@ -8,6 +8,7 @@ internal object FurnaceOptionKeys {
     const val GB_QUALITY = "furnace.gb_quality"
     const val DSID_QUALITY = "furnace.dsid_quality"
     const val AY_CORE = "furnace.ay_core"
+    const val SCOPE_DC_BLOCK = "furnace.scope_dc_block"
 }
 
 internal object FurnaceConfig {

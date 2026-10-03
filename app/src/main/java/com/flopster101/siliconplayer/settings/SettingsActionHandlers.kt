@@ -858,6 +858,7 @@ internal fun clearAllSettingsAction(
     klystrackPlayerQuality: Int,
     dnfamitrackerSeekExact: Boolean,
     dnfamitrackerScopeDcBlock: Boolean,
+    furnaceScopeDcBlock: Boolean,
     furnaceYm2612Core: Int,
     furnaceSnCore: Int,
     furnaceNesCore: Int,
@@ -953,6 +954,7 @@ internal fun clearAllSettingsAction(
     onKlystrackPlayerQualityChanged: (Int) -> Unit,
     onDnfamitrackerSeekExactChanged: (Boolean) -> Unit,
     onDnfamitrackerScopeDcBlockChanged: (Boolean) -> Unit,
+    onFurnaceScopeDcBlockChanged: (Boolean) -> Unit,
     onFurnaceYm2612CoreChanged: (Int) -> Unit,
     onFurnaceSnCoreChanged: (Int) -> Unit,
     onFurnaceNesCoreChanged: (Int) -> Unit,
@@ -1066,7 +1068,8 @@ internal fun clearAllSettingsAction(
         CorePreferenceKeys.OPENMPT_FT2_XM_VOLUME_RAMPING to openMptFt2XmVolumeRamping,
         CorePreferenceKeys.OPENMPT_SURROUND_ENABLED to openMptSurroundEnabled,
         CorePreferenceKeys.DNFAMITRACKER_SEEK_EXACT to dnfamitrackerSeekExact,
-        CorePreferenceKeys.DNFAMITRACKER_SCOPE_DC_BLOCK to dnfamitrackerScopeDcBlock
+        CorePreferenceKeys.DNFAMITRACKER_SCOPE_DC_BLOCK to dnfamitrackerScopeDcBlock,
+        CorePreferenceKeys.FURNACE_SCOPE_DC_BLOCK to furnaceScopeDcBlock
     )
     val vgmChipCoreSnapshot = vgmPlayChipCoreSelections
 
@@ -1156,6 +1159,7 @@ internal fun clearAllSettingsAction(
     onKlystrackPlayerQualityChanged(KlystrackDefaults.playerQuality)
     onDnfamitrackerSeekExactChanged(DnfamitrackerDefaults.seekExact)
     onDnfamitrackerScopeDcBlockChanged(DnfamitrackerDefaults.scopeDcBlock)
+    onFurnaceScopeDcBlockChanged(FurnaceDefaults.scopeDcBlock)
     onFurnaceYm2612CoreChanged(FurnaceDefaults.ym2612Core)
     onFurnaceSnCoreChanged(FurnaceDefaults.snCore)
     onFurnaceNesCoreChanged(FurnaceDefaults.nesCore)
@@ -1238,6 +1242,7 @@ internal fun clearAllPluginSettingsAction(
     onKlystrackPlayerQualityChanged: (Int) -> Unit,
     onDnfamitrackerSeekExactChanged: (Boolean) -> Unit,
     onDnfamitrackerScopeDcBlockChanged: (Boolean) -> Unit,
+    onFurnaceScopeDcBlockChanged: (Boolean) -> Unit,
     onFurnaceYm2612CoreChanged: (Int) -> Unit,
     onFurnaceSnCoreChanged: (Int) -> Unit,
     onFurnaceNesCoreChanged: (Int) -> Unit,
@@ -1340,6 +1345,7 @@ internal fun clearAllPluginSettingsAction(
     onKlystrackPlayerQualityChanged(KlystrackDefaults.playerQuality)
     onDnfamitrackerSeekExactChanged(DnfamitrackerDefaults.seekExact)
     onDnfamitrackerScopeDcBlockChanged(DnfamitrackerDefaults.scopeDcBlock)
+    onFurnaceScopeDcBlockChanged(FurnaceDefaults.scopeDcBlock)
     onFurnaceYm2612CoreChanged(FurnaceDefaults.ym2612Core)
     onFurnaceSnCoreChanged(FurnaceDefaults.snCore)
     onFurnaceNesCoreChanged(FurnaceDefaults.nesCore)
@@ -1422,6 +1428,7 @@ internal fun clearAllPluginSettingsAction(
         remove(CorePreferenceKeys.KLYSTRACK_PLAYER_QUALITY)
         remove(CorePreferenceKeys.DNFAMITRACKER_SEEK_EXACT)
         remove(CorePreferenceKeys.DNFAMITRACKER_SCOPE_DC_BLOCK)
+        remove(CorePreferenceKeys.FURNACE_SCOPE_DC_BLOCK)
         remove(CorePreferenceKeys.FURNACE_YM2612_CORE)
         remove(CorePreferenceKeys.FURNACE_SN_CORE)
         remove(CorePreferenceKeys.FURNACE_NES_CORE)
@@ -1536,6 +1543,7 @@ internal fun resetPluginSettingsAction(
     onKlystrackPlayerQualityChanged: (Int) -> Unit,
     onDnfamitrackerSeekExactChanged: (Boolean) -> Unit,
     onDnfamitrackerScopeDcBlockChanged: (Boolean) -> Unit,
+    onFurnaceScopeDcBlockChanged: (Boolean) -> Unit,
     onFurnaceYm2612CoreChanged: (Int) -> Unit,
     onFurnaceSnCoreChanged: (Int) -> Unit,
     onFurnaceNesCoreChanged: (Int) -> Unit,
@@ -1875,10 +1883,12 @@ internal fun resetPluginSettingsAction(
             onDnfamitrackerCoreSampleRateHzChanged(DnfamitrackerDefaults.coreSampleRateHz)
             onDnfamitrackerSeekExactChanged(DnfamitrackerDefaults.seekExact)
             onDnfamitrackerScopeDcBlockChanged(DnfamitrackerDefaults.scopeDcBlock)
+            onFurnaceScopeDcBlockChanged(FurnaceDefaults.scopeDcBlock)
             prefs.edit()
                 .remove(CorePreferenceKeys.CORE_RATE_DNFAMITRACKER)
                 .remove(CorePreferenceKeys.DNFAMITRACKER_SEEK_EXACT)
                 .remove(CorePreferenceKeys.DNFAMITRACKER_SCOPE_DC_BLOCK)
+                .remove(CorePreferenceKeys.FURNACE_SCOPE_DC_BLOCK)
                 .apply()
         }
 

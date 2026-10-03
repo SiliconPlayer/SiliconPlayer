@@ -251,6 +251,7 @@ internal fun rememberDesktopSettings(
             klystrackPlayerQuality = prefs.getInt(CorePreferenceKeys.KLYSTRACK_PLAYER_QUALITY, KlystrackDefaults.playerQuality),
             dnfamitrackerSeekExact = prefs.getBoolean(CorePreferenceKeys.DNFAMITRACKER_SEEK_EXACT, DnfamitrackerDefaults.seekExact),
             dnfamitrackerScopeDcBlock = prefs.getBoolean(CorePreferenceKeys.DNFAMITRACKER_SCOPE_DC_BLOCK, DnfamitrackerDefaults.scopeDcBlock),
+            furnaceScopeDcBlock = prefs.getBoolean(CorePreferenceKeys.FURNACE_SCOPE_DC_BLOCK, FurnaceDefaults.scopeDcBlock),
             furnaceYm2612Core = prefs.getInt(CorePreferenceKeys.FURNACE_YM2612_CORE, FurnaceDefaults.ym2612Core),
             furnaceSnCore = prefs.getInt(CorePreferenceKeys.FURNACE_SN_CORE, FurnaceDefaults.snCore),
             furnaceNesCore = prefs.getInt(CorePreferenceKeys.FURNACE_NES_CORE, FurnaceDefaults.nesCore),
@@ -581,6 +582,7 @@ internal fun rememberDesktopSettings(
                 onKlystrackPlayerQualityChanged = { putInt(CorePreferenceKeys.KLYSTRACK_PLAYER_QUALITY, it) },
                 onDnfamitrackerSeekExactChanged = { putBool(CorePreferenceKeys.DNFAMITRACKER_SEEK_EXACT, it) },
                 onDnfamitrackerScopeDcBlockChanged = { putBool(CorePreferenceKeys.DNFAMITRACKER_SCOPE_DC_BLOCK, it) },
+                onFurnaceScopeDcBlockChanged = { putBool(CorePreferenceKeys.FURNACE_SCOPE_DC_BLOCK, it) },
                 onFurnaceYm2612CoreChanged = { putInt(CorePreferenceKeys.FURNACE_YM2612_CORE, it) },
                 onFurnaceSnCoreChanged = { putInt(CorePreferenceKeys.FURNACE_SN_CORE, it) },
                 onFurnaceNesCoreChanged = { putInt(CorePreferenceKeys.FURNACE_NES_CORE, it) },
@@ -1378,6 +1380,7 @@ private val DesktopCoreDecoderResets: Map<String, DesktopCoreDecoderReset> = map
     DecoderNames.FURNACE to DesktopCoreDecoderReset(
         prefKeys = listOf(
             CorePreferenceKeys.CORE_RATE_FURNACE,
+            CorePreferenceKeys.FURNACE_SCOPE_DC_BLOCK,
             CorePreferenceKeys.FURNACE_YM2612_CORE,
             CorePreferenceKeys.FURNACE_SN_CORE,
             CorePreferenceKeys.FURNACE_NES_CORE,
@@ -1387,6 +1390,7 @@ private val DesktopCoreDecoderResets: Map<String, DesktopCoreDecoderReset> = map
             CorePreferenceKeys.FURNACE_AY_CORE
         ),
         optionNames = listOf(
+            FurnaceOptionKeys.SCOPE_DC_BLOCK,
             FurnaceOptionKeys.YM2612_CORE,
             FurnaceOptionKeys.SN_CORE,
             FurnaceOptionKeys.NES_CORE,
@@ -1397,6 +1401,7 @@ private val DesktopCoreDecoderResets: Map<String, DesktopCoreDecoderReset> = map
         ),
         reset = { a ->
             a.onFurnaceSampleRateChanged(0)
+            a.onFurnaceScopeDcBlockChanged(FurnaceDefaults.scopeDcBlock)
             a.onFurnaceYm2612CoreChanged(0)
             a.onFurnaceSnCoreChanged(0)
             a.onFurnaceNesCoreChanged(0)

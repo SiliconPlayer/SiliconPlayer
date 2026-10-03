@@ -120,6 +120,7 @@ internal data class PluginDetailRouteState(
     val klystrackPlayerQuality: Int,
     val dnfamitrackerSeekExact: Boolean,
     val dnfamitrackerScopeDcBlock: Boolean,
+    val furnaceScopeDcBlock: Boolean,
     val furnaceYm2612Core: Int,
     val furnaceSnCore: Int,
     val furnaceNesCore: Int,
@@ -216,6 +217,7 @@ internal data class PluginDetailRouteActions(
     val onKlystrackPlayerQualityChanged: (Int) -> Unit,
     val onDnfamitrackerSeekExactChanged: (Boolean) -> Unit,
     val onDnfamitrackerScopeDcBlockChanged: (Boolean) -> Unit,
+    val onFurnaceScopeDcBlockChanged: (Boolean) -> Unit,
     val onFurnaceYm2612CoreChanged: (Int) -> Unit,
     val onFurnaceSnCoreChanged: (Int) -> Unit,
     val onFurnaceNesCoreChanged: (Int) -> Unit,
@@ -542,6 +544,8 @@ internal fun PluginDetailRouteContent(
         )
 
         DecoderNames.FURNACE -> FurnaceSettings(
+            scopeDcBlock = state.furnaceScopeDcBlock,
+            onScopeDcBlockChanged = actions.onFurnaceScopeDcBlockChanged,
             ym2612Core = state.furnaceYm2612Core,
             snCore = state.furnaceSnCore,
             nesCore = state.furnaceNesCore,

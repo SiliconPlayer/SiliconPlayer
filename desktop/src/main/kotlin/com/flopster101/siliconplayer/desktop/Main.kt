@@ -3539,6 +3539,8 @@ private fun pushDesktopCorePrefToNative(
             opt(DecoderNames.LIB_DN_FAMITRACKER, DnfamitrackerOptionKeys.SEEK_EXACT, prefs.getBoolean(key, false).toString(), CoreOptionApplyPolicy.Live, "Exact seeking")
         CorePreferenceKeys.DNFAMITRACKER_SCOPE_DC_BLOCK ->
             opt(DecoderNames.LIB_DN_FAMITRACKER, DnfamitrackerOptionKeys.SCOPE_DC_BLOCK, prefs.getBoolean(key, true).toString(), CoreOptionApplyPolicy.Live, "Scope DC blocker")
+        CorePreferenceKeys.FURNACE_SCOPE_DC_BLOCK ->
+            opt(DecoderNames.FURNACE, FurnaceOptionKeys.SCOPE_DC_BLOCK, prefs.getBoolean(key, true).toString(), CoreOptionApplyPolicy.Live, "Scope DC blocker")
         CorePreferenceKeys.FURNACE_YM2612_CORE ->
             opt(DecoderNames.FURNACE, FurnaceOptionKeys.YM2612_CORE, prefs.getInt(key, 0).coerceIn(0, 2).toString(), CoreOptionApplyPolicy.RequiresPlaybackRestart, "YM2612 core")
         CorePreferenceKeys.FURNACE_SN_CORE ->
