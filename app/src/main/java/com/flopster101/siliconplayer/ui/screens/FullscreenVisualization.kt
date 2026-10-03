@@ -91,7 +91,7 @@ import androidx.core.view.WindowInsetsControllerCompat
 import com.flopster101.siliconplayer.RepeatMode
 import com.flopster101.siliconplayer.SubtuneTransportState
 import com.flopster101.siliconplayer.formatArtistAlbumLine
-import com.flopster101.siliconplayer.formatBadgedTitle
+import com.flopster101.siliconplayer.badgedTitleWithSubduedCounter
 import com.flopster101.siliconplayer.formatDurationWithUnknown
 import com.flopster101.siliconplayer.formatTime
 import com.flopster101.siliconplayer.VisualizationFullscreenMode
@@ -566,9 +566,13 @@ private fun FullscreenBottomControls(
                     }
                 }
                 val compactArtistAlbumLine = formatArtistAlbumLine(displayArtist, album)
-                val compactTitleLine = formatBadgedTitle(displayTitle, subtuneBadge)
+                val compactLeadLine = if (compactArtistAlbumLine.isNotBlank()) "$compactArtistAlbumLine — $displayTitle" else displayTitle
                 Text(
-                    text = if (compactArtistAlbumLine.isNotBlank()) "$compactArtistAlbumLine — $compactTitleLine" else compactTitleLine,
+                    text = badgedTitleWithSubduedCounter(
+                        compactLeadLine,
+                        subtuneBadge,
+                        MaterialTheme.typography.titleSmall
+                    ),
                     color = Color.White,
                     style = MaterialTheme.typography.titleSmall,
                     maxLines = 1,
@@ -633,7 +637,11 @@ private fun FullscreenBottomControls(
                     ) {
                         Column(modifier = Modifier.weight(1f)) {
                             Text(
-                                text = formatBadgedTitle(displayTitle, subtuneBadge),
+                                text = badgedTitleWithSubduedCounter(
+                                    displayTitle,
+                                    subtuneBadge,
+                                    MaterialTheme.typography.titleMedium
+                                ),
                                 color = Color.White,
                                 style = MaterialTheme.typography.titleMedium,
                                 maxLines = 1,
@@ -673,7 +681,11 @@ private fun FullscreenBottomControls(
                     }
                 } else {
                     Text(
-                        text = formatBadgedTitle(displayTitle, subtuneBadge),
+                        text = badgedTitleWithSubduedCounter(
+                            displayTitle,
+                            subtuneBadge,
+                            MaterialTheme.typography.titleMedium
+                        ),
                         color = Color.White,
                         style = MaterialTheme.typography.titleMedium,
                         maxLines = 1,
@@ -764,7 +776,11 @@ private fun FullscreenTrackTicker(
                     .padding(horizontal = 14.dp, vertical = 10.dp)
             ) {
                 Text(
-                    text = formatBadgedTitle(title, subtuneBadge),
+                    text = badgedTitleWithSubduedCounter(
+                        title,
+                        subtuneBadge,
+                        MaterialTheme.typography.titleMedium
+                    ),
                     style = MaterialTheme.typography.titleMedium,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis

@@ -1,5 +1,11 @@
 package com.flopster101.siliconplayer
 
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.AnnotatedString
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.buildAnnotatedString
+import androidx.compose.ui.text.withStyle
 import kotlin.math.roundToInt
 
 data class ResolvedNowPlayingText(
@@ -30,6 +36,24 @@ fun formatArtistAlbumLine(artist: String, album: String): String {
 
 fun formatBadgedTitle(title: String, subtuneBadge: String?): String {
     return if (subtuneBadge != null) "$title $subtuneBadge" else title
+}
+
+// Fullscreen keeps the counter inside the title line but sets it smaller
+// and dimmer, so it never reads as part of the title itself.
+fun badgedTitleWithSubduedCounter(
+    leadText: String,
+    subtuneBadge: String?,
+    titleStyle: TextStyle,
+    badgeColor: Color = Color.White.copy(alpha = 0.62f)
+): AnnotatedString {
+    if (subtuneBadge == null) return AnnotatedString(leadText)
+    return buildAnnotatedString {
+        append(leadText)
+        append(" ")
+        withStyle(SpanStyle(color = badgeColor, fontSize = titleStyle.fontSize * 0.8f)) {
+            append(subtuneBadge)
+        }
+    }
 }
 
 fun formatTime(seconds: Double): String {

@@ -1,7 +1,9 @@
 package com.flopster101.siliconplayer
 
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
 import org.junit.Test
+import androidx.compose.ui.unit.sp
 
 class NowPlayingTitlesTest {
 
@@ -90,6 +92,27 @@ class NowPlayingTitlesTest {
     fun unknownMarkerOnlyOnEstimates() {
         assertEquals("03:00", formatDurationWithUnknown(180.0, true))
         assertEquals("03:00?", formatDurationWithUnknown(180.0, false))
+    }
+
+    @Test
+    fun subduedCounterKeepsFullTextButStylesBadgeSeparately() {
+        val titleStyle = androidx.compose.ui.text.TextStyle(fontSize = 20.sp)
+        val badged = badgedTitleWithSubduedCounter("Song", "[2/3]", titleStyle)
+        assertEquals("Song [2/3]", badged.toString())
+        assertEquals(1, badged.spanStyles.size)
+        val span = badged.spanStyles.single()
+        assertEquals("Song ".length, span.start)
+        assertEquals("Song [2/3]".length, span.end)
+        assertEquals(0.62f, span.item.color.alpha, 0.002f)
+        assertTrue(span.item.fontSize < titleStyle.fontSize)
+    }
+
+    @Test
+    fun subduedCounterWithoutBadgeIsPlain() {
+        val titleStyle = androidx.compose.ui.text.TextStyle(fontSize = 20.sp)
+        val plain = badgedTitleWithSubduedCounter("Song", null, titleStyle)
+        assertEquals("Song", plain.toString())
+        assertEquals(0, plain.spanStyles.size)
     }
 
     @Test
