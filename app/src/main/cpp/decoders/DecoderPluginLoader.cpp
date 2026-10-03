@@ -144,10 +144,9 @@ private:
 
     std::shared_ptr<LoadedPlugin> loadPlugin(const std::string& libraryName) {
         LOGD("Loading decoder plugin: %s", libraryName.c_str());
-#if defined(__ANDROID__)
+        // Local scope everywhere: sibling plugins must never resolve each
+        // other's symbols (e.g. colliding vendored emulator namespaces).
         void* handle = dlopen(libraryName.c_str(), RTLD_NOW | RTLD_LOCAL);
-#else
-        void* handle = dlopen(libraryName.c_str(), RTLD_NOW | RTLD_GLOBAL);
         if (handle == nullptr && libraryName.find('/') == std::string::npos) {
             Dl_info info;
             if (dladdr(reinterpret_cast<void*>(&DecoderPluginLoader::getInstance), &info) && info.dli_fname != nullptr) {
@@ -155,11 +154,10 @@ private:
                 auto lastSlash = originPath.find_last_of('/');
                 if (lastSlash != std::string::npos) {
                     std::string candidatePath = originPath.substr(0, lastSlash + 1) + libraryName;
-                    handle = dlopen(candidatePath.c_str(), RTLD_NOW | RTLD_GLOBAL);
+                    handle = dlopen(candidatePath.c_str(), RTLD_NOW | RTLD_LOCAL);
                 }
             }
         }
-#endif
         if (handle == nullptr) {
             LOGE("dlopen failed for %s: %s", libraryName.c_str(), dlerror());
             return {};
