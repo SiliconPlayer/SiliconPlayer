@@ -87,6 +87,12 @@ class NowPlayingTitlesTest {
     }
 
     @Test
+    fun unknownMarkerOnlyOnEstimates() {
+        assertEquals("03:00", formatDurationWithUnknown(180.0, true))
+        assertEquals("03:00?", formatDurationWithUnknown(180.0, false))
+    }
+
+    @Test
     fun blankFileTitleFallsBackToFileAlbum() {
         val resolved = resolveSubtuneNowPlayingText(
             fileTitle = "  ",

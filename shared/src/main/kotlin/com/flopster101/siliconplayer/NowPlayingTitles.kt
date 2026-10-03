@@ -1,5 +1,7 @@
 package com.flopster101.siliconplayer
 
+import kotlin.math.roundToInt
+
 data class ResolvedNowPlayingText(
     val title: String,
     val album: String
@@ -28,6 +30,20 @@ fun formatArtistAlbumLine(artist: String, album: String): String {
 
 fun formatBadgedTitle(title: String, subtuneBadge: String?): String {
     return if (subtuneBadge != null) "$title $subtuneBadge" else title
+}
+
+fun formatTime(seconds: Double): String {
+    val safeSeconds = seconds.coerceAtLeast(0.0).roundToInt()
+    val minutes = safeSeconds / 60
+    val remainingSeconds = safeSeconds % 60
+    return "%02d:%02d".format(minutes, remainingSeconds)
+}
+
+// Estimated lengths (e.g. the 3:00 module fallback) carry a trailing
+// "?" so they never pose as exact.
+fun formatDurationWithUnknown(durationSeconds: Double, reliable: Boolean): String {
+    val text = formatTime(durationSeconds)
+    return if (reliable) text else "$text?"
 }
 
 fun resolveSubtuneNowPlayingText(

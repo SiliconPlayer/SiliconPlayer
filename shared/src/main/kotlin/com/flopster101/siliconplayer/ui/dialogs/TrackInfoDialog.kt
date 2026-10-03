@@ -52,7 +52,8 @@ import com.flopster101.siliconplayer.ui.screens.appendCoreTrackInfoCopyRows
 import com.flopster101.siliconplayer.ui.screens.formatBitrate
 import com.flopster101.siliconplayer.ui.screens.formatFileSize
 import com.flopster101.siliconplayer.ui.screens.formatSampleRateForDetails
-import com.flopster101.siliconplayer.ui.screens.formatTime
+import com.flopster101.siliconplayer.formatDurationWithUnknown
+import com.flopster101.siliconplayer.formatTime
 import com.flopster101.siliconplayer.ui.screens.rememberTrackInfoLiveMetadata
 import java.io.File
 
@@ -108,7 +109,7 @@ internal fun TrackInfoDialog(
     }
     val audioBackendLabel = liveMetadata.audioBackendLabel.ifBlank { "(inactive)" }
     val lengthLabel = if (durationSeconds > 0.0) {
-        if (hasReliableDuration) formatTime(durationSeconds) else "${formatTime(durationSeconds)}?"
+        formatDurationWithUnknown(durationSeconds, hasReliableDuration)
     } else {
         "Unavailable"
     }

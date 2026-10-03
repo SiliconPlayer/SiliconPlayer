@@ -88,6 +88,8 @@ import com.flopster101.siliconplayer.NativeBridge
 import com.flopster101.siliconplayer.RepeatMode
 import com.flopster101.siliconplayer.formatArtistAlbumLine
 import com.flopster101.siliconplayer.formatBadgedTitle
+import com.flopster101.siliconplayer.formatDurationWithUnknown
+import com.flopster101.siliconplayer.formatTime
 import com.flopster101.siliconplayer.StarfieldPreset
 import com.flopster101.siliconplayer.VisualizationChannelScopeBackgroundMode
 import com.flopster101.siliconplayer.VisualizationChannelScopeLayout
@@ -888,6 +890,7 @@ private fun FullscreenTransportControls(
 private fun FullscreenSeekBar(
     positionSecondsProvider: () -> Double,
     durationSeconds: Double,
+    durationReliable: Boolean = true,
     canSeek: Boolean,
     onSeek: (Double) -> Unit,
     modifier: Modifier = Modifier
@@ -942,7 +945,7 @@ private fun FullscreenSeekBar(
                 .height(36.dp)
         )
         Text(
-            text = formatTime(durationSeconds),
+            text = formatDurationWithUnknown(durationSeconds, durationReliable),
             color = Color.White.copy(alpha = 0.80f),
             style = MaterialTheme.typography.labelSmall
         )
@@ -964,6 +967,7 @@ private fun FullscreenBottomControls(
     canNextTrack: Boolean,
     positionSecondsProvider: () -> Double,
     durationSeconds: Double,
+    durationReliable: Boolean = true,
     canSeek: Boolean,
     onSeek: (Double) -> Unit,
     repeatMode: RepeatMode,
@@ -1046,6 +1050,7 @@ private fun FullscreenBottomControls(
                     FullscreenSeekBar(
                         positionSecondsProvider = positionSecondsProvider,
                         durationSeconds = durationSeconds,
+                        durationReliable = durationReliable,
                         canSeek = canSeek,
                         onSeek = onSeek
                     )
@@ -1111,6 +1116,7 @@ private fun FullscreenBottomControls(
                     FullscreenSeekBar(
                         positionSecondsProvider = positionSecondsProvider,
                         durationSeconds = durationSeconds,
+                        durationReliable = durationReliable,
                         canSeek = canSeek,
                         onSeek = onSeek
                     )
@@ -1211,11 +1217,7 @@ private fun FullscreenTrackTicker(
                         if (trackDurationSeconds > 0.0 || !trackDurationReliable) {
                             if (!formatLabel.isNullOrBlank()) Spacer(modifier = Modifier.width(6.dp))
                             Text(
-                                text = if (trackDurationReliable) {
-                                    formatTime(trackDurationSeconds)
-                                } else {
-                                    "${formatTime(trackDurationSeconds)}?"
-                                },
+                                text = formatDurationWithUnknown(trackDurationSeconds, trackDurationReliable),
                                 color = Color.White.copy(alpha = 0.70f),
                                 style = MaterialTheme.typography.labelSmall,
                                 maxLines = 1
@@ -1412,6 +1414,7 @@ internal fun FullscreenVisualizationOverlay(
                         canNextTrack = canNextTrack,
                         positionSecondsProvider = positionSecondsProvider,
                         durationSeconds = durationSeconds,
+                        durationReliable = hasReliableDuration,
                         canSeek = canSeek,
                         onSeek = onSeek,
                         repeatMode = repeatMode,

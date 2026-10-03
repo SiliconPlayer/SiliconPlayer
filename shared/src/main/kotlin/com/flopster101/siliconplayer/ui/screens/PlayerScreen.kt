@@ -76,6 +76,7 @@ import androidx.compose.material.icons.automirrored.filled.List
 import androidx.compose.material.icons.automirrored.filled.PlaylistAdd
 import androidx.compose.material.icons.automirrored.filled.VolumeUp
 import com.flopster101.siliconplayer.StoredPlaylist
+import com.flopster101.siliconplayer.formatTime
 import com.flopster101.siliconplayer.subtuneBadgeText
 import com.flopster101.siliconplayer.ui.dialogs.AddToPlaylistChooserDialog
 import androidx.compose.material.icons.filled.AudioFile
@@ -5367,13 +5368,6 @@ internal fun LineageStyleSeekBar(
             cornerRadius = CornerRadius(thumbWidthPx / 2f, thumbWidthPx / 2f)
         )
     }
-}
-
-internal fun formatTime(seconds: Double): String {
-    val safeSeconds = seconds.coerceAtLeast(0.0).roundToInt()
-    val minutes = safeSeconds / 60
-    val remainingSeconds = safeSeconds % 60
-    return "%02d:%02d".format(minutes, remainingSeconds)
 }
 
 internal fun formatBitrate(bitrateInBitsPerSecond: Long, isVBR: Boolean): String {

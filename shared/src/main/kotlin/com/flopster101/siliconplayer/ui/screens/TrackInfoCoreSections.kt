@@ -10,6 +10,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.flopster101.siliconplayer.DecoderNames
+import com.flopster101.siliconplayer.formatTime
 import com.flopster101.siliconplayer.matchesDecoderName
 import java.util.Locale
 
