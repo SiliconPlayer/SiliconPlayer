@@ -28,6 +28,7 @@ import android.os.Looper
 import android.os.PowerManager
 import android.os.SystemClock
 import android.net.wifi.WifiManager
+import android.view.KeyEvent
 import androidx.core.app.NotificationManagerCompat
 import androidx.core.content.ContextCompat
 import java.io.File
@@ -176,6 +177,10 @@ class PlaybackService : Service() {
     private var durationSeconds: Double = 0.0
     private var positionSeconds: Double = 0.0
     private var isPlaying: Boolean = false
+    // Pause takes effect at press time, but the native fade clears
+    // isEnginePlaying seconds later; while set, engine-true must not resurrect.
+    private var pauseSettling = false
+    private var pauseSettleDeadlineMs = 0L
     private var durationRefreshCountdown = 0
     private var lastNotificationPath: String? = null
     private var lastNotificationTitle: String? = null
@@ -259,7 +264,15 @@ class PlaybackService : Service() {
                             durationRefreshCountdown -= 1
                         }
                     }
-                    isPlaying = snapshot.isEnginePlaying
+                    val enginePlaying = snapshot.isEnginePlaying
+                    if (!enginePlaying) {
+                        pauseSettling = false
+                        isPlaying = false
+                    } else if (!pauseSettling || SystemClock.uptimeMillis() >= pauseSettleDeadlineMs) {
+                        pauseSettling = false
+                        isPlaying = true
+                    }
+                    // Else: pause still settling; keep the pressed state.
                     if (isPlaying) {
                         if (currentAudioEffectSessionId <= 0) {
                             val sid = NativeBridge.getAudioSessionId()
@@ -535,25 +548,54 @@ class PlaybackService : Service() {
             currentPlaybackCapabilitiesFlags
         )
         durationRefreshCountdown = 0
-        val wasPlaying = isPlaying
-        isPlaying = intent.getBooleanExtra(EXTRA_IS_PLAYING, false)
+        val incomingIsPlaying = intent.getBooleanExtra(EXTRA_IS_PLAYING, false)
+        if (incomingIsPlaying == isPlaying) {
+            applySyncPostState()
+            return
+        }
+        // Transport claims from the UI are echoes of a flag it doesn't own: a
+        // metadata refinement landing after an external (media-key) pause would
+        // otherwise resurrect stale true and eat the next resume press. The
+        // engine is the authority, and every engine op funnels through the
+        // single PlaybackIo thread, so this check observes all earlier transitions.
+        val syncPath = currentPath
+        serviceScope.launch {
+            val enginePlaying = withContext(Dispatchers.PlaybackIo) {
+                if (syncPath == null) false else NativeBridge.isEnginePlaying()
+            }
+            if (incomingIsPlaying && pauseSettling && SystemClock.uptimeMillis() < pauseSettleDeadlineMs) {
+                applySyncPostState()
+                return@launch
+            }
+            if (enginePlaying != incomingIsPlaying) {
+                applySyncPostState()
+                return@launch
+            }
+            val wasPlaying = isPlaying
+            isPlaying = incomingIsPlaying
+            pauseSettling = false
+            // Request audio focus when transitioning from not playing to playing
+            if (isPlaying && !wasPlaying && currentPath != null) {
+                requestAudioFocus()
+            } else if (!isPlaying && wasPlaying) {
+                abandonAudioFocus()
+                resumeOnFocusGain = false
+            }
+            if (isPlaying) {
+                acquireWakeLock()
+            } else {
+                releaseWakeLock()
+            }
+            applySyncPostState()
+        }
+    }
 
-        // Request audio focus when transitioning from not playing to playing
-        if (isPlaying && !wasPlaying && currentPath != null) {
-            requestAudioFocus()
-        } else if (!isPlaying && wasPlaying) {
-            abandonAudioFocus()
-            resumeOnFocusGain = false
-        }
-        if (isPlaying) {
-            acquireWakeLock()
-        } else {
-            releaseWakeLock()
-        }
+    private fun applySyncPostState() {
         updateNetworkPlaybackLocks()
         persistResumeCheckpointIfNeeded(force = true)
 
         if (currentPath == null) {
+            pauseSettling = false
             clearSessionRepeatMode()
             stopForegroundCompat(removeNotification = true)
             isForegroundNotificationShown = false
@@ -576,6 +618,15 @@ class PlaybackService : Service() {
 
     private fun playPlayback() {
         if (currentPath == null) return
+        // Record the intent synchronously: the engine start queues behind other
+        // native work, and a toggle pressed meanwhile must see the new state.
+        // The ticker reconciles from the engine if the start ever fails.
+        // A resume into a still-settling pause must first cancel the lingering
+        // fade-out: the native fade-start no-ops while the engine reports playing.
+        val resumeCancelsSettlingPause = pauseSettling
+        pauseSettling = false
+        isPlaying = true
+        updateMediaSessionState()
         requestAudioFocus()
         acquireWakeLock()
         serviceScope.launch {
@@ -596,6 +647,9 @@ class PlaybackService : Service() {
                             NativeBridge.setBitPerfectMode(true)
                         }
                     }
+                }
+                if (resumeCancelsSettlingPause) {
+                    NativeBridge.stopEngine()
                 }
                 if (shouldApplyPauseResumeFade()) {
                     NativeBridge.startEngineWithPauseResumeFade()
@@ -619,6 +673,13 @@ class PlaybackService : Service() {
     }
 
     private fun pausePlayback(abandonFocus: Boolean = true) {
+        // Same as play: a resume pressed while the engine stop is still queued
+        // must play, not re-pause.
+        val wasPlaying = isPlaying
+        isPlaying = false
+        pauseSettling = true
+        pauseSettleDeadlineMs = SystemClock.uptimeMillis() + PAUSE_SETTLE_TIMEOUT_MS
+        updateMediaSessionState()
         if (abandonFocus) {
             abandonAudioFocus()
             resumeOnFocusGain = false
@@ -627,7 +688,7 @@ class PlaybackService : Service() {
         serviceScope.launch {
             val shouldFade = shouldApplyPauseResumeFade()
             withContext(Dispatchers.PlaybackIo) {
-                if (!shouldFade || !isPlaying) {
+                if (!shouldFade || !wasPlaying) {
                     NativeBridge.stopEngine()
                 } else {
                     NativeBridge.stopEngineWithPauseResumeFade()
@@ -658,6 +719,7 @@ class PlaybackService : Service() {
         closeAudioEffectControlSession()
         serviceScope.launch { withContext(Dispatchers.PlaybackIo) { NativeBridge.releaseCurrentDecoder() } }
         isPlaying = false
+        pauseSettling = false
         releaseWakeLock()
         currentPath = null
         currentRequestUrl = null
@@ -683,6 +745,7 @@ class PlaybackService : Service() {
         resumeOnFocusGain = false
         NativeBridge.stopEngine()
         isPlaying = false
+        pauseSettling = false
         releaseWakeLock()
         updateNetworkPlaybackLocks()
         persistResumeCheckpointIfNeeded(force = true)
@@ -791,9 +854,44 @@ class PlaybackService : Service() {
         handler.post(ticker)
     }
 
+    private fun mediaButtonEvent(intent: Intent): KeyEvent? {
+        return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            intent.getParcelableExtra(Intent.EXTRA_KEY_EVENT, KeyEvent::class.java)
+        } else {
+            @Suppress("DEPRECATION")
+            intent.getParcelableExtra(Intent.EXTRA_KEY_EVENT) as? KeyEvent
+        }
+    }
+
     private fun setupMediaSession() {
         val session = MediaSession(this, "SiliconPlayerSession")
         session.setCallback(object : MediaSession.Callback() {
+            override fun onMediaButtonEvent(mediaButtonIntent: Intent): Boolean {
+                if (mediaButtonIntent.action != Intent.ACTION_MEDIA_BUTTON) {
+                    return super.onMediaButtonEvent(mediaButtonIntent)
+                }
+                // Pause keys (PLAY_PAUSE/HEADSETHOOK) must toggle immediately: the
+                // framework default holds the first press for the double-tap window,
+                // so a pause looked lost until the key was pressed again.
+                val event = mediaButtonEvent(mediaButtonIntent)
+                if (event == null || event.action != KeyEvent.ACTION_DOWN || event.repeatCount != 0) {
+                    return super.onMediaButtonEvent(mediaButtonIntent)
+                }
+                if (!prefs.getBoolean(PREF_RESPOND_MEDIA_BUTTONS, true)) return true
+                when (event.keyCode) {
+                    KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE, KeyEvent.KEYCODE_HEADSETHOOK ->
+                        if (isPlaying) pausePlayback() else playPlayback()
+                    KeyEvent.KEYCODE_MEDIA_PAUSE -> {
+                        // Some AVRCP senders pick PLAY/PAUSE from a slowly-polled
+                        // copy of our state, so a quick resume arrives as PAUSE.
+                        if (isPlaying) pausePlayback() else playPlayback()
+                    }
+                    KeyEvent.KEYCODE_MEDIA_PLAY -> playPlayback()
+                    else -> return super.onMediaButtonEvent(mediaButtonIntent)
+                }
+                return true
+            }
+
             override fun onPlay() {
                 if (!prefs.getBoolean(PREF_RESPOND_MEDIA_BUTTONS, true)) return
                 playPlayback()
@@ -1521,6 +1619,7 @@ class PlaybackService : Service() {
         // UI metadata updates arrive in bursts at track start (initial load,
         // metadata refinement, isPlaying flip); coalesce to one delivery.
         private const val SYNC_DEBOUNCE_MS = 100L
+        private const val PAUSE_SETTLE_TIMEOUT_MS = 5000L
 
         private const val PREFS_NAME = "silicon_player_settings"
         private const val PREF_RESPOND_MEDIA_BUTTONS = "respond_headphone_media_buttons"
