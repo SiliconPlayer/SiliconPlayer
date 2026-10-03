@@ -32,6 +32,49 @@ class DbusNameClaimTest {
     }
 
     @Test
+    fun staleOwnerIsTerminatedThenForceKilled() {
+        val self = 4242L
+        val cmdline = "/opt/SiliconPlayer/bin/SiliconPlayer"
+        assertEquals(
+            StaleOwnerAction.Terminate,
+            staleOwnerAction(pid = 1000L, selfPid = self, cmdline = cmdline, termAttempts = 0, alreadyForceKilled = false)
+        )
+        assertEquals(
+            StaleOwnerAction.Terminate,
+            staleOwnerAction(pid = 1000L, selfPid = self, cmdline = cmdline, termAttempts = 2, alreadyForceKilled = false)
+        )
+        assertEquals(
+            StaleOwnerAction.ForceKill,
+            staleOwnerAction(pid = 1000L, selfPid = self, cmdline = cmdline, termAttempts = 3, alreadyForceKilled = false)
+        )
+        assertEquals(
+            StaleOwnerAction.LeaveAlone,
+            staleOwnerAction(pid = 1000L, selfPid = self, cmdline = cmdline, termAttempts = 3, alreadyForceKilled = true)
+        )
+    }
+
+    @Test
+    fun staleOwnerLeavesOthersAlone() {
+        val self = 4242L
+        assertEquals(
+            StaleOwnerAction.LeaveAlone,
+            staleOwnerAction(pid = self, selfPid = self, cmdline = "SiliconPlayer", termAttempts = 0, alreadyForceKilled = false)
+        )
+        assertEquals(
+            StaleOwnerAction.LeaveAlone,
+            staleOwnerAction(pid = 0L, selfPid = self, cmdline = "SiliconPlayer", termAttempts = 0, alreadyForceKilled = false)
+        )
+        assertEquals(
+            StaleOwnerAction.LeaveAlone,
+            staleOwnerAction(pid = 1000L, selfPid = self, cmdline = "firefox", termAttempts = 0, alreadyForceKilled = false)
+        )
+        assertEquals(
+            StaleOwnerAction.LeaveAlone,
+            staleOwnerAction(pid = 1000L, selfPid = self, cmdline = "", termAttempts = 0, alreadyForceKilled = false)
+        )
+    }
+
+    @Test
     fun replacementFlagsStealTheNameFromACooperativeHolder() {
         assumeTrue(DbusSessionBus.resolveEndpoints().isNotEmpty())
         val holder = DbusSessionBus.connect(MPRIS_BUS_NAME + "-takeover-probe")

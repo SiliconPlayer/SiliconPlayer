@@ -33,7 +33,7 @@ internal class MprisService(
     private var supervisor: ScheduledExecutorService? = null
     private var lastState: MprisState? = null
     private var stopped = true
-    private var loggedUnavailable = false
+    private var lastUnavailableLogAt = 0L
 
     // Sampled on the poll thread only: a slow stateProvider must never delay a
     // method reply, or the client times out and drops the player.
@@ -88,11 +88,18 @@ internal class MprisService(
         val result = DbusSessionBus.connect(
             MPRIS_BUS_NAME,
             onFailure = { reason ->
-                // One log per outage; the supervisor keeps retrying silently.
-                val firstFailure = synchronized(lock) {
-                    if (loggedUnavailable) false else { loggedUnavailable = true; true }
+                // Retries run every 2s; log the first outage and then roughly
+                // every half minute so a nameless run stays visible.
+                val now = System.currentTimeMillis()
+                val shouldLog = synchronized(lock) {
+                    if (now - lastUnavailableLogAt > 30_000L) {
+                        lastUnavailableLogAt = now
+                        true
+                    } else {
+                        false
+                    }
                 }
-                if (firstFailure) onLog("MPRIS unavailable: $reason")
+                if (shouldLog) onLog("MPRIS unavailable: $reason")
             },
             env = env
         ) ?: return
@@ -114,7 +121,7 @@ internal class MprisService(
             connection = bus
             poller = ticker
             lastState = null
-            loggedUnavailable = false
+            lastUnavailableLogAt = 0L
         }
         // Sample synchronously before announcing: a client that discovers us in
         // the first moments must already see real state, not the empty default.

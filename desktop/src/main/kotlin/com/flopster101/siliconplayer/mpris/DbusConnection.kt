@@ -32,6 +32,32 @@ internal fun isSiliconPlayerCmdline(cmdline: String): Boolean {
     return cmdline.contains("siliconplayer", ignoreCase = true)
 }
 
+// What to do about the process currently owning the name we want.
+internal enum class StaleOwnerAction {
+    LeaveAlone,
+    Terminate,
+    ForceKill
+}
+
+internal const val MAX_OWNER_TERM_ATTEMPTS = 3
+
+// Pure decision behind retireStaleNameOwner: only our own stale instances are
+// ever touched, a live peer is asked once per relaunch loop, and a predecessor
+// that ignores SIGTERM is SIGKILLed instead of holding the name forever.
+internal fun staleOwnerAction(
+    pid: Long,
+    selfPid: Long,
+    cmdline: String,
+    termAttempts: Int,
+    alreadyForceKilled: Boolean
+): StaleOwnerAction {
+    if (pid <= 0 || pid == selfPid) return StaleOwnerAction.LeaveAlone
+    if (!isSiliconPlayerCmdline(cmdline)) return StaleOwnerAction.LeaveAlone
+    if (alreadyForceKilled) return StaleOwnerAction.LeaveAlone
+    return if (termAttempts >= MAX_OWNER_TERM_ATTEMPTS) StaleOwnerAction.ForceKill
+    else StaleOwnerAction.Terminate
+}
+
 internal data class DbusEndpoint(val path: String)
 
 internal data class DbusConnectionResult(val connection: DbusConnection)
@@ -254,6 +280,7 @@ internal object DbusSessionBus {
                 continue
             }
             if (nameRequestOwnsName(nameReply)) {
+                clearRetiredOwners()
                 return DbusConnectionResult(connection)
             }
             if (nameReply == DBUS_REQUEST_NAME_REPLY_EXISTS) {
@@ -336,12 +363,20 @@ internal object DbusSessionBus {
         return (reply.firstOrNull() as? DbusValue.Uint32Value)?.value?.toInt() ?: 0
     }
 
-    private val retiredNameOwners = mutableSetOf<String>()
+    // PIDs already asked to exit, with their SIGTERM counts, plus PIDs already
+    // SIGKILLed: a stubborn predecessor must not hold the name forever, but a
+    // live peer must never be signalled in a tight relaunch loop.
+    private val retiredOwnerAttempts = mutableMapOf<Long, Int>()
+    private val forceRetiredOwnerPids = mutableSetOf<Long>()
+
+    private fun clearRetiredOwners() {
+        synchronized(retiredOwnerAttempts) {
+            retiredOwnerAttempts.clear()
+            forceRetiredOwnerPids.clear()
+        }
+    }
 
     private fun retireStaleNameOwner(connection: DbusConnection, name: String, onFailure: (String) -> Unit) {
-        synchronized(retiredNameOwners) {
-            if (!retiredNameOwners.add(name)) return
-        }
         val owner = runCatching {
             connection.call(
                 destination = DBUS_SERVICE,
@@ -362,15 +397,40 @@ internal object DbusSessionBus {
                 ).firstOrNull() as? DbusValue.Uint32Value
             }.getOrNull()?.value?.toLong()
         } ?: return
-        if (pid <= 0 || pid == ProcessHandle.current().pid()) return
         val cmdline = runCatching { File("/proc/$pid/cmdline").readBytes().toString(Charsets.UTF_8) }
             .getOrNull()?.replace('\u0000', ' ') ?: return
-        if (!isSiliconPlayerCmdline(cmdline)) {
-            onFailure("$name is held by an unrelated process ($pid), leaving it alone")
-            return
+        val action = synchronized(retiredOwnerAttempts) {
+            staleOwnerAction(
+                pid = pid,
+                selfPid = ProcessHandle.current().pid(),
+                cmdline = cmdline,
+                termAttempts = retiredOwnerAttempts.getOrDefault(pid, 0),
+                alreadyForceKilled = forceRetiredOwnerPids.contains(pid)
+            )
         }
-        runCatching { ProcessHandle.of(pid).ifPresent { handle -> handle.destroy() } }
-        onFailure("$name was held by a stale instance ($pid), asked it to exit")
+        when (action) {
+            StaleOwnerAction.LeaveAlone -> {
+                if (pid != ProcessHandle.current().pid() && !isSiliconPlayerCmdline(cmdline)) {
+                    onFailure("$name is held by an unrelated process ($pid), leaving it alone")
+                }
+                return
+            }
+            StaleOwnerAction.Terminate -> {
+                runCatching { ProcessHandle.of(pid).ifPresent { handle -> handle.destroy() } }
+                synchronized(retiredOwnerAttempts) {
+                    retiredOwnerAttempts[pid] = retiredOwnerAttempts.getOrDefault(pid, 0) + 1
+                }
+                onFailure("$name was held by a stale instance ($pid), asked it to exit")
+            }
+            StaleOwnerAction.ForceKill -> {
+                runCatching { ProcessHandle.of(pid).ifPresent { handle -> handle.destroyForcibly() } }
+                synchronized(retiredOwnerAttempts) {
+                    retiredOwnerAttempts.remove(pid)
+                    forceRetiredOwnerPids.add(pid)
+                }
+                onFailure("$name was held by a stubborn instance ($pid), killed it")
+            }
+        }
     }
 
     private fun currentUid(): Int? {
