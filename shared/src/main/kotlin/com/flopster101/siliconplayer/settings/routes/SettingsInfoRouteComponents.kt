@@ -212,9 +212,15 @@ private fun AboutEntityListItemCard(
     icon: androidx.compose.ui.graphics.vector.ImageVector,
     onClick: () -> Unit
 ) {
+    val versionLabel = remember(entity.id) { AboutCatalog.resolveVersion(entity.id) }
+    val subtitle = if (!versionLabel.isNullOrBlank()) {
+        "${entity.license} • $versionLabel"
+    } else {
+        entity.license
+    }
     SettingsItemCard(
         title = entity.name,
-        description = "${entity.description}\nAuthor: ${entity.author}\nLicense: ${entity.license}",
+        description = subtitle,
         icon = icon,
         onClick = onClick
     )
