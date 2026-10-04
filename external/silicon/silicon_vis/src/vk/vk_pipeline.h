@@ -49,6 +49,7 @@ private:
 
     bool createOffscreenResources();
     void cleanupOffscreenResources();
+    bool createOffscreenRenderPass();
 
     bool initialized_ = false;
     bool isSurfaceMode_ = false;
@@ -73,6 +74,10 @@ private:
     VkCommandBuffer currentCmd_ = VK_NULL_HANDLE;
 
     // Offscreen resources (Desktop headless mode)
+    VkSampleCountFlagBits msaaSamples_ = VK_SAMPLE_COUNT_1_BIT;
+    VkImage msaaImage_ = VK_NULL_HANDLE;
+    VkDeviceMemory msaaMemory_ = VK_NULL_HANDLE;
+    VkImageView msaaImageView_ = VK_NULL_HANDLE;
     VkImage offscreenImage_ = VK_NULL_HANDLE;
     VkDeviceMemory offscreenMemory_ = VK_NULL_HANDLE;
     VkImageView offscreenImageView_ = VK_NULL_HANDLE;

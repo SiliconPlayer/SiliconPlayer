@@ -63,12 +63,24 @@ bool SiliconVisVulkanPipeline::init(uint32_t width, uint32_t height, void* nativ
 #endif
     } else {
         isSurfaceMode_ = false;
+        uint32_t reqSamples = 4;
+        if (reqSamples >= 4 && (context_.getCapabilities().maxMsaaSamples >= 4)) {
+            msaaSamples_ = VK_SAMPLE_COUNT_4_BIT;
+        } else if (reqSamples >= 2 && (context_.getCapabilities().maxMsaaSamples >= 2)) {
+            msaaSamples_ = VK_SAMPLE_COUNT_2_BIT;
+        } else {
+            msaaSamples_ = VK_SAMPLE_COUNT_1_BIT;
+        }
+        if (!createOffscreenRenderPass()) {
+            release();
+            return false;
+        }
         if (!createOffscreenResources()) {
             release();
             return false;
         }
         initialRenderPass = offscreenRenderPass_;
-        samples = VK_SAMPLE_COUNT_1_BIT;
+        samples = msaaSamples_;
     }
 
     if (!pipelines_.init(&context_, initialRenderPass, 0, samples)) {
@@ -114,6 +126,11 @@ void SiliconVisVulkanPipeline::release() {
     cleanupSyncObjects();
     cleanupOffscreenResources();
 
+    if (offscreenRenderPass_ != VK_NULL_HANDLE && device != VK_NULL_HANDLE) {
+        table.vkDestroyRenderPass(device, offscreenRenderPass_, nullptr);
+        offscreenRenderPass_ = VK_NULL_HANDLE;
+    }
+
     fontAtlas_.release();
     vertexBuffer_.release();
     pipelines_.release();
@@ -124,6 +141,7 @@ void SiliconVisVulkanPipeline::release() {
     isSurfaceMode_ = false;
     width_ = 0;
     height_ = 0;
+    msaaSamples_ = VK_SAMPLE_COUNT_1_BIT;
 }
 
 bool SiliconVisVulkanPipeline::resize(uint32_t width, uint32_t height, float density) {
@@ -208,6 +226,105 @@ void SiliconVisVulkanPipeline::cleanupSyncObjects() {
     }
 }
 
+bool SiliconVisVulkanPipeline::createOffscreenRenderPass() {
+    const auto& table = VkLoader::table();
+    VkDevice device = context_.getDevice();
+
+    if (msaaSamples_ > VK_SAMPLE_COUNT_1_BIT) {
+        VkAttachmentDescription msaaColorAttachment{};
+        msaaColorAttachment.format = VK_FORMAT_R8G8B8A8_UNORM;
+        msaaColorAttachment.samples = msaaSamples_;
+        msaaColorAttachment.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
+        msaaColorAttachment.storeOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
+        msaaColorAttachment.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
+        msaaColorAttachment.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
+        msaaColorAttachment.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+        msaaColorAttachment.finalLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+
+        VkAttachmentReference colorAttachmentRef{};
+        colorAttachmentRef.attachment = 0;
+        colorAttachmentRef.layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+
+        VkAttachmentDescription resolveAttachment{};
+        resolveAttachment.format = VK_FORMAT_R8G8B8A8_UNORM;
+        resolveAttachment.samples = VK_SAMPLE_COUNT_1_BIT;
+        resolveAttachment.loadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
+        resolveAttachment.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
+        resolveAttachment.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
+        resolveAttachment.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
+        resolveAttachment.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+        resolveAttachment.finalLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+
+        VkAttachmentReference resolveAttachmentRef{};
+        resolveAttachmentRef.attachment = 1;
+        resolveAttachmentRef.layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+
+        VkSubpassDescription subpass{};
+        subpass.pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS;
+        subpass.colorAttachmentCount = 1;
+        subpass.pColorAttachments = &colorAttachmentRef;
+        subpass.pResolveAttachments = &resolveAttachmentRef;
+
+        VkSubpassDependency dependency{};
+        dependency.srcSubpass = VK_SUBPASS_EXTERNAL;
+        dependency.dstSubpass = 0;
+        dependency.srcStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
+        dependency.srcAccessMask = 0;
+        dependency.dstStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
+        dependency.dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
+
+        VkAttachmentDescription attachments[2] = { msaaColorAttachment, resolveAttachment };
+        VkRenderPassCreateInfo renderPassInfo{};
+        renderPassInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO;
+        renderPassInfo.attachmentCount = 2;
+        renderPassInfo.pAttachments = attachments;
+        renderPassInfo.subpassCount = 1;
+        renderPassInfo.pSubpasses = &subpass;
+        renderPassInfo.dependencyCount = 1;
+        renderPassInfo.pDependencies = &dependency;
+
+        return table.vkCreateRenderPass(device, &renderPassInfo, nullptr, &offscreenRenderPass_) == VK_SUCCESS;
+    } else {
+        VkAttachmentDescription colorAttachment{};
+        colorAttachment.format = VK_FORMAT_R8G8B8A8_UNORM;
+        colorAttachment.samples = VK_SAMPLE_COUNT_1_BIT;
+        colorAttachment.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
+        colorAttachment.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
+        colorAttachment.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
+        colorAttachment.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
+        colorAttachment.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+        colorAttachment.finalLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+
+        VkAttachmentReference colorAttachmentRef{};
+        colorAttachmentRef.attachment = 0;
+        colorAttachmentRef.layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+
+        VkSubpassDescription subpass{};
+        subpass.pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS;
+        subpass.colorAttachmentCount = 1;
+        subpass.pColorAttachments = &colorAttachmentRef;
+
+        VkSubpassDependency dependency{};
+        dependency.srcSubpass = VK_SUBPASS_EXTERNAL;
+        dependency.dstSubpass = 0;
+        dependency.srcStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
+        dependency.srcAccessMask = 0;
+        dependency.dstStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
+        dependency.dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
+
+        VkRenderPassCreateInfo renderPassInfo{};
+        renderPassInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO;
+        renderPassInfo.attachmentCount = 1;
+        renderPassInfo.pAttachments = &colorAttachment;
+        renderPassInfo.subpassCount = 1;
+        renderPassInfo.pSubpasses = &subpass;
+        renderPassInfo.dependencyCount = 1;
+        renderPassInfo.pDependencies = &dependency;
+
+        return table.vkCreateRenderPass(device, &renderPassInfo, nullptr, &offscreenRenderPass_) == VK_SUCCESS;
+    }
+}
+
 bool SiliconVisVulkanPipeline::createOffscreenResources() {
     const auto& table = VkLoader::table();
     VkDevice device = context_.getDevice();
@@ -263,41 +380,78 @@ bool SiliconVisVulkanPipeline::createOffscreenResources() {
         return false;
     }
 
-    // 3. Render Pass
-    VkAttachmentDescription colorAttachment{};
-    colorAttachment.format = VK_FORMAT_R8G8B8A8_UNORM;
-    colorAttachment.samples = VK_SAMPLE_COUNT_1_BIT;
-    colorAttachment.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
-    colorAttachment.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
-    colorAttachment.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
-    colorAttachment.finalLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+    // 3. MSAA Image and View
+    if (msaaSamples_ > VK_SAMPLE_COUNT_1_BIT) {
+        VkImageCreateInfo msaaImageInfo{};
+        msaaImageInfo.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
+        msaaImageInfo.imageType = VK_IMAGE_TYPE_2D;
+        msaaImageInfo.extent.width = width_;
+        msaaImageInfo.extent.height = height_;
+        msaaImageInfo.extent.depth = 1;
+        msaaImageInfo.mipLevels = 1;
+        msaaImageInfo.arrayLayers = 1;
+        msaaImageInfo.format = VK_FORMAT_R8G8B8A8_UNORM;
+        msaaImageInfo.tiling = VK_IMAGE_TILING_OPTIMAL;
+        msaaImageInfo.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+        msaaImageInfo.usage = VK_IMAGE_USAGE_TRANSIENT_ATTACHMENT_BIT | VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
+        msaaImageInfo.samples = msaaSamples_;
+        msaaImageInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
 
-    VkAttachmentReference colorAttachmentRef{};
-    colorAttachmentRef.attachment = 0;
-    colorAttachmentRef.layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+        if (table.vkCreateImage(device, &msaaImageInfo, nullptr, &msaaImage_) != VK_SUCCESS) {
+            return false;
+        }
 
-    VkSubpassDescription subpass{};
-    subpass.pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS;
-    subpass.colorAttachmentCount = 1;
-    subpass.pColorAttachments = &colorAttachmentRef;
+        VkMemoryRequirements msaaReqs{};
+        table.vkGetImageMemoryRequirements(device, msaaImage_, &msaaReqs);
 
-    VkRenderPassCreateInfo renderPassInfo{};
-    renderPassInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO;
-    renderPassInfo.attachmentCount = 1;
-    renderPassInfo.pAttachments = &colorAttachment;
-    renderPassInfo.subpassCount = 1;
-    renderPassInfo.pSubpasses = &subpass;
+        uint32_t msaaMemType = findMemoryType(
+            physDev, msaaReqs.memoryTypeBits,
+            VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT | VK_MEMORY_PROPERTY_LAZILY_ALLOCATED_BIT
+        );
+        if (msaaMemType == 0xFFFFFFFF) {
+            msaaMemType = findMemoryType(physDev, msaaReqs.memoryTypeBits, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
+        }
 
-    if (table.vkCreateRenderPass(device, &renderPassInfo, nullptr, &offscreenRenderPass_) != VK_SUCCESS) {
-        return false;
+        VkMemoryAllocateInfo msaaAlloc{};
+        msaaAlloc.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
+        msaaAlloc.allocationSize = msaaReqs.size;
+        msaaAlloc.memoryTypeIndex = msaaMemType;
+
+        if (table.vkAllocateMemory(device, &msaaAlloc, nullptr, &msaaMemory_) != VK_SUCCESS) {
+            return false;
+        }
+        table.vkBindImageMemory(device, msaaImage_, msaaMemory_, 0);
+
+        VkImageViewCreateInfo msaaViewInfo{};
+        msaaViewInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
+        msaaViewInfo.image = msaaImage_;
+        msaaViewInfo.viewType = VK_IMAGE_VIEW_TYPE_2D;
+        msaaViewInfo.format = VK_FORMAT_R8G8B8A8_UNORM;
+        msaaViewInfo.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+        msaaViewInfo.subresourceRange.baseMipLevel = 0;
+        msaaViewInfo.subresourceRange.levelCount = 1;
+        msaaViewInfo.subresourceRange.baseArrayLayer = 0;
+        msaaViewInfo.subresourceRange.layerCount = 1;
+
+        if (table.vkCreateImageView(device, &msaaViewInfo, nullptr, &msaaImageView_) != VK_SUCCESS) {
+            return false;
+        }
     }
 
     // 4. Framebuffer
     VkFramebufferCreateInfo fbInfo{};
     fbInfo.sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO;
     fbInfo.renderPass = offscreenRenderPass_;
-    fbInfo.attachmentCount = 1;
-    fbInfo.pAttachments = &offscreenImageView_;
+    VkImageView attachments[2];
+    if (msaaSamples_ > VK_SAMPLE_COUNT_1_BIT) {
+        attachments[0] = msaaImageView_;
+        attachments[1] = offscreenImageView_;
+        fbInfo.attachmentCount = 2;
+        fbInfo.pAttachments = attachments;
+    } else {
+        fbInfo.attachmentCount = 1;
+        fbInfo.pAttachments = &offscreenImageView_;
+    }
     fbInfo.width = width_;
     fbInfo.height = height_;
     fbInfo.layers = 1;
@@ -359,10 +513,6 @@ void SiliconVisVulkanPipeline::cleanupOffscreenResources() {
         table.vkDestroyFramebuffer(device, offscreenFramebuffer_, nullptr);
         offscreenFramebuffer_ = VK_NULL_HANDLE;
     }
-    if (offscreenRenderPass_ != VK_NULL_HANDLE) {
-        table.vkDestroyRenderPass(device, offscreenRenderPass_, nullptr);
-        offscreenRenderPass_ = VK_NULL_HANDLE;
-    }
     if (offscreenImageView_ != VK_NULL_HANDLE) {
         table.vkDestroyImageView(device, offscreenImageView_, nullptr);
         offscreenImageView_ = VK_NULL_HANDLE;
@@ -374,6 +524,19 @@ void SiliconVisVulkanPipeline::cleanupOffscreenResources() {
     if (offscreenMemory_ != VK_NULL_HANDLE) {
         table.vkFreeMemory(device, offscreenMemory_, nullptr);
         offscreenMemory_ = VK_NULL_HANDLE;
+    }
+
+    if (msaaImageView_ != VK_NULL_HANDLE) {
+        table.vkDestroyImageView(device, msaaImageView_, nullptr);
+        msaaImageView_ = VK_NULL_HANDLE;
+    }
+    if (msaaImage_ != VK_NULL_HANDLE) {
+        table.vkDestroyImage(device, msaaImage_, nullptr);
+        msaaImage_ = VK_NULL_HANDLE;
+    }
+    if (msaaMemory_ != VK_NULL_HANDLE) {
+        table.vkFreeMemory(device, msaaMemory_, nullptr);
+        msaaMemory_ = VK_NULL_HANDLE;
     }
 }
 
@@ -423,11 +586,16 @@ bool SiliconVisVulkanPipeline::beginFrame() {
     table.vkBeginCommandBuffer(cmd, &beginInfo);
 
     // Begin Render Pass
-    VkClearValue clearColor{};
-    clearColor.color.float32[0] = clearColor_[0];
-    clearColor.color.float32[1] = clearColor_[1];
-    clearColor.color.float32[2] = clearColor_[2];
-    clearColor.color.float32[3] = clearColor_[3];
+    VkClearValue clearValues[2]{};
+    for (int i = 0; i < 2; ++i) {
+        clearValues[i].color.float32[0] = clearColor_[0];
+        clearValues[i].color.float32[1] = clearColor_[1];
+        clearValues[i].color.float32[2] = clearColor_[2];
+        clearValues[i].color.float32[3] = clearColor_[3];
+    }
+
+    bool hasMsaa = isSurfaceMode_ ? (swapchain_.getMsaaSamples() > VK_SAMPLE_COUNT_1_BIT)
+                                  : (msaaSamples_ > VK_SAMPLE_COUNT_1_BIT);
 
     VkRenderPassBeginInfo passInfo{};
     passInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
@@ -435,8 +603,8 @@ bool SiliconVisVulkanPipeline::beginFrame() {
     passInfo.framebuffer = targetFramebuffer;
     passInfo.renderArea.offset = {0, 0};
     passInfo.renderArea.extent = {width_, height_};
-    passInfo.clearValueCount = 1;
-    passInfo.pClearValues = &clearColor;
+    passInfo.clearValueCount = hasMsaa ? 2 : 1;
+    passInfo.pClearValues = clearValues;
 
     table.vkCmdBeginRenderPass(cmd, &passInfo, VK_SUBPASS_CONTENTS_INLINE);
 
