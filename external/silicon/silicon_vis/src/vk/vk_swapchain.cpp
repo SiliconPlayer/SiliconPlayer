@@ -114,8 +114,24 @@ bool VkSwapchain::createSwapchain(uint32_t width, uint32_t height) {
     VkSurfaceCapabilitiesKHR caps{};
     table.vkGetPhysicalDeviceSurfaceCapabilitiesKHR(physDev, surface_, &caps);
 
-    extent_.width = std::clamp(width, caps.minImageExtent.width, caps.maxImageExtent.width);
-    extent_.height = std::clamp(height, caps.minImageExtent.height, caps.maxImageExtent.height);
+    VkSurfaceTransformFlagBitsKHR preTransform = VK_SURFACE_TRANSFORM_IDENTITY_BIT_KHR;
+    if (!(caps.supportedTransforms & VK_SURFACE_TRANSFORM_IDENTITY_BIT_KHR)) {
+        preTransform = caps.currentTransform;
+    }
+
+    if (caps.currentExtent.width != 0xFFFFFFFF && caps.currentExtent.width > 0) {
+        extent_ = caps.currentExtent;
+    } else {
+        extent_.width = std::clamp(width, caps.minImageExtent.width, caps.maxImageExtent.width);
+        extent_.height = std::clamp(height, caps.minImageExtent.height, caps.maxImageExtent.height);
+    }
+
+    if (preTransform == VK_SURFACE_TRANSFORM_IDENTITY_BIT_KHR && width > 0 && height > 0) {
+        if ((width > height && extent_.width < extent_.height) ||
+            (width < height && extent_.width > extent_.height)) {
+            std::swap(extent_.width, extent_.height);
+        }
+    }
 
     uint32_t minImages = 0;
     if (!context_->querySurfaceSupport(surface_, minImages, format_, presentMode_)) {
@@ -147,7 +163,7 @@ bool VkSwapchain::createSwapchain(uint32_t width, uint32_t height) {
     createInfo.imageArrayLayers = 1;
     createInfo.imageUsage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
     createInfo.imageSharingMode = VK_SHARING_MODE_EXCLUSIVE;
-    createInfo.preTransform = caps.currentTransform;
+    createInfo.preTransform = preTransform;
     createInfo.compositeAlpha = compositeAlpha;
     createInfo.presentMode = presentMode_;
     createInfo.clipped = VK_TRUE;

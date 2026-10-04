@@ -52,6 +52,9 @@ bool SiliconVisVulkanPipeline::init(uint32_t width, uint32_t height, void* nativ
             release();
             return false;
         }
+        auto ext = swapchain_.getExtent();
+        width_ = ext.width;
+        height_ = ext.height;
         initialRenderPass = swapchain_.getRenderPass();
         samples = swapchain_.getMsaaSamples();
 #else
@@ -130,7 +133,13 @@ bool SiliconVisVulkanPipeline::resize(uint32_t width, uint32_t height, float den
     density_ = std::max(1.0f, density);
 
     if (isSurfaceMode_) {
-        return swapchain_.resize(width_, height_);
+        bool ok = swapchain_.resize(width_, height_);
+        if (ok) {
+            auto ext = swapchain_.getExtent();
+            width_ = ext.width;
+            height_ = ext.height;
+        }
+        return ok;
     } else {
         const auto& table = VkLoader::table();
         table.vkDeviceWaitIdle(context_.getDevice());
@@ -387,7 +396,11 @@ bool SiliconVisVulkanPipeline::beginFrame() {
         bool outOfDate = false;
         if (!swapchain_.acquireNextImage(imageAvailableSemaphores_[currentFrameIndex_], currentImageIndex_, outOfDate)) {
             if (outOfDate) {
-                swapchain_.resize(width_, height_);
+                if (swapchain_.resize(width_, height_)) {
+                    auto ext = swapchain_.getExtent();
+                    width_ = ext.width;
+                    height_ = ext.height;
+                }
             }
             return false;
         }
@@ -513,7 +526,11 @@ void SiliconVisVulkanPipeline::endFrame() {
         bool outOfDate = false;
         swapchain_.present(queue, currentImageIndex_, renderFinishedSemaphores_[currentFrameIndex_], outOfDate);
         if (outOfDate) {
-            swapchain_.resize(width_, height_);
+            if (swapchain_.resize(width_, height_)) {
+                auto ext = swapchain_.getExtent();
+                width_ = ext.width;
+                height_ = ext.height;
+            }
         }
     } else {
         table.vkWaitForFences(device, 1, &inFlightFences_[currentFrameIndex_], VK_TRUE, UINT64_MAX);

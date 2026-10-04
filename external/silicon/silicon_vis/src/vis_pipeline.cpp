@@ -380,9 +380,11 @@ bool SiliconVisPipeline::initVulkan(uint32_t width, uint32_t height, void* nativ
     }
     widthPx_ = static_cast<int32_t>(width);
     heightPx_ = static_cast<int32_t>(height);
-    channelScope_.resize(widthPx_, heightPx_, density_);
     bool ok = vulkanPipeline_->init(width, height, nativeWindow);
     if (ok) {
+        widthPx_ = static_cast<int32_t>(vulkanPipeline_->getWidth());
+        heightPx_ = static_cast<int32_t>(vulkanPipeline_->getHeight());
+        channelScope_.resize(widthPx_, heightPx_, density_);
         float r = ((surfaceColorArgb_ >> 16) & 0xFF) / 255.0f;
         float g = ((surfaceColorArgb_ >> 8) & 0xFF) / 255.0f;
         float b = (surfaceColorArgb_ & 0xFF) / 255.0f;
@@ -398,10 +400,12 @@ void SiliconVisPipeline::resizeVulkan(uint32_t width, uint32_t height, float den
     widthPx_ = static_cast<int32_t>(width);
     heightPx_ = static_cast<int32_t>(height);
     density_ = std::max(1.0f, density);
-    channelScope_.resize(widthPx_, heightPx_, density_);
     if (vulkanPipeline_) {
         vulkanPipeline_->resize(width, height, density);
+        widthPx_ = static_cast<int32_t>(vulkanPipeline_->getWidth());
+        heightPx_ = static_cast<int32_t>(vulkanPipeline_->getHeight());
     }
+    channelScope_.resize(widthPx_, heightPx_, density_);
 }
 
 void SiliconVisPipeline::releaseVulkan() {
@@ -451,6 +455,11 @@ void SiliconVisPipeline::renderVulkan() {
     float h = static_cast<float>(vulkanPipeline_->getHeight());
 
     if (currentMode_ == SILICON_VIS_MODE_CHANNEL_SCOPE) {
+        if (widthPx_ != static_cast<int32_t>(w) || heightPx_ != static_cast<int32_t>(h)) {
+            widthPx_ = static_cast<int32_t>(w);
+            heightPx_ = static_cast<int32_t>(h);
+            channelScope_.resize(widthPx_, heightPx_, density_);
+        }
         channelScope_.renderVk(
             cmd,
             &vulkanPipeline_->getPipelines(),
