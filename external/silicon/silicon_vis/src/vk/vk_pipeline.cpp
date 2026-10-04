@@ -125,6 +125,7 @@ void SiliconVisVulkanPipeline::release() {
 
     cleanupSyncObjects();
     cleanupOffscreenResources();
+    cleanupSnapshot();
 
     if (offscreenRenderPass_ != VK_NULL_HANDLE && device != VK_NULL_HANDLE) {
         table.vkDestroyRenderPass(device, offscreenRenderPass_, nullptr);
@@ -142,10 +143,13 @@ void SiliconVisVulkanPipeline::release() {
     width_ = 0;
     height_ = 0;
     msaaSamples_ = VK_SAMPLE_COUNT_1_BIT;
+    hasRenderedFrame_ = false;
 }
 
 bool SiliconVisVulkanPipeline::resize(uint32_t width, uint32_t height, float density) {
     if (!initialized_ || width == 0 || height == 0) return false;
+    cleanupSnapshot();
+    hasRenderedFrame_ = false;
     width_ = width;
     height_ = height;
     density_ = std::max(1.0f, density);
@@ -704,6 +708,9 @@ void SiliconVisVulkanPipeline::endFrame() {
         table.vkWaitForFences(device, 1, &inFlightFences_[currentFrameIndex_], VK_TRUE, UINT64_MAX);
     }
 
+    lastRenderedImageIndex_ = currentImageIndex_;
+    hasRenderedFrame_ = true;
+
     currentCmd_ = VK_NULL_HANDLE;
     currentFrameIndex_ = (currentFrameIndex_ + 1) % kMaxFramesInFlight;
 }
@@ -715,6 +722,290 @@ bool SiliconVisVulkanPipeline::copyPixelsToBuffer(void* outRgbaBuffer, size_t bu
 
     memcpy(outRgbaBuffer, readbackMapped_, expectedSize);
     return true;
+}
+
+void SiliconVisVulkanPipeline::cleanupSnapshot() {
+    if (!context_.isInitialized()) return;
+    const auto& table = VkLoader::table();
+    VkDevice device = context_.getDevice();
+
+    hasSnapshot_ = false;
+    snapshotWidth_ = 0;
+    snapshotHeight_ = 0;
+
+    if (snapshotDescriptorPool_ != VK_NULL_HANDLE) {
+        table.vkDestroyDescriptorPool(device, snapshotDescriptorPool_, nullptr);
+        snapshotDescriptorPool_ = VK_NULL_HANDLE;
+        snapshotDescriptorSet_ = VK_NULL_HANDLE;
+    }
+    if (snapshotSampler_ != VK_NULL_HANDLE) {
+        table.vkDestroySampler(device, snapshotSampler_, nullptr);
+        snapshotSampler_ = VK_NULL_HANDLE;
+    }
+    if (snapshotImageView_ != VK_NULL_HANDLE) {
+        table.vkDestroyImageView(device, snapshotImageView_, nullptr);
+        snapshotImageView_ = VK_NULL_HANDLE;
+    }
+    if (snapshotImage_ != VK_NULL_HANDLE) {
+        table.vkDestroyImage(device, snapshotImage_, nullptr);
+        snapshotImage_ = VK_NULL_HANDLE;
+    }
+    if (snapshotMemory_ != VK_NULL_HANDLE) {
+        table.vkFreeMemory(device, snapshotMemory_, nullptr);
+        snapshotMemory_ = VK_NULL_HANDLE;
+    }
+}
+
+void SiliconVisVulkanPipeline::releaseTransitionSnapshot() {
+    cleanupSnapshot();
+}
+
+bool SiliconVisVulkanPipeline::takeTransitionSnapshot() {
+    if (!initialized_ || !hasRenderedFrame_ || width_ == 0 || height_ == 0 || isSurfaceMode_) return false;
+
+    const auto& table = VkLoader::table();
+    VkDevice device = context_.getDevice();
+    VkPhysicalDevice physDev = context_.getPhysicalDevice();
+    VkQueue queue = context_.getGraphicsQueue();
+    if (device == VK_NULL_HANDLE || queue == VK_NULL_HANDLE) return false;
+
+    table.vkDeviceWaitIdle(device);
+
+    VkFormat srcFormat = isSurfaceMode_ ? swapchain_.getFormat().format : VK_FORMAT_R8G8B8A8_UNORM;
+    VkImage srcImage = isSurfaceMode_ ? swapchain_.getImage(lastRenderedImageIndex_) : offscreenImage_;
+    VkImageLayout srcOldLayout = isSurfaceMode_ ? VK_IMAGE_LAYOUT_PRESENT_SRC_KHR : VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+
+    if (srcImage == VK_NULL_HANDLE) return false;
+
+    if (snapshotWidth_ != width_ || snapshotHeight_ != height_ || snapshotImage_ == VK_NULL_HANDLE) {
+        cleanupSnapshot();
+
+        VkImageCreateInfo imageInfo{};
+        imageInfo.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
+        imageInfo.imageType = VK_IMAGE_TYPE_2D;
+        imageInfo.extent.width = width_;
+        imageInfo.extent.height = height_;
+        imageInfo.extent.depth = 1;
+        imageInfo.mipLevels = 1;
+        imageInfo.arrayLayers = 1;
+        imageInfo.format = srcFormat;
+        imageInfo.tiling = VK_IMAGE_TILING_OPTIMAL;
+        imageInfo.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+        imageInfo.usage = VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT;
+        imageInfo.samples = VK_SAMPLE_COUNT_1_BIT;
+        imageInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+
+        if (table.vkCreateImage(device, &imageInfo, nullptr, &snapshotImage_) != VK_SUCCESS) {
+            return false;
+        }
+
+        VkMemoryRequirements memReqs{};
+        table.vkGetImageMemoryRequirements(device, snapshotImage_, &memReqs);
+
+        uint32_t memType = findMemoryType(physDev, memReqs.memoryTypeBits, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
+        if (memType == 0xFFFFFFFF) {
+            cleanupSnapshot();
+            return false;
+        }
+
+        VkMemoryAllocateInfo allocInfo{};
+        allocInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
+        allocInfo.allocationSize = memReqs.size;
+        allocInfo.memoryTypeIndex = memType;
+
+        if (table.vkAllocateMemory(device, &allocInfo, nullptr, &snapshotMemory_) != VK_SUCCESS) {
+            cleanupSnapshot();
+            return false;
+        }
+        table.vkBindImageMemory(device, snapshotImage_, snapshotMemory_, 0);
+
+        VkImageViewCreateInfo viewInfo{};
+        viewInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
+        viewInfo.image = snapshotImage_;
+        viewInfo.viewType = VK_IMAGE_VIEW_TYPE_2D;
+        viewInfo.format = srcFormat;
+        viewInfo.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+        viewInfo.subresourceRange.baseMipLevel = 0;
+        viewInfo.subresourceRange.levelCount = 1;
+        viewInfo.subresourceRange.baseArrayLayer = 0;
+        viewInfo.subresourceRange.layerCount = 1;
+
+        if (table.vkCreateImageView(device, &viewInfo, nullptr, &snapshotImageView_) != VK_SUCCESS) {
+            cleanupSnapshot();
+            return false;
+        }
+
+        VkSamplerCreateInfo samplerInfo{};
+        samplerInfo.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
+        samplerInfo.magFilter = VK_FILTER_LINEAR;
+        samplerInfo.minFilter = VK_FILTER_LINEAR;
+        samplerInfo.addressModeU = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
+        samplerInfo.addressModeV = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
+        samplerInfo.addressModeW = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
+        samplerInfo.mipmapMode = VK_SAMPLER_MIPMAP_MODE_LINEAR;
+
+        if (table.vkCreateSampler(device, &samplerInfo, nullptr, &snapshotSampler_) != VK_SUCCESS) {
+            cleanupSnapshot();
+            return false;
+        }
+
+        VkDescriptorPoolSize poolSize{};
+        poolSize.type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+        poolSize.descriptorCount = 1;
+
+        VkDescriptorPoolCreateInfo poolInfo{};
+        poolInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
+        poolInfo.poolSizeCount = 1;
+        poolInfo.pPoolSizes = &poolSize;
+        poolInfo.maxSets = 1;
+
+        if (table.vkCreateDescriptorPool(device, &poolInfo, nullptr, &snapshotDescriptorPool_) != VK_SUCCESS) {
+            cleanupSnapshot();
+            return false;
+        }
+
+        VkDescriptorSetLayout layout = pipelines_.getTextDescLayout();
+        VkDescriptorSetAllocateInfo dsAlloc{};
+        dsAlloc.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
+        dsAlloc.descriptorPool = snapshotDescriptorPool_;
+        dsAlloc.descriptorSetCount = 1;
+        dsAlloc.pSetLayouts = &layout;
+
+        if (table.vkAllocateDescriptorSets(device, &dsAlloc, &snapshotDescriptorSet_) != VK_SUCCESS) {
+            cleanupSnapshot();
+            return false;
+        }
+
+        VkDescriptorImageInfo descImageInfo{};
+        descImageInfo.sampler = snapshotSampler_;
+        descImageInfo.imageView = snapshotImageView_;
+        descImageInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+
+        VkWriteDescriptorSet writeDesc{};
+        writeDesc.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+        writeDesc.dstSet = snapshotDescriptorSet_;
+        writeDesc.dstBinding = 0;
+        writeDesc.dstArrayElement = 0;
+        writeDesc.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+        writeDesc.descriptorCount = 1;
+        writeDesc.pImageInfo = &descImageInfo;
+
+        table.vkUpdateDescriptorSets(device, 1, &writeDesc, 0, nullptr);
+
+        snapshotWidth_ = width_;
+        snapshotHeight_ = height_;
+    }
+
+    VkCommandPool cmdPool = context_.getCommandPool();
+    VkCommandBufferAllocateInfo cmdAlloc{};
+    cmdAlloc.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
+    cmdAlloc.commandPool = cmdPool;
+    cmdAlloc.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
+    cmdAlloc.commandBufferCount = 1;
+
+    VkCommandBuffer cmd = VK_NULL_HANDLE;
+    if (table.vkAllocateCommandBuffers(device, &cmdAlloc, &cmd) != VK_SUCCESS) {
+        return false;
+    }
+
+    VkCommandBufferBeginInfo beginInfo{};
+    beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
+    beginInfo.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
+    table.vkBeginCommandBuffer(cmd, &beginInfo);
+
+    VkImageMemoryBarrier barriers[2]{};
+    barriers[0].sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
+    barriers[0].oldLayout = srcOldLayout;
+    barriers[0].newLayout = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL;
+    barriers[0].srcAccessMask = (srcOldLayout == VK_IMAGE_LAYOUT_PRESENT_SRC_KHR) ? 0 : VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
+    barriers[0].dstAccessMask = VK_ACCESS_TRANSFER_READ_BIT;
+    barriers[0].srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+    barriers[0].dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+    barriers[0].image = srcImage;
+    barriers[0].subresourceRange = {VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1};
+
+    barriers[1].sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
+    barriers[1].oldLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+    barriers[1].newLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
+    barriers[1].srcAccessMask = 0;
+    barriers[1].dstAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
+    barriers[1].srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+    barriers[1].dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+    barriers[1].image = snapshotImage_;
+    barriers[1].subresourceRange = {VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1};
+
+    VkPipelineStageFlags srcStage = (srcOldLayout == VK_IMAGE_LAYOUT_PRESENT_SRC_KHR)
+        ? VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT
+        : VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
+    table.vkCmdPipelineBarrier(cmd, srcStage | VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT, 0, 0, nullptr, 0, nullptr, 2, barriers);
+
+    VkImageCopy copyRegion{};
+    copyRegion.srcSubresource = {VK_IMAGE_ASPECT_COLOR_BIT, 0, 0, 1};
+    copyRegion.dstSubresource = {VK_IMAGE_ASPECT_COLOR_BIT, 0, 0, 1};
+    copyRegion.extent = {width_, height_, 1};
+
+    table.vkCmdCopyImage(cmd, srcImage, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, snapshotImage_, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &copyRegion);
+
+    barriers[0].oldLayout = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL;
+    barriers[0].newLayout = srcOldLayout;
+    barriers[0].srcAccessMask = VK_ACCESS_TRANSFER_READ_BIT;
+    barriers[0].dstAccessMask = (srcOldLayout == VK_IMAGE_LAYOUT_PRESENT_SRC_KHR) ? 0 : VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
+
+    barriers[1].oldLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
+    barriers[1].newLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+    barriers[1].srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
+    barriers[1].dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
+
+    VkPipelineStageFlags dstStage = (srcOldLayout == VK_IMAGE_LAYOUT_PRESENT_SRC_KHR)
+        ? VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT
+        : VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
+    table.vkCmdPipelineBarrier(cmd, VK_PIPELINE_STAGE_TRANSFER_BIT, dstStage | VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT, 0, 0, nullptr, 0, nullptr, 2, barriers);
+
+    table.vkEndCommandBuffer(cmd);
+
+    VkSubmitInfo submitInfo{};
+    submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
+    submitInfo.commandBufferCount = 1;
+    submitInfo.pCommandBuffers = &cmd;
+
+    table.vkQueueSubmit(queue, 1, &submitInfo, VK_NULL_HANDLE);
+    table.vkQueueWaitIdle(queue);
+
+    table.vkFreeCommandBuffers(device, cmdPool, 1, &cmd);
+
+    hasSnapshot_ = true;
+    return true;
+}
+
+void SiliconVisVulkanPipeline::drawTransition(float offsetX, float alpha) {
+    if (!initialized_ || !hasSnapshot_ || currentCmd_ == VK_NULL_HANDLE || alpha <= 0.001f) {
+        return;
+    }
+
+    const float w = static_cast<float>(width_);
+    const float h = static_cast<float>(height_);
+    const float verts[] = {
+        0.0f, 0.0f, 0.0f, 0.0f,
+        w,    0.0f, 1.0f, 0.0f,
+        0.0f, h,    0.0f, 1.0f,
+
+        w,    0.0f, 1.0f, 0.0f,
+        w,    h,    1.0f, 1.0f,
+        0.0f, h,    0.0f, 1.0f,
+    };
+
+    size_t offsetBytes = vertexBuffer_.allocate(verts, sizeof(verts));
+    if (offsetBytes == static_cast<size_t>(-1)) {
+        return;
+    }
+
+    const auto& table = VkLoader::table();
+    VkBuffer buf = vertexBuffer_.getBuffer();
+    VkDeviceSize vkOffset = offsetBytes;
+    table.vkCmdBindVertexBuffers(currentCmd_, 0, 1, &buf, &vkOffset);
+
+    pipelines_.bindTransition(currentCmd_, w, h, offsetX, alpha, snapshotDescriptorSet_);
+    table.vkCmdDraw(currentCmd_, 6, 1, 0, 0);
 }
 
 } // namespace silicon::vis::vk

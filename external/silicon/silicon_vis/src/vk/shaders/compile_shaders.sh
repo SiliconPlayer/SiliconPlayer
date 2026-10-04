@@ -12,6 +12,8 @@ SHADERS=(
     "wave_line.frag:kWaveLineFragSpv"
     "text.vert:kTextVertSpv"
     "text.frag:kTextFragSpv"
+    "transition.vert:kTransitionVertSpv"
+    "transition.frag:kTransitionFragSpv"
 )
 
 OUT_FILE="${SCRIPT_DIR}/vk_spv_shaders.h"
@@ -32,6 +34,8 @@ shaders = [
     ("wave_line.frag.spv", "kWaveLineFragSpv"),
     ("text.vert.spv", "kTextVertSpv"),
     ("text.frag.spv", "kTextFragSpv"),
+    ("transition.vert.spv", "kTransitionVertSpv"),
+    ("transition.frag.spv", "kTransitionFragSpv"),
 ]
 
 out_path = "${OUT_FILE}"

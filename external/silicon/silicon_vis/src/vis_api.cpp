@@ -88,6 +88,24 @@ bool silicon_vis_readback_vulkan(SiliconVisHandle handle, void* outRgbaBuffer, s
     return pipeline->readbackVulkan(outRgbaBuffer, bufferSize);
 }
 
+bool silicon_vis_take_transition_snapshot_vulkan(SiliconVisHandle handle) {
+    if (!handle) return false;
+    auto* pipeline = static_cast<SiliconVisPipeline*>(handle);
+    return pipeline->takeTransitionSnapshotVulkan();
+}
+
+void silicon_vis_release_transition_snapshot_vulkan(SiliconVisHandle handle) {
+    if (!handle) return;
+    auto* pipeline = static_cast<SiliconVisPipeline*>(handle);
+    pipeline->releaseTransitionSnapshotVulkan();
+}
+
+void silicon_vis_set_transition_vulkan(SiliconVisHandle handle, float offsetX, float alpha) {
+    if (!handle) return;
+    auto* pipeline = static_cast<SiliconVisPipeline*>(handle);
+    pipeline->setTransitionVulkan(offsetX, alpha);
+}
+
 void silicon_vis_set_mode(SiliconVisHandle handle, SiliconVisMode mode) {
     if (!handle) return;
     auto* pipeline = static_cast<SiliconVisPipeline*>(handle);

@@ -94,6 +94,9 @@ public:
     void renderVulkan();
     bool readbackVulkan(void* outRgbaBuffer, size_t bufferSize);
     bool isVulkanReady() const;
+    bool takeTransitionSnapshotVulkan();
+    void releaseTransitionSnapshotVulkan();
+    void setTransitionVulkan(float offsetX, float alpha);
 
 private:
     IVisualizerRenderer* getActiveRenderer();
@@ -107,6 +110,8 @@ private:
     bool glInitialized_ = false;
     float visualAlpha_ = 1.0f;
     GLuint targetFbo_ = 0;
+    float transitionOffsetX_ = 0.0f;
+    float transitionAlpha_ = 0.0f;
 
     // Multisampled offscreen target every mode resolves through when
     // the GPU offers multisampling; falls back to direct rendering.

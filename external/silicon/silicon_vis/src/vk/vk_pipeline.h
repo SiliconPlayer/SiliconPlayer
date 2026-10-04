@@ -43,6 +43,12 @@ public:
     // Readback for offscreen desktop rendering
     bool copyPixelsToBuffer(void* outRgbaBuffer, size_t bufferSize);
 
+    // Transition snapshot support
+    bool takeTransitionSnapshot();
+    void releaseTransitionSnapshot();
+    void drawTransition(float offsetX, float alpha);
+    bool hasTransitionSnapshot() const { return hasSnapshot_; }
+
 private:
     bool createSyncObjects();
     void cleanupSyncObjects();
@@ -50,6 +56,7 @@ private:
     bool createOffscreenResources();
     void cleanupOffscreenResources();
     bool createOffscreenRenderPass();
+    void cleanupSnapshot();
 
     bool initialized_ = false;
     bool isSurfaceMode_ = false;
@@ -72,6 +79,20 @@ private:
     int currentFrameIndex_ = 0;
     uint32_t currentImageIndex_ = 0;
     VkCommandBuffer currentCmd_ = VK_NULL_HANDLE;
+
+    bool hasRenderedFrame_ = false;
+    uint32_t lastRenderedImageIndex_ = 0;
+
+    // Transition snapshot resources
+    bool hasSnapshot_ = false;
+    uint32_t snapshotWidth_ = 0;
+    uint32_t snapshotHeight_ = 0;
+    VkImage snapshotImage_ = VK_NULL_HANDLE;
+    VkDeviceMemory snapshotMemory_ = VK_NULL_HANDLE;
+    VkImageView snapshotImageView_ = VK_NULL_HANDLE;
+    VkSampler snapshotSampler_ = VK_NULL_HANDLE;
+    VkDescriptorPool snapshotDescriptorPool_ = VK_NULL_HANDLE;
+    VkDescriptorSet snapshotDescriptorSet_ = VK_NULL_HANDLE;
 
     // Offscreen resources (Desktop headless mode)
     VkSampleCountFlagBits msaaSamples_ = VK_SAMPLE_COUNT_1_BIT;

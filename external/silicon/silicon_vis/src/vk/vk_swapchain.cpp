@@ -161,7 +161,11 @@ bool VkSwapchain::createSwapchain(uint32_t width, uint32_t height) {
     createInfo.imageColorSpace = format_.colorSpace;
     createInfo.imageExtent = extent_;
     createInfo.imageArrayLayers = 1;
-    createInfo.imageUsage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
+    VkImageUsageFlags usage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
+    if (caps.supportedUsageFlags & VK_IMAGE_USAGE_TRANSFER_SRC_BIT) {
+        usage |= VK_IMAGE_USAGE_TRANSFER_SRC_BIT;
+    }
+    createInfo.imageUsage = usage;
     createInfo.imageSharingMode = VK_SHARING_MODE_EXCLUSIVE;
     createInfo.preTransform = preTransform;
     createInfo.compositeAlpha = compositeAlpha;

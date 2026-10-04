@@ -29,8 +29,12 @@ public:
     }
     VkExtent2D getExtent() const { return extent_; }
     VkFormat getImageFormat() const { return format_.format; }
+    VkSurfaceFormatKHR getFormat() const { return format_; }
     VkSampleCountFlagBits getMsaaSamples() const { return msaaSamples_; }
     uint32_t getImageCount() const { return static_cast<uint32_t>(images_.size()); }
+    VkImage getImage(uint32_t imageIndex) const {
+        return (imageIndex < images_.size()) ? images_[imageIndex] : VK_NULL_HANDLE;
+    }
 
 private:
     bool createSwapchain(uint32_t width, uint32_t height);

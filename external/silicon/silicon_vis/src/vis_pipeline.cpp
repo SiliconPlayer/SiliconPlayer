@@ -470,7 +470,27 @@ void SiliconVisPipeline::renderVulkan() {
         );
     }
 
+    if (transitionAlpha_ > 0.001f && vulkanPipeline_->hasTransitionSnapshot()) {
+        vulkanPipeline_->drawTransition(transitionOffsetX_, transitionAlpha_);
+    }
+
     vulkanPipeline_->endFrame();
+}
+
+bool SiliconVisPipeline::takeTransitionSnapshotVulkan() {
+    if (!vulkanPipeline_) return false;
+    return vulkanPipeline_->takeTransitionSnapshot();
+}
+
+void SiliconVisPipeline::releaseTransitionSnapshotVulkan() {
+    if (vulkanPipeline_) {
+        vulkanPipeline_->releaseTransitionSnapshot();
+    }
+}
+
+void SiliconVisPipeline::setTransitionVulkan(float offsetX, float alpha) {
+    transitionOffsetX_ = offsetX;
+    transitionAlpha_ = alpha;
 }
 
 } // namespace silicon::vis

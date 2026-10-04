@@ -22,6 +22,12 @@ struct PushConstantText {
     float resolution[2];
 };
 
+struct PushConstantTransition {
+    float resolution[2];
+    float offsetX;
+    float alpha;
+};
+
 class VkDynamicVertexBuffer {
 public:
     VkDynamicVertexBuffer() = default;
@@ -57,10 +63,12 @@ public:
     void bindFlatLines(VkCommandBuffer cmd, float width, float height, uint32_t colorArgb, float lineWidth);
     void bindWaveLines(VkCommandBuffer cmd, float width, float height, uint32_t colorArgb, float halfWidth, float softness);
     void bindText(VkCommandBuffer cmd, float width, float height, VkDescriptorSet fontDescriptorSet);
+    void bindTransition(VkCommandBuffer cmd, float width, float height, float offsetX, float alpha, VkDescriptorSet snapshotDescriptorSet);
 
     VkPipelineLayout getFlatPipelineLayout() const { return flatLayout_; }
     VkPipelineLayout getWavePipelineLayout() const { return waveLayout_; }
     VkPipelineLayout getTextPipelineLayout() const { return textLayout_; }
+    VkPipelineLayout getTransitionPipelineLayout() const { return transitionLayout_; }
     VkDescriptorSetLayout getTextDescLayout() const { return textDescLayout_; }
 
 private:
@@ -77,11 +85,14 @@ private:
     VkShaderModule waveFragShader_ = VK_NULL_HANDLE;
     VkShaderModule textVertShader_ = VK_NULL_HANDLE;
     VkShaderModule textFragShader_ = VK_NULL_HANDLE;
+    VkShaderModule transitionVertShader_ = VK_NULL_HANDLE;
+    VkShaderModule transitionFragShader_ = VK_NULL_HANDLE;
 
     // Layouts
     VkPipelineLayout flatLayout_ = VK_NULL_HANDLE;
     VkPipelineLayout waveLayout_ = VK_NULL_HANDLE;
     VkPipelineLayout textLayout_ = VK_NULL_HANDLE;
+    VkPipelineLayout transitionLayout_ = VK_NULL_HANDLE;
     VkDescriptorSetLayout textDescLayout_ = VK_NULL_HANDLE;
 
     // Pipelines
@@ -89,6 +100,7 @@ private:
     VkPipeline flatLinesPipeline_ = VK_NULL_HANDLE;
     VkPipeline waveLinesPipeline_ = VK_NULL_HANDLE;
     VkPipeline textPipeline_ = VK_NULL_HANDLE;
+    VkPipeline transitionPipeline_ = VK_NULL_HANDLE;
 };
 
 } // namespace silicon::vis::vk
