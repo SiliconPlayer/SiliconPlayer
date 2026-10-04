@@ -1,4 +1,5 @@
 #include "vk_context.h"
+#include "gl/gl_platform.h"
 #include <cstring>
 #include <algorithm>
 
@@ -152,7 +153,7 @@ bool VkContext::selectPhysicalDevice() {
     table.vkEnumeratePhysicalDevices(instance_, &deviceCount, devices.data());
 
     VkPhysicalDevice selected = VK_NULL_HANDLE;
-    uint32_t selectedQueueIndex = 0;
+    int bestScore = -1;
 
     for (VkPhysicalDevice dev : devices) {
         VkPhysicalDeviceProperties props{};
@@ -164,16 +165,27 @@ bool VkContext::selectPhysicalDevice() {
         std::vector<VkQueueFamilyProperties> queueFamilies(queueFamilyCount);
         table.vkGetPhysicalDeviceQueueFamilyProperties(dev, &queueFamilyCount, queueFamilies.data());
 
+        uint32_t graphicsIndex = 0xFFFFFFFF;
         for (uint32_t i = 0; i < queueFamilyCount; ++i) {
             if (queueFamilies[i].queueFlags & VK_QUEUE_GRAPHICS_BIT) {
-                selected = dev;
-                selectedQueueIndex = i;
-                capabilities_.graphicsQueueFamilyIndex = i;
-                capabilities_.apiVersion = props.apiVersion;
+                graphicsIndex = i;
                 break;
             }
         }
-        if (selected != VK_NULL_HANDLE) break;
+        if (graphicsIndex == 0xFFFFFFFF) continue;
+
+        // Software rasterizers enumerate alongside real GPUs; never prefer them.
+        int score = 2;
+        if (props.deviceType == VK_PHYSICAL_DEVICE_TYPE_DISCRETE_GPU) score = 3;
+        else if (props.deviceType == VK_PHYSICAL_DEVICE_TYPE_CPU) score = 0;
+        VIS_LOGI("VisVk device: %s type=%d score=%d", props.deviceName, static_cast<int>(props.deviceType), score);
+
+        if (score > bestScore) {
+            bestScore = score;
+            selected = dev;
+            capabilities_.graphicsQueueFamilyIndex = graphicsIndex;
+            capabilities_.apiVersion = props.apiVersion;
+        }
     }
 
     physicalDevice_ = selected;

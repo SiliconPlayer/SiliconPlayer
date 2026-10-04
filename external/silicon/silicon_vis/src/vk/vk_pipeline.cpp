@@ -496,10 +496,19 @@ bool SiliconVisVulkanPipeline::createOffscreenResources() {
     }
 
     table.vkGetBufferMemoryRequirements(device, readbackBuffer_, &memReqs);
+    // The CPU reads this buffer back every frame: uncached write-combined
+    // system memory reads an order of magnitude slower, so prefer cached.
     uint32_t hostMemType = findMemoryType(
         physDev, memReqs.memoryTypeBits,
-        VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT
+        VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT |
+            VK_MEMORY_PROPERTY_HOST_CACHED_BIT
     );
+    if (hostMemType == 0xFFFFFFFF) {
+        hostMemType = findMemoryType(
+            physDev, memReqs.memoryTypeBits,
+            VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT
+        );
+    }
 
     allocInfo.allocationSize = memReqs.size;
     allocInfo.memoryTypeIndex = hostMemType;
