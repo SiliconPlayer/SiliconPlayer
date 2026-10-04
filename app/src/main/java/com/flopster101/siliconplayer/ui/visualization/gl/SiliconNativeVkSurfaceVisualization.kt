@@ -1,6 +1,7 @@
 package com.flopster101.siliconplayer.ui.visualization.gl
 
 import android.content.Context
+import android.content.SharedPreferences
 import android.graphics.Bitmap
 import android.graphics.Outline
 import android.graphics.PixelFormat
@@ -40,11 +41,14 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import com.flopster101.siliconplayer.LocalPlayerOverlayVisibility
 import com.flopster101.siliconplayer.NativeBridge
+import com.flopster101.siliconplayer.AppPreferenceKeys
+import com.flopster101.siliconplayer.VisualizationOscFpsMode
 import com.flopster101.siliconplayer.ui.visualization.channel.GlChannelScopeTextFrame
 import com.flopster101.siliconplayer.ui.visualization.channel.parseChannelScopeTextStates
 import kotlinx.coroutines.delay
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
+import kotlin.math.roundToLong
 
 private object VisualizerVkWarmCache {
     @Volatile private var cachedHandle: Long = 0L
@@ -451,6 +455,10 @@ internal class SiliconNativeVkRenderThread(
     private var localLastTextPollNs = 0L
     private var pausedFrameRendered = false
     private var lastTickNs = 0L
+    private var nextVulkanRenderTickNs = 0L
+    private var lastVulkanTargetIntervalNs = -1L
+    private var cachedFpsModeKey: String? = null
+    private var cachedFrameIntervalNs = 0L
 
     private var lastRenderedTrackKey: String? = null
     private var forceRenderUntilNs = 0L
@@ -576,9 +584,11 @@ internal class SiliconNativeVkRenderThread(
         SiliconVisNativeBridge.nativeResizeVulkan(visHandle, surfaceWidth, surfaceHeight, density)
 
         try {
+            visPrefs.registerOnSharedPreferenceChangeListener(fpsModeListener)
             Choreographer.getInstance().postFrameCallback(frameCallback)
             Looper.loop()
         } finally {
+            runCatching { visPrefs.unregisterOnSharedPreferenceChangeListener(fpsModeListener) }
             textRenderer.release()
             if (visHandle != 0L) {
                 try {
@@ -590,6 +600,38 @@ internal class SiliconNativeVkRenderThread(
             }
             outputSurface.release()
         }
+    }
+
+    private val visPrefs: SharedPreferences by lazy {
+        context.applicationContext.getSharedPreferences(
+            "silicon_player_settings",
+            Context.MODE_PRIVATE
+        )
+    }
+
+    private val fpsModeListener = SharedPreferences.OnSharedPreferenceChangeListener { _, key ->
+        if (key == cachedFpsModeKey) cachedFpsModeKey = null
+    }
+
+    // Per-visualizer frame limit from settings; 0 means display rate.
+    // Starfield has no frame-limit setting and always runs unlimited.
+    private fun targetFrameIntervalNs(mode: Int): Long {
+        val key = when (mode) {
+            1 -> AppPreferenceKeys.VISUALIZATION_BAR_FPS_MODE
+            2 -> AppPreferenceKeys.VISUALIZATION_OSC_FPS_MODE
+            3 -> AppPreferenceKeys.VISUALIZATION_VU_FPS_MODE
+            4 -> AppPreferenceKeys.VISUALIZATION_CHANNEL_SCOPE_FPS_MODE
+            else -> null
+        } ?: return 0L
+        if (key != cachedFpsModeKey) {
+            cachedFpsModeKey = key
+            cachedFrameIntervalNs = when (VisualizationOscFpsMode.fromStorage(visPrefs.getString(key, null))) {
+                VisualizationOscFpsMode.Default -> (1_000_000_000.0 / 30.0).roundToLong()
+                VisualizationOscFpsMode.Fps60 -> (1_000_000_000.0 / 60.0).roundToLong()
+                VisualizationOscFpsMode.NativeRefresh -> 0L
+            }
+        }
+        return cachedFrameIntervalNs
     }
 
     private fun renderTick() {
@@ -691,6 +733,27 @@ internal class SiliconNativeVkRenderThread(
             pausedFrameRendered = true
         } else {
             pausedFrameRendered = false
+        }
+
+        // Honor the configured frame limit. The Choreographer loop fires at
+        // display rate, so drop renders until the target tick elapses. The
+        // deadline advances by fixed intervals (never re-anchored to late
+        // ticks) so the average rate stays exact on any display rate.
+        // Paused frames and resizes always pass through.
+        val targetIntervalNs = targetFrameIntervalNs(frame.mode)
+        if (frame.isPlaying && targetIntervalNs > 0L && !state.surfaceSizeChanged) {
+            val nowNs = System.nanoTime()
+            if (targetIntervalNs != lastVulkanTargetIntervalNs || nextVulkanRenderTickNs == 0L) {
+                nextVulkanRenderTickNs = nowNs + targetIntervalNs
+                lastVulkanTargetIntervalNs = targetIntervalNs
+            } else if (nowNs - nextVulkanRenderTickNs > targetIntervalNs * 2) {
+                // Stale deadline after a stall: resync to avoid a catch-up burst.
+                nextVulkanRenderTickNs = nowNs + targetIntervalNs
+            }
+            if (nextVulkanRenderTickNs > nowNs) {
+                return
+            }
+            nextVulkanRenderTickNs += targetIntervalNs
         }
 
         if (visHandle != 0L) {
