@@ -1296,7 +1296,7 @@ internal class SiliconNativeTextureRenderThread(
     }
 }
 
-private fun resolveTypeface(context: Context, mode: Int, font: VisualizationChannelScopeTextFont): Typeface {
+internal fun resolveTypeface(context: Context, mode: Int, font: VisualizationChannelScopeTextFont): Typeface {
     if (mode == 3) {
         return ResourcesCompat.getFont(context, R.font.roboto_medium)
             ?: Typeface.create("sans-serif-medium", Typeface.NORMAL) ?: Typeface.SANS_SERIF

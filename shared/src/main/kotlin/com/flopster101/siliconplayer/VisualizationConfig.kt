@@ -61,7 +61,8 @@ enum class VisualizationRenderBackend(
 ) {
     Compose("compose", "Compose"),
     OpenGlTexture("opengl_texture", "OpenGL ES (TextureView)"),
-    OpenGlSurface("opengl_surface", "OpenGL ES (SurfaceView)");
+    OpenGlSurface("opengl_surface", "OpenGL ES (SurfaceView)"),
+    VulkanSurface("vulkan_surface", "Vulkan (SurfaceView)");
 
     companion object {
         fun fromStorage(value: String?, fallback: VisualizationRenderBackend): VisualizationRenderBackend {
@@ -70,6 +71,7 @@ enum class VisualizationRenderBackend(
                 "gpu" -> OpenGlTexture
                 // Legacy migration: old OpenGL value now maps to explicit SurfaceView backend.
                 "opengl" -> OpenGlSurface
+                "vulkan", "vulkan_surface" -> VulkanSurface
                 else -> entries.firstOrNull { it.storageValue == value } ?: fallback
             }
         }

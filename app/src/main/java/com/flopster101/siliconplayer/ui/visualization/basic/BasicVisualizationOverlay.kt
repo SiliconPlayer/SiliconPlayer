@@ -544,7 +544,8 @@ fun BasicVisualizationOverlay(
         VisualizationMode.ChannelScope -> {
             Box(modifier = modifier.clip(channelScopeCornerRadiusShape)) {
                 val isGlBackend = channelScopeRenderBackend == VisualizationRenderBackend.OpenGlTexture ||
-                        channelScopeRenderBackend == VisualizationRenderBackend.OpenGlSurface
+                        channelScopeRenderBackend == VisualizationRenderBackend.OpenGlSurface ||
+                        channelScopeRenderBackend == VisualizationRenderBackend.VulkanSurface
 
                 val channelScopeContrastMode = if (channelScopeContrastBackdropEnabled) 6 else 0
                 val paddingPx = with(LocalDensity.current) { channelScopeTextPaddingDp.dp.toPx() }
@@ -622,7 +623,7 @@ fun BasicVisualizationOverlay(
                             modifier = Modifier.fillMaxSize()
                         )
                     }
-                    VisualizationRenderBackend.OpenGlTexture, VisualizationRenderBackend.OpenGlSurface -> {
+                    VisualizationRenderBackend.OpenGlTexture, VisualizationRenderBackend.OpenGlSurface, VisualizationRenderBackend.VulkanSurface -> {
                         val chCount = channelScopeHistories.size
                         val samplesPerCh = if (chCount > 0) channelScopeHistories[0].size else 0
                         val flatBuffer = if (chCount > 0 && samplesPerCh > 0) {
@@ -690,20 +691,32 @@ fun BasicVisualizationOverlay(
                             channelScopeAntialiasMethod = channelScopeAntialiasMethodNative,
                             channelScopeTrackTransition = channelScopeTrackTransition
                         )
-                        if (channelScopeRenderBackend == VisualizationRenderBackend.OpenGlSurface) {
-                            com.flopster101.siliconplayer.ui.visualization.gl.SiliconNativeGlSurfaceVisualization(
-                                frame = nativeFrame,
-                                cornerRadiusDp = channelScopeCornerRadiusDp,
-                                veilColor = surfaceVeilColor,
-                                onFrameStats = channelScopeOnFrameStats,
-                                modifier = Modifier.fillMaxSize()
-                            )
-                        } else {
-                            com.flopster101.siliconplayer.ui.visualization.gl.SiliconNativeGlTextureVisualization(
-                                frame = nativeFrame,
-                                onFrameStats = channelScopeOnFrameStats,
-                                modifier = Modifier.fillMaxSize()
-                            )
+                        when (channelScopeRenderBackend) {
+                            VisualizationRenderBackend.OpenGlSurface -> {
+                                com.flopster101.siliconplayer.ui.visualization.gl.SiliconNativeGlSurfaceVisualization(
+                                    frame = nativeFrame,
+                                    cornerRadiusDp = channelScopeCornerRadiusDp,
+                                    veilColor = surfaceVeilColor,
+                                    onFrameStats = channelScopeOnFrameStats,
+                                    modifier = Modifier.fillMaxSize()
+                                )
+                            }
+                            VisualizationRenderBackend.VulkanSurface -> {
+                                com.flopster101.siliconplayer.ui.visualization.gl.SiliconNativeVkSurfaceVisualization(
+                                    frame = nativeFrame,
+                                    cornerRadiusDp = channelScopeCornerRadiusDp,
+                                    veilColor = surfaceVeilColor,
+                                    onFrameStats = channelScopeOnFrameStats,
+                                    modifier = Modifier.fillMaxSize()
+                                )
+                            }
+                            else -> {
+                                com.flopster101.siliconplayer.ui.visualization.gl.SiliconNativeGlTextureVisualization(
+                                    frame = nativeFrame,
+                                    onFrameStats = channelScopeOnFrameStats,
+                                    modifier = Modifier.fillMaxSize()
+                                )
+                            }
                         }
                     }
                 }
