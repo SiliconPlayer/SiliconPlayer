@@ -329,6 +329,10 @@ internal fun VisualizationBasicBarsRouteContent(
                     label = VisualizationRenderBackend.OpenGlTexture.label
                 ),
                 ChoiceDialogOption(
+                    value = VisualizationRenderBackend.VulkanTexture,
+                    label = VisualizationRenderBackend.VulkanTexture.label
+                ),
+                ChoiceDialogOption(
                     value = VisualizationRenderBackend.VulkanSurface,
                     label = VisualizationRenderBackend.VulkanSurface.label
                 )

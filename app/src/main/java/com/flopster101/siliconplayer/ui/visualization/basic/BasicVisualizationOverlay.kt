@@ -360,7 +360,7 @@ fun BasicVisualizationOverlay(
         VisualizationMode.Bars -> {
             Box(modifier = modifier) {
                 when (barRenderBackend) {
-                    VisualizationRenderBackend.OpenGlTexture, VisualizationRenderBackend.OpenGlSurface, VisualizationRenderBackend.VulkanSurface -> {
+                    VisualizationRenderBackend.OpenGlTexture, VisualizationRenderBackend.OpenGlSurface, VisualizationRenderBackend.VulkanSurface, VisualizationRenderBackend.VulkanTexture -> {
                         val barContrastMode = if (barContrastBackdropEnabled) 1 else 0
                         val nativeFrame = baseNativeFrame.copy(
                             mode = 1,
@@ -376,7 +376,13 @@ fun BasicVisualizationOverlay(
                             contrastMode = barContrastMode,
                             showArtworkBackground = barOverlayArtwork
                         )
-                        if (barRenderBackend == VisualizationRenderBackend.VulkanSurface) {
+                        if (barRenderBackend == VisualizationRenderBackend.VulkanTexture) {
+                            com.flopster101.siliconplayer.ui.visualization.gl.SiliconNativeVkTextureVisualization(
+                                frame = nativeFrame,
+                                onFrameStats = channelScopeOnFrameStats,
+                                modifier = Modifier.fillMaxSize()
+                            )
+                        } else if (barRenderBackend == VisualizationRenderBackend.VulkanSurface) {
                             com.flopster101.siliconplayer.ui.visualization.gl.SiliconNativeVkSurfaceVisualization(
                                 frame = nativeFrame,
                                 cornerRadiusDp = visCornerRadiusDp,
@@ -631,7 +637,7 @@ fun BasicVisualizationOverlay(
                             modifier = Modifier.fillMaxSize()
                         )
                     }
-                    VisualizationRenderBackend.OpenGlTexture, VisualizationRenderBackend.OpenGlSurface, VisualizationRenderBackend.VulkanSurface -> {
+                    VisualizationRenderBackend.OpenGlTexture, VisualizationRenderBackend.OpenGlSurface, VisualizationRenderBackend.VulkanSurface, VisualizationRenderBackend.VulkanTexture -> {
                         val chCount = channelScopeHistories.size
                         val samplesPerCh = if (chCount > 0) channelScopeHistories[0].size else 0
                         val flatBuffer = if (chCount > 0 && samplesPerCh > 0) {

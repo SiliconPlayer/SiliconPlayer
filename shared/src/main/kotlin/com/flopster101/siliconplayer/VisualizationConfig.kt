@@ -62,6 +62,7 @@ enum class VisualizationRenderBackend(
     Compose("compose", "Compose"),
     OpenGlTexture("opengl_texture", "OpenGL ES (TextureView)"),
     OpenGlSurface("opengl_surface", "OpenGL ES (SurfaceView)"),
+    VulkanTexture("vulkan_texture", "Vulkan (TextureView)"),
     VulkanSurface("vulkan_surface", "Vulkan (SurfaceView)");
 
     companion object {
