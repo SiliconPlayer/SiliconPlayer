@@ -1045,6 +1045,26 @@ Java_com_flopster101_siliconplayer_ui_visualization_gl_SiliconVisNativeBridge_na
     ) ? JNI_TRUE : JNI_FALSE;
 }
 
+JNIEXPORT void JNICALL
+Java_com_flopster101_siliconplayer_ui_visualization_gl_SiliconVisNativeBridge_nativeSetTextQuads(
+    JNIEnv* env,
+    jobject /* thiz */,
+    jlong handle,
+    jobject floatBuffer,
+    jint vertexCount
+) {
+    if (!handle) return;
+    const float* quads = nullptr;
+    if (floatBuffer && vertexCount > 0) {
+        quads = static_cast<const float*>(env->GetDirectBufferAddress(floatBuffer));
+    }
+    silicon_vis_set_text_quads(
+        reinterpret_cast<SiliconVisHandle>(handle),
+        quads,
+        static_cast<int32_t>(vertexCount)
+    );
+}
+
 } // extern "C"
 
 extern "C" __attribute__((visibility("default")))

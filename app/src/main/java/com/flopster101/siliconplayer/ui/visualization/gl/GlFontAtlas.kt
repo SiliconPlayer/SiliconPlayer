@@ -150,6 +150,23 @@ internal class GlFontAtlas(
             glyphByteBuffer.putFloat(advance)
             glyphByteBuffer.putFloat(fontAscent)
 
+            val glyph = Glyph(
+                char = ch,
+                u0 = u0,
+                v0 = v0,
+                u1 = u1,
+                v1 = v1,
+                widthPx = advance,
+                heightPx = measuredLineHeight,
+                advanceX = advance,
+                ascentPx = fontAscent
+            )
+            if (ch.code < 128) {
+                asciiGlyphs[ch.code] = glyph
+            } else {
+                extendedGlyphs[ch] = glyph
+            }
+
             col++
             if (col >= cols) {
                 col = 0
@@ -157,6 +174,8 @@ internal class GlFontAtlas(
             }
         }
         glyphByteBuffer.flip()
+        lineHeightPx = measuredLineHeight
+        fallbackGlyph = asciiGlyphs['?'.code] ?: Glyph('?', 0f, 0f, 1f, 1f, cellW.toFloat(), cellH.toFloat(), cellW.toFloat(), fontAscent)
 
         val pixelBuffer = ByteBuffer.allocateDirect(atlasW * atlasH * 4).order(ByteOrder.nativeOrder())
         bitmap.copyPixelsToBuffer(pixelBuffer)
@@ -172,6 +191,10 @@ internal class GlFontAtlas(
             glyphBuffer = glyphByteBuffer,
             glyphCount = chars.size
         )
+    }
+
+    fun initCpu(): AtlasUploadData {
+        return createAtlasUploadData()
     }
 
     fun initGl() {

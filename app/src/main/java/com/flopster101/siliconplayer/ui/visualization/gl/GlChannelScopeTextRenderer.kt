@@ -25,13 +25,16 @@ private class AtlasChannelScopeTextMeasurer(private val atlas: GlFontAtlas) : Ch
 /**
  * High-performance batched OpenGL text and mini VU meter renderer for Channel Scope view.
  */
-internal class GlChannelScopeTextRenderer(private val context: Context) {
+internal class GlChannelScopeTextRenderer(
+    private val context: Context,
+    private val isGl: Boolean = true
+) {
     private var fontAtlas: GlFontAtlas? = null
     private var currentFont: VisualizationChannelScopeTextFont? = null
     private val textProgram = GlTextProgram()
     private val batchBuilder = GlTextBatchBuilder(1024)
     private var textVertexBuffer: FloatBuffer? = null
-    private var vertexCount: Int = 0
+    private var currentVertexCount: Int = 0
     private var vuProgram = 0
     private var vuPositionLoc = -1
     private var vuColorLoc = -1
@@ -40,7 +43,11 @@ internal class GlChannelScopeTextRenderer(private val context: Context) {
     private var lastBuildWidth = 0f
     private var lastBuildHeight = 0f
 
+    val vertexBuffer: FloatBuffer? get() = textVertexBuffer
+    val vertexCount: Int get() = currentVertexCount
+
     fun onSurfaceCreated() {
+        if (!isGl) return
         textProgram.init()
         vuProgram = GlSimplePrimitives.createProgram()
         vuPositionLoc = GLES20.glGetAttribLocation(vuProgram, "aPosition")
@@ -48,20 +55,22 @@ internal class GlChannelScopeTextRenderer(private val context: Context) {
     }
 
     fun release() {
-        textProgram.release()
+        if (isGl) {
+            textProgram.release()
+            if (vuProgram != 0) {
+                GLES20.glDeleteProgram(vuProgram)
+                vuProgram = 0
+            }
+        }
         fontAtlas?.release()
         fontAtlas = null
         currentFont = null
         textVertexBuffer = null
-        vertexCount = 0
+        currentVertexCount = 0
         currentFrame = null
         lastBuiltFrame = null
         lastBuildWidth = 0f
         lastBuildHeight = 0f
-        if (vuProgram != 0) {
-            GLES20.glDeleteProgram(vuProgram)
-            vuProgram = 0
-        }
     }
 
     private fun ensureAtlas(font: VisualizationChannelScopeTextFont) {
@@ -69,7 +78,11 @@ internal class GlChannelScopeTextRenderer(private val context: Context) {
         fontAtlas?.release()
         val typeface = resolveTypeface(context, font)
         val atlas = GlFontAtlas(typeface = typeface, baseFontSizePx = 32f)
-        atlas.initGl()
+        if (isGl) {
+            atlas.initGl()
+        } else {
+            atlas.initCpu()
+        }
         fontAtlas = atlas
         currentFont = font
     }
@@ -90,7 +103,7 @@ internal class GlChannelScopeTextRenderer(private val context: Context) {
         }
         val channels = frame.channelCount
         if (channels <= 0 || surfaceWidth <= 0f || surfaceHeight <= 0f) {
-            vertexCount = 0
+            currentVertexCount = 0
             lastBuiltFrame = frame
             lastBuildWidth = surfaceWidth
             lastBuildHeight = surfaceHeight
@@ -103,7 +116,7 @@ internal class GlChannelScopeTextRenderer(private val context: Context) {
         val layout = layoutChannelScopeText(frame, surfaceWidth, surfaceHeight, AtlasChannelScopeTextMeasurer(atlas))
         batchBuilder.clear()
         if (layout == null) {
-            vertexCount = 0
+            currentVertexCount = 0
             lastBuiltFrame = frame
             lastBuildWidth = surfaceWidth
             lastBuildHeight = surfaceHeight
@@ -127,8 +140,8 @@ internal class GlChannelScopeTextRenderer(private val context: Context) {
             )
         }
 
-        vertexCount = batchBuilder.count
-        if (vertexCount > 0) {
+        currentVertexCount = batchBuilder.count
+        if (currentVertexCount > 0) {
             textVertexBuffer = batchBuilder.uploadToBuffer(textVertexBuffer)
         }
         lastBuiltFrame = frame
@@ -146,7 +159,7 @@ internal class GlChannelScopeTextRenderer(private val context: Context) {
     fun drawText(surfaceWidth: Float, surfaceHeight: Float) {
         val atlas = fontAtlas ?: return
         val buffer = textVertexBuffer ?: return
-        if (vertexCount <= 0 || !textProgram.isReady) return
+        if (currentVertexCount <= 0 || !textProgram.isReady) return
 
         textProgram.draw(
             buffer = buffer,
