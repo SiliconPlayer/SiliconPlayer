@@ -7,13 +7,13 @@
 namespace silicon::vis::vk {
 
 struct PushConstantFlat {
-    float resolution[2];
     float color[4];
+    float resolution[2];
 };
 
 struct PushConstantWaveLine {
-    float resolution[2];
     float color[4];
+    float resolution[2];
     float halfWidth;
     float softness;
 };

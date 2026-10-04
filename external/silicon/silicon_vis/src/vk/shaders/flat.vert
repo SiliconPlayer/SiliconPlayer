@@ -3,8 +3,8 @@
 layout(location = 0) in vec2 inPosition;
 
 layout(push_constant) uniform PushConsts {
-    vec2 uResolution;
     vec4 uColor;
+    vec2 uResolution;
 } pc;
 
 void main() {

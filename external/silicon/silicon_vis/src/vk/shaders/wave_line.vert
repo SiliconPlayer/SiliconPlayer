@@ -5,8 +5,8 @@ layout(location = 1) in float inDist;
 layout(location = 0) out float outDist;
 
 layout(push_constant) uniform PushConsts {
-    vec2 uResolution;
     vec4 uColor;
+    vec2 uResolution;
     float uHalfWidth;
     float uSoftness;
 } pc;

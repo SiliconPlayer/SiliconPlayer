@@ -316,18 +316,23 @@ bool VkPrimitivePipelines::createPipelines(VkRenderPass renderPass, uint32_t sub
     colorBlending.attachmentCount = 1;
     colorBlending.pAttachments = &colorBlendAttachment;
 
-    std::vector<VkDynamicState> dynamicStates = {
+    std::vector<VkDynamicState> standardDynamicStates = {
         VK_DYNAMIC_STATE_VIEWPORT,
         VK_DYNAMIC_STATE_SCISSOR
     };
-    if (context_->getCapabilities().hasExtendedDynamicState) {
-        dynamicStates.push_back(VK_DYNAMIC_STATE_LINE_WIDTH);
-    }
 
     VkPipelineDynamicStateCreateInfo dynamicState{};
     dynamicState.sType = VK_STRUCTURE_TYPE_PIPELINE_DYNAMIC_STATE_CREATE_INFO;
-    dynamicState.dynamicStateCount = static_cast<uint32_t>(dynamicStates.size());
-    dynamicState.pDynamicStates = dynamicStates.data();
+    dynamicState.dynamicStateCount = static_cast<uint32_t>(standardDynamicStates.size());
+    dynamicState.pDynamicStates = standardDynamicStates.data();
+
+    std::vector<VkDynamicState> lineDynamicStates = standardDynamicStates;
+    if (context_->getCapabilities().hasExtendedDynamicState) {
+        lineDynamicStates.push_back(VK_DYNAMIC_STATE_LINE_WIDTH);
+    }
+    VkPipelineDynamicStateCreateInfo lineDynamicState = dynamicState;
+    lineDynamicState.dynamicStateCount = static_cast<uint32_t>(lineDynamicStates.size());
+    lineDynamicState.pDynamicStates = lineDynamicStates.data();
 
     // 1. Flat Triangles Pipeline (2D pos: vec2)
     VkVertexInputBindingDescription flatBinding{};
@@ -388,6 +393,7 @@ bool VkPrimitivePipelines::createPipelines(VkRenderPass renderPass, uint32_t sub
 
     VkGraphicsPipelineCreateInfo flatLinePipeInfo = flatTriPipeInfo;
     flatLinePipeInfo.pInputAssemblyState = &lineAssembly;
+    flatLinePipeInfo.pDynamicState = &lineDynamicState;
 
     if (table.vkCreateGraphicsPipelines(device, VK_NULL_HANDLE, 1, &flatLinePipeInfo, nullptr, &flatLinesPipeline_) != VK_SUCCESS) {
         return false;
@@ -485,9 +491,9 @@ void VkPrimitivePipelines::bindFlatTriangles(VkCommandBuffer cmd, float width, f
     table.vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, flatTrianglesPipeline_);
 
     PushConstantFlat pc{};
+    unpackColor(colorArgb, pc.color);
     pc.resolution[0] = width;
     pc.resolution[1] = height;
-    unpackColor(colorArgb, pc.color);
 
     table.vkCmdPushConstants(cmd, flatLayout_, VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(pc), &pc);
 }
@@ -501,9 +507,9 @@ void VkPrimitivePipelines::bindFlatLines(VkCommandBuffer cmd, float width, float
     }
 
     PushConstantFlat pc{};
+    unpackColor(colorArgb, pc.color);
     pc.resolution[0] = width;
     pc.resolution[1] = height;
-    unpackColor(colorArgb, pc.color);
 
     table.vkCmdPushConstants(cmd, flatLayout_, VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(pc), &pc);
 }
@@ -513,9 +519,9 @@ void VkPrimitivePipelines::bindWaveLines(VkCommandBuffer cmd, float width, float
     table.vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, waveLinesPipeline_);
 
     PushConstantWaveLine pc{};
+    unpackColor(colorArgb, pc.color);
     pc.resolution[0] = width;
     pc.resolution[1] = height;
-    unpackColor(colorArgb, pc.color);
     pc.halfWidth = halfWidth;
     pc.softness = softness;
 
