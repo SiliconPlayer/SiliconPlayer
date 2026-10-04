@@ -246,6 +246,7 @@ private class SiliconNativeDesktopRenderThread(
         val composeBitmaps = arrayOfNulls<ImageBitmap>(2)
         var backSlot = 0
 
+        val supportsVulkan = SiliconVisNativeBridge.nativeVulkanIsSupported()
         try {
             while (running) {
                 val frameStartNs = System.nanoTime()
@@ -253,7 +254,6 @@ private class SiliconNativeDesktopRenderThread(
                     Triple(targetWidth.coerceAtLeast(16), targetHeight.coerceAtLeast(16), currentFrame)
                 }
 
-                val supportsVulkan = SiliconVisNativeBridge.nativeVulkanIsSupported()
                 val isVulkanRequested = frame?.backend == VisualizationRenderBackend.VulkanSurface &&
                     supportsVulkan &&
                     (frame?.mode == 4)
