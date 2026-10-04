@@ -436,9 +436,8 @@ bool VkSwapchain::acquireNextImage(VkSemaphore signalSemaphore, uint32_t& outIma
     return res == VK_SUCCESS;
 }
 
-bool VkSwapchain::present(VkQueue queue, uint32_t imageIndex, VkSemaphore waitSemaphore, bool& outOutOfDate) {
-    outOutOfDate = false;
-    if (swapchain_ == VK_NULL_HANDLE || !context_) return false;
+int VkSwapchain::present(VkQueue queue, uint32_t imageIndex, VkSemaphore waitSemaphore) {
+    if (swapchain_ == VK_NULL_HANDLE || !context_) return -1;
 
     const auto& table = VkLoader::table();
 
@@ -451,10 +450,11 @@ bool VkSwapchain::present(VkQueue queue, uint32_t imageIndex, VkSemaphore waitSe
     presentInfo.pImageIndices = &imageIndex;
 
     VkResult res = table.vkQueuePresentKHR(queue, &presentInfo);
-    if (res == VK_ERROR_OUT_OF_DATE_KHR || res == VK_SUBOPTIMAL_KHR) {
-        outOutOfDate = true;
-    }
-    return res == VK_SUCCESS || res == VK_SUBOPTIMAL_KHR;
+    if (res == VK_SUCCESS) return 0;
+    // Suboptimal still presents correctly; only a real out-of-date or error
+    // justifies the waitIdle + full resource rebuild.
+    if (res == VK_SUBOPTIMAL_KHR) return 1;
+    return -1;
 }
 
 } // namespace silicon::vis::vk

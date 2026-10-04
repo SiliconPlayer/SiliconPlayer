@@ -19,9 +19,9 @@ public:
     // If outOfDate is set to true, the caller should resize().
     bool acquireNextImage(VkSemaphore signalSemaphore, uint32_t& outImageIndex, bool& outOutOfDate);
 
-    // Presents the image. Returns true on success.
-    // If outOfDate is set to true, the caller should resize().
-    bool present(VkQueue queue, uint32_t imageIndex, VkSemaphore waitSemaphore, bool& outOutOfDate);
+    // Presents the image. Returns 0 on success, 1 when suboptimal but
+    // usable (no rebuild), -1 when the swapchain must be recreated.
+    int present(VkQueue queue, uint32_t imageIndex, VkSemaphore waitSemaphore);
 
     VkRenderPass getRenderPass() const { return renderPass_; }
     VkFramebuffer getFramebuffer(uint32_t imageIndex) const {

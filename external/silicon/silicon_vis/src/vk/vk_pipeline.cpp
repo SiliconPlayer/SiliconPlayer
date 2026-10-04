@@ -154,6 +154,7 @@ void SiliconVisVulkanPipeline::release() {
 
 bool SiliconVisVulkanPipeline::resize(uint32_t width, uint32_t height, float density) {
     if (!initialized_ || width == 0 || height == 0) return false;
+    if (isSurfaceMode_ && width_ == width && height_ == height) {
     cleanupSnapshot();
     hasRenderedFrame_ = false;
     width_ = width;
@@ -701,9 +702,8 @@ void SiliconVisVulkanPipeline::endFrame() {
     table.vkQueueSubmit(queue, 1, &submitInfo, inFlightFences_[currentFrameIndex_]);
 
     if (isSurfaceMode_) {
-        bool outOfDate = false;
-        swapchain_.present(queue, currentImageIndex_, renderFinishedSemaphores_[currentFrameIndex_], outOfDate);
-        if (outOfDate) {
+        int presentRes = swapchain_.present(queue, currentImageIndex_, renderFinishedSemaphores_[currentFrameIndex_]);
+        if (presentRes < 0) {
             if (swapchain_.resize(width_, height_)) {
                 auto ext = swapchain_.getExtent();
                 width_ = ext.width;
