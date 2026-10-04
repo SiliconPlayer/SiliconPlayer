@@ -44,9 +44,9 @@ public:
     void clearIcon();
     void setArtworkTheme(uint32_t primaryColorArgb, uint32_t surfaceColorArgb, int32_t placeholderIconType);
     void setContrastMode(SiliconVisContrastMode contrastMode);
-    void setContrastScrim(uint32_t argb) { artworkRenderer_.setContrastScrim(argb); }
-    void setShowArtworkBackground(bool show) { artworkRenderer_.setShowArtworkBackground(show); }
-    void setBackdropMonochrome(bool enabled) { artworkRenderer_.setMonochromeTarget(enabled); }
+    void setContrastScrim(uint32_t argb);
+    void setShowArtworkBackground(bool show);
+    void setBackdropMonochrome(bool enabled);
     // Offscreen FBO the frame resolves into instead of the window surface
     // (0 = window). Hosts the channel-scope transition's scene texture.
     void setRenderTargetFbo(GLuint fbo) { targetFbo_ = fbo; }
@@ -151,6 +151,21 @@ private:
 
     std::unique_ptr<vk::SiliconVisVulkanPipeline> vulkanPipeline_;
     uint32_t surfaceColorArgb_ = 0xFF000000;
+    uint32_t primaryColorArgb_ = 0xFFFFFFFF;
+    int32_t placeholderIconType_ = 1;
+    SiliconVisContrastMode contrastMode_ = SILICON_VIS_CONTRAST_NONE;
+    uint32_t contrastScrimArgb_ = 0xFF000000;
+    bool showArtworkBackground_ = true;
+    bool backdropMonochrome_ = false;
+
+    std::vector<uint8_t> cachedArtworkRgba_;
+    int32_t cachedArtworkWidth_ = 0;
+    int32_t cachedArtworkHeight_ = 0;
+
+    std::vector<uint8_t> cachedIconRgba_;
+    int32_t cachedIconWidth_ = 0;
+    int32_t cachedIconHeight_ = 0;
+
     std::vector<uint8_t> customFontRgba_;
     int32_t customFontWidth_ = 0;
     int32_t customFontHeight_ = 0;

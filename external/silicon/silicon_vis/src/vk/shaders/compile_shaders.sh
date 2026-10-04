@@ -14,6 +14,12 @@ SHADERS=(
     "text.frag:kTextFragSpv"
     "transition.vert:kTransitionVertSpv"
     "transition.frag:kTransitionFragSpv"
+    "artwork_bg.vert:kArtworkBgVertSpv"
+    "artwork_bg.frag:kArtworkBgFragSpv"
+    "artwork_tex.vert:kArtworkTexVertSpv"
+    "artwork_tex.frag:kArtworkTexFragSpv"
+    "contrast.vert:kContrastVertSpv"
+    "contrast.frag:kContrastFragSpv"
 )
 
 OUT_FILE="${SCRIPT_DIR}/vk_spv_shaders.h"
@@ -36,6 +42,12 @@ shaders = [
     ("text.frag.spv", "kTextFragSpv"),
     ("transition.vert.spv", "kTransitionVertSpv"),
     ("transition.frag.spv", "kTransitionFragSpv"),
+    ("artwork_bg.vert.spv", "kArtworkBgVertSpv"),
+    ("artwork_bg.frag.spv", "kArtworkBgFragSpv"),
+    ("artwork_tex.vert.spv", "kArtworkTexVertSpv"),
+    ("artwork_tex.frag.spv", "kArtworkTexFragSpv"),
+    ("contrast.vert.spv", "kContrastVertSpv"),
+    ("contrast.frag.spv", "kContrastFragSpv"),
 ]
 
 out_path = "${OUT_FILE}"

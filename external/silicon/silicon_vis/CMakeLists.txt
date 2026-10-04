@@ -23,6 +23,7 @@ set(SILICON_VIS_SOURCES
     src/vk/vk_swapchain.cpp
     src/vk/vk_font_atlas.cpp
     src/vk/vk_pipeline.cpp
+    src/vk/vk_artwork_renderer.cpp
 )
 
 if (ANDROID)

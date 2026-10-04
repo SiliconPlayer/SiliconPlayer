@@ -28,6 +28,29 @@ struct PushConstantTransition {
     float alpha;
 };
 
+struct PushConstantArtworkBg {
+    float centerColor[4];
+    float edgeColor[4];
+    float circleColor[4];
+    float resolution[2];
+    float circleRadius;
+    float alpha;
+};
+
+struct PushConstantArtworkTex {
+    float color[4];
+    float resolution[2];
+    float mono;
+    float pad;
+};
+
+struct PushConstantContrast {
+    float scrimColor[4];
+    float resolution[2];
+    int32_t mode;
+    float pad;
+};
+
 class VkDynamicVertexBuffer {
 public:
     VkDynamicVertexBuffer() = default;
@@ -64,11 +87,22 @@ public:
     void bindWaveLines(VkCommandBuffer cmd, float width, float height, uint32_t colorArgb, float halfWidth, float softness);
     void bindText(VkCommandBuffer cmd, float width, float height, VkDescriptorSet fontDescriptorSet);
     void bindTransition(VkCommandBuffer cmd, float width, float height, float offsetX, float alpha, VkDescriptorSet snapshotDescriptorSet);
+    void bindArtworkBg(VkCommandBuffer cmd, float width, float height,
+                       const float centerColor[4], const float edgeColor[4], const float circleColor[4],
+                       float circleRadius, float alpha);
+    void bindArtworkTex(VkCommandBuffer cmd, float width, float height,
+                        float r, float g, float b, float a, float mono,
+                        VkDescriptorSet texDescriptorSet);
+    void bindContrast(VkCommandBuffer cmd, float width, float height,
+                      int32_t mode, uint32_t scrimColorArgb);
 
     VkPipelineLayout getFlatPipelineLayout() const { return flatLayout_; }
     VkPipelineLayout getWavePipelineLayout() const { return waveLayout_; }
     VkPipelineLayout getTextPipelineLayout() const { return textLayout_; }
     VkPipelineLayout getTransitionPipelineLayout() const { return transitionLayout_; }
+    VkPipelineLayout getArtworkBgPipelineLayout() const { return artworkBgLayout_; }
+    VkPipelineLayout getArtworkTexPipelineLayout() const { return artworkTexLayout_; }
+    VkPipelineLayout getContrastPipelineLayout() const { return contrastLayout_; }
     VkDescriptorSetLayout getTextDescLayout() const { return textDescLayout_; }
 
 private:
@@ -87,12 +121,21 @@ private:
     VkShaderModule textFragShader_ = VK_NULL_HANDLE;
     VkShaderModule transitionVertShader_ = VK_NULL_HANDLE;
     VkShaderModule transitionFragShader_ = VK_NULL_HANDLE;
+    VkShaderModule artworkBgVertShader_ = VK_NULL_HANDLE;
+    VkShaderModule artworkBgFragShader_ = VK_NULL_HANDLE;
+    VkShaderModule artworkTexVertShader_ = VK_NULL_HANDLE;
+    VkShaderModule artworkTexFragShader_ = VK_NULL_HANDLE;
+    VkShaderModule contrastVertShader_ = VK_NULL_HANDLE;
+    VkShaderModule contrastFragShader_ = VK_NULL_HANDLE;
 
     // Layouts
     VkPipelineLayout flatLayout_ = VK_NULL_HANDLE;
     VkPipelineLayout waveLayout_ = VK_NULL_HANDLE;
     VkPipelineLayout textLayout_ = VK_NULL_HANDLE;
     VkPipelineLayout transitionLayout_ = VK_NULL_HANDLE;
+    VkPipelineLayout artworkBgLayout_ = VK_NULL_HANDLE;
+    VkPipelineLayout artworkTexLayout_ = VK_NULL_HANDLE;
+    VkPipelineLayout contrastLayout_ = VK_NULL_HANDLE;
     VkDescriptorSetLayout textDescLayout_ = VK_NULL_HANDLE;
 
     // Pipelines
@@ -101,6 +144,9 @@ private:
     VkPipeline waveLinesPipeline_ = VK_NULL_HANDLE;
     VkPipeline textPipeline_ = VK_NULL_HANDLE;
     VkPipeline transitionPipeline_ = VK_NULL_HANDLE;
+    VkPipeline artworkBgPipeline_ = VK_NULL_HANDLE;
+    VkPipeline artworkTexPipeline_ = VK_NULL_HANDLE;
+    VkPipeline contrastPipeline_ = VK_NULL_HANDLE;
 };
 
 } // namespace silicon::vis::vk

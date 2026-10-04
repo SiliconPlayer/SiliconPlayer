@@ -99,6 +99,11 @@ bool SiliconVisVulkanPipeline::init(uint32_t width, uint32_t height, void* nativ
         return false;
     }
 
+    if (!artworkRenderer_.init(&context_, pipelines_.getTextDescLayout())) {
+        release();
+        return false;
+    }
+
     std::vector<uint8_t> defaultFontRgba;
     int fontW = 0, fontH = 0;
     gl::GlFontAtlas defaultAtlas;
@@ -132,6 +137,7 @@ void SiliconVisVulkanPipeline::release() {
         offscreenRenderPass_ = VK_NULL_HANDLE;
     }
 
+    artworkRenderer_.release();
     fontAtlas_.release();
     vertexBuffer_.release();
     pipelines_.release();

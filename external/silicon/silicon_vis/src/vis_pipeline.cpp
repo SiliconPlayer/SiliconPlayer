@@ -88,34 +88,101 @@ void SiliconVisPipeline::registerPluginRenderer(VisualizerRendererPtr renderer) 
 }
 
 void SiliconVisPipeline::setArtworkPixels(const uint8_t* rgbaPixels, int32_t width, int32_t height) {
+    if (rgbaPixels && width > 0 && height > 0) {
+        cachedArtworkWidth_ = width;
+        cachedArtworkHeight_ = height;
+        cachedArtworkRgba_.assign(rgbaPixels, rgbaPixels + (width * height * 4));
+    } else {
+        cachedArtworkWidth_ = 0;
+        cachedArtworkHeight_ = 0;
+        cachedArtworkRgba_.clear();
+    }
     artworkRenderer_.setArtworkPixels(rgbaPixels, width, height);
+    if (vulkanPipeline_) {
+        vulkanPipeline_->setArtworkPixels(rgbaPixels, width, height);
+    }
 }
 
 void SiliconVisPipeline::clearArtwork() {
+    cachedArtworkWidth_ = 0;
+    cachedArtworkHeight_ = 0;
+    cachedArtworkRgba_.clear();
     artworkRenderer_.clearArtwork();
+    if (vulkanPipeline_) {
+        vulkanPipeline_->clearArtwork();
+    }
 }
 
 void SiliconVisPipeline::setIconPixels(const uint8_t* rgbaPixels, int32_t width, int32_t height) {
+    if (rgbaPixels && width > 0 && height > 0) {
+        cachedIconWidth_ = width;
+        cachedIconHeight_ = height;
+        cachedIconRgba_.assign(rgbaPixels, rgbaPixels + (width * height * 4));
+    } else {
+        cachedIconWidth_ = 0;
+        cachedIconHeight_ = 0;
+        cachedIconRgba_.clear();
+    }
     artworkRenderer_.setIconPixels(rgbaPixels, width, height);
+    if (vulkanPipeline_) {
+        vulkanPipeline_->setIconPixels(rgbaPixels, width, height);
+    }
 }
 
 void SiliconVisPipeline::clearIcon() {
+    cachedIconWidth_ = 0;
+    cachedIconHeight_ = 0;
+    cachedIconRgba_.clear();
     artworkRenderer_.clearIcon();
+    if (vulkanPipeline_) {
+        vulkanPipeline_->clearIcon();
+    }
 }
 
 void SiliconVisPipeline::setArtworkTheme(uint32_t primaryColorArgb, uint32_t surfaceColorArgb, int32_t placeholderIconType) {
+    primaryColorArgb_ = primaryColorArgb;
     surfaceColorArgb_ = surfaceColorArgb;
+    placeholderIconType_ = placeholderIconType;
     artworkRenderer_.setTheme(primaryColorArgb, surfaceColorArgb, placeholderIconType);
     if (vulkanPipeline_) {
         float r = ((surfaceColorArgb >> 16) & 0xFF) / 255.0f;
         float g = ((surfaceColorArgb >> 8) & 0xFF) / 255.0f;
         float b = (surfaceColorArgb & 0xFF) / 255.0f;
         vulkanPipeline_->setClearColor(r, g, b, 1.0f);
+        vulkanPipeline_->setTheme(primaryColorArgb, surfaceColorArgb, placeholderIconType);
     }
 }
 
 void SiliconVisPipeline::setContrastMode(SiliconVisContrastMode contrastMode) {
+    contrastMode_ = contrastMode;
     artworkRenderer_.setContrastMode(contrastMode);
+    if (vulkanPipeline_) {
+        vulkanPipeline_->setContrastMode(contrastMode);
+    }
+}
+
+void SiliconVisPipeline::setContrastScrim(uint32_t argb) {
+    contrastScrimArgb_ = argb;
+    artworkRenderer_.setContrastScrim(argb);
+    if (vulkanPipeline_) {
+        vulkanPipeline_->setContrastScrim(argb);
+    }
+}
+
+void SiliconVisPipeline::setShowArtworkBackground(bool show) {
+    showArtworkBackground_ = show;
+    artworkRenderer_.setShowArtworkBackground(show);
+    if (vulkanPipeline_) {
+        vulkanPipeline_->setShowArtworkBackground(show);
+    }
+}
+
+void SiliconVisPipeline::setBackdropMonochrome(bool enabled) {
+    backdropMonochrome_ = enabled;
+    artworkRenderer_.setMonochromeTarget(enabled);
+    if (vulkanPipeline_) {
+        vulkanPipeline_->setMonochromeTarget(enabled);
+    }
 }
 
 void SiliconVisPipeline::setFontAtlas(
@@ -389,6 +456,17 @@ bool SiliconVisPipeline::initVulkan(uint32_t width, uint32_t height, void* nativ
         float g = ((surfaceColorArgb_ >> 8) & 0xFF) / 255.0f;
         float b = (surfaceColorArgb_ & 0xFF) / 255.0f;
         vulkanPipeline_->setClearColor(r, g, b, 1.0f);
+        vulkanPipeline_->setTheme(primaryColorArgb_, surfaceColorArgb_, placeholderIconType_);
+        vulkanPipeline_->setContrastMode(contrastMode_);
+        vulkanPipeline_->setContrastScrim(contrastScrimArgb_);
+        vulkanPipeline_->setShowArtworkBackground(showArtworkBackground_);
+        vulkanPipeline_->setMonochromeTarget(backdropMonochrome_);
+        if (cachedArtworkWidth_ > 0 && !cachedArtworkRgba_.empty()) {
+            vulkanPipeline_->setArtworkPixels(cachedArtworkRgba_.data(), cachedArtworkWidth_, cachedArtworkHeight_);
+        }
+        if (cachedIconWidth_ > 0 && !cachedIconRgba_.empty()) {
+            vulkanPipeline_->setIconPixels(cachedIconRgba_.data(), cachedIconWidth_, cachedIconHeight_);
+        }
         if (!customFontRgba_.empty()) {
             vulkanPipeline_->getFontAtlas().updateAtlas(customFontRgba_.data(), customFontWidth_, customFontHeight_);
         }
@@ -453,6 +531,8 @@ void SiliconVisPipeline::renderVulkan() {
     VkCommandBuffer cmd = vulkanPipeline_->getCurrentCommandBuffer();
     float w = static_cast<float>(vulkanPipeline_->getWidth());
     float h = static_cast<float>(vulkanPipeline_->getHeight());
+
+    vulkanPipeline_->drawArtwork(cmd, density_);
 
     if (currentMode_ == SILICON_VIS_MODE_CHANNEL_SCOPE) {
         if (widthPx_ != static_cast<int32_t>(w) || heightPx_ != static_cast<int32_t>(h)) {

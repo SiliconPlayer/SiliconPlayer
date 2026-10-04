@@ -4,6 +4,7 @@
 #include "vk_swapchain.h"
 #include "vk_primitives.h"
 #include "vk_font_atlas.h"
+#include "vk_artwork_renderer.h"
 #include <vector>
 
 namespace silicon::vis::vk {
@@ -32,6 +33,7 @@ public:
     VkPrimitivePipelines& getPipelines() { return pipelines_; }
     VkDynamicVertexBuffer& getVertexBuffer() { return vertexBuffer_; }
     VkFontAtlas& getFontAtlas() { return fontAtlas_; }
+    VkArtworkRenderer& getArtworkRenderer() { return artworkRenderer_; }
     VkSwapchain* getSwapchain() { return isSurfaceMode_ ? &swapchain_ : nullptr; }
 
     bool isSurfaceMode() const { return isSurfaceMode_; }
@@ -39,6 +41,38 @@ public:
     uint32_t getWidth() const { return width_; }
     uint32_t getHeight() const { return height_; }
     float getDensity() const { return density_; }
+
+    // Artwork & Contrast
+    void setArtworkPixels(const uint8_t* rgbaPixels, int32_t width, int32_t height) {
+        artworkRenderer_.setArtworkPixels(rgbaPixels, width, height);
+    }
+    void clearArtwork() {
+        artworkRenderer_.clearArtwork();
+    }
+    void setIconPixels(const uint8_t* rgbaPixels, int32_t width, int32_t height) {
+        artworkRenderer_.setIconPixels(rgbaPixels, width, height);
+    }
+    void clearIcon() {
+        artworkRenderer_.clearIcon();
+    }
+    void setTheme(uint32_t primaryColorArgb, uint32_t surfaceColorArgb, int32_t placeholderIconType) {
+        artworkRenderer_.setTheme(primaryColorArgb, surfaceColorArgb, placeholderIconType);
+    }
+    void setContrastMode(SiliconVisContrastMode mode) {
+        artworkRenderer_.setContrastMode(mode);
+    }
+    void setContrastScrim(uint32_t argb) {
+        artworkRenderer_.setContrastScrim(argb);
+    }
+    void setShowArtworkBackground(bool show) {
+        artworkRenderer_.setShowArtworkBackground(show);
+    }
+    void setMonochromeTarget(bool enabled) {
+        artworkRenderer_.setMonochromeTarget(enabled);
+    }
+    void drawArtwork(VkCommandBuffer cmd, float density) {
+        artworkRenderer_.draw(cmd, &pipelines_, &vertexBuffer_, static_cast<float>(width_), static_cast<float>(height_), density);
+    }
 
     // Readback for offscreen desktop rendering
     bool copyPixelsToBuffer(void* outRgbaBuffer, size_t bufferSize);
@@ -70,6 +104,7 @@ private:
     VkPrimitivePipelines pipelines_;
     VkDynamicVertexBuffer vertexBuffer_;
     VkFontAtlas fontAtlas_;
+    VkArtworkRenderer artworkRenderer_;
 
     static constexpr int kMaxFramesInFlight = 2;
     VkCommandBuffer commandBuffers_[kMaxFramesInFlight]{};

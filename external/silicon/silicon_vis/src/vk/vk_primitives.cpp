@@ -182,11 +182,17 @@ void VkPrimitivePipelines::release() {
     destroyPipe(waveLinesPipeline_);
     destroyPipe(textPipeline_);
     destroyPipe(transitionPipeline_);
+    destroyPipe(artworkBgPipeline_);
+    destroyPipe(artworkTexPipeline_);
+    destroyPipe(contrastPipeline_);
 
     destroyLayout(flatLayout_);
     destroyLayout(waveLayout_);
     destroyLayout(textLayout_);
     destroyLayout(transitionLayout_);
+    destroyLayout(artworkBgLayout_);
+    destroyLayout(artworkTexLayout_);
+    destroyLayout(contrastLayout_);
 
     if (textDescLayout_ != VK_NULL_HANDLE) {
         table.vkDestroyDescriptorSetLayout(device, textDescLayout_, nullptr);
@@ -201,6 +207,12 @@ void VkPrimitivePipelines::release() {
     destroyShader(textFragShader_);
     destroyShader(transitionVertShader_);
     destroyShader(transitionFragShader_);
+    destroyShader(artworkBgVertShader_);
+    destroyShader(artworkBgFragShader_);
+    destroyShader(artworkTexVertShader_);
+    destroyShader(artworkTexFragShader_);
+    destroyShader(contrastVertShader_);
+    destroyShader(contrastFragShader_);
 
     context_ = nullptr;
 }
@@ -217,9 +229,17 @@ bool VkPrimitivePipelines::createShaders() {
     textFragShader_ = createShaderModule(device, kTextFragSpv, kTextFragSpvSize);
     transitionVertShader_ = createShaderModule(device, kTransitionVertSpv, kTransitionVertSpvSize);
     transitionFragShader_ = createShaderModule(device, kTransitionFragSpv, kTransitionFragSpvSize);
+    artworkBgVertShader_ = createShaderModule(device, kArtworkBgVertSpv, kArtworkBgVertSpvSize);
+    artworkBgFragShader_ = createShaderModule(device, kArtworkBgFragSpv, kArtworkBgFragSpvSize);
+    artworkTexVertShader_ = createShaderModule(device, kArtworkTexVertSpv, kArtworkTexVertSpvSize);
+    artworkTexFragShader_ = createShaderModule(device, kArtworkTexFragSpv, kArtworkTexFragSpvSize);
+    contrastVertShader_ = createShaderModule(device, kContrastVertSpv, kContrastVertSpvSize);
+    contrastFragShader_ = createShaderModule(device, kContrastFragSpv, kContrastFragSpvSize);
 
     return flatVertShader_ && flatFragShader_ && waveVertShader_ && waveFragShader_ &&
-           textVertShader_ && textFragShader_ && transitionVertShader_ && transitionFragShader_;
+           textVertShader_ && textFragShader_ && transitionVertShader_ && transitionFragShader_ &&
+           artworkBgVertShader_ && artworkBgFragShader_ && artworkTexVertShader_ && artworkTexFragShader_ &&
+           contrastVertShader_ && contrastFragShader_;
 }
 
 bool VkPrimitivePipelines::createLayouts() {
@@ -301,7 +321,54 @@ bool VkPrimitivePipelines::createLayouts() {
     transitionLayoutInfo.pushConstantRangeCount = 1;
     transitionLayoutInfo.pPushConstantRanges = &transitionRange;
 
-    return table.vkCreatePipelineLayout(device, &transitionLayoutInfo, nullptr, &transitionLayout_) == VK_SUCCESS;
+    if (table.vkCreatePipelineLayout(device, &transitionLayoutInfo, nullptr, &transitionLayout_) != VK_SUCCESS) {
+        return false;
+    }
+
+    // ArtworkBg pipeline layout (Push constants: 64 bytes)
+    VkPushConstantRange bgRange{};
+    bgRange.stageFlags = VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT;
+    bgRange.offset = 0;
+    bgRange.size = sizeof(PushConstantArtworkBg);
+
+    VkPipelineLayoutCreateInfo bgLayoutInfo{};
+    bgLayoutInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
+    bgLayoutInfo.pushConstantRangeCount = 1;
+    bgLayoutInfo.pPushConstantRanges = &bgRange;
+
+    if (table.vkCreatePipelineLayout(device, &bgLayoutInfo, nullptr, &artworkBgLayout_) != VK_SUCCESS) {
+        return false;
+    }
+
+    // ArtworkTex pipeline layout (Descriptor Set 0: Sampler + Push constants: 32 bytes)
+    VkPushConstantRange texRange{};
+    texRange.stageFlags = VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT;
+    texRange.offset = 0;
+    texRange.size = sizeof(PushConstantArtworkTex);
+
+    VkPipelineLayoutCreateInfo texLayoutInfo{};
+    texLayoutInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
+    texLayoutInfo.setLayoutCount = 1;
+    texLayoutInfo.pSetLayouts = &textDescLayout_;
+    texLayoutInfo.pushConstantRangeCount = 1;
+    texLayoutInfo.pPushConstantRanges = &texRange;
+
+    if (table.vkCreatePipelineLayout(device, &texLayoutInfo, nullptr, &artworkTexLayout_) != VK_SUCCESS) {
+        return false;
+    }
+
+    // Contrast pipeline layout (Push constants: 32 bytes)
+    VkPushConstantRange contrastRange{};
+    contrastRange.stageFlags = VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT;
+    contrastRange.offset = 0;
+    contrastRange.size = sizeof(PushConstantContrast);
+
+    VkPipelineLayoutCreateInfo contrastLayoutInfo{};
+    contrastLayoutInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
+    contrastLayoutInfo.pushConstantRangeCount = 1;
+    contrastLayoutInfo.pPushConstantRanges = &contrastRange;
+
+    return table.vkCreatePipelineLayout(device, &contrastLayoutInfo, nullptr, &contrastLayout_) == VK_SUCCESS;
 }
 
 bool VkPrimitivePipelines::createPipelines(VkRenderPass renderPass, uint32_t subpass, VkSampleCountFlagBits samples) {
@@ -549,7 +616,61 @@ bool VkPrimitivePipelines::createPipelines(VkRenderPass renderPass, uint32_t sub
     transPipeInfo.pVertexInputState = &transVertexInput;
     transPipeInfo.layout = transitionLayout_;
 
-    return table.vkCreateGraphicsPipelines(device, VK_NULL_HANDLE, 1, &transPipeInfo, nullptr, &transitionPipeline_) == VK_SUCCESS;
+    if (table.vkCreateGraphicsPipelines(device, VK_NULL_HANDLE, 1, &transPipeInfo, nullptr, &transitionPipeline_) != VK_SUCCESS) {
+        return false;
+    }
+
+    VkPipelineShaderStageCreateInfo bgStages[2]{};
+    bgStages[0].sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
+    bgStages[0].stage = VK_SHADER_STAGE_VERTEX_BIT;
+    bgStages[0].module = artworkBgVertShader_;
+    bgStages[0].pName = "main";
+    bgStages[1].sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
+    bgStages[1].stage = VK_SHADER_STAGE_FRAGMENT_BIT;
+    bgStages[1].module = artworkBgFragShader_;
+    bgStages[1].pName = "main";
+
+    VkGraphicsPipelineCreateInfo bgPipeInfo = transPipeInfo;
+    bgPipeInfo.pStages = bgStages;
+    bgPipeInfo.layout = artworkBgLayout_;
+
+    if (table.vkCreateGraphicsPipelines(device, VK_NULL_HANDLE, 1, &bgPipeInfo, nullptr, &artworkBgPipeline_) != VK_SUCCESS) {
+        return false;
+    }
+
+    VkPipelineShaderStageCreateInfo texStages[2]{};
+    texStages[0].sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
+    texStages[0].stage = VK_SHADER_STAGE_VERTEX_BIT;
+    texStages[0].module = artworkTexVertShader_;
+    texStages[0].pName = "main";
+    texStages[1].sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
+    texStages[1].stage = VK_SHADER_STAGE_FRAGMENT_BIT;
+    texStages[1].module = artworkTexFragShader_;
+    texStages[1].pName = "main";
+
+    VkGraphicsPipelineCreateInfo texPipeInfo = transPipeInfo;
+    texPipeInfo.pStages = texStages;
+    texPipeInfo.layout = artworkTexLayout_;
+
+    if (table.vkCreateGraphicsPipelines(device, VK_NULL_HANDLE, 1, &texPipeInfo, nullptr, &artworkTexPipeline_) != VK_SUCCESS) {
+        return false;
+    }
+
+    VkPipelineShaderStageCreateInfo contrastStages[2]{};
+    contrastStages[0].sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
+    contrastStages[0].stage = VK_SHADER_STAGE_VERTEX_BIT;
+    contrastStages[0].module = contrastVertShader_;
+    contrastStages[0].pName = "main";
+    contrastStages[1].sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
+    contrastStages[1].stage = VK_SHADER_STAGE_FRAGMENT_BIT;
+    contrastStages[1].module = contrastFragShader_;
+    contrastStages[1].pName = "main";
+
+    VkGraphicsPipelineCreateInfo contrastPipeInfo = transPipeInfo;
+    contrastPipeInfo.pStages = contrastStages;
+    contrastPipeInfo.layout = contrastLayout_;
+
+    return table.vkCreateGraphicsPipelines(device, VK_NULL_HANDLE, 1, &contrastPipeInfo, nullptr, &contrastPipeline_) == VK_SUCCESS;
 }
 
 void VkPrimitivePipelines::bindFlatTriangles(VkCommandBuffer cmd, float width, float height, uint32_t colorArgb) {
@@ -624,6 +745,65 @@ void VkPrimitivePipelines::bindTransition(VkCommandBuffer cmd, float width, floa
     pc.alpha = alpha;
 
     table.vkCmdPushConstants(cmd, transitionLayout_, VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(pc), &pc);
+}
+
+void VkPrimitivePipelines::bindArtworkBg(VkCommandBuffer cmd, float width, float height,
+                                         const float centerColor[4], const float edgeColor[4], const float circleColor[4],
+                                         float circleRadius, float alpha) {
+    const auto& table = VkLoader::table();
+    table.vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, artworkBgPipeline_);
+
+    PushConstantArtworkBg pc{};
+    std::memcpy(pc.centerColor, centerColor, 4 * sizeof(float));
+    std::memcpy(pc.edgeColor, edgeColor, 4 * sizeof(float));
+    std::memcpy(pc.circleColor, circleColor, 4 * sizeof(float));
+    pc.resolution[0] = width;
+    pc.resolution[1] = height;
+    pc.circleRadius = circleRadius;
+    pc.alpha = alpha;
+
+    table.vkCmdPushConstants(cmd, artworkBgLayout_, VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(pc), &pc);
+}
+
+void VkPrimitivePipelines::bindArtworkTex(VkCommandBuffer cmd, float width, float height,
+                                          float r, float g, float b, float a, float mono,
+                                          VkDescriptorSet texDescriptorSet) {
+    const auto& table = VkLoader::table();
+    table.vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, artworkTexPipeline_);
+
+    if (texDescriptorSet != VK_NULL_HANDLE) {
+        table.vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, artworkTexLayout_, 0, 1, &texDescriptorSet, 0, nullptr);
+    }
+
+    PushConstantArtworkTex pc{};
+    pc.color[0] = r;
+    pc.color[1] = g;
+    pc.color[2] = b;
+    pc.color[3] = a;
+    pc.resolution[0] = width;
+    pc.resolution[1] = height;
+    pc.mono = mono;
+    pc.pad = 0.0f;
+
+    table.vkCmdPushConstants(cmd, artworkTexLayout_, VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(pc), &pc);
+}
+
+void VkPrimitivePipelines::bindContrast(VkCommandBuffer cmd, float width, float height,
+                                        int32_t mode, uint32_t scrimColorArgb) {
+    const auto& table = VkLoader::table();
+    table.vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, contrastPipeline_);
+
+    PushConstantContrast pc{};
+    pc.scrimColor[0] = ((scrimColorArgb >> 16) & 0xFF) / 255.0f;
+    pc.scrimColor[1] = ((scrimColorArgb >> 8) & 0xFF) / 255.0f;
+    pc.scrimColor[2] = (scrimColorArgb & 0xFF) / 255.0f;
+    pc.scrimColor[3] = ((scrimColorArgb >> 24) & 0xFF) / 255.0f;
+    pc.resolution[0] = width;
+    pc.resolution[1] = height;
+    pc.mode = mode;
+    pc.pad = 0.0f;
+
+    table.vkCmdPushConstants(cmd, contrastLayout_, VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(pc), &pc);
 }
 
 } // namespace silicon::vis::vk
