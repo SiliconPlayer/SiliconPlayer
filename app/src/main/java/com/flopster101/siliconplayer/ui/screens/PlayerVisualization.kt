@@ -109,6 +109,7 @@ import com.flopster101.siliconplayer.pluginNameForCoreName
 import com.flopster101.siliconplayer.readChannelScopeVisibleElementSelection
 import com.flopster101.siliconplayer.supportsChannelScopeVisualization
 import com.flopster101.siliconplayer.visualizationRenderBackendForMode
+import com.flopster101.siliconplayer.ui.visualization.VisualizationDebugOverlay
 import com.flopster101.siliconplayer.ui.visualization.artworkNeedsBlurFill
 import com.flopster101.siliconplayer.ui.visualization.basic.BasicVisualizationOverlay
 import com.flopster101.siliconplayer.ui.visualization.blurThumbPixels
@@ -3085,49 +3086,18 @@ internal fun AlbumArtPlaceholder(
                 )
             }
             if (visualizationShowDebugInfo && visualizationMode != VisualizationMode.Off) {
-                // Update/source metrics come from the Compose poller, which
-                // idles while a GL backend renders; draw metrics come from
-                // the GL thread and are N/A under Compose.
-                val pollerActive = activeRenderBackend == VisualizationRenderBackend.Compose
-                val updateLine = if (pollerActive) {
-                    "${visDebugUpdateFps} fps  (${visDebugUpdateFrameMs} ms)"
-                } else {
-                    "N/A"
-                }
-                val sourceUniqueLine = if (pollerActive) {
-                    "${visDebugSourceUniqueFps} fps  (${visDebugSourceUniqueFrameMs} ms)"
-                } else {
-                    "N/A"
-                }
-                val sourceDuplicatesLine = if (pollerActive) {
-                    "${visDebugSourceDuplicatePercent}%"
-                } else {
-                    "N/A"
-                }
-                val drawLine = if (activeRenderBackend != VisualizationRenderBackend.Compose) {
-                    "${visDebugDrawFps} fps  (${visDebugDrawFrameMs} ms)"
-                } else {
-                    "N/A"
-                }
-                Surface(
-                    modifier = Modifier
-                        .align(Alignment.TopStart)
-                        .padding(start = 10.dp, top = 10.dp),
-                    shape = RoundedCornerShape(10.dp),
-                    color = Color.Black.copy(alpha = 0.22f)
-                ) {
-                    Text(
-                        text = "Mode: ${visualizationMode.label}\n" +
-                            "Backend: ${activeRenderBackend.label}\n" +
-                            "Update: $updateLine\n" +
-                            "Source unique: $sourceUniqueLine\n" +
-                            "Source duplicates: $sourceDuplicatesLine\n" +
-                            "Draw: $drawLine",
-                        color = Color.White.copy(alpha = 0.78f),
-                        style = MaterialTheme.typography.labelSmall,
-                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 5.dp)
-                    )
-                }
+                VisualizationDebugOverlay(
+                    visualizationMode = visualizationMode,
+                    activeRenderBackend = activeRenderBackend,
+                    updateFps = visDebugUpdateFps,
+                    updateFrameMs = visDebugUpdateFrameMs,
+                    sourceUniqueFps = visDebugSourceUniqueFps,
+                    sourceUniqueFrameMs = visDebugSourceUniqueFrameMs,
+                    sourceDuplicatePercent = visDebugSourceDuplicatePercent,
+                    drawFps = visDebugDrawFps,
+                    drawFrameMs = visDebugDrawFrameMs,
+                    modifier = Modifier.align(Alignment.TopStart)
+                )
             }
             androidx.compose.animation.AnimatedVisibility(
                 visible = showVisualizationModeBadge,
