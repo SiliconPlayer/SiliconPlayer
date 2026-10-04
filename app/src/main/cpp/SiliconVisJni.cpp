@@ -1,6 +1,9 @@
 #include <jni.h>
 #include "silicon/vis/vis_api.h"
 #include "ProjectMVisualizer.h"
+#if defined(__ANDROID__)
+#include <android/native_window_jni.h>
+#endif
 #include <mutex>
 #include <vector>
 #include <cstring>
@@ -954,6 +957,92 @@ Java_com_flopster101_siliconplayer_ui_visualization_gl_SiliconVisNativeBridge_na
     jobject /* thiz */
 ) {
     return static_cast<jint>(silicon_vis_vulkan_get_api_version());
+}
+
+JNIEXPORT jboolean JNICALL
+Java_com_flopster101_siliconplayer_ui_visualization_gl_SiliconVisNativeBridge_nativeInitVulkan(
+    JNIEnv* env,
+    jobject /* thiz */,
+    jlong handle,
+    jint widthPx,
+    jint heightPx,
+    jobject surface
+) {
+    if (!handle) return JNI_FALSE;
+    void* nativeWindow = nullptr;
+#if defined(__ANDROID__)
+    if (surface != nullptr) {
+        nativeWindow = ANativeWindow_fromSurface(env, surface);
+    }
+#endif
+    bool res = silicon_vis_init_vulkan(
+        reinterpret_cast<SiliconVisHandle>(handle),
+        nativeWindow,
+        static_cast<uint32_t>(widthPx),
+        static_cast<uint32_t>(heightPx)
+    );
+#if defined(__ANDROID__)
+    if (nativeWindow != nullptr) {
+        ANativeWindow_release(static_cast<ANativeWindow*>(nativeWindow));
+    }
+#endif
+    return res ? JNI_TRUE : JNI_FALSE;
+}
+
+JNIEXPORT void JNICALL
+Java_com_flopster101_siliconplayer_ui_visualization_gl_SiliconVisNativeBridge_nativeResizeVulkan(
+    JNIEnv* /* env */,
+    jobject /* thiz */,
+    jlong handle,
+    jint widthPx,
+    jint heightPx,
+    jfloat density
+) {
+    if (!handle) return;
+    silicon_vis_resize_vulkan(
+        reinterpret_cast<SiliconVisHandle>(handle),
+        static_cast<uint32_t>(widthPx),
+        static_cast<uint32_t>(heightPx),
+        density
+    );
+}
+
+JNIEXPORT void JNICALL
+Java_com_flopster101_siliconplayer_ui_visualization_gl_SiliconVisNativeBridge_nativeReleaseVulkan(
+    JNIEnv* /* env */,
+    jobject /* thiz */,
+    jlong handle
+) {
+    if (!handle) return;
+    silicon_vis_release_vulkan(reinterpret_cast<SiliconVisHandle>(handle));
+}
+
+JNIEXPORT void JNICALL
+Java_com_flopster101_siliconplayer_ui_visualization_gl_SiliconVisNativeBridge_nativeRenderVulkan(
+    JNIEnv* /* env */,
+    jobject /* thiz */,
+    jlong handle
+) {
+    if (!handle) return;
+    silicon_vis_render_vulkan(reinterpret_cast<SiliconVisHandle>(handle));
+}
+
+JNIEXPORT jboolean JNICALL
+Java_com_flopster101_siliconplayer_ui_visualization_gl_SiliconVisNativeBridge_nativeReadbackVulkan(
+    JNIEnv* env,
+    jobject /* thiz */,
+    jlong handle,
+    jobject byteBuffer
+) {
+    if (!handle || !byteBuffer) return JNI_FALSE;
+    void* bufferPtr = env->GetDirectBufferAddress(byteBuffer);
+    jlong capacity = env->GetDirectBufferCapacity(byteBuffer);
+    if (!bufferPtr || capacity <= 0) return JNI_FALSE;
+    return silicon_vis_readback_vulkan(
+        reinterpret_cast<SiliconVisHandle>(handle),
+        bufferPtr,
+        static_cast<size_t>(capacity)
+    ) ? JNI_TRUE : JNI_FALSE;
 }
 
 } // extern "C"

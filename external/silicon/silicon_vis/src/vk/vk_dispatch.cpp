@@ -188,6 +188,7 @@ bool VkLoader::loadDeviceFunctions(VkDevice device) {
     LOAD_DEV(vkCmdDraw);
     LOAD_DEV(vkCmdPipelineBarrier);
     LOAD_DEV(vkCmdCopyBufferToImage);
+    LOAD_DEV(vkCmdCopyImageToBuffer);
     LOAD_DEV(vkCmdCopyImage);
 
     // Tier 2 (VK 1.2 / extensions)

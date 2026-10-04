@@ -43,8 +43,11 @@ public:
     float getLineHeightPx() const { return lineHeightPx_; }
     float getBaseFontSizePx() const { return baseFontSizePx_; }
 
+    void getDefaultAtlasRgba(std::vector<uint8_t>& outRgba, int& outWidth, int& outHeight) const;
+
 private:
     void generateAtlasTexture();
+    void generateGlyphs(std::vector<uint8_t>* outPixels = nullptr);
 
     GLuint textureId_ = 0;
     float baseFontSizePx_ = 32.0f;

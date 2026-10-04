@@ -58,6 +58,36 @@ uint32_t silicon_vis_vulkan_get_api_version(void) {
     return ctx.getCapabilities().apiVersion;
 }
 
+bool silicon_vis_init_vulkan(SiliconVisHandle handle, void* nativeWindow, uint32_t width, uint32_t height) {
+    if (!handle) return false;
+    auto* pipeline = static_cast<SiliconVisPipeline*>(handle);
+    return pipeline->initVulkan(width, height, nativeWindow);
+}
+
+void silicon_vis_resize_vulkan(SiliconVisHandle handle, uint32_t width, uint32_t height, float density) {
+    if (!handle) return;
+    auto* pipeline = static_cast<SiliconVisPipeline*>(handle);
+    pipeline->resizeVulkan(width, height, density);
+}
+
+void silicon_vis_release_vulkan(SiliconVisHandle handle) {
+    if (!handle) return;
+    auto* pipeline = static_cast<SiliconVisPipeline*>(handle);
+    pipeline->releaseVulkan();
+}
+
+void silicon_vis_render_vulkan(SiliconVisHandle handle) {
+    if (!handle) return;
+    auto* pipeline = static_cast<SiliconVisPipeline*>(handle);
+    pipeline->renderVulkan();
+}
+
+bool silicon_vis_readback_vulkan(SiliconVisHandle handle, void* outRgbaBuffer, size_t bufferSize) {
+    if (!handle) return false;
+    auto* pipeline = static_cast<SiliconVisPipeline*>(handle);
+    return pipeline->readbackVulkan(outRgbaBuffer, bufferSize);
+}
+
 void silicon_vis_set_mode(SiliconVisHandle handle, SiliconVisMode mode) {
     if (!handle) return;
     auto* pipeline = static_cast<SiliconVisPipeline*>(handle);

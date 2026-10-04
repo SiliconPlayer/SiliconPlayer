@@ -1,6 +1,7 @@
 #pragma once
 
 #include "vis_types.h"
+#include <stddef.h>
 
 #ifdef __cplusplus
 namespace silicon::vis { class IVisualizerRenderer; }
@@ -39,6 +40,13 @@ SILICON_VIS_API void silicon_vis_set_audio_provider(SiliconVisHandle handle, voi
 SILICON_VIS_API bool silicon_vis_vulkan_is_supported(void);
 SILICON_VIS_API int32_t silicon_vis_vulkan_get_tier(void);
 SILICON_VIS_API uint32_t silicon_vis_vulkan_get_api_version(void);
+
+// Vulkan Lifecycle & Rendering
+SILICON_VIS_API bool silicon_vis_init_vulkan(SiliconVisHandle handle, void* nativeWindow, uint32_t width, uint32_t height);
+SILICON_VIS_API void silicon_vis_resize_vulkan(SiliconVisHandle handle, uint32_t width, uint32_t height, float density);
+SILICON_VIS_API void silicon_vis_release_vulkan(SiliconVisHandle handle);
+SILICON_VIS_API void silicon_vis_render_vulkan(SiliconVisHandle handle);
+SILICON_VIS_API bool silicon_vis_readback_vulkan(SiliconVisHandle handle, void* outRgbaBuffer, size_t bufferSize);
 
 // Mode selection
 SILICON_VIS_API void silicon_vis_set_mode(SiliconVisHandle handle, SiliconVisMode mode);

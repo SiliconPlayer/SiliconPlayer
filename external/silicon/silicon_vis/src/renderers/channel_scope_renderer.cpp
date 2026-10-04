@@ -1,6 +1,9 @@
 #include "channel_scope_renderer.h"
+#include "vk/vk_primitives.h"
+#include "vk/vk_dispatch.h"
 #include <cmath>
 #include <algorithm>
+#include <cstring>
 
 namespace silicon::vis {
 
@@ -498,7 +501,9 @@ void ChannelScopeRenderer::drawVuBars() {
     }
 }
 
-void ChannelScopeRenderer::drawText() {
+void ChannelScopeRenderer::buildTextGeometry() {
+    textBatcher_.clear();
+
     int channels = static_cast<int>(channelHistories_.size());
     if (channels <= 0 || widthPx_ <= 0 || heightPx_ <= 0) return;
 
@@ -535,8 +540,6 @@ void ChannelScopeRenderer::drawText() {
 
     const float shadowOffset = std::clamp(scale * 2.8f, 0.75f, 3.0f);
     constexpr float shadowA = 0.50f;
-
-    textBatcher_.clear();
 
     for (int col = 0; col < cols; ++col) {
         for (int row = 0; row < rows; ++row) {
@@ -592,7 +595,10 @@ void ChannelScopeRenderer::drawText() {
             }
         }
     }
+}
 
+void ChannelScopeRenderer::drawText() {
+    buildTextGeometry();
     if (textBatcher_.getVertexCount() > 0) {
         textProgram_.draw(
             textBatcher_.getBufferData(),
@@ -657,6 +663,100 @@ void ChannelScopeRenderer::render() {
                 static_cast<float>(widthPx_),
                 static_cast<float>(heightPx_)
             );
+        }
+    }
+}
+
+void ChannelScopeRenderer::renderVk(
+    void* cmdBuffer,
+    void* pipelines,
+    void* dynamicVertexBuffer,
+    uint64_t fontDescriptorSet,
+    float width,
+    float height
+) {
+    if (!cmdBuffer || !pipelines || !dynamicVertexBuffer || width <= 0.0f || height <= 0.0f) return;
+
+    VkCommandBuffer cmd = static_cast<VkCommandBuffer>(cmdBuffer);
+    auto* prims = static_cast<vk::VkPrimitivePipelines*>(pipelines);
+    auto* dynBuffer = static_cast<vk::VkDynamicVertexBuffer*>(dynamicVertexBuffer);
+    const auto& table = vk::VkLoader::table();
+
+    VkDescriptorSet fontDesc{};
+    std::memcpy(&fontDesc, &fontDescriptorSet, sizeof(VkDescriptorSet));
+
+    buildGeometry();
+    if (fontDesc != VK_NULL_HANDLE) {
+        buildTextGeometry();
+    }
+
+    VkBuffer buffer = dynBuffer->getBuffer();
+
+    // 1. VU Tracks
+    if (vuEnabled_ && !vuTrackVertices_.empty()) {
+        size_t sizeBytes = vuTrackVertices_.size() * sizeof(float);
+        size_t offset = dynBuffer->allocate(vuTrackVertices_.data(), sizeBytes);
+        if (offset != static_cast<size_t>(-1)) {
+            uint32_t trackColor = (vuColorArgb_ & 0x00FFFFFF) | 0x40000000;
+            prims->bindFlatTriangles(cmd, width, height, trackColor);
+            VkDeviceSize bufOffset = static_cast<VkDeviceSize>(offset);
+            table.vkCmdBindVertexBuffers(cmd, 0, 1, &buffer, &bufOffset);
+            table.vkCmdDraw(cmd, static_cast<uint32_t>(vuTrackVertices_.size() / 2), 1, 0, 0);
+        }
+    }
+
+    // 2. VU Fills
+    if (vuEnabled_ && !vuFillVertices_.empty()) {
+        size_t sizeBytes = vuFillVertices_.size() * sizeof(float);
+        size_t offset = dynBuffer->allocate(vuFillVertices_.data(), sizeBytes);
+        if (offset != static_cast<size_t>(-1)) {
+            prims->bindFlatTriangles(cmd, width, height, vuColorArgb_);
+            VkDeviceSize bufOffset = static_cast<VkDeviceSize>(offset);
+            table.vkCmdBindVertexBuffers(cmd, 0, 1, &buffer, &bufOffset);
+            table.vkCmdDraw(cmd, static_cast<uint32_t>(vuFillVertices_.size() / 2), 1, 0, 0);
+        }
+    }
+
+    // 3. Grid Lines
+    if (!gridVertices_.empty()) {
+        size_t sizeBytes = gridVertices_.size() * sizeof(float);
+        size_t offset = dynBuffer->allocate(gridVertices_.data(), sizeBytes);
+        if (offset != static_cast<size_t>(-1)) {
+            prims->bindFlatLines(cmd, width, height, gridColorArgb_, gridWidthPx_);
+            VkDeviceSize bufOffset = static_cast<VkDeviceSize>(offset);
+            table.vkCmdBindVertexBuffers(cmd, 0, 1, &buffer, &bufOffset);
+            table.vkCmdDraw(cmd, static_cast<uint32_t>(gridVertices_.size() / 2), 1, 0, 0);
+        }
+    }
+
+    // 4. Waveforms
+    if (!waveformVertices_.empty()) {
+        size_t sizeBytes = waveformVertices_.size() * sizeof(float);
+        size_t offset = dynBuffer->allocate(waveformVertices_.data(), sizeBytes);
+        if (offset != static_cast<size_t>(-1)) {
+            VkDeviceSize bufOffset = static_cast<VkDeviceSize>(offset);
+            table.vkCmdBindVertexBuffers(cmd, 0, 1, &buffer, &bufOffset);
+            if (waveRenderMode_ == 0 || (waveRenderMode_ == 1 && !fastLinesEnabled_)) {
+                prims->bindFlatTriangles(cmd, width, height, lineColorArgb_);
+                table.vkCmdDraw(cmd, static_cast<uint32_t>(waveformVertices_.size() / 2), 1, 0, 0);
+            } else {
+                float halfWidth = lineWidthPx_ * 0.5f;
+                float softness = (waveRenderMode_ == 2) ? kWaveCrtSoftnessPx : kWaveFastSoftnessPx;
+                prims->bindWaveLines(cmd, width, height, lineColorArgb_, halfWidth, softness);
+                table.vkCmdDraw(cmd, static_cast<uint32_t>(waveformVertices_.size() / 3), 1, 0, 0);
+            }
+        }
+    }
+
+    // 5. Text
+    if (fontDesc != VK_NULL_HANDLE && textBatcher_.getVertexCount() > 0) {
+        size_t sizeBytes = textBatcher_.getVertexCount() * 8 * sizeof(float);
+        size_t offset = dynBuffer->allocate(textBatcher_.getBufferData(), sizeBytes);
+        if (offset != static_cast<size_t>(-1)) {
+            prims->bindText(cmd, width, height, fontDesc);
+            VkDeviceSize bufOffset = static_cast<VkDeviceSize>(offset);
+            table.vkCmdBindVertexBuffers(cmd, 0, 1, &buffer, &bufOffset);
+            table.vkCmdDraw(cmd, static_cast<uint32_t>(textBatcher_.getVertexCount()), 1, 0, 0);
         }
     }
 }

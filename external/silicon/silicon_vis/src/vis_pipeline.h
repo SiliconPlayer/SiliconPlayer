@@ -14,6 +14,10 @@
 #include <unordered_map>
 #include <vector>
 
+namespace silicon::vis::vk {
+class SiliconVisVulkanPipeline;
+}
+
 namespace silicon::vis {
 
 class SiliconVisPipeline {
@@ -82,6 +86,14 @@ public:
 
     void render();
 
+    // Vulkan Lifecycle & Rendering
+    bool initVulkan(uint32_t width, uint32_t height, void* nativeWindow = nullptr);
+    void resizeVulkan(uint32_t width, uint32_t height, float density);
+    void releaseVulkan();
+    void renderVulkan();
+    bool readbackVulkan(void* outRgbaBuffer, size_t bufferSize);
+    bool isVulkanReady() const;
+
 private:
     IVisualizerRenderer* getActiveRenderer();
     bool ensureMsaaTarget(int32_t width, int32_t height);
@@ -130,6 +142,11 @@ private:
     VuMetersRenderer vuMeters_;
 
     std::unordered_map<int32_t, VisualizerRendererPtr> pluginRenderers_;
+
+    std::unique_ptr<vk::SiliconVisVulkanPipeline> vulkanPipeline_;
+    std::vector<uint8_t> customFontRgba_;
+    int32_t customFontWidth_ = 0;
+    int32_t customFontHeight_ = 0;
 };
 
 } // namespace silicon::vis

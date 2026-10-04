@@ -21,6 +21,15 @@ public:
     void render() override;
     void releaseGl() override;
 
+    void renderVk(
+        void* cmdBuffer,
+        void* pipelines,
+        void* dynamicVertexBuffer,
+        uint64_t fontDescriptorSet,
+        float width,
+        float height
+    );
+
     void setOptions(
         SiliconVisChannelLayout layout,
         SiliconVisTextAnchor anchor,
@@ -61,6 +70,7 @@ public:
 private:
     void resolveGrid(int channelCount, int& outCols, int& outRows) const;
     void buildGeometry();
+    void buildTextGeometry();
     void drawVuBars();
     void drawText();
 

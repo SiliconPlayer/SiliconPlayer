@@ -1,4 +1,5 @@
 #include "vis_pipeline.h"
+#include "vk/vk_pipeline.h"
 #include <algorithm>
 #include <cstring>
 
@@ -9,6 +10,7 @@ SiliconVisPipeline::SiliconVisPipeline() = default;
 SiliconVisPipeline::~SiliconVisPipeline() {
     releaseMsaaTarget();
     releaseGl();
+    releaseVulkan();
 }
 
 bool SiliconVisPipeline::initGl() {
@@ -118,8 +120,16 @@ void SiliconVisPipeline::setFontAtlas(
     const gl::Glyph* glyphs,
     int32_t glyphCount
 ) {
+    if (rgbaPixels && width > 0 && height > 0) {
+        customFontWidth_ = width;
+        customFontHeight_ = height;
+        customFontRgba_.assign(rgbaPixels, rgbaPixels + (width * height * 4));
+    }
     channelScope_.getFontAtlas().loadCustomAtlas(rgbaPixels, width, height, baseFontSizePx, lineHeightPx, glyphs, glyphCount);
     vuMeters_.getFontAtlas().loadCustomAtlas(rgbaPixels, width, height, baseFontSizePx, lineHeightPx, glyphs, glyphCount);
+    if (vulkanPipeline_ && vulkanPipeline_->isReady() && rgbaPixels && width > 0 && height > 0) {
+        vulkanPipeline_->getFontAtlas().updateAtlas(rgbaPixels, width, height);
+    }
 }
 
 void SiliconVisPipeline::pushPcm(const float* pcmInterleaved, int32_t frames, int32_t channels, int32_t sampleRate) {
@@ -351,6 +361,90 @@ void SiliconVisPipeline::render() {
             GL_COLOR_BUFFER_BIT, GL_NEAREST);
         glBindFramebuffer(GL_FRAMEBUFFER, static_cast<GLuint>(targetFbo_));
     }
+}
+
+bool SiliconVisPipeline::initVulkan(uint32_t width, uint32_t height, void* nativeWindow) {
+    if (!vulkanPipeline_) {
+        vulkanPipeline_ = std::make_unique<vk::SiliconVisVulkanPipeline>();
+    }
+    widthPx_ = static_cast<int32_t>(width);
+    heightPx_ = static_cast<int32_t>(height);
+    channelScope_.resize(widthPx_, heightPx_, density_);
+    bool ok = vulkanPipeline_->init(width, height, nativeWindow);
+    if (ok && !customFontRgba_.empty()) {
+        vulkanPipeline_->getFontAtlas().updateAtlas(customFontRgba_.data(), customFontWidth_, customFontHeight_);
+    }
+    return ok;
+}
+
+void SiliconVisPipeline::resizeVulkan(uint32_t width, uint32_t height, float density) {
+    widthPx_ = static_cast<int32_t>(width);
+    heightPx_ = static_cast<int32_t>(height);
+    density_ = std::max(1.0f, density);
+    channelScope_.resize(widthPx_, heightPx_, density_);
+    if (vulkanPipeline_) {
+        vulkanPipeline_->resize(width, height, density);
+    }
+}
+
+void SiliconVisPipeline::releaseVulkan() {
+    if (vulkanPipeline_) {
+        vulkanPipeline_->release();
+        vulkanPipeline_.reset();
+    }
+}
+
+bool SiliconVisPipeline::isVulkanReady() const {
+    return vulkanPipeline_ && vulkanPipeline_->isReady();
+}
+
+bool SiliconVisPipeline::readbackVulkan(void* outRgbaBuffer, size_t bufferSize) {
+    if (!vulkanPipeline_) return false;
+    return vulkanPipeline_->copyPixelsToBuffer(outRgbaBuffer, bufferSize);
+}
+
+void SiliconVisPipeline::renderVulkan() {
+    if (!vulkanPipeline_ || !vulkanPipeline_->isReady()) return;
+
+    if (audioProvider_) {
+        switch (currentMode_) {
+            case SILICON_VIS_MODE_CHANNEL_SCOPE: {
+                int chCount = 0;
+                const int windowMs = channelScope_.getWindowMs();
+                int displaySamples = (48000 * windowMs) / 1000;
+                displaySamples = std::clamp(displaySamples, 64, 2048);
+                const int fetchSamples = displaySamples * 2;
+                audioProvider_->getChannelScopeHistories(fetchSamples, 0, nativeFlatScope_, chCount);
+                if (chCount > 0 && !nativeFlatScope_.empty()) {
+                    channelScope_.setAllChannelHistories(chCount, fetchSamples, nativeFlatScope_.data(), displaySamples);
+                }
+                break;
+            }
+            default:
+                break;
+        }
+    }
+
+    if (!vulkanPipeline_->beginFrame()) {
+        return;
+    }
+
+    VkCommandBuffer cmd = vulkanPipeline_->getCurrentCommandBuffer();
+    float w = static_cast<float>(vulkanPipeline_->getWidth());
+    float h = static_cast<float>(vulkanPipeline_->getHeight());
+
+    if (currentMode_ == SILICON_VIS_MODE_CHANNEL_SCOPE) {
+        channelScope_.renderVk(
+            cmd,
+            &vulkanPipeline_->getPipelines(),
+            &vulkanPipeline_->getVertexBuffer(),
+            (uint64_t)(uintptr_t)vulkanPipeline_->getFontAtlas().getDescriptorSet(),
+            w,
+            h
+        );
+    }
+
+    vulkanPipeline_->endFrame();
 }
 
 } // namespace silicon::vis

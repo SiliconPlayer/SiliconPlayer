@@ -20,6 +20,9 @@ set(SILICON_VIS_SOURCES
     src/vk/vk_dispatch.cpp
     src/vk/vk_context.cpp
     src/vk/vk_primitives.cpp
+    src/vk/vk_swapchain.cpp
+    src/vk/vk_font_atlas.cpp
+    src/vk/vk_pipeline.cpp
 )
 
 if (ANDROID)
@@ -47,6 +50,7 @@ if (ANDROID)
         PUBLIC
             GLESv3
             log
+            android
             m
             ${CMAKE_DL_LIBS}
             libprojectM-4

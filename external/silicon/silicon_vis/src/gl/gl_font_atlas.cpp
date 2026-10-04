@@ -65,6 +65,7 @@ static std::vector<char32_t> utf8ToCodepoints(const std::string& str) {
 GlFontAtlas::GlFontAtlas() {
     baseFontSizePx_ = 32.0f;
     lineHeightPx_ = 32.0f;
+    generateGlyphs();
 }
 
 bool GlFontAtlas::init() {
@@ -81,10 +82,14 @@ void GlFontAtlas::release() {
     glyphs_.clear();
 }
 
-void GlFontAtlas::generateAtlasTexture() {
+void GlFontAtlas::generateGlyphs(std::vector<uint8_t>* outPixels) {
+    if (!glyphs_.empty() && !outPixels) return;
+
     const int atlasW = 512;
     const int atlasH = 512;
-    std::vector<uint8_t> pixels(atlasW * atlasH, 0);
+    if (outPixels) {
+        outPixels->assign(atlasW * atlasH, 0);
+    }
 
     const int cellW = 32;
     const int cellH = 32;
@@ -113,41 +118,41 @@ void GlFontAtlas::generateAtlasTexture() {
         int w = cellW - 4;
         int h = cellH - 4;
 
-        // Draw solid anti-aliased representation for key symbols
-        if (cp == 0x2022) { // Bullet: centered filled circle
-            float cx = x0 + w * 0.5f;
-            float cy = y0 + h * 0.5f;
-            float r = w * 0.22f;
-            for (int py = y0; py < y0 + h; ++py) {
-                for (int px = x0; px < x0 + w; ++px) {
-                    float dist = std::hypot(px - cx, py - cy);
-                    if (dist <= r) {
-                        float alpha = std::clamp(r - dist + 0.5f, 0.0f, 1.0f);
-                        pixels[py * atlasW + px] = static_cast<uint8_t>(alpha * 255.0f);
-                    }
-                }
-            }
-        } else if (cp == 0x2026) { // Ellipsis: 3 dots
-            float r = w * 0.10f;
-            float cy = y0 + h * 0.70f;
-            float dotsX[3] = { x0 + w * 0.25f, x0 + w * 0.50f, x0 + w * 0.75f };
-            for (int d = 0; d < 3; ++d) {
-                float cx = dotsX[d];
+        if (outPixels) {
+            if (cp == 0x2022) { // Bullet: centered filled circle
+                float cx = x0 + w * 0.5f;
+                float cy = y0 + h * 0.5f;
+                float r = w * 0.22f;
                 for (int py = y0; py < y0 + h; ++py) {
                     for (int px = x0; px < x0 + w; ++px) {
                         float dist = std::hypot(px - cx, py - cy);
                         if (dist <= r) {
                             float alpha = std::clamp(r - dist + 0.5f, 0.0f, 1.0f);
-                            pixels[py * atlasW + px] = std::max(pixels[py * atlasW + px], static_cast<uint8_t>(alpha * 255.0f));
+                            (*outPixels)[py * atlasW + px] = static_cast<uint8_t>(alpha * 255.0f);
                         }
                     }
                 }
-            }
-        } else {
-            // General character representation (fallback crisp high-contrast raster)
-            for (int py = y0 + 4; py < y0 + h - 4; ++py) {
-                for (int px = x0 + 4; px < x0 + w - 4; ++px) {
-                    pixels[py * atlasW + px] = 255;
+            } else if (cp == 0x2026) { // Ellipsis: 3 dots
+                float r = w * 0.10f;
+                float cy = y0 + h * 0.70f;
+                float dotsX[3] = { x0 + w * 0.25f, x0 + w * 0.50f, x0 + w * 0.75f };
+                for (int d = 0; d < 3; ++d) {
+                    float cx = dotsX[d];
+                    for (int py = y0; py < y0 + h; ++py) {
+                        for (int px = x0; px < x0 + w; ++px) {
+                            float dist = std::hypot(px - cx, py - cy);
+                            if (dist <= r) {
+                                float alpha = std::clamp(r - dist + 0.5f, 0.0f, 1.0f);
+                                (*outPixels)[py * atlasW + px] = std::max((*outPixels)[py * atlasW + px], static_cast<uint8_t>(alpha * 255.0f));
+                            }
+                        }
+                    }
+                }
+            } else {
+                for (int py = y0 + 4; py < y0 + h - 4; ++py) {
+                    for (int px = x0 + 4; px < x0 + w - 4; ++px) {
+                        (*outPixels)[py * atlasW + px] = 255;
+                    }
                 }
             }
         }
@@ -172,6 +177,11 @@ void GlFontAtlas::generateAtlasTexture() {
             row++;
         }
     }
+}
+
+void GlFontAtlas::generateAtlasTexture() {
+    std::vector<uint8_t> pixels;
+    generateGlyphs(&pixels);
 
     glGenTextures(1, &textureId_);
     glBindTexture(GL_TEXTURE_2D, textureId_);
@@ -179,8 +189,22 @@ void GlFontAtlas::generateAtlasTexture() {
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
-    glTexImage2D(GL_TEXTURE_2D, 0, GL_ALPHA, atlasW, atlasH, 0, GL_ALPHA, GL_UNSIGNED_BYTE, pixels.data());
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_ALPHA, 512, 512, 0, GL_ALPHA, GL_UNSIGNED_BYTE, pixels.data());
     glBindTexture(GL_TEXTURE_2D, 0);
+}
+
+void GlFontAtlas::getDefaultAtlasRgba(std::vector<uint8_t>& outRgba, int& outWidth, int& outHeight) const {
+    outWidth = 512;
+    outHeight = 512;
+    outRgba.resize(512 * 512 * 4, 255);
+    std::vector<uint8_t> alpha;
+    const_cast<GlFontAtlas*>(this)->generateGlyphs(&alpha);
+    for (size_t i = 0; i < 512 * 512; ++i) {
+        outRgba[i * 4 + 0] = 255;
+        outRgba[i * 4 + 1] = 255;
+        outRgba[i * 4 + 2] = 255;
+        outRgba[i * 4 + 3] = alpha[i];
+    }
 }
 
 bool GlFontAtlas::loadCustomAtlas(
