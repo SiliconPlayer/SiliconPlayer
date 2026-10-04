@@ -17,6 +17,9 @@ set(SILICON_VIS_SOURCES
     src/renderers/bars_renderer.cpp
     src/renderers/starfield_renderer.cpp
     src/renderers/vu_meters_renderer.cpp
+    src/vk/vk_dispatch.cpp
+    src/vk/vk_context.cpp
+    src/vk/vk_primitives.cpp
 )
 
 if (ANDROID)
@@ -45,6 +48,7 @@ if (ANDROID)
             GLESv3
             log
             m
+            ${CMAKE_DL_LIBS}
             libprojectM-4
     )
     target_compile_options(silicon_vis PRIVATE
@@ -62,6 +66,7 @@ else()
         PUBLIC
             OpenGL::GL
             m
+            ${CMAKE_DL_LIBS}
     )
 endif()
 

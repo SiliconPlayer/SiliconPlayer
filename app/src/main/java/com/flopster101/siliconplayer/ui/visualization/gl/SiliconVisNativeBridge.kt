@@ -161,4 +161,7 @@ object SiliconVisNativeBridge {
     )
 
     external fun nativeRender(handle: Long)
+    external fun nativeVulkanIsSupported(): Boolean
+    external fun nativeVulkanGetTier(): Int
+    external fun nativeVulkanGetApiVersion(): Int
 }

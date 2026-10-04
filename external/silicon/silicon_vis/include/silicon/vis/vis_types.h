@@ -7,6 +7,18 @@
 extern "C" {
 #endif
 
+typedef enum SiliconVisBackend {
+    SILICON_VIS_BACKEND_OPENGL = 0,
+    SILICON_VIS_BACKEND_VULKAN = 1
+} SiliconVisBackend;
+
+typedef enum SiliconVisVulkanTier {
+    SILICON_VIS_VK_TIER_NONE = 0,
+    SILICON_VIS_VK_TIER_1_BASE11 = 1,
+    SILICON_VIS_VK_TIER_2_ENHANCED12 = 2,
+    SILICON_VIS_VK_TIER_3_MODERN13 = 3
+} SiliconVisVulkanTier;
+
 typedef enum SiliconVisMode {
     SILICON_VIS_MODE_NONE = 0,
     SILICON_VIS_MODE_BARS = 1,

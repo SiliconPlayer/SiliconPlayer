@@ -35,6 +35,11 @@ SILICON_VIS_API void silicon_vis_resize(SiliconVisHandle handle, int32_t widthPx
 SILICON_VIS_API void silicon_vis_release_gl(SiliconVisHandle handle);
 SILICON_VIS_API void silicon_vis_set_audio_provider(SiliconVisHandle handle, void* audioProvider);
 
+// Vulkan Probing & Diagnostics
+SILICON_VIS_API bool silicon_vis_vulkan_is_supported(void);
+SILICON_VIS_API int32_t silicon_vis_vulkan_get_tier(void);
+SILICON_VIS_API uint32_t silicon_vis_vulkan_get_api_version(void);
+
 // Mode selection
 SILICON_VIS_API void silicon_vis_set_mode(SiliconVisHandle handle, SiliconVisMode mode);
 SILICON_VIS_API SiliconVisMode silicon_vis_get_mode(SiliconVisHandle handle);

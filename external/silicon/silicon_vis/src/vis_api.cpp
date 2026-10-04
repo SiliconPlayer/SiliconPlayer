@@ -1,5 +1,6 @@
 #include "silicon/vis/vis_api.h"
 #include "vis_pipeline.h"
+#include "vk/vk_context.h"
 
 using namespace silicon::vis;
 
@@ -38,6 +39,23 @@ void silicon_vis_set_audio_provider(SiliconVisHandle handle, void* audioProvider
     if (!handle) return;
     auto* pipeline = static_cast<SiliconVisPipeline*>(handle);
     pipeline->setAudioProvider(static_cast<silicon::vis::IVisualizationAudioProvider*>(audioProvider));
+}
+
+bool silicon_vis_vulkan_is_supported(void) {
+    silicon::vis::vk::VkContext ctx;
+    return ctx.init();
+}
+
+int32_t silicon_vis_vulkan_get_tier(void) {
+    silicon::vis::vk::VkContext ctx;
+    if (!ctx.init()) return 0;
+    return static_cast<int32_t>(ctx.getCapabilities().tier);
+}
+
+uint32_t silicon_vis_vulkan_get_api_version(void) {
+    silicon::vis::vk::VkContext ctx;
+    if (!ctx.init()) return 0;
+    return ctx.getCapabilities().apiVersion;
 }
 
 void silicon_vis_set_mode(SiliconVisHandle handle, SiliconVisMode mode) {

@@ -1,0 +1,540 @@
+#include "vk_primitives.h"
+#include "shaders/vk_spv_shaders.h"
+#include <cstring>
+#include <algorithm>
+
+namespace silicon::vis::vk {
+
+namespace {
+
+uint32_t findMemoryType(VkPhysicalDevice physicalDevice, uint32_t typeFilter, VkMemoryPropertyFlags properties) {
+    const auto& table = VkLoader::table();
+    VkPhysicalDeviceMemoryProperties memProperties{};
+    table.vkGetPhysicalDeviceMemoryProperties(physicalDevice, &memProperties);
+
+    for (uint32_t i = 0; i < memProperties.memoryTypeCount; ++i) {
+        if ((typeFilter & (1 << i)) && (memProperties.memoryTypes[i].propertyFlags & properties) == properties) {
+            return i;
+        }
+    }
+    return 0xFFFFFFFF;
+}
+
+void unpackColor(uint32_t argb, float* outColor) {
+    outColor[3] = ((argb >> 24) & 0xFF) / 255.0f;
+    outColor[0] = ((argb >> 16) & 0xFF) / 255.0f;
+    outColor[1] = ((argb >> 8) & 0xFF) / 255.0f;
+    outColor[2] = (argb & 0xFF) / 255.0f;
+}
+
+VkShaderModule createShaderModule(VkDevice device, const uint32_t* code, size_t sizeBytes) {
+    const auto& table = VkLoader::table();
+    VkShaderModuleCreateInfo createInfo{};
+    createInfo.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO;
+    createInfo.codeSize = sizeBytes;
+    createInfo.pCode = code;
+
+    VkShaderModule module = VK_NULL_HANDLE;
+    if (table.vkCreateShaderModule(device, &createInfo, nullptr, &module) != VK_SUCCESS) {
+        return VK_NULL_HANDLE;
+    }
+    return module;
+}
+
+} // namespace
+
+VkDynamicVertexBuffer::~VkDynamicVertexBuffer() {
+    release();
+}
+
+bool VkDynamicVertexBuffer::init(VkContext* context, size_t capacityBytes) {
+    release();
+    context_ = context;
+    capacityBytes_ = capacityBytes;
+
+    const auto& table = VkLoader::table();
+    VkDevice device = context_->getDevice();
+
+    VkBufferCreateInfo bufferInfo{};
+    bufferInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
+    bufferInfo.size = capacityBytes;
+    bufferInfo.usage = VK_BUFFER_USAGE_VERTEX_BUFFER_BIT;
+    bufferInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+
+    if (table.vkCreateBuffer(device, &bufferInfo, nullptr, &buffer_) != VK_SUCCESS) {
+        return false;
+    }
+
+    VkMemoryRequirements memReqs{};
+    table.vkGetBufferMemoryRequirements(device, buffer_, &memReqs);
+
+    uint32_t memTypeIndex = findMemoryType(
+        context_->getPhysicalDevice(),
+        memReqs.memoryTypeBits,
+        VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT
+    );
+    if (memTypeIndex == 0xFFFFFFFF) {
+        table.vkDestroyBuffer(device, buffer_, nullptr);
+        buffer_ = VK_NULL_HANDLE;
+        return false;
+    }
+
+    VkMemoryAllocateInfo allocInfo{};
+    allocInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
+    allocInfo.allocationSize = memReqs.size;
+    allocInfo.memoryTypeIndex = memTypeIndex;
+
+    if (table.vkAllocateMemory(device, &allocInfo, nullptr, &memory_) != VK_SUCCESS) {
+        table.vkDestroyBuffer(device, buffer_, nullptr);
+        buffer_ = VK_NULL_HANDLE;
+        return false;
+    }
+
+    table.vkBindBufferMemory(device, buffer_, memory_, 0);
+
+    void* ptr = nullptr;
+    if (table.vkMapMemory(device, memory_, 0, capacityBytes, 0, &ptr) != VK_SUCCESS) {
+        release();
+        return false;
+    }
+    mappedPtr_ = static_cast<uint8_t*>(ptr);
+    currentOffset_ = 0;
+    return true;
+}
+
+void VkDynamicVertexBuffer::release() {
+    if (!context_) return;
+    const auto& table = VkLoader::table();
+    VkDevice device = context_->getDevice();
+
+    if (mappedPtr_) {
+        table.vkUnmapMemory(device, memory_);
+        mappedPtr_ = nullptr;
+    }
+    if (buffer_ != VK_NULL_HANDLE) {
+        table.vkDestroyBuffer(device, buffer_, nullptr);
+        buffer_ = VK_NULL_HANDLE;
+    }
+    if (memory_ != VK_NULL_HANDLE) {
+        table.vkFreeMemory(device, memory_, nullptr);
+        memory_ = VK_NULL_HANDLE;
+    }
+    capacityBytes_ = 0;
+    currentOffset_ = 0;
+    context_ = nullptr;
+}
+
+size_t VkDynamicVertexBuffer::allocate(const void* data, size_t sizeBytes) {
+    if (!mappedPtr_ || sizeBytes == 0) return static_cast<size_t>(-1);
+
+    // 16-byte alignment
+    size_t alignedOffset = (currentOffset_ + 15) & ~static_cast<size_t>(15);
+    if (alignedOffset + sizeBytes > capacityBytes_) {
+        // Wrapped around or full
+        return static_cast<size_t>(-1);
+    }
+
+    memcpy(mappedPtr_ + alignedOffset, data, sizeBytes);
+    currentOffset_ = alignedOffset + sizeBytes;
+    return alignedOffset;
+}
+
+void VkDynamicVertexBuffer::reset() {
+    currentOffset_ = 0;
+}
+
+// -----------------------------------------------------------------------------
+// VkPrimitivePipelines
+// -----------------------------------------------------------------------------
+
+VkPrimitivePipelines::~VkPrimitivePipelines() {
+    release();
+}
+
+bool VkPrimitivePipelines::init(VkContext* context, VkRenderPass renderPass, uint32_t subpass, VkSampleCountFlagBits samples) {
+    release();
+    context_ = context;
+
+    if (!createShaders()) return false;
+    if (!createLayouts()) return false;
+    if (!createPipelines(renderPass, subpass, samples)) return false;
+
+    return true;
+}
+
+void VkPrimitivePipelines::release() {
+    if (!context_) return;
+    const auto& table = VkLoader::table();
+    VkDevice device = context_->getDevice();
+
+    auto destroyPipe = [&](VkPipeline& p) {
+        if (p != VK_NULL_HANDLE) { table.vkDestroyPipeline(device, p, nullptr); p = VK_NULL_HANDLE; }
+    };
+    auto destroyLayout = [&](VkPipelineLayout& l) {
+        if (l != VK_NULL_HANDLE) { table.vkDestroyPipelineLayout(device, l, nullptr); l = VK_NULL_HANDLE; }
+    };
+    auto destroyShader = [&](VkShaderModule& s) {
+        if (s != VK_NULL_HANDLE) { table.vkDestroyShaderModule(device, s, nullptr); s = VK_NULL_HANDLE; }
+    };
+
+    destroyPipe(flatTrianglesPipeline_);
+    destroyPipe(flatLinesPipeline_);
+    destroyPipe(waveLinesPipeline_);
+    destroyPipe(textPipeline_);
+
+    destroyLayout(flatLayout_);
+    destroyLayout(waveLayout_);
+    destroyLayout(textLayout_);
+
+    if (textDescLayout_ != VK_NULL_HANDLE) {
+        table.vkDestroyDescriptorSetLayout(device, textDescLayout_, nullptr);
+        textDescLayout_ = VK_NULL_HANDLE;
+    }
+
+    destroyShader(flatVertShader_);
+    destroyShader(flatFragShader_);
+    destroyShader(waveVertShader_);
+    destroyShader(waveFragShader_);
+    destroyShader(textVertShader_);
+    destroyShader(textFragShader_);
+
+    context_ = nullptr;
+}
+
+bool VkPrimitivePipelines::createShaders() {
+    VkDevice device = context_->getDevice();
+    using namespace shaders;
+
+    flatVertShader_ = createShaderModule(device, kFlatVertSpv, kFlatVertSpvSize);
+    flatFragShader_ = createShaderModule(device, kFlatFragSpv, kFlatFragSpvSize);
+    waveVertShader_ = createShaderModule(device, kWaveLineVertSpv, kWaveLineVertSpvSize);
+    waveFragShader_ = createShaderModule(device, kWaveLineFragSpv, kWaveLineFragSpvSize);
+    textVertShader_ = createShaderModule(device, kTextVertSpv, kTextVertSpvSize);
+    textFragShader_ = createShaderModule(device, kTextFragSpv, kTextFragSpvSize);
+
+    return flatVertShader_ && flatFragShader_ && waveVertShader_ && waveFragShader_ && textVertShader_ && textFragShader_;
+}
+
+bool VkPrimitivePipelines::createLayouts() {
+    const auto& table = VkLoader::table();
+    VkDevice device = context_->getDevice();
+
+    // Flat pipeline layout (Push constants: 24 bytes)
+    VkPushConstantRange flatRange{};
+    flatRange.stageFlags = VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT;
+    flatRange.offset = 0;
+    flatRange.size = sizeof(PushConstantFlat);
+
+    VkPipelineLayoutCreateInfo flatLayoutInfo{};
+    flatLayoutInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
+    flatLayoutInfo.pushConstantRangeCount = 1;
+    flatLayoutInfo.pPushConstantRanges = &flatRange;
+
+    if (table.vkCreatePipelineLayout(device, &flatLayoutInfo, nullptr, &flatLayout_) != VK_SUCCESS) {
+        return false;
+    }
+
+    // Wave line pipeline layout (Push constants: 32 bytes)
+    VkPushConstantRange waveRange{};
+    waveRange.stageFlags = VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT;
+    waveRange.offset = 0;
+    waveRange.size = sizeof(PushConstantWaveLine);
+
+    VkPipelineLayoutCreateInfo waveLayoutInfo{};
+    waveLayoutInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
+    waveLayoutInfo.pushConstantRangeCount = 1;
+    waveLayoutInfo.pPushConstantRanges = &waveRange;
+
+    if (table.vkCreatePipelineLayout(device, &waveLayoutInfo, nullptr, &waveLayout_) != VK_SUCCESS) {
+        return false;
+    }
+
+    // Text pipeline layout (Descriptor Set 0: Font Sampler + Push constants: 8 bytes)
+    VkDescriptorSetLayoutBinding samplerBinding{};
+    samplerBinding.binding = 0;
+    samplerBinding.descriptorCount = 1;
+    samplerBinding.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+    samplerBinding.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
+
+    VkDescriptorSetLayoutCreateInfo descLayoutInfo{};
+    descLayoutInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
+    descLayoutInfo.bindingCount = 1;
+    descLayoutInfo.pBindings = &samplerBinding;
+
+    if (table.vkCreateDescriptorSetLayout(device, &descLayoutInfo, nullptr, &textDescLayout_) != VK_SUCCESS) {
+        return false;
+    }
+
+    VkPushConstantRange textRange{};
+    textRange.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
+    textRange.offset = 0;
+    textRange.size = sizeof(PushConstantText);
+
+    VkPipelineLayoutCreateInfo textLayoutInfo{};
+    textLayoutInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
+    textLayoutInfo.setLayoutCount = 1;
+    textLayoutInfo.pSetLayouts = &textDescLayout_;
+    textLayoutInfo.pushConstantRangeCount = 1;
+    textLayoutInfo.pPushConstantRanges = &textRange;
+
+    return table.vkCreatePipelineLayout(device, &textLayoutInfo, nullptr, &textLayout_) == VK_SUCCESS;
+}
+
+bool VkPrimitivePipelines::createPipelines(VkRenderPass renderPass, uint32_t subpass, VkSampleCountFlagBits samples) {
+    const auto& table = VkLoader::table();
+    VkDevice device = context_->getDevice();
+
+    VkPipelineViewportStateCreateInfo viewportState{};
+    viewportState.sType = VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO;
+    viewportState.viewportCount = 1;
+    viewportState.scissorCount = 1;
+
+    VkPipelineRasterizationStateCreateInfo rasterizer{};
+    rasterizer.sType = VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO;
+    rasterizer.polygonMode = VK_POLYGON_MODE_FILL;
+    rasterizer.cullMode = VK_CULL_MODE_NONE;
+    rasterizer.frontFace = VK_FRONT_FACE_COUNTER_CLOCKWISE;
+    rasterizer.lineWidth = 1.0f;
+
+    VkPipelineMultisampleStateCreateInfo multisampling{};
+    multisampling.sType = VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO;
+    multisampling.rasterizationSamples = samples;
+
+    VkPipelineColorBlendAttachmentState colorBlendAttachment{};
+    colorBlendAttachment.colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT |
+                                          VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT;
+    colorBlendAttachment.blendEnable = VK_TRUE;
+    colorBlendAttachment.srcColorBlendFactor = VK_BLEND_FACTOR_SRC_ALPHA;
+    colorBlendAttachment.dstColorBlendFactor = VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA;
+    colorBlendAttachment.colorBlendOp = VK_BLEND_OP_ADD;
+    colorBlendAttachment.srcAlphaBlendFactor = VK_BLEND_FACTOR_ONE;
+    colorBlendAttachment.dstAlphaBlendFactor = VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA;
+    colorBlendAttachment.alphaBlendOp = VK_BLEND_OP_ADD;
+
+    VkPipelineColorBlendStateCreateInfo colorBlending{};
+    colorBlending.sType = VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO;
+    colorBlending.attachmentCount = 1;
+    colorBlending.pAttachments = &colorBlendAttachment;
+
+    std::vector<VkDynamicState> dynamicStates = {
+        VK_DYNAMIC_STATE_VIEWPORT,
+        VK_DYNAMIC_STATE_SCISSOR
+    };
+    if (context_->getCapabilities().hasExtendedDynamicState) {
+        dynamicStates.push_back(VK_DYNAMIC_STATE_LINE_WIDTH);
+    }
+
+    VkPipelineDynamicStateCreateInfo dynamicState{};
+    dynamicState.sType = VK_STRUCTURE_TYPE_PIPELINE_DYNAMIC_STATE_CREATE_INFO;
+    dynamicState.dynamicStateCount = static_cast<uint32_t>(dynamicStates.size());
+    dynamicState.pDynamicStates = dynamicStates.data();
+
+    // 1. Flat Triangles Pipeline (2D pos: vec2)
+    VkVertexInputBindingDescription flatBinding{};
+    flatBinding.binding = 0;
+    flatBinding.stride = 2 * sizeof(float);
+    flatBinding.inputRate = VK_VERTEX_INPUT_RATE_VERTEX;
+
+    VkVertexInputAttributeDescription flatPosAttr{};
+    flatPosAttr.location = 0;
+    flatPosAttr.binding = 0;
+    flatPosAttr.format = VK_FORMAT_R32G32_SFLOAT;
+    flatPosAttr.offset = 0;
+
+    VkPipelineVertexInputStateCreateInfo flatVertexInput{};
+    flatVertexInput.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
+    flatVertexInput.vertexBindingDescriptionCount = 1;
+    flatVertexInput.pVertexBindingDescriptions = &flatBinding;
+    flatVertexInput.vertexAttributeDescriptionCount = 1;
+    flatVertexInput.pVertexAttributeDescriptions = &flatPosAttr;
+
+    VkPipelineInputAssemblyStateCreateInfo triAssembly{};
+    triAssembly.sType = VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO;
+    triAssembly.topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
+
+    VkPipelineShaderStageCreateInfo flatStages[2]{};
+    flatStages[0].sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
+    flatStages[0].stage = VK_SHADER_STAGE_VERTEX_BIT;
+    flatStages[0].module = flatVertShader_;
+    flatStages[0].pName = "main";
+    flatStages[1].sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
+    flatStages[1].stage = VK_SHADER_STAGE_FRAGMENT_BIT;
+    flatStages[1].module = flatFragShader_;
+    flatStages[1].pName = "main";
+
+    VkGraphicsPipelineCreateInfo flatTriPipeInfo{};
+    flatTriPipeInfo.sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO;
+    flatTriPipeInfo.stageCount = 2;
+    flatTriPipeInfo.pStages = flatStages;
+    flatTriPipeInfo.pVertexInputState = &flatVertexInput;
+    flatTriPipeInfo.pInputAssemblyState = &triAssembly;
+    flatTriPipeInfo.pViewportState = &viewportState;
+    flatTriPipeInfo.pRasterizationState = &rasterizer;
+    flatTriPipeInfo.pMultisampleState = &multisampling;
+    flatTriPipeInfo.pColorBlendState = &colorBlending;
+    flatTriPipeInfo.pDynamicState = &dynamicState;
+    flatTriPipeInfo.layout = flatLayout_;
+    flatTriPipeInfo.renderPass = renderPass;
+    flatTriPipeInfo.subpass = subpass;
+
+    if (table.vkCreateGraphicsPipelines(device, VK_NULL_HANDLE, 1, &flatTriPipeInfo, nullptr, &flatTrianglesPipeline_) != VK_SUCCESS) {
+        return false;
+    }
+
+    // 2. Flat Lines Pipeline (same vertex layout, LINE_LIST topology)
+    VkPipelineInputAssemblyStateCreateInfo lineAssembly{};
+    lineAssembly.sType = VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO;
+    lineAssembly.topology = VK_PRIMITIVE_TOPOLOGY_LINE_LIST;
+
+    VkGraphicsPipelineCreateInfo flatLinePipeInfo = flatTriPipeInfo;
+    flatLinePipeInfo.pInputAssemblyState = &lineAssembly;
+
+    if (table.vkCreateGraphicsPipelines(device, VK_NULL_HANDLE, 1, &flatLinePipeInfo, nullptr, &flatLinesPipeline_) != VK_SUCCESS) {
+        return false;
+    }
+
+    // 3. Wave Lines Pipeline (pos: vec2, dist: float -> stride: 3 * float)
+    VkVertexInputBindingDescription waveBinding{};
+    waveBinding.binding = 0;
+    waveBinding.stride = 3 * sizeof(float);
+    waveBinding.inputRate = VK_VERTEX_INPUT_RATE_VERTEX;
+
+    VkVertexInputAttributeDescription waveAttrs[2]{};
+    waveAttrs[0].location = 0;
+    waveAttrs[0].binding = 0;
+    waveAttrs[0].format = VK_FORMAT_R32G32_SFLOAT;
+    waveAttrs[0].offset = 0;
+    waveAttrs[1].location = 1;
+    waveAttrs[1].binding = 0;
+    waveAttrs[1].format = VK_FORMAT_R32_SFLOAT;
+    waveAttrs[1].offset = 2 * sizeof(float);
+
+    VkPipelineVertexInputStateCreateInfo waveVertexInput{};
+    waveVertexInput.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
+    waveVertexInput.vertexBindingDescriptionCount = 1;
+    waveVertexInput.pVertexBindingDescriptions = &waveBinding;
+    waveVertexInput.vertexAttributeDescriptionCount = 2;
+    waveVertexInput.pVertexAttributeDescriptions = waveAttrs;
+
+    VkPipelineShaderStageCreateInfo waveStages[2]{};
+    waveStages[0].sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
+    waveStages[0].stage = VK_SHADER_STAGE_VERTEX_BIT;
+    waveStages[0].module = waveVertShader_;
+    waveStages[0].pName = "main";
+    waveStages[1].sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
+    waveStages[1].stage = VK_SHADER_STAGE_FRAGMENT_BIT;
+    waveStages[1].module = waveFragShader_;
+    waveStages[1].pName = "main";
+
+    VkGraphicsPipelineCreateInfo wavePipeInfo = flatTriPipeInfo;
+    wavePipeInfo.pStages = waveStages;
+    wavePipeInfo.pVertexInputState = &waveVertexInput;
+    wavePipeInfo.layout = waveLayout_;
+
+    if (table.vkCreateGraphicsPipelines(device, VK_NULL_HANDLE, 1, &wavePipeInfo, nullptr, &waveLinesPipeline_) != VK_SUCCESS) {
+        return false;
+    }
+
+    // 4. Text Pipeline (pos: vec2, uv: vec2, color: vec4 -> stride: 8 * float)
+    VkVertexInputBindingDescription textBinding{};
+    textBinding.binding = 0;
+    textBinding.stride = 8 * sizeof(float);
+    textBinding.inputRate = VK_VERTEX_INPUT_RATE_VERTEX;
+
+    VkVertexInputAttributeDescription textAttrs[3]{};
+    textAttrs[0].location = 0;
+    textAttrs[0].binding = 0;
+    textAttrs[0].format = VK_FORMAT_R32G32_SFLOAT;
+    textAttrs[0].offset = 0;
+    textAttrs[1].location = 1;
+    textAttrs[1].binding = 0;
+    textAttrs[1].format = VK_FORMAT_R32G32_SFLOAT;
+    textAttrs[1].offset = 2 * sizeof(float);
+    textAttrs[2].location = 2;
+    textAttrs[2].binding = 0;
+    textAttrs[2].format = VK_FORMAT_R32G32B32A32_SFLOAT;
+    textAttrs[2].offset = 4 * sizeof(float);
+
+    VkPipelineVertexInputStateCreateInfo textVertexInput{};
+    textVertexInput.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
+    textVertexInput.vertexBindingDescriptionCount = 1;
+    textVertexInput.pVertexBindingDescriptions = &textBinding;
+    textVertexInput.vertexAttributeDescriptionCount = 3;
+    textVertexInput.pVertexAttributeDescriptions = textAttrs;
+
+    VkPipelineShaderStageCreateInfo textStages[2]{};
+    textStages[0].sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
+    textStages[0].stage = VK_SHADER_STAGE_VERTEX_BIT;
+    textStages[0].module = textVertShader_;
+    textStages[0].pName = "main";
+    textStages[1].sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
+    textStages[1].stage = VK_SHADER_STAGE_FRAGMENT_BIT;
+    textStages[1].module = textFragShader_;
+    textStages[1].pName = "main";
+
+    VkGraphicsPipelineCreateInfo textPipeInfo = flatTriPipeInfo;
+    textPipeInfo.pStages = textStages;
+    textPipeInfo.pVertexInputState = &textVertexInput;
+    textPipeInfo.layout = textLayout_;
+
+    return table.vkCreateGraphicsPipelines(device, VK_NULL_HANDLE, 1, &textPipeInfo, nullptr, &textPipeline_) == VK_SUCCESS;
+}
+
+void VkPrimitivePipelines::bindFlatTriangles(VkCommandBuffer cmd, float width, float height, uint32_t colorArgb) {
+    const auto& table = VkLoader::table();
+    table.vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, flatTrianglesPipeline_);
+
+    PushConstantFlat pc{};
+    pc.resolution[0] = width;
+    pc.resolution[1] = height;
+    unpackColor(colorArgb, pc.color);
+
+    table.vkCmdPushConstants(cmd, flatLayout_, VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(pc), &pc);
+}
+
+void VkPrimitivePipelines::bindFlatLines(VkCommandBuffer cmd, float width, float height, uint32_t colorArgb, float lineWidth) {
+    const auto& table = VkLoader::table();
+    table.vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, flatLinesPipeline_);
+
+    if (context_->getCapabilities().hasExtendedDynamicState && table.vkCmdSetLineWidth) {
+        table.vkCmdSetLineWidth(cmd, lineWidth);
+    }
+
+    PushConstantFlat pc{};
+    pc.resolution[0] = width;
+    pc.resolution[1] = height;
+    unpackColor(colorArgb, pc.color);
+
+    table.vkCmdPushConstants(cmd, flatLayout_, VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(pc), &pc);
+}
+
+void VkPrimitivePipelines::bindWaveLines(VkCommandBuffer cmd, float width, float height, uint32_t colorArgb, float halfWidth, float softness) {
+    const auto& table = VkLoader::table();
+    table.vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, waveLinesPipeline_);
+
+    PushConstantWaveLine pc{};
+    pc.resolution[0] = width;
+    pc.resolution[1] = height;
+    unpackColor(colorArgb, pc.color);
+    pc.halfWidth = halfWidth;
+    pc.softness = softness;
+
+    table.vkCmdPushConstants(cmd, waveLayout_, VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(pc), &pc);
+}
+
+void VkPrimitivePipelines::bindText(VkCommandBuffer cmd, float width, float height, VkDescriptorSet fontDescriptorSet) {
+    const auto& table = VkLoader::table();
+    table.vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, textPipeline_);
+
+    if (fontDescriptorSet != VK_NULL_HANDLE) {
+        table.vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, textLayout_, 0, 1, &fontDescriptorSet, 0, nullptr);
+    }
+
+    PushConstantText pc{};
+    pc.resolution[0] = width;
+    pc.resolution[1] = height;
+
+    table.vkCmdPushConstants(cmd, textLayout_, VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(pc), &pc);
+}
+
+} // namespace silicon::vis::vk

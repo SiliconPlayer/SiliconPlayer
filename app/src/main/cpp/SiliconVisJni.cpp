@@ -932,6 +932,30 @@ Java_com_flopster101_siliconplayer_ui_visualization_gl_SiliconVisNativeBridge_na
     silicon_vis_render(reinterpret_cast<SiliconVisHandle>(handle));
 }
 
+JNIEXPORT jboolean JNICALL
+Java_com_flopster101_siliconplayer_ui_visualization_gl_SiliconVisNativeBridge_nativeVulkanIsSupported(
+    JNIEnv* /* env */,
+    jobject /* thiz */
+) {
+    return silicon_vis_vulkan_is_supported() ? JNI_TRUE : JNI_FALSE;
+}
+
+JNIEXPORT jint JNICALL
+Java_com_flopster101_siliconplayer_ui_visualization_gl_SiliconVisNativeBridge_nativeVulkanGetTier(
+    JNIEnv* /* env */,
+    jobject /* thiz */
+) {
+    return static_cast<jint>(silicon_vis_vulkan_get_tier());
+}
+
+JNIEXPORT jint JNICALL
+Java_com_flopster101_siliconplayer_ui_visualization_gl_SiliconVisNativeBridge_nativeVulkanGetApiVersion(
+    JNIEnv* /* env */,
+    jobject /* thiz */
+) {
+    return static_cast<jint>(silicon_vis_vulkan_get_api_version());
+}
+
 } // extern "C"
 
 extern "C" __attribute__((visibility("default")))
