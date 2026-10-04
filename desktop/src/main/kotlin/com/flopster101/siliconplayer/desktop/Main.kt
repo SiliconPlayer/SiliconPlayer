@@ -766,11 +766,13 @@ fun main(args: Array<String>) = application {
                     )
                 )
             }
-            val playerVisualizationShowDebugInfo = remember(prefToken, prefs) {
-                prefs.getBoolean(
-                    AppPreferenceKeys.VISUALIZATION_SHOW_DEBUG_INFO,
-                    AppDefaults.Visualization.showDebugInfo
-                )
+            var playerVisualizationShowDebugInfo by remember {
+                mutableStateOf(AppDefaults.Visualization.showDebugInfo)
+            }
+            LaunchedEffect(Unit) {
+                if (prefs.contains(AppPreferenceKeys.VISUALIZATION_SHOW_DEBUG_INFO)) {
+                    prefs.edit().remove(AppPreferenceKeys.VISUALIZATION_SHOW_DEBUG_INFO).apply()
+                }
             }
             val playerShowAudioOutputRouteChip = remember(prefToken, prefs) {
                 prefs.getBoolean(
@@ -2590,6 +2592,8 @@ fun main(args: Array<String>) = application {
                                             protectedCachePaths = settingsProtectedCachePaths,
                                             onSelectVisualizationMode = visualizationUiState.onSelectMode,
                                             onSetEnabledModes = visualizationUiState.onSetEnabledModes,
+                                            visualizationShowDebugInfo = playerVisualizationShowDebugInfo,
+                                            onVisualizationShowDebugInfoChanged = { playerVisualizationShowDebugInfo = it },
                                             onClearRecentsUiState = {
                                                 recentFiles.clear()
                                                 recentFolders.clear()

@@ -11,6 +11,7 @@ import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.ImageBitmap
@@ -200,6 +201,8 @@ private class SiliconNativeDesktopRenderThread(
         var lastFrameTimeNs = System.nanoTime()
         var fpsFrameCount = 0
         var fpsTimerNs = System.nanoTime()
+        var lastHudPublishNs = 0L
+        var latestDrawFps = 0
 
         var lastArtwork: ImageBitmap? = null
         var lastPlaceholderIcon: ImageBitmap? = null
@@ -827,14 +830,18 @@ private class SiliconNativeDesktopRenderThread(
                     }
                 }
 
+                val renderMs = (frameElapsedNs / 1_000_000L).toInt().coerceAtLeast(0)
                 fpsFrameCount++
                 val nowNs = System.nanoTime()
                 if (nowNs - fpsTimerNs >= 1_000_000_000L) {
-                    val fps = fpsFrameCount
-                    val frameMs = ((nowNs - lastFrameTimeNs) / 1_000_000L).toInt()
+                    val elapsedSec = (nowNs - fpsTimerNs).toDouble() / 1_000_000_000.0
+                    latestDrawFps = if (elapsedSec > 0.0) ((fpsFrameCount.toDouble() / elapsedSec).toInt().coerceAtLeast(0)) else fpsFrameCount
                     fpsFrameCount = 0
                     fpsTimerNs = nowNs
-                    onFrameStats?.invoke(fps, frameMs)
+                }
+                if (nowNs - lastHudPublishNs >= 350_000_000L) {
+                    onFrameStats?.invoke(latestDrawFps, renderMs)
+                    lastHudPublishNs = nowNs
                 }
                 lastFrameTimeNs = nowNs
             }
@@ -866,6 +873,7 @@ fun SiliconNativeGlDesktopVisualization(
     // The thread hands back reused bitmap instances, which never compare as
     // changed on their own; the tick forces a redraw of their new pixels.
     var frameTick by remember { mutableIntStateOf(0) }
+    val currentOnFrameStats by rememberUpdatedState(onFrameStats)
 
     val renderThread = remember(prefs) {
         SiliconNativeDesktopRenderThread(
@@ -875,7 +883,7 @@ fun SiliconNativeGlDesktopVisualization(
                 renderedBitmap = bmp
                 frameTick++
             },
-            onFrameStats = onFrameStats
+            onFrameStats = { fps, frameMs -> currentOnFrameStats?.invoke(fps, frameMs) }
         ).also { it.start() }
     }
 

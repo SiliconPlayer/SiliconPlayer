@@ -1843,12 +1843,7 @@ private fun AppNavigation(
         )
     }
     var visualizationShowDebugInfo by remember {
-        mutableStateOf(
-            prefs.getBoolean(
-                AppPreferenceKeys.VISUALIZATION_SHOW_DEBUG_INFO,
-                AppDefaults.Visualization.showDebugInfo
-            )
-        )
+        mutableStateOf(AppDefaults.Visualization.showDebugInfo)
     }
     var visualizationBarCount by remember {
         mutableIntStateOf(

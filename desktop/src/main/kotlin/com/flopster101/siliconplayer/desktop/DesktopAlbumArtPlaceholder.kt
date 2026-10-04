@@ -33,6 +33,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -79,10 +80,12 @@ import java.nio.ByteOrder
 import org.jetbrains.skia.ColorAlphaType
 import org.jetbrains.skia.ColorType
 import org.jetbrains.skia.ImageInfo
+import com.flopster101.siliconplayer.ui.visualization.VisualizationDebugOverlay
 import com.flopster101.siliconplayer.ui.visualization.channel.GlChannelScopeTextPalette
 import com.flopster101.siliconplayer.ui.visualization.channel.loadChannelScopeNameMaps
 import com.flopster101.siliconplayer.ui.visualization.gl.SiliconNativeGlDesktopVisualization
 import com.flopster101.siliconplayer.ui.visualization.gl.SiliconNativeGlFrame
+import com.flopster101.siliconplayer.visualizationRenderBackendForMode
 import java.io.File
 import kotlinx.coroutines.delay
 
@@ -586,6 +589,17 @@ internal fun AlbumArtPlaceholder(
         )
     }
 
+    var visDebugDrawFps by remember { mutableIntStateOf(0) }
+    var visDebugDrawFrameMs by remember { mutableIntStateOf(0) }
+    val activeRenderBackend = when (visualizationMode) {
+        VisualizationMode.ChannelScope -> channelScopePrefs.renderBackend
+        VisualizationMode.Oscilloscope -> visualizationOscRenderBackend
+        VisualizationMode.Bars -> barRenderBackend
+        VisualizationMode.VuMeters -> vuRenderBackend
+        VisualizationMode.ProjectM -> projectMRenderBackend
+        else -> visualizationRenderBackendForMode(visualizationMode)
+    }
+
     val cardShape = RoundedCornerShape(artworkCornerRadiusDp.coerceIn(0, 48).dp)
     ElevatedCard(
         modifier = modifier.clip(cardShape),
@@ -602,8 +616,22 @@ internal fun AlbumArtPlaceholder(
         ) {
             SiliconNativeGlDesktopVisualization(
                 frame = glFrame,
-                modifier = Modifier.fillMaxSize()
+                modifier = Modifier.fillMaxSize(),
+                onFrameStats = { fps, frameMs ->
+                    visDebugDrawFps = fps
+                    visDebugDrawFrameMs = frameMs
+                }
             )
+
+            if (visualizationShowDebugInfo && visualizationMode != VisualizationMode.Off) {
+                VisualizationDebugOverlay(
+                    visualizationMode = visualizationMode,
+                    activeRenderBackend = activeRenderBackend,
+                    drawFps = visDebugDrawFps,
+                    drawFrameMs = visDebugDrawFrameMs,
+                    modifier = Modifier.align(Alignment.TopStart)
+                )
+            }
 
             androidx.compose.animation.AnimatedVisibility(
                 visible = showVisualizationModeBadge && visualizationMode != VisualizationMode.Off,

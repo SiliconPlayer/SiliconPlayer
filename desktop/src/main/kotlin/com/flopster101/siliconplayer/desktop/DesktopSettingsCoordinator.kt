@@ -7,6 +7,7 @@ import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import com.flopster101.siliconplayer.AppDefaults
 import com.flopster101.siliconplayer.AppPreferenceKeys
@@ -145,6 +146,8 @@ internal fun rememberDesktopSettings(
     protectedCachePaths: Set<String> = emptySet(),
     onSelectVisualizationMode: (VisualizationMode) -> Unit = {},
     onSetEnabledModes: (Set<VisualizationMode>) -> Unit = {},
+    visualizationShowDebugInfo: Boolean = AppDefaults.Visualization.showDebugInfo,
+    onVisualizationShowDebugInfoChanged: (Boolean) -> Unit = {},
     onClearRecentsUiState: () -> Unit = {},
     onClearNetworkNodesUiState: () -> Unit = {},
     onClearAllUiState: () -> Unit = {}
@@ -155,6 +158,7 @@ internal fun rememberDesktopSettings(
     val fileExportHandler = LocalFileExportHandler.current
     val scope = rememberCoroutineScope()
     val remoteCacheRoot = remember(cacheDir) { File(cacheDir, REMOTE_SOURCE_CACHE_DIR) }
+    val currentOnVisualizationShowDebugInfoChanged by rememberUpdatedState(onVisualizationShowDebugInfoChanged)
 
     var changeToken by remember { mutableIntStateOf(0) }
     val cachedSourceFiles = remember(changeToken, remoteCacheRoot) {
@@ -334,7 +338,7 @@ internal fun rememberDesktopSettings(
         }
     }
 
-    val state = remember(changeToken, streamingChangeToken, selectedPluginName) {
+    val state = remember(changeToken, streamingChangeToken, selectedPluginName, visualizationShowDebugInfo) {
         // Pipeline perf/buffer are per-backend like Android, resolved through the shared chain.
         val backendPreference = AudioBackendPreference.fromStorage(
             prefs.getString(AppPreferenceKeys.AUDIO_BACKEND_PREFERENCE, "auto")
@@ -421,7 +425,7 @@ internal fun rememberDesktopSettings(
             visualizationMode = VisualizationMode.fromStorage(prefs.getString(AppPreferenceKeys.VISUALIZATION_MODE, "bars")),
             enabledVisualizationModes = enabledVisualizationModes,
             visualizationPerformanceMode = VisualizationPerformanceMode.fromStorage(prefs.getString(AppPreferenceKeys.VISUALIZATION_PERFORMANCE_MODE, "auto")),
-            visualizationShowDebugInfo = prefs.getBoolean(AppPreferenceKeys.VISUALIZATION_SHOW_DEBUG_INFO, false),
+            visualizationShowDebugInfo = visualizationShowDebugInfo,
             visualizationKeepScreenOn = prefs.getBoolean(AppPreferenceKeys.VISUALIZATION_KEEP_SCREEN_ON, true),
             visualizationBarCount = prefs.getInt(AppPreferenceKeys.VISUALIZATION_BAR_COUNT, 32),
             visualizationBarSmoothingPercent = prefs.getInt(AppPreferenceKeys.VISUALIZATION_BAR_SMOOTHING_PERCENT, 50),
@@ -946,7 +950,7 @@ internal fun rememberDesktopSettings(
             onVisualizationModeChanged = { onSelectVisualizationMode(it) },
             onEnabledVisualizationModesChanged = { modes -> onSetEnabledModes(modes) },
             onVisualizationPerformanceModeChanged = { putString(AppPreferenceKeys.VISUALIZATION_PERFORMANCE_MODE, it.storageValue) },
-            onVisualizationShowDebugInfoChanged = { putBool(AppPreferenceKeys.VISUALIZATION_SHOW_DEBUG_INFO, it) },
+            onVisualizationShowDebugInfoChanged = { currentOnVisualizationShowDebugInfoChanged(it) },
             onVisualizationKeepScreenOnChanged = { putBool(AppPreferenceKeys.VISUALIZATION_KEEP_SCREEN_ON, it) },
             onVisualizationBarCountChanged = { putInt(AppPreferenceKeys.VISUALIZATION_BAR_COUNT, it) },
             onVisualizationBarSmoothingPercentChanged = { putInt(AppPreferenceKeys.VISUALIZATION_BAR_SMOOTHING_PERCENT, it) },
