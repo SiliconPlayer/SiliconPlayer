@@ -587,6 +587,7 @@ internal class SiliconNativeVkRenderThread(
             }
         }
         val frame = state.frame ?: return
+        if (state.width <= 1 || state.height <= 1) return
 
         if (!frame.isPlaying) {
             val isFadeMode = frame.mode == 1 || frame.mode == 2 || frame.mode == 3 || frame.mode == 5
