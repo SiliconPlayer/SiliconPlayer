@@ -87,12 +87,6 @@ source = "external/klystrack"
 texts = ["external/klystrack/LICENSE"]
 
 [[dep]]
-id = "core.dnfamitracker"
-spdx = "GPL-3.0-or-later"
-source = "external/dnfamitracker"
-texts = ["external/dnfamitracker/LICENSE-GPLv3.txt"]
-
-[[dep]]
 id = "core.furnace"
 spdx = "GPL-2.0-or-later"
 source = "external/furnace"
@@ -193,33 +187,44 @@ texts = ["external/projectm/LICENSE.txt"]
 id = "lib.fftw"
 spdx = "GPL-2.0-or-later"
 source = "external/furnace"
+git_version = false
+version_file = "external/furnace/extern/fftw/NEWS"
+version_pattern = 'FFTW\s+([0-9.]+):'
 texts = ["external/furnace/extern/fftw/COPYING"]
-note = "Shipped as built by the furnace tree; version follows core.furnace."
+note = "Shipped as built by the furnace tree."
 
 [[dep]]
 id = "lib.fmt"
 spdx = "MIT"
 source = "external/furnace"
+git_version = false
+version_file = "external/furnace/extern/fmt/ChangeLog.rst"
+version_pattern = '^([0-9.]+)\s+-\s+\d{4}-\d{2}-\d{2}'
 texts = ["external/furnace/extern/fmt/LICENSE.rst"]
-note = "Shipped as built by the furnace tree; version follows core.furnace."
+note = "Shipped as built by the furnace tree."
 
 [[dep]]
 id = "lib.libsndfile"
 spdx = "LGPL-2.1-or-later"
 source = "external/furnace"
+git_version = false
+version_file = "external/furnace/extern/libsndfile-modified/CMakeLists.txt"
+version_pattern = 'project\(libsndfile\s+VERSION\s+([0-9.]+)'
 texts = ["external/furnace/extern/libsndfile-modified/COPYING"]
-note = "Shipped as built by the furnace tree; version follows core.furnace."
+note = "Shipped as built by the furnace tree."
 
 [[dep]]
 id = "lib.dnfamitracker_nsfplay"
 spdx = "Informal permissive notice (see readme.txt)"
 source = "external/dnfamitracker"
+git_version = false
 texts = ["external/dnfamitracker/Source/APU/nsfplay/readme.txt"]
 
 [[dep]]
 id = "lib.dnfamitracker_emu2413_emu2149"
 spdx = "MIT"
 source = "external/dnfamitracker"
+git_version = false
 texts = ["external/dnfamitracker/Source/APU/digital-sound-antiques/LICENSE"]
 note = "Covers emu2413 (VRC7) and emu2149 (Sunsoft 5B) from digital-sound-antiques."
 
@@ -227,6 +232,7 @@ note = "Covers emu2413 (VRC7) and emu2149 (Sunsoft 5B) from digital-sound-antiqu
 id = "lib.dnfamitracker_mesen"
 spdx = "GPL-3.0"
 source = "external/dnfamitracker"
+git_version = false
 texts = ["external/dnfamitracker/Source/APU/mesen/LICENSE"]
 note = "FDS and N163 sound emulation."
 
@@ -234,6 +240,7 @@ note = "FDS and N163 sound emulation."
 id = "lib.dnfamitracker_blip_buffer"
 spdx = "LGPL-2.1"
 source = "external/dnfamitracker"
+git_version = false
 texts = ["external/dnfamitracker/Source/Blip_Buffer/Blip_Buffer.cpp"]
 note = "The LGPL-2.1 grant lives in the Blip_Buffer.cpp file header; no standalone text is vendored upstream."
 
@@ -241,6 +248,7 @@ note = "The LGPL-2.1 grant lives in the Blip_Buffer.cpp file header; no standalo
 id = "lib.dnfamitracker_nayuki_fft"
 spdx = "MIT"
 source = "external/dnfamitracker"
+git_version = false
 texts = ["external/dnfamitracker/Source/FFT/FftComplex.hpp"]
 note = "The MIT grant lives in the FftComplex.hpp file header."
 
@@ -248,6 +256,9 @@ note = "The MIT grant lives in the FftComplex.hpp file header."
 id = "lib.dnfamitracker_json"
 spdx = "MIT"
 source = "external/dnfamitracker"
+git_version = false
+version_file = "external/dnfamitracker/Source/json/json.hpp"
+version_pattern = 'version\s+([0-9.]+)'
 texts = []
 note = "MIT (SPDX-License-Identifier in Source/json/json.hpp); the 900KB header cannot ride into the license viewer."
 
@@ -255,6 +266,9 @@ note = "MIT (SPDX-License-Identifier in Source/json/json.hpp); the 900KB header 
 id = "lib.dnfamitracker_libsamplerate"
 spdx = "BSD-2-Clause"
 source = "external/dnfamitracker"
+git_version = false
+version_file = "external/dnfamitracker/Source/libsamplerate/CMakeLists.txt"
+version_pattern = 'project\(libsamplerate\s+VERSION\s+([0-9.]+)'
 texts = ["external/dnfamitracker/Source/libsamplerate/COPYING"]
 
 [[dep]]

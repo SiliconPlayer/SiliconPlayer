@@ -23,12 +23,13 @@ package under `/usr/share/licenses/siliconplayer/`.
 | core.hivelytracker | BSD-3-Clause | V1_9-1cdc602c | `external/hivelytracker` @ `1cdc602c3503` |
 | core.klystrack | MIT | v0.10.0-alpha4-b2f54be1 | `external/klystrack` @ `b2f54be1070e` |
 | core.furnace | GPL-2.0-or-later | v0.6pre18-ba46d842 | `external/furnace` @ `ba46d842807c` |
+| core.dnfamitracker | GPL-3.0-or-later | v0.3.15.1-0353843c | `external/dnfamitracker` @ `0353843cc6e7` |
 | lib.openmpt_dsp_effects | BSD-3-Clause | n/a | in-tree |
 | lib.psflib | MIT | 95509e0c | `external/psflib` @ `95509e0c6f13` |
 | lib.mbedtls | Apache-2.0 | yotta-2.3.2-068ff080 | `external/mbedtls` @ `068ff080b369` |
 | lib.libsoxr | LGPL-2.1-or-later | 0.1.3-945b592b | `external/libsoxr` @ `945b592b7047` |
 | lib.libresidfp | GPL-2.0-or-later | v1.2.1-9fa63991 | `external/libresidfp` @ `9fa639915cad` |
-| lib.resid | GPL-3.0-or-later | 3bf8eff2 | `external/resid` @ `3bf8eff22bc8` |
+| lib.resid | GPL-2.0-or-later | 3bf8eff2 | `external/resid` @ `3bf8eff22bc8` |
 | lib.libbinio | LGPL-2.1-or-later | start-79d597dd | `external/libbinio` @ `79d597dde206` |
 | lib.miniaudio | Unlicense OR MIT-0 | 0.11.25-f9614af6 | `external/miniaudio` @ `f9614af67ef1` |
 | core.ayfly | GPL-2.0-or-later | 558275b8 | `external/ayfly` @ `558275b850b0` |
@@ -37,10 +38,19 @@ package under `/usr/share/licenses/siliconplayer/`.
 | lib.smbj_rpc | BSD-3-Clause | 0.11.1.1 | in-tree |
 | lib.json | LicenseRef-JSON | 20240303 | in-tree |
 | lib.projectm | LGPL-2.1-or-later | v4.1.7-359bf780 | `external/projectm` @ `359bf7801e20` |
-| lib.fftw | GPL-2.0-or-later | v0.6pre18-ba46d842 | `external/furnace` @ `ba46d842807c` |
-| lib.fmt | MIT | v0.6pre18-ba46d842 | `external/furnace` @ `ba46d842807c` |
-| lib.libsndfile | LGPL-2.1-or-later | v0.6pre18-ba46d842 | `external/furnace` @ `ba46d842807c` |
+| lib.fftw | GPL-2.0-or-later | 3.3.10 | `external/furnace` @ `ba46d842807c` |
+| lib.fmt | MIT | 10.1.0 | `external/furnace` @ `ba46d842807c` |
+| lib.libsndfile | LGPL-2.1-or-later | 1.2.2 | `external/furnace` @ `ba46d842807c` |
+| lib.dnfamitracker_nsfplay | Informal permissive notice (see readme.txt) | n/a | `external/dnfamitracker` @ `0353843cc6e7` |
+| lib.dnfamitracker_emu2413_emu2149 | MIT | n/a | `external/dnfamitracker` @ `0353843cc6e7` |
+| lib.dnfamitracker_mesen | GPL-3.0 | n/a | `external/dnfamitracker` @ `0353843cc6e7` |
+| lib.dnfamitracker_blip_buffer | LGPL-2.1 | n/a | `external/dnfamitracker` @ `0353843cc6e7` |
+| lib.dnfamitracker_nayuki_fft | MIT | n/a | `external/dnfamitracker` @ `0353843cc6e7` |
+| lib.dnfamitracker_json | MIT | 3.11.2 | `external/dnfamitracker` @ `0353843cc6e7` |
+| lib.dnfamitracker_libsamplerate | BSD-2-Clause | 0.2.2 | `external/dnfamitracker` @ `0353843cc6e7` |
 | core.ufmod | MIT | fddf70d8 | `external/ufmod_c` @ `fddf70d8d712` |
+| lib.roboto | Apache-2.0 | n/a | in-tree |
+| app.siliconplayer | GPL-3.0 | n/a | in-tree |
 
 **core.vgmplay**: No single license text upstream; per-chip sources carry their own notices.
 
@@ -56,8 +66,22 @@ package under `/usr/share/licenses/siliconplayer/`.
 
 **lib.json**: Desktop bundles org.json:json; Android uses the framework copy.
 
-**lib.fftw**: Shipped as built by the furnace tree; version follows core.furnace.
+**lib.fftw**: Shipped as built by the furnace tree.
 
-**lib.fmt**: Shipped as built by the furnace tree; version follows core.furnace.
+**lib.fmt**: Shipped as built by the furnace tree.
 
-**lib.libsndfile**: Shipped as built by the furnace tree; version follows core.furnace.
+**lib.libsndfile**: Shipped as built by the furnace tree.
+
+**lib.dnfamitracker_emu2413_emu2149**: Covers emu2413 (VRC7) and emu2149 (Sunsoft 5B) from digital-sound-antiques.
+
+**lib.dnfamitracker_mesen**: FDS and N163 sound emulation.
+
+**lib.dnfamitracker_blip_buffer**: The LGPL-2.1 grant lives in the Blip_Buffer.cpp file header; no standalone text is vendored upstream.
+
+**lib.dnfamitracker_nayuki_fft**: The MIT grant lives in the FftComplex.hpp file header.
+
+**lib.dnfamitracker_json**: MIT (SPDX-License-Identifier in Source/json/json.hpp); the 900KB header cannot ride into the license viewer.
+
+**lib.roboto**: Bundled Roboto Medium; VU meter typeface on Android and desktop.
+
+**app.siliconplayer**: Silicon Player application license.

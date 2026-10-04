@@ -140,10 +140,21 @@ def main():
         source = repo / dep["source"] if dep.get("source") else None
         sha, full_sha = own_head(source) if source is not None else (None, None)
         version = dep.get("override")
-        if version is None and sha is not None and dep_id not in disabled:
+        if version is None and "version_file" in dep and "version_pattern" in dep:
+            vfile = repo / dep["version_file"]
+            if vfile.is_file():
+                match = re.search(
+                    dep["version_pattern"],
+                    vfile.read_text(encoding="utf-8", errors="replace"),
+                    re.MULTILINE,
+                )
+                if match:
+                    version = match.group(1)
+        use_git = dep.get("git_version", True)
+        if version is None and sha is not None and dep_id not in disabled and use_git:
             tag = latest_tag(source, dep.get("tag_patterns", default_patterns))
             version = "%s-%s" % (tag, sha) if tag else sha
-        elif version is None:
+        elif version is None and use_git:
             version = sha
         if version is not None:
             versions[dep_id] = version

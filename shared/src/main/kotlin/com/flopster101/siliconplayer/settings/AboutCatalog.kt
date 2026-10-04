@@ -430,7 +430,7 @@ internal object AboutCatalog {
                 AboutEntityLink("Source", "https://www.fftw.org/")
             ),
             integrationNotes = listOf(
-                "Shipped as built by the furnace tree; version follows core.furnace."
+                "Shipped as built by the furnace tree."
             )
         ),
         AboutEntity(
@@ -444,7 +444,7 @@ internal object AboutCatalog {
                 AboutEntityLink("Source", "https://github.com/fmtlib/fmt")
             ),
             integrationNotes = listOf(
-                "Shipped as built by the furnace tree; version follows core.furnace."
+                "Shipped as built by the furnace tree."
             )
         ),
         AboutEntity(
@@ -458,7 +458,7 @@ internal object AboutCatalog {
                 AboutEntityLink("Source", "https://github.com/libsndfile/libsndfile")
             ),
             integrationNotes = listOf(
-                "Shipped as built by the furnace tree; version follows core.furnace."
+                "Shipped as built by the furnace tree."
             )
         ),
         AboutEntity(
@@ -472,7 +472,7 @@ internal object AboutCatalog {
                 AboutEntityLink("Source", "https://github.com/bbbradsmith/nsfplay")
             ),
             integrationNotes = listOf(
-                "Shipped as built by the Dn-FamiTracker tree; version follows core.dnfamitracker."
+                "Shipped as built by the Dn-FamiTracker tree."
             )
         ),
         AboutEntity(
@@ -487,7 +487,7 @@ internal object AboutCatalog {
                 AboutEntityLink("Source", "https://github.com/digital-sound-antiques/emu2149")
             ),
             integrationNotes = listOf(
-                "Shipped as built by the Dn-FamiTracker tree; version follows core.dnfamitracker."
+                "Shipped as built by the Dn-FamiTracker tree."
             )
         ),
         AboutEntity(
@@ -501,7 +501,7 @@ internal object AboutCatalog {
                 AboutEntityLink("Source", "https://github.com/SourMesen/Mesen2")
             ),
             integrationNotes = listOf(
-                "Shipped as built by the Dn-FamiTracker tree; version follows core.dnfamitracker."
+                "Shipped as built by the Dn-FamiTracker tree."
             )
         ),
         AboutEntity(
@@ -515,7 +515,7 @@ internal object AboutCatalog {
                 AboutEntityLink("Source", "https://www.slack.net/~ant/libs/audio.html#Blip_Buffer")
             ),
             integrationNotes = listOf(
-                "Shipped as built by the Dn-FamiTracker tree; version follows core.dnfamitracker."
+                "Shipped as built by the Dn-FamiTracker tree."
             )
         ),
         AboutEntity(
@@ -529,7 +529,7 @@ internal object AboutCatalog {
                 AboutEntityLink("Source", "https://www.nayuki.io/page/free-small-fft-in-multiple-languages")
             ),
             integrationNotes = listOf(
-                "Shipped as built by the Dn-FamiTracker tree; version follows core.dnfamitracker."
+                "Shipped as built by the Dn-FamiTracker tree."
             )
         ),
         AboutEntity(
@@ -543,7 +543,7 @@ internal object AboutCatalog {
                 AboutEntityLink("Source", "https://github.com/nlohmann/json")
             ),
             integrationNotes = listOf(
-                "Shipped as built by the Dn-FamiTracker tree; version follows core.dnfamitracker."
+                "Shipped as built by the Dn-FamiTracker tree."
             )
         ),
         AboutEntity(
@@ -557,7 +557,7 @@ internal object AboutCatalog {
                 AboutEntityLink("Source", "https://github.com/libsndfile/libsamplerate")
             ),
             integrationNotes = listOf(
-                "Shipped as built by the Dn-FamiTracker tree; version follows core.dnfamitracker."
+                "Shipped as built by the Dn-FamiTracker tree."
             )
         )
     )
