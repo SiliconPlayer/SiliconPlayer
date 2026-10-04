@@ -193,6 +193,16 @@ void ChannelScopeRenderer::setTextStates(const SiliconVisChannelTextState* state
     textStates_.assign(states, states + count);
 }
 
+void ChannelScopeRenderer::setTextQuads(const float* quads, int32_t vertexCount) {
+    if (!quads || vertexCount <= 0) {
+        externalTextVertexCount_ = 0;
+        externalTextQuads_.clear();
+        return;
+    }
+    externalTextQuads_.assign(quads, quads + (vertexCount * 8));
+    externalTextVertexCount_ = vertexCount;
+}
+
 void ChannelScopeRenderer::resolveGrid(int channelCount, int& outCols, int& outRows) const {
     if (channelCount <= 0) { outCols = 1; outRows = 1; return; }
     switch (layout_) {
@@ -582,7 +592,19 @@ void ChannelScopeRenderer::buildTextGeometry() {
             // 2. Note (centered in noteSlotW)
             if (ch < static_cast<int>(textStates_.size())) {
                 const auto& st = textStates_[ch];
-                std::string noteStr = (st.note >= 0) ? "C-4" : "--"; // Example note display
+                static const char* const kNotes[] = {
+                    "C-", "C#", "D-", "D#", "E-", "F-", "F#", "G-", "G#", "A-", "A#", "B-"
+                };
+                std::string noteStr;
+                if (st.note >= 0 && st.note < 120) {
+                    int noteIdx = st.note % 12;
+                    int oct = st.note / 12;
+                    noteStr = std::string(kNotes[noteIdx]) + std::to_string(oct);
+                } else if (st.note < 0) {
+                    noteStr = "--";
+                } else {
+                    noteStr = "???";
+                }
                 drawSeparator();
                 if (cursorX + noteSlotW <= maxRight) {
                     gl::Color4f c = gl::argbToColor4f(palette_.noteArgb);
@@ -592,12 +614,46 @@ void ChannelScopeRenderer::buildTextGeometry() {
                     cursorX += noteSlotW + itemSpacing;
                     hasPrev = true;
                 }
+
+                // 3. Volume
+                if (st.volume >= 0 && cursorX + volSlotW <= maxRight) {
+                    std::string volStr = "v" + std::to_string(st.volume);
+                    gl::Color4f c = gl::argbToColor4f(palette_.volumeArgb);
+                    float tw = fontAtlas_.measureTextWidth(volStr, scale);
+                    float tx = cursorX + (volSlotW - tw) * 0.5f;
+                    textBatcher_.addText(fontAtlas_, volStr, tx, originY, scale, c.r, c.g, c.b, c.a, shadowEnabled_, 0, 0, 0, shadowA, shadowOffset, maxRight - tx);
+                    cursorX += volSlotW + itemSpacing;
+                    hasPrev = true;
+                }
+
+                // 4. Primary Effect
+                if (st.effectPrimaryLetterAscii != 0 && cursorX + effSlotW <= maxRight) {
+                    char effBuf[16];
+                    snprintf(effBuf, sizeof(effBuf), "%c%02X", st.effectPrimaryLetterAscii, st.effectPrimaryParam & 0xFF);
+                    std::string effStr(effBuf);
+                    gl::Color4f c = gl::argbToColor4f(palette_.effectArgb);
+                    float tw = fontAtlas_.measureTextWidth(effStr, scale);
+                    float tx = cursorX + (effSlotW - tw) * 0.5f;
+                    textBatcher_.addText(fontAtlas_, effStr, tx, originY, scale, c.r, c.g, c.b, c.a, shadowEnabled_, 0, 0, 0, shadowA, shadowOffset, maxRight - tx);
+                    cursorX += effSlotW + itemSpacing;
+                    hasPrev = true;
+                }
             }
         }
     }
 }
 
 void ChannelScopeRenderer::drawText() {
+    if (externalTextVertexCount_ > 0 && !externalTextQuads_.empty()) {
+        textProgram_.draw(
+            externalTextQuads_.data(),
+            externalTextVertexCount_,
+            fontAtlas_,
+            static_cast<float>(widthPx_),
+            static_cast<float>(heightPx_)
+        );
+        return;
+    }
     buildTextGeometry();
     if (textBatcher_.getVertexCount() > 0) {
         textProgram_.draw(
@@ -686,7 +742,7 @@ void ChannelScopeRenderer::renderVk(
     std::memcpy(&fontDesc, &fontDescriptorSet, sizeof(VkDescriptorSet));
 
     buildGeometry();
-    if (fontDesc != VK_NULL_HANDLE) {
+    if (fontDesc != VK_NULL_HANDLE && externalTextVertexCount_ <= 0) {
         buildTextGeometry();
     }
 
@@ -749,14 +805,25 @@ void ChannelScopeRenderer::renderVk(
     }
 
     // 5. Text
-    if (fontDesc != VK_NULL_HANDLE && textBatcher_.getVertexCount() > 0) {
-        size_t sizeBytes = textBatcher_.getVertexCount() * 8 * sizeof(float);
-        size_t offset = dynBuffer->allocate(textBatcher_.getBufferData(), sizeBytes);
-        if (offset != static_cast<size_t>(-1)) {
-            prims->bindText(cmd, width, height, fontDesc);
-            VkDeviceSize bufOffset = static_cast<VkDeviceSize>(offset);
-            table.vkCmdBindVertexBuffers(cmd, 0, 1, &buffer, &bufOffset);
-            table.vkCmdDraw(cmd, static_cast<uint32_t>(textBatcher_.getVertexCount()), 1, 0, 0);
+    if (fontDesc != VK_NULL_HANDLE) {
+        if (externalTextVertexCount_ > 0 && !externalTextQuads_.empty()) {
+            size_t sizeBytes = externalTextVertexCount_ * 8 * sizeof(float);
+            size_t offset = dynBuffer->allocate(externalTextQuads_.data(), sizeBytes);
+            if (offset != static_cast<size_t>(-1)) {
+                prims->bindText(cmd, width, height, fontDesc);
+                VkDeviceSize bufOffset = static_cast<VkDeviceSize>(offset);
+                table.vkCmdBindVertexBuffers(cmd, 0, 1, &buffer, &bufOffset);
+                table.vkCmdDraw(cmd, static_cast<uint32_t>(externalTextVertexCount_), 1, 0, 0);
+            }
+        } else if (textBatcher_.getVertexCount() > 0) {
+            size_t sizeBytes = textBatcher_.getVertexCount() * 8 * sizeof(float);
+            size_t offset = dynBuffer->allocate(textBatcher_.getBufferData(), sizeBytes);
+            if (offset != static_cast<size_t>(-1)) {
+                prims->bindText(cmd, width, height, fontDesc);
+                VkDeviceSize bufOffset = static_cast<VkDeviceSize>(offset);
+                table.vkCmdBindVertexBuffers(cmd, 0, 1, &buffer, &bufOffset);
+                table.vkCmdDraw(cmd, static_cast<uint32_t>(textBatcher_.getVertexCount()), 1, 0, 0);
+            }
         }
     }
 }

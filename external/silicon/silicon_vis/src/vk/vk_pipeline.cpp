@@ -373,6 +373,7 @@ bool SiliconVisVulkanPipeline::beginFrame() {
 
     const auto& table = VkLoader::table();
     VkDevice device = context_.getDevice();
+    if (!table.vkWaitForFences || device == VK_NULL_HANDLE) return false;
 
     table.vkWaitForFences(device, 1, &inFlightFences_[currentFrameIndex_], VK_TRUE, UINT64_MAX);
 
@@ -410,10 +411,10 @@ bool SiliconVisVulkanPipeline::beginFrame() {
 
     // Begin Render Pass
     VkClearValue clearColor{};
-    clearColor.color.float32[0] = 0.0f;
-    clearColor.color.float32[1] = 0.0f;
-    clearColor.color.float32[2] = 0.0f;
-    clearColor.color.float32[3] = 0.0f;
+    clearColor.color.float32[0] = clearColor_[0];
+    clearColor.color.float32[1] = clearColor_[1];
+    clearColor.color.float32[2] = clearColor_[2];
+    clearColor.color.float32[3] = clearColor_[3];
 
     VkRenderPassBeginInfo passInfo{};
     passInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
@@ -450,6 +451,7 @@ void SiliconVisVulkanPipeline::endFrame() {
     const auto& table = VkLoader::table();
     VkDevice device = context_.getDevice();
     VkQueue queue = context_.getGraphicsQueue();
+    if (!table.vkCmdEndRenderPass || queue == VK_NULL_HANDLE) return;
 
     table.vkCmdEndRenderPass(currentCmd_);
 

@@ -20,6 +20,13 @@ public:
     bool beginFrame();
     void endFrame();
 
+    void setClearColor(float r, float g, float b, float a = 1.0f) {
+        clearColor_[0] = r;
+        clearColor_[1] = g;
+        clearColor_[2] = b;
+        clearColor_[3] = a;
+    }
+
     VkCommandBuffer getCurrentCommandBuffer() const { return currentCmd_; }
     VkContext* getContext() { return &context_; }
     VkPrimitivePipelines& getPipelines() { return pipelines_; }
@@ -48,6 +55,7 @@ private:
     uint32_t width_ = 0;
     uint32_t height_ = 0;
     float density_ = 1.0f;
+    float clearColor_[4] = {0.0f, 0.0f, 0.0f, 1.0f};
 
     VkContext context_;
     VkSwapchain swapchain_;

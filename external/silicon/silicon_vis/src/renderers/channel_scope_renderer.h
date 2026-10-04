@@ -64,6 +64,7 @@ public:
     void setChannelHistory(int32_t channel, const float* history, int32_t sampleCount);
     void setAllChannelHistories(int32_t channelCount, int32_t samplesPerChannel, const float* flatData, int32_t displaySamplesPerChannel = 0);
     void setTextStates(const SiliconVisChannelTextState* states, int32_t count);
+    void setTextQuads(const float* quads, int32_t vertexCount);
 
     gl::GlFontAtlas& getFontAtlas() { return fontAtlas_; }
 
@@ -118,6 +119,8 @@ private:
     std::vector<float> waveformVertices_;
     std::vector<float> vuTrackVertices_;
     std::vector<float> vuFillVertices_;
+    std::vector<float> externalTextQuads_;
+    int32_t externalTextVertexCount_ = 0;
 };
 
 } // namespace silicon::vis

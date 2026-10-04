@@ -104,7 +104,14 @@ void SiliconVisPipeline::clearIcon() {
 }
 
 void SiliconVisPipeline::setArtworkTheme(uint32_t primaryColorArgb, uint32_t surfaceColorArgb, int32_t placeholderIconType) {
+    surfaceColorArgb_ = surfaceColorArgb;
     artworkRenderer_.setTheme(primaryColorArgb, surfaceColorArgb, placeholderIconType);
+    if (vulkanPipeline_) {
+        float r = ((surfaceColorArgb >> 16) & 0xFF) / 255.0f;
+        float g = ((surfaceColorArgb >> 8) & 0xFF) / 255.0f;
+        float b = (surfaceColorArgb & 0xFF) / 255.0f;
+        vulkanPipeline_->setClearColor(r, g, b, 1.0f);
+    }
 }
 
 void SiliconVisPipeline::setContrastMode(SiliconVisContrastMode contrastMode) {
@@ -163,6 +170,10 @@ void SiliconVisPipeline::pushChannelScopeAllHistories(int32_t channelCount, int3
 
 void SiliconVisPipeline::setChannelScopeTextStates(const SiliconVisChannelTextState* states, int32_t count) {
     channelScope_.setTextStates(states, count);
+}
+
+void SiliconVisPipeline::setTextQuads(const float* quads, int32_t vertexCount) {
+    channelScope_.setTextQuads(quads, vertexCount);
 }
 
 IVisualizerRenderer* SiliconVisPipeline::getActiveRenderer() {
@@ -371,8 +382,14 @@ bool SiliconVisPipeline::initVulkan(uint32_t width, uint32_t height, void* nativ
     heightPx_ = static_cast<int32_t>(height);
     channelScope_.resize(widthPx_, heightPx_, density_);
     bool ok = vulkanPipeline_->init(width, height, nativeWindow);
-    if (ok && !customFontRgba_.empty()) {
-        vulkanPipeline_->getFontAtlas().updateAtlas(customFontRgba_.data(), customFontWidth_, customFontHeight_);
+    if (ok) {
+        float r = ((surfaceColorArgb_ >> 16) & 0xFF) / 255.0f;
+        float g = ((surfaceColorArgb_ >> 8) & 0xFF) / 255.0f;
+        float b = (surfaceColorArgb_ & 0xFF) / 255.0f;
+        vulkanPipeline_->setClearColor(r, g, b, 1.0f);
+        if (!customFontRgba_.empty()) {
+            vulkanPipeline_->getFontAtlas().updateAtlas(customFontRgba_.data(), customFontWidth_, customFontHeight_);
+        }
     }
     return ok;
 }

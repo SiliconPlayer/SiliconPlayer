@@ -76,6 +76,7 @@ public:
     void pushChannelScopeHistory(int32_t channel, const float* history, int32_t sampleCount);
     void pushChannelScopeAllHistories(int32_t channelCount, int32_t samplesPerChannel, const float* flatData);
     void setChannelScopeTextStates(const SiliconVisChannelTextState* states, int32_t count);
+    void setTextQuads(const float* quads, int32_t vertexCount);
 
     // Options
     ChannelScopeRenderer& getChannelScopeRenderer() { return channelScope_; }
@@ -144,6 +145,7 @@ private:
     std::unordered_map<int32_t, VisualizerRendererPtr> pluginRenderers_;
 
     std::unique_ptr<vk::SiliconVisVulkanPipeline> vulkanPipeline_;
+    uint32_t surfaceColorArgb_ = 0xFF000000;
     std::vector<uint8_t> customFontRgba_;
     int32_t customFontWidth_ = 0;
     int32_t customFontHeight_ = 0;

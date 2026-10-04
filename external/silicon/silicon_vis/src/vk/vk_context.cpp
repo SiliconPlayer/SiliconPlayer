@@ -67,7 +67,6 @@ void VkContext::release() {
         instance_ = VK_NULL_HANDLE;
     }
 
-    VkLoader::shutdown();
     initialized_ = false;
     capabilities_ = DeviceCapabilities{};
 }
