@@ -13,6 +13,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.asImageBitmap
@@ -43,6 +44,7 @@ import com.flopster101.siliconplayer.ui.visualization.channel.parseChannelScopeT
 import java.awt.Font
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
+import kotlin.math.roundToInt
 import org.jetbrains.skia.Bitmap
 import org.jetbrains.skia.ColorAlphaType
 import org.jetbrains.skia.ColorInfo
@@ -164,6 +166,9 @@ private class SiliconNativeDesktopRenderThread(
 
     @Volatile
     private var running = true
+
+    @Volatile
+    private var targetDisplayHz = 0
     private val lock = Any()
     private var currentFrame: SiliconNativeGlFrame? = null
     private var targetWidth = 256
@@ -175,6 +180,10 @@ private class SiliconNativeDesktopRenderThread(
             targetWidth = width
             targetHeight = height
         }
+    }
+
+    fun updateDisplayHz(hz: Int) {
+        targetDisplayHz = hz
     }
 
     fun updateFrame(frame: SiliconNativeGlFrame) {
@@ -252,6 +261,12 @@ private class SiliconNativeDesktopRenderThread(
                 val frameStartNs = System.nanoTime()
                 val (w, h, frame) = synchronized(lock) {
                     Triple(targetWidth.coerceAtLeast(16), targetHeight.coerceAtLeast(16), currentFrame)
+                }
+                // Measured vsync rate of the monitor hosting the window; 60 until known.
+                val displayFrameTimeNs = if (targetDisplayHz in 30..240) {
+                    1_000_000_000L / targetDisplayHz
+                } else {
+                    16_666_667L
                 }
 
                 val isVulkanRequested = frame?.backend == VisualizationRenderBackend.VulkanSurface &&
@@ -424,7 +439,7 @@ private class SiliconNativeDesktopRenderThread(
                         val targetFrameTimeNs = if (frame.mode == 100 && projectMTargetFps > 0) {
                             1_000_000_000L / projectMTargetFps
                         } else {
-                            16_666_667L
+                            displayFrameTimeNs
                         }
                         val elapsedNs = System.nanoTime() - frameStartNs
                         val sleepNs = (targetFrameTimeNs - elapsedNs).coerceAtLeast(10_000_000L)
@@ -959,7 +974,7 @@ private class SiliconNativeDesktopRenderThread(
                 val targetFrameTimeNs = if (frame?.mode == 100 && projectMTargetFps > 0) {
                     1_000_000_000L / projectMTargetFps
                 } else {
-                    16_666_667L // 60 FPS
+                    displayFrameTimeNs
                 }
                 val sleepNs = targetFrameTimeNs - frameElapsedNs
                 if (sleepNs > 1_000_000L) {
@@ -1051,6 +1066,36 @@ fun SiliconNativeGlDesktopVisualization(
     LaunchedEffect(frame, surfaceSize) {
         renderThread.updateSize(surfaceSize.width, surfaceSize.height)
         renderThread.updateFrame(frame)
+    }
+
+    // The window's monitor is the only vsync that matters, and Compose already
+    // ticks on it: derive the pace from real frame intervals, on any backend.
+    var displayHz by remember { mutableIntStateOf(0) }
+    LaunchedEffect(Unit) {
+        val deltas = ArrayDeque<Long>(256)
+        var lastNs = 0L
+        var sinceReport = 0
+        while (true) {
+            withFrameNanos { nowNs ->
+                if (lastNs != 0L) {
+                    deltas.addLast(nowNs - lastNs)
+                    if (deltas.size > 240) deltas.removeFirst()
+                    if (++sinceReport >= 60 && deltas.size >= 60) {
+                        sinceReport = 0
+                        val sorted = deltas.sorted()
+                        val hz = (1_000_000_000.0 / sorted[sorted.size / 2]).roundToInt().coerceIn(30, 240)
+                        if (hz != displayHz) {
+                            println("SiliconVis desktop display rate: $hz Hz")
+                            displayHz = hz
+                        }
+                    }
+                }
+                lastNs = nowNs
+            }
+        }
+    }
+    LaunchedEffect(displayHz) {
+        renderThread.updateDisplayHz(displayHz)
     }
 
     Box(
