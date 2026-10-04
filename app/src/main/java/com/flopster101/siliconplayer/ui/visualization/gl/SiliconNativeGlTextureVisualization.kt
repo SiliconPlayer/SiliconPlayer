@@ -1,6 +1,7 @@
 package com.flopster101.siliconplayer.ui.visualization.gl
 
 import android.content.Context
+import android.content.SharedPreferences
 import com.flopster101.siliconplayer.AppDefaults
 import com.flopster101.siliconplayer.defaultMeshSize
 import com.flopster101.siliconplayer.AppPreferenceKeys
@@ -47,6 +48,7 @@ import com.flopster101.siliconplayer.ui.visualization.channel.parseChannelScopeT
 import com.flopster101.siliconplayer.ui.visualization.channel.GlChannelScopeTextPalette
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
+import kotlin.math.roundToLong
 
 private object VisualizerWarmCache {
     @Volatile private var cachedHandle: Long = 0L
@@ -385,6 +387,28 @@ private class SiliconNativeGlTextureView(
     }
 }
 
+private class FrameLimitState {
+    var nextTickNs = 0L
+    var lastIntervalNs = -1L
+}
+
+// Drops this vsync tick until the target interval elapses. The deadline
+// advances by fixed steps (only when consumed) so the average rate stays
+// exact on any display rate; resyncs when stale by more than 2 frames.
+private fun shouldDropFrame(state: FrameLimitState, intervalNs: Long, nowNs: Long): Boolean {
+    if (intervalNs != state.lastIntervalNs || state.nextTickNs == 0L) {
+        state.nextTickNs = nowNs + intervalNs
+        state.lastIntervalNs = intervalNs
+    } else if (nowNs - state.nextTickNs > intervalNs * 2) {
+        state.nextTickNs = nowNs + intervalNs
+    }
+    if (state.nextTickNs > nowNs) {
+        return true
+    }
+    state.nextTickNs += intervalNs
+    return false
+}
+
 internal class SiliconNativeTextureRenderThread(
     private val context: Context,
     private val outputSurface: Surface,
@@ -501,7 +525,42 @@ internal class SiliconNativeTextureRenderThread(
     // fires at vsync, so projectM must skip renders to honor the configured FPS;
     // projectm_set_fps only feeds the ctx.fps uniform and never gates rendering.
     private var projectMTargetFps = 0
-    private var lastProjectMRenderNs = 0L
+    private val projectMFrameLimit = FrameLimitState()
+    private val siliconFrameLimit = FrameLimitState()
+    private var cachedFpsModeKey: String? = null
+    private var cachedFrameIntervalNs = 0L
+
+    private val visPrefs: SharedPreferences by lazy {
+        context.applicationContext.getSharedPreferences(
+            "silicon_player_settings",
+            Context.MODE_PRIVATE
+        )
+    }
+
+    private val fpsModeListener = SharedPreferences.OnSharedPreferenceChangeListener { _, key ->
+        if (key == cachedFpsModeKey) cachedFpsModeKey = null
+    }
+
+    // Per-visualizer frame limit from settings; 0 means display rate.
+    // Starfield has no frame-limit setting and always runs unlimited.
+    private fun targetFrameIntervalNs(mode: Int): Long {
+        val key = when (mode) {
+            1 -> AppPreferenceKeys.VISUALIZATION_BAR_FPS_MODE
+            2 -> AppPreferenceKeys.VISUALIZATION_OSC_FPS_MODE
+            3 -> AppPreferenceKeys.VISUALIZATION_VU_FPS_MODE
+            4 -> AppPreferenceKeys.VISUALIZATION_CHANNEL_SCOPE_FPS_MODE
+            else -> null
+        } ?: return 0L
+        if (key != cachedFpsModeKey) {
+            cachedFpsModeKey = key
+            cachedFrameIntervalNs = when (VisualizationOscFpsMode.fromStorage(visPrefs.getString(key, null))) {
+                VisualizationOscFpsMode.Default -> (1_000_000_000.0 / 30.0).roundToLong()
+                VisualizationOscFpsMode.Fps60 -> (1_000_000_000.0 / 60.0).roundToLong()
+                VisualizationOscFpsMode.NativeRefresh -> 0L
+            }
+        }
+        return cachedFrameIntervalNs
+    }
 
     fun setDynamicData(data: SiliconNativeGlDynamicData) {
         synchronized(lock) {
@@ -583,9 +642,11 @@ internal class SiliconNativeTextureRenderThread(
         }
 
         try {
+            visPrefs.registerOnSharedPreferenceChangeListener(fpsModeListener)
             Choreographer.getInstance().postFrameCallback(frameCallback)
             Looper.loop()
         } finally {
+            runCatching { visPrefs.unregisterOnSharedPreferenceChangeListener(fpsModeListener) }
             if (visHandle != 0L) {
                 SiliconVisNativeBridge.nativeReleaseGl(visHandle)
                 VisualizerWarmCache.put(visHandle)
@@ -643,15 +704,12 @@ internal class SiliconNativeTextureRenderThread(
         }
 
         // Honor the configured projectM frame rate. The vsync-driven loop fires
-        // faster than the target, so drop renders (and the swap) until the target
-        // interval has elapsed. Paused frames and resizes always pass through.
+        // faster than the target, so drop renders (and the swap) until the
+        // target tick elapses. Paused frames and resizes pass through.
         if (frame.mode == 100 && frame.isPlaying && projectMTargetFps > 0 && !state.surfaceSizeChanged) {
-            val intervalNs = 1_000_000_000L / projectMTargetFps
-            val nowNs = System.nanoTime()
-            if (lastProjectMRenderNs != 0L && nowNs - lastProjectMRenderNs < intervalNs) {
+            if (shouldDropFrame(projectMFrameLimit, 1_000_000_000L / projectMTargetFps, System.nanoTime())) {
                 return
             }
-            lastProjectMRenderNs = nowNs
         }
 
         // Track change detection runs before the paused early-return: a
@@ -741,6 +799,18 @@ internal class SiliconNativeTextureRenderThread(
             pausedFrameRendered = true
         } else {
             pausedFrameRendered = false
+        }
+
+        // Honor the per-visualizer frame limit for Silicon modes, with the
+        // same drop semantics as projectM above. Paused frames and resizes
+        // always pass through.
+        if (frame.mode in 1..4 && frame.isPlaying && !state.surfaceSizeChanged) {
+            val targetIntervalNs = targetFrameIntervalNs(frame.mode)
+            if (targetIntervalNs > 0L &&
+                shouldDropFrame(siliconFrameLimit, targetIntervalNs, System.nanoTime())
+            ) {
+                return
+            }
         }
 
                 if (visHandle != 0L) {
