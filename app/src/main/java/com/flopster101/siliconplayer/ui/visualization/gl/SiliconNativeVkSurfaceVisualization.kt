@@ -126,17 +126,6 @@ fun SiliconNativeVkSurfaceVisualization(
     var vkView by remember { mutableStateOf<SiliconNativeVkSurfaceView?>(null) }
     val overlayVisibility = LocalPlayerOverlayVisibility.current
 
-    var surfaceMountAllowed by remember { mutableStateOf(false) }
-    LaunchedEffect(Unit) {
-        if (overlayVisibility() < 0.999f) {
-            withTimeoutOrNull(1500) {
-                snapshotFlow { overlayVisibility() }.first { it >= 0.999f }
-            }
-            delay(120)
-        }
-        surfaceMountAllowed = true
-    }
-
     LaunchedEffect(overlayVisibility) {
         snapshotFlow { overlayVisibility() }.collect { v ->
             vkView?.setMasterDim(1f - v.coerceIn(0f, 1f))
@@ -147,10 +136,6 @@ fun SiliconNativeVkSurfaceVisualization(
     Box(
         modifier = modifier.drawWithContent {
             drawContent()
-            if (!surfaceMountAllowed) {
-                drawRect(veilColor)
-                return@drawWithContent
-            }
             val visibility = overlayVisibility().coerceIn(0f, 1f)
             if (cornerRadiusPx > 0f) {
                 drawRoundRect(
@@ -167,21 +152,19 @@ fun SiliconNativeVkSurfaceVisualization(
             }
         }
     ) {
-        if (surfaceMountAllowed) {
-            AndroidView(
-                modifier = Modifier.fillMaxSize(),
-                factory = { context ->
-                    SiliconNativeVkSurfaceView(context, density, cornerRadiusPx).also { view ->
-                        vkView = view
-                    }
-                },
-                update = { view ->
-                    view.cornerRadiusPx = cornerRadiusPx
-                    view.onFrameStats = onFrameStats
-                    view.updateFrame(frame)
+        AndroidView(
+            modifier = Modifier.fillMaxSize(),
+            factory = { context ->
+                SiliconNativeVkSurfaceView(context, density, cornerRadiusPx).also { view ->
+                    vkView = view
                 }
-            )
-        }
+            },
+            update = { view ->
+                view.cornerRadiusPx = cornerRadiusPx
+                view.onFrameStats = onFrameStats
+                view.updateFrame(frame)
+            }
+        )
     }
 
     DisposableEffect(lifecycleOwner) {
