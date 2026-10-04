@@ -30,6 +30,7 @@ import com.flopster101.siliconplayer.VisualizationChannelScopeTextFont
 import com.flopster101.siliconplayer.VisualizationNoteNameFormat
 import com.flopster101.siliconplayer.VisualizationOscFpsMode
 import com.flopster101.siliconplayer.VisualizationProjectMResolutionMode
+import com.flopster101.siliconplayer.VisualizationRenderBackend
 import com.flopster101.siliconplayer.VisualizationVuAnchor
 import com.flopster101.siliconplayer.desktop.DesktopProjectMPresetSets
 import com.flopster101.siliconplayer.platform.AppPreferences
@@ -52,6 +53,7 @@ import org.jetbrains.skia.ImageInfo
 
 data class SiliconNativeGlFrame(
     val mode: Int, // 1=Bars, 2=Osc, 3=VU, 4=ChannelScope, 5=Starfield, 100=projectM plugin
+    val backend: VisualizationRenderBackend = VisualizationRenderBackend.OpenGlTexture,
     val isPlaying: Boolean = true,
     val trackKey: String? = null,
     val artworkImage: ImageBitmap? = null,
@@ -192,11 +194,9 @@ private class SiliconNativeDesktopRenderThread(
 
         NativeBridge.attachAudioEngineToVisualizer(visHandle)
 
-        val hostHandle = DesktopGlSurface.nativeInit(visHandle)
-        if (hostHandle == 0L) {
-            SiliconVisNativeBridge.nativeDestroy(visHandle)
-            return
-        }
+        var hostHandle = 0L
+        var vulkanActive = false
+        var scopeTextFloatBuffer: java.nio.FloatBuffer? = null
 
         var lastFrameTimeNs = System.nanoTime()
         var fpsFrameCount = 0
@@ -253,15 +253,78 @@ private class SiliconNativeDesktopRenderThread(
                     Triple(targetWidth.coerceAtLeast(16), targetHeight.coerceAtLeast(16), currentFrame)
                 }
 
+                val supportsVulkan = SiliconVisNativeBridge.nativeVulkanIsSupported()
+                val isVulkanRequested = frame?.backend == VisualizationRenderBackend.VulkanSurface &&
+                    supportsVulkan &&
+                    (frame?.mode == 4)
+
+                if (isVulkanRequested) {
+                    if (hostHandle != 0L) {
+                        if (transitionActive || transitionPending) {
+                            transitionActive = false
+                            transitionPending = false
+                            try { DesktopGlSurface.nativeReleaseTransitionSnapshot(hostHandle) } catch (_: Throwable) {}
+                        }
+                        DesktopGlSurface.nativeDestroy(hostHandle, visHandle)
+                        hostHandle = 0L
+                        lastTextFontKey = ""
+                        lastScopeFontKey = ""
+                        lastScopeFrame = null
+                    }
+                    if (!vulkanActive) {
+                        vulkanActive = SiliconVisNativeBridge.nativeInitVulkan(visHandle, w, h, null)
+                        if (vulkanActive) {
+                            lastTextFontKey = ""
+                            lastScopeFontKey = ""
+                            lastScopeFrame = null
+                        }
+                    }
+                    if (!vulkanActive && hostHandle == 0L) {
+                        hostHandle = DesktopGlSurface.nativeInit(visHandle)
+                        lastTextFontKey = ""
+                        lastScopeFontKey = ""
+                        lastScopeFrame = null
+                    }
+                } else {
+                    if (vulkanActive) {
+                        try { SiliconVisNativeBridge.nativeSetTextQuads(visHandle, null, 0) } catch (_: Throwable) {}
+                        SiliconVisNativeBridge.nativeReleaseVulkan(visHandle)
+                        vulkanActive = false
+                        lastTextFontKey = ""
+                        lastScopeFontKey = ""
+                        lastScopeFrame = null
+                    }
+                    if (hostHandle == 0L) {
+                        hostHandle = DesktopGlSurface.nativeInit(visHandle)
+                        lastTextFontKey = ""
+                        lastScopeFontKey = ""
+                        lastScopeFrame = null
+                    }
+                }
+
+                if (!vulkanActive && hostHandle == 0L) {
+                    try {
+                        sleep(16)
+                    } catch (_: InterruptedException) {
+                        if (!running) break
+                    }
+                    continue
+                }
+
                 val surfaceSizeChanged = currentBufW != w || currentBufH != h || directBuffer == null
                 if (surfaceSizeChanged) {
+                    if (vulkanActive) {
+                        SiliconVisNativeBridge.nativeResizeVulkan(visHandle, w, h, density)
+                    }
                     if (transitionActive || transitionPending) {
                         transitionActive = false
                         transitionPending = false
                         capturedSerial = dataSerial
-                        try {
-                            DesktopGlSurface.nativeReleaseTransitionSnapshot(hostHandle)
-                        } catch (_: Throwable) {}
+                        if (hostHandle != 0L) {
+                            try {
+                                DesktopGlSurface.nativeReleaseTransitionSnapshot(hostHandle)
+                            } catch (_: Throwable) {}
+                        }
                     }
                     currentBufW = w
                     currentBufH = h
@@ -315,9 +378,11 @@ private class SiliconNativeDesktopRenderThread(
                             transitionPendingSinceNs = trackDetectNowNs
                             pendingDataSerial = capturedSerial
                             forceRenderUntilNs = trackDetectNowNs + 1_600_000_000L
-                            try {
-                                DesktopGlSurface.nativeTakeTransitionSnapshot(hostHandle)
-                            } catch (_: Throwable) {}
+                            if (hostHandle != 0L) {
+                                try {
+                                    DesktopGlSurface.nativeTakeTransitionSnapshot(hostHandle)
+                                } catch (_: Throwable) {}
+                            }
                         }
                     }
                     if (transitionPending) {
@@ -328,9 +393,11 @@ private class SiliconNativeDesktopRenderThread(
                             transitionStartNs = trackDetectNowNs
                         } else if (trackDetectNowNs - transitionPendingSinceNs > 250_000_000L) {
                             transitionPending = false
-                            try {
-                                DesktopGlSurface.nativeReleaseTransitionSnapshot(hostHandle)
-                            } catch (_: Throwable) {}
+                            if (hostHandle != 0L) {
+                                try {
+                                    DesktopGlSurface.nativeReleaseTransitionSnapshot(hostHandle)
+                                } catch (_: Throwable) {}
+                            }
                             capturedSerial = dataSerial
                         }
                     }
@@ -654,16 +721,32 @@ private class SiliconNativeDesktopRenderThread(
                                     fontResourcePath = resourcePath,
                                     baseFontSizePx = 32f
                                 )
-                                val uploaded = DesktopGlSurface.nativeUploadScopeAtlas(
-                                    hostHandle,
-                                    uploadData.pixelBuffer,
-                                    uploadData.width,
-                                    uploadData.height,
-                                    uploadData.baseFontSizePx,
-                                    uploadData.lineHeightPx,
-                                    uploadData.glyphBuffer,
-                                    uploadData.glyphCount
-                                )
+                                val uploaded = if (hostHandle != 0L) {
+                                    DesktopGlSurface.nativeUploadScopeAtlas(
+                                        hostHandle,
+                                        uploadData.pixelBuffer,
+                                        uploadData.width,
+                                        uploadData.height,
+                                        uploadData.baseFontSizePx,
+                                        uploadData.lineHeightPx,
+                                        uploadData.glyphBuffer,
+                                        uploadData.glyphCount
+                                    )
+                                } else if (vulkanActive) {
+                                    SiliconVisNativeBridge.nativeSetFontAtlas(
+                                        visHandle,
+                                        uploadData.pixelBuffer,
+                                        uploadData.width,
+                                        uploadData.height,
+                                        uploadData.baseFontSizePx,
+                                        uploadData.lineHeightPx,
+                                        uploadData.glyphBuffer,
+                                        uploadData.glyphCount
+                                    )
+                                    true
+                                } else {
+                                    false
+                                }
                                 if (uploaded) {
                                     ScopeTextQuadEmitter(uploadData.glyphBuffer, uploadData.baseFontSizePx, uploadData.lineHeightPx)
                                 } else {
@@ -719,21 +802,46 @@ private class SiliconNativeDesktopRenderThread(
                                 } else {
                                     emitter.emitRuns(layout.runs, layout.textSizePx, layout.shadowEnabled)
                                 }
-                                try {
-                                    DesktopGlSurface.nativeSetScopeTextQuads(hostHandle, quads, quads.size)
-                                } catch (_: Throwable) {}
+                                if (vulkanActive) {
+                                    if (quads.isNotEmpty()) {
+                                        val vertexCount = quads.size / 8
+                                        var fBuf = scopeTextFloatBuffer
+                                        if (fBuf == null || fBuf.capacity() < quads.size) {
+                                            fBuf = ByteBuffer.allocateDirect(quads.size * 4).order(ByteOrder.nativeOrder()).asFloatBuffer()
+                                            scopeTextFloatBuffer = fBuf
+                                        }
+                                        fBuf.clear()
+                                        fBuf.put(quads)
+                                        fBuf.flip()
+                                        SiliconVisNativeBridge.nativeSetTextQuads(visHandle, fBuf, vertexCount)
+                                    } else {
+                                        SiliconVisNativeBridge.nativeSetTextQuads(visHandle, null, 0)
+                                    }
+                                } else if (hostHandle != 0L) {
+                                    try {
+                                        DesktopGlSurface.nativeSetScopeTextQuads(hostHandle, quads, quads.size)
+                                    } catch (_: Throwable) {}
+                                }
                             }
                         } else if (lastScopeFrame != null) {
                             lastScopeFrame = null
+                            if (vulkanActive) {
+                                SiliconVisNativeBridge.nativeSetTextQuads(visHandle, null, 0)
+                            } else if (hostHandle != 0L) {
+                                try {
+                                    DesktopGlSurface.nativeSetScopeTextQuads(hostHandle, null, 0)
+                                } catch (_: Throwable) {}
+                            }
+                        }
+                    } else if (lastScopeFrame != null) {
+                        lastScopeFrame = null
+                        if (vulkanActive) {
+                            SiliconVisNativeBridge.nativeSetTextQuads(visHandle, null, 0)
+                        } else if (hostHandle != 0L) {
                             try {
                                 DesktopGlSurface.nativeSetScopeTextQuads(hostHandle, null, 0)
                             } catch (_: Throwable) {}
                         }
-                    } else if (lastScopeFrame != null) {
-                        lastScopeFrame = null
-                        try {
-                            DesktopGlSurface.nativeSetScopeTextQuads(hostHandle, null, 0)
-                        } catch (_: Throwable) {}
                     }
                 }
 
@@ -745,9 +853,11 @@ private class SiliconNativeDesktopRenderThread(
                         if (p >= 1f) {
                             transitionActive = false
                             capturedSerial = dataSerial
-                            try {
-                                DesktopGlSurface.nativeReleaseTransitionSnapshot(hostHandle)
-                            } catch (_: Throwable) {}
+                            if (hostHandle != 0L) {
+                                try {
+                                    DesktopGlSurface.nativeReleaseTransitionSnapshot(hostHandle)
+                                } catch (_: Throwable) {}
+                            }
                         } else {
                             val eased = p * p * (3f - 2f * p)
                             transitionOffsetX = if (frame.channelScopeTrackTransition == 1) {
@@ -770,22 +880,31 @@ private class SiliconNativeDesktopRenderThread(
                     transitionActive = false
                     transitionPending = false
                     capturedSerial = dataSerial
-                    try {
-                        DesktopGlSurface.nativeReleaseTransitionSnapshot(hostHandle)
-                    } catch (_: Throwable) {}
+                    if (hostHandle != 0L) {
+                        try {
+                            DesktopGlSurface.nativeReleaseTransitionSnapshot(hostHandle)
+                        } catch (_: Throwable) {}
+                    }
                 }
 
                 directBuffer.clear()
-                val ok = DesktopGlSurface.nativeRenderFrame(
-                    hostHandle,
-                    visHandle,
-                    w,
-                    h,
-                    density,
-                    directBuffer,
-                    transitionOffsetX,
-                    transitionAlpha
-                )
+                val ok = if (vulkanActive) {
+                    SiliconVisNativeBridge.nativeRenderVulkan(visHandle)
+                    SiliconVisNativeBridge.nativeReadbackVulkan(visHandle, directBuffer)
+                } else if (hostHandle != 0L) {
+                    DesktopGlSurface.nativeRenderFrame(
+                        hostHandle,
+                        visHandle,
+                        w,
+                        h,
+                        density,
+                        directBuffer,
+                        transitionOffsetX,
+                        transitionAlpha
+                    )
+                } else {
+                    false
+                }
                 if (ok) {
                     hasRenderedAtLeastOneFrame = true
                 }
@@ -851,10 +970,22 @@ private class SiliconNativeDesktopRenderThread(
                     SiliconVisNativeBridge.nativeDetachProjectM(visHandle)
                 } catch (_: Throwable) {}
             }
-            try {
-                DesktopGlSurface.nativeReleaseTransitionSnapshot(hostHandle)
-            } catch (_: Throwable) {}
-            DesktopGlSurface.nativeDestroy(hostHandle, visHandle)
+            if (vulkanActive) {
+                try {
+                    SiliconVisNativeBridge.nativeSetTextQuads(visHandle, null, 0)
+                } catch (_: Throwable) {}
+                try {
+                    SiliconVisNativeBridge.nativeReleaseVulkan(visHandle)
+                } catch (_: Throwable) {}
+                vulkanActive = false
+            }
+            if (hostHandle != 0L) {
+                try {
+                    DesktopGlSurface.nativeReleaseTransitionSnapshot(hostHandle)
+                } catch (_: Throwable) {}
+                DesktopGlSurface.nativeDestroy(hostHandle, visHandle)
+                hostHandle = 0L
+            }
             SiliconVisNativeBridge.nativeDestroy(visHandle)
         }
     }

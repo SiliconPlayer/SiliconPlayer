@@ -100,4 +100,72 @@ class VulkanChannelScopeTest {
         SiliconVisNativeBridge.nativeReleaseVulkan(handle)
         SiliconVisNativeBridge.nativeDestroy(handle)
     }
+
+    @Test
+    fun testVulkanDesktopSkiaReadbackAndBackendSwitch() {
+        if (!SiliconVisNativeBridge.nativeVulkanIsSupported()) {
+            println("Vulkan not supported on this platform, skipping.")
+            return
+        }
+
+        val handle = SiliconVisNativeBridge.nativeCreate()
+        assertTrue("Expected non-zero visualizer handle", handle != 0L)
+
+        val width = 320
+        val height = 180
+        val initOk = SiliconVisNativeBridge.nativeInitVulkan(handle, width, height, null)
+        assertTrue("Vulkan pipeline initialization failed", initOk)
+
+        SiliconVisNativeBridge.nativeSetMode(handle, 4)
+        SiliconVisNativeBridge.nativeResizeVulkan(handle, width, height, 1.0f)
+
+        val sampleCount = 256
+        val channel0 = FloatArray(sampleCount) { i -> sin(i * 0.05).toFloat() * 0.8f }
+        SiliconVisNativeBridge.nativePushChannelScopeHistory(handle, 0, channel0, sampleCount)
+
+        SiliconVisNativeBridge.nativeRenderVulkan(handle)
+
+        val bufferSize = width * height * 4
+        val directBuffer = ByteBuffer.allocateDirect(bufferSize).order(ByteOrder.nativeOrder())
+        val readbackOk = SiliconVisNativeBridge.nativeReadbackVulkan(handle, directBuffer)
+        assertTrue("Expected successful readback", readbackOk)
+
+        val pixelByteArray = ByteArray(bufferSize)
+        directBuffer.position(0)
+        directBuffer.get(pixelByteArray)
+
+        val info = org.jetbrains.skia.ImageInfo(
+            org.jetbrains.skia.ColorInfo(
+                org.jetbrains.skia.ColorType.RGBA_8888,
+                org.jetbrains.skia.ColorAlphaType.PREMUL,
+                org.jetbrains.skia.ColorSpace.sRGB
+            ),
+            width,
+            height
+        )
+        val bitmap = org.jetbrains.skia.Bitmap().also { it.allocPixels(info) }
+        org.jetbrains.skia.Image.makeRaster(info, pixelByteArray, width * 4).use { raster ->
+            raster.readPixels(bitmap)
+        }
+        assertEquals(width, bitmap.width)
+        assertEquals(height, bitmap.height)
+
+        SiliconVisNativeBridge.nativeReleaseVulkan(handle)
+
+        val hostHandle = com.flopster101.siliconplayer.ui.visualization.gl.DesktopGlSurface.nativeInit(handle)
+        if (hostHandle != 0L) {
+            val glOk = com.flopster101.siliconplayer.ui.visualization.gl.DesktopGlSurface.nativeRenderFrame(
+                hostHandle,
+                handle,
+                width,
+                height,
+                1.0f,
+                directBuffer
+            )
+            assertTrue("Expected successful GL render frame", glOk)
+            com.flopster101.siliconplayer.ui.visualization.gl.DesktopGlSurface.nativeDestroy(hostHandle, handle)
+        }
+
+        SiliconVisNativeBridge.nativeDestroy(handle)
+    }
 }

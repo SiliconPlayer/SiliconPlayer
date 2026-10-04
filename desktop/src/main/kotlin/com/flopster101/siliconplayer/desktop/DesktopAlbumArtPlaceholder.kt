@@ -445,7 +445,17 @@ internal fun AlbumArtPlaceholder(
         }.getOrDefault(1f)
     }
 
+    val activeRenderBackend = when (visualizationMode) {
+        VisualizationMode.ChannelScope -> channelScopePrefs.renderBackend
+        VisualizationMode.Oscilloscope -> visualizationOscRenderBackend
+        VisualizationMode.Bars -> barRenderBackend
+        VisualizationMode.VuMeters -> vuRenderBackend
+        VisualizationMode.ProjectM -> projectMRenderBackend
+        else -> visualizationRenderBackendForMode(visualizationMode)
+    }
+
     val glFrame = remember(
+        activeRenderBackend,
         visualizationMode,
         isPlaying,
         file?.absolutePath,
@@ -484,6 +494,7 @@ internal fun AlbumArtPlaceholder(
         scopeNameMaps
     ) {
         SiliconNativeGlFrame(
+            backend = activeRenderBackend,
             mode = nativeMode,
             isPlaying = isPlaying,
             trackKey = file?.absolutePath,
@@ -591,14 +602,6 @@ internal fun AlbumArtPlaceholder(
 
     var visDebugDrawFps by remember { mutableIntStateOf(0) }
     var visDebugDrawFrameMs by remember { mutableIntStateOf(0) }
-    val activeRenderBackend = when (visualizationMode) {
-        VisualizationMode.ChannelScope -> channelScopePrefs.renderBackend
-        VisualizationMode.Oscilloscope -> visualizationOscRenderBackend
-        VisualizationMode.Bars -> barRenderBackend
-        VisualizationMode.VuMeters -> vuRenderBackend
-        VisualizationMode.ProjectM -> projectMRenderBackend
-        else -> visualizationRenderBackendForMode(visualizationMode)
-    }
 
     val cardShape = RoundedCornerShape(artworkCornerRadiusDp.coerceIn(0, 48).dp)
     ElevatedCard(
