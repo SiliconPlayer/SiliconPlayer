@@ -173,5 +173,8 @@ object SiliconVisNativeBridge {
     external fun nativeReleaseVulkan(handle: Long)
     external fun nativeRenderVulkan(handle: Long)
     external fun nativeReadbackVulkan(handle: Long, outRgbaBuffer: ByteBuffer): Boolean
+    external fun nativeTakeTransitionSnapshotVulkan(handle: Long): Boolean
+    external fun nativeReleaseTransitionSnapshotVulkan(handle: Long)
+    external fun nativeSetTransitionVulkan(handle: Long, offsetX: Float, alpha: Float)
     external fun nativeSetTextQuads(handle: Long, buffer: java.nio.FloatBuffer?, vertexCount: Int)
 }

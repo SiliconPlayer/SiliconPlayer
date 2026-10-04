@@ -168,4 +168,58 @@ class VulkanChannelScopeTest {
 
         SiliconVisNativeBridge.nativeDestroy(handle)
     }
+
+    @Test
+    fun testVulkanTransitionSnapshotAndDrawing() {
+        if (!SiliconVisNativeBridge.nativeVulkanIsSupported()) {
+            println("Vulkan not supported on this platform, skipping.")
+            return
+        }
+
+        val handle = SiliconVisNativeBridge.nativeCreate()
+        assertTrue("Expected non-zero visualizer handle", handle != 0L)
+
+        val width = 320
+        val height = 180
+        val initOk = SiliconVisNativeBridge.nativeInitVulkan(handle, width, height, null)
+        assertTrue("Vulkan pipeline initialization failed", initOk)
+
+        SiliconVisNativeBridge.nativeSetMode(handle, 4)
+
+        // Render first frame with channel 0 data
+        val sampleCount = 512
+        val channel0 = FloatArray(sampleCount) { i -> sin(i * 0.05).toFloat() * 0.8f }
+        SiliconVisNativeBridge.nativePushChannelScopeHistory(handle, 0, channel0, sampleCount)
+        SiliconVisNativeBridge.nativeRenderVulkan(handle)
+
+        // Take transition snapshot of frame 1
+        val snapshotOk = SiliconVisNativeBridge.nativeTakeTransitionSnapshotVulkan(handle)
+        assertTrue("Expected successful transition snapshot capture", snapshotOk)
+
+        // Render frame 2 with transition active (50% slide & fade)
+        val channel1 = FloatArray(sampleCount) { i -> sin(i * 0.10).toFloat() * 0.8f }
+        SiliconVisNativeBridge.nativePushChannelScopeHistory(handle, 1, channel1, sampleCount)
+        SiliconVisNativeBridge.nativeSetTransitionVulkan(handle, -40.0f, 0.5f)
+        SiliconVisNativeBridge.nativeRenderVulkan(handle)
+
+        val bufferSize = width * height * 4
+        val directBuffer = ByteBuffer.allocateDirect(bufferSize).order(ByteOrder.nativeOrder())
+        val readbackOk = SiliconVisNativeBridge.nativeReadbackVulkan(handle, directBuffer)
+        assertTrue("Expected successful readback of frame with transition quad", readbackOk)
+
+        var nonZeroBytes = 0
+        directBuffer.rewind()
+        for (i in 0 until bufferSize) {
+            if (directBuffer.get(i) != 0.toByte()) {
+                nonZeroBytes++
+            }
+        }
+        println("Vulkan transition frame rendered: $nonZeroBytes non-zero bytes")
+        assertTrue("Expected non-zero pixels in transition composite frame", nonZeroBytes > 0)
+
+        // Release snapshot
+        SiliconVisNativeBridge.nativeReleaseTransitionSnapshotVulkan(handle)
+        SiliconVisNativeBridge.nativeReleaseVulkan(handle)
+        SiliconVisNativeBridge.nativeDestroy(handle)
+    }
 }

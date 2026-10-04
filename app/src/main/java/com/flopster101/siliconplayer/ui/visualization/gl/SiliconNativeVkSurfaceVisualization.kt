@@ -429,9 +429,22 @@ internal class SiliconNativeVkRenderThread(
     private var localChannelCount = 0
     private var localChannelTextStates = emptyList<com.flopster101.siliconplayer.ui.visualization.channel.ChannelScopeChannelTextState>()
     private var localLastTextPollNs = 0L
-
     private var pausedFrameRendered = false
     private var lastTickNs = 0L
+
+    private var lastRenderedTrackKey: String? = null
+    private var forceRenderUntilNs = 0L
+    private var transitionActive = false
+    private var transitionStartNs = 0L
+    private var transitionPending = false
+    private var transitionPendingSinceNs = 0L
+    private var pendingDataSerial = -1L
+    private var dataSerial = -1L
+    private var capturedSerial = -1L
+    private var dataChannelsAlive = false
+    private var lastDataAlivePollNs = 0L
+    private var scopeSceneHasLiveData = false
+    private var hasRenderedAtLeastOneFrame = false
 
     @Volatile
     private var masterDim = 0f
@@ -548,6 +561,9 @@ internal class SiliconNativeVkRenderThread(
         } finally {
             textRenderer.release()
             if (visHandle != 0L) {
+                try {
+                    SiliconVisNativeBridge.nativeReleaseTransitionSnapshotVulkan(visHandle)
+                } catch (_: Throwable) {}
                 SiliconVisNativeBridge.nativeReleaseVulkan(visHandle)
                 VisualizerVkWarmCache.put(visHandle)
                 visHandle = 0L
@@ -572,10 +588,84 @@ internal class SiliconNativeVkRenderThread(
         val frame = state.frame ?: return
         if (state.width <= 1 || state.height <= 1) return
 
+        if (state.surfaceSizeChanged) {
+            hasRenderedAtLeastOneFrame = false
+            transitionActive = false
+            transitionPending = false
+            if (visHandle != 0L) {
+                try {
+                    SiliconVisNativeBridge.nativeReleaseTransitionSnapshotVulkan(visHandle)
+                } catch (_: Throwable) {}
+            }
+        }
+
+        val frameTrackKey = frame.trackKey
+        val trackDetectNowNs = System.nanoTime()
+        if (frame.mode == 4) {
+            dataSerial = com.flopster101.siliconplayer.NativeBridge.getChannelScopeDataSerial()
+            if (trackDetectNowNs - lastDataAlivePollNs >= 30_000_000L) {
+                lastDataAlivePollNs = trackDetectNowNs
+                dataChannelsAlive = runCatching {
+                    com.flopster101.siliconplayer.NativeBridge.getChannelScopeTextState(1).isNotEmpty()
+                }.getOrDefault(false)
+            }
+        } else {
+            scopeSceneHasLiveData = false
+        }
+        val uiTrackFlipped = frameTrackKey != lastRenderedTrackKey
+        val hadRenderedTrack = lastRenderedTrackKey != null
+        if (uiTrackFlipped) {
+            if (frameTrackKey != null) {
+                lastRenderedTrackKey = frameTrackKey
+            }
+            if (frameTrackKey != null && hadRenderedTrack) {
+                forceRenderUntilNs = trackDetectNowNs + 1_600_000_000L
+            }
+        }
+
+        if (
+            frame.mode == 4 &&
+            frame.channelScopeTrackTransition != 0 &&
+            hasRenderedAtLeastOneFrame
+        ) {
+            if (!transitionActive && !transitionPending && frameTrackKey != null) {
+                val dataFlipped = capturedSerial >= 0L && dataSerial != capturedSerial
+                if ((dataFlipped || (uiTrackFlipped && hadRenderedTrack)) && scopeSceneHasLiveData) {
+                    transitionPending = true
+                    transitionPendingSinceNs = trackDetectNowNs
+                    pendingDataSerial = capturedSerial
+                    forceRenderUntilNs = trackDetectNowNs + 1_600_000_000L
+                    if (visHandle != 0L) {
+                        try {
+                            SiliconVisNativeBridge.nativeTakeTransitionSnapshotVulkan(visHandle)
+                        } catch (_: Throwable) {}
+                    }
+                }
+            }
+            if (transitionPending) {
+                val newDataAlive = dataSerial != pendingDataSerial && dataChannelsAlive
+                if (newDataAlive) {
+                    transitionPending = false
+                    transitionActive = true
+                    transitionStartNs = trackDetectNowNs
+                } else if (trackDetectNowNs - transitionPendingSinceNs > 250_000_000L) {
+                    transitionPending = false
+                    if (visHandle != 0L) {
+                        try {
+                            SiliconVisNativeBridge.nativeReleaseTransitionSnapshotVulkan(visHandle)
+                        } catch (_: Throwable) {}
+                    }
+                    capturedSerial = dataSerial
+                }
+            }
+        }
+
         if (!frame.isPlaying) {
             val isFadeMode = frame.mode == 1 || frame.mode == 2 || frame.mode == 3 || frame.mode == 5
             val fadeSettled = !isFadeMode || frame.visualAlpha <= 0.001f
-            if (pausedFrameRendered && !state.surfaceSizeChanged && fadeSettled) {
+            val transitionRendering =
+                System.nanoTime() < forceRenderUntilNs || transitionActive || transitionPending
+            if (pausedFrameRendered && !state.surfaceSizeChanged && fadeSettled && !transitionRendering) {
                 return
             }
             pausedFrameRendered = true
@@ -805,8 +895,49 @@ internal class SiliconNativeVkRenderThread(
                 SiliconVisNativeBridge.nativeSetTextQuads(visHandle, null, 0)
             }
 
+            var transitionOffsetX = 0f
+            var transitionAlpha = 0f
+            if (frame.mode == 4 && frame.channelScopeTrackTransition != 0) {
+                if (transitionActive) {
+                    val p = ((System.nanoTime() - transitionStartNs) / 750_000_000f).coerceIn(0f, 1f)
+                    if (p >= 1f) {
+                        transitionActive = false
+                        capturedSerial = dataSerial
+                        try {
+                            SiliconVisNativeBridge.nativeReleaseTransitionSnapshotVulkan(visHandle)
+                        } catch (_: Throwable) {}
+                    } else {
+                        val eased = p * p * (3f - 2f * p)
+                        transitionOffsetX = if (frame.channelScopeTrackTransition == 1) {
+                            -eased * state.width.toFloat()
+                        } else {
+                            0f
+                        }
+                        transitionAlpha = 1f - eased
+                    }
+                } else if (transitionPending) {
+                    transitionOffsetX = 0f
+                    transitionAlpha = 1f
+                } else {
+                    if (frameTrackKey != null) {
+                        capturedSerial = dataSerial
+                        scopeSceneHasLiveData = dataChannelsAlive
+                    }
+                }
+            } else if (transitionActive || transitionPending) {
+                transitionActive = false
+                transitionPending = false
+                capturedSerial = dataSerial
+                try {
+                    SiliconVisNativeBridge.nativeReleaseTransitionSnapshotVulkan(visHandle)
+                } catch (_: Throwable) {}
+            }
+
+            SiliconVisNativeBridge.nativeSetTransitionVulkan(visHandle, transitionOffsetX, transitionAlpha)
+
             val drawStartNs = System.nanoTime()
             SiliconVisNativeBridge.nativeRenderVulkan(visHandle)
+            hasRenderedAtLeastOneFrame = true
             val drawEndNs = System.nanoTime()
 
             val frameMs = ((drawEndNs - drawStartNs) / 1_000_000L).toInt().coerceAtLeast(0)
