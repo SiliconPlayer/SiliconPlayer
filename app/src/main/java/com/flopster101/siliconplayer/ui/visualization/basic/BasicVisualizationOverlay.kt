@@ -715,6 +715,13 @@ fun BasicVisualizationOverlay(
                                     modifier = Modifier.fillMaxSize()
                                 )
                             }
+                            VisualizationRenderBackend.VulkanTexture -> {
+                                com.flopster101.siliconplayer.ui.visualization.gl.SiliconNativeVkTextureVisualization(
+                                    frame = nativeFrame,
+                                    onFrameStats = channelScopeOnFrameStats,
+                                    modifier = Modifier.fillMaxSize()
+                                )
+                            }
                             VisualizationRenderBackend.VulkanSurface -> {
                                 com.flopster101.siliconplayer.ui.visualization.gl.SiliconNativeVkSurfaceVisualization(
                                     frame = nativeFrame,
