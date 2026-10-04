@@ -51,6 +51,34 @@ struct PushConstantContrast {
     float pad;
 };
 
+struct PushConstantStarPoint {
+    float color[3];
+    float soft;
+    float globalAlpha;
+    float square;
+    float resolution[2];
+};
+
+struct PushConstantStarBlit {
+    float alpha;
+    float pad[3];
+};
+
+struct PushConstantStarAdd {
+    float strength;
+    float pad[3];
+};
+
+struct PushConstantStarDown {
+    float thresh;
+    float pad[3];
+};
+
+struct PushConstantStarKawase {
+    float px[2];
+    float pad[2];
+};
+
 class VkDynamicVertexBuffer {
 public:
     VkDynamicVertexBuffer() = default;
@@ -99,6 +127,10 @@ public:
                         VkDescriptorSet texDescriptorSet);
     void bindContrast(VkCommandBuffer cmd, float width, float height,
                       int32_t mode, uint32_t scrimColorArgb);
+    void bindStarBlit(VkCommandBuffer cmd, float width, float height,
+                      float alpha, VkDescriptorSet texDescriptorSet);
+    void bindStarAdd(VkCommandBuffer cmd, float width, float height,
+                     float strength, VkDescriptorSet texDescriptorSet);
 
     VkPipelineLayout getFlatPipelineLayout() const { return flatLayout_; }
     VkPipelineLayout getWavePipelineLayout() const { return waveLayout_; }
@@ -107,6 +139,8 @@ public:
     VkPipelineLayout getArtworkBgPipelineLayout() const { return artworkBgLayout_; }
     VkPipelineLayout getArtworkTexPipelineLayout() const { return artworkTexLayout_; }
     VkPipelineLayout getContrastPipelineLayout() const { return contrastLayout_; }
+    VkPipelineLayout getStarBlitLayout() const { return starBlitLayout_; }
+    VkPipelineLayout getStarAddLayout() const { return starAddLayout_; }
     VkDescriptorSetLayout getTextDescLayout() const { return textDescLayout_; }
 
 private:
@@ -132,6 +166,9 @@ private:
     VkShaderModule artworkTexFragShader_ = VK_NULL_HANDLE;
     VkShaderModule contrastVertShader_ = VK_NULL_HANDLE;
     VkShaderModule contrastFragShader_ = VK_NULL_HANDLE;
+    VkShaderModule starBlitVertShader_ = VK_NULL_HANDLE;
+    VkShaderModule starBlitFragShader_ = VK_NULL_HANDLE;
+    VkShaderModule starAddFragShader_ = VK_NULL_HANDLE;
 
     // Layouts
     VkPipelineLayout flatLayout_ = VK_NULL_HANDLE;
@@ -141,6 +178,8 @@ private:
     VkPipelineLayout artworkBgLayout_ = VK_NULL_HANDLE;
     VkPipelineLayout artworkTexLayout_ = VK_NULL_HANDLE;
     VkPipelineLayout contrastLayout_ = VK_NULL_HANDLE;
+    VkPipelineLayout starBlitLayout_ = VK_NULL_HANDLE;
+    VkPipelineLayout starAddLayout_ = VK_NULL_HANDLE;
     VkDescriptorSetLayout textDescLayout_ = VK_NULL_HANDLE;
 
     // Pipelines
@@ -152,6 +191,8 @@ private:
     VkPipeline artworkBgPipeline_ = VK_NULL_HANDLE;
     VkPipeline artworkTexPipeline_ = VK_NULL_HANDLE;
     VkPipeline contrastPipeline_ = VK_NULL_HANDLE;
+    VkPipeline starBlitPipeline_ = VK_NULL_HANDLE;
+    VkPipeline starAddPipeline_ = VK_NULL_HANDLE;
 };
 
 } // namespace silicon::vis::vk

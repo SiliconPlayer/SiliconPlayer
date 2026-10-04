@@ -3,6 +3,7 @@
 #include "silicon/vis/IVisualizerRenderer.h"
 #include "gl/gl_primitives.h"
 #include "gl/gl_program.h"
+#include <algorithm>
 #include <chrono>
 #include <vector>
 
@@ -24,6 +25,27 @@ public:
     void setAlpha(float alpha) override { alpha_ = alpha; }
     void setEnergy(float energy) { energy_ = energy; }
     void setBassLevel(float bass) { bass_ = bass; }
+    void setMaxPointSizePx(float px) { maxPointSize_ = std::max(1.0f, px); }
+
+    // Advances the clock, envelopes and star positions, filling the CPU
+    // vertex arrays. Shared by the GL and Vulkan draw paths.
+    void simulate();
+
+    int32_t getPointCount() const { return pointCount_; }
+    const float* getPositions() const { return pos_.data(); }
+    const float* getSizes() const { return size_.data(); }
+    const float* getAlphas() const { return alphaArr_.data(); }
+    int32_t getLineCount() const { return lineCount_; }
+    const float* getLineVerts() const { return lineVerts_.data(); }
+    uint32_t getStarColorArgb() const { return starColorArgb_; }
+    float getSoftness() const { return softness_; }
+    float getGlobalAlpha() const { return alpha_; }
+    float getFlashBoost() const { return flashBoost_; }
+    bool usesSquareStars() const { return squareStars_; }
+    float getFadeAlpha() const { return fadeAlpha_; }
+    bool wantsBloom() const { return wantBloom_; }
+    float getBloomStrength() const { return bloomStrength_; }
+    float getGlowK() const { return glowK_; }
 
     void setOptions(
         int32_t starCount,
@@ -101,6 +123,14 @@ private:
     std::vector<float> size_;
     std::vector<float> alphaArr_;
     std::vector<float> lineVerts_;
+
+    int32_t pointCount_ = 0;
+    int32_t lineCount_ = 0;
+    float flashBoost_ = 1.0f;
+    float fadeAlpha_ = 0.0f;
+    bool wantBloom_ = false;
+    float bloomStrength_ = 0.0f;
+    float glowK_ = 1.0f;
 
     gl::GlProgram pointProgram_;
     GLint pointPosLoc_ = -1;

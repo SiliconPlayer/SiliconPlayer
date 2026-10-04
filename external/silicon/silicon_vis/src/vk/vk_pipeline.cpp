@@ -104,6 +104,11 @@ bool SiliconVisVulkanPipeline::init(uint32_t width, uint32_t height, void* nativ
         return false;
     }
 
+    if (!starfield_.init(&context_)) {
+        release();
+        return false;
+    }
+
     std::vector<uint8_t> defaultFontRgba;
     int fontW = 0, fontH = 0;
     gl::GlFontAtlas defaultAtlas;
@@ -138,6 +143,7 @@ void SiliconVisVulkanPipeline::release() {
     }
 
     artworkRenderer_.release();
+    starfield_.release();
     fontAtlas_.release();
     vertexBuffer_.release();
     pipelines_.release();
@@ -573,6 +579,10 @@ void SiliconVisVulkanPipeline::cleanupOffscreenResources() {
 }
 
 bool SiliconVisVulkanPipeline::beginFrame() {
+    return beginFrameNoPass() && beginMainPass();
+}
+
+bool SiliconVisVulkanPipeline::beginFrameNoPass() {
     if (!initialized_) return false;
 
     const auto& table = VkLoader::table();
@@ -583,9 +593,6 @@ bool SiliconVisVulkanPipeline::beginFrame() {
 
     // Reset per-frame vertex stream buffer
     vertexBuffer_.reset();
-
-    VkFramebuffer targetFramebuffer = VK_NULL_HANDLE;
-    VkRenderPass targetRenderPass = VK_NULL_HANDLE;
 
     if (isSurfaceMode_) {
         bool outOfDate = false;
@@ -599,11 +606,11 @@ bool SiliconVisVulkanPipeline::beginFrame() {
             }
             return false;
         }
-        targetFramebuffer = swapchain_.getFramebuffer(currentImageIndex_);
-        targetRenderPass = swapchain_.getRenderPass();
+        currentFramebuffer_ = swapchain_.getFramebuffer(currentImageIndex_);
+        currentRenderPass_ = swapchain_.getRenderPass();
     } else {
-        targetFramebuffer = offscreenFramebuffer_;
-        targetRenderPass = offscreenRenderPass_;
+        currentFramebuffer_ = offscreenFramebuffer_;
+        currentRenderPass_ = offscreenRenderPass_;
     }
 
     table.vkResetFences(device, 1, &inFlightFences_[currentFrameIndex_]);
@@ -616,8 +623,15 @@ bool SiliconVisVulkanPipeline::beginFrame() {
     beginInfo.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
 
     table.vkBeginCommandBuffer(cmd, &beginInfo);
+    currentCmd_ = cmd;
+    return true;
+}
 
-    // Begin Render Pass
+bool SiliconVisVulkanPipeline::beginMainPass() {
+    if (!initialized_ || currentCmd_ == VK_NULL_HANDLE) return false;
+    const auto& table = VkLoader::table();
+    VkCommandBuffer cmd = currentCmd_;
+
     VkClearValue clearValues[2]{};
     for (int i = 0; i < 2; ++i) {
         clearValues[i].color.float32[0] = clearColor_[0];
@@ -631,8 +645,8 @@ bool SiliconVisVulkanPipeline::beginFrame() {
 
     VkRenderPassBeginInfo passInfo{};
     passInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
-    passInfo.renderPass = targetRenderPass;
-    passInfo.framebuffer = targetFramebuffer;
+    passInfo.renderPass = currentRenderPass_;
+    passInfo.framebuffer = currentFramebuffer_;
     passInfo.renderArea.offset = {0, 0};
     passInfo.renderArea.extent = {width_, height_};
     passInfo.clearValueCount = hasMsaa ? 2 : 1;
@@ -653,8 +667,6 @@ bool SiliconVisVulkanPipeline::beginFrame() {
     scissor.offset = {0, 0};
     scissor.extent = {width_, height_};
     table.vkCmdSetScissor(cmd, 0, 1, &scissor);
-
-    currentCmd_ = cmd;
     return true;
 }
 

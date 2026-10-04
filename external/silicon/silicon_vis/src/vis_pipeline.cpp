@@ -461,6 +461,8 @@ bool SiliconVisPipeline::initVulkan(uint32_t width, uint32_t height, void* nativ
         widthPx_ = static_cast<int32_t>(vulkanPipeline_->getWidth());
         heightPx_ = static_cast<int32_t>(vulkanPipeline_->getHeight());
         channelScope_.resize(widthPx_, heightPx_, density_);
+        starfield_.resize(widthPx_, heightPx_, density_);
+        starfield_.setMaxPointSizePx(vulkanPipeline_->getStarfield().getMaxPointSize());
         float r = ((surfaceColorArgb_ >> 16) & 0xFF) / 255.0f;
         float g = ((surfaceColorArgb_ >> 8) & 0xFF) / 255.0f;
         float b = (surfaceColorArgb_ & 0xFF) / 255.0f;
@@ -493,6 +495,7 @@ void SiliconVisPipeline::resizeVulkan(uint32_t width, uint32_t height, float den
         heightPx_ = static_cast<int32_t>(vulkanPipeline_->getHeight());
     }
     channelScope_.resize(widthPx_, heightPx_, density_);
+    starfield_.resize(widthPx_, heightPx_, density_);
 }
 
 void SiliconVisPipeline::releaseVulkan() {
@@ -528,9 +531,25 @@ void SiliconVisPipeline::renderVulkan() {
                 }
                 break;
             }
+            case SILICON_VIS_MODE_STARFIELD: {
+                float left = 0.0f, right = 0.0f;
+                audioProvider_->getVuLevels(left, right);
+                starfield_.setEnergy(std::max(left, right));
+                audioProvider_->getFftBars(nativeFftBars_);
+                float bass = 0.0f;
+                const size_t bassBins = std::min(nativeFftBars_.size(), size_t{48});
+                for (size_t i = 0; i < bassBins; ++i) bass = std::max(bass, nativeFftBars_[i]);
+                starfield_.setBassLevel(bass);
+                break;
+            }
             default:
                 break;
         }
+    }
+
+    if (currentMode_ == SILICON_VIS_MODE_STARFIELD) {
+        renderStarfieldVulkan();
+        return;
     }
 
     if (!vulkanPipeline_->beginFrame()) {
@@ -548,6 +567,8 @@ void SiliconVisPipeline::renderVulkan() {
             widthPx_ = static_cast<int32_t>(w);
             heightPx_ = static_cast<int32_t>(h);
             channelScope_.resize(widthPx_, heightPx_, density_);
+            starfield_.resize(widthPx_, heightPx_, density_);
+            starfield_.setMaxPointSizePx(vulkanPipeline_->getStarfield().getMaxPointSize());
         }
         channelScope_.renderVk(
             cmd,
@@ -557,6 +578,57 @@ void SiliconVisPipeline::renderVulkan() {
             w,
             h
         );
+    }
+
+    if (transitionAlpha_ > 0.001f && vulkanPipeline_->hasTransitionSnapshot()) {
+        vulkanPipeline_->drawTransition(transitionOffsetX_, transitionAlpha_);
+    }
+
+    vulkanPipeline_->endFrame();
+}
+
+void SiliconVisPipeline::renderStarfieldVulkan() {
+    if (!vulkanPipeline_->beginFrameNoPass()) {
+        return;
+    }
+
+    VkCommandBuffer cmd = vulkanPipeline_->getCurrentCommandBuffer();
+    float w = static_cast<float>(vulkanPipeline_->getWidth());
+    float h = static_cast<float>(vulkanPipeline_->getHeight());
+    if (widthPx_ != static_cast<int32_t>(w) || heightPx_ != static_cast<int32_t>(h)) {
+        widthPx_ = static_cast<int32_t>(w);
+        heightPx_ = static_cast<int32_t>(h);
+        starfield_.resize(widthPx_, heightPx_, density_);
+    }
+
+    // Trail and bloom passes run before the main pass begins.
+    starfield_.setAlpha(visualAlpha_);
+    starfield_.simulate();
+    vk::StarVkFrame frame{};
+    frame.pointCount = starfield_.getPointCount();
+    frame.pos = starfield_.getPositions();
+    frame.size = starfield_.getSizes();
+    frame.alpha = starfield_.getAlphas();
+    frame.lineCount = starfield_.getLineCount();
+    frame.lineVerts = starfield_.getLineVerts();
+    frame.starColorArgb = starfield_.getStarColorArgb();
+    frame.softness = starfield_.getSoftness();
+    frame.globalAlpha = starfield_.getGlobalAlpha();
+    frame.brightness = starfield_.getFlashBoost();
+    frame.squareStars = starfield_.usesSquareStars();
+    frame.fadeAlpha = starfield_.getFadeAlpha();
+    frame.wantBloom = starfield_.wantsBloom();
+    frame.bloomStrength = starfield_.getBloomStrength();
+    frame.glowK = starfield_.getGlowK();
+    const bool trailsOk = vulkanPipeline_->getStarfield().renderTrails(
+        cmd, &vulkanPipeline_->getVertexBuffer(), frame,
+        vulkanPipeline_->getWidth(), vulkanPipeline_->getHeight());
+
+    vulkanPipeline_->beginMainPass();
+    vulkanPipeline_->drawArtwork(cmd, density_);
+    if (trailsOk) {
+        vulkanPipeline_->getStarfield().composite(
+            cmd, &vulkanPipeline_->getPipelines(), &vulkanPipeline_->getVertexBuffer(), frame);
     }
 
     if (transitionAlpha_ > 0.001f && vulkanPipeline_->hasTransitionSnapshot()) {

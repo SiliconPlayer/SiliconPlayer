@@ -536,12 +536,14 @@ void StarfieldRenderer::drawBloomComposite(float strength) {
     glBindTexture(GL_TEXTURE_2D, 0);
 }
 
-void StarfieldRenderer::render() {
-    if (widthPx_ <= 0 || heightPx_ <= 0 || !pointProgram_.isReady()) return;
-
-    GLint currentFbo = 0;
-    glGetIntegerv(GL_FRAMEBUFFER_BINDING, &currentFbo);
-    destFbo_ = static_cast<GLuint>(currentFbo);
+void StarfieldRenderer::simulate() {
+    pointCount_ = 0;
+    lineCount_ = 0;
+    flashBoost_ = 1.0f;
+    fadeAlpha_ = 0.0f;
+    wantBloom_ = false;
+    bloomStrength_ = 0.0f;
+    if (widthPx_ <= 0 || heightPx_ <= 0) return;
 
     const auto now = std::chrono::steady_clock::now();
     float dt = 0.0f;
@@ -610,7 +612,7 @@ void StarfieldRenderer::render() {
     drive = std::min(1.15f, driveSmooth_);
     const float reactTerm = std::pow(drive, 1.2f);
     const float spd = speed_ * (1.0f + reactSpeed_ * reactTerm) * brake;
-    const float flashBoost = 1.0f + flash_ * std::max(energy, novelty) * 1.5f;
+    flashBoost_ = 1.0f + flash_ * std::max(energy, novelty) * 1.5f;
     float driftX = 0.0f;
     float driftY = 0.0f;
     if (autoDrift_) {
@@ -627,8 +629,8 @@ void StarfieldRenderer::render() {
     // same screen, same px == same physical size.
     const float sizeK = std::min(h, 1080.0f) / 1080.0f;
     const float depthRange = std::max(1e-3f, 1.0f - nearPlane_);
-    int32_t lineCount = 0;
-    int32_t pointCount = 0;
+    pointCount_ = 0;
+    lineCount_ = 0;
 
     for (int32_t i = 0; i < count; ++i) {
         if (dt > 0.0f) {
@@ -650,7 +652,7 @@ void StarfieldRenderer::render() {
         const float y = halfH + (cy + starY_[i] * s) * halfH;
         const float depth = 1.0f - (z - nearPlane_) / depthRange;
         const float sz = std::min(maxPointSize_, std::max(1.0f, baseSizePx_ * sizeK * (1.0f + sizeGrowth_ * depth * depth)));
-        const float al = std::clamp(1.0f - farDim_ * (1.0f - depth), 0.0f, 1.0f) * flashBoost;
+        const float al = std::clamp(1.0f - farDim_ * (1.0f - depth), 0.0f, 1.0f) * flashBoost_;
         // Spawn fade-in plus a quick fade-out on the final approach so
         // stars never pop in or out of existence.
         const float fadeIn = std::min(1.0f, starAge_[i] / 0.35f);
@@ -660,11 +662,11 @@ void StarfieldRenderer::render() {
         // mobile GPUs (desktop GL discards them): cull on the CPU.
         const float pr = sz * 0.5f;
         if (x >= -pr && x <= w + pr && y >= -pr && y <= h + pr) {
-            pos_[static_cast<size_t>(pointCount) * 2] = x;
-            pos_[static_cast<size_t>(pointCount) * 2 + 1] = y;
-            size_[pointCount] = sz;
-            alphaArr_[pointCount] = std::min(1.0f, al) * env;
-            ++pointCount;
+            pos_[static_cast<size_t>(pointCount_) * 2] = x;
+            pos_[static_cast<size_t>(pointCount_) * 2 + 1] = y;
+            size_[pointCount_] = sz;
+            alphaArr_[pointCount_] = std::min(1.0f, al) * env;
+            ++pointCount_;
         }
         if (streaks_ && env > 0.004f) {
             // Lines take no per-star alpha: grow/shrink the streak instead.
@@ -672,53 +674,69 @@ void StarfieldRenderer::render() {
             const float sp = fov_ / zp;
             const float tx = halfW + (cx + starX_[i] * sp) * halfW;
             const float ty = halfH + (cy + starY_[i] * sp) * halfH;
-            const size_t o = static_cast<size_t>(lineCount) * 4;
+            const size_t o = static_cast<size_t>(lineCount_) * 4;
             lineVerts_[o] = x + (tx - x) * env;
             lineVerts_[o + 1] = y + (ty - y) * env;
             lineVerts_[o + 2] = x;
             lineVerts_[o + 3] = y;
-            ++lineCount;
+            ++lineCount_;
         }
     }
 
+    glowK_ = glowSize_ / 3.0f;
     const float gk = beatGlow_ * std::max(energy, novelty);
-    const bool wantBloom = beatGlow_ > 0.0f && gk > 0.004f && alpha_ > 0.0f;
+    wantBloom_ = beatGlow_ > 0.0f && gk > 0.004f && alpha_ > 0.0f;
+    bloomStrength_ = std::min(2.0f, gk * 2.5f);
+    fadeAlpha_ = dt > 0.0f
+        ? std::min(1.0f, 1.0f - std::pow(trailPersistence_, dt * 60.0f))
+        : 0.0f;
+}
+
+void StarfieldRenderer::render() {
+    if (widthPx_ <= 0 || heightPx_ <= 0 || !pointProgram_.isReady()) return;
+
+    GLint currentFbo = 0;
+    glGetIntegerv(GL_FRAMEBUFFER_BINDING, &currentFbo);
+    destFbo_ = static_cast<GLuint>(currentFbo);
+
+    simulate();
+
     // Bloom needs an offscreen source even with trails off: reuse the
     // trail target as a fresh framebuffer (persistence 0 wipes it clean).
-    const bool useFbo = (trailPersistence_ > 0.003f || wantBloom) && ensureTrailTarget();
+    const bool useFbo = (trailPersistence_ > 0.003f || wantBloom_) && ensureTrailTarget();
     glBindFramebuffer(GL_FRAMEBUFFER, useFbo ? trailFbo_ : destFbo_);
     glViewport(0, 0, widthPx_, heightPx_);
-    if (useFbo && dt > 0.0f) {
-        const float fade = std::min(1.0f, 1.0f - std::pow(trailPersistence_, dt * 60.0f));
+    if (useFbo && fadeAlpha_ > 0.0f) {
         static const float tri[6] = {-1.0f, -1.0f, 3.0f, -1.0f, -1.0f, 3.0f};
         glEnable(GL_BLEND);
         glBlendFunc(GL_ZERO, GL_ONE_MINUS_SRC_ALPHA);
         glBindBuffer(GL_ARRAY_BUFFER, 0);
         fadeProgram_.use();
-        glUniform1f(fadeAlphaLoc_, fade);
+        glUniform1f(fadeAlphaLoc_, fadeAlpha_);
         glEnableVertexAttribArray(fadeNdcLoc_);
         glVertexAttribPointer(fadeNdcLoc_, 2, GL_FLOAT, GL_FALSE, 0, tri);
         glDrawArrays(GL_TRIANGLES, 0, 3);
         glDisableVertexAttribArray(fadeNdcLoc_);
     }
 
-    if (streaks_ && lineCount > 0) {
-        flatRenderer_.setAlpha(0.55f * std::min(flashBoost, 1.5f) * alpha_);
-        flatRenderer_.drawLines(lineVerts_.data(), lineCount * 2, starColorArgb_, 1.0f, w, h);
+    if (streaks_ && lineCount_ > 0) {
+        flatRenderer_.setAlpha(0.55f * std::min(flashBoost_, 1.5f) * alpha_);
+        flatRenderer_.drawLines(lineVerts_.data(), lineCount_ * 2, starColorArgb_, 1.0f,
+                                static_cast<float>(widthPx_), static_cast<float>(heightPx_));
         flatRenderer_.setAlpha(alpha_);
     }
     // Streak flight draws lines only; the tip dots read as beads.
     if (!streaks_) {
         drawPoints(
-            pos_.data(), size_.data(), alphaArr_.data(), pointCount, softness_, 1.0f,
-            std::min(flashBoost, 3.0f));
+            pos_.data(), size_.data(), alphaArr_.data(), pointCount_, softness_, 1.0f,
+            std::min(flashBoost_, 3.0f));
     }
 
     if (useFbo) {
         glBindFramebuffer(GL_FRAMEBUFFER, destFbo_);
         glViewport(0, 0, widthPx_, heightPx_);
         drawTrailComposite();
-        if (wantBloom) drawBloomComposite(std::min(2.0f, gk * 2.5f));
+        if (wantBloom_) drawBloomComposite(bloomStrength_);
     }
 }
 

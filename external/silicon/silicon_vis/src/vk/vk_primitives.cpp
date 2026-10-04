@@ -183,6 +183,8 @@ void VkPrimitivePipelines::release() {
     destroyLayout(artworkBgLayout_);
     destroyLayout(artworkTexLayout_);
     destroyLayout(contrastLayout_);
+    destroyLayout(starBlitLayout_);
+    destroyLayout(starAddLayout_);
 
     if (textDescLayout_ != VK_NULL_HANDLE) {
         table.vkDestroyDescriptorSetLayout(device, textDescLayout_, nullptr);
@@ -203,6 +205,9 @@ void VkPrimitivePipelines::release() {
     destroyShader(artworkTexFragShader_);
     destroyShader(contrastVertShader_);
     destroyShader(contrastFragShader_);
+    destroyShader(starBlitVertShader_);
+    destroyShader(starBlitFragShader_);
+    destroyShader(starAddFragShader_);
 
     context_ = nullptr;
 }
@@ -224,6 +229,8 @@ void VkPrimitivePipelines::destroyPipelines() {
     destroyPipe(artworkBgPipeline_);
     destroyPipe(artworkTexPipeline_);
     destroyPipe(contrastPipeline_);
+    destroyPipe(starBlitPipeline_);
+    destroyPipe(starAddPipeline_);
 }
 
 bool VkPrimitivePipelines::recreatePipelines(VkRenderPass renderPass, uint32_t subpass, VkSampleCountFlagBits samples) {
@@ -250,11 +257,15 @@ bool VkPrimitivePipelines::createShaders() {
     artworkTexFragShader_ = createShaderModule(device, kArtworkTexFragSpv, kArtworkTexFragSpvSize);
     contrastVertShader_ = createShaderModule(device, kContrastVertSpv, kContrastVertSpvSize);
     contrastFragShader_ = createShaderModule(device, kContrastFragSpv, kContrastFragSpvSize);
+    starBlitVertShader_ = createShaderModule(device, kStarBlitVertSpv, kStarBlitVertSpvSize);
+    starBlitFragShader_ = createShaderModule(device, kStarBlitFragSpv, kStarBlitFragSpvSize);
+    starAddFragShader_ = createShaderModule(device, kStarAddFragSpv, kStarAddFragSpvSize);
 
     return flatVertShader_ && flatFragShader_ && waveVertShader_ && waveFragShader_ &&
            textVertShader_ && textFragShader_ && transitionVertShader_ && transitionFragShader_ &&
            artworkBgVertShader_ && artworkBgFragShader_ && artworkTexVertShader_ && artworkTexFragShader_ &&
-           contrastVertShader_ && contrastFragShader_;
+           contrastVertShader_ && contrastFragShader_ &&
+           starBlitVertShader_ && starBlitFragShader_ && starAddFragShader_;
 }
 
 bool VkPrimitivePipelines::createLayouts() {
@@ -383,7 +394,41 @@ bool VkPrimitivePipelines::createLayouts() {
     contrastLayoutInfo.pushConstantRangeCount = 1;
     contrastLayoutInfo.pPushConstantRanges = &contrastRange;
 
-    return table.vkCreatePipelineLayout(device, &contrastLayoutInfo, nullptr, &contrastLayout_) == VK_SUCCESS;
+    if (table.vkCreatePipelineLayout(device, &contrastLayoutInfo, nullptr, &contrastLayout_) != VK_SUCCESS) {
+        return false;
+    }
+
+    // StarBlit pipeline layout (Descriptor Set 0: Sampler + Push constants: 16 bytes)
+    VkPushConstantRange starBlitRange{};
+    starBlitRange.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
+    starBlitRange.offset = 0;
+    starBlitRange.size = sizeof(PushConstantStarBlit);
+
+    VkPipelineLayoutCreateInfo starBlitLayoutInfo{};
+    starBlitLayoutInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
+    starBlitLayoutInfo.setLayoutCount = 1;
+    starBlitLayoutInfo.pSetLayouts = &textDescLayout_;
+    starBlitLayoutInfo.pushConstantRangeCount = 1;
+    starBlitLayoutInfo.pPushConstantRanges = &starBlitRange;
+
+    if (table.vkCreatePipelineLayout(device, &starBlitLayoutInfo, nullptr, &starBlitLayout_) != VK_SUCCESS) {
+        return false;
+    }
+
+    // StarAdd pipeline layout (Descriptor Set 0: Sampler + Push constants: 16 bytes)
+    VkPushConstantRange starAddRange{};
+    starAddRange.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
+    starAddRange.offset = 0;
+    starAddRange.size = sizeof(PushConstantStarAdd);
+
+    VkPipelineLayoutCreateInfo starAddLayoutInfo{};
+    starAddLayoutInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
+    starAddLayoutInfo.setLayoutCount = 1;
+    starAddLayoutInfo.pSetLayouts = &textDescLayout_;
+    starAddLayoutInfo.pushConstantRangeCount = 1;
+    starAddLayoutInfo.pPushConstantRanges = &starAddRange;
+
+    return table.vkCreatePipelineLayout(device, &starAddLayoutInfo, nullptr, &starAddLayout_) == VK_SUCCESS;
 }
 
 bool VkPrimitivePipelines::createPipelines(VkRenderPass renderPass, uint32_t subpass, VkSampleCountFlagBits samples) {
@@ -685,7 +730,81 @@ bool VkPrimitivePipelines::createPipelines(VkRenderPass renderPass, uint32_t sub
     contrastPipeInfo.pStages = contrastStages;
     contrastPipeInfo.layout = contrastLayout_;
 
-    return table.vkCreateGraphicsPipelines(device, VK_NULL_HANDLE, 1, &contrastPipeInfo, nullptr, &contrastPipeline_) == VK_SUCCESS;
+    if (table.vkCreateGraphicsPipelines(device, VK_NULL_HANDLE, 1, &contrastPipeInfo, nullptr, &contrastPipeline_) != VK_SUCCESS) {
+        return false;
+    }
+
+    // Star textured-quad vertex layout (NDC pos: vec2)
+    VkVertexInputBindingDescription starBlitBinding{};
+    starBlitBinding.binding = 0;
+    starBlitBinding.stride = 2 * sizeof(float);
+    starBlitBinding.inputRate = VK_VERTEX_INPUT_RATE_VERTEX;
+
+    VkVertexInputAttributeDescription starBlitAttr{};
+    starBlitAttr.location = 0;
+    starBlitAttr.binding = 0;
+    starBlitAttr.format = VK_FORMAT_R32G32_SFLOAT;
+    starBlitAttr.offset = 0;
+
+    VkPipelineVertexInputStateCreateInfo starBlitVertexInput{};
+    starBlitVertexInput.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
+    starBlitVertexInput.vertexBindingDescriptionCount = 1;
+    starBlitVertexInput.pVertexBindingDescriptions = &starBlitBinding;
+    starBlitVertexInput.vertexAttributeDescriptionCount = 1;
+    starBlitVertexInput.pVertexAttributeDescriptions = &starBlitAttr;
+
+    VkPipelineShaderStageCreateInfo starBlitStages[2]{};
+    starBlitStages[0].sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
+    starBlitStages[0].stage = VK_SHADER_STAGE_VERTEX_BIT;
+    starBlitStages[0].module = starBlitVertShader_;
+    starBlitStages[0].pName = "main";
+    starBlitStages[1].sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
+    starBlitStages[1].stage = VK_SHADER_STAGE_FRAGMENT_BIT;
+    starBlitStages[1].module = starBlitFragShader_;
+    starBlitStages[1].pName = "main";
+
+    VkGraphicsPipelineCreateInfo starBlitPipeInfo = flatTriPipeInfo;
+    starBlitPipeInfo.pStages = starBlitStages;
+    starBlitPipeInfo.pVertexInputState = &starBlitVertexInput;
+    starBlitPipeInfo.layout = starBlitLayout_;
+
+    if (table.vkCreateGraphicsPipelines(device, VK_NULL_HANDLE, 1, &starBlitPipeInfo, nullptr, &starBlitPipeline_) != VK_SUCCESS) {
+        return false;
+    }
+
+    // Star additive composite (ONE/ONE blending for the bloom halo)
+    VkPipelineColorBlendAttachmentState starAddBlend{};
+    starAddBlend.colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT |
+                                  VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT;
+    starAddBlend.blendEnable = VK_TRUE;
+    starAddBlend.srcColorBlendFactor = VK_BLEND_FACTOR_ONE;
+    starAddBlend.dstColorBlendFactor = VK_BLEND_FACTOR_ONE;
+    starAddBlend.colorBlendOp = VK_BLEND_OP_ADD;
+    starAddBlend.srcAlphaBlendFactor = VK_BLEND_FACTOR_ONE;
+    starAddBlend.dstAlphaBlendFactor = VK_BLEND_FACTOR_ONE;
+    starAddBlend.alphaBlendOp = VK_BLEND_OP_ADD;
+
+    VkPipelineColorBlendStateCreateInfo starAddBlending{};
+    starAddBlending.sType = VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO;
+    starAddBlending.attachmentCount = 1;
+    starAddBlending.pAttachments = &starAddBlend;
+
+    VkPipelineShaderStageCreateInfo starAddStages[2]{};
+    starAddStages[0].sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
+    starAddStages[0].stage = VK_SHADER_STAGE_VERTEX_BIT;
+    starAddStages[0].module = starBlitVertShader_;
+    starAddStages[0].pName = "main";
+    starAddStages[1].sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
+    starAddStages[1].stage = VK_SHADER_STAGE_FRAGMENT_BIT;
+    starAddStages[1].module = starAddFragShader_;
+    starAddStages[1].pName = "main";
+
+    VkGraphicsPipelineCreateInfo starAddPipeInfo = starBlitPipeInfo;
+    starAddPipeInfo.pStages = starAddStages;
+    starAddPipeInfo.pColorBlendState = &starAddBlending;
+    starAddPipeInfo.layout = starAddLayout_;
+
+    return table.vkCreateGraphicsPipelines(device, VK_NULL_HANDLE, 1, &starAddPipeInfo, nullptr, &starAddPipeline_) == VK_SUCCESS;
 }
 
 void VkPrimitivePipelines::bindFlatTriangles(VkCommandBuffer cmd, float width, float height, uint32_t colorArgb) {
@@ -819,6 +938,46 @@ void VkPrimitivePipelines::bindContrast(VkCommandBuffer cmd, float width, float 
     pc.pad = 0.0f;
 
     table.vkCmdPushConstants(cmd, contrastLayout_, VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(pc), &pc);
+}
+
+void VkPrimitivePipelines::bindStarBlit(VkCommandBuffer cmd, float width, float height,
+                                        float alpha, VkDescriptorSet texDescriptorSet) {
+    (void)width;
+    (void)height;
+    const auto& table = VkLoader::table();
+    table.vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, starBlitPipeline_);
+
+    if (texDescriptorSet != VK_NULL_HANDLE) {
+        table.vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, starBlitLayout_, 0, 1, &texDescriptorSet, 0, nullptr);
+    }
+
+    PushConstantStarBlit pc{};
+    pc.alpha = alpha;
+    pc.pad[0] = 0.0f;
+    pc.pad[1] = 0.0f;
+    pc.pad[2] = 0.0f;
+
+    table.vkCmdPushConstants(cmd, starBlitLayout_, VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(pc), &pc);
+}
+
+void VkPrimitivePipelines::bindStarAdd(VkCommandBuffer cmd, float width, float height,
+                                        float strength, VkDescriptorSet texDescriptorSet) {
+    (void)width;
+    (void)height;
+    const auto& table = VkLoader::table();
+    table.vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, starAddPipeline_);
+
+    if (texDescriptorSet != VK_NULL_HANDLE) {
+        table.vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, starAddLayout_, 0, 1, &texDescriptorSet, 0, nullptr);
+    }
+
+    PushConstantStarAdd pc{};
+    pc.strength = strength;
+    pc.pad[0] = 0.0f;
+    pc.pad[1] = 0.0f;
+    pc.pad[2] = 0.0f;
+
+    table.vkCmdPushConstants(cmd, starAddLayout_, VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(pc), &pc);
 }
 
 } // namespace silicon::vis::vk

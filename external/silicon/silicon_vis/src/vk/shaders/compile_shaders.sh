@@ -20,6 +20,14 @@ SHADERS=(
     "artwork_tex.frag:kArtworkTexFragSpv"
     "contrast.vert:kContrastVertSpv"
     "contrast.frag:kContrastFragSpv"
+    "star_point.vert:kStarPointVertSpv"
+    "star_point.frag:kStarPointFragSpv"
+    "star_blit.vert:kStarBlitVertSpv"
+    "star_blit.frag:kStarBlitFragSpv"
+    "star_add.frag:kStarAddFragSpv"
+    "star_down.frag:kStarDownFragSpv"
+    "star_kawase.frag:kStarKawaseFragSpv"
+    "star_fade.frag:kStarFadeFragSpv"
 )
 
 OUT_FILE="${SCRIPT_DIR}/vk_spv_shaders.h"
@@ -48,6 +56,14 @@ shaders = [
     ("artwork_tex.frag.spv", "kArtworkTexFragSpv"),
     ("contrast.vert.spv", "kContrastVertSpv"),
     ("contrast.frag.spv", "kContrastFragSpv"),
+    ("star_point.vert.spv", "kStarPointVertSpv"),
+    ("star_point.frag.spv", "kStarPointFragSpv"),
+    ("star_blit.vert.spv", "kStarBlitVertSpv"),
+    ("star_blit.frag.spv", "kStarBlitFragSpv"),
+    ("star_add.frag.spv", "kStarAddFragSpv"),
+    ("star_down.frag.spv", "kStarDownFragSpv"),
+    ("star_kawase.frag.spv", "kStarKawaseFragSpv"),
+    ("star_fade.frag.spv", "kStarFadeFragSpv"),
 ]
 
 out_path = "${OUT_FILE}"

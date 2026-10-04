@@ -97,6 +97,7 @@ public:
 
 private:
     IVisualizerRenderer* getActiveRenderer();
+    void renderStarfieldVulkan();
     bool ensureMsaaTarget(int32_t width, int32_t height);
     void releaseMsaaTarget();
     bool wantsMsaa() const;

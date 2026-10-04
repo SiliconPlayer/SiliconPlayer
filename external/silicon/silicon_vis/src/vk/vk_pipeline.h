@@ -5,6 +5,7 @@
 #include "vk_primitives.h"
 #include "vk_font_atlas.h"
 #include "vk_artwork_renderer.h"
+#include "vk_starfield.h"
 #include <vector>
 
 namespace silicon::vis::vk {
@@ -23,6 +24,11 @@ public:
     void setMsaaEnabled(bool enabled);
 
     bool beginFrame();
+    // Acquires the next image and begins the command buffer without
+    // starting the main render pass, so starfield can record its
+    // offscreen trail and bloom passes first. Pair with beginMainPass().
+    bool beginFrameNoPass();
+    bool beginMainPass();
     void endFrame();
 
     void setClearColor(float r, float g, float b, float a = 1.0f) {
@@ -38,6 +44,7 @@ public:
     VkDynamicVertexBuffer& getVertexBuffer() { return vertexBuffer_; }
     VkFontAtlas& getFontAtlas() { return fontAtlas_; }
     VkArtworkRenderer& getArtworkRenderer() { return artworkRenderer_; }
+    VkStarfieldRenderer& getStarfield() { return starfield_; }
     VkSwapchain* getSwapchain() { return isSurfaceMode_ ? &swapchain_ : nullptr; }
 
     bool isSurfaceMode() const { return isSurfaceMode_; }
@@ -110,6 +117,7 @@ private:
     VkDynamicVertexBuffer vertexBuffer_;
     VkFontAtlas fontAtlas_;
     VkArtworkRenderer artworkRenderer_;
+    VkStarfieldRenderer starfield_;
 
     static constexpr int kMaxFramesInFlight = 2;
     VkCommandBuffer commandBuffers_[kMaxFramesInFlight]{};
@@ -119,6 +127,8 @@ private:
     int currentFrameIndex_ = 0;
     uint32_t currentImageIndex_ = 0;
     VkCommandBuffer currentCmd_ = VK_NULL_HANDLE;
+    VkFramebuffer currentFramebuffer_ = VK_NULL_HANDLE;
+    VkRenderPass currentRenderPass_ = VK_NULL_HANDLE;
 
     bool hasRenderedFrame_ = false;
     uint32_t lastRenderedImageIndex_ = 0;
