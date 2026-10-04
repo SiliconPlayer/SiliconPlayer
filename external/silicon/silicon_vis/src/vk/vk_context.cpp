@@ -379,7 +379,9 @@ bool VkContext::querySurfaceSupport(
 
     VkSurfaceCapabilitiesKHR caps{};
     table.vkGetPhysicalDeviceSurfaceCapabilitiesKHR(physicalDevice_, surface, &caps);
-    outMinImages = std::max(2u, caps.minImageCount);
+    // One spare image over the minimum: with only the minimum, a vsync-paced
+    // producer serializes acquire against present and halves the frame rate.
+    outMinImages = std::max(3u, caps.minImageCount + 1);
     if (caps.maxImageCount > 0 && outMinImages > caps.maxImageCount) {
         outMinImages = caps.maxImageCount;
     }
