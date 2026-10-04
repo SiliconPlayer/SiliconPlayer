@@ -433,7 +433,7 @@ fun BasicVisualizationOverlay(
 
         VisualizationMode.Oscilloscope -> {
             when (oscRenderBackend) {
-                VisualizationRenderBackend.OpenGlTexture, VisualizationRenderBackend.OpenGlSurface -> {
+                VisualizationRenderBackend.OpenGlTexture, VisualizationRenderBackend.OpenGlSurface, VisualizationRenderBackend.VulkanSurface, VisualizationRenderBackend.VulkanTexture -> {
                     val isStereo = oscStereo && channelCount > 1
                     val oscContrastMode = if (!oscContrastBackdropEnabled) {
                         0
@@ -460,7 +460,21 @@ fun BasicVisualizationOverlay(
                         contrastMode = oscContrastMode,
                         showArtworkBackground = true
                     )
-                    if (oscRenderBackend == VisualizationRenderBackend.OpenGlSurface) {
+                    if (oscRenderBackend == VisualizationRenderBackend.VulkanTexture) {
+                        com.flopster101.siliconplayer.ui.visualization.gl.SiliconNativeVkTextureVisualization(
+                            frame = nativeFrame,
+                            onFrameStats = channelScopeOnFrameStats,
+                            modifier = modifier
+                        )
+                    } else if (oscRenderBackend == VisualizationRenderBackend.VulkanSurface) {
+                        com.flopster101.siliconplayer.ui.visualization.gl.SiliconNativeVkSurfaceVisualization(
+                            frame = nativeFrame,
+                            cornerRadiusDp = visCornerRadiusDp,
+                            veilColor = surfaceVeilColor,
+                            onFrameStats = channelScopeOnFrameStats,
+                            modifier = modifier
+                        )
+                    } else if (oscRenderBackend == VisualizationRenderBackend.OpenGlSurface) {
                         com.flopster101.siliconplayer.ui.visualization.gl.SiliconNativeGlSurfaceVisualization(
                             frame = nativeFrame,
                             cornerRadiusDp = visCornerRadiusDp,

@@ -830,6 +830,20 @@ internal class SiliconNativeVkRenderThread(
             }
 
             when (frame.mode) {
+                2 -> {
+                    SiliconVisNativeBridge.nativeSetOscilloscopeOptions(
+                        handle = visHandle,
+                        stereo = frame.oscStereo,
+                        windowMs = frame.oscWindowMs,
+                        triggerMode = frame.oscTriggerMode,
+                        waveColorArgb = frame.oscWaveColorArgb,
+                        lineWidthPx = frame.oscLineWidthPx,
+                        gridColorArgb = frame.oscGridColorArgb,
+                        gridWidthPx = frame.oscGridWidthPx,
+                        showCenterLine = frame.oscShowCenterLine,
+                        showGrid = frame.oscShowGrid
+                    )
+                }
                 1 -> {
                     SiliconVisNativeBridge.nativeSetBarsOptions(
                         handle = visHandle,

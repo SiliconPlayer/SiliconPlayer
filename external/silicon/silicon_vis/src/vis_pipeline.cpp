@@ -461,6 +461,7 @@ bool SiliconVisPipeline::initVulkan(uint32_t width, uint32_t height, void* nativ
         widthPx_ = static_cast<int32_t>(vulkanPipeline_->getWidth());
         heightPx_ = static_cast<int32_t>(vulkanPipeline_->getHeight());
         channelScope_.resize(widthPx_, heightPx_, density_);
+        oscilloscope_.resize(widthPx_, heightPx_, density_);
         bars_.resize(widthPx_, heightPx_, density_);
         starfield_.resize(widthPx_, heightPx_, density_);
         starfield_.setMaxPointSizePx(vulkanPipeline_->getStarfield().getMaxPointSize());
@@ -520,6 +521,24 @@ void SiliconVisPipeline::renderVulkan() {
 
     if (audioProvider_) {
         switch (currentMode_) {
+            case SILICON_VIS_MODE_OSCILLOSCOPE: {
+                const int windowMs = oscilloscope_.getWindowMs();
+                const int triggerMode = oscilloscope_.getTriggerMode();
+                audioProvider_->getWaveformScope(0, windowMs, triggerMode, nativeWaveformL_);
+                if (oscilloscope_.isStereo()) {
+                    audioProvider_->getWaveformScope(1, windowMs, triggerMode, nativeWaveformR_);
+                    oscilloscope_.setWaveforms(
+                        nativeWaveformL_.data(), static_cast<int32_t>(nativeWaveformL_.size()),
+                        nativeWaveformR_.data(), static_cast<int32_t>(nativeWaveformR_.size())
+                    );
+                } else {
+                    oscilloscope_.setWaveforms(
+                        nativeWaveformL_.data(), static_cast<int32_t>(nativeWaveformL_.size()),
+                        nullptr, 0
+                    );
+                }
+                break;
+            }
             case SILICON_VIS_MODE_BARS: {
                 audioProvider_->getFftBars(nativeFftBars_);
                 bars_.pushFft(nativeFftBars_.data(), static_cast<int32_t>(nativeFftBars_.size()));
@@ -581,6 +600,22 @@ void SiliconVisPipeline::renderVulkan() {
             &vulkanPipeline_->getPipelines(),
             &vulkanPipeline_->getVertexBuffer(),
             (uint64_t)(uintptr_t)vulkanPipeline_->getFontAtlas().getDescriptorSet(),
+            w,
+            h
+        );
+    }
+
+    if (currentMode_ == SILICON_VIS_MODE_OSCILLOSCOPE) {
+        if (widthPx_ != static_cast<int32_t>(w) || heightPx_ != static_cast<int32_t>(h)) {
+            widthPx_ = static_cast<int32_t>(w);
+            heightPx_ = static_cast<int32_t>(h);
+            oscilloscope_.resize(widthPx_, heightPx_, density_);
+        }
+        oscilloscope_.setAlpha(visualAlpha_);
+        oscilloscope_.renderVk(
+            cmd,
+            &vulkanPipeline_->getPipelines(),
+            &vulkanPipeline_->getVertexBuffer(),
             w,
             h
         );

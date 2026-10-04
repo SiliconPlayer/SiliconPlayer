@@ -21,7 +21,18 @@ public:
 
     void pushPcm(const float* pcmInterleaved, int32_t frames, int32_t channels, int32_t sampleRate) override;
     void setWaveforms(const float* left, int32_t leftCount, const float* right, int32_t rightCount);
-    void setAlpha(float alpha) override { flatRenderer_.setAlpha(alpha); }
+    void setAlpha(float alpha) override {
+        alpha_ = alpha;
+        flatRenderer_.setAlpha(alpha);
+    }
+
+    void renderVk(
+        void* cmdBuffer,
+        void* pipelines,
+        void* dynamicVertexBuffer,
+        float width,
+        float height
+    );
 
     void setOptions(
         bool stereo,
@@ -58,6 +69,8 @@ private:
 
     std::vector<float> pcmLeft_;
     std::vector<float> pcmRight_;
+
+    float alpha_ = 1.0f;
 
     gl::GlFlatColorRenderer flatRenderer_;
     std::vector<float> gridLines_;

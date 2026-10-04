@@ -483,7 +483,9 @@ internal fun VisualizationBasicOscilloscopeRouteContent(
             selectedValue = visualizationOscRenderBackend,
             options = listOf(
                 VisualizationRenderBackend.Compose,
-                VisualizationRenderBackend.OpenGlTexture
+                VisualizationRenderBackend.OpenGlTexture,
+                VisualizationRenderBackend.VulkanTexture,
+                VisualizationRenderBackend.VulkanSurface
             ).map { backend ->
                 ChoiceDialogOption(value = backend, label = backend.label)
             },
