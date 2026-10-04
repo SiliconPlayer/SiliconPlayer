@@ -22,7 +22,19 @@ public:
 
     void pushPcm(const float* pcmInterleaved, int32_t frames, int32_t channels, int32_t sampleRate) override;
     void setVuLevels(float left, float right);
-    void setAlpha(float alpha) override { flatRenderer_.setAlpha(alpha); }
+    void setAlpha(float alpha) override {
+        alpha_ = alpha;
+        flatRenderer_.setAlpha(alpha);
+    }
+
+    void renderVk(
+        void* cmdBuffer,
+        void* pipelines,
+        void* dynamicVertexBuffer,
+        uint64_t fontDescriptorSet,
+        float width,
+        float height
+    );
 
     void setOptions(
         bool stereo,
@@ -37,6 +49,7 @@ public:
 
 private:
     void buildGeometry();
+    void buildLabels();
     void drawLabels();
 
     int32_t widthPx_ = 0;
@@ -52,6 +65,8 @@ private:
 
     float leftPeak_ = 0.0f;
     float rightPeak_ = 0.0f;
+
+    float alpha_ = 1.0f;
 
     gl::GlFlatColorRenderer flatRenderer_;
     gl::GlFontAtlas fontAtlas_;

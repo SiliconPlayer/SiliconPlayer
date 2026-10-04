@@ -462,6 +462,7 @@ bool SiliconVisPipeline::initVulkan(uint32_t width, uint32_t height, void* nativ
         heightPx_ = static_cast<int32_t>(vulkanPipeline_->getHeight());
         channelScope_.resize(widthPx_, heightPx_, density_);
         oscilloscope_.resize(widthPx_, heightPx_, density_);
+        vuMeters_.resize(widthPx_, heightPx_, density_);
         bars_.resize(widthPx_, heightPx_, density_);
         starfield_.resize(widthPx_, heightPx_, density_);
         starfield_.setMaxPointSizePx(vulkanPipeline_->getStarfield().getMaxPointSize());
@@ -521,6 +522,12 @@ void SiliconVisPipeline::renderVulkan() {
 
     if (audioProvider_) {
         switch (currentMode_) {
+            case SILICON_VIS_MODE_VU_METERS: {
+                float left = 0.0f, right = 0.0f;
+                audioProvider_->getVuLevels(left, right);
+                vuMeters_.setVuLevels(left, right);
+                break;
+            }
             case SILICON_VIS_MODE_OSCILLOSCOPE: {
                 const int windowMs = oscilloscope_.getWindowMs();
                 const int triggerMode = oscilloscope_.getTriggerMode();
@@ -596,6 +603,23 @@ void SiliconVisPipeline::renderVulkan() {
             starfield_.setMaxPointSizePx(vulkanPipeline_->getStarfield().getMaxPointSize());
         }
         channelScope_.renderVk(
+            cmd,
+            &vulkanPipeline_->getPipelines(),
+            &vulkanPipeline_->getVertexBuffer(),
+            (uint64_t)(uintptr_t)vulkanPipeline_->getFontAtlas().getDescriptorSet(),
+            w,
+            h
+        );
+    }
+
+    if (currentMode_ == SILICON_VIS_MODE_VU_METERS) {
+        if (widthPx_ != static_cast<int32_t>(w) || heightPx_ != static_cast<int32_t>(h)) {
+            widthPx_ = static_cast<int32_t>(w);
+            heightPx_ = static_cast<int32_t>(h);
+            vuMeters_.resize(widthPx_, heightPx_, density_);
+        }
+        vuMeters_.setAlpha(visualAlpha_);
+        vuMeters_.renderVk(
             cmd,
             &vulkanPipeline_->getPipelines(),
             &vulkanPipeline_->getVertexBuffer(),

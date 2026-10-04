@@ -830,6 +830,17 @@ internal class SiliconNativeVkRenderThread(
             }
 
             when (frame.mode) {
+                3 -> {
+                    SiliconVisNativeBridge.nativeSetVuMetersOptions(
+                        handle = visHandle,
+                        stereo = frame.vuStereo,
+                        anchor = frame.vuMetersAnchor,
+                        smoothing = frame.vuSmoothingPercent / 100f,
+                        fillColorArgb = frame.vuFillColorArgb,
+                        trackColorArgb = frame.vuTrackColorArgb,
+                        labelColorArgb = frame.vuLabelColorArgb
+                    )
+                }
                 2 -> {
                     SiliconVisNativeBridge.nativeSetOscilloscopeOptions(
                         handle = visHandle,

@@ -510,7 +510,7 @@ fun BasicVisualizationOverlay(
 
         VisualizationMode.VuMeters -> {
             when (vuRenderBackend) {
-                VisualizationRenderBackend.OpenGlTexture, VisualizationRenderBackend.OpenGlSurface -> {
+                VisualizationRenderBackend.OpenGlTexture, VisualizationRenderBackend.OpenGlSurface, VisualizationRenderBackend.VulkanSurface, VisualizationRenderBackend.VulkanTexture -> {
                     val isTop = vuAnchor == VisualizationVuAnchor.Top
                     val vuContrastMode = if (!vuContrastBackdropEnabled) {
                         0
@@ -539,7 +539,21 @@ fun BasicVisualizationOverlay(
                         contrastMode = vuContrastMode,
                         showArtworkBackground = true
                     )
-                    if (vuRenderBackend == VisualizationRenderBackend.OpenGlSurface) {
+                    if (vuRenderBackend == VisualizationRenderBackend.VulkanTexture) {
+                        com.flopster101.siliconplayer.ui.visualization.gl.SiliconNativeVkTextureVisualization(
+                            frame = nativeFrame,
+                            onFrameStats = channelScopeOnFrameStats,
+                            modifier = modifier
+                        )
+                    } else if (vuRenderBackend == VisualizationRenderBackend.VulkanSurface) {
+                        com.flopster101.siliconplayer.ui.visualization.gl.SiliconNativeVkSurfaceVisualization(
+                            frame = nativeFrame,
+                            cornerRadiusDp = visCornerRadiusDp,
+                            veilColor = surfaceVeilColor,
+                            onFrameStats = channelScopeOnFrameStats,
+                            modifier = modifier
+                        )
+                    } else if (vuRenderBackend == VisualizationRenderBackend.OpenGlSurface) {
                         com.flopster101.siliconplayer.ui.visualization.gl.SiliconNativeGlSurfaceVisualization(
                             frame = nativeFrame,
                             cornerRadiusDp = visCornerRadiusDp,

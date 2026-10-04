@@ -606,6 +606,14 @@ internal fun VisualizationBasicVuMetersRouteContent(
                     value = VisualizationRenderBackend.OpenGlTexture,
                     label = VisualizationRenderBackend.OpenGlTexture.label
                 ),
+                ChoiceDialogOption(
+                    value = VisualizationRenderBackend.VulkanTexture,
+                    label = VisualizationRenderBackend.VulkanTexture.label
+                ),
+                ChoiceDialogOption(
+                    value = VisualizationRenderBackend.VulkanSurface,
+                    label = VisualizationRenderBackend.VulkanSurface.label
+                )
             ),
             onSelected = { backend ->
                 onVisualizationVuRenderBackendChanged(backend)

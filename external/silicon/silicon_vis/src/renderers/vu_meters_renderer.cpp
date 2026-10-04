@@ -1,6 +1,9 @@
 #include "vu_meters_renderer.h"
+#include "vk/vk_primitives.h"
+#include "vk/vk_dispatch.h"
 #include <cmath>
 #include <algorithm>
+#include <cstring>
 
 namespace silicon::vis {
 
@@ -130,7 +133,8 @@ void VuMetersRenderer::buildGeometry() {
     }
 }
 
-void VuMetersRenderer::drawLabels() {
+void VuMetersRenderer::buildLabels() {
+    textBatcher_.clear();
     if (widthPx_ <= 0 || heightPx_ <= 0) return;
     float h = static_cast<float>(heightPx_);
 
@@ -149,7 +153,6 @@ void VuMetersRenderer::drawLabels() {
     float scale = (11.0f * density_ * uiScale) / fontAtlas_.getBaseFontSizePx();
     float textHeight = fontAtlas_.getLineHeightPx() * scale;
 
-    textBatcher_.clear();
     gl::Color4f c = gl::argbToColor4f(labelColorArgb_);
 
     for (int idx = 0; idx < rows; ++idx) {
@@ -158,6 +161,10 @@ void VuMetersRenderer::drawLabels() {
         std::string label = (rows > 1) ? ((idx == 0) ? "Left" : "Right") : "Mono";
         textBatcher_.addText(fontAtlas_, label, horizontalPadPx, textY, scale, c.r, c.g, c.b, c.a, true);
     }
+}
+
+void VuMetersRenderer::drawLabels() {
+    buildLabels();
 
     if (textBatcher_.getVertexCount() > 0) {
         textProgram_.draw(
@@ -194,6 +201,61 @@ void VuMetersRenderer::render() {
     }
 
     drawLabels();
+}
+
+void VuMetersRenderer::renderVk(
+    void* cmdBuffer,
+    void* pipelines,
+    void* dynamicVertexBuffer,
+    uint64_t fontDescriptorSet,
+    float width,
+    float height
+) {
+    if (!cmdBuffer || !pipelines || !dynamicVertexBuffer || width <= 0.0f || height <= 0.0f) return;
+
+    VkCommandBuffer cmd = static_cast<VkCommandBuffer>(cmdBuffer);
+    auto* prims = static_cast<vk::VkPrimitivePipelines*>(pipelines);
+    auto* dynBuffer = static_cast<vk::VkDynamicVertexBuffer*>(dynamicVertexBuffer);
+    const auto& table = vk::VkLoader::table();
+
+    VkDescriptorSet fontDesc{};
+    std::memcpy(&fontDesc, &fontDescriptorSet, sizeof(VkDescriptorSet));
+
+    buildGeometry();
+    buildLabels();
+    VkBuffer buffer = dynBuffer->getBuffer();
+
+    auto withAlpha = [this](uint32_t argb) {
+        const float a = ((argb >> 24) & 0xFF) / 255.0f * alpha_;
+        const uint32_t ai = static_cast<uint32_t>(std::clamp(a, 0.0f, 1.0f) * 255.0f);
+        return (argb & 0x00FFFFFF) | (ai << 24);
+    };
+
+    auto drawTris = [&](const std::vector<float>& verts, uint32_t argb) {
+        if (verts.empty()) return;
+        size_t sizeBytes = verts.size() * sizeof(float);
+        size_t offset = dynBuffer->allocate(verts.data(), sizeBytes);
+        if (offset == static_cast<size_t>(-1)) return;
+        prims->bindFlatTriangles(cmd, width, height, withAlpha(argb));
+        VkDeviceSize bufOffset = static_cast<VkDeviceSize>(offset);
+        table.vkCmdBindVertexBuffers(cmd, 0, 1, &buffer, &bufOffset);
+        table.vkCmdDraw(cmd, static_cast<uint32_t>(verts.size() / 2), 1, 0, 0);
+    };
+
+    // Track, fill, then labels: same order as the GL path.
+    drawTris(trackVertices_, trackColorArgb_);
+    drawTris(fillVertices_, fillColorArgb_);
+
+    if (fontDesc != VK_NULL_HANDLE && textBatcher_.getVertexCount() > 0) {
+        size_t sizeBytes = textBatcher_.getVertexCount() * 8 * sizeof(float);
+        size_t offset = dynBuffer->allocate(textBatcher_.getBufferData(), sizeBytes);
+        if (offset != static_cast<size_t>(-1)) {
+            prims->bindText(cmd, width, height, fontDesc);
+            VkDeviceSize bufOffset = static_cast<VkDeviceSize>(offset);
+            table.vkCmdBindVertexBuffers(cmd, 0, 1, &buffer, &bufOffset);
+            table.vkCmdDraw(cmd, static_cast<uint32_t>(textBatcher_.getVertexCount()), 1, 0, 0);
+        }
+    }
 }
 
 } // namespace silicon::vis
