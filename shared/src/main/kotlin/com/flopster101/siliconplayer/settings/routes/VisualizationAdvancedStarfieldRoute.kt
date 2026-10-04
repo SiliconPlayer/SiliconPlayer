@@ -567,7 +567,11 @@ internal fun VisualizationAdvancedStarfieldRouteContent() {
                 VisualizationRenderBackend.OpenGlSurface,
                 VisualizationRenderBackend.VulkanSurface
             ).map { backend ->
-                ChoiceDialogOption(value = backend, label = backend.label)
+                ChoiceDialogOption(
+                    value = backend,
+                    label = backend.label,
+                    enabled = supportsVulkanRendering() || backend != VisualizationRenderBackend.VulkanSurface
+                )
             },
             onSelected = { backend ->
                 starfieldRenderBackend = backend

@@ -1,5 +1,6 @@
 package com.flopster101.siliconplayer
 
+import com.flopster101.siliconplayer.supportsVulkanRendering
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.height
 import androidx.compose.runtime.Composable
@@ -330,11 +331,13 @@ internal fun VisualizationBasicBarsRouteContent(
                 ),
                 ChoiceDialogOption(
                     value = VisualizationRenderBackend.VulkanTexture,
-                    label = VisualizationRenderBackend.VulkanTexture.label
+                    label = VisualizationRenderBackend.VulkanTexture.label,
+                    enabled = supportsVulkanRendering()
                 ),
                 ChoiceDialogOption(
                     value = VisualizationRenderBackend.VulkanSurface,
-                    label = VisualizationRenderBackend.VulkanSurface.label
+                    label = VisualizationRenderBackend.VulkanSurface.label,
+                    enabled = supportsVulkanRendering()
                 )
             ),
             onSelected = { backend ->
@@ -608,11 +611,13 @@ internal fun VisualizationBasicVuMetersRouteContent(
                 ),
                 ChoiceDialogOption(
                     value = VisualizationRenderBackend.VulkanTexture,
-                    label = VisualizationRenderBackend.VulkanTexture.label
+                    label = VisualizationRenderBackend.VulkanTexture.label,
+                    enabled = supportsVulkanRendering()
                 ),
                 ChoiceDialogOption(
                     value = VisualizationRenderBackend.VulkanSurface,
-                    label = VisualizationRenderBackend.VulkanSurface.label
+                    label = VisualizationRenderBackend.VulkanSurface.label,
+                    enabled = supportsVulkanRendering()
                 )
             ),
             onSelected = { backend ->

@@ -487,7 +487,12 @@ internal fun VisualizationBasicOscilloscopeRouteContent(
                 VisualizationRenderBackend.VulkanTexture,
                 VisualizationRenderBackend.VulkanSurface
             ).map { backend ->
-                ChoiceDialogOption(value = backend, label = backend.label)
+                ChoiceDialogOption(
+                    value = backend,
+                    label = backend.label,
+                    enabled = supportsVulkanRendering() || (backend != VisualizationRenderBackend.VulkanTexture &&
+                        backend != VisualizationRenderBackend.VulkanSurface)
+                )
             },
             onSelected = { backend ->
                 visualizationOscRenderBackend = backend

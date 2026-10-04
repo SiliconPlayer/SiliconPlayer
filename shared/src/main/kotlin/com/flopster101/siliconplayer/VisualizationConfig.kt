@@ -67,7 +67,7 @@ enum class VisualizationRenderBackend(
 
     companion object {
         fun fromStorage(value: String?, fallback: VisualizationRenderBackend): VisualizationRenderBackend {
-            return when (value) {
+            val stored = when (value) {
                 // Legacy migration: old GPU-canvas backend now maps to composited OpenGL backend.
                 "gpu" -> OpenGlTexture
                 // Legacy migration: old OpenGL value now maps to explicit SurfaceView backend.
@@ -75,6 +75,11 @@ enum class VisualizationRenderBackend(
                 "vulkan", "vulkan_surface" -> VulkanSurface
                 else -> entries.firstOrNull { it.storageValue == value } ?: fallback
             }
+            // Devices without Vulkan support automatically use OpenGL SurfaceView.
+            if (!supportsVulkanRendering() && (stored == VulkanTexture || stored == VulkanSurface)) {
+                return OpenGlSurface
+            }
+            return stored
         }
     }
 }

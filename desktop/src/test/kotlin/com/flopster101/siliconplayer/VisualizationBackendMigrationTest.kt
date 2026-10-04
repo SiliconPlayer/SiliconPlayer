@@ -59,14 +59,20 @@ class VisualizationBackendMigrationTest {
         val prefs = InMemoryPrefs()
         migrateVisualizationBackendsToVulkan(prefs)
 
-        val expected = VisualizationRenderBackend.VulkanSurface.storageValue
-        for (key in listOf(
+        // Vulkan SurfaceView where supported, OpenGL SurfaceView otherwise.
+        val expected = if (supportsVulkanRendering()) {
+            VisualizationRenderBackend.VulkanSurface.storageValue
+        } else {
+            VisualizationRenderBackend.OpenGlSurface.storageValue
+        }
+        val keys = listOf(
             AppPreferenceKeys.VISUALIZATION_BAR_RENDER_BACKEND,
             AppPreferenceKeys.VISUALIZATION_OSC_RENDER_BACKEND,
             AppPreferenceKeys.VISUALIZATION_VU_RENDER_BACKEND,
             AppPreferenceKeys.VISUALIZATION_CHANNEL_SCOPE_RENDER_BACKEND,
             AppPreferenceKeys.VISUALIZATION_STARFIELD_RENDER_BACKEND
-        )) {
+        )
+        for (key in keys) {
             assertEquals(expected, prefs.getString(key, null))
         }
 

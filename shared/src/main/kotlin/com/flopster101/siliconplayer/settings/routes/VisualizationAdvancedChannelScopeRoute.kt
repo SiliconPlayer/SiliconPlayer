@@ -1202,7 +1202,12 @@ internal fun VisualizationAdvancedChannelScopeRouteContent(
                                 title = "Renderer backend",
                                 selectedValue = scopeRenderBackend,
                                 options = VisualizationRenderBackend.entries.map { backend ->
-                                    ChoiceDialogOption(value = backend, label = backend.label)
+                                    ChoiceDialogOption(
+                                        value = backend,
+                                        label = backend.label,
+                                        enabled = supportsVulkanRendering() || (backend != VisualizationRenderBackend.VulkanTexture &&
+                                            backend != VisualizationRenderBackend.VulkanSurface)
+                                    )
                                 },
                                 onSelected = { backend ->
                                     scopeRenderBackend = backend
