@@ -378,10 +378,17 @@ fun ProvideAndroidPlatformAdapters(
     }
 
     val appVersionInfo = remember {
+        val abi = when (val primary = Build.SUPPORTED_ABIS.firstOrNull()?.lowercase()) {
+            "arm64-v8a" -> "arm64"
+            "armeabi-v7a" -> "armv7a"
+            "armeabi" -> "arm"
+            null -> "unknown"
+            else -> primary.replace("-", "")
+        }
         AppVersionInfo(
             versionName = com.flopster101.siliconplayer.BuildConfig.VERSION_NAME,
             platform = "android",
-            abiOrArch = Build.SUPPORTED_ABIS.firstOrNull()?.replace("-", "") ?: "unknown",
+            abiOrArch = abi,
             gitSha = com.flopster101.siliconplayer.BuildConfig.GIT_SHA
         )
     }
