@@ -81,11 +81,11 @@ enum class VisualizationRenderBackend(
 
 fun visualizationRenderBackendForMode(mode: VisualizationMode): VisualizationRenderBackend {
     return when (mode) {
-        VisualizationMode.Bars -> VisualizationRenderBackend.OpenGlTexture
-        VisualizationMode.Oscilloscope -> VisualizationRenderBackend.OpenGlTexture
-        VisualizationMode.VuMeters -> VisualizationRenderBackend.OpenGlTexture
-        VisualizationMode.ChannelScope -> VisualizationRenderBackend.OpenGlTexture
-        VisualizationMode.Starfield -> VisualizationRenderBackend.OpenGlTexture
+        VisualizationMode.Bars -> VisualizationRenderBackend.VulkanSurface
+        VisualizationMode.Oscilloscope -> VisualizationRenderBackend.VulkanSurface
+        VisualizationMode.VuMeters -> VisualizationRenderBackend.VulkanSurface
+        VisualizationMode.ChannelScope -> VisualizationRenderBackend.VulkanSurface
+        VisualizationMode.Starfield -> VisualizationRenderBackend.VulkanSurface
         VisualizationMode.ProjectM -> VisualizationRenderBackend.OpenGlTexture
         VisualizationMode.Off -> VisualizationRenderBackend.Compose
     }

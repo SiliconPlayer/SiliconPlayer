@@ -1,5 +1,6 @@
 package com.flopster101.siliconplayer.ui.screens
 
+import com.flopster101.siliconplayer.migrateVisualizationBackendsToVulkan
 import com.flopster101.siliconplayer.onGloballyPositionedDeferred
 import com.flopster101.siliconplayer.onSizeChangedDeferred
 import com.flopster101.siliconplayer.ui.dialogs.TrackInfoDialog
@@ -328,6 +329,7 @@ private fun rememberPlayerVisualizationPreferenceState(
     defaultBarRenderBackend: VisualizationRenderBackend,
     defaultVuRenderBackend: VisualizationRenderBackend
 ): PlayerVisualizationPreferenceState {
+    migrateVisualizationBackendsToVulkan(prefs)
     val state = remember(prefs, defaultBarRenderBackend, defaultVuRenderBackend) {
         PlayerVisualizationPreferenceState(
             oscWindowMs = prefs.getInt(PREF_KEY_VIS_OSC_WINDOW_MS, 40).coerceIn(5, 200),

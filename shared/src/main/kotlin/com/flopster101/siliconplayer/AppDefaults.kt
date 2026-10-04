@@ -73,7 +73,7 @@ object AppDefaults {
             val fpsMode = VisualizationOscFpsMode.Fps60
             const val overlayArtwork = true
             const val useThemeColor = true
-            val renderBackend = VisualizationRenderBackend.OpenGlTexture
+            val renderBackend = VisualizationRenderBackend.VulkanSurface
             const val customColorArgb = 0xFF6BD8FF.toInt()
             val colorModeNoArtwork = VisualizationOscColorMode.Monet
             val colorModeWithArtwork = VisualizationOscColorMode.Artwork
@@ -88,7 +88,7 @@ object AppDefaults {
             const val contrastBackdropEnabled = true
             val triggerMode = VisualizationOscTriggerMode.Rising
             val fpsMode = VisualizationOscFpsMode.Default
-            val renderBackend = VisualizationRenderBackend.OpenGlTexture
+            val renderBackend = VisualizationRenderBackend.VulkanSurface
             const val lineWidthDp = 3
             const val gridWidthDp = 2
             const val verticalGridEnabled = false
@@ -110,7 +110,7 @@ object AppDefaults {
             const val smoothingPercent = 40
             const val contrastBackdropEnabled = true
             val fpsMode = VisualizationOscFpsMode.Fps60
-            val renderBackend = VisualizationRenderBackend.OpenGlTexture
+            val renderBackend = VisualizationRenderBackend.VulkanSurface
             val colorModeNoArtwork = VisualizationOscColorMode.Monet
             val colorModeWithArtwork = VisualizationOscColorMode.Artwork
             const val customColorArgb = 0xFF6BD8FF.toInt()
@@ -119,7 +119,7 @@ object AppDefaults {
 
         object ChannelScope {
             const val windowMs = 30
-            val renderBackend = VisualizationRenderBackend.OpenGlSurface
+            val renderBackend = VisualizationRenderBackend.VulkanSurface
             const val dcRemovalEnabled = true
             const val waveformClippingEnabled = true
             const val gainPercent = 240
@@ -213,7 +213,7 @@ object AppDefaults {
         object Starfield {
             // SurfaceView keeps the vis out of the app window's display list;
             // the cost is one extra composition layer.
-            val renderBackend = VisualizationRenderBackend.OpenGlSurface
+            val renderBackend = VisualizationRenderBackend.VulkanSurface
             val starCountRange = 10..2000
             val speedRangeCenti = 2..150
             val fovRangeCenti = 40..250
