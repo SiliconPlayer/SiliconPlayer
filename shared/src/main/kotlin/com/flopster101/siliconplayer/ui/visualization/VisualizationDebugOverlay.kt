@@ -23,6 +23,7 @@ fun VisualizationDebugOverlay(
     sourceDuplicatePercent: Int = 0,
     drawFps: Int = 0,
     drawFrameMs: Int = 0,
+    vulkanDeviceLine: String? = null,
     modifier: Modifier = Modifier
 ) {
     val pollerActive = activeRenderBackend == VisualizationRenderBackend.Compose
@@ -46,6 +47,11 @@ fun VisualizationDebugOverlay(
     } else {
         "N/A"
     }
+    val vulkanLine = if (activeRenderBackend == VisualizationRenderBackend.VulkanSurface) {
+        (vulkanDeviceLine ?: "unknown device") + "\n"
+    } else {
+        ""
+    }
     Surface(
         modifier = modifier.padding(start = 10.dp, top = 10.dp),
         shape = RoundedCornerShape(10.dp),
@@ -57,7 +63,8 @@ fun VisualizationDebugOverlay(
                 "Update: $updateLine\n" +
                 "Source unique: $sourceUniqueLine\n" +
                 "Source duplicates: $sourceDuplicatesLine\n" +
-                "Draw: $drawLine",
+                "Draw: $drawLine\n" +
+                vulkanLine.trimEnd(),
             color = Color.White.copy(alpha = 0.78f),
             style = MaterialTheme.typography.labelSmall,
             modifier = Modifier.padding(horizontal = 8.dp, vertical = 5.dp)

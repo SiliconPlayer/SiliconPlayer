@@ -117,6 +117,7 @@ import com.flopster101.siliconplayer.ui.visualization.channel.ChannelScopeChanne
 import com.flopster101.siliconplayer.ui.visualization.channel.ChannelScopeNameSource
 import com.flopster101.siliconplayer.ui.visualization.channel.loadChannelScopeNameMaps
 import com.flopster101.siliconplayer.ui.visualization.channel.parseChannelScopeTextStates
+import com.flopster101.siliconplayer.ui.visualization.gl.SiliconVisNativeBridge
 import java.io.File
 import java.util.concurrent.Executors
 import java.util.concurrent.locks.LockSupport
@@ -3086,6 +3087,17 @@ internal fun AlbumArtPlaceholder(
                 )
             }
             if (visualizationShowDebugInfo && visualizationMode != VisualizationMode.Off) {
+                val vulkanDeviceLine = remember(activeRenderBackend) {
+                    if (activeRenderBackend == VisualizationRenderBackend.VulkanSurface) {
+                        runCatching {
+                            val name = SiliconVisNativeBridge.nativeVulkanGetDeviceName()
+                            val tier = SiliconVisNativeBridge.nativeVulkanGetTier()
+                            if (name.isNullOrBlank()) null else "$name (T$tier)"
+                        }.getOrNull()
+                    } else {
+                        null
+                    }
+                }
                 VisualizationDebugOverlay(
                     visualizationMode = visualizationMode,
                     activeRenderBackend = activeRenderBackend,
@@ -3096,6 +3108,7 @@ internal fun AlbumArtPlaceholder(
                     sourceDuplicatePercent = visDebugSourceDuplicatePercent,
                     drawFps = visDebugDrawFps,
                     drawFrameMs = visDebugDrawFrameMs,
+                    vulkanDeviceLine = vulkanDeviceLine,
                     modifier = Modifier.align(Alignment.TopStart)
                 )
             }

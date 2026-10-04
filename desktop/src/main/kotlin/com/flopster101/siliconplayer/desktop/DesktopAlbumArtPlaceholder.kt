@@ -85,6 +85,7 @@ import com.flopster101.siliconplayer.ui.visualization.channel.GlChannelScopeText
 import com.flopster101.siliconplayer.ui.visualization.channel.loadChannelScopeNameMaps
 import com.flopster101.siliconplayer.ui.visualization.gl.SiliconNativeGlDesktopVisualization
 import com.flopster101.siliconplayer.ui.visualization.gl.SiliconNativeGlFrame
+import com.flopster101.siliconplayer.ui.visualization.gl.SiliconVisNativeBridge
 import com.flopster101.siliconplayer.visualizationRenderBackendForMode
 import java.io.File
 import kotlinx.coroutines.delay
@@ -627,11 +628,23 @@ internal fun AlbumArtPlaceholder(
             )
 
             if (visualizationShowDebugInfo && visualizationMode != VisualizationMode.Off) {
+                val vulkanDeviceLine = remember(activeRenderBackend) {
+                    if (activeRenderBackend == VisualizationRenderBackend.VulkanSurface) {
+                        runCatching {
+                            val name = SiliconVisNativeBridge.nativeVulkanGetDeviceName()
+                            val tier = SiliconVisNativeBridge.nativeVulkanGetTier()
+                            if (name.isNullOrBlank()) null else "$name (T$tier)"
+                        }.getOrNull()
+                    } else {
+                        null
+                    }
+                }
                 VisualizationDebugOverlay(
                     visualizationMode = visualizationMode,
                     activeRenderBackend = activeRenderBackend,
                     drawFps = visDebugDrawFps,
                     drawFrameMs = visDebugDrawFrameMs,
+                    vulkanDeviceLine = vulkanDeviceLine,
                     modifier = Modifier.align(Alignment.TopStart)
                 )
             }
