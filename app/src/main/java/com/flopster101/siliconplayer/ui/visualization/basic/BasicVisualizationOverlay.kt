@@ -886,7 +886,15 @@ fun BasicVisualizationOverlay(
                 starfieldReactSpeed = starfieldReactSpeed,
                 starfieldFlash = starfieldFlash
             )
-            if (starfieldRenderBackend == VisualizationRenderBackend.OpenGlSurface) {
+            if (starfieldRenderBackend == VisualizationRenderBackend.VulkanSurface) {
+                com.flopster101.siliconplayer.ui.visualization.gl.SiliconNativeVkSurfaceVisualization(
+                    frame = nativeFrame,
+                    cornerRadiusDp = visCornerRadiusDp,
+                    veilColor = surfaceVeilColor,
+                    onFrameStats = channelScopeOnFrameStats,
+                    modifier = modifier
+                )
+            } else if (starfieldRenderBackend == VisualizationRenderBackend.OpenGlSurface) {
                 com.flopster101.siliconplayer.ui.visualization.gl.SiliconNativeGlSurfaceVisualization(
                     frame = nativeFrame,
                     cornerRadiusDp = visCornerRadiusDp,
