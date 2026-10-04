@@ -48,7 +48,7 @@ bool SiliconVisVulkanPipeline::init(uint32_t width, uint32_t height, void* nativ
             release();
             return false;
         }
-        if (!swapchain_.init(&context_, surface, width_, height_, 4)) {
+        if (!swapchain_.init(&context_, surface, width_, height_, msaaEnabled_ ? 4 : 1)) {
             release();
             return false;
         }
@@ -63,7 +63,7 @@ bool SiliconVisVulkanPipeline::init(uint32_t width, uint32_t height, void* nativ
 #endif
     } else {
         isSurfaceMode_ = false;
-        uint32_t reqSamples = 4;
+        uint32_t reqSamples = msaaEnabled_ ? 4 : 1;
         if (reqSamples >= 4 && (context_.getCapabilities().maxMsaaSamples >= 4)) {
             msaaSamples_ = VK_SAMPLE_COUNT_4_BIT;
         } else if (reqSamples >= 2 && (context_.getCapabilities().maxMsaaSamples >= 2)) {
@@ -152,9 +152,21 @@ void SiliconVisVulkanPipeline::release() {
     hasRenderedFrame_ = false;
 }
 
+void SiliconVisVulkanPipeline::setMsaaEnabled(bool enabled) {
+    if (enabled == msaaEnabled_ && initialized_) return;
+    msaaEnabled_ = enabled;
+    if (!initialized_ || !isSurfaceMode_) return;
+    if (swapchain_.setMsaaSamples(enabled ? 4 : 1)) {
+        pipelines_.recreatePipelines(swapchain_.getRenderPass(), 0, swapchain_.getMsaaSamples());
+    }
+}
+
 bool SiliconVisVulkanPipeline::resize(uint32_t width, uint32_t height, float density) {
     if (!initialized_ || width == 0 || height == 0) return false;
     if (isSurfaceMode_ && width_ == width && height_ == height) {
+        density_ = std::max(1.0f, density);
+        return true;
+    }
     cleanupSnapshot();
     hasRenderedFrame_ = false;
     width_ = width;

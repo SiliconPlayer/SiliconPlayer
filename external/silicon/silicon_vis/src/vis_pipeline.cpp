@@ -77,6 +77,14 @@ void SiliconVisPipeline::setMode(SiliconVisMode mode) {
     currentMode_ = mode;
 }
 
+void SiliconVisPipeline::setChannelScopeAntialiasMethod(int32_t method) {
+    scopeAntialiasMethod_ = method;
+    channelScope_.setFastLinesEnabled(method == 1);
+    if (vulkanPipeline_) {
+        vulkanPipeline_->setMsaaEnabled(method != 1);
+    }
+}
+
 void SiliconVisPipeline::registerPluginRenderer(VisualizerRendererPtr renderer) {
     if (!renderer) return;
     int32_t modeId = static_cast<int32_t>(renderer->getMode());
@@ -445,6 +453,7 @@ bool SiliconVisPipeline::initVulkan(uint32_t width, uint32_t height, void* nativ
     if (!vulkanPipeline_) {
         vulkanPipeline_ = std::make_unique<vk::SiliconVisVulkanPipeline>();
     }
+    vulkanPipeline_->setMsaaEnabled(scopeAntialiasMethod_ != 1);
     widthPx_ = static_cast<int32_t>(width);
     heightPx_ = static_cast<int32_t>(height);
     bool ok = vulkanPipeline_->init(width, height, nativeWindow);

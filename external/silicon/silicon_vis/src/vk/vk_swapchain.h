@@ -15,6 +15,10 @@ public:
 
     bool resize(uint32_t width, uint32_t height);
 
+    // Switches MSAA sample count, rebuilding the render pass and
+    // framebuffers. No-op when the count is already active.
+    bool setMsaaSamples(uint32_t msaaSamples);
+
     // Acquires next swapchain image. Returns true on success.
     // If outOfDate is set to true, the caller should resize().
     bool acquireNextImage(VkSemaphore signalSemaphore, uint32_t& outImageIndex, bool& outOutOfDate);

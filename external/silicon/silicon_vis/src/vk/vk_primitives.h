@@ -82,6 +82,10 @@ public:
     bool init(VkContext* context, VkRenderPass renderPass, uint32_t subpass = 0, VkSampleCountFlagBits samples = VK_SAMPLE_COUNT_1_BIT);
     void release();
 
+    // Rebuilds only the pipelines against a new render pass / sample count,
+    // keeping shader modules and layouts (and their descriptor sets) alive.
+    bool recreatePipelines(VkRenderPass renderPass, uint32_t subpass, VkSampleCountFlagBits samples);
+
     void bindFlatTriangles(VkCommandBuffer cmd, float width, float height, uint32_t colorArgb);
     void bindFlatLines(VkCommandBuffer cmd, float width, float height, uint32_t colorArgb, float lineWidth);
     void bindWaveLines(VkCommandBuffer cmd, float width, float height, uint32_t colorArgb, float halfWidth, float softness);
@@ -109,6 +113,7 @@ private:
     bool createShaders();
     bool createLayouts();
     bool createPipelines(VkRenderPass renderPass, uint32_t subpass, VkSampleCountFlagBits samples);
+    void destroyPipelines();
 
     VkContext* context_ = nullptr;
 

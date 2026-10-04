@@ -167,9 +167,6 @@ void VkPrimitivePipelines::release() {
     const auto& table = VkLoader::table();
     VkDevice device = context_->getDevice();
 
-    auto destroyPipe = [&](VkPipeline& p) {
-        if (p != VK_NULL_HANDLE) { table.vkDestroyPipeline(device, p, nullptr); p = VK_NULL_HANDLE; }
-    };
     auto destroyLayout = [&](VkPipelineLayout& l) {
         if (l != VK_NULL_HANDLE) { table.vkDestroyPipelineLayout(device, l, nullptr); l = VK_NULL_HANDLE; }
     };
@@ -177,14 +174,7 @@ void VkPrimitivePipelines::release() {
         if (s != VK_NULL_HANDLE) { table.vkDestroyShaderModule(device, s, nullptr); s = VK_NULL_HANDLE; }
     };
 
-    destroyPipe(flatTrianglesPipeline_);
-    destroyPipe(flatLinesPipeline_);
-    destroyPipe(waveLinesPipeline_);
-    destroyPipe(textPipeline_);
-    destroyPipe(transitionPipeline_);
-    destroyPipe(artworkBgPipeline_);
-    destroyPipe(artworkTexPipeline_);
-    destroyPipe(contrastPipeline_);
+    destroyPipelines();
 
     destroyLayout(flatLayout_);
     destroyLayout(waveLayout_);
@@ -215,6 +205,31 @@ void VkPrimitivePipelines::release() {
     destroyShader(contrastFragShader_);
 
     context_ = nullptr;
+}
+
+void VkPrimitivePipelines::destroyPipelines() {
+    if (!context_) return;
+    const auto& table = VkLoader::table();
+    VkDevice device = context_->getDevice();
+
+    auto destroyPipe = [&](VkPipeline& p) {
+        if (p != VK_NULL_HANDLE) { table.vkDestroyPipeline(device, p, nullptr); p = VK_NULL_HANDLE; }
+    };
+
+    destroyPipe(flatTrianglesPipeline_);
+    destroyPipe(flatLinesPipeline_);
+    destroyPipe(waveLinesPipeline_);
+    destroyPipe(textPipeline_);
+    destroyPipe(transitionPipeline_);
+    destroyPipe(artworkBgPipeline_);
+    destroyPipe(artworkTexPipeline_);
+    destroyPipe(contrastPipeline_);
+}
+
+bool VkPrimitivePipelines::recreatePipelines(VkRenderPass renderPass, uint32_t subpass, VkSampleCountFlagBits samples) {
+    if (!context_ || renderPass == VK_NULL_HANDLE) return false;
+    destroyPipelines();
+    return createPipelines(renderPass, subpass, samples);
 }
 
 bool VkPrimitivePipelines::createShaders() {

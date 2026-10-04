@@ -5,6 +5,13 @@ namespace silicon::vis::vk {
 
 namespace {
 
+VkSampleCountFlagBits resolveMsaaSamples(VkContext* context, uint32_t requested) {
+    int32_t deviceMax = context ? context->getCapabilities().maxMsaaSamples : 1;
+    if (requested >= 4 && deviceMax >= 4) return VK_SAMPLE_COUNT_4_BIT;
+    if (requested >= 2 && deviceMax >= 2) return VK_SAMPLE_COUNT_2_BIT;
+    return VK_SAMPLE_COUNT_1_BIT;
+}
+
 uint32_t findMemoryType(VkPhysicalDevice physicalDevice, uint32_t typeFilter, VkMemoryPropertyFlags properties) {
     const auto& table = VkLoader::table();
     VkPhysicalDeviceMemoryProperties memProperties{};
@@ -29,13 +36,7 @@ bool VkSwapchain::init(VkContext* context, VkSurfaceKHR surface, uint32_t width,
     context_ = context;
     surface_ = surface;
 
-    if (msaaSamples >= 4 && (context_->getCapabilities().maxMsaaSamples >= 4)) {
-        msaaSamples_ = VK_SAMPLE_COUNT_4_BIT;
-    } else if (msaaSamples >= 2 && (context_->getCapabilities().maxMsaaSamples >= 2)) {
-        msaaSamples_ = VK_SAMPLE_COUNT_2_BIT;
-    } else {
-        msaaSamples_ = VK_SAMPLE_COUNT_1_BIT;
-    }
+    msaaSamples_ = resolveMsaaSamples(context_, msaaSamples);
 
     return resize(width, height);
 }
@@ -87,6 +88,17 @@ void VkSwapchain::cleanupSwapchain() {
         table.vkFreeMemory(device, msaaColorMemory_, nullptr);
         msaaColorMemory_ = VK_NULL_HANDLE;
     }
+}
+
+bool VkSwapchain::setMsaaSamples(uint32_t msaaSamples) {
+    VkSampleCountFlagBits want = resolveMsaaSamples(context_, msaaSamples);
+    if (want == msaaSamples_) return true;
+    msaaSamples_ = want;
+    if (surface_ == VK_NULL_HANDLE || swapchain_ == VK_NULL_HANDLE) return true;
+    const auto& table = VkLoader::table();
+    table.vkDestroyRenderPass(context_->getDevice(), renderPass_, nullptr);
+    renderPass_ = VK_NULL_HANDLE;
+    return resize(extent_.width, extent_.height);
 }
 
 bool VkSwapchain::resize(uint32_t width, uint32_t height) {

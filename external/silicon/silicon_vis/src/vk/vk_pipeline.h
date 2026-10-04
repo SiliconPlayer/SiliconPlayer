@@ -18,6 +18,10 @@ public:
     void release();
     bool resize(uint32_t width, uint32_t height, float density = 1.0f);
 
+    // Selects 4x MSAA (true) or no MSAA (false). Pre-init it only caches the
+    // choice; post-init it rebuilds the swapchain and pipelines in place.
+    void setMsaaEnabled(bool enabled);
+
     bool beginFrame();
     void endFrame();
 
@@ -94,6 +98,7 @@ private:
 
     bool initialized_ = false;
     bool isSurfaceMode_ = false;
+    bool msaaEnabled_ = true;
     uint32_t width_ = 0;
     uint32_t height_ = 0;
     float density_ = 1.0f;
