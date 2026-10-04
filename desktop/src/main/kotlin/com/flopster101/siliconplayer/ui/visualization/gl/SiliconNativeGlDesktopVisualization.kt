@@ -271,7 +271,7 @@ private class SiliconNativeDesktopRenderThread(
 
                 val isVulkanRequested = frame?.backend == VisualizationRenderBackend.VulkanSurface &&
                     supportsVulkan &&
-                    (frame?.mode == 4 || frame?.mode == 5)
+                    (frame?.mode == 1 || frame?.mode == 4 || frame?.mode == 5)
 
                 if (isVulkanRequested) {
                     if (hostHandle != 0L) {

@@ -327,6 +327,10 @@ internal fun VisualizationBasicBarsRouteContent(
                 ChoiceDialogOption(
                     value = VisualizationRenderBackend.OpenGlTexture,
                     label = VisualizationRenderBackend.OpenGlTexture.label
+                ),
+                ChoiceDialogOption(
+                    value = VisualizationRenderBackend.VulkanSurface,
+                    label = VisualizationRenderBackend.VulkanSurface.label
                 )
             ),
             onSelected = { backend ->
@@ -597,7 +601,7 @@ internal fun VisualizationBasicVuMetersRouteContent(
                 ChoiceDialogOption(
                     value = VisualizationRenderBackend.OpenGlTexture,
                     label = VisualizationRenderBackend.OpenGlTexture.label
-                )
+                ),
             ),
             onSelected = { backend ->
                 onVisualizationVuRenderBackendChanged(backend)

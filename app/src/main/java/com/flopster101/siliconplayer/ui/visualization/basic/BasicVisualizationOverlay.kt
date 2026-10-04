@@ -360,7 +360,7 @@ fun BasicVisualizationOverlay(
         VisualizationMode.Bars -> {
             Box(modifier = modifier) {
                 when (barRenderBackend) {
-                    VisualizationRenderBackend.OpenGlTexture, VisualizationRenderBackend.OpenGlSurface -> {
+                    VisualizationRenderBackend.OpenGlTexture, VisualizationRenderBackend.OpenGlSurface, VisualizationRenderBackend.VulkanSurface -> {
                         val barContrastMode = if (barContrastBackdropEnabled) 1 else 0
                         val nativeFrame = baseNativeFrame.copy(
                             mode = 1,
@@ -376,7 +376,15 @@ fun BasicVisualizationOverlay(
                             contrastMode = barContrastMode,
                             showArtworkBackground = barOverlayArtwork
                         )
-                        if (barRenderBackend == VisualizationRenderBackend.OpenGlSurface) {
+                        if (barRenderBackend == VisualizationRenderBackend.VulkanSurface) {
+                            com.flopster101.siliconplayer.ui.visualization.gl.SiliconNativeVkSurfaceVisualization(
+                                frame = nativeFrame,
+                                cornerRadiusDp = visCornerRadiusDp,
+                                veilColor = surfaceVeilColor,
+                                onFrameStats = channelScopeOnFrameStats,
+                                modifier = Modifier.fillMaxSize()
+                            )
+                        } else if (barRenderBackend == VisualizationRenderBackend.OpenGlSurface) {
                             com.flopster101.siliconplayer.ui.visualization.gl.SiliconNativeGlSurfaceVisualization(
                                 frame = nativeFrame,
                                 cornerRadiusDp = visCornerRadiusDp,

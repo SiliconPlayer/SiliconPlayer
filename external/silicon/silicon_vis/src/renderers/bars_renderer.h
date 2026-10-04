@@ -20,7 +20,18 @@ public:
     void releaseGl() override;
 
     void pushFft(const float* magnitudes, int32_t binCount) override;
-    void setAlpha(float alpha) override { flatRenderer_.setAlpha(alpha); }
+    void setAlpha(float alpha) override {
+        alpha_ = alpha;
+        flatRenderer_.setAlpha(alpha);
+    }
+
+    void renderVk(
+        void* cmdBuffer,
+        void* pipelines,
+        void* dynamicVertexBuffer,
+        float width,
+        float height
+    );
 
     void setOptions(
         int32_t barCount,
@@ -39,6 +50,7 @@ private:
     int32_t heightPx_ = 0;
     float density_ = 1.0f;
 
+    float alpha_ = 1.0f;
     int32_t barCount_ = 32;
     float smoothing_ = 0.5f;
     uint32_t startColorArgb_ = 0xFF80D8FF;

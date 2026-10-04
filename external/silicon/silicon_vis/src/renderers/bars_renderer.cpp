@@ -1,4 +1,6 @@
 #include "bars_renderer.h"
+#include "vk/vk_primitives.h"
+#include "vk/vk_dispatch.h"
 #include <cmath>
 #include <algorithm>
 
@@ -122,6 +124,53 @@ void BarsRenderer::render() {
             static_cast<float>(widthPx_),
             static_cast<float>(heightPx_)
         );
+    }
+}
+
+void BarsRenderer::renderVk(
+    void* cmdBuffer,
+    void* pipelines,
+    void* dynamicVertexBuffer,
+    float width,
+    float height
+) {
+    if (!cmdBuffer || !pipelines || !dynamicVertexBuffer || width <= 0.0f || height <= 0.0f) return;
+
+    VkCommandBuffer cmd = static_cast<VkCommandBuffer>(cmdBuffer);
+    auto* prims = static_cast<vk::VkPrimitivePipelines*>(pipelines);
+    auto* dynBuffer = static_cast<vk::VkDynamicVertexBuffer*>(dynamicVertexBuffer);
+    const auto& table = vk::VkLoader::table();
+
+    buildGeometry();
+    VkBuffer buffer = dynBuffer->getBuffer();
+
+    auto withAlpha = [this](uint32_t argb) {
+        const float a = ((argb >> 24) & 0xFF) / 255.0f * alpha_;
+        const uint32_t ai = static_cast<uint32_t>(std::clamp(a, 0.0f, 1.0f) * 255.0f);
+        return (argb & 0x00FFFFFF) | (ai << 24);
+    };
+
+    // Guides first, bars over them: same order as the GL path.
+    if (!guideLines_.empty()) {
+        size_t sizeBytes = guideLines_.size() * sizeof(float);
+        size_t offset = dynBuffer->allocate(guideLines_.data(), sizeBytes);
+        if (offset != static_cast<size_t>(-1)) {
+            prims->bindFlatLines(cmd, width, height, withAlpha(guideColorArgb_), 1.0f);
+            VkDeviceSize bufOffset = static_cast<VkDeviceSize>(offset);
+            table.vkCmdBindVertexBuffers(cmd, 0, 1, &buffer, &bufOffset);
+            table.vkCmdDraw(cmd, static_cast<uint32_t>(guideLines_.size() / 2), 1, 0, 0);
+        }
+    }
+
+    if (!barVertices_.empty()) {
+        size_t sizeBytes = barVertices_.size() * sizeof(float);
+        size_t offset = dynBuffer->allocate(barVertices_.data(), sizeBytes);
+        if (offset != static_cast<size_t>(-1)) {
+            prims->bindFlatTriangles(cmd, width, height, withAlpha(startColorArgb_));
+            VkDeviceSize bufOffset = static_cast<VkDeviceSize>(offset);
+            table.vkCmdBindVertexBuffers(cmd, 0, 1, &buffer, &bufOffset);
+            table.vkCmdDraw(cmd, static_cast<uint32_t>(barVertices_.size() / 2), 1, 0, 0);
+        }
     }
 }
 

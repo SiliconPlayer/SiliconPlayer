@@ -461,6 +461,7 @@ bool SiliconVisPipeline::initVulkan(uint32_t width, uint32_t height, void* nativ
         widthPx_ = static_cast<int32_t>(vulkanPipeline_->getWidth());
         heightPx_ = static_cast<int32_t>(vulkanPipeline_->getHeight());
         channelScope_.resize(widthPx_, heightPx_, density_);
+        bars_.resize(widthPx_, heightPx_, density_);
         starfield_.resize(widthPx_, heightPx_, density_);
         starfield_.setMaxPointSizePx(vulkanPipeline_->getStarfield().getMaxPointSize());
         float r = ((surfaceColorArgb_ >> 16) & 0xFF) / 255.0f;
@@ -519,6 +520,11 @@ void SiliconVisPipeline::renderVulkan() {
 
     if (audioProvider_) {
         switch (currentMode_) {
+            case SILICON_VIS_MODE_BARS: {
+                audioProvider_->getFftBars(nativeFftBars_);
+                bars_.pushFft(nativeFftBars_.data(), static_cast<int32_t>(nativeFftBars_.size()));
+                break;
+            }
             case SILICON_VIS_MODE_CHANNEL_SCOPE: {
                 int chCount = 0;
                 const int windowMs = channelScope_.getWindowMs();
@@ -575,6 +581,22 @@ void SiliconVisPipeline::renderVulkan() {
             &vulkanPipeline_->getPipelines(),
             &vulkanPipeline_->getVertexBuffer(),
             (uint64_t)(uintptr_t)vulkanPipeline_->getFontAtlas().getDescriptorSet(),
+            w,
+            h
+        );
+    }
+
+    if (currentMode_ == SILICON_VIS_MODE_BARS) {
+        if (widthPx_ != static_cast<int32_t>(w) || heightPx_ != static_cast<int32_t>(h)) {
+            widthPx_ = static_cast<int32_t>(w);
+            heightPx_ = static_cast<int32_t>(h);
+            bars_.resize(widthPx_, heightPx_, density_);
+        }
+        bars_.setAlpha(visualAlpha_);
+        bars_.renderVk(
+            cmd,
+            &vulkanPipeline_->getPipelines(),
+            &vulkanPipeline_->getVertexBuffer(),
             w,
             h
         );

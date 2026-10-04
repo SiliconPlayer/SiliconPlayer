@@ -830,6 +830,18 @@ internal class SiliconNativeVkRenderThread(
             }
 
             when (frame.mode) {
+                1 -> {
+                    SiliconVisNativeBridge.nativeSetBarsOptions(
+                        handle = visHandle,
+                        barCount = frame.barCount,
+                        smoothing = frame.barSmoothingPercent / 100f,
+                        startColorArgb = frame.barStartColorArgb,
+                        endColorArgb = frame.barEndColorArgb,
+                        cornerRadiusPx = frame.barCornerRadiusPx,
+                        showFrequencyGuide = frame.barShowFrequencyGuide,
+                        guideColorArgb = frame.barGuideColorArgb
+                    )
+                }
                 4 -> {
                     SiliconVisNativeBridge.nativeSetChannelScopeOptions(
                         handle = visHandle,
