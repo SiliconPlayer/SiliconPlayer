@@ -43,8 +43,6 @@ import com.flopster101.siliconplayer.NativeBridge
 import com.flopster101.siliconplayer.ui.visualization.channel.GlChannelScopeTextFrame
 import com.flopster101.siliconplayer.ui.visualization.channel.parseChannelScopeTextStates
 import kotlinx.coroutines.delay
-import kotlinx.coroutines.flow.first
-import kotlinx.coroutines.withTimeoutOrNull
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
 
@@ -126,6 +124,22 @@ fun SiliconNativeVkSurfaceVisualization(
     var vkView by remember { mutableStateOf<SiliconNativeVkSurfaceView?>(null) }
     val overlayVisibility = LocalPlayerOverlayVisibility.current
 
+    val isXclipse = remember { GpuDeviceDetector.isXclipse() }
+    var surfaceMountAllowed by remember { mutableStateOf(!isXclipse) }
+
+    LaunchedEffect(Unit) {
+        if (isXclipse) {
+            snapshotFlow { overlayVisibility() }.collect { v ->
+                if (v < 0.05f) {
+                    surfaceMountAllowed = false
+                } else if (v >= 0.999f && !surfaceMountAllowed) {
+                    delay(120)
+                    surfaceMountAllowed = true
+                }
+            }
+        }
+    }
+
     LaunchedEffect(overlayVisibility) {
         snapshotFlow { overlayVisibility() }.collect { v ->
             vkView?.setMasterDim(1f - v.coerceIn(0f, 1f))
@@ -136,6 +150,10 @@ fun SiliconNativeVkSurfaceVisualization(
     Box(
         modifier = modifier.drawWithContent {
             drawContent()
+            if (!surfaceMountAllowed) {
+                drawRect(veilColor)
+                return@drawWithContent
+            }
             val visibility = overlayVisibility().coerceIn(0f, 1f)
             if (cornerRadiusPx > 0f) {
                 drawRoundRect(
@@ -152,19 +170,21 @@ fun SiliconNativeVkSurfaceVisualization(
             }
         }
     ) {
-        AndroidView(
-            modifier = Modifier.fillMaxSize(),
-            factory = { context ->
-                SiliconNativeVkSurfaceView(context, density, cornerRadiusPx).also { view ->
-                    vkView = view
+        if (surfaceMountAllowed) {
+            AndroidView(
+                modifier = Modifier.fillMaxSize(),
+                factory = { context ->
+                    SiliconNativeVkSurfaceView(context, density, cornerRadiusPx).also { view ->
+                        vkView = view
+                    }
+                },
+                update = { view ->
+                    view.cornerRadiusPx = cornerRadiusPx
+                    view.onFrameStats = onFrameStats
+                    view.updateFrame(frame)
                 }
-            },
-            update = { view ->
-                view.cornerRadiusPx = cornerRadiusPx
-                view.onFrameStats = onFrameStats
-                view.updateFrame(frame)
-            }
-        )
+            )
+        }
     }
 
     DisposableEffect(lifecycleOwner) {

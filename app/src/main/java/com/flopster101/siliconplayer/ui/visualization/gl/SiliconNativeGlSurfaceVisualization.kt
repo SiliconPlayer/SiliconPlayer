@@ -30,8 +30,6 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import com.flopster101.siliconplayer.LocalPlayerOverlayVisibility
 import kotlinx.coroutines.delay
-import kotlinx.coroutines.flow.first
-import kotlinx.coroutines.withTimeoutOrNull
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
 import java.nio.FloatBuffer
@@ -71,19 +69,20 @@ fun SiliconNativeGlSurfaceVisualization(
     var glView by remember { mutableStateOf<SiliconNativeGlSurfaceView?>(null) }
     val overlayVisibility = LocalPlayerOverlayVisibility.current
 
-    // Mount the embedded surface only once the enter animations have settled:
-    // a surface created mid-animation can latch that transient geometry into
-    // its layer crop and never let it go. The veil covers the wait.
-    var surfaceMountAllowed by remember { mutableStateOf(false) }
+    val isXclipse = remember { GpuDeviceDetector.isXclipse() }
+    var surfaceMountAllowed by remember { mutableStateOf(!isXclipse) }
+
     LaunchedEffect(Unit) {
-        if (overlayVisibility() < 0.999f) {
-            withTimeoutOrNull(1500) {
-                snapshotFlow { overlayVisibility() }.first { it >= 0.999f }
+        if (isXclipse) {
+            snapshotFlow { overlayVisibility() }.collect { v ->
+                if (v < 0.05f) {
+                    surfaceMountAllowed = false
+                } else if (v >= 0.999f && !surfaceMountAllowed) {
+                    delay(120)
+                    surfaceMountAllowed = true
+                }
             }
-            // The panel slide outlasts the visibility tween slightly; let it land.
-            delay(120)
         }
-        surfaceMountAllowed = true
     }
 
     LaunchedEffect(overlayVisibility) {

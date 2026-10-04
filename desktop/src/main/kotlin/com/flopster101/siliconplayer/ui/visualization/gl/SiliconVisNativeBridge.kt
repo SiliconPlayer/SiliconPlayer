@@ -168,6 +168,7 @@ object SiliconVisNativeBridge {
     external fun nativeVulkanIsSupported(): Boolean
     external fun nativeVulkanGetTier(): Int
     external fun nativeVulkanGetApiVersion(): Int
+    external fun nativeVulkanGetDeviceName(): String?
     external fun nativeInitVulkan(handle: Long, widthPx: Int, heightPx: Int, surface: Any? = null): Boolean
     external fun nativeResizeVulkan(handle: Long, widthPx: Int, heightPx: Int, density: Float)
     external fun nativeReleaseVulkan(handle: Long)

@@ -959,6 +959,15 @@ Java_com_flopster101_siliconplayer_ui_visualization_gl_SiliconVisNativeBridge_na
     return static_cast<jint>(silicon_vis_vulkan_get_api_version());
 }
 
+JNIEXPORT jstring JNICALL
+Java_com_flopster101_siliconplayer_ui_visualization_gl_SiliconVisNativeBridge_nativeVulkanGetDeviceName(
+    JNIEnv* env,
+    jobject /* thiz */
+) {
+    const char* name = silicon_vis_vulkan_get_device_name();
+    return (name && *name) ? env->NewStringUTF(name) : nullptr;
+}
+
 JNIEXPORT jboolean JNICALL
 Java_com_flopster101_siliconplayer_ui_visualization_gl_SiliconVisNativeBridge_nativeInitVulkan(
     JNIEnv* env,
