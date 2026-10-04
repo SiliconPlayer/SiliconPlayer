@@ -860,6 +860,32 @@ internal class SiliconNativeVkRenderThread(
                         waveformClipping = frame.channelScopeWaveformClippingEnabled
                     )
                 }
+                5 -> {
+                    SiliconVisNativeBridge.nativeSetStarfieldOptions(
+                        handle = visHandle,
+                        starCount = frame.starfieldStarCount,
+                        speed = frame.starfieldSpeed,
+                        fov = frame.starfieldFov,
+                        nearPlane = frame.starfieldNearPlane,
+                        starColorArgb = frame.starfieldStarColorArgb,
+                        baseSizePx = frame.starfieldBaseSizePx,
+                        sizeGrowth = frame.starfieldSizeGrowth,
+                        farDim = frame.starfieldFarDim,
+                        softness = frame.starfieldSoftness,
+                        beatGlow = frame.starfieldBeatGlow,
+                        glowSize = frame.starfieldGlowSize,
+                        trailPersistence = frame.starfieldTrailPersistence,
+                        streaks = frame.starfieldStreaks,
+                        streakLength = frame.starfieldStreakLength,
+                        centerX = frame.starfieldCenterX,
+                        centerY = frame.starfieldCenterY,
+                        autoDrift = frame.starfieldAutoDrift,
+                        beatFollow = frame.starfieldBeatFollow,
+                        reactSpeed = frame.starfieldReactSpeed,
+                        flash = frame.starfieldFlash,
+                        squareStars = frame.starfieldSquarePixels
+                    )
+                }
             }
 
             if (frame.mode == 4 && frame.channelScopeTextEnabled) {
