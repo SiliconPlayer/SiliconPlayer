@@ -58,6 +58,17 @@ uint32_t silicon_vis_vulkan_get_api_version(void) {
     return ctx.getCapabilities().apiVersion;
 }
 
+const char* silicon_vis_vulkan_get_device_name(void) {
+    static std::string s_deviceName;
+    if (s_deviceName.empty()) {
+        silicon::vis::vk::VkContext ctx;
+        if (ctx.init()) {
+            s_deviceName = ctx.getCapabilities().deviceName;
+        }
+    }
+    return s_deviceName.c_str();
+}
+
 bool silicon_vis_init_vulkan(SiliconVisHandle handle, void* nativeWindow, uint32_t width, uint32_t height) {
     if (!handle) return false;
     auto* pipeline = static_cast<SiliconVisPipeline*>(handle);

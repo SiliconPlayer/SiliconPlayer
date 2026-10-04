@@ -15,6 +15,7 @@ enum class VulkanTier {
 struct DeviceCapabilities {
     VulkanTier tier = VulkanTier::None;
     uint32_t apiVersion = 0;
+    char deviceName[256]{};
     bool hasTimelineSemaphores = false;
     bool hasHostQueryReset = false;
     bool hasDynamicRendering = false;

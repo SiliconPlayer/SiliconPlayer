@@ -40,6 +40,7 @@ SILICON_VIS_API void silicon_vis_set_audio_provider(SiliconVisHandle handle, voi
 SILICON_VIS_API bool silicon_vis_vulkan_is_supported(void);
 SILICON_VIS_API int32_t silicon_vis_vulkan_get_tier(void);
 SILICON_VIS_API uint32_t silicon_vis_vulkan_get_api_version(void);
+SILICON_VIS_API const char* silicon_vis_vulkan_get_device_name(void);
 
 // Vulkan Lifecycle & Rendering
 SILICON_VIS_API bool silicon_vis_init_vulkan(SiliconVisHandle handle, void* nativeWindow, uint32_t width, uint32_t height);

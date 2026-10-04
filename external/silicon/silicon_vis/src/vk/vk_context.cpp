@@ -185,6 +185,8 @@ void VkContext::probeCapabilities() {
 
     VkPhysicalDeviceProperties props{};
     table.vkGetPhysicalDeviceProperties(physicalDevice_, &props);
+    std::strncpy(capabilities_.deviceName, props.deviceName, sizeof(capabilities_.deviceName) - 1);
+    capabilities_.deviceName[sizeof(capabilities_.deviceName) - 1] = '\0';
 
     // Available device extensions
     uint32_t extCount = 0;
