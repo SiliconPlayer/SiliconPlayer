@@ -572,6 +572,7 @@ void AudioEngine::setUrl(const char* url, const char* forcedDecoder) {
             }
         }
         cachedDurationSeconds.store(decoder->getDuration());
+        refreshMetadataCacheLocked();
         resetResamplerStateLocked();
         positionSeconds.store(0.0);
         sharedAbsoluteInputPositionBaseSeconds = 0.0;
@@ -854,26 +855,38 @@ void AudioEngine::setRepeatMode(int mode) {
 }
 
 int AudioEngine::getRepeatModeCapabilities() {
-    std::lock_guard<std::mutex> lock(decoderMutex);
+    std::unique_lock<std::mutex> lock(decoderMutex, std::try_to_lock);
+    if (!lock.owns_lock()) {
+        std::lock_guard<std::mutex> cacheLock(metadataCacheMutex);
+        return cachedMetadataRepeatCaps;
+    }
     if (!decoder) {
         return AudioDecoder::REPEAT_CAP_TRACK;
     }
-    return decoder->getRepeatModeCapabilities();
+    refreshMetadataCacheLocked();
+    std::lock_guard<std::mutex> cacheLock(metadataCacheMutex);
+    return cachedMetadataRepeatCaps;
 }
 
 int AudioEngine::getPlaybackCapabilities() {
-    std::lock_guard<std::mutex> lock(decoderMutex);
+    std::unique_lock<std::mutex> lock(decoderMutex, std::try_to_lock);
+    if (!lock.owns_lock()) {
+        std::lock_guard<std::mutex> cacheLock(metadataCacheMutex);
+        return cachedMetadataPlaybackCaps;
+    }
     if (!decoder) {
         return AudioDecoder::PLAYBACK_CAP_SEEK |
                AudioDecoder::PLAYBACK_CAP_RELIABLE_DURATION |
                AudioDecoder::PLAYBACK_CAP_LIVE_REPEAT_MODE;
     }
-    return decoder->getPlaybackCapabilities();
+    refreshMetadataCacheLocked();
+    std::lock_guard<std::mutex> cacheLock(metadataCacheMutex);
+    return cachedMetadataPlaybackCaps;
 }
 
 int AudioEngine::getTimelineMode() {
-    std::lock_guard<std::mutex> lock(decoderMutex);
-    if (!decoder) {
+    std::unique_lock<std::mutex> lock(decoderMutex, std::try_to_lock);
+    if (!lock.owns_lock() || !decoder) {
         return static_cast<int>(AudioDecoder::TimelineMode::Unknown);
     }
     return static_cast<int>(decoder->getTimelineMode());

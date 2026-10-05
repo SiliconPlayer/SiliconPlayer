@@ -429,6 +429,30 @@ private:
     std::atomic<int> repeatMode { 0 };
     std::atomic<double> positionSeconds { 0.0 };
     std::atomic<double> cachedDurationSeconds { 0.0 };
+    // Last successfully read track metadata. Served when decoderMutex is
+    // busy so UI polls never block on decoder work; refreshed under
+    // decoderMutex at decoder install and subtune switch.
+    struct CachedSubtuneEntry {
+        std::string title;
+        std::string artist;
+        double durationSeconds = 0.0;
+    };
+    mutable std::mutex metadataCacheMutex;
+    std::string cachedMetadataTitle;
+    std::string cachedMetadataArtist;
+    std::string cachedMetadataAlbum;
+    std::string cachedMetadataDecoderName;
+    std::string cachedMetadataBitDepthLabel = "Unknown";
+    std::vector<CachedSubtuneEntry> cachedSubtuneEntries;
+    int cachedMetadataSampleRate = 0;
+    int cachedMetadataChannelCount = 0;
+    int cachedMetadataSubtuneCount = 0;
+    int cachedMetadataSubtuneIndex = 0;
+    int cachedMetadataRepeatCaps = 1;  // AudioDecoder::REPEAT_CAP_TRACK
+    // No-decoder default: SEEK | RELIABLE_DURATION | LIVE_REPEAT_MODE.
+    int cachedMetadataPlaybackCaps = 7;
+    bool cachedMetadataHasNativeSampleRate = false;
+    void refreshMetadataCacheLocked();
 
     std::unique_ptr<AudioDecoder> decoder;
     std::mutex decoderMutex;
