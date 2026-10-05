@@ -239,7 +239,8 @@ fun ProvideDesktopPlatformAdapters(
                 val trimmed = cacheKey.trim()
                 if (trimmed.isEmpty()) return null
                 desktopRecentArtworkCacheFile(recentArtworkCacheDir, trimmed, false)?.let { file ->
-                    return decodeRecentArtworkFile(trimmed, file)
+                    // Disk read plus image decode: never on the row.
+                    return withContext(Dispatchers.IO) { decodeRecentArtworkFile(trimmed, file) }
                 }
                 if (looksLikeRemoteSourceId(trimmed)) {
                     return withContext(Dispatchers.IO) {
