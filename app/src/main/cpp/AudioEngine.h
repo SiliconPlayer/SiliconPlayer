@@ -384,9 +384,15 @@ private:
     // True while setUrl() is inside a decoder open: the open can stall
     // without bound (network reads, foreign-format probes), so stop /
     // release / start must flag instead of blocking on lifecycleMutex.
-    // Count of setUrl calls inside the open (holder plus queued): a plain
-    // bool lets an older generation's exit clear a newer one's mark.
+    // Count of setUrl calls in flight (quick state work plus the
+    // unlocked probe): a plain bool lets an older generation's exit
+    // clear a newer one's mark. stop/release/start consult this instead
+    // of blocking, so a stuck probe parks only its own loader thread.
     std::atomic<int> decoderOpenCount { 0 };
+    // loadGeneration value installed as the live decoder (0 = none yet).
+    // Lets start() tell a pending load (defer) from an abandoned stuck
+    // probe with a usable decoder installed (start now).
+    std::atomic<uint64_t> installedLoadGeneration { 0 };
     // Wakes decoder IO that has no usable timeout of its own: the
     // stalled open, and later blocking reads (the seek-skip loop on a
     // dead stream) that setUrl/release wait on. Stamped by stop/release

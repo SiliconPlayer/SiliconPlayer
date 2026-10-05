@@ -361,10 +361,20 @@ void UadeDecoder::closeInternalLocked() {
     scopeReaderStop.store(true);
     if (state) {
         uade_stop(state);
+    }
+    // Unblock the scope reader before joining it: with foreign content the
+    // emulator may never write again, and the join below would wait forever.
+    // Closing our write end turns its read into EOF; libuade cleanup runs
+    // after, touching no pipe fds.
+    if (scopeWriteFd >= 0) {
+        ::close(scopeWriteFd);
+        scopeWriteFd = -1;
+    }
+    stopScopeReaderLocked();
+    if (state) {
         uade_cleanup_state(state);
         state = nullptr;
     }
-    stopScopeReaderLocked();
     sourcePath.clear();
     title.clear();
     artist.clear();

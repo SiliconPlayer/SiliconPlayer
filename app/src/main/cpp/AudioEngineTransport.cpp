@@ -15,6 +15,18 @@
 #define LOGE(...) __android_log_print(ANDROID_LOG_ERROR, LOG_TAG, __VA_ARGS__)
 
 namespace {
+    // Destroys a decoder off the caller: teardown can wedge on emulator
+    // state (a UADE instance fed foreign content), and the UI must never
+    // wait on it. The decoder is already detached from the engine (moved
+    // out under decoderMutex), so only its own thread touches it here.
+    void destroyDecoderInBackground(std::unique_ptr<AudioDecoder> doomed) {
+        if (!doomed) return;
+        std::thread([owned = std::move(doomed)]() mutable {
+            pthread_setname_np(pthread_self(), "sp_decoder_close");
+            owned->close();
+            owned.reset();
+        }).detach();
+    }
     constexpr int kStartupPrefillDeadlineMs = 220;
     constexpr int kStartupPrefillPollIntervalMs = 2;
     // A fresh stream must not present its first non-zero sample at full scale:
@@ -60,6 +72,15 @@ namespace {
 }
 
 bool AudioEngine::start() {
+    if (decoderOpenCount.load(std::memory_order_acquire) > 0 &&
+        installedLoadGeneration.load(std::memory_order_relaxed) != loadGeneration.load(std::memory_order_relaxed)) {
+        // Play pressed while the live decoder is still inbound: start when
+        // it lands. A stuck abandoned probe with a newer decoder already
+        // installed falls through and starts now instead of deferring
+        // behind a thread that may never return.
+        startRequestedDuringLoad.store(true, std::memory_order_relaxed);
+        return true;
+    }
     std::unique_lock<std::mutex> lifecycleLock(lifecycleMutex, std::try_to_lock);
     if (!lifecycleLock.owns_lock()) {
         if (decoderOpenCount.load(std::memory_order_acquire) > 0) {
@@ -284,21 +305,22 @@ void AudioEngine::silenceForAbortDuringLoad() {
 }
 
 void AudioEngine::stop() {
+    if (decoderOpenCount.load(std::memory_order_acquire) > 0) {
+        // A decoder open is in flight: flag it for teardown when it lands.
+        // Probes never hold lifecycleMutex anymore, so the lock below stays
+        // brief; a stuck open parks only its own loader thread.
+        abortLoadGeneration.store(
+                loadGeneration.load(std::memory_order_relaxed),
+                std::memory_order_relaxed);
+        startRequestedDuringLoad.store(false, std::memory_order_relaxed);
+        {
+            std::lock_guard<std::mutex> abortLock(openAbortMutex);
+            openAbortFlag.store(true, std::memory_order_relaxed);
+        }
+        silenceForAbortDuringLoad();
+    }
     std::unique_lock<std::mutex> lifecycleLock(lifecycleMutex, std::try_to_lock);
     if (!lifecycleLock.owns_lock()) {
-        if (decoderOpenCount.load(std::memory_order_acquire) > 0) {
-            // A decoder open owns the mutex and can stall without bound.
-            // Flag it for teardown on completion; silence now, return now.
-            abortLoadGeneration.store(loadGeneration.load(std::memory_order_relaxed),
-                                      std::memory_order_relaxed);
-            startRequestedDuringLoad.store(false, std::memory_order_relaxed);
-            {
-                std::lock_guard<std::mutex> abortLock(openAbortMutex);
-                openAbortFlag.store(true, std::memory_order_relaxed);
-            }
-            silenceForAbortDuringLoad();
-            return;
-        }
         lifecycleLock = std::unique_lock<std::mutex>(lifecycleMutex);
     }
     playbackStreamStarted.store(false, std::memory_order_release);
@@ -356,15 +378,17 @@ void AudioEngine::stopWithPauseResumeFade(int durationMs, float attenuationDb) {
 
 void AudioEngine::releaseCurrentDecoder() {
     if (decoderOpenCount.load(std::memory_order_acquire) > 0) {
-        abortLoadGeneration.store(loadGeneration.load(std::memory_order_relaxed),
-                                  std::memory_order_relaxed);
+        // An open is in flight: flag it so it discards instead of
+        // installing, then run the normal teardown below.
+        abortLoadGeneration.store(
+                loadGeneration.load(std::memory_order_relaxed),
+                std::memory_order_relaxed);
         startRequestedDuringLoad.store(false, std::memory_order_relaxed);
         {
             std::lock_guard<std::mutex> abortLock(openAbortMutex);
             openAbortFlag.store(true, std::memory_order_relaxed);
         }
         silenceForAbortDuringLoad();
-        return;
     }
     std::lock_guard<std::mutex> lifecycleLock(lifecycleMutex);
     if (seekInProgress.load()) {
@@ -399,7 +423,7 @@ void AudioEngine::releaseCurrentDecoder() {
     if (decoder) {
         decoder->setOpenAbortFlag(nullptr);
     }
-    decoder.reset();
+    destroyDecoderInBackground(std::move(decoder));
     cachedDurationSeconds.store(0.0);
     resetResamplerStateLocked();
     openMptDspEffects.reset();
@@ -473,7 +497,7 @@ void AudioEngine::setUrl(const char* url, const char* forcedDecoder) {
         if (decoder) {
             decoder->setOpenAbortFlag(nullptr);
         }
-        decoder.reset();
+        destroyDecoderInBackground(std::move(decoder));
         cachedDurationSeconds.store(0.0);
         resetResamplerStateLocked();
         openMptDspEffects.reset();
@@ -530,7 +554,10 @@ void AudioEngine::setUrl(const char* url, const char* forcedDecoder) {
                 // below would wipe the stop's abort stamp and grind out the
                 // full network timeout before the queued stop can finish.
                 startRequestedDuringLoad.store(false, std::memory_order_relaxed);
-                stopOutputStreamLocked();
+                if (loadGeneration.load(std::memory_order_relaxed) == myGeneration) {
+                    stopOutputStreamLocked();
+                }
+                destroyDecoderInBackground(std::move(newDecoder));
                 decoderOpenCount.fetch_sub(1, std::memory_order_release);
                 return;
             }
@@ -540,23 +567,39 @@ void AudioEngine::setUrl(const char* url, const char* forcedDecoder) {
         // The abort flag stays armed for the decoder's lifetime: reads
         // (e.g. the seek-skip loop on a stalled stream) consult the same
         // interrupt callback. Unregistered when the decoder is torn down.
+        // Probes can grind without bound (foreign content in UADE, dead
+        // network reads): never hold lifecycleMutex across one. A stuck
+        // open parks only its own loader thread; stop, release, start and
+        // newer loads proceed, and this generation discards if it returns.
+        lifecycleLock.unlock();
         const bool opened = newDecoder->open(url);
+        lifecycleLock.lock();
+        // Only the newest generation may tear the stream down or install:
+        // an older one landing late must only drop its own decoder.
+        const bool superseded = loadGeneration.load(std::memory_order_relaxed) != myGeneration;
+        const bool abortStamped = abortLoadGeneration.load(std::memory_order_relaxed) >= myGeneration;
         if (!opened) {
             LOGE("Failed to open file: %s", url);
             startRequestedDuringLoad.store(false, std::memory_order_relaxed);
-            stopOutputStreamLocked();
+            if (!superseded) {
+                stopOutputStreamLocked();
+            }
+            destroyDecoderInBackground(std::move(newDecoder));
             decoderOpenCount.fetch_sub(1, std::memory_order_release);
             return;
         }
-        if (abortLoadGeneration.load(std::memory_order_relaxed) >= myGeneration) {
-            // Stopped or released while the open was stalled: drop the fresh
-            // decoder instead of installing it, then run the deferred stop.
+        if (abortStamped || superseded) {
+            // Stopped, released, or replaced while the open was stalled:
+            // drop the fresh decoder instead of installing it.
             startRequestedDuringLoad.store(false, std::memory_order_relaxed);
-            newDecoder->close();
-            stopOutputStreamLocked();
+            destroyDecoderInBackground(std::move(newDecoder));
+            if (!superseded) {
+                stopOutputStreamLocked();
+            }
             decoderOpenCount.fetch_sub(1, std::memory_order_release);
             return;
         }
+        installedLoadGeneration.store(myGeneration, std::memory_order_relaxed);
         std::lock_guard<std::mutex> lock(decoderMutex);
         decoderRenderSampleRate = newDecoder->getRenderSampleRate();
         newDecoder->setRepeatMode(repeatMode.load());
@@ -584,12 +627,15 @@ void AudioEngine::setUrl(const char* url, const char* forcedDecoder) {
     } else {
         fastTrackSwitchStartupHint.store(false, std::memory_order_relaxed);
         LOGE("Failed to create decoder for file: %s", url);
-        stopOutputStreamLocked();
+        if (loadGeneration.load(std::memory_order_relaxed) == myGeneration) {
+            stopOutputStreamLocked();
+        }
     }
     const bool shouldStart = startRequestedDuringLoad.exchange(false, std::memory_order_relaxed);
     const bool loadAborted = abortLoadGeneration.load(std::memory_order_relaxed) >= myGeneration;
-    if (loadAborted) {
-        // Stop/release landed after the install: run its deferred teardown.
+    if (loadAborted && loadGeneration.load(std::memory_order_relaxed) == myGeneration) {
+        // Stop/release landed after the install: run its deferred teardown,
+        // unless a newer generation owns the engine now.
         stopOutputStreamLocked();
     }
     decoderOpenCount.fetch_sub(1, std::memory_order_release);
