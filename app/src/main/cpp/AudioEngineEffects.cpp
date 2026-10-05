@@ -1152,17 +1152,13 @@ int AudioEngine::getVisualizationChannelCount() const {
 
 // Bitrate information
 int64_t AudioEngine::getTrackBitrate() {
-    std::lock_guard<std::mutex> lock(decoderMutex);
-    if (!decoder) {
-        return 0;
-    }
+    std::unique_lock<std::mutex> lock(decoderMutex, std::try_to_lock);
+    if (!lock.owns_lock() || !decoder) return 0;
     return decoder->getCoreIntInfo("bitrate", 0);
 }
 
 bool AudioEngine::isTrackVBR() {
-    std::lock_guard<std::mutex> lock(decoderMutex);
-    if (!decoder) {
-        return false;
-    }
+    std::unique_lock<std::mutex> lock(decoderMutex, std::try_to_lock);
+    if (!lock.owns_lock() || !decoder) return false;
     return decoder->getCoreIntInfo("isVbr", 0) != 0;
 }
