@@ -86,6 +86,55 @@ class DesktopDomainStorageTest {
     }
 
     @Test
+    fun recentsRoundTripSubtuneIndex() {
+        val dir = tempDir()
+        val playedKey = AppPreferenceKeys.RECENT_PLAYED_FILES
+        val pinnedKey = AppPreferenceKeys.PINNED_HOME_ENTRIES
+        writeRecentEntries(
+            dir,
+            playedKey,
+            listOf(
+                RecentPathEntry(path = "/music/a.nsfe", locationId = null, title = "A", subtuneIndex = 3),
+                RecentPathEntry(path = "/music/b.mod", locationId = null, title = "B")
+            ),
+            20
+        )
+        val played = readRecentEntries(dir, playedKey, 20)
+        assertEquals(3, played[0].subtuneIndex)
+        assertNull(played[1].subtuneIndex)
+
+        writePinnedHomeEntries(
+            dir,
+            listOf(HomePinnedEntry(path = "/music/a.nsfe", isFolder = false, subtuneIndex = 3)),
+            pinnedKey
+        )
+        val pinned = readPinnedHomeEntries(dir, pinnedKey)
+        assertEquals(3, pinned[0].subtuneIndex)
+        assertEquals(3, pinned[0].asRecentPathEntry().subtuneIndex)
+    }
+
+    @Test
+    fun recentsDedupeByPathKeepingNewestSubtune() {
+        val dir = tempDir()
+        val playedKey = AppPreferenceKeys.RECENT_PLAYED_FILES
+        writeRecentEntries(
+            dir,
+            playedKey,
+            listOf(
+                RecentPathEntry(path = "/music/song.ftm", locationId = null, title = "Song 2", subtuneIndex = 1),
+                RecentPathEntry(path = "/music/song.ftm", locationId = null, title = "Song 1", subtuneIndex = 0),
+                RecentPathEntry(path = "/music/other.mod", locationId = null, title = "Other")
+            ),
+            20
+        )
+        val played = readRecentEntries(dir, playedKey, 20)
+        assertEquals(2, played.size)
+        assertEquals("/music/song.ftm", played[0].path)
+        assertEquals(1, played[0].subtuneIndex)
+        assertNull(played[1].subtuneIndex)
+    }
+
+    @Test
     fun recentsMigrateFromLegacyPrefsOnce() {
         val dir = tempDir()
         val prefs = FakePrefs()

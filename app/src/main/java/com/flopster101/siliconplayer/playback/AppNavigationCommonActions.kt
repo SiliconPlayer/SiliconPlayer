@@ -109,6 +109,7 @@ internal fun addRecentPlayedTrackAction(
     decoderName: String?,
     isPlaylist: Boolean = false,
     playlistSourceHint: String? = null,
+    subtuneIndex: Int? = null,
     limitProvider: () -> Int,
     onRecentPlayedChanged: (List<RecentPathEntry>) -> Unit,
     prefs: SharedPreferences
@@ -125,6 +126,7 @@ internal fun addRecentPlayedTrackAction(
         decoderName = decoderName,
         isPlaylist = isPlaylist,
         playlistSourceHint = playlistSourceHint,
+        subtuneIndex = subtuneIndex,
         limit = limit,
         update = onRecentPlayedChanged,
         write = { entries, max ->

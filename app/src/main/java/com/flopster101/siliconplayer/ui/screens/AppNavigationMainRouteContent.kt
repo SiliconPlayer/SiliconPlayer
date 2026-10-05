@@ -114,18 +114,22 @@ internal fun AppNavigationHomeContentSection(
                 entry = entry.asRecentPathEntry(),
                 networkNodes = networkNodes,
                 openPlayerOnTrackSelect = openPlayerOnTrackSelect,
-                onApplyTrackSelection = { file, autoStart, expandOverride, sourceIdOverride, locationIdOverride, useSongVolumeLookup ->
+                onApplyTrackSelection = { file, autoStart, expandOverride, sourceIdOverride, locationIdOverride, useSongVolumeLookup, subtuneIndex ->
                     trackLoadDelegates.applyTrackSelection(
                         file,
                         autoStart,
                         expandOverride,
                         sourceIdOverride,
                         locationIdOverride,
-                        useSongVolumeLookup = useSongVolumeLookup
+                        useSongVolumeLookup = useSongVolumeLookup,
+                        initialSubtuneIndex = subtuneIndex
                     )
                 },
-                onApplyManualInputSelection = { rawInput ->
-                    manualOpenDelegates.applyManualInputSelection(rawInput)
+                onApplyManualInputSelection = { rawInput, subtuneIndex ->
+                    manualOpenDelegates.applyManualInputSelection(
+                        rawInput,
+                        ManualSourceOpenOptions(initialSubtuneIndex = subtuneIndex)
+                    )
                 },
                 onOpenPlaylistFile = onPlaylistFileSelected,
                 coroutineScope = homeScope,
@@ -147,18 +151,22 @@ internal fun AppNavigationHomeContentSection(
                 entry = entry,
                 networkNodes = networkNodes,
                 openPlayerOnTrackSelect = openPlayerOnTrackSelect,
-                onApplyTrackSelection = { file, autoStart, expandOverride, sourceIdOverride, locationIdOverride, useSongVolumeLookup ->
+                onApplyTrackSelection = { file, autoStart, expandOverride, sourceIdOverride, locationIdOverride, useSongVolumeLookup, subtuneIndex ->
                     trackLoadDelegates.applyTrackSelection(
                         file,
                         autoStart,
                         expandOverride,
                         sourceIdOverride,
                         locationIdOverride,
-                        useSongVolumeLookup = useSongVolumeLookup
+                        useSongVolumeLookup = useSongVolumeLookup,
+                        initialSubtuneIndex = subtuneIndex
                     )
                 },
-                onApplyManualInputSelection = { rawInput ->
-                    manualOpenDelegates.applyManualInputSelection(rawInput)
+                onApplyManualInputSelection = { rawInput, subtuneIndex ->
+                    manualOpenDelegates.applyManualInputSelection(
+                        rawInput,
+                        ManualSourceOpenOptions(initialSubtuneIndex = subtuneIndex)
+                    )
                 },
                 onOpenPlaylistFile = onPlaylistFileSelected,
                 coroutineScope = homeScope,

@@ -56,6 +56,7 @@ internal fun decodeRecentEntries(
             val playlistSourceHint = objectValue
                 .optString("playlistSourceHint", "")
                 .ifBlank { null }
+            val subtuneIndex = objectValue.optInt("subtuneIndex", -1).takeIf { it >= 0 }
             val sourceNodeId = if (
                 objectValue.has("sourceNodeId") &&
                 !objectValue.isNull("sourceNodeId")
@@ -75,7 +76,8 @@ internal fun decodeRecentEntries(
                     sourceNodeId = existing.sourceNodeId ?: sourceNodeId,
                     artworkThumbnailCacheKey = existing.artworkThumbnailCacheKey ?: artworkThumbnailCacheKey,
                     isPlaylist = existing.isPlaylist || isPlaylist,
-                    playlistSourceHint = existing.playlistSourceHint ?: playlistSourceHint
+                    playlistSourceHint = existing.playlistSourceHint ?: playlistSourceHint,
+                    subtuneIndex = existing.subtuneIndex ?: subtuneIndex
                 )
                 continue
             }
@@ -88,7 +90,8 @@ internal fun decodeRecentEntries(
                 sourceNodeId = sourceNodeId,
                 artworkThumbnailCacheKey = artworkThumbnailCacheKey,
                 isPlaylist = isPlaylist,
-                playlistSourceHint = playlistSourceHint
+                playlistSourceHint = playlistSourceHint,
+                subtuneIndex = subtuneIndex
             )
             if (deduped.size >= maxItems) break
         }
@@ -146,6 +149,7 @@ internal fun decodePinnedHomeEntries(
             val artworkThumbnailCacheKey = objectValue
                 .optString("artworkThumbnailCacheKey", "")
                 .ifBlank { null }
+            val subtuneIndex = objectValue.optInt("subtuneIndex", -1).takeIf { it >= 0 }
             val sourceNodeId = if (
                 objectValue.has("sourceNodeId") &&
                 !objectValue.isNull("sourceNodeId")
@@ -169,6 +173,7 @@ internal fun decodePinnedHomeEntries(
                     decoderName = existing.decoderName ?: decoderName,
                     sourceNodeId = existing.sourceNodeId ?: sourceNodeId,
                     artworkThumbnailCacheKey = existing.artworkThumbnailCacheKey ?: artworkThumbnailCacheKey,
+                    subtuneIndex = existing.subtuneIndex ?: subtuneIndex,
                     pinnedAtEpochMs = maxOf(existing.pinnedAtEpochMs, pinnedAtEpochMs)
                 )
                 continue
@@ -182,6 +187,7 @@ internal fun decodePinnedHomeEntries(
                 decoderName = decoderName,
                 sourceNodeId = sourceNodeId,
                 artworkThumbnailCacheKey = artworkThumbnailCacheKey,
+                subtuneIndex = subtuneIndex,
                 pinnedAtEpochMs = pinnedAtEpochMs
             )
             if (deduped.size >= maxItems) break
@@ -209,6 +215,7 @@ internal fun encodePinnedHomeEntries(
                 decoderName = existing.decoderName ?: entry.decoderName,
                 sourceNodeId = existing.sourceNodeId ?: entry.sourceNodeId,
                 artworkThumbnailCacheKey = existing.artworkThumbnailCacheKey ?: entry.artworkThumbnailCacheKey,
+                subtuneIndex = existing.subtuneIndex ?: entry.subtuneIndex,
                 pinnedAtEpochMs = maxOf(existing.pinnedAtEpochMs, entry.pinnedAtEpochMs)
             )
         } else {
@@ -228,6 +235,7 @@ internal fun encodePinnedHomeEntries(
                 .put("decoderName", entry.decoderName ?: "")
                 .put("sourceNodeId", entry.sourceNodeId)
                 .put("artworkThumbnailCacheKey", entry.artworkThumbnailCacheKey ?: "")
+                .put("subtuneIndex", entry.subtuneIndex ?: -1)
                 .put("pinnedAtEpochMs", entry.pinnedAtEpochMs)
         )
     }
@@ -269,7 +277,8 @@ internal fun encodeRecentEntries(
                 sourceNodeId = existing.sourceNodeId ?: entry.sourceNodeId,
                 artworkThumbnailCacheKey = existing.artworkThumbnailCacheKey ?: entry.artworkThumbnailCacheKey,
                 isPlaylist = existing.isPlaylist || entry.isPlaylist,
-                playlistSourceHint = existing.playlistSourceHint ?: entry.playlistSourceHint
+                playlistSourceHint = existing.playlistSourceHint ?: entry.playlistSourceHint,
+                subtuneIndex = existing.subtuneIndex ?: entry.subtuneIndex
             )
         } else {
             deduped += entry
@@ -289,6 +298,7 @@ internal fun encodeRecentEntries(
                 .put("artworkThumbnailCacheKey", entry.artworkThumbnailCacheKey ?: "")
                 .put("isPlaylist", entry.isPlaylist)
                 .put("playlistSourceHint", entry.playlistSourceHint ?: "")
+                .put("subtuneIndex", entry.subtuneIndex ?: -1)
         )
     }
     return array.toString()

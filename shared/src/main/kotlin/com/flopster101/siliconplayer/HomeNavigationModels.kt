@@ -11,7 +11,8 @@ internal data class RecentPathEntry(
     val sourceNodeId: Long? = null,
     val artworkThumbnailCacheKey: String? = null,
     val isPlaylist: Boolean = false,
-    val playlistSourceHint: String? = null
+    val playlistSourceHint: String? = null,
+    val subtuneIndex: Int? = null
 )
 
 internal data class HomePinnedEntry(
@@ -23,6 +24,7 @@ internal data class HomePinnedEntry(
     val decoderName: String? = null,
     val sourceNodeId: Long? = null,
     val artworkThumbnailCacheKey: String? = null,
+    val subtuneIndex: Int? = null,
     val pinnedAtEpochMs: Long = System.currentTimeMillis()
 ) {
     fun asRecentPathEntry(): RecentPathEntry {
@@ -33,7 +35,8 @@ internal data class HomePinnedEntry(
             artist = artist,
             decoderName = decoderName,
             sourceNodeId = sourceNodeId,
-            artworkThumbnailCacheKey = artworkThumbnailCacheKey
+            artworkThumbnailCacheKey = artworkThumbnailCacheKey,
+            subtuneIndex = subtuneIndex
         )
     }
 }

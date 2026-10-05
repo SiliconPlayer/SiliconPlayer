@@ -310,6 +310,7 @@ internal fun buildUpdatedRecentPlayedTracks(
     artworkThumbnailCacheKey: String? = null,
     isPlaylist: Boolean = false,
     playlistSourceHint: String? = null,
+    subtuneIndex: Int? = null,
     clearBlankMetadataOnUpdate: Boolean = false,
     limit: Int
 ): List<RecentPathEntry> {
@@ -347,7 +348,8 @@ internal fun buildUpdatedRecentPlayedTracks(
             sourceNodeId = sourceNodeId ?: existing?.sourceNodeId,
             artworkThumbnailCacheKey = resolvedArtworkThumbnailCacheKey,
             isPlaylist = resolvedIsPlaylist,
-            playlistSourceHint = resolvedPlaylistSourceHint
+            playlistSourceHint = resolvedPlaylistSourceHint,
+            subtuneIndex = subtuneIndex ?: existing?.subtuneIndex
         )
     ) + current.filterNot { samePath(it.path, normalized) }
     return updated.take(limit)

@@ -2414,7 +2414,9 @@ private fun AppNavigation(
         metadataTitle,
         metadataArtist,
         lastBrowserLocationId,
-        isPlaying
+        isPlaying,
+        subtuneCount,
+        currentSubtuneIndex
     ) {
         if (!isPlaying) return@LaunchedEffect
         val sourceId = settingsStates.currentPlaybackSourceId.value ?: selectedFile?.absolutePath ?: return@LaunchedEffect
@@ -2439,6 +2441,7 @@ private fun AppNavigation(
             decoderName = decoderName,
             isPlaylist = playlistOverride != null,
             playlistSourceHint = playlistOverride?.sourceHint,
+            subtuneIndex = if (playlistOverride == null && subtuneCount > 1) currentSubtuneIndex else null,
             clearBlankMetadataOnUpdate = true,
             limit = recentFilesLimit
         )

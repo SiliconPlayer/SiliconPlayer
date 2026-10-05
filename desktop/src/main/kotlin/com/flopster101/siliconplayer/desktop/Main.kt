@@ -465,7 +465,8 @@ fun main(args: Array<String>) = application {
                     title = entry.title,
                     artist = entry.artist,
                     sourceNodeId = entry.sourceNodeId,
-                    artworkThumbnailCacheKey = entry.artworkThumbnailCacheKey
+                    artworkThumbnailCacheKey = entry.artworkThumbnailCacheKey,
+                    subtuneIndex = entry.subtuneIndex
                 )
             )
         }
@@ -482,7 +483,8 @@ fun main(args: Array<String>) = application {
             artist = session.artist.ifBlank { ext },
             decoderName = session.decoderName,
             sourceNodeId = NetworkNodesHolder.current.firstOrNull { it.source == sourceId }?.id,
-            artworkThumbnailCacheKey = recentArtworkCacheKeyForSource(identity) ?: identity
+            artworkThumbnailCacheKey = recentArtworkCacheKeyForSource(identity) ?: identity,
+            subtuneIndex = session.subtuneIndex.takeIf { session.subtuneCount > 1 }
         )
         recentFiles.removeAll { it.path == identity }
         recentFiles.add(0, entry)
@@ -507,20 +509,33 @@ fun main(args: Array<String>) = application {
         }
     }
 
-    fun playFile(file: File) {
-        if (session.loadFile(file, autoStart = autoPlayOnTrackSelect)) {
+    fun recordSubtuneSwitchInRecents() {
+        val switchedFile = session.currentFile ?: return
+        val switchedIdentity = session.currentSourceId ?: switchedFile.absolutePath
+        val idx = recentFiles.indexOfFirst { it.path == switchedIdentity }
+        if (idx >= 0) {
+            recentFiles[idx] = recentFiles[idx]
+                .copy(subtuneIndex = session.subtuneIndex.takeIf { session.subtuneCount > 1 })
+            recentFiles.add(0, recentFiles.removeAt(idx))
+        } else {
+            registerLoadedFile(switchedFile)
+        }
+    }
+
+    fun playFile(file: File, subtuneIndex: Int? = null) {
+        if (session.loadFile(file, autoStart = autoPlayOnTrackSelect, initialSubtuneIndex = subtuneIndex)) {
             registerLoadedFile(file)
             if (openPlayerOnTrackSelect) isPlayerSurfaceVisible = true
         }
     }
 
-    fun playSource(source: String, titleHint: String? = null, artistHint: String? = null) {
+    fun playSource(source: String, titleHint: String? = null, artistHint: String? = null, subtuneIndex: Int? = null) {
         val file = File(source)
         if (file.exists() && file.isFile) {
-            playFile(file)
+            playFile(file, subtuneIndex)
             return
         }
-        if (session.loadSource(source, titleHint, artistHint, autoStart = autoPlayOnTrackSelect)) {
+        if (session.loadSource(source, titleHint, artistHint, autoStart = autoPlayOnTrackSelect, initialSubtuneIndex = subtuneIndex)) {
             if (openPlayerOnTrackSelect) isPlayerSurfaceVisible = true
             val sourceId = session.currentSourceId
             val sourceNodeId = NetworkNodesHolder.current.firstOrNull { it.source == sourceId }?.id
@@ -532,7 +547,8 @@ fun main(args: Array<String>) = application {
                 artist = session.artist.ifBlank { artistHint ?: "Network" },
                 decoderName = session.decoderName,
                 sourceNodeId = sourceNodeId,
-                artworkThumbnailCacheKey = recentArtworkCacheKeyForSource(identity) ?: identity
+                artworkThumbnailCacheKey = recentArtworkCacheKeyForSource(identity) ?: identity,
+                subtuneIndex = session.subtuneIndex.takeIf { session.subtuneCount > 1 }
             )
             recentFiles.removeAll { it.path == identity }
             recentFiles.add(0, entry)
@@ -940,7 +956,8 @@ fun main(args: Array<String>) = application {
                     title = session.title.ifBlank { source },
                     artist = session.artist.ifBlank { "Network" },
                     decoderName = session.decoderName,
-                    artworkThumbnailCacheKey = recentArtworkCacheKeyForSource(source) ?: source
+                    artworkThumbnailCacheKey = recentArtworkCacheKeyForSource(source) ?: source,
+                    subtuneIndex = session.subtuneIndex.takeIf { session.subtuneCount > 1 }
                 )
                 recentFiles.removeAll { it.path == source }
                 recentFiles.add(0, entry)
@@ -1846,6 +1863,7 @@ fun main(args: Array<String>) = application {
                                             Key.DirectionLeft -> {
                                                 if (session.subtuneCount > 1 && session.subtuneIndex > 0) {
                                                     session.previousSubtune()
+                                                    recordSubtuneSwitchInRecents()
                                                 }
                                                 return@onPreviewKeyEvent true
                                             }
@@ -1854,6 +1872,7 @@ fun main(args: Array<String>) = application {
                                                     session.subtuneIndex + 1 < session.subtuneCount
                                                 ) {
                                                     session.nextSubtune()
+                                                    recordSubtuneSwitchInRecents()
                                                 }
                                                 return@onPreviewKeyEvent true
                                             }
@@ -1985,7 +2004,7 @@ fun main(args: Array<String>) = application {
                                                         AppDefaults.Browser.showHiddenFilesAndFolders
                                                     )
                                                 )
-                                                playSource(entry.path, entry.title, entry.artist)
+                                                playSource(entry.path, entry.title, entry.artist, entry.subtuneIndex)
                                             },
                                             onOpenRecentFolder = { entry ->
                                                 openBrowserRequest(
@@ -2005,7 +2024,7 @@ fun main(args: Array<String>) = application {
                                                         AppDefaults.Browser.showHiddenFilesAndFolders
                                                     )
                                                 )
-                                                playSource(entry.path, entry.title, entry.artist)
+                                                playSource(entry.path, entry.title, entry.artist, entry.subtuneIndex)
                                             },
                                             onPinRecentFolder = { entry ->
                                                 if (pinnedEntries.none { it.path == entry.path }) {
@@ -2033,7 +2052,8 @@ fun main(args: Array<String>) = application {
                                                             artist = entry.artist,
                                                             decoderName = entry.decoderName,
                                                             sourceNodeId = entry.sourceNodeId,
-                                                            artworkThumbnailCacheKey = entry.artworkThumbnailCacheKey
+                                                            artworkThumbnailCacheKey = entry.artworkThumbnailCacheKey,
+                                                            subtuneIndex = entry.subtuneIndex
                                                         )
                                                     )
                                                 }
@@ -2828,8 +2848,14 @@ fun main(args: Array<String>) = application {
                                         notifyWrap = true
                                     )
                                 },
-                                onPreviousSubtune = { session.previousSubtune() },
-                                onNextSubtune = { session.nextSubtune() },
+                                onPreviousSubtune = {
+                                    session.previousSubtune()
+                                    recordSubtuneSwitchInRecents()
+                                },
+                                onNextSubtune = {
+                                    session.nextSubtune()
+                                    recordSubtuneSwitchInRecents()
+                                },
                                 onPlayPause = {
                                     if (session.isPlaying) session.pause() else session.play()
                                 },
@@ -2943,8 +2969,14 @@ fun main(args: Array<String>) = application {
                                         )
                                     },
                                     onNextTrack = { goNextTrack() },
-                                    onPreviousSubtune = { session.previousSubtune() },
-                                    onNextSubtune = { session.nextSubtune() },
+                                    onPreviousSubtune = {
+                                        session.previousSubtune()
+                                        recordSubtuneSwitchInRecents()
+                                    },
+                                    onNextSubtune = {
+                                        session.nextSubtune()
+                                        recordSubtuneSwitchInRecents()
+                                    },
                                     onOpenSubtuneSelector = { showSubtuneSelectorDialog = true },
                                     canPreviousSubtune = session.subtuneCount > 1 && session.subtuneIndex > 0,
                                     canNextSubtune = session.subtuneCount > 1 && session.subtuneIndex + 1 < session.subtuneCount,
@@ -3384,6 +3416,7 @@ fun main(args: Array<String>) = application {
                                                 .clickable {
                                                     session.selectSubtune(entry.index)
                                                     showSubtuneSelectorDialog = false
+                                                    session.currentFile?.let { recordSubtuneSwitchInRecents() }
                                                 },
                                             shape = MaterialTheme.shapes.medium,
                                             color = if (isCurrent) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceContainerHigh

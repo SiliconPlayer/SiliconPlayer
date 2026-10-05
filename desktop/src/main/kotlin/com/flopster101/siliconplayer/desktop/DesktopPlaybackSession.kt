@@ -117,6 +117,7 @@ class DesktopPlaybackSession(
     private var isUserSeeking = false
     private var currentSource: String? = null
     private var stoppedSource: String? = null
+    private var stoppedSubtuneIndex: Int? = null
     // Live prefs source for track-open native pushes; attached once host prefs exist.
     var trackOptionsPrefs: AppPreferences? = null
     // Persisted preferred mode (host-owned); resolved per track into repeatMode.
@@ -128,19 +129,19 @@ class DesktopPlaybackSession(
         startTicker()
     }
 
-    fun loadFile(file: File, autoStart: Boolean = true): Boolean {
+    fun loadFile(file: File, autoStart: Boolean = true, initialSubtuneIndex: Int? = null): Boolean {
         if (!file.exists() || !file.isFile) return false
 
         armLoadCrashGuard(file.absolutePath)
         try {
-            loadFileGuarded(file, autoStart)
+            loadFileGuarded(file, autoStart, initialSubtuneIndex)
             return true
         } finally {
             clearLoadCrashGuard()
         }
     }
 
-    private fun loadFileGuarded(file: File, autoStart: Boolean) {
+    private fun loadFileGuarded(file: File, autoStart: Boolean, initialSubtuneIndex: Int?) {
         // Every track load destroys the device first: anything already popped
         // into PulseAudio's buffers would otherwise keep playing the old song
         // after the click, over the new one's head (cork retains buffers, only
@@ -167,7 +168,14 @@ class DesktopPlaybackSession(
         currentSourceId = remoteSourceId ?: file.absolutePath
         currentRequestUrl = remoteSourceId
         stoppedSource = null
+        stoppedSubtuneIndex = null
         refreshMetadata()
+        if (initialSubtuneIndex != null &&
+            initialSubtuneIndex in 0 until subtuneCount &&
+            NativeBridge.selectSubtune(initialSubtuneIndex)
+        ) {
+            refreshMetadata()
+        }
         refreshRepeatMode()
         // Push the effective per-core DSP synchronously (Android parity):
         // the Main LaunchedEffect only runs after start, so a deferred push
@@ -201,14 +209,20 @@ class DesktopPlaybackSession(
         }
     }
 
-    fun loadSource(source: String, titleHint: String? = null, artistHint: String? = null, autoStart: Boolean = true): Boolean {
+    fun loadSource(
+        source: String,
+        titleHint: String? = null,
+        artistHint: String? = null,
+        autoStart: Boolean = true,
+        initialSubtuneIndex: Int? = null
+    ): Boolean {
         val file = File(source)
         if (file.exists() && file.isFile) {
-            return loadFile(file, autoStart)
+            return loadFile(file, autoStart, initialSubtuneIndex)
         }
         armLoadCrashGuard(source)
         try {
-            loadSourceGuarded(source, titleHint, artistHint, autoStart)
+            loadSourceGuarded(source, titleHint, artistHint, autoStart, initialSubtuneIndex)
             return true
         } finally {
             clearLoadCrashGuard()
@@ -234,7 +248,13 @@ class DesktopPlaybackSession(
         }
     }
 
-    private fun loadSourceGuarded(source: String, titleHint: String?, artistHint: String?, autoStart: Boolean) {
+    private fun loadSourceGuarded(
+        source: String,
+        titleHint: String?,
+        artistHint: String?,
+        autoStart: Boolean,
+        initialSubtuneIndex: Int?
+    ) {
         // Same teardown rule as loadFileGuarded.
         NativeBridge.teardownOutputStream()
         // Same no-pre-stop rule as loadFileGuarded: the detached stop could
@@ -255,7 +275,14 @@ class DesktopPlaybackSession(
         currentSourceId = resolved?.sourceId ?: source
         currentRequestUrl = resolved?.requestUrl ?: source
         stoppedSource = null
+        stoppedSubtuneIndex = null
         refreshMetadata()
+        if (initialSubtuneIndex != null &&
+            initialSubtuneIndex in 0 until subtuneCount &&
+            NativeBridge.selectSubtune(initialSubtuneIndex)
+        ) {
+            refreshMetadata()
+        }
         refreshRepeatMode()
         // Same synchronous per-core DSP push as loadFileGuarded.
         trackOptionsPrefs?.let { prefs ->
@@ -303,7 +330,9 @@ class DesktopPlaybackSession(
         val sourceToResume = stoppedSource
         if (sourceToResume != null) {
             stoppedSource = null
-            loadSource(sourceToResume)
+            val subtuneToResume = stoppedSubtuneIndex
+            stoppedSubtuneIndex = null
+            loadSource(sourceToResume, initialSubtuneIndex = subtuneToResume)
             return
         }
         if (currentFile == null) return
@@ -339,6 +368,7 @@ class DesktopPlaybackSession(
         NativeBridge.releaseCurrentDecoder()
         if (currentSource != null) {
             stoppedSource = currentSource
+            stoppedSubtuneIndex = subtuneIndex.takeIf { subtuneCount > 1 }
         }
         isPlaying = false
         clearTrackState()

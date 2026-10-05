@@ -26,8 +26,8 @@ internal fun playRecentFileEntryAction(
     entry: RecentPathEntry,
     networkNodes: List<NetworkNode>,
     openPlayerOnTrackSelect: Boolean,
-    onApplyTrackSelection: (File, Boolean, Boolean?, String?, String?, Boolean) -> Unit,
-    onApplyManualInputSelection: (String) -> Unit,
+    onApplyTrackSelection: (File, Boolean, Boolean?, String?, String?, Boolean, Int?) -> Unit,
+    onApplyManualInputSelection: (String, Int?) -> Unit,
     onOpenPlaylistFile: (File, String?) -> Unit,
     coroutineScope: CoroutineScope? = null,
     showHiddenFilesAndFolders: Boolean = false
@@ -65,13 +65,14 @@ internal fun playRecentFileEntryAction(
                 openPlayerOnTrackSelect,
                 normalized,
                 null,
-                false
+                false,
+                entry.subtuneIndex
             )
         } else {
-            onApplyManualInputSelection(playbackInput)
+            onApplyManualInputSelection(playbackInput, entry.subtuneIndex)
         }
     } else {
-        onApplyManualInputSelection(playbackInput)
+        onApplyManualInputSelection(playbackInput, entry.subtuneIndex)
     }
 }
 

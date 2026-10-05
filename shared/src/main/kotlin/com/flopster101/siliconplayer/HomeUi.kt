@@ -857,7 +857,8 @@ internal fun HomeScreen(
                                                         storagePresentation = storagePresentation,
                                                         extensionLabel = extensionLabel,
                                                         isArchiveSource = archiveSource != null,
-                                                        isCurrentlyPlaying = isCurrentlyPlayingPinnedFile
+                                                        isCurrentlyPlaying = isCurrentlyPlayingPinnedFile,
+                                                        subtuneIndex = pinnedEntry.subtuneIndex
                                                     )
                                                 }
                                                 Spacer(modifier = Modifier.width(4.dp))
@@ -1624,7 +1625,8 @@ internal fun HomeScreen(
                                                                     extensionLabel = extensionLabel,
                                                                     isArchiveSource = archiveSource != null,
                                                                     usePlaylistSubtitleIcon = entry.isPlaylist,
-                                                                    isCurrentlyPlaying = isCurrentlyPlayingEntry
+                                                                    isCurrentlyPlaying = isCurrentlyPlayingEntry,
+                                                                    subtuneIndex = entry.subtuneIndex
                                                                 )
                                                             }
                                                             Spacer(modifier = Modifier.width(4.dp))
@@ -2496,7 +2498,8 @@ internal fun RecentTrackSummaryText(
     extensionLabel: String,
     isArchiveSource: Boolean,
     usePlaylistSubtitleIcon: Boolean = false,
-    isCurrentlyPlaying: Boolean = false
+    isCurrentlyPlaying: Boolean = false,
+    subtuneIndex: Int? = null
 ) {
     val fallback = inferredDisplayTitleForName(file.name)
     val display = remember(file.absolutePath, cachedTitle, cachedArtist) {
@@ -2549,6 +2552,9 @@ internal fun RecentTrackSummaryText(
         if (renderedDisplay.includeFilenameInSubtitle) {
             append(" • ")
             append(fallback)
+        }
+        if (subtuneIndex != null) {
+            append(" • Subtune ${subtuneIndex + 1}")
         }
     }
     Row(verticalAlignment = Alignment.CenterVertically) {
@@ -2751,7 +2757,10 @@ internal fun WearHomeScreen(
             recentPlayedFiles.take(5).forEach { recent ->
                 WearHomeItemRow(
                     title = recent.title?.takeIf { it.isNotBlank() } ?: recent.path.substringAfterLast('/'),
-                    subtitle = recent.artist,
+                    subtitle = listOfNotNull(
+                        recent.artist,
+                        recent.subtuneIndex?.let { "Subtune ${it + 1}" }
+                    ).joinToString(" • ").takeIf { it.isNotBlank() },
                     isFolder = false,
                     onClick = { onPlayRecentFile(recent) },
                     onLongClick = {

@@ -54,6 +54,8 @@ internal fun buildAppNavigationRuntimeDelegates(
     val addRecentPlayedTrack: (String, String?, String?, String?, Boolean, String?) -> Unit =
         { path, locationId, title, artist, isPlaylist, playlistSourceHint ->
         val currentDecoderName = NativeBridge.getCurrentDecoderName().trim().takeIf { it.isNotEmpty() }
+        val subtuneCount = NativeBridge.getSubtuneCount()
+        val subtuneIndex = NativeBridge.getCurrentSubtuneIndex().takeIf { subtuneCount > 1 && it in 0 until subtuneCount }
         addRecentPlayedTrackAction(
             context = context,
             appScope = appScope,
@@ -66,6 +68,7 @@ internal fun buildAppNavigationRuntimeDelegates(
             decoderName = currentDecoderName,
             isPlaylist = isPlaylist,
             playlistSourceHint = playlistSourceHint,
+            subtuneIndex = subtuneIndex,
             limitProvider = recentFilesLimitProvider,
             onRecentPlayedChanged = onRecentPlayedChanged,
             prefs = prefs
