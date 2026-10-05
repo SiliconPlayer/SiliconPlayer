@@ -49,6 +49,12 @@ public:
 
     bool isSurfaceMode() const { return isSurfaceMode_; }
     bool isReady() const { return initialized_; }
+    // Drains the sticky surface-lost flag (true once per loss).
+    bool consumeSurfaceLost() {
+        bool lost = surfaceLost_;
+        surfaceLost_ = false;
+        return lost;
+    }
     uint32_t getWidth() const { return width_; }
     uint32_t getHeight() const { return height_; }
     float getDensity() const { return density_; }
@@ -132,6 +138,8 @@ private:
 
     bool hasRenderedFrame_ = false;
     uint32_t lastRenderedImageIndex_ = 0;
+    bool surfaceLost_ = false;
+    uint32_t acquireFailStreak_ = 0;
 
     // Transition snapshot resources
     bool hasSnapshot_ = false;

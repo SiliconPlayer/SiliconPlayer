@@ -19,13 +19,16 @@ public:
     // framebuffers. No-op when the count is already active.
     bool setMsaaSamples(uint32_t msaaSamples);
 
-    // Acquires next swapchain image. Returns true on success.
-    // If outOfDate is set to true, the caller should resize().
-    bool acquireNextImage(VkSemaphore signalSemaphore, uint32_t& outImageIndex, bool& outOutOfDate);
+    enum class AcquireResult { Ok, Retry, SurfaceLost };
+    enum class PresentResult { Ok, Suboptimal, Retry, SurfaceLost };
 
-    // Presents the image. Returns 0 on success, 1 when suboptimal but
-    // usable (no rebuild), -1 when the swapchain must be recreated.
-    int present(VkQueue queue, uint32_t imageIndex, VkSemaphore waitSemaphore);
+    // Acquires the next swapchain image. Retry means skip the frame (a
+    // resize was already attempted for out-of-date); SurfaceLost needs a
+    // full surface re-init, swapchain recreation cannot recover it.
+    AcquireResult acquireNextImage(VkSemaphore signalSemaphore, uint32_t& outImageIndex);
+
+    // Presents the image. Retry means the swapchain was recreated in place.
+    PresentResult present(VkQueue queue, uint32_t imageIndex, VkSemaphore waitSemaphore);
 
     VkRenderPass getRenderPass() const { return renderPass_; }
     VkFramebuffer getFramebuffer(uint32_t imageIndex) const {

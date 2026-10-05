@@ -172,7 +172,7 @@ object SiliconVisNativeBridge {
     external fun nativeInitVulkan(handle: Long, widthPx: Int, heightPx: Int, surface: Any? = null): Boolean
     external fun nativeResizeVulkan(handle: Long, widthPx: Int, heightPx: Int, density: Float)
     external fun nativeReleaseVulkan(handle: Long)
-    external fun nativeRenderVulkan(handle: Long)
+    external fun nativeRenderVulkan(handle: Long): Boolean
     external fun nativeReadbackVulkan(handle: Long, outRgbaBuffer: ByteBuffer): Boolean
     external fun nativeTakeTransitionSnapshotVulkan(handle: Long): Boolean
     external fun nativeReleaseTransitionSnapshotVulkan(handle: Long)

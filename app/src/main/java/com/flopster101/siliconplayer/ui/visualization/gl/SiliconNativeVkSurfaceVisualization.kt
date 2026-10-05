@@ -268,6 +268,7 @@ private class SiliconNativeVkSurfaceView(
     }
 
     private var lastLifecyclePauseUptimeMs = 0L
+    private var lastSurfaceLostRestartMs = 0L
     private var recreatedSincePause = false
     private var recreateInFlight = false
     private var lastRecreateUptimeMs = 0L
@@ -280,7 +281,6 @@ private class SiliconNativeVkSurfaceView(
             stopRenderThread()
         } else if (holder.surface.isValid) {
             startRenderThread(holder, width, height)
-            postDelayed({ resyncSurfaceGeometry() }, 600)
         }
     }
 
@@ -329,22 +329,27 @@ private class SiliconNativeVkSurfaceView(
     }
 
     override fun surfaceCreated(holder: SurfaceHolder) {
+        Log.i("SiliconVisVk", "surfaceCreated ${width}x${height} paused=$lifecyclePaused valid=${holder.surface.isValid}")
         if (!lifecyclePaused) {
             startRenderThread(holder, width, height)
-            if (!recreateInFlight) {
-                postDelayed({ resyncSurfaceGeometry() }, 600)
-                postDelayed({ resyncSurfaceGeometry() }, 1600)
-            }
             recreateInFlight = false
         }
     }
 
     override fun surfaceChanged(holder: SurfaceHolder, format: Int, width: Int, height: Int) {
         updateOutline()
-        renderThread?.setSurfaceSize(width, height)
+        val thread = renderThread
+        if (thread == null) {
+            if (!lifecyclePaused && width > 1 && height > 1 && holder.surface.isValid) {
+                startRenderThread(holder, width, height)
+            }
+        } else {
+            thread.setSurfaceSize(width, height)
+        }
     }
 
     override fun surfaceDestroyed(holder: SurfaceHolder) {
+        Log.i("SiliconVisVk", "surfaceDestroyed")
         stopRenderThread()
     }
 
@@ -353,6 +358,11 @@ private class SiliconNativeVkSurfaceView(
         applySurfaceFrameRate(holder)
         if (!stopRenderThread()) return
         SiliconNativeGlDataSink.register(this)
+        if (width <= 1 || height <= 1) {
+            Log.w("SiliconVisVk", "deferring start until settled size (got ${width}x${height})")
+            return
+        }
+        Log.i("SiliconVisVk", "startRenderThread ${width}x${height} valid=${holder.surface.isValid}")
         val thread = SiliconNativeVkRenderThread(
             context = context,
             outputSurface = holder.surface,
@@ -361,6 +371,20 @@ private class SiliconNativeVkSurfaceView(
             density = density,
             onFrameStats = { fps, frameMs ->
                 post { onFrameStats?.invoke(fps, frameMs) }
+            },
+            onSurfaceLost = {
+                post {
+                    val now = SystemClock.uptimeMillis()
+                    if (now - lastSurfaceLostRestartMs < 1500L) return@post
+                    lastSurfaceLostRestartMs = now
+                    if (!lifecyclePaused && isAttachedToWindow && holder.surface.isValid) {
+                        Log.w("SiliconVisVk", "surface-lost restart")
+                        stopRenderThread()
+                        startRenderThread(holder, width, height)
+                    } else {
+                        Log.w("SiliconVisVk", "surface-lost restart skipped paused=$lifecyclePaused attached=$isAttachedToWindow")
+                    }
+                }
             }
         )
         renderThread = thread
@@ -421,7 +445,11 @@ internal class SiliconNativeVkRenderThread(
     initialWidth: Int,
     initialHeight: Int,
     private val density: Float,
-    private val onFrameStats: (fps: Int, frameMs: Int) -> Unit
+    private val onFrameStats: (fps: Int, frameMs: Int) -> Unit,
+    private val onSurfaceLost: () -> Unit = {},
+    // Holder surfaces stay owned by the view across thread restarts; only
+    // TextureView's privately created Surface is released here.
+    private val ownsSurface: Boolean = false
 ) : Thread("SiliconNativeVkRenderThread") {
     private val lock = Object()
 
@@ -568,7 +596,7 @@ internal class SiliconNativeVkRenderThread(
         }
 
         if (visHandle == 0L) {
-            outputSurface.release()
+            if (ownsSurface) outputSurface.release()
             return
         }
 
@@ -577,7 +605,7 @@ internal class SiliconNativeVkRenderThread(
             Log.w("SiliconVisVk", "nativeInitVulkan failed to initialize swapchain")
             SiliconVisNativeBridge.nativeDestroy(visHandle)
             visHandle = 0L
-            outputSurface.release()
+            if (ownsSurface) outputSurface.release()
             return
         }
 
@@ -598,7 +626,7 @@ internal class SiliconNativeVkRenderThread(
                 VisualizerVkWarmCache.put(visHandle)
                 visHandle = 0L
             }
-            outputSurface.release()
+            if (ownsSurface) outputSurface.release()
         }
     }
 
@@ -1082,7 +1110,11 @@ internal class SiliconNativeVkRenderThread(
             SiliconVisNativeBridge.nativeSetTransitionVulkan(visHandle, transitionOffsetX, transitionAlpha)
 
             val drawStartNs = System.nanoTime()
-            SiliconVisNativeBridge.nativeRenderVulkan(visHandle)
+            if (!SiliconVisNativeBridge.nativeRenderVulkan(visHandle)) {
+                requestStop()
+                onSurfaceLost()
+                return
+            }
             hasRenderedAtLeastOneFrame = true
             val drawEndNs = System.nanoTime()
 

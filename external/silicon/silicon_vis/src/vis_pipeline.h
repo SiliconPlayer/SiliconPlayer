@@ -88,7 +88,10 @@ public:
     bool initVulkan(uint32_t width, uint32_t height, void* nativeWindow = nullptr);
     void resizeVulkan(uint32_t width, uint32_t height, float density);
     void releaseVulkan();
-    void renderVulkan();
+    // Renders via Vulkan. Returns false when the platform surface was
+    // lost and only a full surface re-init can recover (swapchain
+    // recreation is already exhausted inside).
+    bool renderVulkan();
     bool readbackVulkan(void* outRgbaBuffer, size_t bufferSize);
     bool isVulkanReady() const;
     bool takeTransitionSnapshotVulkan();
@@ -97,7 +100,7 @@ public:
 
 private:
     IVisualizerRenderer* getActiveRenderer();
-    void renderStarfieldVulkan();
+    bool renderStarfieldVulkan();
     bool ensureMsaaTarget(int32_t width, int32_t height);
     void releaseMsaaTarget();
     bool wantsMsaa() const;

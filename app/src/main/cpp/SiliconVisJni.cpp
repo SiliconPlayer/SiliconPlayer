@@ -1026,14 +1026,14 @@ Java_com_flopster101_siliconplayer_ui_visualization_gl_SiliconVisNativeBridge_na
     silicon_vis_release_vulkan(reinterpret_cast<SiliconVisHandle>(handle));
 }
 
-JNIEXPORT void JNICALL
+JNIEXPORT jboolean JNICALL
 Java_com_flopster101_siliconplayer_ui_visualization_gl_SiliconVisNativeBridge_nativeRenderVulkan(
     JNIEnv* /* env */,
     jobject /* thiz */,
     jlong handle
 ) {
-    if (!handle) return;
-    silicon_vis_render_vulkan(reinterpret_cast<SiliconVisHandle>(handle));
+    if (!handle) return JNI_TRUE;
+    return silicon_vis_render_vulkan(reinterpret_cast<SiliconVisHandle>(handle)) ? JNI_TRUE : JNI_FALSE;
 }
 
 JNIEXPORT jboolean JNICALL

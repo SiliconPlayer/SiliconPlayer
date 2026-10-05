@@ -121,6 +121,7 @@ bool SiliconVisVulkanPipeline::init(uint32_t width, uint32_t height, void* nativ
     }
 
     initialized_ = true;
+    VK_VIS_LOGI("vulkan init %ux%u surface=%d", width_, height_, nativeWindow != nullptr);
     return true;
 }
 
@@ -589,23 +590,49 @@ bool SiliconVisVulkanPipeline::beginFrameNoPass() {
     VkDevice device = context_.getDevice();
     if (!table.vkWaitForFences || device == VK_NULL_HANDLE) return false;
 
-    table.vkWaitForFences(device, 1, &inFlightFences_[currentFrameIndex_], VK_TRUE, UINT64_MAX);
+    // Bounded fence wait: an infinite wait wedges the render thread when the
+    // GPU never signals (device loss, dead window), blocking stop/join.
+    constexpr uint64_t kFenceWaitNs = 2000000000ULL;
+    VkResult fenceRes = table.vkWaitForFences(device, 1, &inFlightFences_[currentFrameIndex_], VK_TRUE, kFenceWaitNs);
+    if (fenceRes != VK_SUCCESS) {
+        if (++acquireFailStreak_ == 1 || acquireFailStreak_ % 120 == 0) {
+            VK_VIS_LOGE("fence wait failed (%d) streak=%u", (int)fenceRes, acquireFailStreak_);
+        }
+        if (fenceRes == VK_ERROR_DEVICE_LOST || acquireFailStreak_ > 3) surfaceLost_ = true;
+        return false;
+    }
 
     // Reset per-frame vertex stream buffer
     vertexBuffer_.reset();
 
     if (isSurfaceMode_) {
-        bool outOfDate = false;
-        if (!swapchain_.acquireNextImage(imageAvailableSemaphores_[currentFrameIndex_], currentImageIndex_, outOfDate)) {
-            if (outOfDate) {
-                if (swapchain_.resize(width_, height_)) {
-                    auto ext = swapchain_.getExtent();
-                    width_ = ext.width;
-                    height_ = ext.height;
-                }
+        uint32_t imageIndex = 0;
+        VkSwapchain::AcquireResult acquireRes =
+            swapchain_.acquireNextImage(imageAvailableSemaphores_[currentFrameIndex_], imageIndex);
+        if (acquireRes == VkSwapchain::AcquireResult::SurfaceLost) {
+            surfaceLost_ = true;
+            return false;
+        }
+        if (acquireRes != VkSwapchain::AcquireResult::Ok) {
+            if (++acquireFailStreak_ == 1 || acquireFailStreak_ % 120 == 0) {
+                VK_VIS_LOGE("acquire failed streak=%u", acquireFailStreak_);
+            }
+            // A dead window reports retryable errors forever; a resize loop
+            // cannot recover it, so escalate to a full surface re-init.
+            if (acquireFailStreak_ > 30) {
+                VK_VIS_LOGE("acquire failing persistently, reporting surface lost");
+                surfaceLost_ = true;
+                return false;
+            }
+            if (swapchain_.resize(width_, height_)) {
+                auto ext = swapchain_.getExtent();
+                width_ = ext.width;
+                height_ = ext.height;
             }
             return false;
         }
+        acquireFailStreak_ = 0;
+        currentImageIndex_ = imageIndex;
         currentFramebuffer_ = swapchain_.getFramebuffer(currentImageIndex_);
         currentRenderPass_ = swapchain_.getRenderPass();
     } else {
@@ -735,13 +762,24 @@ void SiliconVisVulkanPipeline::endFrame() {
     table.vkQueueSubmit(queue, 1, &submitInfo, inFlightFences_[currentFrameIndex_]);
 
     if (isSurfaceMode_) {
-        int presentRes = swapchain_.present(queue, currentImageIndex_, renderFinishedSemaphores_[currentFrameIndex_]);
-        if (presentRes < 0) {
-            if (swapchain_.resize(width_, height_)) {
+        VkSwapchain::PresentResult presentRes =
+            swapchain_.present(queue, currentImageIndex_, renderFinishedSemaphores_[currentFrameIndex_]);
+        if (presentRes == VkSwapchain::PresentResult::SurfaceLost) {
+            surfaceLost_ = true;
+        } else if (presentRes == VkSwapchain::PresentResult::Retry) {
+            if (++acquireFailStreak_ == 1 || acquireFailStreak_ % 120 == 0) {
+                VK_VIS_LOGE("present retry streak=%u", acquireFailStreak_);
+            }
+            if (acquireFailStreak_ > 30) {
+                VK_VIS_LOGE("present failing persistently, reporting surface lost");
+                surfaceLost_ = true;
+            } else if (swapchain_.resize(width_, height_)) {
                 auto ext = swapchain_.getExtent();
                 width_ = ext.width;
                 height_ = ext.height;
             }
+        } else {
+            acquireFailStreak_ = 0;
         }
     } else {
         table.vkWaitForFences(device, 1, &inFlightFences_[currentFrameIndex_], VK_TRUE, UINT64_MAX);

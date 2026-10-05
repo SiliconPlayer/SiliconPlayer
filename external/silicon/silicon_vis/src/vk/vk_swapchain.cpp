@@ -44,20 +44,26 @@ bool VkSwapchain::init(VkContext* context, VkSurfaceKHR surface, uint32_t width,
 void VkSwapchain::release() {
     cleanupSwapchain();
 
-    if (renderPass_ != VK_NULL_HANDLE && context_) {
+    if (context_) {
         const auto& table = VkLoader::table();
-        table.vkDestroyRenderPass(context_->getDevice(), renderPass_, nullptr);
+        if (renderPass_ != VK_NULL_HANDLE) {
+            table.vkDestroyRenderPass(context_->getDevice(), renderPass_, nullptr);
+            renderPass_ = VK_NULL_HANDLE;
+        }
+        if (swapchain_ != VK_NULL_HANDLE) {
+            table.vkDestroySwapchainKHR(context_->getDevice(), swapchain_, nullptr);
+            swapchain_ = VK_NULL_HANDLE;
+        }
+        if (surface_ != VK_NULL_HANDLE) {
+            context_->destroySurface(surface_);
+            surface_ = VK_NULL_HANDLE;
+        }
+        context_ = nullptr;
+    } else {
         renderPass_ = VK_NULL_HANDLE;
-    }
-
-    if (swapchain_ != VK_NULL_HANDLE && context_) {
-        const auto& table = VkLoader::table();
-        table.vkDestroySwapchainKHR(context_->getDevice(), swapchain_, nullptr);
         swapchain_ = VK_NULL_HANDLE;
+        surface_ = VK_NULL_HANDLE;
     }
-
-    surface_ = VK_NULL_HANDLE;
-    context_ = nullptr;
 }
 
 void VkSwapchain::cleanupSwapchain() {
@@ -200,6 +206,9 @@ bool VkSwapchain::createSwapchain(uint32_t width, uint32_t height) {
     images_.resize(imageCount);
     table.vkGetSwapchainImagesKHR(device, swapchain_, &imageCount, images_.data());
 
+    VK_VIS_LOGI("swapchain %ux%u format=%d mode=%d images=%u",
+                extent_.width, extent_.height,
+                (int)format_.format, (int)presentMode_, imageCount);
     return !images_.empty();
 }
 
@@ -423,33 +432,41 @@ bool VkSwapchain::createFramebuffers() {
     return true;
 }
 
-bool VkSwapchain::acquireNextImage(VkSemaphore signalSemaphore, uint32_t& outImageIndex, bool& outOutOfDate) {
-    outOutOfDate = false;
-    if (swapchain_ == VK_NULL_HANDLE || !context_) return false;
+VkSwapchain::AcquireResult VkSwapchain::acquireNextImage(VkSemaphore signalSemaphore, uint32_t& outImageIndex) {
+    if (swapchain_ == VK_NULL_HANDLE || !context_) return AcquireResult::Retry;
 
     const auto& table = VkLoader::table();
+    // Bounded wait: an infinite wait here wedges the render thread when the
+    // window dies mid-frame (surface teardown races a pending acquire).
+    constexpr uint64_t kAcquireTimeoutNs = 1000000000ULL;
     VkResult res = table.vkAcquireNextImageKHR(
         context_->getDevice(),
         swapchain_,
-        UINT64_MAX,
+        kAcquireTimeoutNs,
         signalSemaphore,
         VK_NULL_HANDLE,
         &outImageIndex
     );
 
-    if (res == VK_ERROR_OUT_OF_DATE_KHR) {
-        outOutOfDate = true;
-        return false;
+    switch (res) {
+        case VK_SUCCESS:
+        case VK_SUBOPTIMAL_KHR:
+            return AcquireResult::Ok;
+        case VK_TIMEOUT:
+        case VK_NOT_READY:
+            return AcquireResult::Retry;
+        case VK_ERROR_OUT_OF_DATE_KHR:
+            return AcquireResult::Retry;
+        case VK_ERROR_SURFACE_LOST_KHR:
+        case VK_ERROR_NATIVE_WINDOW_IN_USE_KHR:
+            return AcquireResult::SurfaceLost;
+        default:
+            return AcquireResult::Retry;
     }
-    if (res == VK_SUBOPTIMAL_KHR) {
-        outOutOfDate = true;
-        return true;
-    }
-    return res == VK_SUCCESS;
 }
 
-int VkSwapchain::present(VkQueue queue, uint32_t imageIndex, VkSemaphore waitSemaphore) {
-    if (swapchain_ == VK_NULL_HANDLE || !context_) return -1;
+VkSwapchain::PresentResult VkSwapchain::present(VkQueue queue, uint32_t imageIndex, VkSemaphore waitSemaphore) {
+    if (swapchain_ == VK_NULL_HANDLE || !context_) return PresentResult::Retry;
 
     const auto& table = VkLoader::table();
 
@@ -462,11 +479,13 @@ int VkSwapchain::present(VkQueue queue, uint32_t imageIndex, VkSemaphore waitSem
     presentInfo.pImageIndices = &imageIndex;
 
     VkResult res = table.vkQueuePresentKHR(queue, &presentInfo);
-    if (res == VK_SUCCESS) return 0;
+    if (res == VK_SUCCESS) return PresentResult::Ok;
     // Suboptimal still presents correctly; only a real out-of-date or error
     // justifies the waitIdle + full resource rebuild.
-    if (res == VK_SUBOPTIMAL_KHR) return 1;
-    return -1;
+    if (res == VK_SUBOPTIMAL_KHR) return PresentResult::Suboptimal;
+    if (res == VK_ERROR_OUT_OF_DATE_KHR) return PresentResult::Retry;
+    if (res == VK_ERROR_SURFACE_LOST_KHR) return PresentResult::SurfaceLost;
+    return PresentResult::Retry;
 }
 
 } // namespace silicon::vis::vk

@@ -46,7 +46,7 @@ SILICON_VIS_API const char* silicon_vis_vulkan_get_device_name(void);
 SILICON_VIS_API bool silicon_vis_init_vulkan(SiliconVisHandle handle, void* nativeWindow, uint32_t width, uint32_t height);
 SILICON_VIS_API void silicon_vis_resize_vulkan(SiliconVisHandle handle, uint32_t width, uint32_t height, float density);
 SILICON_VIS_API void silicon_vis_release_vulkan(SiliconVisHandle handle);
-SILICON_VIS_API void silicon_vis_render_vulkan(SiliconVisHandle handle);
+SILICON_VIS_API bool silicon_vis_render_vulkan(SiliconVisHandle handle);
 SILICON_VIS_API bool silicon_vis_readback_vulkan(SiliconVisHandle handle, void* outRgbaBuffer, size_t bufferSize);
 SILICON_VIS_API bool silicon_vis_take_transition_snapshot_vulkan(SiliconVisHandle handle);
 SILICON_VIS_API void silicon_vis_release_transition_snapshot_vulkan(SiliconVisHandle handle);

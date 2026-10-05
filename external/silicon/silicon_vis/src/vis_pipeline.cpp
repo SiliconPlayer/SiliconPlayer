@@ -517,8 +517,8 @@ bool SiliconVisPipeline::readbackVulkan(void* outRgbaBuffer, size_t bufferSize) 
     return vulkanPipeline_->copyPixelsToBuffer(outRgbaBuffer, bufferSize);
 }
 
-void SiliconVisPipeline::renderVulkan() {
-    if (!vulkanPipeline_ || !vulkanPipeline_->isReady()) return;
+bool SiliconVisPipeline::renderVulkan() {
+    if (!vulkanPipeline_ || !vulkanPipeline_->isReady()) return true;
 
     if (audioProvider_) {
         switch (currentMode_) {
@@ -580,12 +580,11 @@ void SiliconVisPipeline::renderVulkan() {
     }
 
     if (currentMode_ == SILICON_VIS_MODE_STARFIELD) {
-        renderStarfieldVulkan();
-        return;
+        return renderStarfieldVulkan();
     }
 
     if (!vulkanPipeline_->beginFrame()) {
-        return;
+        return !vulkanPipeline_->consumeSurfaceLost();
     }
 
     VkCommandBuffer cmd = vulkanPipeline_->getCurrentCommandBuffer();
@@ -666,11 +665,12 @@ void SiliconVisPipeline::renderVulkan() {
     }
 
     vulkanPipeline_->endFrame();
+    return !vulkanPipeline_->consumeSurfaceLost();
 }
 
-void SiliconVisPipeline::renderStarfieldVulkan() {
+bool SiliconVisPipeline::renderStarfieldVulkan() {
     if (!vulkanPipeline_->beginFrameNoPass()) {
-        return;
+        return !vulkanPipeline_->consumeSurfaceLost();
     }
 
     VkCommandBuffer cmd = vulkanPipeline_->getCurrentCommandBuffer();
@@ -717,6 +717,7 @@ void SiliconVisPipeline::renderStarfieldVulkan() {
     }
 
     vulkanPipeline_->endFrame();
+    return !vulkanPipeline_->consumeSurfaceLost();
 }
 
 bool SiliconVisPipeline::takeTransitionSnapshotVulkan() {

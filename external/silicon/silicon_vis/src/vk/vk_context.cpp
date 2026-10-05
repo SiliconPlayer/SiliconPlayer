@@ -400,20 +400,34 @@ bool VkContext::querySurfaceSupport(
 
     uint32_t formatCount = 0;
     table.vkGetPhysicalDeviceSurfaceFormatsKHR(physicalDevice_, surface, &formatCount, nullptr);
-    if (formatCount > 0) {
-        std::vector<VkSurfaceFormatKHR> formats(formatCount);
-        table.vkGetPhysicalDeviceSurfaceFormatsKHR(physicalDevice_, surface, &formatCount, formats.data());
-        outFormat = formats[0];
+    if (formatCount == 0) {
+        return false;
+    }
+    std::vector<VkSurfaceFormatKHR> formats(formatCount);
+    table.vkGetPhysicalDeviceSurfaceFormatsKHR(physicalDevice_, surface, &formatCount, formats.data());
+    // Only 8-bit RGBA-order UNORM formats: exotic surface formats (packed
+    // 10-bit, SINT/SNORM, YUV) are reported on some drivers but their
+    // swapchain images fail gralloc allocation, wedging the canvas black.
+    // UNORM (not _SRGB) matches the pipeline: shaders emit display-ready
+    // values, so an sRGB image format would double-brighten the scene.
+    const VkFormat ranked[] = {
+        VK_FORMAT_R8G8B8A8_UNORM,
+        VK_FORMAT_B8G8R8A8_UNORM,
+    };
+    bool found = false;
+    for (VkFormat want : ranked) {
         for (const auto& f : formats) {
-            if ((f.format == VK_FORMAT_R8G8B8A8_UNORM || f.format == VK_FORMAT_B8G8R8A8_UNORM) &&
-                f.colorSpace == VK_COLOR_SPACE_SRGB_NONLINEAR_KHR) {
+            if (f.format == want && f.colorSpace == VK_COLOR_SPACE_SRGB_NONLINEAR_KHR) {
                 outFormat = f;
+                found = true;
                 break;
             }
         }
-    } else {
-        outFormat.format = VK_FORMAT_R8G8B8A8_UNORM;
-        outFormat.colorSpace = VK_COLOR_SPACE_SRGB_NONLINEAR_KHR;
+        if (found) break;
+    }
+    if (!found) {
+        VK_VIS_LOGE("no allocatable surface format (count=%u first=%d)", formatCount, (int)formats[0].format);
+        return false;
     }
 
     outPresentMode = VK_PRESENT_MODE_FIFO_KHR; // Guaranteed by spec

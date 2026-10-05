@@ -2,6 +2,7 @@ package com.flopster101.siliconplayer.ui.visualization.gl
 
 import android.content.Context
 import android.graphics.SurfaceTexture
+import android.os.SystemClock
 import android.view.Surface
 import android.view.TextureView
 import androidx.compose.runtime.Composable
@@ -66,6 +67,7 @@ private class SiliconNativeVkTextureView(
     private var renderThread: SiliconNativeVkRenderThread? = null
     private var latestFrame: SiliconNativeGlFrame? = null
     private var lifecyclePaused: Boolean = false
+    private var lastSurfaceLostRestartMs = 0L
     var onFrameStats: ((fps: Int, frameMs: Int) -> Unit)? = null
 
     init {
@@ -126,7 +128,20 @@ private class SiliconNativeVkTextureView(
             density = density,
             onFrameStats = { fps, frameMs ->
                 post { onFrameStats?.invoke(fps, frameMs) }
-            }
+            },
+            onSurfaceLost = {
+                post {
+                    val now = SystemClock.uptimeMillis()
+                    if (now - lastSurfaceLostRestartMs < 1500L) return@post
+                    lastSurfaceLostRestartMs = now
+                    val texture = surfaceTexture
+                    if (!lifecyclePaused && isAvailable && texture != null) {
+                        stopRenderThread()
+                        startRenderThread(texture, width, height)
+                    }
+                }
+            },
+            ownsSurface = true
         )
         renderThread = thread
         thread.start()

@@ -87,10 +87,10 @@ void silicon_vis_release_vulkan(SiliconVisHandle handle) {
     pipeline->releaseVulkan();
 }
 
-void silicon_vis_render_vulkan(SiliconVisHandle handle) {
-    if (!handle) return;
+bool silicon_vis_render_vulkan(SiliconVisHandle handle) {
+    if (!handle) return true;
     auto* pipeline = static_cast<SiliconVisPipeline*>(handle);
-    pipeline->renderVulkan();
+    return pipeline->renderVulkan();
 }
 
 bool silicon_vis_readback_vulkan(SiliconVisHandle handle, void* outRgbaBuffer, size_t bufferSize) {

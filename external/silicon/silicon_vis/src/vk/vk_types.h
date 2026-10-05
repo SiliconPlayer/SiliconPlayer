@@ -3,6 +3,18 @@
 #include <cstdint>
 #include <cstddef>
 
+#if defined(__ANDROID__)
+#include <android/log.h>
+#define VK_VIS_LOGE(...) __android_log_print(ANDROID_LOG_ERROR, "SiliconVisVk", __VA_ARGS__)
+#define VK_VIS_LOGW(...) __android_log_print(ANDROID_LOG_WARN, "SiliconVisVk", __VA_ARGS__)
+#define VK_VIS_LOGI(...) __android_log_print(ANDROID_LOG_INFO, "SiliconVisVk", __VA_ARGS__)
+#else
+#include <cstdio>
+#define VK_VIS_LOGE(...) fprintf(stderr, "[SiliconVisVk ERROR] " __VA_ARGS__)
+#define VK_VIS_LOGW(...) fprintf(stderr, "[SiliconVisVk WARN] " __VA_ARGS__)
+#define VK_VIS_LOGI(...) fprintf(stdout, "[SiliconVisVk INFO] " __VA_ARGS__)
+#endif
+
 namespace silicon::vis::vk {
 
 enum class VulkanTier {
