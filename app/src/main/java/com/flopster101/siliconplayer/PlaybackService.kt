@@ -681,8 +681,10 @@ class PlaybackService : Service() {
     private fun pausePlayback(abandonFocus: Boolean = true) {
         // Same as play: a resume pressed while the engine stop is still queued
         // must play, not re-pause.
-        // Fail a stalled remote open first so the stop below never waits on it.
-        NativeBridge.cancelActiveSmbAvioHandles()
+        // Never cancel the SMB handles here: the paused track keeps reading
+        // its handle on resume, and a cancelled handle replays as a fake
+        // natural end (buffered audio, then a restart at 0). Stalled opens
+        // are failed by the engine abort flag inside the stop below.
         val wasPlaying = isPlaying
         isPlaying = false
         pauseSettling = true
