@@ -1,6 +1,7 @@
 #ifndef SILICONPLAYER_AUDIODECODER_H
 #define SILICONPLAYER_AUDIODECODER_H
 
+#include <atomic>
 #include <cstdint>
 #include <memory>
 #include <string>
@@ -33,6 +34,9 @@ public:
 
     virtual bool open(const char* path) = 0;
     virtual void close() = 0;
+    // Lets a stalled open fail fast when the engine moves on (stop or a
+    // superseding load). Checked from blocking IO; default ignores it.
+    virtual void setOpenAbortFlag(std::atomic<bool>* /*flag*/) {}
 
     // Reads interleaved float samples into buffer. Returns number of frames read.
     // buffer size must be at least numFrames * getChannelCount()

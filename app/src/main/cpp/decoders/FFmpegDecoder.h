@@ -2,6 +2,7 @@
 #define SILICONPLAYER_FFMPEGDECODER_H
 
 #include "AudioDecoder.h"
+#include <atomic>
 #include <vector>
 #include <mutex>
 #include <memory>
@@ -23,6 +24,8 @@ public:
 
     bool open(const char* path) override;
     void close() override;
+    void setOpenAbortFlag(std::atomic<bool>* flag) override;
+    bool openAborted() const;
     int read(float* buffer, int numFrames) override;
     void seek(double seconds) override;
     double getDuration() override;
@@ -74,6 +77,9 @@ public:
 
 private:
     AVFormatContext* formatContext = nullptr;
+    // Engine-owned; set for the duration of open() so a stop or a
+    // superseding load can fail a stalled network open fast.
+    std::atomic<std::atomic<bool>*> openAbortFlag { nullptr };
     AVCodecContext* codecContext = nullptr;
     SwrContext* swrContext = nullptr;
     int audioStreamIndex = -1;

@@ -286,6 +286,23 @@ bool isHttpRequestPath(const char* path) {
 }
 }
 
+namespace {
+int ffmpegOpenInterruptCallback(void* opaque) {
+    auto* self = static_cast<FFmpegDecoder*>(opaque);
+    return (self != nullptr && self->openAborted()) ? 1 : 0;
+}
+}
+
+void FFmpegDecoder::setOpenAbortFlag(std::atomic<bool>* flag) {
+    openAbortFlag.store(flag, std::memory_order_release);
+}
+
+bool FFmpegDecoder::openAborted() const {
+    const std::atomic<bool>* flag =
+        openAbortFlag.load(std::memory_order_acquire);
+    return flag != nullptr && flag->load(std::memory_order_relaxed);
+}
+
 FFmpegDecoder::FFmpegDecoder() {
     packet = av_packet_alloc();
     frame = av_frame_alloc();
@@ -314,7 +331,21 @@ bool FFmpegDecoder::openLocked(const char* path) {
             return false;
         }
     } else {
-        const int openResult = avformat_open_input(&formatContext, path, nullptr, nullptr);
+        formatContext = avformat_alloc_context();
+        if (formatContext == nullptr) {
+            LOGE("Failed to allocate format context for: %s", path);
+            close();
+            return false;
+        }
+        formatContext->interrupt_callback.callback = ffmpegOpenInterruptCallback;
+        formatContext->interrupt_callback.opaque = this;
+        AVDictionary* openOptions = nullptr;
+        if (isHttpRequestPath(path)) {
+            av_dict_set(&openOptions, "timeout", "15000000", 0);
+        }
+        const int openResult =
+            avformat_open_input(&formatContext, path, nullptr, &openOptions);
+        av_dict_free(&openOptions);
         if (openResult != 0) {
             char errbuf[AV_ERROR_MAX_STRING_SIZE] = {0};
             av_strerror(openResult, errbuf, sizeof(errbuf));
@@ -632,6 +663,8 @@ bool FFmpegDecoder::openSmbCustomIoLocked(const char* path) {
 
     formatContext->pb = avioContext;
     formatContext->flags |= AVFMT_FLAG_CUSTOM_IO;
+    formatContext->interrupt_callback.callback = ffmpegOpenInterruptCallback;
+    formatContext->interrupt_callback.opaque = this;
     const int openResult = avformat_open_input(&formatContext, nullptr, nullptr, nullptr);
     if (openResult < 0) {
         LOGE(

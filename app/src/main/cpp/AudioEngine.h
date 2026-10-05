@@ -384,7 +384,16 @@ private:
     // True while setUrl() is inside a decoder open: the open can stall
     // without bound (network reads, foreign-format probes), so stop /
     // release / start must flag instead of blocking on lifecycleMutex.
-    std::atomic<bool> decoderOpenInProgress { false };
+    // Count of setUrl calls inside the open (holder plus queued): a plain
+    // bool lets an older generation's exit clear a newer one's mark.
+    std::atomic<int> decoderOpenCount { 0 };
+    // Wakes decoder IO that has no usable timeout of its own: the
+    // stalled open, and later blocking reads (the seek-skip loop on a
+    // dead stream) that setUrl/release wait on. Stamped by stop/release
+    // or a superseding setUrl; armed for the installed decoder's whole
+    // life via setOpenAbortFlag, cleared at decoder teardown.
+    std::mutex openAbortMutex;
+    std::atomic<bool> openAbortFlag { false };
     // Bumped on every setUrl entry; stop/release stamp the current value to
     // abort it. The open path discards its result when it finally returns.
     std::atomic<uint64_t> loadGeneration { 0 };
