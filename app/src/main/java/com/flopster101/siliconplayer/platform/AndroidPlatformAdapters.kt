@@ -471,15 +471,20 @@ fun ProvideAndroidPlatformAdapters(
             override fun peek(cacheKey: String?) = com.flopster101.siliconplayer.peekRecentArtworkThumbnail(context, cacheKey)
             override suspend fun load(cacheKey: String?): androidx.compose.ui.graphics.ImageBitmap? {
                 if (cacheKey == null) return null
-                val file = java.io.File(cacheKey)
-                if (file.exists() && file.isFile) {
-                    val previewKind = com.flopster101.siliconplayer.detectFilePreviewKind(file.name)
-                    if (previewKind == com.flopster101.siliconplayer.FilePreviewKind.Image) {
-                        return android.graphics.BitmapFactory.decodeFile(file.absolutePath)?.asImageBitmap()
+                // Memory hit stays on the caller; every path below does
+                // blocking file IO and bitmap decodes.
+                com.flopster101.siliconplayer.peekRecentArtworkThumbnail(context, cacheKey)?.let { return it }
+                return kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                    val file = java.io.File(cacheKey)
+                    if (file.exists() && file.isFile) {
+                        val previewKind = com.flopster101.siliconplayer.detectFilePreviewKind(file.name)
+                        if (previewKind == com.flopster101.siliconplayer.FilePreviewKind.Image) {
+                            return@withContext android.graphics.BitmapFactory.decodeFile(file.absolutePath)?.asImageBitmap()
+                        }
+                        return@withContext com.flopster101.siliconplayer.resolveLocalBrowserThumbnailPreview(context, file)
                     }
-                    return com.flopster101.siliconplayer.resolveLocalBrowserThumbnailPreview(context, file)
+                    com.flopster101.siliconplayer.loadRecentArtworkThumbnail(context, cacheKey)
                 }
-                return com.flopster101.siliconplayer.loadRecentArtworkThumbnail(context, cacheKey)
             }
             override val revision = com.flopster101.siliconplayer.recentArtworkCacheRevision
         }

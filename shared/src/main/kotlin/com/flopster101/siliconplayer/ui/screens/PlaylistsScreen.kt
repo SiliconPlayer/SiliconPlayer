@@ -6817,12 +6817,16 @@ internal fun PlaylistCoverArt(
             value = emptyList()
             return@produceState
         }
-        value = resolvePlaylistCoverArtworks(
-            artworkCache = artworkCache,
-            entries = entries,
-            maxCount = 4,
-            preferLarge = isLarge
-        )
+        // Cover assembly misses the disk cache and downloads art; keep it
+        // off the UI thread.
+        value = withContext(Dispatchers.IO) {
+            resolvePlaylistCoverArtworks(
+                artworkCache = artworkCache,
+                entries = entries,
+                maxCount = 4,
+                preferLarge = isLarge
+            )
+        }
     }.value
 
     val commonIcon = resolveCommonPlaylistFormatIcon(entries)

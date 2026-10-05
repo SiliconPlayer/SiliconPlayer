@@ -950,11 +950,16 @@ internal fun FileBrowserScreen(
         }
         when (browserPreviewKindForName(item.name)) {
             FilePreviewKind.Text -> {
-                val textPreviewContent = readTextPreviewContent(item.file)
-                if (textPreviewContent != null) {
-                    textPreviewDialogState = item.name to textPreviewContent
-                } else {
-                    toastHandler.showToast("Unable to preview text file")
+                // Up to 512 KB of disk read plus decoding; never on the tap.
+                coroutineScope.launch {
+                    val textPreviewContent = withContext(Dispatchers.IO) {
+                        readTextPreviewContent(item.file)
+                    }
+                    if (textPreviewContent != null) {
+                        textPreviewDialogState = item.name to textPreviewContent
+                    } else {
+                        toastHandler.showToast("Unable to preview text file")
+                    }
                 }
                 return
             }
