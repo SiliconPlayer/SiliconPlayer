@@ -345,6 +345,7 @@ class DesktopPlaybackSession(
     }
 
     fun pause() {
+        NativeBridge.cancelActiveSmbAvioHandles()
         if (fadePauseResume && positionSeconds > 0.05) {
             NativeBridge.stopEngineWithPauseResumeFadeNative()
         } else {
@@ -364,6 +365,7 @@ class DesktopPlaybackSession(
     fun canResume(): Boolean = currentFile != null || stoppedSource != null
 
     fun stop() {
+        NativeBridge.cancelActiveSmbAvioHandles()
         NativeBridge.stopEngineNative()
         NativeBridge.releaseCurrentDecoder()
         if (currentSource != null) {

@@ -381,6 +381,18 @@ private:
     // Serializes stop/setUrl/start so a follow-up setUrl/start cannot
     // race the detached stopEngine thread and have its prefill cleared.
     std::mutex lifecycleMutex;
+    // True while setUrl() is inside a decoder open: the open can stall
+    // without bound (network reads, foreign-format probes), so stop /
+    // release / start must flag instead of blocking on lifecycleMutex.
+    std::atomic<bool> decoderOpenInProgress { false };
+    // Bumped on every setUrl entry; stop/release stamp the current value to
+    // abort it. The open path discards its result when it finally returns.
+    std::atomic<uint64_t> loadGeneration { 0 };
+    std::atomic<uint64_t> abortLoadGeneration { 0 };
+    // Play pressed while an open holds the mutex; honored post-install.
+    std::atomic<bool> startRequestedDuringLoad { false };
+    // Lock-free part of stop() shared with the open-in-flight fast path.
+    void silenceForAbortDuringLoad();
     // Guards ma_device init/uninit/start/stop; held inside close/create/start
     // so short device ops (seek worker, repeat-mode stops) cannot interleave
     // with a concurrent teardown without taking lifecycleMutex.

@@ -60,7 +60,14 @@ namespace {
 }
 
 bool AudioEngine::start() {
-    std::lock_guard<std::mutex> lifecycleLock(lifecycleMutex);
+    std::unique_lock<std::mutex> lifecycleLock(lifecycleMutex, std::try_to_lock);
+    if (!lifecycleLock.owns_lock()) {
+        if (decoderOpenInProgress.load(std::memory_order_acquire)) {
+            startRequestedDuringLoad.store(true, std::memory_order_relaxed);
+            return true;
+        }
+        lifecycleLock = std::unique_lock<std::mutex>(lifecycleMutex);
+    }
     {
         std::lock_guard<std::mutex> lock(decoderMutex);
         if (!decoder) {
@@ -259,8 +266,37 @@ void AudioEngine::setChannelScopeVisualizerActive(bool active) {
     }
 }
 
+void AudioEngine::silenceForAbortDuringLoad() {
+    playbackStreamStarted.store(false, std::memory_order_release);
+    pendingPauseFadeRequest.store(false, std::memory_order_relaxed);
+    pendingResumeFadeOnStart.store(false, std::memory_order_relaxed);
+    refreshPausedStreamOnNextStart.store(true, std::memory_order_relaxed);
+    isPlaying.store(false);
+    naturalEndPending.store(false);
+    clearRenderQueue();
+    renderWorkerCv.notify_all();
+    {
+        std::lock_guard<std::mutex> lock(seekWorkerMutex);
+        seekAbortRequested.store(true);
+        seekRequestPending = false;
+    }
+    seekWorkerCv.notify_one();
+}
+
 void AudioEngine::stop() {
-    std::lock_guard<std::mutex> lifecycleLock(lifecycleMutex);
+    std::unique_lock<std::mutex> lifecycleLock(lifecycleMutex, std::try_to_lock);
+    if (!lifecycleLock.owns_lock()) {
+        if (decoderOpenInProgress.load(std::memory_order_acquire)) {
+            // A decoder open owns the mutex and can stall without bound.
+            // Flag it for teardown on completion; silence now, return now.
+            abortLoadGeneration.store(loadGeneration.load(std::memory_order_relaxed),
+                                      std::memory_order_relaxed);
+            startRequestedDuringLoad.store(false, std::memory_order_relaxed);
+            silenceForAbortDuringLoad();
+            return;
+        }
+        lifecycleLock = std::unique_lock<std::mutex>(lifecycleMutex);
+    }
     playbackStreamStarted.store(false, std::memory_order_release);
     pendingPauseFadeRequest.store(false, std::memory_order_relaxed);
     pendingResumeFadeOnStart.store(false, std::memory_order_relaxed);
@@ -315,6 +351,13 @@ void AudioEngine::stopWithPauseResumeFade(int durationMs, float attenuationDb) {
 }
 
 void AudioEngine::releaseCurrentDecoder() {
+    if (decoderOpenInProgress.load(std::memory_order_acquire)) {
+        abortLoadGeneration.store(loadGeneration.load(std::memory_order_relaxed),
+                                  std::memory_order_relaxed);
+        startRequestedDuringLoad.store(false, std::memory_order_relaxed);
+        silenceForAbortDuringLoad();
+        return;
+    }
     std::lock_guard<std::mutex> lifecycleLock(lifecycleMutex);
     if (seekInProgress.load()) {
         decoderSerial.fetch_add(1);
@@ -373,7 +416,9 @@ void AudioEngine::stopOutputStreamLocked() {
 }
 
 void AudioEngine::setUrl(const char* url, const char* forcedDecoder) {
-    std::lock_guard<std::mutex> lifecycleLock(lifecycleMutex);
+    const uint64_t myGeneration = loadGeneration.fetch_add(1, std::memory_order_relaxed) + 1;
+    decoderOpenInProgress.store(true, std::memory_order_release);
+    std::unique_lock<std::mutex> lifecycleLock(lifecycleMutex);
     LOGD("URL set to: %s", url);
     std::string previousDecoderName;
 
@@ -457,7 +502,18 @@ void AudioEngine::setUrl(const char* url, const char* forcedDecoder) {
         }
         if (!newDecoder->open(url)) {
             LOGE("Failed to open file: %s", url);
+            startRequestedDuringLoad.store(false, std::memory_order_relaxed);
             stopOutputStreamLocked();
+            decoderOpenInProgress.store(false, std::memory_order_release);
+            return;
+        }
+        if (abortLoadGeneration.load(std::memory_order_relaxed) >= myGeneration) {
+            // Stopped or released while the open was stalled: drop the fresh
+            // decoder instead of installing it, then run the deferred stop.
+            startRequestedDuringLoad.store(false, std::memory_order_relaxed);
+            newDecoder->close();
+            stopOutputStreamLocked();
+            decoderOpenInProgress.store(false, std::memory_order_release);
             return;
         }
         std::lock_guard<std::mutex> lock(decoderMutex);
@@ -487,6 +543,18 @@ void AudioEngine::setUrl(const char* url, const char* forcedDecoder) {
         fastTrackSwitchStartupHint.store(false, std::memory_order_relaxed);
         LOGE("Failed to create decoder for file: %s", url);
         stopOutputStreamLocked();
+    }
+    const bool shouldStart = startRequestedDuringLoad.exchange(false, std::memory_order_relaxed);
+    const bool loadAborted = abortLoadGeneration.load(std::memory_order_relaxed) >= myGeneration;
+    if (loadAborted) {
+        // Stop/release landed after the install: run its deferred teardown.
+        stopOutputStreamLocked();
+    }
+    decoderOpenInProgress.store(false, std::memory_order_release);
+    lifecycleLock.unlock();
+    if (shouldStart && !loadAborted) {
+        // Play was pressed while this open held the mutex.
+        start();
     }
 }
 
