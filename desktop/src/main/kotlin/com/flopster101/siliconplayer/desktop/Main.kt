@@ -1587,15 +1587,21 @@ fun main(args: Array<String>) = application {
                         }
                     }
                     session.preferredRepeatMode = preferredRepeatMode
-                    if (session.loadFile(file, autoStart = false)) {
+                    // Decoder open can grind (large modules, archives):
+                    // never on first composition.
+                    val restoreLoaded = withContext(Dispatchers.IO) {
+                        session.loadFile(file, autoStart = false)
+                    }
+                    if (restoreLoaded) {
                         val subtune = activePlaylist?.entries
                             ?.firstOrNull { it.id == activePlaylistEntryId }
                             ?.subtuneIndex
                         if (subtune != null && subtune in 0 until session.subtuneCount) {
-                            session.selectSubtune(subtune)
+                            withContext(Dispatchers.IO) { session.selectSubtune(subtune) }
                         }
                         if (snapshot.hasValidPosition() && session.canSeek) {
-                            session.seekTo(snapshot.positionSeconds)
+                            val restorePosition = snapshot.positionSeconds
+                            withContext(Dispatchers.IO) { session.seekTo(restorePosition) }
                         }
                         registerLoadedFile(file)
                         isPlayerSurfaceVisible = true
