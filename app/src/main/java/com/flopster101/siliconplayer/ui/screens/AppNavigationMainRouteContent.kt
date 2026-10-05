@@ -26,6 +26,7 @@ internal fun AppNavigationHomeContentSection(
     context: Context,
     prefs: SharedPreferences,
     currentTrackPath: String?,
+    currentTrackSubtuneIndex: Int? = null,
     metadataTitle: String,
     metadataArtist: String,
     isPlaying: Boolean,
@@ -63,8 +64,11 @@ internal fun AppNavigationHomeContentSection(
         AppPreferenceKeys.BROWSER_SHOW_HIDDEN_FILES_AND_FOLDERS,
         AppDefaults.Browser.showHiddenFilesAndFolders
     )
+    val recentRowsPerSubtune = prefs.getBoolean(AppPreferenceKeys.RECENTS_PER_SUBTUNE_ROWS, false)
     AppNavigationHomeRouteSection(
         mainPadding = mainPadding,
+        recentRowsPerSubtune = recentRowsPerSubtune,
+        currentTrackSubtuneIndex = currentTrackSubtuneIndex,
         onOpenPlayerSurface = onOpenPlayerSurface,
         onOpenSettings = onOpenSettings,
         onOpenUrlOrPath = onOpenUrlOrPath,
@@ -252,6 +256,7 @@ internal fun AppNavigationHomeContentSection(
         onPersistRecentFileMetadata = { entry, title, artist ->
             if (!isPlaying) return@AppNavigationHomeRouteSection
             val decoderName = NativeBridge.getCurrentDecoderName().trim().takeIf { it.isNotEmpty() }
+            val perSubtuneRows = prefs.getBoolean(AppPreferenceKeys.RECENTS_PER_SUBTUNE_ROWS, false)
             val updatedRecentPlayed = buildUpdatedRecentPlayedTracks(
                 current = recentPlayedFiles,
                 newPath = entry.path,
@@ -261,6 +266,7 @@ internal fun AppNavigationHomeContentSection(
                 artist = artist,
                 decoderName = decoderName,
                 isPlaylist = entry.isPlaylist,
+                perSubtuneRows = perSubtuneRows,
                 clearBlankMetadataOnUpdate = true,
                 limit = recentFilesLimit
             )
@@ -269,7 +275,8 @@ internal fun AppNavigationHomeContentSection(
                 prefs,
                 AppPreferenceKeys.RECENT_PLAYED_FILES,
                 updatedRecentPlayed,
-                recentFilesLimit
+                recentFilesLimit,
+                perSubtuneRows
             )
         },
         onRecentFolderAction = { entry, action ->

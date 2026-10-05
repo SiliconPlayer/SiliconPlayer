@@ -168,6 +168,7 @@ import com.flopster101.siliconplayer.audio.writeGlobalDspSettings
 import com.flopster101.siliconplayer.fileMatchesSupportedExtensions
 import com.flopster101.siliconplayer.playlistContainsTrack
 import com.flopster101.siliconplayer.samePath
+import com.flopster101.siliconplayer.sameRecentTrack
 import com.flopster101.siliconplayer.shouldRestartCurrentTrackOnPrevious
 import com.flopster101.siliconplayer.toPlaylistTrackEntry
 import com.flopster101.siliconplayer.readPinnedHomeEntries
@@ -450,6 +451,8 @@ fun main(args: Array<String>) = application {
 
     val recentFiles = remember { mutableStateListOf<RecentPathEntry>() }
     val recentFolders = remember { mutableStateListOf<RecentPathEntry>() }
+    // Synced from prefs in the prefs listener below; read at use time in the recents writers.
+    var perSubtuneRecentRows by remember { mutableStateOf(false) }
     val pinnedEntries = remember { mutableStateListOf<HomePinnedEntry>() }
     // Assigned once the platform artwork support is available below; persists the
     // shared recent-artwork thumbnail for a played source, mirroring Android's
@@ -486,7 +489,11 @@ fun main(args: Array<String>) = application {
             artworkThumbnailCacheKey = recentArtworkCacheKeyForSource(identity) ?: identity,
             subtuneIndex = session.subtuneIndex.takeIf { session.subtuneCount > 1 }
         )
-        recentFiles.removeAll { it.path == identity }
+        val rowSubtune = entry.subtuneIndex
+        recentFiles.removeAll {
+            if (perSubtuneRecentRows) sameRecentTrack(it.path, it.subtuneIndex, identity, rowSubtune)
+            else it.path == identity
+        }
         recentFiles.add(0, entry)
         while (recentFiles.size > recentFilesLimit) {
             recentFiles.removeLast()
@@ -512,10 +519,13 @@ fun main(args: Array<String>) = application {
     fun recordSubtuneSwitchInRecents() {
         val switchedFile = session.currentFile ?: return
         val switchedIdentity = session.currentSourceId ?: switchedFile.absolutePath
-        val idx = recentFiles.indexOfFirst { it.path == switchedIdentity }
+        val subtune = session.subtuneIndex.takeIf { session.subtuneCount > 1 }
+        val idx = recentFiles.indexOfFirst {
+            if (perSubtuneRecentRows) sameRecentTrack(it.path, it.subtuneIndex, switchedIdentity, subtune)
+            else it.path == switchedIdentity
+        }
         if (idx >= 0) {
-            recentFiles[idx] = recentFiles[idx]
-                .copy(subtuneIndex = session.subtuneIndex.takeIf { session.subtuneCount > 1 })
+            recentFiles[idx] = recentFiles[idx].copy(subtuneIndex = subtune)
             recentFiles.add(0, recentFiles.removeAt(idx))
         } else {
             registerLoadedFile(switchedFile)
@@ -550,7 +560,11 @@ fun main(args: Array<String>) = application {
                 artworkThumbnailCacheKey = recentArtworkCacheKeyForSource(identity) ?: identity,
                 subtuneIndex = session.subtuneIndex.takeIf { session.subtuneCount > 1 }
             )
-            recentFiles.removeAll { it.path == identity }
+            val rowSubtune = entry.subtuneIndex
+            recentFiles.removeAll {
+                if (perSubtuneRecentRows) sameRecentTrack(it.path, it.subtuneIndex, identity, rowSubtune)
+                else it.path == identity
+            }
             recentFiles.add(0, entry)
             while (recentFiles.size > recentFilesLimit) {
                 recentFiles.removeLast()
@@ -757,7 +771,11 @@ fun main(args: Array<String>) = application {
             val configDir = LocalAppConfigDir.current
             var prefToken by remember { mutableIntStateOf(0) }
             DisposableEffect(prefs) {
-                val listener = AppPreferences.OnChangeListener { _, _ -> prefToken++ }
+                val listener = AppPreferences.OnChangeListener { _, _ ->
+                    prefToken++
+                    perSubtuneRecentRows = prefs.getBoolean(AppPreferenceKeys.RECENTS_PER_SUBTUNE_ROWS, false)
+                }
+                perSubtuneRecentRows = prefs.getBoolean(AppPreferenceKeys.RECENTS_PER_SUBTUNE_ROWS, false)
                 prefs.addListener(listener)
                 onDispose { prefs.removeListener(listener) }
             }
@@ -959,7 +977,11 @@ fun main(args: Array<String>) = application {
                     artworkThumbnailCacheKey = recentArtworkCacheKeyForSource(source) ?: source,
                     subtuneIndex = session.subtuneIndex.takeIf { session.subtuneCount > 1 }
                 )
-                recentFiles.removeAll { it.path == source }
+                val rowSubtune = entry.subtuneIndex
+                recentFiles.removeAll {
+                    if (perSubtuneRecentRows) sameRecentTrack(it.path, it.subtuneIndex, source, rowSubtune)
+                    else it.path == source
+                }
                 recentFiles.add(0, entry)
                 while (recentFiles.size > recentFilesLimit) {
                     recentFiles.removeLast()
@@ -1657,7 +1679,13 @@ fun main(args: Array<String>) = application {
                         recentFolders.clear()
                         recentFolders.addAll(stored)
                     }
-                readRecentEntries(configDir, AppPreferenceKeys.RECENT_PLAYED_FILES, recentFilesLimit, prefs)
+                readRecentEntries(
+                    configDir,
+                    AppPreferenceKeys.RECENT_PLAYED_FILES,
+                    recentFilesLimit,
+                    prefs,
+                    prefs.getBoolean(AppPreferenceKeys.RECENTS_PER_SUBTUNE_ROWS, false)
+                )
                     .takeIf { it.isNotEmpty() }?.let { stored ->
                         recentFiles.clear()
                         recentFiles.addAll(stored)
@@ -1667,11 +1695,33 @@ fun main(args: Array<String>) = application {
                         pinnedEntries.clear()
                         pinnedEntries.addAll(stored)
                     }
+            }
+            // Track every playing-subtune change (transport, queue advance,
+            // engine auto-advance, restore), not just recents-initiated opens.
+            LaunchedEffect(
+                session.currentSourceId,
+                session.currentFile,
+                session.subtuneIndex,
+                session.subtuneCount,
+                perSubtuneRecentRows
+            ) {
+                if (session.currentFile == null || session.currentSourceId == null || session.subtuneCount <= 1) {
+                    return@LaunchedEffect
+                }
+                recordSubtuneSwitchInRecents()
+            }
+            LaunchedEffect(perSubtuneRecentRows, recentFilesLimit, recentFoldersLimit) {
                 snapshotFlow { Triple(recentFiles.toList(), recentFolders.toList(), pinnedEntries.toList()) }
                     .distinctUntilChanged()
                     .collect { (files, folders, pinned) ->
                         writeRecentEntries(configDir, AppPreferenceKeys.RECENT_FOLDERS, folders, recentFoldersLimit)
-                        writeRecentEntries(configDir, AppPreferenceKeys.RECENT_PLAYED_FILES, files, recentFilesLimit)
+                        writeRecentEntries(
+                            configDir,
+                            AppPreferenceKeys.RECENT_PLAYED_FILES,
+                            files,
+                            recentFilesLimit,
+                            perSubtuneRecentRows
+                        )
                         writePinnedHomeEntries(configDir, pinned)
                     }
             }
@@ -1955,6 +2005,8 @@ fun main(args: Array<String>) = application {
                                     MainView.Home -> {
                                         HomeScreen(
                                             currentTrackPath = session.currentSourceId,
+                                            recentRowsPerSubtune = perSubtuneRecentRows,
+                                            currentTrackSubtuneIndex = session.subtuneIndex.takeIf { session.subtuneCount > 1 },
                                             currentTrackTitle = session.title,
                                             currentTrackArtist = session.artist,
                                             pinnedHomeEntries = pinnedEntries,
@@ -2059,7 +2111,13 @@ fun main(args: Array<String>) = application {
                                                 }
                                             },
                                             onPersistRecentFileMetadata = { entry, title, artist ->
-                                                val idx = recentFiles.indexOfFirst { it.path == entry.path }
+                                                val idx = recentFiles.indexOfFirst {
+                                                    if (perSubtuneRecentRows) {
+                                                        sameRecentTrack(it.path, it.subtuneIndex, entry.path, entry.subtuneIndex)
+                                                    } else {
+                                                        it.path == entry.path
+                                                    }
+                                                }
                                                 if (idx >= 0) {
                                                     recentFiles[idx] = recentFiles[idx].copy(title = title, artist = artist)
                                                 }

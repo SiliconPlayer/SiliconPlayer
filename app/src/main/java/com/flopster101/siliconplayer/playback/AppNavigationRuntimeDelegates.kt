@@ -56,6 +56,7 @@ internal fun buildAppNavigationRuntimeDelegates(
         val currentDecoderName = NativeBridge.getCurrentDecoderName().trim().takeIf { it.isNotEmpty() }
         val subtuneCount = NativeBridge.getSubtuneCount()
         val subtuneIndex = NativeBridge.getCurrentSubtuneIndex().takeIf { subtuneCount > 1 && it in 0 until subtuneCount }
+        val perSubtuneRows = prefs.getBoolean(AppPreferenceKeys.RECENTS_PER_SUBTUNE_ROWS, false)
         addRecentPlayedTrackAction(
             context = context,
             appScope = appScope,
@@ -69,6 +70,7 @@ internal fun buildAppNavigationRuntimeDelegates(
             isPlaylist = isPlaylist,
             playlistSourceHint = playlistSourceHint,
             subtuneIndex = subtuneIndex,
+            perSubtuneRows = perSubtuneRows,
             limitProvider = recentFilesLimitProvider,
             onRecentPlayedChanged = onRecentPlayedChanged,
             prefs = prefs

@@ -135,6 +135,33 @@ class DesktopDomainStorageTest {
     }
 
     @Test
+    fun recentsKeepSeparateRowsPerSubtuneWhenEnabled() {
+        val dir = tempDir()
+        val key = AppPreferenceKeys.RECENT_PLAYED_FILES
+        val entries = listOf(
+            RecentPathEntry(path = "/music/song.ftm", locationId = null, title = "Song 2", subtuneIndex = 1),
+            RecentPathEntry(path = "/music/song.ftm", locationId = null, title = "Song 1", subtuneIndex = 0)
+        )
+        writeRecentEntries(dir, key, entries, 20, perSubtuneRows = true)
+        val loaded = readRecentEntries(dir, key, 20, perSubtuneRows = true)
+        assertEquals(2, loaded.size)
+        assertEquals(1, loaded[0].subtuneIndex)
+        assertEquals(0, loaded[1].subtuneIndex)
+
+        // Reading with rows collapsed merges back to the newest subtune.
+        assertEquals(1, readRecentEntries(dir, key, 20).size)
+    }
+
+    @Test
+    fun sameRecentTrackTreatsMissingIndexAsFirstSubtune() {
+        assertTrue(sameRecentTrack("/music/song.ftm", null, "/music/song.ftm", 0))
+        assertTrue(sameRecentTrack("/music/song.ftm", 0, "/music/song.ftm", null))
+        assertTrue(sameRecentTrack("/music/song.ftm", 2, "/music/song.ftm", 2))
+        assertTrue(!sameRecentTrack("/music/song.ftm", 0, "/music/song.ftm", 1))
+        assertTrue(!sameRecentTrack("/music/a.ftm", 0, "/music/b.ftm", 0))
+    }
+
+    @Test
     fun recentsMigrateFromLegacyPrefsOnce() {
         val dir = tempDir()
         val prefs = FakePrefs()

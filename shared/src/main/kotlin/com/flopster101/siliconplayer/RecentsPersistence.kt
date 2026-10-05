@@ -8,24 +8,26 @@ import org.json.JSONObject
 internal fun readRecentEntries(
     prefs: AppPreferences,
     key: String,
-    maxItems: Int
+    maxItems: Int,
+    perSubtuneRows: Boolean = false
 ): List<RecentPathEntry> {
-    return decodeRecentEntries(prefs.getString(key, null), maxItems)
+    return decodeRecentEntries(prefs.getString(key, null), maxItems, perSubtuneRows)
 }
 
 internal fun readRecentEntries(
     configDir: File,
     key: String,
     maxItems: Int,
-    legacyPrefs: AppPreferences? = null
+    legacyPrefs: AppPreferences? = null,
+    perSubtuneRows: Boolean = false
 ): List<RecentPathEntry> {
     val file = domainFileForKey(configDir, key)
     firstParsableJson(readCandidateTexts(file), isObject = false)?.let { raw ->
         clearLegacyDomainKey(legacyPrefs, key)
-        return decodeRecentEntries(raw, maxItems)
+        return decodeRecentEntries(raw, maxItems, perSubtuneRows)
     }
     if (legacyPrefs != null && legacyPrefs.contains(key)) {
-        val migrated = decodeRecentEntries(legacyPrefs.getString(key, null), maxItems)
+        val migrated = decodeRecentEntries(legacyPrefs.getString(key, null), maxItems, perSubtuneRows)
         writeTextAtomic(file, encodeRecentEntries(migrated, maxItems))
         clearLegacyDomainKey(legacyPrefs, key)
         return migrated
@@ -35,7 +37,8 @@ internal fun readRecentEntries(
 
 internal fun decodeRecentEntries(
     raw: String?,
-    maxItems: Int
+    maxItems: Int,
+    perSubtuneRows: Boolean = false
 ): List<RecentPathEntry> {
     val normalized = raw?.trim().takeUnless { it.isNullOrBlank() } ?: return emptyList()
     return try {
@@ -65,7 +68,10 @@ internal fun decodeRecentEntries(
             } else {
                 null
             }
-            val existingIndex = deduped.indexOfFirst { samePath(it.path, path) }
+            val existingIndex = deduped.indexOfFirst {
+                if (perSubtuneRows) sameRecentTrack(it.path, it.subtuneIndex, path, subtuneIndex)
+                else samePath(it.path, path)
+            }
             if (existingIndex >= 0) {
                 val existing = deduped[existingIndex]
                 deduped[existingIndex] = existing.copy(
@@ -262,11 +268,15 @@ internal fun writePinnedHomeEntries(
 
 internal fun encodeRecentEntries(
     entries: List<RecentPathEntry>,
-    maxItems: Int
+    maxItems: Int,
+    perSubtuneRows: Boolean = false
 ): String {
     val deduped = mutableListOf<RecentPathEntry>()
     entries.forEach { entry ->
-        val existingIndex = deduped.indexOfFirst { samePath(it.path, entry.path) }
+        val existingIndex = deduped.indexOfFirst {
+            if (perSubtuneRows) sameRecentTrack(it.path, it.subtuneIndex, entry.path, entry.subtuneIndex)
+            else samePath(it.path, entry.path)
+        }
         if (existingIndex >= 0) {
             val existing = deduped[existingIndex]
             deduped[existingIndex] = existing.copy(
@@ -308,18 +318,20 @@ internal fun writeRecentEntries(
     prefs: AppPreferences,
     key: String,
     entries: List<RecentPathEntry>,
-    maxItems: Int
+    maxItems: Int,
+    perSubtuneRows: Boolean = false
 ) {
-    prefs.edit().putString(key, encodeRecentEntries(entries, maxItems)).apply()
+    prefs.edit().putString(key, encodeRecentEntries(entries, maxItems, perSubtuneRows)).apply()
 }
 
 internal fun writeRecentEntries(
     configDir: File,
     key: String,
     entries: List<RecentPathEntry>,
-    maxItems: Int
+    maxItems: Int,
+    perSubtuneRows: Boolean = false
 ) {
-    writeTextAtomic(domainFileForKey(configDir, key), encodeRecentEntries(entries, maxItems))
+    writeTextAtomic(domainFileForKey(configDir, key), encodeRecentEntries(entries, maxItems, perSubtuneRows))
 }
 
 internal fun clearLegacyDomainKey(prefs: AppPreferences?, key: String) {

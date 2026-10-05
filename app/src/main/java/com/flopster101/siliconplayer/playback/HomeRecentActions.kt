@@ -202,7 +202,8 @@ internal fun applyRecentSourceAction(
                 prefs,
                 AppPreferenceKeys.RECENT_PLAYED_FILES,
                 updated,
-                recentFilesLimit
+                recentFilesLimit,
+                prefs.getBoolean(AppPreferenceKeys.RECENTS_PER_SUBTUNE_ROWS, false)
             )
             Toast.makeText(context, "Removed from recents", Toast.LENGTH_SHORT).show()
         }

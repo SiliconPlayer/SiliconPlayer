@@ -110,6 +110,7 @@ internal fun addRecentPlayedTrackAction(
     isPlaylist: Boolean = false,
     playlistSourceHint: String? = null,
     subtuneIndex: Int? = null,
+    perSubtuneRows: Boolean = false,
     limitProvider: () -> Int,
     onRecentPlayedChanged: (List<RecentPathEntry>) -> Unit,
     prefs: SharedPreferences
@@ -127,10 +128,11 @@ internal fun addRecentPlayedTrackAction(
         isPlaylist = isPlaylist,
         playlistSourceHint = playlistSourceHint,
         subtuneIndex = subtuneIndex,
+        perSubtuneRows = perSubtuneRows,
         limit = limit,
         update = onRecentPlayedChanged,
         write = { entries, max ->
-            writeRecentEntries(prefs, AppPreferenceKeys.RECENT_PLAYED_FILES, entries, max)
+            writeRecentEntries(prefs, AppPreferenceKeys.RECENT_PLAYED_FILES, entries, max, perSubtuneRows)
         }
     )
     if (!isPlaylist) {
@@ -143,7 +145,7 @@ internal fun addRecentPlayedTrackAction(
             limitProvider = limitProvider,
             onRecentPlayedChanged = onRecentPlayedChanged,
             writeRecentPlayed = { entries, max ->
-                writeRecentEntries(prefs, AppPreferenceKeys.RECENT_PLAYED_FILES, entries, max)
+                writeRecentEntries(prefs, AppPreferenceKeys.RECENT_PLAYED_FILES, entries, max, perSubtuneRows)
             }
         )
     }

@@ -28,6 +28,8 @@ import java.io.File
 @Composable
 internal fun MainHomeRouteHost(
     mainPadding: PaddingValues,
+    recentRowsPerSubtune: Boolean,
+    currentTrackSubtuneIndex: Int? = null,
     currentTrackPath: String?,
     currentTrackTitle: String,
     currentTrackArtist: String,
@@ -68,6 +70,8 @@ internal fun MainHomeRouteHost(
     Box(modifier = Modifier.padding(mainPadding)) {
         HomeScreen(
             currentTrackPath = currentTrackPath,
+            recentRowsPerSubtune = recentRowsPerSubtune,
+            currentTrackSubtuneIndex = currentTrackSubtuneIndex,
             currentTrackTitle = currentTrackTitle,
             currentTrackArtist = currentTrackArtist,
             pinnedHomeEntries = pinnedHomeEntries,

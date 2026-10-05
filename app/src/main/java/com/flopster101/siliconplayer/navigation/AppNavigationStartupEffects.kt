@@ -182,6 +182,12 @@ internal fun AppNavigationStartupEffects(
         if (trimmed.size != recentPlayedFiles.size) {
             onRecentPlayedFilesChanged(trimmed)
         }
-        writeRecentEntries(prefs, AppPreferenceKeys.RECENT_PLAYED_FILES, trimmed, clamped)
+        writeRecentEntries(
+            prefs,
+            AppPreferenceKeys.RECENT_PLAYED_FILES,
+            trimmed,
+            clamped,
+            prefs.getBoolean(AppPreferenceKeys.RECENTS_PER_SUBTUNE_ROWS, false)
+        )
     }
 }

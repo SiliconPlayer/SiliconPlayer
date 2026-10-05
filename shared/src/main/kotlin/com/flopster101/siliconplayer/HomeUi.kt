@@ -225,6 +225,8 @@ internal fun buildRecentTrackDisplay(
 @Composable
 internal fun HomeScreen(
     currentTrackPath: String?,
+    recentRowsPerSubtune: Boolean = false,
+    currentTrackSubtuneIndex: Int? = null,
     currentTrackTitle: String,
     currentTrackArtist: String,
     pinnedHomeEntries: List<HomePinnedEntry>,
@@ -306,7 +308,8 @@ internal fun HomeScreen(
     var pinnedPlayWithEntry by remember { mutableStateOf<Pair<File, HomePinnedEntry>?>(null) }
     val playWithPrefs = LocalAppPreferences.current
     val playedEntryKey: (RecentPathEntry) -> String = { entry ->
-        "${entry.locationId.orEmpty()}|${entry.path}"
+        val rowKey = "${entry.locationId.orEmpty()}|${entry.path}"
+        if (recentRowsPerSubtune) "$rowKey|${entry.subtuneIndex ?: 0}" else rowKey
     }
 
     val recentFolderKeys = remember(recentFolders) {
@@ -1520,7 +1523,9 @@ internal fun HomeScreen(
                                                     } else {
                                                         inferredPrimaryExtensionForName(trackFile.name)?.uppercase() ?: "UNKNOWN"
                                                     }
-                                                val isCurrentlyPlayingEntry = samePath(currentTrackPath, entry.path)
+                                                val isCurrentlyPlayingEntry = samePath(currentTrackPath, entry.path) &&
+                                                    (!recentRowsPerSubtune ||
+                                                        (entry.subtuneIndex ?: 0) == (currentTrackSubtuneIndex ?: 0))
                                                 val useLiveMetadata = isCurrentlyPlayingEntry && !entry.isPlaylist
                                                 val liveTitle = currentTrackTitle.trim()
                                                 val liveArtist = currentTrackArtist.trim()
@@ -2549,12 +2554,12 @@ internal fun RecentTrackSummaryText(
         }
         append(" • ")
         append(extensionLabel)
+        if (subtuneIndex != null) {
+            append(" • Subtune ${subtuneIndex + 1}")
+        }
         if (renderedDisplay.includeFilenameInSubtitle) {
             append(" • ")
             append(fallback)
-        }
-        if (subtuneIndex != null) {
-            append(" • Subtune ${subtuneIndex + 1}")
         }
     }
     Row(verticalAlignment = Alignment.CenterVertically) {

@@ -71,8 +71,12 @@ internal fun HomeRouteContent(
     state: HomeRouteState,
     actions: HomeRouteActions
 ) {
+    val prefs = LocalAppPreferences.current
     var showFolderLimitDialog by remember { mutableStateOf(false) }
     var showFileLimitDialog by remember { mutableStateOf(false) }
+    var perSubtuneRecentRows by remember {
+        mutableStateOf(prefs.getBoolean(AppPreferenceKeys.RECENTS_PER_SUBTUNE_ROWS, false))
+    }
 
     SettingsSectionLabel("Recents")
     SettingsItemCard(
@@ -88,8 +92,17 @@ internal fun HomeRouteContent(
         icon = Icons.Default.MusicNote,
         onClick = { showFileLimitDialog = true }
     )
-
     SettingsRowSpacer()
+    PlayerSettingToggleCard(
+        title = "One recents row per subtune",
+        description = "List every played subtune of multi-subtune songs as its own row instead of updating the song's row to the last played subtune.",
+        checked = perSubtuneRecentRows,
+        onCheckedChange = {
+            perSubtuneRecentRows = it
+            prefs.edit().putBoolean(AppPreferenceKeys.RECENTS_PER_SUBTUNE_ROWS, it).apply()
+        }
+    )
+
     SettingsSectionLabel("Navigation")
     PlayerSettingToggleCard(
         title = "Press back twice to exit",

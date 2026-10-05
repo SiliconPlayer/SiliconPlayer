@@ -1538,7 +1538,14 @@ private fun AppNavigation(
         mutableStateOf(readRecentEntries(prefs, AppPreferenceKeys.RECENT_FOLDERS, recentFoldersLimit))
     }
     var recentPlayedFiles by remember {
-        mutableStateOf(readRecentEntries(prefs, AppPreferenceKeys.RECENT_PLAYED_FILES, recentFilesLimit))
+        mutableStateOf(
+            readRecentEntries(
+                prefs,
+                AppPreferenceKeys.RECENT_PLAYED_FILES,
+                recentFilesLimit,
+                prefs.getBoolean(AppPreferenceKeys.RECENTS_PER_SUBTUNE_ROWS, false)
+            )
+        )
     }
     var playlistLibraryState by remember {
         mutableStateOf(readPlaylistLibraryState(prefs))
@@ -2373,6 +2380,7 @@ private fun AppNavigation(
                     decoderName = lastUsedCoreName?.trim()?.takeIf { it.isNotEmpty() },
                     isPlaylist = true,
                     playlistSourceHint = playlistOverride.sourceHint,
+                    perSubtuneRows = prefs.getBoolean(AppPreferenceKeys.RECENTS_PER_SUBTUNE_ROWS, false),
                     limit = recentFilesLimit
                 )
                     .filterNot { entry ->
@@ -2384,7 +2392,8 @@ private fun AppNavigation(
                     prefs,
                     AppPreferenceKeys.RECENT_PLAYED_FILES,
                     updatedRecentPlayed,
-                    recentFilesLimit
+                    recentFilesLimit,
+                    prefs.getBoolean(AppPreferenceKeys.RECENTS_PER_SUBTUNE_ROWS, false)
                 )
             } else {
                 runtimeDelegates.addRecentPlayedTrack(
@@ -2442,6 +2451,7 @@ private fun AppNavigation(
             isPlaylist = playlistOverride != null,
             playlistSourceHint = playlistOverride?.sourceHint,
             subtuneIndex = if (playlistOverride == null && subtuneCount > 1) currentSubtuneIndex else null,
+            perSubtuneRows = prefs.getBoolean(AppPreferenceKeys.RECENTS_PER_SUBTUNE_ROWS, false),
             clearBlankMetadataOnUpdate = true,
             limit = recentFilesLimit
         )
@@ -2456,7 +2466,8 @@ private fun AppNavigation(
             prefs,
             AppPreferenceKeys.RECENT_PLAYED_FILES,
             updatedRecentPlayed,
-            recentFilesLimit
+            recentFilesLimit,
+            prefs.getBoolean(AppPreferenceKeys.RECENTS_PER_SUBTUNE_ROWS, false)
         )
     }
 

@@ -126,6 +126,12 @@ private fun normalizeArchiveContainerLocation(rawArchiveLocation: String): Strin
     }
 }
 
+internal fun sameRecentTrack(aPath: String?, aSubtune: Int?, bPath: String?, bSubtune: Int?): Boolean {
+    if (!samePath(aPath, bPath)) return false
+    // A missing index plays the first subtune, so it shares the entry.
+    return (aSubtune ?: 0) == (bSubtune ?: 0)
+}
+
 internal fun samePath(a: String?, b: String?): Boolean {
     if (a != null && a == b) return true
     val left = normalizeSourceIdentity(a) ?: return false

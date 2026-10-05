@@ -30,6 +30,8 @@ import java.io.File
 @Composable
 internal fun AppNavigationHomeRouteSection(
     mainPadding: PaddingValues,
+    recentRowsPerSubtune: Boolean,
+    currentTrackSubtuneIndex: Int? = null,
     currentTrackPath: String?,
     currentTrackTitle: String,
     currentTrackArtist: String,
@@ -69,6 +71,8 @@ internal fun AppNavigationHomeRouteSection(
 ) {
     MainHomeRouteHost(
         mainPadding = mainPadding,
+        recentRowsPerSubtune = recentRowsPerSubtune,
+        currentTrackSubtuneIndex = currentTrackSubtuneIndex,
         currentTrackPath = currentTrackPath,
         currentTrackTitle = currentTrackTitle,
         currentTrackArtist = currentTrackArtist,

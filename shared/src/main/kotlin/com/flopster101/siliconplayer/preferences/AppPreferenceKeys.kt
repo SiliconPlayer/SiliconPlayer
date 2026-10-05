@@ -64,6 +64,7 @@ internal object AppPreferenceKeys {
     const val THEME_USE_MONET = "theme_use_monet"
     const val RECENT_FOLDERS = "recent_folders"
     const val RECENT_PLAYED_FILES = "recent_played_files"
+    const val RECENTS_PER_SUBTUNE_ROWS = "recents_per_subtune_rows"
     const val PINNED_HOME_ENTRIES = "pinned_home_entries"
     const val PLAYLIST_LIBRARY_JSON = "playlist_library_json"
     const val FAVORITES_SORT_MODE = "favorites_sort_mode"

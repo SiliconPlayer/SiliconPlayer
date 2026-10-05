@@ -225,13 +225,14 @@ private fun resolveRecentSmbHostDisplayLabel(
 internal fun readRecentEntries(
     prefs: android.content.SharedPreferences,
     key: String,
-    maxItems: Int
+    maxItems: Int,
+    perSubtuneRows: Boolean = false
 ): List<RecentPathEntry> {
     val dir = DomainStoreDirs.configDir
     return if (dir != null) {
-        readRecentEntries(dir, key, maxItems, AndroidAppPreferences(prefs))
+        readRecentEntries(dir, key, maxItems, AndroidAppPreferences(prefs), perSubtuneRows)
     } else {
-        readRecentEntries(AndroidAppPreferences(prefs), key, maxItems)
+        readRecentEntries(AndroidAppPreferences(prefs), key, maxItems, perSubtuneRows)
     }
 }
 
@@ -267,13 +268,14 @@ internal fun writeRecentEntries(
     prefs: android.content.SharedPreferences,
     key: String,
     entries: List<RecentPathEntry>,
-    maxItems: Int
+    maxItems: Int,
+    perSubtuneRows: Boolean = false
 ) {
     val dir = DomainStoreDirs.configDir
     if (dir != null) {
-        writeRecentEntries(dir, key, entries, maxItems)
+        writeRecentEntries(dir, key, entries, maxItems, perSubtuneRows)
     } else {
-        writeRecentEntries(AndroidAppPreferences(prefs), key, entries, maxItems)
+        writeRecentEntries(AndroidAppPreferences(prefs), key, entries, maxItems, perSubtuneRows)
     }
 }
 
@@ -311,11 +313,15 @@ internal fun buildUpdatedRecentPlayedTracks(
     isPlaylist: Boolean = false,
     playlistSourceHint: String? = null,
     subtuneIndex: Int? = null,
+    perSubtuneRows: Boolean = false,
     clearBlankMetadataOnUpdate: Boolean = false,
     limit: Int
 ): List<RecentPathEntry> {
     val normalized = normalizeSourceIdentity(newPath) ?: newPath
-    val existing = current.firstOrNull { samePath(it.path, normalized) }
+    val existing = current.firstOrNull {
+        if (perSubtuneRows) sameRecentTrack(it.path, it.subtuneIndex, normalized, subtuneIndex)
+        else samePath(it.path, normalized)
+    }
     val resolvedIsPlaylist = isPlaylist || existing?.isPlaylist == true
     val resolvedPlaylistSourceHint = playlistSourceHint
         ?.trim()
@@ -351,7 +357,10 @@ internal fun buildUpdatedRecentPlayedTracks(
             playlistSourceHint = resolvedPlaylistSourceHint,
             subtuneIndex = subtuneIndex ?: existing?.subtuneIndex
         )
-    ) + current.filterNot { samePath(it.path, normalized) }
+    ) + current.filterNot {
+        if (perSubtuneRows) sameRecentTrack(it.path, it.subtuneIndex, normalized, subtuneIndex)
+        else samePath(it.path, normalized)
+    }
     return updated.take(limit)
 }
 

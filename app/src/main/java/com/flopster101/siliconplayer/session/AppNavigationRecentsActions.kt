@@ -58,6 +58,7 @@ internal fun addRecentPlayedTrackEntry(
     isPlaylist: Boolean = false,
     playlistSourceHint: String? = null,
     subtuneIndex: Int? = null,
+    perSubtuneRows: Boolean = false,
     limit: Int,
     update: (List<RecentPathEntry>) -> Unit,
     write: (List<RecentPathEntry>, Int) -> Unit
@@ -74,6 +75,7 @@ internal fun addRecentPlayedTrackEntry(
         isPlaylist = isPlaylist,
         playlistSourceHint = playlistSourceHint,
         subtuneIndex = subtuneIndex,
+        perSubtuneRows = perSubtuneRows,
         limit = limit
     )
     update(next)
