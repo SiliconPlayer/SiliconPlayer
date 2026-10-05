@@ -15,10 +15,12 @@ import android.util.Log
 import com.flopster101.siliconplayer.AppPreferenceKeys
 import com.flopster101.siliconplayer.BitPerfectDriverMethod
 import com.flopster101.siliconplayer.NativeBridge
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.suspendCancellableCoroutine
+import kotlinx.coroutines.withContext
 import java.nio.ByteBuffer
 import kotlin.coroutines.resume
 
@@ -244,7 +246,12 @@ object UacDriverCoordinator {
         return ok
     }
 
-    suspend fun ensureUacReadyForPlayback(context: Context): Boolean {
+    suspend fun ensureUacReadyForPlayback(context: Context): Boolean =
+        withContext(Dispatchers.IO) {
+            ensureUacReadyForPlaybackLocked(context)
+        }
+
+    private suspend fun ensureUacReadyForPlaybackLocked(context: Context): Boolean {
         val prefs = context.getSharedPreferences(AppPreferenceKeys.PREFS_NAME, Context.MODE_PRIVATE)
         val bitPerfectEnabled = prefs.getBoolean(AppPreferenceKeys.BIT_PERFECT_USB_AUDIO, false)
         val driverMethod = BitPerfectDriverMethod.fromStorage(prefs.getString(AppPreferenceKeys.BIT_PERFECT_DRIVER_METHOD, null))

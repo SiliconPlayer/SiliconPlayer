@@ -28,7 +28,9 @@ import com.flopster101.siliconplayer.PlayerSettingToggleCard
 import com.flopster101.siliconplayer.SettingsRowSpacer
 import com.flopster101.siliconplayer.SettingsSingleChoiceDialog
 import com.flopster101.siliconplayer.SettingsValuePickerCard
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 @Composable
 fun AndroidBitPerfectSettingsCard(
@@ -97,11 +99,15 @@ fun AndroidBitPerfectSettingsCard(
                     coroutineScope.launch {
                         val granted = com.flopster101.siliconplayer.usb.UacDriverCoordinator.requestPermission(context, rawUsb)
                         if (granted) {
-                            com.flopster101.siliconplayer.usb.UacDriverCoordinator.open(context, rawUsb)
-                            val targetRate = NativeBridge.getDecoderRenderSampleRateHz().takeIf { it > 0 } ?: 48000
-                            val targetBitDepth = NativeBridge.getTrackBitDepth().takeIf { it in listOf(16, 24, 32) } ?: 16
-                            val ok = com.flopster101.siliconplayer.usb.UacDriverCoordinator.start(targetRate, targetBitDepth, 2)
-                            NativeBridge.setBitPerfectMode(ok)
+                            // USB open/start block: off Main.
+                            val ok = withContext(Dispatchers.IO) {
+                                com.flopster101.siliconplayer.usb.UacDriverCoordinator.open(context, rawUsb)
+                                val targetRate = NativeBridge.getDecoderRenderSampleRateHz().takeIf { it > 0 } ?: 48000
+                                val targetBitDepth = NativeBridge.getTrackBitDepth().takeIf { it in listOf(16, 24, 32) } ?: 16
+                                val started = com.flopster101.siliconplayer.usb.UacDriverCoordinator.start(targetRate, targetBitDepth, 2)
+                                NativeBridge.setBitPerfectMode(started)
+                                started
+                            }
                             if (!ok) {
                                 onBitPerfectUsbAudioChanged(false)
                             }
@@ -111,10 +117,15 @@ fun AndroidBitPerfectSettingsCard(
                     }
                 }
             } else if (!targetEnabled) {
-                com.flopster101.siliconplayer.usb.UacDriverCoordinator.close()
-                BitPerfectCoordinator.clearBitPerfectMixer(context)
-                NativeBridge.setBitPerfectMode(false)
-                showReplugNoticeDialog = true
+                // USB close blocks: off Main; the disable rebuild is async.
+                coroutineScope.launch {
+                    withContext(Dispatchers.IO) {
+                        com.flopster101.siliconplayer.usb.UacDriverCoordinator.close()
+                        NativeBridge.setBitPerfectMode(false)
+                    }
+                    BitPerfectCoordinator.clearBitPerfectMixer(context)
+                    showReplugNoticeDialog = true
+                }
             }
         }
     )
@@ -175,11 +186,14 @@ fun AndroidBitPerfectSettingsCard(
                         coroutineScope.launch {
                             val granted = com.flopster101.siliconplayer.usb.UacDriverCoordinator.requestPermission(context, rawUsb)
                             if (granted) {
-                                com.flopster101.siliconplayer.usb.UacDriverCoordinator.open(context, rawUsb)
-                                val targetRate = NativeBridge.getDecoderRenderSampleRateHz().takeIf { it > 0 } ?: 48000
-                                val targetBitDepth = NativeBridge.getTrackBitDepth().takeIf { it in listOf(16, 24, 32) } ?: 16
-                                com.flopster101.siliconplayer.usb.UacDriverCoordinator.start(targetRate, targetBitDepth, 2)
-                                NativeBridge.setBitPerfectMode(true)
+                                // USB open and the device rebuild block: off Main.
+                                withContext(Dispatchers.IO) {
+                                    com.flopster101.siliconplayer.usb.UacDriverCoordinator.open(context, rawUsb)
+                                    val targetRate = NativeBridge.getDecoderRenderSampleRateHz().takeIf { it > 0 } ?: 48000
+                                    val targetBitDepth = NativeBridge.getTrackBitDepth().takeIf { it in listOf(16, 24, 32) } ?: 16
+                                    com.flopster101.siliconplayer.usb.UacDriverCoordinator.start(targetRate, targetBitDepth, 2)
+                                    NativeBridge.setBitPerfectMode(true)
+                                }
                             }
                         }
                     }

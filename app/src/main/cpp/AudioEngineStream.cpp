@@ -434,8 +434,16 @@ void AudioEngine::setBitPerfectMode(bool enabled) {
             return;
         }
     }
+    // The rebuild tears the device down and rejoins the feeder: never run
+    // it on the caller (often the main thread), mirroring the disable path.
     if (isPlaying.load()) {
-        reconfigureStream(true);
+        std::thread([this]() {
+            pthread_setname_np(pthread_self(), "sp_bitperf_on");
+            usleep(150000);
+            if (isPlaying.load() && bitPerfectModeEnabled) {
+                reconfigureStream(true);
+            }
+        }).detach();
     } else {
         streamNeedsRebuild.store(true);
     }

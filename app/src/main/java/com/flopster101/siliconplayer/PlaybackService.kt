@@ -354,11 +354,14 @@ class PlaybackService : Service() {
                     it.type == android.media.AudioDeviceInfo.TYPE_USB_HEADSET ||
                     it.type == android.media.AudioDeviceInfo.TYPE_USB_ACCESSORY
                 } == true
-                if (hasUsb && isPlaying) {
+                // Device teardown/rebuild blocks on the engine and USB IO:
+                // never run it on the callback (main) thread.
+                val playing = isPlaying
+                if (hasUsb && playing) {
                     val bitPerfectEnabled = prefs.getBoolean(AppPreferenceKeys.BIT_PERFECT_USB_AUDIO, false)
                     val driverMethod = BitPerfectDriverMethod.fromStorage(prefs.getString(AppPreferenceKeys.BIT_PERFECT_DRIVER_METHOD, null))
                     if (!bitPerfectEnabled || driverMethod != BitPerfectDriverMethod.DirectUac) {
-                        NativeBridge.reconfigureStream()
+                        serviceScope.launch(Dispatchers.IO) { NativeBridge.reconfigureStream() }
                     }
                 }
             }
@@ -369,11 +372,14 @@ class PlaybackService : Service() {
                     it.type == android.media.AudioDeviceInfo.TYPE_USB_HEADSET ||
                     it.type == android.media.AudioDeviceInfo.TYPE_USB_ACCESSORY
                 } == true
+                val playing = isPlaying
                 if (hadUsb) {
-                    com.flopster101.siliconplayer.usb.UacDriverCoordinator.close()
-                    NativeBridge.setBitPerfectMode(false)
-                    if (isPlaying) {
-                        NativeBridge.reconfigureStream()
+                    serviceScope.launch(Dispatchers.IO) {
+                        com.flopster101.siliconplayer.usb.UacDriverCoordinator.close()
+                        NativeBridge.setBitPerfectMode(false)
+                        if (playing) {
+                            NativeBridge.reconfigureStream()
+                        }
                     }
                 }
             }
