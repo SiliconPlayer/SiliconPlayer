@@ -41,6 +41,9 @@ public:
     // Reads interleaved float samples into buffer. Returns number of frames read.
     // buffer size must be at least numFrames * getChannelCount()
     virtual int read(float* buffer, int numFrames) = 0;
+    // True when the last read outage came from a transport error rather
+    // than genuine EOF. The engine stalls instead of ending the track.
+    virtual bool hasFatalReadError() const { return false; }
 
     virtual void seek(double seconds) = 0;
     virtual double getDuration() = 0;

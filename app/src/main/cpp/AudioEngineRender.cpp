@@ -210,9 +210,33 @@ int AudioEngine::readFromDecoderLocked(float* buffer, int numFrames, int channel
                     break;
                 }
             }
+            transportStallStartNs.store(0, std::memory_order_relaxed);
             return total;
         }
+        transportStallStartNs.store(0, std::memory_order_relaxed);
         return framesRead;
+    }
+
+    if (decoder->hasFatalReadError()) {
+        // Transport error, not EOF: hold position and keep retrying on every
+        // callback. Only a stall timeout ends this, as an honest error.
+        const int64_t nowNs = std::chrono::duration_cast<std::chrono::nanoseconds>(
+                std::chrono::steady_clock::now().time_since_epoch()
+        ).count();
+        const int64_t stallStartNs = transportStallStartNs.load(std::memory_order_relaxed);
+        if (stallStartNs == 0) {
+            transportStallStartNs.store(nowNs, std::memory_order_relaxed);
+            LOGE("Transport stalled mid-track (pos=%.2f), retrying reads",
+                 decoder->getPlaybackPositionSeconds());
+        } else if (nowNs - stallStartNs > kTransportStallTimeoutNs) {
+            transportStallStartNs.store(0, std::memory_order_relaxed);
+            naturalEndPending.store(false);
+            transportErrorPending.store(true);
+            isPlaying.store(false);
+            LOGE("Transport still stalled after timeout, stopping (pos=%.2f)",
+                 decoder->getPlaybackPositionSeconds());
+        }
+        return 0;
     }
 
     if (mode == 2) {

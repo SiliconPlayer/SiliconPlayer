@@ -13,6 +13,10 @@ bool AudioEngine::consumeNaturalEndEvent() {
     return naturalEndPending.exchange(false);
 }
 
+bool AudioEngine::consumeTransportErrorEvent() {
+    return transportErrorPending.exchange(false);
+}
+
 // Caller must hold decoderMutex. Copies the live decoder's metadata into
 // the cache served while the mutex is busy.
 void AudioEngine::refreshMetadataCacheLocked() {
@@ -270,6 +274,7 @@ bool AudioEngine::selectSubtune(int index) {
     }
     const bool applied = decoder->selectSubtune(index);
     if (applied) {
+        clearTransportStallState();
         refreshMetadataCacheLocked();
     }
     return applied;

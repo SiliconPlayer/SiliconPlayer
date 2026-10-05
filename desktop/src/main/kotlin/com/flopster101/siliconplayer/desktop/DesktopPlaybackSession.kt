@@ -363,7 +363,8 @@ class DesktopPlaybackSession(
 
     fun pause() {
         playGeneration.incrementAndGet()
-        NativeBridge.cancelActiveSmbAvioHandles()
+        // The paused track keeps its SMB handle: cancelling here replays on
+        // resume as buffered audio plus a fake natural-end restart at 0.
         if (fadePauseResume && positionSeconds > 0.05) {
             NativeBridge.stopEngineWithPauseResumeFadeNative()
         } else {
@@ -584,6 +585,9 @@ class DesktopPlaybackSession(
                         }
                     }
 
+                    if (NativeBridge.consumeTransportErrorEvent()) {
+                        println("SiliconPlayer: stream stalled, playback stopped")
+                    }
                     if (NativeBridge.consumeNaturalEndEvent()) {
                         when (repeatMode) {
                             RepeatMode.Track, RepeatMode.Subtune -> {

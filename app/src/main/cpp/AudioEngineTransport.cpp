@@ -218,6 +218,7 @@ void AudioEngine::primeRenderQueueForStreamStart() {
     // track's fresh head, and every stale case clears at its own source.
     isPlaying = true;
     naturalEndPending.store(false);
+    clearTransportStallState();
     if (!pendingResumeFadeOnStart.load(std::memory_order_relaxed)) {
         pendingResumeFadeDurationMs.store(kStreamStartFadeMs, std::memory_order_relaxed);
         pendingResumeFadeAttenuationDb.store(kStreamStartFadeDb, std::memory_order_relaxed);
@@ -327,6 +328,7 @@ void AudioEngine::stop() {
     pendingPauseFadeRequest.store(false, std::memory_order_relaxed);
     pendingResumeFadeOnStart.store(false, std::memory_order_relaxed);
     refreshPausedStreamOnNextStart.store(true, std::memory_order_relaxed);
+    clearTransportStallState();
     const bool wasSeeking = seekInProgress.load();
     if (wasSeeking) {
         decoderSerial.fetch_add(1);
@@ -415,6 +417,7 @@ void AudioEngine::releaseCurrentDecoder() {
     }
     isPlaying.store(false);
     naturalEndPending.store(false);
+    clearTransportStallState();
     clearRenderQueue();
     renderWorkerCv.notify_all();
 
@@ -456,6 +459,7 @@ void AudioEngine::stopOutputStreamLocked() {
 
 void AudioEngine::setUrl(const char* url, const char* forcedDecoder) {
     const uint64_t myGeneration = loadGeneration.fetch_add(1, std::memory_order_relaxed) + 1;
+    clearTransportStallState();
     decoderOpenCount.fetch_add(1, std::memory_order_release);
     {
         std::lock_guard<std::mutex> abortLock(openAbortMutex);
@@ -694,6 +698,7 @@ void AudioEngine::seekToSeconds(double seconds) {
 
     positionSeconds.store(normalizedTarget);
     naturalEndPending.store(false);
+    clearTransportStallState();
     {
         std::lock_guard<std::mutex> lock(seekWorkerMutex);
         seekAbortRequested.store(false);

@@ -2,6 +2,7 @@ package com.flopster101.siliconplayer
 
 import android.content.Context
 import android.content.SharedPreferences
+import android.widget.Toast
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.graphics.ImageBitmap
@@ -141,6 +142,9 @@ internal fun AppNavigationCombinedPlaybackRuntimeEffects(
         },
         onStopPlaybackAndUnload = {
             stopAndEmptyTrackAction(context, playbackStateDelegates)
+        },
+        onTransportError = {
+            Toast.makeText(context, "Stream stalled, playback stopped", Toast.LENGTH_LONG).show()
         },
         isLocalPlayableFile = isLocalPlayableFile,
         onMetadataAlbumChanged = onMetadataAlbumChanged,

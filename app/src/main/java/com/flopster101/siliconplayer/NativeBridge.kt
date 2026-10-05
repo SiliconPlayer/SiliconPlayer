@@ -316,6 +316,11 @@ object NativeBridge {
         else consumeNaturalEndEventImpl()
 
     @JvmStatic
+    fun consumeTransportErrorEvent(): Boolean =
+        if (PlatformDolbyPlayer.isActive()) false
+        else consumeTransportErrorEventImpl()
+
+    @JvmStatic
     fun seekTo(seconds: Double) {
         if (PlatformDolbyPlayer.isActive()) {
             if (shadowRenderActive) {
@@ -338,6 +343,7 @@ object NativeBridge {
     external fun getDurationImpl(): Double
     external fun getPositionImpl(): Double
     external fun consumeNaturalEndEventImpl(): Boolean
+    external fun consumeTransportErrorEventImpl(): Boolean
     external fun isEnginePlayingImpl(): Boolean
     external fun isSeekInProgressImpl(): Boolean
     external fun releaseCurrentDecoderNative()

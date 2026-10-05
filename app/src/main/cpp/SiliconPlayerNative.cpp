@@ -774,6 +774,14 @@ Java_com_flopster101_siliconplayer_MainActivity_consumeNaturalEndEvent(JNIEnv* e
     return audioEngine->consumeNaturalEndEvent() ? JNI_TRUE : JNI_FALSE;
 }
 
+extern "C" JNIEXPORT jboolean JNICALL
+Java_com_flopster101_siliconplayer_MainActivity_consumeTransportErrorEvent(JNIEnv* env, jobject) {
+    if (audioEngine == nullptr) {
+        return JNI_FALSE;
+    }
+    return audioEngine->consumeTransportErrorEvent() ? JNI_TRUE : JNI_FALSE;
+}
+
 extern "C" JNIEXPORT void JNICALL
 Java_com_flopster101_siliconplayer_MainActivity_seekTo(JNIEnv* env, jobject, jdouble seconds) {
     if (audioEngine == nullptr) {
@@ -2552,6 +2560,11 @@ Java_com_flopster101_siliconplayer_NativeBridge_getPositionImpl(JNIEnv* env, job
 extern "C" JNIEXPORT jboolean JNICALL
 Java_com_flopster101_siliconplayer_NativeBridge_consumeNaturalEndEventImpl(JNIEnv* env, jobject thiz) {
     return Java_com_flopster101_siliconplayer_MainActivity_consumeNaturalEndEvent(env, thiz);
+}
+
+extern "C" JNIEXPORT jboolean JNICALL
+Java_com_flopster101_siliconplayer_NativeBridge_consumeTransportErrorEventImpl(JNIEnv* env, jobject thiz) {
+    return Java_com_flopster101_siliconplayer_MainActivity_consumeTransportErrorEvent(env, thiz);
 }
 
 extern "C" JNIEXPORT void JNICALL

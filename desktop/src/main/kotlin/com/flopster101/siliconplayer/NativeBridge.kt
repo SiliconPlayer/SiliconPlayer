@@ -168,6 +168,7 @@ object NativeBridge {
     external fun getDurationImpl(): Double
     external fun getPositionImpl(): Double
     external fun consumeNaturalEndEventImpl(): Boolean
+    external fun consumeTransportErrorEventImpl(): Boolean
     external fun isEnginePlayingImpl(): Boolean
     external fun isSeekInProgressImpl(): Boolean
     external fun releaseCurrentDecoderNative()
@@ -505,6 +506,9 @@ object NativeBridge {
 
     @JvmStatic
     fun consumeNaturalEndEvent(): Boolean = consumeNaturalEndEventImpl()
+
+    @JvmStatic
+    fun consumeTransportErrorEvent(): Boolean = consumeTransportErrorEventImpl()
 
     @JvmStatic
     fun seekTo(seconds: Double) {

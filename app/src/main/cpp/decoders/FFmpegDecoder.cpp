@@ -318,6 +318,7 @@ bool FFmpegDecoder::open(const char* path) {
     std::lock_guard<std::mutex> lock(decodeMutex);
     close(); // close if already open
     decoderDrainStarted = false;
+    fatalReadError.store(false, std::memory_order_relaxed);
     return openLocked(path);
 }
 
@@ -963,8 +964,12 @@ int FFmpegDecoder::read(float* buffer, int numFrames) {
         if (framesRead < numFrames) {
             int ret = decodeFrame();
             if (ret < 0) {
+                // A transport error stalls at the engine level; only genuine
+                // EOF may wrap or restart here.
+                const bool outageIsError =
+                        fatalReadError.load(std::memory_order_relaxed);
                 // EOF or error. In loop-point mode, wrap to tagged loop start.
-                if (repeatMode == 2 && hasLoopPoint) {
+                if (!outageIsError && repeatMode == 2 && hasLoopPoint) {
                     if (!seekInternalLocked(loopStartSeconds)) {
                         break;
                     }
@@ -973,7 +978,7 @@ int FFmpegDecoder::read(float* buffer, int numFrames) {
                 }
                 // Tagless files in loop-point mode have no native wrap;
                 // repeat the whole track instead.
-                if (repeatMode == 2) {
+                if (!outageIsError && repeatMode == 2) {
                     if (!seekInternalLocked(0.0)) {
                         break;
                     }
@@ -982,7 +987,7 @@ int FFmpegDecoder::read(float* buffer, int numFrames) {
                 }
                 // For regular repeat-track mode, optionally seek internally and continue
                 // filling this request without returning an EOF boundary gap.
-                if (repeatMode == 1 && gaplessRepeatTrack) {
+                if (!outageIsError && repeatMode == 1 && gaplessRepeatTrack) {
                     if (!seekInternalLocked(0.0)) {
                         break;
                     }
@@ -1050,8 +1055,30 @@ int FFmpegDecoder::decodeFrame() {
              return -1;
         }
 
-        // Read packet
-        const int readFrameResult = av_read_frame(formatContext, packet);
+        // Read packet. A mid-track transport error is not EOF: retry a few
+        // times so a transient blip (dozed WiFi, reset SMB session) recovers
+        // transparently instead of ending the track. Genuine EOF is not
+        // retried. Only after the retries fail does the drain path below run.
+        int readFrameResult = AVERROR_EOF;
+        for (int readAttempt = 0; readAttempt < 4; ++readAttempt) {
+            readFrameResult = av_read_frame(formatContext, packet);
+            if (readFrameResult == 0 || readFrameResult == AVERROR_EOF) {
+                break;
+            }
+            LOGD("av_read_frame failed (attempt=%d fferr=%d msg=%s), retrying",
+                 readAttempt + 1, readFrameResult,
+                 ffErrString(readFrameResult).c_str());
+            std::this_thread::sleep_for(std::chrono::milliseconds(75));
+        }
+        if (readFrameResult == 0) {
+            fatalReadError.store(false, std::memory_order_relaxed);
+        }
+        if (readFrameResult < 0 && readFrameResult != AVERROR_EOF) {
+            LOGE("av_read_frame kept failing mid-track (fferr=%d msg=%s pos=%.2f)",
+                 readFrameResult, ffErrString(readFrameResult).c_str(),
+                 getPlaybackPositionSeconds());
+            fatalReadError.store(true, std::memory_order_relaxed);
+        }
         if (readFrameResult < 0) {
              // No more packets: flush buffered decoder frames once.
              if (!decoderDrainStarted) {
@@ -1232,6 +1259,7 @@ bool FFmpegDecoder::reopenFromStartLocked() {
 }
 
 bool FFmpegDecoder::seekInternalLocked(double seconds) {
+    fatalReadError.store(false, std::memory_order_relaxed);
     if (usingSmbCustomIo || isSmbRequestPath(openedPath.c_str())) {
         if (performSeekWithinCurrentContextLocked(seconds)) {
             return true;

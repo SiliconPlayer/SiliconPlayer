@@ -64,6 +64,7 @@ public:
     void setAudioPipelineConfig(int backendPreference, int performanceMode, int bufferPreset, int resamplerPreference, bool allowFallback);
     void setBackgroundPlaybackMode(bool enabled);
     bool consumeNaturalEndEvent();
+    bool consumeTransportErrorEvent();
     std::string getTitle();
     std::string getArtist();
     std::string getComposer();
@@ -484,6 +485,16 @@ private:
     bool timelineSmootherInitialized = false;
     double timelineSmoothedSeconds = 0.0;
     std::atomic<bool> naturalEndPending { false };
+    // A mid-track transport error stalls instead of ending the track: reads
+    // keep retrying for kTransportStallTimeoutNs, then transportErrorPending
+    // fires once and playback stops. Never set for genuine EOF.
+    std::atomic<bool> transportErrorPending { false };
+    std::atomic<int64_t> transportStallStartNs { 0 };
+    static constexpr int64_t kTransportStallTimeoutNs = 15'000'000'000;
+    void clearTransportStallState() {
+        transportStallStartNs.store(0, std::memory_order_relaxed);
+        transportErrorPending.store(false, std::memory_order_relaxed);
+    }
 
     // Gain control state
     std::atomic<float> masterGainDb { 0.0f };

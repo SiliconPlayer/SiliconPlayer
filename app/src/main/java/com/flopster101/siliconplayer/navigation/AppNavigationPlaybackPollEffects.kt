@@ -16,6 +16,7 @@ private data class PlaybackPollSnapshot(
     val durationSeconds: Double,
     val positionSeconds: Double,
     val naturalEnd: Boolean,
+    val transportError: Boolean,
     val trackSnapshot: NativeTrackSnapshot?
 )
 
@@ -28,6 +29,7 @@ private suspend fun readPlaybackPollSnapshot(
     val nextSeekInProgress = NativeBridge.isSeekInProgress()
     val nextIsPlaying = NativeBridge.isEnginePlaying()
     val endedNaturally = NativeBridge.consumeNaturalEndEvent()
+    val transportErrored = NativeBridge.consumeTransportErrorEvent()
     // Skip the expensive snapshot during active seek. The seek worker holds
     // decoderMutex for the entire seek duration, and readNativeTrackSnapshot
     // would block on that mutex, stalling the PlaybackIo thread and freezing
@@ -65,6 +67,7 @@ private suspend fun readPlaybackPollSnapshot(
         durationSeconds = nextDuration,
         positionSeconds = nextPosition,
         naturalEnd = endedNaturally,
+        transportError = transportErrored,
         trackSnapshot = trackSnapshot
     )
 }
@@ -116,6 +119,7 @@ internal fun AppNavigationPlaybackPollEffects(
     onPlayAdjacentTrack: (offset: Int, wrapOverride: Boolean?, notifyWrap: Boolean) -> Boolean,
     onRestartCurrentTrack: () -> Unit,
     onStopPlaybackAndUnload: () -> Unit,
+    onTransportError: () -> Unit,
     isLocalPlayableFile: (File?) -> Boolean
 ) {
     val latestDurationOverrideSeconds = rememberUpdatedState(durationOverrideSeconds)
@@ -218,6 +222,10 @@ internal fun AppNavigationPlaybackPollEffects(
             }
 
             if (!nextSeekInProgress && !isAnimating) {
+                if (snapshot.transportError) {
+                    onTransportError()
+                    continue
+                }
                 val suppressTrackEndEvents = nowMs < suppressTrackEndEventsUntilMs
                 val durationOverrideThreshold = latestDurationOverrideSeconds.value
                     ?.takeIf { it.isFinite() && it > 0.0 }

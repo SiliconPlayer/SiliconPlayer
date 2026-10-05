@@ -27,6 +27,7 @@ public:
     void setOpenAbortFlag(std::atomic<bool>* flag) override;
     bool openAborted() const;
     int read(float* buffer, int numFrames) override;
+    bool hasFatalReadError() const override { return fatalReadError.load(std::memory_order_relaxed); }
     void seek(double seconds) override;
     double getDuration() override;
     int getSampleRate() override;
@@ -118,6 +119,7 @@ private:
     std::vector<std::string> toggleChannelNames;
     std::vector<bool> toggleChannelMuted;
     int repeatMode = 0;
+    std::atomic<bool> fatalReadError { false };
     bool hasLoopPoint = false;
     double loopStartSeconds = 0.0;
     double loopEndSeconds = 0.0;
