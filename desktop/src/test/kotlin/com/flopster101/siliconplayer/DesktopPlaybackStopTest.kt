@@ -26,6 +26,7 @@ class DesktopPlaybackStopTest {
     @Test
     fun stopClearsTrackAndPlayRestartsFromBeginning() {
         Assume.assumeTrue("Music fixture is available", testFile.exists())
+        useSilentTestAudioOutput()
         val session = DesktopPlaybackSession()
         try {
             assertTrue("Track loads and starts", session.loadFile(testFile))

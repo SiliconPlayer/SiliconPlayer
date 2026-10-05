@@ -57,6 +57,7 @@ class DesktopSmbStreamingTest {
     fun testSmbStreamingPlaysThroughFfmpeg() {
         val uri = testSmbUri() ?: return
         ensureCredentialStoreReady()
+        useSilentTestAudioOutput()
 
         try {
             NativeBridge.loadAudioWithDecoder(uri, "FFmpeg")

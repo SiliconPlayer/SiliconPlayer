@@ -40,6 +40,7 @@ class DesktopDecodersTest {
     }
 
     private fun testSingleDecoder(decoderName: String, testFilePath: String) {
+        useSilentTestAudioOutput()
         val file = File(testFilePath)
         assertTrue("Test file must exist: $testFilePath", file.exists())
 
@@ -203,6 +204,7 @@ class DesktopDecodersTest {
     fun testDnfamitrackerDecoder() {
         val file = File("/home/flopster101/Music/SyncedMusic/Mine/Famistuff/240 bits_v2.dnm")
         assertTrue("Test file must exist: ${file.absolutePath}", file.exists())
+        useSilentTestAudioOutput()
         NativeBridge.loadAudioWithDecoder(file.absolutePath, "libdnfamitracker")
         val currentDecoder = NativeBridge.getCurrentDecoderName()
         assertEquals("Expected active decoder libdnfamitracker", "libdnfamitracker", currentDecoder)

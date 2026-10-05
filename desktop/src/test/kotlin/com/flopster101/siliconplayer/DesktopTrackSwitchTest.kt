@@ -58,6 +58,7 @@ class DesktopTrackSwitchTest {
     fun switchUnderPlaybackReplacesTheTrackAndKeepsTheEngineRunning() {
         val dir = File(System.getProperty("java.io.tmpdir"), "siliconplayer-switch-${System.nanoTime()}")
         dir.mkdirs()
+        useSilentTestAudioOutput()
         val first = File(dir, "first.wav")
         val second = File(dir, "second.wav")
         try {
