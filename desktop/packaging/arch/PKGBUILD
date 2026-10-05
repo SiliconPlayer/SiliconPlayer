@@ -9,7 +9,7 @@ license=('GPL-3.0-or-later')
 # System JRE on purpose: the release distributable's bundled runtime is dropped.
 depends=('java-runtime>=17' 'alsa-lib' 'libpulse' 'libgl' 'libx11' 'dbus' 'hicolor-icon-theme')
 makedepends=('git' 'cmake' 'ninja' 'pkgconf' 'perl' 'python' 'nasm' 'xa'
-             'jdk17-openjdk' 'alsa-lib' 'libpulse' 'libx11' 'libgl' 'zlib')
+             'jdk17-openjdk' 'alsa-lib' 'libpulse' 'libx11' 'libgl' 'vulkan-headers' 'zlib')
 source=("$pkgname::git+$url.git#branch=master")
 sha256sums=('SKIP')
 
