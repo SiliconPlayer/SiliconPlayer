@@ -711,7 +711,12 @@ internal fun playAdjacentBrowserFileFromAnchor(
         .orEmpty()
     val anchorFile = File(normalizedAnchorPath)
     val parentDirectory = anchorFile.parentFile
-    val browserContinuationFiles = if (parentDirectory != null && parentDirectory.exists() && parentDirectory.isDirectory) {
+    // The browser already holds this directory: re-listing it here would redo
+    // disk (or network) IO on the navigation tap. Only list live when the
+    // cached files do not cover the anchor directory.
+    val cachedCoversAnchor = parentDirectory != null && visiblePlayableFiles.isNotEmpty() &&
+        visiblePlayableFiles.all { samePath(it.parent, parentDirectory.absolutePath) }
+    val browserContinuationFiles = if (!cachedCoversAnchor && parentDirectory != null && parentDirectory.exists() && parentDirectory.isDirectory) {
         repository.getFiles(parentDirectory)
             .asSequence()
             .filter { item ->
@@ -2635,6 +2640,7 @@ private fun AppNavigation(
 
     val playlistActionHandlers = buildAppNavigationPlaylistActionHandlers(
         context = context,
+        appScope = appScope,
         trackLoadDelegates = trackLoadDelegates,
         manualOpenDelegates = manualOpenDelegates,
         autoPlayOnTrackSelect = autoPlayOnTrackSelect,

@@ -3,6 +3,10 @@ package com.flopster101.siliconplayer
 import android.content.Context
 import android.widget.Toast
 import java.io.File
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 internal data class AppNavigationPlaylistActionHandlers(
     val openParsedPlaylistDocument: (ParsedPlaylistDocument, String?) -> Unit,
@@ -17,6 +21,7 @@ internal data class AppNavigationPlaylistActionHandlers(
 
 internal fun buildAppNavigationPlaylistActionHandlers(
     context: Context,
+    appScope: CoroutineScope,
     trackLoadDelegates: AppNavigationTrackLoadDelegates,
     manualOpenDelegates: AppNavigationManualOpenDelegates,
     autoPlayOnTrackSelect: Boolean,
@@ -51,25 +56,34 @@ internal fun buildAppNavigationPlaylistActionHandlers(
     }
 
     val handlePlaylistFileSelectionAction: (File, String?) -> Unit = { file, sourceIdHint ->
-        val parsed = parsePlaylistFileDocument(file, sourceIdHint)
-        if (parsed == null || parsed.entries.isEmpty()) {
-            Toast.makeText(context, "Unable to open playlist", Toast.LENGTH_SHORT).show()
-        } else {
-            onPendingBrowserPlaylistDocumentChanged(parsed)
-            onShowPlaylistPreviewDialogChanged(false)
-            onShowPlaylistOpenActionDialogChanged(true)
+        // Playlist reads can stall (network-backed files): never on the tap.
+        appScope.launch(Dispatchers.IO) {
+            val parsed = parsePlaylistFileDocument(file, sourceIdHint)
+            withContext(Dispatchers.Main) {
+                if (parsed == null || parsed.entries.isEmpty()) {
+                    Toast.makeText(context, "Unable to open playlist", Toast.LENGTH_SHORT).show()
+                } else {
+                    onPendingBrowserPlaylistDocumentChanged(parsed)
+                    onShowPlaylistPreviewDialogChanged(false)
+                    onShowPlaylistOpenActionDialogChanged(true)
+                }
+            }
         }
     }
 
     val openPlaylistFileImmediatelyAction: (File, String?) -> Unit = { file, sourceIdHint ->
-        val parsed = parsePlaylistFileDocument(file, sourceIdHint)
-        if (parsed == null || parsed.entries.isEmpty()) {
-            Toast.makeText(context, "Unable to open playlist", Toast.LENGTH_SHORT).show()
-        } else {
-            openParsedPlaylistDocumentAction(parsed, null)
-            onPendingBrowserPlaylistDocumentChanged(null)
-            onShowPlaylistOpenActionDialogChanged(false)
-            onShowPlaylistPreviewDialogChanged(false)
+        appScope.launch(Dispatchers.IO) {
+            val parsed = parsePlaylistFileDocument(file, sourceIdHint)
+            withContext(Dispatchers.Main) {
+                if (parsed == null || parsed.entries.isEmpty()) {
+                    Toast.makeText(context, "Unable to open playlist", Toast.LENGTH_SHORT).show()
+                } else {
+                    openParsedPlaylistDocumentAction(parsed, null)
+                    onPendingBrowserPlaylistDocumentChanged(null)
+                    onShowPlaylistOpenActionDialogChanged(false)
+                    onShowPlaylistPreviewDialogChanged(false)
+                }
+            }
         }
     }
 
