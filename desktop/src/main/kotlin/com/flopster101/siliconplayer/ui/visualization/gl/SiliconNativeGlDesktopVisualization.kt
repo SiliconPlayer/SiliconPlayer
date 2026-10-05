@@ -197,6 +197,18 @@ private class SiliconNativeDesktopRenderThread(
         interrupt()
     }
 
+    // Resource font backing the scope quad emitter UVs. Both atlas
+    // upload sites must use it or glyphs sample wrong cells.
+    private fun scopeFontResourcePath(font: VisualizationChannelScopeTextFont): String? {
+        return when (font) {
+            VisualizationChannelScopeTextFont.System -> null
+            VisualizationChannelScopeTextFont.RaccoonSerif -> "/fonts/scope/raccoon_serif_base.ttf"
+            VisualizationChannelScopeTextFont.RaccoonMono -> "/fonts/scope/raccoon_serif_mono.ttf"
+            VisualizationChannelScopeTextFont.RetroCuteMono -> "/fonts/scope/retro_pixel_cute_mono.ttf"
+            VisualizationChannelScopeTextFont.RetroThick -> "/fonts/scope/retro_pixel_thick.ttf"
+        }
+    }
+
     override fun run() {
         val visHandle = SiliconVisNativeBridge.nativeCreate()
         if (visHandle == 0L) return
@@ -460,14 +472,6 @@ private class SiliconNativeDesktopRenderThread(
                     if (fontKey != lastTextFontKey) {
                         lastTextFontKey = fontKey
                         try {
-                            val fontName = if (frame.mode == 3) {
-                                Font.SANS_SERIF
-                            } else {
-                                when (frame.textFont) {
-                                    VisualizationChannelScopeTextFont.System -> Font.SANS_SERIF
-                                    else -> Font.MONOSPACED
-                                }
-                            }
                             val uploadData = if (frame.mode == 3) {
                                 DesktopGlFontAtlas.createAtlasUploadData(
                                     fontName = Font.SANS_SERIF,
@@ -476,7 +480,11 @@ private class SiliconNativeDesktopRenderThread(
                                     bold = false
                                 )
                             } else {
-                                DesktopGlFontAtlas.createAtlasUploadData(fontName = fontName, baseFontSizePx = 32f)
+                                DesktopGlFontAtlas.createAtlasUploadData(
+                                    fontName = Font.SANS_SERIF,
+                                    fontResourcePath = scopeFontResourcePath(frame.textFont),
+                                    baseFontSizePx = 32f
+                                )
                             }
                             SiliconVisNativeBridge.nativeSetFontAtlas(
                                 handle = visHandle,
@@ -736,13 +744,7 @@ private class SiliconNativeDesktopRenderThread(
                         if (overlayKey != lastScopeFontKey) {
                             lastScopeFontKey = overlayKey
                             scopeEmitter = try {
-                                val resourcePath = when (frame.textFont) {
-                                    VisualizationChannelScopeTextFont.System -> null
-                                    VisualizationChannelScopeTextFont.RaccoonSerif -> "/fonts/scope/raccoon_serif_base.ttf"
-                                    VisualizationChannelScopeTextFont.RaccoonMono -> "/fonts/scope/raccoon_serif_mono.ttf"
-                                    VisualizationChannelScopeTextFont.RetroCuteMono -> "/fonts/scope/retro_pixel_cute_mono.ttf"
-                                    VisualizationChannelScopeTextFont.RetroThick -> "/fonts/scope/retro_pixel_thick.ttf"
-                                }
+                                val resourcePath = scopeFontResourcePath(frame.textFont)
                                 val uploadData = DesktopGlFontAtlas.createAtlasUploadData(
                                     fontName = Font.SANS_SERIF,
                                     fontResourcePath = resourcePath,
