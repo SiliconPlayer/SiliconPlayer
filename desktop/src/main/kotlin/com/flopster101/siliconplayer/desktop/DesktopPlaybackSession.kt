@@ -457,6 +457,13 @@ class DesktopPlaybackSession(
         }
     }
 
+    // Subsong switches can re-probe the decoder; keep taps off the mutex.
+    fun selectSubtuneAsync(index: Int) {
+        scope.launch(Dispatchers.IO) {
+            selectSubtune(index)
+        }
+    }
+
     private fun refreshMetadata() {
         val fileTitle = NativeBridge.getTrackTitle().trim()
         val currentArtist = NativeBridge.getTrackArtist().trim()

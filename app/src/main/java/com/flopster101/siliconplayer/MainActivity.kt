@@ -2697,7 +2697,7 @@ private fun AppNavigation(
         onActivePlaylistEntryIdChanged = { activePlaylistEntryId = it },
         onPendingPlaylistSubtuneSelectionChanged = { pendingPlaylistSubtuneSelection = it },
         onHandlePlaylistFileSelection = openPlaylistFileImmediatelyAction,
-        onSelectSubtune = { playbackStateDelegates.selectSubtune(it) }
+        onSelectSubtune = { appScope.launch { playbackStateDelegates.selectSubtune(it) } }
     )
 
     val trackNavDelegates = com.flopster101.siliconplayer.playback.AppNavigationTrackNavDelegates(
@@ -3503,14 +3503,14 @@ private fun AppNavigation(
             onPreviousSubtune = {
                 val target = (currentSubtuneIndex - 1).coerceAtLeast(0)
                 if (target != currentSubtuneIndex) {
-                    playbackStateDelegates.selectSubtune(target)
+                    appScope.launch { playbackStateDelegates.selectSubtune(target) }
                 }
             },
             onNextSubtune = {
                 val maxIndex = (subtuneCount - 1).coerceAtLeast(0)
                 val target = (currentSubtuneIndex + 1).coerceAtMost(maxIndex)
                 if (target != currentSubtuneIndex) {
-                    playbackStateDelegates.selectSubtune(target)
+                    appScope.launch { playbackStateDelegates.selectSubtune(target) }
                 }
             },
             onOpenSubtuneSelector = {

@@ -207,9 +207,9 @@ internal fun applyEffectiveDspSettingsForCoreAction(
     applyImmediateDspSettingsToNative(effectiveSettings)
 }
 
-internal fun selectSubtuneAction(
+internal fun applySubtuneSelectionResult(
     context: Context,
-    index: Int,
+    result: SubtuneSelectionResult,
     selectedFile: File?,
     currentPlaybackSourceId: String?,
     lastBrowserLocationId: String?,
@@ -225,11 +225,6 @@ internal fun selectSubtuneAction(
     onAddRecentPlayedTrack: (String, String?, String?, String?) -> Unit,
     syncPlaybackService: () -> Unit
 ): Boolean {
-    val result = selectSubtuneAndReadState(
-        index = index,
-        selectedFile = selectedFile,
-        currentPlaybackSourceId = currentPlaybackSourceId
-    )
     if (!result.success) {
         Toast.makeText(context, "Unable to switch subtune", Toast.LENGTH_SHORT).show()
         return false

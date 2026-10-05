@@ -3,6 +3,8 @@ package com.flopster101.siliconplayer
 import android.content.Context
 import android.content.SharedPreferences
 import java.io.File
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 
 internal class AppNavigationPlaybackStateDelegates(
     private val context: Context,
@@ -103,10 +105,19 @@ internal class AppNavigationPlaybackStateDelegates(
         )
     }
 
-    fun selectSubtune(index: Int): Boolean {
-        return selectSubtuneAction(
+    // Subsong switches re-probe the decoder; the blocking part runs off
+    // the tap and the UI application resumes on the caller thread.
+    suspend fun selectSubtune(index: Int): Boolean {
+        val result = withContext(Dispatchers.IO) {
+            selectSubtuneAndReadState(
+                index = index,
+                selectedFile = selectedFileProvider(),
+                currentPlaybackSourceId = currentPlaybackSourceIdProvider()
+            )
+        }
+        return applySubtuneSelectionResult(
             context = context,
-            index = index,
+            result = result,
             selectedFile = selectedFileProvider(),
             currentPlaybackSourceId = currentPlaybackSourceIdProvider(),
             lastBrowserLocationId = lastBrowserLocationIdProvider(),

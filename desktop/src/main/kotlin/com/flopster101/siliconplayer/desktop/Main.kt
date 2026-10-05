@@ -254,6 +254,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.io.File
 import java.util.Locale
+import java.util.concurrent.atomic.AtomicLong
 import javax.swing.JFileChooser
 import javax.swing.SwingUtilities
 
@@ -366,6 +367,9 @@ fun main(args: Array<String>) = application {
     val miniDismissSettle = remember { Animatable(0f) }
     val miniDismissScope = rememberCoroutineScope()
     val desktopSmbFolderScope = rememberCoroutineScope()
+    val playLoadScope = rememberCoroutineScope()
+    // Guards async track loads: a superseded load never applies its state.
+    val playRequestGeneration = remember { AtomicLong(0L) }
     var miniDismissWidthPx by remember { mutableFloatStateOf(0f) }
     var miniDismissSettling by remember { mutableStateOf(false) }
     val supportedExtensions = remember {
@@ -538,9 +542,13 @@ fun main(args: Array<String>) = application {
     }
 
     fun playFile(file: File, subtuneIndex: Int? = null) {
-        if (session.loadFile(file, autoStart = autoPlayOnTrackSelect, initialSubtuneIndex = subtuneIndex)) {
-            registerLoadedFile(file)
-            if (openPlayerOnTrackSelect) isPlayerSurfaceVisible = true
+        val generation = playRequestGeneration.incrementAndGet()
+        playLoadScope.launch(Dispatchers.IO) {
+            val loaded = session.loadFile(file, autoStart = autoPlayOnTrackSelect, initialSubtuneIndex = subtuneIndex)
+            if (loaded && generation == playRequestGeneration.get()) {
+                registerLoadedFile(file)
+                if (openPlayerOnTrackSelect) isPlayerSurfaceVisible = true
+            }
         }
     }
 
@@ -550,7 +558,10 @@ fun main(args: Array<String>) = application {
             playFile(file, subtuneIndex)
             return
         }
-        if (session.loadSource(source, titleHint, artistHint, autoStart = autoPlayOnTrackSelect, initialSubtuneIndex = subtuneIndex)) {
+        val generation = playRequestGeneration.incrementAndGet()
+        playLoadScope.launch(Dispatchers.IO) {
+            if (!session.loadSource(source, titleHint, artistHint, autoStart = autoPlayOnTrackSelect, initialSubtuneIndex = subtuneIndex)) return@launch
+            if (generation != playRequestGeneration.get()) return@launch
             if (openPlayerOnTrackSelect) isPlayerSurfaceVisible = true
             val sourceId = session.currentSourceId
             val sourceNodeId = NetworkNodesHolder.current.firstOrNull { it.source == sourceId }?.id
@@ -1081,13 +1092,17 @@ fun main(args: Array<String>) = application {
                 activePlaylist = queue
                 activePlaylistEntryId = entry.id
                 activePlaylistShuffleActive = shuffleActive
-                if (!session.loadFile(file, autoStart = autoPlayOnTrackSelect)) return false
-                val subtune = entry.subtuneIndex
-                if (subtune != null && subtune in 0 until session.subtuneCount) {
-                    session.selectSubtune(subtune)
+                val generation = playRequestGeneration.incrementAndGet()
+                playLoadScope.launch(Dispatchers.IO) {
+                    if (!session.loadFile(file, autoStart = autoPlayOnTrackSelect)) return@launch
+                    if (generation != playRequestGeneration.get()) return@launch
+                    val subtune = entry.subtuneIndex
+                    if (subtune != null && subtune in 0 until session.subtuneCount) {
+                        session.selectSubtune(subtune)
+                    }
+                    registerLoadedFile(file)
+                    if (openPlayerOnTrackSelect) isPlayerSurfaceVisible = true
                 }
-                registerLoadedFile(file)
-                if (openPlayerOnTrackSelect) isPlayerSurfaceVisible = true
                 return true
             }
             // Playlist-queue advance; falls through when the current track has no entry here.
@@ -1138,13 +1153,18 @@ fun main(args: Array<String>) = application {
                     }
                 }
                 val current = session.currentFile ?: return false
-                val siblings = listSiblingTracks(current)
-                if (siblings.isEmpty()) return false
-                val index = siblings.indexOfFirst { samePath(it.absolutePath, current.absolutePath) }
-                if (index < 0) return false
-                val shouldWrap = wrapOverride ?: playlistWrapNavigation
-                val targetIndex = resolveAdjacentIndex(index, offset, siblings.size, shouldWrap) ?: return false
-                playFile(siblings[targetIndex])
+                // Directory listing blocks; resolve the sibling off thread.
+                val generation = playRequestGeneration.incrementAndGet()
+                playLoadScope.launch(Dispatchers.IO) {
+                    val siblings = listSiblingTracks(current)
+                    if (siblings.isEmpty()) return@launch
+                    val index = siblings.indexOfFirst { samePath(it.absolutePath, current.absolutePath) }
+                    if (index < 0) return@launch
+                    val shouldWrap = wrapOverride ?: playlistWrapNavigation
+                    val targetIndex = resolveAdjacentIndex(index, offset, siblings.size, shouldWrap) ?: return@launch
+                    if (generation != playRequestGeneration.get()) return@launch
+                    playFile(siblings[targetIndex])
+                }
                 return true
             }
             // Playlist and browser queues take separate wrap flags, mirroring Android's
@@ -3477,7 +3497,7 @@ fun main(args: Array<String>) = application {
                                             modifier = Modifier
                                                 .fillMaxWidth()
                                                 .clickable {
-                                                    session.selectSubtune(entry.index)
+                                                    session.selectSubtuneAsync(entry.index)
                                                     showSubtuneSelectorDialog = false
                                                     session.currentFile?.let { recordSubtuneSwitchInRecents() }
                                                 },

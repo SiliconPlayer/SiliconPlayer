@@ -11,12 +11,14 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.key
 import java.io.File
 import com.flopster101.siliconplayer.ui.dialogs.AddToPlaylistChooserDialog
 import com.flopster101.siliconplayer.ui.dialogs.ManualHttpAuthenticationDialog
 import com.flopster101.siliconplayer.ui.dialogs.ManualSmbAuthenticationDialog
+import kotlinx.coroutines.launch
 
 private enum class DspSettingsNamespace {
     Global,
@@ -248,6 +250,7 @@ internal fun AppNavigationPlaybackDialogsSection(
     onForceMonoChanged: (Boolean) -> Unit,
     onShowAudioEffectsDialogChanged: (Boolean) -> Unit
 ) {
+    val wiringScope = androidx.compose.runtime.rememberCoroutineScope()
     SideEffect {
         RemoteLoadUiStateHolder.current = remoteLoadUiState
     }
@@ -416,7 +419,7 @@ internal fun AppNavigationPlaybackDialogsSection(
         subtuneEntries = subtuneEntries,
         currentSubtuneIndex = currentSubtuneIndex,
         onSelectSubtune = { subtuneIndex ->
-            playbackStateDelegates.selectSubtune(subtuneIndex)
+            wiringScope.launch { playbackStateDelegates.selectSubtune(subtuneIndex) }
             onShowSubtuneSelectorDialogChanged(false)
         },
         onDismissSubtuneSelector = { onShowSubtuneSelectorDialogChanged(false) },
