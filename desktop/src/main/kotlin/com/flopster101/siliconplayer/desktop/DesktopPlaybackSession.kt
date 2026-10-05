@@ -528,6 +528,15 @@ class DesktopPlaybackSession(
                     }
                     isPlaying = playing
 
+                    // The engine can move between subtunes on its own (natural
+                    // end, seek across a boundary); resync without it the
+                    // session keeps showing the previous subtune.
+                    if (subtuneCount > 1 &&
+                        NativeBridge.getCurrentSubtuneIndex() != subtuneIndex
+                    ) {
+                        refreshMetadata()
+                    }
+
                     if (bitDepthLabel.isBlank() || bitDepthLabel == "-bit" || bitDepthLabel == "Unknown") {
                         val resolved = resolveTrackBitDepthLabel()
                         if (resolved != "Unknown" && resolved != "-bit") {

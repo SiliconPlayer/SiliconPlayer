@@ -454,6 +454,11 @@ fun main(args: Array<String>) = application {
     // Synced from prefs in the prefs listener below; read at use time in the recents writers.
     var perSubtuneRecentRows by remember { mutableStateOf(false) }
     val pinnedEntries = remember { mutableStateListOf<HomePinnedEntry>() }
+    // Compose short-circuits changed() on the same list instance, so in-place
+    // mutations never reach remember() call chains; render from fresh snapshots.
+    val recentFilesDisplay by remember { derivedStateOf { recentFiles.toList() } }
+    val recentFoldersDisplay by remember { derivedStateOf { recentFolders.toList() } }
+    val pinnedEntriesDisplay by remember { derivedStateOf { pinnedEntries.toList() } }
     // Assigned once the platform artwork support is available below; persists the
     // shared recent-artwork thumbnail for a played source, mirroring Android's
     // scheduleRecentPlayedArtworkCacheBackfill.
@@ -2009,9 +2014,9 @@ fun main(args: Array<String>) = application {
                                             currentTrackSubtuneIndex = session.subtuneIndex.takeIf { session.subtuneCount > 1 },
                                             currentTrackTitle = session.title,
                                             currentTrackArtist = session.artist,
-                                            pinnedHomeEntries = pinnedEntries,
-                                            recentFolders = recentFolders,
-                                            recentPlayedFiles = recentFiles,
+                                            pinnedHomeEntries = pinnedEntriesDisplay,
+                                            recentFolders = recentFoldersDisplay,
+                                            recentPlayedFiles = recentFilesDisplay,
                                             storagePresentationForEntry = {
                                                 storagePresentationForPath(it.path)
                                             },
