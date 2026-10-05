@@ -34,6 +34,7 @@ import com.flopster101.siliconplayer.audio.readGlobalDspSettings
 import com.flopster101.siliconplayer.audio.resolveEffectiveDspSettings
 import com.flopster101.siliconplayer.platform.AppPreferences
 import java.io.File
+import java.util.concurrent.atomic.AtomicLong
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -44,6 +45,9 @@ import kotlinx.coroutines.launch
 class DesktopPlaybackSession(
     private val scope: CoroutineScope = CoroutineScope(Dispatchers.Default)
 ) {
+    // Guards an async play against a stop/pause that lands first: only the
+    // latest request may start the engine.
+    private val playGeneration = AtomicLong(0L)
     var currentFile by mutableStateOf<File?>(null)
         private set
 
@@ -336,15 +340,23 @@ class DesktopPlaybackSession(
             return
         }
         if (currentFile == null) return
-        if (fadePauseResume && positionSeconds > 0.05) {
-            NativeBridge.startEngineWithPauseResumeFadeNative()
-        } else {
-            NativeBridge.startEngineNative()
+        // Engine start can rebuild the output device synchronously; never
+        // block the caller (UI or MPRIS) on it.
+        val generation = playGeneration.incrementAndGet()
+        val useFade = fadePauseResume && positionSeconds > 0.05
+        scope.launch(Dispatchers.IO) {
+            if (generation != playGeneration.get()) return@launch
+            if (useFade) {
+                NativeBridge.startEngineWithPauseResumeFadeNative()
+            } else {
+                NativeBridge.startEngineNative()
+            }
         }
         isPlaying = true
     }
 
     fun pause() {
+        playGeneration.incrementAndGet()
         NativeBridge.cancelActiveSmbAvioHandles()
         if (fadePauseResume && positionSeconds > 0.05) {
             NativeBridge.stopEngineWithPauseResumeFadeNative()
@@ -365,6 +377,7 @@ class DesktopPlaybackSession(
     fun canResume(): Boolean = currentFile != null || stoppedSource != null
 
     fun stop() {
+        playGeneration.incrementAndGet()
         NativeBridge.cancelActiveSmbAvioHandles()
         NativeBridge.stopEngineNative()
         NativeBridge.releaseCurrentDecoder()
