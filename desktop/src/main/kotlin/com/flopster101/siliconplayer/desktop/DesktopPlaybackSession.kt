@@ -119,6 +119,8 @@ class DesktopPlaybackSession(
 
     private var tickerJob: Job? = null
     private var isUserSeeking = false
+    private var flacBitDepthProbePath: String? = null
+    private var flacBitDepthProbeResult = "Unknown"
     private var currentSource: String? = null
     private var stoppedSource: String? = null
     private var stoppedSubtuneIndex: Int? = null
@@ -533,7 +535,19 @@ class DesktopPlaybackSession(
             }
             rawInt > 0 -> "${rawInt}-bit"
             currentFile?.extension.equals("flac", ignoreCase = true) -> {
-                currentFile?.let { DesktopArtworkSupport.extractFlacBitDepth(it) }?.let { "${it}-bit" } ?: "Unknown"
+                // Probe once per file: the ticker reasks while unresolved.
+                val flacFile = currentFile
+                if (flacFile != null) {
+                    if (flacBitDepthProbePath != flacFile.absolutePath) {
+                        flacBitDepthProbePath = flacFile.absolutePath
+                        flacBitDepthProbeResult =
+                            DesktopArtworkSupport.extractFlacBitDepth(flacFile)?.let { "${it}-bit" }
+                            ?: "Unknown"
+                    }
+                    flacBitDepthProbeResult
+                } else {
+                    "Unknown"
+                }
             }
             else -> rawLabel.takeIf { it.isNotBlank() && it != "-bit" } ?: "Unknown"
         }
