@@ -26,6 +26,9 @@ import kotlinx.coroutines.delay
 @Stable
 internal class PlayerTransitionStateHolder {
     var miniExpandPreviewProgress by mutableFloatStateOf(0f)
+    // Stable mirror of miniExpandPreviewProgress > 0f for composition reads:
+    // the float changes on every pointer move, this only on transitions.
+    var miniExpandPreviewActive by mutableStateOf(false)
     var expandFromMiniDrag by mutableStateOf(false)
     var collapseFromSwipe by mutableStateOf(false)
     var collapseDragInProgress by mutableStateOf(false)
@@ -39,11 +42,14 @@ internal class PlayerTransitionStateHolder {
      */
     var isTapTransitioning by mutableStateOf(false)
 
+    // Reads the stable boolean, never the per-frame float: this getter is
+    // consumed in composition, and subscribing it to the float would
+    // recompose the whole activity on every pointer move.
     val isAnyAnimating: Boolean
         get() = isTapTransitioning ||
             collapseDragInProgress ||
             expandFromMiniDrag ||
-            miniExpandPreviewProgress > 0f
+            miniExpandPreviewActive
 }
 
 /**

@@ -24,7 +24,6 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
-import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.graphicsLayer
@@ -45,7 +44,8 @@ import android.view.MotionEvent
 internal fun ExpandedPlayerOverlayHost(
     isPlayerSurfaceVisible: Boolean,
     isPlayerExpanded: Boolean,
-    miniExpandPreviewProgress: Float,
+    miniExpandPreviewProgressProvider: () -> Float,
+    miniExpandPreviewActive: Boolean,
     expandFromMiniDrag: Boolean,
     collapseFromSwipe: Boolean,
     onCollapseFromSwipeChanged: (Boolean) -> Unit,
@@ -143,8 +143,7 @@ internal fun ExpandedPlayerOverlayHost(
     onHardwareNavigationInput: () -> Unit,
     onTouchInteraction: () -> Unit
 ) {
-    val dragPreviewVisible =
-        playerDragPreviewVisible(isPlayerSurfaceVisible, isPlayerExpanded, miniExpandPreviewProgress)
+    val dragPreviewVisible = isPlayerSurfaceVisible && !isPlayerExpanded && miniExpandPreviewActive
     val expandedOverlayVisible = isPlayerSurfaceVisible && isPlayerExpanded
     val overlayVisible = dragPreviewVisible || expandedOverlayVisible
     val noOp: () -> Unit = {}
@@ -211,7 +210,7 @@ internal fun ExpandedPlayerOverlayHost(
         label = "playerOverlayVisibilityForVis"
     )
     val overlayVisibleAtoms = rememberUpdatedState(
-        Triple(dragPreviewVisible, expandedOverlayVisible, miniExpandPreviewProgress.coerceIn(0f, 1f))
+        Pair(dragPreviewVisible, expandedOverlayVisible)
     )
     // Exit slide, in units of a third of the screen height; the panel is
     // fully below the display at 3. The bezier launches at roughly the
@@ -221,7 +220,7 @@ internal fun ExpandedPlayerOverlayHost(
     // linger in the compositor and show its last buffer.
     val exitSlideArmed = overlayWasExpanded &&
         run {
-            val (atomPreview, atomExpanded, _) = overlayVisibleAtoms.value
+            val (atomPreview, atomExpanded) = overlayVisibleAtoms.value
             !atomPreview && !atomExpanded
         }
     val exitSlideClock = remember { Animatable(0f) }
@@ -239,9 +238,7 @@ internal fun ExpandedPlayerOverlayHost(
         }
     }
     val exitSlideFraction = if (exitSlideArmed) exitSlideClock.value else 0f
-    val previewProgress = miniExpandPreviewProgress.coerceIn(0f, 1f)
-    val previewMode = !expandedOverlayVisible && previewProgress > 0f
-    val previewOffsetPx = playerPreviewOffsetPx(previewProgress, screenHeightPx)
+    val previewMode = !expandedOverlayVisible && miniExpandPreviewActive
     // The enter slide runs on a local clock instead of slideInVertically,
     // keeping it a plain translation on the host layer below: an embedded
     // surface follows layer translations through the interop offset, but
@@ -266,11 +263,15 @@ internal fun ExpandedPlayerOverlayHost(
     // Preview travel of the content, applied on the host layer below.
     // No scrim: the exit fades over the real content behind the player.
     // Stable instance: a fresh lambda per recomposition would re-trigger every reader.
-    val overlayVisibilityProvider = remember(previewMode, overlayVisibilityForVis) {
-        {
-            if (previewMode) 1f else overlayVisibilityForVis.value
+    // Constant during preview (fully opaque, settled veil/mount gate);
+    // the exit fall still flows through once the drag commits or cancels.
+    val overlayVisibilityProvider =
+        remember(miniExpandPreviewActive, expandedOverlayVisible, overlayVisibilityForVis) {
+            {
+                if (miniExpandPreviewActive && !expandedOverlayVisible) 1f
+                else overlayVisibilityForVis.value
+            }
         }
-    }
 
     AnimatedVisibility(
         visibleState = expandedVisibilityState,
@@ -299,7 +300,7 @@ internal fun ExpandedPlayerOverlayHost(
                 .fillMaxSize()
                 .graphicsLayer {
                     if (previewMode) {
-                        translationY = previewOffsetPx
+                        translationY = playerPreviewOffsetPx(miniExpandPreviewProgressProvider(), screenHeightPx)
                     } else {
                         translationY = enterSlideClock.value * screenHeightPx / 3f
                     }

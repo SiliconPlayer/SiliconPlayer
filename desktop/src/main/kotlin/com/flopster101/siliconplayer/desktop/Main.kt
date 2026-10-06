@@ -34,7 +34,6 @@ import com.flopster101.siliconplayer.HomePinnedEntry
 import com.flopster101.siliconplayer.MiniPlayerBar
 import com.flopster101.siliconplayer.loadPluginConfigurations
 import com.flopster101.siliconplayer.miniPlayerHiddenForExpand
-import com.flopster101.siliconplayer.playerDragPreviewVisible
 import com.flopster101.siliconplayer.playerPreviewOffsetPx
 import com.flopster101.siliconplayer.resolveMiniPlayerArtist
 import com.flopster101.siliconplayer.resolveMiniPlayerTitle
@@ -360,6 +359,7 @@ fun main(args: Array<String>) = application {
     var isPlayerExpanded by remember { mutableStateOf(false) }
     var isPlayerSurfaceVisible by remember { mutableStateOf(false) }
     var miniExpandPreviewProgress by remember { mutableFloatStateOf(0f) }
+    var miniExpandPreviewActive by remember { mutableStateOf(false) }
     var expandFromMiniDrag by remember { mutableStateOf(false) }
     var dragExpandCommitInProgress by remember { mutableStateOf(false) }
     var miniDismissOffsetPx by remember { mutableFloatStateOf(0f) }
@@ -603,8 +603,8 @@ fun main(args: Array<String>) = application {
             }
         }
     }
-    LaunchedEffect(isPlayerExpanded, miniExpandPreviewProgress) {
-        if (!isPlayerExpanded && miniExpandPreviewProgress <= 0f) {
+    LaunchedEffect(isPlayerExpanded, miniExpandPreviewActive) {
+        if (!isPlayerExpanded && !miniExpandPreviewActive) {
             dragExpandCommitInProgress = false
         }
     }
@@ -2735,15 +2735,11 @@ fun main(args: Array<String>) = application {
                         // Drag-up expand preview mirrors Android's ExpandedPlayerOverlayHost:
                         // the player is already visible during the drag, parked below the
                         // display edge, so it follows the finger instead of flinging in after release.
-                        val playerDragPreviewVisible = playerDragPreviewVisible(
-                            isPlayerSurfaceVisible,
-                            isPlayerExpanded,
-                            miniExpandPreviewProgress
-                        )
                         val playerExpandedOverlayVisible = isPlayerSurfaceVisible && isPlayerExpanded
-                        val playerOverlayVisible = playerDragPreviewVisible || playerExpandedOverlayVisible
-                        val playerPreviewProgress = miniExpandPreviewProgress.coerceIn(0f, 1f)
-                        val playerPreviewMode = !playerExpandedOverlayVisible && playerPreviewProgress > 0f
+                        val playerDragPreviewActive = isPlayerSurfaceVisible && !isPlayerExpanded &&
+                            miniExpandPreviewActive
+                        val playerOverlayVisible = playerDragPreviewActive || playerExpandedOverlayVisible
+                        val playerPreviewMode = !playerExpandedOverlayVisible && miniExpandPreviewActive
                         val miniHiddenForExpand = miniPlayerHiddenForExpand(
                             dragExpandCommitInProgress,
                             expandFromMiniDrag,
@@ -2897,11 +2893,15 @@ fun main(args: Array<String>) = application {
                                 currentSubtuneIndex = session.subtuneIndex,
                                 subtuneCount = session.subtuneCount,
                                 onExpand = {
-                                    expandFromMiniDrag = miniExpandPreviewProgress > 0f
+                                    expandFromMiniDrag = miniExpandPreviewActive
                                     miniExpandPreviewProgress = 0f
+                                    miniExpandPreviewActive = false
                                     isPlayerExpanded = true
                                 },
-                                onExpandDragProgress = { miniExpandPreviewProgress = it },
+                                onExpandDragProgress = {
+                                    miniExpandPreviewProgress = it
+                                    miniExpandPreviewActive = it > 0f
+                                },
                                 onExpandDragCommit = {
                                     if (dragExpandCommitInProgress) {
                                         return@MiniPlayerBar
@@ -2909,6 +2909,7 @@ fun main(args: Array<String>) = application {
                                     dragExpandCommitInProgress = true
                                     expandFromMiniDrag = true
                                     miniExpandPreviewProgress = 0f
+                                    miniExpandPreviewActive = false
                                     isPlayerExpanded = true
                                 },
                                 onPreviousTrack = {
@@ -2964,7 +2965,7 @@ fun main(args: Array<String>) = application {
                                 .graphicsLayer {
                                     if (playerPreviewMode) {
                                         translationY = playerPreviewOffsetPx(
-                                            playerPreviewProgress,
+                                            miniExpandPreviewProgress,
                                             playerPreviewScreenHeightPx
                                         )
                                     }
@@ -2982,7 +2983,7 @@ fun main(args: Array<String>) = application {
                                         Modifier
                                     }
                                 ),
-                            enter = if (expandFromMiniDrag || playerDragPreviewVisible) {
+                            enter = if (expandFromMiniDrag || playerDragPreviewActive) {
                                 EnterTransition.None
                             } else {
                                 slideInVertically(
@@ -3002,6 +3003,7 @@ fun main(args: Array<String>) = application {
                             val desktopOverlayVisibilityProvider = remember(playerPreviewMode) {
                                 { 1f }
                             }
+
                             CompositionLocalProvider(
                                 LocalPlayerFocusIndicatorsEnabled provides true,
                                 LocalPlayerOverlayVisibility provides desktopOverlayVisibilityProvider,

@@ -3275,8 +3275,12 @@ private fun AppNavigation(
             miniPlayerFocusRequester = miniPlayerFocusRequester,
             isPlayerSurfaceVisible = isPlayerSurfaceVisible,
             isPlayerExpanded = isPlayerExpanded,
-            miniExpandPreviewProgress = playerTransition.miniExpandPreviewProgress,
+            // Provider, not value: reading the float in composition would
+            // recompose the activity on every pointer move of the drag.
+            miniExpandPreviewProgressProvider = { playerTransition.miniExpandPreviewProgress },
             onMiniExpandPreviewProgressChanged = { playerTransition.miniExpandPreviewProgress = it },
+            miniExpandPreviewActive = playerTransition.miniExpandPreviewActive,
+            onMiniExpandPreviewActiveChanged = { playerTransition.miniExpandPreviewActive = it },
             expandFromMiniDrag = playerTransition.expandFromMiniDrag,
             onExpandFromMiniDragChanged = { playerTransition.expandFromMiniDrag = it },
             collapseFromSwipe = playerTransition.collapseFromSwipe,
@@ -3850,6 +3854,7 @@ private fun AppNavigation(
             playerTransition.expandedOverlaySettledVisible = false
             playerTransition.expandFromMiniDrag = false
             playerTransition.miniExpandPreviewProgress = 0f
+            playerTransition.miniExpandPreviewActive = false
         }
         val sortedFavoriteEntries = remember(playlistLibraryState.favorites, favoritesSortMode) {
             sortPlaylistEntries(

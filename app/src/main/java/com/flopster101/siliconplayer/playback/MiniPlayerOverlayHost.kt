@@ -67,8 +67,10 @@ internal fun BoxScope.MiniPlayerOverlayHost(
     miniPlayerFocusRequester: FocusRequester,
     isPlayerSurfaceVisible: Boolean,
     isPlayerExpanded: Boolean,
-    miniExpandPreviewProgress: Float,
+    miniExpandPreviewProgressProvider: () -> Float,
     onMiniExpandPreviewProgressChanged: (Float) -> Unit,
+    miniExpandPreviewActive: Boolean,
+    onMiniExpandPreviewActiveChanged: (Boolean) -> Unit,
     expandFromMiniDrag: Boolean,
     onExpandFromMiniDragChanged: (Boolean) -> Unit,
     onCollapseFromSwipeChanged: (Boolean) -> Unit,
@@ -141,10 +143,16 @@ internal fun BoxScope.MiniPlayerOverlayHost(
     val isWatch = remember(context) { context.packageManager.hasSystemFeature(PackageManager.FEATURE_WATCH) }
     val isRound = LocalConfiguration.current.isRoundScreenCompat
     var dragExpandCommitInProgress by remember { mutableStateOf(false) }
-    LaunchedEffect(isPlayerExpanded, miniExpandPreviewProgress) {
-        if (!isPlayerExpanded && miniExpandPreviewProgress <= 0f) {
+    LaunchedEffect(isPlayerExpanded, miniExpandPreviewActive) {
+        if (!isPlayerExpanded && !miniExpandPreviewActive) {
             dragExpandCommitInProgress = false
         }
+    }
+    // Single per-frame writer: the float feeds layer blocks only, while the
+    // stable boolean is what composition reads. Same-value writes are free.
+    val onPreviewProgress: (Float) -> Unit = {
+        onMiniExpandPreviewProgressChanged(it)
+        onMiniExpandPreviewActiveChanged(it > 0f)
     }
 
     AnimatedVisibility(
@@ -202,7 +210,7 @@ internal fun BoxScope.MiniPlayerOverlayHost(
         }
         val miniPlayerModifier = Modifier
             .graphicsLayer {
-                val dragProgress = miniExpandPreviewProgress.coerceIn(0f, 1f)
+                val dragProgress = miniExpandPreviewProgressProvider().coerceIn(0f, 1f)
                 val hideMini = miniPlayerHiddenForExpand(dragExpandCommitInProgress, expandFromMiniDrag, isPlayerExpanded)
                 alpha = if (hideMini) 0f else (1f - dragProgress).coerceIn(0f, 1f)
                 translationX = if (isPlaying) blockedDismissOffsetPx else dismissOffsetPx
@@ -231,8 +239,9 @@ internal fun BoxScope.MiniPlayerOverlayHost(
                     Key.DirectionCenter, Key.Enter, Key.NumPadEnter -> {
                         onMiniPlayerExpandRequested()
                         onCollapseFromSwipeChanged(false)
-                        onExpandFromMiniDragChanged(miniExpandPreviewProgress > 0f)
+                        onExpandFromMiniDragChanged(miniExpandPreviewProgressProvider() > 0f)
                         onMiniExpandPreviewProgressChanged(0f)
+                        onMiniExpandPreviewActiveChanged(false)
                         onPlayerExpandedChanged(true)
                         true
                     }
@@ -404,8 +413,9 @@ internal fun BoxScope.MiniPlayerOverlayHost(
                     onExpand = {
                         onMiniPlayerExpandRequested()
                         onCollapseFromSwipeChanged(false)
-                        onExpandFromMiniDragChanged(miniExpandPreviewProgress > 0f)
+                        onExpandFromMiniDragChanged(miniExpandPreviewProgressProvider() > 0f)
                         onMiniExpandPreviewProgressChanged(0f)
+                        onMiniExpandPreviewActiveChanged(false)
                         onPlayerExpandedChanged(true)
                     },
                     onPlayPause = onPlayPause
@@ -436,11 +446,12 @@ internal fun BoxScope.MiniPlayerOverlayHost(
                     onExpand = {
                         onMiniPlayerExpandRequested()
                         onCollapseFromSwipeChanged(false)
-                        onExpandFromMiniDragChanged(miniExpandPreviewProgress > 0f)
+                        onExpandFromMiniDragChanged(miniExpandPreviewProgressProvider() > 0f)
                         onMiniExpandPreviewProgressChanged(0f)
+                        onMiniExpandPreviewActiveChanged(false)
                         onPlayerExpandedChanged(true)
                     },
-                    onExpandDragProgress = onMiniExpandPreviewProgressChanged,
+                    onExpandDragProgress = onPreviewProgress,
                     onExpandDragCommit = {
                         if (dragExpandCommitInProgress) {
                             return@MiniPlayerBar
@@ -451,6 +462,7 @@ internal fun BoxScope.MiniPlayerOverlayHost(
                         onCollapseFromSwipeChanged(false)
                         onPlayerExpandedChanged(true)
                         onMiniExpandPreviewProgressChanged(0f)
+                        onMiniExpandPreviewActiveChanged(false)
                     },
                     onPreviousTrack = { onPreviousTrack(); Unit },
                     onForcePreviousTrack = { onForcePreviousTrack(); Unit },
