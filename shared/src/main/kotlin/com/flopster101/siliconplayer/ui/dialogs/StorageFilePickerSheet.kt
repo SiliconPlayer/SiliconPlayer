@@ -151,7 +151,7 @@ private fun StorageFilePickerContent(
 ) {
     val storageLocationsProvider = LocalStorageLocationsProvider.current
     val descriptors = remember(storageLocationsProvider) {
-        storageLocationsProvider().map { location ->
+        storageLocationsProvider(false).map { location ->
             StorageDescriptor(
                 rootPath = location.directory.absolutePath,
                 label = location.name,

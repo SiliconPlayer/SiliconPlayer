@@ -463,7 +463,13 @@ fun ProvideAndroidPlatformAdapters(
     }
 
     val storageLocationsProvider = remember(context) {
-        { detectAndroidStorageLocations(context) }
+        var cachedLocations: List<PlatformStorageLocation>? = null
+        { refresh: Boolean ->
+            if (refresh || cachedLocations == null) {
+                cachedLocations = detectAndroidStorageLocations(context)
+            }
+            cachedLocations!!
+        }
     }
 
     val artworkThumbnailLoader = remember(context) {

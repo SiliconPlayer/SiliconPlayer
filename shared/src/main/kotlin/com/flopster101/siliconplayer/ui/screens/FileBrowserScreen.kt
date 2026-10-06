@@ -311,7 +311,9 @@ internal fun FileBrowserScreen(
     }
     val localListingAdapter = remember(repository) { LocalBrowserListingAdapter(repository) }
     var storageLocationsRefreshToken by remember { mutableIntStateOf(0) }
-    val storageLocations = remember(storageLocationsProvider, storageLocationsRefreshToken) { storageLocationsProvider() }
+    val storageLocations = remember(storageLocationsProvider, storageLocationsRefreshToken) {
+        storageLocationsProvider(storageLocationsRefreshToken > 0)
+    }
     var selectedLocationId by rememberSaveable { mutableStateOf<String?>(null) }
     var currentDirectoryPath by rememberSaveable { mutableStateOf<String?>(null) }
     val currentDirectory = currentDirectoryPath?.let(::File)

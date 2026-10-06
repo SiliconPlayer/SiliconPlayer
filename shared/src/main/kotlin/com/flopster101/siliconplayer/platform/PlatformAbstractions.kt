@@ -226,8 +226,8 @@ enum class StorageLocationKind {
     USB
 }
 
-val LocalStorageLocationsProvider = staticCompositionLocalOf<() -> List<PlatformStorageLocation>> {
-    {
+val LocalStorageLocationsProvider = staticCompositionLocalOf<(Boolean) -> List<PlatformStorageLocation>> {
+    { _ ->
         val results = mutableListOf<PlatformStorageLocation>()
         val seen = mutableSetOf<String>()
         val userHome = java.io.File(System.getProperty("user.home") ?: "/")
