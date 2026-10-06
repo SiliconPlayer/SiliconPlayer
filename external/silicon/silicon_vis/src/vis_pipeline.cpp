@@ -498,7 +498,14 @@ void SiliconVisPipeline::resizeVulkan(uint32_t width, uint32_t height, float den
         heightPx_ = static_cast<int32_t>(vulkanPipeline_->getHeight());
     }
     channelScope_.resize(widthPx_, heightPx_, density_);
+    oscilloscope_.resize(widthPx_, heightPx_, density_);
+    bars_.resize(widthPx_, heightPx_, density_);
     starfield_.resize(widthPx_, heightPx_, density_);
+    vuMeters_.resize(widthPx_, heightPx_, density_);
+
+    for (auto& [modeId, renderer] : pluginRenderers_) {
+        if (renderer) renderer->resize(widthPx_, heightPx_, density_);
+    }
 }
 
 void SiliconVisPipeline::releaseVulkan() {
