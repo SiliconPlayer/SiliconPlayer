@@ -4,6 +4,7 @@ import androidx.benchmark.macro.junit4.BaselineProfileRule
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.uiautomator.By
 import androidx.test.uiautomator.Direction
+import androidx.test.uiautomator.StaleObjectException
 import androidx.test.uiautomator.Until
 import org.junit.Rule
 import org.junit.Test
@@ -41,7 +42,15 @@ class BaselineProfileGenerator {
         // Back to home and open the player (mini player "Play" affordance).
         device.pressBack()
         device.waitForIdle()
-        device.findObject(By.desc("Play"))?.click()
+        // The progress tick recomposes the tree; re-find on stale hits.
+        repeat(3) {
+            try {
+                device.findObject(By.desc("Play"))?.click()
+                return@collect
+            } catch (_: StaleObjectException) {
+                Thread.sleep(500)
+            }
+        }
         device.waitForIdle()
     }
 

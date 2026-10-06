@@ -82,7 +82,7 @@ class UiJankBenchmark {
         playFirstFixture()
         repeat(3) {
             requireTrackSwitch("Next track")
-            requireTrackSwitch("Previous track")
+            requirePreviousTrack()
         }
         device.waitForIdle()
     }
@@ -293,6 +293,22 @@ class UiJankBenchmark {
             .mapNotNull { try { it.text } catch (_: Exception) { null } }
             .filter { it.isNotBlank() && !TIME_LIKE.matcher(it).matches() }
             .toSet()
+    }
+
+    private fun MacrobenchmarkScope.requirePreviousTrack() {
+        // Previous restarts the current track past a playback-position
+        // threshold instead of stepping back, so a tap that only restarts
+        // just re-arms the next tap (now near zero) for the real switch.
+        repeat(2) {
+            val before = playerSignature()
+            requireDesc("Previous track")
+            val switchDeadline = System.currentTimeMillis() + 5_000
+            do {
+                Thread.sleep(250)
+                if (playerSignature() != before) return
+            } while (System.currentTimeMillis() < switchDeadline)
+        }
+        throw AssertionError("Track did not change after 'Previous track'")
     }
 
     private fun MacrobenchmarkScope.requireTrackSwitch(action: String) {
