@@ -82,6 +82,11 @@ private object VisualizerVkWarmCache {
 
     fun put(handle: Long) = synchronized(this) {
         if (cachedHandle != 0L) try { SiliconVisNativeBridge.nativeDestroy(cachedHandle) } catch (_: Throwable) {}
+        // A reused handle keeps its uploaded artwork/icon, but the next
+        // render thread starts with empty last-seen state and would skip
+        // the clear. Recache it clean so change detection stays correct.
+        try { SiliconVisNativeBridge.nativeClearArtwork(handle) } catch (_: Throwable) {}
+        try { SiliconVisNativeBridge.nativeClearIcon(handle) } catch (_: Throwable) {}
         cachedHandle = handle
         cachedAt = SystemClock.elapsedRealtime()
         handler.removeCallbacks(decayRunnable)
