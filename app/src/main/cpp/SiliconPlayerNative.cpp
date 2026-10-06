@@ -698,6 +698,18 @@ Java_com_flopster101_siliconplayer_MainActivity_stopEngine(JNIEnv* env, jobject)
     }
 }
 
+extern "C" JNIEXPORT void JNICALL
+Java_com_flopster101_siliconplayer_MainActivity_stopEngineSync(JNIEnv*, jobject) {
+    if (audioEngine != nullptr) {
+        audioEngine->stop();
+    }
+}
+
+extern "C" JNIEXPORT void JNICALL
+Java_com_flopster101_siliconplayer_NativeBridge_stopEngineSyncNative(JNIEnv* env, jobject thiz) {
+    Java_com_flopster101_siliconplayer_MainActivity_stopEngineSync(env, thiz);
+}
+
 extern "C" JNIEXPORT jboolean JNICALL
 Java_com_flopster101_siliconplayer_MainActivity_isEnginePlaying(JNIEnv* env, jobject) {
     if (audioEngine == nullptr) {

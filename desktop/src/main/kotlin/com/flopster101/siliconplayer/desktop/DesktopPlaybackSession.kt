@@ -155,8 +155,10 @@ class DesktopPlaybackSession(
         // running stream (Android parity). stopEngineNative runs on a detached
         // thread and could otherwise clear the new track's rendered head,
         // truncating the song start intermittently.
+        // Synchronous: the detached stop could otherwise land after the
+        // install below and wipe the new track.
         if (!autoStart) {
-            NativeBridge.stopEngineNative()
+            NativeBridge.stopEngineSyncNative()
         }
         val forced = NativeBridge.consumeForcedDecoderOneShot()
         if (forced != null) {
@@ -263,8 +265,10 @@ class DesktopPlaybackSession(
         NativeBridge.teardownOutputStream()
         // Same no-pre-stop rule as loadFileGuarded: the detached stop could
         // wipe the new source's rendered head before start() prefills.
+        // Synchronous: the detached stop could otherwise land after the
+        // install below and wipe the new track.
         if (!autoStart) {
-            NativeBridge.stopEngineNative()
+            NativeBridge.stopEngineSyncNative()
         }
         val forced = NativeBridge.consumeForcedDecoderOneShot()
         if (forced != null) {

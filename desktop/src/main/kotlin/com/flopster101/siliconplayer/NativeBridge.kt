@@ -160,6 +160,7 @@ object NativeBridge {
 
     external fun startEngineNative()
     external fun stopEngineNative()
+    external fun stopEngineSyncNative()
     external fun teardownOutputStream()
     external fun startEngineWithPauseResumeFadeNative()
     external fun stopEngineWithPauseResumeFadeNative()

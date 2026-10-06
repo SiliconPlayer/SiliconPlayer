@@ -81,6 +81,7 @@ class DesktopOpenAbortSupersedeTest {
             }
         }
     }
+
     @Test
     fun stopAfterStackedStallsDoesNotGrindTimeouts() {
         useSilentTestAudioOutput()
@@ -109,8 +110,6 @@ class DesktopOpenAbortSupersedeTest {
                 assertTrue("Stop after stacked stalls returns promptly (ms=$stopMs)",
                     stopMs < 12_000)
                 loadersDone.await(60, TimeUnit.SECONDS)
-<<<<<<< HEAD
-=======
             } finally {
                 try { session.stop() } catch (_: Throwable) {}
             }
@@ -150,7 +149,6 @@ class DesktopOpenAbortSupersedeTest {
                     NativeBridge.getTrackTitle().isNotBlank()
                 )
                 loaderDone.await(60, TimeUnit.SECONDS)
->>>>>>> d92b13ae (fixup! audio: abort stalled decoder opens on stop or superseding load)
             } finally {
                 try { session.stop() } catch (_: Throwable) {}
             }
