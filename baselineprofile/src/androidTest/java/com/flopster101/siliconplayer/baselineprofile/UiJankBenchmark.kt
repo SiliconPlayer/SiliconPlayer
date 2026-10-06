@@ -88,6 +88,34 @@ class UiJankBenchmark {
     }
 
     @Test
+    fun dragExpandCollapse() = measureJank {
+        startActivityAndWait()
+        device.waitForIdle()
+        playFirstFixture()
+        // Back to the mini player; the drag starts from its bar.
+        device.pressBack()
+        device.wait(Until.gone(By.desc("Minimize player")), 5_000)
+            ?: throw AssertionError("Player did not minimize")
+        device.waitForIdle()
+        val centerX = device.displayWidth / 2
+        val miniY = (device.displayHeight * 0.88).toInt()
+        val topY = (device.displayHeight * 0.25).toInt()
+        repeat(2) {
+            // Slow drag up: steps pace the gesture so frames, not the
+            // fling animation, are what gets measured.
+            device.swipe(centerX, miniY, centerX, topY, 80)
+            device.wait(Until.findObject(By.desc("Minimize player")), 5_000)
+                ?: throw AssertionError("Drag up did not expand the player")
+            device.waitForIdle()
+            // Slow drag back down from mid-panel to the mini bar.
+            device.swipe(centerX, topY, centerX, miniY, 80)
+            device.wait(Until.gone(By.desc("Minimize player")), 5_000)
+                ?: throw AssertionError("Drag down did not minimize the player")
+            device.waitForIdle()
+        }
+    }
+
+    @Test
     fun cycleVisualizations() = measureJank {
         cycleVisualizationsJourney()
     }
