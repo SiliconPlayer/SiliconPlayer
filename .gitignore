@@ -55,3 +55,4 @@ external/sc68/as68/as68
 desktop/hs_err_pid*.log
 desktop/core.*
 core.*
+tools/bin/
