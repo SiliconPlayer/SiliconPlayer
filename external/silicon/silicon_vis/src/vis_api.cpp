@@ -41,15 +41,23 @@ void silicon_vis_set_audio_provider(SiliconVisHandle handle, void* audioProvider
     pipeline->setAudioProvider(static_cast<silicon::vis::IVisualizationAudioProvider*>(audioProvider));
 }
 
+// The device never changes at runtime; probing enumerates physical
+// devices, so answer once no matter which thread asks first.
 bool silicon_vis_vulkan_is_supported(void) {
-    silicon::vis::vk::VkContext ctx;
-    return ctx.init();
+    static const bool s_supported = [] {
+        silicon::vis::vk::VkContext ctx;
+        return ctx.init();
+    }();
+    return s_supported;
 }
 
 int32_t silicon_vis_vulkan_get_tier(void) {
-    silicon::vis::vk::VkContext ctx;
-    if (!ctx.init()) return 0;
-    return static_cast<int32_t>(ctx.getCapabilities().tier);
+    static const int32_t s_tier = [] {
+        silicon::vis::vk::VkContext ctx;
+        if (!ctx.init()) return 0;
+        return static_cast<int32_t>(ctx.getCapabilities().tier);
+    }();
+    return s_tier;
 }
 
 uint32_t silicon_vis_vulkan_get_api_version(void) {

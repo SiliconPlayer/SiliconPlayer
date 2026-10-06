@@ -43,6 +43,7 @@ import com.flopster101.siliconplayer.LocalPlayerOverlayVisibility
 import com.flopster101.siliconplayer.NativeBridge
 import com.flopster101.siliconplayer.AppPreferenceKeys
 import com.flopster101.siliconplayer.VisualizationOscFpsMode
+import com.flopster101.siliconplayer.supportsVulkanRendering
 import com.flopster101.siliconplayer.ui.visualization.channel.GlChannelScopeTextFrame
 import com.flopster101.siliconplayer.ui.visualization.channel.parseChannelScopeTextStates
 import kotlinx.coroutines.delay
@@ -106,13 +107,7 @@ fun SiliconNativeVkSurfaceVisualization(
     onFrameStats: ((fps: Int, frameMs: Int) -> Unit)? = null,
     modifier: Modifier = Modifier
 ) {
-    val isVulkanSupported = remember {
-        try {
-            SiliconVisNativeBridge.nativeVulkanIsSupported()
-        } catch (_: Throwable) {
-            false
-        }
-    }
+    val isVulkanSupported = remember { supportsVulkanRendering() }
 
     if (!isVulkanSupported) {
         SiliconNativeGlSurfaceVisualization(

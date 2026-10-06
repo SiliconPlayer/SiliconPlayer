@@ -331,6 +331,12 @@ class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        // Warm the process-cached GPU capability probes off the main thread
+        // so the first visualization switch never enumerates devices on it.
+        Thread {
+            supportsVulkanRendering()
+            com.flopster101.siliconplayer.ui.visualization.gl.GpuDeviceDetector.isXclipse()
+        }.also { it.isDaemon = true; it.start() }
         NativeBridge.installContext(applicationContext)
         NetworkCredentialStore.preferencesProvider = {
             com.flopster101.siliconplayer.platform.AndroidPreferencesProvider(applicationContext)
