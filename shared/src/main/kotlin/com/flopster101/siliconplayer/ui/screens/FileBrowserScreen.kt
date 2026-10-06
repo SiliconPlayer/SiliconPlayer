@@ -483,13 +483,14 @@ internal fun FileBrowserScreen(
                         }
                     }
                 }
-                onVisiblePlayableFilesChanged(
+                val playableFiles = withContext(Dispatchers.IO) {
                     loadedFiles
                         .asSequence()
-                        .filter { item -> repository.isPlayableFile(item.file) }
+                        .filter { item -> repository.isPlayableFile(item) }
                         .map { it.file }
                         .toList()
-                )
+                }
+                onVisiblePlayableFilesChanged(playableFiles)
                 val stillOnSameDirectory = currentDirectoryPath == targetPath
                 if (stillOnSameDirectory) {
                     val folders = loadedFiles.count { it.isDirectory }

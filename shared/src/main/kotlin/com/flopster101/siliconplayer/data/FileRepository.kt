@@ -91,6 +91,14 @@ class FileRepository(
             fileMatchesSupportedExtensions(file, supportedExtensions)
     }
 
+    // FileItem variant: the listing already resolved kind, so this stays
+    // stat-free when screening thousands of entries at directory load.
+    fun isPlayableFile(item: FileItem): Boolean {
+        return !item.isDirectory &&
+            !item.file.extension.equals("zip", ignoreCase = true) &&
+            fileMatchesSupportedExtensions(item.file, supportedExtensions)
+    }
+
     private fun buildRootFallbackEntries(): List<File> {
         val candidates = linkedSetOf(
             File("/storage"),
