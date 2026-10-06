@@ -31,5 +31,5 @@ if [ -n "$METHOD" ]; then
     ARGS="-e class com.flopster101.siliconplayer.baselineprofile.UiJankBenchmark#$METHOD"
 fi
 # shellcheck disable=SC2086
-adb shell am instrument -w -r $ARGS \
+adb shell am instrument -w -r -e androidx.benchmark.suppressErrors EMULATOR $ARGS \
     com.flopster101.siliconplayer.baselineprofile.test/androidx.test.runner.AndroidJUnitRunner
