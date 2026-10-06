@@ -35,7 +35,6 @@ import com.flopster101.siliconplayer.MiniPlayerBar
 import com.flopster101.siliconplayer.loadPluginConfigurations
 import com.flopster101.siliconplayer.miniPlayerHiddenForExpand
 import com.flopster101.siliconplayer.playerDragPreviewVisible
-import com.flopster101.siliconplayer.playerPreviewAlpha
 import com.flopster101.siliconplayer.playerPreviewOffsetPx
 import com.flopster101.siliconplayer.resolveMiniPlayerArtist
 import com.flopster101.siliconplayer.resolveMiniPlayerTitle
@@ -2968,7 +2967,6 @@ fun main(args: Array<String>) = application {
                                             playerPreviewProgress,
                                             playerPreviewScreenHeightPx
                                         )
-                                        alpha = playerPreviewAlpha(playerPreviewProgress)
                                     }
                                 }
                                 .then(
@@ -3001,11 +2999,12 @@ fun main(args: Array<String>) = application {
                                 fadeOut(animationSpec = tween(durationMillis = 1))
                             }
                         ) {
+                            val desktopOverlayVisibilityProvider = remember(playerPreviewMode) {
+                                { 1f }
+                            }
                             CompositionLocalProvider(
                                 LocalPlayerFocusIndicatorsEnabled provides true,
-                                LocalPlayerOverlayVisibility provides {
-                                    if (playerPreviewMode) playerPreviewProgress else 1f
-                                },
+                                LocalPlayerOverlayVisibility provides desktopOverlayVisibilityProvider,
                                 LocalPlayerExitSlideFraction provides 0f
                             ) {
                                 PlayerScreen(

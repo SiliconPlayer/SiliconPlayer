@@ -266,10 +266,9 @@ internal fun ExpandedPlayerOverlayHost(
     // Preview travel of the content, applied on the host layer below.
     // No scrim: the exit fades over the real content behind the player.
     // Stable instance: a fresh lambda per recomposition would re-trigger every reader.
-    val overlayVisibilityProvider = remember(overlayVisibilityForVis) {
+    val overlayVisibilityProvider = remember(previewMode, overlayVisibilityForVis) {
         {
-            val (previewVisible, expandedVisible, previewProgress) = overlayVisibleAtoms.value
-            if (previewVisible && !expandedVisible) previewProgress else overlayVisibilityForVis.value
+            if (previewMode) 1f else overlayVisibilityForVis.value
         }
     }
 
@@ -301,7 +300,6 @@ internal fun ExpandedPlayerOverlayHost(
                 .graphicsLayer {
                     if (previewMode) {
                         translationY = previewOffsetPx
-                        alpha = playerPreviewAlpha(previewProgress)
                     } else {
                         translationY = enterSlideClock.value * screenHeightPx / 3f
                     }

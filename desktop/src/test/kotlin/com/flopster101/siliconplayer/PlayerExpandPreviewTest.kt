@@ -22,12 +22,6 @@ class PlayerExpandPreviewTest {
         assertEquals(0f, playerPreviewOffsetPx(1f, 1000f), 0.001f)
     }
 
-    @Test
-    fun previewAlphaFollowsProgressClamped() {
-        assertEquals(0f, playerPreviewAlpha(-0.5f), 0.001f)
-        assertEquals(0.5f, playerPreviewAlpha(0.5f), 0.001f)
-        assertEquals(1f, playerPreviewAlpha(1.5f), 0.001f)
-    }
 
     @Test
     fun miniHiddenOnlyForExpandPaths() {
