@@ -99,12 +99,13 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          EXTERNAL_TREE_HASH="$(git rev-parse HEAD:external)"
+          # silicon_vis is built by the app's CMake, not by the deps scripts.
+          EXTERNAL_TREE_HASH="$(git ls-tree -r HEAD -- external | grep -v $'\t'external/silicon/silicon_vis/ | git hash-object --stdin)"
           echo "key=native-deps-${{ runner.os }}-ndk29-api21-all_legacy-${EXTERNAL_TREE_HASH}" >> "${GITHUB_OUTPUT}"
 
       - name: Restore native deps cache
         id: deps-cache
-        uses: actions/cache@v4
+        uses: actions/cache/restore@v4
         with:
           path: app/src/main/cpp/prebuilt
           key: ${{ steps.deps-cache-key.outputs.key }}
@@ -114,6 +115,14 @@ jobs:
         run: |
           chmod +x external/build_deps*.sh
           ./external/build_deps.sh all_legacy all
+
+      - name: Save native deps cache
+        if: steps.deps-cache.outputs.cache-hit != 'true'
+        continue-on-error: true
+        uses: actions/cache/save@v4
+        with:
+          path: app/src/main/cpp/prebuilt
+          key: ${{ steps.deps-cache-key.outputs.key }}
 
       - name: Build optimizedDebug APK
         run: |
@@ -209,12 +218,13 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          EXTERNAL_TREE_HASH="$(git rev-parse HEAD:external)"
+          # silicon_vis is built by the app's CMake, not by the deps scripts.
+          EXTERNAL_TREE_HASH="$(git ls-tree -r HEAD -- external | grep -v $'\t'external/silicon/silicon_vis/ | git hash-object --stdin)"
           echo "key=desktop-deps-${{ runner.os }}-x86_64-${EXTERNAL_TREE_HASH}" >> "${GITHUB_OUTPUT}"
 
       - name: Restore desktop deps cache
         id: deps-cache
-        uses: actions/cache@v4
+        uses: actions/cache/restore@v4
         with:
           path: desktop/prebuilt
           key: ${{ steps.deps-cache-key.outputs.key }}
@@ -224,6 +234,14 @@ jobs:
         run: |
           chmod +x external/build_deps*.sh
           BUILD_FFMPEG_SOURCE=1 ./external/build_deps_desktop.sh x86_64 all
+
+      - name: Save desktop deps cache
+        if: steps.deps-cache.outputs.cache-hit != 'true'
+        continue-on-error: true
+        uses: actions/cache/save@v4
+        with:
+          path: desktop/prebuilt
+          key: ${{ steps.deps-cache-key.outputs.key }}
 
       - name: Build release distributable
         run: |
@@ -312,12 +330,13 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          EXTERNAL_TREE_HASH="$(git rev-parse HEAD:external)"
+          # silicon_vis is built by the app's CMake, not by the deps scripts.
+          EXTERNAL_TREE_HASH="$(git ls-tree -r HEAD -- external | grep -v $'\t'external/silicon/silicon_vis/ | git hash-object --stdin)"
           echo "key=desktop-deps-${{ runner.os }}-x86_64-${EXTERNAL_TREE_HASH}" >> "${GITHUB_OUTPUT}"
 
       - name: Restore desktop deps cache
         id: deps-cache
-        uses: actions/cache@v4
+        uses: actions/cache/restore@v4
         with:
           # Same key as the desktop job: identical script, identical
           # outputs, so a warm desktop cache skips the dep build here too.
@@ -356,6 +375,14 @@ jobs:
           cp desktop/packaging/arch/PKGBUILD desktop/packaging/arch/siliconplayer.sh desktop/packaging/arch/siliconplayer.desktop /tmp/archpkg/
           chown -R builder:builder /tmp/archpkg
           su builder -c 'cd /tmp/archpkg && makepkg -se --noconfirm'
+
+      - name: Save desktop deps cache
+        if: steps.deps-cache.outputs.cache-hit != 'true'
+        continue-on-error: true
+        uses: actions/cache/save@v4
+        with:
+          path: ${{ github.workspace }}/desktop/prebuilt
+          key: ${{ steps.deps-cache-key.outputs.key }}
 
       - name: Upload Arch package artifact
         uses: actions/upload-artifact@v4
