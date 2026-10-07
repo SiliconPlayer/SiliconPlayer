@@ -1,6 +1,6 @@
 # Maintainer: Flopster101 <nahuelgomez329@gmail.com>
 pkgname=siliconplayer
-pkgver=0.1.0
+pkgver=0.2.0
 pkgrel=1
 pkgdesc="Modern chiptune and module music player"
 arch=('x86_64')
