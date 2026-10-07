@@ -146,36 +146,36 @@ jobs:
           find app/build/outputs -type f -name "*.apk" | grep -i optimizeddebug | while read -r APK; do
             ABI=$(basename "$APK" | sed -n 's/.*app-\(.*\)-optimizedDebug\.apk/\1/p')
             [ -n "$ABI" ] || continue
-            cp "$APK" "artifact/SiliconPlayer-${{ steps.version.outputs.version_name }}-${{ steps.vars.outputs.short_sha }}-$ABI.apk"
+            cp "$APK" "artifact/SiliconPlayer-${{ steps.version.outputs.version_name }}-${{ steps.vars.outputs.short_sha }}-$ABI"
           done
           ls -la artifact/
 
       - name: Upload arm64-v8a artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
-          name: SiliconPlayer-${{ steps.version.outputs.version_name }}-${{ steps.vars.outputs.short_sha }}-arm64-v8a
-          path: artifact/*arm64-v8a.apk
+          path: artifact/*arm64-v8a
+          archive: false
           if-no-files-found: error
 
       - name: Upload armeabi-v7a artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
-          name: SiliconPlayer-${{ steps.version.outputs.version_name }}-${{ steps.vars.outputs.short_sha }}-armeabi-v7a
-          path: artifact/*armeabi-v7a.apk
+          path: artifact/*armeabi-v7a
+          archive: false
           if-no-files-found: error
 
       - name: Upload x86_64 artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
-          name: SiliconPlayer-${{ steps.version.outputs.version_name }}-${{ steps.vars.outputs.short_sha }}-x86_64
-          path: artifact/*x86_64.apk
+          path: artifact/*x86_64
+          archive: false
           if-no-files-found: error
 
       - name: Upload x86 artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
-          name: SiliconPlayer-${{ steps.version.outputs.version_name }}-${{ steps.vars.outputs.short_sha }}-x86
-          path: artifact/*-x86.apk
+          path: artifact/*-x86
+          archive: false
           if-no-files-found: error
 
   desktop:
@@ -266,25 +266,34 @@ jobs:
           VERSION_NAME=$(grep -oP '^siliconplayer\.version=\K.+' gradle.properties)
           echo "version_name=${VERSION_NAME}" >> "$GITHUB_OUTPUT"
 
+      - name: Prepare artifacts
+        run: |
+          mkdir -p artifact
+          SRC=desktop/build/compose/binaries/main-release
+          cp "$SRC"/SiliconPlayer-*.AppImage "artifact/SiliconPlayer-${{ steps.version.outputs.version_name }}-${{ steps.vars.outputs.short_sha }}-x86_64-appimage"
+          cp "$SRC"/SiliconPlayer-*.deb "artifact/SiliconPlayer-${{ steps.version.outputs.version_name }}-${{ steps.vars.outputs.short_sha }}-x86_64-deb"
+          cp "$SRC"/SiliconPlayer-*.tar.gz "artifact/SiliconPlayer-${{ steps.version.outputs.version_name }}-${{ steps.vars.outputs.short_sha }}-x86_64-bare"
+          ls -la artifact/
+
       - name: Upload AppImage artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
-          name: SiliconPlayer-${{ steps.version.outputs.version_name }}-${{ steps.vars.outputs.short_sha }}-x86_64-appimage
-          path: desktop/build/compose/binaries/main-release/SiliconPlayer-*.AppImage
+          path: artifact/SiliconPlayer-*-x86_64-appimage
+          archive: false
           if-no-files-found: error
 
       - name: Upload deb artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
-          name: SiliconPlayer-${{ steps.version.outputs.version_name }}-${{ steps.vars.outputs.short_sha }}-x86_64-deb
-          path: desktop/build/compose/binaries/main-release/SiliconPlayer-*.deb
+          path: artifact/SiliconPlayer-*-x86_64-deb
+          archive: false
           if-no-files-found: error
 
       - name: Upload bare tarball artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
-          name: SiliconPlayer-${{ steps.version.outputs.version_name }}-${{ steps.vars.outputs.short_sha }}-x86_64-bare
-          path: desktop/build/compose/binaries/main-release/SiliconPlayer-*.tar.gz
+          path: artifact/SiliconPlayer-*-x86_64-bare
+          archive: false
           if-no-files-found: error
 
   arch:
@@ -384,11 +393,16 @@ jobs:
           path: ${{ github.workspace }}/desktop/prebuilt
           key: ${{ steps.deps-cache-key.outputs.key }}
 
+      - name: Prepare artifacts
+        run: |
+          mkdir -p artifact
+          cp /tmp/archpkg/siliconplayer-[0-9]*.pkg.tar.zst "artifact/SiliconPlayer-${{ steps.version.outputs.version_name }}-${{ steps.vars.outputs.short_sha }}-x86_64-pkg"
+
       - name: Upload Arch package artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
-          name: SiliconPlayer-${{ steps.version.outputs.version_name }}-${{ steps.vars.outputs.short_sha }}-x86_64-pkg
-          path: /tmp/archpkg/siliconplayer-*.pkg.tar.zst
+          path: artifact/SiliconPlayer-*-x86_64-pkg
+          archive: false
           if-no-files-found: error
 
   publish:
@@ -406,11 +420,23 @@ jobs:
           fetch-depth: 0
 
       - name: Download all build artifacts
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
-          pattern: SiliconPlayer-*
           merge-multiple: true
           path: release-artifacts/
+
+      - name: Restore release file names
+        run: |
+          set -euo pipefail
+          PKGVER=$(grep -oP '^pkgver=\K.+' desktop/packaging/arch/PKGBUILD)
+          PKGREL=$(grep -oP '^pkgrel=\K.+' desktop/packaging/arch/PKGBUILD)
+          cd release-artifacts
+          for f in SiliconPlayer-*-x86_64-appimage; do mv "$f" "${f%-x86_64-appimage}-x86_64.AppImage"; done
+          for f in SiliconPlayer-*-x86_64-deb; do mv "$f" "${f%-x86_64-deb}-x86_64.deb"; done
+          for f in SiliconPlayer-*-x86_64-bare; do mv "$f" "${f%-x86_64-bare}-x86_64.tar.gz"; done
+          for f in SiliconPlayer-*-x86_64-pkg; do mv "$f" "siliconplayer-${PKGVER}-${PKGREL}-x86_64.pkg.tar.zst"; done
+          for f in SiliconPlayer-*-arm64-v8a SiliconPlayer-*-armeabi-v7a SiliconPlayer-*-x86_64 SiliconPlayer-*-x86; do mv "$f" "$f.apk"; done
+          ls -la
 
       - name: Get short commit hash
         id: vars
