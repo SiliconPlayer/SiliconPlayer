@@ -161,6 +161,8 @@ internal fun ensureRecentArtworkCached(
         )
     }
 
+    if (RecentThumbNoArtworkCache.get(cacheKey) == true) return null
+
     val sourceFile = resolveRecentArtworkSourceFile(context, normalizedSource)
     val loadedBitmap = loadArtworkBitmapForSource(
         context = context,
@@ -190,6 +192,10 @@ internal fun ensureRecentArtworkCached(
             bitmap = loadedBitmap,
             recycleSource = false
         )
+    }
+
+    if (sourceFile != null) {
+        RecentThumbNoArtworkCache.put(cacheKey, true)
     }
 
     return if (cacheFile.exists() && cacheFile.length() > 0L) cacheKey else if (largeFile.exists() && largeFile.length() > 0L) cacheKey else null
