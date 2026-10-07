@@ -248,7 +248,10 @@ internal fun AppNavigationPlaybackPollEffects(
                     val nativeSubtuneCursor = withContext(Dispatchers.PlaybackIo) {
                         readNativeSubtuneCursor()
                     }
-                    if (hasNativeSubtuneCursorChanged(
+                    // The cursor floors its count at 1 while state can report 0;
+                    // with no subtunes the pair never matches, so skip the poll.
+                    if ((nativeSubtuneCursor.count > 1 || subtuneCountProvider() > 1) &&
+                        hasNativeSubtuneCursorChanged(
                             nativeSubtuneCursor,
                             subtuneCountProvider(),
                             currentSubtuneIndexProvider()
