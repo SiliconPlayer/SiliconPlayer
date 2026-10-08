@@ -140,6 +140,10 @@ bool UpseDecoder::openInternalLocked(const char* path) {
         if (meta->genre) genre = meta->genre;
         if (meta->copyright) copyrightText = meta->copyright;
         if (meta->comment) comment = meta->comment;
+        if (meta->xsf != nullptr) {
+            if (meta->xsf->inf_length[0] != '\0') lengthTag = meta->xsf->inf_length;
+            if (meta->xsf->inf_fade[0] != '\0') fadeTag = meta->xsf->inf_fade;
+        }
         const uint32_t totalMs = meta->stop + meta->fade;
         if (meta->stop > 0 && totalMs > 0) {
             durationSeconds = static_cast<double>(totalMs) / 1000.0;
@@ -183,6 +187,8 @@ void UpseDecoder::closeInternalLocked() {
     copyrightText.clear();
     year.clear();
     comment.clear();
+    lengthTag.clear();
+    fadeTag.clear();
 }
 
 int UpseDecoder::read(float* buffer, int numFrames) {
@@ -335,6 +341,16 @@ std::string UpseDecoder::getGameName() {
     return gameName;
 }
 
+std::string UpseDecoder::getLengthTag() {
+    std::lock_guard<std::mutex> lock(decodeMutex);
+    return lengthTag;
+}
+
+std::string UpseDecoder::getFadeTag() {
+    std::lock_guard<std::mutex> lock(decodeMutex);
+    return fadeTag;
+}
+
 void UpseDecoder::setOutputSampleRate(int sampleRateHz) {
     (void)sampleRateHz;
 }
@@ -375,6 +391,8 @@ std::string UpseDecoder::getCoreStringInfo(const char* name) {
     if (std::strcmp(name, "copyright") == 0) return getCopyright();
     if (std::strcmp(name, "year") == 0) return getYear();
     if (std::strcmp(name, "comment") == 0) return getComment();
+    if (std::strcmp(name, "lengthTag") == 0) return getLengthTag();
+    if (std::strcmp(name, "fadeTag") == 0) return getFadeTag();
     return "";
 }
 

@@ -503,6 +503,12 @@ object NativeBridge {
     external fun getVio2sfComment(): String
     external fun getVio2sfLengthTag(): String
     external fun getVio2sfFadeTag(): String
+    external fun getLibupseGameName(): String
+    external fun getLibupseCopyright(): String
+    external fun getLibupseYear(): String
+    external fun getLibupseComment(): String
+    external fun getLibupseLengthTag(): String
+    external fun getLibupseFadeTag(): String
     external fun getSidFormatName(): String
     external fun getSidClockName(): String
     external fun getSidSpeedName(): String

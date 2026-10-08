@@ -177,6 +177,16 @@ internal fun TrackInfoCoreSections(
             if (metadata.vio2sf.comment.isNotBlank()) TrackInfoDetailsRow("Comment", metadata.vio2sf.comment)
         }
 
+        decoderName.equals(DecoderNames.LIB_UPSE, ignoreCase = true) -> {
+            TrackInfoSectionHeader(DecoderNames.LIB_UPSE)
+            if (metadata.libupse.gameName.isNotBlank()) TrackInfoDetailsRow("Game", metadata.libupse.gameName)
+            if (metadata.libupse.year.isNotBlank()) TrackInfoDetailsRow("Year", metadata.libupse.year)
+            if (metadata.libupse.copyright.isNotBlank()) TrackInfoDetailsRow("Copyright", metadata.libupse.copyright)
+            if (metadata.libupse.lengthTag.isNotBlank()) TrackInfoDetailsRow("Tagged length", metadata.libupse.lengthTag)
+            if (metadata.libupse.fadeTag.isNotBlank()) TrackInfoDetailsRow("Tagged fade", metadata.libupse.fadeTag)
+            if (metadata.libupse.comment.isNotBlank()) TrackInfoDetailsRow("Comment", metadata.libupse.comment)
+        }
+
         decoderName.equals(DecoderNames.C_RSID, ignoreCase = true) ||
             decoderName.equals(DecoderNames.LIB_SID_PLAY_FP, ignoreCase = true) -> {
             TrackInfoSectionHeader(decoderName ?: DecoderNames.C_RSID)
@@ -447,6 +457,16 @@ internal fun appendCoreTrackInfoCopyRows(
             if (metadata.vio2sf.lengthTag.isNotBlank()) row("Tagged length", metadata.vio2sf.lengthTag)
             if (metadata.vio2sf.fadeTag.isNotBlank()) row("Tagged fade", metadata.vio2sf.fadeTag)
             if (metadata.vio2sf.comment.isNotBlank()) row("Comment", metadata.vio2sf.comment)
+        }
+
+        decoderName.equals(DecoderNames.LIB_UPSE, ignoreCase = true) -> {
+            builder.append('\n').append("[LibUPSE]").append('\n')
+            if (metadata.libupse.gameName.isNotBlank()) row("Game", metadata.libupse.gameName)
+            if (metadata.libupse.year.isNotBlank()) row("Year", metadata.libupse.year)
+            if (metadata.libupse.copyright.isNotBlank()) row("Copyright", metadata.libupse.copyright)
+            if (metadata.libupse.lengthTag.isNotBlank()) row("Tagged length", metadata.libupse.lengthTag)
+            if (metadata.libupse.fadeTag.isNotBlank()) row("Tagged fade", metadata.libupse.fadeTag)
+            if (metadata.libupse.comment.isNotBlank()) row("Comment", metadata.libupse.comment)
         }
 
         decoderName.equals(DecoderNames.C_RSID, ignoreCase = true) ||

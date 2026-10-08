@@ -1077,6 +1077,42 @@ std::string AudioEngine::getVio2sfFadeTag() {
     return decoder->getCoreStringInfo("fadeTag");
 }
 
+std::string AudioEngine::getLibupseGameName() {
+    std::unique_lock<std::mutex> lock(decoderMutex, std::try_to_lock);
+    if (!lock.owns_lock() || !decoder) return "";
+    return decoder->getCoreStringInfo("gameName");
+}
+
+std::string AudioEngine::getLibupseCopyright() {
+    std::unique_lock<std::mutex> lock(decoderMutex, std::try_to_lock);
+    if (!lock.owns_lock() || !decoder) return "";
+    return decoder->getCoreStringInfo("copyright");
+}
+
+std::string AudioEngine::getLibupseYear() {
+    std::unique_lock<std::mutex> lock(decoderMutex, std::try_to_lock);
+    if (!lock.owns_lock() || !decoder) return "";
+    return decoder->getCoreStringInfo("year");
+}
+
+std::string AudioEngine::getLibupseComment() {
+    std::unique_lock<std::mutex> lock(decoderMutex, std::try_to_lock);
+    if (!lock.owns_lock() || !decoder) return "";
+    return decoder->getCoreStringInfo("comment");
+}
+
+std::string AudioEngine::getLibupseLengthTag() {
+    std::unique_lock<std::mutex> lock(decoderMutex, std::try_to_lock);
+    if (!lock.owns_lock() || !decoder) return "";
+    return decoder->getCoreStringInfo("lengthTag");
+}
+
+std::string AudioEngine::getLibupseFadeTag() {
+    std::unique_lock<std::mutex> lock(decoderMutex, std::try_to_lock);
+    if (!lock.owns_lock() || !decoder) return "";
+    return decoder->getCoreStringInfo("fadeTag");
+}
+
 std::string AudioEngine::getSidFormatName() {
     std::unique_lock<std::mutex> lock(decoderMutex, std::try_to_lock);
     if (!lock.owns_lock() || !decoder) return "";

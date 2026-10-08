@@ -33,6 +33,8 @@ public:
     std::string getYear() override;
     std::string getComment() override;
     std::string getGameName();
+    std::string getLengthTag();
+    std::string getFadeTag();
     void setOutputSampleRate(int sampleRate) override;
     void setRepeatMode(int mode) override;
     int getRepeatModeCapabilities() const override;
@@ -66,6 +68,8 @@ private:
     std::string copyrightText;
     std::string year;
     std::string comment;
+    std::string lengthTag;
+    std::string fadeTag;
 
     void closeInternalLocked();
     bool openInternalLocked(const char* path);

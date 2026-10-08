@@ -184,6 +184,12 @@ public:
     std::string getVio2sfComment();
     std::string getVio2sfLengthTag();
     std::string getVio2sfFadeTag();
+    std::string getLibupseGameName();
+    std::string getLibupseCopyright();
+    std::string getLibupseYear();
+    std::string getLibupseComment();
+    std::string getLibupseLengthTag();
+    std::string getLibupseFadeTag();
     std::string getSidFormatName();
     std::string getSidClockName();
     std::string getSidSpeedName();
