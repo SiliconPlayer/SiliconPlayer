@@ -1,6 +1,7 @@
 package com.flopster101.siliconplayer.ui.visualization.gl
 
 import android.content.Context
+import com.flopster101.siliconplayer.SpLog
 import android.content.SharedPreferences
 import com.flopster101.siliconplayer.AppPreferenceKeys
 import java.io.File
@@ -345,7 +346,7 @@ object ProjectMPresetSets {
             }
             outDir.absolutePath
         } catch (t: Throwable) {
-            android.util.Log.w("SiliconVis", "projectM preset extraction failed", t)
+            SpLog.w("SiliconVis", "projectM preset extraction failed", t)
             null
         }
     }

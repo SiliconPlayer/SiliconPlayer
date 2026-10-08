@@ -1,12 +1,10 @@
 #include "UfmodDecoder.h"
-#include <android/log.h>
+#define SP_LOG_MODULE "UfmodDecoder"
+#include "../SiliconLog.h"
 #include <algorithm>
 #include <cstring>
 #include <fstream>
 #include <chrono>
-
-#define LOG_TAG "UfmodDecoder"
-#define LOGE(...) __android_log_print(ANDROID_LOG_ERROR, LOG_TAG, __VA_ARGS__)
 
 constexpr float kUfmodScopeGain = 3.0f;
 

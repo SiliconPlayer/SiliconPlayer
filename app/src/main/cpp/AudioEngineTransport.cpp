@@ -1,7 +1,8 @@
 #include "AudioEngine.h"
 #include "decoders/DecoderRegistry.h"
 
-#include <android/log.h>
+#define SP_LOG_MODULE "AudioEngine"
+#include "SiliconLog.h"
 #include <algorithm>
 #include <chrono>
 #include <cerrno>
@@ -9,10 +10,6 @@
 #include <sys/resource.h>
 #include <sys/syscall.h>
 #include <unistd.h>
-
-#define LOG_TAG "AudioEngine"
-#define LOGD(...) __android_log_print(ANDROID_LOG_DEBUG, LOG_TAG, __VA_ARGS__)
-#define LOGE(...) __android_log_print(ANDROID_LOG_ERROR, LOG_TAG, __VA_ARGS__)
 
 namespace {
     // Destroys a decoder off the caller: teardown can wedge on emulator

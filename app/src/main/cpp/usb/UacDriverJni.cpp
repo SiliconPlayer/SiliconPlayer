@@ -1,9 +1,9 @@
 #include <jni.h>
-#include <android/log.h>
+#define SP_LOG_MODULE "UacDriverJni"
+#include "../SiliconLog.h"
 #include "UacDriver.h"
 #include "../AudioEngine.h"
 
-#define TAG "UacDriverJni"
 
 extern AudioEngine* getGlobalAudioEngine();
 

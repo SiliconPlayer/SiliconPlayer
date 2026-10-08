@@ -1,7 +1,7 @@
 package com.flopster101.siliconplayer.playback
 
 import android.media.audiofx.Visualizer
-import android.util.Log
+import com.flopster101.siliconplayer.SpLog
 import com.flopster101.siliconplayer.NativeBridge
 
 /**
@@ -16,7 +16,6 @@ import com.flopster101.siliconplayer.NativeBridge
  * Requires the RECORD_AUDIO permission (runtime-requested by the UI).
  */
 internal object PlatformVisTap {
-    private const val TAG = "PlatformVisTap"
 
     /** Downmix tap runs hotter than the engine capture. */
     private const val SYSTEM_TAP_GAIN = 0.45f
@@ -70,10 +69,10 @@ internal object PlatformVisTap {
             )
             viz.enabled = true
             visualizer = viz
-            Log.i(TAG, "started on session $audioSessionId (rate=$rate)")
+            SpLog.i("PlatformVisTap", "started on session $audioSessionId (rate=$rate)")
             true
         } catch (e: Exception) {
-            Log.w(TAG, "start failed", e)
+            SpLog.w("PlatformVisTap", "start failed", e)
             visualizer = null
             false
         }
@@ -90,7 +89,7 @@ internal object PlatformVisTap {
             try {
                 viz.release()
             } catch (ignored: Exception) {}
-            Log.i(TAG, "stopped")
+            SpLog.i("PlatformVisTap", "stopped")
         }
     }
 

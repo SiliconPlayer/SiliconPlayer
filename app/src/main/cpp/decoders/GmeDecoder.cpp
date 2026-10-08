@@ -1,5 +1,6 @@
 #include "GmeDecoder.h"
-#include <android/log.h>
+#define SP_LOG_MODULE "GmeDecoder"
+#include "../SiliconLog.h"
 #include <algorithm>
 #include <cctype>
 #include <cmath>
@@ -14,10 +15,6 @@
 extern "C" {
 #include <gme/gme.h>
 }
-
-#define LOG_TAG "GmeDecoder"
-#define LOGE(...) __android_log_print(ANDROID_LOG_ERROR, LOG_TAG, __VA_ARGS__)
-#define LOGW(...) __android_log_print(ANDROID_LOG_WARN, LOG_TAG, __VA_ARGS__)
 
 namespace {
 constexpr int kRenderBlockFrames = 512;

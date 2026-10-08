@@ -1,12 +1,12 @@
 package com.flopster101.siliconplayer.playback
 
 import android.content.Context
+import com.flopster101.siliconplayer.SpLog
 import android.media.MediaCodecList
 import android.media.MediaPlayer
 import android.media.AudioAttributes
 import android.os.Handler
 import android.os.HandlerThread
-import android.util.Log
 import com.flopster101.siliconplayer.AppPreferenceKeys
 import com.flopster101.siliconplayer.BitPerfectCoordinator
 import com.flopster101.siliconplayer.NativeBridge
@@ -26,7 +26,6 @@ import java.io.File
  * Any failure falls back to the FFmpeg engine transparently.
  */
 internal object PlatformDolbyPlayer {
-    private const val TAG = "PlatformDolby"
 
     // Claimed synchronously during activate() so transport redirection is
     // deterministic; cleared on deactivate/fallback.
@@ -90,12 +89,12 @@ internal object PlatformDolbyPlayer {
             // decoder needs reloading underneath it.
             handoffPath = null
             naturalEnd = false
-            Log.i(TAG, "adopted seamless handoff for $path")
+            SpLog.i("PlatformDolby", "adopted seamless handoff for $path")
             return
         }
         deactivate()
         if (!shouldUsePlatform(path)) {
-            Log.i(TAG, "not routed to platform core: $path")
+            SpLog.i("PlatformDolby", "not routed to platform core: $path")
             return
         }
         activate(path, pendingStart = false)
@@ -149,7 +148,7 @@ internal object PlatformDolbyPlayer {
         releasePlayer()
         releaseNextPlayer()
         if (hadActive) {
-            Log.i(TAG, "deactivated")
+            SpLog.i("PlatformDolby", "deactivated")
         }
     }
 
@@ -270,7 +269,7 @@ internal object PlatformDolbyPlayer {
                     p.start()
                     lastKnownPlaying = true
                 } catch (e: Exception) {
-                    Log.w(TAG, "start failed", e)
+                    SpLog.w("PlatformDolby", "start failed", e)
                 }
             }
         } else {
@@ -329,7 +328,7 @@ internal object PlatformDolbyPlayer {
             try {
                 p.seekTo(targetMs)
             } catch (e: Exception) {
-                Log.w(TAG, "seek failed", e)
+                SpLog.w("PlatformDolby", "seek failed", e)
             }
         }
     }
@@ -428,7 +427,7 @@ internal object PlatformDolbyPlayer {
         )
         com.flopster101.siliconplayer.data.remoteCacheFileForSource(cacheRoot, sourceId)
     } catch (t: Throwable) {
-        Log.d(TAG, "SMB cache lookup failed", t)
+        SpLog.d("PlatformDolby", "SMB cache lookup failed", t)
         null
     }
 
@@ -470,7 +469,7 @@ internal object PlatformDolbyPlayer {
             resolvePlatformDolbyDecoder(mime)
         }
         if (component == null) {
-            Log.i(TAG, "codec=$codec but no platform Dolby decoder; staying on FFmpeg")
+            SpLog.i("PlatformDolby", "codec=$codec but no platform Dolby decoder; staying on FFmpeg")
             return false
         }
         codecName = component
@@ -510,7 +509,7 @@ internal object PlatformDolbyPlayer {
                 null -> {
                     // Unclaimed: FFmpeg stays audible until the SMB cache
                     // completes and the upgrade watcher retries.
-                    Log.i(TAG, "remote source not yet playable by platform core: $path")
+                    SpLog.i("PlatformDolby", "remote source not yet playable by platform core: $path")
                     if (path.startsWith("smb://", true)) {
                         armSmbUpgrade(path)
                     }
@@ -526,7 +525,7 @@ internal object PlatformDolbyPlayer {
         lastKnownPlaying = pendingStart
         active = true
         NativeBridge.setOutputShadowMuted(isParallelVisEnabled())
-        Log.i(TAG, "activated for $path")
+        SpLog.i("PlatformDolby", "activated for $path")
         ensureHandler().post {
             try {
                 val p = MediaPlayer()
@@ -549,12 +548,12 @@ internal object PlatformDolbyPlayer {
                         p.setDataSource(dataSource)
                     }
                 } catch (e: Exception) {
-                    Log.w(TAG, "setDataSource failed for $dataSource", e)
+                    SpLog.w("PlatformDolby", "setDataSource failed for $dataSource", e)
                     throw e
                 }
                 p.setOnPreparedListener { mp ->
                     prepared = true
-                    Log.i(TAG, "prepared (system decoder active)")
+                    SpLog.i("PlatformDolby", "prepared (system decoder active)")
                     maybeStartFor(mp.audioSessionId)
                     if (this@PlatformDolbyPlayer.pendingStart) {
                         this@PlatformDolbyPlayer.pendingStart = false
@@ -566,7 +565,7 @@ internal object PlatformDolbyPlayer {
                             mp.start()
                             lastKnownPlaying = true
                         } catch (e: Exception) {
-                            Log.w(TAG, "start after prepare failed", e)
+                            SpLog.w("PlatformDolby", "start after prepare failed", e)
                         }
                     }
                 }
@@ -587,15 +586,15 @@ internal object PlatformDolbyPlayer {
                         naturalEnd = true
                         try { promoted.start() } catch (ignored: Exception) {}
                         old?.release()
-                        Log.i(TAG, "gapless handoff to $handoffPath")
+                        SpLog.i("PlatformDolby", "gapless handoff to $handoffPath")
                     } else {
                         lastKnownPlaying = false
                         naturalEnd = true
-                        Log.i(TAG, "completed")
+                        SpLog.i("PlatformDolby", "completed")
                     }
                 }
                 p.setOnErrorListener { _, what, extra ->
-                    Log.w(TAG, "platform decode error what=$what extra=$extra; falling back to FFmpeg")
+                    SpLog.w("PlatformDolby", "platform decode error what=$what extra=$extra; falling back to FFmpeg")
                     fallbackToNative()
                     true
                 }
@@ -606,7 +605,7 @@ internal object PlatformDolbyPlayer {
                     handler?.post { prepareNextPlayerLocked() }
                 }
             } catch (e: Exception) {
-                Log.w(TAG, "activation failed; falling back to FFmpeg", e)
+                SpLog.w("PlatformDolby", "activation failed; falling back to FFmpeg", e)
                 fallbackToNative()
             }
         }
@@ -620,7 +619,7 @@ internal object PlatformDolbyPlayer {
         smbUpgradeRequestPath = requestPath
         val gen = ++smbUpgradeGeneration
         val h = ensureHandler()
-        Log.i(TAG, "SMB source is Dolby; watching cache for full download")
+        SpLog.i("PlatformDolby", "SMB source is Dolby; watching cache for full download")
         fun postCheck() {
             h.postDelayed({
                 if (gen != smbUpgradeGeneration || smbUpgradeRequestPath != requestPath) {
@@ -637,7 +636,7 @@ internal object PlatformDolbyPlayer {
                     try {
                         takeOverFromEngine(cached.path)
                     } catch (t: Throwable) {
-                        Log.w(TAG, "SMB cache takeover failed", t)
+                        SpLog.w("PlatformDolby", "SMB cache takeover failed", t)
                     }
                 }.start()
             }, 2000L)
@@ -660,7 +659,7 @@ internal object PlatformDolbyPlayer {
             pendingResumePosition = resume
             pendingResumePath = cachedPath
         }
-        Log.i(TAG, "SMB cache complete; platform core adopts cached copy (pos=$resume)")
+        SpLog.i("PlatformDolby", "SMB cache complete; platform core adopts cached copy (pos=$resume)")
         NativeBridge.replaceCurrentAudio(cachedPath)
         if (wasPlaying) {
             NativeBridge.startEngine()
@@ -715,18 +714,18 @@ internal object PlatformDolbyPlayer {
                 try {
                     player?.setNextMediaPlayer(mp)
                 } catch (e: Exception) {
-                    Log.w(TAG, "setNextMediaPlayer failed", e)
+                    SpLog.w("PlatformDolby", "setNextMediaPlayer failed", e)
                 }
             }
             p.setOnErrorListener { _, what, extra ->
-                Log.w(TAG, "next-track prepare error what=$what extra=$extra; handoff disarmed")
+                SpLog.w("PlatformDolby", "next-track prepare error what=$what extra=$extra; handoff disarmed")
                 releaseNextPlayer()
                 true
             }
             p.prepareAsync()
             nextPlayer = p
         } catch (e: Exception) {
-            Log.w(TAG, "next-track prepare failed", e)
+            SpLog.w("PlatformDolby", "next-track prepare failed", e)
             releaseNextPlayer()
         }
     }
@@ -780,7 +779,7 @@ internal object PlatformDolbyPlayer {
                 NativeBridge.seekToImpl(resumePosition)
             }
         } catch (e: Exception) {
-            Log.w(TAG, "fallback resume failed", e)
+            SpLog.w("PlatformDolby", "fallback resume failed", e)
         }
     }
 }

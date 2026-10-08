@@ -1,6 +1,7 @@
 package com.flopster101.siliconplayer.ui.visualization.gl
 
 import android.content.Context
+import com.flopster101.siliconplayer.SpLog
 import android.content.SharedPreferences
 import com.flopster101.siliconplayer.AppDefaults
 import com.flopster101.siliconplayer.defaultMeshSize
@@ -370,7 +371,7 @@ private class SiliconNativeGlTextureView(
         // Must exit before a replacement starts: both share the SurfaceTexture.
         runCatching { thread.join(2000L) }
         if (thread.isAlive) {
-            android.util.Log.w("SiliconVis", "Render thread still alive after join")
+            SpLog.w("SiliconVis", "Render thread still alive after join")
             return false
         }
         return true
@@ -601,8 +602,7 @@ internal class SiliconNativeTextureRenderThread(
             val nowNs = System.nanoTime()
             val gapMs = (nowNs - lastTickNs) / 1_000_000L
             if (lastTickNs != 0L && gapMs > 250L) {
-                android.util.Log.i(
-                    "SiliconVis",
+                SpLog.i("SiliconVis",
                     "Vis render stall: ${gapMs} ms since previous frame"
                 )
             }

@@ -3,10 +3,8 @@ package com.flopster101.siliconplayer
 import android.content.Context
 import android.content.res.AssetManager
 import android.os.Build
-import android.util.Log
 import java.io.File
 
-private const val UADE_RUNTIME_LOG_TAG = "UadeRuntimeSupport"
 
 object UadeRuntimeSupport {
     @Volatile
@@ -20,7 +18,7 @@ object UadeRuntimeSupport {
 
             val assetManager = context.assets
             val abi = resolveBestAbi(assetManager) ?: run {
-                Log.e(UADE_RUNTIME_LOG_TAG, "No UADE runtime assets found for supported ABIs")
+                SpLog.e("UadeRuntimeSupport", "No UADE runtime assets found for supported ABIs")
                 return null
             }
 
@@ -45,12 +43,11 @@ object UadeRuntimeSupport {
                 targetDir.deleteRecursively()
                 targetDir.mkdirs()
                 if (!copyRuntimeAssets(assetManager, abi, targetDir)) {
-                    Log.e(UADE_RUNTIME_LOG_TAG, "Failed to materialize UADE runtime assets for ABI '$abi'")
+                    SpLog.e("UadeRuntimeSupport", "Failed to materialize UADE runtime assets for ABI '$abi'")
                     return null
                 }
                 if (!coreFile.setExecutable(true, false)) {
-                    Log.w(
-                        UADE_RUNTIME_LOG_TAG,
+                    SpLog.w("UadeRuntimeSupport",
                         "Failed to set executable bit on ${coreFile.absolutePath}"
                     )
                 }

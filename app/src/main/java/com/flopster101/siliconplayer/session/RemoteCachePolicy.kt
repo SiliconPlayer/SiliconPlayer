@@ -1,7 +1,6 @@
 package com.flopster101.siliconplayer
 
 import android.content.Context
-import android.util.Log
 import com.flopster101.siliconplayer.platform.AndroidPreferencesProvider
 import java.io.File
 
@@ -19,13 +18,11 @@ internal fun applyRemoteSourceCachePolicyOnLaunch(context: Context, cacheDir: Fi
         protectedPaths = protectedPaths
     )
     if (result.clearedOnLaunch) {
-        Log.d(
-            URL_SOURCE_TAG,
+        SpLog.d("UrlSource",
             "Cleared remote cache on launch: deleted=${result.deletedFiles} skipped=${result.skippedFiles} freed=${result.freedBytes} path=${cacheRoot.absolutePath}"
         )
     } else if (result.deletedFiles > 0) {
-        Log.d(
-            URL_SOURCE_TAG,
+        SpLog.d("UrlSource",
             "Pruned remote cache on launch: deleted=${result.deletedFiles} freed=${result.freedBytes} path=${cacheRoot.absolutePath} limits=(tracks=${result.maxTracks} bytes=${result.maxBytes})"
         )
     }
@@ -45,13 +42,11 @@ internal fun applyStreamingSourceCachePolicyOnLaunch(context: Context, cacheDir:
         protectedPaths = protectedPaths
     )
     if (result.clearedOnLaunch) {
-        Log.d(
-            URL_SOURCE_TAG,
+        SpLog.d("UrlSource",
             "Cleared streaming cache on launch: deleted=${result.deletedFiles} skipped=${result.skippedFiles} freed=${result.freedBytes} path=${cacheRoot.absolutePath}"
         )
     } else if (result.deletedFiles > 0) {
-        Log.d(
-            URL_SOURCE_TAG,
+        SpLog.d("UrlSource",
             "Pruned streaming cache on launch: deleted=${result.deletedFiles} freed=${result.freedBytes} path=${cacheRoot.absolutePath} limits=(tracks=${result.maxTracks} bytes=${result.maxBytes})"
         )
     }

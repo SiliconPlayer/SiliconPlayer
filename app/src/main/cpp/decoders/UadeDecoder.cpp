@@ -2,7 +2,8 @@
 #include "UadeExtensions.h"
 
 #include <algorithm>
-#include <android/log.h>
+#define SP_LOG_MODULE "UadeDecoder"
+#include "../SiliconLog.h"
 #include <array>
 #include <cctype>
 #include <cerrno>
@@ -25,9 +26,6 @@ extern "C" {
 #include <uade/uadeipc.h>
 #include <uade/uadestate.h>
 }
-
-#define LOG_TAG "UadeDecoder"
-#define LOGE(...) __android_log_print(ANDROID_LOG_ERROR, LOG_TAG, __VA_ARGS__)
 
 namespace {
 std::mutex gRuntimeConfigMutex;

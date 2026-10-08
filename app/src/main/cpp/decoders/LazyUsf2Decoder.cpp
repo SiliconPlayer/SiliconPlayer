@@ -1,6 +1,7 @@
 #include "LazyUsf2Decoder.h"
 
-#include <android/log.h>
+#define SP_LOG_MODULE "LazyUsf2Decoder"
+#include "../SiliconLog.h"
 #include <algorithm>
 #include <cctype>
 #include <cmath>
@@ -26,9 +27,6 @@ void usf_set_hle_voice_mask(void* state, uint32_t voice_mask);
 #ifndef USF_MUSYX_MAX_VOICES
 #define USF_MUSYX_MAX_VOICES 32
 #endif
-
-#define LOG_TAG "LazyUsf2Decoder"
-#define LOGE(...) __android_log_print(ANDROID_LOG_ERROR, LOG_TAG, __VA_ARGS__)
 
 namespace {
 constexpr int kMinSampleRate = 8000;

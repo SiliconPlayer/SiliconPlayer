@@ -2,13 +2,10 @@
 #include <iostream>
 #include <algorithm>
 #include <filesystem>
-#include <android/log.h>
+#define SP_LOG_MODULE "DecoderRegistry"
+#include "../SiliconLog.h"
 #include <cctype>
 #include <unordered_set>
-
-#define LOG_TAG "DecoderRegistry"
-#define LOGE(...) __android_log_print(ANDROID_LOG_ERROR, LOG_TAG, __VA_ARGS__)
-#define LOGD(...) __android_log_print(ANDROID_LOG_DEBUG, LOG_TAG, __VA_ARGS__)
 
 namespace {
 std::string toLowerAscii(std::string value) {

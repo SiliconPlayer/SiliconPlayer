@@ -1,6 +1,7 @@
 package com.flopster101.siliconplayer.usb
 
 import android.app.PendingIntent
+import com.flopster101.siliconplayer.SpLog
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
@@ -11,7 +12,6 @@ import android.hardware.usb.UsbDeviceConnection
 import android.hardware.usb.UsbManager
 import android.media.AudioManager
 import android.os.Build
-import android.util.Log
 import com.flopster101.siliconplayer.AppPreferenceKeys
 import com.flopster101.siliconplayer.BitPerfectDriverMethod
 import com.flopster101.siliconplayer.NativeBridge
@@ -63,7 +63,6 @@ data class UacDiagnostics(
 )
 
 object UacDriverCoordinator {
-    private const val TAG = "UacDriverCoordinator"
     private const val ACTION_USB_PERMISSION = "com.flopster101.siliconplayer.USB_PERMISSION"
 
     private val _isOpen = MutableStateFlow(false)
@@ -105,7 +104,7 @@ object UacDriverCoordinator {
                     intent.getParcelableExtra(UsbManager.EXTRA_DEVICE)
                 }
                 if (dev != null && (_activeDevice.value == null || _activeDevice.value?.deviceId == dev.deviceId)) {
-                    Log.i(TAG, "USB audio device detached (${dev.deviceName}), closing Direct UAC driver")
+                    SpLog.i("UacDriverCoordinator", "USB audio device detached (${dev.deviceName}), closing Direct UAC driver")
                     close()
                 }
             }
@@ -177,23 +176,23 @@ object UacDriverCoordinator {
     fun open(context: Context, device: UsbDevice): Boolean {
         val usbManager = context.getSystemService(Context.USB_SERVICE) as? UsbManager ?: return false
         if (!usbManager.hasPermission(device)) {
-            Log.w(TAG, "Cannot open USB device without permission: ${device.deviceName}")
+            SpLog.w("UacDriverCoordinator", "Cannot open USB device without permission: ${device.deviceName}")
             return false
         }
         close()
         val conn = try {
             usbManager.openDevice(device)
         } catch (e: SecurityException) {
-            Log.e(TAG, "SecurityException in UsbManager.openDevice", e)
+            SpLog.e("UacDriverCoordinator", "SecurityException in UsbManager.openDevice", e)
             null
         } ?: run {
-            Log.e(TAG, "UsbManager.openDevice returned null")
+            SpLog.e("UacDriverCoordinator", "UsbManager.openDevice returned null")
             _lastErrorMessage.value = "Failed to open USB device connection"
             return false
         }
         val fd = conn.fileDescriptor
         if (fd < 0) {
-            Log.e(TAG, "Invalid USB connection file descriptor")
+            SpLog.e("UacDriverCoordinator", "Invalid USB connection file descriptor")
             conn.close()
             _lastErrorMessage.value = "Invalid USB device file descriptor"
             return false
@@ -210,7 +209,7 @@ object UacDriverCoordinator {
         _lastErrorMessage.value = null
         registerVolumeReceiver(context)
         syncVolume(context)
-        Log.i(TAG, "Opened USB audio device '${device.deviceName}' (vid=0x${device.vendorId.toString(16)}, pid=0x${device.productId.toString(16)})")
+        SpLog.i("UacDriverCoordinator", "Opened USB audio device '${device.deviceName}' (vid=0x${device.vendorId.toString(16)}, pid=0x${device.productId.toString(16)})")
         return true
     }
 
@@ -222,26 +221,26 @@ object UacDriverCoordinator {
             activeConnection = null
             _activeDevice.value = null
             _isOpen.value = false
-            Log.i(TAG, "Closed USB audio device")
+            SpLog.i("UacDriverCoordinator", "Closed USB audio device")
         }
     }
 
     fun start(sampleRateHz: Int, bitsPerSample: Int, channels: Int = 2): Boolean {
         if (!_isOpen.value) {
             _lastErrorMessage.value = "USB device is not opened"
-            Log.w(TAG, "start called but USB device is not open")
+            SpLog.w("UacDriverCoordinator", "start called but USB device is not open")
             return false
         }
         val ok = UacDriverNative.nativeStart(sampleRateHz, bitsPerSample, channels)
         _isStreaming.value = ok
         if (ok) {
             _lastErrorMessage.value = null
-            Log.i(TAG, "UAC stream successfully started: ${sampleRateHz}Hz ${bitsPerSample}-bit ${channels}ch")
+            SpLog.i("UacDriverCoordinator", "UAC stream successfully started: ${sampleRateHz}Hz ${bitsPerSample}-bit ${channels}ch")
         } else {
             val detail = UacDriverNative.nativeLastErrorDetail()
             val code = UacDriverNative.nativeLastErrorCode()
             _lastErrorMessage.value = if (!detail.isNullOrBlank()) detail else "Failed to start stream (error $code)"
-            Log.w(TAG, "UAC start failed (code $code): ${_lastErrorMessage.value}")
+            SpLog.w("UacDriverCoordinator", "UAC start failed (code $code): ${_lastErrorMessage.value}")
         }
         return ok
     }
@@ -260,7 +259,7 @@ object UacDriverCoordinator {
         }
         val rawUsb = findUsbAudioDevice(context) ?: return true
         if (_isOpen.value && (_activeDevice.value == null || _activeDevice.value?.deviceId != rawUsb.deviceId)) {
-            Log.i(TAG, "Active USB device changed or was replugged, resetting previous UAC session")
+            SpLog.i("UacDriverCoordinator", "Active USB device changed or was replugged, resetting previous UAC session")
             close()
         }
         if (!_isOpen.value) {
@@ -398,7 +397,7 @@ object UacDriverCoordinator {
             // The engine callback gates on this flag; leaving it set after the
             // pump dies would mute every other output until the next track.
             NativeBridge.setBitPerfectMode(false)
-            Log.i(TAG, "UAC stream stopped")
+            SpLog.i("UacDriverCoordinator", "UAC stream stopped")
         }
     }
 

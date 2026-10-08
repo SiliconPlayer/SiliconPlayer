@@ -1,6 +1,7 @@
 #include "AudioEngine.h"
 
-#include <android/log.h>
+#define SP_LOG_MODULE "AudioEngine"
+#include "SiliconLog.h"
 #include <algorithm>
 #include <chrono>
 #include <cmath>
@@ -18,10 +19,6 @@ extern "C" {
 #include <libavutil/channel_layout.h>
 #include <libavutil/mathematics.h>
 }
-
-#define LOG_TAG "AudioEngine"
-#define LOGD(...) __android_log_print(ANDROID_LOG_DEBUG, LOG_TAG, __VA_ARGS__)
-#define LOGE(...) __android_log_print(ANDROID_LOG_ERROR, LOG_TAG, __VA_ARGS__)
 
 namespace {
     // Queue ceiling while the scope is consuming: keeps buffered-ahead inside

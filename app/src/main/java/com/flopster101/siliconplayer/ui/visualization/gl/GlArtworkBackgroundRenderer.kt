@@ -1,11 +1,11 @@
 package com.flopster101.siliconplayer.ui.visualization.gl
 
 import android.content.Context
+import com.flopster101.siliconplayer.SpLog
 import android.graphics.Bitmap
 import android.graphics.Canvas
 import android.opengl.GLES20
 import android.opengl.GLUtils
-import android.util.Log
 import androidx.core.content.ContextCompat
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
@@ -87,7 +87,7 @@ internal class GlArtworkBackgroundRenderer(private val context: Context) {
             initTexProgram()
             initContrastProgram()
         } catch (t: Throwable) {
-            Log.e("GlArtworkBg", "Failed initializing GL artwork programs", t)
+            SpLog.e("GlArtworkBg", "Failed initializing GL artwork programs", t)
         }
     }
 
@@ -104,7 +104,7 @@ internal class GlArtworkBackgroundRenderer(private val context: Context) {
         GLES20.glGetProgramiv(prog, GLES20.GL_LINK_STATUS, linkStatus, 0)
         if (linkStatus[0] == 0) {
             val log = GLES20.glGetProgramInfoLog(prog)
-            Log.e("GlArtworkBg", "Bg program link failed:\n$log")
+            SpLog.e("GlArtworkBg", "Bg program link failed:\n$log")
             GLES20.glDeleteProgram(prog)
             GLES20.glDeleteShader(vShader)
             GLES20.glDeleteShader(fShader)
@@ -135,7 +135,7 @@ internal class GlArtworkBackgroundRenderer(private val context: Context) {
         GLES20.glGetProgramiv(prog, GLES20.GL_LINK_STATUS, linkStatus, 0)
         if (linkStatus[0] == 0) {
             val log = GLES20.glGetProgramInfoLog(prog)
-            Log.e("GlArtworkBg", "Tex program link failed:\n$log")
+            SpLog.e("GlArtworkBg", "Tex program link failed:\n$log")
             GLES20.glDeleteProgram(prog)
             GLES20.glDeleteShader(vShader)
             GLES20.glDeleteShader(fShader)
@@ -165,7 +165,7 @@ internal class GlArtworkBackgroundRenderer(private val context: Context) {
         GLES20.glGetProgramiv(prog, GLES20.GL_LINK_STATUS, linkStatus, 0)
         if (linkStatus[0] == 0) {
             val log = GLES20.glGetProgramInfoLog(prog)
-            Log.e("GlArtworkBg", "Contrast program link failed:\n$log")
+            SpLog.e("GlArtworkBg", "Contrast program link failed:\n$log")
             GLES20.glDeleteProgram(prog)
             GLES20.glDeleteShader(vShader)
             GLES20.glDeleteShader(fShader)
@@ -478,7 +478,7 @@ internal class GlArtworkBackgroundRenderer(private val context: Context) {
         }
         val drawable = ContextCompat.getDrawable(context, drawableResId)?.mutate()
         if (drawable == null) {
-            Log.e("GlArtworkBg", "Failed to get drawable from resId: $drawableResId")
+            SpLog.e("GlArtworkBg", "Failed to get drawable from resId: $drawableResId")
             return
         }
         drawable.setTint(tintArgb)
@@ -540,7 +540,7 @@ internal class GlArtworkBackgroundRenderer(private val context: Context) {
         GLES20.glGetShaderiv(shader, GLES20.GL_COMPILE_STATUS, compileStatus, 0)
         if (compileStatus[0] == 0) {
             val log = GLES20.glGetShaderInfoLog(shader)
-            Log.e("GlArtworkBg", "Shader compile failed ($type):\n$log\nSource:\n$source")
+            SpLog.e("GlArtworkBg", "Shader compile failed ($type):\n$log\nSource:\n$source")
             GLES20.glDeleteShader(shader)
             throw IllegalStateException("Shader compile error: $log")
         }

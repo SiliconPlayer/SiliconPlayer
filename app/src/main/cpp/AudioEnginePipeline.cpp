@@ -1,9 +1,7 @@
 #include "AudioEngine.h"
 
-#include <android/log.h>
-
-#define LOG_TAG "AudioEngine"
-#define LOGD(...) __android_log_print(ANDROID_LOG_DEBUG, LOG_TAG, __VA_ARGS__)
+#define SP_LOG_MODULE "AudioEngine"
+#include "SiliconLog.h"
 
 namespace {
     const char* outputResamplerName(int preference) {

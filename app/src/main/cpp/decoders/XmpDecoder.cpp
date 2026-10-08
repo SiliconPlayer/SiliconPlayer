@@ -1,16 +1,13 @@
 #include "XmpDecoder.h"
 
-#include <android/log.h>
+#define SP_LOG_MODULE "XmpDecoder"
+#include "../SiliconLog.h"
 #include <algorithm>
 #include <chrono>
 #include <cmath>
 #include <cstring>
 #include <fstream>
 #include <sstream>
-
-#define LOG_TAG "XmpDecoder"
-#define LOGE(...) __android_log_print(ANDROID_LOG_ERROR, LOG_TAG, __VA_ARGS__)
-#define LOGD(...) __android_log_print(ANDROID_LOG_DEBUG, LOG_TAG, __VA_ARGS__)
 
 namespace {
 constexpr float kInt32ToFloat = 1.0f / 2147483648.0f;

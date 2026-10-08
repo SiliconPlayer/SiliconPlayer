@@ -1,6 +1,7 @@
 #include "VGMDecoder.h"
 #include "../ChannelScopeSharedState.h"
-#include <android/log.h>
+#define SP_LOG_MODULE "VGMDecoder"
+#include "../SiliconLog.h"
 #include <algorithm>
 #include <cmath>
 #include <cstring>
@@ -21,9 +22,6 @@
 #include <vgm/player/vgmplayer.hpp>
 #include <vgm/utils/DataLoader.h>
 #include <vgm/utils/MemoryLoader.h>
-
-#define LOG_TAG "VGMDecoder"
-#define LOGE(...) __android_log_print(ANDROID_LOG_ERROR, LOG_TAG, __VA_ARGS__)
 
 namespace {
 constexpr uint32_t kPlayerOutputBufferFrames = 4096;

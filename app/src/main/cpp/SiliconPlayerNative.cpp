@@ -1,5 +1,6 @@
 #include <jni.h>
-#include <android/log.h>
+#define SP_LOG_MODULE "SiliconPlayerNative"
+#include "SiliconLog.h"
 #include <string>
 #include <exception>
 #include <cstdint>
@@ -18,9 +19,6 @@
 #include <mutex>
 static AudioEngine *audioEngine = nullptr;
 static std::mutex engineMutex;
-
-#define LOG_TAG "SiliconPlayerNative"
-#define LOGE(...) __android_log_print(ANDROID_LOG_ERROR, LOG_TAG, __VA_ARGS__)
 
 AudioEngine* getGlobalAudioEngine() {
     std::lock_guard<std::mutex> lock(engineMutex);

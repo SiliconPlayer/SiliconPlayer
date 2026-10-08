@@ -1,6 +1,7 @@
 #include "UpseDecoder.h"
 
-#include <android/log.h>
+#define SP_LOG_MODULE "UpseDecoder"
+#include "../SiliconLog.h"
 #include <algorithm>
 #include <chrono>
 #include <cmath>
@@ -13,11 +14,6 @@
 extern "C" {
 #include <upse/upse.h>
 }
-
-#define LOG_TAG "UpseDecoder"
-#define LOGD(...) __android_log_print(ANDROID_LOG_DEBUG, LOG_TAG, __VA_ARGS__)
-#define LOGW(...) __android_log_print(ANDROID_LOG_WARN, LOG_TAG, __VA_ARGS__)
-#define LOGE(...) __android_log_print(ANDROID_LOG_ERROR, LOG_TAG, __VA_ARGS__)
 
 namespace {
 constexpr int kNativeSampleRate = 44100;

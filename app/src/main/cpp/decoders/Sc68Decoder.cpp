@@ -1,6 +1,7 @@
 #include "Sc68Decoder.h"
 
-#include <android/log.h>
+#define SP_LOG_MODULE "Sc68Decoder"
+#include "../SiliconLog.h"
 #include <algorithm>
 #include <cctype>
 #include <cmath>
@@ -17,9 +18,6 @@ extern "C" {
 #include <sc68/sc68.h>
 #include <unice68.h>
 }
-
-#define LOG_TAG "Sc68Decoder"
-#define LOGE(...) __android_log_print(ANDROID_LOG_ERROR, LOG_TAG, __VA_ARGS__)
 
 namespace {
 constexpr int kDefaultSampleRateHz = 44100;

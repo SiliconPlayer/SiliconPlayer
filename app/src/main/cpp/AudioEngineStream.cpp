@@ -1,6 +1,7 @@
 #include "AudioEngine.h"
 
-#include <android/log.h>
+#define SP_LOG_MODULE "AudioEngine"
+#include "SiliconLog.h"
 #include <algorithm>
 #include <cerrno>
 #include <chrono>
@@ -13,11 +14,6 @@
 #include <unistd.h>
 #include <vector>
 #include "usb/UacDriver.h"
-
-#define LOG_TAG "AudioEngine"
-#define LOGD(...) __android_log_print(ANDROID_LOG_DEBUG, LOG_TAG, __VA_ARGS__)
-#define LOGW(...) __android_log_print(ANDROID_LOG_WARN, LOG_TAG, __VA_ARGS__)
-#define LOGE(...) __android_log_print(ANDROID_LOG_ERROR, LOG_TAG, __VA_ARGS__)
 
 namespace {
     pid_t currentThreadId() {

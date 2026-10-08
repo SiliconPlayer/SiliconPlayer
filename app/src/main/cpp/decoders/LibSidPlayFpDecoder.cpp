@@ -1,6 +1,7 @@
 #include "LibSidPlayFpDecoder.h"
 
-#include <android/log.h>
+#define SP_LOG_MODULE "LibSidPlayFpDecoder"
+#include "../SiliconLog.h"
 #include <algorithm>
 #include <array>
 #include <cctype>
@@ -19,10 +20,6 @@
 #include <sidplayfp/builders/residfp.h>
 #include <sidplayfp/builders/sidlite.h>
 #include "sid/ReSidBuilder.h"
-
-#define LOG_TAG "LibSidPlayFpDecoder"
-#define LOGD(...) __android_log_print(ANDROID_LOG_DEBUG, LOG_TAG, __VA_ARGS__)
-#define LOGE(...) __android_log_print(ANDROID_LOG_ERROR, LOG_TAG, __VA_ARGS__)
 
 namespace {
 constexpr unsigned int kRenderCyclesMin = 2000;

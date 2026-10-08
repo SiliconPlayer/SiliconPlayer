@@ -1,6 +1,7 @@
 #include "DecoderPluginLoader.h"
 
-#include <android/log.h>
+#define SP_LOG_MODULE "DecoderPluginLoader"
+#include "../SiliconLog.h"
 #include <algorithm>
 #include <atomic>
 #include <chrono>
@@ -10,10 +11,6 @@
 #include <thread>
 #include <unordered_map>
 #include <utility>
-
-#define LOG_TAG "DecoderPluginLoader"
-#define LOGE(...) __android_log_print(ANDROID_LOG_ERROR, LOG_TAG, __VA_ARGS__)
-#define LOGD(...) __android_log_print(ANDROID_LOG_DEBUG, LOG_TAG, __VA_ARGS__)
 
 namespace {
 using CreateDecoderFn = AudioDecoder* (*)();

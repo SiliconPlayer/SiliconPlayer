@@ -1,7 +1,6 @@
 package com.flopster101.siliconplayer
 
 import android.content.Context
-import android.util.Log
 import android.widget.Toast
 import com.flopster101.siliconplayer.data.resolveArchiveSourceToMountedFile
 import com.flopster101.siliconplayer.data.FileRepository
@@ -319,8 +318,7 @@ internal fun launchManualRemoteSelectionAction(
                     if (remoteResult.reason == MANUAL_HTTP_AUTH_PROMPT_PENDING) {
                         return@launch
                     }
-                    Log.e(
-                        URL_SOURCE_TAG,
+                    SpLog.e("UrlSource",
                         "Cache download/open failed for URL: ${resolved.sourceId} requestId=$requestId reason=${remoteResult.reason}"
                     )
                     onFailManualOpen(remoteResult.reason)
@@ -328,7 +326,7 @@ internal fun launchManualRemoteSelectionAction(
                 }
             }
         } catch (_: CancellationException) {
-            Log.d(URL_SOURCE_TAG, "Remote open cancelled for source=${resolved.sourceId}")
+            SpLog.d("UrlSource", "Remote open cancelled for source=${resolved.sourceId}")
         } finally {
             if (thisJob != null && currentRemoteLoadJobProvider() == thisJob) {
                 onRemoteLoadUiStateChanged(null)

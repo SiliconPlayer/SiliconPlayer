@@ -1,6 +1,7 @@
 package com.flopster101.siliconplayer.ui.visualization.gl
 
 import android.content.Context
+import com.flopster101.siliconplayer.SpLog
 import android.graphics.PixelFormat
 import android.opengl.GLES20
 import android.os.Build
@@ -327,7 +328,7 @@ private class SiliconNativeGlSurfaceView(
         // Must exit before a replacement starts: both share the Surface.
         runCatching { thread.join(2000L) }
         if (thread.isAlive) {
-            android.util.Log.w("SiliconVis", "Render thread still alive after join")
+            SpLog.w("SiliconVis", "Render thread still alive after join")
             return false
         }
         return true

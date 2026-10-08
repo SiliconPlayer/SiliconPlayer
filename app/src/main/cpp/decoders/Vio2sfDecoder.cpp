@@ -1,6 +1,7 @@
 #include "Vio2sfDecoder.h"
 
-#include <android/log.h>
+#define SP_LOG_MODULE "Vio2sfDecoder"
+#include "../SiliconLog.h"
 #include <algorithm>
 #include <cctype>
 #include <cmath>
@@ -17,11 +18,6 @@ extern "C" {
 #include <psflib.h>
 #include <vio2sf/desmume/state.h>
 }
-
-#define LOG_TAG "Vio2sfDecoder"
-#define LOGD(...) __android_log_print(ANDROID_LOG_DEBUG, LOG_TAG, __VA_ARGS__)
-#define LOGW(...) __android_log_print(ANDROID_LOG_WARN, LOG_TAG, __VA_ARGS__)
-#define LOGE(...) __android_log_print(ANDROID_LOG_ERROR, LOG_TAG, __VA_ARGS__)
 
 namespace {
 constexpr int kNativeSampleRate = 44100;

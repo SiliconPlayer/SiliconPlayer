@@ -1,6 +1,7 @@
 #include "AyflyDecoder.h"
 
-#include <android/log.h>
+#define SP_LOG_MODULE "AyflyDecoder"
+#include "../SiliconLog.h"
 #include <algorithm>
 #include <chrono>
 #include <cmath>
@@ -9,10 +10,6 @@
 #include <type_traits>
 
 #include <ayfly/ayfly.h>
-
-#define LOG_TAG "AyflyDecoder"
-#define LOGE(...) __android_log_print(ANDROID_LOG_ERROR, LOG_TAG, __VA_ARGS__)
-#define LOGD(...) __android_log_print(ANDROID_LOG_DEBUG, LOG_TAG, __VA_ARGS__)
 
 namespace {
 constexpr int kBytesPerFrame = 4; // 16-bit stereo

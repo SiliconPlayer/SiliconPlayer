@@ -4,7 +4,6 @@ import com.flopster101.siliconplayer.data.remoteCacheFileForSource
 import com.flopster101.siliconplayer.data.sha1Hex
 
 import android.content.Context
-import android.util.Log
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -54,13 +53,12 @@ internal suspend fun downloadRemoteUrlToCache(
     findExistingCachedFileForSource(cacheRoot, url)?.let { existing ->
         existing.setLastModified(System.currentTimeMillis())
         rememberSourceForCachedFile(cacheRoot, existing.name, url)
-        Log.d(URL_SOURCE_TAG, "Using existing cached file: ${existing.absolutePath} (${existing.length()} bytes)")
+        SpLog.d("UrlSource", "Using existing cached file: ${existing.absolutePath} (${existing.length()} bytes)")
         return@withContext RemoteDownloadResult(file = existing)
     }
 
     var temp = File(target.absolutePath + ".part")
-    Log.d(
-        URL_SOURCE_TAG,
+    SpLog.d("UrlSource",
         "Downloading URL to cache: source=${sanitizeHttpUrlForLog(url)} request=${sanitizeHttpUrlForLog(effectiveRequestUrl)}"
     )
     emitStatus(
@@ -97,8 +95,7 @@ internal suspend fun downloadRemoteUrlToCache(
             val responseCode = connection.responseCode
             if (responseCode in 300..399) {
                 val location = connection.getHeaderField("Location")
-                Log.d(
-                    URL_SOURCE_TAG,
+                SpLog.d("UrlSource",
                     "Redirect hop=$hop code=$responseCode from=${sanitizeHttpUrlForLog(currentUrl)} to=${location ?: "<missing>"}"
                 )
                 connection.disconnect()
@@ -111,8 +108,7 @@ internal suspend fun downloadRemoteUrlToCache(
                 currentUrl = URL(URL(currentUrl), location).toString()
                 return@repeat
             }
-            Log.d(
-                URL_SOURCE_TAG,
+            SpLog.d("UrlSource",
                 "HTTP response code=$responseCode finalUrl=${sanitizeHttpUrlForLog(currentUrl)}"
             )
             if (responseCode !in 200..299) {
@@ -124,7 +120,7 @@ internal suspend fun downloadRemoteUrlToCache(
             }
             return Pair(connection, null)
         }
-        Log.e(URL_SOURCE_TAG, "Too many redirects for URL: ${sanitizeHttpUrlForLog(initialUrl)}")
+        SpLog.e("UrlSource", "Too many redirects for URL: ${sanitizeHttpUrlForLog(initialUrl)}")
         return Pair(null, "Too many redirects")
     }
 
@@ -133,8 +129,7 @@ internal suspend fun downloadRemoteUrlToCache(
         val (openedConnection, openError) = openWithRedirects(effectiveRequestUrl)
         connection = openedConnection
         if (connection == null) {
-            Log.e(
-                URL_SOURCE_TAG,
+            SpLog.e("UrlSource",
                 "HTTP open failed for URL: source=${sanitizeHttpUrlForLog(url)} request=${sanitizeHttpUrlForLog(effectiveRequestUrl)}"
             )
             RemoteDownloadResult(
@@ -153,8 +148,7 @@ internal suspend fun downloadRemoteUrlToCache(
                     findExistingCachedFileForSource(cacheRoot, url)?.let { existing ->
                         existing.setLastModified(System.currentTimeMillis())
                         rememberSourceForCachedFile(cacheRoot, existing.name, url)
-                        Log.d(
-                            URL_SOURCE_TAG,
+                        SpLog.d("UrlSource",
                             "Using existing cached file after Content-Disposition resolution: ${existing.absolutePath} (${existing.length()} bytes)"
                         )
                         return@withContext RemoteDownloadResult(file = existing)
@@ -219,8 +213,7 @@ internal suspend fun downloadRemoteUrlToCache(
             }
             activeInput = null
             publishDownloadStatus(force = true)
-            Log.d(
-                URL_SOURCE_TAG,
+            SpLog.d("UrlSource",
                 "Download complete bytes=$totalBytes expected=$expectedBytes temp=${temp.absolutePath}"
             )
             if (totalBytes <= 0L) {
@@ -234,7 +227,7 @@ internal suspend fun downloadRemoteUrlToCache(
                 temp.delete()
             }
             rememberSourceForCachedFile(cacheRoot, target.name, url)
-            Log.d(URL_SOURCE_TAG, "Cached file ready: ${target.absolutePath} (${target.length()} bytes)")
+            SpLog.d("UrlSource", "Cached file ready: ${target.absolutePath} (${target.length()} bytes)")
             val elapsedMs = (System.currentTimeMillis() - startedAtMs).coerceAtLeast(1L)
             val avgSpeed = (totalBytes * 1000L) / elapsedMs
             emitStatus(
@@ -251,11 +244,10 @@ internal suspend fun downloadRemoteUrlToCache(
             RemoteDownloadResult(file = target)
         }
     } catch (_: CancellationException) {
-        Log.d(URL_SOURCE_TAG, "Download cancelled for URL: ${sanitizeHttpUrlForLog(url)}")
+        SpLog.d("UrlSource", "Download cancelled for URL: ${sanitizeHttpUrlForLog(url)}")
         RemoteDownloadResult(file = null, errorMessage = "Cancelled", cancelled = true)
     } catch (t: Throwable) {
-        Log.e(
-            URL_SOURCE_TAG,
+        SpLog.e("UrlSource",
             "Download failed for URL: ${sanitizeHttpUrlForLog(url)} (${t::class.java.simpleName}: ${t.message})"
         )
         RemoteDownloadResult(

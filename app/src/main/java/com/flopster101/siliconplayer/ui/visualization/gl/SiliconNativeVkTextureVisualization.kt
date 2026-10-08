@@ -1,6 +1,7 @@
 package com.flopster101.siliconplayer.ui.visualization.gl
 
 import android.content.Context
+import com.flopster101.siliconplayer.SpLog
 import android.graphics.SurfaceTexture
 import android.os.SystemClock
 import android.view.Surface
@@ -154,7 +155,7 @@ private class SiliconNativeVkTextureView(
         thread.requestStop()
         runCatching { thread.join(2000L) }
         if (thread.isAlive) {
-            android.util.Log.w("SiliconVis", "Vk render thread still alive after join")
+            SpLog.w("SiliconVis", "Vk render thread still alive after join")
             return false
         }
         return true

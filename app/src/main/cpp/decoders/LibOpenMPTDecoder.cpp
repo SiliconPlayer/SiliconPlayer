@@ -1,5 +1,6 @@
 #include "LibOpenMPTDecoder.h"
-#include <android/log.h>
+#define SP_LOG_MODULE "LibOpenMPTDecoder"
+#include "../SiliconLog.h"
 #include <fstream>
 #include <algorithm>
 #include <cctype>
@@ -11,10 +12,6 @@
 #include <sstream>
 #include <clocale>
 #include <locale>
-
-#define LOG_TAG "LibOpenMPTDecoder"
-#define LOGE(...) __android_log_print(ANDROID_LOG_ERROR, LOG_TAG, __VA_ARGS__)
-#define LOGD(...) __android_log_print(ANDROID_LOG_DEBUG, LOG_TAG, __VA_ARGS__)
 
 namespace {
 template <typename T>

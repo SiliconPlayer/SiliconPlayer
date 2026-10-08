@@ -1,5 +1,6 @@
 #include "FFmpegDecoder.h"
-#include <android/log.h>
+#define SP_LOG_MODULE "FFmpegDecoder"
+#include "../SiliconLog.h"
 #include <algorithm>
 #include <cctype>
 #include <sstream>
@@ -13,12 +14,11 @@
 #include <strings.h>
 #include <dlfcn.h>
 #include <libavutil/error.h>
+#include <libavutil/log.h>
+#include <cstdarg>
+#include <cstring>
 #include <chrono>
 #include <thread>
-
-#define LOG_TAG "FFmpegDecoder"
-#define LOGE(...) __android_log_print(ANDROID_LOG_ERROR, LOG_TAG, __VA_ARGS__)
-#define LOGD(...) __android_log_print(ANDROID_LOG_DEBUG, LOG_TAG, __VA_ARGS__)
 
 namespace {
 std::once_flag gFfmpegNetworkInitOnce;
@@ -103,8 +103,27 @@ std::string ffErrString(int errnum) {
     return std::string(errbuf);
 }
 
+void ffmpegLogCallback(void* avcl, int level, const char* fmt, va_list args) {
+    (void)avcl;
+    if (fmt == nullptr) return;
+    char msg[1024];
+    vsnprintf(msg, sizeof(msg), fmt, args);
+    size_t len = strlen(msg);
+    while (len > 0 && (msg[len - 1] == '\n' || msg[len - 1] == '\r')) msg[--len] = '\0';
+    if (level <= AV_LOG_ERROR) {
+        LOGE("[FFmpeg] %s", msg);
+    } else if (level <= AV_LOG_WARNING) {
+        LOGW("[FFmpeg] %s", msg);
+    } else if (level <= AV_LOG_INFO) {
+        LOGI("[FFmpeg] %s", msg);
+    } else {
+        LOGD("[FFmpeg] %s", msg);
+    }
+}
+
 void ensureFfmpegNetworkInitialized() {
     std::call_once(gFfmpegNetworkInitOnce, []() {
+        av_log_set_callback(ffmpegLogCallback);
         const int result = avformat_network_init();
         if (result < 0) {
             LOGE("avformat_network_init failed: %d", result);

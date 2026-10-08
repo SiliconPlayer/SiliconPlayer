@@ -8,16 +8,14 @@
 #include <adplug/wemuopl.h>
 
 #include <algorithm>
-#include <android/log.h>
+#define SP_LOG_MODULE "AdPlugDecoder"
+#include "../SiliconLog.h"
 #include <cmath>
 #include <cstdlib>
 #include <cstring>
 #include <filesystem>
 
 #include "../ChannelScopeSharedState.h"
-
-#define LOG_TAG "AdPlugDecoder"
-#define LOGE(...) __android_log_print(ANDROID_LOG_ERROR, LOG_TAG, __VA_ARGS__)
 
 namespace {
 constexpr float kAdPlugScopeGain = 1.5f;

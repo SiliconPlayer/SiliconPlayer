@@ -1,6 +1,7 @@
 package com.flopster101.siliconplayer.ui.visualization.gl
 
 import android.content.Context
+import com.flopster101.siliconplayer.SpLog
 import android.content.SharedPreferences
 import android.graphics.Bitmap
 import android.graphics.Outline
@@ -10,7 +11,6 @@ import android.os.Handler
 import android.os.Looper
 import android.os.Process
 import android.os.SystemClock
-import android.util.Log
 import android.view.Choreographer
 import android.view.Surface
 import android.view.SurfaceHolder
@@ -329,7 +329,7 @@ private class SiliconNativeVkSurfaceView(
     }
 
     override fun surfaceCreated(holder: SurfaceHolder) {
-        Log.i("SiliconVisVk", "surfaceCreated ${width}x${height} paused=$lifecyclePaused valid=${holder.surface.isValid}")
+        SpLog.i("SiliconVisVk", "surfaceCreated ${width}x${height} paused=$lifecyclePaused valid=${holder.surface.isValid}")
         if (!lifecyclePaused) {
             startRenderThread(holder, width, height)
             recreateInFlight = false
@@ -349,7 +349,7 @@ private class SiliconNativeVkSurfaceView(
     }
 
     override fun surfaceDestroyed(holder: SurfaceHolder) {
-        Log.i("SiliconVisVk", "surfaceDestroyed")
+        SpLog.i("SiliconVisVk", "surfaceDestroyed")
         stopRenderThread()
     }
 
@@ -359,10 +359,10 @@ private class SiliconNativeVkSurfaceView(
         if (!stopRenderThread()) return
         SiliconNativeGlDataSink.register(this)
         if (width <= 1 || height <= 1) {
-            Log.w("SiliconVisVk", "deferring start until settled size (got ${width}x${height})")
+            SpLog.w("SiliconVisVk", "deferring start until settled size (got ${width}x${height})")
             return
         }
-        Log.i("SiliconVisVk", "startRenderThread ${width}x${height} valid=${holder.surface.isValid}")
+        SpLog.i("SiliconVisVk", "startRenderThread ${width}x${height} valid=${holder.surface.isValid}")
         val thread = SiliconNativeVkRenderThread(
             context = context,
             outputSurface = holder.surface,
@@ -378,11 +378,11 @@ private class SiliconNativeVkSurfaceView(
                     if (now - lastSurfaceLostRestartMs < 1500L) return@post
                     lastSurfaceLostRestartMs = now
                     if (!lifecyclePaused && isAttachedToWindow && holder.surface.isValid) {
-                        Log.w("SiliconVisVk", "surface-lost restart")
+                        SpLog.w("SiliconVisVk", "surface-lost restart")
                         stopRenderThread()
                         startRenderThread(holder, width, height)
                     } else {
-                        Log.w("SiliconVisVk", "surface-lost restart skipped paused=$lifecyclePaused attached=$isAttachedToWindow")
+                        SpLog.w("SiliconVisVk", "surface-lost restart skipped paused=$lifecyclePaused attached=$isAttachedToWindow")
                     }
                 }
             }
@@ -399,7 +399,7 @@ private class SiliconNativeVkSurfaceView(
         thread.requestStop()
         runCatching { thread.join(2000L) }
         if (thread.isAlive) {
-            Log.w("SiliconVisVk", "Vk render thread still alive after join")
+            SpLog.w("SiliconVisVk", "Vk render thread still alive after join")
             return false
         }
         return true
@@ -568,7 +568,7 @@ internal class SiliconNativeVkRenderThread(
             val nowNs = System.nanoTime()
             val gapMs = (nowNs - lastTickNs) / 1_000_000L
             if (lastTickNs != 0L && gapMs > 250L) {
-                Log.i("SiliconVisVk", "Vis vk render stall: ${gapMs} ms since previous frame")
+                SpLog.i("SiliconVisVk", "Vis vk render stall: ${gapMs} ms since previous frame")
             }
             lastTickNs = nowNs
             try {
@@ -602,7 +602,7 @@ internal class SiliconNativeVkRenderThread(
 
         val initOk = SiliconVisNativeBridge.nativeInitVulkan(visHandle, surfaceWidth, surfaceHeight, outputSurface)
         if (!initOk) {
-            Log.w("SiliconVisVk", "nativeInitVulkan failed to initialize swapchain")
+            SpLog.w("SiliconVisVk", "nativeInitVulkan failed to initialize swapchain")
             SiliconVisNativeBridge.nativeDestroy(visHandle)
             visHandle = 0L
             if (ownsSurface) outputSurface.release()
