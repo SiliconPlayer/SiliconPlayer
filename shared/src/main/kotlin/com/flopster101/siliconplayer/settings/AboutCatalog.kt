@@ -115,6 +115,17 @@ internal object AboutCatalog {
             )
         ),
         AboutEntity(
+            id = "core.libupse",
+            kind = AboutEntityKind.Core,
+            name = DecoderNames.LIB_UPSE,
+            description = "PlayStation PSF and PSF2 playback core.",
+            author = "William Pitcock and UPSE contributors",
+            license = "GPL-2.0-only",
+            links = listOf(
+                AboutEntityLink("Source", "https://github.com/SiliconPlayer/libupse")
+            )
+        ),
+        AboutEntity(
             id = "core.sc68",
             kind = AboutEntityKind.Core,
             name = DecoderNames.SC68,
@@ -571,6 +582,7 @@ internal object AboutCatalog {
         DecoderNames.LIB_SID_PLAY_FP to "core.libsidplayfp",
         DecoderNames.LAZY_USF2 to "core.lazyusf2",
         DecoderNames.VIO2_SF to "core.vio2sf",
+        DecoderNames.LIB_UPSE to "core.libupse",
         DecoderNames.SC68 to "core.sc68",
         DecoderNames.AD_PLUG to "core.adplug",
         DecoderNames.UADE to "core.uade",

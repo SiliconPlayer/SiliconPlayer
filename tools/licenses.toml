@@ -55,6 +55,12 @@ source = "external/2sf/vio2sf"
 texts = ["external/2sf/vio2sf/src/vio2sf/desmume/COPYING"]
 
 [[dep]]
+id = "core.libupse"
+spdx = "GPL-2.0-only"
+source = "external/libupse"
+note = "No standalone license file upstream; the GPL-2.0 grant lives in the source headers."
+
+[[dep]]
 id = "core.sc68"
 spdx = "GPL-3.0-or-later"
 source = "external/sc68"
