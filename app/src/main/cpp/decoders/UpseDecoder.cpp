@@ -8,6 +8,7 @@
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
+#include <cerrno>
 #include <filesystem>
 #include <mutex>
 
@@ -23,6 +24,7 @@ constexpr int kMaxRenderCallsPerRead = 64;
 constexpr int kSeekDrainChunkFrames = 1024;
 
 thread_local const std::string* tlsBaseDir = nullptr;
+thread_local int tlsUpseOpenErrno = 0;
 
 std::string normalizeUpsePath(const char* path) {
     std::string normalized(path ? path : "");
@@ -45,6 +47,7 @@ void* upseFopen(const char* path, const char* mode) {
     if (FILE* handle = std::fopen(candidate.c_str(), "rb")) {
         return handle;
     }
+    tlsUpseOpenErrno = errno;
     if (tlsBaseDir != nullptr && !tlsBaseDir->empty() && !isAbsoluteUpsePath(candidate)) {
         const std::filesystem::path baseDir(*tlsBaseDir);
         const std::filesystem::path alongside = baseDir / candidate;
@@ -153,10 +156,11 @@ bool UpseDecoder::openInternalLocked(const char* path) {
     };
     const std::string baseDir = std::filesystem::path(sourcePath).parent_path().string();
     tlsBaseDir = &baseDir;
+    tlsUpseOpenErrno = 0;
     upse_module_t* opened = upse_module_open(sourcePath.c_str(), &iofuncs);
     tlsBaseDir = nullptr;
     if (!opened) {
-        LOGE("upse_module_open failed: %s", sourcePath.c_str());
+        LOGE("upse_module_open failed: %s (open_errno=%d)", sourcePath.c_str(), tlsUpseOpenErrno);
         return false;
     }
     module = opened;
