@@ -2,6 +2,7 @@
 
 #include <android/log.h>
 #include <algorithm>
+#include <chrono>
 #include <cmath>
 #include <cstdio>
 #include <cstdlib>
@@ -106,6 +107,14 @@ bool equalsIgnoreCaseAscii(const char* a, const char* b) {
     return *a == *b;
 }
 
+constexpr int kUpseScopeTextStride = 10;
+constexpr int kUpseScopeTextFlagActive = 1 << 0;
+constexpr float kUpseScopeActivePeak = 0.0015f;
+// SPU ensemble voices sit far below full scale; lift them into the scope
+// rows the way the SID cores lift theirs. Sized so the loudest passages
+// stay under the clamp below.
+constexpr float kUpseScopeTapGain = 3.0f;
+
 bool parseBoolOption(const char* value, bool fallback) {
     if (!value) return fallback;
     if (equalsIgnoreCaseAscii(value, "1") || equalsIgnoreCaseAscii(value, "true") ||
@@ -120,7 +129,7 @@ bool parseBoolOption(const char* value, bool fallback) {
 }
 }
 
-UpseDecoder::UpseDecoder() = default;
+UpseDecoder::UpseDecoder() : channelScopeState(std::make_shared<ChannelScopeSharedState>()) {}
 
 UpseDecoder::~UpseDecoder() {
     close();
@@ -156,6 +165,16 @@ bool UpseDecoder::openInternalLocked(const char* path) {
     }
     module = opened;
     applyReverbLocked();
+    applyScopeTapLocked();
+    if (toggleChannelNames.empty()) {
+        toggleChannelNames.reserve(kScopeVoices);
+        toggleChannelMuted.assign(kScopeVoices, false);
+        for (int voice = 0; voice < kScopeVoices; ++voice) {
+            toggleChannelNames.push_back("Voice " + std::to_string(voice + 1));
+        }
+    }
+    applyVoiceMutesLocked();
+    resetChannelScopeLocked();
 
     if (module->metadata != nullptr) {
         const upse_psf_t* meta = module->metadata;
@@ -199,6 +218,7 @@ void UpseDecoder::closeInternalLocked() {
         module = nullptr;
     }
     surplusSamples.clear();
+    resetChannelScopeLocked();
     isOpen = false;
     repeatMode = 0;
     durationSeconds = kFallbackDurationSeconds;
@@ -271,6 +291,15 @@ int UpseDecoder::read(float* buffer, int numFrames) {
         }
     }
     renderedFrames += framesOut;
+    if (framesOut > 0 && scopeCaptureEnabled) {
+        channelScopeLastReadNs = std::chrono::duration_cast<std::chrono::nanoseconds>(
+                std::chrono::steady_clock::now().time_since_epoch()
+        ).count();
+        if (channelScopeState &&
+            channelScopeState->tryBeginCapture(channelScopeLastReadNs, kScopeVoices)) {
+            publishScopeSnapshotLocked();
+        }
+    }
     return framesOut;
 }
 
@@ -403,6 +432,15 @@ void UpseDecoder::setOption(const char* name, const char* value) {
     if (equalsIgnoreCaseAscii(name, "libupse.reverb")) {
         reverbEnabled = parseBoolOption(value, reverbEnabled);
         applyReverbLocked();
+        return;
+    }
+    if (equalsIgnoreCaseAscii(name, "visualization.channel_scope_active")) {
+        const bool enabled = parseBoolOption(value, scopeCaptureEnabled);
+        if (scopeCaptureEnabled == enabled) {
+            return;
+        }
+        scopeCaptureEnabled = enabled;
+        resetChannelScopeLocked();
     }
 }
 
@@ -411,6 +449,192 @@ int UpseDecoder::getOptionApplyPolicy(const char* name) const {
         return OPTION_APPLY_LIVE;
     }
     return OPTION_APPLY_LIVE;
+}
+
+void UpseDecoder::applyScopeTapLocked() {
+    if (!module) {
+        return;
+    }
+    upse_ps1_spu_set_scope_callback(
+            module->instance.spu, &UpseDecoder::scopeTapCallback, this);
+}
+
+void UpseDecoder::applyVoiceMutesLocked() {
+    if (!module) {
+        return;
+    }
+    upse_ps1_spu_clear_voice_mutes(module->instance.spu);
+    for (int voice = 0; voice < kScopeVoices; ++voice) {
+        if (voice < static_cast<int>(toggleChannelMuted.size()) && toggleChannelMuted[static_cast<size_t>(voice)]) {
+            upse_ps1_spu_set_voice_mute(module->instance.spu, voice, 1);
+        }
+    }
+}
+
+void UpseDecoder::resetChannelScopeLocked() {
+    scopeRingRaw.clear();
+    scopeRingWritePos = 0;
+    scopeRingSamples = 0;
+    scopeTapChunkFrames = 0;
+    if (channelScopeState) {
+        channelScopeState->clear();
+    }
+}
+
+void UpseDecoder::appendScopeTapLocked(int voice, const int16_t* samples, int frames) {
+    if (!scopeCaptureEnabled || voice < 0 || voice >= kScopeVoices || !samples || frames <= 0) {
+        return;
+    }
+    if (scopeRingRaw.empty()) {
+        scopeRingRaw.assign(
+                static_cast<size_t>(kScopeVoices) * ChannelScopeSharedState::kMaxSamples, 0.0f);
+    }
+    float* ring = scopeRingRaw.data() +
+            static_cast<size_t>(voice) * ChannelScopeSharedState::kMaxSamples;
+    const int firstBlock =
+            std::min(frames, ChannelScopeSharedState::kMaxSamples - scopeRingWritePos);
+    for (int i = 0; i < firstBlock; ++i) {
+        ring[scopeRingWritePos + i] = std::clamp(
+                static_cast<float>(samples[i]) / 32768.0f * kUpseScopeTapGain, -1.0f, 1.0f);
+    }
+    for (int i = firstBlock; i < frames; ++i) {
+        ring[i - firstBlock] = std::clamp(
+                static_cast<float>(samples[i]) / 32768.0f * kUpseScopeTapGain, -1.0f, 1.0f);
+    }
+    // The SPU reports every voice once per render chunk, in order, so the
+    // shared write position advances when the last voice lands. Voices stay
+    // mutually locked without any padding against the mix clock.
+    if (voice == 0) {
+        scopeTapChunkFrames = frames;
+    }
+    if (voice == kScopeVoices - 1 && scopeTapChunkFrames > 0) {
+        scopeRingWritePos =
+                (scopeRingWritePos + scopeTapChunkFrames) % ChannelScopeSharedState::kMaxSamples;
+        scopeRingSamples =
+                std::min(scopeRingSamples + scopeTapChunkFrames, ChannelScopeSharedState::kMaxSamples);
+        scopeTapChunkFrames = 0;
+    }
+}
+
+void UpseDecoder::publishScopeSnapshotLocked() {
+    if (!channelScopeState || scopeRingRaw.empty() || scopeRingSamples <= 0) {
+        return;
+    }
+
+    scopePublishRaw.assign(
+            static_cast<size_t>(kScopeVoices) * ChannelScopeSharedState::kMaxSamples, 0.0f);
+    scopePublishVu.assign(static_cast<size_t>(kScopeVoices), 0.0f);
+    std::vector<float>& raw = scopePublishRaw;
+    std::vector<float>& vu = scopePublishVu;
+    const int filledSamples = std::clamp(scopeRingSamples, 0, ChannelScopeSharedState::kMaxSamples);
+    const int zeroPrefix = ChannelScopeSharedState::kMaxSamples - filledSamples;
+    const int historyStart =
+            (scopeRingWritePos - filledSamples + ChannelScopeSharedState::kMaxSamples) %
+            ChannelScopeSharedState::kMaxSamples;
+    const int firstBlock =
+            std::min(filledSamples, ChannelScopeSharedState::kMaxSamples - historyStart);
+    const int trailingSamples = 1024;
+    for (int voice = 0; voice < kScopeVoices; ++voice) {
+        float* dst = raw.data() + static_cast<size_t>(voice) * ChannelScopeSharedState::kMaxSamples;
+        const float* src = scopeRingRaw.data() +
+                static_cast<size_t>(voice) * ChannelScopeSharedState::kMaxSamples;
+        std::copy_n(src + historyStart, firstBlock, dst + zeroPrefix);
+        std::copy_n(src, filledSamples - firstBlock, dst + zeroPrefix + firstBlock);
+
+        float peak = 0.0f;
+        const int start = std::max(0, ChannelScopeSharedState::kMaxSamples - trailingSamples);
+        for (int i = start; i < ChannelScopeSharedState::kMaxSamples; ++i) {
+            peak = std::max(peak, std::abs(dst[i]));
+        }
+        vu[static_cast<size_t>(voice)] = std::clamp(peak, 0.0f, 1.0f);
+    }
+    channelScopeState->publish(raw, vu, kScopeVoices, ++channelScopeSourceSerial, true);
+}
+
+void UpseDecoder::scopeTapCallback(int voice, const short* samples, int frames, void* user) {
+    auto* self = static_cast<UpseDecoder*>(user);
+    if (!self) {
+        return;
+    }
+    self->appendScopeTapLocked(
+            voice, reinterpret_cast<const int16_t*>(samples), frames);
+}
+
+std::vector<std::string> UpseDecoder::getToggleChannelNames() {
+    std::lock_guard<std::mutex> lock(decodeMutex);
+    return toggleChannelNames;
+}
+
+void UpseDecoder::setToggleChannelMuted(int channelIndex, bool enabled) {
+    std::lock_guard<std::mutex> lock(decodeMutex);
+    if (channelIndex < 0 || channelIndex >= kScopeVoices ||
+        channelIndex >= static_cast<int>(toggleChannelMuted.size())) {
+        return;
+    }
+    toggleChannelMuted[static_cast<size_t>(channelIndex)] = enabled;
+    applyVoiceMutesLocked();
+    resetChannelScopeLocked();
+}
+
+bool UpseDecoder::getToggleChannelMuted(int channelIndex) const {
+    std::lock_guard<std::mutex> lock(decodeMutex);
+    if (channelIndex < 0 || channelIndex >= static_cast<int>(toggleChannelMuted.size())) {
+        return false;
+    }
+    return toggleChannelMuted[static_cast<size_t>(channelIndex)];
+}
+
+void UpseDecoder::clearToggleChannelMutes() {
+    std::lock_guard<std::mutex> lock(decodeMutex);
+    std::fill(toggleChannelMuted.begin(), toggleChannelMuted.end(), false);
+    applyVoiceMutesLocked();
+    resetChannelScopeLocked();
+}
+
+std::vector<int32_t> UpseDecoder::getChannelScopeTextState(int maxChannels) {
+    std::lock_guard<std::mutex> lock(decodeMutex);
+    if (scopeRingRaw.empty() || scopeRingSamples <= 0) {
+        return {};
+    }
+
+    const int channelsToExport = std::min(kScopeVoices, std::clamp(maxChannels, 1, kScopeVoices));
+    std::vector<int32_t> flat(static_cast<size_t>(channelsToExport * kUpseScopeTextStride), -1);
+    const int trailingSamples = 1024;
+    const int recentSamples = std::min(scopeRingSamples, trailingSamples);
+    const int recentStart =
+            (scopeRingWritePos - recentSamples + ChannelScopeSharedState::kMaxSamples) %
+            ChannelScopeSharedState::kMaxSamples;
+    const int recentFirstBlock =
+            std::min(recentSamples, ChannelScopeSharedState::kMaxSamples - recentStart);
+    for (int voice = 0; voice < channelsToExport; ++voice) {
+        float recentPeak = 0.0f;
+        const float* src = scopeRingRaw.data() +
+                static_cast<size_t>(voice) * ChannelScopeSharedState::kMaxSamples;
+        for (int i = 0; i < recentFirstBlock; ++i) {
+            recentPeak = std::max(recentPeak, std::abs(src[recentStart + i]));
+        }
+        for (int i = recentFirstBlock; i < recentSamples; ++i) {
+            recentPeak = std::max(recentPeak, std::abs(src[i - recentFirstBlock]));
+        }
+
+        const size_t base = static_cast<size_t>(voice * kUpseScopeTextStride);
+        int flags = 0;
+        if (recentPeak > kUpseScopeActivePeak) {
+            flags |= kUpseScopeTextFlagActive;
+        }
+
+        flat[base + 0] = voice;
+        flat[base + 1] = -1;
+        flat[base + 2] = std::clamp(static_cast<int>(std::lround(recentPeak * 64.0f)), 0, 64);
+        flat[base + 3] = 0;
+        flat[base + 4] = -1;
+        flat[base + 5] = 0;
+        flat[base + 6] = -1;
+        flat[base + 7] = -1;
+        flat[base + 8] = -1;
+        flat[base + 9] = flags;
+    }
+    return flat;
 }
 
 void UpseDecoder::setRepeatMode(int mode) {

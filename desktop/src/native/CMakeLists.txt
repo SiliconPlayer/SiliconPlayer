@@ -488,6 +488,7 @@ set_target_properties(libupse_prebuilt PROPERTIES IMPORTED_LOCATION "${PREBUILT_
 add_library(siliconplayer_libupse_decoder SHARED
     "${APP_CPP_DIR}/decoders/UpseDecoder.cpp"
     "${APP_CPP_DIR}/decoders/UpseDecoderPlugin.cpp"
+    "${APP_CPP_DIR}/ChannelScopeSharedState.cpp"
 )
 target_include_directories(siliconplayer_libupse_decoder PRIVATE
     ${COMMON_INCLUDES}

@@ -690,6 +690,7 @@ include_directories(${CMAKE_CURRENT_BINARY_DIR}/libusb_gen)
             SHARED
             decoders/UpseDecoder.cpp
             decoders/UpseDecoderPlugin.cpp
+            ChannelScopeSharedState.cpp
     )
     if (ANDROID)
         target_compile_options(
