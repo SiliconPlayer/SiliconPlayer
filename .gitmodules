@@ -113,3 +113,7 @@
 	path = external/dnfamitracker
 	url = https://github.com/SiliconPlayer/Dn-FamiTracker
 	ignore = dirty
+[submodule "external/libupse"]
+	path = external/libupse
+	url = https://github.com/SiliconPlayer/libupse
+	ignore = dirty
