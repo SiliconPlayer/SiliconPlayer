@@ -2517,10 +2517,23 @@ usage() {
     echo "Usage: $0 <abi|all> <lib|all[,lib2,...]> [clean]"
     echo "  ABI: all, all_legacy, arm64-v8a, armeabi-v7a, x86_64, x86"
     echo "  Prefixed forms: android, android_all, android_arm64-v8a, android_armeabi-v7a, android_x86_64, android_x86, android_legacy"
-    echo "  LIB: all, libsoxr, mbedtls, ffmpeg, libopenmpt, libxmp, libayfly, ufmod, libvgm, libgme, libresid, libresidfp, libsidplayfp, crsid, lazyusf2, psflib, vio2sf, fluidsynth, sc68, libbinio, adplug, libzakalwe, bencodetools, vasm, uade, hivelytracker, klystrack, furnace, projectm, dnfamitracker, libupse"
+    echo "  LIB: $(all_libs_csv)"
     echo "  clean (optional): force rebuild (bypass already-built skip checks)"
-    echo "  Aliases: sox/soxr, gme, xmp, ayfly, resid/residfp, sid/sidplayfp, crsid/cRSID/libcrsid, usf/lazyusf, psf, 2sf/twosf, fluid/libfluidsynth, libsc68, binio, libadplug, zakalwe, bencode, assembler/vasm, libuade, hvl/hively, kly/kt, fur, dnfamitracker/dnft, upse/libupse"
+    echo "  Aliases: $LIB_ALIASES_HINT"
 }
+
+case "${1:-}" in
+    -h|--help)
+        usage
+        exit 0
+        ;;
+esac
+case "${2:-}" in
+    -h|--help)
+        usage
+        exit 0
+        ;;
+esac
 
 if [ "$#" -eq 1 ]; then
     echo "Error: missing second argument."
@@ -2578,93 +2591,6 @@ if [ "$#" -eq 3 ]; then
     esac
 fi
 
-normalize_lib_name() {
-    local lib="$1"
-    case "$lib" in
-        mbedtls|libmbedtls)
-            echo "mbedtls"
-            ;;
-        sox|soxr)
-            echo "libsoxr"
-            ;;
-        gme)
-            echo "libgme"
-            ;;
-        xmp)
-            echo "libxmp"
-            ;;
-        ayfly|libayfly)
-            echo "libayfly"
-            ;;
-        resid)
-            echo "libresid"
-            ;;
-        residfp)
-            echo "libresidfp"
-            ;;
-        sid|sidplayfp)
-            echo "libsidplayfp"
-            ;;
-        crsid|cRSID|libcrsid|libcRSID)
-            echo "crsid"
-            ;;
-        usf|lazyusf|lazyusf2)
-            echo "lazyusf2"
-            ;;
-        psf|psflib)
-            echo "psflib"
-            ;;
-        2sf|twosf|vio2sf)
-            echo "vio2sf"
-            ;;
-        fluid|fluidsynth|libfluidsynth)
-            echo "fluidsynth"
-            ;;
-        sc68|libsc68)
-            echo "sc68"
-            ;;
-        binio|libbinio)
-            echo "libbinio"
-            ;;
-        adplug|libadplug)
-            echo "adplug"
-            ;;
-        zakalwe|libzakalwe)
-            echo "libzakalwe"
-            ;;
-        bencode|bencodetools|libbencodetools)
-            echo "bencodetools"
-            ;;
-        assembler|vasm)
-            echo "vasm"
-            ;;
-        uade|libuade)
-            echo "uade"
-            ;;
-        hvl|hively|hivelytracker|libhivelytracker)
-            echo "hivelytracker"
-            ;;
-        kly|kt|klystrack|libklystrack)
-            echo "klystrack"
-            ;;
-        fur|furnace|libfurnace)
-            echo "furnace"
-            ;;
-        projectm|projectM|libprojectm|libprojectM)
-            echo "projectm"
-            ;;
-        dnfamitracker|libdnfamitracker|famitracker|dn-famitracker|dnft)
-            echo "dnfamitracker"
-            ;;
-        upse|libupse)
-            echo "libupse"
-            ;;
-        *)
-            echo "$lib"
-            ;;
-    esac
-}
-
 target_has_lib() {
     local wanted
     wanted="$(normalize_lib_name "$1")"
@@ -2689,18 +2615,6 @@ is_valid_abi() {
     local abi="$1"
     case "$abi" in
         all|all_legacy|arm64-v8a|armeabi-v7a|x86_64|x86)
-            return 0
-            ;;
-        *)
-            return 1
-            ;;
-    esac
-}
-
-is_valid_lib() {
-    local lib="$1"
-    case "$lib" in
-        all|libsoxr|mbedtls|ffmpeg|libopenmpt|libxmp|libayfly|ufmod|libvgm|libgme|libresid|libresidfp|libsidplayfp|crsid|lazyusf2|psflib|vio2sf|fluidsynth|sc68|libbinio|adplug|libzakalwe|bencodetools|vasm|uade|hivelytracker|klystrack|furnace|projectm|dnfamitracker|libupse)
             return 0
             ;;
         *)
@@ -2745,7 +2659,7 @@ clean_target_artifacts() {
 
     # Resolve lib list
     if [ "$TARGET_LIB" = "all" ]; then
-            lib_list=(libsoxr mbedtls ffmpeg libopenmpt libxmp libayfly ufmod libvgm libgme libresid libresidfp libsidplayfp crsid lazyusf2 psflib vio2sf fluidsynth sc68 libbinio adplug libzakalwe bencodetools vasm uade hivelytracker klystrack furnace projectm dnfamitracker libupse)
+        lib_list=("${ALL_DEPENDENCY_LIBS[@]}")
     else
         IFS=',' read -r -a requested <<< "$TARGET_LIB"
         for raw in "${requested[@]}"; do

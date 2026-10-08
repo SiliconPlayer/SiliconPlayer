@@ -41,6 +41,15 @@ ALL_DEPENDENCY_LIBS=(
     libupse
 )
 
+# Aliases documented here, shared by all build_deps usage screens.
+LIB_ALIASES_HINT="sox/soxr, gme, xmp, ayfly, resid/residfp, sid/sidplayfp, crsid/cRSID/libcrsid, usf/lazyusf, psf, 2sf/twosf, fluid/libfluidsynth, libsc68, binio, libadplug, zakalwe, bencode, assembler/vasm, libuade, hvl/hively, kly/kt, fur, dnfamitracker/dnft, upse/libupse"
+
+# Comma-separated "all,<libs...>" for usage text.
+all_libs_csv() {
+    local IFS=,
+    echo "all,${ALL_DEPENDENCY_LIBS[*]}"
+}
+
 detect_linux_family() {
     if [ ! -r /etc/os-release ]; then
         echo "unknown"
@@ -372,14 +381,13 @@ dep_write_source_stamp() {
 
 is_valid_lib() {
     local lib="$1"
+    local entry
     local normalized
     normalized="$(normalize_lib_name "$lib")"
-    case "$normalized" in
-        all|libsoxr|mbedtls|ffmpeg|libopenmpt|libxmp|libayfly|ufmod|libvgm|libgme|libresid|libresidfp|libsidplayfp|crsid|lazyusf2|psflib|vio2sf|fluidsynth|sc68|libbinio|adplug|libzakalwe|bencodetools|vasm|uade|hivelytracker|klystrack|furnace|projectm|dnfamitracker|libupse)
+    for entry in all "${ALL_DEPENDENCY_LIBS[@]}"; do
+        if [ "$normalized" = "$entry" ]; then
             return 0
-            ;;
-        *)
-            return 1
-            ;;
-    esac
+        fi
+    done
+    return 1
 }

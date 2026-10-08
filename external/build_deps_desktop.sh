@@ -12,10 +12,23 @@ PREBUILT_BASE="$DESKTOP_DIR/prebuilt"
 usage() {
     echo "Usage: $0 <arch|all> <lib|all[,lib2,...]> [clean]"
     echo "  ARCH: main (x86_64, aarch64), legacy (armv7, x86), x86_64, aarch64, x86, armv7"
-    echo "  LIB: all, libsoxr, mbedtls, ffmpeg, libopenmpt, libxmp, libayfly, ufmod, libvgm, libgme, libresid, libresidfp, libsidplayfp, crsid, lazyusf2, psflib, vio2sf, fluidsynth, sc68, libbinio, adplug, libzakalwe, bencodetools, vasm, uade, hivelytracker, klystrack, furnace, projectm, dnfamitracker, libupse"
+    echo "  LIB: $(all_libs_csv)"
     echo "  clean (optional): force rebuild (bypass already-built skip checks)"
-    echo "  Aliases: sox/soxr, gme, xmp, ayfly, resid/residfp, sid/sidplayfp, crsid/cRSID/libcrsid, usf/lazyusf, psf, 2sf/twosf, fluid/libfluidsynth, libsc68, binio, libadplug, zakalwe, bencode, assembler/vasm, libuade, hvl/hively, kly/kt, fur, dnfamitracker/dnft, upse/libupse"
+    echo "  Aliases: $LIB_ALIASES_HINT"
 }
+
+case "${1:-}" in
+    -h|--help)
+        usage
+        exit 0
+        ;;
+esac
+case "${2:-}" in
+    -h|--help)
+        usage
+        exit 0
+        ;;
+esac
 
 if [ "$#" -eq 0 ]; then
     usage

@@ -3,6 +3,38 @@ set -e
 
 SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )"
 
+source "$SCRIPT_DIR/build_deps_common.sh"
+
+print_help() {
+    echo "Usage: $0 <target> [lib[,lib2,...]] [clean]"
+    echo ""
+    echo "Targets:"
+    echo "  desktop [arch]  Build desktop prebuilts (default arch: main)"
+    echo "  android [abi]   Build Android prebuilts (default abi: all)"
+    echo "  Single-word forms: desktop_<arch>, android_<abi> ('_' or '-' both work),"
+    echo "    e.g. desktop_x86_64, desktop_legacy, android_arm64-v8a, android_all, android_legacy"
+    echo "  Bare '<abi> [lib] [clean]' is passed straight to build_deps_android.sh"
+    echo ""
+    echo "  Desktop ARCH: main (x86_64, aarch64), legacy (armv7, x86),"
+    echo "    or a single arch: x86_64, aarch64, x86, armv7"
+    echo "  Android ABI: all, all_legacy, arm64-v8a, armeabi-v7a, x86_64, x86"
+    echo "  LIB: $(all_libs_csv)"
+    echo "  Aliases: $LIB_ALIASES_HINT"
+    echo "  clean (optional): force rebuild (bypass already-built skip checks)"
+    echo ""
+    echo "Examples:"
+    echo "  $0 desktop x86_64 ffmpeg clean"
+    echo "  $0 android arm64-v8a libupse clean"
+    echo "  $0 android_all libopenmpt,libxmp"
+}
+
+case "${1:-}" in
+    ""|-h|--help)
+        print_help
+        exit 0
+        ;;
+esac
+
 case "$1" in
     # Desktop targets
     desktop_x86_64|desktop-x86_64)
