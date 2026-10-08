@@ -33,7 +33,8 @@ internal fun rememberVisualizationUiState(
         if (currentCorePluginName != DecoderNames.LIB_SID_PLAY_FP &&
             currentCorePluginName != DecoderNames.C_RSID &&
             currentCorePluginName != DecoderNames.GAME_MUSIC_EMU &&
-            currentCorePluginName != DecoderNames.SC68) {
+            currentCorePluginName != DecoderNames.SC68 &&
+            currentCorePluginName != DecoderNames.LIB_UPSE) {
             return@LaunchedEffect
         }
         val coreName = activeCoreName?.trim().takeIf { !it.isNullOrEmpty() } ?: return@LaunchedEffect

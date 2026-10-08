@@ -229,6 +229,7 @@ internal fun channelScopeCoreIdForDecoderName(decoderName: String?): String? {
         DecoderNames.HIVELY_TRACKER -> "hivelytracker"
         DecoderNames.LIB_DN_FAMITRACKER -> "dnfamitracker"
         DecoderNames.UADE -> "uade"
+        DecoderNames.LIB_UPSE -> "libupse"
         else -> null
     }
 }
