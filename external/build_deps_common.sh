@@ -38,6 +38,7 @@ ALL_DEPENDENCY_LIBS=(
     furnace
     projectm
     dnfamitracker
+    libupse
 )
 
 detect_linux_family() {
@@ -309,6 +310,9 @@ normalize_lib_name() {
         dnfamitracker|libdnfamitracker|famitracker|dn-famitracker|dnft)
             echo "dnfamitracker"
             ;;
+        upse|libupse)
+            echo "libupse"
+            ;;
         *)
             echo "$lib"
             ;;
@@ -371,7 +375,7 @@ is_valid_lib() {
     local normalized
     normalized="$(normalize_lib_name "$lib")"
     case "$normalized" in
-        all|libsoxr|mbedtls|ffmpeg|libopenmpt|libxmp|libayfly|ufmod|libvgm|libgme|libresid|libresidfp|libsidplayfp|crsid|lazyusf2|psflib|vio2sf|fluidsynth|sc68|libbinio|adplug|libzakalwe|bencodetools|vasm|uade|hivelytracker|klystrack|furnace|projectm|dnfamitracker)
+        all|libsoxr|mbedtls|ffmpeg|libopenmpt|libxmp|libayfly|ufmod|libvgm|libgme|libresid|libresidfp|libsidplayfp|crsid|lazyusf2|psflib|vio2sf|fluidsynth|sc68|libbinio|adplug|libzakalwe|bencodetools|vasm|uade|hivelytracker|klystrack|furnace|projectm|dnfamitracker|libupse)
             return 0
             ;;
         *)

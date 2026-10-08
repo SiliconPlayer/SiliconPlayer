@@ -12,9 +12,9 @@ PREBUILT_BASE="$DESKTOP_DIR/prebuilt"
 usage() {
     echo "Usage: $0 <arch|all> <lib|all[,lib2,...]> [clean]"
     echo "  ARCH: main (x86_64, aarch64), legacy (armv7, x86), x86_64, aarch64, x86, armv7"
-    echo "  LIB: all, libsoxr, mbedtls, ffmpeg, libopenmpt, libxmp, libayfly, ufmod, libvgm, libgme, libresid, libresidfp, libsidplayfp, crsid, lazyusf2, psflib, vio2sf, fluidsynth, sc68, libbinio, adplug, libzakalwe, bencodetools, vasm, uade, hivelytracker, klystrack, furnace, projectm, dnfamitracker"
+    echo "  LIB: all, libsoxr, mbedtls, ffmpeg, libopenmpt, libxmp, libayfly, ufmod, libvgm, libgme, libresid, libresidfp, libsidplayfp, crsid, lazyusf2, psflib, vio2sf, fluidsynth, sc68, libbinio, adplug, libzakalwe, bencodetools, vasm, uade, hivelytracker, klystrack, furnace, projectm, dnfamitracker, libupse"
     echo "  clean (optional): force rebuild (bypass already-built skip checks)"
-    echo "  Aliases: sox/soxr, gme, xmp, ayfly, resid/residfp, sid/sidplayfp, crsid/cRSID/libcrsid, usf/lazyusf, psf, 2sf/twosf, fluid/libfluidsynth, libsc68, binio, libadplug, zakalwe, bencode, assembler/vasm, libuade, hvl/hively, kly/kt, fur, dnfamitracker/dnft"
+    echo "  Aliases: sox/soxr, gme, xmp, ayfly, resid/residfp, sid/sidplayfp, crsid/cRSID/libcrsid, usf/lazyusf, psf, 2sf/twosf, fluid/libfluidsynth, libsc68, binio, libadplug, zakalwe, bencode, assembler/vasm, libuade, hvl/hively, kly/kt, fur, dnfamitracker/dnft, upse/libupse"
 }
 
 if [ "$#" -eq 0 ]; then
@@ -177,6 +177,7 @@ clean_target_artifacts() {
             furnace)        PROJ="$ABSOLUTE_PATH/furnace" ;;
             projectm)       PROJ="$ABSOLUTE_PATH/projectm" ;;
             dnfamitracker)  PROJ="$ABSOLUTE_PATH/dnfamitracker" ;;
+            libupse)        PROJ="$ABSOLUTE_PATH/libupse" ;;
         esac
 
         [ -n "$PROJ" ] && rm -rf "$PROJ/build_desktop_${ARCH}" 2>/dev/null || true
@@ -210,6 +211,7 @@ clean_target_artifacts() {
             furnace) rm -f "$INSTALL_DIR/lib/libfurnace.so"* "$INSTALL_DIR/lib/libfftw3.so"* "$INSTALL_DIR/lib/libfmt.so"* "$INSTALL_DIR/lib/libsndfile.so"* 2>/dev/null || true; rm -rf "$INSTALL_DIR/include/furnace" 2>/dev/null || true ;;
             projectm) rm -f "$INSTALL_DIR/lib/libprojectM"*.so* 2>/dev/null || true; rm -rf "$INSTALL_DIR/include/projectM"* 2>/dev/null || true ;;
             dnfamitracker) rm -f "$INSTALL_DIR/lib/libdnfamitracker.a" "$INSTALL_DIR/lib/libsamplerate.a" "$INSTALL_DIR/lib/.dnfamitracker_gitrev" 2>/dev/null || true; rm -rf "$INSTALL_DIR/include/dnfamitracker" 2>/dev/null || true ;;
+            libupse) rm -f "$INSTALL_DIR/lib/libupse.so" "$INSTALL_DIR/lib/.libupse_gitrev" 2>/dev/null || true; rm -rf "$INSTALL_DIR/include/upse" "$PREBUILT_BASE/.zlib-linkonly-$ARCH" 2>/dev/null || true ;;
         esac
     done
 
@@ -1086,6 +1088,75 @@ build_dnfamitracker() {
     dep_write_source_stamp "$INSTALL_DIR" dnfamitracker "$PROJECT_PATH"
 }
 
+# Native builds use the host zlib dev package. Cross toolchains ship no
+# compatible libz, so build a throwaway shared copy per arch and link
+# against that; target systems provide their own libz at runtime.
+ensure_target_zlib() {
+    TARGET_ZLIB_ROOT="$INSTALL_DIR"
+    local probe_dir
+    probe_dir="$(mktemp -d)"
+    echo 'int main(void){return 0;}' > "$probe_dir/p.c"
+    if "$CC" -fPIC $ARCH_FLAGS "$probe_dir/p.c" -o "$probe_dir/p" -lz >/dev/null 2>&1; then
+        rm -rf "$probe_dir"
+        return 0
+    fi
+    rm -rf "$probe_dir"
+    local ZLIB_STAGE="$PREBUILT_BASE/.zlib-linkonly-$ARCH"
+    TARGET_ZLIB_ROOT="$ZLIB_STAGE"
+    if [ -f "$ZLIB_STAGE/lib/libz.so" ] && [ -f "$ZLIB_STAGE/include/zlib.h" ]; then
+        return 0
+    fi
+    echo "No working target libz, building link-only zlib..."
+    local ZLIB_VER="1.3.1"
+    local ZLIB_URL="https://www.zlib.net/fossils/zlib-${ZLIB_VER}.tar.gz"
+    local ZLIB_CACHE="${XDG_CACHE_HOME:-$HOME/.cache}/siliconplayer/zlib-${ZLIB_VER}.tar.gz"
+    local ZLIB_SRC="$ZLIB_STAGE/src"
+    mkdir -p "$(dirname "$ZLIB_CACHE")"
+    if [ ! -f "$ZLIB_CACHE" ]; then
+        if command -v curl >/dev/null 2>&1; then
+            curl -fsSL -o "$ZLIB_CACHE" "$ZLIB_URL"
+        elif command -v wget >/dev/null 2>&1; then
+            wget -O "$ZLIB_CACHE" "$ZLIB_URL"
+        else
+            echo "Error: need curl or wget to fetch zlib for cross builds."
+            return 1
+        fi
+    fi
+    rm -rf "$ZLIB_SRC" && mkdir -p "$ZLIB_SRC"
+    tar -xzf "$ZLIB_CACHE" -C "$ZLIB_SRC" --strip-components=1
+    (
+        cd "$ZLIB_SRC"
+        CC="$CC" CFLAGS="-fPIC $ARCH_FLAGS $DEP_OPT_FLAGS"             ./configure --prefix="$ZLIB_STAGE" --shared
+        make -j"$NPROC"
+        make install
+    )
+    rm -rf "$ZLIB_SRC"
+}
+
+build_libupse() {
+    local PROJECT_PATH="$ABSOLUTE_PATH/libupse"
+    local BUILD_DIR="$PROJECT_PATH/build_desktop_${ARCH}"
+    if [ ! -d "$PROJECT_PATH" ]; then return 0; fi
+    if [ "$FORCE_CLEAN" -ne 1 ] && [ -f "$INSTALL_DIR/lib/libupse.so" ] && \
+       [ -f "$INSTALL_DIR/include/upse/upse.h" ] && \
+       dep_source_stamp_matches "$INSTALL_DIR" libupse "$PROJECT_PATH"; then return 0; fi
+    echo "Building libupse for host..."
+    rm -rf "$BUILD_DIR" && mkdir -p "$BUILD_DIR"
+    ensure_target_zlib
+    cmake $CMAKE_COMMON_FLAGS -S "$PROJECT_PATH" -B "$BUILD_DIR" \
+        -DCMAKE_BUILD_TYPE=Release -DCMAKE_C_FLAGS="$CFLAGS" \
+        -DCMAKE_POSITION_INDEPENDENT_CODE=ON \
+        -DZLIB_ROOT="$TARGET_ZLIB_ROOT" \
+        -DCMAKE_INSTALL_PREFIX="$INSTALL_DIR"
+    cmake --build "$BUILD_DIR" -j"$NPROC"
+    cmake --install "$BUILD_DIR"
+    if [ ! -f "$INSTALL_DIR/lib/libupse.so" ]; then
+        echo "Error: libupse shared library not found after build."
+        return 1
+    fi
+    dep_write_source_stamp "$INSTALL_DIR" libupse "$PROJECT_PATH"
+}
+
 # Run build targets
 for ARCH in "${TARGET_ARCHES[@]}"; do
     configure_desktop_toolchain "$ARCH"
@@ -1136,6 +1207,7 @@ for ARCH in "${TARGET_ARCHES[@]}"; do
     if target_has_lib "furnace"; then build_furnace; fi
     if target_has_lib "projectm"; then build_projectm; fi
     if target_has_lib "dnfamitracker"; then build_dnfamitracker; fi
+    if target_has_lib "libupse"; then build_libupse; fi
 
     echo "========================================"
     echo "Desktop Dependency Build Complete for $ARCH!"

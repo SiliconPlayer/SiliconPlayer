@@ -2462,15 +2462,64 @@ build_dnfamitracker() {
 }
 
 # -----------------------------------------------------------------------------
+# Function: Build libupse
+# -----------------------------------------------------------------------------
+build_libupse() {
+    local ABI=$1
+    echo "Building libupse for $ABI..."
+
+    local INSTALL_DIR="$ABSOLUTE_PATH/../app/src/main/cpp/prebuilt/$ABI"
+    local PROJECT_PATH="$ABSOLUTE_PATH/libupse"
+    local BUILD_DIR="$PROJECT_PATH/build_android_${ABI}"
+
+    if [ ! -d "$PROJECT_PATH" ]; then
+        echo "libupse source not found at $PROJECT_PATH (skipping)."
+        return 0
+    fi
+
+    if [ "$FORCE_CLEAN" -ne 1 ] && [ -f "$INSTALL_DIR/lib/libupse.so" ] && \
+       [ -f "$INSTALL_DIR/include/upse/upse.h" ] && \
+       dep_source_stamp_matches "$INSTALL_DIR" libupse "$PROJECT_PATH"; then
+        echo "libupse already built for $ABI -> skipping"
+        return 0
+    fi
+
+    rm -rf "$BUILD_DIR"
+    mkdir -p "$BUILD_DIR" "$INSTALL_DIR"
+
+    cmake -Wno-dev -Wno-deprecated \
+        -S "$PROJECT_PATH" \
+        -B "$BUILD_DIR" \
+        -DCMAKE_TOOLCHAIN_FILE="$ANDROID_NDK_HOME/build/cmake/android.toolchain.cmake" \
+        -DCMAKE_POLICY_VERSION_MINIMUM=3.5 \
+        -DANDROID_ABI="$ABI" \
+        -DANDROID_PLATFORM="android-$ANDROID_API" \
+        -DCMAKE_C_FLAGS="$DEP_OPT_FLAGS" \
+        -DCMAKE_C_FLAGS_RELEASE="$DEP_OPT_FLAGS -DNDEBUG" \
+        -DCMAKE_BUILD_TYPE=Release \
+        -DCMAKE_POSITION_INDEPENDENT_CODE=ON \
+        -DCMAKE_INSTALL_PREFIX="$INSTALL_DIR"
+
+    cmake --build "$BUILD_DIR" -j"$NPROC"
+    cmake --install "$BUILD_DIR"
+
+    if [ ! -f "$INSTALL_DIR/lib/libupse.so" ]; then
+        echo "Error: libupse shared library not found after build."
+        return 1
+    fi
+    dep_write_source_stamp "$INSTALL_DIR" libupse "$PROJECT_PATH"
+}
+
+# -----------------------------------------------------------------------------
 # Argument Parsing
 # -----------------------------------------------------------------------------
 usage() {
     echo "Usage: $0 <abi|all> <lib|all[,lib2,...]> [clean]"
     echo "  ABI: all, all_legacy, arm64-v8a, armeabi-v7a, x86_64, x86"
     echo "  Prefixed forms: android, android_all, android_arm64-v8a, android_armeabi-v7a, android_x86_64, android_x86, android_legacy"
-    echo "  LIB: all, libsoxr, mbedtls, ffmpeg, libopenmpt, libxmp, libayfly, ufmod, libvgm, libgme, libresid, libresidfp, libsidplayfp, crsid, lazyusf2, psflib, vio2sf, fluidsynth, sc68, libbinio, adplug, libzakalwe, bencodetools, vasm, uade, hivelytracker, klystrack, furnace, projectm, dnfamitracker"
+    echo "  LIB: all, libsoxr, mbedtls, ffmpeg, libopenmpt, libxmp, libayfly, ufmod, libvgm, libgme, libresid, libresidfp, libsidplayfp, crsid, lazyusf2, psflib, vio2sf, fluidsynth, sc68, libbinio, adplug, libzakalwe, bencodetools, vasm, uade, hivelytracker, klystrack, furnace, projectm, dnfamitracker, libupse"
     echo "  clean (optional): force rebuild (bypass already-built skip checks)"
-    echo "  Aliases: sox/soxr, gme, xmp, ayfly, resid/residfp, sid/sidplayfp, crsid/cRSID/libcrsid, usf/lazyusf, psf, 2sf/twosf, fluid/libfluidsynth, libsc68, binio, libadplug, zakalwe, bencode, assembler/vasm, libuade, hvl/hively, kly/kt, fur, dnfamitracker/dnft"
+    echo "  Aliases: sox/soxr, gme, xmp, ayfly, resid/residfp, sid/sidplayfp, crsid/cRSID/libcrsid, usf/lazyusf, psf, 2sf/twosf, fluid/libfluidsynth, libsc68, binio, libadplug, zakalwe, bencode, assembler/vasm, libuade, hvl/hively, kly/kt, fur, dnfamitracker/dnft, upse/libupse"
 }
 
 if [ "$#" -eq 1 ]; then
@@ -2607,6 +2656,9 @@ normalize_lib_name() {
         dnfamitracker|libdnfamitracker|famitracker|dn-famitracker|dnft)
             echo "dnfamitracker"
             ;;
+        upse|libupse)
+            echo "libupse"
+            ;;
         *)
             echo "$lib"
             ;;
@@ -2648,7 +2700,7 @@ is_valid_abi() {
 is_valid_lib() {
     local lib="$1"
     case "$lib" in
-        all|libsoxr|mbedtls|ffmpeg|libopenmpt|libxmp|libayfly|ufmod|libvgm|libgme|libresid|libresidfp|libsidplayfp|crsid|lazyusf2|psflib|vio2sf|fluidsynth|sc68|libbinio|adplug|libzakalwe|bencodetools|vasm|uade|hivelytracker|klystrack|furnace|projectm|dnfamitracker)
+        all|libsoxr|mbedtls|ffmpeg|libopenmpt|libxmp|libayfly|ufmod|libvgm|libgme|libresid|libresidfp|libsidplayfp|crsid|lazyusf2|psflib|vio2sf|fluidsynth|sc68|libbinio|adplug|libzakalwe|bencodetools|vasm|uade|hivelytracker|klystrack|furnace|projectm|dnfamitracker|libupse)
             return 0
             ;;
         *)
@@ -2693,7 +2745,7 @@ clean_target_artifacts() {
 
     # Resolve lib list
     if [ "$TARGET_LIB" = "all" ]; then
-            lib_list=(libsoxr mbedtls ffmpeg libopenmpt libxmp libayfly ufmod libvgm libgme libresid libresidfp libsidplayfp crsid lazyusf2 psflib vio2sf fluidsynth sc68 libbinio adplug libzakalwe bencodetools vasm uade hivelytracker klystrack furnace projectm dnfamitracker)
+            lib_list=(libsoxr mbedtls ffmpeg libopenmpt libxmp libayfly ufmod libvgm libgme libresid libresidfp libsidplayfp crsid lazyusf2 psflib vio2sf fluidsynth sc68 libbinio adplug libzakalwe bencodetools vasm uade hivelytracker klystrack furnace projectm dnfamitracker libupse)
     else
         IFS=',' read -r -a requested <<< "$TARGET_LIB"
         for raw in "${requested[@]}"; do
@@ -2738,6 +2790,7 @@ clean_target_artifacts() {
             furnace)        PROJ="$ABSOLUTE_PATH/furnace"; CMAKE=1 ;;
             projectm)       PROJ="$ABSOLUTE_PATH/projectm"; CMAKE=1 ;;
             dnfamitracker)  PROJ="$ABSOLUTE_PATH/dnfamitracker"; CMAKE=1 ;;
+            libupse)        PROJ="$ABSOLUTE_PATH/libupse"; CMAKE=1 ;;
         esac
 
         # Clean CMake build_android_* directories
@@ -2825,6 +2878,7 @@ clean_target_artifacts() {
                 furnace)   rm -f "$inst/lib/libfurnace.so" 2>/dev/null || true; rm -rf "$inst/include/furnace" 2>/dev/null || true ;;
                 projectm)  rm -f "$inst/lib/libprojectM-4.so" "$inst/lib/libprojectM-4.so."* "$inst/lib/.libprojectm_build_stamp" 2>/dev/null || true; rm -rf "$inst/include/projectM-4" 2>/dev/null || true ;;
                 dnfamitracker) rm -f "$inst/lib/libdnfamitracker.a" "$inst/lib/libsamplerate.a" "$inst/lib/.dnfamitracker_gitrev" 2>/dev/null || true; rm -rf "$inst/include/dnfamitracker" 2>/dev/null || true ;;
+                libupse) rm -f "$inst/lib/libupse.so" "$inst/lib/.libupse_gitrev" 2>/dev/null || true; rm -rf "$inst/include/upse" 2>/dev/null || true ;;
             esac
         done
     done
@@ -3055,6 +3109,10 @@ for ABI in "${ABIS[@]}"; do
 
     if target_has_lib "dnfamitracker"; then
         build_dnfamitracker "$ABI"
+    fi
+
+    if target_has_lib "libupse"; then
+        build_libupse "$ABI"
     fi
 done
 
