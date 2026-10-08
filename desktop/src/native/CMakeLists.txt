@@ -481,6 +481,24 @@ target_link_libraries(siliconplayer_vio2sf_decoder PRIVATE
     m
 )
 
+# 14b. Upse Decoder
+add_library(libupse_prebuilt SHARED IMPORTED)
+set_target_properties(libupse_prebuilt PROPERTIES IMPORTED_LOCATION "${PREBUILT_DIR}/lib/libupse.so")
+
+add_library(siliconplayer_libupse_decoder SHARED
+    "${APP_CPP_DIR}/decoders/UpseDecoder.cpp"
+    "${APP_CPP_DIR}/decoders/UpseDecoderPlugin.cpp"
+)
+target_include_directories(siliconplayer_libupse_decoder PRIVATE
+    ${COMMON_INCLUDES}
+    "${PREBUILT_DIR}/include"
+)
+target_link_libraries(siliconplayer_libupse_decoder PRIVATE
+    libupse_prebuilt
+    ZLIB::ZLIB
+    m
+)
+
 # 15. HivelyTracker Decoder
 add_library(libhivelytracker_prebuilt SHARED IMPORTED)
 set_target_properties(libhivelytracker_prebuilt PROPERTIES IMPORTED_LOCATION "${PREBUILT_DIR}/lib/libhivelytracker.so")

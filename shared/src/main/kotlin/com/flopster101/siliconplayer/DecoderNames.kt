@@ -13,6 +13,7 @@ internal object DecoderNames {
     const val LIB_SID_PLAY_FP = "libsidplayfp"
     const val LAZY_USF2 = "lazyusf2"
     const val VIO2_SF = "vio2sf"
+    const val LIB_UPSE = "libupse"
     const val SC68 = "SC68"
     const val AD_PLUG = "AdPlug"
     const val UADE = "UADE"
@@ -41,7 +42,8 @@ internal object DecoderNames {
     val gameFileDecoders: Set<String> = setOf(
         GAME_MUSIC_EMU,
         LAZY_USF2,
-        VIO2_SF
+        VIO2_SF,
+        LIB_UPSE
     )
 }
 
@@ -58,6 +60,7 @@ internal fun canonicalDecoderNameForAlias(coreName: String?): String? {
         "libsidplayfp", "sidplayfp" -> DecoderNames.LIB_SID_PLAY_FP
         "lazyusf2", "lazyusf", "usf" -> DecoderNames.LAZY_USF2
         "vio2sf", "2sf", "mini2sf" -> DecoderNames.VIO2_SF
+        "libupse", "upse", "psf", "minipsf" -> DecoderNames.LIB_UPSE
         "sc68", "sndh" -> DecoderNames.SC68
         "adplug", "opl" -> DecoderNames.AD_PLUG
         "hivelytracker", "hively", "hvl", "ahx" -> DecoderNames.HIVELY_TRACKER

@@ -20,6 +20,7 @@ class DesktopDecodersTest {
         "libsidplayfp",
         "lazyusf2",
         "vio2sf",
+        "libupse",
         "SC68",
         "AdPlug",
         "UADE",

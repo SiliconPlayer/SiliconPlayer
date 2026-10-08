@@ -347,6 +347,27 @@ namespace {
                 return DecoderPluginLoader::getInstance().createDecoder("libsiliconplayer_vio2sf_decoder.so");
             }, 9, std::move(vio2sfStaticInfo));
 
+            DecoderStaticInfo libupseStaticInfo;
+            libupseStaticInfo.hasPlaybackCapabilities = true;
+            libupseStaticInfo.playbackCapabilities =
+                    AudioDecoder::PLAYBACK_CAP_SEEK |
+                    AudioDecoder::PLAYBACK_CAP_LIVE_REPEAT_MODE |
+                    AudioDecoder::PLAYBACK_CAP_FIXED_SAMPLE_RATE;
+            libupseStaticInfo.hasRepeatModeCapabilities = true;
+            libupseStaticInfo.repeatModeCapabilities =
+                    AudioDecoder::REPEAT_CAP_TRACK |
+                    AudioDecoder::REPEAT_CAP_LOOP_POINT;
+            libupseStaticInfo.hasTimelineMode = true;
+            libupseStaticInfo.timelineMode = AudioDecoder::TimelineMode::ContinuousLinear;
+            libupseStaticInfo.hasFixedSampleRateHz = true;
+            libupseStaticInfo.fixedSampleRateHz = 44100;
+            libupseStaticInfo.optionApplyPolicy = [](const char*) {
+                return AudioDecoder::OPTION_APPLY_LIVE;
+            };
+            DecoderRegistry::getInstance().registerDecoder("libupse", {"psf", "minipsf"}, []() {
+                return DecoderPluginLoader::getInstance().createDecoder("libsiliconplayer_libupse_decoder.so");
+            }, 3, std::move(libupseStaticInfo));
+
             DecoderStaticInfo sc68StaticInfo;
             sc68StaticInfo.hasPlaybackCapabilities = true;
             sc68StaticInfo.playbackCapabilities =

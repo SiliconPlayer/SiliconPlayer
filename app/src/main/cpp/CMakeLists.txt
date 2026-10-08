@@ -183,6 +183,10 @@ include_directories(${CMAKE_CURRENT_BINARY_DIR}/libusb_gen)
     add_library(libvio2sf SHARED IMPORTED)
     set_target_properties(libvio2sf PROPERTIES IMPORTED_LOCATION "${PREBUILT_DIR}/lib/libvio2sf.so")
 
+    # Import libupse (Shared)
+    add_library(libupse SHARED IMPORTED)
+    set_target_properties(libupse PROPERTIES IMPORTED_LOCATION "${PREBUILT_DIR}/lib/libupse.so")
+
     # Import sc68 stack (Shared)
     add_library(libsc68 SHARED IMPORTED)
     set_target_properties(libsc68 PROPERTIES IMPORTED_LOCATION "${PREBUILT_DIR}/lib/libsc68.so")
@@ -676,6 +680,34 @@ include_directories(${CMAKE_CURRENT_BINARY_DIR}/libusb_gen)
             siliconplayer_vio2sf_decoder
             libvio2sf
             libpsflib
+            z
+            ${log-lib}
+            m
+    )
+
+    add_library(
+            siliconplayer_libupse_decoder
+            SHARED
+            decoders/UpseDecoder.cpp
+            decoders/UpseDecoderPlugin.cpp
+    )
+    if (ANDROID)
+        target_compile_options(
+                siliconplayer_libupse_decoder
+                PRIVATE
+                "-fvisibility=hidden"
+                "-fvisibility-inlines-hidden"
+        )
+        target_link_options(
+                siliconplayer_libupse_decoder
+                PRIVATE
+                "-Wl,-z,max-page-size=16384"
+                "-Wl,-z,common-page-size=16384"
+        )
+    endif()
+    target_link_libraries(
+            siliconplayer_libupse_decoder
+            libupse
             z
             ${log-lib}
             m
