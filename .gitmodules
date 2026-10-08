@@ -119,5 +119,5 @@
 	ignore = dirty
 [submodule "external/viogsf"]
 	path = external/viogsf
-	url = https://github.com/kode54/viogsf
+	url = https://github.com/SiliconPlayer/viogsf
 	ignore = dirty
