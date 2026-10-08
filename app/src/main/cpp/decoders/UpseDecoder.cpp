@@ -93,6 +93,31 @@ void ensureUpseInit() {
 std::string nonEmptyOr(std::string value, const std::string& fallback) {
     return value.empty() ? fallback : value;
 }
+
+bool equalsIgnoreCaseAscii(const char* a, const char* b) {
+    if (!a || !b) return false;
+    while (*a && *b) {
+        char ca = *a++;
+        char cb = *b++;
+        if (ca >= 'A' && ca <= 'Z') ca = static_cast<char>(ca + ('a' - 'A'));
+        if (cb >= 'A' && cb <= 'Z') cb = static_cast<char>(cb + ('a' - 'A'));
+        if (ca != cb) return false;
+    }
+    return *a == *b;
+}
+
+bool parseBoolOption(const char* value, bool fallback) {
+    if (!value) return fallback;
+    if (equalsIgnoreCaseAscii(value, "1") || equalsIgnoreCaseAscii(value, "true") ||
+        equalsIgnoreCaseAscii(value, "yes") || equalsIgnoreCaseAscii(value, "on")) {
+        return true;
+    }
+    if (equalsIgnoreCaseAscii(value, "0") || equalsIgnoreCaseAscii(value, "false") ||
+        equalsIgnoreCaseAscii(value, "no") || equalsIgnoreCaseAscii(value, "off")) {
+        return false;
+    }
+    return fallback;
+}
 }
 
 UpseDecoder::UpseDecoder() = default;
@@ -130,6 +155,7 @@ bool UpseDecoder::openInternalLocked(const char* path) {
         return false;
     }
     module = opened;
+    applyReverbLocked();
 
     if (module->metadata != nullptr) {
         const upse_psf_t* meta = module->metadata;
@@ -353,6 +379,38 @@ std::string UpseDecoder::getFadeTag() {
 
 void UpseDecoder::setOutputSampleRate(int sampleRateHz) {
     (void)sampleRateHz;
+}
+
+void UpseDecoder::applyReverbLocked() {
+    if (!module || !module->instance.spu) {
+        return;
+    }
+    // Mirrors the head of libupse's upse_spu_state_t: the Neill core state
+    // pointer is its first field. Keeps the glib min/max macros and the
+    // C-only internal headers out of this translation unit.
+    struct UpseSpuHead {
+        void* pCore;
+    };
+    auto* spu = static_cast<UpseSpuHead*>(module->instance.spu);
+    spu_enable_reverb(spu->pCore, reverbEnabled ? 1 : 0);
+}
+
+void UpseDecoder::setOption(const char* name, const char* value) {
+    if (!name || !value) {
+        return;
+    }
+    std::lock_guard<std::mutex> lock(decodeMutex);
+    if (equalsIgnoreCaseAscii(name, "libupse.reverb")) {
+        reverbEnabled = parseBoolOption(value, reverbEnabled);
+        applyReverbLocked();
+    }
+}
+
+int UpseDecoder::getOptionApplyPolicy(const char* name) const {
+    if (name && equalsIgnoreCaseAscii(name, "libupse.reverb")) {
+        return OPTION_APPLY_LIVE;
+    }
+    return OPTION_APPLY_LIVE;
 }
 
 void UpseDecoder::setRepeatMode(int mode) {
