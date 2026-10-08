@@ -88,8 +88,9 @@ bool SiliconVisVulkanPipeline::init(uint32_t width, uint32_t height, void* nativ
         return false;
     }
 
-    // 2 MB host-visible dynamic ring buffer for vertex streaming
-    if (!vertexBuffer_.init(&context_, 2 * 1024 * 1024)) {
+    // 16 MB host-visible streaming buffer. Channel scope waves alone reach
+    // ~2 MB fullscreen at high channel counts; overflow silently drops draws.
+    if (!vertexBuffer_.init(&context_, 16 * 1024 * 1024)) {
         release();
         return false;
     }
