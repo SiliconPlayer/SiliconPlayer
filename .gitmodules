@@ -117,3 +117,7 @@
 	path = external/libupse
 	url = https://github.com/SiliconPlayer/libupse
 	ignore = dirty
+[submodule "external/viogsf"]
+	path = external/viogsf
+	url = https://github.com/kode54/viogsf
+	ignore = dirty
