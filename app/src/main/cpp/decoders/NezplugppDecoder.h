@@ -83,6 +83,7 @@ private:
     std::vector<float> scopeRingRaw;
     std::vector<float> scopePublishRaw;
     std::vector<float> scopePublishVu;
+    std::vector<float> scopeDcEstimate;
     std::unordered_map<int, int> scopeDevToIndex;
     std::vector<int> scopeTapSeen;
     int scopeVoices = 0;
@@ -93,6 +94,9 @@ private:
     int scopeTapGeneration = 0;
     int64_t channelScopeLastReadNs = 0;
     bool scopeCaptureEnabled = false;
+    // Code toggle for the scope DC blocker. Defaults on.
+    void setScopeDcBlockEnabled(bool enabled) { scopeDcBlockEnabled = enabled; }
+    bool scopeDcBlockEnabled = true;
     uint64_t channelScopeSourceSerial = 0;
     std::unordered_map<std::string, float> volumeTrimDb = {
         {"KSS", 0.0f}, {"NSF", 8.0f}, {"GBS", 10.0f}, {"GBR", 10.0f},

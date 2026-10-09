@@ -2,6 +2,7 @@ package com.flopster101.siliconplayer
 
 internal object NezplugppOptionKeys {
     const val FILTER = "nezplugpp.filter"
+    const val SCOPE_DC_BLOCK = "nezplugpp.scope_dc_block"
     const val VOLUME_KSS = "nezplugpp.volume_kss"
     const val VOLUME_NSF = "nezplugpp.volume_nsf"
     const val VOLUME_GBS = "nezplugpp.volume_gbs"

@@ -53,6 +53,7 @@ static bool readWholeFile(const std::string& path, uint8_t** outData, size_t* ou
 }
 
 constexpr int kNezScopeTextStride = 10;
+constexpr float kNezplugppScopeDcFollow = 0.0025f;
 constexpr int kNezScopeTextFlagActive = 1 << 0;
 constexpr float kNezScopeActivePeak = 0.0015f;
 
@@ -511,6 +512,10 @@ void NezplugppDecoder::setOption(const char* name, const char* value) {
         resetChannelScopeLocked();
         return;
     }
+    if (std::strcmp(name, "nezplugpp.scope_dc_block") == 0) {
+        scopeDcBlockEnabled = parseScopeBoolOption(value, scopeDcBlockEnabled);
+        return;
+    }
     if (std::strcmp(name, "nezplugpp.filter") == 0) {
         filterType = std::clamp(static_cast<int>(std::strtol(value, nullptr, 10)), 0, 3);
         if (isOpen && player) {
@@ -655,6 +660,7 @@ void NezplugppDecoder::resetChannelScopeLocked() {
     scopeTapsThisBlock = 0;
     scopeTapGeneration = 0;
     scopeTapSeen.assign(static_cast<size_t>(std::max(scopeVoices, 0)), 0);
+    scopeDcEstimate.assign(static_cast<size_t>(std::max(scopeVoices, 0)), 0.0f);
     if (channelScopeState) {
         channelScopeState->clear();
     }
@@ -731,6 +737,16 @@ void NezplugppDecoder::publishScopeSnapshotLocked() {
                 static_cast<size_t>(voice) * ChannelScopeSharedState::kMaxSamples;
         std::copy_n(src + historyStart, firstBlock, dst + zeroPrefix);
         std::copy_n(src, filledSamples - firstBlock, dst + zeroPrefix + firstBlock);
+
+        // Taps arrive raw; center them with a persistent one-pole DC blocker.
+        // Per-chunk mean removal would re-offset held steps and hop the
+        // baseline between chunks.
+        float& dc = scopeDcEstimate[static_cast<size_t>(voice)];
+        for (int i = 0; i < ChannelScopeSharedState::kMaxSamples; ++i) {
+            const float v = dst[i];
+            dc += (v - dc) * kNezplugppScopeDcFollow;
+            dst[i] = scopeDcBlockEnabled ? (v - dc) : v;
+        }
 
         float peak = 0.0f;
         const int start = std::max(0, ChannelScopeSharedState::kMaxSamples - trailingSamples);
