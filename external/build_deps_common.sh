@@ -40,10 +40,11 @@ ALL_DEPENDENCY_LIBS=(
     dnfamitracker
     libupse
     viogsf
+    nezplugpp
 )
 
 # Aliases documented here, shared by all build_deps usage screens.
-LIB_ALIASES_HINT="sox/soxr, gme, xmp, ayfly, resid/residfp, sid/sidplayfp, crsid/cRSID/libcrsid, usf/lazyusf, psf, 2sf/twosf, fluid/libfluidsynth, libsc68, binio, libadplug, zakalwe, bencode, assembler/vasm, libuade, hvl/hively, kly/kt, fur, dnfamitracker/dnft, upse/libupse, viogsf"
+LIB_ALIASES_HINT="sox/soxr, gme, xmp, ayfly, resid/residfp, sid/sidplayfp, crsid/cRSID/libcrsid, usf/lazyusf, psf, 2sf/twosf, fluid/libfluidsynth, libsc68, binio, libadplug, zakalwe, bencode, assembler/vasm, libuade, hvl/hively, kly/kt, fur, dnfamitracker/dnft, upse/libupse, viogsf, nezplugpp"
 
 # Comma-separated "all,<libs...>" for usage text.
 all_libs_csv() {

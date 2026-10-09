@@ -2562,6 +2562,55 @@ build_viogsf() {
 }
 
 # -----------------------------------------------------------------------------
+# Function: Build nezplugpp
+# -----------------------------------------------------------------------------
+build_nezplugpp() {
+    local ABI=$1
+    echo "Building nezplugpp for $ABI..."
+
+    local INSTALL_DIR="$ABSOLUTE_PATH/../app/src/main/cpp/prebuilt/$ABI"
+    local PROJECT_PATH="$ABSOLUTE_PATH/nezplugpp"
+    local BUILD_DIR="$PROJECT_PATH/build_android_${ABI}"
+
+    if [ ! -d "$PROJECT_PATH" ]; then
+        echo "nezplugpp source not found at $PROJECT_PATH (skipping)."
+        return 0
+    fi
+
+    if [ "$FORCE_CLEAN" -ne 1 ] && [ -f "$INSTALL_DIR/lib/libnezplugpp.so" ] && \
+       [ -f "$INSTALL_DIR/include/nezplugpp/nezplug.h" ] && \
+       dep_source_stamp_matches "$INSTALL_DIR" nezplugpp "$PROJECT_PATH"; then
+        echo "nezplugpp already built for $ABI -> skipping"
+        return 0
+    fi
+
+    rm -rf "$BUILD_DIR"
+    mkdir -p "$BUILD_DIR" "$INSTALL_DIR"
+
+    cmake -Wno-dev -Wno-deprecated \
+        -S "$PROJECT_PATH" \
+        -B "$BUILD_DIR" \
+        -DCMAKE_TOOLCHAIN_FILE="$ANDROID_NDK_HOME/build/cmake/android.toolchain.cmake" \
+        -DCMAKE_POLICY_VERSION_MINIMUM=3.5 \
+        -DANDROID_ABI="$ABI" \
+        -DANDROID_PLATFORM="android-$ANDROID_API" \
+        -DCMAKE_C_FLAGS="$DEP_OPT_FLAGS" \
+        -DCMAKE_C_FLAGS_RELEASE="$DEP_OPT_FLAGS -DNDEBUG" \
+        -DCMAKE_BUILD_TYPE=Release \
+        -DCMAKE_POSITION_INDEPENDENT_CODE=ON \
+        -DCMAKE_INSTALL_PREFIX="$INSTALL_DIR"
+
+    cmake --build "$BUILD_DIR" -j"$NPROC"
+    cmake --install "$BUILD_DIR"
+
+    if [ ! -f "$INSTALL_DIR/lib/libnezplugpp.so" ]; then
+        echo "Error: nezplugpp shared library not found after build."
+        return 1
+    fi
+    dep_write_source_stamp "$INSTALL_DIR" nezplugpp "$PROJECT_PATH"
+}
+
+# -----------------------------------------------------------------------------
 # Argument Parsing
 # -----------------------------------------------------------------------------
 usage() {
@@ -2757,6 +2806,7 @@ clean_target_artifacts() {
             dnfamitracker)  PROJ="$ABSOLUTE_PATH/dnfamitracker"; CMAKE=1 ;;
             libupse)        PROJ="$ABSOLUTE_PATH/libupse"; CMAKE=1 ;;
             viogsf)         PROJ="$ABSOLUTE_PATH/viogsf"; CMAKE=1 ;;
+            nezplugpp)      PROJ="$ABSOLUTE_PATH/nezplugpp"; CMAKE=1 ;;
         esac
 
         # Clean CMake build_android_* directories
@@ -2846,6 +2896,7 @@ clean_target_artifacts() {
                 dnfamitracker) rm -f "$inst/lib/libdnfamitracker.a" "$inst/lib/libsamplerate.a" "$inst/lib/.dnfamitracker_gitrev" 2>/dev/null || true; rm -rf "$inst/include/dnfamitracker" 2>/dev/null || true ;;
                 libupse) rm -f "$inst/lib/libupse.so" "$inst/lib/.libupse_gitrev" 2>/dev/null || true; rm -rf "$inst/include/upse" 2>/dev/null || true ;;
                 viogsf) rm -f "$inst/lib/libviogsf.so" "$inst/lib/.viogsf_gitrev" 2>/dev/null || true; rm -rf "$inst/include/viogsf" 2>/dev/null || true ;;
+                nezplugpp) rm -f "$inst/lib/libnezplugpp.so" "$inst/lib/.nezplugpp_gitrev" 2>/dev/null || true; rm -rf "$inst/include/nezplugpp" 2>/dev/null || true ;;
             esac
         done
     done
@@ -3084,6 +3135,10 @@ for ABI in "${ABIS[@]}"; do
 
     if target_has_lib "viogsf"; then
         build_viogsf "$ABI"
+    fi
+
+    if target_has_lib "nezplugpp"; then
+        build_nezplugpp "$ABI"
     fi
 done
 

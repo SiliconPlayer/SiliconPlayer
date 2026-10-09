@@ -77,4 +77,7 @@ install(FILES nezplug.h nestypes.h neserr.h DESTINATION include/nezplugpp)
 install(DIRECTORY format device cpu common
     DESTINATION include/nezplugpp
     FILES_MATCHING PATTERN "*.h"
+    PATTERN "win32" EXCLUDE
+    PATTERN "nsfsdk" EXCLUDE
+    PATTERN "test" EXCLUDE
 )

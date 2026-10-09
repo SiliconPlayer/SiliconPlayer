@@ -192,6 +192,7 @@ clean_target_artifacts() {
             dnfamitracker)  PROJ="$ABSOLUTE_PATH/dnfamitracker" ;;
             libupse)        PROJ="$ABSOLUTE_PATH/libupse" ;;
             viogsf)         PROJ="$ABSOLUTE_PATH/viogsf" ;;
+            nezplugpp)      PROJ="$ABSOLUTE_PATH/nezplugpp" ;;
         esac
 
         [ -n "$PROJ" ] && rm -rf "$PROJ/build_desktop_${ARCH}" 2>/dev/null || true
@@ -227,6 +228,7 @@ clean_target_artifacts() {
             dnfamitracker) rm -f "$INSTALL_DIR/lib/libdnfamitracker.a" "$INSTALL_DIR/lib/libsamplerate.a" "$INSTALL_DIR/lib/.dnfamitracker_gitrev" 2>/dev/null || true; rm -rf "$INSTALL_DIR/include/dnfamitracker" 2>/dev/null || true ;;
             libupse) rm -f "$INSTALL_DIR/lib/libupse.so" "$INSTALL_DIR/lib/.libupse_gitrev" 2>/dev/null || true; rm -rf "$INSTALL_DIR/include/upse" "$PREBUILT_BASE/.zlib-linkonly-$ARCH" 2>/dev/null || true ;;
             viogsf) rm -f "$INSTALL_DIR/lib/libviogsf.so" "$INSTALL_DIR/lib/.viogsf_gitrev" 2>/dev/null || true; rm -rf "$INSTALL_DIR/include/viogsf" 2>/dev/null || true ;;
+            nezplugpp) rm -f "$INSTALL_DIR/lib/libnezplugpp.so" "$INSTALL_DIR/lib/.nezplugpp_gitrev" 2>/dev/null || true; rm -rf "$INSTALL_DIR/include/nezplugpp" 2>/dev/null || true ;;
         esac
     done
 
@@ -1196,6 +1198,28 @@ build_viogsf() {
     dep_write_source_stamp "$INSTALL_DIR" viogsf "$PROJECT_PATH"
 }
 
+build_nezplugpp() {
+    local PROJECT_PATH="$ABSOLUTE_PATH/nezplugpp"
+    local BUILD_DIR="$PROJECT_PATH/build_desktop_${ARCH}"
+    if [ ! -d "$PROJECT_PATH" ]; then return 0; fi
+    if [ "$FORCE_CLEAN" -ne 1 ] && [ -f "$INSTALL_DIR/lib/libnezplugpp.so" ] && \
+       [ -f "$INSTALL_DIR/include/nezplugpp/nezplug.h" ] && \
+       dep_source_stamp_matches "$INSTALL_DIR" nezplugpp "$PROJECT_PATH"; then return 0; fi
+    echo "Building nezplugpp for host..."
+    rm -rf "$BUILD_DIR" && mkdir -p "$BUILD_DIR"
+    cmake $CMAKE_COMMON_FLAGS -S "$PROJECT_PATH" -B "$BUILD_DIR" \
+        -DCMAKE_BUILD_TYPE=Release \
+        -DCMAKE_POSITION_INDEPENDENT_CODE=ON \
+        -DCMAKE_INSTALL_PREFIX="$INSTALL_DIR"
+    cmake --build "$BUILD_DIR" -j"$NPROC"
+    cmake --install "$BUILD_DIR"
+    if [ ! -f "$INSTALL_DIR/lib/libnezplugpp.so" ]; then
+        echo "Error: nezplugpp shared library not found after build."
+        return 1
+    fi
+    dep_write_source_stamp "$INSTALL_DIR" nezplugpp "$PROJECT_PATH"
+}
+
 # Run build targets
 for ARCH in "${TARGET_ARCHES[@]}"; do
     configure_desktop_toolchain "$ARCH"
@@ -1248,6 +1272,7 @@ for ARCH in "${TARGET_ARCHES[@]}"; do
     if target_has_lib "dnfamitracker"; then build_dnfamitracker; fi
     if target_has_lib "libupse"; then build_libupse; fi
     if target_has_lib "viogsf"; then build_viogsf; fi
+    if target_has_lib "nezplugpp"; then build_nezplugpp; fi
 
     echo "========================================"
     echo "Desktop Dependency Build Complete for $ARCH!"
