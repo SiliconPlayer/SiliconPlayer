@@ -18,7 +18,7 @@ package under `/usr/share/licenses/siliconplayer/`.
 | core.lazyusf2 | GPL-2.0-or-later | 97e5d496 | `external/lazyusf2` @ `97e5d496e1db` |
 | core.vio2sf | GPL-2.0-or-later | e0501e3e | `external/2sf/vio2sf` @ `e0501e3eedd5` |
 | core.libupse | GPL-2.0-only | d58d386c | `external/libupse` @ `d58d386c77a5` |
-| core.viogsf | GPL-2.0-only | 9d3d9290 | `external/viogsf` @ `9d3d929097a7` |
+| core.viogsf | GPL-2.0-only | 0ef38732 | `external/viogsf` @ `0ef3873254b4` |
 | core.sc68 | GPL-3.0-or-later | r713 | `external/sc68` @ `c63ef6d52195` |
 | core.adplug | LGPL-2.1-or-later | winamp-1.2-c15ede01 | `external/adplug` @ `c15ede01bdda` |
 | core.uade | Mixed, see composite notice | uade-3.05-3f1a5629 | `external/uade` @ `3f1a56294acf` |
