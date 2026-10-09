@@ -34,15 +34,14 @@ typedef unsigned short	Uint16;
 typedef signed char		Int8;
 typedef char			Char;
 
-#include <malloc.h>
-#include <memory.h>
+#include <stdlib.h>
+#include <string.h>
 
 #ifdef WIN32
-#include <stdlib.h>
+#include <windows.h>
 #define XSLEEP(t)		_sleep(t)
 #else
-#include <windows.h>
-#include <stdlib.h>
+#include <unistd.h>
 #define XSLEEP(t)		sleep(t)
 #endif
 #define XMALLOC(s)		malloc(s)

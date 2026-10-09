@@ -4,7 +4,7 @@
 #include "nsf6502.h"
 #include "songinfo.h"
 
-#include "device\nes\s_apu.h"
+#include "device/nes/s_apu.h"
 
 /* ------------ */
 /*  km6502 I/F  */

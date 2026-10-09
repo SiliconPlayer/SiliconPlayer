@@ -361,10 +361,10 @@ void kmr800_reset(KMZ80_CONTEXT *context) {
 	M1CYCLE = 0;	/* MSX‚È‚ç2 */
 	MEMCYCLE = 1;
 	IOCYCLE = 1;
-	OPT = kmz80_ot_xx;
-	OPTCB = kmz80_ot_cbxx;
-	OPTED = kmr800_ot_edxx;
-	CYT = kmr800_ct;
+	context->opt = (void *)kmz80_ot_xx;
+	context->optcb = (void *)kmz80_ot_cbxx;
+	context->opted = (void *)kmr800_ot_edxx;
+	context->cyt = (void *)kmr800_ct;
 	SYSMEMREAD = kmr800_memread;
 	SYSMEMWRITE = kmr800_memwrite;
 }
