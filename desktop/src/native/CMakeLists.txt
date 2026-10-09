@@ -500,6 +500,25 @@ target_link_libraries(siliconplayer_libupse_decoder PRIVATE
     m
 )
 
+# 14c. Viogsf Decoder
+add_library(libviogsf_prebuilt SHARED IMPORTED)
+set_target_properties(libviogsf_prebuilt PROPERTIES IMPORTED_LOCATION "${PREBUILT_DIR}/lib/libviogsf.so")
+
+add_library(siliconplayer_viogsf_decoder SHARED
+    "${APP_CPP_DIR}/decoders/ViogsfDecoder.cpp"
+    "${APP_CPP_DIR}/decoders/ViogsfDecoderPlugin.cpp"
+)
+target_include_directories(siliconplayer_viogsf_decoder PRIVATE
+    ${COMMON_INCLUDES}
+    "${PREBUILT_DIR}/include"
+)
+target_link_libraries(siliconplayer_viogsf_decoder PRIVATE
+    libviogsf_prebuilt
+    libpsflib_prebuilt
+    ZLIB::ZLIB
+    m
+)
+
 # 15. HivelyTracker Decoder
 add_library(libhivelytracker_prebuilt SHARED IMPORTED)
 set_target_properties(libhivelytracker_prebuilt PROPERTIES IMPORTED_LOCATION "${PREBUILT_DIR}/lib/libhivelytracker.so")

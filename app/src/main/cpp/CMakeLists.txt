@@ -187,6 +187,10 @@ include_directories(${CMAKE_CURRENT_BINARY_DIR}/libusb_gen)
     add_library(libupse SHARED IMPORTED)
     set_target_properties(libupse PROPERTIES IMPORTED_LOCATION "${PREBUILT_DIR}/lib/libupse.so")
 
+    # Import viogsf (Shared)
+    add_library(libviogsf SHARED IMPORTED)
+    set_target_properties(libviogsf PROPERTIES IMPORTED_LOCATION "${PREBUILT_DIR}/lib/libviogsf.so")
+
     # Import sc68 stack (Shared)
     add_library(libsc68 SHARED IMPORTED)
     set_target_properties(libsc68 PROPERTIES IMPORTED_LOCATION "${PREBUILT_DIR}/lib/libsc68.so")
@@ -709,6 +713,35 @@ include_directories(${CMAKE_CURRENT_BINARY_DIR}/libusb_gen)
     target_link_libraries(
             siliconplayer_libupse_decoder
             libupse
+            z
+            ${log-lib}
+            m
+    )
+
+    add_library(
+            siliconplayer_viogsf_decoder
+            SHARED
+            decoders/ViogsfDecoder.cpp
+            decoders/ViogsfDecoderPlugin.cpp
+    )
+    if (ANDROID)
+        target_compile_options(
+                siliconplayer_viogsf_decoder
+                PRIVATE
+                "-fvisibility=hidden"
+                "-fvisibility-inlines-hidden"
+        )
+        target_link_options(
+                siliconplayer_viogsf_decoder
+                PRIVATE
+                "-Wl,-z,max-page-size=16384"
+                "-Wl,-z,common-page-size=16384"
+        )
+    endif()
+    target_link_libraries(
+            siliconplayer_viogsf_decoder
+            libviogsf
+            libpsflib
             z
             ${log-lib}
             m

@@ -21,6 +21,7 @@ class DesktopDecodersTest {
         "lazyusf2",
         "vio2sf",
         "libupse",
+        "viogsf",
         "SC68",
         "AdPlug",
         "UADE",

@@ -368,6 +368,27 @@ namespace {
                 return DecoderPluginLoader::getInstance().createDecoder("libsiliconplayer_libupse_decoder.so");
             }, 3, std::move(libupseStaticInfo));
 
+            DecoderStaticInfo viogsfStaticInfo;
+            viogsfStaticInfo.hasPlaybackCapabilities = true;
+            viogsfStaticInfo.playbackCapabilities =
+                    AudioDecoder::PLAYBACK_CAP_SEEK |
+                    AudioDecoder::PLAYBACK_CAP_LIVE_REPEAT_MODE |
+                    AudioDecoder::PLAYBACK_CAP_FIXED_SAMPLE_RATE;
+            viogsfStaticInfo.hasRepeatModeCapabilities = true;
+            viogsfStaticInfo.repeatModeCapabilities =
+                    AudioDecoder::REPEAT_CAP_TRACK |
+                    AudioDecoder::REPEAT_CAP_LOOP_POINT;
+            viogsfStaticInfo.hasTimelineMode = true;
+            viogsfStaticInfo.timelineMode = AudioDecoder::TimelineMode::ContinuousLinear;
+            viogsfStaticInfo.hasFixedSampleRateHz = true;
+            viogsfStaticInfo.fixedSampleRateHz = 44100;
+            viogsfStaticInfo.optionApplyPolicy = [](const char*) {
+                return AudioDecoder::OPTION_APPLY_LIVE;
+            };
+            DecoderRegistry::getInstance().registerDecoder("viogsf", {"gsf", "minigsf"}, []() {
+                return DecoderPluginLoader::getInstance().createDecoder("libsiliconplayer_viogsf_decoder.so");
+            }, 2, std::move(viogsfStaticInfo));
+
             DecoderStaticInfo sc68StaticInfo;
             sc68StaticInfo.hasPlaybackCapabilities = true;
             sc68StaticInfo.playbackCapabilities =
