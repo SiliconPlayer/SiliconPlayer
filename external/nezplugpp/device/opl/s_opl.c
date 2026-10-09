@@ -1286,7 +1286,9 @@ static Uint32 oplread(OPLSOUND *sndp, Uint32 a)
 
 __inline static void opllwritereg(OPLSOUND *sndp, Uint32 a, Uint32 v)
 {
-	char b;
+	// int, not char: plain char is unsigned on ARM, which makes the
+	// b >= 0 loop below never end.
+	int b;
 	switch (a >> 3)
 	{
 		default:
