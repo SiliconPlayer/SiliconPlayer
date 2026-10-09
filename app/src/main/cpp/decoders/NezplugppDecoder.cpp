@@ -58,26 +58,26 @@ constexpr int kNezScopeTextFlagActive = 1 << 0;
 constexpr float kNezScopeActivePeak = 0.0015f;
 
 float scopeGainForDev(int devId) {
-    if (devId == DEV_2A03_TR) return 2.5e-5f;
-    if (devId == DEV_2A03_NOISE) return 7.0e-5f;
-    if (devId == DEV_2A03_DPCM) return 1.0e-5f;
-    if (devId == DEV_VRC6_SAW) return 2.0e-7f;
-    if (devId == DEV_MMC5_DA) return 1.0e-5f;
-    if (devId == DEV_ADPCM_CH1) return 1.0e-6f;
-    if (devId >= DEV_2A03_SQ1 && devId <= DEV_2A03_SQ2) return 4.0e-5f;
-    if (devId >= DEV_VRC6_SQ1 && devId <= DEV_VRC6_SQ2) return 6.0e-7f;
-    if (devId >= DEV_MMC5_SQ1 && devId <= DEV_MMC5_SQ2) return 4.0e-5f;
-    if (devId >= DEV_N106_CH1 && devId <= DEV_N106_CH8) return 1.5e-6f;
-    if (devId >= DEV_AY8910_CH1 && devId <= DEV_AY8910_CH3) return 1.5e-6f;
-    if (devId >= DEV_SCC_CH1 && devId <= DEV_SCC_CH5) return 1.4e-6f;
-    if (devId >= DEV_DMG_SQ1 && devId <= DEV_DMG_NOISE) return 2.3e-6f;
-    if (devId >= DEV_HUC6230_CH1 && devId <= DEV_HUC6230_CH6) return 2.3e-6f;
-    if (devId >= DEV_SN76489_SQ1 && devId <= DEV_SN76489_NOISE) return 2.3e-6f;
-    if (devId >= DEV_YM2413_CH1 && devId <= DEV_YM2413_CH9) return 1.2e-6f;
-    if (devId >= DEV_Y8950_CH1 && devId <= DEV_Y8950_CH9) return 1.2e-6f;
-    if (devId >= DEV_VRC7_CH1 && devId <= DEV_VRC7_CH6) return 1.2e-6f;
-    if (devId >= DEV_SMSFM_CH1 && devId <= DEV_SMSFM_CH9) return 1.2e-6f;
-    return 2.0e-6f;
+    if (devId == DEV_2A03_TR) return 1.2e-5f;
+    if (devId == DEV_2A03_NOISE) return 3.5e-5f;
+    if (devId == DEV_2A03_DPCM) return 5.0e-6f;
+    if (devId == DEV_VRC6_SAW) return 1.0e-7f;
+    if (devId == DEV_MMC5_DA) return 5.0e-6f;
+    if (devId == DEV_ADPCM_CH1) return 2.4e-7f;
+    if (devId >= DEV_2A03_SQ1 && devId <= DEV_2A03_SQ2) return 2.0e-5f;
+    if (devId >= DEV_VRC6_SQ1 && devId <= DEV_VRC6_SQ2) return 3.0e-7f;
+    if (devId >= DEV_MMC5_SQ1 && devId <= DEV_MMC5_SQ2) return 2.0e-5f;
+    if (devId >= DEV_N106_CH1 && devId <= DEV_N106_CH8) return 7.5e-7f;
+    if (devId >= DEV_AY8910_CH1 && devId <= DEV_AY8910_CH3) return 7.5e-7f;
+    if (devId >= DEV_SCC_CH1 && devId <= DEV_SCC_CH5) return 7.0e-7f;
+    if (devId >= DEV_DMG_SQ1 && devId <= DEV_DMG_NOISE) return 1.15e-6f;
+    if (devId >= DEV_HUC6230_CH1 && devId <= DEV_HUC6230_CH6) return 1.15e-6f;
+    if (devId >= DEV_SN76489_SQ1 && devId <= DEV_SN76489_NOISE) return 1.15e-6f;
+    if (devId >= DEV_YM2413_CH1 && devId <= DEV_YM2413_CH9) return 3.0e-7f;
+    if (devId >= DEV_Y8950_CH1 && devId <= DEV_Y8950_CH9) return 2.4e-7f;
+    if (devId >= DEV_VRC7_CH1 && devId <= DEV_VRC7_CH6) return 3.0e-7f;
+    if (devId >= DEV_SMSFM_CH1 && devId <= DEV_SMSFM_CH9) return 3.0e-7f;
+    return 1.0e-6f;
 }
 
 bool parseScopeBoolOption(const char* value, bool fallback) {
