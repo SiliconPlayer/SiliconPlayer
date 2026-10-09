@@ -25,6 +25,13 @@ void AudioEngine::refreshMetadataCacheLocked() {
         cachedMetadataAlbum.clear();
         cachedMetadataDecoderName.clear();
         cachedMetadataBitDepthLabel = "Unknown";
+        cachedMetadataCopyright.clear();
+        cachedMetadataComment.clear();
+        cachedMetadataNezplugppCopyright.clear();
+        cachedMetadataNezplugppDetail.clear();
+        cachedMetadataNezplugppFormat.clear();
+        cachedMetadataNezplugppSongVoices.clear();
+        cachedMetadataNezplugppSubtuneInfo.clear();
         cachedSubtuneEntries.clear();
         cachedMetadataSampleRate = 0;
         cachedMetadataChannelCount = 0;
@@ -42,6 +49,13 @@ void AudioEngine::refreshMetadataCacheLocked() {
     cachedMetadataAlbum = decoder->getAlbum();
     cachedMetadataDecoderName = decoder->getName();
     cachedMetadataBitDepthLabel = decoder->getBitDepthLabel();
+    cachedMetadataCopyright = decoder->getCopyright();
+    cachedMetadataComment = decoder->getComment();
+    cachedMetadataNezplugppCopyright = decoder->getCoreStringInfo("copyright");
+    cachedMetadataNezplugppDetail = decoder->getCoreStringInfo("detail");
+    cachedMetadataNezplugppFormat = decoder->getCoreStringInfo("format");
+    cachedMetadataNezplugppSongVoices = decoder->getCoreStringInfo("songVoices");
+    cachedMetadataNezplugppSubtuneInfo = decoder->getCoreStringInfo("subtuneInfo");
     cachedMetadataSampleRate = decoder->getSampleRate();
     cachedMetadataChannelCount = decoder->getDisplayChannelCount();
     cachedMetadataSubtuneCount = decoder->getSubtuneCount();
@@ -137,18 +151,30 @@ std::string AudioEngine::getDate() {
 
 std::string AudioEngine::getCopyright() {
     std::unique_lock<std::mutex> lock(decoderMutex, std::try_to_lock);
-    if (!lock.owns_lock() || !decoder) {
+    if (!lock.owns_lock()) {
+        std::lock_guard<std::mutex> cacheLock(metadataCacheMutex);
+        return cachedMetadataCopyright;
+    }
+    if (!decoder) {
         return "";
     }
-    return decoder->getCopyright();
+    refreshMetadataCacheLocked();
+    std::lock_guard<std::mutex> cacheLock(metadataCacheMutex);
+    return cachedMetadataCopyright;
 }
 
 std::string AudioEngine::getComment() {
     std::unique_lock<std::mutex> lock(decoderMutex, std::try_to_lock);
-    if (!lock.owns_lock() || !decoder) {
+    if (!lock.owns_lock()) {
+        std::lock_guard<std::mutex> cacheLock(metadataCacheMutex);
+        return cachedMetadataComment;
+    }
+    if (!decoder) {
         return "";
     }
-    return decoder->getComment();
+    refreshMetadataCacheLocked();
+    std::lock_guard<std::mutex> cacheLock(metadataCacheMutex);
+    return cachedMetadataComment;
 }
 
 int AudioEngine::getSampleRate() {
@@ -1145,6 +1171,76 @@ std::string AudioEngine::getViogsfFadeTag() {
     std::unique_lock<std::mutex> lock(decoderMutex, std::try_to_lock);
     if (!lock.owns_lock() || !decoder) return "";
     return decoder->getCoreStringInfo("fadeTag");
+}
+
+std::string AudioEngine::getNezplugppCopyright() {
+    std::unique_lock<std::mutex> lock(decoderMutex, std::try_to_lock);
+    if (!lock.owns_lock()) {
+        std::lock_guard<std::mutex> cacheLock(metadataCacheMutex);
+        return cachedMetadataNezplugppCopyright;
+    }
+    if (!decoder) {
+        return "";
+    }
+    refreshMetadataCacheLocked();
+    std::lock_guard<std::mutex> cacheLock(metadataCacheMutex);
+    return cachedMetadataNezplugppCopyright;
+}
+
+std::string AudioEngine::getNezplugppDetail() {
+    std::unique_lock<std::mutex> lock(decoderMutex, std::try_to_lock);
+    if (!lock.owns_lock()) {
+        std::lock_guard<std::mutex> cacheLock(metadataCacheMutex);
+        return cachedMetadataNezplugppDetail;
+    }
+    if (!decoder) {
+        return "";
+    }
+    refreshMetadataCacheLocked();
+    std::lock_guard<std::mutex> cacheLock(metadataCacheMutex);
+    return cachedMetadataNezplugppDetail;
+}
+
+std::string AudioEngine::getNezplugppFormat() {
+    std::unique_lock<std::mutex> lock(decoderMutex, std::try_to_lock);
+    if (!lock.owns_lock()) {
+        std::lock_guard<std::mutex> cacheLock(metadataCacheMutex);
+        return cachedMetadataNezplugppFormat;
+    }
+    if (!decoder) {
+        return "";
+    }
+    refreshMetadataCacheLocked();
+    std::lock_guard<std::mutex> cacheLock(metadataCacheMutex);
+    return cachedMetadataNezplugppFormat;
+}
+
+std::string AudioEngine::getNezplugppSongVoices() {
+    std::unique_lock<std::mutex> lock(decoderMutex, std::try_to_lock);
+    if (!lock.owns_lock()) {
+        std::lock_guard<std::mutex> cacheLock(metadataCacheMutex);
+        return cachedMetadataNezplugppSongVoices;
+    }
+    if (!decoder) {
+        return "";
+    }
+    refreshMetadataCacheLocked();
+    std::lock_guard<std::mutex> cacheLock(metadataCacheMutex);
+    return cachedMetadataNezplugppSongVoices;
+}
+
+std::string AudioEngine::getNezplugppSubtuneInfo() {
+    std::unique_lock<std::mutex> lock(decoderMutex, std::try_to_lock);
+    if (!lock.owns_lock()) {
+        std::lock_guard<std::mutex> cacheLock(metadataCacheMutex);
+        return cachedMetadataNezplugppSubtuneInfo;
+    }
+    if (!decoder) {
+        return "";
+    }
+    refreshMetadataCacheLocked();
+    std::lock_guard<std::mutex> cacheLock(metadataCacheMutex);
+    return cachedMetadataNezplugppSubtuneInfo;
 }
 
 std::string AudioEngine::getSidFormatName() {

@@ -312,6 +312,11 @@ object NativeBridge {
     external fun getViogsfComment(): String
     external fun getViogsfLengthTag(): String
     external fun getViogsfFadeTag(): String
+    external fun getNezplugppCopyright(): String
+    external fun getNezplugppDetail(): String
+    external fun getNezplugppFormat(): String
+    external fun getNezplugppSongVoices(): String
+    external fun getNezplugppSubtuneInfo(): String
     external fun getSidFormatName(): String
     external fun getSidClockName(): String
     external fun getSidSpeedName(): String

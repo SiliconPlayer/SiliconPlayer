@@ -222,7 +222,7 @@ namespace {
             nezplugppStaticInfo.optionApplyPolicy = [](const char*) {
                 return AudioDecoder::OPTION_APPLY_LIVE;
             };
-            DecoderRegistry::getInstance().registerDecoder("nezplugpp", {"kss"}, []() {
+            DecoderRegistry::getInstance().registerDecoder("NEZplug++", {"kss", "nsf", "gbs", "hes", "sgc", "nsd", "ay"}, []() {
                 return DecoderPluginLoader::getInstance().createDecoder("libsiliconplayer_nezplugpp_decoder.so");
             }, 5, std::move(nezplugppStaticInfo));
 

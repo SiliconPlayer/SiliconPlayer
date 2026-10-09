@@ -1868,6 +1868,41 @@ Java_com_flopster101_siliconplayer_NativeBridge_getViogsfFadeTag(JNIEnv* env, jo
 }
 
 extern "C" JNIEXPORT jstring JNICALL
+Java_com_flopster101_siliconplayer_NativeBridge_getNezplugppCopyright(JNIEnv* env, jobject) {
+    if (audioEngine == nullptr) return toJString(env, "");
+    std::string value = audioEngine->getNezplugppCopyright();
+    return toJString(env, value);
+}
+
+extern "C" JNIEXPORT jstring JNICALL
+Java_com_flopster101_siliconplayer_NativeBridge_getNezplugppDetail(JNIEnv* env, jobject) {
+    if (audioEngine == nullptr) return toJString(env, "");
+    std::string value = audioEngine->getNezplugppDetail();
+    return toJString(env, value);
+}
+
+extern "C" JNIEXPORT jstring JNICALL
+Java_com_flopster101_siliconplayer_NativeBridge_getNezplugppFormat(JNIEnv* env, jobject) {
+    if (audioEngine == nullptr) return toJString(env, "");
+    std::string value = audioEngine->getNezplugppFormat();
+    return toJString(env, value);
+}
+
+extern "C" JNIEXPORT jstring JNICALL
+Java_com_flopster101_siliconplayer_NativeBridge_getNezplugppSongVoices(JNIEnv* env, jobject) {
+    if (audioEngine == nullptr) return toJString(env, "");
+    std::string value = audioEngine->getNezplugppSongVoices();
+    return toJString(env, value);
+}
+
+extern "C" JNIEXPORT jstring JNICALL
+Java_com_flopster101_siliconplayer_NativeBridge_getNezplugppSubtuneInfo(JNIEnv* env, jobject) {
+    if (audioEngine == nullptr) return toJString(env, "");
+    std::string value = audioEngine->getNezplugppSubtuneInfo();
+    return toJString(env, value);
+}
+
+extern "C" JNIEXPORT jstring JNICALL
 Java_com_flopster101_siliconplayer_NativeBridge_getSidFormatName(JNIEnv* env, jobject) {
     if (audioEngine == nullptr) return toJString(env, "");
     std::string value = audioEngine->getSidFormatName();

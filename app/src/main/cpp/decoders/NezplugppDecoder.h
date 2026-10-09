@@ -23,6 +23,7 @@ public:
     int getBitDepth() override;
     std::string getBitDepthLabel() override;
     int getChannelCount() override;
+    int getDisplayChannelCount() override;
     int getSubtuneCount() const override;
     int getCurrentSubtuneIndex() const override;
     bool selectSubtune(int index) override;
@@ -35,9 +36,10 @@ public:
     int getPlaybackCapabilities() const override;
     int getFixedSampleRateHz() const override;
     double getPlaybackPositionSeconds() override;
+    std::string getCoreStringInfo(const char* name) override;
     TimelineMode getTimelineMode() const override { return TimelineMode::ContinuousLinear; }
 
-    const char* getName() const override { return "nezplugpp"; }
+    const char* getName() const override { return "NEZplug++"; }
     static std::vector<std::string> getSupportedExtensions();
 
 private:
@@ -57,6 +59,10 @@ private:
     std::string artist;
     std::string copyrightText;
     std::string comment;
+    std::string formatName;
+    int songVoiceCount = 0;
+    std::string subtuneInfo;
+    void parseSongFormatLocked(const uint8_t* data, size_t size);
 
     void closeInternalLocked();
     bool selectSongLocked(unsigned int songNo);

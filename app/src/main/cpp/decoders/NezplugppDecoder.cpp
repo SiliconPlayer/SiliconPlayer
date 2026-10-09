@@ -7,6 +7,7 @@
 #include <cstdint>
 #include <cstdio>
 #include <cstdlib>
+#include <cstring>
 #include <filesystem>
 
 extern "C" {
@@ -82,6 +83,7 @@ bool NezplugppDecoder::open(const char* path) {
         closeInternalLocked();
         return false;
     }
+    parseSongFormatLocked(songData, songSize);
     std::free(songData);
 
     NEZSetFrequency(player, kNativeSampleRate);
@@ -103,6 +105,14 @@ bool NezplugppDecoder::open(const char* path) {
     if (infoDetail) comment = infoDetail;
     if (title.empty()) {
         title = std::filesystem::path(path).stem().string();
+    }
+
+    {
+        const unsigned startSong = NEZGetSongStart(player);
+        const unsigned maxSong = NEZGetSongMax(player);
+        char info[64];
+        std::snprintf(info, sizeof(info), "%u of %u", startSong, maxSong);
+        subtuneInfo = info;
     }
 
     durationSeconds = kFallbackDurationSeconds;
@@ -133,6 +143,9 @@ void NezplugppDecoder::closeInternalLocked() {
     artist.clear();
     copyrightText.clear();
     comment.clear();
+    formatName.clear();
+    songVoiceCount = 0;
+    subtuneInfo.clear();
 }
 
 int NezplugppDecoder::read(float* buffer, int numFrames) {
@@ -220,6 +233,11 @@ std::string NezplugppDecoder::getBitDepthLabel() {
     return "16-bit PCM";
 }
 
+int NezplugppDecoder::getDisplayChannelCount() {
+    std::lock_guard<std::mutex> lock(decodeMutex);
+    return songVoiceCount > 0 ? songVoiceCount : channels;
+}
+
 int NezplugppDecoder::getChannelCount() {
     return channels;
 }
@@ -275,8 +293,7 @@ std::string NezplugppDecoder::getCopyright() {
 }
 
 std::string NezplugppDecoder::getComment() {
-    std::lock_guard<std::mutex> lock(decodeMutex);
-    return comment;
+    return "";
 }
 
 void NezplugppDecoder::setRepeatMode(int mode) {
@@ -309,6 +326,105 @@ double NezplugppDecoder::getPlaybackPositionSeconds() {
     return static_cast<double>(renderedFrames) / sampleRate;
 }
 
+static int countNsfVoices(unsigned extChips) {
+    int voices = 5;
+    if ((extChips & 0x01) != 0) voices += 3;
+    if ((extChips & 0x02) != 0) voices += 6;
+    if ((extChips & 0x04) != 0) voices += 1;
+    if ((extChips & 0x08) != 0) voices += 3;
+    if ((extChips & 0x10) != 0) voices += 8;
+    if ((extChips & 0x20) != 0) voices += 3;
+    return voices;
+}
+
+void NezplugppDecoder::parseSongFormatLocked(const uint8_t* data, size_t size) {
+    if (data == nullptr || size < 8) return;
+    if (size >= 0x10 && (std::memcmp(data, "KSCC", 4) == 0 || std::memcmp(data, "KSSX", 4) == 0)) {
+        formatName = std::memcmp(data, "KSCC", 4) == 0 ? "KSCC" : "KSSX";
+        const unsigned extDevice = data[0x0F];
+        if ((extDevice & 0x02) != 0) {
+            songVoiceCount = 4 + (((extDevice & 0x01) != 0) ? 9 : 0);
+        } else {
+            songVoiceCount = 3 + (((extDevice & 0x01) != 0) ? 9 : 0) +
+                             (((extDevice & 0x08) != 0) ? 10 : 0) +
+                             (((extDevice & 0x80) != 0) ? 0 : 5);
+        }
+        return;
+    }
+    if (std::memcmp(data, "HESM", 4) == 0 ||
+        (size >= 0x204 && std::memcmp(data + 0x200, "HESM", 4) == 0)) {
+        formatName = "HES";
+        songVoiceCount = 6;
+        return;
+    }
+    if (size >= 0x80 && std::memcmp(data, "NESM", 4) == 0 && data[4] == 0x1A) {
+        formatName = "NSF";
+        songVoiceCount = countNsfVoices(data[0x7B]);
+        return;
+    }
+    if (std::memcmp(data, "ZXAYEMUL", 8) == 0) {
+        formatName = "AY";
+        songVoiceCount = 6;
+        return;
+    }
+    if (std::memcmp(data, "GBRF", 4) == 0) {
+        formatName = "GBR";
+        songVoiceCount = 4;
+        return;
+    }
+    if (size >= 0x10 && std::memcmp(data, "GBS", 3) == 0) {
+        formatName = "GBS";
+        songVoiceCount = 4;
+        return;
+    }
+    if (size >= 0x10 && std::memcmp(data, "NESL", 4) == 0 && data[4] == 0x1A) {
+        formatName = "NSD";
+        songVoiceCount = countNsfVoices(data[0x0C]);
+        return;
+    }
+    if (size >= 0x30 && std::memcmp(data, "SGC", 3) == 0) {
+        formatName = "SGC";
+        songVoiceCount = data[0x28] == 0 ? 13 : 4;
+        return;
+    }
+}
+
+std::string NezplugppDecoder::getCoreStringInfo(const char* name) {
+    std::lock_guard<std::mutex> lock(decodeMutex);
+    if (!isOpen || name == nullptr) return "";
+    if (std::strcmp(name, "copyright") == 0) return copyrightText;
+    if (std::strcmp(name, "detail") == 0) {
+        std::string pretty;
+        size_t begin = 0;
+        while (begin < comment.size()) {
+            size_t end = comment.find('\n', begin);
+            if (end == std::string::npos) end = comment.size();
+            std::string line = comment.substr(begin, end - begin);
+            while (!line.empty() && (line.back() == '\r' || line.back() == ' ')) line.pop_back();
+            size_t colon = line.find(':');
+            if (colon != std::string::npos) {
+                size_t labelEnd = colon;
+                while (labelEnd > 0 && line[labelEnd - 1] == ' ') --labelEnd;
+                size_t valueStart = colon + 1;
+                while (valueStart < line.size() && line[valueStart] == ' ') ++valueStart;
+                line = line.substr(0, labelEnd) + ": " + line.substr(valueStart);
+            }
+            if (!line.empty()) {
+                if (!pretty.empty()) pretty += '\n';
+                pretty += line;
+            }
+            begin = end + 1;
+        }
+        return pretty;
+    }
+    if (std::strcmp(name, "format") == 0) return formatName;
+    if (std::strcmp(name, "songVoices") == 0) {
+        return songVoiceCount > 0 ? std::to_string(songVoiceCount) : "";
+    }
+    if (std::strcmp(name, "subtuneInfo") == 0) return subtuneInfo;
+    return "";
+}
+
 std::vector<std::string> NezplugppDecoder::getSupportedExtensions() {
-    return {"kss"};
+    return {"kss", "nsf", "gbs", "hes", "sgc", "nsd", "ay"};
 }

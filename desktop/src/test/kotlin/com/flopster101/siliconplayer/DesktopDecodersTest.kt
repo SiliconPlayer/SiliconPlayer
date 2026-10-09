@@ -22,7 +22,7 @@ class DesktopDecodersTest {
         "vio2sf",
         "libupse",
         "viogsf",
-        "nezplugpp",
+        "NEZplug++",
         "SC68",
         "AdPlug",
         "UADE",

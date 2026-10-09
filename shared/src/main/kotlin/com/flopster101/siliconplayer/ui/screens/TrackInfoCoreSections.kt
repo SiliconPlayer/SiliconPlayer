@@ -187,6 +187,15 @@ internal fun TrackInfoCoreSections(
             if (metadata.libupse.comment.isNotBlank()) TrackInfoDetailsRow("Comment", metadata.libupse.comment)
         }
 
+        decoderName.equals(DecoderNames.NEZPLUGPP, ignoreCase = true) -> {
+            TrackInfoSectionHeader(DecoderNames.NEZPLUGPP)
+            if (metadata.nezplugpp.format.isNotBlank()) TrackInfoDetailsRow("Format", metadata.nezplugpp.format)
+            if (metadata.nezplugpp.songVoices.isNotBlank()) TrackInfoDetailsRow("Channels", metadata.nezplugpp.songVoices)
+            if (metadata.nezplugpp.subtuneInfo.isNotBlank()) TrackInfoDetailsRow("Subtunes", metadata.nezplugpp.subtuneInfo)
+            if (metadata.nezplugpp.copyright.isNotBlank()) TrackInfoDetailsRow("Copyright", metadata.nezplugpp.copyright)
+            if (metadata.nezplugpp.detail.isNotBlank()) TrackInfoDetailsRow("Detail", metadata.nezplugpp.detail)
+        }
+
         decoderName.equals(DecoderNames.VIOGSF, ignoreCase = true) -> {
             TrackInfoSectionHeader(DecoderNames.VIOGSF)
             if (metadata.viogsf.gameName.isNotBlank()) TrackInfoDetailsRow("Game", metadata.viogsf.gameName)

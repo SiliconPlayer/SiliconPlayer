@@ -15,7 +15,7 @@ internal object DecoderNames {
     const val VIO2_SF = "vio2sf"
     const val LIB_UPSE = "libupse"
     const val VIOGSF = "viogsf"
-    const val NEZPLUGPP = "nezplugpp"
+    const val NEZPLUGPP = "NEZplug++"
     const val SC68 = "SC68"
     const val AD_PLUG = "AdPlug"
     const val UADE = "UADE"
@@ -66,7 +66,7 @@ internal fun canonicalDecoderNameForAlias(coreName: String?): String? {
         "vio2sf", "2sf", "mini2sf" -> DecoderNames.VIO2_SF
         "libupse", "upse", "psf", "minipsf" -> DecoderNames.LIB_UPSE
         "viogsf", "gsf", "minigsf" -> DecoderNames.VIOGSF
-        "nezplugpp", "kss" -> DecoderNames.NEZPLUGPP
+        "nezplugpp", "nezplug++", "kss" -> DecoderNames.NEZPLUGPP
         "sc68", "sndh" -> DecoderNames.SC68
         "adplug", "opl" -> DecoderNames.AD_PLUG
         "hivelytracker", "hively", "hvl", "ahx" -> DecoderNames.HIVELY_TRACKER

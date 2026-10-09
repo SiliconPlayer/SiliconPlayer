@@ -134,6 +134,14 @@ internal data class Vio2sfMetadata(
     val fadeTag: String = ""
 )
 
+internal data class NezplugppMetadata(
+    val copyright: String = "",
+    val detail: String = "",
+    val format: String = "",
+    val songVoices: String = "",
+    val subtuneInfo: String = ""
+)
+
 internal data class ViogsfMetadata(
     val gameName: String = "",
     val copyright: String = "",
@@ -304,6 +312,7 @@ internal data class TrackInfoLiveMetadata(
     val vio2sf: Vio2sfMetadata = Vio2sfMetadata(),
     val libupse: LibupseMetadata = LibupseMetadata(),
     val viogsf: ViogsfMetadata = ViogsfMetadata(),
+    val nezplugpp: NezplugppMetadata = NezplugppMetadata(),
     val sid: SidMetadata = SidMetadata(),
     val sc68: Sc68Metadata = Sc68Metadata(),
     val adplug: AdplugMetadata = AdplugMetadata(),
@@ -501,6 +510,16 @@ private fun queryTrackInfoLiveMetadata(decoderName: String?): TrackInfoLiveMetad
                 comment = NativeBridge.getLibupseComment(),
                 lengthTag = NativeBridge.getLibupseLengthTag(),
                 fadeTag = NativeBridge.getLibupseFadeTag()
+            )
+        )
+
+        decoderName.equals(DecoderNames.NEZPLUGPP, ignoreCase = true) -> common.copy(
+            nezplugpp = NezplugppMetadata(
+                copyright = NativeBridge.getNezplugppCopyright(),
+                detail = NativeBridge.getNezplugppDetail(),
+                format = NativeBridge.getNezplugppFormat(),
+                songVoices = NativeBridge.getNezplugppSongVoices(),
+                subtuneInfo = NativeBridge.getNezplugppSubtuneInfo()
             )
         )
 

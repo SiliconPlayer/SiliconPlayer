@@ -196,6 +196,11 @@ public:
     std::string getViogsfComment();
     std::string getViogsfLengthTag();
     std::string getViogsfFadeTag();
+    std::string getNezplugppCopyright();
+    std::string getNezplugppDetail();
+    std::string getNezplugppFormat();
+    std::string getNezplugppSongVoices();
+    std::string getNezplugppSubtuneInfo();
     std::string getSidFormatName();
     std::string getSidClockName();
     std::string getSidSpeedName();
@@ -462,6 +467,13 @@ private:
     std::string cachedMetadataAlbum;
     std::string cachedMetadataDecoderName;
     std::string cachedMetadataBitDepthLabel = "Unknown";
+    std::string cachedMetadataCopyright;
+    std::string cachedMetadataComment;
+    std::string cachedMetadataNezplugppCopyright;
+    std::string cachedMetadataNezplugppDetail;
+    std::string cachedMetadataNezplugppFormat;
+    std::string cachedMetadataNezplugppSongVoices;
+    std::string cachedMetadataNezplugppSubtuneInfo;
     std::vector<CachedSubtuneEntry> cachedSubtuneEntries;
     int cachedMetadataSampleRate = 0;
     int cachedMetadataChannelCount = 0;
