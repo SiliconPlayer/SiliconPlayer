@@ -230,6 +230,7 @@ internal fun channelScopeCoreIdForDecoderName(decoderName: String?): String? {
         DecoderNames.LIB_DN_FAMITRACKER -> "dnfamitracker"
         DecoderNames.UADE -> "uade"
         DecoderNames.LIB_UPSE -> "libupse"
+        DecoderNames.VIOGSF -> "viogsf"
         else -> null
     }
 }

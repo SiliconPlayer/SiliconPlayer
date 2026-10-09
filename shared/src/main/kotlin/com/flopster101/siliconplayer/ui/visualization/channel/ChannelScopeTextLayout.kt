@@ -625,7 +625,8 @@ fun loadChannelScopeNameMaps(pluginName: String?, source: ChannelScopeNameSource
         com.flopster101.siliconplayer.DecoderNames.C_RSID,
         com.flopster101.siliconplayer.DecoderNames.LIB_SID_PLAY_FP,
         com.flopster101.siliconplayer.DecoderNames.VGM_PLAY,
-        com.flopster101.siliconplayer.DecoderNames.LIB_UPSE -> ChannelScopeNameMaps(
+        com.flopster101.siliconplayer.DecoderNames.LIB_UPSE,
+        com.flopster101.siliconplayer.DecoderNames.VIOGSF -> ChannelScopeNameMaps(
             chipNamesByChannelIndex = source.decoderToggleChannelNames()
                 .mapIndexed { index, name -> index to name }
                 .toMap()
