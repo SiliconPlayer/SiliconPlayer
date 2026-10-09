@@ -10,15 +10,15 @@
 #elif defined(__APPLE__)
     #include <OpenGL/gl.h>
     #include <cstdio>
-    #define VIS_LOGE(...) fprintf(stderr, "[SiliconPlayer ERROR] [SiliconVis] " __VA_ARGS__)
-    #define VIS_LOGW(...) fprintf(stderr, "[SiliconPlayer WARN] [SiliconVis] " __VA_ARGS__)
-    #define VIS_LOGI(...) fprintf(stdout, "[SiliconPlayer INFO] [SiliconVis] " __VA_ARGS__)
+    #define VIS_LOGE(...) do { fprintf(stderr, "[SiliconPlayer ERROR] [SiliconVis] " __VA_ARGS__); fputc('\n', stderr); } while (0)
+    #define VIS_LOGW(...) do { fprintf(stderr, "[SiliconPlayer WARN] [SiliconVis] " __VA_ARGS__); fputc('\n', stderr); } while (0)
+    #define VIS_LOGI(...) do { fprintf(stdout, "[SiliconPlayer INFO] [SiliconVis] " __VA_ARGS__); fputc('\n', stdout); } while (0)
 #else
     #define GL_GLEXT_PROTOTYPES
     #include <GL/gl.h>
     #include <GL/glext.h>
     #include <cstdio>
-    #define VIS_LOGE(...) fprintf(stderr, "[SiliconPlayer ERROR] [SiliconVis] " __VA_ARGS__)
-    #define VIS_LOGW(...) fprintf(stderr, "[SiliconPlayer WARN] [SiliconVis] " __VA_ARGS__)
-    #define VIS_LOGI(...) fprintf(stdout, "[SiliconPlayer INFO] [SiliconVis] " __VA_ARGS__)
+    #define VIS_LOGE(...) do { fprintf(stderr, "[SiliconPlayer ERROR] [SiliconVis] " __VA_ARGS__); fputc('\n', stderr); } while (0)
+    #define VIS_LOGW(...) do { fprintf(stderr, "[SiliconPlayer WARN] [SiliconVis] " __VA_ARGS__); fputc('\n', stderr); } while (0)
+    #define VIS_LOGI(...) do { fprintf(stdout, "[SiliconPlayer INFO] [SiliconVis] " __VA_ARGS__); fputc('\n', stdout); } while (0)
 #endif

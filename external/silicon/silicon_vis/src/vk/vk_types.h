@@ -10,9 +10,9 @@
 #define VK_VIS_LOGI(...) __android_log_print(ANDROID_LOG_INFO, "SiliconPlayer", "[SiliconVisVk] " __VA_ARGS__)
 #else
 #include <cstdio>
-#define VK_VIS_LOGE(...) fprintf(stderr, "[SiliconPlayer ERROR] [SiliconVisVk] " __VA_ARGS__)
-#define VK_VIS_LOGW(...) fprintf(stderr, "[SiliconPlayer WARN] [SiliconVisVk] " __VA_ARGS__)
-#define VK_VIS_LOGI(...) fprintf(stdout, "[SiliconPlayer INFO] [SiliconVisVk] " __VA_ARGS__)
+#define VK_VIS_LOGE(...) do { fprintf(stderr, "[SiliconPlayer ERROR] [SiliconVisVk] " __VA_ARGS__); fputc('\n', stderr); } while (0)
+#define VK_VIS_LOGW(...) do { fprintf(stderr, "[SiliconPlayer WARN] [SiliconVisVk] " __VA_ARGS__); fputc('\n', stderr); } while (0)
+#define VK_VIS_LOGI(...) do { fprintf(stdout, "[SiliconPlayer INFO] [SiliconVisVk] " __VA_ARGS__); fputc('\n', stdout); } while (0)
 #endif
 
 namespace silicon::vis::vk {

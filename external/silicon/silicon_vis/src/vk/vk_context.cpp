@@ -5,6 +5,9 @@
 
 namespace silicon::vis::vk {
 
+// Device enumeration re-runs on every visualizer mount; log it once.
+static bool loggedDeviceList = false;
+
 VkContext::VkContext() = default;
 
 VkContext::~VkContext() {
@@ -178,7 +181,9 @@ bool VkContext::selectPhysicalDevice() {
         int score = 2;
         if (props.deviceType == VK_PHYSICAL_DEVICE_TYPE_DISCRETE_GPU) score = 3;
         else if (props.deviceType == VK_PHYSICAL_DEVICE_TYPE_CPU) score = 0;
-        VIS_LOGI("VisVk device: %s type=%d score=%d", props.deviceName, static_cast<int>(props.deviceType), score);
+        if (!loggedDeviceList) {
+            VIS_LOGI("VisVk device: %s type=%d score=%d", props.deviceName, static_cast<int>(props.deviceType), score);
+        }
 
         if (score > bestScore) {
             bestScore = score;
@@ -189,6 +194,12 @@ bool VkContext::selectPhysicalDevice() {
     }
 
     physicalDevice_ = selected;
+    if (selected != VK_NULL_HANDLE && !loggedDeviceList) {
+        VkPhysicalDeviceProperties winner{};
+        table.vkGetPhysicalDeviceProperties(selected, &winner);
+        VIS_LOGI("VisVk selected: %s", winner.deviceName);
+        loggedDeviceList = true;
+    }
     return physicalDevice_ != VK_NULL_HANDLE;
 }
 

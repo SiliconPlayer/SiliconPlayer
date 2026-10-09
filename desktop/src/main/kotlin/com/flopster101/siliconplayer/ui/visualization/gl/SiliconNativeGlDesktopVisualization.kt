@@ -1087,7 +1087,6 @@ fun SiliconNativeGlDesktopVisualization(
                         val sorted = deltas.sorted()
                         val hz = (1_000_000_000.0 / sorted[sorted.size / 2]).roundToInt().coerceIn(30, 240)
                         if (hz != displayHz) {
-                            println("SiliconVis desktop display rate: $hz Hz")
                             displayHz = hz
                         }
                     }
