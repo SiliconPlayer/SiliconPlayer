@@ -2,6 +2,7 @@
 #define SILICONPLAYER_VIOGSFDECODER_H
 
 #include "AudioDecoder.h"
+#include "../ChannelScopeSharedState.h"
 #include <cstdint>
 #include <mutex>
 #include <string>
@@ -40,6 +41,13 @@ public:
     double getPlaybackPositionSeconds() override;
     TimelineMode getTimelineMode() const override { return TimelineMode::ContinuousLinear; }
     std::string getCoreStringInfo(const char* name) override;
+    void setOption(const char* name, const char* value) override;
+    std::vector<std::string> getToggleChannelNames() override;
+    void setToggleChannelMuted(int channelIndex, bool enabled) override;
+    bool getToggleChannelMuted(int channelIndex) const override;
+    void clearToggleChannelMutes() override;
+    std::shared_ptr<ChannelScopeSharedState> getChannelScopeSharedState() const override { return channelScopeState; }
+    std::vector<int32_t> getChannelScopeTextState(int maxChannels) override;
 
     const char* getName() const override { return "viogsf"; }
     static std::vector<std::string> getSupportedExtensions();
@@ -64,6 +72,19 @@ public:
 private:
     mutable std::mutex decodeMutex;
     viogsf_s* player = nullptr;
+    static constexpr int kScopeVoices = 6;
+    std::shared_ptr<ChannelScopeSharedState> channelScopeState;
+    std::vector<float> scopeRingRaw;
+    std::vector<float> scopePublishRaw;
+    std::vector<float> scopePublishVu;
+    int64_t channelScopeLastReadNs = 0;
+    int scopeRingWritePos = 0;
+    int scopeRingSamples = 0;
+    bool scopeCaptureEnabled = false;
+    uint64_t channelScopeSourceSerial = 0;
+    std::vector<std::string> toggleChannelNames;
+    std::vector<bool> toggleChannelMuted;
+    int scopeTapChunkFrames = 0;
     std::vector<int16_t> pcmScratch;
     bool isOpen = false;
     int repeatMode = 0;
@@ -86,6 +107,12 @@ private:
     std::string fadeTag;
 
     void closeInternalLocked();
+    void applyScopeTapLocked();
+    void applyVoiceMutesLocked();
+    void resetChannelScopeLocked();
+    void appendScopeTapLocked(int voice, const int16_t* samples, int frames);
+    void publishScopeSnapshotLocked();
+    static void scopeTapCallback(int voice, const short* samples, int frames, void* user);
 };
 
 #endif // SILICONPLAYER_VIOGSFDECODER_H

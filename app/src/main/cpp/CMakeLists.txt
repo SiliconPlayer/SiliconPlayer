@@ -723,6 +723,7 @@ include_directories(${CMAKE_CURRENT_BINARY_DIR}/libusb_gen)
             SHARED
             decoders/ViogsfDecoder.cpp
             decoders/ViogsfDecoderPlugin.cpp
+            ChannelScopeSharedState.cpp
     )
     if (ANDROID)
         target_compile_options(

@@ -507,6 +507,7 @@ set_target_properties(libviogsf_prebuilt PROPERTIES IMPORTED_LOCATION "${PREBUIL
 add_library(siliconplayer_viogsf_decoder SHARED
     "${APP_CPP_DIR}/decoders/ViogsfDecoder.cpp"
     "${APP_CPP_DIR}/decoders/ViogsfDecoderPlugin.cpp"
+    "${APP_CPP_DIR}/ChannelScopeSharedState.cpp"
 )
 target_include_directories(siliconplayer_viogsf_decoder PRIVATE
     ${COMMON_INCLUDES}
