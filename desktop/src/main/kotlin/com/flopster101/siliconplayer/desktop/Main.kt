@@ -1875,13 +1875,10 @@ fun main(args: Array<String>) = application {
                             quit = { requestApplicationExit() },
                             raise = { bringDesktopWindowToFront() },
                             openUri = { uri ->
+                                // Headless callers cannot answer a decoder picker;
+                                // play headlessly like the in-app browser does.
                                 val file = resolveDesktopMprisOpenUriFile(uri)
-                                when {
-                                    file == null -> playSource(uri)
-                                    prefs.getBoolean(AppPreferenceKeys.PLAY_WITH_EXTERNAL_OPEN_DIALOG, true) ->
-                                        pendingDropPlayWithFile = file
-                                    else -> playFile(file)
-                                }
+                                if (file == null) playSource(uri) else playFile(file)
                             }
                         ),
                         volume = { masterGainDbToMprisVolume(masterVolumeDb, masterMuted) }
