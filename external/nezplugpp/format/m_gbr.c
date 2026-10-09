@@ -164,7 +164,6 @@ static Int32 execute(GBRDMG *THIS_)
 __inline static void synth(GBRDMG *THIS_, Int32 *d)
 {
 	THIS_->dmgsnd->synth(THIS_->dmgsnd->ctx, d);
-	NEZScopeTick();
 }
 
 __inline static void volume(GBRDMG *THIS_, Uint32 v)

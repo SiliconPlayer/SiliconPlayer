@@ -151,7 +151,6 @@ __inline static void synth(SGCSEQ *THIS_, Int32 *d)
 			THIS_->sndp[SND_SNG]->synth(THIS_->sndp[SND_SNG]->ctx, d);
 			break;
 	}
-	NEZScopeTick();
 }
 
 __inline static void volume(SGCSEQ *THIS_, Uint32 v)

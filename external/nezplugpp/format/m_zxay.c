@@ -69,7 +69,6 @@ __inline static void synth(ZXAY *THIS_, Int32 *d)
 {
 	THIS_->sndp->synth(THIS_->sndp->ctx, d);
 	THIS_->amstrad_sndp->synth(THIS_->amstrad_sndp->ctx, d);
-	NEZScopeTick();
 }
 
 __inline static void volume(ZXAY *THIS_, Uint32 v)

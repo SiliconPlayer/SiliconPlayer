@@ -179,7 +179,6 @@ __inline static void synth(KSSSEQ *THIS_, Int32 *d)
 			}
 			break;
 	}
-	NEZScopeTick();
 }
 
 __inline static void volume(KSSSEQ *THIS_, Uint32 v)
