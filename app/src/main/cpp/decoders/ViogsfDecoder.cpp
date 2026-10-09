@@ -557,10 +557,13 @@ void ViogsfDecoder::applyVoiceMutesLocked() {
     if (!player) {
         return;
     }
-    viogsf_clear_voice_mutes(player);
+    // Audible mutes: muted voices render silence, so the scope taps go
+    // quiet on their own. Scope-only mutes stay off so the rows always
+    // reflect what is heard.
+    viogsf_clear_voice_audible_mutes(player);
     for (int voice = 0; voice < kScopeVoices; ++voice) {
         if (voice < static_cast<int>(toggleChannelMuted.size()) && toggleChannelMuted[static_cast<size_t>(voice)]) {
-            viogsf_set_voice_mute(player, voice, 1);
+            viogsf_set_voice_audible_mute(player, voice, 1);
         }
     }
 }
