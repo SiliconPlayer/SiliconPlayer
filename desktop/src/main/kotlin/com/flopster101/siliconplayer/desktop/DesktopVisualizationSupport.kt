@@ -560,7 +560,8 @@ internal fun rememberVisualizationUiState(
             currentCorePluginName != DecoderNames.GAME_MUSIC_EMU &&
             currentCorePluginName != DecoderNames.SC68 &&
             currentCorePluginName != DecoderNames.LIB_UPSE &&
-            currentCorePluginName != DecoderNames.VIOGSF) {
+            currentCorePluginName != DecoderNames.VIOGSF &&
+            currentCorePluginName != DecoderNames.NEZPLUGPP) {
             return@LaunchedEffect
         }
         val coreName = activeCoreName?.trim().takeIf { !it.isNullOrEmpty() } ?: return@LaunchedEffect
