@@ -132,6 +132,7 @@ void NEZReset(NEZ_PLAY *pNezPlay)
 {
 	if (pNezPlay == 0) return;
 	NESReset(pNezPlay);
+	NESAudioFilterReset(pNezPlay);
 	NESVolume(pNezPlay, pNezPlay->volume);
 }
 

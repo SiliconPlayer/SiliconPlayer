@@ -19,6 +19,17 @@ void NESAudioFilterSet(NEZ_PLAY *pNezPlay, Uint filter)
 	output2[1] = 0x7fffffff;
 }
 
+// The DC-blocker state above is process-global, so a new song would
+// otherwise start from the previous song's tail. Reseed it on reset.
+void NESAudioFilterReset(NEZ_PLAY *pNezPlay)
+{
+	if (pNezPlay == 0) return;
+	pNezPlay->naf_prev[0] = 0x8000;
+	pNezPlay->naf_prev[1] = 0x8000;
+	output2[0] = 0x7fffffff;
+	output2[1] = 0x7fffffff;
+}
+
 void NESAudioRender(NEZ_PLAY *pNezPlay, Int16 *bufp, Uint buflen)
 {
 	Uint maxch = NESAudioChannelGet(pNezPlay);

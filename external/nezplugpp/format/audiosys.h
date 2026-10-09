@@ -30,6 +30,7 @@ void NESVolumeHandlerInstall(NEZ_PLAY *, const NES_VOLUME_HANDLER * ph);
 void NESVolumeHandlerTerminate(NEZ_PLAY *);
 void NESVolume(NEZ_PLAY *, Uint volume);
 void NESAudioFilterSet(NEZ_PLAY*, Uint filter);
+void NESAudioFilterReset(NEZ_PLAY*);
 
 #ifdef __cplusplus
 }
