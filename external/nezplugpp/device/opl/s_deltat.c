@@ -342,6 +342,9 @@ KMIF_SOUND_DEVICE *YMDELTATPCMSoundAlloc(Uint32 ymdeltatpcm_type , Uint8 *pcmbuf
 	}
 	sndp = XMALLOC(sizeof(YMDELTATPCMSOUND) + ram_size);
 	if (!sndp) return 0;
+	// Sample RAM is never uploaded by some songs (they only set start/stop
+	// and key on), so it must not start as recycled heap garbage.
+	XMEMSET(sndp, 0, sizeof(YMDELTATPCMSOUND) + ram_size);
 	sndp->ram_size = ram_size;
 	sndp->ymdeltatpcm_type = (Uint8)ymdeltatpcm_type;
 	switch (ymdeltatpcm_type)
