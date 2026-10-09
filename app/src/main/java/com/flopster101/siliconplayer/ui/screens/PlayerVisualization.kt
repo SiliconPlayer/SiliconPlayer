@@ -2243,11 +2243,17 @@ internal fun AlbumArtPlaceholder(
         }
     }
 
-    LaunchedEffect(file?.absolutePath, decoderName, visualizationMode) {
+    LaunchedEffect(file?.absolutePath, decoderName, visualizationMode, isPlaying) {
         if (visualizationMode != VisualizationMode.ChannelScope) {
             visChannelScopeInstrumentNamesByIndex = emptyMap()
             visChannelScopeSampleNamesByIndex = emptyMap()
             visChannelScopeChipNamesByChannelIndex = emptyMap()
+            return@LaunchedEffect
+        }
+        if (!isPlaying && (visChannelScopeInstrumentNamesByIndex.isNotEmpty() ||
+            visChannelScopeSampleNamesByIndex.isNotEmpty() ||
+            visChannelScopeChipNamesByChannelIndex.isNotEmpty())
+        ) {
             return@LaunchedEffect
         }
         val nameMaps = loadChannelScopeNameMaps(pluginNameForCoreName(decoderName), AndroidChannelScopeNameSource)

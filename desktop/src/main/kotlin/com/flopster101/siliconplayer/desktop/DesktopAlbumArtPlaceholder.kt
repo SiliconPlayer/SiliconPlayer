@@ -224,14 +224,17 @@ internal fun AlbumArtPlaceholder(
     modifier: Modifier = Modifier
 ) {
     var scopeNameMaps by remember { mutableStateOf(ChannelScopeNameMaps()) }
-    LaunchedEffect(file?.absolutePath, decoderName, visualizationMode) {
-        scopeNameMaps = if (visualizationMode == VisualizationMode.ChannelScope) {
-            runCatching {
-                loadChannelScopeNameMaps(pluginNameForCoreName(decoderName), DesktopChannelScopeNameSource)
-            }.getOrDefault(ChannelScopeNameMaps())
-        } else {
-            ChannelScopeNameMaps()
+    LaunchedEffect(file?.absolutePath, decoderName, visualizationMode, isPlaying) {
+        if (visualizationMode != VisualizationMode.ChannelScope) {
+            scopeNameMaps = ChannelScopeNameMaps()
+            return@LaunchedEffect
         }
+        if (!isPlaying && scopeNameMaps != ChannelScopeNameMaps()) {
+            return@LaunchedEffect
+        }
+        scopeNameMaps = runCatching {
+            loadChannelScopeNameMaps(pluginNameForCoreName(decoderName), DesktopChannelScopeNameSource)
+        }.getOrDefault(ChannelScopeNameMaps())
     }
     var hasStartedPlaybackForTrack by remember { mutableStateOf(false) }
     LaunchedEffect(isPlaying) {
