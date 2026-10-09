@@ -85,6 +85,8 @@ private:
     std::vector<std::string> toggleChannelNames;
     std::vector<bool> toggleChannelMuted;
     int scopeTapChunkFrames = 0;
+    bool interpolationEnabled = true;
+    float filteringLevel = 0.5f;
     std::vector<int16_t> pcmScratch;
     bool isOpen = false;
     int repeatMode = 0;
@@ -109,6 +111,7 @@ private:
     void closeInternalLocked();
     void applyScopeTapLocked();
     void applyVoiceMutesLocked();
+    void applyAudioOptionsLocked();
     void resetChannelScopeLocked();
     void appendScopeTapLocked(int voice, const int16_t* samples, int frames);
     void publishScopeSnapshotLocked();

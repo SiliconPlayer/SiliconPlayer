@@ -58,6 +58,8 @@ object CorePreferenceKeys {
     const val SIDPLAYFP_RESIDFP_COMBINED_WAVEFORMS_STRENGTH = "sidplayfp_residfp_combined_waveforms_strength"
     const val LAZYUSF2_USE_HLE_AUDIO = "lazyusf2_use_hle_audio"
     const val LIBUPSE_REVERB = "libupse_reverb"
+    const val VIOGSF_INTERPOLATION = "viogsf_interpolation"
+    const val VIOGSF_FILTERING = "viogsf_filtering"
     const val SC68_ASID = "sc68_asid"
     const val SC68_DEFAULT_TIME_SECONDS = "sc68_default_time_seconds"
     const val SC68_YM_ENGINE = "sc68_ym_engine"
@@ -227,6 +229,11 @@ object Vio2sfDefaults {
 
 object LibupseDefaults {
     const val reverb = true
+}
+
+object ViogsfDefaults {
+    const val interpolation = true
+    const val filteringPercent = 50
 }
 
 object Sc68Defaults {
