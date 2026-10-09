@@ -1863,6 +1863,7 @@ internal fun PlayerScreen(
                                 PlayerTimelineHost(
                                     positionSecondsProvider = positionSecondsProvider,
                                     durationSeconds = durationSeconds,
+                                    isLoopPointRepeat = repeatMode == RepeatMode.LoopPoint,
                                     canSeek = canSeek,
                                     hasReliableDuration = hasReliableDuration,
                                     seekInProgress = seekInProgress,
@@ -2164,6 +2165,7 @@ internal fun PlayerScreen(
                                         PlayerTimelineHost(
                                             positionSecondsProvider = positionSecondsProvider,
                                             durationSeconds = durationSeconds,
+                                            isLoopPointRepeat = repeatMode == RepeatMode.LoopPoint,
                                             canSeek = canSeek,
                                             hasReliableDuration = hasReliableDuration,
                                             seekInProgress = seekInProgress,
@@ -5119,6 +5121,7 @@ private fun TimelineSection(
 private fun PlayerTimelineHost(
     positionSecondsProvider: () -> Double,
     durationSeconds: Double,
+    isLoopPointRepeat: Boolean = false,
     canSeek: Boolean,
     hasReliableDuration: Boolean,
     seekInProgress: Boolean,
@@ -5139,9 +5142,18 @@ private fun PlayerTimelineHost(
     }
     val pos = positionSecondsProvider()
     val effectiveSlider = if (isSeeking) sliderPosition else pos.coerceIn(0.0, durationSeconds.coerceAtLeast(0.0))
+    // Loop-point repeat plays past the tagged end: the slider pins at the end
+    // but the elapsed readout keeps counting.
+    val effectiveElapsed = if (isSeeking) {
+        sliderPosition
+    } else if (isLoopPointRepeat) {
+        pos.coerceAtLeast(0.0)
+    } else {
+        pos.coerceIn(0.0, durationSeconds.coerceAtLeast(0.0))
+    }
     TimelineSection(
         sliderPosition = effectiveSlider,
-        elapsedPositionSeconds = effectiveSlider,
+        elapsedPositionSeconds = effectiveElapsed,
         durationSeconds = durationSeconds,
         showRemainingTime = showRemainingTime,
         canSeek = canSeek,
