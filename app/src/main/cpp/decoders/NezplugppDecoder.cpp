@@ -7,6 +7,7 @@
 #include <cctype>
 #include <cstdint>
 #include <cstdio>
+#include <chrono>
 #include <cstdlib>
 #include <cstring>
 #include <filesystem>
@@ -15,6 +16,7 @@ extern "C" {
 #include <nezplugpp/nezplug.h>
 }
 #include <nezplugpp/device/kmsnddev.h>
+#include <nezplugpp/format/nezscope.h>
 
 namespace {
 constexpr int kNativeSampleRate = 44100;
@@ -49,9 +51,53 @@ static bool readWholeFile(const std::string& path, uint8_t** outData, size_t* ou
     *outSize = static_cast<size_t>(size);
     return true;
 }
+
+constexpr int kNezScopeTextStride = 10;
+constexpr int kNezScopeTextFlagActive = 1 << 0;
+constexpr float kNezScopeActivePeak = 0.0015f;
+
+float scopeGainForDev(int devId) {
+    if (devId == DEV_2A03_TR) return 2.5e-5f;
+    if (devId == DEV_2A03_NOISE) return 7.0e-5f;
+    if (devId == DEV_2A03_DPCM) return 1.0e-5f;
+    if (devId == DEV_VRC6_SAW) return 2.0e-7f;
+    if (devId == DEV_MMC5_DA) return 1.0e-5f;
+    if (devId == DEV_ADPCM_CH1) return 1.0e-6f;
+    if (devId >= DEV_2A03_SQ1 && devId <= DEV_2A03_SQ2) return 4.0e-5f;
+    if (devId >= DEV_VRC6_SQ1 && devId <= DEV_VRC6_SQ2) return 6.0e-7f;
+    if (devId >= DEV_MMC5_SQ1 && devId <= DEV_MMC5_SQ2) return 4.0e-5f;
+    if (devId >= DEV_N106_CH1 && devId <= DEV_N106_CH8) return 1.5e-6f;
+    if (devId >= DEV_AY8910_CH1 && devId <= DEV_AY8910_CH3) return 1.5e-6f;
+    if (devId >= DEV_SCC_CH1 && devId <= DEV_SCC_CH5) return 1.4e-6f;
+    if (devId >= DEV_DMG_SQ1 && devId <= DEV_DMG_NOISE) return 2.3e-6f;
+    if (devId >= DEV_HUC6230_CH1 && devId <= DEV_HUC6230_CH6) return 2.3e-6f;
+    if (devId >= DEV_SN76489_SQ1 && devId <= DEV_SN76489_NOISE) return 2.3e-6f;
+    if (devId >= DEV_YM2413_CH1 && devId <= DEV_YM2413_CH9) return 1.2e-6f;
+    if (devId >= DEV_Y8950_CH1 && devId <= DEV_Y8950_CH9) return 1.2e-6f;
+    if (devId >= DEV_VRC7_CH1 && devId <= DEV_VRC7_CH6) return 1.2e-6f;
+    if (devId >= DEV_SMSFM_CH1 && devId <= DEV_SMSFM_CH9) return 1.2e-6f;
+    return 2.0e-6f;
 }
 
-NezplugppDecoder::NezplugppDecoder() = default;
+bool parseScopeBoolOption(const char* value, bool fallback) {
+    if (!value) return fallback;
+    auto equalsIgnoreCase = [](const char* a, const char* b) {
+        while (*a && *b) {
+            if (std::tolower(static_cast<unsigned char>(*a)) !=
+                std::tolower(static_cast<unsigned char>(*b))) return false;
+            ++a; ++b;
+        }
+        return *a == *b;
+    };
+    if (equalsIgnoreCase(value, "1") || equalsIgnoreCase(value, "true") ||
+        equalsIgnoreCase(value, "yes") || equalsIgnoreCase(value, "on")) return true;
+    if (equalsIgnoreCase(value, "0") || equalsIgnoreCase(value, "false") ||
+        equalsIgnoreCase(value, "no") || equalsIgnoreCase(value, "off")) return false;
+    return fallback;
+}
+}
+
+NezplugppDecoder::NezplugppDecoder() : channelScopeState(std::make_shared<ChannelScopeSharedState>()) {}
 
 NezplugppDecoder::~NezplugppDecoder() {
     close();
@@ -132,6 +178,7 @@ void NezplugppDecoder::close() {
 }
 
 void NezplugppDecoder::closeInternalLocked() {
+    NEZSetScopeCallback(nullptr, nullptr);
     if (player) {
         NEZDelete(player);
         player = nullptr;
@@ -187,6 +234,7 @@ int NezplugppDecoder::read(float* buffer, int numFrames) {
         const size_t sampleCount = static_cast<size_t>(framesToRender) * channels;
         pcmScratch.resize(sampleCount);
         NEZRender(player, pcmScratch.data(), static_cast<Uint>(framesToRender));
+        NEZScopeFlush();
         float gain = 1.0f;
         const auto trimIt = volumeTrimDb.find(formatName);
         if (trimIt != volumeTrimDb.end() && trimIt->second != 0.0f) {
@@ -197,6 +245,15 @@ int NezplugppDecoder::read(float* buffer, int numFrames) {
         }
         renderedFrames += framesToRender;
         framesRead += framesToRender;
+    }
+    if (framesRead > 0 && scopeCaptureEnabled) {
+        channelScopeLastReadNs = std::chrono::duration_cast<std::chrono::nanoseconds>(
+                std::chrono::steady_clock::now().time_since_epoch()
+        ).count();
+        if (channelScopeState &&
+            channelScopeState->tryBeginCapture(channelScopeLastReadNs, scopeVoices)) {
+            publishScopeSnapshotLocked();
+        }
     }
     return framesRead;
 }
@@ -443,8 +500,17 @@ std::string NezplugppDecoder::getCoreStringInfo(const char* name) {
 }
 
 void NezplugppDecoder::setOption(const char* name, const char* value) {
-    if (name == nullptr || value == nullptr) return;
+    if (!name || !value) {
+        return;
+    }
     std::lock_guard<std::mutex> lock(decodeMutex);
+    if (std::strcmp(name, "visualization.channel_scope_active") == 0) {
+        const bool enabled = parseScopeBoolOption(value, scopeCaptureEnabled);
+        if (scopeCaptureEnabled == enabled) return;
+        scopeCaptureEnabled = enabled;
+        resetChannelScopeLocked();
+        return;
+    }
     if (std::strcmp(name, "nezplugpp.filter") == 0) {
         filterType = std::clamp(static_cast<int>(std::strtol(value, nullptr, 10)), 0, 3);
         if (isOpen && player) {
@@ -535,6 +601,13 @@ void NezplugppDecoder::buildToggleChannelsLocked() {
     } else if (formatName == "AY") {
         addChannel("AY", DEV_AY8910_CH1, 3);
     }
+    scopeVoices = static_cast<int>(toggleChannelNames.size());
+    scopeDevToIndex.clear();
+    for (size_t i = 0; i < toggleChannelDevIds.size(); ++i) {
+        scopeDevToIndex.emplace(toggleChannelDevIds[i], static_cast<int>(i));
+    }
+    resetChannelScopeLocked();
+    NEZSetScopeCallback(&NezplugppDecoder::scopeTapCallback, this);
 }
 
 void NezplugppDecoder::applyChannelMuteLocked(int channelIndex) {
@@ -572,6 +645,160 @@ void NezplugppDecoder::clearToggleChannelMutes() {
     std::lock_guard<std::mutex> lock(decodeMutex);
     std::fill(toggleChannelMuted.begin(), toggleChannelMuted.end(), false);
     for (size_t i = 0; i < toggleChannelDevIds.size(); ++i) applyChannelMuteLocked(static_cast<int>(i));
+}
+
+void NezplugppDecoder::resetChannelScopeLocked() {
+    scopeRingRaw.clear();
+    scopeRingWritePos = 0;
+    scopeRingSamples = 0;
+    scopeTapChunkFrames = 0;
+    scopeTapsThisBlock = 0;
+    scopeTapGeneration = 0;
+    scopeTapSeen.assign(static_cast<size_t>(std::max(scopeVoices, 0)), 0);
+    if (channelScopeState) {
+        channelScopeState->clear();
+    }
+}
+
+void NezplugppDecoder::appendScopeTapLocked(int devId, const float* samples, int frames) {
+    if (!scopeCaptureEnabled || scopeVoices <= 0 || !samples || frames <= 0) {
+        return;
+    }
+    const auto indexIt = scopeDevToIndex.find(devId);
+    if (indexIt == scopeDevToIndex.end()) return;
+    const int voice = indexIt->second;
+    if (voice < 0 || voice >= scopeVoices) return;
+    if (scopeRingRaw.empty()) {
+        scopeRingRaw.assign(
+                static_cast<size_t>(scopeVoices) * ChannelScopeSharedState::kMaxSamples, 0.0f);
+    }
+    // A voice arriving twice starts a new block; publish what landed so far.
+    if (scopeTapsThisBlock == 0 || scopeTapSeen[static_cast<size_t>(voice)] == scopeTapGeneration) {
+        if (scopeTapsThisBlock > 0 && scopeTapChunkFrames > 0) {
+            scopeRingWritePos =
+                    (scopeRingWritePos + scopeTapChunkFrames) % ChannelScopeSharedState::kMaxSamples;
+            scopeRingSamples =
+                    std::min(scopeRingSamples + scopeTapChunkFrames, ChannelScopeSharedState::kMaxSamples);
+        }
+        ++scopeTapGeneration;
+        scopeTapsThisBlock = 0;
+        scopeTapChunkFrames = frames;
+    }
+    scopeTapSeen[static_cast<size_t>(voice)] = scopeTapGeneration;
+    ++scopeTapsThisBlock;
+    float* ring = scopeRingRaw.data() +
+            static_cast<size_t>(voice) * ChannelScopeSharedState::kMaxSamples;
+    const int firstBlock =
+            std::min(frames, ChannelScopeSharedState::kMaxSamples - scopeRingWritePos);
+    const float gain = scopeGainForDev(devId);
+    for (int i = 0; i < firstBlock; ++i) {
+        ring[scopeRingWritePos + i] = std::clamp(samples[i] * gain, -1.0f, 1.0f);
+    }
+    for (int i = firstBlock; i < frames; ++i) {
+        ring[i - firstBlock] = std::clamp(samples[i] * gain, -1.0f, 1.0f);
+    }
+    if (scopeTapsThisBlock >= scopeVoices && scopeTapChunkFrames > 0) {
+        scopeRingWritePos =
+                (scopeRingWritePos + scopeTapChunkFrames) % ChannelScopeSharedState::kMaxSamples;
+        scopeRingSamples =
+                std::min(scopeRingSamples + scopeTapChunkFrames, ChannelScopeSharedState::kMaxSamples);
+        scopeTapsThisBlock = 0;
+        scopeTapChunkFrames = 0;
+    }
+}
+
+void NezplugppDecoder::publishScopeSnapshotLocked() {
+    if (!channelScopeState || scopeRingRaw.empty() || scopeRingSamples <= 0 || scopeVoices <= 0) {
+        return;
+    }
+
+    scopePublishRaw.assign(
+            static_cast<size_t>(scopeVoices) * ChannelScopeSharedState::kMaxSamples, 0.0f);
+    scopePublishVu.assign(static_cast<size_t>(scopeVoices), 0.0f);
+    std::vector<float>& raw = scopePublishRaw;
+    std::vector<float>& vu = scopePublishVu;
+    const int filledSamples = std::clamp(scopeRingSamples, 0, ChannelScopeSharedState::kMaxSamples);
+    const int zeroPrefix = ChannelScopeSharedState::kMaxSamples - filledSamples;
+    const int historyStart =
+            (scopeRingWritePos - filledSamples + ChannelScopeSharedState::kMaxSamples) %
+            ChannelScopeSharedState::kMaxSamples;
+    const int firstBlock =
+            std::min(filledSamples, ChannelScopeSharedState::kMaxSamples - historyStart);
+    const int trailingSamples = 1024;
+    for (int voice = 0; voice < scopeVoices; ++voice) {
+        float* dst = raw.data() + static_cast<size_t>(voice) * ChannelScopeSharedState::kMaxSamples;
+        const float* src = scopeRingRaw.data() +
+                static_cast<size_t>(voice) * ChannelScopeSharedState::kMaxSamples;
+        std::copy_n(src + historyStart, firstBlock, dst + zeroPrefix);
+        std::copy_n(src, filledSamples - firstBlock, dst + zeroPrefix + firstBlock);
+
+        float peak = 0.0f;
+        const int start = std::max(0, ChannelScopeSharedState::kMaxSamples - trailingSamples);
+        for (int i = start; i < ChannelScopeSharedState::kMaxSamples; ++i) {
+            peak = std::max(peak, std::abs(dst[i]));
+        }
+        vu[static_cast<size_t>(voice)] = std::clamp(peak, 0.0f, 1.0f);
+    }
+    channelScopeState->publish(raw, vu, scopeVoices, ++channelScopeSourceSerial, true);
+}
+
+std::shared_ptr<ChannelScopeSharedState> NezplugppDecoder::getChannelScopeSharedState() const {
+    std::lock_guard<std::mutex> lock(decodeMutex);
+    return channelScopeState;
+}
+
+std::vector<int32_t> NezplugppDecoder::getChannelScopeTextState(int maxChannels) {
+    std::lock_guard<std::mutex> lock(decodeMutex);
+    if (scopeRingRaw.empty() || scopeRingSamples <= 0 || scopeVoices <= 0) {
+        return {};
+    }
+
+    const int channelsToExport = std::min(scopeVoices, std::clamp(maxChannels, 1, scopeVoices));
+    std::vector<int32_t> flat(static_cast<size_t>(channelsToExport * kNezScopeTextStride), -1);
+    const int trailingSamples = 1024;
+    const int recentSamples = std::min(scopeRingSamples, trailingSamples);
+    const int recentStart =
+            (scopeRingWritePos - recentSamples + ChannelScopeSharedState::kMaxSamples) %
+            ChannelScopeSharedState::kMaxSamples;
+    const int recentFirstBlock =
+            std::min(recentSamples, ChannelScopeSharedState::kMaxSamples - recentStart);
+    for (int voice = 0; voice < channelsToExport; ++voice) {
+        float recentPeak = 0.0f;
+        const float* src = scopeRingRaw.data() +
+                static_cast<size_t>(voice) * ChannelScopeSharedState::kMaxSamples;
+        for (int i = 0; i < recentFirstBlock; ++i) {
+            recentPeak = std::max(recentPeak, std::abs(src[recentStart + i]));
+        }
+        for (int i = recentFirstBlock; i < recentSamples; ++i) {
+            recentPeak = std::max(recentPeak, std::abs(src[i - recentFirstBlock]));
+        }
+        const size_t base = static_cast<size_t>(voice * kNezScopeTextStride);
+        int flags = 0;
+        if (recentPeak > kNezScopeActivePeak) {
+            flags |= kNezScopeTextFlagActive;
+        }
+        flat[base + 0] = voice;
+        flat[base + 1] = -1;
+        flat[base + 2] = std::clamp(static_cast<int>(std::lround(recentPeak * 64.0f)), 0, 64);
+        flat[base + 3] = 0;
+        flat[base + 4] = -1;
+        flat[base + 5] = 0;
+        flat[base + 6] = -1;
+        flat[base + 7] = -1;
+        flat[base + 8] = -1;
+        flat[base + 9] = flags;
+    }
+    return flat;
+}
+
+void NezplugppDecoder::scopeTapCallback(int devId, const float* samples, int frames, void* user) {
+    auto* self = static_cast<NezplugppDecoder*>(user);
+    if (!self) {
+        return;
+    }
+    // Callbacks fire from inside NEZRender, which read() invokes with
+    // decodeMutex held, so the ring is already protected.
+    self->appendScopeTapLocked(devId, samples, frames);
 }
 
 std::vector<std::string> NezplugppDecoder::getSupportedExtensions() {

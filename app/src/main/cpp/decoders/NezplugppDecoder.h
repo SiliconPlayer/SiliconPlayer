@@ -2,6 +2,7 @@
 #define SILICONPLAYER_NEZPLUGPPDECODER_H
 
 #include "AudioDecoder.h"
+#include "../ChannelScopeSharedState.h"
 #include <cstdint>
 #include <mutex>
 #include <string>
@@ -44,6 +45,8 @@ public:
     void setToggleChannelMuted(int channelIndex, bool enabled) override;
     bool getToggleChannelMuted(int channelIndex) const override;
     void clearToggleChannelMutes() override;
+    std::shared_ptr<ChannelScopeSharedState> getChannelScopeSharedState() const override;
+    std::vector<int32_t> getChannelScopeTextState(int maxChannels) override;
     TimelineMode getTimelineMode() const override { return TimelineMode::ContinuousLinear; }
 
     const char* getName() const override { return "NEZplug++"; }
@@ -76,12 +79,31 @@ private:
     std::vector<int> toggleChannelDevIds;
     std::vector<bool> toggleChannelMuted;
     std::unordered_map<int, bool> channelMuteByDev;
+    std::shared_ptr<ChannelScopeSharedState> channelScopeState;
+    std::vector<float> scopeRingRaw;
+    std::vector<float> scopePublishRaw;
+    std::vector<float> scopePublishVu;
+    std::unordered_map<int, int> scopeDevToIndex;
+    std::vector<int> scopeTapSeen;
+    int scopeVoices = 0;
+    int scopeRingWritePos = 0;
+    int scopeRingSamples = 0;
+    int scopeTapChunkFrames = 0;
+    int scopeTapsThisBlock = 0;
+    int scopeTapGeneration = 0;
+    int64_t channelScopeLastReadNs = 0;
+    bool scopeCaptureEnabled = false;
+    uint64_t channelScopeSourceSerial = 0;
     std::unordered_map<std::string, float> volumeTrimDb = {
         {"KSS", 0.0f}, {"NSF", 8.0f}, {"GBS", 10.0f}, {"GBR", 10.0f},
         {"HES", 0.0f}, {"SGC", 0.0f}, {"NSD", 0.0f}, {"AY", 0.0f},
     };
     void parseSongFormatLocked(const uint8_t* data, size_t size);
     void buildToggleChannelsLocked();
+    void resetChannelScopeLocked();
+    void appendScopeTapLocked(int devId, const float* samples, int frames);
+    void publishScopeSnapshotLocked();
+    static void scopeTapCallback(int devId, const float* samples, int frames, void* user);
     void applyChannelMuteLocked(int channelIndex);
 
     void closeInternalLocked();

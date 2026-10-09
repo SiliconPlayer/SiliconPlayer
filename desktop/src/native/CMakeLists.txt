@@ -527,6 +527,7 @@ set_target_properties(libnezplugpp_prebuilt PROPERTIES IMPORTED_LOCATION "${PREB
 add_library(siliconplayer_nezplugpp_decoder SHARED
     "${APP_CPP_DIR}/decoders/NezplugppDecoder.cpp"
     "${APP_CPP_DIR}/decoders/NezplugppDecoderPlugin.cpp"
+    "${APP_CPP_DIR}/ChannelScopeSharedState.cpp"
 )
 target_include_directories(siliconplayer_nezplugpp_decoder PRIVATE
     ${COMMON_INCLUDES}
