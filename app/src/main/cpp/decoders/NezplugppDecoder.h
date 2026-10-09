@@ -5,6 +5,7 @@
 #include <cstdint>
 #include <mutex>
 #include <string>
+#include <unordered_map>
 #include <vector>
 
 struct NEZPLAY_TAG;
@@ -37,6 +38,7 @@ public:
     int getFixedSampleRateHz() const override;
     double getPlaybackPositionSeconds() override;
     std::string getCoreStringInfo(const char* name) override;
+    void setOption(const char* name, const char* value) override;
     TimelineMode getTimelineMode() const override { return TimelineMode::ContinuousLinear; }
 
     const char* getName() const override { return "NEZplug++"; }
@@ -62,6 +64,11 @@ private:
     std::string formatName;
     int songVoiceCount = 0;
     std::string subtuneInfo;
+    int filterType = 0;
+    std::unordered_map<std::string, float> volumeTrimDb = {
+        {"KSS", 0.0f}, {"NSF", 8.0f}, {"GBS", 10.0f}, {"GBR", 10.0f},
+        {"HES", 0.0f}, {"SGC", 0.0f}, {"NSD", 0.0f}, {"AY", 0.0f},
+    };
     void parseSongFormatLocked(const uint8_t* data, size_t size);
 
     void closeInternalLocked();

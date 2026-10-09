@@ -4,6 +4,7 @@
 #include "../SiliconLog.h"
 #include <algorithm>
 #include <cmath>
+#include <cctype>
 #include <cstdint>
 #include <cstdio>
 #include <cstdlib>
@@ -88,6 +89,7 @@ bool NezplugppDecoder::open(const char* path) {
 
     NEZSetFrequency(player, kNativeSampleRate);
     NEZSetChannel(player, kNativeChannels);
+    NEZSetFilter(player, static_cast<Uint>(std::clamp(filterType, 0, 3)));
     const unsigned int startSong = NEZGetSongStart(player);
     if (startSong > 0) {
         NEZSetSongNo(player, startSong);
@@ -183,8 +185,13 @@ int NezplugppDecoder::read(float* buffer, int numFrames) {
         const size_t sampleCount = static_cast<size_t>(framesToRender) * channels;
         pcmScratch.resize(sampleCount);
         NEZRender(player, pcmScratch.data(), static_cast<Uint>(framesToRender));
+        float gain = 1.0f;
+        const auto trimIt = volumeTrimDb.find(formatName);
+        if (trimIt != volumeTrimDb.end() && trimIt->second != 0.0f) {
+            gain = std::pow(10.0f, trimIt->second / 20.0f);
+        }
         for (size_t i = 0; i < sampleCount; ++i) {
-            buffer[baseSample + i] = static_cast<float>(pcmScratch[i]) / 32768.0f;
+            buffer[baseSample + i] = static_cast<float>(pcmScratch[i]) / 32768.0f * gain;
         }
         renderedFrames += framesToRender;
         framesRead += framesToRender;
@@ -423,6 +430,27 @@ std::string NezplugppDecoder::getCoreStringInfo(const char* name) {
     }
     if (std::strcmp(name, "subtuneInfo") == 0) return subtuneInfo;
     return "";
+}
+
+void NezplugppDecoder::setOption(const char* name, const char* value) {
+    if (name == nullptr || value == nullptr) return;
+    std::lock_guard<std::mutex> lock(decodeMutex);
+    if (std::strcmp(name, "nezplugpp.filter") == 0) {
+        filterType = std::clamp(static_cast<int>(std::strtol(value, nullptr, 10)), 0, 3);
+        if (isOpen && player) {
+            NEZSetFilter(player, static_cast<Uint>(filterType));
+        }
+        return;
+    }
+    static const char* kTrimPrefix = "nezplugpp.volume_";
+    if (std::strncmp(name, kTrimPrefix, std::strlen(kTrimPrefix)) == 0) {
+        std::string key = name + std::strlen(kTrimPrefix);
+        for (char& c : key) c = static_cast<char>(std::toupper(static_cast<unsigned char>(c)));
+        const auto it = volumeTrimDb.find(key);
+        if (it != volumeTrimDb.end()) {
+            it->second = std::clamp(static_cast<float>(std::strtof(value, nullptr)), -20.0f, 20.0f);
+        }
+    }
 }
 
 std::vector<std::string> NezplugppDecoder::getSupportedExtensions() {

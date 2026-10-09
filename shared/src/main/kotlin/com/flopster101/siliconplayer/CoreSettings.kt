@@ -60,6 +60,14 @@ object CorePreferenceKeys {
     const val LIBUPSE_REVERB = "libupse_reverb"
     const val VIOGSF_INTERPOLATION = "viogsf_interpolation"
     const val VIOGSF_FILTERING = "viogsf_filtering"
+    const val NEZPLUGPP_FILTER = "nezplugpp_filter"
+    const val NEZPLUGPP_VOLUME_KSS_DB = "nezplugpp_volume_kss_db"
+    const val NEZPLUGPP_VOLUME_NSF_DB = "nezplugpp_volume_nsf_db"
+    const val NEZPLUGPP_VOLUME_GBS_DB = "nezplugpp_volume_gbs_db"
+    const val NEZPLUGPP_VOLUME_HES_DB = "nezplugpp_volume_hes_db"
+    const val NEZPLUGPP_VOLUME_SGC_DB = "nezplugpp_volume_sgc_db"
+    const val NEZPLUGPP_VOLUME_NSD_DB = "nezplugpp_volume_nsd_db"
+    const val NEZPLUGPP_VOLUME_AY_DB = "nezplugpp_volume_ay_db"
     const val SC68_ASID = "sc68_asid"
     const val SC68_DEFAULT_TIME_SECONDS = "sc68_default_time_seconds"
     const val SC68_YM_ENGINE = "sc68_ym_engine"
@@ -234,6 +242,17 @@ object LibupseDefaults {
 object ViogsfDefaults {
     const val interpolation = true
     const val filteringPercent = 50
+}
+
+object NezplugppDefaults {
+    const val filter = 0
+    const val volumeKssDb = 0
+    const val volumeNsfDb = 8
+    const val volumeGbsDb = 10
+    const val volumeHesDb = 0
+    const val volumeSgcDb = 0
+    const val volumeNsdDb = 0
+    const val volumeAyDb = 0
 }
 
 object Sc68Defaults {

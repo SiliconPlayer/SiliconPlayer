@@ -25,6 +25,7 @@ import com.flopster101.siliconplayer.pluginsettings.HivelyTrackerSettings
 import com.flopster101.siliconplayer.pluginsettings.KlystrackSettings
 import com.flopster101.siliconplayer.pluginsettings.DnfamitrackerSettings
 import com.flopster101.siliconplayer.pluginsettings.LazyUsf2Settings
+import com.flopster101.siliconplayer.pluginsettings.NezplugppSettings
 import com.flopster101.siliconplayer.pluginsettings.LibupseSettings
 import com.flopster101.siliconplayer.pluginsettings.ViogsfSettings
 import com.flopster101.siliconplayer.pluginsettings.OpenMptSettings
@@ -481,6 +482,8 @@ internal fun PluginDetailRouteContent(
         DecoderNames.LIB_UPSE -> LibupseSettings()
 
         DecoderNames.VIOGSF -> ViogsfSettings()
+
+        DecoderNames.NEZPLUGPP -> NezplugppSettings()
 
         DecoderNames.LIBXMP -> XmpSettings(
             interpolation = state.xmpInterpolation,
