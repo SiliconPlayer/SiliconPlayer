@@ -1,5 +1,6 @@
 package com.flopster101.siliconplayer.ui.screens
 
+import com.flopster101.siliconplayer.data.sha1Hex
 import com.flopster101.siliconplayer.migrateVisualizationBackendsToVulkan
 import com.flopster101.siliconplayer.onGloballyPositionedDeferred
 import com.flopster101.siliconplayer.onSizeChangedDeferred
@@ -1100,10 +1101,24 @@ internal fun PlayerScreen(
         preferencesProvider.getPreferences("silicon_player_channel_scope_track_gains")
     }
     val currentTrackKey = file?.absolutePath ?: playlistPathOrUrl.orEmpty()
-    var trackInputGain by remember(currentTrackKey) {
+    // Raw paths exceed the 80-char java.util.prefs key limit; hash them.
+    val trackGainKey = remember(currentTrackKey) {
+        if (currentTrackKey.isNotEmpty()) sha1Hex(currentTrackKey) else ""
+    }
+    var trackInputGain by remember(trackGainKey) {
         mutableIntStateOf(
-            if (currentTrackKey.isNotEmpty()) trackGainPrefs.getInt(currentTrackKey, 100) else 100
+            if (trackGainKey.isNotEmpty()) trackGainPrefs.getInt(trackGainKey, 100) else 100
         )
+    }
+    // One-time migration from the pre-hash raw-path keys.
+    LaunchedEffect(trackGainKey) {
+        if (trackGainKey.isNotEmpty() && !trackGainPrefs.contains(trackGainKey) &&
+            trackGainPrefs.contains(currentTrackKey)
+        ) {
+            val legacy = trackGainPrefs.getInt(currentTrackKey, 100)
+            trackGainPrefs.edit().putInt(trackGainKey, legacy).remove(currentTrackKey).apply()
+            trackInputGain = legacy
+        }
     }
     val effectiveChannelScopeGainPercent = ((channelScopePrefs.gainPercent * trackInputGain) / 100).coerceIn(1, 10000)
     val effectiveChannelScopePrefs = remember(channelScopePrefs, effectiveChannelScopeGainPercent) {
@@ -2427,11 +2442,11 @@ internal fun PlayerScreen(
             trackInputGain = trackInputGain,
             onTrackInputGainChange = { newTrackGain ->
                 trackInputGain = newTrackGain
-                if (currentTrackKey.isNotEmpty()) {
+                if (trackGainKey.isNotEmpty()) {
                     if (newTrackGain == 100) {
-                        trackGainPrefs.edit().remove(currentTrackKey).apply()
+                        trackGainPrefs.edit().remove(trackGainKey).apply()
                     } else {
-                        trackGainPrefs.edit().putInt(currentTrackKey, newTrackGain).apply()
+                        trackGainPrefs.edit().putInt(trackGainKey, newTrackGain).apply()
                     }
                 }
             },
