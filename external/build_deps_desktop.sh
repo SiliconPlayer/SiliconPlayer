@@ -191,6 +191,7 @@ clean_target_artifacts() {
             projectm)       PROJ="$ABSOLUTE_PATH/projectm" ;;
             dnfamitracker)  PROJ="$ABSOLUTE_PATH/dnfamitracker" ;;
             libupse)        PROJ="$ABSOLUTE_PATH/libupse" ;;
+            viogsf)         PROJ="$ABSOLUTE_PATH/viogsf" ;;
         esac
 
         [ -n "$PROJ" ] && rm -rf "$PROJ/build_desktop_${ARCH}" 2>/dev/null || true
@@ -225,6 +226,7 @@ clean_target_artifacts() {
             projectm) rm -f "$INSTALL_DIR/lib/libprojectM"*.so* 2>/dev/null || true; rm -rf "$INSTALL_DIR/include/projectM"* 2>/dev/null || true ;;
             dnfamitracker) rm -f "$INSTALL_DIR/lib/libdnfamitracker.a" "$INSTALL_DIR/lib/libsamplerate.a" "$INSTALL_DIR/lib/.dnfamitracker_gitrev" 2>/dev/null || true; rm -rf "$INSTALL_DIR/include/dnfamitracker" 2>/dev/null || true ;;
             libupse) rm -f "$INSTALL_DIR/lib/libupse.so" "$INSTALL_DIR/lib/.libupse_gitrev" 2>/dev/null || true; rm -rf "$INSTALL_DIR/include/upse" "$PREBUILT_BASE/.zlib-linkonly-$ARCH" 2>/dev/null || true ;;
+            viogsf) rm -f "$INSTALL_DIR/lib/libviogsf.so" "$INSTALL_DIR/lib/.viogsf_gitrev" 2>/dev/null || true; rm -rf "$INSTALL_DIR/include/viogsf" 2>/dev/null || true ;;
         esac
     done
 
@@ -1170,6 +1172,30 @@ build_libupse() {
     dep_write_source_stamp "$INSTALL_DIR" libupse "$PROJECT_PATH"
 }
 
+build_viogsf() {
+    local PROJECT_PATH="$ABSOLUTE_PATH/viogsf"
+    local BUILD_DIR="$PROJECT_PATH/build_desktop_${ARCH}"
+    if [ ! -d "$PROJECT_PATH" ]; then return 0; fi
+    if [ "$FORCE_CLEAN" -ne 1 ] && [ -f "$INSTALL_DIR/lib/libviogsf.so" ] && \
+       [ -f "$INSTALL_DIR/include/viogsf/gsf_loader.h" ] && \
+       dep_source_stamp_matches "$INSTALL_DIR" viogsf "$PROJECT_PATH"; then return 0; fi
+    echo "Building viogsf for host..."
+    rm -rf "$BUILD_DIR" && mkdir -p "$BUILD_DIR"
+    ensure_target_zlib
+    cmake $CMAKE_COMMON_FLAGS -S "$PROJECT_PATH" -B "$BUILD_DIR" \
+        -DCMAKE_BUILD_TYPE=Release -DCMAKE_CXX_FLAGS="$CXXFLAGS" \
+        -DCMAKE_POSITION_INDEPENDENT_CODE=ON \
+        -DZLIB_ROOT="$TARGET_ZLIB_ROOT" \
+        -DCMAKE_INSTALL_PREFIX="$INSTALL_DIR"
+    cmake --build "$BUILD_DIR" -j"$NPROC"
+    cmake --install "$BUILD_DIR"
+    if [ ! -f "$INSTALL_DIR/lib/libviogsf.so" ]; then
+        echo "Error: viogsf shared library not found after build."
+        return 1
+    fi
+    dep_write_source_stamp "$INSTALL_DIR" viogsf "$PROJECT_PATH"
+}
+
 # Run build targets
 for ARCH in "${TARGET_ARCHES[@]}"; do
     configure_desktop_toolchain "$ARCH"
@@ -1221,6 +1247,7 @@ for ARCH in "${TARGET_ARCHES[@]}"; do
     if target_has_lib "projectm"; then build_projectm; fi
     if target_has_lib "dnfamitracker"; then build_dnfamitracker; fi
     if target_has_lib "libupse"; then build_libupse; fi
+    if target_has_lib "viogsf"; then build_viogsf; fi
 
     echo "========================================"
     echo "Desktop Dependency Build Complete for $ARCH!"
