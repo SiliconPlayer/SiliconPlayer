@@ -1962,8 +1962,16 @@ fun main(args: Array<String>) = application {
                                         return@onPreviewKeyEvent true
                                     }
                                     when (keyEvent.key) {
-                                        Key.MediaPlayPause, Key.MediaPlay, Key.MediaPause -> {
+                                        Key.MediaPlayPause -> {
                                             session.togglePlayPause()
+                                            return@onPreviewKeyEvent true
+                                        }
+                                        Key.MediaPlay -> {
+                                            session.play()
+                                            return@onPreviewKeyEvent true
+                                        }
+                                        Key.MediaPause -> {
+                                            session.pauseFromHardwareKey()
                                             return@onPreviewKeyEvent true
                                         }
                                     }

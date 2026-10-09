@@ -48,6 +48,14 @@ class DesktopPlaybackSession(
     // Guards an async play against a stop/pause that lands first: only the
     // latest request may start the engine.
     private val playGeneration = AtomicLong(0L)
+
+    companion object {
+        private const val STALE_PAUSE_ECHO_NS = 2_000_000_000L
+    }
+
+    // AVRCP senders poll our state slowly; a stale PAUSE echo landing just
+    // after our resume must not re-pause. UI and MPRIS pauses stay immediate.
+    private var lastResumeRequestNs = 0L
     var currentFile by mutableStateOf<File?>(null)
         private set
 
@@ -343,6 +351,7 @@ class DesktopPlaybackSession(
             val subtuneToResume = stoppedSubtuneIndex
             stoppedSubtuneIndex = null
             loadSource(sourceToResume, initialSubtuneIndex = subtuneToResume)
+            lastResumeRequestNs = System.nanoTime()
             return
         }
         if (currentFile == null) return
@@ -359,6 +368,12 @@ class DesktopPlaybackSession(
             }
         }
         isPlaying = true
+        lastResumeRequestNs = System.nanoTime()
+    }
+
+    fun pauseFromHardwareKey() {
+        if (System.nanoTime() - lastResumeRequestNs < STALE_PAUSE_ECHO_NS) return
+        pause()
     }
 
     fun pause() {

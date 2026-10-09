@@ -181,6 +181,7 @@ class PlaybackService : Service() {
     // isEnginePlaying seconds later; while set, engine-true must not resurrect.
     private var pauseSettling = false
     private var pauseSettleDeadlineMs = 0L
+    private var lastResumeRequestMs = 0L
     private var durationRefreshCountdown = 0
     private var lastNotificationPath: String? = null
     private var lastNotificationTitle: String? = null
@@ -622,8 +623,12 @@ class PlaybackService : Service() {
         }
     }
 
+    private fun isStalePauseEcho(): Boolean =
+        SystemClock.uptimeMillis() - lastResumeRequestMs < STALE_PAUSE_ECHO_MS
+
     private fun playPlayback() {
         if (currentPath == null) return
+        lastResumeRequestMs = SystemClock.uptimeMillis()
         // Record the intent synchronously: the engine start queues behind other
         // native work, and a toggle pressed meanwhile must see the new state.
         // The ticker reconciles from the engine if the start ever fails.
@@ -894,9 +899,10 @@ class PlaybackService : Service() {
                     KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE, KeyEvent.KEYCODE_HEADSETHOOK ->
                         if (isPlaying) pausePlayback() else playPlayback()
                     KeyEvent.KEYCODE_MEDIA_PAUSE -> {
-                        // Some AVRCP senders pick PLAY/PAUSE from a slowly-polled
-                        // copy of our state, so a quick resume arrives as PAUSE.
-                        if (isPlaying) pausePlayback() else playPlayback()
+                        // PAUSE only pauses. Stale echoes from slowly-polled
+                        // AVRCP senders landing just after our resume are
+                        // dropped; a paused player stays paused.
+                        if (isPlaying && !isStalePauseEcho()) pausePlayback()
                     }
                     KeyEvent.KEYCODE_MEDIA_PLAY -> playPlayback()
                     else -> return super.onMediaButtonEvent(mediaButtonIntent)
@@ -1632,6 +1638,7 @@ class PlaybackService : Service() {
         // metadata refinement, isPlaying flip); coalesce to one delivery.
         private const val SYNC_DEBOUNCE_MS = 100L
         private const val PAUSE_SETTLE_TIMEOUT_MS = 5000L
+        private const val STALE_PAUSE_ECHO_MS = 2000L
 
         private const val PREFS_NAME = "silicon_player_settings"
         private const val PREF_RESPOND_MEDIA_BUTTONS = "respond_headphone_media_buttons"
