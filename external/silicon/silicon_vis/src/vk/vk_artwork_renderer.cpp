@@ -511,6 +511,7 @@ void VkArtworkRenderer::clearIcon() {
 }
 
 void VkArtworkRenderer::setTheme(uint32_t primaryColorArgb, uint32_t surfaceColorArgb, int32_t placeholderIconType) {
+    themeReceived_ = true;
     if (primaryColorArgb == primaryColorArgb_ &&
         surfaceColorArgb == surfaceColorArgb_ &&
         placeholderIconType == placeholderIconType_) {
@@ -580,6 +581,12 @@ void VkArtworkRenderer::draw(VkCommandBuffer cmd,
         }
         releasePrevState();
         fadeStartNs_ = -1;
+        return;
+    }
+
+    if (!themeReceived_) {
+        // Pre-theme frames must not show the unthemed default backdrop;
+        // the pass clear color stays on screen.
         return;
     }
 

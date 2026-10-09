@@ -62,6 +62,7 @@ private:
     ContentState prev_;
     long long fadeStartNs_ = -1;
     bool themeDirty_ = false;
+    bool themeReceived_ = false;
     uint32_t pendingPrimaryColorArgb_ = 0xFFFFFFFF;
     uint32_t pendingSurfaceColorArgb_ = 0xFF121212;
     int32_t pendingPlaceholderIconType_ = 1;
