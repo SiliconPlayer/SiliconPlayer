@@ -1,5 +1,6 @@
 #include "../../nestypes.h"
 #include "../kmsnddev.h"
+#include "../../format/nezscope.h"
 #include "../../format/audiosys.h"
 #include "../../format/handler.h"
 #include "../../format/nsf6502.h"
@@ -213,6 +214,7 @@ static Int32 __fastcall FDSSoundRender(void *pNezPlay)
 	}else{
 		outputbuf /= count;
 	}
+	NEZScopeTap(DEV_FDS_CH1, chmask[DEV_FDS_CH1] ? outputbuf : 0);
 	if(!chmask[DEV_FDS_CH1])return 0;
 	return outputbuf;
 }

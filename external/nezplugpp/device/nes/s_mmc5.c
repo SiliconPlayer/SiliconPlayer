@@ -1,5 +1,6 @@
 #include "../../nestypes.h"
 #include "../kmsnddev.h"
+#include "../../format/nezscope.h"
 #include "../../format/audiosys.h"
 #include "../../format/handler.h"
 #include "../../format/nsf6502.h"
@@ -293,10 +294,10 @@ static Int32 __fastcall MMC5SoundRender(void* pNezPlay)
 {
 	MMC5SOUND *mmc5 = ((NSFNSF*)((NEZ_PLAY*)pNezPlay)->nsf)->mmc5;
 	Int32 accum = 0;
-	accum += MMC5SoundSquareRender(&mmc5->square[0]) * chmask[DEV_MMC5_SQ1];
-	accum += MMC5SoundSquareRender(&mmc5->square[1]) * chmask[DEV_MMC5_SQ2];
-	if(chmask[DEV_MMC5_DA])
-		if (!mmc5->da.key && !mmc5->da.mute) accum += mmc5->da.output * mmc5->da.linearvolume;
+	{ Int32 tapv = MMC5SoundSquareRender(&mmc5->square[0]) * chmask[DEV_MMC5_SQ1]; accum += tapv; NEZScopeTap(DEV_MMC5_SQ1, tapv); }
+	{ Int32 tapv = MMC5SoundSquareRender(&mmc5->square[1]) * chmask[DEV_MMC5_SQ2]; accum += tapv; NEZScopeTap(DEV_MMC5_SQ2, tapv); }
+	if(chmask[DEV_MMC5_DA] && !mmc5->da.key && !mmc5->da.mute) { Int32 tapv = mmc5->da.output * mmc5->da.linearvolume; accum += tapv; NEZScopeTap(DEV_MMC5_DA, tapv); }
+	else NEZScopeTap(DEV_MMC5_DA, 0);
 	return accum;
 }
 

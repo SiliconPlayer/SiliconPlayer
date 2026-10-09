@@ -1,5 +1,6 @@
 #include "nezplug.h"
 #include "audiosys.h"
+#include "nezscope.h"
 
 /* ---------------------- */
 /*  Audio Render Handler  */
@@ -122,6 +123,7 @@ void NESAudioRender(NEZ_PLAY *pNezPlay, Int16 *bufp, Uint buflen)
 				*bufp++ = (Int16)(((Int32)output[ch]) - 0x8000);
 			}
 		}
+	NEZScopeTick();
 	}
 }
 

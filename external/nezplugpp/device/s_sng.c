@@ -1,4 +1,5 @@
 #include "kmsnddev.h"
+#include "../format/nezscope.h"
 #include "divfix.h"
 #include "s_logtbl.h"
 #include "s_sng.h"
@@ -151,8 +152,10 @@ static void sndsynth(void *ctx, Int32 *p)
 			if ((sndp->common.ggs >> ch) & 0x10) p[0] += accum;
 			if ((sndp->common.ggs >> ch) & 0x01) p[1] += accum;
 		}
+		NEZScopeTap(DEV_SN76489_SQ1 + ch, chmask[DEV_SN76489_SQ1 + ch] ? accum : 0);
 	}
 	accum = SNGSoundNoiseSynth(sndp, &sndp->noise) * chmask[DEV_SN76489_NOISE];
+	NEZScopeTap(DEV_SN76489_NOISE, accum);
 	if (sndp->common.ggs & 0x80) p[0] += accum;
 	if (sndp->common.ggs & 0x08) p[1] += accum;
 }

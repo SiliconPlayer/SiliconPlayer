@@ -1,4 +1,5 @@
 #include "kmsnddev.h"
+#include "../format/nezscope.h"
 #include "divfix.h"
 #include "s_hes.h"
 #include "s_logtbl.h"
@@ -103,9 +104,12 @@ static void HESSoundWaveMemoryRender(HESSOUND *sndp, HES_WAVEMEMORY *ch, Int32 *
 	{
 		output = ch->dda;
 		if(chmask[DEV_HUC6230_CH1+chn]){
-			p[0] += LogToLin(sndp->logtbl, lvol + output + sndp->common.mastervolume, LOG_LIN_BITS - LIN_BITS - 17 - 1);
-			p[1] += LogToLin(sndp->logtbl, rvol + output + sndp->common.mastervolume, LOG_LIN_BITS - LIN_BITS - 17 - 1);
-		}
+			Int32 tapl = LogToLin(sndp->logtbl, lvol + output + sndp->common.mastervolume, LOG_LIN_BITS - LIN_BITS - 17 - 1);
+			Int32 tapr = LogToLin(sndp->logtbl, rvol + output + sndp->common.mastervolume, LOG_LIN_BITS - LIN_BITS - 17 - 1);
+			p[0] += tapl;
+			p[1] += tapr;
+			NEZScopeTap(DEV_HUC6230_CH1+chn, tapl + tapr);
+		} else NEZScopeTap(DEV_HUC6230_CH1+chn, 0);
 	}
 	else if (ch->regs[7 - 2] & 0x80)	/* NOISE */
 	{
@@ -144,7 +148,8 @@ static void HESSoundWaveMemoryRender(HESSOUND *sndp, HES_WAVEMEMORY *ch, Int32 *
 		if(chmask[DEV_HUC6230_CH1+chn]){
 			p[0] += outputbf[0] / count;
 			p[1] += outputbf[1] / count;
-		}
+			NEZScopeTap(DEV_HUC6230_CH1+chn, (outputbf[0] + outputbf[1]) / count);
+		} else NEZScopeTap(DEV_HUC6230_CH1+chn, 0);
 		
 	}
 	else
@@ -190,7 +195,8 @@ static void HESSoundWaveMemoryRender(HESSOUND *sndp, HES_WAVEMEMORY *ch, Int32 *
 		if(chmask[DEV_HUC6230_CH1+chn]){
 			p[0] += outputbf[0] / count;
 			p[1] += outputbf[1] / count;
-		}
+			NEZScopeTap(DEV_HUC6230_CH1+chn, (outputbf[0] + outputbf[1]) / count);
+		} else NEZScopeTap(DEV_HUC6230_CH1+chn, 0);
 	}
 }
 

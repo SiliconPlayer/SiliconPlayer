@@ -4,6 +4,7 @@
 #include "songinfo.h"
 
 #include "m_zxay.h"
+#include "nezscope.h"
 
 #include "device/s_psg.h"
 #include "device/divfix.h"
@@ -68,6 +69,7 @@ __inline static void synth(ZXAY *THIS_, Int32 *d)
 {
 	THIS_->sndp->synth(THIS_->sndp->ctx, d);
 	THIS_->amstrad_sndp->synth(THIS_->amstrad_sndp->ctx, d);
+	NEZScopeTick();
 }
 
 __inline static void volume(ZXAY *THIS_, Uint32 v)

@@ -1,5 +1,6 @@
 #include "../../nestypes.h"
 #include "../kmsnddev.h"
+#include "../../format/nezscope.h"
 #include "../../format/audiosys.h"
 #include "../../format/handler.h"
 #include "../../format/nsf6502.h"
@@ -147,9 +148,9 @@ static Int32 __fastcall VRC6SoundRender(void* pNezPlay)
 {
 	VRC6SOUND *vrc6s = ((NSFNSF*)((NEZ_PLAY*)pNezPlay)->nsf)->vrc6s;
 	Int32 accum = 0;
-	accum += VRC6SoundSquareRender(pNezPlay, &vrc6s->square[0]) * chmask[DEV_VRC6_SQ1];
-	accum += VRC6SoundSquareRender(pNezPlay, &vrc6s->square[1]) * chmask[DEV_VRC6_SQ2];
-	accum += VRC6SoundSawRender(pNezPlay, &vrc6s->saw) * chmask[DEV_VRC6_SAW];
+	{ Int32 tapv = VRC6SoundSquareRender(pNezPlay, &vrc6s->square[0]) * chmask[DEV_VRC6_SQ1]; accum += tapv; NEZScopeTap(DEV_VRC6_SQ1, tapv); }
+	{ Int32 tapv = VRC6SoundSquareRender(pNezPlay, &vrc6s->square[1]) * chmask[DEV_VRC6_SQ2]; accum += tapv; NEZScopeTap(DEV_VRC6_SQ2, tapv); }
+	{ Int32 tapv = VRC6SoundSawRender(pNezPlay, &vrc6s->saw) * chmask[DEV_VRC6_SAW]; accum += tapv; NEZScopeTap(DEV_VRC6_SAW, tapv); }
 	return accum;
 }
 

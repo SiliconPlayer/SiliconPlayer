@@ -1,4 +1,5 @@
 #include "kmsnddev.h"
+#include "../format/nezscope.h"
 #include "divfix.h"
 #include "s_logtbl.h"
 #include "s_psg.h"
@@ -346,9 +347,9 @@ static void sndsynth(void *ctx, Int32 *p)
 	Int32 accum = 0;
 	sndp->common.rngout = PSGSoundNoiseStep(sndp);
 	sndp->common.envout = PSGSoundEnvelopeStep(sndp);
-	accum += PSGSoundSquare(sndp, &sndp->square[0]) * chmask[DEV_AY8910_CH1];
-	accum += PSGSoundSquare(sndp, &sndp->square[1]) * chmask[DEV_AY8910_CH2];
-	accum += PSGSoundSquare(sndp, &sndp->square[2]) * chmask[DEV_AY8910_CH3];
+	{ Int32 tapv = PSGSoundSquare(sndp, &sndp->square[0]) * chmask[DEV_AY8910_CH1]; accum += tapv; NEZScopeTap(DEV_AY8910_CH1, tapv); }
+	{ Int32 tapv = PSGSoundSquare(sndp, &sndp->square[1]) * chmask[DEV_AY8910_CH2]; accum += tapv; NEZScopeTap(DEV_AY8910_CH2, tapv); }
+	{ Int32 tapv = PSGSoundSquare(sndp, &sndp->square[2]) * chmask[DEV_AY8910_CH3]; accum += tapv; NEZScopeTap(DEV_AY8910_CH3, tapv); }
 	MSXSoundDaStep(sndp);
 	if (chmask[DEV_MSX_DA])
 		accum += LogToLin(sndp->logtbl,sndp->common.mastervolume, LOG_LIN_BITS-7)

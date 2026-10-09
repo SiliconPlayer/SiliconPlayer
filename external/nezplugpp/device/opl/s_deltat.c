@@ -1,4 +1,5 @@
 #include "kmsnddev.h"
+#include "../../format/nezscope.h"
 #include "divfix.h"
 #include "s_logtbl.h"
 #include "s_deltat.h"
@@ -196,7 +197,8 @@ static void sndsynth(YMDELTATPCMSOUND *sndp, Int32 *p)
 		if(chmask[DEV_ADPCM_CH1]){
 			p[0] += sndp->common.output;
 			p[1] += sndp->common.output;
-		}
+			NEZScopeTap(DEV_ADPCM_CH1, sndp->common.output);
+		} else NEZScopeTap(DEV_ADPCM_CH1, 0);
 	}
 }
 

@@ -4,6 +4,7 @@
 #include "songinfo.h"
 
 #include "m_kss.h"
+#include "nezscope.h"
 
 #include "device/s_psg.h"
 #include "device/s_scc.h"
@@ -178,6 +179,7 @@ __inline static void synth(KSSSEQ *THIS_, Int32 *d)
 			}
 			break;
 	}
+	NEZScopeTick();
 }
 
 __inline static void volume(KSSSEQ *THIS_, Uint32 v)

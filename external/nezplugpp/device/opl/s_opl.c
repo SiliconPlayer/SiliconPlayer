@@ -14,6 +14,7 @@
 
 
 #include "kmsnddev.h"
+#include "../../format/nezscope.h"
 #include "divfix.h"
 #include "s_logtbl.h"
 #include "s_opltbl.h"
@@ -677,11 +678,16 @@ static void sndsynth(OPLSOUND *sndp, Int32 *p)
 				if(rch==9)
 					for (i = 0; i < rch; i++)
 					{
+						Int32 tapv = 0, tapc;
 						if (sndp->ch[i].op[0].modcar)
 							OpSynthMod(sndp, &sndp->ch[i].op[0]);
-						else
-							accum[0] += OpSynthCarFb(sndp, &sndp->ch[i].op[0]) * chmask[maskch+i];
-						accum[0] += OpSynthCar(sndp, &sndp->ch[i].op[1]) * chmask[maskch+i];
+						else {
+							tapv = OpSynthCarFb(sndp, &sndp->ch[i].op[0]) * chmask[maskch+i];
+							accum[0] += tapv;
+						}
+						tapc = OpSynthCar(sndp, &sndp->ch[i].op[1]) * chmask[maskch+i];
+						accum[0] += tapc;
+						NEZScopeTap(maskch+i, tapv + tapc);
 					}
 				else
 					for (i = 0; i < rch; i++)
@@ -689,12 +695,12 @@ static void sndsynth(OPLSOUND *sndp, Int32 *p)
 						if (sndp->ch[i].op[0].modcar)
 							OpSynthMod(sndp, &sndp->ch[i].op[0]);
 						else{
-							if(i==6) accum[0] += OpSynthCarFb(sndp, &sndp->ch[i].op[0]) * chmask[DEV_YM2413_BD];
-							else     accum[0] += OpSynthCarFb(sndp, &sndp->ch[i].op[0]) * chmask[maskch+i];
+							if(i==6){ Int32 tapv = OpSynthCarFb(sndp, &sndp->ch[i].op[0]) * chmask[DEV_YM2413_BD]; accum[0] += tapv; NEZScopeTap(maskch+6, tapv); }
+							else{ Int32 tapv = OpSynthCarFb(sndp, &sndp->ch[i].op[0]) * chmask[maskch+i]; accum[0] += tapv; NEZScopeTap(maskch+i, tapv); }
 						}
 
-						if(i==6) accum[0] += OpSynthCar(sndp, &sndp->ch[i].op[1]) * chmask[DEV_YM2413_BD];
-						else     accum[0] += OpSynthCar(sndp, &sndp->ch[i].op[1]) * chmask[maskch+i];
+						if(i==6){ Int32 tapv = OpSynthCar(sndp, &sndp->ch[i].op[1]) * chmask[DEV_YM2413_BD]; accum[0] += tapv; NEZScopeTap(maskch+6, tapv); }
+						else{ Int32 tapv = OpSynthCar(sndp, &sndp->ch[i].op[1]) * chmask[maskch+i]; accum[0] += tapv; NEZScopeTap(maskch+i, tapv); }
 					}
 
 				if (sndp->common.rmode)

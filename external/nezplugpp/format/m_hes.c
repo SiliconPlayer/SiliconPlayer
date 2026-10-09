@@ -8,6 +8,7 @@
 #include "device/divfix.h"
 
 #include "m_hes.h"
+#include "nezscope.h"
 #include <stdio.h>
 
 /* -------------------- */
@@ -154,6 +155,7 @@ __inline static void synth(HESHES *THIS_, Int32 *d)
 {
 	THIS_->hessnd->synth(THIS_->hessnd->ctx, d);
 	THIS_->hespcm->synth(THIS_->hespcm->ctx, d);
+	NEZScopeTick();
 }
 
 __inline static void volume(HESHES *THIS_, Uint32 v)

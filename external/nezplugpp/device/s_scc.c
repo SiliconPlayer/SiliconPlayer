@@ -1,4 +1,5 @@
 #include "kmsnddev.h"
+#include "../format/nezscope.h"
 #include "divfix.h"
 #include "s_logtbl.h"
 #include "s_scc.h"
@@ -77,7 +78,11 @@ static void sndsynth(void *ctx, Int32 *p)
 	{
 		Uint32 ch;
 		Int32 accum = 0;
-		for (ch = 0; ch < 5; ch++) accum += SCCSoundChSynth(sndp, &sndp->ch[ch]) * chmask[DEV_SCC_CH1 + ch];
+		for (ch = 0; ch < 5; ch++) {
+		Int32 tapv = SCCSoundChSynth(sndp, &sndp->ch[ch]) * chmask[DEV_SCC_CH1 + ch];
+		accum += tapv;
+		NEZScopeTap(DEV_SCC_CH1 + ch, tapv);
+	}
 		accum += LogToLin(sndp->logtbl, sndp->common.mastervolume + sndp->majutushida, LOG_LIN_BITS - LIN_BITS - 14);
 		p[0] += accum;
 		p[1] += accum;

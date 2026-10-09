@@ -1,5 +1,6 @@
 #include "../../nestypes.h"
 #include "../kmsnddev.h"
+#include "../../format/nezscope.h"
 #include "../../format/audiosys.h"
 #include "../../format/handler.h"
 #include "../../format/nsf6502.h"
@@ -689,17 +690,17 @@ static Int32 __fastcall APUSoundRender(void *pNezPlay)
 {
 	APUSOUND *apu = ((NSFNSF*)((NEZ_PLAY*)pNezPlay)->nsf)->apu;
 	Int32 accum = 0 , sqout = 0, tndout = 0;
-	sqout += NESAPUSoundSquareRender(&apu->square[0]) * chmask[DEV_2A03_SQ1];
-	sqout += NESAPUSoundSquareRender(&apu->square[1]) * chmask[DEV_2A03_SQ2];
+	{ Int32 tapv = NESAPUSoundSquareRender(&apu->square[0]) * chmask[DEV_2A03_SQ1]; sqout += tapv; NEZScopeTap(DEV_2A03_SQ1, tapv); }
+	{ Int32 tapv = NESAPUSoundSquareRender(&apu->square[1]) * chmask[DEV_2A03_SQ2]; sqout += tapv; NEZScopeTap(DEV_2A03_SQ2, tapv); }
 	sqout >>= 1;
 	//o—Í‚Ì‚Ð‚¸‚Ý‚ðÄŒ»
 	if (NESRealDAC) {
 		sqout = sqout * (DAC_SQ_DOWN - (abs(sqout) / DAC_SQ_BIT)) / DAC_SQ_DOWN;
 	}
 	accum += sqout * apu->square[0].mastervolume / 20/*20kƒ¶*/;
-	tndout += NESAPUSoundDpcmRender(pNezPlay) * chmask[DEV_2A03_DPCM];
-	tndout += NESAPUSoundTriangleRender(&apu->triangle) * chmask[DEV_2A03_TR];
-	tndout += NESAPUSoundNoiseRender(&apu->noise) * chmask[DEV_2A03_NOISE];
+	{ Int32 tapv = NESAPUSoundDpcmRender(pNezPlay) * chmask[DEV_2A03_DPCM]; tndout += tapv; NEZScopeTap(DEV_2A03_DPCM, tapv); }
+	{ Int32 tapv = NESAPUSoundTriangleRender(&apu->triangle) * chmask[DEV_2A03_TR]; tndout += tapv; NEZScopeTap(DEV_2A03_TR, tapv); }
+	{ Int32 tapv = NESAPUSoundNoiseRender(&apu->noise) * chmask[DEV_2A03_NOISE]; tndout += tapv; NEZScopeTap(DEV_2A03_NOISE, tapv); }
 	tndout >>= 1;
 	//o—Í‚Ì‚Ð‚¸‚Ý‚ðÄŒ»
 	if (NESRealDAC) {

@@ -6,6 +6,7 @@
 #include "songinfo.h"
 
 #include "device/kmsnddev.h"
+#include "nezscope.h"
 #include "m_hes.h"
 #include "m_gbr.h"
 #include "m_zxay.h"
@@ -21,6 +22,62 @@ Uint8 chmask[0x80]={
 1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,
 1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,
 };
+static float nez_scope_buf[0x80][NEZ_SCOPE_BLOCK];
+static Uint8 nez_scope_touched[0x80][NEZ_SCOPE_BLOCK];
+static Uint8 nez_scope_dirty[0x80];
+static int nez_scope_pos = 0;
+static NEZScopeCallback nez_scope_cb = 0;
+static void *nez_scope_user = 0;
+
+void NEZSetScopeCallback(NEZScopeCallback callback, void *user)
+{
+	nez_scope_cb = callback;
+	nez_scope_user = user;
+	XMEMSET(nez_scope_touched, 0, sizeof(nez_scope_touched));
+	XMEMSET(nez_scope_dirty, 0, sizeof(nez_scope_dirty));
+	XMEMSET(nez_scope_buf, 0, sizeof(nez_scope_buf));
+	nez_scope_pos = 0;
+}
+
+static void nez_scope_emit_locked(int frames)
+{
+	int dev, i;
+	for (dev = 0; dev < 0x80; dev++) {
+		if (!nez_scope_dirty[dev]) continue;
+		nez_scope_dirty[dev] = 0;
+		for (i = 0; i < frames; i++) nez_scope_touched[dev][i] = 0;
+		nez_scope_cb(dev, nez_scope_buf[dev], frames, nez_scope_user);
+	}
+}
+
+void NEZScopeFlush(void)
+{
+	if (!nez_scope_cb || nez_scope_pos <= 0) return;
+	nez_scope_emit_locked(nez_scope_pos);
+	nez_scope_pos = 0;
+}
+
+void NEZScopeTick(void)
+{
+	if (!nez_scope_cb) return;
+	nez_scope_pos++;
+	if (nez_scope_pos >= NEZ_SCOPE_BLOCK) {
+		nez_scope_emit_locked(NEZ_SCOPE_BLOCK);
+		nez_scope_pos = 0;
+	}
+}
+
+void NEZScopeTap(int devId, Int32 value)
+{
+	if (!nez_scope_cb || devId < 0 || devId >= 0x80) return;
+	if (nez_scope_touched[devId][nez_scope_pos])
+		nez_scope_buf[devId][nez_scope_pos] += (float)value;
+	else {
+		nez_scope_buf[devId][nez_scope_pos] = (float)value;
+		nez_scope_touched[devId][nez_scope_pos] = 1;
+		nez_scope_dirty[devId] = 1;
+	}
+}
 extern int (*ioview_ioread_DEV_2A03   )(int a);
 extern int (*ioview_ioread_DEV_FDS    )(int a);
 extern int (*ioview_ioread_DEV_MMC5   )(int a);

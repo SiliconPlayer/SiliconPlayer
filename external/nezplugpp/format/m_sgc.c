@@ -4,6 +4,7 @@
 #include "songinfo.h"
 
 #include "m_sgc.h"
+#include "nezscope.h"
 
 #include "device/s_sng.h"
 #include "device/opl/s_opl.h"
@@ -150,6 +151,7 @@ __inline static void synth(SGCSEQ *THIS_, Int32 *d)
 			THIS_->sndp[SND_SNG]->synth(THIS_->sndp[SND_SNG]->ctx, d);
 			break;
 	}
+	NEZScopeTick();
 }
 
 __inline static void volume(SGCSEQ *THIS_, Uint32 v)

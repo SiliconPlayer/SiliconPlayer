@@ -4,6 +4,7 @@
 #include "songinfo.h"
 
 #include "m_gbr.h"
+#include "nezscope.h"
 #include "device/s_dmg.h"
 #include "device/divfix.h"
 
@@ -163,6 +164,7 @@ static Int32 execute(GBRDMG *THIS_)
 __inline static void synth(GBRDMG *THIS_, Int32 *d)
 {
 	THIS_->dmgsnd->synth(THIS_->dmgsnd->ctx, d);
+	NEZScopeTick();
 }
 
 __inline static void volume(GBRDMG *THIS_, Uint32 v)

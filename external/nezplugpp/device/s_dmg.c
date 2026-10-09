@@ -1,4 +1,5 @@
 #include "kmsnddev.h"
+#include "../format/nezscope.h"
 #include "divfix.h"
 #include "s_logtbl.h"
 #include "s_dmg.h"
@@ -544,25 +545,29 @@ static void sndsynth(void *ctx, Int32 *p)
 	if(chmask[DEV_DMG_SQ1]){
 		if ((sndp->common.regs[0x15] & 0x10)) b[0] += outputch; else b[0] += outputidle;
 		if ((sndp->common.regs[0x15] & 0x01)) b[1] += outputch; else b[1] += outputidle;
-	}
+		NEZScopeTap(DEV_DMG_SQ1, (((sndp->common.regs[0x15] & 0x10) ? outputch : 0) + ((sndp->common.regs[0x15] & 0x01) ? outputch : 0)));
+	} else NEZScopeTap(DEV_DMG_SQ1, 0);
 
 	outputch = DMGSoundSquareRender(sndp, &sndp->square[1]);
 	if(chmask[DEV_DMG_SQ2]){
 		if ((sndp->common.regs[0x15] & 0x20)) b[0] += outputch; else b[0] += outputidle;
 		if ((sndp->common.regs[0x15] & 0x02)) b[1] += outputch; else b[1] += outputidle;
-	}
+		NEZScopeTap(DEV_DMG_SQ2, (((sndp->common.regs[0x15] & 0x20) ? outputch : 0) + ((sndp->common.regs[0x15] & 0x02) ? outputch : 0)));
+	} else NEZScopeTap(DEV_DMG_SQ2, 0);
 
 	outputch = DMGSoundWaveMemoryRender(sndp, &sndp->wavememory);
 	if(chmask[DEV_DMG_WM]){
 		if ((sndp->common.regs[0x15] & 0x40)) b[0] += outputch; else b[0] += outputidle;
 		if ((sndp->common.regs[0x15] & 0x04)) b[1] += outputch; else b[1] += outputidle;
-	}
+		NEZScopeTap(DEV_DMG_WM, (((sndp->common.regs[0x15] & 0x40) ? outputch : 0) + ((sndp->common.regs[0x15] & 0x04) ? outputch : 0)));
+	} else NEZScopeTap(DEV_DMG_WM, 0);
 
 	outputch = DMGSoundNoiseRender(sndp, &sndp->noise);
 	if(chmask[DEV_DMG_NOISE]){
 		if ((sndp->common.regs[0x15] & 0x80)) b[0] += outputch; else b[0] += outputidle;
 		if ((sndp->common.regs[0x15] & 0x08)) b[1] += outputch; else b[1] += outputidle;
-	}
+		NEZScopeTap(DEV_DMG_NOISE, (((sndp->common.regs[0x15] & 0x80) ? outputch : 0) + ((sndp->common.regs[0x15] & 0x08) ? outputch : 0)));
+	} else NEZScopeTap(DEV_DMG_NOISE, 0);
 /*
 	outputch = LinToLog(sndp->logtbl, 0x32) + sndp->square[0].mastervolume;
 	outputch = LogToLin(sndp->logtbl, outputch, LOG_LIN_BITS - LIN_BITS - 14);

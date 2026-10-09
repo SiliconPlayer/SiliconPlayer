@@ -1,5 +1,6 @@
 #include "../../nestypes.h"
 #include "../kmsnddev.h"
+#include "../../format/nezscope.h"
 #include "../../format/audiosys.h"
 #include "../../format/handler.h"
 #include "../../format/nsf6502.h"
@@ -152,6 +153,7 @@ static Int32 N106SoundRenderReal2(void* pNezPlay)
 		if (((Int32)chp->count / real2) == chpn)accum += chp->output;
 		count++;
 		if (chmask[DEV_N106_CH1+chpn])outputbuf += accum / count;
+		NEZScopeTap(DEV_N106_CH1+chpn, chmask[DEV_N106_CH1+chpn] ? accum / count : 0);
 	}
 /*	n106s->ofscount += n106s->ofscps;
 	while(n106s->ofscount >= REAL_OFS_COUNT){
@@ -200,6 +202,7 @@ static Int32 N106SoundRenderReal(void* pNezPlay)
 		accum += chp->output;
 		count++;
 		if(chmask[DEV_N106_CH1+chpn])outputbuf += accum / count;
+		NEZScopeTap(DEV_N106_CH1+chpn, chmask[DEV_N106_CH1+chpn] ? accum / count : 0);
 	}
 	return outputbuf * NAMCO106_VOL;
 }
@@ -242,6 +245,7 @@ static Int32 N106SoundRenderNormal(void* pNezPlay)
 		accum += chp->output;
 		count++;
 		if(chmask[DEV_N106_CH1+chpn])outputbuf += accum / count;
+		NEZScopeTap(DEV_N106_CH1+chpn, chmask[DEV_N106_CH1+chpn] ? accum / count : 0);
 	}
 	return outputbuf * NAMCO106_VOL;
 }
