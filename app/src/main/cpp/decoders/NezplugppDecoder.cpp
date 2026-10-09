@@ -141,28 +141,42 @@ int NezplugppDecoder::read(float* buffer, int numFrames) {
         return 0;
     }
 
-    int framesToRender = numFrames;
-    if (repeatMode != 2 && durationSeconds > 0.0) {
-        const int64_t durationFrames = static_cast<int64_t>(std::llround(durationSeconds * sampleRate));
-        const int64_t remaining = durationFrames - renderedFrames;
-        if (remaining <= 0) {
-            return 0;
+    // KSS has no tagged durations and loops natively, so the fallback
+    // duration is the only terminal boundary. Modes 0/1 end there and let
+    // the engine stop or advance subtunes; mode 3 restarts the current
+    // subtune in place; mode 2 never terminates.
+    const int64_t durationFrames = static_cast<int64_t>(std::llround(durationSeconds * sampleRate));
+    int framesRead = 0;
+    while (framesRead < numFrames) {
+        int framesToRender = numFrames - framesRead;
+        if (repeatMode != 2 && durationSeconds > 0.0 && durationFrames > 0) {
+            const int64_t remaining = durationFrames - renderedFrames;
+            if (remaining <= 0) {
+                if (repeatMode == 3) {
+                    NEZReset(player);
+                    renderedFrames = 0;
+                    continue;
+                }
+                break;
+            }
+            framesToRender = static_cast<int>(std::min<int64_t>(framesToRender, remaining));
         }
-        framesToRender = static_cast<int>(std::min<int64_t>(framesToRender, remaining));
-    }
-    if (framesToRender <= 0) {
-        return 0;
-    }
+        if (framesToRender <= 0) {
+            break;
+        }
 
-    // NEZRender takes frames; each frame emits one sample per channel.
-    const size_t sampleCount = static_cast<size_t>(framesToRender) * channels;
-    pcmScratch.resize(sampleCount);
-    NEZRender(player, pcmScratch.data(), static_cast<Uint>(framesToRender));
-    for (size_t i = 0; i < sampleCount; ++i) {
-        buffer[i] = static_cast<float>(pcmScratch[i]) / 32768.0f;
+        // NEZRender takes frames; each frame emits one sample per channel.
+        const size_t baseSample = static_cast<size_t>(framesRead) * channels;
+        const size_t sampleCount = static_cast<size_t>(framesToRender) * channels;
+        pcmScratch.resize(sampleCount);
+        NEZRender(player, pcmScratch.data(), static_cast<Uint>(framesToRender));
+        for (size_t i = 0; i < sampleCount; ++i) {
+            buffer[baseSample + i] = static_cast<float>(pcmScratch[i]) / 32768.0f;
+        }
+        renderedFrames += framesToRender;
+        framesRead += framesToRender;
     }
-    renderedFrames += framesToRender;
-    return framesToRender;
+    return framesRead;
 }
 
 void NezplugppDecoder::seek(double seconds) {
