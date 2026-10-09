@@ -666,17 +666,22 @@ static void sndsynth(OPLSOUND *sndp, Int32 *p)
 			if (sndp->common.enable)
 			{
 				Uint32 i, rch;
+				int maskch;
 				OpStepNG(sndp);
 				for (i = 0; i < LFO_UNIT_NUM; i++) LfoStep(&sndp->lfo[i]);
 				rch = sndp->opl_type == OPL_TYPE_VRC7 ? 6 : (sndp->common.rmode ? 7 : 9);
+				maskch = DEV_YM2413_CH1;
+				if (sndp->opl_type == OPL_TYPE_MSXAUDIO) maskch = DEV_Y8950_CH1;
+				else if (sndp->opl_type == OPL_TYPE_VRC7) maskch = DEV_VRC7_CH1;
+				else if (sndp->opl_type == OPL_TYPE_SMSFMUNIT) maskch = DEV_SMSFM_CH1;
 				if(rch==9)
 					for (i = 0; i < rch; i++)
 					{
 						if (sndp->ch[i].op[0].modcar)
 							OpSynthMod(sndp, &sndp->ch[i].op[0]);
 						else
-							accum[0] += OpSynthCarFb(sndp, &sndp->ch[i].op[0]) * chmask[DEV_YM2413_CH1+i];
-						accum[0] += OpSynthCar(sndp, &sndp->ch[i].op[1]) * chmask[DEV_YM2413_CH1+i];
+							accum[0] += OpSynthCarFb(sndp, &sndp->ch[i].op[0]) * chmask[maskch+i];
+						accum[0] += OpSynthCar(sndp, &sndp->ch[i].op[1]) * chmask[maskch+i];
 					}
 				else
 					for (i = 0; i < rch; i++)
@@ -685,11 +690,11 @@ static void sndsynth(OPLSOUND *sndp, Int32 *p)
 							OpSynthMod(sndp, &sndp->ch[i].op[0]);
 						else{
 							if(i==6) accum[0] += OpSynthCarFb(sndp, &sndp->ch[i].op[0]) * chmask[DEV_YM2413_BD];
-							else     accum[0] += OpSynthCarFb(sndp, &sndp->ch[i].op[0]) * chmask[DEV_YM2413_CH1+i];
+							else     accum[0] += OpSynthCarFb(sndp, &sndp->ch[i].op[0]) * chmask[maskch+i];
 						}
 
 						if(i==6) accum[0] += OpSynthCar(sndp, &sndp->ch[i].op[1]) * chmask[DEV_YM2413_BD];
-						else     accum[0] += OpSynthCar(sndp, &sndp->ch[i].op[1]) * chmask[DEV_YM2413_CH1+i];
+						else     accum[0] += OpSynthCar(sndp, &sndp->ch[i].op[1]) * chmask[maskch+i];
 					}
 
 				if (sndp->common.rmode)
