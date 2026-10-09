@@ -14,6 +14,7 @@
 extern "C" {
 #include <nezplugpp/nezplug.h>
 }
+#include <nezplugpp/device/kmsnddev.h>
 
 namespace {
 constexpr int kNativeSampleRate = 44100;
@@ -85,6 +86,7 @@ bool NezplugppDecoder::open(const char* path) {
         return false;
     }
     parseSongFormatLocked(songData, songSize);
+    buildToggleChannelsLocked();
     std::free(songData);
 
     NEZSetFrequency(player, kNativeSampleRate);
@@ -345,10 +347,15 @@ static int countNsfVoices(unsigned extChips) {
 }
 
 void NezplugppDecoder::parseSongFormatLocked(const uint8_t* data, size_t size) {
+    formatName.clear();
+    songVoiceCount = 0;
+    songExtDevice = 0;
+    sgcSysType = -1;
     if (data == nullptr || size < 8) return;
     if (size >= 0x10 && (std::memcmp(data, "KSCC", 4) == 0 || std::memcmp(data, "KSSX", 4) == 0)) {
         formatName = std::memcmp(data, "KSCC", 4) == 0 ? "KSCC" : "KSSX";
-        const unsigned extDevice = data[0x0F];
+        songExtDevice = data[0x0F];
+        const unsigned extDevice = songExtDevice;
         if ((extDevice & 0x02) != 0) {
             songVoiceCount = 4 + (((extDevice & 0x01) != 0) ? 9 : 0);
         } else {
@@ -366,7 +373,8 @@ void NezplugppDecoder::parseSongFormatLocked(const uint8_t* data, size_t size) {
     }
     if (size >= 0x80 && std::memcmp(data, "NESM", 4) == 0 && data[4] == 0x1A) {
         formatName = "NSF";
-        songVoiceCount = countNsfVoices(data[0x7B]);
+        songExtDevice = data[0x7B];
+        songVoiceCount = countNsfVoices(songExtDevice);
         return;
     }
     if (std::memcmp(data, "ZXAYEMUL", 8) == 0) {
@@ -386,12 +394,14 @@ void NezplugppDecoder::parseSongFormatLocked(const uint8_t* data, size_t size) {
     }
     if (size >= 0x10 && std::memcmp(data, "NESL", 4) == 0 && data[4] == 0x1A) {
         formatName = "NSD";
-        songVoiceCount = countNsfVoices(data[0x0C]);
+        songExtDevice = data[0x0C];
+        songVoiceCount = countNsfVoices(songExtDevice);
         return;
     }
     if (size >= 0x30 && std::memcmp(data, "SGC", 3) == 0) {
         formatName = "SGC";
-        songVoiceCount = data[0x28] == 0 ? 13 : 4;
+        sgcSysType = data[0x28];
+        songVoiceCount = sgcSysType == 0 ? 13 : 4;
         return;
     }
 }
@@ -451,6 +461,117 @@ void NezplugppDecoder::setOption(const char* name, const char* value) {
             it->second = std::clamp(static_cast<float>(std::strtof(value, nullptr)), -20.0f, 20.0f);
         }
     }
+}
+
+void NezplugppDecoder::buildToggleChannelsLocked() {
+    for (int devId : toggleChannelDevIds) {
+        const auto muteIt = channelMuteByDev.find(devId);
+        if (muteIt == channelMuteByDev.end() || !muteIt->second) chmask[devId] = 1;
+    }
+    toggleChannelNames.clear();
+    toggleChannelDevIds.clear();
+    toggleChannelMuted.clear();
+    auto addChannel = [&](const char* prefix, int devFirst, int count) {
+        for (int i = 0; i < count; ++i) {
+            char label[32];
+            std::snprintf(label, sizeof(label), "%s %d", prefix, i + 1);
+            toggleChannelNames.emplace_back(label);
+            toggleChannelDevIds.push_back(devFirst + i);
+            const auto muteIt = channelMuteByDev.find(devFirst + i);
+            const bool muted = muteIt != channelMuteByDev.end() && muteIt->second;
+            toggleChannelMuted.push_back(muted);
+            chmask[devFirst + i] = muted ? 0 : 1;
+        }
+    };
+    auto addSingle = [&](const char* label, int devId) {
+        toggleChannelNames.emplace_back(label);
+        toggleChannelDevIds.push_back(devId);
+        const auto muteIt = channelMuteByDev.find(devId);
+        const bool muted = muteIt != channelMuteByDev.end() && muteIt->second;
+        toggleChannelMuted.push_back(muted);
+        chmask[devId] = muted ? 0 : 1;
+    };
+    if (formatName == "KSCC" || formatName == "KSSX") {
+        if ((songExtDevice & 0x02) != 0) {
+            addChannel("SN Square", DEV_SN76489_SQ1, 3);
+            addSingle("SN Noise", DEV_SN76489_NOISE);
+            if ((songExtDevice & 0x01) != 0) addChannel("FM", DEV_SMSFM_CH1, 9);
+        } else {
+            addChannel("PSG", DEV_AY8910_CH1, 3);
+            if ((songExtDevice & 0x80) == 0) addChannel("SCC", DEV_SCC_CH1, 5);
+            if ((songExtDevice & 0x01) != 0) addChannel("FM", DEV_YM2413_CH1, 9);
+            if ((songExtDevice & 0x08) != 0) {
+                addChannel("FMA", DEV_Y8950_CH1, 9);
+                addSingle("ADPCM", DEV_ADPCM_CH1);
+            }
+        }
+    } else if (formatName == "NSF" || formatName == "NSD") {
+        addChannel("Square", DEV_2A03_SQ1, 2);
+        addSingle("Triangle", DEV_2A03_TR);
+        addSingle("Noise", DEV_2A03_NOISE);
+        addSingle("DPCM", DEV_2A03_DPCM);
+        if ((songExtDevice & 0x01) != 0) {
+            addChannel("VRC6 Square", DEV_VRC6_SQ1, 2);
+            addSingle("VRC6 Saw", DEV_VRC6_SAW);
+        }
+        if ((songExtDevice & 0x02) != 0) addChannel("VRC7", DEV_VRC7_CH1, 6);
+        if ((songExtDevice & 0x04) != 0) addSingle("FDS", DEV_FDS_CH1);
+        if ((songExtDevice & 0x08) != 0) {
+            addChannel("MMC5 Square", DEV_MMC5_SQ1, 2);
+            addSingle("MMC5 PCM", DEV_MMC5_DA);
+        }
+        if ((songExtDevice & 0x10) != 0) addChannel("N163", DEV_N106_CH1, 8);
+        if ((songExtDevice & 0x20) != 0) addChannel("5B", DEV_AY8910_CH1, 3);
+    } else if (formatName == "GBS" || formatName == "GBR") {
+        addChannel("Square", DEV_DMG_SQ1, 2);
+        addSingle("Wave", DEV_DMG_WM);
+        addSingle("Noise", DEV_DMG_NOISE);
+    } else if (formatName == "HES") {
+        addChannel("Wave", DEV_HUC6230_CH1, 6);
+    } else if (formatName == "SGC") {
+        addChannel("Square", DEV_SN76489_SQ1, 3);
+        addSingle("Noise", DEV_SN76489_NOISE);
+        if (sgcSysType == 0) addChannel("FM", DEV_SMSFM_CH1, 9);
+    } else if (formatName == "AY") {
+        addChannel("AY", DEV_AY8910_CH1, 3);
+    }
+}
+
+void NezplugppDecoder::applyChannelMuteLocked(int channelIndex) {
+    if (channelIndex < 0 || channelIndex >= static_cast<int>(toggleChannelDevIds.size())) return;
+    const int devId = toggleChannelDevIds[static_cast<size_t>(channelIndex)];
+    const bool muted = toggleChannelMuted[static_cast<size_t>(channelIndex)];
+    chmask[devId] = muted ? 0 : 1;
+    channelMuteByDev[devId] = muted;
+}
+
+std::vector<std::string> NezplugppDecoder::getToggleChannelNames() {
+    std::lock_guard<std::mutex> lock(decodeMutex);
+    return toggleChannelNames;
+}
+
+std::vector<uint8_t> NezplugppDecoder::getToggleChannelAvailability() {
+    std::lock_guard<std::mutex> lock(decodeMutex);
+    return std::vector<uint8_t>(toggleChannelNames.size(), 1);
+}
+
+void NezplugppDecoder::setToggleChannelMuted(int channelIndex, bool enabled) {
+    std::lock_guard<std::mutex> lock(decodeMutex);
+    if (channelIndex < 0 || channelIndex >= static_cast<int>(toggleChannelMuted.size())) return;
+    toggleChannelMuted[static_cast<size_t>(channelIndex)] = enabled;
+    applyChannelMuteLocked(channelIndex);
+}
+
+bool NezplugppDecoder::getToggleChannelMuted(int channelIndex) const {
+    std::lock_guard<std::mutex> lock(decodeMutex);
+    if (channelIndex < 0 || channelIndex >= static_cast<int>(toggleChannelMuted.size())) return false;
+    return toggleChannelMuted[static_cast<size_t>(channelIndex)];
+}
+
+void NezplugppDecoder::clearToggleChannelMutes() {
+    std::lock_guard<std::mutex> lock(decodeMutex);
+    std::fill(toggleChannelMuted.begin(), toggleChannelMuted.end(), false);
+    for (size_t i = 0; i < toggleChannelDevIds.size(); ++i) applyChannelMuteLocked(static_cast<int>(i));
 }
 
 std::vector<std::string> NezplugppDecoder::getSupportedExtensions() {

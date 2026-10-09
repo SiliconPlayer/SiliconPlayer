@@ -39,6 +39,11 @@ public:
     double getPlaybackPositionSeconds() override;
     std::string getCoreStringInfo(const char* name) override;
     void setOption(const char* name, const char* value) override;
+    std::vector<std::string> getToggleChannelNames() override;
+    std::vector<uint8_t> getToggleChannelAvailability() override;
+    void setToggleChannelMuted(int channelIndex, bool enabled) override;
+    bool getToggleChannelMuted(int channelIndex) const override;
+    void clearToggleChannelMutes() override;
     TimelineMode getTimelineMode() const override { return TimelineMode::ContinuousLinear; }
 
     const char* getName() const override { return "NEZplug++"; }
@@ -65,11 +70,19 @@ private:
     int songVoiceCount = 0;
     std::string subtuneInfo;
     int filterType = 0;
+    unsigned songExtDevice = 0;
+    int sgcSysType = -1;
+    std::vector<std::string> toggleChannelNames;
+    std::vector<int> toggleChannelDevIds;
+    std::vector<bool> toggleChannelMuted;
+    std::unordered_map<int, bool> channelMuteByDev;
     std::unordered_map<std::string, float> volumeTrimDb = {
         {"KSS", 0.0f}, {"NSF", 8.0f}, {"GBS", 10.0f}, {"GBR", 10.0f},
         {"HES", 0.0f}, {"SGC", 0.0f}, {"NSD", 0.0f}, {"AY", 0.0f},
     };
     void parseSongFormatLocked(const uint8_t* data, size_t size);
+    void buildToggleChannelsLocked();
+    void applyChannelMuteLocked(int channelIndex);
 
     void closeInternalLocked();
     bool selectSongLocked(unsigned int songNo);
