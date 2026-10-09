@@ -126,6 +126,17 @@ internal object AboutCatalog {
             )
         ),
         AboutEntity(
+            id = "core.viogsf",
+            kind = AboutEntityKind.Core,
+            name = DecoderNames.VIOGSF,
+            description = "Game Boy Advance GSF playback core.",
+            author = "kode54 and VBA contributors",
+            license = "GPL-2.0-only",
+            links = listOf(
+                AboutEntityLink("Source", "https://github.com/SiliconPlayer/viogsf")
+            )
+        ),
+        AboutEntity(
             id = "core.sc68",
             kind = AboutEntityKind.Core,
             name = DecoderNames.SC68,
@@ -583,6 +594,7 @@ internal object AboutCatalog {
         DecoderNames.LAZY_USF2 to "core.lazyusf2",
         DecoderNames.VIO2_SF to "core.vio2sf",
         DecoderNames.LIB_UPSE to "core.libupse",
+        DecoderNames.VIOGSF to "core.viogsf",
         DecoderNames.SC68 to "core.sc68",
         DecoderNames.AD_PLUG to "core.adplug",
         DecoderNames.UADE to "core.uade",

@@ -61,6 +61,12 @@ source = "external/libupse"
 note = "No standalone license file upstream; the GPL-2.0 grant lives in the source headers."
 
 [[dep]]
+id = "core.viogsf"
+spdx = "GPL-2.0-only"
+source = "external/viogsf"
+note = "No standalone license file upstream; VBA-derived core with blargg APU files under LGPL-2.1-or-later."
+
+[[dep]]
 id = "core.sc68"
 spdx = "GPL-3.0-or-later"
 source = "external/sc68"
