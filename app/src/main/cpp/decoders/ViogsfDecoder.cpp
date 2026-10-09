@@ -26,10 +26,10 @@ constexpr unsigned long kInvalidPsfTime = 0xC0CAC01A;
 constexpr int kViogsfScopeTextStride = 10;
 constexpr int kViogsfScopeTextFlagActive = 1 << 0;
 constexpr float kViogsfScopeActivePeak = 0.0015f;
-// GBA voices sit far below full scale; lift them into the scope rows the
-// way the SID cores lift theirs. Sized so the loudest passages stay under
-// the clamp below.
-constexpr float kViogsfScopeTapGain = 3.0f;
+// PCM taps peak near 0.5 on loud tracks, so the gain stays modest: 1.5x
+// puts the hottest passages near 0.78, safely under the clamp below,
+// while still lifting the quiet wave voice into view.
+constexpr float kViogsfScopeTapGain = 1.5f;
 constexpr const char* kViogsfScopeVoiceNames[] = {
     "Square 1", "Square 2", "Wave", "Noise", "PCM A", "PCM B"
 };
@@ -303,6 +303,7 @@ bool ViogsfDecoder::open(const char* path) {
         closeInternalLocked();
         return false;
     }
+    applyAudioOptionsLocked();
     applyScopeTapLocked();
     if (toggleChannelNames.empty()) {
         toggleChannelNames.reserve(kScopeVoices);
@@ -531,11 +532,31 @@ static bool parseScopeBoolOption(const char* value, bool fallback) {
     return fallback;
 }
 
+void ViogsfDecoder::applyAudioOptionsLocked() {
+    if (!player) {
+        return;
+    }
+    viogsf_set_interpolation(player, interpolationEnabled ? 1 : 0);
+    viogsf_set_filtering(player, filteringLevel);
+}
+
 void ViogsfDecoder::setOption(const char* name, const char* value) {
     if (!name) {
         return;
     }
     std::lock_guard<std::mutex> lock(decodeMutex);
+    if (equalsIgnoreCase(name, "viogsf.interpolation")) {
+        interpolationEnabled = parseScopeBoolOption(value, interpolationEnabled);
+        applyAudioOptionsLocked();
+        return;
+    }
+    if (equalsIgnoreCase(name, "viogsf.filtering")) {
+        if (value) {
+            filteringLevel = std::clamp(static_cast<float>(std::strtof(value, nullptr)), 0.0f, 1.0f);
+            applyAudioOptionsLocked();
+        }
+        return;
+    }
     if (equalsIgnoreCase(name, "visualization.channel_scope_active")) {
         const bool enabled = parseScopeBoolOption(value, scopeCaptureEnabled);
         if (scopeCaptureEnabled == enabled) {
