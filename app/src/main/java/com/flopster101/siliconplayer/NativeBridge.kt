@@ -509,6 +509,12 @@ object NativeBridge {
     external fun getLibupseComment(): String
     external fun getLibupseLengthTag(): String
     external fun getLibupseFadeTag(): String
+    external fun getViogsfGameName(): String
+    external fun getViogsfCopyright(): String
+    external fun getViogsfYear(): String
+    external fun getViogsfComment(): String
+    external fun getViogsfLengthTag(): String
+    external fun getViogsfFadeTag(): String
     external fun getSidFormatName(): String
     external fun getSidClockName(): String
     external fun getSidSpeedName(): String

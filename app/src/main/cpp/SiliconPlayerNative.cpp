@@ -1826,6 +1826,48 @@ Java_com_flopster101_siliconplayer_NativeBridge_getLibupseFadeTag(JNIEnv* env, j
 }
 
 extern "C" JNIEXPORT jstring JNICALL
+Java_com_flopster101_siliconplayer_NativeBridge_getViogsfGameName(JNIEnv* env, jobject) {
+    if (audioEngine == nullptr) return toJString(env, "");
+    std::string value = audioEngine->getViogsfGameName();
+    return toJString(env, value);
+}
+
+extern "C" JNIEXPORT jstring JNICALL
+Java_com_flopster101_siliconplayer_NativeBridge_getViogsfCopyright(JNIEnv* env, jobject) {
+    if (audioEngine == nullptr) return toJString(env, "");
+    std::string value = audioEngine->getViogsfCopyright();
+    return toJString(env, value);
+}
+
+extern "C" JNIEXPORT jstring JNICALL
+Java_com_flopster101_siliconplayer_NativeBridge_getViogsfYear(JNIEnv* env, jobject) {
+    if (audioEngine == nullptr) return toJString(env, "");
+    std::string value = audioEngine->getViogsfYear();
+    return toJString(env, value);
+}
+
+extern "C" JNIEXPORT jstring JNICALL
+Java_com_flopster101_siliconplayer_NativeBridge_getViogsfComment(JNIEnv* env, jobject) {
+    if (audioEngine == nullptr) return toJString(env, "");
+    std::string value = audioEngine->getViogsfComment();
+    return toJString(env, value);
+}
+
+extern "C" JNIEXPORT jstring JNICALL
+Java_com_flopster101_siliconplayer_NativeBridge_getViogsfLengthTag(JNIEnv* env, jobject) {
+    if (audioEngine == nullptr) return toJString(env, "");
+    std::string value = audioEngine->getViogsfLengthTag();
+    return toJString(env, value);
+}
+
+extern "C" JNIEXPORT jstring JNICALL
+Java_com_flopster101_siliconplayer_NativeBridge_getViogsfFadeTag(JNIEnv* env, jobject) {
+    if (audioEngine == nullptr) return toJString(env, "");
+    std::string value = audioEngine->getViogsfFadeTag();
+    return toJString(env, value);
+}
+
+extern "C" JNIEXPORT jstring JNICALL
 Java_com_flopster101_siliconplayer_NativeBridge_getSidFormatName(JNIEnv* env, jobject) {
     if (audioEngine == nullptr) return toJString(env, "");
     std::string value = audioEngine->getSidFormatName();

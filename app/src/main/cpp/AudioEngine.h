@@ -190,6 +190,12 @@ public:
     std::string getLibupseComment();
     std::string getLibupseLengthTag();
     std::string getLibupseFadeTag();
+    std::string getViogsfGameName();
+    std::string getViogsfCopyright();
+    std::string getViogsfYear();
+    std::string getViogsfComment();
+    std::string getViogsfLengthTag();
+    std::string getViogsfFadeTag();
     std::string getSidFormatName();
     std::string getSidClockName();
     std::string getSidSpeedName();

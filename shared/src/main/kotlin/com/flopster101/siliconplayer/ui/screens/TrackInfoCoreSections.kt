@@ -187,6 +187,16 @@ internal fun TrackInfoCoreSections(
             if (metadata.libupse.comment.isNotBlank()) TrackInfoDetailsRow("Comment", metadata.libupse.comment)
         }
 
+        decoderName.equals(DecoderNames.VIOGSF, ignoreCase = true) -> {
+            TrackInfoSectionHeader(DecoderNames.VIOGSF)
+            if (metadata.viogsf.gameName.isNotBlank()) TrackInfoDetailsRow("Game", metadata.viogsf.gameName)
+            if (metadata.viogsf.year.isNotBlank()) TrackInfoDetailsRow("Year", metadata.viogsf.year)
+            if (metadata.viogsf.copyright.isNotBlank()) TrackInfoDetailsRow("Copyright", metadata.viogsf.copyright)
+            if (metadata.viogsf.lengthTag.isNotBlank()) TrackInfoDetailsRow("Tagged length", metadata.viogsf.lengthTag)
+            if (metadata.viogsf.fadeTag.isNotBlank()) TrackInfoDetailsRow("Tagged fade", metadata.viogsf.fadeTag)
+            if (metadata.viogsf.comment.isNotBlank()) TrackInfoDetailsRow("Comment", metadata.viogsf.comment)
+        }
+
         decoderName.equals(DecoderNames.C_RSID, ignoreCase = true) ||
             decoderName.equals(DecoderNames.LIB_SID_PLAY_FP, ignoreCase = true) -> {
             TrackInfoSectionHeader(decoderName ?: DecoderNames.C_RSID)

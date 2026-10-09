@@ -134,6 +134,15 @@ internal data class Vio2sfMetadata(
     val fadeTag: String = ""
 )
 
+internal data class ViogsfMetadata(
+    val gameName: String = "",
+    val copyright: String = "",
+    val year: String = "",
+    val comment: String = "",
+    val lengthTag: String = "",
+    val fadeTag: String = ""
+)
+
 internal data class LibupseMetadata(
     val gameName: String = "",
     val copyright: String = "",
@@ -294,6 +303,7 @@ internal data class TrackInfoLiveMetadata(
     val lazyUsf2: LazyUsf2Metadata = LazyUsf2Metadata(),
     val vio2sf: Vio2sfMetadata = Vio2sfMetadata(),
     val libupse: LibupseMetadata = LibupseMetadata(),
+    val viogsf: ViogsfMetadata = ViogsfMetadata(),
     val sid: SidMetadata = SidMetadata(),
     val sc68: Sc68Metadata = Sc68Metadata(),
     val adplug: AdplugMetadata = AdplugMetadata(),
@@ -491,6 +501,17 @@ private fun queryTrackInfoLiveMetadata(decoderName: String?): TrackInfoLiveMetad
                 comment = NativeBridge.getLibupseComment(),
                 lengthTag = NativeBridge.getLibupseLengthTag(),
                 fadeTag = NativeBridge.getLibupseFadeTag()
+            )
+        )
+
+        decoderName.equals(DecoderNames.VIOGSF, ignoreCase = true) -> common.copy(
+            viogsf = ViogsfMetadata(
+                gameName = NativeBridge.getViogsfGameName(),
+                copyright = NativeBridge.getViogsfCopyright(),
+                year = NativeBridge.getViogsfYear(),
+                comment = NativeBridge.getViogsfComment(),
+                lengthTag = NativeBridge.getViogsfLengthTag(),
+                fadeTag = NativeBridge.getViogsfFadeTag()
             )
         )
 
