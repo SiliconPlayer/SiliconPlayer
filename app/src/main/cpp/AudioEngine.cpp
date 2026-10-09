@@ -205,6 +205,27 @@ namespace {
                 return DecoderPluginLoader::getInstance().createDecoder("libsiliconplayer_vgm_decoder.so");
             }, 5, std::move(vgmStaticInfo));
 
+            DecoderStaticInfo nezplugppStaticInfo;
+            nezplugppStaticInfo.hasPlaybackCapabilities = true;
+            nezplugppStaticInfo.playbackCapabilities =
+                    AudioDecoder::PLAYBACK_CAP_SEEK |
+                    AudioDecoder::PLAYBACK_CAP_LIVE_REPEAT_MODE |
+                    AudioDecoder::PLAYBACK_CAP_FIXED_SAMPLE_RATE;
+            nezplugppStaticInfo.hasRepeatModeCapabilities = true;
+            nezplugppStaticInfo.repeatModeCapabilities =
+                    AudioDecoder::REPEAT_CAP_TRACK |
+                    AudioDecoder::REPEAT_CAP_LOOP_POINT;
+            nezplugppStaticInfo.hasTimelineMode = true;
+            nezplugppStaticInfo.timelineMode = AudioDecoder::TimelineMode::ContinuousLinear;
+            nezplugppStaticInfo.hasFixedSampleRateHz = true;
+            nezplugppStaticInfo.fixedSampleRateHz = 44100;
+            nezplugppStaticInfo.optionApplyPolicy = [](const char*) {
+                return AudioDecoder::OPTION_APPLY_LIVE;
+            };
+            DecoderRegistry::getInstance().registerDecoder("nezplugpp", {"kss"}, []() {
+                return DecoderPluginLoader::getInstance().createDecoder("libsiliconplayer_nezplugpp_decoder.so");
+            }, 5, std::move(nezplugppStaticInfo));
+
             DecoderStaticInfo gmeStaticInfo;
             gmeStaticInfo.hasPlaybackCapabilities = true;
             gmeStaticInfo.playbackCapabilities =

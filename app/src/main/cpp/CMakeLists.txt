@@ -191,6 +191,10 @@ include_directories(${CMAKE_CURRENT_BINARY_DIR}/libusb_gen)
     add_library(libviogsf SHARED IMPORTED)
     set_target_properties(libviogsf PROPERTIES IMPORTED_LOCATION "${PREBUILT_DIR}/lib/libviogsf.so")
 
+    # Import nezplugpp (Shared)
+    add_library(libnezplugpp SHARED IMPORTED)
+    set_target_properties(libnezplugpp PROPERTIES IMPORTED_LOCATION "${PREBUILT_DIR}/lib/libnezplugpp.so")
+
     # Import sc68 stack (Shared)
     add_library(libsc68 SHARED IMPORTED)
     set_target_properties(libsc68 PROPERTIES IMPORTED_LOCATION "${PREBUILT_DIR}/lib/libsc68.so")
@@ -743,6 +747,39 @@ include_directories(${CMAKE_CURRENT_BINARY_DIR}/libusb_gen)
             siliconplayer_viogsf_decoder
             libviogsf
             libpsflib
+            z
+            ${log-lib}
+            m
+    )
+
+    add_library(
+            siliconplayer_nezplugpp_decoder
+            SHARED
+            decoders/NezplugppDecoder.cpp
+            decoders/NezplugppDecoderPlugin.cpp
+    )
+    if (ANDROID)
+        target_compile_options(
+                siliconplayer_nezplugpp_decoder
+                PRIVATE
+                "-fvisibility=hidden"
+                "-fvisibility-inlines-hidden"
+        )
+        target_link_options(
+                siliconplayer_nezplugpp_decoder
+                PRIVATE
+                "-Wl,-z,max-page-size=16384"
+                "-Wl,-z,common-page-size=16384"
+        )
+    endif()
+    target_include_directories(
+            siliconplayer_nezplugpp_decoder
+            PRIVATE
+            "${PREBUILT_DIR}/include/nezplugpp"
+    )
+    target_link_libraries(
+            siliconplayer_nezplugpp_decoder
+            libnezplugpp
             z
             ${log-lib}
             m

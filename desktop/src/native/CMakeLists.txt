@@ -520,6 +520,25 @@ target_link_libraries(siliconplayer_viogsf_decoder PRIVATE
     m
 )
 
+# 14d. Nezplugpp Decoder
+add_library(libnezplugpp_prebuilt SHARED IMPORTED)
+set_target_properties(libnezplugpp_prebuilt PROPERTIES IMPORTED_LOCATION "${PREBUILT_DIR}/lib/libnezplugpp.so")
+
+add_library(siliconplayer_nezplugpp_decoder SHARED
+    "${APP_CPP_DIR}/decoders/NezplugppDecoder.cpp"
+    "${APP_CPP_DIR}/decoders/NezplugppDecoderPlugin.cpp"
+)
+target_include_directories(siliconplayer_nezplugpp_decoder PRIVATE
+    ${COMMON_INCLUDES}
+    "${PREBUILT_DIR}/include"
+    "${PREBUILT_DIR}/include/nezplugpp"
+)
+target_link_libraries(siliconplayer_nezplugpp_decoder PRIVATE
+    libnezplugpp_prebuilt
+    ZLIB::ZLIB
+    m
+)
+
 # 15. HivelyTracker Decoder
 add_library(libhivelytracker_prebuilt SHARED IMPORTED)
 set_target_properties(libhivelytracker_prebuilt PROPERTIES IMPORTED_LOCATION "${PREBUILT_DIR}/lib/libhivelytracker.so")

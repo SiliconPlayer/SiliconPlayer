@@ -1,0 +1,65 @@
+#ifndef SILICONPLAYER_NEZPLUGPPDECODER_H
+#define SILICONPLAYER_NEZPLUGPPDECODER_H
+
+#include "AudioDecoder.h"
+#include <cstdint>
+#include <mutex>
+#include <string>
+#include <vector>
+
+struct NEZPLAY_TAG;
+
+class NezplugppDecoder : public AudioDecoder {
+public:
+    NezplugppDecoder();
+    ~NezplugppDecoder() override;
+
+    bool open(const char* path) override;
+    void close() override;
+    int read(float* buffer, int numFrames) override;
+    void seek(double seconds) override;
+    double getDuration() override;
+    int getSampleRate() override;
+    int getBitDepth() override;
+    std::string getBitDepthLabel() override;
+    int getChannelCount() override;
+    int getSubtuneCount() const override;
+    int getCurrentSubtuneIndex() const override;
+    bool selectSubtune(int index) override;
+    std::string getTitle() override;
+    std::string getArtist() override;
+    std::string getCopyright() override;
+    std::string getComment() override;
+    void setRepeatMode(int mode) override;
+    int getRepeatModeCapabilities() const override;
+    int getPlaybackCapabilities() const override;
+    int getFixedSampleRateHz() const override;
+    double getPlaybackPositionSeconds() override;
+    TimelineMode getTimelineMode() const override { return TimelineMode::ContinuousLinear; }
+
+    const char* getName() const override { return "nezplugpp"; }
+    static std::vector<std::string> getSupportedExtensions();
+
+private:
+    mutable std::mutex decodeMutex;
+    NEZPLAY_TAG* player = nullptr;
+    std::vector<int16_t> pcmScratch;
+    bool isOpen = false;
+    int repeatMode = 0;
+    int sampleRate = 44100;
+    int channels = 2;
+    int bitDepth = 16;
+    bool durationReliable = false;
+    double durationSeconds = 180.0;
+    int64_t renderedFrames = 0;
+    std::string sourcePath;
+    std::string title;
+    std::string artist;
+    std::string copyrightText;
+    std::string comment;
+
+    void closeInternalLocked();
+    bool selectSongLocked(unsigned int songNo);
+};
+
+#endif // SILICONPLAYER_NEZPLUGPPDECODER_H
