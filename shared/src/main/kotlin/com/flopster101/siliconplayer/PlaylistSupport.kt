@@ -229,6 +229,26 @@ internal fun effectiveTrackMetadata(
     album = entry?.album?.trim()?.takeIf { it.isNotBlank() } ?: fallbackAlbum
 )
 
+// The playlist entry owns the length: a finite positive M3U duration beats the
+// decoder fallback, on every platform.
+internal fun playlistEntryDurationOverride(entry: PlaylistTrackEntry?): Double? =
+    entry?.durationSecondsOverride?.takeIf { it.isFinite() && it > 0.0 }
+
+// A playlist row identifies its entry by source plus subtune: several entries
+// can share one file (an M3U of NSF subtunes), so source alone is ambiguous.
+// A null subtune (rows recorded before it was stored) takes the first match.
+internal fun matchPlaylistEntryByHint(
+    entries: List<PlaylistTrackEntry>,
+    hintSource: String?,
+    hintSubtuneIndex: Int?
+): PlaylistTrackEntry? {
+    if (hintSource.isNullOrBlank()) return null
+    val bySource = entries.filter { samePath(it.source, hintSource) }
+    if (bySource.isEmpty()) return null
+    if (hintSubtuneIndex == null) return bySource.first()
+    return bySource.firstOrNull { it.subtuneIndex == hintSubtuneIndex } ?: bySource.first()
+}
+
 // Queue-pinned subtune transport: while a queue entry pins the subtune, the
 // track buttons advance the queue, never the raw subtune list.
 internal fun isPlaylistSubtunePinned(entry: PlaylistTrackEntry?): Boolean =

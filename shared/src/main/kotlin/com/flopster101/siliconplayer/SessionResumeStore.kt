@@ -14,7 +14,10 @@ internal data class SessionResumeSnapshot(
     val durationSeconds: Double,
     val playlistId: String?,
     val entryId: String?,
-    val shuffleActive: Boolean
+    val shuffleActive: Boolean,
+    val playlistSource: String? = null,
+    val entrySource: String? = null,
+    val subtuneIndex: Int? = null
 )
 
 internal const val SESSION_RESUME_FILE_NAME = "session_resume.json"
@@ -41,6 +44,9 @@ internal fun writeSessionResumeSnapshot(configDir: File, snapshot: SessionResume
     if (snapshot.playlistId != null) json.put("playlistId", snapshot.playlistId)
     if (snapshot.entryId != null) json.put("entryId", snapshot.entryId)
     if (snapshot.shuffleActive) json.put("shuffleActive", true)
+    if (snapshot.playlistSource != null) json.put("playlistSource", snapshot.playlistSource)
+    if (snapshot.entrySource != null) json.put("entrySource", snapshot.entrySource)
+    if (snapshot.subtuneIndex != null) json.put("subtuneIndex", snapshot.subtuneIndex)
     writeTextAtomic(file, json.toString())
 }
 
@@ -60,6 +66,9 @@ internal fun readSessionResumeSnapshot(configDir: File): SessionResumeSnapshot? 
         durationSeconds = json.optDouble("durationSeconds", 0.0),
         playlistId = json.optString("playlistId", null)?.trim()?.takeUnless { it.isBlank() },
         entryId = json.optString("entryId", null)?.trim()?.takeUnless { it.isBlank() },
-        shuffleActive = json.optBoolean("shuffleActive", false)
+        shuffleActive = json.optBoolean("shuffleActive", false),
+        playlistSource = json.optString("playlistSource", null)?.trim()?.takeUnless { it.isBlank() },
+        entrySource = json.optString("entrySource", null)?.trim()?.takeUnless { it.isBlank() },
+        subtuneIndex = json.optInt("subtuneIndex", -1).takeIf { it >= 0 }
     )
 }

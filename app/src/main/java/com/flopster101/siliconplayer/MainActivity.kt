@@ -529,13 +529,6 @@ private data class LastStoppedPlaylistResume(
     val entryId: String
 )
 
-private data class ExternalPlaylistRecentOverride(
-    val playlistPath: String,
-    val locationId: String?,
-    val sourceHint: String?,
-    val referencedSources: Set<String>
-)
-
 private fun buildFavoritesPlaybackPlaylist(entries: List<PlaylistTrackEntry>): StoredPlaylist {
     return StoredPlaylist(
         id = "__favorites__",
@@ -2117,9 +2110,7 @@ private fun AppNavigation(
     val effectiveMetadataTitle = currentEffectiveTitle()
     val effectiveMetadataArtist = currentEffectiveArtist()
     val effectiveMetadataAlbum = currentEffectiveAlbum()
-    val playlistDurationOverride = activePlaylistMetadataEntry
-        ?.durationSecondsOverride
-        ?.takeIf { it.isFinite() && it > 0.0 }
+    val playlistDurationOverride = playlistEntryDurationOverride(activePlaylistMetadataEntry)
     val effectiveDuration = currentEffectiveDuration()
     val pinnedPlaylistSubtune = isPlaylistSubtunePinned(activePlaylistMetadataEntry)
     val titleSubtuneCount = subtuneCount
@@ -2323,19 +2314,11 @@ private fun AppNavigation(
     )
     fun currentExternalPlaylistRecentOverride(): ExternalPlaylistRecentOverride? {
         val playlist = activePlaylist ?: return null
-        if (playlist.format == PlaylistStoredFormat.Internal) return null
-        val playlistPath = playlist.sourceIdHint?.trim()?.takeIf { it.isNotBlank() } ?: return null
-        val playlistEntry = playlist.entries.firstOrNull { it.id == activePlaylistEntryId } ?: return null
         val locationId = playlist.sourceIdHint
             ?.let(::resolvePlaylistEntryLocalFile)
             ?.takeIf { it.exists() && it.isFile && isSupportedPlaylistFile(it) }
             ?.let { lastBrowserLocationId }
-        return ExternalPlaylistRecentOverride(
-            playlistPath = playlistPath,
-            locationId = locationId,
-            sourceHint = playlistEntry.source.trim().takeIf { it.isNotBlank() },
-            referencedSources = playlist.entries.map { it.source }.toSet()
-        )
+        return externalPlaylistRecentOverride(playlist, activePlaylistEntryId, locationId)
     }
 
     val addRecentPlayedTrackFromPlaybackContext: (String, String?, String?, String?) -> Unit =
@@ -2427,10 +2410,10 @@ private fun AppNavigation(
             limit = recentFilesLimit
         )
         if (playlistOverride != null && playlistOverride.referencedSources.isNotEmpty()) {
-                updatedRecentPlayed = updatedRecentPlayed.filterNot { entry ->
-                    !entry.isPlaylist &&
-                        playlistOverride.referencedSources.any { referenced -> samePath(entry.path, referenced) }
-                }
+            updatedRecentPlayed = updatedRecentPlayed.filterNot { entry ->
+                !entry.isPlaylist &&
+                    playlistOverride.referencedSources.any { referenced -> samePath(entry.path, referenced) }
+            }
         }
         recentPlayedFiles = updatedRecentPlayed
         writeRecentEntries(

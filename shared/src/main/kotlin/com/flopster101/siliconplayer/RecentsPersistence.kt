@@ -35,6 +35,99 @@ internal fun readRecentEntries(
     return emptyList()
 }
 
+// Playlist-backed recents: while a queue entry from an external playlist is
+// playing, recents keep the playlist row, never the underlying file row.
+internal data class ExternalPlaylistRecentOverride(
+    val playlistPath: String,
+    val locationId: String?,
+    val sourceHint: String?,
+    val referencedSources: Set<String>
+)
+
+internal fun externalPlaylistRecentOverride(
+    playlist: StoredPlaylist?,
+    entryId: String?,
+    locationId: String? = null
+): ExternalPlaylistRecentOverride? {
+    val list = playlist ?: return null
+    if (list.format == PlaylistStoredFormat.Internal) return null
+    val playlistPath = list.sourceIdHint?.trim()?.takeIf { it.isNotBlank() } ?: return null
+    val entry = list.entries.firstOrNull { it.id == entryId } ?: return null
+    return ExternalPlaylistRecentOverride(
+        playlistPath = playlistPath,
+        locationId = locationId,
+        sourceHint = entry.source.trim().takeIf { it.isNotBlank() },
+        referencedSources = list.entries.map { it.source }.toSet()
+    )
+}
+
+internal fun buildUpdatedRecentPlayedTracks(
+    current: List<RecentPathEntry>,
+    newPath: String,
+    locationId: String?,
+    sourceNodeId: Long? = null,
+    title: String? = null,
+    artist: String? = null,
+    decoderName: String? = null,
+    artworkThumbnailCacheKey: String? = null,
+    isPlaylist: Boolean = false,
+    playlistSourceHint: String? = null,
+    subtuneIndex: Int? = null,
+    perSubtuneRows: Boolean = false,
+    clearBlankMetadataOnUpdate: Boolean = false,
+    limit: Int
+): List<RecentPathEntry> {
+    val normalized = normalizeSourceIdentity(newPath) ?: newPath
+    // A playlist row is per playlist: the entry subtune it carries changes as the
+    // queue advances, so it must never fork the row under per-subtune dedup.
+    val existing = current.firstOrNull {
+        if (isPlaylist) samePath(it.path, normalized)
+        else if (perSubtuneRows) sameRecentTrack(it.path, it.subtuneIndex, normalized, subtuneIndex)
+        else samePath(it.path, normalized)
+    }
+    val resolvedIsPlaylist = isPlaylist || existing?.isPlaylist == true
+    val resolvedPlaylistSourceHint = playlistSourceHint
+        ?.trim()
+        .takeUnless { it.isNullOrBlank() }
+        ?: existing?.playlistSourceHint
+    val trimmedTitle = title?.trim()
+    val trimmedArtist = artist?.trim()
+    // The playlist entry owns the metadata: a passed title/artist always wins,
+    // even on playlist rows. Callers without entry metadata pass null.
+    val resolvedTitle = when {
+        clearBlankMetadataOnUpdate && trimmedTitle != null -> trimmedTitle.ifBlank { null }
+        else -> trimmedTitle.takeUnless { it.isNullOrBlank() } ?: existing?.title
+    }
+    val resolvedArtist = when {
+        clearBlankMetadataOnUpdate && trimmedArtist != null -> trimmedArtist.ifBlank { null }
+        else -> trimmedArtist.takeUnless { it.isNullOrBlank() } ?: existing?.artist
+    }
+    val resolvedDecoderName = decoderName?.trim().takeUnless { it.isNullOrBlank() } ?: existing?.decoderName
+    val resolvedArtworkThumbnailCacheKey = artworkThumbnailCacheKey
+        ?.trim()
+        .takeUnless { it.isNullOrBlank() }
+        ?: existing?.artworkThumbnailCacheKey
+    val updated = listOf(
+        RecentPathEntry(
+            path = normalized,
+            locationId = locationId ?: existing?.locationId,
+            title = resolvedTitle,
+            artist = resolvedArtist,
+            decoderName = resolvedDecoderName,
+            sourceNodeId = sourceNodeId ?: existing?.sourceNodeId,
+            artworkThumbnailCacheKey = resolvedArtworkThumbnailCacheKey,
+            isPlaylist = resolvedIsPlaylist,
+            playlistSourceHint = resolvedPlaylistSourceHint,
+            subtuneIndex = subtuneIndex ?: existing?.subtuneIndex
+        )
+    ) + current.filterNot {
+        if (isPlaylist) samePath(it.path, normalized)
+        else if (perSubtuneRows) sameRecentTrack(it.path, it.subtuneIndex, normalized, subtuneIndex)
+        else samePath(it.path, normalized)
+    }
+    return updated.take(limit)
+}
+
 internal fun decodeRecentEntries(
     raw: String?,
     maxItems: Int,

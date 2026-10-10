@@ -1631,7 +1631,7 @@ internal fun HomeScreen(
                                                                     isArchiveSource = archiveSource != null,
                                                                     usePlaylistSubtitleIcon = entry.isPlaylist,
                                                                     isCurrentlyPlaying = isCurrentlyPlayingEntry,
-                                                                    subtuneIndex = entry.subtuneIndex
+                                                                    subtuneIndex = entry.subtuneIndex.takeUnless { entry.isPlaylist }
                                                                 )
                                                             }
                                                             Spacer(modifier = Modifier.width(4.dp))

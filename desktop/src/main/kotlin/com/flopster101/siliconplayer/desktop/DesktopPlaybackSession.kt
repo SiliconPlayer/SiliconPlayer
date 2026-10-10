@@ -138,6 +138,9 @@ class DesktopPlaybackSession(
     var preferredRepeatMode: RepeatMode = RepeatMode.None
     // Queue advance for track-end Playlist/None; returns false when the queue is exhausted.
     var onAdvanceQueue: ((wrap: Boolean) -> Boolean)? = null
+    // Active M3U entry length, host-owned like preferredRepeatMode. Ends the track
+    // even when the decoder fallback would play on (Android parity).
+    var playlistDurationOverrideSeconds: Double? = null
 
     init {
         startTicker()
@@ -572,6 +575,7 @@ class DesktopPlaybackSession(
     private fun startTicker() {
         tickerJob?.cancel()
         tickerJob = scope.launch {
+            var lastTickPositionSeconds = 0.0
             while (isActive) {
                 if (!isUserSeeking) {
                     val pos = NativeBridge.getPosition()
@@ -603,7 +607,15 @@ class DesktopPlaybackSession(
                     if (NativeBridge.consumeTransportErrorEvent()) {
                         println("SiliconPlayer: stream stalled, playback stopped")
                     }
-                    if (NativeBridge.consumeNaturalEndEvent()) {
+                    // Crossing the entry length counts as a natural end. Edge-triggered
+                    // on the previous tick so a stale read after the end handling
+                    // (seek back, advance, stop) can never refire it.
+                    val overrideEnd = playlistDurationOverrideSeconds
+                        ?.takeIf { it.isFinite() && it > 0.0 }
+                    val overrideEndReached = overrideEnd != null && playing &&
+                        lastTickPositionSeconds < overrideEnd && pos >= overrideEnd
+                    lastTickPositionSeconds = pos
+                    if (NativeBridge.consumeNaturalEndEvent() || overrideEndReached) {
                         when (repeatMode) {
                             RepeatMode.Track, RepeatMode.Subtune -> {
                                 seekTo(0.0)

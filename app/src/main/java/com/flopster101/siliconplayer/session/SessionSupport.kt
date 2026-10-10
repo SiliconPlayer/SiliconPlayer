@@ -301,69 +301,6 @@ internal fun buildUpdatedRecentFolders(
     return updated.take(limit)
 }
 
-internal fun buildUpdatedRecentPlayedTracks(
-    current: List<RecentPathEntry>,
-    newPath: String,
-    locationId: String?,
-    sourceNodeId: Long? = null,
-    title: String? = null,
-    artist: String? = null,
-    decoderName: String? = null,
-    artworkThumbnailCacheKey: String? = null,
-    isPlaylist: Boolean = false,
-    playlistSourceHint: String? = null,
-    subtuneIndex: Int? = null,
-    perSubtuneRows: Boolean = false,
-    clearBlankMetadataOnUpdate: Boolean = false,
-    limit: Int
-): List<RecentPathEntry> {
-    val normalized = normalizeSourceIdentity(newPath) ?: newPath
-    val existing = current.firstOrNull {
-        if (perSubtuneRows) sameRecentTrack(it.path, it.subtuneIndex, normalized, subtuneIndex)
-        else samePath(it.path, normalized)
-    }
-    val resolvedIsPlaylist = isPlaylist || existing?.isPlaylist == true
-    val resolvedPlaylistSourceHint = playlistSourceHint
-        ?.trim()
-        .takeUnless { it.isNullOrBlank() }
-        ?: existing?.playlistSourceHint
-    val trimmedTitle = title?.trim()
-    val trimmedArtist = artist?.trim()
-    val resolvedTitle = when {
-        resolvedIsPlaylist -> null
-        clearBlankMetadataOnUpdate && trimmedTitle != null -> trimmedTitle.ifBlank { null }
-        else -> trimmedTitle.takeUnless { it.isNullOrBlank() } ?: existing?.title
-    }
-    val resolvedArtist = when {
-        resolvedIsPlaylist -> null
-        clearBlankMetadataOnUpdate && trimmedArtist != null -> trimmedArtist.ifBlank { null }
-        else -> trimmedArtist.takeUnless { it.isNullOrBlank() } ?: existing?.artist
-    }
-    val resolvedDecoderName = decoderName?.trim().takeUnless { it.isNullOrBlank() } ?: existing?.decoderName
-    val resolvedArtworkThumbnailCacheKey = artworkThumbnailCacheKey
-        ?.trim()
-        .takeUnless { it.isNullOrBlank() }
-        ?: existing?.artworkThumbnailCacheKey
-    val updated = listOf(
-        RecentPathEntry(
-            path = normalized,
-            locationId = locationId ?: existing?.locationId,
-            title = resolvedTitle,
-            artist = resolvedArtist,
-            decoderName = resolvedDecoderName,
-            sourceNodeId = sourceNodeId ?: existing?.sourceNodeId,
-            artworkThumbnailCacheKey = resolvedArtworkThumbnailCacheKey,
-            isPlaylist = resolvedIsPlaylist,
-            playlistSourceHint = resolvedPlaylistSourceHint,
-            subtuneIndex = subtuneIndex ?: existing?.subtuneIndex
-        )
-    ) + current.filterNot {
-        if (perSubtuneRows) sameRecentTrack(it.path, it.subtuneIndex, normalized, subtuneIndex)
-        else samePath(it.path, normalized)
-    }
-    return updated.take(limit)
-}
-
 internal fun mergePinnedFileMetadataAndArtwork(
     current: List<HomePinnedEntry>,
     path: String,

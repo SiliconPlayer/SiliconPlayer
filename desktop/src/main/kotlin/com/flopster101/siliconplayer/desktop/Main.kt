@@ -13,6 +13,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.MusicNote
 import androidx.compose.runtime.*
+import androidx.compose.runtime.snapshots.Snapshot
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusDirection
@@ -149,7 +150,13 @@ import com.flopster101.siliconplayer.removeStoredPlaylistEntries
 import com.flopster101.siliconplayer.removeStoredPlaylistEntry
 import com.flopster101.siliconplayer.renameStoredPlaylist
 import com.flopster101.siliconplayer.resolveAdjacentIndex
+import com.flopster101.siliconplayer.buildUpdatedRecentPlayedTracks
 import com.flopster101.siliconplayer.effectiveTrackMetadata
+import com.flopster101.siliconplayer.matchPlaylistEntryByHint
+import com.flopster101.siliconplayer.playlistEntryDurationOverride
+import com.flopster101.siliconplayer.externalPlaylistRecentOverride
+import com.flopster101.siliconplayer.isSupportedPlaylistFile
+import com.flopster101.siliconplayer.parsePlaylistDocument
 import com.flopster101.siliconplayer.isPlaylistSubtunePinned
 import com.flopster101.siliconplayer.matchPlaylistEntryForPlayback
 import com.flopster101.siliconplayer.pinnedTransportSubtuneCount
@@ -512,30 +519,86 @@ fun main(args: Array<String>) = application {
         }
     }
 
-    fun registerLoadedFile(file: File) {
-        val ext = inferredPrimaryExtensionForName(file.name)?.uppercase(Locale.ROOT) ?: "FILE"
-        val sourceId = session.currentSourceId
-        val identity = sourceId ?: file.absolutePath
-        val entry = RecentPathEntry(
-            path = identity,
-            locationId = null,
-            title = session.title.ifBlank { file.name },
-            artist = session.artist.ifBlank { ext },
-            decoderName = session.decoderName,
-            sourceNodeId = NetworkNodesHolder.current.firstOrNull { it.source == sourceId }?.id,
-            artworkThumbnailCacheKey = recentArtworkCacheKeyForSource(identity) ?: identity,
-            subtuneIndex = session.subtuneIndex.takeIf { session.subtuneCount > 1 }
+    // The playlist entry owns the metadata: entry fields first, live track text as fallback.
+    fun playlistRowMetadata(entry: PlaylistTrackEntry?, playlistPath: String): Pair<String?, String?> {
+        val meta = effectiveTrackMetadata(
+            entry,
+            session.title.ifBlank { File(playlistPath).name },
+            session.artist,
+            ""
         )
-        val rowSubtune = entry.subtuneIndex
-        recentFiles.removeAll {
-            if (perSubtuneRecentRows) sameRecentTrack(it.path, it.subtuneIndex, identity, rowSubtune)
-            else it.path == identity
+        return meta.title to meta.artist
+    }
+
+    fun registerLoadedFile(file: File) {
+        val queueOverride = externalPlaylistRecentOverride(activePlaylist, activePlaylistEntryId)
+        if (queueOverride != null) {
+            val queueRowEntry =
+                activePlaylist?.entries?.firstOrNull { it.id == activePlaylistEntryId }
+            val (rowTitle, rowArtist) = playlistRowMetadata(queueRowEntry, queueOverride.playlistPath)
+            // One atomic commit: a concurrent record must never see the cleared list.
+            Snapshot.withMutableSnapshot {
+                val updated = buildUpdatedRecentPlayedTracks(
+                    current = recentFiles.toList(),
+                    newPath = queueOverride.playlistPath,
+                    locationId = null,
+                    title = rowTitle,
+                    artist = rowArtist,
+                    decoderName = session.decoderName,
+                    isPlaylist = true,
+                    playlistSourceHint = queueOverride.sourceHint,
+                    subtuneIndex = queueRowEntry?.subtuneIndex,
+                    perSubtuneRows = perSubtuneRecentRows,
+                    limit = recentFilesLimit
+                ).filterNot { row ->
+                    !row.isPlaylist &&
+                        queueOverride.referencedSources.any { referenced -> samePath(row.path, referenced) }
+                }
+                recentFiles.clear()
+                recentFiles.addAll(updated)
+            }
+            scheduleRecentArtworkBackfill?.invoke(queueOverride.playlistPath, session.currentRequestUrl)
+        } else {
+            val ext = inferredPrimaryExtensionForName(file.name)?.uppercase(Locale.ROOT) ?: "FILE"
+            val sourceId = session.currentSourceId
+            val identity = sourceId ?: file.absolutePath
+            val entry = RecentPathEntry(
+                path = identity,
+                locationId = null,
+                title = session.title.ifBlank { file.name },
+                artist = session.artist.ifBlank { ext },
+                decoderName = session.decoderName,
+                sourceNodeId = NetworkNodesHolder.current.firstOrNull { it.source == sourceId }?.id,
+                artworkThumbnailCacheKey = recentArtworkCacheKeyForSource(identity) ?: identity,
+                subtuneIndex = session.subtuneIndex.takeIf { session.subtuneCount > 1 }
+            )
+            val hintedPlaylistRow = recentFiles.firstOrNull {
+                it.isPlaylist && samePath(it.playlistSourceHint, identity)
+            }
+            if (hintedPlaylistRow != null) {
+                // Played outside the queue, but a playlist entry claims this file:
+                // bump the playlist row, never a raw file row.
+                Snapshot.withMutableSnapshot {
+                    recentFiles.removeAll { it.isPlaylist && samePath(it.path, hintedPlaylistRow.path) }
+                    recentFiles.add(0, hintedPlaylistRow)
+                    while (recentFiles.size > recentFilesLimit) {
+                        recentFiles.removeLast()
+                    }
+                }
+                scheduleRecentArtworkBackfill?.invoke(hintedPlaylistRow.path, session.currentRequestUrl)
+            } else {
+                val rowSubtune = entry.subtuneIndex
+                recentFiles.removeAll {
+                    if (perSubtuneRecentRows) sameRecentTrack(it.path, it.subtuneIndex, identity, rowSubtune)
+                    else it.path == identity
+                }
+                recentFiles.add(0, entry)
+                while (recentFiles.size > recentFilesLimit) {
+                    recentFiles.removeLast()
+                }
+                scheduleRecentArtworkBackfill?.invoke(identity, session.currentRequestUrl)
+            }
         }
-        recentFiles.add(0, entry)
-        while (recentFiles.size > recentFilesLimit) {
-            recentFiles.removeLast()
-        }
-        scheduleRecentArtworkBackfill?.invoke(identity, session.currentRequestUrl)
 
         val parent = file.parentFile
         if (parent != null) {
@@ -555,6 +618,10 @@ fun main(args: Array<String>) = application {
 
     fun recordSubtuneSwitchInRecents() {
         val switchedFile = session.currentFile ?: return
+        if (externalPlaylistRecentOverride(activePlaylist, activePlaylistEntryId) != null) {
+            registerLoadedFile(switchedFile)
+            return
+        }
         val switchedIdentity = session.currentSourceId ?: switchedFile.absolutePath
         val subtune = session.subtuneIndex.takeIf { session.subtuneCount > 1 }
         val idx = recentFiles.indexOfFirst {
@@ -571,6 +638,8 @@ fun main(args: Array<String>) = application {
 
     fun playFile(file: File, subtuneIndex: Int? = null) {
         pendingQueueEntryId = null
+        activePlaylist = null
+        activePlaylistEntryId = null
         val generation = playRequestGeneration.incrementAndGet()
         playLoadScope.launch(Dispatchers.IO) {
             val loaded = session.loadFile(file, autoStart = autoPlayOnTrackSelect, initialSubtuneIndex = subtuneIndex)
@@ -583,6 +652,8 @@ fun main(args: Array<String>) = application {
 
     fun playSource(source: String, titleHint: String? = null, artistHint: String? = null, subtuneIndex: Int? = null) {
         pendingQueueEntryId = null
+        activePlaylist = null
+        activePlaylistEntryId = null
         val file = File(source)
         if (file.exists() && file.isFile) {
             playFile(file, subtuneIndex)
@@ -593,29 +664,57 @@ fun main(args: Array<String>) = application {
             if (!session.loadSource(source, titleHint, artistHint, autoStart = autoPlayOnTrackSelect, initialSubtuneIndex = subtuneIndex)) return@launch
             if (generation != playRequestGeneration.get()) return@launch
             if (openPlayerOnTrackSelect) isPlayerSurfaceVisible = true
-            val sourceId = session.currentSourceId
-            val sourceNodeId = NetworkNodesHolder.current.firstOrNull { it.source == sourceId }?.id
-            val identity = sourceId ?: source
-            val entry = RecentPathEntry(
-                path = identity,
-                locationId = null,
-                title = session.title.ifBlank { titleHint ?: source },
-                artist = session.artist.ifBlank { artistHint ?: "Network" },
-                decoderName = session.decoderName,
-                sourceNodeId = sourceNodeId,
-                artworkThumbnailCacheKey = recentArtworkCacheKeyForSource(identity) ?: identity,
-                subtuneIndex = session.subtuneIndex.takeIf { session.subtuneCount > 1 }
-            )
-            val rowSubtune = entry.subtuneIndex
-            recentFiles.removeAll {
-                if (perSubtuneRecentRows) sameRecentTrack(it.path, it.subtuneIndex, identity, rowSubtune)
-                else it.path == identity
+            val queueOverride = externalPlaylistRecentOverride(activePlaylist, activePlaylistEntryId)
+            if (queueOverride != null) {
+                val queueRowEntry =
+                    activePlaylist?.entries?.firstOrNull { it.id == activePlaylistEntryId }
+                val (rowTitle, rowArtist) = playlistRowMetadata(queueRowEntry, queueOverride.playlistPath)
+                Snapshot.withMutableSnapshot {
+                    val updated = buildUpdatedRecentPlayedTracks(
+                        current = recentFiles.toList(),
+                        newPath = queueOverride.playlistPath,
+                        locationId = null,
+                        title = rowTitle,
+                        artist = rowArtist,
+                        decoderName = session.decoderName,
+                        isPlaylist = true,
+                        playlistSourceHint = queueOverride.sourceHint,
+                        subtuneIndex = queueRowEntry?.subtuneIndex,
+                        perSubtuneRows = perSubtuneRecentRows,
+                        limit = recentFilesLimit
+                    ).filterNot { row ->
+                        !row.isPlaylist &&
+                            queueOverride.referencedSources.any { referenced -> samePath(row.path, referenced) }
+                    }
+                    recentFiles.clear()
+                    recentFiles.addAll(updated)
+                }
+                scheduleRecentArtworkBackfill?.invoke(queueOverride.playlistPath, session.currentRequestUrl)
+            } else {
+                val sourceId = session.currentSourceId
+                val sourceNodeId = NetworkNodesHolder.current.firstOrNull { it.source == sourceId }?.id
+                val identity = sourceId ?: source
+                val entry = RecentPathEntry(
+                    path = identity,
+                    locationId = null,
+                    title = session.title.ifBlank { titleHint ?: source },
+                    artist = session.artist.ifBlank { artistHint ?: "Network" },
+                    decoderName = session.decoderName,
+                    sourceNodeId = sourceNodeId,
+                    artworkThumbnailCacheKey = recentArtworkCacheKeyForSource(identity) ?: identity,
+                    subtuneIndex = session.subtuneIndex.takeIf { session.subtuneCount > 1 }
+                )
+                val rowSubtune = entry.subtuneIndex
+                recentFiles.removeAll {
+                    if (perSubtuneRecentRows) sameRecentTrack(it.path, it.subtuneIndex, identity, rowSubtune)
+                    else it.path == identity
+                }
+                recentFiles.add(0, entry)
+                while (recentFiles.size > recentFilesLimit) {
+                    recentFiles.removeLast()
+                }
+                scheduleRecentArtworkBackfill?.invoke(identity, session.currentRequestUrl)
             }
-            recentFiles.add(0, entry)
-            while (recentFiles.size > recentFilesLimit) {
-                recentFiles.removeLast()
-            }
-            scheduleRecentArtworkBackfill?.invoke(identity, session.currentRequestUrl)
         }
     }
 
@@ -666,6 +765,15 @@ fun main(args: Array<String>) = application {
     )
     // Pinned while a queue entry claims the subtune: track buttons advance
     // the queue, never the raw subtune list (Android parity).
+    // The M3U entry owns the length: its duration replaces the decoder fallback
+    // in every player header below and ends the track in the session ticker.
+    val queueDurationOverrideSeconds = playlistEntryDurationOverride(playerActiveEntry)
+    val effectiveDurationSeconds = queueDurationOverrideSeconds ?: session.durationSeconds
+    val effectiveHasReliableDuration =
+        session.hasReliableDuration || queueDurationOverrideSeconds != null
+    LaunchedEffect(queueDurationOverrideSeconds) {
+        session.playlistDurationOverrideSeconds = queueDurationOverrideSeconds
+    }
     val queueSubtunePinned = isPlaylistSubtunePinned(playerActiveEntry)
     val transportSubtuneCount = pinnedTransportSubtuneCount(session.subtuneCount, queueSubtunePinned)
     val transportCurrentSubtuneIndex =
@@ -993,8 +1101,13 @@ fun main(args: Array<String>) = application {
                                 )
                                 if (merged != recentFiles) {
                                     // Snapshot state is thread-safe; no Main hop (none exists on desktop).
-                                    recentFiles.clear()
-                                    recentFiles.addAll(merged)
+                                    // Committed atomically so a concurrent record never sees the gap.
+                                    Snapshot.withMutableSnapshot {
+                                        if (merged != recentFiles.toList()) {
+                                            recentFiles.clear()
+                                            recentFiles.addAll(merged)
+                                        }
+                                    }
                                 }
                             } finally {
                                 recentArtworkBackfillJobs.remove(playedSourceId)
@@ -1160,6 +1273,33 @@ fun main(args: Array<String>) = application {
                     }
                 }
                 return true
+            }
+            // Playlist recent tap: reopen the playlist at the hinted entry.
+            fun openRecentPlaylistEntry(entry: RecentPathEntry) {
+                playLoadScope.launch(Dispatchers.IO) {
+                    val file = resolvePlaylistEntryLocalFile(entry.path)
+                        ?.takeIf { it.exists() && it.isFile && isSupportedPlaylistFile(it) }
+                    if (file == null) {
+                        toastHandler.showToast("Playlist is not available")
+                        return@launch
+                    }
+                    val document = runCatching { parsePlaylistDocument(file, entry.path) }.getOrNull()
+                    if (document == null) {
+                        toastHandler.showToast("Could not open playlist")
+                        return@launch
+                    }
+                    val queue = buildImportedPlaylist(document)
+                    val target = matchPlaylistEntryByHint(
+                        queue.entries,
+                        entry.playlistSourceHint,
+                        entry.subtuneIndex
+                    ) ?: queue.entries.firstOrNull()
+                    if (target == null) {
+                        toastHandler.showToast("Playlist is empty")
+                        return@launch
+                    }
+                    openQueueEntry(queue, target, false)
+                }
             }
             // Playlist-queue advance; falls through when the current track has no entry here.
             // Wrap follows the shared shouldWrap expression; callers pass it explicitly.
@@ -1674,6 +1814,38 @@ fun main(args: Array<String>) = application {
                             }
                         }
                     }
+                    if (activePlaylist == null && !snapshot.playlistSource.isNullOrBlank()) {
+                        // Imported queue (an M3U opened from the browser, not the
+                        // library): re-parse and re-match by entry source plus
+                        // subtune, since parsing mints fresh entry ids.
+                        val restored = withContext(Dispatchers.IO) {
+                            val playlistFile = resolvePlaylistEntryLocalFile(snapshot.playlistSource)
+                                ?.takeIf { it.exists() && it.isFile && isSupportedPlaylistFile(it) }
+                                ?: return@withContext null
+                            val queue = parsePlaylistDocument(playlistFile, null)
+                                ?.let(::buildImportedPlaylist)
+                                ?: return@withContext null
+                            val queueEntry = queue.entries.firstOrNull {
+                                samePath(it.source, snapshot.entrySource ?: snapshot.sourceId) &&
+                                    it.subtuneIndex == snapshot.subtuneIndex
+                            } ?: return@withContext null
+                            if (!samePath(queueEntry.source, snapshot.sourceId)) {
+                                return@withContext null
+                            }
+                            queue to queueEntry
+                        }
+                        if (restored != null) {
+                            activePlaylist = restored.first
+                            activePlaylistEntryId = restored.second.id
+                            if (snapshot.shuffleActive) {
+                                activePlaylistShuffleActive = true
+                                activePlaylist = restored.first.copy(
+                                    entries = listOf(restored.second) +
+                                        restored.first.entries.filter { it.id != restored.second.id }.shuffled()
+                                )
+                            }
+                        }
+                    }
                     session.preferredRepeatMode = preferredRepeatMode
                     // Decoder open can grind (large modules, archives):
                     // never on first composition.
@@ -1722,9 +1894,8 @@ fun main(args: Array<String>) = application {
                 hadLoadedTrack = true
                 val playlist = activePlaylist
                 val entryId = activePlaylistEntryId?.trim().takeUnless { it.isNullOrBlank() }
-                val playlistId = if (playlist != null && entryId != null &&
-                    playlist.entries.any { it.id == entryId }
-                ) {
+                val queueEntry = playlist?.entries?.firstOrNull { it.id == entryId }
+                val playlistId = if (playlist != null && queueEntry != null) {
                     playlist.id
                 } else {
                     null
@@ -1737,7 +1908,14 @@ fun main(args: Array<String>) = application {
                         durationSeconds = session.durationSeconds,
                         playlistId = playlistId,
                         entryId = if (playlistId != null) entryId else null,
-                        shuffleActive = activePlaylistShuffleActive
+                        shuffleActive = activePlaylistShuffleActive,
+                        playlistSource = if (playlistId != null) {
+                            playlist?.sourceIdHint?.trim()?.takeIf { it.isNotBlank() }
+                        } else {
+                            null
+                        },
+                        entrySource = if (playlistId != null) queueEntry?.source else null,
+                        subtuneIndex = if (playlistId != null) queueEntry?.subtuneIndex else null
                     )
                 )
             }
@@ -1806,8 +1984,10 @@ fun main(args: Array<String>) = application {
                     prefs.getBoolean(AppPreferenceKeys.RECENTS_PER_SUBTUNE_ROWS, false)
                 )
                     .takeIf { it.isNotEmpty() }?.let { stored ->
-                        recentFiles.clear()
-                        recentFiles.addAll(stored)
+                        Snapshot.withMutableSnapshot {
+                            recentFiles.clear()
+                            recentFiles.addAll(stored)
+                        }
                     }
                 readPinnedHomeEntries(configDir, legacyPrefs = prefs)
                     .takeIf { it.isNotEmpty() }?.let { stored ->
@@ -2191,6 +2371,10 @@ fun main(args: Array<String>) = application {
                                                 )
                                             },
                                             onPlayRecentFile = { entry ->
+                                                if (entry.isPlaylist) {
+                                                    openRecentPlaylistEntry(entry)
+                                                    return@HomeScreen
+                                                }
                                                 loadSmbRecentFolderContext(
                                                     scope = desktopSmbFolderScope,
                                                     entry = entry,
@@ -2982,8 +3166,8 @@ fun main(args: Array<String>) = application {
                                 seekInProgress = false,
                                 canResumeStoppedTrack = session.canResume(),
                                 positionSeconds = session.positionSeconds,
-                                durationSeconds = session.durationSeconds,
-                                hasReliableDuration = session.hasReliableDuration,
+                                durationSeconds = effectiveDurationSeconds,
+                                hasReliableDuration = effectiveHasReliableDuration,
                                 previousRestartsAfterThreshold = previousRestartsAfterThreshold,
                                 canPreviousTrack = session.currentFile != null,
                                 canNextTrack = session.currentFile != null,
@@ -3117,7 +3301,7 @@ fun main(args: Array<String>) = application {
                                     onPlay = { session.play() },
                                     onPause = { session.pause() },
                                     onStopAndClear = { session.stop() },
-                                    durationSeconds = session.durationSeconds,
+                                    durationSeconds = effectiveDurationSeconds,
                                     positionSeconds = session.positionSeconds,
                                     positionSecondsProvider = { session.positionSeconds },
                                     canPreviousTrack = session.currentFile != null,
@@ -3144,7 +3328,7 @@ fun main(args: Array<String>) = application {
                                     repeatMode = session.repeatMode,
                                     canCycleRepeatMode = supportsLiveRepeatMode(session.playbackCapabilitiesFlags),
                                     canSeek = session.canSeek,
-                                    hasReliableDuration = session.hasReliableDuration,
+                                    hasReliableDuration = effectiveHasReliableDuration,
                                     playbackCapabilitiesFlags = session.playbackCapabilitiesFlags,
                                     onSeek = { seconds -> session.seekTo(seconds) },
                                     onPreviousTrack = { goPreviousTrack() },
@@ -3309,8 +3493,8 @@ fun main(args: Array<String>) = application {
                             sampleRateHz = session.sampleRateHz,
                             channelCount = session.channelCount,
                             bitDepthLabel = session.bitDepthLabel,
-                            durationSeconds = session.durationSeconds,
-                            hasReliableDuration = session.hasReliableDuration,
+                            durationSeconds = effectiveDurationSeconds,
+                            hasReliableDuration = effectiveHasReliableDuration,
                             onDismiss = { showTrackInfoDialog = false }
                         )
                     }
