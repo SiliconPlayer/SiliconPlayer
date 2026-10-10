@@ -255,6 +255,18 @@ internal object AboutCatalog {
                 AboutEntityLink("Project", "https://ufmod.sourceforge.io/"),
                 AboutEntityLink("Source", "https://github.com/Flopster101/uFMOD-C")
             )
+        ),
+        AboutEntity(
+            id = "core.nezplugpp",
+            kind = AboutEntityKind.Core,
+            name = DecoderNames.NEZPLUGPP,
+            description = "Chiptune playback core for KSS, NSF, GBS, HES, SGC, NSD and AY tracks.",
+            author = "Mamiya and NEZplug++ contributors",
+            license = "Public Domain",
+            links = listOf(
+                AboutEntityLink("Project", "http://nezplug.sourceforge.net/"),
+                AboutEntityLink("Source", "http://offgao.net/program/nezplug++.html")
+            )
         )
     )
 
@@ -604,7 +616,8 @@ internal object AboutCatalog {
         DecoderNames.LIB_DN_FAMITRACKER to "core.dnfamitracker",
         DecoderNames.AYFLY to "core.ayfly",
         DecoderNames.LIBXMP to "core.libxmp",
-        DecoderNames.UFMOD to "core.ufmod"
+        DecoderNames.UFMOD to "core.ufmod",
+        DecoderNames.NEZPLUGPP to "core.nezplugpp"
     )
 
     private val entityById: Map<String, AboutEntity> = (coreEntries + libraryEntries).associateBy { it.id }
