@@ -223,6 +223,9 @@ import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Shadow
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.material3.AlertDialog
@@ -289,8 +292,9 @@ private fun ToastOverlay(
         contentAlignment = Alignment.BottomCenter
     ) {
         Column(
+            modifier = Modifier.padding(bottom = 16.dp).padding(start = 16.dp, end = 16.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
-            modifier = Modifier.padding(bottom = 16.dp).padding(start = 16.dp, end = 16.dp)
+            verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
             items.forEach { item ->
                 key(item.id) {
@@ -306,12 +310,20 @@ private fun ToastOverlay(
                         exit = fadeOut() + slideOutVertically { it / 2 }
                     ) {
                         Surface(
-                            color = MaterialTheme.colorScheme.primary,
-                            contentColor = MaterialTheme.colorScheme.onPrimary,
-                            shape = RoundedCornerShape(8.dp)
+                            shape = RoundedCornerShape(8.dp),
+                            color = MaterialTheme.colorScheme.surfaceContainerHigh,
+                            contentColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                            shadowElevation = 8.dp
                         ) {
                             Text(
                                 text = item.message,
+                                style = MaterialTheme.typography.bodyMedium.copy(
+                                    shadow = Shadow(
+                                        color = Color.Black.copy(alpha = 0.5f),
+                                        offset = Offset(0f, 1f),
+                                        blurRadius = 3f
+                                    )
+                                ),
                                 modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
                             )
                         }
@@ -3656,8 +3668,10 @@ fun main(args: Array<String>) = application {
                     }
                 }
             }
+            SiliconPlayerBaseTheme(darkTheme = darkTheme) {
+                ToastOverlay(items = toasts, onDismiss = {})
+            }
         }
-        ToastOverlay(items = toasts, onDismiss = {})
     }
 }
 
