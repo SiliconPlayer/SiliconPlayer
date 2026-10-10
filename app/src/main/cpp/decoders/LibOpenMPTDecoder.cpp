@@ -534,6 +534,14 @@ std::vector<float> LibOpenMPTDecoder::getCurrentChannelScopeSamples(int samplesP
     return channelScopeState->getProcessedSamples(samplesPerChannel);
 }
 
+int LibOpenMPTDecoder::getChannelScopeTextCapabilities() const {
+    return AudioDecoder::kScopeTextNote |
+           AudioDecoder::kScopeTextVolume |
+           AudioDecoder::kScopeTextEffects |
+           AudioDecoder::kScopeTextInstrument |
+           AudioDecoder::kScopeTextSample;
+}
+
 std::vector<int32_t> LibOpenMPTDecoder::getChannelScopeTextState(int maxChannels) {
     std::lock_guard<std::mutex> lock(decodeMutex);
     if (!module) {

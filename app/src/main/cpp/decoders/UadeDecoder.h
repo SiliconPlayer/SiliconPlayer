@@ -73,6 +73,7 @@ public:
     int getCoreIntInfo(const char* name, int fallback = 0) override;
     int64_t getCoreInt64Info(const char* name, int64_t fallback = 0) override;
     std::shared_ptr<ChannelScopeSharedState> getChannelScopeSharedState() const override { return channelScopeState; }
+    int getChannelScopeTextCapabilities() const override;
     std::vector<int32_t> getChannelScopeTextState(int maxChannels) override;
 
     const char* getName() const override { return "UADE"; }

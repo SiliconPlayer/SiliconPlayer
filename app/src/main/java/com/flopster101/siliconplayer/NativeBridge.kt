@@ -714,5 +714,6 @@ object NativeBridge {
     external fun setDecoderEnabledExtensions(decoderName: String, extensions: Array<String>)
     external fun hasDecoderExtensionOverride(decoderName: String): Boolean
     external fun decoderSupportsFeature(decoderName: String, feature: String): Boolean
+    external fun getChannelScopeTextCapabilities(decoderName: String): Int
     external fun setUadeRuntimePaths(baseDir: String, uadeCorePath: String)
 }

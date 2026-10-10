@@ -66,16 +66,18 @@ fun supportsChannelScopeVisualization(coreNameForUi: String?): Boolean {
     return NativeBridge.decoderSupportsFeature(pluginName, DecoderFeatures.CHANNEL_SCOPE)
 }
 
-fun supportsChannelScopeNoteText(coreNameForUi: String?): Boolean {
-    return when (pluginNameForCoreName(coreNameForUi)) {
-        DecoderNames.LIB_OPEN_MPT,
-        DecoderNames.LIBXMP,
-        DecoderNames.FURNACE,
-        DecoderNames.KLYSTRACK,
-        DecoderNames.HIVELY_TRACKER,
-        DecoderNames.LIB_DN_FAMITRACKER -> true
-        else -> false
-    }
+/** Channel-scope text capability bits (see AudioDecoder::kScopeText*). */
+object ChannelScopeTextCapability {
+    const val NOTE = 1
+    const val VOLUME = 1 shl 1
+    const val EFFECTS = 1 shl 2
+    const val INSTRUMENT = 1 shl 3
+    const val SAMPLE = 1 shl 4
+}
+
+fun channelScopeTextCapabilities(coreNameForUi: String?): Int {
+    val pluginName = pluginNameForCoreName(coreNameForUi) ?: return 0
+    return NativeBridge.getChannelScopeTextCapabilities(pluginName)
 }
 
 fun isVisualizationModeSelectable(

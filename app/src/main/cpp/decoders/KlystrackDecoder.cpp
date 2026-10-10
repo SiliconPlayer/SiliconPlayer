@@ -291,6 +291,13 @@ void KlystrackDecoder::captureChannelScopeSnapshotLocked() {
     channelScopeState->publish(raw, vu, capturedChannels, ++channelScopeSourceSerial);
 }
 
+int KlystrackDecoder::getChannelScopeTextCapabilities() const {
+    return AudioDecoder::kScopeTextNote |
+           AudioDecoder::kScopeTextVolume |
+           AudioDecoder::kScopeTextEffects |
+           AudioDecoder::kScopeTextInstrument;
+}
+
 std::vector<int32_t> KlystrackDecoder::getChannelScopeTextState(int maxChannels) {
     std::lock_guard<std::mutex> lock(decodeMutex);
     if (!player || KSND_GetChannelPatternState == nullptr) {

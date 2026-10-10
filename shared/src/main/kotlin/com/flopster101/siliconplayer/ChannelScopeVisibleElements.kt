@@ -23,7 +23,36 @@ internal data class ChannelScopeVisibleElementOption(
         get() = AppPreferenceKeys.visualizationChannelScopeVisibleElementKey(coreId, elementId.storageId)
 }
 
-internal fun channelScopeVisibleElementOptions(): List<ChannelScopeVisibleElementOption> {
+private fun requiredChannelScopeTextCapabilityBit(elementId: ChannelScopeVisibleElementId): Int {
+    return when (elementId) {
+        ChannelScopeVisibleElementId.Volume -> ChannelScopeTextCapability.VOLUME
+        ChannelScopeVisibleElementId.EffectPrimary,
+        ChannelScopeVisibleElementId.EffectSecondary -> ChannelScopeTextCapability.EFFECTS
+        ChannelScopeVisibleElementId.Instrument -> ChannelScopeTextCapability.INSTRUMENT
+        ChannelScopeVisibleElementId.Sample -> ChannelScopeTextCapability.SAMPLE
+        ChannelScopeVisibleElementId.Chip -> 0
+    }
+}
+
+private fun channelScopeDecoderNameForCoreId(coreId: String): String? {
+    return when (coreId) {
+        "openmpt" -> DecoderNames.LIB_OPEN_MPT
+        "libxmp" -> DecoderNames.LIBXMP
+        "furnace" -> DecoderNames.FURNACE
+        "gme" -> DecoderNames.GAME_MUSIC_EMU
+        "crsid" -> DecoderNames.C_RSID
+        "sc68" -> DecoderNames.SC68
+        "klystrack" -> DecoderNames.KLYSTRACK
+        "hivelytracker" -> DecoderNames.HIVELY_TRACKER
+        "dnfamitracker" -> DecoderNames.LIB_DN_FAMITRACKER
+        "uade" -> DecoderNames.UADE
+        "libupse" -> DecoderNames.LIB_UPSE
+        "viogsf" -> DecoderNames.VIOGSF
+        else -> null
+    }
+}
+
+private fun channelScopeVisibleElementOptionCatalog(): List<ChannelScopeVisibleElementOption> {
     return listOf(
         ChannelScopeVisibleElementOption(
             coreId = "openmpt",
@@ -180,6 +209,18 @@ internal fun channelScopeVisibleElementOptions(): List<ChannelScopeVisibleElemen
     )
 }
 
+// Options actually offered: an element needing decoder text columns is listed
+// only when that core reports the matching capability bit. Chip labels come
+// from toggle names, which are always real, so they need no bit.
+internal fun channelScopeVisibleElementOptions(): List<ChannelScopeVisibleElementOption> {
+    return channelScopeVisibleElementOptionCatalog().filter { option ->
+        val bit = requiredChannelScopeTextCapabilityBit(option.elementId)
+        if (bit == 0) return@filter true
+        val decoderName = channelScopeDecoderNameForCoreId(option.coreId) ?: return@filter false
+        channelScopeTextCapabilities(decoderName) and bit != 0
+    }
+}
+
 internal fun defaultChannelScopeVisibleElementSelection(): Set<String> {
     return channelScopeVisibleElementOptions()
         .mapTo(linkedSetOf()) { it.storageKey }
@@ -241,6 +282,8 @@ internal fun isChannelScopeVisibleElementEnabled(
     elementId: ChannelScopeVisibleElementId
 ): Boolean {
     val coreId = channelScopeCoreIdForDecoderName(decoderName) ?: return false
+    val bit = requiredChannelScopeTextCapabilityBit(elementId)
+    if (bit != 0 && channelScopeTextCapabilities(decoderName) and bit == 0) return false
     val storageKey = AppPreferenceKeys.visualizationChannelScopeVisibleElementKey(
         coreId = coreId,
         elementId = elementId.storageId

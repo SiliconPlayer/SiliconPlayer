@@ -370,6 +370,14 @@ void DnfamitrackerDecoder::refreshTimelineLocked() {
     loopStartSeconds = std::clamp(duration - loopLengthSeconds, 0.0, duration);
 }
 
+int DnfamitrackerDecoder::getChannelScopeTextCapabilities() const {
+    return AudioDecoder::kScopeTextNote |
+           AudioDecoder::kScopeTextVolume |
+           AudioDecoder::kScopeTextEffects |
+           AudioDecoder::kScopeTextInstrument |
+           AudioDecoder::kScopeTextSample;
+}
+
 std::vector<int32_t> DnfamitrackerDecoder::getChannelScopeTextState(int maxChannels) {
     std::lock_guard<std::mutex> lock(decodeMutex);
     if (!isOpen || !player) {

@@ -100,7 +100,8 @@ import com.flopster101.siliconplayer.VisualizationMode
 import com.flopster101.siliconplayer.VisualizationNoteNameFormat
 import com.flopster101.siliconplayer.VisualizationOscColorMode
 import com.flopster101.siliconplayer.VisualizationOscFpsMode
-import com.flopster101.siliconplayer.supportsChannelScopeNoteText
+import com.flopster101.siliconplayer.ChannelScopeTextCapability
+import com.flopster101.siliconplayer.channelScopeTextCapabilities
 import com.flopster101.siliconplayer.VisualizationRenderBackend
 import com.flopster101.siliconplayer.VisualizationVuAnchor
 import com.flopster101.siliconplayer.isChannelScopeVisibleElementEnabled
@@ -2647,7 +2648,7 @@ internal fun AlbumArtPlaceholder(
         textNoteFormat = channelScopePrefs.textNoteFormat,
         textShowChannel = channelScopePrefs.textShowChannel,
         textShowNote = channelScopePrefs.textShowNote &&
-            supportsChannelScopeNoteText(decoderName),
+            (channelScopeTextCapabilities(decoderName) and ChannelScopeTextCapability.NOTE != 0),
         textShowVolume = isChannelScopeVisibleElementEnabled(
             selectedStorageKeys = channelScopePrefs.textVisibleElementSelection,
             decoderName = decoderName,
@@ -3028,7 +3029,7 @@ internal fun AlbumArtPlaceholder(
                     channelScopeTextNoteFormat = channelScopePrefs.textNoteFormat,
                     channelScopeTextShowChannel = channelScopePrefs.textShowChannel,
                     channelScopeTextShowNote = channelScopePrefs.textShowNote &&
-                        supportsChannelScopeNoteText(decoderName),
+                        (channelScopeTextCapabilities(decoderName) and ChannelScopeTextCapability.NOTE != 0),
                     channelScopeTextShowVolume = isChannelScopeVisibleElementEnabled(
                         selectedStorageKeys = channelScopePrefs.textVisibleElementSelection,
                         decoderName = decoderName,

@@ -1421,6 +1421,14 @@ std::string FurnaceDecoder::getSampleNamesInfo() {
     return names;
 }
 
+int FurnaceDecoder::getChannelScopeTextCapabilities() const {
+    return AudioDecoder::kScopeTextNote |
+           AudioDecoder::kScopeTextVolume |
+           AudioDecoder::kScopeTextEffects |
+           AudioDecoder::kScopeTextInstrument |
+           AudioDecoder::kScopeTextSample;
+}
+
 std::vector<int32_t> FurnaceDecoder::getChannelScopeTextState(int maxChannels) {
     std::lock_guard<std::mutex> lock(decodeMutex);
     if (!engine || !engine->curSubSong) {

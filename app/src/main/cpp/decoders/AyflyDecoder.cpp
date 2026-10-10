@@ -566,7 +566,7 @@ std::vector<int32_t> AyflyDecoder::getChannelScopeTextState(int maxChannels) {
         if (recentPeak > 0.0015f) flags |= kFlagActive;
         flat[base + 0] = ch;
         flat[base + 1] = -1; // AY players expose no pattern events
-        flat[base + 2] = std::clamp(static_cast<int>(std::lround(recentPeak * 64.0f)), 0, 64);
+        flat[base + 2] = -1; // No tracker volume here; meters are not volume.
         flat[base + 3] = 0;
         flat[base + 4] = -1;
         flat[base + 5] = 0;

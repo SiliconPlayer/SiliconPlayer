@@ -66,6 +66,7 @@ public:
     int getFixedSampleRateHz() const override;
     double getPlaybackPositionSeconds() override;
     std::shared_ptr<ChannelScopeSharedState> getChannelScopeSharedState() const override { return channelScopeState; }
+    int getChannelScopeTextCapabilities() const override;
     std::vector<int32_t> getChannelScopeTextState(int maxChannels) override;
     TimelineMode getTimelineMode() const override { return TimelineMode::ContinuousLinear; }
     void setOption(const char* name, const char* value) override;

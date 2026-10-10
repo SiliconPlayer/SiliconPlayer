@@ -49,6 +49,7 @@ public:
     std::vector<float> getCurrentChannelVuLevels();
     std::vector<float> getCurrentChannelScopeSamples(int samplesPerChannel);
     std::shared_ptr<ChannelScopeSharedState> getChannelScopeSharedState() const override { return channelScopeState; }
+    int getChannelScopeTextCapabilities() const override;
     std::vector<int32_t> getChannelScopeTextState(int maxChannels) override;
     std::vector<std::string> getToggleChannelNames() override;
     void setToggleChannelMuted(int channelIndex, bool enabled) override;

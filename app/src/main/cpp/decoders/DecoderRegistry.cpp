@@ -187,6 +187,16 @@ bool DecoderRegistry::supportsDecoderFeature(const std::string& name, const std:
     return supported;
 }
 
+int DecoderRegistry::getChannelScopeTextCapabilities(const std::string& name) {
+    auto it = textCapabilitiesCache.find(name);
+    if (it != textCapabilitiesCache.end()) return it->second;
+    int caps = 0;
+    std::unique_ptr<AudioDecoder> probe = createDecoderByName(name);
+    if (probe) caps = probe->getChannelScopeTextCapabilities();
+    textCapabilitiesCache[name] = caps;
+    return caps;
+}
+
 std::vector<std::string> DecoderRegistry::getDecoderExtensionSupporters(const char* path) {
     if (!path) return {};
     const std::vector<std::string> extensionCandidates = buildExtensionCandidates(path);

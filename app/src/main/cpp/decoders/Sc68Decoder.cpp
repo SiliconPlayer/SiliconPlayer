@@ -1534,6 +1534,10 @@ double Sc68Decoder::getPlaybackPositionSeconds() {
     return playbackPositionSeconds;
 }
 
+int Sc68Decoder::getChannelScopeTextCapabilities() const {
+    return AudioDecoder::kScopeTextVolume;
+}
+
 std::vector<int32_t> Sc68Decoder::getChannelScopeTextState(int maxChannels) {
     std::lock_guard<std::mutex> lock(decodeMutex);
     if (scopeRingChannels <= 0 || scopeRingRaw.empty() || scopeRingSamples <= 0) {
@@ -1570,7 +1574,6 @@ std::vector<int32_t> Sc68Decoder::getChannelScopeTextState(int maxChannels) {
                 channel < static_cast<int>(scopeChannelVolumes.size())
                 ? scopeChannelVolumes[static_cast<size_t>(channel)]
                 : 0;
-        const int derivedVolume = static_cast<int>(std::lround(std::clamp(recentPeak, 0.0f, 1.0f) * 64.0f));
         int flags =
                 channel < static_cast<int>(scopeChannelFlags.size())
                 ? scopeChannelFlags[static_cast<size_t>(channel)]
@@ -1581,7 +1584,7 @@ std::vector<int32_t> Sc68Decoder::getChannelScopeTextState(int maxChannels) {
 
         flat[base + 0] = channel;
         flat[base + 1] = -1;
-        flat[base + 2] = std::max(exportedVolume, derivedVolume);
+        flat[base + 2] = exportedVolume;
         flat[base + 3] = 0;
         flat[base + 4] = -1;
         flat[base + 5] = 0;

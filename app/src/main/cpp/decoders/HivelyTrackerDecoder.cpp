@@ -756,6 +756,13 @@ std::string HivelyTrackerDecoder::getInstrumentNamesInfo() {
     return names;
 }
 
+int HivelyTrackerDecoder::getChannelScopeTextCapabilities() const {
+    return AudioDecoder::kScopeTextNote |
+           AudioDecoder::kScopeTextVolume |
+           AudioDecoder::kScopeTextEffects |
+           AudioDecoder::kScopeTextInstrument;
+}
+
 std::vector<int32_t> HivelyTrackerDecoder::getChannelScopeTextState(int maxChannels) {
     std::lock_guard<std::mutex> lock(decodeMutex);
     if (!tune || hvl_GetChannelPatternState == nullptr) {

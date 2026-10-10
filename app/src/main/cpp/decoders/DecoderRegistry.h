@@ -74,6 +74,9 @@ public:
     // Generic decoder feature detection (see AudioDecoder::kFeature* keys).
     // Probes the decoder itself; results are cached per decoder and feature.
     bool supportsDecoderFeature(const std::string& name, const std::string& feature);
+    // Channel-scope text capability mask (AudioDecoder::kScopeText* bits),
+    // probed from the decoder itself; cached per decoder.
+    int getChannelScopeTextCapabilities(const std::string& name);
 
 private:
     DecoderRegistry() = default;
@@ -82,6 +85,7 @@ private:
     DecoderInfo* findDecoderInfo(const std::string& name);
     void sortDecodersByPriority();
     std::unordered_map<std::string, std::unordered_map<std::string, bool>> featureSupportCache;
+    std::unordered_map<std::string, int> textCapabilitiesCache;
 };
 
 #endif //SILICONPLAYER_DECODERREGISTRY_H

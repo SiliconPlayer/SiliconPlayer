@@ -90,6 +90,16 @@ public:
     // capabilities by implementing the matching virtuals; the app probes the
     // decoder instead of keeping per-core lists.
     static constexpr const char* kFeatureChannelScope = "channel_scope";
+    // Channel-scope text capability bits for getChannelScopeTextCapabilities().
+    // Text slots: 0 channel, 1 note, 2 volume, 3/4 effect primary, 5/6 effect
+    // secondary, 7 instrument, 8 sample, 9 flags. VOLUME means real tracker or
+    // player volume; meter-derived levels are not volume.
+    static constexpr int kScopeTextNote = 1 << 0;
+    static constexpr int kScopeTextVolume = 1 << 1;
+    static constexpr int kScopeTextEffects = 1 << 2;
+    static constexpr int kScopeTextInstrument = 1 << 3;
+    static constexpr int kScopeTextSample = 1 << 4;
+    virtual int getChannelScopeTextCapabilities() const { return 0; }
     virtual std::shared_ptr<ChannelScopeSharedState> getChannelScopeSharedState() const { return {}; }
     // Flat per-channel state payload for channel-scope text overlays.
     // Stride/field semantics are defined on the app side.

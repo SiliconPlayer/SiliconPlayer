@@ -69,7 +69,8 @@ import com.flopster101.siliconplayer.VisualizationPerformanceMode
 import com.flopster101.siliconplayer.VisualizationRenderBackend
 import com.flopster101.siliconplayer.VisualizationVuAnchor
 import com.flopster101.siliconplayer.isChannelScopeVisibleElementEnabled
-import com.flopster101.siliconplayer.supportsChannelScopeNoteText
+import com.flopster101.siliconplayer.ChannelScopeTextCapability
+import com.flopster101.siliconplayer.channelScopeTextCapabilities
 import com.flopster101.siliconplayer.desktop.DesktopChannelScopeNameSource
 import com.flopster101.siliconplayer.pluginNameForCoreName
 import com.flopster101.siliconplayer.ui.visualization.artworkNeedsBlurFill
@@ -523,7 +524,7 @@ internal fun AlbumArtPlaceholder(
             channelVuAnchor = channelScopePrefs.textVuAnchor,
             channelScopeTextEnabled = channelScopePrefs.textEnabled,
             showChannel = channelScopePrefs.textShowChannel,
-            showNote = channelScopePrefs.textShowNote && supportsChannelScopeNoteText(decoderName),
+            showNote = channelScopePrefs.textShowNote && (channelScopeTextCapabilities(decoderName) and ChannelScopeTextCapability.NOTE != 0),
             showVolume = isChannelScopeVisibleElementEnabled(channelScopePrefs.textVisibleElementSelection, decoderName, ChannelScopeVisibleElementId.Volume),
             showEffectPrimary = isChannelScopeVisibleElementEnabled(channelScopePrefs.textVisibleElementSelection, decoderName, ChannelScopeVisibleElementId.EffectPrimary),
             showEffectSecondary = isChannelScopeVisibleElementEnabled(channelScopePrefs.textVisibleElementSelection, decoderName, ChannelScopeVisibleElementId.EffectSecondary),

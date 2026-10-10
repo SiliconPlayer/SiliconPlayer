@@ -53,6 +53,7 @@ public:
     std::shared_ptr<ChannelScopeSharedState> getChannelScopeSharedState() const override {
         return channelScopeState;
     }
+    int getChannelScopeTextCapabilities() const override;
     std::vector<int32_t> getChannelScopeTextState(int maxChannels) override;
 
     const char* getName() const override { return "libxmp"; }

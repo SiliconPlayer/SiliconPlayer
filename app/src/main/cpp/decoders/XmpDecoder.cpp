@@ -520,6 +520,14 @@ std::string XmpDecoder::mixerNameLocked() {
     }
 }
 
+int XmpDecoder::getChannelScopeTextCapabilities() const {
+    return AudioDecoder::kScopeTextNote |
+           AudioDecoder::kScopeTextVolume |
+           AudioDecoder::kScopeTextEffects |
+           AudioDecoder::kScopeTextInstrument |
+           AudioDecoder::kScopeTextSample;
+}
+
 std::vector<int32_t> XmpDecoder::getChannelScopeTextState(int maxChannels) {
     std::lock_guard<std::mutex> lock(decodeMutex);
     if (context == nullptr) return {};

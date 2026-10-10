@@ -677,6 +677,10 @@ void UadeDecoder::publishScopeSnapshotLocked() {
     channelScopeState->publish(raw, vu, kUadeScopeChannelCount, ++channelScopeSourceSerial);
 }
 
+int UadeDecoder::getChannelScopeTextCapabilities() const {
+    return AudioDecoder::kScopeTextVolume;
+}
+
 std::vector<int32_t> UadeDecoder::getChannelScopeTextState(int maxChannels) {
     std::lock_guard<std::mutex> scopeLock(scopeMutex);
     if (scopeRingSamples <= 0 || scopeRingRaw.empty()) {

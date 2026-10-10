@@ -3526,6 +3526,15 @@ Java_com_flopster101_siliconplayer_NativeBridge_decoderSupportsFeature(
     return supported ? JNI_TRUE : JNI_FALSE;
 }
 
+extern "C" JNIEXPORT jint JNICALL
+Java_com_flopster101_siliconplayer_NativeBridge_getChannelScopeTextCapabilities(
+        JNIEnv* env, jobject thiz, jstring decoderName) {
+    const char* name = env->GetStringUTFChars(decoderName, 0);
+    int caps = DecoderRegistry::getInstance().getChannelScopeTextCapabilities(name);
+    env->ReleaseStringUTFChars(decoderName, name);
+    return caps;
+}
+
 extern "C" JNIEXPORT jboolean JNICALL
 Java_com_flopster101_siliconplayer_NativeBridge_hasDecoderExtensionOverride(
         JNIEnv* env, jobject thiz, jstring decoderName) {
