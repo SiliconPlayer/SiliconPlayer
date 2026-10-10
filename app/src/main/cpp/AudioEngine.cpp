@@ -224,7 +224,7 @@ namespace {
             };
             DecoderRegistry::getInstance().registerDecoder("NEZplug++", {"kss", "nsf", "gbs", "hes", "sgc", "nsd", "ay"}, []() {
                 return DecoderPluginLoader::getInstance().createDecoder("libsiliconplayer_nezplugpp_decoder.so");
-            }, 5, std::move(nezplugppStaticInfo));
+            }, 5, std::move(nezplugppStaticInfo), {"kss"});
 
             DecoderStaticInfo gmeStaticInfo;
             gmeStaticInfo.hasPlaybackCapabilities = true;
