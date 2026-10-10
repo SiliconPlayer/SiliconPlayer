@@ -52,14 +52,27 @@ std::vector<std::string> buildExtensionCandidates(const std::string& filePath) {
     return candidates;
 }
 
-bool decoderSupportsExtension(const DecoderInfo& info, const std::string& extension) {
-    if (info.enabledExtensions.empty()) {
-        for (const auto& ext : info.supportedExtensions) {
-            if (toLowerAscii(ext) == extension) return true;
-        }
-        return false;
+// Effective per-extension enable list: explicit user override wins, then the
+// decoder-declared default, then all supported extensions.
+const std::vector<std::string>& effectiveExtensions(const DecoderInfo& info) {
+    if (info.hasUserExtensionOverride && !info.enabledExtensions.empty()) {
+        return info.enabledExtensions;
     }
-    for (const auto& ext : info.enabledExtensions) {
+    if (!info.hasUserExtensionOverride && !info.defaultEnabledExtensions.empty()) {
+        return info.defaultEnabledExtensions;
+    }
+    return info.supportedExtensions;
+}
+
+bool decoderSupportsExtension(const DecoderInfo& info, const std::string& extension) {
+    for (const auto& ext : effectiveExtensions(info)) {
+        if (toLowerAscii(ext) == extension) return true;
+    }
+    return false;
+}
+
+bool decoderListsExtension(const DecoderInfo& info, const std::string& extension) {
+    for (const auto& ext : info.supportedExtensions) {
         if (toLowerAscii(ext) == extension) return true;
     }
     return false;
@@ -76,7 +89,8 @@ void DecoderRegistry::registerDecoder(
         const std::vector<std::string>& extensions,
         DecoderFactory factory,
         int priority,
-        DecoderStaticInfo staticInfo) {
+        DecoderStaticInfo staticInfo,
+        const std::vector<std::string>& defaultEnabledExtensions) {
     DecoderInfo info;
     info.name = name;
     info.supportedExtensions = extensions;
@@ -84,7 +98,9 @@ void DecoderRegistry::registerDecoder(
     info.defaultPriority = priority;
     info.priority = priority;
     info.enabled = true; // Enabled by default
-    info.enabledExtensions = {}; // Empty means all extensions enabled
+    info.enabledExtensions = {};
+    info.hasUserExtensionOverride = false;
+    info.defaultEnabledExtensions = defaultEnabledExtensions;
     info.staticInfo = std::move(staticInfo);
 
     decoders.push_back(info);
@@ -154,6 +170,21 @@ std::vector<std::string> DecoderRegistry::getDecoderClaimants(const char* path) 
     return claimants;
 }
 
+std::vector<std::string> DecoderRegistry::getDecoderExtensionSupporters(const char* path) {
+    if (!path) return {};
+    const std::vector<std::string> extensionCandidates = buildExtensionCandidates(path);
+    std::vector<std::string> supporters;
+    std::unordered_set<std::string> seen;
+    for (const auto& extension : extensionCandidates) {
+        for (const auto& info : decoders) {
+            if (!info.enabled) continue;
+            if (!decoderListsExtension(info, extension)) continue;
+            if (seen.insert(info.name).second) supporters.push_back(info.name);
+        }
+    }
+    return supporters;
+}
+
 std::vector<std::string> DecoderRegistry::getSupportedExtensions() {
     std::vector<std::string> allExtensions;
     for (const auto& info : decoders) {
@@ -162,13 +193,9 @@ std::vector<std::string> DecoderRegistry::getSupportedExtensions() {
             continue;
         }
 
-        // If enabledExtensions is empty, use all supportedExtensions
-        if (info.enabledExtensions.empty()) {
-            allExtensions.insert(allExtensions.end(), info.supportedExtensions.begin(), info.supportedExtensions.end());
-        } else {
-            // Use only enabled extensions
-            allExtensions.insert(allExtensions.end(), info.enabledExtensions.begin(), info.enabledExtensions.end());
-        }
+        // Use only the effective (user override, default, or all) extensions
+        const std::vector<std::string>& effective = effectiveExtensions(info);
+        allExtensions.insert(allExtensions.end(), effective.begin(), effective.end());
     }
     // De-duplicate
     std::sort(allExtensions.begin(), allExtensions.end());
@@ -227,18 +254,20 @@ void DecoderRegistry::setDecoderEnabledExtensions(const std::string& name, const
     DecoderInfo* info = findDecoderInfo(name);
     if (info) {
         info->enabledExtensions = extensions;
+        info->hasUserExtensionOverride = true;
         LOGD("Decoder %s enabled extensions updated (%zu extensions)", name.c_str(), extensions.size());
     }
+}
+
+bool DecoderRegistry::hasDecoderExtensionOverride(const std::string& name) {
+    DecoderInfo* info = findDecoderInfo(name);
+    return info ? info->hasUserExtensionOverride : false;
 }
 
 std::vector<std::string> DecoderRegistry::getDecoderEnabledExtensions(const std::string& name) {
     DecoderInfo* info = findDecoderInfo(name);
     if (info) {
-        // If empty, return all supported extensions (means all are enabled)
-        if (info->enabledExtensions.empty()) {
-            return info->supportedExtensions;
-        }
-        return info->enabledExtensions;
+        return effectiveExtensions(*info);
     }
     return {};
 }

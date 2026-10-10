@@ -29,7 +29,9 @@ struct DecoderInfo {
     int defaultPriority; // Built-in default priority from registration
     int priority; // Lower numeric value means higher priority (Linux nice-style)
     bool enabled; // Whether this decoder is enabled
-    std::vector<std::string> enabledExtensions; // Subset of supportedExtensions that are enabled (empty = all enabled)
+    std::vector<std::string> enabledExtensions; // User override subset (only meaningful when hasUserExtensionOverride)
+    bool hasUserExtensionOverride = false; // True once setDecoderEnabledExtensions was called
+    std::vector<std::string> defaultEnabledExtensions; // Decoder-declared default subset (empty = all enabled)
     DecoderStaticInfo staticInfo;
 };
 
@@ -42,12 +44,16 @@ public:
             const std::vector<std::string>& extensions,
             DecoderFactory factory,
             int priority = 0,
-            DecoderStaticInfo staticInfo = {});
+            DecoderStaticInfo staticInfo = {},
+            const std::vector<std::string>& defaultEnabledExtensions = {});
 
     std::unique_ptr<AudioDecoder> createDecoder(const char* path);
     std::unique_ptr<AudioDecoder> createDecoderByName(const std::string& name);
     // Enabled decoders claiming the path's extensions, in pick order.
     std::vector<std::string> getDecoderClaimants(const char* path);
+    // Enabled decoders whose supported extensions match the path, ignoring
+    // the per-extension enable state (superset of getDecoderClaimants).
+    std::vector<std::string> getDecoderExtensionSupporters(const char* path);
 
     // List supported extensions (only from enabled decoders with enabled extensions)
     std::vector<std::string> getSupportedExtensions();
@@ -60,6 +66,7 @@ public:
     int getDecoderDefaultPriority(const std::string& name);
     void setDecoderEnabledExtensions(const std::string& name, const std::vector<std::string>& extensions);
     std::vector<std::string> getDecoderEnabledExtensions(const std::string& name);
+    bool hasDecoderExtensionOverride(const std::string& name);
     std::vector<std::string> getDecoderSupportedExtensions(const std::string& name);
     std::vector<std::string> getRegisteredDecoderNames();
     bool getDecoderStaticInfo(const std::string& name, DecoderStaticInfo& staticInfo);

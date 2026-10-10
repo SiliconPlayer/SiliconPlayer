@@ -173,6 +173,9 @@ internal fun PlayerRouteContent(
     var playWithExternalOpenDialog by remember(appPrefs) {
         mutableStateOf(appPrefs.getBoolean(AppPreferenceKeys.PLAY_WITH_EXTERNAL_OPEN_DIALOG, true))
     }
+    var playWithShowDisabledCores by remember(appPrefs) {
+        mutableStateOf(appPrefs.getBoolean(AppPreferenceKeys.PLAY_WITH_SHOW_DISABLED_CORES, true))
+    }
     val unknownTrackDurationSeconds = state.unknownTrackDurationSeconds
     val onUnknownTrackDurationSecondsChanged = actions.onUnknownTrackDurationSecondsChanged
     val endFadeDurationMs = state.endFadeDurationMs
@@ -326,6 +329,18 @@ internal fun PlayerRouteContent(
             playWithExternalOpenDialog = enabled
             appPrefs.edit()
                 .putBoolean(AppPreferenceKeys.PLAY_WITH_EXTERNAL_OPEN_DIALOG, enabled)
+                .apply()
+        }
+    )
+    SettingsRowSpacer()
+    PlayerSettingToggleCard(
+        title = "Show disabled cores in Play with...",
+        description = "List cores that handle the format but are disabled for it. Off hides them.",
+        checked = playWithShowDisabledCores,
+        onCheckedChange = { enabled ->
+            playWithShowDisabledCores = enabled
+            appPrefs.edit()
+                .putBoolean(AppPreferenceKeys.PLAY_WITH_SHOW_DISABLED_CORES, enabled)
                 .apply()
         }
     )

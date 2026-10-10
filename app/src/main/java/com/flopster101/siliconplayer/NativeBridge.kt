@@ -703,6 +703,7 @@ object NativeBridge {
     // Decoder Registry management methods
     external fun getRegisteredDecoderNames(): Array<String>
     external fun getDecoderClaimantsForFile(path: String): Array<String>
+    external fun getDecoderExtensionSupportersForFile(path: String): Array<String>
     external fun setDecoderEnabled(decoderName: String, enabled: Boolean)
     external fun isDecoderEnabled(decoderName: String): Boolean
     external fun setDecoderPriority(decoderName: String, priority: Int)
@@ -711,5 +712,6 @@ object NativeBridge {
     external fun getDecoderSupportedExtensions(decoderName: String): Array<String>
     external fun getDecoderEnabledExtensions(decoderName: String): Array<String>
     external fun setDecoderEnabledExtensions(decoderName: String, extensions: Array<String>)
+    external fun hasDecoderExtensionOverride(decoderName: String): Boolean
     external fun setUadeRuntimePaths(baseDir: String, uadeCorePath: String)
 }

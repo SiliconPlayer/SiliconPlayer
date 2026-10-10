@@ -38,7 +38,10 @@ internal fun savePluginConfiguration(prefs: AppPreferences, decoderName: String)
 
     val enabledExtensions = NativeBridge.getDecoderEnabledExtensions(decoderName)
     val supportedExtensions = NativeBridge.getDecoderSupportedExtensions(decoderName)
-    if (enabledExtensions.size < supportedExtensions.size) {
+    // Only persist explicit user choices: decoders with a declared default keep
+    // following it until the user touches their extension list.
+    if (NativeBridge.hasDecoderExtensionOverride(decoderName) &&
+        enabledExtensions.size < supportedExtensions.size) {
         val extensionsString = enabledExtensions.joinToString(",")
         editor.putString(AppPreferenceKeys.decoderEnabledExtensionsKey(decoderName), extensionsString)
     } else {

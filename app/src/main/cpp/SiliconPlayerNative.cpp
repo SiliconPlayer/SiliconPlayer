@@ -2644,6 +2644,26 @@ Java_com_flopster101_siliconplayer_NativeBridge_getDecoderClaimantsForFile(
     return result;
 }
 
+extern "C" JNIEXPORT jobjectArray JNICALL
+Java_com_flopster101_siliconplayer_NativeBridge_getDecoderExtensionSupportersForFile(
+        JNIEnv* env, jobject, jstring pathStr) {
+    if (pathStr == nullptr) {
+        return nullptr;
+    }
+    const char* path = env->GetStringUTFChars(pathStr, nullptr);
+    std::vector<std::string> supporters = DecoderRegistry::getInstance().getDecoderExtensionSupporters(path);
+    env->ReleaseStringUTFChars(pathStr, path);
+
+    jclass stringClass = env->FindClass("java/lang/String");
+    jobjectArray result = env->NewObjectArray(supporters.size(), stringClass, nullptr);
+    for (size_t i = 0; i < supporters.size(); ++i) {
+        jstring item = env->NewStringUTF(supporters[i].c_str());
+        env->SetObjectArrayElement(result, i, item);
+        env->DeleteLocalRef(item);
+    }
+    return result;
+}
+
 extern "C" JNIEXPORT void JNICALL
 Java_com_flopster101_siliconplayer_NativeBridge_setFastTrackSwitchStartupHint(
         JNIEnv*,
@@ -3492,6 +3512,15 @@ Java_com_flopster101_siliconplayer_NativeBridge_setDecoderEnabledExtensions(
 
     DecoderRegistry::getInstance().setDecoderEnabledExtensions(name, extVector);
     env->ReleaseStringUTFChars(decoderName, name);
+}
+
+extern "C" JNIEXPORT jboolean JNICALL
+Java_com_flopster101_siliconplayer_NativeBridge_hasDecoderExtensionOverride(
+        JNIEnv* env, jobject thiz, jstring decoderName) {
+    const char* name = env->GetStringUTFChars(decoderName, 0);
+    bool hasOverride = DecoderRegistry::getInstance().hasDecoderExtensionOverride(name);
+    env->ReleaseStringUTFChars(decoderName, name);
+    return hasOverride ? JNI_TRUE : JNI_FALSE;
 }
 
 extern "C" JNIEXPORT jobjectArray JNICALL

@@ -102,13 +102,24 @@ internal fun PlayWithDialog(
     val claimants = remember(file) {
         NativeBridge.getDecoderClaimantsForFile(file.absolutePath).toList()
     }
+    val showDisabledCores = remember(prefs) {
+        prefs.getBoolean(AppPreferenceKeys.PLAY_WITH_SHOW_DISABLED_CORES, true)
+    }
+    val disabledSupporters = remember(file, showDisabledCores) {
+        if (!showDisabledCores) {
+            emptyList()
+        } else {
+            NativeBridge.getDecoderExtensionSupportersForFile(file.absolutePath)
+                .filter { it !in claimants }
+        }
+    }
     val allEnabled = remember(file) {
         NativeBridge.getRegisteredDecoderNames().filter { NativeBridge.isDecoderEnabled(it) }
     }
     var showAll by remember(file) { mutableStateOf(false) }
     var alwaysPrioritize by remember(file) { mutableStateOf(false) }
     var dontAskAgain by remember(file) { mutableStateOf(false) }
-    val rows = if (showAll) allEnabled else claimants
+    val rows = if (showAll) allEnabled else claimants + disabledSupporters
     var selected by remember(file, showAll) {
         mutableStateOf(if (claimants.isEmpty()) allEnabled.firstOrNull() else claimants.first())
     }
@@ -206,7 +217,11 @@ internal fun PlayWithDialog(
                                     )
                                     Spacer(modifier = Modifier.width(10.dp))
                                     Text(
-                                        text = decoderName,
+                                        text = if (decoderName in disabledSupporters && !showAll) {
+                                            "$decoderName (disabled)"
+                                        } else {
+                                            decoderName
+                                        },
                                         style = MaterialTheme.typography.bodyMedium,
                                         maxLines = 1,
                                         overflow = TextOverflow.Ellipsis
