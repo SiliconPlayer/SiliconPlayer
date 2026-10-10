@@ -3515,6 +3515,18 @@ Java_com_flopster101_siliconplayer_NativeBridge_setDecoderEnabledExtensions(
 }
 
 extern "C" JNIEXPORT jboolean JNICALL
+Java_com_flopster101_siliconplayer_NativeBridge_decoderSupportsFeature(
+        JNIEnv* env, jobject thiz, jstring decoderName, jstring feature) {
+    const char* name = env->GetStringUTFChars(decoderName, 0);
+    const char* featureChars = env->GetStringUTFChars(feature, 0);
+    bool supported = DecoderRegistry::getInstance().supportsDecoderFeature(
+            name, featureChars ? featureChars : "");
+    env->ReleaseStringUTFChars(decoderName, name);
+    env->ReleaseStringUTFChars(feature, featureChars);
+    return supported ? JNI_TRUE : JNI_FALSE;
+}
+
+extern "C" JNIEXPORT jboolean JNICALL
 Java_com_flopster101_siliconplayer_NativeBridge_hasDecoderExtensionOverride(
         JNIEnv* env, jobject thiz, jstring decoderName) {
     const char* name = env->GetStringUTFChars(decoderName, 0);

@@ -62,27 +62,8 @@ fun isVisualizationModeSupported(
 }
 
 fun supportsChannelScopeVisualization(coreNameForUi: String?): Boolean {
-    return when (pluginNameForCoreName(coreNameForUi)) {
-        DecoderNames.LIB_OPEN_MPT,
-        DecoderNames.LIBXMP,
-        DecoderNames.AYFLY,
-        DecoderNames.C_RSID,
-        DecoderNames.LIB_SID_PLAY_FP,
-        DecoderNames.FURNACE,
-        DecoderNames.GAME_MUSIC_EMU,
-        DecoderNames.SC68,
-        DecoderNames.HIVELY_TRACKER,
-        DecoderNames.KLYSTRACK,
-        DecoderNames.UADE,
-        DecoderNames.VGM_PLAY,
-        DecoderNames.AD_PLUG,
-        DecoderNames.UFMOD,
-        DecoderNames.LIB_DN_FAMITRACKER,
-        DecoderNames.LIB_UPSE,
-        DecoderNames.VIOGSF,
-        DecoderNames.NEZPLUGPP -> true
-        else -> false
-    }
+    val pluginName = pluginNameForCoreName(coreNameForUi) ?: return false
+    return NativeBridge.decoderSupportsFeature(pluginName, DecoderFeatures.CHANNEL_SCOPE)
 }
 
 fun supportsChannelScopeNoteText(coreNameForUi: String?): Boolean {

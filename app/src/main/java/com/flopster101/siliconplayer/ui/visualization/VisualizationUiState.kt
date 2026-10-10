@@ -4,7 +4,7 @@ import android.content.SharedPreferences
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.remember
-import com.flopster101.siliconplayer.DecoderNames
+import com.flopster101.siliconplayer.supportsChannelScopeVisualization
 import com.flopster101.siliconplayer.NativeBridge
 import com.flopster101.siliconplayer.VisualizationMode
 import com.flopster101.siliconplayer.pluginNameForCoreName
@@ -30,13 +30,7 @@ internal fun rememberVisualizationUiState(
     val currentCorePluginName = pluginNameForCoreName(activeCoreName)
 
     LaunchedEffect(activeCoreName, currentCorePluginName, currentMode, isPlayerSurfaceVisible) {
-        if (currentCorePluginName != DecoderNames.LIB_SID_PLAY_FP &&
-            currentCorePluginName != DecoderNames.C_RSID &&
-            currentCorePluginName != DecoderNames.GAME_MUSIC_EMU &&
-            currentCorePluginName != DecoderNames.SC68 &&
-            currentCorePluginName != DecoderNames.LIB_UPSE &&
-            currentCorePluginName != DecoderNames.VIOGSF &&
-            currentCorePluginName != DecoderNames.NEZPLUGPP) {
+        if (!supportsChannelScopeVisualization(activeCoreName)) {
             return@LaunchedEffect
         }
         val coreName = activeCoreName?.trim().takeIf { !it.isNullOrEmpty() } ?: return@LaunchedEffect

@@ -5,6 +5,7 @@
 #include <string>
 #include <functional>
 #include <memory>
+#include <unordered_map>
 #include "AudioDecoder.h"
 
 // Factory function type
@@ -70,6 +71,9 @@ public:
     std::vector<std::string> getDecoderSupportedExtensions(const std::string& name);
     std::vector<std::string> getRegisteredDecoderNames();
     bool getDecoderStaticInfo(const std::string& name, DecoderStaticInfo& staticInfo);
+    // Generic decoder feature detection (see AudioDecoder::kFeature* keys).
+    // Probes the decoder itself; results are cached per decoder and feature.
+    bool supportsDecoderFeature(const std::string& name, const std::string& feature);
 
 private:
     DecoderRegistry() = default;
@@ -77,6 +81,7 @@ private:
 
     DecoderInfo* findDecoderInfo(const std::string& name);
     void sortDecodersByPriority();
+    std::unordered_map<std::string, std::unordered_map<std::string, bool>> featureSupportCache;
 };
 
 #endif //SILICONPLAYER_DECODERREGISTRY_H

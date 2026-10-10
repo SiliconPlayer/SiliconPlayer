@@ -512,6 +512,7 @@ object NativeBridge {
     external fun getDecoderEnabledExtensions(decoderName: String): Array<String>
     external fun setDecoderEnabledExtensions(decoderName: String, extensions: Array<String>)
     external fun hasDecoderExtensionOverride(decoderName: String): Boolean
+    external fun decoderSupportsFeature(decoderName: String, feature: String): Boolean
     external fun setUadeRuntimePaths(baseDir: String, uadeCorePath: String)
 
     @JvmStatic

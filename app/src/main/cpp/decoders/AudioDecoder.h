@@ -86,6 +86,10 @@ public:
     // Configuration
     virtual void setOption(const char* /*name*/, const char* /*value*/) {}
     virtual int getOptionApplyPolicy(const char* /*name*/) const { return OPTION_APPLY_LIVE; }
+    // Feature keys for DecoderRegistry::supportsDecoderFeature. Decoders advertise
+    // capabilities by implementing the matching virtuals; the app probes the
+    // decoder instead of keeping per-core lists.
+    static constexpr const char* kFeatureChannelScope = "channel_scope";
     virtual std::shared_ptr<ChannelScopeSharedState> getChannelScopeSharedState() const { return {}; }
     // Flat per-channel state payload for channel-scope text overlays.
     // Stride/field semantics are defined on the app side.

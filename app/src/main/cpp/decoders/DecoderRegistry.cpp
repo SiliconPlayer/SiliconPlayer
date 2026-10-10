@@ -170,6 +170,23 @@ std::vector<std::string> DecoderRegistry::getDecoderClaimants(const char* path) 
     return claimants;
 }
 
+bool DecoderRegistry::supportsDecoderFeature(const std::string& name, const std::string& feature) {
+    auto nameIt = featureSupportCache.find(name);
+    if (nameIt != featureSupportCache.end()) {
+        auto featureIt = nameIt->second.find(feature);
+        if (featureIt != nameIt->second.end()) return featureIt->second;
+    }
+    bool supported = false;
+    if (feature == AudioDecoder::kFeatureChannelScope) {
+        // Scope-capable decoders construct their shared scope state up front,
+        // so a fresh instance probes support with no file open.
+        std::unique_ptr<AudioDecoder> probe = createDecoderByName(name);
+        supported = probe && probe->getChannelScopeSharedState() != nullptr;
+    }
+    featureSupportCache[name][feature] = supported;
+    return supported;
+}
+
 std::vector<std::string> DecoderRegistry::getDecoderExtensionSupporters(const char* path) {
     if (!path) return {};
     const std::vector<std::string> extensionCandidates = buildExtensionCandidates(path);

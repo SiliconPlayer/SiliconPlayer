@@ -611,47 +611,47 @@ data class ChannelScopeNameMaps(
 )
 
 fun loadChannelScopeNameMaps(pluginName: String?, source: ChannelScopeNameSource): ChannelScopeNameMaps {
+    // Chip voice names come from the decoder itself: any channel-scope core
+    // currently reporting toggle names gets them as row labels.
+    val chipNamesByChannelIndex =
+        if (com.flopster101.siliconplayer.supportsChannelScopeVisualization(pluginName)) {
+            source.decoderToggleChannelNames()
+                .mapIndexed { index, name -> index to name }
+                .toMap()
+        } else {
+            emptyMap()
+        }
     return when (pluginName) {
         com.flopster101.siliconplayer.DecoderNames.LIB_OPEN_MPT -> ChannelScopeNameMaps(
             instrumentNamesByIndex = parseChannelScopeIndexedNames(source.openMptInstrumentNames()),
-            sampleNamesByIndex = parseChannelScopeIndexedNames(source.openMptSampleNames())
+            sampleNamesByIndex = parseChannelScopeIndexedNames(source.openMptSampleNames()),
+            chipNamesByChannelIndex = chipNamesByChannelIndex
         )
         com.flopster101.siliconplayer.DecoderNames.LIBXMP -> ChannelScopeNameMaps(
             instrumentNamesByIndex = parseChannelScopeIndexedNames(source.xmpInstrumentNames()),
-            sampleNamesByIndex = parseChannelScopeIndexedNames(source.xmpSampleNames())
-        )
-        com.flopster101.siliconplayer.DecoderNames.AYFLY,
-        com.flopster101.siliconplayer.DecoderNames.GAME_MUSIC_EMU,
-        com.flopster101.siliconplayer.DecoderNames.C_RSID,
-        com.flopster101.siliconplayer.DecoderNames.LIB_SID_PLAY_FP,
-        com.flopster101.siliconplayer.DecoderNames.VGM_PLAY,
-        com.flopster101.siliconplayer.DecoderNames.LIB_UPSE,
-        com.flopster101.siliconplayer.DecoderNames.VIOGSF,
-        com.flopster101.siliconplayer.DecoderNames.NEZPLUGPP -> ChannelScopeNameMaps(
-            chipNamesByChannelIndex = source.decoderToggleChannelNames()
-                .mapIndexed { index, name -> index to name }
-                .toMap()
+            sampleNamesByIndex = parseChannelScopeIndexedNames(source.xmpSampleNames()),
+            chipNamesByChannelIndex = chipNamesByChannelIndex
         )
         com.flopster101.siliconplayer.DecoderNames.FURNACE -> ChannelScopeNameMaps(
             instrumentNamesByIndex = parseChannelScopeIndexedNames(source.furnaceInstrumentNames()),
             sampleNamesByIndex = parseChannelScopeIndexedNames(source.furnaceSampleNames()),
-            chipNamesByChannelIndex = source.decoderToggleChannelNames()
-                .mapIndexed { index, name -> index to name }
-                .toMap()
+            chipNamesByChannelIndex = chipNamesByChannelIndex
         )
         com.flopster101.siliconplayer.DecoderNames.KLYSTRACK -> ChannelScopeNameMaps(
-            instrumentNamesByIndex = parseChannelScopeIndexedNames(source.klystrackInstrumentNames())
+            instrumentNamesByIndex = parseChannelScopeIndexedNames(source.klystrackInstrumentNames()),
+            chipNamesByChannelIndex = chipNamesByChannelIndex
         )
         com.flopster101.siliconplayer.DecoderNames.LIB_DN_FAMITRACKER -> ChannelScopeNameMaps(
             instrumentNamesByIndex = parseChannelScopeIndexedNames(source.dnfamitrackerInstrumentNames()),
             sampleNamesByIndex = parseChannelScopeIndexedNames(source.dnfamitrackerSampleNames()),
-            chipNamesByChannelIndex = source.decoderToggleChannelNames()
-                .mapIndexed { index, name -> index to name }
-                .toMap()
+            chipNamesByChannelIndex = chipNamesByChannelIndex
         )
         com.flopster101.siliconplayer.DecoderNames.HIVELY_TRACKER -> ChannelScopeNameMaps(
-            instrumentNamesByIndex = parseChannelScopeIndexedNames(source.hivelyInstrumentNames())
+            instrumentNamesByIndex = parseChannelScopeIndexedNames(source.hivelyInstrumentNames()),
+            chipNamesByChannelIndex = chipNamesByChannelIndex
         )
-        else -> ChannelScopeNameMaps()
+        else -> ChannelScopeNameMaps(
+            chipNamesByChannelIndex = chipNamesByChannelIndex
+        )
     }
 }

@@ -85,7 +85,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.flopster101.siliconplayer.AppDefaults
 import com.flopster101.siliconplayer.AppPreferenceKeys
-import com.flopster101.siliconplayer.DecoderNames
+import com.flopster101.siliconplayer.supportsChannelScopeVisualization
 import com.flopster101.siliconplayer.NativeBridge
 import com.flopster101.siliconplayer.RepeatMode
 import com.flopster101.siliconplayer.SubtuneTransportState
@@ -555,13 +555,7 @@ internal fun rememberVisualizationUiState(
 
     val currentCorePluginName = pluginNameForCoreName(activeCoreName)
     LaunchedEffect(activeCoreName, currentCorePluginName, currentMode, isPlayerSurfaceVisible) {
-        if (currentCorePluginName != DecoderNames.LIB_SID_PLAY_FP &&
-            currentCorePluginName != DecoderNames.C_RSID &&
-            currentCorePluginName != DecoderNames.GAME_MUSIC_EMU &&
-            currentCorePluginName != DecoderNames.SC68 &&
-            currentCorePluginName != DecoderNames.LIB_UPSE &&
-            currentCorePluginName != DecoderNames.VIOGSF &&
-            currentCorePluginName != DecoderNames.NEZPLUGPP) {
+        if (!supportsChannelScopeVisualization(activeCoreName)) {
             return@LaunchedEffect
         }
         val coreName = activeCoreName?.trim().takeIf { !it.isNullOrEmpty() } ?: return@LaunchedEffect
