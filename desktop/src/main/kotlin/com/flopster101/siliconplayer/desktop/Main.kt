@@ -106,7 +106,10 @@ import com.flopster101.siliconplayer.VisualizationPerformanceMode
 import com.flopster101.siliconplayer.VisualizationRenderBackend
 import com.flopster101.siliconplayer.VisualizationVuAnchor
 import com.flopster101.siliconplayer.ui.screens.rememberVisualizationUiState
+import com.flopster101.siliconplayer.buildImportedPlaylist
 import com.flopster101.siliconplayer.ui.dialogs.AddToPlaylistChooserDialog
+import com.flopster101.siliconplayer.ui.dialogs.BrowserPlaylistPromptDialogs
+import com.flopster101.siliconplayer.ui.dialogs.rememberBrowserPlaylistPrompt
 import com.flopster101.siliconplayer.ui.dialogs.AudioEffectsDialog
 import com.flopster101.siliconplayer.ui.dialogs.PlaylistSelectorDialog
 import com.flopster101.siliconplayer.ui.dialogs.PlayWithDialog
@@ -146,6 +149,13 @@ import com.flopster101.siliconplayer.removeStoredPlaylistEntries
 import com.flopster101.siliconplayer.removeStoredPlaylistEntry
 import com.flopster101.siliconplayer.renameStoredPlaylist
 import com.flopster101.siliconplayer.resolveAdjacentIndex
+import com.flopster101.siliconplayer.effectiveTrackMetadata
+import com.flopster101.siliconplayer.isPlaylistSubtunePinned
+import com.flopster101.siliconplayer.matchPlaylistEntryForPlayback
+import com.flopster101.siliconplayer.pinnedTransportSubtuneCount
+import com.flopster101.siliconplayer.playingPlaylistBrowserFile
+import com.flopster101.siliconplayer.pinnedTransportSubtuneIndex
+import com.flopster101.siliconplayer.resolveActivePlaylistMetadataEntry
 import com.flopster101.siliconplayer.resolvePlaylistEntryLocalFile
 import com.flopster101.siliconplayer.setStoredPlaylistPinned
 import com.flopster101.siliconplayer.FAVORITES_PLAYLIST_ID
@@ -336,6 +346,13 @@ fun main(args: Array<String>) = application {
         configDir = DesktopPaths.configDir()
     )
     val session = remember { DesktopPlaybackSession() }
+    // Active queue context; hoisted early so every player header below,
+    // including the window title, can prefer entry over decoder metadata.
+    var activePlaylist by remember { mutableStateOf<StoredPlaylist?>(null) }
+    var activePlaylistEntryId by remember { mutableStateOf<String?>(null) }
+    // Queue entry whose load is still in flight; while set, openQueueEntry owns
+    // the entry id and the re-match effect below stays out of the way.
+    var pendingQueueEntryId by remember { mutableStateOf<String?>(null) }
     val textInputTracker = remember { com.flopster101.siliconplayer.TextInputTracker() }
     val restoredGeometry = remember { loadDesktopWindowGeometry(DesktopPaths.configDir()) }
     val windowState = rememberWindowState(
@@ -541,6 +558,7 @@ fun main(args: Array<String>) = application {
     }
 
     fun playFile(file: File, subtuneIndex: Int? = null) {
+        pendingQueueEntryId = null
         val generation = playRequestGeneration.incrementAndGet()
         playLoadScope.launch(Dispatchers.IO) {
             val loaded = session.loadFile(file, autoStart = autoPlayOnTrackSelect, initialSubtuneIndex = subtuneIndex)
@@ -552,6 +570,7 @@ fun main(args: Array<String>) = application {
     }
 
     fun playSource(source: String, titleHint: String? = null, artistHint: String? = null, subtuneIndex: Int? = null) {
+        pendingQueueEntryId = null
         val file = File(source)
         if (file.exists() && file.isFile) {
             playFile(file, subtuneIndex)
@@ -615,11 +634,35 @@ fun main(args: Array<String>) = application {
         expandFromMiniDrag = false
     }
 
-    val windowTitle = if (session.title.isNotBlank()) {
-        if (session.artist.isNotBlank()) {
-            "${session.artist} - ${session.title} - SiliconPlayer"
+    // Effective queue-over-decoder metadata for every player header below.
+    val playerQueueEntry = resolveActivePlaylistMetadataEntry(
+        activePlaylist = activePlaylist,
+        activePlaylistEntryId = activePlaylistEntryId,
+        activeSourceId = session.currentSourceId ?: session.currentFile?.absolutePath,
+        currentSubtuneIndex = session.subtuneIndex
+    )
+    // Pending tap target while its load is in flight, mirroring Android's
+    // pendingPlaylistEntry fallback.
+    val playerPendingEntry =
+        pendingQueueEntryId?.let { pendingId -> activePlaylist?.entries?.firstOrNull { it.id == pendingId } }
+    val playerActiveEntry = playerQueueEntry ?: playerPendingEntry
+    val playerMetadata = effectiveTrackMetadata(
+        playerActiveEntry,
+        fallbackTitle = session.title,
+        fallbackArtist = session.artist,
+        fallbackAlbum = session.album
+    )
+    // Pinned while a queue entry claims the subtune: track buttons advance
+    // the queue, never the raw subtune list (Android parity).
+    val queueSubtunePinned = isPlaylistSubtunePinned(playerActiveEntry)
+    val transportSubtuneCount = pinnedTransportSubtuneCount(session.subtuneCount, queueSubtunePinned)
+    val transportCurrentSubtuneIndex =
+        pinnedTransportSubtuneIndex(session.subtuneIndex, queueSubtunePinned)
+    val windowTitle = if (playerMetadata.title.isNotBlank()) {
+        if (playerMetadata.artist.isNotBlank()) {
+            "${playerMetadata.artist} - ${playerMetadata.title} - SiliconPlayer"
         } else {
-            "${session.title} - SiliconPlayer"
+            "${playerMetadata.title} - SiliconPlayer"
         }
     } else {
         "SiliconPlayer Desktop"
@@ -937,10 +980,9 @@ fun main(args: Array<String>) = application {
                                     resolved
                                 )
                                 if (merged != recentFiles) {
-                                    withContext(Dispatchers.Main) {
-                                        recentFiles.clear()
-                                        recentFiles.addAll(merged)
-                                    }
+                                    // Snapshot state is thread-safe; no Main hop (none exists on desktop).
+                                    recentFiles.clear()
+                                    recentFiles.addAll(merged)
                                 }
                             } finally {
                                 recentArtworkBackfillJobs.remove(playedSourceId)
@@ -1082,8 +1124,6 @@ fun main(args: Array<String>) = application {
                     libraryRepository.artistAlbums(artist)
                 }
             }
-            var activePlaylist by remember { mutableStateOf<StoredPlaylist?>(null) }
-            var activePlaylistEntryId by remember { mutableStateOf<String?>(null) }
             var activePlaylistShuffleActive by remember { mutableStateOf(false) }
             // Queue entry open: playlist context + per-entry subtune, mirrors Android openPlaylistEntry.
             fun openQueueEntry(queue: StoredPlaylist, entry: PlaylistTrackEntry, shuffleActive: Boolean): Boolean {
@@ -1091,16 +1131,21 @@ fun main(args: Array<String>) = application {
                 activePlaylist = queue
                 activePlaylistEntryId = entry.id
                 activePlaylistShuffleActive = shuffleActive
+                pendingQueueEntryId = entry.id
                 val generation = playRequestGeneration.incrementAndGet()
                 playLoadScope.launch(Dispatchers.IO) {
-                    if (!session.loadFile(file, autoStart = autoPlayOnTrackSelect)) return@launch
-                    if (generation != playRequestGeneration.get()) return@launch
-                    val subtune = entry.subtuneIndex
-                    if (subtune != null && subtune in 0 until session.subtuneCount) {
-                        session.selectSubtune(subtune)
+                    try {
+                        if (!session.loadFile(file, autoStart = autoPlayOnTrackSelect)) return@launch
+                        if (generation != playRequestGeneration.get()) return@launch
+                        val subtune = entry.subtuneIndex
+                        if (subtune != null && subtune in 0 until session.subtuneCount) {
+                            session.selectSubtune(subtune)
+                        }
+                        registerLoadedFile(file)
+                        if (openPlayerOnTrackSelect) isPlayerSurfaceVisible = true
+                    } finally {
+                        if (pendingQueueEntryId == entry.id) pendingQueueEntryId = null
                     }
-                    registerLoadedFile(file)
-                    if (openPlayerOnTrackSelect) isPlayerSurfaceVisible = true
                 }
                 return true
             }
@@ -1205,6 +1250,38 @@ fun main(args: Array<String>) = application {
                 ) return
                 session.seekTo(0.0)
             }
+            // Queue entry follows playback: a subtune switch under the current
+            // file re-resolves the entry, mirroring Android's re-match effect.
+            // Skipped while a queue load is in flight (openQueueEntry owns it).
+            LaunchedEffect(
+                session.currentSourceId,
+                session.subtuneIndex,
+                activePlaylist,
+                pendingQueueEntryId
+            ) {
+                if (pendingQueueEntryId != null) return@LaunchedEffect
+                val matched = matchPlaylistEntryForPlayback(
+                    playlist = activePlaylist,
+                    activeSourceId = session.currentSourceId ?: session.currentFile?.absolutePath,
+                    currentSubtuneIndex = session.subtuneIndex
+                )
+                if (matched != null && matched.id != activePlaylistEntryId) {
+                    activePlaylistEntryId = matched.id
+                }
+            }
+            // Shared M3U tap flow; save reuses the playlist chooser below.
+            val browserPlaylistPrompt = rememberBrowserPlaylistPrompt(
+                toast = { toastHandler.showToast(it) },
+                onOpenDocument = { document, entryId ->
+                    val queue = buildImportedPlaylist(document)
+                    val target = if (entryId == null) {
+                        queue.entries.firstOrNull()
+                    } else {
+                        queue.entries.firstOrNull { it.id == entryId }
+                    }
+                    target?.let { openQueueEntry(queue, it, false) }
+                }
+            )
             val onPlaylistLibraryStateChanged: (PlaylistLibraryState) -> Unit = { updated ->
                 playlistLibraryState = updated
                 writePlaylistLibraryState(configDir, updated)
@@ -2042,8 +2119,8 @@ fun main(args: Array<String>) = application {
                                             currentTrackPath = session.currentSourceId,
                                             recentRowsPerSubtune = perSubtuneRecentRows,
                                             currentTrackSubtuneIndex = session.subtuneIndex.takeIf { session.subtuneCount > 1 },
-                                            currentTrackTitle = session.title,
-                                            currentTrackArtist = session.artist,
+                                            currentTrackTitle = playerMetadata.title,
+                                            currentTrackArtist = playerMetadata.artist,
                                             pinnedHomeEntries = pinnedEntriesDisplay,
                                             recentFolders = recentFoldersDisplay,
                                             recentPlayedFiles = recentFilesDisplay,
@@ -2322,7 +2399,7 @@ fun main(args: Array<String>) = application {
                                                     },
                                                     sourceNodeId = browserResolution.requestedSmbSourceNodeId,
                                                     onBrowserLocationChanged = {},
-                                                    onPlaylistFileSelected = { file, _ -> playFile(file) },
+                                                    onPlaylistFileSelected = { file, hint -> browserPlaylistPrompt.onPlaylistFileSelected(file, hint) },
                                                     pinnedHomeEntries = pinnedEntries,
                                                     onPinHomeEntry = ::pinHomeEntry,
                                                     playlists = emptyList(),
@@ -2355,7 +2432,7 @@ fun main(args: Array<String>) = application {
                                                     },
                                                     sourceNodeId = browserResolution.requestedHttpSourceNodeId,
                                                     onBrowserLocationChanged = {},
-                                                    onPlaylistFileSelected = { file, _ -> playFile(file) },
+                                                    onPlaylistFileSelected = { file, hint -> browserPlaylistPrompt.onPlaylistFileSelected(file, hint) },
                                                     pinnedHomeEntries = pinnedEntries,
                                                     onPinHomeEntry = ::pinHomeEntry,
                                                     refreshRequestToken = browserRefreshToken,
@@ -2371,6 +2448,10 @@ fun main(args: Array<String>) = application {
                                                 initialDirectoryPath = browserResolution.requestedLocalDirectoryPath
                                                     ?: currentDirectory.absolutePath,
                                                 playingFile = session.currentFile,
+                                                playingPlaylistFile = playingPlaylistBrowserFile(
+                                                    activePlaylist,
+                                                    playerActiveEntry
+                                                ),
                                                 bottomContentPadding = bottomMargin,
                                                 showPrimaryTopBar = false,
                                                 showParentDirectoryEntry = showParentDirectoryEntry,
@@ -2382,6 +2463,7 @@ fun main(args: Array<String>) = application {
                                                     currentDirectory = file.parentFile ?: currentDirectory
                                                     playFile(file)
                                                 },
+                                                onPlaylistFileSelected = { file, hint -> browserPlaylistPrompt.onPlaylistFileSelected(file, hint) },
                                                 onBrowserLocationChanged = { launchState ->
                                                     launchState.directoryPath?.let { path ->
                                                         currentDirectory = File(path)
@@ -2449,8 +2531,8 @@ fun main(args: Array<String>) = application {
                                             activePlaylist = activePlaylist,
                                             activePlaylistEntryId = activePlaylistEntryId,
                                             currentPlaybackSourceId = session.currentSourceId,
-                                            currentPlaybackTitle = session.title,
-                                            currentPlaybackArtist = session.artist,
+                                            currentPlaybackTitle = playerMetadata.title,
+                                            currentPlaybackArtist = playerMetadata.artist,
                                             currentSubtuneIndex = session.subtuneIndex,
                                             bottomContentPadding = bottomMargin,
                                             favoritesSortMode = favoritesSortMode,
@@ -2877,8 +2959,8 @@ fun main(args: Array<String>) = application {
                                     }
                                 },
                                 file = session.currentFile,
-                                title = resolveMiniPlayerTitle(session.title, session.currentFile),
-                                artist = resolveMiniPlayerArtist(session.artist, session.currentFile),
+                                title = resolveMiniPlayerTitle(playerMetadata.title, session.currentFile),
+                                artist = resolveMiniPlayerArtist(playerMetadata.artist, session.currentFile),
                                 metadataTitleResolved = session.title.isNotBlank(),
                                 artwork = session.artwork,
                                 noArtworkIcon = placeholderArtworkIconForFile(session.currentFile, session.decoderName),
@@ -2893,10 +2975,10 @@ fun main(args: Array<String>) = application {
                                 previousRestartsAfterThreshold = previousRestartsAfterThreshold,
                                 canPreviousTrack = session.currentFile != null,
                                 canNextTrack = session.currentFile != null,
-                                canPreviousSubtune = session.subtuneCount > 1 && session.subtuneIndex > 0,
-                                canNextSubtune = session.subtuneCount > 1 && session.subtuneIndex + 1 < session.subtuneCount,
-                                currentSubtuneIndex = session.subtuneIndex,
-                                subtuneCount = session.subtuneCount,
+                                canPreviousSubtune = transportSubtuneCount > 1 && transportCurrentSubtuneIndex > 0,
+                                canNextSubtune = transportSubtuneCount > 1 && transportCurrentSubtuneIndex + 1 < transportSubtuneCount,
+                                currentSubtuneIndex = transportCurrentSubtuneIndex,
+                                subtuneCount = transportSubtuneCount,
                                 onExpand = {
                                     expandFromMiniDrag = miniExpandPreviewActive
                                     miniExpandPreviewProgress = 0f
@@ -3028,9 +3110,9 @@ fun main(args: Array<String>) = application {
                                     positionSecondsProvider = { session.positionSeconds },
                                     canPreviousTrack = session.currentFile != null,
                                     canNextTrack = session.currentFile != null,
-                                    title = session.title,
-                                    artist = session.artist,
-                                    album = session.album,
+                                    title = playerMetadata.title,
+                                    artist = playerMetadata.artist,
+                                    album = playerMetadata.album,
                                     sampleRateHz = session.sampleRateHz,
                                     channelCount = session.channelCount,
                                     bitDepthLabel = session.bitDepthLabel,
@@ -3073,9 +3155,9 @@ fun main(args: Array<String>) = application {
                                         recordSubtuneSwitchInRecents()
                                     },
                                     onOpenSubtuneSelector = { showSubtuneSelectorDialog = true },
-                                    canPreviousSubtune = session.subtuneCount > 1 && session.subtuneIndex > 0,
-                                    canNextSubtune = session.subtuneCount > 1 && session.subtuneIndex + 1 < session.subtuneCount,
-                                    canOpenSubtuneSelector = session.subtuneCount > 1,
+                                    canPreviousSubtune = transportSubtuneCount > 1 && transportCurrentSubtuneIndex > 0,
+                                    canNextSubtune = transportSubtuneCount > 1 && transportCurrentSubtuneIndex + 1 < transportSubtuneCount,
+                                    canOpenSubtuneSelector = !queueSubtunePinned && session.subtuneCount > 1,
                                     playlists = playlistLibraryState.playlists,
                                     onAddToPlaylist = { playlistId, newTitle ->
                                         buildCurrentTrackEntry()?.let { entry ->
@@ -3094,8 +3176,8 @@ fun main(args: Array<String>) = application {
                                     },
                                     canOpenPlaylistSelector = activePlaylist?.entries?.isNotEmpty() == true,
                                     onOpenPlaylistSelector = { showPlaylistSelectorDialog = true },
-                                    currentSubtuneIndex = session.subtuneIndex,
-                                    subtuneCount = session.subtuneCount,
+                                    currentSubtuneIndex = transportCurrentSubtuneIndex,
+                                    subtuneCount = transportSubtuneCount,
                                     titleCurrentSubtuneIndex = session.subtuneIndex,
                                     titleSubtuneCount = session.subtuneCount,
                                     subtuneTitleClickable = session.subtuneCount > 1,
@@ -3233,8 +3315,12 @@ fun main(args: Array<String>) = application {
                             entries = selectorPlaylist?.entries ?: playlistLibraryState.favorites,
                             currentEntryId = activePlaylistEntryId,
                             onSelectEntry = { entry ->
-                                activePlaylistEntryId = entry.id
-                                resolvePlaylistEntryLocalFile(entry.source)?.let { playFile(it) }
+                                val queue = activePlaylist
+                                if (queue != null) {
+                                    openQueueEntry(queue, entry, activePlaylistShuffleActive)
+                                } else {
+                                    resolvePlaylistEntryLocalFile(entry.source)?.let { playFile(it, entry.subtuneIndex) }
+                                }
                             },
                             onDismiss = { showPlaylistSelectorDialog = false },
                             onSaveAsPlaylist = selectorPlaylist?.takeIf { it.entries.isNotEmpty() }?.let { playlist ->
@@ -3302,6 +3388,29 @@ fun main(args: Array<String>) = application {
                             }
                         )
                     }
+
+                    if (browserPlaylistPrompt.showAction || browserPlaylistPrompt.showPreview) {
+                        PlatformBackHandler(enabled = true) {
+                            browserPlaylistPrompt.dismiss()
+                        }
+                    }
+                    BrowserPlaylistPromptDialogs(
+                        prompt = browserPlaylistPrompt,
+                        onSave = { document ->
+                            selectorImportDialogTitle = "Save playlist"
+                            selectorImportTitle = document.title
+                            selectorImportEntries = document.entries
+                        },
+                        onEntryAddTrackToPlaylist = { entry ->
+                            selectorImportDialogTitle = "Add to playlist"
+                            selectorImportTitle = null
+                            selectorImportEntries = listOf(entry)
+                        },
+                        onEntryToggleFavorite = { entry -> togglePlaylistEntryFavorite(entry) },
+                        isEntryFavorite = { entry ->
+                            playlistContainsTrack(playlistLibraryState.favorites, entry.source, entry.subtuneIndex)
+                        }
+                    )
 
                     if (showAudioEffectsDialog) {
                         PlatformBackHandler(enabled = true) {

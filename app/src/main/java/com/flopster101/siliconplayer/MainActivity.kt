@@ -136,6 +136,7 @@ import android.provider.Settings
 import android.os.Environment
 import android.webkit.MimeTypeMap
 import android.widget.Toast
+import com.flopster101.siliconplayer.ui.dialogs.rememberBrowserPlaylistPrompt
 import androidx.core.content.FileProvider
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -552,7 +553,7 @@ internal fun parsePlaylistFileDocument(
     return runCatching {
         parsePlaylistDocument(
             file = file,
-            sourceIdHint = sourceIdHint ?: file.absolutePath
+            sourceIdHint = sourceIdHint
         )
     }.getOrNull()
 }
@@ -788,25 +789,6 @@ internal fun playAdjacentBrowserFileFromAnchor(
         )
     }
     return true
-}
-
-private fun resolveActivePlaylistMetadataEntry(
-    activePlaylist: StoredPlaylist?,
-    activePlaylistEntryId: String?,
-    activeSourceId: String?,
-    currentSubtuneIndex: Int
-): PlaylistTrackEntry? {
-    val entry = activePlaylist
-        ?.entries
-        ?.firstOrNull { it.id == activePlaylistEntryId }
-        ?: return null
-    return entry.takeIf {
-        playlistEntryMatchesPlayback(
-            entry = it,
-            activeSourceId = activeSourceId,
-            currentSubtuneIndex = currentSubtuneIndex
-        )
-    }
 }
 
 private fun resolveFavoriteEntryForPlayback(
@@ -1256,15 +1238,11 @@ private fun AppNavigationPlaylistEffects(
         if (currentEntry != null && playlistEntryMatchesPlayback(currentEntry, activeSourceId, currentSubtuneIndex)) {
             return@LaunchedEffect
         }
-        val playbackMatchedEntry = activePlaylist
-            ?.entries
-            ?.firstOrNull { entry ->
-                playlistEntryMatchesPlayback(
-                    entry = entry,
-                    activeSourceId = activeSourceId,
-                    currentSubtuneIndex = currentSubtuneIndex
-                )
-            }
+        val playbackMatchedEntry = matchPlaylistEntryForPlayback(
+            playlist = activePlaylist,
+            activeSourceId = activeSourceId,
+            currentSubtuneIndex = currentSubtuneIndex
+        )
         if (playbackMatchedEntry != null && playbackMatchedEntry.id != activePlaylistEntryId) {
             onActivePlaylistEntryIdChanged(playbackMatchedEntry.id)
         }
@@ -1502,8 +1480,6 @@ private fun AppNavigation(
     var subtuneEntries by remember { mutableStateOf<List<SubtuneEntry>>(emptyList()) }
     var showSubtuneSelectorDialog by remember { mutableStateOf(false) }
     var showPlaylistSelectorDialog by remember { mutableStateOf(false) }
-    var showPlaylistOpenActionDialog by remember { mutableStateOf(false) }
-    var showPlaylistPreviewDialog by remember { mutableStateOf(false) }
     var repeatModeCapabilitiesFlags by remember { mutableIntStateOf(REPEAT_CAP_ALL) }
     var playbackCapabilitiesFlags by remember {
         mutableIntStateOf(
@@ -1576,7 +1552,6 @@ private fun AppNavigation(
     var activePlaylistShuffleActive by remember { mutableStateOf(false) }
     var lastStoppedPlaylistResume by remember { mutableStateOf<LastStoppedPlaylistResume?>(null) }
     var pendingPlaylistSubtuneSelection by remember { mutableStateOf<PendingPlaylistSubtuneSelection?>(null) }
-    var pendingBrowserPlaylistDocument by remember { mutableStateOf<ParsedPlaylistDocument?>(null) }
     var networkNodes by remember {
         mutableStateOf(readNetworkNodes(prefs))
     }
@@ -2113,32 +2088,22 @@ private fun AppNavigation(
                 .apply()
         }
     }
-    fun currentEffectiveTitle(): String {
-        val entry = resolveActivePlaylistMetadataEntry(
+    fun currentEffectiveEntry(): PlaylistTrackEntry? {
+        return resolveActivePlaylistMetadataEntry(
             activePlaylist = activePlaylist,
             activePlaylistEntryId = activePlaylistEntryId,
             activeSourceId = settingsStates.currentPlaybackSourceId.value ?: selectedFile?.absolutePath,
             currentSubtuneIndex = currentSubtuneIndex
         ) ?: pendingPlaylistEntry
-        return entry?.title?.trim()?.takeIf { it.isNotBlank() } ?: metadataTitle
+    }
+    fun currentEffectiveTitle(): String {
+        return effectiveTrackMetadata(currentEffectiveEntry(), metadataTitle, metadataArtist, metadataAlbum).title
     }
     fun currentEffectiveArtist(): String {
-        val entry = resolveActivePlaylistMetadataEntry(
-            activePlaylist = activePlaylist,
-            activePlaylistEntryId = activePlaylistEntryId,
-            activeSourceId = settingsStates.currentPlaybackSourceId.value ?: selectedFile?.absolutePath,
-            currentSubtuneIndex = currentSubtuneIndex
-        ) ?: pendingPlaylistEntry
-        return entry?.artist?.trim()?.takeIf { it.isNotBlank() } ?: metadataArtist
+        return effectiveTrackMetadata(currentEffectiveEntry(), metadataTitle, metadataArtist, metadataAlbum).artist
     }
     fun currentEffectiveAlbum(): String {
-        val entry = resolveActivePlaylistMetadataEntry(
-            activePlaylist = activePlaylist,
-            activePlaylistEntryId = activePlaylistEntryId,
-            activeSourceId = settingsStates.currentPlaybackSourceId.value ?: selectedFile?.absolutePath,
-            currentSubtuneIndex = currentSubtuneIndex
-        ) ?: pendingPlaylistEntry
-        return entry?.album?.trim()?.takeIf { it.isNotBlank() } ?: metadataAlbum
+        return effectiveTrackMetadata(currentEffectiveEntry(), metadataTitle, metadataArtist, metadataAlbum).album
     }
     fun currentEffectiveDuration(): Double {
         val entry = resolveActivePlaylistMetadataEntry(
@@ -2156,18 +2121,13 @@ private fun AppNavigation(
         ?.durationSecondsOverride
         ?.takeIf { it.isFinite() && it > 0.0 }
     val effectiveDuration = currentEffectiveDuration()
-    val pinnedPlaylistSubtune = activePlaylistMetadataEntry?.subtuneIndex != null
+    val pinnedPlaylistSubtune = isPlaylistSubtunePinned(activePlaylistMetadataEntry)
     val titleSubtuneCount = subtuneCount
     val titleCurrentSubtuneIndex = currentSubtuneIndex
     val subtuneTitleClickable = !pinnedPlaylistSubtune && subtuneCount > 1
-    val transportSubtuneCount = if (pinnedPlaylistSubtune) 0 else subtuneCount
-    val transportCurrentSubtuneIndex = if (pinnedPlaylistSubtune) 0 else currentSubtuneIndex
-    val activePlaylistBrowserFile = activePlaylist
-        ?.takeIf { activePlaylistMetadataEntry != null }
-        ?.sourceIdHint
-        ?.takeIf { it.isNotBlank() }
-        ?.let(::resolvePlaylistEntryLocalFile)
-        ?.takeIf { it.exists() && it.isFile && isSupportedPlaylistFile(it) }
+    val transportSubtuneCount = pinnedTransportSubtuneCount(subtuneCount, pinnedPlaylistSubtune)
+    val transportCurrentSubtuneIndex = pinnedTransportSubtuneIndex(currentSubtuneIndex, pinnedPlaylistSubtune)
+    val activePlaylistBrowserFile = playingPlaylistBrowserFile(activePlaylist, activePlaylistMetadataEntry)
     val activePlaylistInfo = activePlaylist.takeIf { activePlaylistMetadataEntry != null }
     val trackInfoPlaylistTitle = activePlaylistInfo
         ?.title
@@ -2651,23 +2611,25 @@ private fun AppNavigation(
         manualOpenDelegates = manualOpenDelegates,
         autoPlayOnTrackSelect = autoPlayOnTrackSelect,
         openPlayerOnTrackSelect = openPlayerOnTrackSelect,
-        pendingBrowserPlaylistDocumentProvider = { pendingBrowserPlaylistDocument },
-        onPendingBrowserPlaylistDocumentChanged = { pendingBrowserPlaylistDocument = it },
         onActivePlaylistChanged = { activePlaylist = it },
         onActivePlaylistEntryIdChanged = { activePlaylistEntryId = it },
         onActivePlaylistShuffleActiveChanged = { activePlaylistShuffleActive = it },
         onShowPlaylistSelectorDialogChanged = { showPlaylistSelectorDialog = it },
-        onShowPlaylistOpenActionDialogChanged = { showPlaylistOpenActionDialog = it },
-        onShowPlaylistPreviewDialogChanged = { showPlaylistPreviewDialog = it },
         onPendingPlaylistSubtuneSelectionChanged = { pendingPlaylistSubtuneSelection = it }
     )
+    // Shared M3U tap flow; the prompt owns its document and dialog flags.
+    val browserPlaylistPrompt = rememberBrowserPlaylistPrompt(
+        toast = { message ->
+            appScope.launch(Dispatchers.Main) {
+                Toast.makeText(context, message, Toast.LENGTH_SHORT).show()
+            }
+        },
+        onOpenDocument = { document, entryId ->
+            playlistActionHandlers.openParsedPlaylistDocument(document, entryId)
+        }
+    )
     val openPlaylistFileImmediatelyAction = playlistActionHandlers.openPlaylistFileImmediately
-    val playPendingBrowserPlaylistAction = playlistActionHandlers.playPendingBrowserPlaylist
-    val openPendingBrowserPlaylistEntryAction = playlistActionHandlers.openPendingBrowserPlaylistEntry
-    val dismissPendingBrowserPlaylistAction = playlistActionHandlers.dismissPendingBrowserPlaylist
-    val browsePendingBrowserPlaylistAction = playlistActionHandlers.browsePendingBrowserPlaylist
     val playPlaylistEntryAction = playlistActionHandlers.playPlaylistEntry
-    val handlePlaylistFileSelectionAction = playlistActionHandlers.handlePlaylistFileSelection
 
     val onAddLibraryTracksToFavoritesAction = libraryActions.onAddFavorites
     val onRemoveLibraryTracksFromFavoritesAction = libraryActions.onRemoveFavorites
@@ -2879,10 +2841,8 @@ private fun AppNavigation(
             subtuneEntries = emptyList()
             showSubtuneSelectorDialog = false
             showPlaylistSelectorDialog = false
-            showPlaylistOpenActionDialog = false
-            showPlaylistPreviewDialog = false
             pendingPlaylistSubtuneSelection = null
-            pendingBrowserPlaylistDocument = null
+            browserPlaylistPrompt.dismiss()
         },
         onRememberBrowserLocationCleared = {
             lastBrowserLocationId = null
@@ -3585,21 +3545,7 @@ private fun AppNavigation(
             playlistLibraryState = playlistLibraryState,
             onPlaylistLibraryStateChanged = onPlaylistLibraryStateChanged,
             activePlaylist = activePlaylist,
-            showPlaylistOpenActionDialog = showPlaylistOpenActionDialog,
-            playlistOpenActionTitle = pendingBrowserPlaylistDocument?.title ?: "Playlist",
-            playlistOpenActionEntryCount = pendingBrowserPlaylistDocument?.entries?.size ?: 0,
-            onShowPlaylistOpenActionDialogChanged = { showPlaylistOpenActionDialog = it },
-            onDismissPlaylistOpenActionDialog = dismissPendingBrowserPlaylistAction,
-            onPlayPlaylistFromFile = playPendingBrowserPlaylistAction,
-            onBrowsePlaylistFromFile = browsePendingBrowserPlaylistAction,
-            pendingBrowserPlaylistDocument = pendingBrowserPlaylistDocument,
-            showPlaylistPreviewDialog = showPlaylistPreviewDialog,
-            playlistPreviewTitle = "Playlist",
-            playlistPreviewSubtitle = pendingBrowserPlaylistDocument?.title,
-            playlistPreviewEntries = pendingBrowserPlaylistDocument?.entries.orEmpty(),
-            onShowPlaylistPreviewDialogChanged = { showPlaylistPreviewDialog = it },
-            onDismissPlaylistPreviewDialog = dismissPendingBrowserPlaylistAction,
-            onSelectPlaylistPreviewEntry = openPendingBrowserPlaylistEntryAction,
+            browserPlaylistPrompt = browserPlaylistPrompt,
             showAudioEffectsDialog = showAudioEffectsDialog,
             tempMasterVolumeDb = tempMasterVolumeDb,
             tempPluginVolumeDb = tempPluginVolumeDb,
@@ -4487,7 +4433,7 @@ private fun AppNavigation(
                     pendingPlaylistSubtuneSelection = null
                     showPlaylistSelectorDialog = false
                 },
-                onPlaylistFileSelected = handlePlaylistFileSelectionAction,
+                onPlaylistFileSelected = { file, hint -> browserPlaylistPrompt.onPlaylistFileSelected(file, hint) },
                 onRememberSmbCredentials = { sourceNodeId, sourceId, username, password ->
                     rememberNetworkSmbCredentials(sourceNodeId, sourceId, username, password)
                 },

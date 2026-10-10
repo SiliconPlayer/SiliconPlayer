@@ -158,9 +158,12 @@ internal fun parsePlaylistDocument(
     allowUnresolvedFiles: Boolean = true
 ): ParsedPlaylistDocument? {
     if (!file.exists() || !file.isFile) return null
+    // A playlist is always identifiable by its own path unless a remote or
+    // archive identity overrides it.
+    val resolvedSourceIdHint = sourceIdHint ?: file.absolutePath
     return when (inferredPrimaryExtensionForName(file.name)?.lowercase(Locale.ROOT)) {
-        "m3u" -> parseM3uPlaylist(file, sourceIdHint, PlaylistStoredFormat.M3u, allowUnresolvedFiles)
-        "m3u8" -> parseM3uPlaylist(file, sourceIdHint, PlaylistStoredFormat.M3u8, allowUnresolvedFiles)
+        "m3u" -> parseM3uPlaylist(file, resolvedSourceIdHint, PlaylistStoredFormat.M3u, allowUnresolvedFiles)
+        "m3u8" -> parseM3uPlaylist(file, resolvedSourceIdHint, PlaylistStoredFormat.M3u8, allowUnresolvedFiles)
         else -> null
     }
 }
@@ -175,6 +178,79 @@ internal fun resolveAdjacentIndex(currentIndex: Int, offset: Int, size: Int, wra
     }
     return rawTargetIndex.takeIf { it in 0 until size }
 }
+
+internal fun resolveActivePlaylistMetadataEntry(
+    activePlaylist: StoredPlaylist?,
+    activePlaylistEntryId: String?,
+    activeSourceId: String?,
+    currentSubtuneIndex: Int
+): PlaylistTrackEntry? {
+    val entry = activePlaylist
+        ?.entries
+        ?.firstOrNull { it.id == activePlaylistEntryId }
+        ?: return null
+    return entry.takeIf {
+        playlistEntryMatchesPlayback(
+            entry = it,
+            activeSourceId = activeSourceId,
+            currentSubtuneIndex = currentSubtuneIndex
+        )
+    }
+}
+
+// One shared queue-metadata system: match the queue entry for what is actually
+// playing, then prefer its title/artist/album over decoder metadata.
+internal fun matchPlaylistEntryForPlayback(
+    playlist: StoredPlaylist?,
+    activeSourceId: String?,
+    currentSubtuneIndex: Int
+): PlaylistTrackEntry? = playlist?.entries?.firstOrNull {
+    playlistEntryMatchesPlayback(
+        entry = it,
+        activeSourceId = activeSourceId,
+        currentSubtuneIndex = currentSubtuneIndex
+    )
+}
+
+internal data class EffectiveTrackMetadata(
+    val title: String,
+    val artist: String,
+    val album: String
+)
+
+internal fun effectiveTrackMetadata(
+    entry: PlaylistTrackEntry?,
+    fallbackTitle: String,
+    fallbackArtist: String,
+    fallbackAlbum: String
+): EffectiveTrackMetadata = EffectiveTrackMetadata(
+    title = entry?.title?.trim()?.takeIf { it.isNotBlank() } ?: fallbackTitle,
+    artist = entry?.artist?.trim()?.takeIf { it.isNotBlank() } ?: fallbackArtist,
+    album = entry?.album?.trim()?.takeIf { it.isNotBlank() } ?: fallbackAlbum
+)
+
+// Queue-pinned subtune transport: while a queue entry pins the subtune, the
+// track buttons advance the queue, never the raw subtune list.
+internal fun isPlaylistSubtunePinned(entry: PlaylistTrackEntry?): Boolean =
+    entry?.subtuneIndex != null
+
+internal fun pinnedTransportSubtuneCount(subtuneCount: Int, playlistSubtunePinned: Boolean): Int =
+    if (playlistSubtunePinned) 0 else subtuneCount
+
+internal fun pinnedTransportSubtuneIndex(currentSubtuneIndex: Int, playlistSubtunePinned: Boolean): Int =
+    if (playlistSubtunePinned) 0 else currentSubtuneIndex
+
+// Browser highlight for the playlist file behind the active queue entry.
+// Lights only while the entry belongs to current playback.
+internal fun playingPlaylistBrowserFile(
+    playlist: StoredPlaylist?,
+    metadataEntry: PlaylistTrackEntry?
+): File? = playlist
+    ?.takeIf { metadataEntry != null }
+    ?.sourceIdHint
+    ?.takeIf { it.isNotBlank() }
+    ?.let(::resolvePlaylistEntryLocalFile)
+    ?.takeIf { it.exists() && it.isFile && isSupportedPlaylistFile(it) }
 
 internal fun resolvePlaylistEntryLocalFile(source: String): File? {
     if (parseHttpSourceSpecFromInput(source) != null ||

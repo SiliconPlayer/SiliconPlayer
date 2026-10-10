@@ -16,6 +16,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.runtime.key
 import java.io.File
 import com.flopster101.siliconplayer.ui.dialogs.AddToPlaylistChooserDialog
+import com.flopster101.siliconplayer.ui.dialogs.BrowserPlaylistPrompt
 import com.flopster101.siliconplayer.ui.dialogs.ManualHttpAuthenticationDialog
 import com.flopster101.siliconplayer.ui.dialogs.ManualSmbAuthenticationDialog
 import kotlinx.coroutines.launch
@@ -213,21 +214,7 @@ internal fun AppNavigationPlaybackDialogsSection(
     playlistLibraryState: PlaylistLibraryState,
     onPlaylistLibraryStateChanged: (PlaylistLibraryState) -> Unit,
     activePlaylist: StoredPlaylist?,
-    showPlaylistOpenActionDialog: Boolean,
-    playlistOpenActionTitle: String,
-    playlistOpenActionEntryCount: Int,
-    onShowPlaylistOpenActionDialogChanged: (Boolean) -> Unit,
-    onDismissPlaylistOpenActionDialog: () -> Unit,
-    onPlayPlaylistFromFile: () -> Unit,
-    onBrowsePlaylistFromFile: () -> Unit,
-    pendingBrowserPlaylistDocument: ParsedPlaylistDocument?,
-    showPlaylistPreviewDialog: Boolean,
-    playlistPreviewTitle: String,
-    playlistPreviewSubtitle: String?,
-    playlistPreviewEntries: List<PlaylistTrackEntry>,
-    onShowPlaylistPreviewDialogChanged: (Boolean) -> Unit,
-    onDismissPlaylistPreviewDialog: () -> Unit,
-    onSelectPlaylistPreviewEntry: (PlaylistTrackEntry) -> Unit,
+    browserPlaylistPrompt: BrowserPlaylistPrompt,
     showAudioEffectsDialog: Boolean,
     tempMasterVolumeDb: Float,
     tempPluginVolumeDb: Float,
@@ -283,19 +270,10 @@ internal fun AppNavigationPlaybackDialogsSection(
     val isActivePlaylistEntryFavorite: (PlaylistTrackEntry) -> Boolean = { entry ->
         playlistContainsTrack(playlistLibraryState.favorites, entry.source, entry.subtuneIndex)
     }
-    val onSavePlaylistFromFile: () -> Unit = {
-        pendingBrowserPlaylistDocument?.let { doc ->
-            pendingPlaylistImportDialogTitle = "Save playlist"
-            pendingPlaylistImportTitle = doc.title
-            pendingPlaylistImportEntries = doc.entries
-        }
-    }
-    val onSavePlaylistFromPreview: () -> Unit = {
-        pendingBrowserPlaylistDocument?.let { doc ->
-            pendingPlaylistImportDialogTitle = "Save playlist"
-            pendingPlaylistImportTitle = doc.title
-            pendingPlaylistImportEntries = doc.entries
-        }
+    val onSaveBrowserPlaylist: (ParsedPlaylistDocument) -> Unit = { doc ->
+        pendingPlaylistImportDialogTitle = "Save playlist"
+        pendingPlaylistImportTitle = doc.title
+        pendingPlaylistImportEntries = doc.entries
     }
     val onPlaylistPreviewEntryAddTrackToPlaylist: (PlaylistTrackEntry) -> Unit = { entry ->
         pendingPlaylistImportDialogTitle = "Add to playlist"
@@ -443,43 +421,11 @@ internal fun AppNavigationPlaybackDialogsSection(
         onActivePlaylistEntryAddTrackToPlaylist = onActivePlaylistEntryAddTrackToPlaylist,
         onActivePlaylistEntryToggleFavorite = onActivePlaylistEntryToggleFavorite,
         isActivePlaylistEntryFavorite = isActivePlaylistEntryFavorite,
-        showPlaylistOpenActionDialog = showPlaylistOpenActionDialog,
-        playlistOpenActionTitle = playlistOpenActionTitle,
-        playlistOpenActionEntryCount = playlistOpenActionEntryCount,
-        onPlayPlaylistFromFile = {
-            onPlayPlaylistFromFile()
-            onShowPlaylistOpenActionDialogChanged(false)
-        },
-        onBrowsePlaylistFromFile = {
-            onShowPlaylistOpenActionDialogChanged(false)
-            onShowPlaylistPreviewDialogChanged(true)
-            onBrowsePlaylistFromFile()
-        },
-        onSavePlaylistFromFile = onSavePlaylistFromFile?.let { action ->
-            {
-                onShowPlaylistOpenActionDialogChanged(false)
-                action()
-            }
-        },
-        onDismissPlaylistOpenAction = onDismissPlaylistOpenActionDialog,
-        showPlaylistPreviewDialog = showPlaylistPreviewDialog,
-        playlistPreviewTitle = playlistPreviewTitle,
-        playlistPreviewSubtitle = playlistPreviewSubtitle,
-        playlistPreviewEntries = playlistPreviewEntries,
-        onSelectPlaylistPreviewEntry = {
-            onSelectPlaylistPreviewEntry(it)
-            onShowPlaylistPreviewDialogChanged(false)
-        },
-        onSavePlaylistFromPreview = onSavePlaylistFromPreview?.let { action ->
-            {
-                onShowPlaylistPreviewDialogChanged(false)
-                action()
-            }
-        },
-        onPlaylistPreviewEntryAddTrackToPlaylist = onPlaylistPreviewEntryAddTrackToPlaylist,
-        onPlaylistPreviewEntryToggleFavorite = onPlaylistPreviewEntryToggleFavorite,
-        isPlaylistPreviewEntryFavorite = isPlaylistPreviewEntryFavorite,
-        onDismissPlaylistPreview = onDismissPlaylistPreviewDialog,
+        browserPlaylistPrompt = browserPlaylistPrompt,
+        onSaveBrowserPlaylist = onSaveBrowserPlaylist,
+        onBrowserPlaylistPreviewEntryAddTrackToPlaylist = onPlaylistPreviewEntryAddTrackToPlaylist,
+        onBrowserPlaylistPreviewEntryToggleFavorite = onPlaylistPreviewEntryToggleFavorite,
+        isBrowserPlaylistPreviewEntryFavorite = isPlaylistPreviewEntryFavorite,
         showAudioEffectsDialog = showAudioEffectsDialog,
         tempMasterVolumeDb = tempMasterVolumeDb,
         tempPluginVolumeDb = tempPluginVolumeDb,

@@ -2,7 +2,8 @@ package com.flopster101.siliconplayer
 
 import androidx.compose.runtime.Composable
 import com.flopster101.siliconplayer.ui.dialogs.AudioEffectsDialog
-import com.flopster101.siliconplayer.ui.dialogs.PlaylistOpenActionDialog
+import com.flopster101.siliconplayer.ui.dialogs.BrowserPlaylistPrompt
+import com.flopster101.siliconplayer.ui.dialogs.BrowserPlaylistPromptDialogs
 import com.flopster101.siliconplayer.ui.dialogs.PlaylistSelectorDialog
 import com.flopster101.siliconplayer.ui.dialogs.SoxExperimentalDialog
 import com.flopster101.siliconplayer.ui.dialogs.SubtuneSelectorDialog
@@ -37,23 +38,11 @@ internal fun PlaybackDialogsHost(
     onActivePlaylistEntryAddTrackToPlaylist: ((PlaylistTrackEntry) -> Unit)? = null,
     onActivePlaylistEntryToggleFavorite: ((PlaylistTrackEntry) -> Unit)? = null,
     isActivePlaylistEntryFavorite: ((PlaylistTrackEntry) -> Boolean)? = null,
-    showPlaylistOpenActionDialog: Boolean,
-    playlistOpenActionTitle: String,
-    playlistOpenActionEntryCount: Int,
-    onPlayPlaylistFromFile: () -> Unit,
-    onBrowsePlaylistFromFile: () -> Unit,
-    onSavePlaylistFromFile: (() -> Unit)? = null,
-    onDismissPlaylistOpenAction: () -> Unit,
-    showPlaylistPreviewDialog: Boolean,
-    playlistPreviewTitle: String,
-    playlistPreviewSubtitle: String?,
-    playlistPreviewEntries: List<PlaylistTrackEntry>,
-    onSelectPlaylistPreviewEntry: (PlaylistTrackEntry) -> Unit,
-    onSavePlaylistFromPreview: (() -> Unit)? = null,
-    onPlaylistPreviewEntryAddTrackToPlaylist: ((PlaylistTrackEntry) -> Unit)? = null,
-    onPlaylistPreviewEntryToggleFavorite: ((PlaylistTrackEntry) -> Unit)? = null,
-    isPlaylistPreviewEntryFavorite: ((PlaylistTrackEntry) -> Boolean)? = null,
-    onDismissPlaylistPreview: () -> Unit,
+    browserPlaylistPrompt: BrowserPlaylistPrompt,
+    onSaveBrowserPlaylist: (ParsedPlaylistDocument) -> Unit,
+    onBrowserPlaylistPreviewEntryAddTrackToPlaylist: ((PlaylistTrackEntry) -> Unit)? = null,
+    onBrowserPlaylistPreviewEntryToggleFavorite: ((PlaylistTrackEntry) -> Unit)? = null,
+    isBrowserPlaylistPreviewEntryFavorite: ((PlaylistTrackEntry) -> Boolean)? = null,
     showAudioEffectsDialog: Boolean,
     tempMasterVolumeDb: Float,
     tempPluginVolumeDb: Float,
@@ -140,32 +129,13 @@ internal fun PlaybackDialogsHost(
         )
     }
 
-    if (showPlaylistOpenActionDialog) {
-        PlaylistOpenActionDialog(
-            title = playlistOpenActionTitle,
-            entryCount = playlistOpenActionEntryCount,
-            onPlayNow = onPlayPlaylistFromFile,
-            onBrowseEntries = onBrowsePlaylistFromFile,
-            onDismiss = onDismissPlaylistOpenAction,
-            onSaveAsPlaylist = onSavePlaylistFromFile
-        )
-    }
-
-    if (showPlaylistPreviewDialog) {
-        PlaylistSelectorDialog(
-            title = playlistPreviewTitle,
-            subtitle = playlistPreviewSubtitle,
-            shuffleActive = false,
-            entries = playlistPreviewEntries,
-            currentEntryId = null,
-            onSelectEntry = onSelectPlaylistPreviewEntry,
-            onDismiss = onDismissPlaylistPreview,
-            onSaveAsPlaylist = onSavePlaylistFromPreview,
-            onEntryAddTrackToPlaylist = onPlaylistPreviewEntryAddTrackToPlaylist,
-            onEntryToggleFavorite = onPlaylistPreviewEntryToggleFavorite,
-            isEntryFavorite = isPlaylistPreviewEntryFavorite
-        )
-    }
+    BrowserPlaylistPromptDialogs(
+        prompt = browserPlaylistPrompt,
+        onSave = onSaveBrowserPlaylist,
+        onEntryAddTrackToPlaylist = onBrowserPlaylistPreviewEntryAddTrackToPlaylist,
+        onEntryToggleFavorite = onBrowserPlaylistPreviewEntryToggleFavorite,
+        isEntryFavorite = isBrowserPlaylistPreviewEntryFavorite
+    )
 
     if (showAudioEffectsDialog) {
         AudioEffectsDialog(
