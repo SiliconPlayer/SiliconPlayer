@@ -352,6 +352,10 @@ std::string UpseDecoder::getBitDepthLabel() {
     return "16-bit PCM";
 }
 
+int UpseDecoder::getDisplayChannelCount() {
+    return kScopeVoices;
+}
+
 int UpseDecoder::getChannelCount() {
     return channels;
 }

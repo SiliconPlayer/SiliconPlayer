@@ -465,6 +465,10 @@ std::string ViogsfDecoder::getBitDepthLabel() {
     return "16-bit PCM";
 }
 
+int ViogsfDecoder::getDisplayChannelCount() {
+    return kScopeVoices;
+}
+
 int ViogsfDecoder::getChannelCount() {
     return channels;
 }
