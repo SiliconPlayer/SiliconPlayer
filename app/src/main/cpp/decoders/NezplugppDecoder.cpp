@@ -154,6 +154,16 @@ bool NezplugppDecoder::open(const char* path) {
     if (infoArtist) artist = infoArtist;
     if (infoCopyright) copyrightText = infoCopyright;
     if (infoDetail) comment = infoDetail;
+    // Scene rips tag unknown strings with a literal "<?>" placeholder. Treat it
+    // as missing so the app's own Unknown Artist/Title labels apply instead.
+    auto clearUnknownPlaceholder = [](std::string& text) {
+        std::string trimmed = text;
+        while (!trimmed.empty() && trimmed.back() == ' ') trimmed.pop_back();
+        if (trimmed == "<?>") text.clear();
+    };
+    clearUnknownPlaceholder(title);
+    clearUnknownPlaceholder(artist);
+    clearUnknownPlaceholder(copyrightText);
     if (title.empty()) {
         title = std::filesystem::path(path).stem().string();
     }
