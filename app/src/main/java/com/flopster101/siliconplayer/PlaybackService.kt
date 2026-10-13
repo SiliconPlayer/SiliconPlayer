@@ -266,12 +266,18 @@ class PlaybackService : Service() {
                         }
                     }
                     val enginePlaying = snapshot.isEnginePlaying
+                    val wasTickerPlaying = isPlaying
                     if (!enginePlaying) {
                         pauseSettling = false
                         isPlaying = false
                     } else if (!pauseSettling || SystemClock.uptimeMillis() >= pauseSettleDeadlineMs) {
                         pauseSettling = false
                         isPlaying = true
+                    }
+                    if (!isPlaying && wasTickerPlaying) {
+                        abandonAudioFocus()
+                        resumeOnFocusGain = false
+                        releaseWakeLock()
                     }
                     // Else: pause still settling; keep the pressed state.
                     if (isPlaying) {
@@ -567,10 +573,22 @@ class PlaybackService : Service() {
         // single PlaybackIo thread, so this check observes all earlier transitions.
         val syncPath = currentPath
         serviceScope.launch {
+            if (!incomingIsPlaying) {
+                val wasPlaying = isPlaying
+                isPlaying = false
+                pauseSettling = false
+                if (wasPlaying) {
+                    abandonAudioFocus()
+                    resumeOnFocusGain = false
+                    releaseWakeLock()
+                }
+                applySyncPostState()
+                return@launch
+            }
             val enginePlaying = withContext(Dispatchers.PlaybackIo) {
                 if (syncPath == null) false else NativeBridge.isEnginePlaying()
             }
-            if (incomingIsPlaying && pauseSettling && SystemClock.uptimeMillis() < pauseSettleDeadlineMs) {
+            if (pauseSettling && SystemClock.uptimeMillis() < pauseSettleDeadlineMs) {
                 applySyncPostState()
                 return@launch
             }
@@ -579,20 +597,12 @@ class PlaybackService : Service() {
                 return@launch
             }
             val wasPlaying = isPlaying
-            isPlaying = incomingIsPlaying
+            isPlaying = true
             pauseSettling = false
-            // Request audio focus when transitioning from not playing to playing
-            if (isPlaying && !wasPlaying && currentPath != null) {
+            if (!wasPlaying && currentPath != null) {
                 requestAudioFocus()
-            } else if (!isPlaying && wasPlaying) {
-                abandonAudioFocus()
-                resumeOnFocusGain = false
             }
-            if (isPlaying) {
-                acquireWakeLock()
-            } else {
-                releaseWakeLock()
-            }
+            acquireWakeLock()
             applySyncPostState()
         }
     }

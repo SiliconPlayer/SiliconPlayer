@@ -949,11 +949,17 @@ bool AudioEngine::renderOutputCallbackFrames(float* outputData, int32_t numFrame
         naturalEndPending.store(false);
         clearRenderQueue();
         renderWorkerCv.notify_all();
+        std::thread([this]() {
+            requestStreamStop();
+        }).detach();
         return true;
     }
 
     if (renderTerminalStopPending.load() && renderQueueFrames() <= 0) {
         renderTerminalStopPending.store(false);
+        std::thread([this]() {
+            requestStreamStop();
+        }).detach();
         return true;
     }
 
