@@ -538,6 +538,9 @@ double AdPlugDecoder::getSubtuneDurationSeconds(int index) {
     if (!player || index < 0 || index >= subtuneCount) {
         return 0.0;
     }
+    if (index == currentSubtuneIndex) {
+        return durationSeconds;
+    }
     const unsigned long durationMs = player->songlength(index);
     return durationMs > 0 ? static_cast<double>(durationMs) / 1000.0 : 0.0;
 }
