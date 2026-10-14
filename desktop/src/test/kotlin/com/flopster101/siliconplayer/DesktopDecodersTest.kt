@@ -5,6 +5,7 @@ import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.io.File
+import com.flopster101.siliconplayer.ui.visualization.gl.SiliconVisNativeBridge
 
 class DesktopDecodersTest {
 
@@ -169,6 +170,102 @@ class DesktopDecodersTest {
             "AdPlug",
             "/home/flopster101/Music/SyncedMusic/Chips/DSE Examples/Other/Siren - Tyrian Asteroid Dance Part 1.lds"
         )
+    }
+
+    @Test
+    fun testAdPlugChannelScope() {
+        useSilentTestAudioOutput()
+        val visHandle = SiliconVisNativeBridge.nativeCreate()
+        assertTrue("Expected non-zero visHandle", visHandle != 0L)
+        NativeBridge.attachAudioEngineToVisualizer(visHandle)
+
+        val testFiles = listOf(
+            "/home/flopster101/Music/SyncedMusic/Chips/VGM/PC/LIGHT5.A2M"
+        )
+        for (filePath in testFiles) {
+            val file = File(filePath)
+            if (!file.exists()) continue
+            for (repeatMode in listOf(0)) {
+                for (engine in listOf(0, 2)) {
+                    println("=== Testing file: ${file.name} with engine $engine, repeatMode $repeatMode ===")
+                    try {
+                        NativeBridge.setCoreOption("AdPlug", "adplug.opl_engine", engine.toString())
+                        NativeBridge.setRepeatMode(repeatMode)
+                        NativeBridge.loadAudioWithDecoder(file.absolutePath, "AdPlug")
+                        val duration = NativeBridge.getDuration()
+                        println("DURATION: $duration for ${file.name}")
+                        val vulkanSupported = SiliconVisNativeBridge.nativeVulkanIsSupported()
+                        if (vulkanSupported) {
+                            SiliconVisNativeBridge.nativeInitVulkan(visHandle, 320, 180, null)
+                        }
+
+                        // Step 1: Start playing MINIMIZED (Channel Scope inactive)
+                        NativeBridge.setChannelScopeVisualizerActive(false)
+                        NativeBridge.setCoreOption("AdPlug", "visualization.channel_scope_active", "false")
+                        SiliconVisNativeBridge.nativeSetMode(visHandle, 0)
+                        NativeBridge.startEngineNative()
+
+                        println("--- Phase 1: Minimized (500ms) ---")
+                        var t0 = System.currentTimeMillis()
+                        while (System.currentTimeMillis() - t0 < 500) {
+                            Thread.sleep(30)
+                            val vu = NativeBridge.getVisualizationVuLevels().toList()
+                            val pos = NativeBridge.getPosition()
+                            val isPlaying = NativeBridge.isEnginePlaying()
+                            println("MINIMIZED: POS: $pos, vu: $vu, isPlaying: $isPlaying")
+                        }
+
+                        // Step 2: EXPAND Player (Channel Scope active)
+                        println("--- Phase 2: Expanded with Channel Scope (1500ms) ---")
+                        NativeBridge.setCoreOption("AdPlug", "visualization.channel_scope_active", "true")
+                        NativeBridge.setChannelScopeVisualizerActive(true)
+                        SiliconVisNativeBridge.nativeSetMode(visHandle, 4)
+                        val names = NativeBridge.getDecoderToggleChannelNames()
+                        println("TOGGLE CHANNELS: ${names.toList()}")
+
+                        t0 = System.currentTimeMillis()
+                        while (System.currentTimeMillis() - t0 < 8000) {
+                            Thread.sleep(30)
+                            if (vulkanSupported) {
+                                SiliconVisNativeBridge.nativeRenderVulkan(visHandle)
+                            }
+                            val textState = NativeBridge.getChannelScopeTextState(64)
+                            val scopeSamples = NativeBridge.getChannelScopeSamples(64)
+                            val scopeMax = if (scopeSamples.isNotEmpty()) scopeSamples.maxOrNull() ?: 0f else 0f
+                            val vu = NativeBridge.getVisualizationVuLevels().toList()
+                            val pos = NativeBridge.getPosition()
+                            val isPlaying = NativeBridge.isEnginePlaying()
+                            println("EXPANDED: POS: $pos, vu: $vu, scopeMax: $scopeMax, isPlaying: $isPlaying")
+                        }
+
+                        // Step 3: MINIMIZE again
+                        println("--- Phase 3: Minimized again (500ms) ---")
+                        NativeBridge.setChannelScopeVisualizerActive(false)
+                        NativeBridge.setCoreOption("AdPlug", "visualization.channel_scope_active", "false")
+                        SiliconVisNativeBridge.nativeSetMode(visHandle, 0)
+
+                        t0 = System.currentTimeMillis()
+                        while (System.currentTimeMillis() - t0 < 500) {
+                            Thread.sleep(30)
+                            val vu = NativeBridge.getVisualizationVuLevels().toList()
+                            val pos = NativeBridge.getPosition()
+                            val isPlaying = NativeBridge.isEnginePlaying()
+                            println("MINIMIZED_AGAIN: POS: $pos, vu: $vu, isPlaying: $isPlaying")
+                        }
+
+                        assertTrue("Engine should still be playing for ${file.name}", NativeBridge.isEnginePlaying())
+                        NativeBridge.stopEngineNative()
+                    } finally {
+                        NativeBridge.setChannelScopeVisualizerActive(false)
+                        NativeBridge.releaseCurrentDecoder()
+                    }
+                }
+            }
+        }
+        if (SiliconVisNativeBridge.nativeVulkanIsSupported()) {
+            try { SiliconVisNativeBridge.nativeReleaseVulkan(visHandle) } catch (_: Throwable) {}
+        }
+        SiliconVisNativeBridge.nativeDestroy(visHandle)
     }
 
     @Test

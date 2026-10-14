@@ -769,7 +769,6 @@ void NezplugppDecoder::publishScopeSnapshotLocked() {
 }
 
 std::shared_ptr<ChannelScopeSharedState> NezplugppDecoder::getChannelScopeSharedState() const {
-    std::lock_guard<std::mutex> lock(decodeMutex);
     return channelScopeState;
 }
 

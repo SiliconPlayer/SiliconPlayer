@@ -498,6 +498,7 @@ internal class SiliconNativeVkRenderThread(
     private var dataSerial = -1L
     private var capturedSerial = -1L
     private var dataChannelsAlive = false
+    private var textCaps = 0
     private var lastDataAlivePollNs = 0L
     private var scopeSceneHasLiveData = false
     private var hasRenderedAtLeastOneFrame = false
@@ -695,9 +696,17 @@ internal class SiliconNativeVkRenderThread(
             dataSerial = com.flopster101.siliconplayer.NativeBridge.getChannelScopeDataSerial()
             if (trackDetectNowNs - lastDataAlivePollNs >= 30_000_000L) {
                 lastDataAlivePollNs = trackDetectNowNs
-                dataChannelsAlive = runCatching {
-                    com.flopster101.siliconplayer.NativeBridge.getChannelScopeTextState(1).isNotEmpty()
-                }.getOrDefault(false)
+                val currentCore = runCatching { com.flopster101.siliconplayer.NativeBridge.getCurrentDecoderName() }.getOrDefault("")
+                textCaps = if (currentCore.isNotEmpty()) {
+                    runCatching { com.flopster101.siliconplayer.NativeBridge.getChannelScopeTextCapabilities(currentCore) }.getOrDefault(0)
+                } else 0
+                dataChannelsAlive = if (textCaps != 0) {
+                    runCatching {
+                        com.flopster101.siliconplayer.NativeBridge.getChannelScopeTextState(1).isNotEmpty()
+                    }.getOrDefault(false)
+                } else {
+                    dataSerial > 0L
+                }
             }
         } else {
             scopeSceneHasLiveData = false
@@ -1016,7 +1025,7 @@ internal class SiliconNativeVkRenderThread(
                 }
             }
 
-            if (frame.mode == 4 && frame.channelScopeTextEnabled) {
+            if (frame.mode == 4 && frame.channelScopeTextEnabled && textCaps != 0) {
                 val textNowNs = System.nanoTime()
                 if (textNowNs - localLastTextPollNs >= 20_000_000L || localChannelCount <= 0) {
                     localLastTextPollNs = textNowNs

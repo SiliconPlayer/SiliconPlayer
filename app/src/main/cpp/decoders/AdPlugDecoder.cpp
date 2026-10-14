@@ -65,6 +65,7 @@ public:
         const auto mapping = mapTotalLevelRegister(reg);
         if (mapping.valid && chip >= 0 && chip < kChipCount) {
             rawTotalLevel_[chip][mapping.channel][mapping.slot] = val;
+            rawTotalLevelValid_[chip][mapping.channel][mapping.slot] = true;
             const bool muted = channelMuted_[chip][mapping.channel];
             const int effective = muted ? forceMuteTotalLevel(val) : val;
             backend_->write(reg, effective);
@@ -122,6 +123,8 @@ public:
         currType = backend_->gettype();
         dualChipActive_ = false;
         std::memset(rawTotalLevel_, 0, sizeof(rawTotalLevel_));
+        std::memset(rawTotalLevelValid_, 0, sizeof(rawTotalLevelValid_));
+        std::memset(channelMuted_, 0, sizeof(channelMuted_));
         if (auto* emuOpl = dynamic_cast<CEmuopl*>(backend_.get())) {
             emuOpl->settype(TYPE_OPL2);
             currType = TYPE_OPL2;
@@ -137,9 +140,16 @@ public:
     }
 
     int getScopeStridePerFrame() const {
-        // Nuked always writes 18 interleaved values per frame.
-        // Planar engines don't have a per-frame stride.
         return engine_ == Engine::Nuked ? 18 : 0;
+    }
+
+    bool hasAnyMutedVoice() const {
+        for (int c = 0; c < kChipCount; ++c) {
+            for (int ch = 0; ch < kChannelCountPerChip; ++ch) {
+                if (channelMuted_[c][ch]) return true;
+            }
+        }
+        return false;
     }
 
     void setVoiceMuted(int voiceIndex, bool muted) {
@@ -148,6 +158,9 @@ public:
         }
         const int chip = voiceIndex / 9;
         const int channel = voiceIndex % 9;
+        if (channelMuted_[chip][channel] == muted) {
+            return;
+        }
         channelMuted_[chip][channel] = muted;
         applyChannelTotalLevel(chip, channel);
     }
@@ -195,18 +208,21 @@ private:
             channel < 0 || channel >= kChannelCountPerChip) {
             return;
         }
-        const int previousChip = backend_->getchip();
-        backend_->setchip(chip);
+        const int previousChip = getchip();
+        setchip(chip);
 
         const int op = kOpTable[channel];
         for (int slot = 0; slot < 2; ++slot) {
+            if (!rawTotalLevelValid_[chip][channel][slot]) {
+                continue;
+            }
             const int raw = rawTotalLevel_[chip][channel][slot];
             const int reg = (slot == 0) ? (0x40 + op) : (0x43 + op);
             const int effective = channelMuted_[chip][channel] ? forceMuteTotalLevel(raw) : raw;
             backend_->write(reg, effective);
         }
 
-        backend_->setchip(previousChip);
+        setchip(previousChip);
     }
 
     explicit TrackingOplProxy(
@@ -234,6 +250,7 @@ private:
     bool mirrorMonoWhenSingleChip_ = false;
     bool dualChipActive_ = false;
     int rawTotalLevel_[kChipCount][kChannelCountPerChip][2] {};
+    bool rawTotalLevelValid_[kChipCount][kChannelCountPerChip][2] {};
     bool channelMuted_[kChipCount][kChannelCountPerChip] {};
 };
 
@@ -314,9 +331,18 @@ void AdPlugDecoder::closeInternalLocked() {
     durationReliable = false;
     durationSeconds = 0.0;
     playbackPositionSeconds = 0.0;
-    reachedEnd = false;
     toggleChannelNames.clear();
     toggleChannelMuted.clear();
+    scopeRingRaw.clear();
+    scopeRingChannels = 0;
+    scopeRingWritePos = 0;
+    scopeRingSamples = 0;
+    scopePublishRaw.clear();
+    scopePublishVu.clear();
+    channelScopeLastReadNs = 0;
+    if (channelScopeState) {
+        channelScopeState->clear();
+    }
 }
 
 void AdPlugDecoder::close() {
@@ -341,7 +367,6 @@ int AdPlugDecoder::read(float* buffer, int numFrames) {
 
     if (hasReliableDuration && mode != 2 && playbackPositionSeconds >= durationSeconds) {
         if (mode == 1 && std::max(1, subtuneCount) == 1) {
-            // Repeat Track on single-subtune files: restart at duration boundary.
             player->rewind(currentSubtuneIndex);
             playbackPositionSeconds = 0.0;
             remainingTickFrames = 0;
@@ -369,10 +394,8 @@ int AdPlugDecoder::read(float* buffer, int numFrames) {
         if (remainingTickFrames <= 0) {
             const bool hasNextTick = player->update();
             if (!hasNextTick) {
-                if (mode == 1 || mode == 2) {
+                if (mode == 2) {
                     bool recovered = false;
-                    // Some AdPlug players expect rewind() with default subsong and do not
-                    // reliably recover from rewind(0) after terminal update()==false.
                     for (int attempt = 0; attempt < 2 && !recovered; ++attempt) {
                         if (attempt == 0) {
                             player->rewind(currentSubtuneIndex);
@@ -381,10 +404,6 @@ int AdPlugDecoder::read(float* buffer, int numFrames) {
                         }
                         remainingTickFrames = 0;
                         reachedEnd = false;
-                        if (mode == 1) {
-                            // Repeat Track restarts timeline at track start.
-                            playbackPositionSeconds = 0.0;
-                        }
 
                         if (player->update()) {
                             remainingTickFrames = refreshToTickFrames();
@@ -427,7 +446,7 @@ int AdPlugDecoder::read(float* buffer, int numFrames) {
 
         opl->update_and_scope(pcmScratch.data(), chunkFrames, channelScopeState ? scopeScratch.data() : nullptr);
         if (channelScopeState) {
-            captureScopeSnapshotLocked(chunkFrames);
+            appendScopeChunkLocked(chunkFrames);
         }
         for (int sample = 0; sample < chunkSamples; ++sample) {
             buffer[(framesWritten * channels) + sample] =
@@ -437,6 +456,15 @@ int AdPlugDecoder::read(float* buffer, int numFrames) {
         remainingTickFrames -= chunkFrames;
         framesWritten += chunkFrames;
         playbackPositionSeconds += static_cast<double>(chunkFrames) / static_cast<double>(sampleRateHz);
+    }
+
+    if (framesWritten > 0 && channelScopeState) {
+        channelScopeLastReadNs = std::chrono::duration_cast<std::chrono::nanoseconds>(
+                std::chrono::steady_clock::now().time_since_epoch()
+        ).count();
+        if (channelScopeState->tryBeginCapture(channelScopeLastReadNs, scopeRingChannels)) {
+            publishScopeSnapshotLocked();
+        }
     }
 
     return framesWritten;
@@ -733,6 +761,14 @@ void AdPlugDecoder::applyToggleMutesLocked() {
     if (!trackingOpl) {
         return;
     }
+    const bool hasAnyMuted = std::any_of(
+            toggleChannelMuted.begin(),
+            toggleChannelMuted.end(),
+            [](bool m) { return m; }
+    );
+    if (!hasAnyMuted && !trackingOpl->hasAnyMutedVoice()) {
+        return;
+    }
     for (int i = 0; i < static_cast<int>(toggleChannelMuted.size()); ++i) {
         trackingOpl->setVoiceMuted(i, toggleChannelMuted[static_cast<size_t>(i)]);
     }
@@ -843,58 +879,15 @@ std::vector<std::string> AdPlugDecoder::getSupportedExtensions() {
 }
 
 std::shared_ptr<ChannelScopeSharedState> AdPlugDecoder::getChannelScopeSharedState() const {
-    std::lock_guard<std::mutex> lock(decodeMutex);
     return channelScopeState;
 }
 
-std::vector<int32_t> AdPlugDecoder::getChannelScopeTextState(int maxChannels) {
-    std::lock_guard<std::mutex> lock(decodeMutex);
-    if (scopeRingChannels <= 0 || scopeRingSamples <= 0 || scopeRingRaw.empty()) {
-        return {};
-    }
-
-    const int channelsToExport = std::min(scopeRingChannels, std::clamp(maxChannels, 1, 18));
-    std::vector<int32_t> flat(static_cast<size_t>(channelsToExport * 10), -1);
-    const int trailingSamples = std::clamp(sampleRateHz > 0 ? sampleRateHz / 50 : 64, 64, 1024);
-    const int recentSamples = std::min(scopeRingSamples, trailingSamples);
-
-    for (int channel = 0; channel < channelsToExport; ++channel) {
-        float recentPeak = 0.0f;
-        for (int i = 0; i < recentSamples; ++i) {
-            const int ringIndex =
-                    (scopeRingWritePos - recentSamples + i + ChannelScopeSharedState::kMaxSamples) %
-                    ChannelScopeSharedState::kMaxSamples;
-            recentPeak = std::max(
-                    recentPeak,
-                    std::abs(scopeRingRaw[
-                            static_cast<size_t>(channel) * ChannelScopeSharedState::kMaxSamples +
-                            static_cast<size_t>(ringIndex)
-                    ])
-            );
-        }
-
-        const size_t base = static_cast<size_t>(channel * 10);
-        int flags = 0;
-        if (recentPeak > 0.0015f) {
-            flags |= 1; // kCrsidChannelScopeTextFlagActive
-        }
-
-        flat[base + 0] = channel;
-        flat[base + 1] = -1;
-        flat[base + 2] = -1; // No tracker volume here; meters are not volume.
-        flat[base + 3] = 0;
-        flat[base + 4] = -1;
-        flat[base + 5] = 0;
-        flat[base + 6] = -1;
-        flat[base + 7] = -1;
-        flat[base + 8] = -1;
-        flat[base + 9] = flags;
-    }
-    return flat;
+std::vector<int32_t> AdPlugDecoder::getChannelScopeTextState(int /*maxChannels*/) {
+    return {};
 }
 
-void AdPlugDecoder::captureScopeSnapshotLocked(int numFrames) {
-    if (!channelScopeState || !opl) {
+void AdPlugDecoder::appendScopeChunkLocked(int numFrames) {
+    if (!channelScopeState || !opl || numFrames <= 0) {
         return;
     }
     auto* trackingProxy = dynamic_cast<TrackingOplProxy*>(opl.get());
@@ -936,17 +929,26 @@ void AdPlugDecoder::captureScopeSnapshotLocked(int numFrames) {
         scopeRingWritePos = (scopeRingWritePos + numFrames) % ChannelScopeSharedState::kMaxSamples;
         scopeRingSamples = std::min(scopeRingSamples + numFrames, ChannelScopeSharedState::kMaxSamples);
     }
+}
 
-    if (scopeRingChannels <= 0 || scopeRingRaw.empty() || scopeRingSamples <= 0) {
-        channelScopeState->clear();
+void AdPlugDecoder::publishScopeSnapshotLocked() {
+    if (!channelScopeState || scopeRingChannels <= 0 || scopeRingRaw.empty() || scopeRingSamples <= 0) {
+        if (channelScopeState) {
+            channelScopeState->clear();
+        }
         return;
     }
 
-    std::vector<float> raw(
-            static_cast<size_t>(scopeRingChannels) * ChannelScopeSharedState::kMaxSamples,
-            0.0f
-    );
-    std::vector<float> vu(static_cast<size_t>(scopeRingChannels), 0.0f);
+    const size_t totalSlots = static_cast<size_t>(scopeRingChannels) * ChannelScopeSharedState::kMaxSamples;
+    if (scopePublishRaw.size() != totalSlots) {
+        scopePublishRaw.assign(totalSlots, 0.0f);
+    }
+    if (scopePublishVu.size() != static_cast<size_t>(scopeRingChannels)) {
+        scopePublishVu.assign(static_cast<size_t>(scopeRingChannels), 0.0f);
+    }
+
+    std::vector<float>& raw = scopePublishRaw;
+    std::vector<float>& vu = scopePublishVu;
     const int filledSamples = std::clamp(scopeRingSamples, 0, ChannelScopeSharedState::kMaxSamples);
     const int zeroPrefix = ChannelScopeSharedState::kMaxSamples - filledSamples;
     const int trailingSamples = std::clamp(sampleRateHz > 0 ? sampleRateHz / 50 : 64, 64, 1024);
@@ -971,6 +973,5 @@ void AdPlugDecoder::captureScopeSnapshotLocked(int numFrames) {
         vu[static_cast<size_t>(channel)] = std::clamp(peak, 0.0f, 1.0f);
     }
 
-    static uint64_t channelScopeSourceSerial = 0;
-    channelScopeState->publish(raw, vu, scopeRingChannels, ++channelScopeSourceSerial);
+    channelScopeState->publish(raw, vu, scopeRingChannels, ++channelScopeSourceSerial, true);
 }

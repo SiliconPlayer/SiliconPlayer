@@ -245,6 +245,7 @@ private class SiliconNativeDesktopRenderThread(
         var forceRenderUntilNs = 0L
         var lastRenderedTrackKey: String? = null
         var lastDataAlivePollNs = 0L
+        var textCaps = 0
         var dataChannelsAlive = false
         var dataSerial = -1L
         var capturedSerial = -1L
@@ -379,9 +380,17 @@ private class SiliconNativeDesktopRenderThread(
                     dataSerial = NativeBridge.getChannelScopeDataSerial()
                     if (trackDetectNowNs - lastDataAlivePollNs >= 30_000_000L) {
                         lastDataAlivePollNs = trackDetectNowNs
-                        dataChannelsAlive = runCatching {
-                            NativeBridge.getChannelScopeTextState(1).isNotEmpty()
-                        }.getOrDefault(false)
+                        val currentCore = runCatching { NativeBridge.getCurrentDecoderName() }.getOrDefault("")
+                        textCaps = if (currentCore.isNotEmpty()) {
+                            runCatching { NativeBridge.getChannelScopeTextCapabilities(currentCore) }.getOrDefault(0)
+                        } else 0
+                        dataChannelsAlive = if (textCaps != 0) {
+                            runCatching {
+                                NativeBridge.getChannelScopeTextState(1).isNotEmpty()
+                            }.getOrDefault(false)
+                        } else {
+                            dataSerial > 0L
+                        }
                     }
                 } else {
                     scopeSceneHasLiveData = false
@@ -787,7 +796,7 @@ private class SiliconNativeDesktopRenderThread(
                             lastScopeFrame = null
                         }
                         val nowNs = System.nanoTime()
-                        if (nowNs - lastScopePollNs >= 20_000_000L) {
+                        if (textCaps != 0 && nowNs - lastScopePollNs >= 20_000_000L) {
                             lastScopePollNs = nowNs
                             val raw = runCatching { NativeBridge.getChannelScopeTextState(64) }.getOrDefault(IntArray(0))
                             // Hold the last good states through empty polls; clearing here

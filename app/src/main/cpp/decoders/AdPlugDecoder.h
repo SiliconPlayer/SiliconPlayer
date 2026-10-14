@@ -81,6 +81,10 @@ private:
     int scopeRingChannels = 0;
     int scopeRingWritePos = 0;
     int scopeRingSamples = 0;
+    std::vector<float> scopePublishRaw;
+    std::vector<float> scopePublishVu;
+    int64_t channelScopeLastReadNs = 0;
+    uint64_t channelScopeSourceSerial = 0;
 
     int sampleRateHz = 44100;
     int adlibCore = 0;
@@ -106,7 +110,8 @@ private:
     void closeInternalLocked();
     void syncToggleChannelsLocked();
     void applyToggleMutesLocked();
-    void captureScopeSnapshotLocked(int numFrames);
+    void appendScopeChunkLocked(int numFrames);
+    void publishScopeSnapshotLocked();
 };
 
 #endif // SILICONPLAYER_ADPLUGDECODER_H

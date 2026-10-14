@@ -648,11 +648,32 @@ void AudioEngine::getChannelScopeSamples(int samplesPerChannel, std::vector<floa
     // Declare vis demand so the render worker bumps the snapshot serial
     // frequently and keeps `visualizationLastCallbackNs` fresh.
     markVisualizationRequested(kVisualizationFeatureChannelScope);
+    {
+        std::lock_guard<std::mutex> cacheLock(scopeStateCacheMutex);
+        if (scopeStateCacheValid &&
+            scopeStateCache &&
+            scopeStateCacheSerial == decoderSerial.load(std::memory_order_relaxed)) {
+            const int decoderSampleRate = scopeStateCacheDecoderRate;
+            const int outputSampleRate = streamSampleRate > 0 ? streamSampleRate : decoderSampleRate;
+            const double presentationDelayDecoderFrames =
+                    scopePresentationDelayDecoderFrames(decoderSampleRate, outputSampleRate, samplesPerChannel);
+            scopeStateCache->getProcessedSamples(
+                    samplesPerChannel,
+                    static_cast<int>(std::ceil(std::max(0.0, presentationDelayDecoderFrames))),
+                    outFlat
+            );
+            return;
+        }
+    }
     std::shared_ptr<ChannelScopeSharedState> state;
     int decoderSampleRate = 0;
     {
-        std::lock_guard<std::mutex> lock(decoderMutex);
+        std::unique_lock<std::mutex> lock(decoderMutex, std::try_to_lock);
+        if (!lock.owns_lock()) {
+            return;
+        }
         if (!decoder) {
+            resetScopeStateCacheLocked();
             outFlat.clear();
             return;
         }
@@ -840,6 +861,7 @@ std::vector<int32_t> AudioEngine::getChannelScopeTextState(int maxChannels) {
     // stalling behind long decoder operations.
     std::unique_lock<std::mutex> lock(decoderMutex, std::try_to_lock);
     if (!lock.owns_lock() || !decoder) return {};
+    if (decoder->getChannelScopeTextCapabilities() == 0) return {};
     return decoder->getChannelScopeTextState(maxChannels);
 }
 
