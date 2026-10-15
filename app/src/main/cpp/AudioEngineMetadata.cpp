@@ -42,6 +42,7 @@ void AudioEngine::refreshMetadataCacheLocked() {
                                      AudioDecoder::PLAYBACK_CAP_RELIABLE_DURATION |
                                      AudioDecoder::PLAYBACK_CAP_LIVE_REPEAT_MODE;
         cachedMetadataHasNativeSampleRate = false;
+        metadataCacheDirty.store(false, std::memory_order_release);
         return;
     }
     cachedMetadataTitle = decoder->getTitle();
@@ -76,6 +77,10 @@ void AudioEngine::refreshMetadataCacheLocked() {
 }
 
 std::string AudioEngine::getTitle() {
+    if (!metadataCacheDirty.load(std::memory_order_acquire)) {
+        std::lock_guard<std::mutex> cacheLock(metadataCacheMutex);
+        return cachedMetadataTitle;
+    }
     std::unique_lock<std::mutex> lock(decoderMutex, std::try_to_lock);
     if (!lock.owns_lock()) {
         std::lock_guard<std::mutex> cacheLock(metadataCacheMutex);
@@ -90,6 +95,10 @@ std::string AudioEngine::getTitle() {
 }
 
 std::string AudioEngine::getArtist() {
+    if (!metadataCacheDirty.load(std::memory_order_acquire)) {
+        std::lock_guard<std::mutex> cacheLock(metadataCacheMutex);
+        return cachedMetadataArtist;
+    }
     std::unique_lock<std::mutex> lock(decoderMutex, std::try_to_lock);
     if (!lock.owns_lock()) {
         std::lock_guard<std::mutex> cacheLock(metadataCacheMutex);
@@ -120,6 +129,10 @@ std::string AudioEngine::getGenre() {
 }
 
 std::string AudioEngine::getAlbum() {
+    if (!metadataCacheDirty.load(std::memory_order_acquire)) {
+        std::lock_guard<std::mutex> cacheLock(metadataCacheMutex);
+        return cachedMetadataAlbum;
+    }
     std::unique_lock<std::mutex> lock(decoderMutex, std::try_to_lock);
     if (!lock.owns_lock()) {
         std::lock_guard<std::mutex> cacheLock(metadataCacheMutex);
@@ -150,6 +163,10 @@ std::string AudioEngine::getDate() {
 }
 
 std::string AudioEngine::getCopyright() {
+    if (!metadataCacheDirty.load(std::memory_order_acquire)) {
+        std::lock_guard<std::mutex> cacheLock(metadataCacheMutex);
+        return cachedMetadataCopyright;
+    }
     std::unique_lock<std::mutex> lock(decoderMutex, std::try_to_lock);
     if (!lock.owns_lock()) {
         std::lock_guard<std::mutex> cacheLock(metadataCacheMutex);
@@ -164,6 +181,10 @@ std::string AudioEngine::getCopyright() {
 }
 
 std::string AudioEngine::getComment() {
+    if (!metadataCacheDirty.load(std::memory_order_acquire)) {
+        std::lock_guard<std::mutex> cacheLock(metadataCacheMutex);
+        return cachedMetadataComment;
+    }
     std::unique_lock<std::mutex> lock(decoderMutex, std::try_to_lock);
     if (!lock.owns_lock()) {
         std::lock_guard<std::mutex> cacheLock(metadataCacheMutex);
@@ -178,6 +199,10 @@ std::string AudioEngine::getComment() {
 }
 
 int AudioEngine::getSampleRate() {
+    if (!metadataCacheDirty.load(std::memory_order_acquire)) {
+        std::lock_guard<std::mutex> cacheLock(metadataCacheMutex);
+        return cachedMetadataSampleRate;
+    }
     std::unique_lock<std::mutex> lock(decoderMutex, std::try_to_lock);
     if (!lock.owns_lock()) {
         std::lock_guard<std::mutex> cacheLock(metadataCacheMutex);
@@ -192,6 +217,10 @@ int AudioEngine::getSampleRate() {
 }
 
 bool AudioEngine::hasNativeSampleRate() {
+    if (!metadataCacheDirty.load(std::memory_order_acquire)) {
+        std::lock_guard<std::mutex> cacheLock(metadataCacheMutex);
+        return cachedMetadataHasNativeSampleRate;
+    }
     std::unique_lock<std::mutex> lock(decoderMutex, std::try_to_lock);
     if (!lock.owns_lock()) {
         std::lock_guard<std::mutex> cacheLock(metadataCacheMutex);
@@ -206,6 +235,10 @@ bool AudioEngine::hasNativeSampleRate() {
 }
 
 int AudioEngine::getDisplayChannelCount() {
+    if (!metadataCacheDirty.load(std::memory_order_acquire)) {
+        std::lock_guard<std::mutex> cacheLock(metadataCacheMutex);
+        return cachedMetadataChannelCount;
+    }
     std::unique_lock<std::mutex> lock(decoderMutex, std::try_to_lock);
     if (!lock.owns_lock()) {
         std::lock_guard<std::mutex> cacheLock(metadataCacheMutex);
@@ -236,6 +269,10 @@ int AudioEngine::getBitDepth() {
 }
 
 std::string AudioEngine::getBitDepthLabel() {
+    if (!metadataCacheDirty.load(std::memory_order_acquire)) {
+        std::lock_guard<std::mutex> cacheLock(metadataCacheMutex);
+        return cachedMetadataBitDepthLabel;
+    }
     std::unique_lock<std::mutex> lock(decoderMutex, std::try_to_lock);
     if (!lock.owns_lock()) {
         std::lock_guard<std::mutex> cacheLock(metadataCacheMutex);
@@ -250,6 +287,10 @@ std::string AudioEngine::getBitDepthLabel() {
 }
 
 std::string AudioEngine::getCurrentDecoderName() {
+    if (!metadataCacheDirty.load(std::memory_order_acquire)) {
+        std::lock_guard<std::mutex> cacheLock(metadataCacheMutex);
+        return cachedMetadataDecoderName;
+    }
     std::unique_lock<std::mutex> lock(decoderMutex, std::try_to_lock);
     if (!lock.owns_lock()) {
         std::lock_guard<std::mutex> cacheLock(metadataCacheMutex);
@@ -264,6 +305,10 @@ std::string AudioEngine::getCurrentDecoderName() {
 }
 
 int AudioEngine::getSubtuneCount() {
+    if (!metadataCacheDirty.load(std::memory_order_acquire)) {
+        std::lock_guard<std::mutex> cacheLock(metadataCacheMutex);
+        return cachedMetadataSubtuneCount;
+    }
     std::unique_lock<std::mutex> lock(decoderMutex, std::try_to_lock);
     if (!lock.owns_lock()) {
         std::lock_guard<std::mutex> cacheLock(metadataCacheMutex);
@@ -278,6 +323,10 @@ int AudioEngine::getSubtuneCount() {
 }
 
 int AudioEngine::getCurrentSubtuneIndex() {
+    if (!metadataCacheDirty.load(std::memory_order_acquire)) {
+        std::lock_guard<std::mutex> cacheLock(metadataCacheMutex);
+        return cachedMetadataSubtuneIndex;
+    }
     std::unique_lock<std::mutex> lock(decoderMutex, std::try_to_lock);
     if (!lock.owns_lock()) {
         std::lock_guard<std::mutex> cacheLock(metadataCacheMutex);
@@ -305,6 +354,14 @@ bool AudioEngine::selectSubtune(int index) {
 }
 
 std::string AudioEngine::getSubtuneTitle(int index) {
+    if (!metadataCacheDirty.load(std::memory_order_acquire)) {
+        std::lock_guard<std::mutex> cacheLock(metadataCacheMutex);
+        if (index >= 0 &&
+            static_cast<size_t>(index) < cachedSubtuneEntries.size()) {
+            return cachedSubtuneEntries[static_cast<size_t>(index)].title;
+        }
+        return "";
+    }
     std::unique_lock<std::mutex> lock(decoderMutex, std::try_to_lock);
     if (!lock.owns_lock()) {
         std::lock_guard<std::mutex> cacheLock(metadataCacheMutex);
@@ -327,6 +384,14 @@ std::string AudioEngine::getSubtuneTitle(int index) {
 }
 
 std::string AudioEngine::getSubtuneArtist(int index) {
+    if (!metadataCacheDirty.load(std::memory_order_acquire)) {
+        std::lock_guard<std::mutex> cacheLock(metadataCacheMutex);
+        if (index >= 0 &&
+            static_cast<size_t>(index) < cachedSubtuneEntries.size()) {
+            return cachedSubtuneEntries[static_cast<size_t>(index)].artist;
+        }
+        return "";
+    }
     std::unique_lock<std::mutex> lock(decoderMutex, std::try_to_lock);
     if (!lock.owns_lock()) {
         std::lock_guard<std::mutex> cacheLock(metadataCacheMutex);
@@ -349,6 +414,14 @@ std::string AudioEngine::getSubtuneArtist(int index) {
 }
 
 double AudioEngine::getSubtuneDurationSeconds(int index) {
+    if (!metadataCacheDirty.load(std::memory_order_acquire)) {
+        std::lock_guard<std::mutex> cacheLock(metadataCacheMutex);
+        if (index >= 0 &&
+            static_cast<size_t>(index) < cachedSubtuneEntries.size()) {
+            return cachedSubtuneEntries[static_cast<size_t>(index)].durationSeconds;
+        }
+        return 0.0;
+    }
     std::unique_lock<std::mutex> lock(decoderMutex, std::try_to_lock);
     if (!lock.owns_lock()) {
         std::lock_guard<std::mutex> cacheLock(metadataCacheMutex);
@@ -1196,6 +1269,10 @@ std::string AudioEngine::getViogsfFadeTag() {
 }
 
 std::string AudioEngine::getNezplugppCopyright() {
+    if (!metadataCacheDirty.load(std::memory_order_acquire)) {
+        std::lock_guard<std::mutex> cacheLock(metadataCacheMutex);
+        return cachedMetadataNezplugppCopyright;
+    }
     std::unique_lock<std::mutex> lock(decoderMutex, std::try_to_lock);
     if (!lock.owns_lock()) {
         std::lock_guard<std::mutex> cacheLock(metadataCacheMutex);
@@ -1210,6 +1287,10 @@ std::string AudioEngine::getNezplugppCopyright() {
 }
 
 std::string AudioEngine::getNezplugppDetail() {
+    if (!metadataCacheDirty.load(std::memory_order_acquire)) {
+        std::lock_guard<std::mutex> cacheLock(metadataCacheMutex);
+        return cachedMetadataNezplugppDetail;
+    }
     std::unique_lock<std::mutex> lock(decoderMutex, std::try_to_lock);
     if (!lock.owns_lock()) {
         std::lock_guard<std::mutex> cacheLock(metadataCacheMutex);
@@ -1224,6 +1305,10 @@ std::string AudioEngine::getNezplugppDetail() {
 }
 
 std::string AudioEngine::getNezplugppFormat() {
+    if (!metadataCacheDirty.load(std::memory_order_acquire)) {
+        std::lock_guard<std::mutex> cacheLock(metadataCacheMutex);
+        return cachedMetadataNezplugppFormat;
+    }
     std::unique_lock<std::mutex> lock(decoderMutex, std::try_to_lock);
     if (!lock.owns_lock()) {
         std::lock_guard<std::mutex> cacheLock(metadataCacheMutex);
@@ -1238,6 +1323,10 @@ std::string AudioEngine::getNezplugppFormat() {
 }
 
 std::string AudioEngine::getNezplugppSongVoices() {
+    if (!metadataCacheDirty.load(std::memory_order_acquire)) {
+        std::lock_guard<std::mutex> cacheLock(metadataCacheMutex);
+        return cachedMetadataNezplugppSongVoices;
+    }
     std::unique_lock<std::mutex> lock(decoderMutex, std::try_to_lock);
     if (!lock.owns_lock()) {
         std::lock_guard<std::mutex> cacheLock(metadataCacheMutex);
@@ -1252,6 +1341,10 @@ std::string AudioEngine::getNezplugppSongVoices() {
 }
 
 std::string AudioEngine::getNezplugppSubtuneInfo() {
+    if (!metadataCacheDirty.load(std::memory_order_acquire)) {
+        std::lock_guard<std::mutex> cacheLock(metadataCacheMutex);
+        return cachedMetadataNezplugppSubtuneInfo;
+    }
     std::unique_lock<std::mutex> lock(decoderMutex, std::try_to_lock);
     if (!lock.owns_lock()) {
         std::lock_guard<std::mutex> cacheLock(metadataCacheMutex);

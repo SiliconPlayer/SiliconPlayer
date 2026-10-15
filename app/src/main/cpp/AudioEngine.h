@@ -483,6 +483,10 @@ private:
     // No-decoder default: SEEK | RELIABLE_DURATION | LIVE_REPEAT_MODE.
     int cachedMetadataPlaybackCaps = 7;
     bool cachedMetadataHasNativeSampleRate = false;
+    // Set whenever decoder state feeding the cache changes; cleared by
+    // refreshMetadataCacheLocked(). Getters serve the cache untouched
+    // while clean so polls never contend on decoderMutex.
+    std::atomic<bool> metadataCacheDirty { true };
     void refreshMetadataCacheLocked();
 
     std::unique_ptr<AudioDecoder> decoder;

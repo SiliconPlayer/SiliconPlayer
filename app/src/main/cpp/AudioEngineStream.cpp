@@ -176,6 +176,7 @@ bool AudioEngine::createMiniaudioStream() {
         targetChannels = resolveOutputStreamChannelsForTrackLocked();
         if (decoder) {
             decoder->setOutputChannelCount(targetChannels);
+            metadataCacheDirty.store(true, std::memory_order_release);
         }
     }
     deviceConfig.playback.channels = static_cast<ma_uint32>(targetChannels);
@@ -342,6 +343,7 @@ void AudioEngine::syncUacStreamRate(int sampleRateHz, int channels) {
                 decoder->setOutputSampleRate(sampleRateHz);
                 decoderRenderSampleRate = decoder->getRenderSampleRate();
                 resetResamplerStateLocked(true);
+                metadataCacheDirty.store(true, std::memory_order_release);
             }
         }
     }
@@ -473,6 +475,7 @@ void AudioEngine::reconfigureStream(bool resumePlayback) {
             decoder->setOutputSampleRate(desiredRate);
             decoderRenderSampleRate = decoder->getRenderSampleRate();
             resetResamplerStateLocked(true);
+            metadataCacheDirty.store(true, std::memory_order_release);
         }
     }
 
@@ -827,6 +830,7 @@ void AudioEngine::recoverStreamIfNeededLocked() {
             decoder->setOutputSampleRate(desiredRate);
             decoderRenderSampleRate = decoder->getRenderSampleRate();
             resetResamplerStateLocked(true);
+            metadataCacheDirty.store(true, std::memory_order_release);
         }
     }
 

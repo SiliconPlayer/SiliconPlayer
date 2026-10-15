@@ -27,6 +27,7 @@ void AudioEngine::setCoreOutputSampleRate(const std::string& coreName, int sampl
             decoder->setOutputSampleRate(desiredRate);
             decoderRenderSampleRate = decoder->getRenderSampleRate();
             resetResamplerStateLocked();
+            metadataCacheDirty.store(true, std::memory_order_release);
         }
     }
 }
@@ -41,6 +42,7 @@ void AudioEngine::setCoreOption(
     coreOptions[coreName][optionName] = optionValue;
     if (decoder && coreName == decoder->getName()) {
         decoder->setOption(optionName.c_str(), optionValue.c_str());
+        metadataCacheDirty.store(true, std::memory_order_release);
     }
 }
 

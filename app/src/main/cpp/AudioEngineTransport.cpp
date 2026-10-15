@@ -145,6 +145,7 @@ bool AudioEngine::start() {
                 decoder->setOutputChannelCount(desiredChannels);
                 decoderRenderSampleRate = decoder->getRenderSampleRate();
                 resetResamplerStateLocked();
+                metadataCacheDirty.store(true, std::memory_order_release);
                 const double durationNow = decoder->getDuration();
                 const bool loopPointRepeatMode = repeatMode.load() == 2;
                 if (durationNow > 0.0 &&
@@ -424,6 +425,7 @@ void AudioEngine::releaseCurrentDecoder() {
         decoder->setOpenAbortFlag(nullptr);
     }
     destroyDecoderInBackground(std::move(decoder));
+    refreshMetadataCacheLocked();
     cachedDurationSeconds.store(0.0);
     resetResamplerStateLocked();
     openMptDspEffects.reset();
@@ -499,6 +501,7 @@ void AudioEngine::setUrl(const char* url, const char* forcedDecoder) {
             decoder->setOpenAbortFlag(nullptr);
         }
         destroyDecoderInBackground(std::move(decoder));
+        refreshMetadataCacheLocked();
         cachedDurationSeconds.store(0.0);
         resetResamplerStateLocked();
         openMptDspEffects.reset();
