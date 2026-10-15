@@ -95,6 +95,7 @@ private:
     bool durationReliable = false;
     double loopStartSeconds = 0.0;
     double loopLengthSeconds = 0.0;
+    std::vector<double> subtuneDurations;
     std::string title;
     std::string artist;
     std::string copyright;

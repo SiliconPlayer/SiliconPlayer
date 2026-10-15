@@ -58,6 +58,12 @@ bool DnfamitrackerDecoder::open(const char* path) {
         comment = doc->GetSongComment();
     }
 
+    const int subtuneCount = player ? player->GetSubtuneCount() : 0;
+    subtuneDurations.assign(static_cast<size_t>(std::max(0, subtuneCount)), 0.0);
+    for (int i = 0; i < subtuneCount; ++i) {
+        subtuneDurations[static_cast<size_t>(i)] = player->GetDuration(i);
+    }
+
     refreshTimelineLocked();
     isOpen = true;
     return true;
@@ -92,6 +98,7 @@ void DnfamitrackerDecoder::closeLocked() {
     durationReliable = false;
     loopStartSeconds = 0.0;
     loopLengthSeconds = 0.0;
+    subtuneDurations.clear();
     isOpen = false;
 }
 
@@ -261,7 +268,9 @@ double DnfamitrackerDecoder::getSubtuneDurationSeconds(int index) {
     if (!isOpen || !player || index < 0 || index >= player->GetSubtuneCount()) {
         return 0.0;
     }
-    return player->GetDuration(index);
+    return index < static_cast<int>(subtuneDurations.size())
+                   ? subtuneDurations[static_cast<size_t>(index)]
+                   : 0.0;
 }
 
 void DnfamitrackerDecoder::setOutputSampleRate(int rate) {
@@ -359,7 +368,9 @@ void DnfamitrackerDecoder::refreshTimelineLocked() {
         return;
     }
     const int track = player->GetCurrentSubtune();
-    duration = player->GetDuration(track);
+    duration = track >= 0 && track < static_cast<int>(subtuneDurations.size())
+                       ? subtuneDurations[static_cast<size_t>(track)]
+                       : 0.0;
     if (duration <= 0.0) {
         duration = 0.0;
         return;
