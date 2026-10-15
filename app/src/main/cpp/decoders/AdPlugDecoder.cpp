@@ -303,9 +303,20 @@ bool AdPlugDecoder::open(const char* path) {
     subtuneCount = std::max(1u, player->getsubsongs());
     currentSubtuneIndex = std::clamp(static_cast<int>(player->getsubsong()), 0, subtuneCount - 1);
 
-    const unsigned long durationMs = player->songlength(currentSubtuneIndex);
-    durationReliable = durationMs > 0;
-    durationSeconds = durationMs > 0 ? static_cast<double>(durationMs) / 1000.0 : 0.0;
+    const bool endlessLoop = repeatMode.load() == 2;
+    // songlength() replays each track; loop mode would run every subsong
+    // to the 10-minute cap.
+    player->setEndlessLoopMode(false);
+    subtuneDurations.assign(static_cast<size_t>(subtuneCount), 0.0);
+    for (int i = 0; i < subtuneCount; ++i) {
+        const unsigned long durationMs = player->songlength(i);
+        subtuneDurations[static_cast<size_t>(i)] =
+                durationMs > 0 ? static_cast<double>(durationMs) / 1000.0 : 0.0;
+    }
+    player->setEndlessLoopMode(endlessLoop);
+    player->rewind(currentSubtuneIndex);
+    durationReliable = subtuneDurations[currentSubtuneIndex] > 0.0;
+    durationSeconds = subtuneDurations[currentSubtuneIndex];
 
     remainingTickFrames = 0;
     playbackPositionSeconds = 0.0;
@@ -330,6 +341,7 @@ void AdPlugDecoder::closeInternalLocked() {
     remainingTickFrames = 0;
     durationReliable = false;
     durationSeconds = 0.0;
+    subtuneDurations.clear();
     playbackPositionSeconds = 0.0;
     toggleChannelNames.clear();
     toggleChannelMuted.clear();
@@ -539,9 +551,11 @@ bool AdPlugDecoder::selectSubtune(int index) {
     playbackPositionSeconds = 0.0;
     reachedEnd = false;
 
-    const unsigned long durationMs = player->songlength(currentSubtuneIndex);
-    durationReliable = durationMs > 0;
-    durationSeconds = durationMs > 0 ? static_cast<double>(durationMs) / 1000.0 : 0.0;
+    const double duration = index < static_cast<int>(subtuneDurations.size())
+                                    ? subtuneDurations[static_cast<size_t>(index)]
+                                    : 0.0;
+    durationReliable = duration > 0.0;
+    durationSeconds = duration;
     return true;
 }
 
@@ -566,11 +580,9 @@ double AdPlugDecoder::getSubtuneDurationSeconds(int index) {
     if (!player || index < 0 || index >= subtuneCount) {
         return 0.0;
     }
-    if (index == currentSubtuneIndex) {
-        return durationSeconds;
-    }
-    const unsigned long durationMs = player->songlength(index);
-    return durationMs > 0 ? static_cast<double>(durationMs) / 1000.0 : 0.0;
+    return index < static_cast<int>(subtuneDurations.size())
+                   ? subtuneDurations[static_cast<size_t>(index)]
+                   : 0.0;
 }
 
 std::string AdPlugDecoder::getTitle() {

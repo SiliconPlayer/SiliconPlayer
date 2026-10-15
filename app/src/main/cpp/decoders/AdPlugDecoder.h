@@ -97,6 +97,7 @@ private:
     bool durationReliable = false;
     bool reachedEnd = false;
     double durationSeconds = 0.0;
+    std::vector<double> subtuneDurations;
     double playbackPositionSeconds = 0.0;
 
     std::string sourcePath;
