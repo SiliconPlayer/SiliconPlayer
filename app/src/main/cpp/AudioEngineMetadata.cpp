@@ -698,8 +698,8 @@ int AudioEngine::getAyflyInterruptHz() {
 }
 
 std::vector<float> AudioEngine::getOpenMptChannelVuLevels() {
-    std::lock_guard<std::mutex> lock(decoderMutex);
-    if (!decoder) return {};
+    std::unique_lock<std::mutex> lock(decoderMutex, std::try_to_lock);
+    if (!lock.owns_lock() || !decoder) return {};
     return decoder->getCoreFloatVectorInfo("channelVuLevels");
 }
 
@@ -1101,14 +1101,14 @@ bool AudioEngine::getGmeHasLoopPoint() {
 }
 
 int AudioEngine::getGmeLoopStartMs() {
-    std::lock_guard<std::mutex> lock(decoderMutex);
-    if (!decoder) return -1;
+    std::unique_lock<std::mutex> lock(decoderMutex, std::try_to_lock);
+    if (!lock.owns_lock() || !decoder) return -1;
     return decoder->getCoreIntInfo("loopStartMs", -1);
 }
 
 int AudioEngine::getGmeLoopLengthMs() {
-    std::lock_guard<std::mutex> lock(decoderMutex);
-    if (!decoder) return -1;
+    std::unique_lock<std::mutex> lock(decoderMutex, std::try_to_lock);
+    if (!lock.owns_lock() || !decoder) return -1;
     return decoder->getCoreIntInfo("loopLengthMs", -1);
 }
 
@@ -1581,8 +1581,8 @@ int AudioEngine::getHivelyPositionCount() {
 }
 
 int AudioEngine::getHivelyRestartPosition() {
-    std::lock_guard<std::mutex> lock(decoderMutex);
-    if (!decoder) return -1;
+    std::unique_lock<std::mutex> lock(decoderMutex, std::try_to_lock);
+    if (!lock.owns_lock() || !decoder) return -1;
     return decoder->getCoreIntInfo("restartPosition", -1);
 }
 
@@ -1611,14 +1611,14 @@ int AudioEngine::getHivelySpeedMultiplier() {
 }
 
 int AudioEngine::getHivelyCurrentPosition() {
-    std::lock_guard<std::mutex> lock(decoderMutex);
-    if (!decoder) return -1;
+    std::unique_lock<std::mutex> lock(decoderMutex, std::try_to_lock);
+    if (!lock.owns_lock() || !decoder) return -1;
     return decoder->getCoreIntInfo("currentPosition", -1);
 }
 
 int AudioEngine::getHivelyCurrentRow() {
-    std::lock_guard<std::mutex> lock(decoderMutex);
-    if (!decoder) return -1;
+    std::unique_lock<std::mutex> lock(decoderMutex, std::try_to_lock);
+    if (!lock.owns_lock() || !decoder) return -1;
     return decoder->getCoreIntInfo("currentRow", -1);
 }
 
@@ -1665,8 +1665,8 @@ int AudioEngine::getKlystrackSongLengthRows() {
 }
 
 int AudioEngine::getKlystrackCurrentRow() {
-    std::lock_guard<std::mutex> lock(decoderMutex);
-    if (!decoder) return -1;
+    std::unique_lock<std::mutex> lock(decoderMutex, std::try_to_lock);
+    if (!lock.owns_lock() || !decoder) return -1;
     return decoder->getCoreIntInfo("currentRow", -1);
 }
 
@@ -1749,14 +1749,14 @@ int AudioEngine::getDnfamitrackerSongTempo() {
 }
 
 int AudioEngine::getDnfamitrackerCurrentFrame() {
-    std::lock_guard<std::mutex> lock(decoderMutex);
-    if (!decoder) return -1;
+    std::unique_lock<std::mutex> lock(decoderMutex, std::try_to_lock);
+    if (!lock.owns_lock() || !decoder) return -1;
     return decoder->getCoreIntInfo("currentFrame", -1);
 }
 
 int AudioEngine::getDnfamitrackerCurrentRow() {
-    std::lock_guard<std::mutex> lock(decoderMutex);
-    if (!decoder) return -1;
+    std::unique_lock<std::mutex> lock(decoderMutex, std::try_to_lock);
+    if (!lock.owns_lock() || !decoder) return -1;
     return decoder->getCoreIntInfo("currentRow", -1);
 }
 
@@ -1839,20 +1839,20 @@ int AudioEngine::getFurnaceRowsPerPattern() {
 }
 
 int AudioEngine::getFurnaceCurrentOrder() {
-    std::lock_guard<std::mutex> lock(decoderMutex);
-    if (!decoder) return -1;
+    std::unique_lock<std::mutex> lock(decoderMutex, std::try_to_lock);
+    if (!lock.owns_lock() || !decoder) return -1;
     return decoder->getCoreIntInfo("currentOrder", -1);
 }
 
 int AudioEngine::getFurnaceCurrentRow() {
-    std::lock_guard<std::mutex> lock(decoderMutex);
-    if (!decoder) return -1;
+    std::unique_lock<std::mutex> lock(decoderMutex, std::try_to_lock);
+    if (!lock.owns_lock() || !decoder) return -1;
     return decoder->getCoreIntInfo("currentRow", -1);
 }
 
 int AudioEngine::getFurnaceCurrentTick() {
-    std::lock_guard<std::mutex> lock(decoderMutex);
-    if (!decoder) return -1;
+    std::unique_lock<std::mutex> lock(decoderMutex, std::try_to_lock);
+    if (!lock.owns_lock() || !decoder) return -1;
     return decoder->getCoreIntInfo("currentTick", -1);
 }
 
@@ -1869,8 +1869,8 @@ int AudioEngine::getFurnaceGrooveLength() {
 }
 
 float AudioEngine::getFurnaceCurrentHz() {
-    std::lock_guard<std::mutex> lock(decoderMutex);
-    if (!decoder) return 0.0f;
+    std::unique_lock<std::mutex> lock(decoderMutex, std::try_to_lock);
+    if (!lock.owns_lock() || !decoder) return 0.0f;
     return decoder->getCoreFloatInfo("currentHz", 0.0f);
 }
 
@@ -1965,19 +1965,19 @@ int AudioEngine::getUadeCurrentSubsong() {
 }
 
 int64_t AudioEngine::getUadeModuleBytes() {
-    std::lock_guard<std::mutex> lock(decoderMutex);
-    if (!decoder) return 0;
+    std::unique_lock<std::mutex> lock(decoderMutex, std::try_to_lock);
+    if (!lock.owns_lock() || !decoder) return 0;
     return decoder->getCoreInt64Info("moduleBytes", 0);
 }
 
 int64_t AudioEngine::getUadeSongBytes() {
-    std::lock_guard<std::mutex> lock(decoderMutex);
-    if (!decoder) return 0;
+    std::unique_lock<std::mutex> lock(decoderMutex, std::try_to_lock);
+    if (!lock.owns_lock() || !decoder) return 0;
     return decoder->getCoreInt64Info("songBytes", 0);
 }
 
 int64_t AudioEngine::getUadeSubsongBytes() {
-    std::lock_guard<std::mutex> lock(decoderMutex);
-    if (!decoder) return 0;
+    std::unique_lock<std::mutex> lock(decoderMutex, std::try_to_lock);
+    if (!lock.owns_lock() || !decoder) return 0;
     return decoder->getCoreInt64Info("subsongBytes", 0);
 }
