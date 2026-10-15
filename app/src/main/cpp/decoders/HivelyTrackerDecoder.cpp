@@ -182,7 +182,11 @@ bool HivelyTrackerDecoder::open(const char* path) {
     subtuneDurationSeconds.assign(static_cast<size_t>(subtuneCount), 0.0);
     subtuneDurationKnown.assign(static_cast<size_t>(subtuneCount), 0u);
     subtuneDurationReliable.assign(static_cast<size_t>(subtuneCount), 0u);
-    analyzeSubtuneDurationLocked(currentSubtuneIndex);
+    // Analysis reloads and decodes whole tracks; run it here, never on
+    // the metadata poll path.
+    for (int i = 0; i < subtuneCount; ++i) {
+        analyzeSubtuneDurationLocked(i);
+    }
     updateCurrentDurationFromCacheLocked();
     return true;
 }
@@ -643,7 +647,6 @@ double HivelyTrackerDecoder::getSubtuneDurationSeconds(int index) {
     std::lock_guard<std::mutex> lock(decodeMutex);
     if (subtuneCount <= 0) return 0.0;
     if (index < 0 || index >= subtuneCount) return 0.0;
-    analyzeSubtuneDurationLocked(index);
     const size_t cacheIndex = static_cast<size_t>(index);
     if (cacheIndex < subtuneDurationKnown.size() &&
         subtuneDurationKnown[cacheIndex] != 0u &&
