@@ -4453,7 +4453,7 @@ private fun LibraryTrackListRow(
             Text(
                 text = title,
                 style = MaterialTheme.typography.titleMedium,
-                fontWeight = if (isActive) FontWeight.SemiBold else FontWeight.Normal,
+                fontWeight = if (isActive) FontWeight.SemiBold else null,
                 color = if (isActive) {
                     MaterialTheme.colorScheme.primary
                 } else {
