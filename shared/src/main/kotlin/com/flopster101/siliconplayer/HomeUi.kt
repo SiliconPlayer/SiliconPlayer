@@ -1120,7 +1120,7 @@ internal fun HomeScreen(
             ) {
                 Text(
                     text = "Recent folders",
-                    style = MaterialTheme.typography.titleMedium,
+                    style = LocalSectionHeaderStyle.current ?: MaterialTheme.typography.titleMedium,
                     modifier = Modifier.weight(1f)
                 )
                 Box {
@@ -1406,7 +1406,7 @@ internal fun HomeScreen(
             ) {
                 Text(
                     text = "Recently played",
-                    style = MaterialTheme.typography.titleMedium,
+                    style = LocalSectionHeaderStyle.current ?: MaterialTheme.typography.titleMedium,
                     modifier = Modifier.weight(1f)
                 )
                 Box {
