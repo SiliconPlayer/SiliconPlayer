@@ -53,6 +53,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.compositionLocalOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.remember
@@ -238,12 +239,15 @@ internal fun FloatingActionDialog(
 internal fun DialogSectionLabel(text: String, modifier: Modifier = Modifier) {
     Text(
         text = text,
-        style = MaterialTheme.typography.labelLarge,
+        style = LocalDialogSectionLabelStyle.current ?: MaterialTheme.typography.labelLarge,
         fontWeight = FontWeight.SemiBold,
         color = MaterialTheme.colorScheme.primary,
         modifier = modifier.padding(horizontal = 4.dp)
     )
 }
+
+// Overridable so the Android theme can use the rounded font style
+internal val LocalDialogSectionLabelStyle = compositionLocalOf<androidx.compose.ui.text.TextStyle?> { null }
 
 @Composable
 internal fun DialogSelectableCard(

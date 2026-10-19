@@ -56,8 +56,15 @@ fun SiliconPlayerTheme(
 
     SiliconPlayerBaseTheme(
         darkTheme = darkTheme,
-        colorScheme = colorScheme
+        colorScheme = colorScheme,
+        typography = ExpressiveTypography
     ) {
-        com.flopster101.siliconplayer.platform.ProvideAndroidPlatformAdapters(content = content)
+        androidx.compose.runtime.CompositionLocalProvider(
+            com.flopster101.siliconplayer.LocalSectionLabelStyle provides ExpressiveSectionLabelStyle,
+            com.flopster101.siliconplayer.LocalSectionHeaderStyle provides ExpressiveSectionHeaderStyle,
+            com.flopster101.siliconplayer.ui.dialogs.LocalDialogSectionLabelStyle provides ExpressiveSectionLabelStyle
+        ) {
+            com.flopster101.siliconplayer.platform.ProvideAndroidPlatformAdapters(content = content)
+        }
     }
 }

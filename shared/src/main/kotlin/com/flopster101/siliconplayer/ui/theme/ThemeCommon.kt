@@ -5,6 +5,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.ColorScheme
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Shapes
+import androidx.compose.material3.Typography
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
@@ -85,11 +86,12 @@ val SiliconPlayerShapes = Shapes(
 fun SiliconPlayerBaseTheme(
     darkTheme: Boolean = isSystemInDarkTheme(),
     colorScheme: ColorScheme = if (darkTheme) IconDarkColorScheme else IconLightColorScheme,
+    typography: Typography = BaseTypography,
     content: @Composable () -> Unit
 ) {
     MaterialTheme(
         colorScheme = colorScheme,
-        typography = Typography,
+        typography = typography,
         shapes = SiliconPlayerShapes,
         content = content
     )
