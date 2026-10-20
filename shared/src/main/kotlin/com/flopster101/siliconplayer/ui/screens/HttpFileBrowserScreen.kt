@@ -46,7 +46,6 @@ import androidx.compose.material.ExperimentalMaterialApi
 import androidx.compose.material.pullrefresh.pullRefresh
 import androidx.compose.material.pullrefresh.rememberPullRefreshState
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.AudioFile
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Folder
 import androidx.compose.material.icons.filled.FolderOpen
@@ -60,7 +59,6 @@ import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material.icons.filled.Save
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.filled.StarBorder
-import androidx.compose.material.icons.filled.VideoFile
 import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material.icons.filled.VisibilityOff
 import androidx.compose.material.icons.filled.WarningAmber
@@ -75,7 +73,6 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.MenuDefaults
 import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -125,14 +122,12 @@ import com.flopster101.siliconplayer.fileMatchesSupportedExtensions
 import com.flopster101.siliconplayer.httpAuthenticationFailureMessage
 import com.flopster101.siliconplayer.HttpBrowserListLocation
 import com.flopster101.siliconplayer.HttpBrowserListingAdapter
-import com.flopster101.siliconplayer.inferredPrimaryExtensionForName
 import com.flopster101.siliconplayer.isSupportedPlaylistFileName
 import com.flopster101.siliconplayer.FilePreviewKind
 import com.flopster101.siliconplayer.DecoderArtworkHint
 import com.flopster101.siliconplayer.BrowserLaunchState
 import com.flopster101.siliconplayer.NativeBridge
 import com.flopster101.siliconplayer.normalizeHttpDirectoryPath
-import com.flopster101.siliconplayer.normalizeHttpPath
 import com.flopster101.siliconplayer.parseHttpSourceSpecFromInput
 import com.flopster101.siliconplayer.resolveHttpAuthenticationFailureReason
 import com.flopster101.siliconplayer.rememberDialogLazyListScrollbarAlpha
@@ -157,9 +152,6 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.withContext
 import kotlin.coroutines.resume
-
-private val HTTP_ICON_BOX_SIZE = 38.dp
-private val HTTP_ICON_GLYPH_SIZE = 26.dp
 
 private data class HttpLoadingCancelState(
     val previousSpec: HttpSourceSpec?,
@@ -1209,7 +1201,7 @@ internal fun HttpFileBrowserScreen(
 
             if (stateCanNavigateUp && state.pane != HttpBrowserPane.Loading) {
                 item("parent") {
-                    HttpParentDirectoryRow(
+                    BrowserParentDirectoryRow(
                         isWatch = isWatch,
                         onClick = {
                             if (!isLoading) {
@@ -1297,7 +1289,7 @@ internal fun HttpFileBrowserScreen(
                 }
             } else if (state.pane == HttpBrowserPane.Empty) {
                 item("empty") {
-                    HttpInfoCard(
+                    BrowserInfoCard(
                         title = "This directory is empty",
                         subtitle = "No files or folders found"
                     )
@@ -2152,70 +2144,6 @@ private data class HttpSelectionFileTarget(
     val displayName: String
 )
 
-@Composable
-private fun remoteAuthDialogTextFieldColors() = OutlinedTextFieldDefaults.colors(
-    focusedContainerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
-    unfocusedContainerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
-    disabledContainerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
-    focusedBorderColor = MaterialTheme.colorScheme.primary,
-    unfocusedBorderColor = MaterialTheme.colorScheme.outlineVariant
-)
-
-@Composable
-private fun HttpParentDirectoryRow(
-    isWatch: Boolean = false,
-    onClick: () -> Unit
-) {
-    val rowShape = if (isWatch) RoundedCornerShape(14.dp) else RoundedCornerShape(0.dp)
-    val rowBackground = if (isWatch) MaterialTheme.colorScheme.surfaceContainerLow else MaterialTheme.colorScheme.surface.copy(alpha = 0f)
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clip(rowShape)
-            .background(rowBackground)
-            .clickable(onClick = onClick)
-            .padding(horizontal = if (isWatch) 10.dp else 16.dp, vertical = if (isWatch) 6.dp else 10.dp),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        Box(
-            modifier = Modifier.size(if (isWatch) 32.dp else HTTP_ICON_BOX_SIZE),
-            contentAlignment = Alignment.Center
-        ) {
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .background(
-                        color = MaterialTheme.colorScheme.primaryContainer,
-                        shape = RoundedCornerShape(if (isWatch) 14.dp else 11.dp)
-                    ),
-                contentAlignment = Alignment.Center
-            ) {
-                Icon(
-                    imageVector = Icons.Default.Folder,
-                    contentDescription = "Parent directory",
-                    tint = MaterialTheme.colorScheme.onPrimaryContainer,
-                    modifier = Modifier.size(if (isWatch) 16.dp else HTTP_ICON_GLYPH_SIZE)
-                )
-            }
-        }
-        Spacer(modifier = Modifier.width(if (isWatch) 10.dp else 16.dp))
-        Column(modifier = Modifier.weight(1f)) {
-            Text(
-                text = "..",
-                style = if (isWatch) MaterialTheme.typography.titleSmall else MaterialTheme.typography.bodyLarge,
-                maxLines = 1
-            )
-            Text(
-                text = "Parent directory",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis
-            )
-        }
-    }
-}
-
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun HttpEntryRow(
@@ -2303,7 +2231,7 @@ private fun HttpEntryRow(
         }
         Box(
             modifier = Modifier
-                .size(if (isWatch) 32.dp else HTTP_ICON_BOX_SIZE)
+                .size(if (isWatch) 32.dp else BROWSER_ICON_BOX_SIZE)
                 .background(
                     color = chipContainerColor,
                     shape = RoundedCornerShape(if (isWatch) 14.dp else 11.dp)
@@ -2313,7 +2241,7 @@ private fun HttpEntryRow(
             BrowserRemoteEntryIcon(
                 visualKind = visualKind,
                 tint = chipContentColor,
-                modifier = Modifier.size(if (isWatch) 16.dp else HTTP_ICON_GLYPH_SIZE)
+                modifier = Modifier.size(if (isWatch) 16.dp else BROWSER_ICON_GLYPH_SIZE)
             )
         }
         Spacer(modifier = Modifier.width(if (isWatch) 10.dp else 16.dp))
@@ -2330,7 +2258,7 @@ private fun HttpEntryRow(
                 } else if (browserArchiveCapabilityForName(entry.name) != BrowserArchiveCapability.None) {
                     "Archive"
                 } else {
-                    inferHttpFormatLabel(entry.name)
+                    inferBrowserFormatLabel(entry.name)
                 },
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -2566,36 +2494,6 @@ private fun HttpEntryRow(
 }
 
 @Composable
-private fun HttpInfoCard(
-    title: String,
-    subtitle: String
-) {
-    ElevatedCard(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(horizontal = 16.dp, vertical = 8.dp)
-    ) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 16.dp, vertical = 18.dp),
-            verticalArrangement = Arrangement.spacedBy(6.dp)
-        ) {
-            Text(
-                text = title,
-                style = MaterialTheme.typography.titleSmall,
-                fontWeight = FontWeight.Medium
-            )
-            Text(
-                text = subtitle,
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-        }
-    }
-}
-
-@Composable
 private fun HttpLoadingCard(
     title: String,
     subtitle: String,
@@ -2621,11 +2519,6 @@ private fun HttpLoadingCard(
         secondaryActionLabel = if (onCancel != null) "Cancel" else null,
         onSecondaryAction = onCancel
     )
-}
-
-private fun inferHttpFormatLabel(name: String): String {
-    val ext = inferredPrimaryExtensionForName(name)
-    return ext?.uppercase(Locale.ROOT) ?: "Unknown"
 }
 
 private fun canNavigateUpWithinHttpBrowser(
@@ -2660,29 +2553,3 @@ private fun appendHttpDisplayNameFragment(
     }
 }
 
-private fun readRemoteTextPreviewContent(
-    file: File,
-    maxBytes: Int = 512 * 1024
-): String? {
-    if (!file.exists() || !file.isFile) return null
-    return runCatching {
-        val bytes = file.inputStream().use { input ->
-            val buffer = ByteArray(maxBytes + 1)
-            var totalRead = 0
-            while (totalRead < buffer.size) {
-                val read = input.read(buffer, totalRead, buffer.size - totalRead)
-                if (read <= 0) break
-                totalRead += read
-            }
-            buffer.copyOf(totalRead)
-        }
-        val wasTruncated = bytes.size > maxBytes
-        val previewBytes = if (wasTruncated) bytes.copyOf(maxBytes) else bytes
-        val text = previewBytes.toString(Charsets.UTF_8)
-        if (wasTruncated) {
-            "$text\n\n[Preview truncated at ${maxBytes / 1024} KB]"
-        } else {
-            text
-        }
-    }.getOrNull()
-}

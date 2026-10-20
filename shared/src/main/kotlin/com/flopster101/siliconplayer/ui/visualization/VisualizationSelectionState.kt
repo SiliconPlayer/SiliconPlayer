@@ -1,6 +1,6 @@
 package com.flopster101.siliconplayer.ui.visualization
 
-import android.content.SharedPreferences
+import com.flopster101.siliconplayer.platform.AppPreferences
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -26,7 +26,7 @@ internal data class VisualizationSelectionState(
 
 @Composable
 internal fun rememberVisualizationSelectionState(
-    prefs: SharedPreferences
+    prefs: AppPreferences
 ): VisualizationSelectionState {
     var currentMode by remember {
         mutableStateOf(

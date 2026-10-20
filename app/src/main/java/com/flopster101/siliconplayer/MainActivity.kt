@@ -120,6 +120,7 @@ import com.flopster101.siliconplayer.library.LibraryTrackEntity
 import org.json.JSONArray
 import com.flopster101.siliconplayer.playback.applyTrackSelectionAction
 import com.flopster101.siliconplayer.session.exportCachedFilesToTree
+import com.flopster101.siliconplayer.platform.LocalAppPreferences
 import com.flopster101.siliconplayer.ui.visualization.rememberVisualizationUiState
 import com.flopster101.siliconplayer.ui.screens.LibrarySurfaceState
 import com.flopster101.siliconplayer.ui.theme.SiliconPlayerTheme
@@ -2874,7 +2875,7 @@ private fun AppNavigation(
     val activeCoreNameForUi = lastUsedCoreName
     val canOpenCurrentCoreSettings = canOpenCoreSettingsForDecoder(activeCoreNameForUi)
     val visualizationUiState = rememberVisualizationUiState(
-        prefs = prefs,
+        prefs = LocalAppPreferences.current,
         activeCoreName = activeCoreNameForUi,
         isPlayerSurfaceVisible = isPlayerSurfaceVisible
     )

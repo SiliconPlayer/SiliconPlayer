@@ -1,6 +1,5 @@
 package com.flopster101.siliconplayer.ui.screens
 
-import com.flopster101.siliconplayer.onGloballyPositionedDeferred
 import com.flopster101.siliconplayer.onSizeChangedDeferred
 import com.flopster101.siliconplayer.VisualizationPerformanceMode
 import com.flopster101.siliconplayer.resolveEffectiveVisualizationPerformanceMode
@@ -25,7 +24,6 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.BoxWithConstraints
-import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
@@ -46,10 +44,9 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
-import androidx.compose.runtime.setValue
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.withFrameNanos
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.withFrameNanos
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.rememberCoroutineScope
@@ -74,7 +71,6 @@ import androidx.compose.ui.graphics.toPixelMap
 import androidx.compose.ui.graphics.vector.ImageVector
 import com.flopster101.siliconplayer.placeholderArtworkDrawableResIdForFile
 import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.input.pointer.pointerInput
@@ -82,7 +78,6 @@ import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
 import com.flopster101.siliconplayer.ArtworkSwipePreviewState
 import com.flopster101.siliconplayer.AppDefaults
-import com.flopster101.siliconplayer.AppPreferenceKeys
 import com.flopster101.siliconplayer.ChannelScopeVisibleElementId
 import com.flopster101.siliconplayer.DecoderNames
 import com.flopster101.siliconplayer.NativeBridge
@@ -91,11 +86,6 @@ import com.flopster101.siliconplayer.VisualizationChannelScopeTextAnchor
 import com.flopster101.siliconplayer.VisualizationChannelScopeBackgroundMode
 import com.flopster101.siliconplayer.VisualizationChannelScopeTextColorMode
 import com.flopster101.siliconplayer.VisualizationChannelScopeTextFont
-import com.flopster101.siliconplayer.VisualizationChannelScopeTriggerAlgorithm
-import com.flopster101.siliconplayer.VisualizationChannelScopeAntialiasMethod
-import com.flopster101.siliconplayer.VisualizationChannelScopeWaveRenderMode
-import com.flopster101.siliconplayer.VisualizationChannelScopeTrackTransition
-import com.flopster101.siliconplayer.StarfieldPreset
 import com.flopster101.siliconplayer.VisualizationMode
 import com.flopster101.siliconplayer.VisualizationNoteNameFormat
 import com.flopster101.siliconplayer.VisualizationOscColorMode
@@ -107,7 +97,6 @@ import com.flopster101.siliconplayer.VisualizationVuAnchor
 import com.flopster101.siliconplayer.isChannelScopeVisibleElementEnabled
 import com.flopster101.siliconplayer.matchesDecoderName
 import com.flopster101.siliconplayer.pluginNameForCoreName
-import com.flopster101.siliconplayer.readChannelScopeVisibleElementSelection
 import com.flopster101.siliconplayer.supportsChannelScopeVisualization
 import com.flopster101.siliconplayer.visualizationRenderBackendForMode
 import com.flopster101.siliconplayer.ui.visualization.VisualizationDebugOverlay
@@ -124,7 +113,6 @@ import java.util.concurrent.Executors
 import java.util.concurrent.locks.LockSupport
 import kotlin.coroutines.coroutineContext
 import kotlin.math.abs
-import kotlin.math.ceil
 import kotlin.math.roundToInt
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExecutorCoroutineDispatcher
@@ -1474,549 +1462,6 @@ private fun findCorrelationTriggerIndex(
     }
 
     return triggerIdx
-}
-
-internal object ChannelScopePrefsSupport {
-        private const val KEY_WINDOW_MS = "visualization_channel_scope_window_ms"
-        private const val KEY_RENDER_BACKEND = "visualization_channel_scope_render_backend"
-        private const val KEY_DC_REMOVAL_ENABLED = "visualization_channel_scope_dc_removal_enabled"
-        private const val KEY_WAVEFORM_CLIPPING_ENABLED = "visualization_channel_scope_waveform_clipping_enabled"
-        private const val KEY_GAIN_PERCENT = "visualization_channel_scope_gain_percent"
-        private const val KEY_CONTRAST_BACKDROP_ENABLED = "visualization_channel_scope_contrast_backdrop_enabled"
-        private const val KEY_TRIGGER_MODE = "visualization_channel_scope_trigger_mode"
-        private const val KEY_TRIGGER_ALGORITHM = "visualization_channel_scope_trigger_algorithm"
-        private const val KEY_WAVE_RENDER_MODE = "visualization_channel_scope_wave_render_mode"
-        private const val KEY_ANTIALIAS_METHOD = "visualization_channel_scope_antialias_method"
-        private const val KEY_TRACK_TRANSITION = "visualization_channel_scope_track_transition"
-        private const val KEY_FPS_MODE = "visualization_channel_scope_fps_mode"
-        private const val KEY_LINE_WIDTH_DP = "visualization_channel_scope_line_width_dp"
-        private const val KEY_GRID_WIDTH_DP = "visualization_channel_scope_grid_width_dp"
-        private const val KEY_VERTICAL_GRID_ENABLED = "visualization_channel_scope_vertical_grid_enabled"
-        private const val KEY_CENTER_LINE_ENABLED = "visualization_channel_scope_center_line_enabled"
-        private const val KEY_SHOW_ARTWORK_BACKGROUND = "visualization_channel_scope_show_artwork_background"
-        private const val KEY_BACKGROUND_MODE = "visualization_channel_scope_background_mode"
-        private const val KEY_CUSTOM_BACKGROUND_COLOR_ARGB = "visualization_channel_scope_custom_background_color_argb"
-        private const val KEY_LAYOUT = "visualization_channel_scope_layout"
-        private const val KEY_LINE_COLOR_MODE_NO_ARTWORK = "visualization_channel_scope_line_color_mode_no_artwork"
-        private const val KEY_GRID_COLOR_MODE_NO_ARTWORK = "visualization_channel_scope_grid_color_mode_no_artwork"
-        private const val KEY_LINE_COLOR_MODE_WITH_ARTWORK = "visualization_channel_scope_line_color_mode_with_artwork"
-        private const val KEY_GRID_COLOR_MODE_WITH_ARTWORK = "visualization_channel_scope_grid_color_mode_with_artwork"
-        private const val KEY_CUSTOM_LINE_COLOR_ARGB = "visualization_channel_scope_custom_line_color_argb"
-        private const val KEY_CUSTOM_GRID_COLOR_ARGB = "visualization_channel_scope_custom_grid_color_argb"
-        private const val KEY_TEXT_ENABLED = "visualization_channel_scope_text_enabled"
-        private const val KEY_TEXT_ANCHOR = "visualization_channel_scope_text_anchor"
-        private const val KEY_TEXT_PADDING_DP = "visualization_channel_scope_text_padding_dp"
-        private const val KEY_TEXT_SIZE_SP = "visualization_channel_scope_text_size_sp"
-        private const val KEY_TEXT_HIDE_WHEN_OVERFLOW = "visualization_channel_scope_text_hide_when_overflow"
-        private const val KEY_TEXT_SHADOW_ENABLED = "visualization_channel_scope_text_shadow_enabled"
-        private const val KEY_TEXT_FONT = "visualization_channel_scope_text_font"
-        private const val KEY_TEXT_COLOR_MODE = "visualization_channel_scope_text_color_mode"
-        private const val KEY_CUSTOM_TEXT_COLOR_ARGB = "visualization_channel_scope_custom_text_color_argb"
-        private const val KEY_TEXT_NOTE_FORMAT = "visualization_channel_scope_text_note_format"
-        private const val KEY_TEXT_SHOW_CHANNEL = "visualization_channel_scope_text_show_channel"
-        private const val KEY_TEXT_SHOW_NOTE = "visualization_channel_scope_text_show_note"
-        private const val KEY_TEXT_VU_ENABLED = "visualization_channel_scope_text_vu_enabled"
-        private const val KEY_TEXT_VU_ANCHOR = "visualization_channel_scope_text_vu_anchor"
-        private const val KEY_TEXT_VU_COLOR_MODE = "visualization_channel_scope_text_vu_color_mode"
-        private const val KEY_TEXT_VU_CUSTOM_COLOR_ARGB = "visualization_channel_scope_text_vu_custom_color_argb"
-
-        fun from(sharedPrefs: android.content.SharedPreferences): ChannelScopePrefs {
-            val defaultTriggerStorage = AppDefaults.Visualization.ChannelScope.triggerMode.storageValue
-            val triggerModeNative = when (sharedPrefs.getString(KEY_TRIGGER_MODE, defaultTriggerStorage)) {
-                "rising" -> 1
-                "falling" -> 2
-                else -> 0
-            }
-            val triggerAlgorithmNative = VisualizationChannelScopeTriggerAlgorithm.fromStorage(
-                sharedPrefs.getString(
-                    KEY_TRIGGER_ALGORITHM,
-                    AppDefaults.Visualization.ChannelScope.triggerAlgorithm.storageValue
-                )
-            ).nativeValue
-            val waveRenderMode = VisualizationChannelScopeWaveRenderMode.fromStorage(
-                sharedPrefs.getString(
-                    KEY_WAVE_RENDER_MODE,
-                    AppDefaults.Visualization.ChannelScope.waveRenderMode.storageValue
-                )
-            )
-            val trackTransition = VisualizationChannelScopeTrackTransition.fromStorage(
-                sharedPrefs.getString(
-                    KEY_TRACK_TRANSITION,
-                    AppDefaults.Visualization.ChannelScope.trackTransition.storageValue
-                )
-            )
-            return ChannelScopePrefs(
-                windowMs = sharedPrefs.getInt(
-                    KEY_WINDOW_MS,
-                    AppDefaults.Visualization.ChannelScope.windowMs
-                ).coerceIn(
-                    AppDefaults.Visualization.ChannelScope.windowRangeMs.first,
-                    AppDefaults.Visualization.ChannelScope.windowRangeMs.last
-                ),
-                renderBackend = VisualizationRenderBackend.fromStorage(
-                    sharedPrefs.getString(
-                        KEY_RENDER_BACKEND,
-                        AppDefaults.Visualization.ChannelScope.renderBackend.storageValue
-                    ),
-                    AppDefaults.Visualization.ChannelScope.renderBackend
-                ),
-                dcRemovalEnabled = sharedPrefs.getBoolean(
-                    KEY_DC_REMOVAL_ENABLED,
-                    AppDefaults.Visualization.ChannelScope.dcRemovalEnabled
-                ),
-                waveformClippingEnabled = sharedPrefs.getBoolean(
-                    KEY_WAVEFORM_CLIPPING_ENABLED,
-                    AppDefaults.Visualization.ChannelScope.waveformClippingEnabled
-                ),
-                gainPercent = sharedPrefs.getInt(
-                    KEY_GAIN_PERCENT,
-                    AppDefaults.Visualization.ChannelScope.gainPercent
-                ).coerceIn(
-                    AppDefaults.Visualization.ChannelScope.gainRangePercent.first,
-                    AppDefaults.Visualization.ChannelScope.gainRangePercent.last
-                ),
-                contrastBackdropEnabled = sharedPrefs.getBoolean(
-                    KEY_CONTRAST_BACKDROP_ENABLED,
-                    AppDefaults.Visualization.ChannelScope.contrastBackdropEnabled
-                ),
-                triggerModeNative = triggerModeNative,
-                triggerAlgorithmNative = triggerAlgorithmNative,
-                waveRenderMode = waveRenderMode,
-                antialiasMethod = VisualizationChannelScopeAntialiasMethod.fromStorage(
-                    sharedPrefs.getString(
-                        KEY_ANTIALIAS_METHOD,
-                        AppDefaults.Visualization.ChannelScope.antialiasMethod.storageValue
-                    )
-                ),
-                trackTransition = trackTransition,
-                fpsMode = VisualizationOscFpsMode.fromStorage(
-                    sharedPrefs.getString(
-                        KEY_FPS_MODE,
-                        AppDefaults.Visualization.ChannelScope.fpsMode.storageValue
-                    )
-                ),
-                lineWidthDp = sharedPrefs.getInt(
-                    KEY_LINE_WIDTH_DP,
-                    AppDefaults.Visualization.ChannelScope.lineWidthDp
-                ).coerceIn(
-                    AppDefaults.Visualization.ChannelScope.lineWidthRangeDp.first,
-                    AppDefaults.Visualization.ChannelScope.lineWidthRangeDp.last
-                ),
-                gridWidthDp = sharedPrefs.getInt(
-                    KEY_GRID_WIDTH_DP,
-                    AppDefaults.Visualization.ChannelScope.gridWidthDp
-                ).coerceIn(
-                    AppDefaults.Visualization.ChannelScope.gridWidthRangeDp.first,
-                    AppDefaults.Visualization.ChannelScope.gridWidthRangeDp.last
-                ),
-                verticalGridEnabled = sharedPrefs.getBoolean(
-                    KEY_VERTICAL_GRID_ENABLED,
-                    AppDefaults.Visualization.ChannelScope.verticalGridEnabled
-                ),
-                centerLineEnabled = sharedPrefs.getBoolean(
-                    KEY_CENTER_LINE_ENABLED,
-                    AppDefaults.Visualization.ChannelScope.centerLineEnabled
-                ),
-                layout = VisualizationChannelScopeLayout.fromStorage(
-                    sharedPrefs.getString(
-                        KEY_LAYOUT,
-                        AppDefaults.Visualization.ChannelScope.layout.storageValue
-                    )
-                ),
-                lineColorModeNoArtwork = VisualizationOscColorMode.fromStorage(
-                    sharedPrefs.getString(
-                        KEY_LINE_COLOR_MODE_NO_ARTWORK,
-                        AppDefaults.Visualization.ChannelScope.lineColorModeNoArtwork.storageValue
-                    ),
-                    AppDefaults.Visualization.ChannelScope.lineColorModeNoArtwork
-                ),
-                gridColorModeNoArtwork = VisualizationOscColorMode.fromStorage(
-                    sharedPrefs.getString(
-                        KEY_GRID_COLOR_MODE_NO_ARTWORK,
-                        AppDefaults.Visualization.ChannelScope.gridColorModeNoArtwork.storageValue
-                    ),
-                    AppDefaults.Visualization.ChannelScope.gridColorModeNoArtwork
-                ),
-                lineColorModeWithArtwork = VisualizationOscColorMode.fromStorage(
-                    sharedPrefs.getString(
-                        KEY_LINE_COLOR_MODE_WITH_ARTWORK,
-                        AppDefaults.Visualization.ChannelScope.lineColorModeWithArtwork.storageValue
-                    ),
-                    AppDefaults.Visualization.ChannelScope.lineColorModeWithArtwork
-                ),
-                gridColorModeWithArtwork = VisualizationOscColorMode.fromStorage(
-                    sharedPrefs.getString(
-                        KEY_GRID_COLOR_MODE_WITH_ARTWORK,
-                        AppDefaults.Visualization.ChannelScope.gridColorModeWithArtwork.storageValue
-                    ),
-                    AppDefaults.Visualization.ChannelScope.gridColorModeWithArtwork
-                ),
-                customLineColorArgb = sharedPrefs.getInt(
-                    KEY_CUSTOM_LINE_COLOR_ARGB,
-                    AppDefaults.Visualization.ChannelScope.customLineColorArgb
-                ),
-                customGridColorArgb = sharedPrefs.getInt(
-                    KEY_CUSTOM_GRID_COLOR_ARGB,
-                    AppDefaults.Visualization.ChannelScope.customGridColorArgb
-                ),
-                showArtworkBackground = sharedPrefs.getBoolean(
-                    KEY_SHOW_ARTWORK_BACKGROUND,
-                    AppDefaults.Visualization.ChannelScope.showArtworkBackground
-                ),
-                backgroundMode = VisualizationChannelScopeBackgroundMode.fromStorage(
-                    sharedPrefs.getString(
-                        KEY_BACKGROUND_MODE,
-                        AppDefaults.Visualization.ChannelScope.backgroundMode.storageValue
-                    )
-                ),
-                customBackgroundColorArgb = sharedPrefs.getInt(
-                    KEY_CUSTOM_BACKGROUND_COLOR_ARGB,
-                    AppDefaults.Visualization.ChannelScope.customBackgroundColorArgb
-                ),
-                textEnabled = sharedPrefs.getBoolean(
-                    KEY_TEXT_ENABLED,
-                    AppDefaults.Visualization.ChannelScope.textEnabled
-                ),
-                textAnchor = VisualizationChannelScopeTextAnchor.fromStorage(
-                    sharedPrefs.getString(
-                        KEY_TEXT_ANCHOR,
-                        AppDefaults.Visualization.ChannelScope.textAnchor.storageValue
-                    )
-                ),
-                textPaddingDp = sharedPrefs.getInt(
-                    KEY_TEXT_PADDING_DP,
-                    AppDefaults.Visualization.ChannelScope.textPaddingDp
-                ).coerceIn(
-                    AppDefaults.Visualization.ChannelScope.textPaddingRangeDp.first,
-                    AppDefaults.Visualization.ChannelScope.textPaddingRangeDp.last
-                ),
-                textSizeSp = sharedPrefs.getInt(
-                    KEY_TEXT_SIZE_SP,
-                    AppDefaults.Visualization.ChannelScope.textSizeSp
-                ).coerceIn(
-                    AppDefaults.Visualization.ChannelScope.textSizeRangeSp.first,
-                    AppDefaults.Visualization.ChannelScope.textSizeRangeSp.last
-                ),
-                textHideWhenOverflow = sharedPrefs.getBoolean(
-                    KEY_TEXT_HIDE_WHEN_OVERFLOW,
-                    AppDefaults.Visualization.ChannelScope.textHideWhenOverflow
-                ),
-                textShadowEnabled = sharedPrefs.getBoolean(
-                    KEY_TEXT_SHADOW_ENABLED,
-                    AppDefaults.Visualization.ChannelScope.textShadowEnabled
-                ),
-                textFont = VisualizationChannelScopeTextFont.fromStorage(
-                    sharedPrefs.getString(
-                        KEY_TEXT_FONT,
-                        AppDefaults.Visualization.ChannelScope.textFont.storageValue
-                    )
-                ),
-                textColorMode = VisualizationChannelScopeTextColorMode.fromStorage(
-                    sharedPrefs.getString(
-                        KEY_TEXT_COLOR_MODE,
-                        AppDefaults.Visualization.ChannelScope.textColorMode.storageValue
-                    )
-                ),
-                customTextColorArgb = sharedPrefs.getInt(
-                    KEY_CUSTOM_TEXT_COLOR_ARGB,
-                    AppDefaults.Visualization.ChannelScope.customTextColorArgb
-                ),
-                textNoteFormat = VisualizationNoteNameFormat.fromStorage(
-                    sharedPrefs.getString(
-                        KEY_TEXT_NOTE_FORMAT,
-                        AppDefaults.Visualization.ChannelScope.textNoteFormat.storageValue
-                    )
-                ),
-                textShowChannel = sharedPrefs.getBoolean(
-                    KEY_TEXT_SHOW_CHANNEL,
-                    AppDefaults.Visualization.ChannelScope.textShowChannel
-                ),
-                textShowNote = sharedPrefs.getBoolean(
-                    KEY_TEXT_SHOW_NOTE,
-                    AppDefaults.Visualization.ChannelScope.textShowNote
-                ),
-                textVisibleElementSelection = readChannelScopeVisibleElementSelection(sharedPrefs),
-                textVuEnabled = sharedPrefs.getBoolean(
-                    KEY_TEXT_VU_ENABLED,
-                    AppDefaults.Visualization.ChannelScope.textVuEnabled
-                ),
-                textVuAnchor = VisualizationVuAnchor.fromStorage(
-                    sharedPrefs.getString(
-                        KEY_TEXT_VU_ANCHOR,
-                        AppDefaults.Visualization.ChannelScope.textVuAnchor.storageValue
-                    )
-                ),
-                textVuColorMode = VisualizationChannelScopeTextColorMode.fromStorage(
-                    sharedPrefs.getString(
-                        KEY_TEXT_VU_COLOR_MODE,
-                        AppDefaults.Visualization.ChannelScope.textVuColorMode.storageValue
-                    )
-                ),
-                textVuCustomColorArgb = sharedPrefs.getInt(
-                    KEY_TEXT_VU_CUSTOM_COLOR_ARGB,
-                    AppDefaults.Visualization.ChannelScope.textVuCustomColorArgb
-                )
-            )
-        }
-
-        fun isChannelScopeKey(key: String?): Boolean {
-            return key?.startsWith("visualization_channel_scope_") == true
-        }
-}
-
-internal fun ChannelScopePrefs.Companion.from(sharedPrefs: android.content.SharedPreferences): ChannelScopePrefs =
-    ChannelScopePrefsSupport.from(sharedPrefs)
-
-internal fun ChannelScopePrefs.Companion.isChannelScopeKey(key: String?): Boolean =
-    ChannelScopePrefsSupport.isChannelScopeKey(key)
-
-internal data class FullscreenTickerPrefs(
-    val masterEnabled: Boolean,
-    val durationSeconds: Int,
-    val perModeEnabled: Map<VisualizationMode, Boolean>
-) {
-    fun isEnabledFor(mode: VisualizationMode): Boolean {
-        return masterEnabled && (perModeEnabled[mode] ?: true)
-    }
-
-    companion object {
-        fun from(prefs: android.content.SharedPreferences): FullscreenTickerPrefs {
-            val perMode = mapOf(
-                VisualizationMode.Bars to prefs.getBoolean(AppPreferenceKeys.VISUALIZATION_TICKER_ENABLED_BARS, true),
-                VisualizationMode.Oscilloscope to prefs.getBoolean(AppPreferenceKeys.VISUALIZATION_TICKER_ENABLED_OSCILLOSCOPE, true),
-                VisualizationMode.VuMeters to prefs.getBoolean(AppPreferenceKeys.VISUALIZATION_TICKER_ENABLED_VU_METERS, true),
-                VisualizationMode.ChannelScope to prefs.getBoolean(AppPreferenceKeys.VISUALIZATION_TICKER_ENABLED_CHANNEL_SCOPE, true),
-                VisualizationMode.Starfield to prefs.getBoolean(AppPreferenceKeys.VISUALIZATION_TICKER_ENABLED_STARFIELD, true),
-                VisualizationMode.ProjectM to prefs.getBoolean(AppPreferenceKeys.VISUALIZATION_TICKER_ENABLED_PROJECTM, true)
-            )
-            return FullscreenTickerPrefs(
-                masterEnabled = prefs.getBoolean(AppPreferenceKeys.VISUALIZATION_TICKER_ENABLED, true),
-                durationSeconds = prefs.getInt(AppPreferenceKeys.VISUALIZATION_TICKER_DURATION_SECONDS, 5),
-                perModeEnabled = perMode
-            )
-        }
-
-        fun isTickerKey(key: String?): Boolean {
-            return key?.startsWith("visualization_ticker_") == true
-        }
-    }
-}
-
-@Composable
-internal fun rememberFullscreenTickerPrefs(
-    sharedPrefs: android.content.SharedPreferences
-): FullscreenTickerPrefs {
-    var state by remember(sharedPrefs) { mutableStateOf(FullscreenTickerPrefs.from(sharedPrefs)) }
-    DisposableEffect(sharedPrefs) {
-        val listener = android.content.SharedPreferences.OnSharedPreferenceChangeListener { prefs, key ->
-            if (FullscreenTickerPrefs.isTickerKey(key)) {
-                state = FullscreenTickerPrefs.from(prefs)
-            }
-        }
-        sharedPrefs.registerOnSharedPreferenceChangeListener(listener)
-        onDispose {
-            sharedPrefs.unregisterOnSharedPreferenceChangeListener(listener)
-        }
-    }
-    return state
-}
-
-@Composable
-internal fun rememberFullscreenTickerPrefs(
-    prefs: com.flopster101.siliconplayer.platform.AppPreferences
-): FullscreenTickerPrefs {
-    val sp = (prefs as? com.flopster101.siliconplayer.platform.AndroidAppPreferences)?.sharedPreferences
-    return if (sp != null) {
-        rememberFullscreenTickerPrefs(sp)
-    } else {
-        remember { FullscreenTickerPrefs(masterEnabled = false, durationSeconds = 5, perModeEnabled = emptyMap()) }
-    }
-}
-
-@Composable
-internal fun rememberChannelScopePrefs(
-    sharedPrefs: android.content.SharedPreferences
-): ChannelScopePrefs {
-    var state by remember(sharedPrefs) { mutableStateOf(ChannelScopePrefs.from(sharedPrefs)) }
-    DisposableEffect(sharedPrefs) {
-        val listener = android.content.SharedPreferences.OnSharedPreferenceChangeListener { prefs, key ->
-            if (ChannelScopePrefs.isChannelScopeKey(key)) {
-                state = ChannelScopePrefs.from(prefs)
-            }
-        }
-        sharedPrefs.registerOnSharedPreferenceChangeListener(listener)
-        onDispose {
-            sharedPrefs.unregisterOnSharedPreferenceChangeListener(listener)
-        }
-    }
-    return state
-}
-
-@Composable
-internal fun rememberChannelScopePrefs(
-    prefs: com.flopster101.siliconplayer.platform.AppPreferences
-): ChannelScopePrefs {
-    val sp = (prefs as? com.flopster101.siliconplayer.platform.AndroidAppPreferences)?.sharedPreferences
-    return if (sp != null) {
-        rememberChannelScopePrefs(sp)
-    } else {
-        error("AndroidAppPreferences required")
-    }
-}
-
-internal fun writeStarfieldFactoryTune(
-    sharedPrefs: android.content.SharedPreferences,
-    preset: StarfieldPreset
-) {
-    val factory = starfieldPresetTuneFor(preset)
-    val slotKeys = starfieldKeysFor(preset)
-    sharedPrefs.edit()
-        .putInt(slotKeys.starCount, factory.starCount)
-        .putInt(slotKeys.speedCenti, factory.speedCenti)
-        .putInt(slotKeys.fovCenti, factory.fovCenti)
-        .putInt(slotKeys.nearMilli, factory.nearMilli)
-        .putInt(slotKeys.starColorArgb, factory.starColorArgb)
-        .putInt(slotKeys.baseSizeDeci, factory.baseSizeDeci)
-        .putInt(slotKeys.sizeGrowthCenti, factory.sizeGrowthCenti)
-        .putInt(slotKeys.farDimPercent, factory.farDimPercent)
-        .putInt(slotKeys.softnessPercent, factory.softnessPercent)
-        .putInt(slotKeys.beatGlowPercent, factory.beatGlowPercent)
-        .putInt(slotKeys.glowSizeDeci, factory.glowSizeDeci)
-        .putInt(slotKeys.trailPercent, factory.trailPercent)
-        .putBoolean(slotKeys.streaksEnabled, factory.streaksEnabled)
-        .putBoolean(slotKeys.squareEnabled, factory.squarePixelsEnabled)
-        .putInt(slotKeys.streakLengthCenti, factory.streakLengthCenti)
-        .putInt(slotKeys.centerXCenti, factory.centerXCenti)
-        .putInt(slotKeys.centerYCenti, factory.centerYCenti)
-        .putBoolean(slotKeys.autoDriftEnabled, factory.autoDriftEnabled)
-        .putInt(slotKeys.reactSpeedCenti, factory.reactSpeedCenti)
-        .putInt(slotKeys.flashPercent, factory.flashPercent)
-        .putBoolean(slotKeys.contrastBackdropEnabled, factory.contrastBackdropEnabled)
-        .apply()
-}
-
-internal fun starfieldActivePreset(sharedPrefs: android.content.SharedPreferences): StarfieldPreset {
-    return StarfieldPreset.fromStorage(
-        sharedPrefs.getString(
-            AppPreferenceKeys.VISUALIZATION_STARFIELD_ACTIVE_PRESET,
-            StarfieldPreset.ClassicAmiga.storageValue
-        )
-    )
-}
-
-internal fun starfieldActivePreset(prefs: com.flopster101.siliconplayer.platform.AppPreferences): StarfieldPreset {
-    val sp = (prefs as? com.flopster101.siliconplayer.platform.AndroidAppPreferences)?.sharedPreferences
-    return if (sp != null) starfieldActivePreset(sp) else StarfieldPreset.ClassicAmiga
-}
-
-internal fun writeStarfieldFactoryTune(
-    prefs: com.flopster101.siliconplayer.platform.AppPreferences,
-    preset: StarfieldPreset
-) {
-    val sp = (prefs as? com.flopster101.siliconplayer.platform.AndroidAppPreferences)?.sharedPreferences
-    if (sp != null) writeStarfieldFactoryTune(sp, preset)
-}
-
-
-internal object StarfieldPrefsSupport {
-        fun from(sharedPrefs: android.content.SharedPreferences): StarfieldPrefs {
-            val d = AppDefaults.Visualization.Starfield
-            val t = starfieldPresetTuneFor(starfieldActivePreset(sharedPrefs))
-            val k = starfieldKeysFor(starfieldActivePreset(sharedPrefs))
-            return StarfieldPrefs(
-                renderBackend = VisualizationRenderBackend.fromStorage(
-                    sharedPrefs.getString(
-                        AppPreferenceKeys.VISUALIZATION_STARFIELD_RENDER_BACKEND,
-                        d.renderBackend.storageValue
-                    ),
-                    d.renderBackend
-                ),
-                starCount = sharedPrefs.getInt(k.starCount, t.starCount)
-                    .coerceIn(d.starCountRange.first, d.starCountRange.last),
-                speed = sharedPrefs.getInt(k.speedCenti, t.speedCenti)
-                    .coerceIn(d.speedRangeCenti.first, d.speedRangeCenti.last) / 100f,
-                fov = sharedPrefs.getInt(k.fovCenti, t.fovCenti)
-                    .coerceIn(d.fovRangeCenti.first, d.fovRangeCenti.last) / 100f,
-                nearPlane = sharedPrefs.getInt(k.nearMilli, t.nearMilli)
-                    .coerceIn(d.nearRangeMilli.first, d.nearRangeMilli.last) / 1000f,
-                starColorArgb = sharedPrefs.getInt(k.starColorArgb, t.starColorArgb),
-                baseSizePx = sharedPrefs.getInt(k.baseSizeDeci, t.baseSizeDeci)
-                    .coerceIn(d.baseSizeRangeDeci.first, d.baseSizeRangeDeci.last) / 10f,
-                sizeGrowth = sharedPrefs.getInt(k.sizeGrowthCenti, t.sizeGrowthCenti)
-                    .coerceIn(d.sizeGrowthRangeCenti.first, d.sizeGrowthRangeCenti.last) / 100f,
-                farDim = sharedPrefs.getInt(k.farDimPercent, t.farDimPercent)
-                    .coerceIn(d.percentRange.first, d.percentRange.last) / 100f,
-                softness = sharedPrefs.getInt(k.softnessPercent, t.softnessPercent)
-                    .coerceIn(d.percentRange.first, d.percentRange.last) / 100f,
-                beatGlow = sharedPrefs.getInt(k.beatGlowPercent, t.beatGlowPercent)
-                    .coerceIn(d.percentRange.first, d.percentRange.last) / 100f,
-                glowSize = sharedPrefs.getInt(k.glowSizeDeci, t.glowSizeDeci)
-                    .coerceIn(d.glowSizeRangeDeci.first, d.glowSizeRangeDeci.last) / 10f,
-                trailPersistence = sharedPrefs.getInt(k.trailPercent, t.trailPercent)
-                    .coerceIn(d.trailRangePercent.first, d.trailRangePercent.last) / 100f,
-                streaks = sharedPrefs.getBoolean(k.streaksEnabled, t.streaksEnabled),
-                streakLength = sharedPrefs.getInt(k.streakLengthCenti, t.streakLengthCenti)
-                    .coerceIn(d.streakLengthRangeCenti.first, d.streakLengthRangeCenti.last) / 100f,
-                centerX = sharedPrefs.getInt(k.centerXCenti, t.centerXCenti)
-                    .coerceIn(d.centerRangeCenti.first, d.centerRangeCenti.last) / 100f,
-                centerY = sharedPrefs.getInt(k.centerYCenti, t.centerYCenti)
-                    .coerceIn(d.centerRangeCenti.first, d.centerRangeCenti.last) / 100f,
-                autoDrift = sharedPrefs.getBoolean(k.autoDriftEnabled, t.autoDriftEnabled),
-                beatFollow = sharedPrefs.getBoolean(AppPreferenceKeys.VISUALIZATION_STARFIELD_BEAT_FOLLOW_ENABLED, d.beatFollowEnabled),
-                reactSpeed = sharedPrefs.getInt(k.reactSpeedCenti, t.reactSpeedCenti)
-                    .coerceIn(d.reactSpeedRangeCenti.first, d.reactSpeedRangeCenti.last) / 100f,
-                flash = sharedPrefs.getInt(k.flashPercent, t.flashPercent)
-                    .coerceIn(d.percentRange.first, d.percentRange.last) / 100f,
-                contrastBackdropEnabled = sharedPrefs.getBoolean(k.contrastBackdropEnabled, t.contrastBackdropEnabled),
-                monochromeBackdrop = sharedPrefs.getBoolean(
-                    AppPreferenceKeys.VISUALIZATION_STARFIELD_MONOCHROME_BACKDROP_ENABLED,
-                    d.monochromeBackdropEnabled
-                ),
-                square = sharedPrefs.getBoolean(k.squareEnabled, t.squarePixelsEnabled)
-            )
-        }
-
-
-        fun isStarfieldKey(key: String?): Boolean {
-            return key?.startsWith("visualization_starfield_") == true
-        }
-    }
-
-internal fun StarfieldPrefs.Companion.from(sharedPrefs: android.content.SharedPreferences): StarfieldPrefs =
-    StarfieldPrefsSupport.from(sharedPrefs)
-
-internal fun StarfieldPrefs.Companion.isStarfieldKey(key: String?): Boolean =
-    StarfieldPrefsSupport.isStarfieldKey(key)
-
-@Composable
-internal fun rememberStarfieldPrefs(
-    sharedPrefs: android.content.SharedPreferences
-): StarfieldPrefs {
-    var state by remember(sharedPrefs) { mutableStateOf(StarfieldPrefs.from(sharedPrefs)) }
-    DisposableEffect(sharedPrefs) {
-        val listener = android.content.SharedPreferences.OnSharedPreferenceChangeListener { prefs, key ->
-            if (StarfieldPrefs.isStarfieldKey(key)) {
-                state = StarfieldPrefs.from(prefs)
-            }
-        }
-        sharedPrefs.registerOnSharedPreferenceChangeListener(listener)
-        onDispose {
-            sharedPrefs.unregisterOnSharedPreferenceChangeListener(listener)
-        }
-    }
-    return state
-}
-
-@Composable
-internal fun rememberStarfieldPrefs(
-    prefs: com.flopster101.siliconplayer.platform.AppPreferences
-): StarfieldPrefs {
-    val sp = (prefs as? com.flopster101.siliconplayer.platform.AndroidAppPreferences)?.sharedPreferences
-    return if (sp != null) {
-        rememberStarfieldPrefs(sp)
-    } else {
-        error("AndroidAppPreferences required")
-    }
 }
 
 private data class ChannelScopeVisualState(

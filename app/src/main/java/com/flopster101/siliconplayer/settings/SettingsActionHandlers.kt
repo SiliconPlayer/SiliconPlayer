@@ -1209,190 +1209,100 @@ internal fun clearAllSettingsAction(
 internal fun clearAllPluginSettingsAction(
     context: Context,
     prefs: SharedPreferences,
-    onFfmpegCoreSampleRateHzChanged: (Int) -> Unit,
-    onFfmpegGaplessRepeatTrackChanged: (Boolean) -> Unit,
-    onOpenMptCoreSampleRateHzChanged: (Int) -> Unit,
-    onVgmPlayCoreSampleRateHzChanged: (Int) -> Unit,
-    onGmeCoreSampleRateHzChanged: (Int) -> Unit,
-    onCrsidCoreSampleRateHzChanged: (Int) -> Unit,
-    onSidPlayFpCoreSampleRateHzChanged: (Int) -> Unit,
-    onLazyUsf2CoreSampleRateHzChanged: (Int) -> Unit,
-    onAdPlugCoreSampleRateHzChanged: (Int) -> Unit,
-    onHivelyTrackerCoreSampleRateHzChanged: (Int) -> Unit,
-    onKlystrackCoreSampleRateHzChanged: (Int) -> Unit,
-    onDnfamitrackerCoreSampleRateHzChanged: (Int) -> Unit,
-    onFurnaceCoreSampleRateHzChanged: (Int) -> Unit,
-    onUadeCoreSampleRateHzChanged: (Int) -> Unit,
-    onAdPlugOplEngineChanged: (Int) -> Unit,
-    onLazyUsf2UseHleAudioChanged: (Boolean) -> Unit,
-    onVio2sfInterpolationQualityChanged: (Int) -> Unit,
-    onSc68SamplingRateHzChanged: (Int) -> Unit,
-    onSc68AsidChanged: (Int) -> Unit,
-    onSc68DefaultTimeSecondsChanged: (Int) -> Unit,
-    onSc68YmEngineChanged: (Int) -> Unit,
-    onSc68YmVolModelChanged: (Int) -> Unit,
-    onSc68AmigaFilterChanged: (Boolean) -> Unit,
-    onSc68AmigaBlendChanged: (Int) -> Unit,
-    onSc68AmigaClockChanged: (Int) -> Unit,
-    onUadeFilterEnabledChanged: (Boolean) -> Unit,
-    onUadeNtscModeChanged: (Boolean) -> Unit,
-    onUadePanningModeChanged: (Int) -> Unit,
-    onHivelyTrackerPanningModeChanged: (Int) -> Unit,
-    onHivelyTrackerMixGainPercentChanged: (Int) -> Unit,
-    onKlystrackPlayerQualityChanged: (Int) -> Unit,
-    onDnfamitrackerSeekExactChanged: (Boolean) -> Unit,
-    onDnfamitrackerScopeDcBlockChanged: (Boolean) -> Unit,
-    onFurnaceScopeDcBlockChanged: (Boolean) -> Unit,
-    onFurnaceYm2612CoreChanged: (Int) -> Unit,
-    onFurnaceSnCoreChanged: (Int) -> Unit,
-    onFurnaceNesCoreChanged: (Int) -> Unit,
-    onFurnaceC64CoreChanged: (Int) -> Unit,
-    onFurnaceGbQualityChanged: (Int) -> Unit,
-    onFurnaceDsidQualityChanged: (Int) -> Unit,
-    onFurnaceAyCoreChanged: (Int) -> Unit,
-    onCrsidClockModeChanged: (Int) -> Unit,
-    onCrsidSidModelModeChanged: (Int) -> Unit,
-    onCrsidQualityModeChanged: (Int) -> Unit,
-    onCrsidFilter6581PresetChanged: (Int) -> Unit,
-    onSidPlayFpBackendChanged: (Int) -> Unit,
-    onSidPlayFpClockModeChanged: (Int) -> Unit,
-    onSidPlayFpSidModelModeChanged: (Int) -> Unit,
-    onSidPlayFpFilter6581EnabledChanged: (Boolean) -> Unit,
-    onSidPlayFpFilter8580EnabledChanged: (Boolean) -> Unit,
-    onSidPlayFpDigiBoost8580Changed: (Boolean) -> Unit,
-    onSidPlayFpFilterCurve6581PercentChanged: (Int) -> Unit,
-    onSidPlayFpFilterRange6581PercentChanged: (Int) -> Unit,
-    onSidPlayFpFilterCurve8580PercentChanged: (Int) -> Unit,
-    onSidPlayFpReSidFpFastSamplingChanged: (Boolean) -> Unit,
-    onSidPlayFpReSidFpCombinedWaveformsStrengthChanged: (Int) -> Unit,
-    onGmeTempoPercentChanged: (Int) -> Unit,
-    onGmeStereoSeparationPercentChanged: (Int) -> Unit,
-    onGmeEchoEnabledChanged: (Boolean) -> Unit,
-    onGmeAccuracyEnabledChanged: (Boolean) -> Unit,
-    onGmeEqTrebleDecibelChanged: (Int) -> Unit,
-    onGmeEqBassHzChanged: (Int) -> Unit,
-    onGmeSpcUseBuiltInFadeChanged: (Boolean) -> Unit,
-    onGmeSpcInterpolationChanged: (Int) -> Unit,
-    onGmeSpcUseNativeSampleRateChanged: (Boolean) -> Unit,
-    onVgmPlayLoopCountChanged: (Int) -> Unit,
-    onVgmPlayAllowNonLoopingLoopChanged: (Boolean) -> Unit,
-    onVgmPlayVsyncRateChanged: (Int) -> Unit,
-    onVgmPlayResampleModeChanged: (Int) -> Unit,
-    onVgmPlayChipSampleModeChanged: (Int) -> Unit,
-    onVgmPlayChipSampleRateChanged: (Int) -> Unit,
-    onVgmPlayChipCoreSelectionsChanged: (Map<String, Int>) -> Unit,
-    onOpenMptStereoSeparationPercentChanged: (Int) -> Unit,
-    onOpenMptStereoSeparationAmigaPercentChanged: (Int) -> Unit,
-    onOpenMptInterpolationFilterLengthChanged: (Int) -> Unit,
-    onOpenMptAmigaResamplerModeChanged: (Int) -> Unit,
-    onOpenMptAmigaResamplerApplyAllModulesChanged: (Boolean) -> Unit,
-    onOpenMptVolumeRampingStrengthChanged: (Int) -> Unit,
-    onOpenMptFt2XmVolumeRampingChanged: (Boolean) -> Unit,
-    onOpenMptMasterGainMilliBelChanged: (Int) -> Unit,
-    onOpenMptSurroundEnabledChanged: (Boolean) -> Unit,
-    onXmpCoreSampleRateHzChanged: (Int) -> Unit,
-    onUfmodCoreSampleRateHzChanged: (Int) -> Unit,
-    onXmpInterpolationChanged: (Int) -> Unit,
-    onXmpStereoSeparationPercentChanged: (Int) -> Unit,
-    onXmpAmigaStereoSeparationPercentChanged: (Int) -> Unit,
-    onXmpAmigaModelChanged: (Int) -> Unit,
-    onAyflyCoreSampleRateHzChanged: (Int) -> Unit,
-    onAyflyOversampleChanged: (Int) -> Unit,
-    onAyflyChipTypeChanged: (Int) -> Unit,
-    onAyflyMixTypeChanged: (Int) -> Unit,
-    onAyflyIntFreqChanged: (Int) -> Unit
+    actions: SettingsPluginCoreActions,
+    onVgmPlayChipCoreSelectionsChanged: (Map<String, Int>) -> Unit
 ) {
-    onFfmpegCoreSampleRateHzChanged(0)
-    onFfmpegGaplessRepeatTrackChanged(FfmpegDefaults.gaplessRepeatTrack)
-    onOpenMptCoreSampleRateHzChanged(OpenMptDefaults.coreSampleRateHz)
-    onVgmPlayCoreSampleRateHzChanged(VgmPlayDefaults.coreSampleRateHz)
-    onGmeCoreSampleRateHzChanged(GmeDefaults.coreSampleRateHz)
-    onCrsidCoreSampleRateHzChanged(CrsidDefaults.coreSampleRateHz)
-    onSidPlayFpCoreSampleRateHzChanged(SidPlayFpDefaults.coreSampleRateHz)
-    onLazyUsf2CoreSampleRateHzChanged(LazyUsf2Defaults.coreSampleRateHz)
-    onAdPlugCoreSampleRateHzChanged(AdPlugDefaults.coreSampleRateHz)
-    onHivelyTrackerCoreSampleRateHzChanged(HivelyTrackerDefaults.coreSampleRateHz)
-    onKlystrackCoreSampleRateHzChanged(KlystrackDefaults.coreSampleRateHz)
-    onDnfamitrackerCoreSampleRateHzChanged(DnfamitrackerDefaults.coreSampleRateHz)
-    onFurnaceCoreSampleRateHzChanged(FurnaceDefaults.coreSampleRateHz)
-    onUadeCoreSampleRateHzChanged(UadeDefaults.coreSampleRateHz)
-    onXmpCoreSampleRateHzChanged(XmpDefaults.coreSampleRateHz)
-    onAdPlugOplEngineChanged(AdPlugDefaults.oplEngine)
-    onXmpInterpolationChanged(XmpDefaults.interpolation)
-    onXmpStereoSeparationPercentChanged(XmpDefaults.stereoSeparationPercent)
-    onXmpAmigaStereoSeparationPercentChanged(XmpDefaults.amigaStereoSeparationPercent)
-    onXmpAmigaModelChanged(XmpDefaults.amigaModel)
-    onAyflyCoreSampleRateHzChanged(AyflyDefaults.coreSampleRateHz)
-    onAyflyOversampleChanged(AyflyDefaults.oversample)
-    onAyflyChipTypeChanged(AyflyDefaults.chipType)
-    onAyflyMixTypeChanged(AyflyDefaults.mixType)
-    onAyflyIntFreqChanged(AyflyDefaults.intFreq)
-    onLazyUsf2UseHleAudioChanged(LazyUsf2Defaults.useHleAudio)
-    onVio2sfInterpolationQualityChanged(Vio2sfDefaults.interpolationQuality)
-    onSc68SamplingRateHzChanged(Sc68Defaults.coreSampleRateHz)
-    onSc68AsidChanged(Sc68Defaults.asid)
-    onSc68DefaultTimeSecondsChanged(Sc68Defaults.defaultTimeSeconds)
-    onSc68YmEngineChanged(Sc68Defaults.ymEngine)
-    onSc68YmVolModelChanged(Sc68Defaults.ymVolModel)
-    onSc68AmigaFilterChanged(Sc68Defaults.amigaFilter)
-    onSc68AmigaBlendChanged(Sc68Defaults.amigaBlend)
-    onSc68AmigaClockChanged(Sc68Defaults.amigaClock)
-    onUadeFilterEnabledChanged(UadeDefaults.filterEnabled)
-    onUadeNtscModeChanged(UadeDefaults.ntscMode)
-    onUadePanningModeChanged(UadeDefaults.panningMode)
-    onHivelyTrackerPanningModeChanged(HivelyTrackerDefaults.panningMode)
-    onHivelyTrackerMixGainPercentChanged(HivelyTrackerDefaults.mixGainPercent)
-    onKlystrackPlayerQualityChanged(KlystrackDefaults.playerQuality)
-    onDnfamitrackerSeekExactChanged(DnfamitrackerDefaults.seekExact)
-    onDnfamitrackerScopeDcBlockChanged(DnfamitrackerDefaults.scopeDcBlock)
-    onFurnaceScopeDcBlockChanged(FurnaceDefaults.scopeDcBlock)
-    onFurnaceYm2612CoreChanged(FurnaceDefaults.ym2612Core)
-    onFurnaceSnCoreChanged(FurnaceDefaults.snCore)
-    onFurnaceNesCoreChanged(FurnaceDefaults.nesCore)
-    onFurnaceC64CoreChanged(FurnaceDefaults.c64Core)
-    onFurnaceGbQualityChanged(FurnaceDefaults.gbQuality)
-    onFurnaceDsidQualityChanged(FurnaceDefaults.dsidQuality)
-    onFurnaceAyCoreChanged(FurnaceDefaults.ayCore)
-    onCrsidClockModeChanged(CrsidDefaults.clockMode)
-    onCrsidSidModelModeChanged(CrsidDefaults.sidModelMode)
-    onCrsidQualityModeChanged(CrsidDefaults.qualityMode)
-    onCrsidFilter6581PresetChanged(CrsidDefaults.filter6581Preset)
-    onSidPlayFpBackendChanged(SidPlayFpDefaults.backend)
-    onSidPlayFpClockModeChanged(SidPlayFpDefaults.clockMode)
-    onSidPlayFpSidModelModeChanged(SidPlayFpDefaults.sidModelMode)
-    onSidPlayFpFilter6581EnabledChanged(SidPlayFpDefaults.filter6581Enabled)
-    onSidPlayFpFilter8580EnabledChanged(SidPlayFpDefaults.filter8580Enabled)
-    onSidPlayFpDigiBoost8580Changed(SidPlayFpDefaults.digiBoost8580)
-    onSidPlayFpFilterCurve6581PercentChanged(SidPlayFpDefaults.filterCurve6581Percent)
-    onSidPlayFpFilterRange6581PercentChanged(SidPlayFpDefaults.filterRange6581Percent)
-    onSidPlayFpFilterCurve8580PercentChanged(SidPlayFpDefaults.filterCurve8580Percent)
-    onSidPlayFpReSidFpFastSamplingChanged(SidPlayFpDefaults.reSidFpFastSampling)
-    onSidPlayFpReSidFpCombinedWaveformsStrengthChanged(SidPlayFpDefaults.reSidFpCombinedWaveformsStrength)
-    onGmeTempoPercentChanged(GmeDefaults.tempoPercent)
-    onGmeStereoSeparationPercentChanged(GmeDefaults.stereoSeparationPercent)
-    onGmeEchoEnabledChanged(GmeDefaults.echoEnabled)
-    onGmeAccuracyEnabledChanged(GmeDefaults.accuracyEnabled)
-    onGmeEqTrebleDecibelChanged(GmeDefaults.eqTrebleDecibel)
-    onGmeEqBassHzChanged(GmeDefaults.eqBassHz)
-    onGmeSpcUseBuiltInFadeChanged(GmeDefaults.spcUseBuiltInFade)
-    onGmeSpcInterpolationChanged(GmeDefaults.spcInterpolation)
-    onGmeSpcUseNativeSampleRateChanged(GmeDefaults.spcUseNativeSampleRate)
-    onVgmPlayLoopCountChanged(VgmPlayDefaults.loopCount)
-    onVgmPlayAllowNonLoopingLoopChanged(VgmPlayDefaults.allowNonLoopingLoop)
-    onVgmPlayVsyncRateChanged(VgmPlayDefaults.vsyncRate)
-    onVgmPlayResampleModeChanged(VgmPlayDefaults.resampleMode)
-    onVgmPlayChipSampleModeChanged(VgmPlayDefaults.chipSampleMode)
-    onVgmPlayChipSampleRateChanged(VgmPlayDefaults.chipSampleRate)
+    actions.onFfmpegSampleRateChanged(0)
+    actions.onFfmpegGaplessRepeatTrackChanged(FfmpegDefaults.gaplessRepeatTrack)
+    actions.onOpenMptSampleRateChanged(OpenMptDefaults.coreSampleRateHz)
+    actions.onVgmPlaySampleRateChanged(VgmPlayDefaults.coreSampleRateHz)
+    actions.onGmeSampleRateChanged(GmeDefaults.coreSampleRateHz)
+    actions.onCrsidSampleRateChanged(CrsidDefaults.coreSampleRateHz)
+    actions.onSidPlayFpSampleRateChanged(SidPlayFpDefaults.coreSampleRateHz)
+    actions.onLazyUsf2SampleRateChanged(LazyUsf2Defaults.coreSampleRateHz)
+    actions.onAdPlugSampleRateChanged(AdPlugDefaults.coreSampleRateHz)
+    actions.onHivelyTrackerSampleRateChanged(HivelyTrackerDefaults.coreSampleRateHz)
+    actions.onKlystrackSampleRateChanged(KlystrackDefaults.coreSampleRateHz)
+    actions.onDnfamitrackerSampleRateChanged(DnfamitrackerDefaults.coreSampleRateHz)
+    actions.onFurnaceSampleRateChanged(FurnaceDefaults.coreSampleRateHz)
+    actions.onUadeSampleRateChanged(UadeDefaults.coreSampleRateHz)
+    actions.onXmpSampleRateChanged(XmpDefaults.coreSampleRateHz)
+    actions.onAdPlugOplEngineChanged(AdPlugDefaults.oplEngine)
+    actions.onXmpInterpolationChanged(XmpDefaults.interpolation)
+    actions.onXmpStereoSeparationPercentChanged(XmpDefaults.stereoSeparationPercent)
+    actions.onXmpAmigaStereoSeparationPercentChanged(XmpDefaults.amigaStereoSeparationPercent)
+    actions.onXmpAmigaModelChanged(XmpDefaults.amigaModel)
+    actions.onAyflyCoreSampleRateHzChanged(AyflyDefaults.coreSampleRateHz)
+    actions.onAyflyOversampleChanged(AyflyDefaults.oversample)
+    actions.onAyflyChipTypeChanged(AyflyDefaults.chipType)
+    actions.onAyflyMixTypeChanged(AyflyDefaults.mixType)
+    actions.onAyflyIntFreqChanged(AyflyDefaults.intFreq)
+    actions.onLazyUsf2UseHleAudioChanged(LazyUsf2Defaults.useHleAudio)
+    actions.onVio2sfInterpolationQualityChanged(Vio2sfDefaults.interpolationQuality)
+    actions.onSc68SamplingRateHzChanged(Sc68Defaults.coreSampleRateHz)
+    actions.onSc68AsidChanged(Sc68Defaults.asid)
+    actions.onSc68DefaultTimeSecondsChanged(Sc68Defaults.defaultTimeSeconds)
+    actions.onSc68YmEngineChanged(Sc68Defaults.ymEngine)
+    actions.onSc68YmVolModelChanged(Sc68Defaults.ymVolModel)
+    actions.onSc68AmigaFilterChanged(Sc68Defaults.amigaFilter)
+    actions.onSc68AmigaBlendChanged(Sc68Defaults.amigaBlend)
+    actions.onSc68AmigaClockChanged(Sc68Defaults.amigaClock)
+    actions.onUadeFilterEnabledChanged(UadeDefaults.filterEnabled)
+    actions.onUadeNtscModeChanged(UadeDefaults.ntscMode)
+    actions.onUadePanningModeChanged(UadeDefaults.panningMode)
+    actions.onHivelyTrackerPanningModeChanged(HivelyTrackerDefaults.panningMode)
+    actions.onHivelyTrackerMixGainPercentChanged(HivelyTrackerDefaults.mixGainPercent)
+    actions.onKlystrackPlayerQualityChanged(KlystrackDefaults.playerQuality)
+    actions.onDnfamitrackerSeekExactChanged(DnfamitrackerDefaults.seekExact)
+    actions.onDnfamitrackerScopeDcBlockChanged(DnfamitrackerDefaults.scopeDcBlock)
+    actions.onFurnaceScopeDcBlockChanged(FurnaceDefaults.scopeDcBlock)
+    actions.onFurnaceYm2612CoreChanged(FurnaceDefaults.ym2612Core)
+    actions.onFurnaceSnCoreChanged(FurnaceDefaults.snCore)
+    actions.onFurnaceNesCoreChanged(FurnaceDefaults.nesCore)
+    actions.onFurnaceC64CoreChanged(FurnaceDefaults.c64Core)
+    actions.onFurnaceGbQualityChanged(FurnaceDefaults.gbQuality)
+    actions.onFurnaceDsidQualityChanged(FurnaceDefaults.dsidQuality)
+    actions.onFurnaceAyCoreChanged(FurnaceDefaults.ayCore)
+    actions.onCrsidClockModeChanged(CrsidDefaults.clockMode)
+    actions.onCrsidSidModelModeChanged(CrsidDefaults.sidModelMode)
+    actions.onCrsidQualityModeChanged(CrsidDefaults.qualityMode)
+    actions.onCrsidFilter6581PresetChanged(CrsidDefaults.filter6581Preset)
+    actions.onSidPlayFpBackendChanged(SidPlayFpDefaults.backend)
+    actions.onSidPlayFpClockModeChanged(SidPlayFpDefaults.clockMode)
+    actions.onSidPlayFpSidModelModeChanged(SidPlayFpDefaults.sidModelMode)
+    actions.onSidPlayFpFilter6581EnabledChanged(SidPlayFpDefaults.filter6581Enabled)
+    actions.onSidPlayFpFilter8580EnabledChanged(SidPlayFpDefaults.filter8580Enabled)
+    actions.onSidPlayFpDigiBoost8580Changed(SidPlayFpDefaults.digiBoost8580)
+    actions.onSidPlayFpFilterCurve6581PercentChanged(SidPlayFpDefaults.filterCurve6581Percent)
+    actions.onSidPlayFpFilterRange6581PercentChanged(SidPlayFpDefaults.filterRange6581Percent)
+    actions.onSidPlayFpFilterCurve8580PercentChanged(SidPlayFpDefaults.filterCurve8580Percent)
+    actions.onSidPlayFpReSidFpFastSamplingChanged(SidPlayFpDefaults.reSidFpFastSampling)
+    actions.onSidPlayFpReSidFpCombinedWaveformsStrengthChanged(SidPlayFpDefaults.reSidFpCombinedWaveformsStrength)
+    actions.onGmeTempoPercentChanged(GmeDefaults.tempoPercent)
+    actions.onGmeStereoSeparationPercentChanged(GmeDefaults.stereoSeparationPercent)
+    actions.onGmeEchoEnabledChanged(GmeDefaults.echoEnabled)
+    actions.onGmeAccuracyEnabledChanged(GmeDefaults.accuracyEnabled)
+    actions.onGmeEqTrebleDecibelChanged(GmeDefaults.eqTrebleDecibel)
+    actions.onGmeEqBassHzChanged(GmeDefaults.eqBassHz)
+    actions.onGmeSpcUseBuiltInFadeChanged(GmeDefaults.spcUseBuiltInFade)
+    actions.onGmeSpcInterpolationChanged(GmeDefaults.spcInterpolation)
+    actions.onGmeSpcUseNativeSampleRateChanged(GmeDefaults.spcUseNativeSampleRate)
+    actions.onVgmPlayLoopCountChanged(VgmPlayDefaults.loopCount)
+    actions.onVgmPlayAllowNonLoopingLoopChanged(VgmPlayDefaults.allowNonLoopingLoop)
+    actions.onVgmPlayVsyncRateChanged(VgmPlayDefaults.vsyncRate)
+    actions.onVgmPlayResampleModeChanged(VgmPlayDefaults.resampleMode)
+    actions.onVgmPlayChipSampleModeChanged(VgmPlayDefaults.chipSampleMode)
+    actions.onVgmPlayChipSampleRateChanged(VgmPlayDefaults.chipSampleRate)
     onVgmPlayChipCoreSelectionsChanged(VgmPlayConfig.defaultChipCoreSelections())
-    onOpenMptStereoSeparationPercentChanged(OpenMptDefaults.stereoSeparationPercent)
-    onOpenMptStereoSeparationAmigaPercentChanged(OpenMptDefaults.stereoSeparationAmigaPercent)
-    onOpenMptInterpolationFilterLengthChanged(OpenMptDefaults.interpolationFilterLength)
-    onOpenMptAmigaResamplerModeChanged(OpenMptDefaults.amigaResamplerMode)
-    onOpenMptAmigaResamplerApplyAllModulesChanged(OpenMptDefaults.amigaResamplerApplyAllModules)
-    onOpenMptVolumeRampingStrengthChanged(OpenMptDefaults.volumeRampingStrength)
-    onOpenMptFt2XmVolumeRampingChanged(OpenMptDefaults.ft2XmVolumeRamping)
-    onOpenMptMasterGainMilliBelChanged(OpenMptDefaults.masterGainMilliBel)
-    onOpenMptSurroundEnabledChanged(OpenMptDefaults.surroundEnabled)
+    actions.onOpenMptStereoSeparationPercentChanged(OpenMptDefaults.stereoSeparationPercent)
+    actions.onOpenMptStereoSeparationAmigaPercentChanged(OpenMptDefaults.stereoSeparationAmigaPercent)
+    actions.onOpenMptInterpolationFilterLengthChanged(OpenMptDefaults.interpolationFilterLength)
+    actions.onOpenMptAmigaResamplerModeChanged(OpenMptDefaults.amigaResamplerMode)
+    actions.onOpenMptAmigaResamplerApplyAllModulesChanged(OpenMptDefaults.amigaResamplerApplyAllModules)
+    actions.onOpenMptVolumeRampingStrengthChanged(OpenMptDefaults.volumeRampingStrength)
+    actions.onOpenMptFt2XmVolumeRampingChanged(OpenMptDefaults.ft2XmVolumeRamping)
+    actions.onOpenMptMasterGainMilliBelChanged(OpenMptDefaults.masterGainMilliBel)
+    actions.onOpenMptSurroundEnabledChanged(OpenMptDefaults.surroundEnabled)
 
     prefs.edit().apply {
         remove(CorePreferenceKeys.CORE_RATE_FFMPEG)
@@ -1487,98 +1397,8 @@ internal fun resetPluginSettingsAction(
     context: Context,
     prefs: SharedPreferences,
     pluginName: String,
-    onFfmpegCoreSampleRateHzChanged: (Int) -> Unit,
-    onFfmpegGaplessRepeatTrackChanged: (Boolean) -> Unit,
-    onOpenMptCoreSampleRateHzChanged: (Int) -> Unit,
-    onOpenMptStereoSeparationPercentChanged: (Int) -> Unit,
-    onOpenMptStereoSeparationAmigaPercentChanged: (Int) -> Unit,
-    onOpenMptInterpolationFilterLengthChanged: (Int) -> Unit,
-    onOpenMptAmigaResamplerModeChanged: (Int) -> Unit,
-    onOpenMptAmigaResamplerApplyAllModulesChanged: (Boolean) -> Unit,
-    onOpenMptVolumeRampingStrengthChanged: (Int) -> Unit,
-    onOpenMptFt2XmVolumeRampingChanged: (Boolean) -> Unit,
-    onOpenMptMasterGainMilliBelChanged: (Int) -> Unit,
-    onOpenMptSurroundEnabledChanged: (Boolean) -> Unit,
-    onVgmPlayCoreSampleRateHzChanged: (Int) -> Unit,
-    onVgmPlayLoopCountChanged: (Int) -> Unit,
-    onVgmPlayAllowNonLoopingLoopChanged: (Boolean) -> Unit,
-    onVgmPlayVsyncRateChanged: (Int) -> Unit,
-    onVgmPlayResampleModeChanged: (Int) -> Unit,
-    onVgmPlayChipSampleModeChanged: (Int) -> Unit,
-    onVgmPlayChipSampleRateChanged: (Int) -> Unit,
-    onVgmPlayChipCoreSelectionsChanged: (Map<String, Int>) -> Unit,
-    onGmeCoreSampleRateHzChanged: (Int) -> Unit,
-    onGmeTempoPercentChanged: (Int) -> Unit,
-    onGmeStereoSeparationPercentChanged: (Int) -> Unit,
-    onGmeEchoEnabledChanged: (Boolean) -> Unit,
-    onGmeAccuracyEnabledChanged: (Boolean) -> Unit,
-    onGmeEqTrebleDecibelChanged: (Int) -> Unit,
-    onGmeEqBassHzChanged: (Int) -> Unit,
-    onGmeSpcUseBuiltInFadeChanged: (Boolean) -> Unit,
-    onGmeSpcInterpolationChanged: (Int) -> Unit,
-    onGmeSpcUseNativeSampleRateChanged: (Boolean) -> Unit,
-    onLazyUsf2CoreSampleRateHzChanged: (Int) -> Unit,
-    onAdPlugCoreSampleRateHzChanged: (Int) -> Unit,
-    onHivelyTrackerCoreSampleRateHzChanged: (Int) -> Unit,
-    onKlystrackCoreSampleRateHzChanged: (Int) -> Unit,
-    onDnfamitrackerCoreSampleRateHzChanged: (Int) -> Unit,
-    onFurnaceCoreSampleRateHzChanged: (Int) -> Unit,
-    onUadeCoreSampleRateHzChanged: (Int) -> Unit,
-    onAdPlugOplEngineChanged: (Int) -> Unit,
-    onLazyUsf2UseHleAudioChanged: (Boolean) -> Unit,
-    onVio2sfInterpolationQualityChanged: (Int) -> Unit,
-    onSc68SamplingRateHzChanged: (Int) -> Unit,
-    onSc68AsidChanged: (Int) -> Unit,
-    onSc68DefaultTimeSecondsChanged: (Int) -> Unit,
-    onSc68YmEngineChanged: (Int) -> Unit,
-    onSc68YmVolModelChanged: (Int) -> Unit,
-    onSc68AmigaFilterChanged: (Boolean) -> Unit,
-    onSc68AmigaBlendChanged: (Int) -> Unit,
-    onSc68AmigaClockChanged: (Int) -> Unit,
-    onUadeFilterEnabledChanged: (Boolean) -> Unit,
-    onUadeNtscModeChanged: (Boolean) -> Unit,
-    onUadePanningModeChanged: (Int) -> Unit,
-    onHivelyTrackerPanningModeChanged: (Int) -> Unit,
-    onHivelyTrackerMixGainPercentChanged: (Int) -> Unit,
-    onKlystrackPlayerQualityChanged: (Int) -> Unit,
-    onDnfamitrackerSeekExactChanged: (Boolean) -> Unit,
-    onDnfamitrackerScopeDcBlockChanged: (Boolean) -> Unit,
-    onFurnaceScopeDcBlockChanged: (Boolean) -> Unit,
-    onFurnaceYm2612CoreChanged: (Int) -> Unit,
-    onFurnaceSnCoreChanged: (Int) -> Unit,
-    onFurnaceNesCoreChanged: (Int) -> Unit,
-    onFurnaceC64CoreChanged: (Int) -> Unit,
-    onFurnaceGbQualityChanged: (Int) -> Unit,
-    onFurnaceDsidQualityChanged: (Int) -> Unit,
-    onFurnaceAyCoreChanged: (Int) -> Unit,
-    onCrsidCoreSampleRateHzChanged: (Int) -> Unit,
-    onCrsidClockModeChanged: (Int) -> Unit,
-    onCrsidSidModelModeChanged: (Int) -> Unit,
-    onCrsidQualityModeChanged: (Int) -> Unit,
-    onCrsidFilter6581PresetChanged: (Int) -> Unit,
-    onSidPlayFpCoreSampleRateHzChanged: (Int) -> Unit,
-    onSidPlayFpBackendChanged: (Int) -> Unit,
-    onSidPlayFpClockModeChanged: (Int) -> Unit,
-    onSidPlayFpSidModelModeChanged: (Int) -> Unit,
-    onSidPlayFpFilter6581EnabledChanged: (Boolean) -> Unit,
-    onSidPlayFpFilter8580EnabledChanged: (Boolean) -> Unit,
-    onSidPlayFpDigiBoost8580Changed: (Boolean) -> Unit,
-    onSidPlayFpFilterCurve6581PercentChanged: (Int) -> Unit,
-    onSidPlayFpFilterRange6581PercentChanged: (Int) -> Unit,
-    onSidPlayFpFilterCurve8580PercentChanged: (Int) -> Unit,
-    onSidPlayFpReSidFpFastSamplingChanged: (Boolean) -> Unit,
-    onSidPlayFpReSidFpCombinedWaveformsStrengthChanged: (Int) -> Unit,
-    onXmpCoreSampleRateHzChanged: (Int) -> Unit,
-    onUfmodCoreSampleRateHzChanged: (Int) -> Unit,
-    onXmpInterpolationChanged: (Int) -> Unit,
-    onXmpStereoSeparationPercentChanged: (Int) -> Unit,
-    onXmpAmigaStereoSeparationPercentChanged: (Int) -> Unit,
-    onXmpAmigaModelChanged: (Int) -> Unit,
-    onAyflyCoreSampleRateHzChanged: (Int) -> Unit,
-    onAyflyOversampleChanged: (Int) -> Unit,
-    onAyflyChipTypeChanged: (Int) -> Unit,
-    onAyflyMixTypeChanged: (Int) -> Unit,
-    onAyflyIntFreqChanged: (Int) -> Unit
+    actions: SettingsPluginCoreActions,
+    onVgmPlayChipCoreSelectionsChanged: (Map<String, Int>) -> Unit
 ) {
     val optionNamesForReset = when (pluginName) {
         DecoderNames.FFMPEG -> listOf(
@@ -1710,8 +1530,8 @@ internal fun resetPluginSettingsAction(
     }
     when (pluginName) {
         DecoderNames.FFMPEG -> {
-            onFfmpegCoreSampleRateHzChanged(FfmpegDefaults.coreSampleRateHz)
-            onFfmpegGaplessRepeatTrackChanged(FfmpegDefaults.gaplessRepeatTrack)
+            actions.onFfmpegSampleRateChanged(FfmpegDefaults.coreSampleRateHz)
+            actions.onFfmpegGaplessRepeatTrackChanged(FfmpegDefaults.gaplessRepeatTrack)
             prefs.edit()
                 .remove(CorePreferenceKeys.CORE_RATE_FFMPEG)
                 .remove(CorePreferenceKeys.FFMPEG_GAPLESS_REPEAT_TRACK)
@@ -1719,16 +1539,16 @@ internal fun resetPluginSettingsAction(
         }
 
         DecoderNames.LIB_OPEN_MPT -> {
-            onOpenMptCoreSampleRateHzChanged(OpenMptDefaults.coreSampleRateHz)
-            onOpenMptStereoSeparationPercentChanged(OpenMptDefaults.stereoSeparationPercent)
-            onOpenMptStereoSeparationAmigaPercentChanged(OpenMptDefaults.stereoSeparationAmigaPercent)
-            onOpenMptInterpolationFilterLengthChanged(OpenMptDefaults.interpolationFilterLength)
-            onOpenMptAmigaResamplerModeChanged(OpenMptDefaults.amigaResamplerMode)
-            onOpenMptAmigaResamplerApplyAllModulesChanged(OpenMptDefaults.amigaResamplerApplyAllModules)
-            onOpenMptVolumeRampingStrengthChanged(OpenMptDefaults.volumeRampingStrength)
-            onOpenMptFt2XmVolumeRampingChanged(OpenMptDefaults.ft2XmVolumeRamping)
-            onOpenMptMasterGainMilliBelChanged(OpenMptDefaults.masterGainMilliBel)
-            onOpenMptSurroundEnabledChanged(OpenMptDefaults.surroundEnabled)
+            actions.onOpenMptSampleRateChanged(OpenMptDefaults.coreSampleRateHz)
+            actions.onOpenMptStereoSeparationPercentChanged(OpenMptDefaults.stereoSeparationPercent)
+            actions.onOpenMptStereoSeparationAmigaPercentChanged(OpenMptDefaults.stereoSeparationAmigaPercent)
+            actions.onOpenMptInterpolationFilterLengthChanged(OpenMptDefaults.interpolationFilterLength)
+            actions.onOpenMptAmigaResamplerModeChanged(OpenMptDefaults.amigaResamplerMode)
+            actions.onOpenMptAmigaResamplerApplyAllModulesChanged(OpenMptDefaults.amigaResamplerApplyAllModules)
+            actions.onOpenMptVolumeRampingStrengthChanged(OpenMptDefaults.volumeRampingStrength)
+            actions.onOpenMptFt2XmVolumeRampingChanged(OpenMptDefaults.ft2XmVolumeRamping)
+            actions.onOpenMptMasterGainMilliBelChanged(OpenMptDefaults.masterGainMilliBel)
+            actions.onOpenMptSurroundEnabledChanged(OpenMptDefaults.surroundEnabled)
             prefs.edit().apply {
                 remove(CorePreferenceKeys.CORE_RATE_OPENMPT)
                 remove(CorePreferenceKeys.OPENMPT_STEREO_SEPARATION_PERCENT)
@@ -1745,13 +1565,13 @@ internal fun resetPluginSettingsAction(
         }
 
         DecoderNames.VGM_PLAY -> {
-            onVgmPlayCoreSampleRateHzChanged(VgmPlayDefaults.coreSampleRateHz)
-            onVgmPlayLoopCountChanged(VgmPlayDefaults.loopCount)
-            onVgmPlayAllowNonLoopingLoopChanged(VgmPlayDefaults.allowNonLoopingLoop)
-            onVgmPlayVsyncRateChanged(VgmPlayDefaults.vsyncRate)
-            onVgmPlayResampleModeChanged(VgmPlayDefaults.resampleMode)
-            onVgmPlayChipSampleModeChanged(VgmPlayDefaults.chipSampleMode)
-            onVgmPlayChipSampleRateChanged(VgmPlayDefaults.chipSampleRate)
+            actions.onVgmPlaySampleRateChanged(VgmPlayDefaults.coreSampleRateHz)
+            actions.onVgmPlayLoopCountChanged(VgmPlayDefaults.loopCount)
+            actions.onVgmPlayAllowNonLoopingLoopChanged(VgmPlayDefaults.allowNonLoopingLoop)
+            actions.onVgmPlayVsyncRateChanged(VgmPlayDefaults.vsyncRate)
+            actions.onVgmPlayResampleModeChanged(VgmPlayDefaults.resampleMode)
+            actions.onVgmPlayChipSampleModeChanged(VgmPlayDefaults.chipSampleMode)
+            actions.onVgmPlayChipSampleRateChanged(VgmPlayDefaults.chipSampleRate)
             onVgmPlayChipCoreSelectionsChanged(VgmPlayConfig.defaultChipCoreSelections())
             prefs.edit().apply {
                 remove(CorePreferenceKeys.CORE_RATE_VGMPLAY)
@@ -1769,16 +1589,16 @@ internal fun resetPluginSettingsAction(
         }
 
         DecoderNames.GAME_MUSIC_EMU -> {
-            onGmeCoreSampleRateHzChanged(GmeDefaults.coreSampleRateHz)
-            onGmeTempoPercentChanged(GmeDefaults.tempoPercent)
-            onGmeStereoSeparationPercentChanged(GmeDefaults.stereoSeparationPercent)
-            onGmeEchoEnabledChanged(GmeDefaults.echoEnabled)
-            onGmeAccuracyEnabledChanged(GmeDefaults.accuracyEnabled)
-            onGmeEqTrebleDecibelChanged(GmeDefaults.eqTrebleDecibel)
-            onGmeEqBassHzChanged(GmeDefaults.eqBassHz)
-            onGmeSpcUseBuiltInFadeChanged(GmeDefaults.spcUseBuiltInFade)
-            onGmeSpcInterpolationChanged(GmeDefaults.spcInterpolation)
-            onGmeSpcUseNativeSampleRateChanged(GmeDefaults.spcUseNativeSampleRate)
+            actions.onGmeSampleRateChanged(GmeDefaults.coreSampleRateHz)
+            actions.onGmeTempoPercentChanged(GmeDefaults.tempoPercent)
+            actions.onGmeStereoSeparationPercentChanged(GmeDefaults.stereoSeparationPercent)
+            actions.onGmeEchoEnabledChanged(GmeDefaults.echoEnabled)
+            actions.onGmeAccuracyEnabledChanged(GmeDefaults.accuracyEnabled)
+            actions.onGmeEqTrebleDecibelChanged(GmeDefaults.eqTrebleDecibel)
+            actions.onGmeEqBassHzChanged(GmeDefaults.eqBassHz)
+            actions.onGmeSpcUseBuiltInFadeChanged(GmeDefaults.spcUseBuiltInFade)
+            actions.onGmeSpcInterpolationChanged(GmeDefaults.spcInterpolation)
+            actions.onGmeSpcUseNativeSampleRateChanged(GmeDefaults.spcUseNativeSampleRate)
             prefs.edit().apply {
                 remove(CorePreferenceKeys.CORE_RATE_GME)
                 remove(CorePreferenceKeys.GME_TEMPO_PERCENT)
@@ -1795,11 +1615,11 @@ internal fun resetPluginSettingsAction(
         }
 
         DecoderNames.C_RSID -> {
-            onCrsidCoreSampleRateHzChanged(CrsidDefaults.coreSampleRateHz)
-            onCrsidClockModeChanged(CrsidDefaults.clockMode)
-            onCrsidSidModelModeChanged(CrsidDefaults.sidModelMode)
-            onCrsidQualityModeChanged(CrsidDefaults.qualityMode)
-            onCrsidFilter6581PresetChanged(CrsidDefaults.filter6581Preset)
+            actions.onCrsidSampleRateChanged(CrsidDefaults.coreSampleRateHz)
+            actions.onCrsidClockModeChanged(CrsidDefaults.clockMode)
+            actions.onCrsidSidModelModeChanged(CrsidDefaults.sidModelMode)
+            actions.onCrsidQualityModeChanged(CrsidDefaults.qualityMode)
+            actions.onCrsidFilter6581PresetChanged(CrsidDefaults.filter6581Preset)
             prefs.edit().apply {
                 remove(CorePreferenceKeys.CORE_RATE_CRSID)
                 remove(CorePreferenceKeys.CRSID_CLOCK_MODE)
@@ -1811,8 +1631,8 @@ internal fun resetPluginSettingsAction(
         }
 
         DecoderNames.LAZY_USF2 -> {
-            onLazyUsf2CoreSampleRateHzChanged(LazyUsf2Defaults.coreSampleRateHz)
-            onLazyUsf2UseHleAudioChanged(LazyUsf2Defaults.useHleAudio)
+            actions.onLazyUsf2SampleRateChanged(LazyUsf2Defaults.coreSampleRateHz)
+            actions.onLazyUsf2UseHleAudioChanged(LazyUsf2Defaults.useHleAudio)
             prefs.edit()
                 .remove(CorePreferenceKeys.CORE_RATE_LAZYUSF2)
                 .remove(CorePreferenceKeys.LAZYUSF2_USE_HLE_AUDIO)
@@ -1820,8 +1640,8 @@ internal fun resetPluginSettingsAction(
         }
 
         DecoderNames.AD_PLUG -> {
-            onAdPlugCoreSampleRateHzChanged(AdPlugDefaults.coreSampleRateHz)
-            onAdPlugOplEngineChanged(AdPlugDefaults.oplEngine)
+            actions.onAdPlugSampleRateChanged(AdPlugDefaults.coreSampleRateHz)
+            actions.onAdPlugOplEngineChanged(AdPlugDefaults.oplEngine)
             prefs.edit()
                 .remove(CorePreferenceKeys.CORE_RATE_ADPLUG)
                 .remove(CorePreferenceKeys.ADPLUG_OPL_ENGINE)
@@ -1829,11 +1649,11 @@ internal fun resetPluginSettingsAction(
         }
 
         DecoderNames.LIBXMP -> {
-            onXmpCoreSampleRateHzChanged(XmpDefaults.coreSampleRateHz)
-            onXmpInterpolationChanged(XmpDefaults.interpolation)
-            onXmpStereoSeparationPercentChanged(XmpDefaults.stereoSeparationPercent)
-            onXmpAmigaStereoSeparationPercentChanged(XmpDefaults.amigaStereoSeparationPercent)
-            onXmpAmigaModelChanged(XmpDefaults.amigaModel)
+            actions.onXmpSampleRateChanged(XmpDefaults.coreSampleRateHz)
+            actions.onXmpInterpolationChanged(XmpDefaults.interpolation)
+            actions.onXmpStereoSeparationPercentChanged(XmpDefaults.stereoSeparationPercent)
+            actions.onXmpAmigaStereoSeparationPercentChanged(XmpDefaults.amigaStereoSeparationPercent)
+            actions.onXmpAmigaModelChanged(XmpDefaults.amigaModel)
             prefs.edit()
                 .remove(CorePreferenceKeys.CORE_RATE_XMP)
             .remove(CorePreferenceKeys.CORE_RATE_UFMOD)
@@ -1845,11 +1665,11 @@ internal fun resetPluginSettingsAction(
         }
 
         DecoderNames.AYFLY -> {
-            onAyflyCoreSampleRateHzChanged(AyflyDefaults.coreSampleRateHz)
-            onAyflyOversampleChanged(AyflyDefaults.oversample)
-            onAyflyChipTypeChanged(AyflyDefaults.chipType)
-            onAyflyMixTypeChanged(AyflyDefaults.mixType)
-            onAyflyIntFreqChanged(AyflyDefaults.intFreq)
+            actions.onAyflyCoreSampleRateHzChanged(AyflyDefaults.coreSampleRateHz)
+            actions.onAyflyOversampleChanged(AyflyDefaults.oversample)
+            actions.onAyflyChipTypeChanged(AyflyDefaults.chipType)
+            actions.onAyflyMixTypeChanged(AyflyDefaults.mixType)
+            actions.onAyflyIntFreqChanged(AyflyDefaults.intFreq)
             prefs.edit()
                 .remove(CorePreferenceKeys.CORE_RATE_AYFLY)
                 .remove(CorePreferenceKeys.AYFLY_OVERSAMPLE)
@@ -1860,9 +1680,9 @@ internal fun resetPluginSettingsAction(
         }
 
         DecoderNames.HIVELY_TRACKER -> {
-            onHivelyTrackerCoreSampleRateHzChanged(HivelyTrackerDefaults.coreSampleRateHz)
-            onHivelyTrackerPanningModeChanged(HivelyTrackerDefaults.panningMode)
-            onHivelyTrackerMixGainPercentChanged(HivelyTrackerDefaults.mixGainPercent)
+            actions.onHivelyTrackerSampleRateChanged(HivelyTrackerDefaults.coreSampleRateHz)
+            actions.onHivelyTrackerPanningModeChanged(HivelyTrackerDefaults.panningMode)
+            actions.onHivelyTrackerMixGainPercentChanged(HivelyTrackerDefaults.mixGainPercent)
             prefs.edit()
                 .remove(CorePreferenceKeys.CORE_RATE_HIVELYTRACKER)
                 .remove(CorePreferenceKeys.HIVELYTRACKER_PANNING_MODE)
@@ -1871,8 +1691,8 @@ internal fun resetPluginSettingsAction(
         }
 
         DecoderNames.KLYSTRACK -> {
-            onKlystrackCoreSampleRateHzChanged(KlystrackDefaults.coreSampleRateHz)
-            onKlystrackPlayerQualityChanged(KlystrackDefaults.playerQuality)
+            actions.onKlystrackSampleRateChanged(KlystrackDefaults.coreSampleRateHz)
+            actions.onKlystrackPlayerQualityChanged(KlystrackDefaults.playerQuality)
             prefs.edit()
                 .remove(CorePreferenceKeys.CORE_RATE_KLYSTRACK)
                 .remove(CorePreferenceKeys.KLYSTRACK_PLAYER_QUALITY)
@@ -1880,10 +1700,10 @@ internal fun resetPluginSettingsAction(
         }
 
         DecoderNames.LIB_DN_FAMITRACKER -> {
-            onDnfamitrackerCoreSampleRateHzChanged(DnfamitrackerDefaults.coreSampleRateHz)
-            onDnfamitrackerSeekExactChanged(DnfamitrackerDefaults.seekExact)
-            onDnfamitrackerScopeDcBlockChanged(DnfamitrackerDefaults.scopeDcBlock)
-            onFurnaceScopeDcBlockChanged(FurnaceDefaults.scopeDcBlock)
+            actions.onDnfamitrackerSampleRateChanged(DnfamitrackerDefaults.coreSampleRateHz)
+            actions.onDnfamitrackerSeekExactChanged(DnfamitrackerDefaults.seekExact)
+            actions.onDnfamitrackerScopeDcBlockChanged(DnfamitrackerDefaults.scopeDcBlock)
+            actions.onFurnaceScopeDcBlockChanged(FurnaceDefaults.scopeDcBlock)
             prefs.edit()
                 .remove(CorePreferenceKeys.CORE_RATE_DNFAMITRACKER)
                 .remove(CorePreferenceKeys.DNFAMITRACKER_SEEK_EXACT)
@@ -1893,14 +1713,14 @@ internal fun resetPluginSettingsAction(
         }
 
         DecoderNames.FURNACE -> {
-            onFurnaceCoreSampleRateHzChanged(FurnaceDefaults.coreSampleRateHz)
-            onFurnaceYm2612CoreChanged(FurnaceDefaults.ym2612Core)
-            onFurnaceSnCoreChanged(FurnaceDefaults.snCore)
-            onFurnaceNesCoreChanged(FurnaceDefaults.nesCore)
-            onFurnaceC64CoreChanged(FurnaceDefaults.c64Core)
-            onFurnaceGbQualityChanged(FurnaceDefaults.gbQuality)
-            onFurnaceDsidQualityChanged(FurnaceDefaults.dsidQuality)
-            onFurnaceAyCoreChanged(FurnaceDefaults.ayCore)
+            actions.onFurnaceSampleRateChanged(FurnaceDefaults.coreSampleRateHz)
+            actions.onFurnaceYm2612CoreChanged(FurnaceDefaults.ym2612Core)
+            actions.onFurnaceSnCoreChanged(FurnaceDefaults.snCore)
+            actions.onFurnaceNesCoreChanged(FurnaceDefaults.nesCore)
+            actions.onFurnaceC64CoreChanged(FurnaceDefaults.c64Core)
+            actions.onFurnaceGbQualityChanged(FurnaceDefaults.gbQuality)
+            actions.onFurnaceDsidQualityChanged(FurnaceDefaults.dsidQuality)
+            actions.onFurnaceAyCoreChanged(FurnaceDefaults.ayCore)
             prefs.edit().apply {
                 remove(CorePreferenceKeys.CORE_RATE_FURNACE)
                 remove(CorePreferenceKeys.FURNACE_YM2612_CORE)
@@ -1915,10 +1735,10 @@ internal fun resetPluginSettingsAction(
         }
 
         DecoderNames.UADE -> {
-            onUadeCoreSampleRateHzChanged(UadeDefaults.coreSampleRateHz)
-            onUadeFilterEnabledChanged(UadeDefaults.filterEnabled)
-            onUadeNtscModeChanged(UadeDefaults.ntscMode)
-            onUadePanningModeChanged(UadeDefaults.panningMode)
+            actions.onUadeSampleRateChanged(UadeDefaults.coreSampleRateHz)
+            actions.onUadeFilterEnabledChanged(UadeDefaults.filterEnabled)
+            actions.onUadeNtscModeChanged(UadeDefaults.ntscMode)
+            actions.onUadePanningModeChanged(UadeDefaults.panningMode)
             prefs.edit()
                 .remove(CorePreferenceKeys.CORE_RATE_UADE)
                 .remove(CorePreferenceKeys.UADE_FILTER_ENABLED)
@@ -1928,21 +1748,21 @@ internal fun resetPluginSettingsAction(
         }
 
         DecoderNames.VIO2_SF -> {
-            onVio2sfInterpolationQualityChanged(Vio2sfDefaults.interpolationQuality)
+            actions.onVio2sfInterpolationQualityChanged(Vio2sfDefaults.interpolationQuality)
             prefs.edit()
                 .remove(CorePreferenceKeys.VIO2SF_INTERPOLATION_QUALITY)
                 .apply()
         }
 
         DecoderNames.SC68 -> {
-            onSc68SamplingRateHzChanged(Sc68Defaults.coreSampleRateHz)
-            onSc68AsidChanged(Sc68Defaults.asid)
-            onSc68DefaultTimeSecondsChanged(Sc68Defaults.defaultTimeSeconds)
-            onSc68YmEngineChanged(Sc68Defaults.ymEngine)
-            onSc68YmVolModelChanged(Sc68Defaults.ymVolModel)
-            onSc68AmigaFilterChanged(Sc68Defaults.amigaFilter)
-            onSc68AmigaBlendChanged(Sc68Defaults.amigaBlend)
-            onSc68AmigaClockChanged(Sc68Defaults.amigaClock)
+            actions.onSc68SamplingRateHzChanged(Sc68Defaults.coreSampleRateHz)
+            actions.onSc68AsidChanged(Sc68Defaults.asid)
+            actions.onSc68DefaultTimeSecondsChanged(Sc68Defaults.defaultTimeSeconds)
+            actions.onSc68YmEngineChanged(Sc68Defaults.ymEngine)
+            actions.onSc68YmVolModelChanged(Sc68Defaults.ymVolModel)
+            actions.onSc68AmigaFilterChanged(Sc68Defaults.amigaFilter)
+            actions.onSc68AmigaBlendChanged(Sc68Defaults.amigaBlend)
+            actions.onSc68AmigaClockChanged(Sc68Defaults.amigaClock)
             prefs.edit().apply {
                 remove(CorePreferenceKeys.CORE_RATE_SC68)
                 remove(CorePreferenceKeys.SC68_ASID)
@@ -1957,18 +1777,18 @@ internal fun resetPluginSettingsAction(
         }
 
         DecoderNames.LIB_SID_PLAY_FP -> {
-            onSidPlayFpCoreSampleRateHzChanged(SidPlayFpDefaults.coreSampleRateHz)
-            onSidPlayFpBackendChanged(SidPlayFpDefaults.backend)
-            onSidPlayFpClockModeChanged(SidPlayFpDefaults.clockMode)
-            onSidPlayFpSidModelModeChanged(SidPlayFpDefaults.sidModelMode)
-            onSidPlayFpFilter6581EnabledChanged(SidPlayFpDefaults.filter6581Enabled)
-            onSidPlayFpFilter8580EnabledChanged(SidPlayFpDefaults.filter8580Enabled)
-            onSidPlayFpDigiBoost8580Changed(SidPlayFpDefaults.digiBoost8580)
-            onSidPlayFpFilterCurve6581PercentChanged(SidPlayFpDefaults.filterCurve6581Percent)
-            onSidPlayFpFilterRange6581PercentChanged(SidPlayFpDefaults.filterRange6581Percent)
-            onSidPlayFpFilterCurve8580PercentChanged(SidPlayFpDefaults.filterCurve8580Percent)
-            onSidPlayFpReSidFpFastSamplingChanged(SidPlayFpDefaults.reSidFpFastSampling)
-            onSidPlayFpReSidFpCombinedWaveformsStrengthChanged(SidPlayFpDefaults.reSidFpCombinedWaveformsStrength)
+            actions.onSidPlayFpSampleRateChanged(SidPlayFpDefaults.coreSampleRateHz)
+            actions.onSidPlayFpBackendChanged(SidPlayFpDefaults.backend)
+            actions.onSidPlayFpClockModeChanged(SidPlayFpDefaults.clockMode)
+            actions.onSidPlayFpSidModelModeChanged(SidPlayFpDefaults.sidModelMode)
+            actions.onSidPlayFpFilter6581EnabledChanged(SidPlayFpDefaults.filter6581Enabled)
+            actions.onSidPlayFpFilter8580EnabledChanged(SidPlayFpDefaults.filter8580Enabled)
+            actions.onSidPlayFpDigiBoost8580Changed(SidPlayFpDefaults.digiBoost8580)
+            actions.onSidPlayFpFilterCurve6581PercentChanged(SidPlayFpDefaults.filterCurve6581Percent)
+            actions.onSidPlayFpFilterRange6581PercentChanged(SidPlayFpDefaults.filterRange6581Percent)
+            actions.onSidPlayFpFilterCurve8580PercentChanged(SidPlayFpDefaults.filterCurve8580Percent)
+            actions.onSidPlayFpReSidFpFastSamplingChanged(SidPlayFpDefaults.reSidFpFastSampling)
+            actions.onSidPlayFpReSidFpCombinedWaveformsStrengthChanged(SidPlayFpDefaults.reSidFpCombinedWaveformsStrength)
             prefs.edit().apply {
                 remove(CorePreferenceKeys.CORE_RATE_SIDPLAYFP)
                 remove(CorePreferenceKeys.SIDPLAYFP_BACKEND)

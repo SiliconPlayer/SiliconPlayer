@@ -1,6 +1,6 @@
 package com.flopster101.siliconplayer.ui.visualization
 
-import android.content.SharedPreferences
+import com.flopster101.siliconplayer.platform.AppPreferences
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.remember
@@ -20,7 +20,7 @@ internal data class VisualizationUiState(
 
 @Composable
 internal fun rememberVisualizationUiState(
-    prefs: SharedPreferences,
+    prefs: AppPreferences,
     activeCoreName: String?,
     isPlayerSurfaceVisible: Boolean
 ): VisualizationUiState {

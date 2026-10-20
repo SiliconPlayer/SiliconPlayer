@@ -47,7 +47,6 @@ import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.AudioFile
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Folder
 import androidx.compose.material.icons.filled.FolderOpen
@@ -61,7 +60,6 @@ import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material.icons.filled.Save
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.filled.StarBorder
-import androidx.compose.material.icons.filled.VideoFile
 import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material.icons.filled.VisibilityOff
 import androidx.compose.material.icons.filled.WarningAmber
@@ -77,7 +75,6 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.MenuDefaults
 import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -121,7 +118,6 @@ import com.flopster101.siliconplayer.resolveSmbDisplayHost
 import com.flopster101.siliconplayer.contextMenuSecondaryClick
 import com.flopster101.siliconplayer.tvKeyLongPress
 import com.flopster101.siliconplayer.fileMatchesSupportedExtensions
-import com.flopster101.siliconplayer.inferredPrimaryExtensionForName
 import com.flopster101.siliconplayer.isSupportedPlaylistFileName
 import com.flopster101.siliconplayer.FilePreviewKind
 import com.flopster101.siliconplayer.DecoderArtworkHint
@@ -156,9 +152,6 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.withContext
 import kotlin.coroutines.resume
-
-private val SMB_ICON_BOX_SIZE = 38.dp
-private val SMB_ICON_GLYPH_SIZE = 26.dp
 
 private enum class SmbBrowserPane {
     Loading,
@@ -1242,7 +1235,7 @@ internal fun SmbFileBrowserScreen(
 
             if (stateCanNavigateUp && state.pane != SmbBrowserPane.Loading) {
                 item("parent") {
-                    SmbParentDirectoryRow(
+                    BrowserParentDirectoryRow(
                         isWatch = isWatch,
                         onClick = {
                             navigateUpWithinBrowser()
@@ -1326,7 +1319,7 @@ internal fun SmbFileBrowserScreen(
                 }
             } else if (state.pane == SmbBrowserPane.Empty) {
                 item("empty") {
-                    SmbInfoCard(
+                    BrowserInfoCard(
                         title = if (stateSharePickerMode) {
                             "No SMB shares found"
                         } else {
@@ -2187,70 +2180,6 @@ private data class SmbSelectionFileTarget(
     val displayName: String
 )
 
-@Composable
-private fun remoteAuthDialogTextFieldColors() = OutlinedTextFieldDefaults.colors(
-    focusedContainerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
-    unfocusedContainerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
-    disabledContainerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
-    focusedBorderColor = MaterialTheme.colorScheme.primary,
-    unfocusedBorderColor = MaterialTheme.colorScheme.outlineVariant
-)
-
-@Composable
-private fun SmbParentDirectoryRow(
-    isWatch: Boolean = false,
-    onClick: () -> Unit
-) {
-    val rowShape = if (isWatch) RoundedCornerShape(14.dp) else RoundedCornerShape(0.dp)
-    val rowBackground = if (isWatch) MaterialTheme.colorScheme.surfaceContainerLow else MaterialTheme.colorScheme.surface.copy(alpha = 0f)
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clip(rowShape)
-            .background(rowBackground)
-            .clickable(onClick = onClick)
-            .padding(horizontal = if (isWatch) 10.dp else 16.dp, vertical = if (isWatch) 6.dp else 10.dp),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        Box(
-            modifier = Modifier.size(if (isWatch) 32.dp else SMB_ICON_BOX_SIZE),
-            contentAlignment = Alignment.Center
-        ) {
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .background(
-                        color = MaterialTheme.colorScheme.primaryContainer,
-                        shape = RoundedCornerShape(if (isWatch) 14.dp else 11.dp)
-                    ),
-                contentAlignment = Alignment.Center
-            ) {
-                Icon(
-                    imageVector = Icons.Default.Folder,
-                    contentDescription = "Parent directory",
-                    tint = MaterialTheme.colorScheme.onPrimaryContainer,
-                    modifier = Modifier.size(if (isWatch) 16.dp else SMB_ICON_GLYPH_SIZE)
-                )
-            }
-        }
-        Spacer(modifier = Modifier.width(if (isWatch) 10.dp else 16.dp))
-        Column(modifier = Modifier.weight(1f)) {
-            Text(
-                text = "..",
-                style = if (isWatch) MaterialTheme.typography.titleSmall else MaterialTheme.typography.bodyLarge,
-                maxLines = 1
-            )
-            Text(
-                text = "Parent directory",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis
-            )
-        }
-    }
-}
-
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun SmbEntryRow(
@@ -2342,7 +2271,7 @@ private fun SmbEntryRow(
         }
         Box(
             modifier = Modifier
-                .size(if (isWatch) 32.dp else SMB_ICON_BOX_SIZE)
+                .size(if (isWatch) 32.dp else BROWSER_ICON_BOX_SIZE)
                 .background(
                     color = chipContainerColor,
                     shape = RoundedCornerShape(if (isWatch) 14.dp else 11.dp)
@@ -2354,13 +2283,13 @@ private fun SmbEntryRow(
                     imageVector = NetworkIcons.SmbShare,
                     contentDescription = null,
                     tint = chipContentColor,
-                    modifier = Modifier.size(if (isWatch) 16.dp else SMB_ICON_GLYPH_SIZE)
+                    modifier = Modifier.size(if (isWatch) 16.dp else BROWSER_ICON_GLYPH_SIZE)
                 )
             } else {
                 BrowserRemoteEntryIcon(
                     visualKind = visualKind,
                     tint = chipContentColor,
-                    modifier = Modifier.size(if (isWatch) 16.dp else SMB_ICON_GLYPH_SIZE)
+                    modifier = Modifier.size(if (isWatch) 16.dp else BROWSER_ICON_GLYPH_SIZE)
                 )
             }
         }
@@ -2380,7 +2309,7 @@ private fun SmbEntryRow(
                 } else if (browserArchiveCapabilityForName(entry.name) != BrowserArchiveCapability.None) {
                     "Archive • ${formatSmbFileSize(entry.sizeBytes)}"
                 } else {
-                    "${inferSmbFormatLabel(entry.name)} • ${formatSmbFileSize(entry.sizeBytes)}"
+                    "${inferBrowserFormatLabel(entry.name)} • ${formatSmbFileSize(entry.sizeBytes)}"
                 },
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -2617,36 +2546,6 @@ private fun SmbEntryRow(
 }
 
 @Composable
-private fun SmbInfoCard(
-    title: String,
-    subtitle: String
-) {
-    ElevatedCard(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(horizontal = 16.dp, vertical = 8.dp)
-    ) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 16.dp, vertical = 18.dp),
-            verticalArrangement = Arrangement.spacedBy(6.dp)
-        ) {
-            Text(
-                text = title,
-                style = MaterialTheme.typography.titleSmall,
-                fontWeight = FontWeight.Medium
-            )
-            Text(
-                text = subtitle,
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-        }
-    }
-}
-
-@Composable
 private fun SmbLoadingCard(
     title: String,
     subtitle: String,
@@ -2661,11 +2560,6 @@ private fun SmbLoadingCard(
     )
 }
 
-private fun inferSmbFormatLabel(name: String): String {
-    val ext = inferredPrimaryExtensionForName(name)
-    return ext?.uppercase(Locale.ROOT) ?: "Unknown"
-}
-
 private fun formatSmbFileSize(bytes: Long): String {
     val safeBytes = bytes.coerceAtLeast(0L)
     if (safeBytes < 1024L) return "$safeBytes B"
@@ -2677,29 +2571,3 @@ private fun formatSmbFileSize(bytes: Long): String {
     return String.format(Locale.ROOT, "%.1f GB", gb)
 }
 
-private fun readRemoteTextPreviewContent(
-    file: File,
-    maxBytes: Int = 512 * 1024
-): String? {
-    if (!file.exists() || !file.isFile) return null
-    return runCatching {
-        val bytes = file.inputStream().use { input ->
-            val buffer = ByteArray(maxBytes + 1)
-            var totalRead = 0
-            while (totalRead < buffer.size) {
-                val read = input.read(buffer, totalRead, buffer.size - totalRead)
-                if (read <= 0) break
-                totalRead += read
-            }
-            buffer.copyOf(totalRead)
-        }
-        val wasTruncated = bytes.size > maxBytes
-        val previewBytes = if (wasTruncated) bytes.copyOf(maxBytes) else bytes
-        val text = previewBytes.toString(Charsets.UTF_8)
-        if (wasTruncated) {
-            "$text\n\n[Preview truncated at ${maxBytes / 1024} KB]"
-        } else {
-            text
-        }
-    }.getOrNull()
-}

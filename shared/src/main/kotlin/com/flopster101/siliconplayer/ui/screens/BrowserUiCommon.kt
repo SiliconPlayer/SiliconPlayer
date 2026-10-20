@@ -88,6 +88,7 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.material3.MenuDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -2035,4 +2036,133 @@ internal fun BrowserLazyListScrollbar(
             onDragActiveChanged = onDragActiveChanged
         )
     }
+}
+
+internal val BROWSER_ICON_BOX_SIZE = 38.dp
+internal val BROWSER_ICON_GLYPH_SIZE = 26.dp
+
+@Composable
+internal fun remoteAuthDialogTextFieldColors() = OutlinedTextFieldDefaults.colors(
+    focusedContainerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
+    unfocusedContainerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
+    disabledContainerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
+    focusedBorderColor = MaterialTheme.colorScheme.primary,
+    unfocusedBorderColor = MaterialTheme.colorScheme.outlineVariant
+)
+
+@Composable
+internal fun BrowserParentDirectoryRow(
+    isWatch: Boolean = false,
+    onClick: () -> Unit
+) {
+    val rowShape = if (isWatch) RoundedCornerShape(14.dp) else RoundedCornerShape(0.dp)
+    val rowBackground = if (isWatch) MaterialTheme.colorScheme.surfaceContainerLow else MaterialTheme.colorScheme.surface.copy(alpha = 0f)
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(rowShape)
+            .background(rowBackground)
+            .clickable(onClick = onClick)
+            .padding(horizontal = if (isWatch) 10.dp else 16.dp, vertical = if (isWatch) 6.dp else 10.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Box(
+            modifier = Modifier.size(if (isWatch) 32.dp else BROWSER_ICON_BOX_SIZE),
+            contentAlignment = Alignment.Center
+        ) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(
+                        color = MaterialTheme.colorScheme.primaryContainer,
+                        shape = RoundedCornerShape(if (isWatch) 14.dp else 11.dp)
+                    ),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(
+                    imageVector = Icons.Default.Folder,
+                    contentDescription = "Parent directory",
+                    tint = MaterialTheme.colorScheme.onPrimaryContainer,
+                    modifier = Modifier.size(if (isWatch) 16.dp else BROWSER_ICON_GLYPH_SIZE)
+                )
+            }
+        }
+        Spacer(modifier = Modifier.width(if (isWatch) 10.dp else 16.dp))
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                text = "..",
+                style = if (isWatch) MaterialTheme.typography.titleSmall else MaterialTheme.typography.bodyLarge,
+                maxLines = 1
+            )
+            Text(
+                text = "Parent directory",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+        }
+    }
+}
+
+@Composable
+internal fun BrowserInfoCard(
+    title: String,
+    subtitle: String
+) {
+    ElevatedCard(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp, vertical = 8.dp)
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp, vertical = 18.dp),
+            verticalArrangement = Arrangement.spacedBy(6.dp)
+        ) {
+            Text(
+                text = title,
+                style = MaterialTheme.typography.titleSmall,
+                fontWeight = FontWeight.Medium
+            )
+            Text(
+                text = subtitle,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
+    }
+}
+
+internal fun inferBrowserFormatLabel(name: String): String {
+    val ext = inferredPrimaryExtensionForName(name)
+    return ext?.uppercase(Locale.ROOT) ?: "Unknown"
+}
+
+internal fun readRemoteTextPreviewContent(
+    file: File,
+    maxBytes: Int = 512 * 1024
+): String? {
+    if (!file.exists() || !file.isFile) return null
+    return runCatching {
+        val bytes = file.inputStream().use { input ->
+            val buffer = ByteArray(maxBytes + 1)
+            var totalRead = 0
+            while (totalRead < buffer.size) {
+                val read = input.read(buffer, totalRead, buffer.size - totalRead)
+                if (read <= 0) break
+                totalRead += read
+            }
+            buffer.copyOf(totalRead)
+        }
+        val wasTruncated = bytes.size > maxBytes
+        val previewBytes = if (wasTruncated) bytes.copyOf(maxBytes) else bytes
+        val text = previewBytes.toString(Charsets.UTF_8)
+        if (wasTruncated) {
+            "$text\n\n[Preview truncated at ${maxBytes / 1024} KB]"
+        } else {
+            text
+        }
+    }.getOrNull()
 }

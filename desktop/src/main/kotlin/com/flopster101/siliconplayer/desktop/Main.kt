@@ -106,7 +106,7 @@ import com.flopster101.siliconplayer.VisualizationMode
 import com.flopster101.siliconplayer.VisualizationPerformanceMode
 import com.flopster101.siliconplayer.VisualizationRenderBackend
 import com.flopster101.siliconplayer.VisualizationVuAnchor
-import com.flopster101.siliconplayer.ui.screens.rememberVisualizationUiState
+import com.flopster101.siliconplayer.ui.visualization.rememberVisualizationUiState
 import com.flopster101.siliconplayer.buildImportedPlaylist
 import com.flopster101.siliconplayer.ui.dialogs.AddToPlaylistChooserDialog
 import com.flopster101.siliconplayer.ui.dialogs.BrowserPlaylistPromptDialogs
