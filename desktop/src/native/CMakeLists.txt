@@ -12,8 +12,8 @@ set(EXTERNAL_DIR "${REPO_ROOT}/external")
 set(PREBUILT_DIR "${REPO_ROOT}/desktop/prebuilt/x86_64")
 
 # Ensure runtime path searches the directory where the shared library resides
-set(CMAKE_BUILD_RPATH "$ORIGIN;${PREBUILT_DIR}/lib;${EXTERNAL_DIR}/projectm/build_host/src/libprojectM;${CMAKE_CURRENT_BINARY_DIR}/projectm/src/libprojectM")
-set(CMAKE_INSTALL_RPATH "$ORIGIN;${PREBUILT_DIR}/lib;${EXTERNAL_DIR}/projectm/build_host/src/libprojectM;${CMAKE_CURRENT_BINARY_DIR}/projectm/src/libprojectM")
+set(CMAKE_BUILD_RPATH "$ORIGIN;${PREBUILT_DIR}/lib")
+set(CMAKE_INSTALL_RPATH "$ORIGIN;${PREBUILT_DIR}/lib")
 
 # Find system dependencies
 find_package(JNI REQUIRED)
@@ -102,21 +102,11 @@ set(MAIN_SOURCES
 # Double-wide libm shims (see LibmCompatWrappers.c); harmless when unreferenced.
 set(LIBM_WRAP_FLAGS "LINKER:--wrap,sqrtf" "LINKER:--wrap,atan2f" "LINKER:--wrap,log10f" "LINKER:--wrap,cosh" "LINKER:--wrap,sinh")
 
-set(PROJECTM_PREBUILT "${PREBUILT_DIR}/lib/libprojectM-4.so")
-set(PROJECTM_HOST_LIB "${EXTERNAL_DIR}/projectm/build_host/src/libprojectM/libprojectM-4.so")
-if (EXISTS "${PROJECTM_PREBUILT}")
-    add_library(libprojectM-4 SHARED IMPORTED)
-    set_target_properties(libprojectM-4 PROPERTIES IMPORTED_LOCATION "${PROJECTM_PREBUILT}")
-elseif (EXISTS "${PROJECTM_HOST_LIB}")
-    add_library(libprojectM-4 SHARED IMPORTED)
-    set_target_properties(libprojectM-4 PROPERTIES IMPORTED_LOCATION "${PROJECTM_HOST_LIB}")
-else()
-    set(ENABLE_SDL_UI OFF CACHE BOOL "" FORCE)
-    set(BUILD_TESTING OFF CACHE BOOL "" FORCE)
-    set(BUILD_DOCS OFF CACHE BOOL "" FORCE)
-    add_subdirectory("${EXTERNAL_DIR}/projectm" "${CMAKE_CURRENT_BINARY_DIR}/projectm" EXCLUDE_FROM_ALL)
-    add_library(libprojectM-4 ALIAS projectM)
+if (NOT EXISTS "${PREBUILT_DIR}/lib/libprojectM-4.so")
+    message(FATAL_ERROR "libprojectM-4.so prebuilt missing; run external/build_deps.sh desktop projectm")
 endif()
+add_library(libprojectM-4 SHARED IMPORTED)
+set_target_properties(libprojectM-4 PROPERTIES IMPORTED_LOCATION "${PREBUILT_DIR}/lib/libprojectM-4.so")
 
 add_library(siliconplayer_desktop SHARED ${MAIN_SOURCES})
 
@@ -197,10 +187,11 @@ target_link_libraries(siliconplayer_openmpt_decoder PRIVATE
     m
 )
 
-# Build custom-patched libgme and libxmp from submodules
-set(BUILD_SHARED_LIBS ON CACHE BOOL "" FORCE)
-add_subdirectory("${EXTERNAL_DIR}/libgme" "${CMAKE_CURRENT_BINARY_DIR}/libgme")
-add_subdirectory("${EXTERNAL_DIR}/libxmp" "${CMAKE_CURRENT_BINARY_DIR}/libxmp")
+add_library(libgme_prebuilt STATIC IMPORTED)
+set_target_properties(libgme_prebuilt PROPERTIES IMPORTED_LOCATION "${PREBUILT_DIR}/lib/libgme.a")
+
+add_library(libxmp_prebuilt SHARED IMPORTED)
+set_target_properties(libxmp_prebuilt PROPERTIES IMPORTED_LOCATION "${PREBUILT_DIR}/lib/libxmp.so")
 
 # 3. Game Music Emu (GME) Decoder
 add_library(siliconplayer_gme_decoder SHARED
@@ -210,10 +201,10 @@ add_library(siliconplayer_gme_decoder SHARED
 )
 target_include_directories(siliconplayer_gme_decoder PRIVATE
     ${COMMON_INCLUDES}
-    "${EXTERNAL_DIR}/libgme"
+    "${PREBUILT_DIR}/include/gme"
 )
 target_link_libraries(siliconplayer_gme_decoder PRIVATE
-    gme_static
+    libgme_prebuilt
     m
 )
 
@@ -225,16 +216,11 @@ add_library(siliconplayer_xmp_decoder SHARED
 )
 target_include_directories(siliconplayer_xmp_decoder PRIVATE
     ${COMMON_INCLUDES}
-    "${EXTERNAL_DIR}/libxmp/include"
+    "${PREBUILT_DIR}/include"
 )
 target_link_libraries(siliconplayer_xmp_decoder PRIVATE
-    xmp_shared
+    libxmp_prebuilt
     m
-)
-add_custom_command(TARGET siliconplayer_xmp_decoder POST_BUILD
-    COMMAND ${CMAKE_COMMAND} -E copy_if_different
-    "$<TARGET_FILE:xmp_shared>"
-    "${CMAKE_CURRENT_BINARY_DIR}/libxmp.so.4"
 )
 
 # 5. LibSIDPlayFP Decoder (using desktop prebuilt)
