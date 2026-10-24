@@ -1036,6 +1036,19 @@ build_projectm() {
     if [ ! -d "$PROJECT_PATH" ]; then return 0; fi
     if [ "$FORCE_CLEAN" -ne 1 ] && [ -f "$INSTALL_DIR/lib/libprojectM-4.so" ]; then return 0; fi
     echo "Building projectM for host..."
+    # Upstream generated glad/glx.h includes X11 headers even though the
+    # CMake build defines GLAD_GLX_NO_X11, breaking X11-less cross builds
+    # (aarch64). Swap them for minimal type shims; glx.c already honors
+    # the define and never calls into X11 under it.
+    if ! grep -Fq "GLAD_GLX_NO_X11" "$PROJECT_PATH/vendor/glad/include/glad/glx.h"; then
+        sed -i -e 's|^#include <X11/X.h>$|#ifndef GLAD_GLX_NO_X11\n#include <X11/X.h>\n#include <X11/Xlib.h>\n#include <X11/Xutil.h>\n#else\ntypedef unsigned long XID;\ntypedef unsigned long Pixmap;\ntypedef unsigned long Window;\ntypedef unsigned long Drawable;\ntypedef unsigned long Font;\ntypedef int Bool;\ntypedef struct _XDisplay Display;\ntypedef struct __visualinfo XVisualInfo;\n#endif|' \
+               -e '/^#include <X11\/Xlib.h>$/d' -e '/^#include <X11\/Xutil.h>$/d' \
+               "$PROJECT_PATH/vendor/glad/include/glad/glx.h"
+    fi
+    if ! grep -Fq "#ifndef GLAD_GLX_NO_X11" "$PROJECT_PATH/vendor/glad/include/glad/glx.h"; then
+        echo "Error: projectm glad glx.h X11 guard patch did not apply."
+        return 1
+    fi
     rm -rf "$BUILD_DIR" && mkdir -p "$BUILD_DIR"
     cmake $CMAKE_COMMON_FLAGS -S "$PROJECT_PATH" -B "$BUILD_DIR" \
         -DCMAKE_BUILD_TYPE=Release \
