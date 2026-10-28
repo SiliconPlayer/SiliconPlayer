@@ -31,6 +31,9 @@ static void *nez_scope_user = 0;
 
 void NEZSetScopeCallback(NEZScopeCallback callback, void *user)
 {
+	/* Registration is global to the library: a second decoder instance
+	   tearing down must not clear the live instance's callback. */
+	if (!callback && user != nez_scope_user) return;
 	nez_scope_cb = callback;
 	nez_scope_user = user;
 	XMEMSET(nez_scope_touched, 0, sizeof(nez_scope_touched));
