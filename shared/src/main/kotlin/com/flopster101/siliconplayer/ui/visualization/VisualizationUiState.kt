@@ -4,9 +4,11 @@ import com.flopster101.siliconplayer.platform.AppPreferences
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.remember
+import com.flopster101.siliconplayer.AppPreferenceKeys
 import com.flopster101.siliconplayer.supportsChannelScopeVisualization
 import com.flopster101.siliconplayer.NativeBridge
 import com.flopster101.siliconplayer.VisualizationMode
+import com.flopster101.siliconplayer.isBasicVisualizationMode
 import com.flopster101.siliconplayer.pluginNameForCoreName
 
 internal data class VisualizationUiState(
@@ -48,10 +50,16 @@ internal fun rememberVisualizationUiState(
         activeCoreName = activeCoreName,
         currentMode = currentMode,
         requestedMode = selectionState.requestedMode,
-        lastBasicMode = selectionState.lastBasicMode,
+        provideFallbackMode = {
+            VisualizationMode.fromStorage(
+                prefs.getString(
+                    AppPreferenceKeys.VISUALIZATION_ADVANCED_FALLBACK_MODE,
+                    VisualizationMode.Bars.storageValue
+                )
+            ).takeIf { it.isBasicVisualizationMode() } ?: VisualizationMode.Bars
+        },
         onModeChanged = selectionState.onCurrentModeChanged,
         onRequestedModeChanged = selectionState.onRequestedModeChanged,
-        onLastBasicModeChanged = selectionState.onLastBasicModeChanged,
         onEnabledModesChanged = selectionState.onEnabledModesChanged
     )
 

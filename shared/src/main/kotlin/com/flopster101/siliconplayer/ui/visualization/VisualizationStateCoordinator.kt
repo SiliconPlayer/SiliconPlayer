@@ -5,7 +5,6 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.remember
 import com.flopster101.siliconplayer.VisualizationMode
 import com.flopster101.siliconplayer.isAdvancedVisualizationMode
-import com.flopster101.siliconplayer.isBasicVisualizationMode
 import com.flopster101.siliconplayer.isVisualizationModeSelectable
 import com.flopster101.siliconplayer.selectableVisualizationModes
 
@@ -22,10 +21,9 @@ internal fun rememberVisualizationModeCoordinator(
     activeCoreName: String?,
     currentMode: VisualizationMode,
     requestedMode: VisualizationMode,
-    lastBasicMode: VisualizationMode?,
+    provideFallbackMode: () -> VisualizationMode,
     onModeChanged: (VisualizationMode) -> Unit,
     onRequestedModeChanged: (VisualizationMode) -> Unit,
-    onLastBasicModeChanged: (VisualizationMode?) -> Unit,
     onEnabledModesChanged: (Set<VisualizationMode>) -> Unit
 ): VisualizationModeCoordinator {
     val availableModes = remember(enabledModes, activeCoreName) {
@@ -34,10 +32,10 @@ internal fun rememberVisualizationModeCoordinator(
         }
     }
 
-    val resolvedMode = remember(enabledModes, activeCoreName, requestedMode, lastBasicMode) {
+    val resolvedMode = remember(enabledModes, activeCoreName, requestedMode, provideFallbackMode) {
         resolveVisualizationMode(
             requestedMode = requestedMode,
-            lastBasicMode = lastBasicMode,
+            fallbackMode = provideFallbackMode(),
             enabledModes = enabledModes,
             activeCoreName = activeCoreName
         )
@@ -55,10 +53,9 @@ internal fun rememberVisualizationModeCoordinator(
         activeCoreName,
         currentMode,
         requestedMode,
-        lastBasicMode,
+        provideFallbackMode,
         onModeChanged,
         onRequestedModeChanged,
-        onLastBasicModeChanged,
         onEnabledModesChanged
     ) {
         VisualizationModeCoordinator(
@@ -67,16 +64,10 @@ internal fun rememberVisualizationModeCoordinator(
                 val currentIndex = availableModes.indexOf(currentMode).takeIf { it >= 0 } ?: 0
                 val requested = availableModes[(currentIndex + 1) % availableModes.size]
                 onRequestedModeChanged(requested)
-                if (requested.isBasicVisualizationMode()) {
-                    onLastBasicModeChanged(requested)
-                }
             },
             onSelectMode = { requestedMode ->
                 if (availableModes.contains(requestedMode)) {
                     onRequestedModeChanged(requestedMode)
-                    if (requestedMode.isBasicVisualizationMode()) {
-                        onLastBasicModeChanged(requestedMode)
-                    }
                 }
             },
             onSetEnabledModes = { requested ->
@@ -90,16 +81,13 @@ internal fun rememberVisualizationModeCoordinator(
                         isVisualizationModeSelectable(currentMode, normalized, activeCoreName) -> currentMode
                     else -> resolveVisualizationMode(
                         requestedMode = requestedMode,
-                        lastBasicMode = lastBasicMode,
+                        fallbackMode = provideFallbackMode(),
                         enabledModes = normalized,
                         activeCoreName = activeCoreName
                     )
                 }
                 if (requestedAfterNormalization != requestedMode) {
                     onRequestedModeChanged(requestedAfterNormalization)
-                    if (requestedAfterNormalization.isBasicVisualizationMode()) {
-                        onLastBasicModeChanged(requestedAfterNormalization)
-                    }
                 }
             }
         )
@@ -108,7 +96,7 @@ internal fun rememberVisualizationModeCoordinator(
 
 private fun resolveVisualizationMode(
     requestedMode: VisualizationMode,
-    lastBasicMode: VisualizationMode?,
+    fallbackMode: VisualizationMode,
     enabledModes: Set<VisualizationMode>,
     activeCoreName: String?
 ): VisualizationMode {
@@ -118,15 +106,7 @@ private fun resolveVisualizationMode(
     if (isVisualizationModeSelectable(requestedMode, enabledModes, activeCoreName)) {
         return requestedMode
     }
-    if (requestedMode.isAdvancedVisualizationMode()) {
-        val basicFallback = lastBasicMode?.takeIf {
-            it.isBasicVisualizationMode() &&
-                isVisualizationModeSelectable(it, enabledModes, activeCoreName)
-        }
-        return basicFallback ?: VisualizationMode.Off
-    }
-    return lastBasicMode?.takeIf {
-        it.isBasicVisualizationMode() &&
-            isVisualizationModeSelectable(it, enabledModes, activeCoreName)
+    return fallbackMode.takeIf {
+        isVisualizationModeSelectable(it, enabledModes, activeCoreName)
     } ?: VisualizationMode.Off
 }

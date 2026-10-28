@@ -513,7 +513,19 @@ internal fun VisualizationRouteContent(
     var showEnabledDialog by remember { mutableStateOf(false) }
     var showPerformanceDialog by remember { mutableStateOf(false) }
     var showFullscreenModeDialog by remember { mutableStateOf(false) }
+    var showFallbackModeDialog by remember { mutableStateOf(false) }
     val prefsFullscreen = com.flopster101.siliconplayer.platform.LocalAppPreferences.current
+    val prefsFallbackMode = com.flopster101.siliconplayer.platform.LocalAppPreferences.current
+    var advancedFallbackMode by remember {
+        mutableStateOf(
+            VisualizationMode.fromStorage(
+                prefsFallbackMode.getString(
+                    AppPreferenceKeys.VISUALIZATION_ADVANCED_FALLBACK_MODE,
+                    VisualizationMode.Bars.storageValue
+                )
+            ).takeIf { it != VisualizationMode.Off } ?: VisualizationMode.Bars
+        )
+    }
     var fullscreenMode by remember {
         mutableStateOf(
             VisualizationFullscreenMode.fromStorage(
@@ -595,6 +607,14 @@ internal fun VisualizationRouteContent(
             onClick = { showFullscreenModeDialog = true }
         )
     }
+    SettingsRowSpacer()
+    SettingsItemCard(
+        title = "Fallback visualizer",
+        description = advancedFallbackMode.label +
+            " • shown when the selected visualization is unavailable for the current track",
+        icon = Icons.Default.GraphicEq,
+        onClick = { showFallbackModeDialog = true }
+    )
     Spacer(modifier = Modifier.height(16.dp))
     SettingsSectionLabel("Basic visualizations")
     SettingsRowSpacer()
@@ -642,6 +662,31 @@ internal fun VisualizationRouteContent(
             showCancelButton = false
         )
     }
+    if (showFallbackModeDialog) {
+        SettingsSingleChoiceDialog(
+            title = "Fallback visualizer",
+            selectedValue = advancedFallbackMode,
+            options = listOf(
+                VisualizationMode.Bars,
+                VisualizationMode.Oscilloscope,
+                VisualizationMode.VuMeters,
+                VisualizationMode.ProjectM,
+                VisualizationMode.Starfield
+            ).map { mode ->
+                ChoiceDialogOption(value = mode, label = mode.label)
+            },
+            description = "Shown when the selected visualization is unavailable for the current track.",
+            onSelected = { mode ->
+                advancedFallbackMode = mode
+                prefsFallbackMode.edit()
+                    .putString(AppPreferenceKeys.VISUALIZATION_ADVANCED_FALLBACK_MODE, mode.storageValue)
+                    .apply()
+            },
+            onDismiss = { showFallbackModeDialog = false },
+            showCancelButton = false
+        )
+    }
+
     if (showPerformanceDialog) {
         SettingsSingleChoiceDialog(
             title = "Visualization performance mode",

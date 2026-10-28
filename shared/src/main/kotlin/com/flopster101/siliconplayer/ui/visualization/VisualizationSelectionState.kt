@@ -16,11 +16,11 @@ import com.flopster101.siliconplayer.serializeEnabledVisualizationModes
 internal data class VisualizationSelectionState(
     val currentMode: VisualizationMode,
     val requestedMode: VisualizationMode,
-    val lastBasicMode: VisualizationMode?,
+    val advancedFallbackMode: VisualizationMode,
     val enabledModes: Set<VisualizationMode>,
     val onCurrentModeChanged: (VisualizationMode) -> Unit,
     val onRequestedModeChanged: (VisualizationMode) -> Unit,
-    val onLastBasicModeChanged: (VisualizationMode?) -> Unit,
+    val onAdvancedFallbackModeChanged: (VisualizationMode) -> Unit,
     val onEnabledModesChanged: (Set<VisualizationMode>) -> Unit
 )
 
@@ -48,15 +48,14 @@ internal fun rememberVisualizationSelectionState(
             )
         )
     }
-    var lastBasicMode by remember {
-        val storedCurrent = VisualizationMode.fromStorage(
-            prefs.getString(AppPreferenceKeys.VISUALIZATION_MODE, VisualizationMode.Off.storageValue)
+    var advancedFallbackMode by remember {
+        val stored = prefs.getString(
+            AppPreferenceKeys.VISUALIZATION_ADVANCED_FALLBACK_MODE,
+            VisualizationMode.Bars.storageValue
         )
         mutableStateOf(
-            prefs.getString(AppPreferenceKeys.VISUALIZATION_LAST_BASIC_MODE, null)
-                ?.let(VisualizationMode::fromStorage)
-                ?.takeIf { it.isBasicVisualizationMode() }
-                ?: storedCurrent.takeIf { it.isBasicVisualizationMode() }
+            VisualizationMode.fromStorage(stored).takeIf { it != VisualizationMode.Off }
+                ?: VisualizationMode.Bars
         )
     }
     var enabledModes by remember {
@@ -103,14 +102,13 @@ internal fun rememberVisualizationSelectionState(
             .apply()
     }
 
-    LaunchedEffect(lastBasicMode) {
-        prefs.edit().apply {
-            if (lastBasicMode != null) {
-                putString(AppPreferenceKeys.VISUALIZATION_LAST_BASIC_MODE, lastBasicMode?.storageValue)
-            } else {
-                remove(AppPreferenceKeys.VISUALIZATION_LAST_BASIC_MODE)
-            }
-        }.apply()
+    LaunchedEffect(advancedFallbackMode) {
+        prefs.edit()
+            .putString(
+                AppPreferenceKeys.VISUALIZATION_ADVANCED_FALLBACK_MODE,
+                advancedFallbackMode.storageValue
+            )
+            .apply()
     }
 
     LaunchedEffect(enabledModes) {
@@ -122,15 +120,15 @@ internal fun rememberVisualizationSelectionState(
             .apply()
     }
 
-    return remember(currentMode, requestedMode, lastBasicMode, enabledModes) {
+    return remember(currentMode, requestedMode, advancedFallbackMode, enabledModes) {
         VisualizationSelectionState(
             currentMode = currentMode,
             requestedMode = requestedMode,
-            lastBasicMode = lastBasicMode,
+            advancedFallbackMode = advancedFallbackMode,
             enabledModes = enabledModes,
             onCurrentModeChanged = { currentMode = it },
             onRequestedModeChanged = { requestedMode = it },
-            onLastBasicModeChanged = { lastBasicMode = it },
+            onAdvancedFallbackModeChanged = { advancedFallbackMode = it },
             onEnabledModesChanged = { enabledModes = it }
         )
     }
