@@ -4607,6 +4607,8 @@ private fun ChannelControlDialog(
 
     fun loadDecoderState() {
         val names = NativeBridge.getDecoderToggleChannelNames().toList()
+        //Empty result means lock contention; keep the previously loaded channels
+        if (names.isEmpty() && decoderChannels.isNotEmpty()) return
         val availability = NativeBridge.getDecoderToggleChannelAvailability()
         val rawItems = names.mapIndexed { index, name ->
             ChannelControlItem(

@@ -323,6 +323,55 @@ internal data class TrackInfoLiveMetadata(
     val uade: UadeMetadata = UadeMetadata()
 )
 
+//Detects polls that lost the decoder lock and came back entirely blank
+private fun hasDecoderDetails(metadata: TrackInfoLiveMetadata, decoderName: String?): Boolean = when {
+    decoderName.equals(DecoderNames.LIB_OPEN_MPT, ignoreCase = true) ->
+        metadata.openMpt.typeLong.isNotBlank() || metadata.openMpt.orderCount > 0
+    decoderName.equals(DecoderNames.LIBXMP, ignoreCase = true) ->
+        metadata.xmp.formatName.isNotBlank() || metadata.xmp.channelCount > 0
+    decoderName.equals(DecoderNames.UFMOD, ignoreCase = true) ->
+        metadata.ufmod.channelCount > 0 || metadata.ufmod.bpm > 0
+    decoderName.equals(DecoderNames.AYFLY, ignoreCase = true) ->
+        metadata.ayfly.formatName.isNotBlank() || metadata.ayfly.channelCount > 0
+    decoderName.equals(DecoderNames.VGM_PLAY, ignoreCase = true) ->
+        metadata.vgmPlay.gameName.isNotBlank() || metadata.vgmPlay.deviceCount > 0
+    decoderName.equals(DecoderNames.FFMPEG, ignoreCase = true) ->
+        metadata.ffmpeg.codecName.isNotBlank() || metadata.ffmpeg.containerName.isNotBlank()
+    decoderName.equals(DecoderNames.PLATFORM_DOLBY, ignoreCase = true) ->
+        metadata.platformDolby.componentCodecName.isNotBlank() ||
+                metadata.platformDolby.containerName.isNotBlank()
+    decoderName.equals(DecoderNames.GAME_MUSIC_EMU, ignoreCase = true) ->
+        metadata.gme.systemName.isNotBlank() || metadata.gme.voiceCount > 0
+    decoderName.equals(DecoderNames.LAZY_USF2, ignoreCase = true) ->
+        metadata.lazyUsf2.gameName.isNotBlank() || metadata.lazyUsf2.usfBy.isNotBlank()
+    decoderName.equals(DecoderNames.VIO2_SF, ignoreCase = true) ->
+        metadata.vio2sf.gameName.isNotBlank()
+    decoderName.equals(DecoderNames.LIB_UPSE, ignoreCase = true) ->
+        metadata.libupse.gameName.isNotBlank()
+    decoderName.equals(DecoderNames.VIOGSF, ignoreCase = true) ->
+        metadata.viogsf.gameName.isNotBlank()
+    decoderName.equals(DecoderNames.NEZPLUGPP, ignoreCase = true) ->
+        metadata.nezplugpp.format.isNotBlank() || metadata.nezplugpp.detail.isNotBlank()
+    decoderName.equals(DecoderNames.C_RSID, ignoreCase = true) ||
+        decoderName.equals(DecoderNames.LIB_SID_PLAY_FP, ignoreCase = true) ->
+        metadata.sid.formatName.isNotBlank() || metadata.sid.chipCount > 0
+    decoderName.equals(DecoderNames.SC68, ignoreCase = true) ->
+        metadata.sc68.formatName.isNotBlank() || metadata.sc68.trackCount > 0
+    decoderName.equals(DecoderNames.AD_PLUG, ignoreCase = true) ->
+        metadata.adplug.description.isNotBlank() || metadata.adplug.orderCount > 0
+    decoderName.equals(DecoderNames.HIVELY_TRACKER, ignoreCase = true) ->
+        metadata.hivelyTracker.formatName.isNotBlank() || metadata.hivelyTracker.positionCount > 0
+    decoderName.matchesDecoderName(DecoderNames.KLYSTRACK) ->
+        metadata.klystrack.formatName.isNotBlank() || metadata.klystrack.trackCount > 0
+    decoderName.equals(DecoderNames.LIB_DN_FAMITRACKER, ignoreCase = true) ->
+        metadata.dnfamitracker.formatName.isNotBlank() || metadata.dnfamitracker.songChannelCount > 0
+    decoderName.equals(DecoderNames.FURNACE, ignoreCase = true) ->
+        metadata.furnace.formatName.isNotBlank() || metadata.furnace.songChannelCount > 0
+    decoderName.equals(DecoderNames.UADE, ignoreCase = true) ->
+        metadata.uade.formatName.isNotBlank() || metadata.uade.moduleBytes > 0L
+    else -> false
+}
+
 @Composable
 internal fun rememberTrackInfoLiveMetadata(
     filePath: String?,
@@ -334,8 +383,12 @@ internal fun rememberTrackInfoLiveMetadata(
     LaunchedEffect(filePath, decoderName, isDialogVisible) {
         if (!isDialogVisible) return@LaunchedEffect
         while (isDialogVisible) {
-            metadata = withContext(Dispatchers.PlaybackIo) {
+            val fresh = withContext(Dispatchers.PlaybackIo) {
                 queryTrackInfoLiveMetadata(decoderName)
+            }
+            //A contended poll comes back blank; keep the last complete snapshot
+            if (!hasDecoderDetails(metadata, decoderName) || hasDecoderDetails(fresh, decoderName)) {
+                metadata = fresh
             }
             delay(500)
         }
