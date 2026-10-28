@@ -18,7 +18,13 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.runtime.snapshotFlow
+import kotlinx.coroutines.flow.filter
+import kotlinx.coroutines.flow.first
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.Dp
@@ -41,6 +47,8 @@ internal fun SettingsRouteContentHost(
     val isRound = com.flopster101.siliconplayer.platform.LocalIsRoundScreen.current
     val extraBottomPadding = if (isWatch) (if (isRound) 56.dp else 24.dp) else 0.dp
     val platformContent = com.flopster101.siliconplayer.platform.LocalSettingsPlatformContent.current
+
+    val pageScrollPositions = remember { mutableStateMapOf<SettingsRoute, Int>() }
 
     Column(
 
@@ -84,10 +92,23 @@ internal fun SettingsRouteContentHost(
                 .fillMaxSize()
                 .padding(start = if (isWatch) 0.dp else 16.dp, end = if (isWatch) 0.dp else 16.dp)
         ) { currentRoute ->
+            val scrollState = rememberScrollState()
+            DisposableEffect(currentRoute) {
+                onDispose { pageScrollPositions[currentRoute] = scrollState.value }
+            }
+            LaunchedEffect(currentRoute) {
+                val saved = pageScrollPositions.remove(currentRoute) ?: 0
+                if (saved > 0) {
+                    snapshotFlow { scrollState.maxValue }
+                        .filter { it > 0 }
+                        .first()
+                    scrollState.scrollTo(saved)
+                }
+            }
             Column(
                 modifier = Modifier
                     .fillMaxSize()
-                    .verticalScroll(state = rememberScrollState())
+                    .verticalScroll(state = scrollState)
                     .padding(
                         start = if (isWatch) (if (isRound) 14.dp else 8.dp) else 0.dp,
                         end = if (isWatch) (if (isRound) 14.dp else 8.dp) else 0.dp
