@@ -56,3 +56,7 @@ desktop/hs_err_pid*.log
 desktop/core.*
 core.*
 tools/bin/
+
+# nezplugpp cmake build trees
+external/nezplugpp/build_desktop_*/
+external/nezplugpp/build_android_*/
