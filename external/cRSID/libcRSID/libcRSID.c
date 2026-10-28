@@ -150,8 +150,9 @@ unsigned char* cRSID_setBASICdata (unsigned char* filedata) {
 
 
 void cRSID_close (void) {
- cRSID.Paused = 1;
  #ifdef CRSID_PLATFORM_PC
+  //only pause when stopping the sound thread; the emulation state is global, foreign teardowns must not pause it
+  cRSID.Paused = 1;
   cRSID_closeSound();
  #endif
 }
