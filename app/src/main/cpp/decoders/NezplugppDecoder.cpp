@@ -56,6 +56,7 @@ constexpr int kNezScopeTextStride = 10;
 constexpr float kNezplugppScopeDcFollow = 0.0025f;
 constexpr int kNezScopeTextFlagActive = 1 << 0;
 constexpr float kNezScopeActivePeak = 0.0015f;
+constexpr float kNezplugppScopeGain = 0.6f; //baseline matches the per-track UI gain slider at 60%
 
 float scopeGainForDev(int devId) {
     if (devId == DEV_2A03_TR) return 1.2e-5f;
@@ -706,7 +707,7 @@ void NezplugppDecoder::appendScopeTapLocked(int devId, const float* samples, int
             static_cast<size_t>(voice) * ChannelScopeSharedState::kMaxSamples;
     const int firstBlock =
             std::min(frames, ChannelScopeSharedState::kMaxSamples - scopeRingWritePos);
-    const float gain = scopeGainForDev(devId);
+    const float gain = scopeGainForDev(devId) * kNezplugppScopeGain;
     for (int i = 0; i < firstBlock; ++i) {
         ring[scopeRingWritePos + i] = std::clamp(samples[i] * gain, -1.0f, 1.0f);
     }
