@@ -327,6 +327,8 @@ internal fun FileBrowserScreen(
     var lastAppliedInitialNavigationKey by rememberSaveable { mutableStateOf<String?>(null) }
     val directoryListState = rememberLazyListState()
     var launchAutoScrollTargetKey by remember { mutableStateOf<String?>(null) }
+    val directoryScrollPositions = remember { mutableStateMapOf<String, Pair<Int, Int>>() }
+    var pendingScrollRestorePath by remember { mutableStateOf<String?>(null) }
     val coroutineScope = rememberCoroutineScope()
     var directoryLoadJob by remember { mutableStateOf<Job?>(null) }
     var isPullRefreshing by remember { mutableStateOf(false) }
@@ -678,11 +680,17 @@ internal fun FileBrowserScreen(
         val root = selectedLocation?.directory
         val previousDepth = relativeDepth(currentDirectory, root)
         val nextDepth = relativeDepth(directory, root)
-        browserNavDirection = if (nextDepth >= previousDepth) {
-            BrowserPageNavDirection.Forward
-        } else {
+        val goingBack = nextDepth < previousDepth
+        browserNavDirection = if (goingBack) {
             BrowserPageNavDirection.Backward
+        } else {
+            BrowserPageNavDirection.Forward
         }
+        currentDirectory?.absolutePath?.let { path ->
+            directoryScrollPositions[path] =
+                directoryListState.firstVisibleItemIndex to directoryListState.firstVisibleItemScrollOffset
+        }
+        pendingScrollRestorePath = if (goingBack) directory.absolutePath else null
         currentDirectoryPath = directory.absolutePath
         loadDirectoryAsync(directory)
         emitBrowserLocationChange(directory)
@@ -1101,6 +1109,27 @@ internal fun FileBrowserScreen(
             directoryListState.animateScrollToItem((targetIndex - 2).coerceAtLeast(0))
         }
         launchAutoScrollTargetKey = null
+    }
+
+    LaunchedEffect(
+        pendingScrollRestorePath,
+        currentDirectory?.absolutePath,
+        lastCompletedDirectoryPath,
+        fileList.size
+    ) {
+        val restorePath = pendingScrollRestorePath ?: return@LaunchedEffect
+        if (restorePath != currentDirectory?.absolutePath ||
+            restorePath != lastCompletedDirectoryPath ||
+            fileList.isEmpty()
+        ) {
+            return@LaunchedEffect
+        }
+        val (index, offset) = directoryScrollPositions[restorePath] ?: run {
+            pendingScrollRestorePath = null
+            return@LaunchedEffect
+        }
+        directoryListState.scrollToItem(index.coerceAtMost(fileList.size - 1), offset)
+        pendingScrollRestorePath = null
     }
 
     LaunchedEffect(
