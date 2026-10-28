@@ -178,7 +178,6 @@ internal fun GeneralAudioRouteContent(
         onClearPlugins = actions.onClearPluginAudioParameters,
         onClearSongs = actions.onClearSongAudioParameters
     )
-    Spacer(modifier = Modifier.height(16.dp))
     SettingsSectionLabel("Audio output pipeline")
     AudioBackendSelectorCard(
         selectedPreference = state.audioBackendPreference,
@@ -303,7 +302,6 @@ internal fun UrlCacheRouteContent(
         onClick = { showClearFileCacheConfirmDialog = true }
     )
 
-    Spacer(modifier = Modifier.height(16.dp))
     SettingsSectionLabel("URL/Streaming cache")
     PlayerSettingToggleCard(
         title = "Clear cache on app launch",
@@ -338,7 +336,6 @@ internal fun UrlCacheRouteContent(
         onClick = { showClearStreamingCacheConfirmDialog = true }
     )
 
-    Spacer(modifier = Modifier.height(16.dp))
     SettingsSectionLabel("Archive cache")
     PlayerSettingToggleCard(
         title = "Clear archive cache on app launch",

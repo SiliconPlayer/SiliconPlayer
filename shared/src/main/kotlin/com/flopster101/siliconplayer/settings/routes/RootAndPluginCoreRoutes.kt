@@ -167,7 +167,6 @@ internal fun RootRouteContent(
         onClick = onOpenVisualization
     )
 
-    Spacer(modifier = Modifier.height(16.dp))
     SettingsSectionLabel("Other")
     SettingsItemCard(
         title = "Cache settings",
@@ -185,7 +184,6 @@ internal fun RootRouteContent(
         onClick = onOpenMisc
     )
 
-    Spacer(modifier = Modifier.height(16.dp))
     SettingsSectionLabel("Interface")
     SettingsItemCard(
         title = "UI settings",
@@ -195,7 +193,6 @@ internal fun RootRouteContent(
         onClick = onOpenUi
     )
 
-    Spacer(modifier = Modifier.height(16.dp))
     SettingsSectionLabel("Info")
     SettingsItemCard(
         title = "About",
@@ -205,7 +202,6 @@ internal fun RootRouteContent(
         onClick = onOpenAbout
     )
 
-    Spacer(modifier = Modifier.height(16.dp))
     SettingsSectionLabel("Danger zone")
     SettingsItemCard(
         title = "Clear all app settings",
@@ -363,7 +359,6 @@ internal fun PluginOpenMptRouteContent(
         checked = openMptSurroundEnabled,
         onCheckedChange = onOpenMptSurroundEnabledChanged
     )
-    Spacer(modifier = Modifier.height(16.dp))
     SettingsSectionLabel("Generic output options")
     SampleRateSelectorCard(
         title = "Render sample rate",

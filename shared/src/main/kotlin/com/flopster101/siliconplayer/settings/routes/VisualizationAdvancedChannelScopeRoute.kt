@@ -964,7 +964,6 @@ internal fun VisualizationAdvancedChannelScopeRouteContent(
                                 )
                             }
                         }
-                        Spacer(modifier = Modifier.height(16.dp))
                         SettingsSectionLabel("Colors (no artwork)")
                         SettingsValuePickerCard(
                             title = "Line color",
@@ -979,7 +978,6 @@ internal fun VisualizationAdvancedChannelScopeRouteContent(
                             value = scopeGridColorModeNoArtwork.label,
                             onClick = { showGridNoArtworkColorModeDialog = true }
                         )
-                        Spacer(modifier = Modifier.height(16.dp))
                         SettingsSectionLabel("Colors (with artwork)")
                         SettingsValuePickerCard(
                             title = "Line color",
@@ -994,7 +992,6 @@ internal fun VisualizationAdvancedChannelScopeRouteContent(
                             value = scopeGridColorModeWithArtwork.label,
                             onClick = { showGridArtworkColorModeDialog = true }
                         )
-                        Spacer(modifier = Modifier.height(16.dp))
                         SettingsSectionLabel("Custom colors")
                         SettingsValuePickerCard(
                             title = "Custom line color",
@@ -1009,7 +1006,6 @@ internal fun VisualizationAdvancedChannelScopeRouteContent(
                             value = String.format(Locale.US, "#%06X", scopeCustomGridColorArgb and 0xFFFFFF),
                             onClick = { showCustomGridColorDialog = true }
                         )
-                        Spacer(modifier = Modifier.height(16.dp))
                         SettingsSectionLabel("Text overlay")
                         PlayerSettingToggleCard(
                             title = "Show channel text",

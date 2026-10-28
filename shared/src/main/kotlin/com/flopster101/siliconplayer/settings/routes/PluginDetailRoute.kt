@@ -583,7 +583,6 @@ internal fun PluginDetailRouteContent(
         )
     }
 
-    Spacer(modifier = Modifier.height(16.dp))
     SettingsSectionLabel("Generic output options")
     SampleRateSelectorCard(
         title = "Render sample rate",
@@ -595,7 +594,6 @@ internal fun PluginDetailRouteContent(
     )
 
     if (coreAboutEntry != null || coreCapabilitySections.isNotEmpty()) {
-        Spacer(modifier = Modifier.height(16.dp))
         SettingsSectionLabel("Info")
         if (coreCapabilitySections.isNotEmpty()) {
             SettingsItemCard(

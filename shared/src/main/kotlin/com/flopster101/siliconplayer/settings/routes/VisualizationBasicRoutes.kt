@@ -249,7 +249,6 @@ internal fun VisualizationBasicBarsRouteContent(
             prefs.edit().putBoolean(barContrastBackdropEnabledKey, enabled).apply()
         }
     )
-    Spacer(modifier = Modifier.height(16.dp))
     SettingsSectionLabel("Colors (no artwork)")
     SettingsValuePickerCard(
         title = "Bar color",
@@ -257,7 +256,6 @@ internal fun VisualizationBasicBarsRouteContent(
         value = barColorModeNoArtwork.label,
         onClick = { showBarColorModeNoArtworkDialog = true }
     )
-    SettingsRowSpacer()
     SettingsSectionLabel("Colors (with artwork)")
     SettingsValuePickerCard(
         title = "Bar color",
@@ -265,7 +263,6 @@ internal fun VisualizationBasicBarsRouteContent(
         value = barColorModeWithArtwork.label,
         onClick = { showBarColorModeWithArtworkDialog = true }
     )
-    SettingsRowSpacer()
     SettingsSectionLabel("Custom color")
     SettingsValuePickerCard(
         title = "Custom bar color",
@@ -571,7 +568,6 @@ internal fun VisualizationBasicVuMetersRouteContent(
             prefs.edit().putBoolean(vuContrastBackdropEnabledKey, enabled).apply()
         }
     )
-    Spacer(modifier = Modifier.height(16.dp))
     SettingsSectionLabel("Colors (no artwork)")
     SettingsValuePickerCard(
         title = "VU color",
@@ -579,7 +575,6 @@ internal fun VisualizationBasicVuMetersRouteContent(
         value = vuColorModeNoArtwork.label,
         onClick = { showVuColorModeNoArtworkDialog = true }
     )
-    SettingsRowSpacer()
     SettingsSectionLabel("Colors (with artwork)")
     SettingsValuePickerCard(
         title = "VU color",
@@ -587,7 +582,6 @@ internal fun VisualizationBasicVuMetersRouteContent(
         value = vuColorModeWithArtwork.label,
         onClick = { showVuColorModeWithArtworkDialog = true }
     )
-    SettingsRowSpacer()
     SettingsSectionLabel("Custom color")
     SettingsValuePickerCard(
         title = "Custom VU color",

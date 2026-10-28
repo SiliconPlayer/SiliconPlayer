@@ -231,7 +231,6 @@ internal fun PluginDetailScreen(
             }
         )
 
-        Spacer(modifier = Modifier.height(16.dp))
 
         SettingsSectionLabel("Priority")
         SettingsItemCard(
@@ -241,7 +240,6 @@ internal fun PluginDetailScreen(
             onClick = { showPriorityDialog = true }
         )
 
-        Spacer(modifier = Modifier.height(16.dp))
 
         SettingsSectionLabel("Handled extensions")
         val enabledCount = enabledExtensions.size

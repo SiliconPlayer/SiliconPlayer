@@ -72,7 +72,6 @@ fun AndroidPlatformDolbyDetailContent() {
             }
         )
 
-        Spacer(modifier = Modifier.height(16.dp))
         SettingsSectionLabel("Handled formats")
         claimedFormats.forEach { (label, component) ->
             SettingsItemCard(
@@ -90,7 +89,6 @@ fun AndroidPlatformDolbyDetailContent() {
             }
         }
 
-        Spacer(modifier = Modifier.height(16.dp))
         SettingsSectionLabel("Visualizer tap")
         val visSourceDescription = when (visSource) {
             com.flopster101.siliconplayer.playback.PlatformDolbyPlayer.VIS_SOURCE_SYSTEM ->

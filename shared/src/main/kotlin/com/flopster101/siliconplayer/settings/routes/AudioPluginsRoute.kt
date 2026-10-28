@@ -357,7 +357,6 @@ internal fun AudioPluginsRouteContent(
         )
     }
 
-    Spacer(modifier = Modifier.height(16.dp))
     SettingsSectionLabel("Danger zone")
     SettingsItemCard(
         title = "Clear all core settings",

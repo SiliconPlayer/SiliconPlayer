@@ -296,7 +296,6 @@ internal fun VisualizationAdvancedProjectMRouteContent(
             }
             if (index < ProjectMPresetDownloader.PACKS.filter { it.id != "downloaded_textures" }.size - 1) SettingsRowSpacer()
         }
-        Spacer(modifier = Modifier.height(16.dp))
         SettingsSectionLabel("Presets")
         SettingsRowSpacer()
         SettingsItemCard(
@@ -312,7 +311,6 @@ internal fun VisualizationAdvancedProjectMRouteContent(
             icon = Icons.Default.Refresh,
             onClick = { reindex() }
         )
-        Spacer(modifier = Modifier.height(16.dp))
         SettingsSectionLabel("Playback")
         SettingsRowSpacer()
         PlayerSettingToggleCard(
@@ -324,7 +322,6 @@ internal fun VisualizationAdvancedProjectMRouteContent(
                 prefs.edit().putBoolean(AppPreferenceKeys.VISUALIZATION_PROJECTM_RANDOM_START, enabled).apply()
             }
         )
-        Spacer(modifier = Modifier.height(16.dp))
         SettingsSectionLabel("Transitions")
         SettingsRowSpacer()
         SettingsValuePickerCard(
@@ -364,7 +361,6 @@ internal fun VisualizationAdvancedProjectMRouteContent(
                 try { com.flopster101.siliconplayer.ui.visualization.gl.SiliconVisNativeBridge.nativeProjectMSetRotationRandom(enabled) } catch (_: Throwable) {}
             }
         )
-        Spacer(modifier = Modifier.height(16.dp))
         SettingsSectionLabel("Rendering")
         SettingsRowSpacer()
         SettingsValuePickerCard(

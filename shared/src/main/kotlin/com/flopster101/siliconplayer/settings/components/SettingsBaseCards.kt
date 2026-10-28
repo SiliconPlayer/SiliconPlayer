@@ -75,6 +75,8 @@ private val SettingsOuterCorner = 20.dp
 private val SettingsInnerCorner = 4.dp
 private val SettingsInterRowSpacing = 2.dp
 private val SettingsSectionLabelStartInset = 8.dp
+private val SettingsSectionTopSpacing = 20.dp
+private val SettingsSectionBottomSpacing = 8.dp
 
 // Overridable so the Android theme can use the rounded font style
 internal val LocalSectionLabelStyle = compositionLocalOf<androidx.compose.ui.text.TextStyle?> { null }
@@ -159,13 +161,14 @@ internal fun SettingsSectionLabel(text: String) {
         sequencer?.onSectionBoundary()
         onDispose { }
     }
+    Spacer(modifier = Modifier.height(SettingsSectionTopSpacing))
     Text(
         text = text,
         style = if (isWatch) MaterialTheme.typography.labelMedium else LocalSectionLabelStyle.current ?: MaterialTheme.typography.labelLarge,
         color = MaterialTheme.colorScheme.onSurfaceVariant,
         modifier = Modifier.padding(start = SettingsSectionLabelStartInset)
     )
-    Spacer(modifier = Modifier.height(4.dp))
+    Spacer(modifier = Modifier.height(SettingsSectionBottomSpacing))
 }
 
 @Composable

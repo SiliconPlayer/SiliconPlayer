@@ -381,7 +381,6 @@ internal fun VisualizationBasicOscilloscopeRouteContent(
             prefs.edit().putBoolean(oscContrastBackdropEnabledKey, enabled).apply()
         }
     )
-    Spacer(modifier = Modifier.height(16.dp))
     SettingsSectionLabel("Colors (no artwork)")
     SettingsValuePickerCard(
         title = "Line color",
@@ -396,7 +395,6 @@ internal fun VisualizationBasicOscilloscopeRouteContent(
         value = oscGridColorModeNoArtwork.label,
         onClick = { showGridNoArtworkColorModeDialog = true }
     )
-    Spacer(modifier = Modifier.height(16.dp))
     SettingsSectionLabel("Colors (with artwork)")
     SettingsValuePickerCard(
         title = "Line color",
@@ -411,7 +409,6 @@ internal fun VisualizationBasicOscilloscopeRouteContent(
         value = oscGridColorModeWithArtwork.label,
         onClick = { showGridArtworkColorModeDialog = true }
     )
-    Spacer(modifier = Modifier.height(16.dp))
     SettingsSectionLabel("Custom colors")
     SettingsValuePickerCard(
         title = "Custom line color",

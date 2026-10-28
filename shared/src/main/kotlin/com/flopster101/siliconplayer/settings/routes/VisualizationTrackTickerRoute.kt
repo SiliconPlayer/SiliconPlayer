@@ -66,7 +66,6 @@ internal fun VisualizationTrackTickerRouteContent() {
         )
     }
 
-    Spacer(modifier = Modifier.height(16.dp))
     SettingsSectionLabel("Per visualizer")
     SettingsRowSpacer()
 

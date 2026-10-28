@@ -180,7 +180,6 @@ internal fun LibrarySettingsRouteContent(
     }
 
     if (settings.supportsDeduplication) {
-        Spacer(modifier = Modifier.height(16.dp))
         SettingsSectionLabel("Duplicates")
         PlayerSettingToggleCard(
             title = "Deduplicate tracks",
@@ -193,7 +192,6 @@ internal fun LibrarySettingsRouteContent(
         )
     }
 
-    Spacer(modifier = Modifier.height(16.dp))
     SettingsSectionLabel("Playlists")
     PlayerSettingToggleCard(
         title = "Show Favorites in playlist menu",
@@ -233,7 +231,6 @@ internal fun LibrarySettingsRouteContent(
         )
     }
 
-    Spacer(modifier = Modifier.height(16.dp))
     SettingsSectionLabel("Scanning")
     SettingsItemCard(
         title = "Scan now",
@@ -601,7 +598,6 @@ internal fun LibraryScannerRouteContent() {
         )
     }
 
-    Spacer(modifier = Modifier.height(16.dp))
     SettingsSectionLabel("Scanning")
     PlayerSettingToggleCard(
         title = "Scan automatically",

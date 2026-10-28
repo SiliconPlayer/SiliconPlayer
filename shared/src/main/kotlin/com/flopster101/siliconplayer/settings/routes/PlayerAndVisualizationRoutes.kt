@@ -246,7 +246,6 @@ internal fun PlayerRouteContent(
         )
     }
 
-    Spacer(modifier = Modifier.height(16.dp))
     SettingsSectionLabel("End fadeout")
     PlayerSettingToggleCard(
         title = "Apply to tracks with known duration",
@@ -305,7 +304,6 @@ internal fun PlayerRouteContent(
         )
     }
 
-    Spacer(modifier = Modifier.height(16.dp))
     SettingsSectionLabel("Track selection")
     PlayerSettingToggleCard(
         title = "Play on track select",
@@ -615,7 +613,6 @@ internal fun VisualizationRouteContent(
         icon = Icons.Default.GraphicEq,
         onClick = { showFallbackModeDialog = true }
     )
-    Spacer(modifier = Modifier.height(16.dp))
     SettingsSectionLabel("Basic visualizations")
     SettingsRowSpacer()
     SettingsItemCard(
@@ -625,7 +622,6 @@ internal fun VisualizationRouteContent(
         showChevron = true,
         onClick = onOpenVisualizationBasic
     )
-    Spacer(modifier = Modifier.height(16.dp))
     SettingsSectionLabel("Fullscreen")
     SettingsRowSpacer()
     SettingsItemCard(
@@ -635,7 +631,6 @@ internal fun VisualizationRouteContent(
         showChevron = true,
         onClick = onOpenVisualizationTrackTicker
     )
-    Spacer(modifier = Modifier.height(16.dp))
     SettingsSectionLabel("Advanced visualizations")
     SettingsRowSpacer()
     SettingsItemCard(

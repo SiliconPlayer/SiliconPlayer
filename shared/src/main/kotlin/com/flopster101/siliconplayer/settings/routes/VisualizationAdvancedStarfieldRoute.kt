@@ -351,7 +351,6 @@ internal fun VisualizationAdvancedStarfieldRouteContent() {
             onClick = { applyFactoryTune(activePreset) }
         )
 
-        Spacer(modifier = Modifier.height(16.dp))
         SettingsSectionLabel("Field")
         SettingsValuePickerCard(
             title = "Star count",
@@ -381,7 +380,6 @@ internal fun VisualizationAdvancedStarfieldRouteContent() {
             onClick = { showNearDialog = true }
         )
 
-        Spacer(modifier = Modifier.height(16.dp))
         SettingsSectionLabel("Look")
         SettingsValuePickerCard(
             title = "Star color",
@@ -428,7 +426,6 @@ internal fun VisualizationAdvancedStarfieldRouteContent() {
             }
         )
 
-        Spacer(modifier = Modifier.height(16.dp))
         SettingsSectionLabel("Bloom glow")
         SettingsValuePickerCard(
             title = "Halo strength",
@@ -444,7 +441,6 @@ internal fun VisualizationAdvancedStarfieldRouteContent() {
             onClick = { showGlowSizeDialog = true }
         )
 
-        Spacer(modifier = Modifier.height(16.dp))
         SettingsSectionLabel("Trails")
         SettingsValuePickerCard(
             title = "Trail persistence",
@@ -470,7 +466,6 @@ internal fun VisualizationAdvancedStarfieldRouteContent() {
             onClick = { showStreakLengthDialog = true }
         )
 
-        Spacer(modifier = Modifier.height(16.dp))
         SettingsSectionLabel("Motion")
         SettingsValuePickerCard(
             title = "Center X",
@@ -496,7 +491,6 @@ internal fun VisualizationAdvancedStarfieldRouteContent() {
             }
         )
 
-        Spacer(modifier = Modifier.height(16.dp))
         SettingsSectionLabel("Beat follow")
         PlayerSettingToggleCard(
             title = "Follow the beat",
@@ -522,7 +516,6 @@ internal fun VisualizationAdvancedStarfieldRouteContent() {
             onClick = { showFlashDialog = true }
         )
 
-        Spacer(modifier = Modifier.height(16.dp))
         SettingsSectionLabel("Monochrome backdrop")
         PlayerSettingToggleCard(
             title = "Monochrome backdrop",
@@ -534,7 +527,6 @@ internal fun VisualizationAdvancedStarfieldRouteContent() {
             }
         )
 
-        Spacer(modifier = Modifier.height(16.dp))
         SettingsSectionLabel("Backdrop")
         PlayerSettingToggleCard(
             title = "Contrast backdrop",
@@ -545,7 +537,6 @@ internal fun VisualizationAdvancedStarfieldRouteContent() {
                 prefs.edit().putBoolean(keys.contrastBackdropEnabled, enabled).apply()
             }
         )
-        Spacer(modifier = Modifier.height(16.dp))
         SettingsSectionLabel("Renderer")
         SettingsValuePickerCard(
             title = "Renderer backend",
