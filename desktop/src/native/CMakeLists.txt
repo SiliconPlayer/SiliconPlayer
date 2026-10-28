@@ -205,6 +205,7 @@ target_include_directories(siliconplayer_gme_decoder PRIVATE
 )
 target_link_libraries(siliconplayer_gme_decoder PRIVATE
     libgme_prebuilt
+    ZLIB::ZLIB
     m
 )
 
