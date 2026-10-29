@@ -16,8 +16,10 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.ui.Alignment
 import androidx.compose.runtime.snapshotFlow
 import kotlinx.coroutines.flow.filter
 import kotlinx.coroutines.flow.first
@@ -34,6 +36,7 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 
 private const val SETTINGS_PAGE_NAV_DURATION_MS = 300
+private val SETTINGS_PAGE_MAX_WIDTH = 640.dp
 
 @Composable
 internal fun SettingsRouteContentHost(
@@ -67,7 +70,8 @@ internal fun SettingsRouteContentHost(
 
         modifier = Modifier
             .fillMaxSize()
-            .padding(scaffoldPaddingValues)
+            .padding(scaffoldPaddingValues),
+        horizontalAlignment = Alignment.CenterHorizontally
     ) {
         AnimatedContent(
             targetState = route,
@@ -102,6 +106,7 @@ internal fun SettingsRouteContentHost(
             },
             label = "settingsRouteTransition",
             modifier = Modifier
+                .then(if (isWatch) Modifier else Modifier.widthIn(max = SETTINGS_PAGE_MAX_WIDTH))
                 .fillMaxSize()
                 .padding(start = if (isWatch) 0.dp else 16.dp, end = if (isWatch) 0.dp else 16.dp)
         ) { currentRoute ->

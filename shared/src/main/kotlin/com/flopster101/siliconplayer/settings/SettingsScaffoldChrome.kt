@@ -1,6 +1,7 @@
 package com.flopster101.siliconplayer
 
 import com.flopster101.siliconplayer.platform.LocalIsWatchDevice
+import com.flopster101.siliconplayer.platform.LocalWindowSizeInfo
 import com.flopster101.siliconplayer.platform.LocalIsRoundScreen
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.core.FastOutLinearInEasing
@@ -71,6 +72,8 @@ internal fun SettingsScaffoldShell(
     val scrollBehavior = TopAppBarDefaults.exitUntilCollapsedScrollBehavior()
 
     val titleContent: @Composable () -> Unit = {
+        val windowInfo = LocalWindowSizeInfo.current
+        val titleColumnIndent = (((windowInfo.screenWidthDp.dp - 640.dp) / 2) + 16.dp).coerceAtLeast(16.dp)
         AnimatedContent(
             targetState = route,
             transitionSpec = {
@@ -102,7 +105,8 @@ internal fun SettingsScaffoldShell(
                 )
                 enter togetherWith exit
             },
-            label = "settingsTopBarTitle"
+            label = "settingsTopBarTitle",
+            modifier = if (isWatch) Modifier else Modifier.padding(start = titleColumnIndent)
         ) { targetRoute ->
             val topTitle = settingsSecondaryTitle(targetRoute, selectedPluginName) ?: "Settings"
             Text(
