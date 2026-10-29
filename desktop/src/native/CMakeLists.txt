@@ -5,6 +5,11 @@ set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 
+# Match the Android engine/decoder build standard (-O3 -ffast-math) so DSP
+# plugins like reverb/surround sound the same on every platform.
+set(CMAKE_C_FLAGS "-O3 -ffast-math ${CMAKE_C_FLAGS}")
+set(CMAKE_CXX_FLAGS "-O3 -ffast-math ${CMAKE_CXX_FLAGS}")
+
 # Path variables
 set(REPO_ROOT "${CMAKE_CURRENT_SOURCE_DIR}/../../..")
 set(APP_CPP_DIR "${REPO_ROOT}/app/src/main/cpp")

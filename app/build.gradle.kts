@@ -130,6 +130,13 @@ extensions.configure<com.android.build.api.dsl.ApplicationExtension>("android") 
     buildTypes {
         getByName("debug") {
             versionNameSuffix = "-debug"
+            externalNativeBuild {
+                cmake {
+                    // Match the release engines so DSP plugins sound consistent.
+                    cFlags += "-O3 -ffast-math"
+                    cppFlags += "-O3 -ffast-math"
+                }
+            }
         }
         release {
             isMinifyEnabled = true
