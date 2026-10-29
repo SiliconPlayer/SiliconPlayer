@@ -8,6 +8,7 @@ import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.snap
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.layout.Box
@@ -22,6 +23,8 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.foundation.layout.height
+import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.DragIndicator
 import androidx.compose.material.icons.filled.MusicNote
 import androidx.compose.material.icons.filled.Tune
@@ -50,7 +53,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.zIndex
 import kotlin.math.roundToInt
 
-private val PluginRowTrailingSlotWidth = 52.dp
+private val PluginRowTrailingSlotWidth = 104.dp
 private val PluginRowTrailingSlotHeight = 48.dp
 
 @Composable
@@ -159,13 +162,13 @@ internal fun PluginListItemCard(
                 )
             }
             Spacer(modifier = Modifier.width(if (isWatch) 6.dp else 10.dp))
-            Box(
-                modifier = Modifier
-                    .width(if (isWatch) 46.dp else PluginRowTrailingSlotWidth)
-                    .height(if (isWatch) 40.dp else PluginRowTrailingSlotHeight),
-                contentAlignment = Alignment.CenterEnd
-            ) {
-                if (editMode) {
+            if (editMode) {
+                Box(
+                    modifier = Modifier
+                        .width(if (isWatch) 46.dp else PluginRowTrailingSlotWidth)
+                        .height(if (isWatch) 40.dp else PluginRowTrailingSlotHeight),
+                    contentAlignment = Alignment.CenterEnd
+                ) {
                     Icon(
                         imageVector = Icons.Default.DragIndicator,
                         contentDescription = "Drag to reorder",
@@ -190,7 +193,28 @@ internal fun PluginListItemCard(
                                 }
                             }
                     )
-                } else {
+                }
+            } else {
+                //AOSP toggle-row convention: chevron marks the row as
+                //openable, divider separates the openable area from
+                //the self-contained switch target
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(
+                        imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.size(24.dp)
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Box(
+                        modifier = Modifier
+                            .width(1.dp)
+                            .height(32.dp)
+                            .background(
+                                MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.35f * contentAlpha)
+                            )
+                    )
+                    Spacer(modifier = Modifier.width(12.dp))
                     Switch(
                         checked = enabled,
                         onCheckedChange = onEnabledChanged,
