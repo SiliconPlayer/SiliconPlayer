@@ -257,7 +257,8 @@ private fun uiKeys(): List<TypedPrefValue> = listOf(
     intV(AppPreferenceKeys.PLAYER_ARTWORK_CORNER_RADIUS_DP, AppDefaults.Player.artworkCornerRadiusDp),
     boolV(AppPreferenceKeys.PLAYER_SHOW_AUDIO_OUTPUT_CHIP, AppDefaults.Player.showAudioOutputRouteChip),
     stringV(AppPreferenceKeys.THEME_MODE, ThemeMode.Auto.storageValue),
-    boolV(AppPreferenceKeys.THEME_USE_MONET, false)
+    boolV(AppPreferenceKeys.THEME_USE_MONET, false),
+    boolV(AppPreferenceKeys.DESKTOP_START_IN_FULLSCREEN, false)
 )
 
 private fun visualizationLastUsedEntry(): PortingNode = holder(

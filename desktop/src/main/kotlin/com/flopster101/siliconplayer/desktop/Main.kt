@@ -270,6 +270,9 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import java.awt.KeyEventDispatcher
+import java.awt.KeyboardFocusManager
+import java.awt.event.KeyEvent as AwtKeyEvent
 import java.io.File
 import java.util.Locale
 import java.util.concurrent.atomic.AtomicLong
@@ -359,8 +362,11 @@ private val initNativeEngineEarly = runCatching { NativeBridge.getSupportedExten
 fun main(args: Array<String>) = application {
     DesktopPaths.install()
     DomainStoreDirs.configDir = DesktopPaths.configDir()
+    val desktopPreferences = remember {
+        DesktopPreferencesProvider().getPreferences(AppPreferenceKeys.PREFS_NAME)
+    }
     applyDesktopCachePoliciesOnLaunch(
-        prefs = DesktopPreferencesProvider().getPreferences(AppPreferenceKeys.PREFS_NAME),
+        prefs = desktopPreferences,
         cacheDir = DesktopPaths.cacheDir(),
         configDir = DesktopPaths.configDir()
     )
@@ -374,6 +380,9 @@ fun main(args: Array<String>) = application {
     var pendingQueueEntryId by remember { mutableStateOf<String?>(null) }
     val textInputTracker = remember { com.flopster101.siliconplayer.TextInputTracker() }
     val restoredGeometry = remember { loadDesktopWindowGeometry(DesktopPaths.configDir()) }
+    val startInFullscreen = remember(desktopPreferences) {
+        desktopPreferences.getBoolean(AppPreferenceKeys.DESKTOP_START_IN_FULLSCREEN, false)
+    }
     val windowState = rememberWindowState(
         width = (restoredGeometry?.widthDp ?: DesktopWindowDefaultWidthDp).dp,
         height = (restoredGeometry?.heightDp ?: DesktopWindowDefaultHeightDp).dp,
@@ -382,13 +391,26 @@ fun main(args: Array<String>) = application {
         } else {
             WindowPosition.PlatformDefault
         },
-        placement = if (restoredGeometry?.isMaximized == true) {
+        placement = if (startInFullscreen) {
+            WindowPlacement.Fullscreen
+        } else if (restoredGeometry?.isMaximized == true) {
             WindowPlacement.Maximized
         } else {
             WindowPlacement.Floating
         }
     )
     val backDispatcher = remember { DesktopBackDispatcher() }
+    var placementBeforeFullscreen by remember(startInFullscreen, restoredGeometry) {
+        mutableStateOf(
+            if (startInFullscreen) {
+                if (restoredGeometry?.isMaximized == true) WindowPlacement.Maximized else WindowPlacement.Floating
+            } else {
+                null
+            }
+        )
+    }
+    var isApplicationFullscreen by remember(startInFullscreen) { mutableStateOf(startInFullscreen) }
+    var restoreMaximizedAfterFullscreen by remember { mutableStateOf(false) }
 
     var currentView by remember { mutableStateOf(MainView.Home) }
     var browserRefreshToken by remember { mutableStateOf(0) }
@@ -804,12 +826,22 @@ fun main(args: Array<String>) = application {
 
     val toasts = remember { mutableStateListOf<ToastItem>() }
     var nextToastId by remember { mutableStateOf(0L) }
+    fun showFullscreenExitHint() {
+        toasts.add(ToastItem(nextToastId++, "Press F11 again to exit fullscreen"))
+    }
+    LaunchedEffect(startInFullscreen) {
+        if (startInFullscreen) showFullscreenExitHint()
+    }
 
     fun requestApplicationExit() {
         // A maximized window reports the maximized size, so only persist
         // the live size when floating; otherwise keep the stored one.
-        val maximized = windowState.placement == WindowPlacement.Maximized
-        val previous = if (maximized) loadDesktopWindowGeometry(DesktopPaths.configDir()) else null
+        val maximized = if (isApplicationFullscreen) {
+            placementBeforeFullscreen == WindowPlacement.Maximized
+        } else {
+            windowState.placement == WindowPlacement.Maximized || restoreMaximizedAfterFullscreen
+        }
+        val previous = if (maximized || isApplicationFullscreen) loadDesktopWindowGeometry(DesktopPaths.configDir()) else null
         saveDesktopWindowGeometry(
             DesktopPaths.configDir(),
             DesktopWindowGeometry(
@@ -824,6 +856,21 @@ fun main(args: Array<String>) = application {
         )
         session.dispose()
         exitApplication()
+    }
+
+    fun toggleApplicationFullscreen() {
+        if (isApplicationFullscreen) {
+            val previousPlacement = placementBeforeFullscreen ?: WindowPlacement.Floating
+            windowState.placement = WindowPlacement.Floating
+            restoreMaximizedAfterFullscreen = previousPlacement == WindowPlacement.Maximized
+            placementBeforeFullscreen = null
+            isApplicationFullscreen = false
+        } else {
+            placementBeforeFullscreen = windowState.placement
+            windowState.placement = WindowPlacement.Fullscreen
+            isApplicationFullscreen = true
+            showFullscreenExitHint()
+        }
     }
 
     Window(
@@ -936,6 +983,31 @@ fun main(args: Array<String>) = application {
             false
         }
     ) {
+        LaunchedEffect(restoreMaximizedAfterFullscreen) {
+            if (restoreMaximizedAfterFullscreen) {
+                withFrameNanos {}
+                windowState.placement = WindowPlacement.Maximized
+                restoreMaximizedAfterFullscreen = false
+            }
+        }
+        DisposableEffect(window) {
+            val dispatcher = KeyEventDispatcher { event ->
+                if (
+                    event.id == AwtKeyEvent.KEY_PRESSED &&
+                    event.keyCode == AwtKeyEvent.VK_F11 &&
+                    event.component?.let { SwingUtilities.getWindowAncestor(it) } == window
+                ) {
+                    toggleApplicationFullscreen()
+                    true
+                } else {
+                    false
+                }
+            }
+            KeyboardFocusManager.getCurrentKeyboardFocusManager().addKeyEventDispatcher(dispatcher)
+            onDispose {
+                KeyboardFocusManager.getCurrentKeyboardFocusManager().removeKeyEventDispatcher(dispatcher)
+            }
+        }
         ProvideDesktopPlatformAdapters(
             windowWidthDp = windowState.size.width.value.toInt(),
             windowHeightDp = windowState.size.height.value.toInt(),

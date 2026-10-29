@@ -63,6 +63,7 @@ internal object AppPreferenceKeys {
     const val SESSION_RESUME_ACTIVE_PLAYLIST_SHUFFLE_ACTIVE = "session_resume_active_playlist_shuffle_active"
     const val THEME_MODE = "theme_mode"
     const val THEME_USE_MONET = "theme_use_monet"
+    const val DESKTOP_START_IN_FULLSCREEN = "desktop_start_in_fullscreen"
     const val RECENT_FOLDERS = "recent_folders"
     const val RECENT_PLAYED_FILES = "recent_played_files"
     const val RECENTS_PER_SUBTUNE_ROWS = "recents_per_subtune_rows"

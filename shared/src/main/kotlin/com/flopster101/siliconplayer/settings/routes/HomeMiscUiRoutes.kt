@@ -322,6 +322,11 @@ internal fun UiRouteContent(
     state: UiRouteState,
     actions: UiRouteActions
 ) {
+    val prefs = LocalAppPreferences.current
+    var startInFullscreen by remember(prefs) {
+        mutableStateOf(prefs.getBoolean(AppPreferenceKeys.DESKTOP_START_IN_FULLSCREEN, false))
+    }
+
     SettingsSectionLabel("General")
     ThemeModeSelectorCard(
         selectedMode = state.themeMode,
@@ -335,6 +340,18 @@ internal fun UiRouteContent(
             description = "Use Android wallpaper-based dynamic colors instead of SiliconPlayer's custom palette.",
             checked = state.useMonet,
             onCheckedChange = actions.onUseMonetChanged
+        )
+    }
+    if (LocalDecoderPlatform.current == DecoderPlatform.Desktop) {
+        SettingsRowSpacer()
+        PlayerSettingToggleCard(
+            title = "Start in fullscreen",
+            description = "Open the desktop app fullscreen at startup. Press F11 to exit.",
+            checked = startInFullscreen,
+            onCheckedChange = {
+                startInFullscreen = it
+                prefs.edit().putBoolean(AppPreferenceKeys.DESKTOP_START_IN_FULLSCREEN, it).apply()
+            }
         )
     }
 }
