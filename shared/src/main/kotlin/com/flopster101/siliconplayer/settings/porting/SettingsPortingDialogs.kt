@@ -228,7 +228,7 @@ private fun PortingTreeDialog(
         text = {
             Column(Modifier.verticalScroll(rememberScrollState())) {
                 Text(
-                    text = "Choose exactly what to save from your settings, or what to bring in from a settings file (.spxs) — anything you haven't changed from the app's defaults is not written to the export.",
+                    text = "Choose settings to export, or select what to import from a .spxs file.",
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -237,9 +237,13 @@ private fun PortingTreeDialog(
                     FilledTonalButton(onClick = { onToggleAll(true) }) { Text("Select all") }
                     Spacer(Modifier.width(8.dp))
                     OutlinedButton(onClick = { onToggleAll(false) }) { Text("Deselect all") }
-                    Spacer(Modifier.weight(1f))
+                }
+                Box(
+                    modifier = Modifier.fillMaxWidth(),
+                    contentAlignment = Alignment.CenterEnd
+                ) {
                     Text(
-                        text = "${allEntries(catalog).count { it.children.isEmpty() && selection[it.entry.id] == true }} entries selected",
+                        text = "${allEntries(catalog).count { it.children.isEmpty() && selection[it.entry.id] == true }} selected",
                         style = MaterialTheme.typography.labelMedium
                     )
                 }
@@ -282,7 +286,14 @@ private fun PortingSectionView(
                     modifier = Modifier.padding(start = 16.dp, top = 6.dp, bottom = 2.dp)
                 )
             }
-            is PortingNode.EntryHolder -> PortingEntryRow(child, 0, selection, onToggle)
+            is PortingNode.EntryHolder -> {
+                PortingEntryRow(
+                    child,
+                    0,
+                    selection,
+                    onToggle
+                )
+            }
         }
     }
 }
@@ -293,7 +304,7 @@ private fun PortingEntryRow(
     depth: Int,
     selection: Map<String, Boolean>,
     onToggle: (String) -> Unit,
-    isLastChild: Boolean = false
+    ancestorPathLast: List<Boolean> = emptyList()
 ) {
     val selectable = listOf(node) + descendants(node)
     val checked = selectable.all { selection[it.entry.id] == true }
@@ -306,26 +317,43 @@ private fun PortingEntryRow(
             .clickable { onToggle(node.entry.id) }
             .drawBehind {
                 val centerY = size.height / 2f
-                val incomingX = 16.dp.toPx() + (depth - 1).coerceAtLeast(0) * 20.dp.toPx()
+                val connectorStartX = 16.dp.toPx()
+                val connectorStep = 20.dp.toPx()
                 if (depth > 0) {
-                    drawLine(
-                        color = connectorColor,
-                        start = Offset(incomingX, 0f),
-                        end = Offset(incomingX, if (isLastChild) centerY else size.height),
-                        strokeWidth = 1.dp.toPx()
-                    )
+                    for (level in 0 until depth) {
+                        val connectorX = connectorStartX + 24.dp.toPx() + level * connectorStep
+                        val isLastBranchDescendant = level < depth - 1 &&
+                            ancestorPathLast.getOrNull(level) == true
+                        if (isLastBranchDescendant) continue
+                        val endsAtThisRow = level == depth - 1 &&
+                            ancestorPathLast.getOrNull(level) == true
+                        drawLine(
+                            color = connectorColor,
+                            start = Offset(connectorX, 0f),
+                            end = Offset(
+                                connectorX,
+                                if (endsAtThisRow) centerY else size.height
+                            ),
+                            strokeWidth = 1.dp.toPx()
+                        )
+                    }
+                    val incomingX = connectorStartX + 24.dp.toPx() +
+                        (depth - 1) * connectorStep
                     drawLine(
                         color = connectorColor,
                         start = Offset(incomingX, centerY),
-                        end = Offset(26.dp.toPx() + depth * 20.dp.toPx(), centerY),
+                        end = Offset(
+                            connectorStartX + depth * connectorStep + 14.dp.toPx(),
+                            centerY
+                        ),
                         strokeWidth = 1.dp.toPx()
                     )
                 }
                 if (node.children.isNotEmpty()) {
-                    val outgoingX = 16.dp.toPx() + depth * 20.dp.toPx()
+                    val outgoingX = connectorStartX + 24.dp.toPx() + depth * connectorStep
                     drawLine(
                         color = connectorColor,
-                        start = Offset(outgoingX, centerY),
+                        start = Offset(outgoingX, centerY + 12.dp.toPx()),
                         end = Offset(outgoingX, size.height),
                         strokeWidth = 1.dp.toPx()
                     )
@@ -350,7 +378,7 @@ private fun PortingEntryRow(
             depth + 1,
             selection,
             onToggle,
-            isLastChild = index == node.children.lastIndex
+            ancestorPathLast = ancestorPathLast + (index == node.children.lastIndex),
         )
     }
 }

@@ -46,7 +46,7 @@ private fun audioBackendKeys(): List<TypedPrefValue> = listOf(
     boolV(AppPreferenceKeys.UAC_SETTLE_PILOT_TONE, false)
 )
 
-private fun audioBackendEntry(): PortingNode = holder(
+private fun audioBackendEntry(): PortingNode.EntryHolder = holder(
     "audio.backend",
     "Backend configuration",
     audioBackendKeys(),
@@ -57,17 +57,6 @@ private fun audioBackendEntry(): PortingNode = holder(
                 .fromStorage(value as? String)
                 .isAvailableOnCurrentPlatform()
     }
-)
-
-private fun sectionRoot(
-    id: String,
-    label: String,
-    children: List<PortingNode>
-): PortingNode.EntryHolder = holder(
-    id = id,
-    label = label,
-    keys = emptyList(),
-    children = children.filterIsInstance<PortingNode.EntryHolder>()
 )
 
 private fun generalAudioEffectsKeys(): List<TypedPrefValue> = listOf(
@@ -318,15 +307,47 @@ internal fun buildSettingsPortingCatalog(prefs: AppPreferences): List<PortingSec
         )
     }
 
-    val audioChildren = mutableListOf<PortingNode>(
-        PortingNode.Label("Audio"),
-        holder("audio.general", "General audio settings", generalAudioKeys(), defaultSelected = false),
-        holder("audio.volume", "Saved volume parameters", generalVolumeKeys()),
-        audioBackendEntry(),
-        holder("audio.effects", "Audio effects", generalAudioEffectsKeys())
+    val savedVolumeParameters = holder(
+        "audio.volume",
+        "Saved volume parameters",
+        emptyList(),
+        children = listOf(
+            holder("audio.volume.global", "Global", generalVolumeKeys()),
+            holder("audio.volume.perSong", "Per-song", emptyList(), defaultSelected = false)
+        )
     )
-    audioChildren += perCoreDspPortingEntries(prefs)
-    audioChildren += perCoreVolumePortingEntries(decoders)
+    val audioEffects = holder(
+        "audio.effects",
+        "Audio effects",
+        emptyList(),
+        children = listOf(
+            holder(
+                "audio.effects.global",
+                "Global state",
+                generalAudioEffectsKeys() +
+                    perCoreDspPortingEntries(prefs)
+                        .filterIsInstance<PortingNode.EntryHolder>()
+                        .flatMap { it.entry.keys } +
+                    perCoreVolumePortingEntries(decoders)
+                        .filterIsInstance<PortingNode.EntryHolder>()
+                        .first()
+                        .entry.keys
+            ),
+            holder(
+                "audio.effects.perSong",
+                "Per-song state",
+                listOf(boolV("audio_dsp_ignore", false, onlyWhenSet = true)),
+                defaultSelected = false
+            )
+        )
+    )
+    val audioGeneral = holder(
+        "audio.general",
+        "General audio settings",
+        emptyList(),
+        defaultSelected = false,
+        children = listOf(savedVolumeParameters, audioBackendEntry())
+    )
 
     val audioCoresPriorityRoot = holder(
         "audio.cores.priority",
@@ -353,46 +374,68 @@ internal fun buildSettingsPortingCatalog(prefs: AppPreferences): List<PortingSec
         )
     )
 
-    val vizChildren = mutableListOf<PortingNode>(
-        PortingNode.Label("Visualizations"),
+    val visualizationSettings = holder(
+        "viz.settings",
+        "Visualization settings",
+        emptyList(),
+        children = listOf(
+            holder("viz.bars", "Basic - Bars", barVizKeys()),
+            holder("viz.osc", "Basic - Oscilloscope", oscilloscopeVizKeys()),
+            holder("viz.vu", "Basic - VU meters", vuVizKeys()),
+            holder("viz.chscope", "Advanced - Channel scope", channelScopeVizKeys()),
+            holder("viz.starfield", "Advanced - Starfield", starfieldVizKeys()),
+            holder(
+                "viz.projectm",
+                "Advanced - projectM",
+                emptyList(),
+                children = listOf(
+                    holder(
+                        "viz.projectm.presets",
+                        "Configured presets",
+                        projectMVizKeys()
+                    ),
+                    holder(
+                        "viz.projectm.paths",
+                        "Preset paths",
+                        projectMPresetPathKeys(),
+                        defaultSelected = false
+                    )
+                )
+            )
+        )
+    )
+    val vizChildren = listOf<PortingNode>(
         visualizationLastUsedEntry(),
         tickerEntry(),
-        holder("viz.settings", "Performance and shared", vizSettingKeys()),
-        holder("viz.bars", "Bars", barVizKeys()),
-        holder("viz.osc", "Oscilloscope", oscilloscopeVizKeys()),
-        holder("viz.vu", "VU meters", vuVizKeys()),
-        holder("viz.chscope", "Channel scope", channelScopeVizKeys())
-    )
-    vizChildren += perCoreVizTextVisibilityEntries(prefs)
-    vizChildren += listOf(
-        holder("viz.starfield", "Starfield", starfieldVizKeys()),
-        holder("viz.projectm", "projectM", projectMVizKeys()),
         holder(
-            "viz.projectm.paths",
-            "projectM preset paths",
-            projectMPresetPathKeys(),
-            defaultSelected = false
+            "viz.shared",
+            "Visualization settings",
+            vizSettingKeys() + perCoreVizTextVisibilityEntries(prefs)
+                .filterIsInstance<PortingNode.EntryHolder>()
+                .flatMap { it.entry.keys },
+            children = visualizationSettings.children
         )
     )
 
-    val browserChildren = mutableListOf<PortingNode>(
-        PortingNode.Label("File browser"),
-        holder("browser.settings", "File browser settings", browserKeys()),
+    val browserChildren = listOf<PortingNode>(
         holder(
             "browser.last",
-            "Remembered location",
+            "Last path",
             browserLastKeys(),
             defaultSelected = false
-        )
+        ),
+        holder("browser.settings", "File browser settings", browserKeys())
     )
 
-    val networkChildren = mutableListOf<PortingNode>(
-        PortingNode.Label("Network"),
+    val networkChildren = listOf<PortingNode>(
         holder(
-            "network.sources",
+            "network.saved",
             "Saved sources",
-            networkSourcesKeys(),
-            defaultSelected = false
+            emptyList(),
+            children = listOf(
+                holder("network.smb", "SMB", networkSourcesKeys()),
+                holder("network.credentials", "Credentials", emptyList(), defaultSelected = false)
+            )
         )
     )
 
@@ -400,86 +443,73 @@ internal fun buildSettingsPortingCatalog(prefs: AppPreferences): List<PortingSec
         PortingSection(
             id = "audioCoresPriority",
             label = "Audio cores priority",
-            children = listOf(audioCoresPriorityRoot)
+            children = audioCoresPriorityRoot.children
         ),
         PortingSection(
             id = "audioCores",
             label = "Audio cores",
-            children = listOf(audioCoresRoot)
+            children = audioCoresRoot.children
         ),
         PortingSection(
             id = "audio",
             label = "Audio",
-            children = listOf(sectionRoot("audio", "Audio", audioChildren))
+            children = listOf(audioGeneral, audioEffects)
         ),
         PortingSection(
             id = "library",
             label = "Library",
             children = listOf(
-                sectionRoot(
-                    "library",
-                    "Library",
-                    listOf(
-                        holder("library.settings", "Library settings", librarySettingKeys()),
-                        holder("library.layout", "Library layout", libraryLayoutKeys())
+                holder(
+                    "library.scanner",
+                    "Storage scanner",
+                    emptyList(),
+                    children = listOf(
+                        holder("library.directories", "Directories", emptyList(), defaultSelected = false),
+                        holder("library.fileTypes", "File types", emptyList())
                     )
-                )
+                ),
+                holder("library.settings", "Library settings", librarySettingKeys()),
+                holder("library.layout", "Library layout", libraryLayoutKeys())
             )
         ),
         PortingSection(
             id = "player",
             label = "Player",
-            children = listOf(
-                sectionRoot(
-                    "player",
-                    "Player",
-                    listOf(holder("player.settings", "Player settings", playerKeys()))
-                )
-            )
+            children = listOf(holder("player.settings", "Player settings", playerKeys()))
         ),
         PortingSection(
             id = "home",
             label = "Home",
             children = listOf(
-                sectionRoot(
-                    "home",
-                    "Home",
-                    listOf(holder("home.settings", "Home settings", homeSettingKeys()))
-                )
+                holder("home.settings", "Home settings", homeSettingKeys()),
+                holder("home.pinned", "Pinned files list", emptyList(), defaultSelected = false),
+                holder("home.recent", "Recent files list", emptyList(), defaultSelected = false)
             )
         ),
         PortingSection(
             id = "fileBrowser",
             label = "File browser",
-            children = listOf(sectionRoot("fileBrowser", "File browser", browserChildren))
+            children = browserChildren
         ),
         PortingSection(
             id = "network",
             label = "Network",
-            children = listOf(sectionRoot("network", "Network", networkChildren))
+            children = networkChildren
         ),
         PortingSection(
             id = "visualizations",
             label = "Visualizations",
-            children = listOf(sectionRoot("visualizations", "Visualizations", vizChildren))
+            children = vizChildren
         ),
         PortingSection(
             id = "cache",
             label = "Cache",
-            children = listOf(
-                sectionRoot(
-                    "cache",
-                    "Cache",
-                    listOf(holder("cache.settings", "Cache settings", cacheKeys()))
-                )
-            )
+            children = listOf(holder("cache.settings", "Cache settings", cacheKeys()))
         ),
         PortingSection(
             id = "ui",
             label = "UI",
-            children = listOf(
-                sectionRoot("ui", "UI", listOf(holder("ui.settings", "UI settings", uiKeys())))
-            )
+            children = listOf(holder("ui.settings", "UI settings", uiKeys()))
         )
     )
 }
