@@ -552,9 +552,10 @@ internal fun VisualizationRouteContent(
     }
 
     SettingsSectionLabel("General")
-    SettingsItemCard(
+    SettingsValueSelectorCard(
         title = "Current visualization",
-        description = visualizationMode.label,
+        description = "Choose what renders on the player and fullscreen canvas.",
+        valueLabel = visualizationMode.label,
         onClick = { showModeDialog = true }
     )
     SettingsRowSpacer()
@@ -573,17 +574,18 @@ internal fun VisualizationRouteContent(
         )
     }
     SettingsRowSpacer()
-    SettingsItemCard(
+    SettingsValueSelectorCard(
         title = "Visualization performance mode",
         description = performanceDescription,
+        valueLabel = visualizationPerformanceMode.label,
         onClick = { showPerformanceDialog = true }
     )
 
     SettingsSectionLabel("Behavior")
-    SettingsItemCard(
+    SettingsValueSelectorCard(
         title = "Fallback visualizer",
-        description = advancedFallbackMode.label +
-            " • shown when the selected visualization is unavailable for the current track",
+        description = "Shown when the selected visualization is unavailable for the current track.",
+        valueLabel = advancedFallbackMode.label,
         onClick = { showFallbackModeDialog = true }
     )
     SettingsRowSpacer()
@@ -605,9 +607,10 @@ internal fun VisualizationRouteContent(
 
     if (!isWatch) {
         SettingsSectionLabel("Fullscreen")
-        SettingsItemCard(
+        SettingsValueSelectorCard(
             title = "Fullscreen mode",
-            description = fullscreenMode.label,
+            description = "Choose between complete and compact fullscreen layouts.",
+            valueLabel = fullscreenMode.label,
             onClick = { showFullscreenModeDialog = true }
         )
         SettingsRowSpacer()

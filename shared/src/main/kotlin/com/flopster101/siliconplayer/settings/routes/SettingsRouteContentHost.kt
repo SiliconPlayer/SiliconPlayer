@@ -25,6 +25,9 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.mutableStateMapOf
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.Dp
@@ -48,7 +51,17 @@ internal fun SettingsRouteContentHost(
     val extraBottomPadding = if (isWatch) (if (isRound) 56.dp else 24.dp) else 0.dp
     val platformContent = com.flopster101.siliconplayer.platform.LocalSettingsPlatformContent.current
 
+    var previousRouteNow by remember { mutableStateOf<SettingsRoute?>(null) }
+    //Scroll positions of pages we've left; a page only restores when we
+    //navigate back to it from a child, so entering it anew always starts at top
     val pageScrollPositions = remember { mutableStateMapOf<SettingsRoute, Int>() }
+    LaunchedEffect(route) {
+        val last = previousRouteNow
+        if (last != null && settingsRouteOrder(route) > settingsRouteOrder(last)) {
+            pageScrollPositions.remove(route)
+        }
+        previousRouteNow = route
+    }
 
     Column(
 

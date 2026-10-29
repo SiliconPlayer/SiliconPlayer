@@ -28,6 +28,34 @@ private data class EnumChoice<T>(
 )
 
 @Composable
+internal fun SettingsValueSelectorCard(
+    title: String,
+    description: String,
+    valueLabel: String,
+    onClick: () -> Unit
+) {
+    SettingsRowContainer(onClick = onClick) {
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                text = title,
+                style = MaterialTheme.typography.titleMedium
+            )
+            Spacer(modifier = Modifier.height(2.dp))
+            Text(
+                text = description,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
+        Spacer(modifier = Modifier.width(12.dp))
+        Text(
+            text = valueLabel,
+            style = MaterialTheme.typography.titleMedium
+        )
+    }
+}
+
+@Composable
 @OptIn(ExperimentalMaterial3Api::class)
 private fun <T> SettingsEnumSelectorCard(
     title: String,

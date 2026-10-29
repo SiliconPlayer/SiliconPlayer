@@ -338,7 +338,7 @@ enum class VisualizationPerformanceMode(
     val label: String,
     val description: String
 ) {
-    Auto("auto", "Auto (Recommended)", "Automatically selects the best performance profile based on device CPU capabilities."),
+    Auto("auto", "Auto", "Automatically selects the best performance profile based on device CPU capabilities."),
     HighPerformance("high_performance", "High performance", "Elevates thread priority to maintain high FPS on constrained devices."),
     Balanced("balanced", "Balanced", "Standard UI display priority with good balance between performance and battery life."),
     PowerSaving("power_saving", "Power saving", "Lowers thread priority to maximize battery life.");

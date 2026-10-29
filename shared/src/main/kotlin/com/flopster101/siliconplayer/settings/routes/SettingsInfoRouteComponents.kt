@@ -14,7 +14,6 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.GraphicEq
 import androidx.compose.material.icons.filled.Link
 import androidx.compose.material3.FilledTonalButton
@@ -236,7 +235,6 @@ internal fun ClearAudioParametersCard(
     SettingsItemCard(
         title = "Clear saved parameters",
         description = "Reset volume settings for all, cores, or songs",
-        icon = Icons.Default.Delete,
         onClick = { showDialog = true }
     )
 

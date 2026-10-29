@@ -8,7 +8,6 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.DeleteForever
 import androidx.compose.material.icons.filled.Folder
 import androidx.compose.material.icons.filled.MusicNote
-import androidx.compose.material.icons.filled.Public
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -177,15 +176,7 @@ internal fun NetworkRouteContent(
     SettingsItemCard(
         title = "Clear saved sources",
         description = "Remove all saved network folders, remote sources, and their saved credentials.",
-        icon = Icons.Default.DeleteForever,
         onClick = { showClearSavedSourcesConfirm = true }
-    )
-    SettingsRowSpacer()
-    SettingsItemCard(
-        title = "Future examples and providers",
-        description = "Built-in examples and provider toggles will be added here later.",
-        icon = Icons.Default.Public,
-        onClick = {}
     )
 
     if (showClearSavedSourcesConfirm) {
@@ -271,18 +262,6 @@ internal fun FileBrowserRouteContent(
         }
     )
     SettingsRowSpacer()
-    SettingsItemCard(
-        title = "Clear thumbnail preview cache",
-        description = "Delete cached local file browser and library artwork thumbnails.",
-        icon = Icons.Default.DeleteForever,
-        onClick = {
-            val deleted = actions.onClearThumbnailCache?.invoke() ?: 0
-            toastHandler.showToast(
-                if (deleted > 0) "Cleared $deleted thumbnail previews" else "Thumbnail preview cache is already empty"
-            )
-        }
-    )
-    SettingsRowSpacer()
     PlayerSettingToggleCard(
         title = "Show unsupported files",
         description = "Display files that no enabled decoder core can open.",
@@ -323,6 +302,18 @@ internal fun FileBrowserRouteContent(
         description = "List ZIP archives after folders but before regular files.",
         checked = state.sortArchivesBeforeFiles,
         onCheckedChange = actions.onSortArchivesBeforeFilesChanged
+    )
+
+    SettingsSectionLabel("Actions")
+    SettingsItemCard(
+        title = "Clear thumbnail preview cache",
+        description = "Delete cached local file browser and library artwork thumbnails.",
+        onClick = {
+            val deleted = actions.onClearThumbnailCache?.invoke() ?: 0
+            toastHandler.showToast(
+                if (deleted > 0) "Cleared $deleted thumbnail previews" else "Thumbnail preview cache is already empty"
+            )
+        }
     )
 }
 
