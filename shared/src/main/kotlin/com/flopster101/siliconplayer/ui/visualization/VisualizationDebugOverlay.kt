@@ -27,26 +27,7 @@ fun VisualizationDebugOverlay(
     modifier: Modifier = Modifier
 ) {
     val pollerActive = activeRenderBackend == VisualizationRenderBackend.Compose
-    val updateLine = if (pollerActive) {
-        "$updateFps fps  ($updateFrameMs ms)"
-    } else {
-        "N/A"
-    }
-    val sourceUniqueLine = if (pollerActive) {
-        "$sourceUniqueFps fps  ($sourceUniqueFrameMs ms)"
-    } else {
-        "N/A"
-    }
-    val sourceDuplicatesLine = if (pollerActive) {
-        "$sourceDuplicatePercent%"
-    } else {
-        "N/A"
-    }
-    val drawLine = if (activeRenderBackend != VisualizationRenderBackend.Compose) {
-        "$drawFps fps  ($drawFrameMs ms)"
-    } else {
-        "N/A"
-    }
+    val drawAvailable = activeRenderBackend != VisualizationRenderBackend.Compose
     val vulkanLine = if (activeRenderBackend == VisualizationRenderBackend.VulkanSurface) {
         (vulkanDeviceLine ?: "unknown device") + "\n"
     } else {
@@ -58,13 +39,21 @@ fun VisualizationDebugOverlay(
         color = Color.Black.copy(alpha = 0.22f)
     ) {
         Text(
-            text = "Mode: ${visualizationMode.label}\n" +
-                "Backend: ${activeRenderBackend.label}\n" +
-                "Update: $updateLine\n" +
-                "Source unique: $sourceUniqueLine\n" +
-                "Source duplicates: $sourceDuplicatesLine\n" +
-                "Draw: $drawLine\n" +
-                vulkanLine.trimEnd(),
+            text = buildList {
+                add("Mode: ${visualizationMode.label}")
+                add("Backend: ${activeRenderBackend.label}")
+                if (pollerActive) {
+                    add("Update: $updateFps fps  ($updateFrameMs ms)")
+                    add("Source unique: $sourceUniqueFps fps  ($sourceUniqueFrameMs ms)")
+                    add("Source duplicates: $sourceDuplicatePercent%")
+                }
+                if (drawAvailable) {
+                    add("Draw: $drawFps fps")
+                    add("Frame interval: ${if (drawFps > 0) "%.2f".format(1000f / drawFps) else "—"} ms")
+                    add("Render call: $drawFrameMs ms")
+                }
+                vulkanLine.trimEnd().takeIf { it.isNotEmpty() }?.let(::add)
+            }.joinToString("\n"),
             color = Color.White.copy(alpha = 0.78f),
             style = MaterialTheme.typography.labelSmall,
             modifier = Modifier.padding(horizontal = 8.dp, vertical = 5.dp)
