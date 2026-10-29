@@ -22,14 +22,11 @@ import androidx.compose.material.icons.filled.Bluetooth
 import androidx.compose.material.icons.filled.Headphones
 import androidx.compose.material.icons.filled.Usb
 import androidx.compose.material3.Button
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
@@ -105,7 +102,6 @@ internal fun AudioOutputDetailsDialog(
     bitPerfectEnabled: Boolean = false,
     onBitPerfectToggled: (Boolean) -> Unit = {},
     onRestartTrack: () -> Unit = {},
-    onOpenAudioSettings: () -> Unit,
     onDismiss: () -> Unit
 ) {
     val prefs = LocalAppPreferences.current
@@ -169,17 +165,15 @@ internal fun AudioOutputDetailsDialog(
             candidate
         }
     }
-    val effectiveTrackRate = if (trackSampleRateHz > 0) trackSampleRateHz else (decoderRenderRateHz.takeIf { it > 0 } ?: 48000)
-    val effectiveDecoderRate = if (decoderRenderRateHz > 0) decoderRenderRateHz else effectiveTrackRate
-    val effectiveOutputRate = if (outputStreamRateHz > 0) outputStreamRateHz else 48000
+    val effectiveDecoderRate = decoderRenderRateHz
+    val effectiveOutputRate = outputStreamRateHz
     val effectiveChannels = if (channelCount > 0) channelCount else 2
 
     val burstFrames = remember { NativeBridge.getStreamBurstFrames() }
-    val effectiveBurstFrames = if (burstFrames > 0) burstFrames else 480
-    val latencyMs = if (effectiveBurstFrames > 0 && effectiveOutputRate > 0) {
-        effectiveBurstFrames * 1000.0 / effectiveOutputRate
+    val bufferPeriodMs = if (burstFrames > 0 && outputStreamRateHz > 0) {
+        burstFrames * 1000.0 / outputStreamRateHz
     } else {
-        10.0
+        null
     }
 
     val isBitPerfectActive = inspector.rememberBitPerfectActive(
@@ -257,16 +251,20 @@ internal fun AudioOutputDetailsDialog(
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
-                Text(
-                    text = "Rate: ${formatSampleRateForInspector(effectiveOutputRate)}",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-                Text(
-                    text = "Decoder: $effectiveDecoderName (${formatSampleRateForInspector(effectiveDecoderRate)})",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
+                if (effectiveOutputRate > 0) {
+                    Text(
+                        text = "Rate: ${formatSampleRateForInspector(effectiveOutputRate)}",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+                if (effectiveDecoderRate > 0) {
+                    Text(
+                        text = "Decoder: $effectiveDecoderName (${formatSampleRateForInspector(effectiveDecoderRate)})",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
                 if (isResamplingActive) {
                     Text(
                         text = "Resampling: ${formatSampleRateForInspector(effectiveDecoderRate)} -> ${formatSampleRateForInspector(effectiveOutputRate)}",
@@ -280,7 +278,7 @@ internal fun AudioOutputDetailsDialog(
                     modifier = Modifier.fillMaxWidth(),
                     shape = RoundedCornerShape(14.dp)
                 ) {
-                    Text("Done")
+                    Text("Close")
                 }
             }
         }
@@ -387,196 +385,192 @@ internal fun AudioOutputDetailsDialog(
                             modifier = Modifier.padding(start = 8.dp)
                         )
 
-                        Card(
-                            modifier = Modifier.fillMaxWidth(),
-                            shape = RoundedCornerShape(16.dp),
-                            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow),
-                            border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f))
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(12.dp),
+                            verticalArrangement = Arrangement.spacedBy(0.dp)
                         ) {
-                            Column(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(12.dp),
-                                verticalArrangement = Arrangement.spacedBy(0.dp)
-                            ) {
+                            // Node 1: Source File
+                            val hasNativeRate = remember { NativeBridge.hasNativeSampleRate() }
+                            val trackBitrate = remember { NativeBridge.getTrackBitrate() }
+                            val isTrackVbr = remember { NativeBridge.isTrackVBR() }
+                            val fileSubtitleItems = remember(hasNativeRate, trackSampleRateHz, effectiveChannels, bitDepthLabel) {
+                                val parts = mutableListOf<String>()
+                                if (hasNativeRate && trackSampleRateHz > 0) {
+                                    parts.add(formatSampleRateForInspector(trackSampleRateHz))
+                                }
+                                if (channelCount > 0) {
+                                    parts.add("$channelCount ch")
+                                }
+                                val cleanBitDepth = bitDepthLabel.trim().takeIf { it.isNotBlank() && !it.equals("Unknown", ignoreCase = true) }
+                                if (cleanBitDepth != null) {
+                                    parts.add(if (cleanBitDepth.contains("bit", ignoreCase = true)) cleanBitDepth else "$cleanBitDepth-bit")
+                                }
+                                if (hasNativeRate && trackBitrate > 0L) {
+                                    val formattedBitrate = formatBitrateForInspector(trackBitrate, isTrackVbr)
+                                    if (formattedBitrate.isNotBlank()) {
+                                        parts.add(formattedBitrate)
+                                    }
+                                }
+                                if (storageSourceLabel != "Local storage") {
+                                    parts.add(storageSourceLabel)
+                                }
+                                parts
+                            }
 
-                                // Node 1: Source File
-                                val hasNativeRate = remember { NativeBridge.hasNativeSampleRate() }
-                                val trackBitrate = remember { NativeBridge.getTrackBitrate() }
-                                val isTrackVbr = remember { NativeBridge.isTrackVBR() }
-                                val fileSubtitleItems = remember(hasNativeRate, trackSampleRateHz, effectiveChannels, bitDepthLabel) {
-                                    val parts = mutableListOf<String>()
-                                    if (hasNativeRate && trackSampleRateHz > 0) {
-                                        parts.add(formatSampleRateForInspector(trackSampleRateHz))
-                                    } else {
-                                        parts.add("N/A")
-                                    }
-                                    if (effectiveChannels > 0) {
-                                        parts.add("$effectiveChannels ch")
-                                    }
-                                    val cleanBitDepth = bitDepthLabel.trim().takeIf { it.isNotBlank() && !it.equals("Unknown", ignoreCase = true) }
-                                    if (cleanBitDepth != null) {
-                                        parts.add(if (cleanBitDepth.endsWith("-bit", ignoreCase = true) || cleanBitDepth.endsWith("bit", ignoreCase = true)) cleanBitDepth else "$cleanBitDepth-bit")
-                                    }
-                                    if (hasNativeRate && trackBitrate > 0L) {
-                                        val formattedBitrate = formatBitrateForInspector(trackBitrate, isTrackVbr)
-                                        if (formattedBitrate.isNotBlank()) {
-                                            parts.add(formattedBitrate)
-                                        }
-                                    }
-                                    if (storageSourceLabel != "Local storage") {
-                                        parts.add(storageSourceLabel)
-                                    }
-                                    parts
+                            SignalChainNodeCard(
+                                icon = { inspector.fileArtworkIcon(fileArtworkHint) },
+                                iconBackgroundColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.15f),
+                                title = effectiveFileName,
+                                badgeText = fileFormatBadge,
+                                badgeColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                                badgeBackgroundColor = MaterialTheme.colorScheme.surfaceContainerHighest,
+                                subtitleItems = fileSubtitleItems
+                            )
+
+                            // Connector: File -> Decoder
+                            SignalChainConnector()
+
+                            // Node 2: Decoder
+                            SignalChainNodeCard(
+                                icon = { inspector.decoderNodeIcon() },
+                                iconBackgroundColor = MaterialTheme.colorScheme.tertiary.copy(alpha = 0.15f),
+                                title = effectiveDecoderName,
+                                badgeText = "Decoder",
+                                badgeColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                                badgeBackgroundColor = MaterialTheme.colorScheme.surfaceContainerHighest,
+                                subtitleItems = listOfNotNull(
+                                    formatSampleRateForInspector(effectiveDecoderRate).takeIf { it != "Unknown" },
+                                    "32-bit Float"
+                                )
+                            )
+
+                            // Optional Node 3: Resampler
+                            if (isResamplingActive) {
+                                val resamplerTitle = when (activeResamplerPref) {
+                                    AudioResamplerPreference.Sox -> "SoX resampler"
+                                    AudioResamplerPreference.BuiltIn -> "Built-in resampler"
+                                }
+                                val resamplerEngine = when (activeResamplerPref) {
+                                    AudioResamplerPreference.Sox -> "SoX (libsoxr)"
+                                    AudioResamplerPreference.BuiltIn -> "miniaudio linear"
                                 }
 
-                                SignalChainNodeCard(
-                                    icon = { inspector.fileArtworkIcon(fileArtworkHint) },
-                                    iconBackgroundColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.15f),
-                                    title = effectiveFileName,
-                                    badgeText = fileFormatBadge,
-                                    badgeColor = MaterialTheme.colorScheme.onSurfaceVariant,
-                                    badgeBackgroundColor = MaterialTheme.colorScheme.surfaceContainerHighest,
-                                    subtitleItems = fileSubtitleItems
-                                )
-
-                                // Connector: File -> Decoder
-                                SignalChainConnector()
-
-                                // Node 2: Decoder
-                                SignalChainNodeCard(
-                                    icon = { inspector.decoderNodeIcon() },
-                                    iconBackgroundColor = MaterialTheme.colorScheme.tertiary.copy(alpha = 0.15f),
-                                    title = effectiveDecoderName,
-                                    badgeText = "Decoder",
-                                    badgeColor = MaterialTheme.colorScheme.onSurfaceVariant,
-                                    badgeBackgroundColor = MaterialTheme.colorScheme.surfaceContainerHighest,
-                                    subtitleItems = listOf(
-                                        formatSampleRateForInspector(effectiveDecoderRate),
-                                        "32-bit Float"
-                                    )
-                                )
-
-                                // Optional Node 3: Resampler
-                                if (isResamplingActive) {
-                                    val resamplerTitle = when (activeResamplerPref) {
-                                        AudioResamplerPreference.Sox -> "SoX resampler"
-                                        AudioResamplerPreference.BuiltIn -> "Built-in resampler"
-                                    }
-                                    val resamplerEngine = when (activeResamplerPref) {
-                                        AudioResamplerPreference.Sox -> "SoX (libsoxr)"
-                                        AudioResamplerPreference.BuiltIn -> "miniaudio linear"
-                                    }
-
-                                    SignalChainConnector(
-                                        label = "Resampling",
-                                        highlightColor = Color(0xFFFFD54F)
-                                    )
-
-                                    SignalChainNodeCard(
-                                        icon = {
-                                            Icon(
-                                                imageVector = ConversionPathIcon,
-                                                contentDescription = null,
-                                                modifier = Modifier.size(18.dp),
-                                                tint = Color(0xFFFFD54F)
-                                            )
-                                        },
-                                        iconBackgroundColor = Color(0xFFFFD54F).copy(alpha = 0.15f),
-                                        title = resamplerTitle,
-                                        badgeText = "Resampler",
-                                        badgeColor = Color(0xFFFFD54F),
-                                        badgeBackgroundColor = Color(0xFFFFD54F).copy(alpha = 0.15f),
-                                        subtitleItems = listOf(
-                                            "${formatSampleRateForInspector(effectiveDecoderRate)} → ${formatSampleRateForInspector(effectiveOutputRate)}",
-                                            resamplerEngine
-                                        )
-                                    )
-                                }
-
-                                // Connector to Output Sink
-                                val bitPerfectHighlightColor = Color(0xFF4DD0E1)
                                 SignalChainConnector(
-                                    label = if (isBitPerfectActive) "Direct USB" else null,
-                                    highlightColor = if (isBitPerfectActive) bitPerfectHighlightColor else null
+                                    label = "Resampling",
+                                    highlightColor = Color(0xFFFFD54F)
                                 )
-
-                                // Node 4 (or 3): Output Endpoint
-                                val sinkBadgeText = when (routeInfo.type) {
-                                    AudioOutputRouteType.Speaker -> speakerBadgeText
-                                    AudioOutputRouteType.Headphones -> "Wired"
-                                    AudioOutputRouteType.Hdmi -> "HDMI"
-                                    AudioOutputRouteType.Spdif -> "S/PDIF"
-                                    AudioOutputRouteType.Usb -> if (isBitPerfectActive) "Bit-Perfect" else "USB"
-                                    AudioOutputRouteType.Bluetooth -> "A2DP"
-                                }
-                                val sinkIconTint = if (isBitPerfectActive) bitPerfectHighlightColor else MaterialTheme.colorScheme.secondary
-                                val sinkIconBg = if (isBitPerfectActive) bitPerfectHighlightColor.copy(alpha = 0.15f) else MaterialTheme.colorScheme.secondary.copy(alpha = 0.15f)
-                                val sinkBadgeColor = if (isBitPerfectActive) bitPerfectHighlightColor else MaterialTheme.colorScheme.onSurfaceVariant
-                                val sinkBadgeBg = if (isBitPerfectActive) bitPerfectHighlightColor.copy(alpha = 0.15f) else MaterialTheme.colorScheme.surfaceContainerHighest
-
-                                val sinkFormatText =
-                                    inspector.rememberUsbSinkFormatText() ?: "16-bit PCM"
 
                                 SignalChainNodeCard(
                                     icon = {
                                         Icon(
-                                            imageVector = when (routeInfo.type) {
-                                                AudioOutputRouteType.Bluetooth -> Icons.Default.Bluetooth
-                                                AudioOutputRouteType.Headphones -> Icons.Default.Headphones
-                                                AudioOutputRouteType.Usb -> Icons.Default.Usb
-                                                AudioOutputRouteType.Hdmi -> HdmiIcon
-                                                AudioOutputRouteType.Spdif -> CableIcon
-                                                AudioOutputRouteType.Speaker -> Icons.AutoMirrored.Filled.VolumeUp
-                                            },
+                                            imageVector = ConversionPathIcon,
                                             contentDescription = null,
                                             modifier = Modifier.size(18.dp),
-                                            tint = sinkIconTint
+                                            tint = Color(0xFFFFD54F)
                                         )
                                     },
-                                    iconBackgroundColor = sinkIconBg,
-                                    title = routeInfo.name,
-                                    badgeText = sinkBadgeText,
-                                    badgeColor = sinkBadgeColor,
-                                    badgeBackgroundColor = sinkBadgeBg,
+                                    iconBackgroundColor = Color(0xFFFFD54F).copy(alpha = 0.15f),
+                                    title = resamplerTitle,
+                                    badgeText = "Resampler",
+                                    badgeColor = Color(0xFFFFD54F),
+                                    badgeBackgroundColor = Color(0xFFFFD54F).copy(alpha = 0.15f),
                                     subtitleItems = listOf(
-                                        formatSampleRateForInspector(effectiveOutputRate),
-                                        sinkFormatText
+                                        "${formatSampleRateForInspector(effectiveDecoderRate)} → ${formatSampleRateForInspector(effectiveOutputRate)}",
+                                        resamplerEngine
                                     )
                                 )
                             }
+
+                            // Connector to Output Sink
+                            val bitPerfectHighlightColor = Color(0xFF4DD0E1)
+                            SignalChainConnector(
+                                label = if (isBitPerfectActive) "Direct USB" else null,
+                                highlightColor = if (isBitPerfectActive) bitPerfectHighlightColor else null
+                            )
+
+                            // Node 4 (or 3): Output Endpoint
+                            val sinkBadgeText = when (routeInfo.type) {
+                                AudioOutputRouteType.Speaker -> speakerBadgeText
+                                AudioOutputRouteType.Headphones -> "Wired"
+                                AudioOutputRouteType.Hdmi -> "HDMI"
+                                AudioOutputRouteType.Spdif -> "S/PDIF"
+                                AudioOutputRouteType.Usb -> if (isBitPerfectActive) "Bit-Perfect" else "USB"
+                                AudioOutputRouteType.Bluetooth -> "A2DP"
+                            }
+                            val sinkIconTint = if (isBitPerfectActive) bitPerfectHighlightColor else MaterialTheme.colorScheme.secondary
+                            val sinkIconBg = if (isBitPerfectActive) bitPerfectHighlightColor.copy(alpha = 0.15f) else MaterialTheme.colorScheme.secondary.copy(alpha = 0.15f)
+                            val sinkBadgeColor = if (isBitPerfectActive) bitPerfectHighlightColor else MaterialTheme.colorScheme.onSurfaceVariant
+                            val sinkBadgeBg = if (isBitPerfectActive) bitPerfectHighlightColor.copy(alpha = 0.15f) else MaterialTheme.colorScheme.surfaceContainerHighest
+
+                            val sinkFormatText = inspector.rememberUsbSinkFormatText()
+
+                            SignalChainNodeCard(
+                                icon = {
+                                    Icon(
+                                        imageVector = when (routeInfo.type) {
+                                            AudioOutputRouteType.Bluetooth -> Icons.Default.Bluetooth
+                                            AudioOutputRouteType.Headphones -> Icons.Default.Headphones
+                                            AudioOutputRouteType.Usb -> Icons.Default.Usb
+                                            AudioOutputRouteType.Hdmi -> HdmiIcon
+                                            AudioOutputRouteType.Spdif -> CableIcon
+                                            AudioOutputRouteType.Speaker -> Icons.AutoMirrored.Filled.VolumeUp
+                                        },
+                                        contentDescription = null,
+                                        modifier = Modifier.size(18.dp),
+                                        tint = sinkIconTint
+                                    )
+                                },
+                                iconBackgroundColor = sinkIconBg,
+                                title = routeInfo.name,
+                                badgeText = sinkBadgeText,
+                                badgeColor = sinkBadgeColor,
+                                badgeBackgroundColor = sinkBadgeBg,
+                                subtitleItems = listOfNotNull(
+                                    formatSampleRateForInspector(effectiveOutputRate).takeIf { it != "Unknown" },
+                                    sinkFormatText
+                                )
+                            )
                         }
                     }
 
-                    // Section: Stream Metrics
+                    // Section: Output Metrics
                     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                         DialogSectionLabel(
-                            text = "Stream metrics",
+                            text = "Output metrics",
                             modifier = Modifier.padding(start = 8.dp)
                         )
 
-                        Card(
-                            modifier = Modifier.fillMaxWidth(),
-                            shape = RoundedCornerShape(16.dp),
-                            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow),
-                            border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f))
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 8.dp),
+                            verticalArrangement = Arrangement.spacedBy(10.dp)
                         ) {
-                            Column(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(horizontal = 14.dp, vertical = 12.dp),
-                                verticalArrangement = Arrangement.spacedBy(10.dp)
+                            if (
+                                backendLabel.isNotBlank() &&
+                                backendLabel != inspector.inactiveBackendLabel &&
+                                backendLabel != "Unknown"
                             ) {
                                 MetricListRow(
-                                    label = "Active backend",
+                                    label = "Output API",
                                     value = backendLabel,
-                                    sub = "miniaudio"
+                                    sub = null
                                 )
                                 HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.2f))
+                            }
+                            MetricListRow(
+                                label = "Audio engine",
+                                value = "miniaudio",
+                                sub = null
+                            )
+                            if (bufferPeriodMs != null) {
+                                HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.2f))
                                 MetricListRow(
-                                    label = "Buffer & latency",
-                                    value = String.format(Locale.US, "%.1f ms", latencyMs),
-                                    sub = "$effectiveBurstFrames frames"
+                                    label = "Buffer period",
+                                    value = String.format(Locale.US, "%.1f ms", bufferPeriodMs),
+                                    sub = "$burstFrames frames at ${formatSampleRateForInspector(outputStreamRateHz)}"
                                 )
                             }
                         }
@@ -623,20 +617,12 @@ internal fun AudioOutputDetailsDialog(
                     horizontalArrangement = Arrangement.End,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    TextButton(onClick = onOpenAudioSettings) {
-                        Text(
-                            text = "Audio settings",
-                            style = MaterialTheme.typography.labelLarge,
-                            fontWeight = FontWeight.Medium
-                        )
-                    }
-                    Spacer(modifier = Modifier.width(8.dp))
                     Button(
                         onClick = onDismiss,
                         shape = RoundedCornerShape(18.dp)
                     ) {
                         Text(
-                            text = "Done",
+                            text = "Close",
                             style = MaterialTheme.typography.labelLarge,
                             fontWeight = FontWeight.Medium
                         )
@@ -661,8 +647,7 @@ private fun SignalChainNodeCard(
     Surface(
         modifier = modifier.fillMaxWidth(),
         shape = RoundedCornerShape(12.dp),
-        color = MaterialTheme.colorScheme.surfaceContainerHigh,
-        border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.25f))
+        color = MaterialTheme.colorScheme.surfaceContainerLow
     ) {
         Row(
             modifier = Modifier

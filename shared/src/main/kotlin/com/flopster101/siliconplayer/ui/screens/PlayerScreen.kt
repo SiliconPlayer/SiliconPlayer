@@ -2528,10 +2528,6 @@ internal fun PlayerScreen(
             onRestartTrack = {
                 onSeek(0.0)
             },
-            onOpenAudioSettings = {
-                showAudioOutputDetailsDialog = false
-                audioRouteManager.openAudioOutputSwitcher()
-            },
             onDismiss = { showAudioOutputDetailsDialog = false }
         )
     }
