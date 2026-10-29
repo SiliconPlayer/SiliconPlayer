@@ -99,7 +99,8 @@ void ChannelScopeRenderer::setAllChannelHistories(
     int32_t channelCount,
     int32_t totalSamplesPerChannel,
     const float* flatData,
-    int32_t displaySamplesPerChannel
+    int32_t displaySamplesPerChannel,
+    int32_t triggerWidthSamples
 ) {
     if (channelCount <= 0 || totalSamplesPerChannel <= 0 || !flatData) {
         channelHistories_.clear();
@@ -141,7 +142,13 @@ void ChannelScopeRenderer::setAllChannelHistories(
         }
 
         // Trigger mode (1 = rising, 2 = falling): search outward from center
-        int bestIdx = totalSamplesPerChannel / 2;
+        const int center = totalSamplesPerChannel / 2;
+        const int searchHalfWidth = triggerWidthSamples > 0
+            ? std::min(triggerWidthSamples / 4, (totalSamplesPerChannel - displaySamplesPerChannel) / 2)
+            : (totalSamplesPerChannel - displaySamplesPerChannel) / 2;
+        const int lo = std::max(displayHalf, center - searchHalfWidth);
+        const int hi = std::min(totalSamplesPerChannel - displayHalf, center + searchHalfWidth);
+        int bestIdx = center;
         float absMax = 0.0f;
         for (int i = 0; i < totalSamplesPerChannel; ++i) {
             float a = std::abs(src[i]);
@@ -149,17 +156,16 @@ void ChannelScopeRenderer::setAllChannelHistories(
         }
 
         if (absMax >= 0.005f) {
-            int lo = totalSamplesPerChannel / 4;
-            int hi = (3 * totalSamplesPerChannel) / 4;
+            float bestSlope = -1.0f;
             int bestDist = totalSamplesPerChannel;
-            int center = totalSamplesPerChannel / 2;
-
             for (int i = lo + 1; i < hi; ++i) {
                 bool crossed = rising ? (src[i - 1] <= 0.0f && src[i] > 0.0f)
                                       : (src[i - 1] >= 0.0f && src[i] < 0.0f);
                 if (crossed) {
                     int dist = std::abs(i - center);
-                    if (dist < bestDist) {
+                    const float slope = std::abs(src[i] - src[i - 1]);
+                    if (slope > bestSlope || (slope == bestSlope && dist < bestDist)) {
+                        bestSlope = slope;
                         bestDist = dist;
                         bestIdx = i;
                     }

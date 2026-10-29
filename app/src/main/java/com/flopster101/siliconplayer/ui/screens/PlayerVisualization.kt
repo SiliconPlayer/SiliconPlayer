@@ -927,9 +927,17 @@ private fun readVisualizationSnapshot(
                     windowMs = channelScopeWindowMs,
                     sampleRateHz = sampleRateHz
                 )
-                // Accurate mode needs a wider buffer for the correlation kernel.
-                val bufferMultiplier = if (channelScopeTriggerAlgorithmNative == 1) 2.25f else 1.5f
-                val nativeSamples = ((scopeSamples * bufferMultiplier).toInt()).coerceIn(scopeSamples, 8192)
+                val triggerWidthSamples = ((sampleRateHz.coerceAtLeast(8_000) * 60L) / 1000L)
+                    .coerceAtMost(8192L * 2L / 3L).toInt()
+                val triggerInputSamples = if (channelScopeTriggerAlgorithmNative == 1) {
+                    maxOf(
+                        triggerWidthSamples + triggerWidthSamples / 2,
+                        scopeSamples + triggerWidthSamples / 2
+                    )
+                } else {
+                    (scopeSamples * 1.5f).toInt()
+                }
+                val nativeSamples = maxOf(scopeSamples, triggerInputSamples).coerceAtMost(8192)
                 val channelScopesFlat = NativeBridge.getChannelScopeSamples(nativeSamples)
                 val fullHistories = if (nativeSamples > 0 && channelScopesFlat.size >= nativeSamples) {
                     buildChannelScopeHistories(
@@ -953,7 +961,9 @@ private fun readVisualizationSnapshot(
                         samplesPerChannel = nativeSamples,
                         numChannels = fullHistories.size,
                         triggerModeNative = channelScopeTriggerModeNative,
-                        algorithmMode = channelScopeTriggerAlgorithmNative
+                        algorithmMode = channelScopeTriggerAlgorithmNative,
+                        triggerWidthSamples = triggerWidthSamples,
+                        sampleRateHz = sampleRateHz
                     )
                     result
                 } else {

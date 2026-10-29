@@ -30,7 +30,9 @@ public:
         int samplesPerChannel,
         int numChannels,
         int triggerModeNative,
-        int algorithmMode = TRIGGER_ALGORITHM_FAST
+        int algorithmMode,
+        int triggerWidthSamples,
+        int sampleRateHz
     );
 
     // Reset all persistent state (e.g. on track change).
@@ -44,6 +46,8 @@ private:
         const float* channelData,
         int n,
         int triggerModeNative,
+        int triggerWidthSamples,
+        int sampleRateHz,
         ChannelTriggerState& state
     );
 

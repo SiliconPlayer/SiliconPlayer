@@ -462,7 +462,9 @@ object NativeBridge {
         samplesPerChannel: Int,
         numChannels: Int,
         triggerModeNative: Int,
-        algorithmMode: Int
+        algorithmMode: Int,
+        triggerWidthSamples: Int,
+        sampleRateHz: Int
     ): IntArray
     external fun resetChannelScopeTriggers()
     external fun getVgmGameName(): String

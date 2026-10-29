@@ -1497,7 +1497,7 @@ extern "C" JNIEXPORT jintArray JNICALL
 Java_com_flopster101_siliconplayer_NativeBridge_computeChannelScopeTriggers(
     JNIEnv* env, jobject,
     jfloatArray flatScopeData, jint samplesPerChannel, jint numChannels,
-    jint triggerModeNative, jint algorithmMode
+    jint triggerModeNative, jint algorithmMode, jint triggerWidthSamples, jint sampleRateHz
 ) {
     if (flatScopeData == nullptr) return env->NewIntArray(0);
     jint dataLen = env->GetArrayLength(flatScopeData);
@@ -1508,7 +1508,8 @@ Java_com_flopster101_siliconplayer_NativeBridge_computeChannelScopeTriggers(
 
     auto indices = channelScopeTrigger.computeTriggerIndices(
         dataPtr, static_cast<int>(samplesPerChannel), static_cast<int>(numChannels),
-        static_cast<int>(triggerModeNative), static_cast<int>(algorithmMode)
+        static_cast<int>(triggerModeNative), static_cast<int>(algorithmMode),
+        static_cast<int>(triggerWidthSamples), static_cast<int>(sampleRateHz)
     );
 
     env->ReleaseFloatArrayElements(flatScopeData, dataPtr, JNI_ABORT);

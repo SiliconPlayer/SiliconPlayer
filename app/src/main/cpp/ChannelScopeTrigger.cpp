@@ -167,6 +167,7 @@ int ChannelScopeTrigger::findTriggerFast(
 
 int ChannelScopeTrigger::findTriggerForChannel(
     const float* channelData, int n, int triggerModeNative,
+    int triggerWidthSamples, int sampleRateHz,
     ChannelTriggerState& state
 ) {
     int center = n / 2;
@@ -190,14 +191,17 @@ int ChannelScopeTrigger::findTriggerForChannel(
     if (absMax < 0.01f) return center;
 
     // --- Sizing ---
-    int kernelSize = (n * 2) / 3;
-    int triggerDiameter = n - kernelSize;
+    int kernelSize = triggerWidthSamples > 0
+        ? std::min(triggerWidthSamples, (n * 2) / 3)
+        : (n * 2) / 3;
+    int triggerDiameter = std::min(kernelSize / 2, n - kernelSize);
     int halfKernel = kernelSize / 2;
     int corrNsamp = triggerDiameter + 1;
     if (kernelSize < 8 || corrNsamp < 2) return center;
+    const int triggerBegin = (n - kernelSize - triggerDiameter) / 2;
 
     // --- Mean removal ---
-    constexpr float meanResp = 1.0f;
+    constexpr float meanResp = 0.0f;
     float dataMean = 0.0f;
     for (int i = 0; i < n; ++i) dataMean += data[i];
     dataMean /= n;
@@ -207,7 +211,7 @@ int ChannelScopeTrigger::findTriggerForChannel(
     for (int i = 0; i < n; ++i) meanRemoved[i] = data[i] - state.prevMean;
 
     // --- Period estimation ---
-    constexpr float subsmpPerS = 44100.0f;
+    const float subsmpPerS = static_cast<float>(std::max(sampleRateHz, 8000));
     constexpr float maxFreq = 4000.0f;
     int period = estimateSignalPeriod(meanRemoved.data(), n, subsmpPerS, maxFreq);
 
@@ -219,14 +223,13 @@ int ChannelScopeTrigger::findTriggerForChannel(
             std::abs(std::log(static_cast<float>(period) / state.prevPeriod) / std::log(2.0f) * 12.0f) > recalcSemitones) ||
         (state.prevPeriod == 0 && period > 0);
 
-    constexpr float edgeStrength = 2.0f;
-    constexpr float bufferStrength = 1.0f;
-    constexpr float slopeWidthFraction = 0.25f;
+    constexpr float edgeStrength = 1.0f;
+    constexpr float bufferStrength = 0.0f;
+    constexpr float slopeWidthFraction = 0.0f;
 
     if (needRecalc) {
-        float slopeWidth = (period > 0)
-            ? std::clamp(slopeWidthFraction * period, 1.0f, halfKernel / 3.0f)
-            : std::clamp(kernelSize / 12.0f, 1.0f, halfKernel / 3.0f);
+        float slopeWidth = std::clamp(
+            slopeWidthFraction * static_cast<float>(period), 1.0f, halfKernel / 3.0f);
         float slopeStrength = edgeStrength * 2.0f;
 
         state.prevSlopeFinder.resize(kernelSize);
@@ -240,7 +243,7 @@ int ChannelScopeTrigger::findTriggerForChannel(
     }
 
     // --- Build combined kernel ---
-    bool corrEnabled = !state.corrBuffer.empty() &&
+    bool corrEnabled = bufferStrength > 0.0f && !state.corrBuffer.empty() &&
         static_cast<int>(state.corrBuffer.size()) == kernelSize;
 
     std::vector<float> combinedKernel(kernelSize);
@@ -254,23 +257,25 @@ int ChannelScopeTrigger::findTriggerForChannel(
 
     // --- Cross-correlation ---
     std::vector<float> corr(corrNsamp);
-    correlateValid(meanRemoved.data(), n, combinedKernel.data(), kernelSize, corr.data(), corrNsamp);
+    const float* searchData = meanRemoved.data() + triggerBegin;
+    const int searchDataLen = kernelSize + triggerDiameter;
+    correlateValid(searchData, searchDataLen, combinedKernel.data(), kernelSize, corr.data(), corrNsamp);
 
     // --- Buffer quality peaks ---
     std::vector<float> peaks(corrNsamp, 0.0f);
     if (corrEnabled) {
         std::vector<float> bq(corrNsamp);
-        correlateValid(meanRemoved.data(), n, state.corrBuffer.data(), kernelSize, bq.data(), corrNsamp);
+        correlateValid(searchData, searchDataLen, state.corrBuffer.data(), kernelSize, bq.data(), corrNsamp);
         for (int i = 0; i < corrNsamp; ++i) peaks[i] = bq[i] * bufferStrength;
     }
 
     // --- Cumulative-sum edge score ---
     {
         int cumsumStart = halfKernel - 1;
-        if (cumsumStart >= 0 && cumsumStart + corrNsamp <= n) {
+        if (cumsumStart >= 0 && cumsumStart + corrNsamp <= searchDataLen) {
             float cumSum = 0.0f;
             for (int i = 0; i < corrNsamp; ++i) {
-                cumSum += meanRemoved[cumsumStart + i];
+                cumSum += searchData[cumsumStart + i];
                 peaks[i] += -cumSum * edgeStrength;
             }
         }
@@ -279,8 +284,11 @@ int ChannelScopeTrigger::findTriggerForChannel(
     // --- Restrict search radius by period ---
     constexpr float triggerRadiusPeriods = 1.5f;
     int triggerRadius = (period > 0)
-        ? std::min(static_cast<int>(period * triggerRadiusPeriods), corrNsamp / 2)
-        : corrNsamp / 2;
+        ? std::min(static_cast<int>(period * triggerRadiusPeriods),
+                   triggerWidthSamples > 0 ? triggerWidthSamples / 4 : corrNsamp / 2)
+        : (triggerWidthSamples > 0
+            ? std::min(triggerDiameter / 2, triggerWidthSamples / 4)
+            : corrNsamp / 2);
 
     // --- find_peak with local-maxima filtering ---
     int mid = corrNsamp / 2;
@@ -318,32 +326,34 @@ int ChannelScopeTrigger::findTriggerForChannel(
         if (wCorr[i] > bestVal) { bestVal = wCorr[i]; bestIdx = i; }
     }
     int peakOffset = (bestVal <= minCorr) ? mid : (left + bestIdx);
-    int triggerIdx = std::clamp(peakOffset + halfKernel, 0, n - 1);
+    int triggerIdx = std::clamp(triggerBegin + peakOffset + halfKernel, 0, n - 1);
 
     // --- Update correlation buffer ---
-    int alignStart = std::clamp(triggerIdx - halfKernel, 0, n - kernelSize);
-    std::vector<float> aligned(kernelSize);
-    for (int j = 0; j < kernelSize; ++j) aligned[j] = meanRemoved[alignStart + j];
+    if (bufferStrength > 0.0f) {
+        int alignStart = std::clamp(triggerIdx - halfKernel, 0, n - kernelSize);
+        std::vector<float> aligned(kernelSize);
+        for (int j = 0; j < kernelSize; ++j) aligned[j] = meanRemoved[alignStart + j];
 
-    float resultMean = 0.0f;
-    for (int j = 0; j < kernelSize; ++j) resultMean += aligned[j];
-    resultMean /= kernelSize;
-    for (int j = 0; j < kernelSize; ++j) aligned[j] -= resultMean;
+        float resultMean = 0.0f;
+        for (int j = 0; j < kernelSize; ++j) resultMean += aligned[j];
+        resultMean /= kernelSize;
+        for (int j = 0; j < kernelSize; ++j) aligned[j] -= resultMean;
 
-    normalizeInPlace(aligned.data(), kernelSize);
+        normalizeInPlace(aligned.data(), kernelSize);
 
-    float bufStd = (period > 0) ? (period * 0.5f) : (kernelSize / 4.0f);
-    std::vector<float> window(kernelSize);
-    gaussianWindow(window.data(), kernelSize, bufStd);
-    for (int j = 0; j < kernelSize; ++j) aligned[j] *= window[j];
+        float bufStd = (period > 0) ? (period * 0.5f) : (kernelSize / 4.0f);
+        std::vector<float> window(kernelSize);
+        gaussianWindow(window.data(), kernelSize, bufStd);
+        for (int j = 0; j < kernelSize; ++j) aligned[j] *= window[j];
 
-    constexpr float responsiveness = 0.2f;
-    if (state.corrBuffer.empty() || static_cast<int>(state.corrBuffer.size()) != kernelSize) {
-        state.corrBuffer = std::move(aligned);
-    } else {
-        normalizeInPlace(state.corrBuffer.data(), kernelSize);
-        for (int j = 0; j < kernelSize; ++j) {
-            state.corrBuffer[j] = state.corrBuffer[j] * (1.0f - responsiveness) + aligned[j] * responsiveness;
+        constexpr float responsiveness = 0.2f;
+        if (state.corrBuffer.empty() || static_cast<int>(state.corrBuffer.size()) != kernelSize) {
+            state.corrBuffer = std::move(aligned);
+        } else {
+            normalizeInPlace(state.corrBuffer.data(), kernelSize);
+            for (int j = 0; j < kernelSize; ++j) {
+                state.corrBuffer[j] = state.corrBuffer[j] * (1.0f - responsiveness) + aligned[j] * responsiveness;
+            }
         }
     }
 
@@ -354,7 +364,7 @@ int ChannelScopeTrigger::findTriggerForChannel(
 
 std::vector<int32_t> ChannelScopeTrigger::computeTriggerIndices(
     const float* flatScopeData, int samplesPerChannel, int numChannels,
-    int triggerModeNative, int algorithmMode
+    int triggerModeNative, int algorithmMode, int triggerWidthSamples, int sampleRateHz
 ) {
     if (numChannels <= 0 || samplesPerChannel < 8) return {};
 
@@ -371,7 +381,9 @@ std::vector<int32_t> ChannelScopeTrigger::computeTriggerIndices(
     for (int ch = 0; ch < numChannels; ++ch) {
         const float* chData = flatScopeData + static_cast<size_t>(ch) * samplesPerChannel;
         if (algorithmMode == TRIGGER_ALGORITHM_ACCURATE) {
-            indices[ch] = findTriggerForChannel(chData, samplesPerChannel, triggerModeNative, states_[ch]);
+            indices[ch] = findTriggerForChannel(
+                chData, samplesPerChannel, triggerModeNative,
+                triggerWidthSamples, sampleRateHz, states_[ch]);
         } else {
             indices[ch] = findTriggerFast(chData, samplesPerChannel, triggerModeNative);
         }

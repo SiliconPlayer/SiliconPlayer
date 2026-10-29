@@ -63,7 +63,13 @@ public:
     void setFastLinesEnabled(bool enabled) { fastLinesEnabled_ = enabled; }
 
     void setChannelHistory(int32_t channel, const float* history, int32_t sampleCount);
-    void setAllChannelHistories(int32_t channelCount, int32_t samplesPerChannel, const float* flatData, int32_t displaySamplesPerChannel = 0);
+    void setAllChannelHistories(
+        int32_t channelCount,
+        int32_t samplesPerChannel,
+        const float* flatData,
+        int32_t displaySamplesPerChannel = 0,
+        int32_t triggerWidthSamples = 0
+    );
     void setTextStates(const SiliconVisChannelTextState* states, int32_t count);
     void setTextQuads(const float* quads, int32_t vertexCount);
 
