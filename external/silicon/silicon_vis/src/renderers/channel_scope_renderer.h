@@ -3,6 +3,7 @@
 #include "silicon/vis/IVisualizerRenderer.h"
 #include "gl/gl_primitives.h"
 #include "gl/gl_font_atlas.h"
+#include <chrono>
 #include <vector>
 #include <string>
 
@@ -75,7 +76,7 @@ private:
     void drawVuBars();
     void drawText();
 
-    float computeVuLevel(const std::vector<float>& history) const;
+    float updateVuLevel(int channel, const std::vector<float>& history, float deltaSeconds);
     int computeAutoTextSizeSp(int selectedSp, int minimumSp, float cellWidthDp, float paddingDp) const;
     float estimateTextWidthDp(int sp, float paddingDp) const;
     std::string truncateWithEllipsis(const std::string& text, float maxWidthPx, float scale) const;
@@ -105,6 +106,8 @@ private:
     int32_t triggerMode_ = 0;
     int32_t waveRenderMode_ = 1;
     bool fastLinesEnabled_ = false;
+    std::chrono::steady_clock::time_point lastVuUpdate_{};
+    std::vector<float> vuLevels_;
 
     std::vector<std::vector<float>> channelHistories_;
     std::vector<SiliconVisChannelTextState> textStates_;

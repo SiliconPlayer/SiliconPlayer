@@ -224,15 +224,19 @@ void ChannelScopeRenderer::resolveGrid(int channelCount, int& outCols, int& outR
     }
 }
 
-float ChannelScopeRenderer::computeVuLevel(const std::vector<float>& history) const {
-    if (history.empty()) return 0.0f;
+float ChannelScopeRenderer::updateVuLevel(int channel, const std::vector<float>& history, float deltaSeconds) {
     float peak = 0.0f;
     size_t step = std::max<size_t>(1, history.size() / 64);
     for (size_t i = 0; i < history.size(); i += step) {
         float val = std::abs(history[i]);
         if (val > peak) peak = val;
     }
-    return std::clamp(peak, 0.0f, 1.0f);
+    peak = std::clamp(peak, 0.0f, 1.0f);
+    float& level = vuLevels_[channel];
+    const float timeConstant = peak > level ? 0.05f : 1.5f;
+    const float alpha = 1.0f - std::exp(-deltaSeconds / timeConstant);
+    level += (peak - level) * alpha;
+    return level;
 }
 
 void ChannelScopeRenderer::buildGeometry() {
@@ -241,7 +245,16 @@ void ChannelScopeRenderer::buildGeometry() {
     vuTrackVertices_.clear();
     vuFillVertices_.clear();
 
+    const auto now = std::chrono::steady_clock::now();
+    const float deltaSeconds = lastVuUpdate_.time_since_epoch().count() == 0
+        ? 1.0f / 60.0f
+        : std::chrono::duration<float>(now - lastVuUpdate_).count();
+    lastVuUpdate_ = now;
+
     int channels = static_cast<int>(channelHistories_.size());
+    if (static_cast<int>(vuLevels_.size()) != channels) {
+        vuLevels_.resize(channels, 0.0f);
+    }
     if (channels <= 0 || widthPx_ <= 0 || heightPx_ <= 0) return;
 
     int cols = 1, rows = 1;
@@ -470,7 +483,7 @@ void ChannelScopeRenderer::buildGeometry() {
                 };
                 vuTrackVertices_.insert(vuTrackVertices_.end(), trackQuad, trackQuad + 12);
 
-                float vuLevel = computeVuLevel(hist);
+                float vuLevel = updateVuLevel(ch, hist, deltaSeconds);
                 float fillW = usableW * vuLevel;
                 if (fillW > 0.0f) {
                     float fillQuad[12] = {
