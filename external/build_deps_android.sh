@@ -478,6 +478,8 @@ build_ayfly() {
         cd "$BUILD_DIR"
         # The GUI and audio drivers need wxWidgets and SDL; only the core
         # library is used here.
+        # AYFly players rely on signed char semantics ((char) casts for
+        # sample-loop and volume clamping); ARM ABIs default to unsigned.
         "$PROJECT_PATH/configure" \
             --host="$CONFIGURE_HOST" \
             --without-gui \
@@ -487,8 +489,8 @@ build_ayfly() {
             AR="$TOOLCHAIN/bin/llvm-ar" \
             RANLIB="$TOOLCHAIN/bin/llvm-ranlib" \
             STRIP="$TOOLCHAIN/bin/llvm-strip" \
-            CFLAGS="-fPIC $DEP_OPT_FLAGS" \
-            CXXFLAGS="-fPIC $DEP_OPT_FLAGS"
+            CFLAGS="-fPIC -fsigned-char $DEP_OPT_FLAGS" \
+            CXXFLAGS="-fPIC -fsigned-char $DEP_OPT_FLAGS"
 
         # The converter and dumper programs (always built by the top level
         # Makefile) are not needed, so only recurse into the library.

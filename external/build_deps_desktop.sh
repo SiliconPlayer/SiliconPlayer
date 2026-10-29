@@ -370,12 +370,15 @@ build_ayfly() {
     rm -rf "$BUILD_DIR" && mkdir -p "$BUILD_DIR" "$INSTALL_DIR/include/ayfly"
     (
         cd "$BUILD_DIR"
+        # AYFly players rely on signed char semantics ((char) casts for
+        # sample-loop and volume clamping); ARM ABIs default to unsigned.
         "$PROJECT_PATH/configure" \
             --prefix="$INSTALL_DIR" \
+            $AUTOTOOLS_HOST \
             --without-gui \
             --without-audio \
-            CFLAGS="$CFLAGS" \
-            CXXFLAGS="$CXXFLAGS"
+            CFLAGS="$CFLAGS -fsigned-char" \
+            CXXFLAGS="$CXXFLAGS -fsigned-char"
         make -j"$NPROC" -C src/libayfly
     )
     local static_lib
