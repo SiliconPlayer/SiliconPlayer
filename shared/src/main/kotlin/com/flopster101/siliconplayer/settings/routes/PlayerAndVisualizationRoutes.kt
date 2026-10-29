@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AutoAwesome
+import androidx.compose.material.icons.filled.Block
 import androidx.compose.material.icons.filled.Equalizer
 import androidx.compose.material.icons.filled.Fullscreen
 import androidx.compose.material.icons.filled.GraphicEq
@@ -554,14 +555,12 @@ internal fun VisualizationRouteContent(
     SettingsItemCard(
         title = "Current visualization",
         description = visualizationMode.label,
-        icon = Icons.Default.GraphicEq,
         onClick = { showModeDialog = true }
     )
     SettingsRowSpacer()
     SettingsItemCard(
         title = "Enabled visualizations",
         description = "${enabledVisualizationModes.size}/${toggleableModes.size} modes enabled",
-        icon = Icons.Default.Tune,
         onClick = { showEnabledDialog = true }
     )
     if (!projectMSupported) {
@@ -577,8 +576,15 @@ internal fun VisualizationRouteContent(
     SettingsItemCard(
         title = "Visualization performance mode",
         description = performanceDescription,
-        icon = Icons.Default.GraphicEq,
         onClick = { showPerformanceDialog = true }
+    )
+
+    SettingsSectionLabel("Behavior")
+    SettingsItemCard(
+        title = "Fallback visualizer",
+        description = advancedFallbackMode.label +
+            " • shown when the selected visualization is unavailable for the current track",
+        onClick = { showFallbackModeDialog = true }
     )
     SettingsRowSpacer()
     PlayerSettingToggleCard(
@@ -596,47 +602,34 @@ internal fun VisualizationRouteContent(
             onCheckedChange = onVisualizationKeepScreenOnChanged
         )
     }
+
     if (!isWatch) {
-        SettingsRowSpacer()
+        SettingsSectionLabel("Fullscreen")
         SettingsItemCard(
             title = "Fullscreen mode",
             description = fullscreenMode.label,
-            icon = Icons.Default.Fullscreen,
             onClick = { showFullscreenModeDialog = true }
         )
+        SettingsRowSpacer()
+        SettingsItemCard(
+            title = "Track ticker",
+            description = "Show the new track's title, artist and format on song change in fullscreen.",
+            showChevron = true,
+            onClick = onOpenVisualizationTrackTicker
+        )
     }
-    SettingsRowSpacer()
-    SettingsItemCard(
-        title = "Fallback visualizer",
-        description = advancedFallbackMode.label +
-            " • shown when the selected visualization is unavailable for the current track",
-        icon = Icons.Default.GraphicEq,
-        onClick = { showFallbackModeDialog = true }
-    )
-    SettingsSectionLabel("Basic visualizations")
-    SettingsRowSpacer()
+
+    SettingsSectionLabel("Visualization types")
     SettingsItemCard(
         title = "Basic visualization settings",
         description = "Configure Bars, Oscilloscope, and VU meters.",
-        icon = Icons.Default.GraphicEq,
         showChevron = true,
         onClick = onOpenVisualizationBasic
     )
-    SettingsSectionLabel("Fullscreen")
-    SettingsRowSpacer()
-    SettingsItemCard(
-        title = "Track ticker",
-        description = "Show the new track's title, artist and format on song change in fullscreen.",
-        icon = Icons.Default.Fullscreen,
-        showChevron = true,
-        onClick = onOpenVisualizationTrackTicker
-    )
-    SettingsSectionLabel("Advanced visualizations")
     SettingsRowSpacer()
     SettingsItemCard(
         title = "Advanced visualization settings",
-        description = "Configure specialized visualizations per core.",
-        icon = Icons.Default.Tune,
+        description = "Configure core-specific and specialized visualizations.",
         showChevron = true,
         onClick = onOpenVisualizationAdvanced
     )
@@ -707,7 +700,19 @@ internal fun VisualizationRouteContent(
             title = "Visualization mode",
             selectedValue = visualizationMode,
             options = availableModes.map { mode ->
-                ChoiceDialogOption(value = mode, label = mode.label)
+                ChoiceDialogOption(
+                    value = mode,
+                    label = mode.label,
+                    icon = when (mode) {
+                        VisualizationMode.Off -> Icons.Default.Block
+                        VisualizationMode.Bars -> Icons.Default.GraphicEq
+                        VisualizationMode.Oscilloscope -> Icons.Default.MonitorHeart
+                        VisualizationMode.VuMeters -> Icons.Default.Equalizer
+                        VisualizationMode.ChannelScope -> Icons.Default.MonitorHeart
+                        VisualizationMode.Starfield -> Icons.Default.Star
+                        VisualizationMode.ProjectM -> Icons.Default.AutoAwesome
+                    }
+                )
             },
             description = "Available modes depend on enabled visualizations and current core/song.",
             onSelected = onVisualizationModeChanged,

@@ -48,7 +48,8 @@ import androidx.compose.ui.unit.dp
 internal data class ChoiceDialogOption<T>(
     val value: T,
     val label: String,
-    val enabled: Boolean = true
+    val enabled: Boolean = true,
+    val icon: androidx.compose.ui.graphics.vector.ImageVector? = null
 )
 
 internal data class SettingsActionDialogItem(
@@ -315,6 +316,18 @@ internal fun <T> SettingsSingleChoiceDialog(
                             modifier = Modifier.size(18.dp)
                         )
                     }
+                    option.icon?.let { icon ->
+                        Icon(
+                            imageVector = icon,
+                            contentDescription = null,
+                            tint = if (!option.enabled) {
+                                MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
+                            } else {
+                                MaterialTheme.colorScheme.onSurfaceVariant
+                            },
+                            modifier = Modifier.size(20.dp)
+                        )
+                    }
                     Text(
                         text = option.label,
                         style = MaterialTheme.typography.bodyMedium,
@@ -397,6 +410,19 @@ internal fun <T> SettingsSingleChoiceDialog(
                                         }
                                     )
                                     Spacer(modifier = Modifier.width(8.dp))
+                                    option.icon?.let { icon ->
+                                        Icon(
+                                            imageVector = icon,
+                                            contentDescription = null,
+                                            tint = if (option.enabled) {
+                                                MaterialTheme.colorScheme.onSurfaceVariant
+                                            } else {
+                                                MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
+                                            },
+                                            modifier = Modifier.size(20.dp)
+                                        )
+                                        Spacer(modifier = Modifier.width(8.dp))
+                                    }
                                     Text(
                                         text = option.label,
                                         style = MaterialTheme.typography.bodyLarge,
