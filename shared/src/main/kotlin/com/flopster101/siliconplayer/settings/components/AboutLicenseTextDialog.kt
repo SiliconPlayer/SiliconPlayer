@@ -7,6 +7,7 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
@@ -60,6 +61,7 @@ private fun AboutLicenseTextContent(
     val configuration = LocalWindowSizeInfo.current
     val maxHeight = configuration.screenHeightDp.dp * 0.60f
     val scrollState = rememberScrollState()
+    val horizontalScrollState = rememberScrollState()
     var viewportHeightPx by remember { mutableIntStateOf(0) }
     val density = LocalDensity.current
     val scrollbarAlpha = rememberDialogScrollbarAlpha(
@@ -79,8 +81,8 @@ private fun AboutLicenseTextContent(
             fontFamily = FontFamily.Monospace,
             color = MaterialTheme.colorScheme.onSurface,
             modifier = Modifier
-                .fillMaxWidth()
                 .verticalScroll(scrollState)
+                .horizontalScroll(horizontalScrollState)
                 .padding(end = 12.dp)
         )
         if (viewportHeightPx > 0 && scrollState.maxValue > 0) {
