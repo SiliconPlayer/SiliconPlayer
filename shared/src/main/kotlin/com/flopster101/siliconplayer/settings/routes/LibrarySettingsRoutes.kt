@@ -1,7 +1,9 @@
 package com.flopster101.siliconplayer
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -13,12 +15,8 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Delete
-import androidx.compose.material.icons.filled.Error
 import androidx.compose.material.icons.filled.LibraryMusic
-import androidx.compose.material.icons.filled.Refresh
-import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
@@ -40,7 +38,6 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -140,20 +137,33 @@ internal fun LibrarySettingsRouteContent(
                             color = MaterialTheme.colorScheme.primary
                         )
                     }
-                    Icon(
-                        imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight,
-                        contentDescription = null,
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                    Switch(
-                        checked = source.enabled,
-                        onCheckedChange = { checked ->
-                            coroutineScope.launch {
-                                settings.setSourceEnabled(source.id, checked)
-                                sources = settings.sourceStatuses()
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(
+                            imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.size(24.dp)
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Box(
+                            modifier = Modifier
+                                .width(1.dp)
+                                .height(32.dp)
+                                .background(
+                                    MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.35f)
+                                )
+                        )
+                        Spacer(modifier = Modifier.width(12.dp))
+                        Switch(
+                            checked = source.enabled,
+                            onCheckedChange = { checked ->
+                                coroutineScope.launch {
+                                    settings.setSourceEnabled(source.id, checked)
+                                    sources = settings.sourceStatuses()
+                                }
                             }
-                        }
-                    )
+                        )
+                    }
                 }
             } else {
                 PlayerSettingToggleCard(
@@ -235,7 +245,6 @@ internal fun LibrarySettingsRouteContent(
     SettingsItemCard(
         title = "Scan now",
         description = if (isScanning) "Scanning…" else "Refresh all enabled sources now.",
-        icon = Icons.Default.Refresh,
         onClick = {
             if (isScanning) return@SettingsItemCard
             libraryRepository.requestScan()
@@ -264,23 +273,9 @@ internal fun LibrarySettingsRouteContent(
         PlaylistMetadataRefreshStatus.Idle ->
             "Probe and refresh tags and durations for all playlist tracks."
     }
-    val refreshIcon = when (metadataRefreshState.status) {
-        PlaylistMetadataRefreshStatus.Success -> Icons.Default.CheckCircle
-        PlaylistMetadataRefreshStatus.PartialSuccess -> Icons.Default.Warning
-        PlaylistMetadataRefreshStatus.Failed -> Icons.Default.Error
-        else -> Icons.Default.Refresh
-    }
-    val refreshIconTint = when (metadataRefreshState.status) {
-        PlaylistMetadataRefreshStatus.Success -> Color(0xFF4CAF50)
-        PlaylistMetadataRefreshStatus.PartialSuccess -> Color(0xFFFF9800)
-        PlaylistMetadataRefreshStatus.Failed -> MaterialTheme.colorScheme.error
-        else -> null
-    }
     SettingsItemCard(
         title = refreshTitle,
         description = refreshDesc,
-        icon = refreshIcon,
-        iconTint = refreshIconTint,
         onClick = {
             when (metadataRefreshState.status) {
                 PlaylistMetadataRefreshStatus.Running -> Unit
