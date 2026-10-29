@@ -397,9 +397,14 @@ void SiliconVisPipeline::render() {
             }
             case SILICON_VIS_MODE_CHANNEL_SCOPE: {
                 int chCount = 0;
-                const int windowMs = channelScope_.getWindowMs();
+                const float aspect = heightPx_ > 0
+                    ? static_cast<float>(widthPx_) / static_cast<float>(heightPx_)
+                    : 1.0f;
+                const float windowScale = std::clamp(aspect / 1.5f, 0.5f, 2.0f);
+                const int windowMs = std::clamp(
+                    static_cast<int>(channelScope_.getWindowMs() * windowScale), 5, 100);
                 int displaySamples = (48000 * windowMs) / 1000;
-                displaySamples = std::clamp(displaySamples, 64, 2048);
+                displaySamples = std::clamp(displaySamples, 64, 4800);
                 const int fetchSamples = displaySamples * 2;
                 audioProvider_->getChannelScopeHistories(fetchSamples, 0, nativeFlatScope_, chCount);
                 if (chCount > 0 && !nativeFlatScope_.empty()) {
@@ -560,9 +565,14 @@ bool SiliconVisPipeline::renderVulkan() {
             }
             case SILICON_VIS_MODE_CHANNEL_SCOPE: {
                 int chCount = 0;
-                const int windowMs = channelScope_.getWindowMs();
+                const float aspect = heightPx_ > 0
+                    ? static_cast<float>(widthPx_) / static_cast<float>(heightPx_)
+                    : 1.0f;
+                const float windowScale = std::clamp(aspect / 1.5f, 0.5f, 2.0f);
+                const int windowMs = std::clamp(
+                    static_cast<int>(channelScope_.getWindowMs() * windowScale), 5, 100);
                 int displaySamples = (48000 * windowMs) / 1000;
-                displaySamples = std::clamp(displaySamples, 64, 2048);
+                displaySamples = std::clamp(displaySamples, 64, 4800);
                 const int fetchSamples = displaySamples * 2;
                 audioProvider_->getChannelScopeHistories(fetchSamples, 0, nativeFlatScope_, chCount);
                 if (chCount > 0 && !nativeFlatScope_.empty()) {
