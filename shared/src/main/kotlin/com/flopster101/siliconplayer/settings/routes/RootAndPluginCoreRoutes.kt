@@ -184,7 +184,7 @@ internal fun RootRouteContent(
         onClick = onOpenMisc
     )
 
-    SettingsSectionLabel("Interface")
+    SettingsSectionLabel("App")
     SettingsItemCard(
         title = "UI settings",
         description = "Appearance and layout preferences.",
@@ -192,22 +192,20 @@ internal fun RootRouteContent(
         showChevron = true,
         onClick = onOpenUi
     )
-
-    SettingsSectionLabel("Info")
+    SettingsRowSpacer()
+    SettingsItemCard(
+        title = "Clear all app settings",
+        description = "Reset app settings to defaults. Core settings are kept.",
+        icon = Icons.Default.DeleteForever,
+        onClick = onRequestClearAllSettings
+    )
+    SettingsRowSpacer()
     SettingsItemCard(
         title = "About",
         description = "App information, versions, and credits.",
         icon = Icons.Default.Info,
         showChevron = true,
         onClick = onOpenAbout
-    )
-
-    SettingsSectionLabel("Danger zone")
-    SettingsItemCard(
-        title = "Clear all app settings",
-        description = "Reset app settings to defaults. Core settings are kept.",
-        icon = Icons.Default.DeleteForever,
-        onClick = onRequestClearAllSettings
     )
 }
 
