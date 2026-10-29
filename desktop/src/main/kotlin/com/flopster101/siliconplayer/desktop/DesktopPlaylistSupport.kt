@@ -11,6 +11,12 @@ import com.flopster101.siliconplayer.RECENT_ARTWORK_THUMB_MAX_SIZE_PX
 import com.flopster101.siliconplayer.ParsedPlaylistDocument
 import com.flopster101.siliconplayer.PlaylistExportFormat
 import com.flopster101.siliconplayer.PlaylistExportRegistry
+import com.flopster101.siliconplayer.PlaylistLibraryState
+import com.flopster101.siliconplayer.PLAYLIST_PACKAGE_EXTENSION
+import com.flopster101.siliconplayer.createPlaylistPackage
+import com.flopster101.siliconplayer.parsePlaylistPackage
+import com.flopster101.siliconplayer.PlaylistPackageImport
+import com.flopster101.siliconplayer.restorePlaylistPackageCovers
 import com.flopster101.siliconplayer.StoredPlaylist
 import com.flopster101.siliconplayer.recentArtworkCacheKeyForSource
 import com.flopster101.siliconplayer.recentLargeArtworkCacheKeyForSource
@@ -42,6 +48,7 @@ private val IMAGE_FILE_FILTER = FileNameExtensionFilter(
 )
 
 private val PLAYLIST_FILE_FILTER = FileNameExtensionFilter("Playlists", "m3u", "m3u8")
+private val PLAYLIST_PACKAGE_FILTER = FileNameExtensionFilter("Playlist packages", PLAYLIST_PACKAGE_EXTENSION)
 
 /**
  * Desktop artwork pipeline: recents thumbnails are memoized on disk under the
@@ -149,6 +156,27 @@ internal fun rememberDesktopPlaylistPlatformSupport(cacheDir: File): PlaylistPla
                 playlist: StoredPlaylist,
                 format: PlaylistExportFormat
             ): Boolean = false
+
+            override suspend fun exportPlaylistPackage(state: PlaylistLibraryState): Boolean =
+                withContext(Dispatchers.IO) {
+                    val target = chooseSaveFile("playlists.$PLAYLIST_PACKAGE_EXTENSION", PLAYLIST_PACKAGE_EXTENSION)
+                        ?: return@withContext false
+                    runCatching {
+                        target.writeBytes(createPlaylistPackage(state))
+                        true
+                    }.getOrDefault(false)
+                }
+
+            override suspend fun importPlaylistPackage(): PlaylistPackageImport? =
+                withContext(Dispatchers.IO) {
+                    val source = chooseOpenFile("Import playlist package", PLAYLIST_PACKAGE_FILTER)
+                        ?: return@withContext null
+                    runCatching {
+                        parsePlaylistPackage(source.readBytes())?.let { imported ->
+                            imported.copy(state = restorePlaylistPackageCovers(imported, coversDir))
+                        }
+                    }.getOrNull()
+                }
         }
     }
 }

@@ -11,6 +11,8 @@ import com.flopster101.siliconplayer.ExportNameConflict
 import com.flopster101.siliconplayer.NativeBridge
 import com.flopster101.siliconplayer.ParsedPlaylistDocument
 import com.flopster101.siliconplayer.PlaylistExportFormat
+import com.flopster101.siliconplayer.PlaylistLibraryState
+import com.flopster101.siliconplayer.PlaylistPackageImport
 import com.flopster101.siliconplayer.RemoteExportRequest
 import com.flopster101.siliconplayer.RemoteLoadUiState
 import com.flopster101.siliconplayer.StoredPlaylist
@@ -497,6 +499,8 @@ internal interface PlaylistPlatformSupport {
     suspend fun pickPlaylistDocument(): ParsedPlaylistDocument?
     suspend fun exportPlaylist(playlist: StoredPlaylist, format: PlaylistExportFormat): Boolean
     suspend fun sharePlaylist(playlist: StoredPlaylist, format: PlaylistExportFormat): Boolean
+    suspend fun exportPlaylistPackage(state: PlaylistLibraryState): Boolean
+    suspend fun importPlaylistPackage(): PlaylistPackageImport?
 }
 
 internal val LocalPlaylistPlatformSupport = staticCompositionLocalOf<PlaylistPlatformSupport> {

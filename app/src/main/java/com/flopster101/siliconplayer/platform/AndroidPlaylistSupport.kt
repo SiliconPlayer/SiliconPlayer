@@ -21,7 +21,14 @@ import com.flopster101.siliconplayer.ParsedPlaylistDocument
 import com.flopster101.siliconplayer.PlaybackService
 import com.flopster101.siliconplayer.PlaylistExportFormat
 import com.flopster101.siliconplayer.PlaylistExportRegistry
+import com.flopster101.siliconplayer.PlaylistLibraryState
 import com.flopster101.siliconplayer.PlaylistMetadataRefreshNotifier
+import com.flopster101.siliconplayer.PlaylistPackageImport
+import com.flopster101.siliconplayer.PLAYLIST_PACKAGE_EXTENSION
+import com.flopster101.siliconplayer.PLAYLIST_PACKAGE_MIME_TYPE
+import com.flopster101.siliconplayer.createPlaylistPackage
+import com.flopster101.siliconplayer.parsePlaylistPackage
+import com.flopster101.siliconplayer.restorePlaylistPackageCovers
 import com.flopster101.siliconplayer.PlaylistStoredFormat
 import com.flopster101.siliconplayer.RECENT_ARTWORK_CACHE_DIR
 import com.flopster101.siliconplayer.StoredPlaylist
@@ -195,7 +202,8 @@ internal fun rememberAndroidPlaylistPlatformSupport(): PlaylistPlatformSupport {
     val context = LocalContext.current
     val documentPicker = rememberUriDocumentPicker()
     val createDocumentPicker = rememberCreateDocumentPicker()
-    return remember(context, documentPicker, createDocumentPicker) {
+    val createPackageDocumentPicker = rememberCreatePackageDocumentPicker()
+    return remember(context, documentPicker, createDocumentPicker, createPackageDocumentPicker) {
         object : PlaylistPlatformSupport {
             override val supportsSystemPicker: Boolean = true
             override val coversDirectory: File
@@ -236,6 +244,41 @@ internal fun rememberAndroidPlaylistPlatformSupport(): PlaylistPlatformSupport {
             ): Boolean {
                 return withContext(Dispatchers.Main) { sharePlaylist(context, playlist, format) }
             }
+
+            override suspend fun exportPlaylistPackage(
+                state: PlaylistLibraryState
+            ): Boolean {
+                val targetUri = createPackageDocumentPicker("playlists.$PLAYLIST_PACKAGE_EXTENSION")
+                    ?: return false
+                return withContext(Dispatchers.IO) {
+                    runCatching {
+                        context.contentResolver.openOutputStream(targetUri)?.use { output ->
+                            output.write(createPlaylistPackage(state))
+                        } ?: return@runCatching false
+                        true
+                    }.getOrDefault(false)
+                }
+            }
+
+            override suspend fun importPlaylistPackage(): PlaylistPackageImport? {
+                val uri = documentPicker(
+                    arrayOf(PLAYLIST_PACKAGE_MIME_TYPE, "application/octet-stream", "*/*")
+                ) ?: return null
+                return withContext(Dispatchers.IO) {
+                    runCatching {
+                        context.contentResolver.openInputStream(uri)?.use { input ->
+                            parsePlaylistPackage(input.readBytes())?.let { imported ->
+                                imported.copy(
+                                    state = restorePlaylistPackageCovers(
+                                        imported,
+                                        File(context.filesDir, PLAYLIST_COVERS_DIR)
+                                    )
+                                )
+                            }
+                        }
+                    }.getOrNull()
+                }
+            }
         }
     }
 }
@@ -259,6 +302,25 @@ private fun rememberUriDocumentPicker(): suspend (Array<String>) -> Uri? {
 }
 
 /** Suspends until the user picks an export destination, or `null` when the picker is dismissed. */
+@Composable
+private fun rememberCreatePackageDocumentPicker(): suspend (String) -> Uri? {
+    val pending = remember { AtomicReference<CancellableContinuation<Uri?>?>(null) }
+    val launcher = rememberLauncherForActivityResult(
+        ActivityResultContracts.CreateDocument(PLAYLIST_PACKAGE_MIME_TYPE)
+    ) { uri ->
+        pending.getAndSet(null)?.takeIf { it.isActive }?.resume(uri)
+    }
+    return remember(launcher) {
+        { suggestedName ->
+            suspendCancellableCoroutine<Uri?> { continuation ->
+                pending.set(continuation)
+                launcher.launch(suggestedName)
+                continuation.invokeOnCancellation { pending.compareAndSet(continuation, null) }
+            }
+        }
+    }
+}
+
 @Composable
 private fun rememberCreateDocumentPicker(): suspend (String) -> Uri? {
     val pending = remember { AtomicReference<CancellableContinuation<Uri?>?>(null) }

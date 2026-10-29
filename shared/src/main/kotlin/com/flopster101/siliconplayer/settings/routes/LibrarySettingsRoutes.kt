@@ -52,6 +52,7 @@ import com.flopster101.siliconplayer.platform.LocalArtworkCacheSupport
 import com.flopster101.siliconplayer.platform.LocalIsWatchDevice
 import com.flopster101.siliconplayer.platform.LocalLibraryRepository
 import com.flopster101.siliconplayer.platform.LocalLibrarySettingsSupport
+import com.flopster101.siliconplayer.platform.LocalPlaylistPlatformSupport
 import com.flopster101.siliconplayer.platform.LocalPlaylistRefreshNotifier
 import com.flopster101.siliconplayer.platform.LocalTrackProbeSupport
 import java.io.File
@@ -66,6 +67,7 @@ internal fun LibrarySettingsRouteContent(
     val configDir = LocalAppConfigDir.current
     val artworkCache = LocalArtworkCacheSupport.current
     val refreshNotifier = LocalPlaylistRefreshNotifier.current
+    val playlistPlatform = LocalPlaylistPlatformSupport.current
     val trackProbe = LocalTrackProbeSupport.current
     val libraryRepository = LocalLibraryRepository.current
     val settings = LocalLibrarySettingsSupport.current
@@ -90,6 +92,8 @@ internal fun LibrarySettingsRouteContent(
     val metadataRefreshState by PlaylistMetadataRefresher.state.collectAsState()
     var showRefreshConfirmDialog by remember { mutableStateOf(false) }
     var refreshLocalOnlyChoice by remember { mutableStateOf(false) }
+    var showImportPlaylistPackageConfirm by remember { mutableStateOf(false) }
+    var pendingPlaylistPackage by remember { mutableStateOf<PlaylistLibraryState?>(null) }
 
     LaunchedEffect(Unit) {
         sources = settings.sourceStatuses()
@@ -300,6 +304,65 @@ internal fun LibrarySettingsRouteContent(
             }
         } else null
     )
+
+    SettingsSectionLabel("Advanced")
+    SettingsItemCard(
+        title = "Export playlists",
+        description = "Back up all playlists, including their order and metadata.",
+        onClick = {
+            coroutineScope.launch {
+                playlistPlatform.exportPlaylistPackage(readPlaylistLibraryState(configDir, prefs))
+            }
+        }
+    )
+    SettingsRowSpacer()
+    SettingsItemCard(
+        title = "Import playlists",
+        description = "Restore playlists from a Silicon Player backup package.",
+        onClick = {
+            coroutineScope.launch {
+                playlistPlatform.importPlaylistPackage()?.let { imported ->
+                    pendingPlaylistPackage = imported.state
+                    showImportPlaylistPackageConfirm = true
+                }
+            }
+        }
+    )
+
+    if (showImportPlaylistPackageConfirm) {
+        AlertDialog(
+            onDismissRequest = {
+                showImportPlaylistPackageConfirm = false
+                pendingPlaylistPackage = null
+            },
+            title = { Text("Replace playlists?") },
+            text = {
+                Text("This will replace all current playlists and folders with the backup contents.")
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        val imported = pendingPlaylistPackage ?: return@TextButton
+                        writePlaylistLibraryState(configDir, imported)
+                        showImportPlaylistPackageConfirm = false
+                        pendingPlaylistPackage = null
+                    }
+                ) {
+                    Text("Replace")
+                }
+            },
+            dismissButton = {
+                TextButton(
+                    onClick = {
+                        showImportPlaylistPackageConfirm = false
+                        pendingPlaylistPackage = null
+                    }
+                ) {
+                    Text("Cancel")
+                }
+            }
+        )
+    }
 
     if (showRefreshConfirmDialog) {
         AlertDialog(

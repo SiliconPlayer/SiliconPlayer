@@ -479,6 +479,33 @@ internal fun mergeTrackPlaybackMetadata(
     }
 }
 
+internal fun writePlaylistBackupIndex(state: PlaylistLibraryState): String {
+    return JSONObject()
+        .put("version", 1)
+        .put(
+            "playlists",
+            JSONArray().apply {
+                state.playlists.forEach { put(writeStoredPlaylist(it)) }
+            }
+        )
+        .put(
+            "folders",
+            JSONArray().apply {
+                state.folders.forEach { put(writePlaylistFolder(it)) }
+            }
+        )
+        .toString()
+}
+
+internal fun readPlaylistBackupIndex(raw: String): PlaylistLibraryState? {
+    return runCatching {
+        val root = JSONObject(raw)
+        val playlists = root.optJSONArray("playlists")?.let(::readStoredPlaylists).orEmpty()
+        val folders = root.optJSONArray("folders")?.let(::readPlaylistFolders).orEmpty()
+        PlaylistLibraryState(playlists = playlists, folders = folders)
+    }.getOrNull()
+}
+
 internal fun readStoredPlaylistFromJson(raw: String?): StoredPlaylist? {
     val normalized = raw?.trim().takeUnless { it.isNullOrBlank() } ?: return null
     return runCatching {
