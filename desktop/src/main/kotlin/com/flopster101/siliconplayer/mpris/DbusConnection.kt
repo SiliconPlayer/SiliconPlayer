@@ -74,6 +74,7 @@ internal class DbusConnection(
         private set
 
     private val pendingReplies = ConcurrentHashMap<Int, BlockingQueue<DbusMessage>>()
+    private val pendingSignals = ConcurrentHashMap<String, BlockingQueue<DbusMessage>>()
     private val writeLock = Any()
 
     @Volatile
@@ -142,6 +143,26 @@ internal class DbusConnection(
         }
     }
 
+    /**
+     * Waits for a signal addressed to [path] on [interfaceName] with member
+     * [member] (used by the XDG portal, where the reply comes as a signal).
+     */
+    fun waitForSignal(
+        path: String,
+        interfaceName: String,
+        member: String,
+        timeoutMs: Long = 600_000
+    ): DbusMessage? {
+        val queue = LinkedBlockingQueue<DbusMessage>()
+        val key = "$path $interfaceName $member"
+        pendingSignals[key] = queue
+        try {
+            return queue.poll(timeoutMs, TimeUnit.MILLISECONDS)
+        } finally {
+            pendingSignals.remove(key)
+        }
+    }
+
     fun emit(path: String, interfaceName: String, member: String, body: List<DbusValue> = emptyList()) {
         send(
             DbusMessage(
@@ -201,7 +222,12 @@ internal class DbusConnection(
                     if (target != null) target.execute { runCatching { onMethodCall(message) } } else onMethodCall(message)
                 } else {
                     val replySerial = message.replySerial
-                    if (replySerial != null) pendingReplies[replySerial]?.offer(message)
+                    if (replySerial != null) {
+                        pendingReplies[replySerial]?.offer(message)
+                    } else if (message.type == DBUS_TYPE_SIGNAL) {
+                        val key = listOf(message.path, message.interfaceName, message.member).joinToString(" ")
+                        pendingSignals[key]?.offer(message)
+                    }
                 }
             }
         } catch (_: IOException) {
@@ -289,6 +315,38 @@ internal object DbusSessionBus {
             runCatching { connection.close() }
             onFailure("$name is already owned by another instance")
             return null
+        }
+        if (lastError != null) onFailure("last bus error: ${lastError.message}")
+        return null
+    }
+
+    /**
+     * Portal-style connection: opens the session bus but owns no name, so
+     * callers can act as plain clients (XDG FileChooser).
+     */
+    fun connectForPortals(
+        onFailure: (String) -> Unit = {},
+        env: (String) -> String? = System::getenv
+    ): DbusConnectionResult? {
+        val endpoints = resolveEndpoints(env)
+        if (endpoints.isEmpty()) {
+            onFailure("no session bus address")
+            return null
+        }
+        var lastError: Throwable? = null
+        for (endpoint in endpoints) {
+            val channel = runCatching { openSocket(endpoint) }.getOrElse {
+                lastError = it
+                onFailure("cannot open ${endpoint.path}: ${it.message}")
+                continue
+            }
+            val connection = runCatching { authenticateAndHandshake(endpoint, channel) }.getOrElse {
+                lastError = it
+                runCatching { channel.close() }
+                onFailure("handshake failed: ${it.message}")
+                continue
+            }
+            return DbusConnectionResult(connection)
         }
         if (lastError != null) onFailure("last bus error: ${lastError.message}")
         return null

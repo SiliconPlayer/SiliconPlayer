@@ -128,6 +128,7 @@ internal fun SettingsRouteContentHost(
                             onOpenMisc = actions.onOpenMisc,
                             onOpenUi = actions.onOpenUi,
                             onOpenAbout = actions.onOpenAbout,
+                            onOpenSettingsPorting = actions.onOpenSettingsPorting,
                             onRequestClearAllSettings = onRequestClearAllSettings
                         )
                     )
@@ -737,6 +738,7 @@ private fun SettingsTwoPaneRootList(
                     onOpenMisc = actions.onOpenMisc,
                     onOpenUi = actions.onOpenUi,
                     onOpenAbout = actions.onOpenAbout,
+                    onOpenSettingsPorting = actions.onOpenSettingsPorting,
                     onRequestClearAllSettings = onRequestClearAllSettings
                 )
             )

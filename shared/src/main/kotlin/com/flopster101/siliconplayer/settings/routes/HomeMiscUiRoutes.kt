@@ -322,6 +322,7 @@ internal fun UiRouteContent(
     state: UiRouteState,
     actions: UiRouteActions
 ) {
+    SettingsSectionLabel("General")
     ThemeModeSelectorCard(
         selectedMode = state.themeMode,
         onSelectedModeChanged = actions.onThemeModeChanged

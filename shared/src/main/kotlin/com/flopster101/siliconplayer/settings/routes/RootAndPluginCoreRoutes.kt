@@ -19,6 +19,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.flopster101.siliconplayer.pluginsettings.VgmPlayChipSettingsScreen
+import com.flopster101.siliconplayer.ui.icons.FileExportIcon
 
 internal data class RootRouteActions(
     val onOpenAudioPlugins: () -> Unit,
@@ -34,6 +35,7 @@ internal data class RootRouteActions(
     val onOpenMisc: () -> Unit,
     val onOpenUi: () -> Unit,
     val onOpenAbout: () -> Unit,
+    val onOpenSettingsPorting: () -> Unit,
     val onRequestClearAllSettings: () -> Unit
 )
 
@@ -100,6 +102,7 @@ internal fun RootRouteContent(
     val onOpenMisc = actions.onOpenMisc
     val onOpenUi = actions.onOpenUi
     val onOpenAbout = actions.onOpenAbout
+    val onOpenSettingsPorting = actions.onOpenSettingsPorting
     val onRequestClearAllSettings = actions.onRequestClearAllSettings
 
     SettingsSectionLabel("General")
@@ -191,6 +194,13 @@ internal fun RootRouteContent(
         icon = Icons.Default.Palette,
         showChevron = true,
         onClick = onOpenUi
+    )
+    SettingsRowSpacer()
+    SettingsItemCard(
+        title = "Export and import settings",
+        description = "Save parts of your configuration to a .spxs file, share it, or import one.",
+        icon = FileExportIcon,
+        onClick = onOpenSettingsPorting
     )
     SettingsRowSpacer()
     SettingsItemCard(

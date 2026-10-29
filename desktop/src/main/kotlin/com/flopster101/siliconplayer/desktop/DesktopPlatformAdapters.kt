@@ -259,6 +259,8 @@ fun ProvideDesktopPlatformAdapters(
         }
     }
 
+    com.flopster101.siliconplayer.settings.porting.PortingVersionProvider.appVersion = DesktopBuildConfig.VERSION_NAME
+
     val appVersionInfo = remember {
         val os = System.getProperty("os.name")?.lowercase()?.let {
             if (it.contains("linux")) "linux" else if (it.contains("mac") || it.contains("darwin")) "macos" else if (it.contains("win")) "windows" else it
@@ -291,7 +293,12 @@ fun ProvideDesktopPlatformAdapters(
         }
     }
 
+    com.flopster101.siliconplayer.settings.porting.PortingPlatformInfo.runningPlatform =
+        com.flopster101.siliconplayer.settings.porting.PortingPlatformFamily.Desktop
+    val portingFileIo = rememberDesktopPortingFileIo()
+
     CompositionLocalProvider(
+        com.flopster101.siliconplayer.settings.porting.LocalPortingFileIo provides portingFileIo,
         com.flopster101.siliconplayer.LocalTextInputTracker provides textInputTracker,
         LocalAppPreferences provides prefs,
         LocalPreferencesProvider provides prefsProvider,

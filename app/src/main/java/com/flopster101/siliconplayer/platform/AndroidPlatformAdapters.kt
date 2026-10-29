@@ -377,6 +377,8 @@ fun ProvideAndroidPlatformAdapters(
         }
     }
 
+    com.flopster101.siliconplayer.settings.porting.PortingVersionProvider.appVersion = com.flopster101.siliconplayer.BuildConfig.VERSION_NAME
+
     val appVersionInfo = remember {
         val abi = when (val primary = Build.SUPPORTED_ABIS.firstOrNull()?.lowercase()) {
             "arm64-v8a" -> "arm64"
@@ -507,7 +509,12 @@ fun ProvideAndroidPlatformAdapters(
         com.flopster101.siliconplayer.NetworkCredentialStore.configDirProvider = { context.filesDir }
     }
 
+    com.flopster101.siliconplayer.settings.porting.PortingPlatformInfo.runningPlatform =
+        com.flopster101.siliconplayer.settings.porting.PortingPlatformFamily.Android
+    val portingFileIo = rememberAndroidPortingFileIo()
+
     CompositionLocalProvider(
+        com.flopster101.siliconplayer.settings.porting.LocalPortingFileIo provides portingFileIo,
         com.flopster101.siliconplayer.LocalTextInputTracker provides remember { com.flopster101.siliconplayer.TextInputTracker() },
         LocalAppPreferences provides prefs,
         LocalPreferencesProvider provides prefsProvider,

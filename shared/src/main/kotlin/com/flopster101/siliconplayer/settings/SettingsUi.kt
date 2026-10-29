@@ -11,6 +11,8 @@ import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import com.flopster101.siliconplayer.platform.LocalAppPreferences
+import com.flopster101.siliconplayer.settings.porting.SettingsPortingDialogHost
 
 @Composable
 internal fun SettingsScreen(
@@ -20,6 +22,7 @@ internal fun SettingsScreen(
     actions: SettingsScreenActions
 ) {
     var pendingResetAction by remember { mutableStateOf<SettingsResetAction?>(null) }
+    var showPortingDialog by remember { mutableStateOf(false) }
     var pendingPluginResetName by remember { mutableStateOf<String?>(null) }
     var pluginPriorityEditMode by remember { mutableStateOf(false) }
     val navigationBarBottomInset = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
@@ -53,7 +56,7 @@ internal fun SettingsScreen(
             bottomContentPadding = effectiveBottomContentPadding,
             scaffoldPaddingValues = paddingValues,
             state = state,
-            actions = actions,
+            actions = actions.copy(onOpenSettingsPorting = { showPortingDialog = true }),
             pluginPriorityEditMode = pluginPriorityEditMode,
             onRequestClearAllSettings = {
                 pendingResetAction = SettingsResetAction.ClearAllSettings
@@ -63,6 +66,13 @@ internal fun SettingsScreen(
             }
         )
     }
+
+    val prefs = LocalAppPreferences.current
+    SettingsPortingDialogHost(
+        visible = showPortingDialog,
+        prefs = prefs,
+        onDismiss = { showPortingDialog = false }
+    )
 
     SettingsResetDialogHost(
         pendingResetAction = pendingResetAction,

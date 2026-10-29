@@ -411,6 +411,7 @@ internal data class SettingsScreenActions(
     val onClearRecentHistory: () -> Unit,
     val onClearSavedNetworkSources: () -> Unit,
     val onClearAllSettings: () -> Unit,
+    val onOpenSettingsPorting: () -> Unit = {},
     val onClearAllPluginSettings: () -> Unit,
     val onResetPluginSettings: (String) -> Unit
 )
