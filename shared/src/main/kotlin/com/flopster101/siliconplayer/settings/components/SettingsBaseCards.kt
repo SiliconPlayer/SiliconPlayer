@@ -177,6 +177,7 @@ internal fun SettingsItemCard(
     description: String,
     icon: ImageVector? = null,
     iconTint: Color? = null,
+    titleColor: Color? = null,
     onClick: () -> Unit,
     enabled: Boolean = true,
     showChevron: Boolean = false,
@@ -202,7 +203,7 @@ internal fun SettingsItemCard(
             Text(
                 text = title,
                 style = if (isWatch) MaterialTheme.typography.titleSmall else MaterialTheme.typography.titleMedium,
-                color = MaterialTheme.colorScheme.onSurface.copy(alpha = contentAlpha)
+                color = (titleColor ?: MaterialTheme.colorScheme.onSurface).copy(alpha = contentAlpha)
             )
             if (description.isNotBlank()) {
                 Spacer(modifier = Modifier.height(2.dp))

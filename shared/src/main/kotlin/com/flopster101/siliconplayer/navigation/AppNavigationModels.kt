@@ -39,6 +39,7 @@ enum class SettingsRoute {
     VisualizationAdvancedProjectMPacks,
     Misc,
     Ui,
+    SettingsManagement,
     About
 }
 
@@ -81,5 +82,6 @@ internal fun settingsRouteOrder(route: SettingsRoute): Int = when (route) {
     SettingsRoute.VisualizationAdvancedProjectMPacks -> 4
     SettingsRoute.Misc -> 1
     SettingsRoute.Ui -> 1
+    SettingsRoute.SettingsManagement -> 1
     SettingsRoute.About -> 1
 }

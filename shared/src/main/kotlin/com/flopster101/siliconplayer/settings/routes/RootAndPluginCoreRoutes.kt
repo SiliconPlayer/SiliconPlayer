@@ -4,7 +4,6 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.height
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Build
-import androidx.compose.material.icons.filled.DeleteForever
 import androidx.compose.material.icons.filled.Folder
 import androidx.compose.material.icons.filled.GraphicEq
 import androidx.compose.material.icons.filled.Home
@@ -16,10 +15,11 @@ import androidx.compose.material.icons.filled.Public
 import androidx.compose.material.icons.filled.Slideshow
 import androidx.compose.material.icons.filled.Tune
 import androidx.compose.runtime.Composable
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.flopster101.siliconplayer.pluginsettings.VgmPlayChipSettingsScreen
-import com.flopster101.siliconplayer.ui.icons.FileExportIcon
+import com.flopster101.siliconplayer.ui.icons.ResetSettingsIcon
 
 internal data class RootRouteActions(
     val onOpenAudioPlugins: () -> Unit,
@@ -35,8 +35,7 @@ internal data class RootRouteActions(
     val onOpenMisc: () -> Unit,
     val onOpenUi: () -> Unit,
     val onOpenAbout: () -> Unit,
-    val onOpenSettingsPorting: () -> Unit,
-    val onRequestClearAllSettings: () -> Unit
+    val onOpenSettingsManagement: () -> Unit
 )
 
 internal data class PluginVgmPlayChipSettingsRouteState(
@@ -102,8 +101,7 @@ internal fun RootRouteContent(
     val onOpenMisc = actions.onOpenMisc
     val onOpenUi = actions.onOpenUi
     val onOpenAbout = actions.onOpenAbout
-    val onOpenSettingsPorting = actions.onOpenSettingsPorting
-    val onRequestClearAllSettings = actions.onRequestClearAllSettings
+    val onOpenSettingsManagement = actions.onOpenSettingsManagement
 
     SettingsSectionLabel("General")
     SettingsItemCard(
@@ -197,17 +195,11 @@ internal fun RootRouteContent(
     )
     SettingsRowSpacer()
     SettingsItemCard(
-        title = "Export and import settings",
-        description = "Save parts of your configuration to a .spxs file, share it, or import one.",
-        icon = FileExportIcon,
-        onClick = onOpenSettingsPorting
-    )
-    SettingsRowSpacer()
-    SettingsItemCard(
-        title = "Clear all app settings",
-        description = "Reset app settings to defaults. Core settings are kept.",
-        icon = Icons.Default.DeleteForever,
-        onClick = onRequestClearAllSettings
+        title = "Settings management",
+        description = "Export, import, and reset app settings.",
+        icon = ResetSettingsIcon,
+        showChevron = true,
+        onClick = onOpenSettingsManagement
     )
     SettingsRowSpacer()
     SettingsItemCard(
@@ -216,6 +208,26 @@ internal fun RootRouteContent(
         icon = Icons.Default.Info,
         showChevron = true,
         onClick = onOpenAbout
+    )
+}
+
+@Composable
+internal fun SettingsManagementRouteContent(
+    onOpenPorting: () -> Unit,
+    onRequestClearAllSettings: () -> Unit
+) {
+    SettingsSectionLabel("Settings management")
+    SettingsItemCard(
+        title = "Export and import settings",
+        description = "Save parts of your configuration to a .spxs file, share it, or import one.",
+        onClick = onOpenPorting
+    )
+    SettingsRowSpacer()
+    SettingsItemCard(
+        title = "Clear all app settings",
+        description = "Reset app settings to their out-of-box defaults. Core settings are kept.",
+        titleColor = MaterialTheme.colorScheme.error,
+        onClick = onRequestClearAllSettings
     )
 }
 

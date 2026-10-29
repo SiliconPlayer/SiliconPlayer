@@ -515,6 +515,7 @@ internal fun rememberDesktopSettings(
                 openSettingsRoute(SettingsRoute.StreamingCacheManager)
             },
             onOpenUi = { openSettingsRoute(SettingsRoute.Ui) },
+            onOpenSettingsPorting = { openSettingsRoute(SettingsRoute.SettingsManagement) },
             onOpenAbout = { openSettingsRoute(SettingsRoute.About) },
             pluginCoreActions = SettingsPluginCoreActions(
                 onOpenVgmPlayChipSettings = { openSettingsRoute(SettingsRoute.PluginVgmPlayChipSettings) },

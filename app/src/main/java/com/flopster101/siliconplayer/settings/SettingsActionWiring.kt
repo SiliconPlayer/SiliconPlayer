@@ -525,6 +525,7 @@ internal fun buildMainActivitySettingsScreenActions(
             openSettingsRoute(SettingsRoute.StreamingCacheManager, false)
         },
         onOpenUi = { openSettingsRoute(SettingsRoute.Ui, false) },
+        onOpenSettingsPorting = { openSettingsRoute(SettingsRoute.SettingsManagement, false) },
         onOpenAbout = { openSettingsRoute(SettingsRoute.About, false) },
         pluginCoreActions = settingsPluginCoreActions,
         onAutoPlayOnTrackSelectChanged = onAutoPlayOnTrackSelectChanged,

@@ -31,6 +31,11 @@ internal fun SettingsScreen(
     } else {
         navigationBarBottomInset + 12.dp
     }
+    val effectiveOpenSettingsPorting = if (route == SettingsRoute.SettingsManagement) {
+        { showPortingDialog = true }
+    } else {
+        actions.onOpenSettingsPorting
+    }
 
     LaunchedEffect(route) {
         if (route != SettingsRoute.AudioPlugins) {
@@ -56,7 +61,7 @@ internal fun SettingsScreen(
             bottomContentPadding = effectiveBottomContentPadding,
             scaffoldPaddingValues = paddingValues,
             state = state,
-            actions = actions.copy(onOpenSettingsPorting = { showPortingDialog = true }),
+            actions = actions.copy(onOpenSettingsPorting = effectiveOpenSettingsPorting),
             pluginPriorityEditMode = pluginPriorityEditMode,
             onRequestClearAllSettings = {
                 pendingResetAction = SettingsResetAction.ClearAllSettings

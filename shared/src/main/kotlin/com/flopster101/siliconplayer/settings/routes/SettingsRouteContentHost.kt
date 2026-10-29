@@ -128,8 +128,7 @@ internal fun SettingsRouteContentHost(
                             onOpenMisc = actions.onOpenMisc,
                             onOpenUi = actions.onOpenUi,
                             onOpenAbout = actions.onOpenAbout,
-                            onOpenSettingsPorting = actions.onOpenSettingsPorting,
-                            onRequestClearAllSettings = onRequestClearAllSettings
+                            onOpenSettingsManagement = actions.onOpenSettingsPorting
                         )
                     )
                 }
@@ -564,6 +563,13 @@ internal fun SettingsRouteContentHost(
                     )
                 }
 
+                SettingsRoute.SettingsManagement -> {
+                    SettingsManagementRouteContent(
+                        onOpenPorting = actions.onOpenSettingsPorting,
+                        onRequestClearAllSettings = onRequestClearAllSettings
+                    )
+                }
+
                 SettingsRoute.About -> AboutSettingsBody(useMonet = state.useMonet)
                 }
             }
@@ -738,8 +744,7 @@ private fun SettingsTwoPaneRootList(
                     onOpenMisc = actions.onOpenMisc,
                     onOpenUi = actions.onOpenUi,
                     onOpenAbout = actions.onOpenAbout,
-                    onOpenSettingsPorting = actions.onOpenSettingsPorting,
-                    onRequestClearAllSettings = onRequestClearAllSettings
+                    onOpenSettingsManagement = actions.onOpenSettingsPorting
                 )
             )
         }
@@ -782,6 +787,7 @@ internal fun settingsSecondaryTitle(route: SettingsRoute, selectedPluginName: St
         SettingsRoute.VisualizationAdvancedProjectMPacks -> "Preset packs"
         SettingsRoute.Misc -> "Misc settings"
         SettingsRoute.Ui -> "UI settings"
+        SettingsRoute.SettingsManagement -> "Settings management"
         SettingsRoute.About -> "About"
     }
 }
