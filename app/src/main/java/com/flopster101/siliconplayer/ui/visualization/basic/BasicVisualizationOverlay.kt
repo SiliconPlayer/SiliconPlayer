@@ -128,6 +128,7 @@ fun BasicVisualizationOverlay(
     channelScopeSampleNamesByIndex: Map<Int, String>,
     channelScopeChipNamesByChannelIndex: Map<Int, String>,
     channelScopeTriggerModeNative: Int,
+    channelScopeTriggerAlgorithmNative: Int = 0,
     channelScopeWaveRenderModeNative: Int = 1,
     channelScopeAntialiasMethodNative: Int = 0,
     // Track transition: 0 instant, 1 slide-fade reveal, 2 crossfade
@@ -561,6 +562,7 @@ fun BasicVisualizationOverlay(
                         channelScopeDcRemovalEnabled = channelScopeDcRemovalEnabled,
                         channelScopeWaveformClippingEnabled = channelScopeWaveformClippingEnabled,
                         channelScopeTriggerMode = channelScopeTriggerModeNative,
+                        channelScopeTriggerAlgorithm = channelScopeTriggerAlgorithmNative,
                         channelScopeWaveRenderMode = channelScopeWaveRenderModeNative,
                         channelScopeAntialiasMethod = channelScopeAntialiasMethodNative,
                         channelScopeTrackTransition = channelScopeTrackTransition

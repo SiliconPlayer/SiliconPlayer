@@ -3,9 +3,10 @@
 #include "silicon/vis/IVisualizerRenderer.h"
 #include "gl/gl_primitives.h"
 #include "gl/gl_font_atlas.h"
+#include "ChannelScopeTrigger.h"
 #include <chrono>
-#include <vector>
 #include <string>
+#include <vector>
 
 namespace silicon::vis {
 
@@ -50,6 +51,7 @@ public:
         int32_t gainPercent = 100,
         bool dcRemovalEnabled = true,
         int32_t triggerMode = 0,
+        int32_t triggerAlgorithm = 0,
         int32_t waveRenderMode = 1,
         bool waveformClipping = true
     );
@@ -59,6 +61,7 @@ public:
     bool isDcRemovalEnabled() const { return dcRemovalEnabled_; }
     bool isWaveformClippingEnabled() const { return waveformClipping_; }
     int32_t getTriggerMode() const { return triggerMode_; }
+    int32_t getTriggerAlgorithm() const { return triggerAlgorithm_; }
     int32_t getWaveRenderMode() const { return waveRenderMode_; }
     void setFastLinesEnabled(bool enabled) { fastLinesEnabled_ = enabled; }
 
@@ -110,6 +113,8 @@ private:
     bool dcRemovalEnabled_ = true;
     bool waveformClipping_ = true;
     int32_t triggerMode_ = 0;
+    int32_t triggerAlgorithm_ = 0;
+    ChannelScopeTrigger triggerEngine_;
     int32_t waveRenderMode_ = 1;
     bool fastLinesEnabled_ = false;
     std::chrono::steady_clock::time_point lastVuUpdate_{};

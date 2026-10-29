@@ -294,6 +294,7 @@ void silicon_vis_set_channel_scope_options(
     int32_t gainPercent,
     bool dcRemovalEnabled,
     int32_t triggerMode,
+    int32_t triggerAlgorithm,
     SiliconVisWaveRenderMode waveRenderMode,
     bool waveformClipping
 ) {
@@ -304,6 +305,7 @@ void silicon_vis_set_channel_scope_options(
         gridColorArgb, gridWidthPx, lineColorArgb, lineWidthPx,
         vuColorArgb, palette, shadowEnabled, hideWhenOverflow,
         windowMs, gainPercent, dcRemovalEnabled, triggerMode,
+        triggerAlgorithm,
         static_cast<int32_t>(waveRenderMode),
         waveformClipping
     );

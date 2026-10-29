@@ -156,6 +156,7 @@ data class SiliconNativeGlFrame(
     val channelScopeDcRemovalEnabled: Boolean = true,
     val channelScopeWaveformClippingEnabled: Boolean = true,
     val channelScopeTriggerMode: Int = 0,
+    val channelScopeTriggerAlgorithm: Int = 0,
     val channelScopeWaveRenderMode: Int = 1,
     val channelScopeAntialiasMethod: Int = 0,
     // Track transition: 0 instant, 1 slide-fade reveal, 2 crossfade
@@ -1048,6 +1049,7 @@ internal class SiliconNativeTextureRenderThread(
                                 gainPercent = frame.channelScopeGainPercent,
                                 dcRemovalEnabled = frame.channelScopeDcRemovalEnabled,
                                 triggerMode = frame.channelScopeTriggerMode,
+                                triggerAlgorithm = frame.channelScopeTriggerAlgorithm,
                                 waveRenderMode = frame.channelScopeWaveRenderMode,
                                 waveformClipping = frame.channelScopeWaveformClippingEnabled
                             )

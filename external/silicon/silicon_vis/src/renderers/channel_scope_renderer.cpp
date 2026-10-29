@@ -62,6 +62,7 @@ void ChannelScopeRenderer::setOptions(
     int32_t gainPercent,
     bool dcRemovalEnabled,
     int32_t triggerMode,
+    int32_t triggerAlgorithm,
     int32_t waveRenderMode,
     bool waveformClipping
 ) {
@@ -83,6 +84,7 @@ void ChannelScopeRenderer::setOptions(
     gainPercent_ = std::clamp(gainPercent, 1, 10000);
     dcRemovalEnabled_ = dcRemovalEnabled;
     triggerMode_ = triggerMode;
+    triggerAlgorithm_ = triggerAlgorithm;
     waveRenderMode_ = std::clamp(waveRenderMode, 0, 2);
     waveformClipping_ = waveformClipping;
 }
@@ -115,8 +117,11 @@ void ChannelScopeRenderer::setAllChannelHistories(
 
     const float gain = static_cast<float>(gainPercent_) / 100.0f;
     const int displayHalf = displaySamplesPerChannel / 2;
-    const bool rising = (triggerMode_ == 1);
-
+    const auto triggerIndices = triggerMode_ == 0 || totalSamplesPerChannel <= displaySamplesPerChannel
+        ? std::vector<int32_t>{}
+        : triggerEngine_.computeTriggerIndices(
+            flatData, totalSamplesPerChannel, channelCount,
+            triggerMode_, triggerAlgorithm_, triggerWidthSamples, 48000);
     for (int32_t ch = 0; ch < channelCount; ++ch) {
         auto& hist = channelHistories_[ch];
         hist.resize(displaySamplesPerChannel);
@@ -142,36 +147,7 @@ void ChannelScopeRenderer::setAllChannelHistories(
         }
 
         // Trigger mode (1 = rising, 2 = falling): search outward from center
-        const int center = totalSamplesPerChannel / 2;
-        const int searchHalfWidth = triggerWidthSamples > 0
-            ? std::min(triggerWidthSamples / 4, (totalSamplesPerChannel - displaySamplesPerChannel) / 2)
-            : (totalSamplesPerChannel - displaySamplesPerChannel) / 2;
-        const int lo = std::max(displayHalf, center - searchHalfWidth);
-        const int hi = std::min(totalSamplesPerChannel - displayHalf, center + searchHalfWidth);
-        int bestIdx = center;
-        float absMax = 0.0f;
-        for (int i = 0; i < totalSamplesPerChannel; ++i) {
-            float a = std::abs(src[i]);
-            if (a > absMax) absMax = a;
-        }
-
-        if (absMax >= 0.005f) {
-            float bestSlope = -1.0f;
-            int bestDist = totalSamplesPerChannel;
-            for (int i = lo + 1; i < hi; ++i) {
-                bool crossed = rising ? (src[i - 1] <= 0.0f && src[i] > 0.0f)
-                                      : (src[i - 1] >= 0.0f && src[i] < 0.0f);
-                if (crossed) {
-                    int dist = std::abs(i - center);
-                    const float slope = std::abs(src[i] - src[i - 1]);
-                    if (slope > bestSlope || (slope == bestSlope && dist < bestDist)) {
-                        bestSlope = slope;
-                        bestDist = dist;
-                        bestIdx = i;
-                    }
-                }
-            }
-        }
+        const int bestIdx = triggerIndices[ch];
 
         int start = std::clamp(bestIdx - displayHalf, 0, totalSamplesPerChannel - displaySamplesPerChannel);
         if (dcRemovalEnabled_) {

@@ -405,10 +405,13 @@ void SiliconVisPipeline::render() {
                     static_cast<int>(channelScope_.getWindowMs() * windowScale), 5, 100);
                 int displaySamples = (48000 * windowMs) / 1000;
                 displaySamples = std::clamp(displaySamples, 64, 4800);
-                const int triggerWidthSamples = channelScope_.getTriggerMode() == 0 ? 0 : 2880;
-                const int fetchSamples = std::max(
-                    displaySamples * 2,
-                    triggerWidthSamples + triggerWidthSamples / 2);
+                const int triggerWidthSamples =
+                    channelScope_.getTriggerMode() != 0 && channelScope_.getTriggerAlgorithm() == 1
+                        ? 2880 : 0;
+                const int fetchSamples = channelScope_.getTriggerMode() != 0 &&
+                        channelScope_.getTriggerAlgorithm() == 1
+                    ? std::max(displaySamples * 2, triggerWidthSamples + triggerWidthSamples / 2)
+                    : displaySamples * 2;
                 audioProvider_->getChannelScopeHistories(fetchSamples, 0, nativeFlatScope_, chCount);
                 if (chCount > 0 && !nativeFlatScope_.empty()) {
                     channelScope_.setAllChannelHistories(
@@ -577,10 +580,13 @@ bool SiliconVisPipeline::renderVulkan() {
                     static_cast<int>(channelScope_.getWindowMs() * windowScale), 5, 100);
                 int displaySamples = (48000 * windowMs) / 1000;
                 displaySamples = std::clamp(displaySamples, 64, 4800);
-                const int triggerWidthSamples = channelScope_.getTriggerMode() == 0 ? 0 : 2880;
-                const int fetchSamples = std::max(
-                    displaySamples * 2,
-                    triggerWidthSamples + triggerWidthSamples / 2);
+                const int triggerWidthSamples =
+                    channelScope_.getTriggerMode() != 0 && channelScope_.getTriggerAlgorithm() == 1
+                        ? 2880 : 0;
+                const int fetchSamples = channelScope_.getTriggerMode() != 0 &&
+                        channelScope_.getTriggerAlgorithm() == 1
+                    ? std::max(displaySamples * 2, triggerWidthSamples + triggerWidthSamples / 2)
+                    : displaySamples * 2;
                 audioProvider_->getChannelScopeHistories(fetchSamples, 0, nativeFlatScope_, chCount);
                 if (chCount > 0 && !nativeFlatScope_.empty()) {
                     channelScope_.setAllChannelHistories(

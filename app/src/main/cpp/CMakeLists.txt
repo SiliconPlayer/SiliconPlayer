@@ -83,6 +83,7 @@ include_directories(${CMAKE_SOURCE_DIR}/../../../../external/furnace/extern/libs
 # Expose silicon_vis multiplatform visualizer headers.
 add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/../../../../external/silicon/silicon_vis ${CMAKE_CURRENT_BINARY_DIR}/silicon_vis)
 include_directories(${CMAKE_SOURCE_DIR}/../../../../external/silicon/silicon_vis/include)
+include_directories(${CMAKE_CURRENT_SOURCE_DIR})
 
 # Vendored libusb static library for direct UAC output
 set(LIBUSB_DIR ${CMAKE_CURRENT_SOURCE_DIR}/../../../../external/libusb)

@@ -754,6 +754,7 @@ Java_com_flopster101_siliconplayer_ui_visualization_gl_SiliconVisNativeBridge_na
     jint gainPercent,
     jboolean dcRemovalEnabled,
     jint triggerMode,
+    jint triggerAlgorithm,
     jint waveRenderMode,
     jboolean waveformClipping
 ) {
@@ -786,6 +787,7 @@ Java_com_flopster101_siliconplayer_ui_visualization_gl_SiliconVisNativeBridge_na
         gainPercent,
         dcRemovalEnabled,
         triggerMode,
+        triggerAlgorithm,
         static_cast<SiliconVisWaveRenderMode>(waveRenderMode),
         waveformClipping
     );

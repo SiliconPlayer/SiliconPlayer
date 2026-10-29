@@ -101,6 +101,7 @@ object SiliconVisNativeBridge {
         gainPercent: Int,
         dcRemovalEnabled: Boolean,
         triggerMode: Int,
+        triggerAlgorithm: Int = 0,
         waveRenderMode: Int = 1,
         waveformClipping: Boolean = true
     )

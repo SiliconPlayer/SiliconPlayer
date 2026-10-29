@@ -2450,6 +2450,7 @@ internal fun AlbumArtPlaceholder(
                     channelScopeSampleNamesByIndex = channelScopeState.sampleNamesByIndex,
                     channelScopeChipNamesByChannelIndex = channelScopeState.chipNamesByChannelIndex,
                     channelScopeTriggerModeNative = channelScopePrefs.triggerModeNative,
+                    channelScopeTriggerAlgorithmNative = channelScopePrefs.triggerAlgorithmNative,
                     channelScopeWaveRenderModeNative = channelScopePrefs.waveRenderMode.nativeValue,
                     channelScopeAntialiasMethodNative = channelScopePrefs.antialiasMethod.nativeValue,
                     channelScopeTrackTransition = channelScopePrefs.trackTransition.nativeValue,

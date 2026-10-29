@@ -993,6 +993,7 @@ internal class SiliconNativeVkRenderThread(
                         gainPercent = frame.channelScopeGainPercent,
                         dcRemovalEnabled = frame.channelScopeDcRemovalEnabled,
                         triggerMode = frame.channelScopeTriggerMode,
+                        triggerAlgorithm = frame.channelScopeTriggerAlgorithm,
                         waveRenderMode = frame.channelScopeWaveRenderMode,
                         waveformClipping = frame.channelScopeWaveformClippingEnabled
                     )

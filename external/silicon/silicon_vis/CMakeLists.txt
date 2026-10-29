@@ -35,12 +35,16 @@ if (ANDROID)
 endif()
 
 add_library(silicon_vis SHARED ${SILICON_VIS_SOURCES})
+target_sources(silicon_vis PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/../../../app/src/main/cpp/ChannelScopeTrigger.cpp
+)
 
 target_include_directories(silicon_vis
     PUBLIC
         ${CMAKE_CURRENT_SOURCE_DIR}/include
     PRIVATE
         ${CMAKE_CURRENT_SOURCE_DIR}/src
+        ${CMAKE_CURRENT_SOURCE_DIR}/../../../app/src/main/cpp
 )
 
 if (ANDROID)
@@ -75,4 +79,3 @@ else()
             ${CMAKE_DL_LIBS}
     )
 endif()
-
