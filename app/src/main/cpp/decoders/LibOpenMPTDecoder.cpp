@@ -267,8 +267,7 @@ int LibOpenMPTDecoder::scopeSpanForChannel(int ch) const {
 }
 
 void LibOpenMPTDecoder::captureChannelScopeSnapshotLocked(
-        int32_t posA, int32_t posB, int deliveredFrames,
-        int spanGlobal, int globalOffsetFrames) {
+        int32_t posA, int32_t posB, int spanGlobal, int globalOffsetFrames) {
     if (!channelScopeState || !module || posB == posA || spanGlobal <= 0) return;
 
     if (scopeSeekPending) {
@@ -325,7 +324,6 @@ void LibOpenMPTDecoder::captureChannelScopeSnapshotLocked(
     channelScopeState->publishAppend(
             scopeAppendFlat.data(), totalChannels, posA, appended, scratchVu.data(),
             ++channelScopeSourceSerial);
-    channelScopeState->noteRingScale(appended, deliveredFrames);
 }
 
 int LibOpenMPTDecoder::read(float* buffer, int numFrames) {
@@ -363,7 +361,6 @@ int LibOpenMPTDecoder::read(float* buffer, int numFrames) {
                 const int32_t step = std::min<int32_t>(256, remaining);
                 captureChannelScopeSnapshotLocked(
                         part, static_cast<int32_t>((part + step) % maxSize),
-                        static_cast<int>(step),
                         static_cast<int>(appendedGlobal),
                         static_cast<int>(appendedGlobal) - static_cast<int>(remaining));
                 part = static_cast<int32_t>((part + step) % maxSize);

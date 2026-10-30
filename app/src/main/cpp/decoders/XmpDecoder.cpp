@@ -306,7 +306,7 @@ int XmpDecoder::read(float* buffer, int numFrames) {
         while (remaining > 0) {
             const int32_t step = std::min<int32_t>(512, remaining);
             captureChannelScopeSnapshotLocked(
-                    part, static_cast<int32_t>((part + step) % maxSize), step);
+                    part, static_cast<int32_t>((part + step) % maxSize));
             part = static_cast<int32_t>((part + step) % maxSize);
             remaining -= step;
         }
@@ -315,7 +315,7 @@ int XmpDecoder::read(float* buffer, int numFrames) {
     return numFrames;
 }
 
-void XmpDecoder::captureChannelScopeSnapshotLocked(int32_t posA, int32_t posB, int deliveredFrames) {
+void XmpDecoder::captureChannelScopeSnapshotLocked(int32_t posA, int32_t posB) {
     if (!channelScopeState || context == nullptr || posA == posB) return;
 
     // The libxmp scope ring matches the consumer kMaxSamples modulo.
@@ -360,7 +360,6 @@ void XmpDecoder::captureChannelScopeSnapshotLocked(int32_t posA, int32_t posB, i
     channelScopeState->publishAppend(
             scopeAppendFlat.data(), totalChannels, posA, appended, vu.data(),
             ++channelScopeSourceSerial);
-    channelScopeState->noteRingScale(appended, deliveredFrames);
 }
 
 void XmpDecoder::seek(double seconds) {

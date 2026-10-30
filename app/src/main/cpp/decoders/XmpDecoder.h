@@ -105,7 +105,7 @@ private:
     bool startPlayerLocked();
     void applyOptionsLocked();
     std::string mixerNameLocked();
-    void captureChannelScopeSnapshotLocked(int32_t posA, int32_t posB, int deliveredFrames);
+    void captureChannelScopeSnapshotLocked(int32_t posA, int32_t posB);
 };
 
 #endif //SILICONPLAYER_XMPDECODER_H

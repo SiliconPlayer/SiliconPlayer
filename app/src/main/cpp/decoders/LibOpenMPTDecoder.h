@@ -129,8 +129,7 @@ private:
     std::vector<bool> toggleChannelMuted;
 
     void captureChannelScopeSnapshotLocked(
-            int32_t posA, int32_t posB, int deliveredFrames,
-            int spanGlobal, int globalOffsetFrames);
+            int32_t posA, int32_t posB, int spanGlobal, int globalOffsetFrames);
     int scopeSpanForChannel(int ch) const;
 
     void applyRenderSettingsLocked();
