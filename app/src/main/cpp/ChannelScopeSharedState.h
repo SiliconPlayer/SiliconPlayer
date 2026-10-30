@@ -30,6 +30,9 @@ struct ChannelScopeSharedState {
     // decays uncapped across the interval so the window keeps sliding.
     static constexpr int kBufferedAheadEstimateCapFrames = 14000;
 
+    // Accepted (ungated) publishes since construction; feeds cadence metrics.
+    uint64_t acceptedPublishCount() const { return acceptedPublishCount_.load(std::memory_order_relaxed); }
+
     bool tryBeginCapture(int64_t nowNs, int channelCountHint = 0);
     // Copies the snapshot into the published slot under the publish lock.
     // Decoders that pre-gated via tryBeginCapture must pass bypassGate, or
@@ -40,6 +43,18 @@ struct ChannelScopeSharedState {
             int channels,
             uint64_t serial,
             bool bypassGate = false);
+    // Rolling append publish: appendedFlat is a planar [channel][count]
+    // copy of the decoder's newest samples, prevWritePos is the modular
+    // write position in the destination ring BEFORE the append. Only the
+    // appended span is written, so decode callbacks can publish at full
+    // cadence. vu may be null.
+    void publishAppend(
+            const float* appendedFlat,
+            int channels,
+            int prevWritePos,
+            int framesAppended,
+            const float* vu,
+            uint64_t serial);
     std::vector<float> publishedVu();
 
     // Base capture interval, extended per channel so dense modules pay the
@@ -62,6 +77,14 @@ private:
     uint64_t pubSerial = 0;
     int64_t lastCaptureNs = 0;
 
+    // Rolling model: when set, pubRaw is treated as a modular ring anchored
+    // at pubWritePos/pubFilled instead of a linearized window.
+    std::vector<float> pubVuAppend;
+    bool pubRollingValid = false;
+    int pubWritePos = 0;
+    int pubFilled = 0;
+
+    std::atomic<uint64_t> acceptedPublishCount_ { 0 };
     std::atomic<bool> captureGateBypass_ { false };
 
     std::vector<float> localRaw;

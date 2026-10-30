@@ -98,12 +98,14 @@ private:
             std::make_shared<ChannelScopeSharedState>();
     uint64_t channelScopeSourceSerial = 0;
     int64_t channelScopeLastReadNs = 0;
+    bool scopeSeekPending = false;
+    std::vector<float> scopeAppendFlat = {};
 
     void closeLocked();
     bool startPlayerLocked();
     void applyOptionsLocked();
     std::string mixerNameLocked();
-    void captureChannelScopeSnapshotLocked();
+    void captureChannelScopeSnapshotLocked(int32_t posA, int32_t posB);
 };
 
 #endif //SILICONPLAYER_XMPDECODER_H

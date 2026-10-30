@@ -263,11 +263,15 @@ void XmpDecoder::closeLocked() {
 
 int XmpDecoder::read(float* buffer, int numFrames) {
     std::lock_guard<std::mutex> lock(decodeMutex);
-    if (context == nullptr || numFrames <= 0) return 0;
-    if (ended) return 0;
+    if (context == nullptr) return 0;
 
+    if (numFrames <= 0 || ended) return 0;
     const int bytes = numFrames * 2 * static_cast<int>(sizeof(int32_t));
-    mixBuffer.resize(static_cast<size_t>(numFrames) * 2);
+    const int32_t scopePosA = channelScopeState
+            ? xmp_get_channel_scope_write_pos(context) : 0;
+    if (mixBuffer.size() != static_cast<size_t>(numFrames) * 2) {
+        mixBuffer.resize(static_cast<size_t>(numFrames) * 2);
+    }
 
     const int loopBudget = (repeatMode == 2) ? 0 : 1;
     int ret = xmp_play_buffer(context, mixBuffer.data(), bytes, loopBudget);
@@ -292,43 +296,58 @@ int XmpDecoder::read(float* buffer, int numFrames) {
     channelScopeLastReadNs = std::chrono::duration_cast<std::chrono::nanoseconds>(
             std::chrono::steady_clock::now().time_since_epoch()
     ).count();
-    if (!channelScopeState ||
-        channelScopeState->tryBeginCapture(channelScopeLastReadNs, moduleChannels)) {
-        channelScopeSourceSerial++;
-        captureChannelScopeSnapshotLocked();
+    if (channelScopeState) {
+        const int32_t scopePosB = xmp_get_channel_scope_write_pos(context);
+        captureChannelScopeSnapshotLocked(scopePosA, scopePosB);
     }
     return numFrames;
 }
 
-void XmpDecoder::captureChannelScopeSnapshotLocked() {
-    if (!channelScopeState || context == nullptr) return;
+void XmpDecoder::captureChannelScopeSnapshotLocked(int32_t posA, int32_t posB) {
+    if (!channelScopeState || context == nullptr || posA == posB) return;
+
+    // The libxmp scope ring matches the consumer kMaxSamples modulo.
+    constexpr int32_t maxSize = ChannelScopeSharedState::kMaxSamples;
+    int appended = posB - posA;
+    if (appended < 0) appended += maxSize;
+    if (appended <= 0 || appended > maxSize) return;
+
+    if (scopeSeekPending) {
+        // Drop stale pre-seek history so the vis window restarts fresh.
+        scopeSeekPending = false;
+        channelScopeState->clear();
+    }
 
     const int totalChannels = std::clamp(moduleChannels, 0, 64);
     if (totalChannels <= 0) return;
 
-    const int maxSamples = ChannelScopeSharedState::kMaxSamples;
-    thread_local std::vector<float> scratchRaw;
-    thread_local std::vector<float> scratchVu;
-    scratchRaw.resize(static_cast<size_t>(totalChannels) * maxSamples);
-    scratchVu.resize(static_cast<size_t>(totalChannels));
-
+    if (static_cast<int>(scopeAppendFlat.size()) != totalChannels * appended) {
+        scopeAppendFlat.assign(
+                static_cast<size_t>(totalChannels) * static_cast<size_t>(appended), 0.0f);
+    }
     for (int ch = 0; ch < totalChannels; ++ch) {
-        float* dest = scratchRaw.data() + static_cast<size_t>(ch) * maxSamples;
-        if (xmp_get_channel_scope(context, ch, dest, maxSamples) <= 0) {
-            std::fill(dest, dest + maxSamples, 0.0f);
-            scratchVu[static_cast<size_t>(ch)] = 0.0f;
-            continue;
+        float* dest = scopeAppendFlat.data() + static_cast<size_t>(ch) * static_cast<size_t>(appended);
+        const int span = xmp_get_channel_scope_delta(context, ch, dest, posA, posB);
+        if (span < appended) {
+            std::fill(dest + std::max(span, 0), dest + appended, 0.0f);
         }
-        // VU from the newest ~40ms; the full window is ring history.
-        const int vuWindow = std::min(maxSamples, 2048);
-        float peak = 0.0f;
-        for (int i = maxSamples - vuWindow; i < maxSamples; ++i) {
-            peak = std::max(peak, std::fabs(dest[i]));
-        }
-        scratchVu[static_cast<size_t>(ch)] = std::min(peak, 1.0f);
     }
 
-    channelScopeState->publish(scratchRaw, scratchVu, totalChannels, channelScopeSourceSerial, true);
+    // VU from the appended tail (~40ms cap), mirroring the snapshot path.
+    std::vector<float> vu(static_cast<size_t>(totalChannels));
+    const int vuFrames = std::min(appended, 2048);
+    for (int ch = 0; ch < totalChannels; ++ch) {
+        const float* src = scopeAppendFlat.data() + static_cast<size_t>(ch) * static_cast<size_t>(appended);
+        float peak = 0.0f;
+        for (int i = appended - vuFrames; i < appended; ++i) {
+            peak = std::max(peak, std::fabs(src[i]));
+        }
+        vu[static_cast<size_t>(ch)] = std::min(peak, 1.0f);
+    }
+
+    channelScopeState->publishAppend(
+            scopeAppendFlat.data(), totalChannels, posA, appended, vu.data(),
+            ++channelScopeSourceSerial);
 }
 
 void XmpDecoder::seek(double seconds) {
@@ -340,6 +359,7 @@ void XmpDecoder::seek(double seconds) {
         // Drop staged pre-seek frame data so it doesn't leak past the target.
         xmp_play_buffer(context, nullptr, 0, 0);
         ended = false;
+        scopeSeekPending = true;
     }
 }
 

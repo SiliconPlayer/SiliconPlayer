@@ -119,11 +119,13 @@ private:
     uint64_t channelScopeSourceSerial = 0;
     int channelScopeLastReadFrames = 0;
     int64_t channelScopeLastReadNs = 0;
+    bool scopeSeekPending = false;
+    std::vector<float> scopeAppendFlat = {};
 
     std::vector<std::string> toggleChannelNames;
     std::vector<bool> toggleChannelMuted;
 
-    void captureChannelScopeSnapshotLocked();
+    void captureChannelScopeSnapshotLocked(int32_t posA, int32_t posB);
 
     void applyRenderSettingsLocked();
     void rebuildToggleChannelsLocked();

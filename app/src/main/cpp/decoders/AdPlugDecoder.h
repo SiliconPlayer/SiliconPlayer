@@ -113,6 +113,8 @@ private:
     void applyToggleMutesLocked();
     void appendScopeChunkLocked(int numFrames);
     void publishScopeSnapshotLocked();
+    void publishScopeAppend(int prevWritePos, int framesAppended);
+    std::vector<float> scopeAppendFlat = {};
 };
 
 #endif // SILICONPLAYER_ADPLUGDECODER_H

@@ -474,9 +474,6 @@ int AdPlugDecoder::read(float* buffer, int numFrames) {
         channelScopeLastReadNs = std::chrono::duration_cast<std::chrono::nanoseconds>(
                 std::chrono::steady_clock::now().time_since_epoch()
         ).count();
-        if (channelScopeState->tryBeginCapture(channelScopeLastReadNs, scopeRingChannels)) {
-            publishScopeSnapshotLocked();
-        }
     }
 
     return framesWritten;
@@ -904,6 +901,7 @@ void AdPlugDecoder::appendScopeChunkLocked(int numFrames) {
     }
     auto* trackingProxy = dynamic_cast<TrackingOplProxy*>(opl.get());
     const int activeChannels = trackingProxy ? trackingProxy->getVoiceCount() : 18;
+    const int prevRingWritePos = scopeRingWritePos;
 
     if (scopeRingChannels != activeChannels || scopeRingRaw.size() != static_cast<size_t>(activeChannels * ChannelScopeSharedState::kMaxSamples)) {
         scopeRingRaw.assign(static_cast<size_t>(activeChannels * ChannelScopeSharedState::kMaxSamples), 0.0f);
@@ -941,6 +939,55 @@ void AdPlugDecoder::appendScopeChunkLocked(int numFrames) {
         scopeRingWritePos = (scopeRingWritePos + numFrames) % ChannelScopeSharedState::kMaxSamples;
         scopeRingSamples = std::min(scopeRingSamples + numFrames, ChannelScopeSharedState::kMaxSamples);
     }
+
+    publishScopeAppend(prevRingWritePos, numFrames);
+}
+
+// Rolling per-decode publish: only the appended span and a trailing VU
+// window are touched, so decode cadence is never rate-limited.
+void AdPlugDecoder::publishScopeAppend(int prevWritePos, int framesAppended) {
+    if (!channelScopeState || scopeRingChannels <= 0 || scopeRingRaw.empty() ||
+        framesAppended <= 0) {
+        return;
+    }
+    if (static_cast<int>(scopeAppendFlat.size()) !=
+        scopeRingChannels * framesAppended) {
+        scopeAppendFlat.assign(
+                static_cast<size_t>(scopeRingChannels) *
+                        static_cast<size_t>(framesAppended), 0.0f);
+    }
+    std::vector<float>& vu = scopePublishVu;
+    if (static_cast<int>(vu.size()) != scopeRingChannels) {
+        vu.assign(static_cast<size_t>(scopeRingChannels), 0.0f);
+    }
+    const int trailing = std::clamp(sampleRateHz > 0 ? sampleRateHz / 50 : 64, 64, 1024);
+    for (int channel = 0; channel < scopeRingChannels; ++channel) {
+        const float* ringChannel =
+                scopeRingRaw.data() + static_cast<size_t>(channel) * ChannelScopeSharedState::kMaxSamples;
+        float peak = 0.0f;
+        for (int i = 1; i <= trailing && i <= ChannelScopeSharedState::kMaxSamples; ++i) {
+            const int idx = (scopeRingWritePos - i + ChannelScopeSharedState::kMaxSamples) %
+                            ChannelScopeSharedState::kMaxSamples;
+            peak = std::max(peak, std::abs(ringChannel[idx]));
+        }
+        vu[static_cast<size_t>(channel)] = std::clamp(peak, 0.0f, 1.0f);
+    }
+    // Extract the appended span planar-compact from the modular ring.
+    int spanWrite = ((prevWritePos % ChannelScopeSharedState::kMaxSamples) +
+                     ChannelScopeSharedState::kMaxSamples) % ChannelScopeSharedState::kMaxSamples;
+    for (int k = 0; k < framesAppended; ++k) {
+        const int ringIdx = (spanWrite + k) % ChannelScopeSharedState::kMaxSamples;
+        for (int channel = 0; channel < scopeRingChannels; ++channel) {
+            scopeAppendFlat[static_cast<size_t>(channel) * static_cast<size_t>(framesAppended) +
+                            static_cast<size_t>(k)] =
+                    scopeRingRaw[
+                            static_cast<size_t>(channel) * ChannelScopeSharedState::kMaxSamples +
+                            static_cast<size_t>(ringIdx)];
+        }
+    }
+    channelScopeState->publishAppend(
+            scopeAppendFlat.data(), scopeRingChannels, prevWritePos, framesAppended, vu.data(),
+            ++channelScopeSourceSerial);
 }
 
 void AdPlugDecoder::publishScopeSnapshotLocked() {

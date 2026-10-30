@@ -258,55 +258,74 @@ void LibOpenMPTDecoder::close() {
     }
 }
 
-void LibOpenMPTDecoder::captureChannelScopeSnapshotLocked() {
-    if constexpr (!HasChannelScopeApi<openmpt::module>) {
-        return;
+void LibOpenMPTDecoder::captureChannelScopeSnapshotLocked(int32_t posA, int32_t posB) {
+    if (!channelScopeState || !module || posB == posA) return;
+
+    constexpr int32_t maxSize = ChannelScopeSharedState::kMaxSamples;
+    int appended = posB - posA;
+    if (appended < 0) appended += maxSize;
+    if (appended <= 0 || appended > maxSize) return;
+
+    if (scopeSeekPending) {
+        // Drop stale pre-seek history so the vis window restarts fresh.
+        scopeSeekPending = false;
+        channelScopeState->clear();
     }
-    if (!channelScopeState) return;
 
-    const int totalChannels = std::clamp(
-            moduleChannels > 0 ? moduleChannels : static_cast<int>(module->get_num_channels()),
-            0, 64);
+    const int totalChannels = std::max(moduleChannels, 0);
     if (totalChannels <= 0) return;
-
-    const int maxSamples = ChannelScopeSharedState::kMaxSamples;
-    const size_t flatSize = static_cast<size_t>(totalChannels) * maxSamples;
-
-    thread_local std::vector<float> scratchRaw;
-    thread_local std::vector<float> scratchVu;
-    scratchRaw.resize(flatSize);
-    scratchVu.resize(static_cast<size_t>(totalChannels));
-
+    if (static_cast<int>(scopeAppendFlat.size()) != totalChannels * appended) {
+        scopeAppendFlat.assign(
+                static_cast<size_t>(totalChannels) * static_cast<size_t>(appended), 0.0f);
+    }
+    bool spanOk = true;
     for (int ch = 0; ch < totalChannels; ++ch) {
-        float* dest = scratchRaw.data() + static_cast<size_t>(ch) * maxSamples;
-        const int written = static_cast<int>(
-                module->get_current_channel_scope(ch, dest, maxSamples));
-        if (written < maxSamples && written > 0) {
-            std::fill(dest + written, dest + maxSamples, 0.0f);
-        } else if (written <= 0) {
-            std::fill(dest, dest + maxSamples, 0.0f);
+        float* dest = scopeAppendFlat.data() + static_cast<size_t>(ch) * static_cast<size_t>(appended);
+        const int span = module->get_channel_scope_append(ch, dest, posA, posB);
+        if (span != appended) {
+            spanOk = false;
         }
+    }
+    if (!spanOk) {
+        // Ring state diverged between channels; fall back to silence padding
+        // for missing tails so the planar layout stays compact.
+        for (int ch = 0; ch < totalChannels; ++ch) {
+            float* dest = scopeAppendFlat.data() + static_cast<size_t>(ch) * static_cast<size_t>(appended);
+            const int span = module->get_channel_scope_append(ch, dest, posA, posB);
+            std::fill(dest + std::max(span, 0), dest + appended, 0.0f);
+        }
+    }
+
+    thread_local std::vector<float> scratchVu;
+    if (static_cast<int>(scratchVu.size()) != totalChannels) {
+        scratchVu.resize(static_cast<size_t>(totalChannels));
+    }
+    for (int ch = 0; ch < totalChannels; ++ch) {
         scratchVu[static_cast<size_t>(ch)] =
                 std::clamp(module->get_current_channel_vu_mono(ch), 0.0f, 1.0f);
     }
 
-    channelScopeState->publish(scratchRaw, scratchVu, totalChannels, channelScopeSourceSerial, true);
+    channelScopeState->publishAppend(
+            scopeAppendFlat.data(), totalChannels, posA, appended, scratchVu.data(),
+            ++channelScopeSourceSerial);
+    channelScopeLastReadFrames = appended;
 }
 
 int LibOpenMPTDecoder::read(float* buffer, int numFrames) {
     std::lock_guard<std::mutex> lock(decodeMutex);
     if (!module) return 0;
 
+    const int32_t scopePosA = channelScopeState
+            ? static_cast<int32_t>(module->get_channel_scope_write_pos(0)) : 0;
     size_t count = module->read_interleaved_stereo(renderSampleRate, numFrames, buffer);
     if (count > 0) {
-        channelScopeLastReadFrames = static_cast<int>(count);
         channelScopeLastReadNs = std::chrono::duration_cast<std::chrono::nanoseconds>(
                 std::chrono::steady_clock::now().time_since_epoch()
         ).count();
-        if (!channelScopeState ||
-            channelScopeState->tryBeginCapture(channelScopeLastReadNs, moduleChannels)) {
-            channelScopeSourceSerial++;
-            captureChannelScopeSnapshotLocked();
+        if (channelScopeState) {
+            const int32_t scopePosB =
+                    static_cast<int32_t>(module->get_channel_scope_write_pos(0));
+            captureChannelScopeSnapshotLocked(scopePosA, scopePosB);
         }
     }
 
@@ -317,6 +336,7 @@ void LibOpenMPTDecoder::seek(double seconds) {
     std::lock_guard<std::mutex> lock(decodeMutex);
     if (!module) return;
     module->set_position_seconds(seconds);
+    scopeSeekPending = true;
 }
 
 double LibOpenMPTDecoder::getDuration() {
