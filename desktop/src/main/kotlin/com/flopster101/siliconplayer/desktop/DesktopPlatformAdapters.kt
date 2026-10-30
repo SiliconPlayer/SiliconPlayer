@@ -27,6 +27,7 @@ import com.flopster101.siliconplayer.platform.LocalFileExportHandler
 import com.flopster101.siliconplayer.platform.LocalIsWatchDevice
 import com.flopster101.siliconplayer.platform.LocalLibraryRepository
 import com.flopster101.siliconplayer.platform.LocalLibrarySettingsSupport
+import com.flopster101.siliconplayer.platform.LocalLicenseAssetReader
 import com.flopster101.siliconplayer.platform.LocalPlatformBackHandler
 import com.flopster101.siliconplayer.platform.LocalPlaylistPlatformSupport
 import com.flopster101.siliconplayer.platform.LocalPlaylistRefreshNotifier
@@ -304,6 +305,7 @@ fun ProvideDesktopPlatformAdapters(
         LocalPreferencesProvider provides prefsProvider,
         LocalIsWatchDevice provides false,
         LocalAudioRouteManager provides audioRouteManager,
+        LocalLicenseAssetReader provides DesktopLicenseAssetReader,
         LocalAudioInspectorSupport provides DesktopAudioInspectorSupport,
         LocalToastHandler provides toastHandler,
         LocalArtworkThumbnailLoader provides artworkThumbnailLoader,

@@ -7,157 +7,140 @@ default_tag_patterns = ["*"]
 id = "core.ffmpeg"
 spdx = "LGPL-2.1-or-later"
 source = "external/ffmpeg"
-texts = ["external/ffmpeg/COPYING.LGPLv2.1"]
 
 [[dep]]
 id = "core.libopenmpt"
 spdx = "BSD-3-Clause"
 source = "external/libopenmpt"
-texts = ["external/libopenmpt/LICENSE"]
 tag_patterns = ["libopenmpt-*", "OpenMPT-*"]
 
 [[dep]]
 id = "core.vgmplay"
 spdx = "Mixed per-chip licenses, no single text upstream"
 source = "external/libvgm"
-texts = []
 note = "No single license text upstream; per-chip sources carry their own notices."
 
 [[dep]]
 id = "core.gme"
 spdx = "LGPL-2.1-or-later"
 source = "external/libgme"
-texts = ["external/libgme/license.txt"]
 
 [[dep]]
 id = "core.crsid"
 spdx = "Upstream custom permissive notice"
 source = ""
-texts = ["external/cRSID/libcRSID/README.txt"]
+license_dir = "external/cRSID/libcRSID"
 override = "1.58"
 
 [[dep]]
 id = "core.libsidplayfp"
 spdx = "GPL-2.0-or-later"
 source = "external/libsidplayfp"
-texts = ["external/libsidplayfp/COPYING"]
 
 [[dep]]
 id = "core.lazyusf2"
 spdx = "GPL-2.0-or-later"
 source = "external/lazyusf2"
-texts = ["external/lazyusf2/rsp_hle/LICENSES"]
+license_dir = "external/lazyusf2/rsp_hle"
 
 [[dep]]
 id = "core.vio2sf"
 spdx = "GPL-2.0-or-later"
 source = "external/2sf/vio2sf"
-texts = ["external/2sf/vio2sf/src/vio2sf/desmume/COPYING"]
+license_dir = "external/2sf/vio2sf/src/vio2sf/desmume"
 
 [[dep]]
 id = "core.libupse"
 spdx = "GPL-2.0-only"
 source = "external/libupse"
+license_dir = "external/libupse/Neill"
 note = "No standalone license file upstream; the GPL-2.0 grant lives in the source headers."
 
 [[dep]]
 id = "core.viogsf"
 spdx = "GPL-2.0-only"
 source = "external/viogsf"
+license_dir = "external/viogsf/vbam"
 note = "No standalone license file upstream; VBA-derived core with blargg APU files under LGPL-2.1-or-later."
 
 [[dep]]
 id = "core.sc68"
 spdx = "GPL-3.0-or-later"
 source = "external/sc68"
-texts = ["external/sc68/COPYING"]
 override = "r713"
 
 [[dep]]
 id = "core.adplug"
 spdx = "LGPL-2.1-or-later"
 source = "external/adplug"
-texts = ["external/adplug/COPYING"]
 
 [[dep]]
 id = "core.uade"
 spdx = "Mixed, see composite notice"
 source = "external/uade"
-texts = ["external/uade/COPYING", "external/uade/COPYING.GPL", "external/uade/COPYING.LGPL"]
 note = "Upstream ships a composite notice plus GPL and LGPL texts; all three ride along."
 
 [[dep]]
 id = "core.hivelytracker"
 spdx = "BSD-3-Clause"
 source = "external/hivelytracker"
-texts = ["external/hivelytracker/LICENSE"]
 
 [[dep]]
 id = "core.klystrack"
 spdx = "MIT"
 source = "external/klystrack"
-texts = ["external/klystrack/LICENSE"]
 
 [[dep]]
 id = "core.furnace"
 spdx = "GPL-2.0-or-later"
 source = "external/furnace"
-texts = ["external/furnace/LICENSE"]
 
 [[dep]]
 id = "core.dnfamitracker"
 spdx = "GPL-3.0-or-later"
 source = "external/dnfamitracker"
-texts = ["external/dnfamitracker/LICENSE-GPLv3.txt", "external/dnfamitracker/LICENSE-GPLv2.txt", "external/dnfamitracker/LICENSE.md"]
 
 [[dep]]
 id = "lib.openmpt_dsp_effects"
 spdx = "BSD-3-Clause"
 source = ""
-texts = ["app/src/main/cpp/effects/openmpt_dsp/LICENSE.OpenMPT"]
+license_dir = "app/src/main/cpp/effects/openmpt_dsp"
 
 [[dep]]
 id = "lib.psflib"
 spdx = "MIT"
 source = "external/psflib"
-texts = ["external/psflib/LICENSE"]
 
 [[dep]]
 id = "lib.mbedtls"
 spdx = "Apache-2.0"
 source = "external/mbedtls"
-texts = ["external/mbedtls/LICENSE"]
 note = "Upstream dual-licenses Apache-2.0 OR GPL-2.0-or-later; distributed here under Apache-2.0."
 
 [[dep]]
 id = "lib.libsoxr"
 spdx = "LGPL-2.1-or-later"
 source = "external/libsoxr"
-texts = ["external/libsoxr/COPYING.LGPL"]
 
 [[dep]]
 id = "lib.libresidfp"
 spdx = "GPL-2.0-or-later"
 source = "external/libresidfp"
-texts = ["external/libresidfp/LICENSE"]
 
 [[dep]]
 id = "lib.resid"
 spdx = "GPL-2.0-or-later"
 source = "external/resid"
-texts = ["tools/licenses/GPL-2.0.txt"]
 
 [[dep]]
 id = "lib.libbinio"
 spdx = "LGPL-2.1-or-later"
 source = "external/libbinio"
-texts = ["external/libbinio/COPYING"]
 
 [[dep]]
 id = "lib.miniaudio"
 spdx = "Unlicense OR MIT-0"
 source = "external/miniaudio"
-texts = ["external/miniaudio/LICENSE"]
 
 [[dep]]
 id = "core.ayfly"
@@ -169,7 +152,7 @@ note = "No standalone license file upstream; the grant lives in the source heade
 id = "core.libxmp"
 spdx = "MIT"
 source = "external/libxmp"
-texts = ["external/libxmp/docs/COPYING"]
+license_dir = "external/libxmp/docs"
 
 [[dep]]
 id = "lib.smbj"
@@ -193,110 +176,112 @@ note = "Desktop bundles org.json:json; Android uses the framework copy."
 id = "lib.projectm"
 spdx = "LGPL-2.1-or-later"
 source = "external/projectm"
-texts = ["external/projectm/LICENSE.txt"]
 
 [[dep]]
 id = "lib.fftw"
 spdx = "GPL-2.0-or-later"
 source = "external/furnace"
+license_dir = "external/furnace/extern/fftw"
 git_version = false
 version_file = "external/furnace/extern/fftw/NEWS"
 version_pattern = 'FFTW\s+([0-9.]+):'
-texts = ["external/furnace/extern/fftw/COPYING"]
 note = "Shipped as built by the furnace tree."
 
 [[dep]]
 id = "lib.fmt"
 spdx = "MIT"
 source = "external/furnace"
+license_dir = "external/furnace/extern/fmt"
 git_version = false
 version_file = "external/furnace/extern/fmt/ChangeLog.rst"
 version_pattern = '^([0-9.]+)\s+-\s+\d{4}-\d{2}-\d{2}'
-texts = ["external/furnace/extern/fmt/LICENSE.rst"]
 note = "Shipped as built by the furnace tree."
 
 [[dep]]
 id = "lib.libsndfile"
 spdx = "LGPL-2.1-or-later"
 source = "external/furnace"
+license_dir = "external/furnace/extern/libsndfile-modified"
 git_version = false
 version_file = "external/furnace/extern/libsndfile-modified/CMakeLists.txt"
 version_pattern = 'project\(libsndfile\s+VERSION\s+([0-9.]+)'
-texts = ["external/furnace/extern/libsndfile-modified/COPYING"]
 note = "Shipped as built by the furnace tree."
 
 [[dep]]
 id = "lib.dnfamitracker_nsfplay"
 spdx = "Informal permissive notice (see readme.txt)"
 source = "external/dnfamitracker"
+license_dir = "external/dnfamitracker/Source/APU/nsfplay"
 git_version = false
-texts = ["external/dnfamitracker/Source/APU/nsfplay/readme.txt"]
 
 [[dep]]
 id = "lib.dnfamitracker_emu2413_emu2149"
 spdx = "MIT"
 source = "external/dnfamitracker"
+license_dir = "external/dnfamitracker/Source/APU/digital-sound-antiques"
 git_version = false
-texts = ["external/dnfamitracker/Source/APU/digital-sound-antiques/LICENSE"]
 note = "Covers emu2413 (VRC7) and emu2149 (Sunsoft 5B) from digital-sound-antiques."
 
 [[dep]]
 id = "lib.dnfamitracker_mesen"
 spdx = "GPL-3.0"
 source = "external/dnfamitracker"
+license_dir = "external/dnfamitracker/Source/APU/mesen"
 git_version = false
-texts = ["external/dnfamitracker/Source/APU/mesen/LICENSE"]
 note = "FDS and N163 sound emulation."
 
 [[dep]]
 id = "lib.dnfamitracker_blip_buffer"
 spdx = "LGPL-2.1"
 source = "external/dnfamitracker"
+license_dir = "external/dnfamitracker/Source/Blip_Buffer"
 git_version = false
-texts = ["external/dnfamitracker/Source/Blip_Buffer/Blip_Buffer.cpp"]
 note = "The LGPL-2.1 grant lives in the Blip_Buffer.cpp file header; no standalone text is vendored upstream."
 
 [[dep]]
 id = "lib.dnfamitracker_nayuki_fft"
 spdx = "MIT"
 source = "external/dnfamitracker"
+license_dir = "external/dnfamitracker/Source/FFT"
 git_version = false
-texts = ["external/dnfamitracker/Source/FFT/FftComplex.hpp"]
 note = "The MIT grant lives in the FftComplex.hpp file header."
 
 [[dep]]
 id = "lib.dnfamitracker_json"
 spdx = "MIT"
 source = "external/dnfamitracker"
+license_dir = "external/dnfamitracker/Source/json"
 git_version = false
 version_file = "external/dnfamitracker/Source/json/json.hpp"
 version_pattern = 'version\s+([0-9.]+)'
-texts = []
 note = "MIT (SPDX-License-Identifier in Source/json/json.hpp); the 900KB header cannot ride into the license viewer."
 
 [[dep]]
 id = "lib.dnfamitracker_libsamplerate"
 spdx = "BSD-2-Clause"
 source = "external/dnfamitracker"
+license_dir = "external/dnfamitracker/Source/libsamplerate"
 git_version = false
 version_file = "external/dnfamitracker/Source/libsamplerate/CMakeLists.txt"
 version_pattern = 'project\(libsamplerate\s+VERSION\s+([0-9.]+)'
-texts = ["external/dnfamitracker/Source/libsamplerate/COPYING"]
+
+[[dep]]
+id = "core.nezplugpp"
+spdx = "Public Domain"
+source = "external/nezplugpp"
 
 [[dep]]
 id = "core.ufmod"
 spdx = "MIT"
 source = "external/ufmod_c"
-texts = ["external/ufmod_c/LICENSE"]
 
 [[dep]]
 id = "lib.roboto"
 spdx = "Apache-2.0"
-texts = ["tools/licenses/Apache-2.0.txt"]
 note = "Bundled Roboto Medium; VU meter typeface on Android and desktop."
 
 [[dep]]
 id = "app.siliconplayer"
 spdx = "GPL-3.0"
-texts = ["LICENSE"]
+license_dir = "."
 note = "Silicon Player application license."

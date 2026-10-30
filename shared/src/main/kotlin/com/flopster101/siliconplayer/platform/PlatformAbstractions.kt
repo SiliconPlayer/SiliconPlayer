@@ -169,6 +169,16 @@ val LocalProjectMOptionsProvider = staticCompositionLocalOf<ProjectMOptionsProvi
     }
 }
 
+interface LicenseAssetReader {
+    fun read(assetPath: String): String?
+}
+
+val LocalLicenseAssetReader = staticCompositionLocalOf<LicenseAssetReader> {
+    object : LicenseAssetReader {
+        override fun read(assetPath: String): String? = null
+    }
+}
+
 data class AppVersionInfo(
     val versionName: String,
     val platform: String = "",

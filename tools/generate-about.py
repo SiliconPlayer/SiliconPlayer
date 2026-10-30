@@ -3,13 +3,16 @@
 import argparse
 import json
 import re
+import shutil
 import subprocess
 import sys
 import tomllib
 from pathlib import Path
 
 JAVA_PACKAGE = "com.flopster101.siliconplayer"
-CHUNK = 30000
+ASSET_DIR = "licenses"
+MAX_LICENSE_BYTES = 512 * 1024
+LICENSE_FILE_RE = re.compile(r"^(licen[cs]es?|copying|copyright|notices?)([._-].*)?$", re.I)
 
 
 def git(args, cwd):
@@ -65,12 +68,21 @@ def java_escape(text):
     return "".join(out)
 
 
-def java_literal(text):
-    parts = [
-        '"%s"' % java_escape(text[i : i + CHUNK])
-        for i in range(0, len(text), CHUNK)
-    ]
-    return " +\n            ".join(parts) if parts else '""'
+def discover_license_files(directory):
+    """Top-level license/copyright files of a dependency tree, sorted by name."""
+    if directory is None or not directory.is_dir():
+        return []
+    found = []
+    for entry in sorted(directory.iterdir()):
+        if not entry.is_file():
+            continue
+        if not LICENSE_FILE_RE.match(entry.name):
+            continue
+        if entry.stat().st_size > MAX_LICENSE_BYTES:
+            print("oversized license text skipped: %s" % entry, file=sys.stderr)
+            continue
+        found.append(entry)
+    return found
 
 
 def check_coverage(repo):
@@ -116,6 +128,7 @@ def main():
     ap.add_argument("--toml", default=None)
     ap.add_argument("--java-out", default=None)
     ap.add_argument("--meta-out", default=None)
+    ap.add_argument("--assets-out", default=None)
     ap.add_argument("--check-coverage", action="store_true")
     ap.add_argument("--disable-tags-for", default="")
     ap.add_argument("--third-party", default=None)
@@ -134,6 +147,7 @@ def main():
 
     versions = {}
     texts = {}
+    asset_manifest = {}
     manifest = []
     for dep in config["dep"]:
         dep_id = dep["id"]
@@ -158,15 +172,17 @@ def main():
             version = sha
         if version is not None:
             versions[dep_id] = version
+        license_dir = dep.get("license_dir") or dep.get("source")
         entries = []
-        for rel in dep.get("texts", []):
-            src = repo / rel
-            if not src.is_file():
-                print("missing license text: %s" % rel, file=sys.stderr)
-                return 1
-            entries.append((rel, src.read_text(encoding="utf-8", errors="replace")))
+        for path in discover_license_files(repo / license_dir if license_dir else None):
+            rel = path.relative_to(repo).as_posix()
+            entries.append((rel, path.read_text(encoding="utf-8", errors="replace")))
         if entries:
             texts[dep_id] = entries
+            asset_manifest[dep_id] = [
+                ("%s/%s/%s" % (ASSET_DIR, dep_id, Path(rel).name), content)
+                for rel, content in entries
+            ]
         manifest.append(
             {
                 "id": dep_id,
@@ -195,19 +211,22 @@ def main():
         "    public static String versionForId(String entityId) {\n"
         "        return BY_ID.get(entityId);\n    }\n}\n" % (JAVA_PACKAGE, body)
     )
-    text_body = "\n".join(
-        '        map.put("%s",\n            %s);' % (d, java_literal("\n".join(t for _, t in e)))
-        for d, e in texts.items()
+    asset_body = "\n".join(
+        '        map.put("%s", Arrays.asList(%s));' % (d, ", ".join('"%s"' % a for a, _ in assets))
+        for d, assets in asset_manifest.items()
     )
-    (java_dir / "GeneratedLicenseTexts.java").write_text(
-        "package %s;\n\nimport java.util.Collections;\nimport java.util.LinkedHashMap;\n"
-        "import java.util.Map;\n\npublic final class GeneratedLicenseTexts {\n"
-        "    private static final Map<String, String> BY_ID;\n\n    static {\n"
-        "        Map<String, String> map = new LinkedHashMap<>();\n%s\n"
+    (java_dir / "GeneratedLicenseAssets.java").write_text(
+        "package %s;\n\nimport java.util.Arrays;\nimport java.util.Collections;\n"
+        "import java.util.LinkedHashMap;\nimport java.util.List;\nimport java.util.Map;\n\n"
+        "public final class GeneratedLicenseAssets {\n"
+        "    private static final Map<String, List<String>> BY_ID;\n\n    static {\n"
+        "        Map<String, List<String>> map = new LinkedHashMap<>();\n%s\n"
         "        BY_ID = Collections.unmodifiableMap(map);\n    }\n\n"
-        "    private GeneratedLicenseTexts() {\n    }\n\n"
-        "    public static String textForId(String entityId) {\n"
-        "        return BY_ID.get(entityId);\n    }\n}\n" % (JAVA_PACKAGE, text_body)
+        "    private GeneratedLicenseAssets() {\n    }\n\n"
+        "    public static List<String> assetsForId(String entityId) {\n"
+        "        List<String> assets = BY_ID.get(entityId);\n"
+        "        return assets == null ? Collections.<String>emptyList() : assets;\n"
+        "    }\n}\n" % (JAVA_PACKAGE, asset_body)
     )
 
     meta_dir = Path(args.meta_out)
@@ -219,6 +238,16 @@ def main():
         for rel, content in entries:
             dest = texts_dir / ("%s__%s" % (dep_id, Path(rel).name))
             dest.write_text(content, encoding="utf-8")
+    if args.assets_out:
+        assets_root = Path(args.assets_out) / ASSET_DIR
+        if assets_root.exists():
+            shutil.rmtree(assets_root)
+        for assets in asset_manifest.values():
+            for asset_rel, content in assets:
+                dest = Path(args.assets_out) / asset_rel
+                dest.parent.mkdir(parents=True, exist_ok=True)
+                dest.write_text(content, encoding="utf-8")
+
     (meta_dir / "licenses.json").write_text(
         json.dumps(manifest, indent=2) + "\n", encoding="utf-8"
     )
@@ -230,7 +259,7 @@ def main():
             "",
             "Exact upstream sources and license texts for the native libraries",
             "shipped in Silicon Player releases. License texts ride in-app",
-            "(About > Audio cores / Libraries > View license text), in the",
+            "(About > Audio cores / Libraries > the entry's license line), in the",
             "AppImage under `usr/share/doc/siliconplayer/`, and in the Arch",
             "package under `/usr/share/licenses/siliconplayer/`.",
             "",

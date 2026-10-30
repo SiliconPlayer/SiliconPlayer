@@ -69,6 +69,7 @@ val aboutToml = rootProject.file("tools/licenses.toml")
 val aboutScript = rootProject.file("tools/generate-about.py")
 val generatedAboutVersionDir = layout.buildDirectory.dir("generated/source/aboutVersions/main")
 val generatedAboutMetaDir = layout.buildDirectory.dir("generated/about/main")
+val generatedLicenseAssetsDir = layout.buildDirectory.dir("generated/licensesAssets/main")
 
 val generateAboutVersions by tasks.registering(Exec::class) {
     group = "build setup"
@@ -83,6 +84,7 @@ val generateAboutVersions by tasks.registering(Exec::class) {
     )
     outputs.dir(generatedAboutVersionDir)
     outputs.dir(generatedAboutMetaDir)
+    outputs.dir(generatedLicenseAssetsDir)
     commandLine(
         "python3",
         aboutScript.absolutePath,
@@ -90,6 +92,7 @@ val generateAboutVersions by tasks.registering(Exec::class) {
         "--toml", aboutToml.absolutePath,
         "--java-out", generatedAboutVersionDir.get().asFile.absolutePath,
         "--meta-out", generatedAboutMetaDir.get().asFile.absolutePath,
+        "--assets-out", generatedLicenseAssetsDir.get().asFile.absolutePath,
         "--disable-tags-for", disableTags
     )
 }
@@ -205,6 +208,7 @@ extensions.configure<com.android.build.api.dsl.ApplicationExtension>("android") 
         getByName("main") {
             assets.directories.add("build/generated/uadeRuntimeAssets/main")
             assets.directories.add("build/generated/projectmPresetsAssets/main")
+            assets.directories.add("build/generated/licensesAssets/main")
             jniLibs.directories.add("build/generated/prebuiltNativeLibs/main")
             java.directories.add("build/generated/source/aboutVersions/main")
             java.directories.add(rootProject.file("shared/src/main/kotlin").absolutePath)

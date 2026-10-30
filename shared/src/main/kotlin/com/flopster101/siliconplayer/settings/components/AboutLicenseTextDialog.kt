@@ -17,6 +17,7 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -25,14 +26,22 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.unit.dp
+import com.flopster101.siliconplayer.platform.LicenseAssetReader
+import com.flopster101.siliconplayer.platform.LocalLicenseAssetReader
 import com.flopster101.siliconplayer.platform.LocalWindowSizeInfo
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 
 @Composable
 internal fun AboutLicenseTextDialog(
     entity: AboutEntity,
-    text: String,
+    assets: List<String>,
     onDismiss: () -> Unit
 ) {
+    val reader = LocalLicenseAssetReader.current
+    val text by produceState<String?>(initialValue = null, assets) {
+        value = withContext(Dispatchers.IO) { readLicenseAssets(reader, assets) }
+    }
     AlertDialog(
         modifier = adaptiveDialogModifier(),
         properties = adaptiveDialogProperties(),
@@ -44,7 +53,16 @@ internal fun AboutLicenseTextDialog(
             )
         },
         text = {
-            AboutLicenseTextContent(text = text)
+            val loaded = text
+            if (loaded == null) {
+                Text(
+                    text = "Loading\u2026",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            } else {
+                AboutLicenseTextContent(text = loaded)
+            }
         },
         confirmButton = {
             TextButton(onClick = onDismiss) {
@@ -52,6 +70,23 @@ internal fun AboutLicenseTextDialog(
             }
         }
     )
+}
+
+private fun readLicenseAssets(
+    reader: LicenseAssetReader,
+    assets: List<String>
+): String {
+    val parts = assets.mapNotNull { asset ->
+        val content = reader.read(asset)?.trimEnd()
+        if (content.isNullOrBlank()) {
+            null
+        } else if (assets.size == 1) {
+            content
+        } else {
+            "===== ${asset.substringAfterLast('/')} =====\n\n$content"
+        }
+    }
+    return parts.joinToString("\n\n").ifBlank { "License text unavailable." }
 }
 
 @Composable

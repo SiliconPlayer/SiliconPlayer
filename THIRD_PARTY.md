@@ -3,14 +3,14 @@
 
 Exact upstream sources and license texts for the native libraries
 shipped in Silicon Player releases. License texts ride in-app
-(About > Audio cores / Libraries > View license text), in the
+(About > Audio cores / Libraries > the entry's license line), in the
 AppImage under `usr/share/doc/siliconplayer/`, and in the Arch
 package under `/usr/share/licenses/siliconplayer/`.
 
 | ID | SPDX | Version | Source |
 | --- | --- | --- | --- |
 | core.ffmpeg | LGPL-2.1-or-later | v0.6.1-f951aa9e | `external/ffmpeg` @ `f951aa9ef382` |
-| core.libopenmpt | BSD-3-Clause | libopenmpt-0.8.7-90c2c9b6 | `external/libopenmpt` @ `90c2c9b6bff4` |
+| core.libopenmpt | BSD-3-Clause | libopenmpt-0.8.7-f9e080ab | `external/libopenmpt` @ `f9e080ab103d` |
 | core.vgmplay | Mixed per-chip licenses, no single text upstream | 790683a6 | `external/libvgm` @ `790683a6b392` |
 | core.gme | LGPL-2.1-or-later | 0.6.5-8c21ab97 | `external/libgme` @ `8c21ab97094e` |
 | core.crsid | Upstream custom permissive notice | 1.58 | in-tree |
@@ -34,12 +34,12 @@ package under `/usr/share/licenses/siliconplayer/`.
 | lib.resid | GPL-2.0-or-later | 3bf8eff2 | `external/resid` @ `3bf8eff22bc8` |
 | lib.libbinio | LGPL-2.1-or-later | start-79d597dd | `external/libbinio` @ `79d597dde206` |
 | lib.miniaudio | Unlicense OR MIT-0 | 0.11.25-f9614af6 | `external/miniaudio` @ `f9614af67ef1` |
-| core.ayfly | GPL-2.0-or-later | 558275b8 | `external/ayfly` @ `558275b850b0` |
-| core.libxmp | MIT | xmp-4.0.6-2f65a1f3 | `external/libxmp` @ `2f65a1f3a587` |
+| core.ayfly | GPL-2.0-or-later | 78161725 | `external/ayfly` @ `78161725b1a7` |
+| core.libxmp | MIT | xmp-4.0.6-4636feb0 | `external/libxmp` @ `4636feb01870` |
 | lib.smbj | Apache-2.0 | 0.14.0 | in-tree |
 | lib.smbj_rpc | BSD-3-Clause | 0.11.1.1 | in-tree |
 | lib.json | LicenseRef-JSON | 20240303 | in-tree |
-| lib.projectm | LGPL-2.1-or-later | v4.1.7-359bf780 | `external/projectm` @ `359bf7801e20` |
+| lib.projectm | LGPL-2.1-or-later | v4.1.8-349b7cc2 | `external/projectm` @ `349b7cc2db31` |
 | lib.fftw | GPL-2.0-or-later | 3.3.10 | `external/furnace` @ `ba46d842807c` |
 | lib.fmt | MIT | 10.1.0 | `external/furnace` @ `ba46d842807c` |
 | lib.libsndfile | LGPL-2.1-or-later | 1.2.2 | `external/furnace` @ `ba46d842807c` |
@@ -50,6 +50,7 @@ package under `/usr/share/licenses/siliconplayer/`.
 | lib.dnfamitracker_nayuki_fft | MIT | n/a | `external/dnfamitracker` @ `0353843cc6e7` |
 | lib.dnfamitracker_json | MIT | 3.11.2 | `external/dnfamitracker` @ `0353843cc6e7` |
 | lib.dnfamitracker_libsamplerate | BSD-2-Clause | 0.2.2 | `external/dnfamitracker` @ `0353843cc6e7` |
+| core.nezplugpp | Public Domain | n/a | external/nezplugpp |
 | core.ufmod | MIT | fddf70d8 | `external/ufmod_c` @ `fddf70d8d712` |
 | lib.roboto | Apache-2.0 | n/a | in-tree |
 | app.siliconplayer | GPL-3.0 | n/a | in-tree |

@@ -34,6 +34,7 @@ import com.flopster101.siliconplayer.DecoderPlatform
 import com.flopster101.siliconplayer.LocalDecoderPlatform
 import com.flopster101.siliconplayer.isRoundScreenCompat
 import com.flopster101.siliconplayer.ui.visualization.gl.ProjectMPresetSets
+import java.io.IOException
 
 class AndroidAppPreferences(val sharedPreferences: SharedPreferences) : AppPreferences {
     private val listenerMap = mutableMapOf<AppPreferences.OnChangeListener, SharedPreferences.OnSharedPreferenceChangeListener>()
@@ -111,6 +112,16 @@ class AndroidAppPreferences(val sharedPreferences: SharedPreferences) : AppPrefe
 class AndroidPreferencesProvider(private val context: Context) : PreferencesProvider {
     override fun getPreferences(name: String): AppPreferences {
         return AndroidAppPreferences(context.getSharedPreferences(name, Context.MODE_PRIVATE))
+    }
+}
+
+class AndroidLicenseAssetReader(private val context: Context) : LicenseAssetReader {
+    override fun read(assetPath: String): String? {
+        return try {
+            context.assets.open(assetPath).bufferedReader().use { it.readText() }
+        } catch (_: IOException) {
+            null
+        }
     }
 }
 
@@ -503,6 +514,7 @@ fun ProvideAndroidPlatformAdapters(
     val artworkCacheSupport = rememberAndroidArtworkCacheSupport()
     val playlistPlatformSupport = rememberAndroidPlaylistPlatformSupport()
     val playlistRefreshNotifier = remember(context) { AndroidPlaylistRefreshNotifier(context) }
+    val licenseAssetReader = remember(context) { AndroidLicenseAssetReader(context) }
 
     remember(prefs, context) {
         com.flopster101.siliconplayer.NetworkCredentialStore.preferencesProvider = { prefs }
@@ -522,6 +534,7 @@ fun ProvideAndroidPlatformAdapters(
         LocalIsRoundScreen provides isRoundScreen,
         LocalRemoteSourceExportSupport provides { remoteSourceExportSupport },
         LocalAudioRouteManager provides audioRouteManager,
+        LocalLicenseAssetReader provides licenseAssetReader,
         LocalAudioInspectorSupport provides AndroidAudioInspectorSupport,
         LocalToastHandler provides toastHandler,
         LocalArtworkThumbnailLoader provides artworkThumbnailLoader,

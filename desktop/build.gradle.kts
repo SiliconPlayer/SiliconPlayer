@@ -25,6 +25,7 @@ dependencies {
 
 val generatedAboutVersionDir = layout.buildDirectory.dir("generated/source/aboutVersions/main")
 val generatedAboutMetaDir = layout.buildDirectory.dir("generated/about/main")
+val generatedLicenseAssetsDir = layout.buildDirectory.dir("generated/licensesResources/main")
 val generatedDesktopConfigDir = layout.buildDirectory.dir("generated/source/desktopConfig/main")
 
 val generateAboutVersions by tasks.registering(Exec::class) {
@@ -46,13 +47,15 @@ val generateAboutVersions by tasks.registering(Exec::class) {
     inputs.property("aboutSourceHeads", headsCapture)
     outputs.dir(generatedAboutVersionDir)
     outputs.dir(generatedAboutMetaDir)
+    outputs.dir(generatedLicenseAssetsDir)
     commandLine(
         "python3",
         rootProject.file("tools/generate-about.py").absolutePath,
         "--repo", rootDir.absolutePath,
         "--toml", rootProject.file("tools/licenses.toml").absolutePath,
         "--java-out", generatedAboutVersionDir.get().asFile.absolutePath,
-        "--meta-out", generatedAboutMetaDir.get().asFile.absolutePath
+        "--meta-out", generatedAboutMetaDir.get().asFile.absolutePath,
+        "--assets-out", generatedLicenseAssetsDir.get().asFile.absolutePath
     )
 }
 
@@ -98,11 +101,16 @@ val generateDesktopBuildConfig by tasks.registering {
 sourceSets.getByName("main") {
     java.srcDir(layout.buildDirectory.dir("generated/source/aboutVersions/main"))
     java.srcDir(generatedDesktopConfigDir)
+    resources.srcDir(generatedLicenseAssetsDir)
 }
 
 tasks.named("compileJava") {
     dependsOn(generateAboutVersions)
     dependsOn(generateDesktopBuildConfig)
+}
+
+tasks.named("processResources") {
+    dependsOn(generateAboutVersions)
 }
 
 compose.desktop {

@@ -19,12 +19,9 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Description
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.FilledTonalButton
-import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -53,6 +50,8 @@ internal fun AboutEntityDialog(
     val uriHandler = LocalUriHandler.current
     if (isWatchDevice()) {
         val versionLabel = remember(entity.id) { AboutCatalog.resolveVersion(entity.id) }
+        val licenseAssets = remember(entity.id) { AboutCatalog.resolveLicenseAssets(entity.id) }
+        var showLicenseText by remember { mutableStateOf(false) }
         WatchDialogContainer(
             title = entity.name,
             onDismissRequest = onDismiss
@@ -81,7 +80,8 @@ internal fun AboutEntityDialog(
             )
             AboutEntityInfoLine(
                 label = "License",
-                value = entity.license
+                value = entity.license,
+                onClick = if (licenseAssets.isEmpty()) null else { { showLicenseText = true } }
             )
             if (!versionLabel.isNullOrBlank()) {
                 AboutEntityInfoLine(
@@ -119,6 +119,13 @@ internal fun AboutEntityDialog(
             ) {
                 Text("Close")
             }
+        }
+        if (showLicenseText && licenseAssets.isNotEmpty()) {
+            AboutLicenseTextDialog(
+                entity = entity,
+                assets = licenseAssets,
+                onDismiss = { showLicenseText = false }
+            )
         }
     } else {
         AlertDialog(
@@ -162,7 +169,7 @@ private fun AboutEntityDialogContent(
 ) {
     val uriHandler = LocalUriHandler.current
     val versionLabel = remember(entity.id) { AboutCatalog.resolveVersion(entity.id) }
-    val licenseText = remember(entity.id) { AboutCatalog.resolveLicenseText(entity.id) }
+    val licenseAssets = remember(entity.id) { AboutCatalog.resolveLicenseAssets(entity.id) }
     var showLicenseText by remember { mutableStateOf(false) }
     val configuration = LocalWindowSizeInfo.current
     val maxHeight = configuration.screenHeightDp.dp * 0.60f
@@ -199,18 +206,9 @@ private fun AboutEntityDialogContent(
             )
             AboutEntityInfoLine(
                 label = "License",
-                value = entity.license
+                value = entity.license,
+                onClick = if (licenseAssets.isEmpty()) null else { { showLicenseText = true } }
             )
-            if (!licenseText.isNullOrBlank()) {
-                TextButton(onClick = { showLicenseText = true }) {
-                    Icon(
-                        imageVector = Icons.Filled.Description,
-                        contentDescription = null
-                    )
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text("View license text")
-                }
-            }
             if (!versionLabel.isNullOrBlank()) {
                 AboutEntityInfoLine(
                     label = "Version",
@@ -257,10 +255,10 @@ private fun AboutEntityDialogContent(
             )
         }
     }
-    if (showLicenseText && !licenseText.isNullOrBlank()) {
+    if (showLicenseText && licenseAssets.isNotEmpty()) {
         AboutLicenseTextDialog(
             entity = entity,
-            text = licenseText,
+            assets = licenseAssets,
             onDismiss = { showLicenseText = false }
         )
     }
@@ -269,9 +267,19 @@ private fun AboutEntityDialogContent(
 @Composable
 private fun AboutEntityInfoLine(
     label: String,
-    value: String
+    value: String,
+    onClick: (() -> Unit)? = null
 ) {
-    Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+    Column(
+        modifier = if (onClick == null) {
+            Modifier
+        } else {
+            Modifier
+                .fillMaxWidth()
+                .clickable(onClick = onClick)
+        },
+        verticalArrangement = Arrangement.spacedBy(2.dp)
+    ) {
         Text(
             text = label,
             style = MaterialTheme.typography.labelMedium,
@@ -280,7 +288,11 @@ private fun AboutEntityInfoLine(
         Text(
             text = value,
             style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurface
+            color = if (onClick == null) {
+                MaterialTheme.colorScheme.onSurface
+            } else {
+                MaterialTheme.colorScheme.primary
+            }
         )
     }
 }

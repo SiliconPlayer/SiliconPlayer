@@ -153,12 +153,12 @@ internal fun AboutSettingsBody(
     }
 
     if (showAppLicense) {
-        val appLicenseText = remember {
-            AboutCatalog.resolveLicenseText(AboutCatalog.applicationEntity.id) ?: ""
+        val appLicenseAssets = remember {
+            AboutCatalog.resolveLicenseAssets(AboutCatalog.applicationEntity.id)
         }
         AboutLicenseTextDialog(
             entity = AboutCatalog.applicationEntity,
-            text = appLicenseText,
+            assets = appLicenseAssets,
             onDismiss = { showAppLicense = false }
         )
     }
