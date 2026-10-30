@@ -17,8 +17,7 @@ internal data class AboutEntity(
     val description: String,
     val author: String,
     val license: String,
-    val links: List<AboutEntityLink> = emptyList(),
-    val integrationNotes: List<String> = emptyList()
+    val links: List<AboutEntityLink> = emptyList()
 )
 
 internal object AboutCatalog {
@@ -73,7 +72,7 @@ internal object AboutCatalog {
             id = "core.crsid",
             kind = AboutEntityKind.Core,
             name = DecoderNames.C_RSID,
-            description = "Integer-focused Commodore 64 SID playback core based on the cRSID engine.",
+            description = "Integer-only Commodore 64 SID playback core.",
             author = "Hermit (Mihaly Horvath)",
             license = "Upstream custom permissive notice",
             links = listOf(
@@ -84,7 +83,7 @@ internal object AboutCatalog {
             id = "core.libsidplayfp",
             kind = AboutEntityKind.Core,
             name = DecoderNames.LIB_SID_PLAY_FP,
-            description = "Cycle-based Commodore 64 SID playback library with high quality SID emulation backends.",
+            description = "Cycle-based Commodore 64 SID playback core with selectable emulation backends.",
             author = "Simon White, Antti Lankila, Leandro Nini, and contributors",
             license = "GPL-2.0-or-later",
             links = listOf(
@@ -96,7 +95,7 @@ internal object AboutCatalog {
             id = "core.lazyusf2",
             kind = AboutEntityKind.Core,
             name = DecoderNames.LAZY_USF2,
-            description = "Nintendo 64 USF playback core derived from Mupen64plus-era audio emulation code.",
+            description = "Nintendo 64 USF playback core derived from Mupen64plus emulation code.",
             author = "lazyusf2 and Mupen64plus contributors",
             license = "GPL-2.0-or-later",
             links = listOf(
@@ -118,7 +117,7 @@ internal object AboutCatalog {
             id = "core.libupse",
             kind = AboutEntityKind.Core,
             name = DecoderNames.LIB_UPSE,
-            description = "PlayStation PSF and PSF2 playback core.",
+            description = "PlayStation PSF playback core.",
             author = "William Pitcock and UPSE contributors",
             license = "GPL-2.0-only",
             links = listOf(
@@ -140,7 +139,7 @@ internal object AboutCatalog {
             id = "core.sc68",
             kind = AboutEntityKind.Core,
             name = DecoderNames.SC68,
-            description = "Atari ST/Amiga music playback core for SC68 and SNDH tracks.",
+            description = "Atari ST music playback core for SC68 and SNDH tracks.",
             author = "Benjamin Gerard and sc68 contributors",
             license = "GPL-3.0-or-later",
             links = listOf(
@@ -187,7 +186,7 @@ internal object AboutCatalog {
             id = "core.klystrack",
             kind = AboutEntityKind.Core,
             name = DecoderNames.KLYSTRACK,
-            description = "klystrack-plus module replay core using the klystron audio engine.",
+            description = "Module replay core for .kt modules using the klystron synthesis engine.",
             author = "Georgy Saraykin (LTVA1) and Klystrack-plus contributors",
             license = "MIT License",
             links = listOf(
@@ -217,16 +216,13 @@ internal object AboutCatalog {
             links = listOf(
                 AboutEntityLink("Project", "https://github.com/Dn-Programming-Core-Management/Dn-FamiTracker"),
                 AboutEntityLink("Source", "https://github.com/SiliconPlayer/Dn-FamiTracker")
-            ),
-            integrationNotes = listOf(
-                "Fork of Dn-FamiTracker decoupled from the upstream MFC app as a headless playback library, with adaptations for SiliconPlayer."
             )
         ),
         AboutEntity(
             id = "core.ayfly",
             kind = AboutEntityKind.Core,
             name = DecoderNames.AYFLY,
-            description = "ZX Spectrum and AY-8910 music player library.",
+            description = "AY-3-8910 chiptune playback core covering ZX Spectrum and YM tracker formats.",
             author = "Deryabin Andrew and contributors",
             license = "GPL-2.0-or-later",
             links = listOf(
@@ -281,10 +277,6 @@ internal object AboutCatalog {
             links = listOf(
                 AboutEntityLink("Project", "https://openmpt.org/"),
                 AboutEntityLink("Source", "https://github.com/OpenMPT/openmpt.git")
-            ),
-            integrationNotes = listOf(
-                "Integrated under app/src/main/cpp/effects/openmpt_dsp/ with local attribution and license copy.",
-                "Silicon Player uses a native port of OpenMPT DSP routines in the app audio processing pipeline."
             )
         ),
         AboutEntity(
@@ -296,9 +288,6 @@ internal object AboutCatalog {
             license = "MIT",
             links = listOf(
                 AboutEntityLink("Source", "https://github.com/kode54/psflib")
-            ),
-            integrationNotes = listOf(
-                "Used by Vio2SF to resolve mini2SF references and parse metadata tags."
             )
         ),
         AboutEntity(
@@ -322,9 +311,6 @@ internal object AboutCatalog {
             license = "LGPL-2.1-or-later",
             links = listOf(
                 AboutEntityLink("Source", "https://git.code.sf.net/p/soxr/code")
-            ),
-            integrationNotes = listOf(
-                "Available as an external resampling backend in the native pipeline."
             )
         ),
         AboutEntity(
@@ -336,23 +322,17 @@ internal object AboutCatalog {
             license = "GPL-2.0-or-later",
             links = listOf(
                 AboutEntityLink("Source", "https://github.com/libsidplayfp/libresidfp")
-            ),
-            integrationNotes = listOf(
-                "Provides higher fidelity SID emulation paths for the SID core settings."
             )
         ),
         AboutEntity(
             id = "lib.resid",
             kind = AboutEntityKind.Library,
             name = "reSID",
-            description = "Classic SID emulation backend used alongside reSIDfp in SID playback paths.",
+            description = "Original integer reSID implementation, kept as an alternative backend to reSIDfp.",
             author = "Dag Lem and contributors",
             license = "GPL-2.0-or-later",
             links = listOf(
                 AboutEntityLink("Source", "https://github.com/libsidplayfp/resid")
-            ),
-            integrationNotes = listOf(
-                "Bundled as part of SID backend support for libsidplayfp integration."
             )
         ),
         AboutEntity(
@@ -365,9 +345,6 @@ internal object AboutCatalog {
             links = listOf(
                 AboutEntityLink("Project", "https://adplug.github.io/libbinio/"),
                 AboutEntityLink("Source", "https://github.com/adplug/libbinio")
-            ),
-            integrationNotes = listOf(
-                "Linked as a static dependency for the AdPlug core."
             )
         ),
         AboutEntity(
@@ -380,9 +357,6 @@ internal object AboutCatalog {
             links = listOf(
                 AboutEntityLink("Project", "https://miniaud.io/"),
                 AboutEntityLink("Source", "https://github.com/SiliconPlayer/miniaudio.git")
-            ),
-            integrationNotes = listOf(
-                "Provides unified audio output backend handling across AAudio, OpenSL ES, and desktop audio pipelines."
             )
         ),
         AboutEntity(
@@ -395,9 +369,6 @@ internal object AboutCatalog {
             links = listOf(
                 AboutEntityLink("Project", "https://fonts.google.com/specimen/Roboto"),
                 AboutEntityLink("Source", "https://github.com/google/roboto")
-            ),
-            integrationNotes = listOf(
-                "Only the Medium weight ships, shared by the Android and desktop VU meters."
             )
         ),
         AboutEntity(
@@ -409,9 +380,6 @@ internal object AboutCatalog {
             license = "Apache-2.0",
             links = listOf(
                 AboutEntityLink("Source", "https://github.com/hierynomus/smbj")
-            ),
-            integrationNotes = listOf(
-                "Used by both file browsers for SMB share access."
             )
         ),
         AboutEntity(
@@ -434,9 +402,6 @@ internal object AboutCatalog {
             license = "JSON License",
             links = listOf(
                 AboutEntityLink("Source", "https://github.com/stleary/JSON-java")
-            ),
-            integrationNotes = listOf(
-                "Bundled on desktop; Android resolves org.json from the framework."
             )
         ),
         AboutEntity(
@@ -448,9 +413,6 @@ internal object AboutCatalog {
             license = "LGPL-2.1-or-later",
             links = listOf(
                 AboutEntityLink("Source", "https://github.com/projectM-visualizer/projectm")
-            ),
-            integrationNotes = listOf(
-                "Renders the projectM visualization backend on both platforms."
             )
         ),
         AboutEntity(
@@ -462,9 +424,6 @@ internal object AboutCatalog {
             license = "GPL-2.0-or-later",
             links = listOf(
                 AboutEntityLink("Source", "https://www.fftw.org/")
-            ),
-            integrationNotes = listOf(
-                "Shipped as built by the furnace tree."
             )
         ),
         AboutEntity(
@@ -476,9 +435,6 @@ internal object AboutCatalog {
             license = "MIT",
             links = listOf(
                 AboutEntityLink("Source", "https://github.com/fmtlib/fmt")
-            ),
-            integrationNotes = listOf(
-                "Shipped as built by the furnace tree."
             )
         ),
         AboutEntity(
@@ -490,9 +446,6 @@ internal object AboutCatalog {
             license = "LGPL-2.1-or-later",
             links = listOf(
                 AboutEntityLink("Source", "https://github.com/libsndfile/libsndfile")
-            ),
-            integrationNotes = listOf(
-                "Shipped as built by the furnace tree."
             )
         ),
         AboutEntity(
@@ -504,9 +457,6 @@ internal object AboutCatalog {
             license = "Informal permissive notice (see readme.txt)",
             links = listOf(
                 AboutEntityLink("Source", "https://github.com/bbbradsmith/nsfplay")
-            ),
-            integrationNotes = listOf(
-                "Shipped as built by the Dn-FamiTracker tree."
             )
         ),
         AboutEntity(
@@ -519,23 +469,17 @@ internal object AboutCatalog {
             links = listOf(
                 AboutEntityLink("Source", "https://github.com/digital-sound-antiques/emu2413"),
                 AboutEntityLink("Source", "https://github.com/digital-sound-antiques/emu2149")
-            ),
-            integrationNotes = listOf(
-                "Shipped as built by the Dn-FamiTracker tree."
             )
         ),
         AboutEntity(
             id = "lib.dnfamitracker_mesen",
             kind = AboutEntityKind.Library,
-            name = "Mesen (FDS/N163 emulation)",
+            name = "Mesen",
             description = "FDS and N163 sound emulation used by Dn-FamiTracker.",
             author = "Sour",
             license = "GPL-3.0",
             links = listOf(
                 AboutEntityLink("Source", "https://github.com/SourMesen/Mesen2")
-            ),
-            integrationNotes = listOf(
-                "Shipped as built by the Dn-FamiTracker tree."
             )
         ),
         AboutEntity(
@@ -547,9 +491,6 @@ internal object AboutCatalog {
             license = "LGPL-2.1",
             links = listOf(
                 AboutEntityLink("Source", "https://www.slack.net/~ant/libs/audio.html#Blip_Buffer")
-            ),
-            integrationNotes = listOf(
-                "Shipped as built by the Dn-FamiTracker tree."
             )
         ),
         AboutEntity(
@@ -561,9 +502,6 @@ internal object AboutCatalog {
             license = "MIT",
             links = listOf(
                 AboutEntityLink("Source", "https://www.nayuki.io/page/free-small-fft-in-multiple-languages")
-            ),
-            integrationNotes = listOf(
-                "Shipped as built by the Dn-FamiTracker tree."
             )
         ),
         AboutEntity(
@@ -575,9 +513,6 @@ internal object AboutCatalog {
             license = "MIT",
             links = listOf(
                 AboutEntityLink("Source", "https://github.com/nlohmann/json")
-            ),
-            integrationNotes = listOf(
-                "Shipped as built by the Dn-FamiTracker tree."
             )
         ),
         AboutEntity(
@@ -589,9 +524,6 @@ internal object AboutCatalog {
             license = "BSD-2-Clause",
             links = listOf(
                 AboutEntityLink("Source", "https://github.com/libsndfile/libsamplerate")
-            ),
-            integrationNotes = listOf(
-                "Shipped as built by the Dn-FamiTracker tree."
             )
         )
     )
