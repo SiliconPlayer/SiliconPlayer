@@ -12,7 +12,11 @@ from pathlib import Path
 JAVA_PACKAGE = "com.flopster101.siliconplayer"
 ASSET_DIR = "licenses"
 MAX_LICENSE_BYTES = 512 * 1024
-LICENSE_FILE_RE = re.compile(r"^(licen[cs]es?|copying|copyright|notices?)([._-].*)?$", re.I)
+LICENSE_FILE_RE = re.compile(
+    r"^(licen[cs]es?|copying|copyright|notices?)([._-].*)?$"
+    r"|^(lgpl|agpl|gpl|mit|bsd|apache|unlicense|zlib|wtfpl)[-._0-9]*\.(txt|md|rst)$",
+    re.I,
+)
 
 
 def git(args, cwd):
@@ -173,8 +177,19 @@ def main():
         if version is not None:
             versions[dep_id] = version
         license_dir = dep.get("license_dir") or dep.get("source")
+        candidates = list(discover_license_files(repo / license_dir if license_dir else None))
+        for rel in dep.get("license_files", []):
+            extra = repo / rel
+            if not extra.is_file():
+                print("missing license file: %s" % rel, file=sys.stderr)
+                return 1
+            candidates.append(extra)
         entries = []
-        for path in discover_license_files(repo / license_dir if license_dir else None):
+        seen = set()
+        for path in candidates:
+            if path in seen:
+                continue
+            seen.add(path)
             rel = path.relative_to(repo).as_posix()
             entries.append((rel, path.read_text(encoding="utf-8", errors="replace")))
         if entries:

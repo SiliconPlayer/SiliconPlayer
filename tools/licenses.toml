@@ -30,6 +30,7 @@ id = "core.crsid"
 spdx = "Upstream custom permissive notice"
 source = ""
 license_dir = "external/cRSID/libcRSID"
+license_files = ["external/cRSID/libcRSID/README.txt"]
 override = "1.58"
 
 [[dep]]
@@ -212,6 +213,7 @@ id = "lib.dnfamitracker_nsfplay"
 spdx = "Informal permissive notice (see readme.txt)"
 source = "external/dnfamitracker"
 license_dir = "external/dnfamitracker/Source/APU/nsfplay"
+license_files = ["external/dnfamitracker/Source/APU/nsfplay/readme.txt"]
 git_version = false
 
 [[dep]]
