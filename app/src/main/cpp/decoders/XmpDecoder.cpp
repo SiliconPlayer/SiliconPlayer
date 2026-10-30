@@ -265,8 +265,10 @@ int XmpDecoder::read(float* buffer, int numFrames) {
 
     if (numFrames <= 0 || ended) return 0;
     const int bytes = numFrames * 2 * static_cast<int>(sizeof(int32_t));
+    // Delivered position, not the raw write position: the raw one runs up to
+    // a whole tick ahead, so appends land in uneven steps.
     const int32_t scopePosA = channelScopeState
-            ? xmp_get_channel_scope_write_pos(context) : 0;
+            ? xmp_get_channel_scope_delivered_pos(context) : 0;
     if (mixBuffer.size() != static_cast<size_t>(numFrames) * 2) {
         mixBuffer.resize(static_cast<size_t>(numFrames) * 2);
     }
@@ -292,7 +294,7 @@ int XmpDecoder::read(float* buffer, int numFrames) {
     }
 
     if (channelScopeState) {
-        const int32_t scopePosB = xmp_get_channel_scope_write_pos(context);
+        const int32_t scopePosB = xmp_get_channel_scope_delivered_pos(context);
         // Publish in fixed sub-chunks: long worker reads must not
         // coalesce several content windows into one append. All positions
         // are modular ring offsets, so subtract with wrap-corrected deltas.
@@ -303,11 +305,8 @@ int XmpDecoder::read(float* buffer, int numFrames) {
         int32_t remaining = spanTotal;
         while (remaining > 0) {
             const int32_t step = std::min<int32_t>(512, remaining);
-            const int delivered = std::max(1, (int)std::lround(
-                    (double)numFrames * (double)step / (double)spanTotal));
             captureChannelScopeSnapshotLocked(
-                    part, static_cast<int32_t>((part + step) % maxSize),
-                    delivered);
+                    part, static_cast<int32_t>((part + step) % maxSize), step);
             part = static_cast<int32_t>((part + step) % maxSize);
             remaining -= step;
         }
