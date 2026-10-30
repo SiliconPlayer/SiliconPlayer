@@ -1669,6 +1669,7 @@ internal fun AlbumArtPlaceholder(
     var visDebugSourceDuplicatePercent by remember { mutableIntStateOf(0) }
     var visDebugDrawFps by remember { mutableIntStateOf(0) }
     var visDebugDrawFrameMs by remember { mutableIntStateOf(0) }
+    var visDebugScopeCadenceLine by remember { mutableStateOf<String?>(null) }
     val visDebugAccumulator = remember { VisualizationDebugAccumulator() }
     val visSourceDebugAccumulator = remember { VisualizationSourceDebugAccumulator() }
     var lastVisualizationBackend by remember {
@@ -2184,6 +2185,30 @@ internal fun AlbumArtPlaceholder(
     } else {
         visualizationRenderBackendForMode(visualizationMode)
     }
+    LaunchedEffect(
+        visualizationShowDebugInfo,
+        visualizationMode,
+        activeRenderBackend
+    ) {
+        if (!visualizationShowDebugInfo ||
+            visualizationMode != VisualizationMode.ChannelScope ||
+            activeRenderBackend == VisualizationRenderBackend.Compose
+        ) {
+            visDebugScopeCadenceLine = null
+            return@LaunchedEffect
+        }
+        // The native scope fetch loop is the poller's twin: sample the
+        // cadence window on the UI side so the overlay can compare rates.
+        while (true) {
+            val rates = runCatching {
+                NativeBridge.getChannelScopeCadence()
+            }.getOrNull() ?: IntArray(3)
+            visDebugScopeCadenceLine =
+                "Scope: ${rates[0]} draws/s, ${rates[1]} updates/s, " +
+                    "${rates[2]}% stale, ${rates[3]}% static, ${rates[4]} rewinds/s"
+            delay(350)
+        }
+    }
     val themePrimaryColor = MaterialTheme.colorScheme.primary
     val themeSurfaceIsLight = MaterialTheme.colorScheme.surface.luminance() > 0.5f
     val useScopeArtworkBackground =
@@ -2572,6 +2597,7 @@ internal fun AlbumArtPlaceholder(
                     drawFps = visDebugDrawFps,
                     drawFrameMs = visDebugDrawFrameMs,
                     vulkanDeviceLine = vulkanDeviceLine,
+                    scopeCadenceLine = visDebugScopeCadenceLine,
                     modifier = Modifier.align(Alignment.TopStart)
                 )
             }

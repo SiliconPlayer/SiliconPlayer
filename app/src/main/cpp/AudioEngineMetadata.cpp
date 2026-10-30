@@ -703,6 +703,29 @@ std::vector<float> AudioEngine::getOpenMptChannelVuLevels() {
     return decoder->getCoreFloatVectorInfo("channelVuLevels");
 }
 
+
+// Both scope fetch paths land here, so the cadence accumulation covers the
+// native vis pipeline and the Compose poller alike.
+void AudioEngine::accumulateScopeCadenceLocked(
+        const std::shared_ptr<ChannelScopeSharedState>& state,
+        int presentationDelayFrames) {
+    std::lock_guard<std::mutex> lock(visScopeCadenceMutex);
+    const uint64_t pubTotal = state->acceptedPublishCount();
+    const uint64_t publishesDelta =
+            pubTotal > visScopeCadenceLastPubTotal ? pubTotal - visScopeCadenceLastPubTotal : 0;
+    const int delayDelta = visScopeCadenceLastDelay < 0
+            ? 0 : presentationDelayFrames - visScopeCadenceLastDelay;
+    visScopeCadenceDraws++;
+    if (publishesDelta == 0) visScopeCadenceStaleDraws++;
+    if (publishesDelta == 0 && delayDelta == 0) visScopeCadenceStaticDraws++;
+    // The sweep between callbacks only slides the window forward (delay
+    // shrinks); every increase is a burst re-anchor rewind.
+    if (delayDelta > 64) visScopeCadenceRewinds++;
+    visScopeCadenceLastDelay = presentationDelayFrames;
+    visScopeCadencePublishes += publishesDelta;
+    visScopeCadenceLastPubTotal = pubTotal;
+}
+
 std::vector<float> AudioEngine::getChannelScopeSamples(int samplesPerChannel) {
     std::vector<float> flat;
     getChannelScopeSamples(samplesPerChannel, flat);
@@ -735,6 +758,9 @@ void AudioEngine::getChannelScopeSamples(int samplesPerChannel, std::vector<floa
                     static_cast<int>(std::ceil(std::max(0.0, presentationDelayDecoderFrames))),
                     outFlat
             );
+            accumulateScopeCadenceLocked(
+                    scopeStateCache,
+                    static_cast<int>(std::ceil(std::max(0.0, presentationDelayDecoderFrames))));
             return;
         }
     }
@@ -772,6 +798,9 @@ void AudioEngine::getChannelScopeSamples(int samplesPerChannel, std::vector<floa
             static_cast<int>(std::ceil(std::max(0.0, presentationDelayDecoderFrames))),
             outFlat
     );
+    accumulateScopeCadenceLocked(
+            state,
+            static_cast<int>(std::ceil(std::max(0.0, presentationDelayDecoderFrames))));
 }
 
 bool AudioEngine::tryGetChannelScopeSamples(int samplesPerChannel, std::vector<float>& outFlat) {
@@ -792,6 +821,9 @@ bool AudioEngine::tryGetChannelScopeSamples(int samplesPerChannel, std::vector<f
                     static_cast<int>(std::ceil(std::max(0.0, presentationDelayDecoderFrames))),
                     outFlat
             );
+            accumulateScopeCadenceLocked(
+                    scopeStateCache,
+                    static_cast<int>(std::ceil(std::max(0.0, presentationDelayDecoderFrames))));
             return true;
         }
     }
@@ -839,6 +871,9 @@ bool AudioEngine::tryGetChannelScopeSamples(int samplesPerChannel, std::vector<f
             static_cast<int>(std::ceil(std::max(0.0, presentationDelayDecoderFrames))),
             outFlat
     );
+    accumulateScopeCadenceLocked(
+            state,
+            static_cast<int>(std::ceil(std::max(0.0, presentationDelayDecoderFrames))));
     return true;
 }
 
@@ -927,6 +962,41 @@ double AudioEngine::scopePresentationDelayDecoderFrames(
         }
     }
     return finalDelay;
+}
+
+void AudioEngine::getChannelScopeCadence(int ratesOut[5]) {
+    std::lock_guard<std::mutex> lock(visScopeCadenceMutex);
+    const int64_t nowNs = std::chrono::duration_cast<std::chrono::nanoseconds>(
+            std::chrono::steady_clock::now().time_since_epoch()).count();
+    const int64_t windowNs = visScopeCadenceWindowStartNs == 0
+            ? 0 : nowNs - visScopeCadenceWindowStartNs;
+    if (windowNs <= 0) {
+        ratesOut[0] = 0;
+        ratesOut[1] = 0;
+        ratesOut[2] = 0;
+        ratesOut[3] = 0;
+        ratesOut[4] = 0;
+    } else {
+        const double scale = 1.0e9 / static_cast<double>(windowNs);
+        ratesOut[0] = static_cast<int>(static_cast<double>(visScopeCadenceDraws) * scale + 0.5);
+        ratesOut[1] = static_cast<int>(static_cast<double>(visScopeCadencePublishes) * scale + 0.5);
+        ratesOut[2] = visScopeCadenceDraws > 0
+                ? static_cast<int>((static_cast<double>(visScopeCadenceStaleDraws) *
+                                    100.0) / static_cast<double>(visScopeCadenceDraws) + 0.5)
+                : 0;
+        ratesOut[3] = visScopeCadenceDraws > 0
+                ? static_cast<int>((static_cast<double>(visScopeCadenceStaticDraws) *
+                                    100.0) / static_cast<double>(visScopeCadenceDraws) + 0.5)
+                : 0;
+        ratesOut[4] = static_cast<int>(static_cast<double>(visScopeCadenceRewinds) * scale + 0.5);
+    }
+    visScopeCadenceDraws = 0;
+    visScopeCadenceStaleDraws = 0;
+    visScopeCadencePublishes = 0;
+    visScopeCadenceLastPubTotal = 0;
+    visScopeCadenceStaticDraws = 0;
+    visScopeCadenceRewinds = 0;
+    visScopeCadenceWindowStartNs = nowNs;
 }
 
 std::vector<int32_t> AudioEngine::getChannelScopeTextState(int maxChannels) {

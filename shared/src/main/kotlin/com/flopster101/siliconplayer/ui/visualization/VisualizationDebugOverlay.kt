@@ -24,6 +24,7 @@ fun VisualizationDebugOverlay(
     drawFps: Int = 0,
     drawFrameMs: Int = 0,
     vulkanDeviceLine: String? = null,
+    scopeCadenceLine: String? = null,
     modifier: Modifier = Modifier
 ) {
     val pollerActive = activeRenderBackend == VisualizationRenderBackend.Compose
@@ -53,6 +54,7 @@ fun VisualizationDebugOverlay(
                     add("Render call: $drawFrameMs ms")
                 }
                 vulkanLine.trimEnd().takeIf { it.isNotEmpty() }?.let(::add)
+                scopeCadenceLine?.takeIf { it.isNotBlank() }?.let(::add)
             }.joinToString("\n"),
             color = Color.White.copy(alpha = 0.78f),
             style = MaterialTheme.typography.labelSmall,

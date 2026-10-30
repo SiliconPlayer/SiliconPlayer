@@ -138,6 +138,15 @@ public:
     std::vector<float> getChannelScopeSamples(int samplesPerChannel);
     void getChannelScopeSamples(int samplesPerChannel, std::vector<float>& outFlat);
     bool tryGetChannelScopeSamples(int samplesPerChannel, std::vector<float>& outFlat);
+    // Debug-overlay cadence rates:
+    // [0] draws/s, [1] snapshot updates/s, [2] stale-draw %,
+    // [3] static-draw % (no publish AND no window slide),
+    // [4] window rewinds/s (per-callback delay jumps).
+    // Counters accumulate across both scope fetch paths and reset on read.
+    void getChannelScopeCadence(int ratesOut[5]);
+    void accumulateScopeCadenceLocked(
+            const std::shared_ptr<ChannelScopeSharedState>& state,
+            int presentationDelayFrames);
     double scopePresentationDelayDecoderFrames(
             int decoderSampleRate,
             int outputSampleRate,
@@ -587,6 +596,15 @@ private:
     // across the interval so the window slides on large-period transports.
     mutable std::atomic<double> visScopeCompBase { 0.0 };
     mutable std::atomic<int64_t> visScopeCompBaseCbNs { 0 };
+    mutable std::mutex visScopeCadenceMutex;
+    mutable uint64_t visScopeCadenceDraws = 0;
+    mutable uint64_t visScopeCadenceStaleDraws = 0;
+    mutable uint64_t visScopeCadencePublishes = 0;
+    mutable uint64_t visScopeCadenceLastPubTotal = 0;
+    mutable int64_t visScopeCadenceWindowStartNs = 0;
+    mutable int visScopeCadenceLastDelay = -1;
+    mutable uint64_t visScopeCadenceStaticDraws = 0;
+    mutable uint64_t visScopeCadenceRewinds = 0;
     mutable std::atomic<int64_t> visualizationLastRequestNs { 0 };
     mutable std::atomic<uint32_t> visualizationRequestedFeatures { 0 };
 
