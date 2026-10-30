@@ -1,6 +1,7 @@
 #ifndef SILICONPLAYER_CHANNEL_SCOPE_SHARED_STATE_H
 #define SILICONPLAYER_CHANNEL_SCOPE_SHARED_STATE_H
 
+#include <atomic>
 #include <cstdint>
 #include <mutex>
 #include <vector>
@@ -15,6 +16,13 @@ struct ChannelScopeSharedState {
     // Must exceed worst-case buffered-ahead delay (~9k frames foreground)
     // beyond the largest request (<=8192), or the slider pins and strobes.
     static constexpr int kMaxSamples = 32768;
+    // Offline (export) rendering publishes on every decode callback instead of
+    // wall-clock-gated captures, so exported frames advance with the audio.
+    // Per-instance on purpose: ChannelScopeSharedState.cpp is compiled into
+    // every decoder plugin, so a static flag would be duplicated per .so.
+    void setCaptureGateBypass(bool enabled) { captureGateBypass_.store(enabled, std::memory_order_relaxed); }
+    bool captureGateBypass() const { return captureGateBypass_.load(std::memory_order_relaxed); }
+
     // Reserved slide room so estimation overshoot leads the trace instead of
     // freezing it at the newest edge.
     static constexpr int kMinSliderHeadroomFrames = 4096;
@@ -53,6 +61,8 @@ private:
     int pubChannels = 0;
     uint64_t pubSerial = 0;
     int64_t lastCaptureNs = 0;
+
+    std::atomic<bool> captureGateBypass_ { false };
 
     std::vector<float> localRaw;
     std::vector<float> localVu;

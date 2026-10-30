@@ -13,6 +13,7 @@
 #include <unordered_map>
 #include <array>
 #include <chrono>
+#include "ChannelScopeSharedState.h"
 #include "decoders/AudioDecoder.h"
 #include "effects/openmpt_dsp/OpenMptDspEffects.h"
 #include "silicon/vis/IVisualizationAudioProvider.h"
@@ -35,6 +36,9 @@ public:
     void teardownOutputStreamForSwitch();
     void releaseCurrentDecoder();
     bool isEnginePlaying() const;
+    bool renderOfflineAudioFrames(float* outputStereo, int numFrames, int sampleRateHz);
+    void setOfflineRenderMode(bool enabled);
+    bool isOfflineRenderMode() const { return offlineRenderMode.load(std::memory_order_relaxed); }
     void restart();
     void setUrl(const char* url, const char* forcedDecoder = nullptr);
     double getDurationSeconds();
@@ -716,6 +720,7 @@ private:
     std::atomic<int> renderWorkerTargetFrames { 16384 };
     std::atomic<bool> backgroundPlaybackMode { false };
     std::atomic<bool> channelScopeVisualizerActive { false };
+    std::atomic<bool> offlineRenderMode { false };
     std::atomic<int64_t> renderQueueRecoveryBoostUntilNs { 0 };
     std::atomic<int64_t> lastFillDecodeNs { 0 };
     std::atomic<uint64_t> renderQueueUnderrunCount { 0 };

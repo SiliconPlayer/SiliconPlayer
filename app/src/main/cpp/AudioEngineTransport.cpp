@@ -376,6 +376,18 @@ void AudioEngine::stopWithPauseResumeFade(int durationMs, float attenuationDb) {
     renderWorkerCv.notify_all();
 }
 
+void AudioEngine::setOfflineRenderMode(bool enabled) {
+    offlineRenderMode.store(enabled, std::memory_order_relaxed);
+    std::lock_guard<std::mutex> lock(decoderMutex);
+    // ChannelScopeSharedState.cpp compiles into every decoder plugin, so the
+    // gate lives on the state instance instead of a cross-.so static.
+    if (decoder) {
+        if (const auto state = decoder->getChannelScopeSharedState()) {
+            state->setCaptureGateBypass(enabled);
+        }
+    }
+}
+
 void AudioEngine::releaseCurrentDecoder() {
     if (decoderOpenCount.load(std::memory_order_acquire) > 0) {
         // An open is in flight: flag it so it discards instead of
@@ -608,6 +620,11 @@ void AudioEngine::setUrl(const char* url, const char* forcedDecoder) {
         decoderRenderSampleRate = newDecoder->getRenderSampleRate();
         newDecoder->setRepeatMode(repeatMode.load());
         decoder = std::move(newDecoder);
+        if (offlineRenderMode.load(std::memory_order_relaxed)) {
+            if (const auto state = decoder->getChannelScopeSharedState()) {
+                state->setCaptureGateBypass(true);
+            }
+        }
         const int desiredChannels = resolveOutputStreamChannelsForTrackLocked();
         decoder->setOutputChannelCount(desiredChannels);
         // Re-read under the lock: a setCoreOption landing mid-open targets this

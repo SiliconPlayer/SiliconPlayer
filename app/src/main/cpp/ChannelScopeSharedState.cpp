@@ -22,6 +22,7 @@ void ChannelScopeSharedState::clear() {
 
 bool ChannelScopeSharedState::tryBeginCapture(int64_t nowNs, int channelCountHint) {
     std::lock_guard<std::mutex> lock(publishMutex);
+    if (captureGateBypass()) return true;
     if (lastCaptureNs != 0 &&
         nowNs - lastCaptureNs < captureIntervalNsForChannels(channelCountHint)) {
         return false;
@@ -43,7 +44,8 @@ void ChannelScopeSharedState::publish(
     std::lock_guard<std::mutex> lock(publishMutex);
     // Backstop gate so decoders without an explicit pre-gather check still
     // publish at the shared cadence.
-    if (!bypassGate &&
+    if (!captureGateBypass() &&
+        !bypassGate &&
         nowNs - lastCaptureNs < captureIntervalNsForChannels(channels)) {
         return;
     }

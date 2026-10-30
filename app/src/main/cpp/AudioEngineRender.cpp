@@ -392,7 +392,9 @@ void AudioEngine::renderResampledLocked(
     }
 
     const double inputPerOutputFrame = static_cast<double>(renderRate) / static_cast<double>(streamRate);
-    constexpr int decodeChunkFrames = 1024;
+    // Offline export publishes channel-scope captures per decode callback, so
+    // keep decode chunks small there for per-frame scope freshness.
+    const int decodeChunkFrames = offlineRenderMode.load(std::memory_order_relaxed) ? 128 : 1024;
     const size_t neededScratchSize = static_cast<size_t>(decodeChunkFrames) * channels;
     if (resampleDecodeScratch.size() < neededScratchSize) {
         resampleDecodeScratch.resize(neededScratchSize);
@@ -473,6 +475,62 @@ void AudioEngine::renderResampledLocked(
     }
 }
 
+bool AudioEngine::renderOfflineAudioFrames(float* outputStereo, int numFrames, int sampleRateHz) {
+    if (!outputStereo || numFrames <= 0 || sampleRateHz <= 0) return false;
+
+    std::lock_guard<std::mutex> lock(decoderMutex);
+    if (!decoder) return false;
+
+    const int decodeChannels = std::clamp(decoder->getChannelCount(), 1, 16);
+    std::vector<float> buffer(static_cast<size_t>(numFrames) * decodeChannels);
+    bool reachedEnd = false;
+    renderResampledLocked(buffer.data(), numFrames, decodeChannels, sampleRateHz, reachedEnd);
+
+    if (decodeChannels != 2) {
+        if (decodeChannels > 2) {
+            for (int frame = 0; frame < numFrames; ++frame) {
+                const float* src = buffer.data() + static_cast<size_t>(frame) * decodeChannels;
+                outputStereo[frame * 2] = 0.0f;
+                outputStereo[frame * 2 + 1] = 0.0f;
+                int leftCount = 0;
+                int rightCount = 0;
+                for (int ch = 0; ch < decodeChannels; ++ch) {
+                    const int side = ch & 1;
+                    outputStereo[frame * 2 + side] += src[ch];
+                    if (side == 0) ++leftCount;
+                    else ++rightCount;
+                }
+                outputStereo[frame * 2] /= static_cast<float>(leftCount);
+                outputStereo[frame * 2 + 1] /= static_cast<float>(rightCount);
+            }
+        } else {
+            for (int frame = 0; frame < numFrames; ++frame) {
+                outputStereo[frame * 2] = buffer[frame];
+                outputStereo[frame * 2 + 1] = buffer[frame];
+            }
+        }
+    } else {
+        std::copy(buffer.begin(), buffer.end(), outputStereo);
+    }
+
+    const double nextPosition = positionSeconds.load(std::memory_order_relaxed) +
+            static_cast<double>(numFrames) / sampleRateHz;
+    const double duration = decoder->getDuration();
+    positionSeconds.store(duration > 0.0 ? std::min(nextPosition, duration) : nextPosition,
+                          std::memory_order_relaxed);
+    const float endFadeGain = computeEndFadeGainLocked(positionSeconds.load(std::memory_order_relaxed));
+    applyGain(outputStereo, numFrames, 2, endFadeGain);
+    applyMasterChannelRouting(outputStereo, numFrames, 2);
+    applyOpenMptDspEffects(outputStereo, numFrames, 2, sampleRateHz);
+    applyMonoDownmix(outputStereo, numFrames, 2);
+    applyOutputLimiter(outputStereo, numFrames, 2);
+    applyLookaheadClipper(outputStereo, numFrames, 2, sampleRateHz);
+    for (int i = 0; i < numFrames * 2; ++i) {
+        outputStereo[i] = std::clamp(outputStereo[i], -1.0f, 1.0f);
+    }
+    return true;
+}
+
 void AudioEngine::renderSoxrResampledLocked(
         float* outputData,
         int32_t numFrames,
@@ -487,7 +545,9 @@ void AudioEngine::renderSoxrResampledLocked(
         return;
     }
 
-    constexpr int decodeChunkFrames = 1024;
+    // Offline export publishes channel-scope captures per decode callback, so
+    // keep decode chunks small there for per-frame scope freshness.
+    const int decodeChunkFrames = offlineRenderMode.load(std::memory_order_relaxed) ? 128 : 1024;
     const size_t neededScratchSize = static_cast<size_t>(decodeChunkFrames) * channels;
     if (resampleDecodeScratch.size() < neededScratchSize) {
         resampleDecodeScratch.resize(neededScratchSize);

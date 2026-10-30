@@ -857,7 +857,8 @@ double AudioEngine::scopePresentationDelayDecoderFrames(
 
     // Decoder-output -> ear FIFO drained at outputSampleRate so the window
     // slides smoothly between callbacks across all backends.
-    const int backendBufferedFrames = std::max(miniaudioBufferFrames, 0);
+    const int backendBufferedFrames = offlineRenderMode.load(std::memory_order_relaxed)
+            ? 0 : std::max(miniaudioBufferFrames, 0);
 
     double presentationDelayOutputFrames = static_cast<double>(renderQueueFrames());
     if (lookaheadClipperMode.load(std::memory_order_relaxed) > 0) {
