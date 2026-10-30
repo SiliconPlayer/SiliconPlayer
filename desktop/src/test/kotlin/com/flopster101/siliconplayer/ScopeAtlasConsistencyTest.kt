@@ -5,7 +5,7 @@ import com.flopster101.siliconplayer.ui.visualization.channel.GlChannelScopeText
 import com.flopster101.siliconplayer.ui.visualization.channel.GlChannelScopeTextPalette
 import com.flopster101.siliconplayer.ui.visualization.channel.layoutChannelScopeText
 import com.flopster101.siliconplayer.ui.visualization.gl.DesktopGlFontAtlas
-import com.flopster101.siliconplayer.ui.visualization.gl.ScopeTextQuadEmitter
+import com.flopster101.siliconplayer.ui.visualization.ScopeTextQuadEmitter
 import java.awt.Font
 import org.junit.Assert.assertArrayEquals
 import org.junit.Assert.assertTrue

@@ -1,7 +1,7 @@
 package com.flopster101.siliconplayer
 
 import com.flopster101.siliconplayer.ui.visualization.channel.ChannelScopeTextRun
-import com.flopster101.siliconplayer.ui.visualization.gl.ScopeTextQuadEmitter
+import com.flopster101.siliconplayer.ui.visualization.ScopeTextQuadEmitter
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
 import org.junit.Assert.assertEquals

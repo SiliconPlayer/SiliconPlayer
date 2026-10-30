@@ -160,7 +160,9 @@ class VulkanChannelScopeTest {
                 width,
                 height,
                 1.0f,
-                directBuffer
+                directBuffer,
+                false,
+                false
             )
             assertTrue("Expected successful GL render frame", glOk)
             com.flopster101.siliconplayer.ui.visualization.gl.DesktopGlSurface.nativeDestroy(hostHandle, handle)
