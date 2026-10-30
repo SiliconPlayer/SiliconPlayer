@@ -138,12 +138,27 @@ public:
     std::vector<float> getChannelScopeSamples(int samplesPerChannel);
     void getChannelScopeSamples(int samplesPerChannel, std::vector<float>& outFlat);
     bool tryGetChannelScopeSamples(int samplesPerChannel, std::vector<float>& outFlat);
+    void scopeHoldStore(const std::vector<float>& window) {
+        std::lock_guard<std::mutex> lock(scopeHoldMutex);
+        scopeHoldFlat = window;
+        scopeHoldValid = true;
+    }
+    void scopeHoldRestore(std::vector<float>& out) {
+        std::lock_guard<std::mutex> lock(scopeHoldMutex);
+        if (scopeHoldValid) out = scopeHoldFlat;
+    }
+    void scopeHoldReset() {
+        std::lock_guard<std::mutex> lock(scopeHoldMutex);
+        scopeHoldFlat.clear();
+        scopeHoldFlat.shrink_to_fit();
+        scopeHoldValid = false;
+    }
     // Debug-overlay cadence rates:
     // [0] draws/s, [1] snapshot updates/s, [2] stale-draw %,
     // [3] static-draw % (no publish AND no window slide),
     // [4] window rewinds/s (per-callback delay jumps).
     // Counters accumulate across both scope fetch paths and reset on read.
-    void getChannelScopeCadence(int ratesOut[5]);
+    void getChannelScopeCadence(int ratesOut[6]);
     void accumulateScopeCadenceLocked(
             const std::shared_ptr<ChannelScopeSharedState>& state,
             int presentationDelayFrames);
@@ -592,6 +607,14 @@ private:
     // Monotonic frames handed to the ring since the stream opened; paired with
     // the device's consumed-frame counter to derive the exact play position.
     int64_t visualizationScopeWrittenFrames = 0;
+    // Last produced scope window, served while the fetch returns empty.
+    mutable std::mutex scopeHoldMutex;
+    std::vector<float> scopeHoldFlat;
+    bool scopeHoldValid = false;
+    // Frames handed to the miniaudio device callback; the only playhead
+    // source that works on AAudio builds whose consumed-frame counter
+    // always reads zero (observed on JieLi).
+    std::atomic<int64_t> miniaudioFramesFed { 0 };
     // Scope compensation ratchet: base bounded per callback, decays uncapped
     // across the interval so the window slides on large-period transports.
     mutable std::atomic<double> visScopeCompBase { 0.0 };
@@ -691,6 +714,9 @@ private:
     // report its consumed-frame position. extractFrames bounds the read window.
     int64_t visualizationScopePlayheadBehindFrames(int extractFrames) const;
     int64_t visualizationDeviceFramesRead() const;
+    // Depth of the downstream sink buffer between the data callback and the
+    // output clock, from AAudioStream_getTimestamp; -1 when unsupported.
+    int64_t visualizationSinkBacklogFrames() const;
 
     // Callback
     static void miniaudioDataCallback(

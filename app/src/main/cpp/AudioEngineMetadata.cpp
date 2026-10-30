@@ -735,9 +735,24 @@ std::vector<float> AudioEngine::getChannelScopeSamples(int samplesPerChannel) {
 // Plugin-allocated scope state releases through a shared_ptr vtable that is
 // unmapped once the plugin is dlclose'd, so the cache must not outlive it.
 void AudioEngine::resetScopeStateCacheLocked() {
-    std::lock_guard<std::mutex> lock(scopeStateCacheMutex);
-    scopeStateCacheValid = false;
-    scopeStateCache.reset();
+    {
+        std::lock_guard<std::mutex> lock(scopeStateCacheMutex);
+        scopeStateCacheValid = false;
+        scopeStateCache.reset();
+    }
+    scopeHoldReset();
+}
+
+static void holdOrRestoreScopeWindow(AudioEngine& engine, std::vector<float>& outFlat) {
+    if (!outFlat.empty()) {
+        engine.scopeHoldStore(outFlat);
+        return;
+    }
+    std::vector<float> held;
+    engine.scopeHoldRestore(held);
+    if (!held.empty()) {
+        outFlat.swap(held);
+    }
 }
 
 void AudioEngine::getChannelScopeSamples(int samplesPerChannel, std::vector<float>& outFlat) {
@@ -752,12 +767,13 @@ void AudioEngine::getChannelScopeSamples(int samplesPerChannel, std::vector<floa
             const int decoderSampleRate = scopeStateCacheDecoderRate;
             const int outputSampleRate = streamSampleRate > 0 ? streamSampleRate : decoderSampleRate;
             const double presentationDelayDecoderFrames =
-                    scopePresentationDelayDecoderFrames(decoderSampleRate, outputSampleRate, samplesPerChannel);
+                scopePresentationDelayDecoderFrames(decoderSampleRate, outputSampleRate, samplesPerChannel);
             scopeStateCache->getProcessedSamples(
                     samplesPerChannel,
                     static_cast<int>(std::ceil(std::max(0.0, presentationDelayDecoderFrames))),
                     outFlat
             );
+            holdOrRestoreScopeWindow(*this, outFlat);
             accumulateScopeCadenceLocked(
                     scopeStateCache,
                     static_cast<int>(std::ceil(std::max(0.0, presentationDelayDecoderFrames))));
@@ -792,12 +808,13 @@ void AudioEngine::getChannelScopeSamples(int samplesPerChannel, std::vector<floa
     }
     const int outputSampleRate = streamSampleRate > 0 ? streamSampleRate : decoderSampleRate;
     const double presentationDelayDecoderFrames =
-            scopePresentationDelayDecoderFrames(decoderSampleRate, outputSampleRate, samplesPerChannel);
+        scopePresentationDelayDecoderFrames(decoderSampleRate, outputSampleRate, samplesPerChannel);
     state->getProcessedSamples(
             samplesPerChannel,
             static_cast<int>(std::ceil(std::max(0.0, presentationDelayDecoderFrames))),
             outFlat
     );
+    holdOrRestoreScopeWindow(*this, outFlat);
     accumulateScopeCadenceLocked(
             state,
             static_cast<int>(std::ceil(std::max(0.0, presentationDelayDecoderFrames))));
@@ -815,12 +832,13 @@ bool AudioEngine::tryGetChannelScopeSamples(int samplesPerChannel, std::vector<f
             const int decoderSampleRate = scopeStateCacheDecoderRate;
             const int outputSampleRate = streamSampleRate > 0 ? streamSampleRate : decoderSampleRate;
             const double presentationDelayDecoderFrames =
-                    scopePresentationDelayDecoderFrames(decoderSampleRate, outputSampleRate, samplesPerChannel);
+                scopePresentationDelayDecoderFrames(decoderSampleRate, outputSampleRate, samplesPerChannel);
             scopeStateCache->getProcessedSamples(
                     samplesPerChannel,
                     static_cast<int>(std::ceil(std::max(0.0, presentationDelayDecoderFrames))),
                     outFlat
             );
+            holdOrRestoreScopeWindow(*this, outFlat);
             accumulateScopeCadenceLocked(
                     scopeStateCache,
                     static_cast<int>(std::ceil(std::max(0.0, presentationDelayDecoderFrames))));
@@ -834,14 +852,6 @@ bool AudioEngine::tryGetChannelScopeSamples(int samplesPerChannel, std::vector<f
         // Decoder busy (long seek, heavy metadata read): leave the previous
         // window in place so the renderer redraws it instead of stalling.
         if (!lock.owns_lock()) {
-            static std::atomic<int64_t> lastSkippedPullLogNs { 0 };
-            const int64_t nowNs = std::chrono::duration_cast<std::chrono::nanoseconds>(
-                    std::chrono::steady_clock::now().time_since_epoch()).count();
-            int64_t previousNs = lastSkippedPullLogNs.load(std::memory_order_relaxed);
-            if (nowNs - previousNs > 2000000000LL &&
-                lastSkippedPullLogNs.compare_exchange_strong(previousNs, nowNs, std::memory_order_relaxed)) {
-                LOGD("Channel scope pull skipped: decoder mutex contended");
-            }
             return false;
         }
         if (!decoder) {
@@ -865,12 +875,13 @@ bool AudioEngine::tryGetChannelScopeSamples(int samplesPerChannel, std::vector<f
     }
     const int outputSampleRate = streamSampleRate > 0 ? streamSampleRate : decoderSampleRate;
     const double presentationDelayDecoderFrames =
-            scopePresentationDelayDecoderFrames(decoderSampleRate, outputSampleRate, samplesPerChannel);
+        scopePresentationDelayDecoderFrames(decoderSampleRate, outputSampleRate, samplesPerChannel);
     state->getProcessedSamples(
             samplesPerChannel,
             static_cast<int>(std::ceil(std::max(0.0, presentationDelayDecoderFrames))),
             outFlat
     );
+    holdOrRestoreScopeWindow(*this, outFlat);
     accumulateScopeCadenceLocked(
             state,
             static_cast<int>(std::ceil(std::max(0.0, presentationDelayDecoderFrames))));
@@ -896,6 +907,13 @@ double AudioEngine::scopePresentationDelayDecoderFrames(
             ? 0 : std::max(miniaudioBufferFrames, 0);
 
     double presentationDelayOutputFrames = static_cast<double>(renderQueueFrames());
+    const int64_t sinkBacklogFrames = offlineRenderMode.load(std::memory_order_relaxed)
+            ? 0 : visualizationSinkBacklogFrames();
+    if (sinkBacklogFrames > 0) {
+        // Feed the window past the HAL boundary to the output clock so the
+        // scope matches what leaves the sink, not what entered it.
+        presentationDelayOutputFrames += static_cast<double>(sinkBacklogFrames);
+    }
     if (lookaheadClipperMode.load(std::memory_order_relaxed) > 0) {
         const int lookaheadFrames = std::clamp((outputSampleRate * 5) / 1000, 32, 512);
         presentationDelayOutputFrames += static_cast<double>(lookaheadFrames);
@@ -942,30 +960,80 @@ double AudioEngine::scopePresentationDelayDecoderFrames(
                     ChannelScopeSharedState::kMinSliderHeadroomFrames));
     const double finalDelay = std::min(presentationDelayDecoderFrames, maxUsableDelayFrames);
 
-    static std::atomic<int64_t> lastEstimateLogNs { 0 };
-    const int64_t nowNs = std::chrono::duration_cast<std::chrono::nanoseconds>(
-            std::chrono::steady_clock::now().time_since_epoch()
-    ).count();
-    int64_t previousLogNs = lastEstimateLogNs.load(std::memory_order_relaxed);
-    if (nowNs - previousLogNs > 2000000000LL) {
-        if (lastEstimateLogNs.compare_exchange_strong(previousLogNs, nowNs, std::memory_order_relaxed)) {
-            LOGD(
-                    "Scope delay estimate: %.0f frames (queue=%d backend=%d cbFrames=%d fetch=%d decRate=%d outRate=%d)",
-                    presentationDelayDecoderFrames,
-                    renderQueueFrames(),
-                    miniaudioBufferFrames,
-                    callbackFrames,
-                    samplesPerChannel,
-                    decoderSampleRate,
-                    outputSampleRate
-            );
-        }
-    }
     return finalDelay;
 }
 
-void AudioEngine::getChannelScopeCadence(int ratesOut[5]) {
+void AudioEngine::getChannelScopeCadence(int ratesOut[6]) {
+    // Playhead-lag probe runs outside the cadence mutex: fetch paths hold
+    // the visualization lock while accumulating cadence, and the delay
+    // estimate reads that same lock, so ordering the locks the other way
+    // would deadlock.
+    int lagMs = -100000;
+    const char* lagReason = "off";
+    {
+        std::unique_lock<std::mutex> decoderLock(decoderMutex, std::try_to_lock);
+        if (!decoderLock.owns_lock()) {
+            lagReason = "mutex";
+        } else if (!decoder) {
+            lagReason = "decoder";
+        } else if (offlineRenderMode.load(std::memory_order_relaxed)) {
+            lagReason = "offline";
+        } else {
+            const auto scopeState = decoder->getChannelScopeSharedState();
+            const int decoderSampleRate = decoder->getSampleRate();
+            const int outputSampleRate = streamSampleRate;
+            if (!scopeState || decoderSampleRate <= 0 || outputSampleRate <= 0) {
+                lagReason = "state";
+            } else {
+                int64_t deviceRead = visualizationDeviceFramesRead();
+                if (deviceRead <= 0) {
+                    // JieLi's AAudio consumed-frame counter reads zero while
+                    // streaming; fall back to what the data callback handed
+                    // over, less the frames still held in the device buffer.
+                    const int64_t fed = miniaudioFramesFed.load(std::memory_order_relaxed);
+                    if (fed > miniaudioBufferFrames) {
+                        deviceRead = fed - miniaudioBufferFrames;
+                    }
+                }
+                if (deviceRead <= 0) {
+                    // USB/Bluetooth backends lack a consumed-frame counter;
+                    // written minus the queued frames approximates the
+                    // device playhead for any transport.
+                    deviceRead = std::max<int64_t>(
+                            0, visualizationScopeWrittenFrames -
+                            std::max(renderQueueFrames(), 0));
+                }
+                const int64_t sinkBacklog = visualizationSinkBacklogFrames();
+                if (sinkBacklog > 0) {
+                    // The fed/device counters stop at the HAL boundary; the
+                    // output sink holds the rest, so the true playhead is
+                    // the fed counter minus that backlog.
+                    deviceRead = std::max<int64_t>(0,
+                            miniaudioFramesFed.load(std::memory_order_relaxed) - sinkBacklog);
+                }
+                if (deviceRead <= 0) {
+                    lagReason = "device";
+                } else {
+                    lagReason = "ok";
+                    const int64_t playheadOutputFrames = deviceRead;
+                    const double delayFrames = scopePresentationDelayDecoderFrames(
+                            decoderSampleRate, outputSampleRate, 3360);
+                    const double playheadDecoderFrames =
+                            static_cast<double>(playheadOutputFrames) *
+                            static_cast<double>(decoderSampleRate) /
+                            static_cast<double>(outputSampleRate);
+                    const double lagFrames =
+                            static_cast<double>(scopeState->totalAppendedFrames()) -
+                            delayFrames - playheadDecoderFrames;
+                    const double rawMs = lagFrames /
+                            static_cast<double>(decoderSampleRate) * 1000.0;
+                    lagMs = static_cast<int>(std::clamp(rawMs, -9999.0, 9999.0));
+                }
+            }
+        }
+    }
     std::lock_guard<std::mutex> lock(visScopeCadenceMutex);
+
     const int64_t nowNs = std::chrono::duration_cast<std::chrono::nanoseconds>(
             std::chrono::steady_clock::now().time_since_epoch()).count();
     const int64_t windowNs = visScopeCadenceWindowStartNs == 0
@@ -990,6 +1058,7 @@ void AudioEngine::getChannelScopeCadence(int ratesOut[5]) {
                 : 0;
         ratesOut[4] = static_cast<int>(static_cast<double>(visScopeCadenceRewinds) * scale + 0.5);
     }
+    ratesOut[5] = lagMs;
     visScopeCadenceDraws = 0;
     visScopeCadenceStaleDraws = 0;
     visScopeCadencePublishes = 0;

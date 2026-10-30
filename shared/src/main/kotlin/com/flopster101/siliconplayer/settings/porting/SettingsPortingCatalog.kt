@@ -205,7 +205,7 @@ private fun channelScopeVizKeys(): List<TypedPrefValue> = listOf(
     boolV(AppPreferenceKeys.VISUALIZATION_CHANNEL_SCOPE_VERTICAL_GRID_ENABLED, AppDefaults.Visualization.ChannelScope.verticalGridEnabled),
     stringV(AppPreferenceKeys.VISUALIZATION_CHANNEL_SCOPE_WAVE_RENDER_MODE, AppDefaults.Visualization.ChannelScope.waveRenderMode.storageValue),
     boolV(AppPreferenceKeys.VISUALIZATION_CHANNEL_SCOPE_WAVEFORM_CLIPPING_ENABLED, AppDefaults.Visualization.ChannelScope.waveformClippingEnabled),
-    intV(AppPreferenceKeys.VISUALIZATION_CHANNEL_SCOPE_WINDOW_MS, AppDefaults.Visualization.ChannelScope.windowMs)
+    intV(AppPreferenceKeys.VISUALIZATION_CHANNEL_SCOPE_WINDOW_MS, AppDefaults.Visualization.ChannelScope.windowMs),
 )
 
 private fun starfieldVizKeys(): List<TypedPrefValue> = listOf(

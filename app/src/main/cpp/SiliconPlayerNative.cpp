@@ -1462,7 +1462,7 @@ extern "C" JNIEXPORT jintArray JNICALL
 Java_com_flopster101_siliconplayer_NativeBridge_getChannelScopeCadence(JNIEnv* env, jobject) {
     std::vector<int32_t> rates = {0, 0, 0, 0, 0};
     if (audioEngine != nullptr) {
-        int nativeRates[5] = {0, 0, 0, 0, 0};
+        int nativeRates[6] = {0, 0, 0, 0, 0, 0};
         audioEngine->getChannelScopeCadence(nativeRates);
         for (int i = 0; i < 5; ++i) rates[i] = nativeRates[i];
     }

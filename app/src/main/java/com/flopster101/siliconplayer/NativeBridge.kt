@@ -454,8 +454,8 @@ object NativeBridge {
     external fun getAyflyInterruptHz(): Int
     external fun getOpenMptChannelVuLevels(): FloatArray
     external fun getChannelScopeSamples(samplesPerChannel: Int): FloatArray
-    // Debug overlay: [draws/s, updates/s, stale %, static %, rewinds/s] for
-    // the channel-scope fetch path; resets its window on read.
+    // Debug overlay: [draws/s, updates/s, stale %, static %, rewinds/s]
+    // for the channel-scope fetch path; resets its window on read.
     external fun getChannelScopeCadence(): IntArray
     external fun getChannelScopeTextState(maxChannels: Int): IntArray
     // Decoder generation; flips before every decoder swap.

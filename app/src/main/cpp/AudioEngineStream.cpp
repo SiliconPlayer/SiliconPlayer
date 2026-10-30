@@ -257,6 +257,7 @@ bool AudioEngine::createMiniaudioStream() {
         std::lock_guard<std::mutex> lock(visualizationMutex);
         visualizationScopeWrittenFrames = 0;
     }
+    miniaudioFramesFed.store(0, std::memory_order_relaxed);
     streamStartupPrerollPending = true;
     outputStreamReady.store(true, std::memory_order_relaxed);
     activeOutputBackend.store(static_cast<int>(miniaudioContext.backend) + 1, std::memory_order_relaxed);
@@ -555,6 +556,7 @@ void AudioEngine::miniaudioDataCallback(
             ? static_cast<int>(pDevice->sampleRate)
             : (engine->streamSampleRate > 0 ? engine->streamSampleRate : 48000);
 
+    engine->miniaudioFramesFed.fetch_add(frameCount, std::memory_order_relaxed);
     engine->renderOutputCallbackFrames(outputData, static_cast<int32_t>(frameCount), callbackRate);
 }
 
@@ -1002,7 +1004,62 @@ bool AudioEngine::renderOutputCallbackFrames(float* outputData, int32_t numFrame
     return false;
 }
 
+int64_t AudioEngine::visualizationSinkBacklogFrames() const {
+#if defined(MA_SUPPORT_AAUDIO)
+    if (!miniaudioContextInitialized || !outputStreamReady.load() ||
+        activeMiniaudioBackend != ma_backend_aaudio) {
+        return -1;
+    }
+    void* stream = miniaudioDevice.aaudio.pStreamPlayback;
+    if (!stream) {
+        return -1;
+    }
+    typedef int (*PFN_AAudioStream_getTimestamp)(
+            const void*, int, int64_t*, int64_t*);
+    static PFN_AAudioStream_getTimestamp pfn_getTimestamp = nullptr;
+    static bool resolved = false;
+    if (!resolved) {
+        pfn_getTimestamp = reinterpret_cast<PFN_AAudioStream_getTimestamp>(
+            dlsym(RTLD_DEFAULT, "AAudioStream_getTimestamp")
+        );
+        resolved = true;
+    }
+    if (!pfn_getTimestamp) {
+        return -1;
+    }
+    // AAUDIO_CLOCK_MONOTONIC == 1; CLOCK_MONOTONIC matches the steady clock
+    // we use for the fed counter's projection.
+    int64_t framePos = 0;
+    int64_t tsNs = 0;
+    if (pfn_getTimestamp(stream, 1, &framePos, &tsNs) != 0 || framePos <= 0 ||
+        tsNs <= 0) {
+        return -1;
+    }
+    const int64_t fed = miniaudioFramesFed.load(std::memory_order_relaxed);
+    if (fed <= 0) {
+        return -1;
+    }
+    const int64_t nowNs = std::chrono::duration_cast<std::chrono::nanoseconds>(
+            std::chrono::steady_clock::now().time_since_epoch()).count();
+    const int rate = streamSampleRate > 0 ? streamSampleRate : 48000;
+    const int64_t projectedFrames =
+            framePos + (nowNs - tsNs) / 1000000000LL * rate;
+    const int64_t backlog = fed - projectedFrames;
+    return backlog > 0 ? backlog : 0;
+#else
+    return -1;
+#endif
+}
+
 int64_t AudioEngine::visualizationDeviceFramesRead() const {
+    // When the UAC feeder owns the sink (USB/BT router), its played-frame
+    // counter is the device playhead; the AAudio stream is only a silent
+    // loopback there.
+    const siliconplayer::usb::UacDriver& uacConst = siliconplayer::usb::getUacDriverInstance();
+    if (uacConst.isStreaming()) {
+        const int64_t played = static_cast<int64_t>(uacConst.playedFrames());
+        if (played > 0) return played;
+    }
 #if defined(MA_SUPPORT_AAUDIO)
     if (!miniaudioContextInitialized || !outputStreamReady.load() ||
         activeMiniaudioBackend != ma_backend_aaudio) {
