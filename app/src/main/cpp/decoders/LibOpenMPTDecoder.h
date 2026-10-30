@@ -6,6 +6,7 @@
 #include <libopenmpt/libopenmpt.hpp>
 #include <libopenmpt/libopenmpt_ext.hpp>
 #include <memory>
+#include <atomic>
 #include <vector>
 #include <mutex>
 #include <filesystem>
@@ -117,15 +118,20 @@ private:
 
     std::shared_ptr<ChannelScopeSharedState> channelScopeState;
     uint64_t channelScopeSourceSerial = 0;
-    int channelScopeLastReadFrames = 0;
-    int64_t channelScopeLastReadNs = 0;
     bool scopeSeekPending = false;
     std::vector<float> scopeAppendFlat = {};
+    // Per-channel fork ring write positions around each render call; the
+    // mixer does not guarantee the ring clocks stay in lockstep, so each
+    // channel's append must follow its own timeline.
+    std::vector<int32_t> scopeOwnA, scopeOwnB;
 
     std::vector<std::string> toggleChannelNames;
     std::vector<bool> toggleChannelMuted;
 
-    void captureChannelScopeSnapshotLocked(int32_t posA, int32_t posB);
+    void captureChannelScopeSnapshotLocked(
+            int32_t posA, int32_t posB, int deliveredFrames,
+            int spanGlobal, int globalOffsetFrames);
+    int scopeSpanForChannel(int ch) const;
 
     void applyRenderSettingsLocked();
     void rebuildToggleChannelsLocked();

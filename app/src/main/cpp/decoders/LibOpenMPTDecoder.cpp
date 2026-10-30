@@ -5,7 +5,6 @@
 #include <algorithm>
 #include <cctype>
 #include <cmath>
-#include <chrono>
 #include <cstddef>
 #include <concepts>
 #include <unordered_set>
@@ -249,8 +248,6 @@ void LibOpenMPTDecoder::close() {
     subtuneNames.clear();
     subtuneDurationsSeconds.clear();
     channelScopeSourceSerial = 0;
-    channelScopeLastReadFrames = 0;
-    channelScopeLastReadNs = 0;
     toggleChannelNames.clear();
     toggleChannelMuted.clear();
     if (channelScopeState) {
@@ -258,13 +255,21 @@ void LibOpenMPTDecoder::close() {
     }
 }
 
-void LibOpenMPTDecoder::captureChannelScopeSnapshotLocked(int32_t posA, int32_t posB) {
-    if (!channelScopeState || !module || posB == posA) return;
+namespace {
+constexpr int32_t kRingSize = 32768;  // libopenmpt fork scope ring capacity
+}
 
+int LibOpenMPTDecoder::scopeSpanForChannel(int ch) const {
     constexpr int32_t maxSize = ChannelScopeSharedState::kMaxSamples;
-    int appended = posB - posA;
-    if (appended < 0) appended += maxSize;
-    if (appended <= 0 || appended > maxSize) return;
+    const int32_t a = scopeOwnA.empty() ? 0 : scopeOwnA[static_cast<size_t>(ch)];
+    const int32_t b = scopeOwnB.empty() ? 0 : scopeOwnB[static_cast<size_t>(ch)];
+    return ((b - a) % maxSize + maxSize) % maxSize;
+}
+
+void LibOpenMPTDecoder::captureChannelScopeSnapshotLocked(
+        int32_t posA, int32_t posB, int deliveredFrames,
+        int spanGlobal, int globalOffsetFrames) {
+    if (!channelScopeState || !module || posB == posA || spanGlobal <= 0) return;
 
     if (scopeSeekPending) {
         // Drop stale pre-seek history so the vis window restarts fresh.
@@ -274,25 +279,37 @@ void LibOpenMPTDecoder::captureChannelScopeSnapshotLocked(int32_t posA, int32_t 
 
     const int totalChannels = std::max(moduleChannels, 0);
     if (totalChannels <= 0) return;
+    const int appended = posB >= posA ? (posB - posA) : posB + (kRingSize - posA);
+    if (appended <= 0 || appended > spanGlobal) return;
     if (static_cast<int>(scopeAppendFlat.size()) != totalChannels * appended) {
         scopeAppendFlat.assign(
                 static_cast<size_t>(totalChannels) * static_cast<size_t>(appended), 0.0f);
     }
-    bool spanOk = true;
     for (int ch = 0; ch < totalChannels; ++ch) {
         float* dest = scopeAppendFlat.data() + static_cast<size_t>(ch) * static_cast<size_t>(appended);
-        const int span = module->get_channel_scope_append(ch, dest, posA, posB);
-        if (span != appended) {
-            spanOk = false;
+        const int32_t spanCh = scopeSpanForChannel(ch);
+        if (spanCh <= 0) {
+            // Channel advanced nothing this render: hold its last value or
+            // start from zero until its ring moves again.
+            std::fill(dest, dest + appended, 0.0f);
+            continue;
         }
-    }
-    if (!spanOk) {
-        // Ring state diverged between channels; fall back to silence padding
-        // for missing tails so the planar layout stays compact.
-        for (int ch = 0; ch < totalChannels; ++ch) {
-            float* dest = scopeAppendFlat.data() + static_cast<size_t>(ch) * static_cast<size_t>(appended);
-            const int span = module->get_channel_scope_append(ch, dest, posA, posB);
-            std::fill(dest + std::max(span, 0), dest + appended, 0.0f);
+        const double spanStartFrac =
+                static_cast<double>(globalOffsetFrames) * spanCh /
+                static_cast<double>(spanGlobal);
+        const int spanStart = static_cast<int32_t>(spanStartFrac);
+        int spanEndF = static_cast<int32_t>(
+                static_cast<double>(globalOffsetFrames + appended) * spanCh /
+                static_cast<double>(spanGlobal));
+        spanEndF = std::min(std::max(spanEndF, spanStart + 1), std::min(spanCh, spanStart + appended));
+        const int32_t ringFrom = static_cast<int32_t>((scopeOwnA[static_cast<size_t>(ch)] + spanStart) % kRingSize);
+        const int32_t ringTo = static_cast<int32_t>((scopeOwnA[static_cast<size_t>(ch)] + spanEndF) % kRingSize);
+        int span = module->get_channel_scope_append(ch, dest, ringFrom, ringTo);
+        // Rounding shortfall under the chunk: pad with the last read value
+        // so planar rows stay complete without skewing the trace.
+        while (span < appended) {
+            dest[span] = span > 0 ? dest[span - 1] : 0.0f;
+            ++span;
         }
     }
 
@@ -308,24 +325,50 @@ void LibOpenMPTDecoder::captureChannelScopeSnapshotLocked(int32_t posA, int32_t 
     channelScopeState->publishAppend(
             scopeAppendFlat.data(), totalChannels, posA, appended, scratchVu.data(),
             ++channelScopeSourceSerial);
-    channelScopeLastReadFrames = appended;
+    channelScopeState->noteRingScale(appended, deliveredFrames);
 }
 
 int LibOpenMPTDecoder::read(float* buffer, int numFrames) {
     std::lock_guard<std::mutex> lock(decodeMutex);
     if (!module) return 0;
 
-    const int32_t scopePosA = channelScopeState
-            ? static_cast<int32_t>(module->get_channel_scope_write_pos(0)) : 0;
+    int appendedGlobal = 0;
+    if (channelScopeState) {
+        const int channels = std::max(moduleChannels, 0);
+        scopeOwnA.assign(static_cast<size_t>(std::max(channels, 1)), 0);
+        for (int ch = 0; ch < channels; ++ch) {
+            scopeOwnA[static_cast<size_t>(ch)] =
+                    static_cast<int32_t>(module->get_channel_scope_write_pos(ch));
+        }
+    }
     size_t count = module->read_interleaved_stereo(renderSampleRate, numFrames, buffer);
     if (count > 0) {
-        channelScopeLastReadNs = std::chrono::duration_cast<std::chrono::nanoseconds>(
-                std::chrono::steady_clock::now().time_since_epoch()
-        ).count();
         if (channelScopeState) {
-            const int32_t scopePosB =
-                    static_cast<int32_t>(module->get_channel_scope_write_pos(0));
-            captureChannelScopeSnapshotLocked(scopePosA, scopePosB);
+            const int channels = std::max(moduleChannels, 0);
+            scopeOwnB.assign(static_cast<size_t>(std::max(channels, 1)), 0);
+            for (int ch = 0; ch < channels; ++ch) {
+                scopeOwnB[static_cast<size_t>(ch)] =
+                        static_cast<int32_t>(module->get_channel_scope_write_pos(ch));
+            }
+            // Publish in fixed sub-chunks: long worker reads must not
+            // coalesce several content windows into one append. The engine
+            // timeline is the delivered frame count, not a ring position: the
+            // fork's per-channel ring clocks drift against the audio stream,
+            // so anchoring on one channel's clock accumulates lag.
+            constexpr int32_t maxSize = ChannelScopeSharedState::kMaxSamples;
+            appendedGlobal = static_cast<int32_t>(count);
+            int32_t part = scopeOwnA.empty() ? 0 : scopeOwnA[0];
+            int32_t remaining = appendedGlobal;
+            while (remaining > 0) {
+                const int32_t step = std::min<int32_t>(256, remaining);
+                captureChannelScopeSnapshotLocked(
+                        part, static_cast<int32_t>((part + step) % maxSize),
+                        static_cast<int>(step),
+                        static_cast<int>(appendedGlobal),
+                        static_cast<int>(appendedGlobal) - static_cast<int>(remaining));
+                part = static_cast<int32_t>((part + step) % maxSize);
+                remaining -= step;
+            }
         }
     }
 

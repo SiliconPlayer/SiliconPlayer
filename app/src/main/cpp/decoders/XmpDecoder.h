@@ -5,6 +5,7 @@
 #include "../ChannelScopeSharedState.h"
 #include <xmp.h>
 #include <memory>
+#include <atomic>
 #include <mutex>
 #include <string>
 #include <vector>
@@ -97,7 +98,6 @@ private:
     std::shared_ptr<ChannelScopeSharedState> channelScopeState =
             std::make_shared<ChannelScopeSharedState>();
     uint64_t channelScopeSourceSerial = 0;
-    int64_t channelScopeLastReadNs = 0;
     bool scopeSeekPending = false;
     std::vector<float> scopeAppendFlat = {};
 
@@ -105,7 +105,7 @@ private:
     bool startPlayerLocked();
     void applyOptionsLocked();
     std::string mixerNameLocked();
-    void captureChannelScopeSnapshotLocked(int32_t posA, int32_t posB);
+    void captureChannelScopeSnapshotLocked(int32_t posA, int32_t posB, int deliveredFrames);
 };
 
 #endif //SILICONPLAYER_XMPDECODER_H

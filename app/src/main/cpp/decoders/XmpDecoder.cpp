@@ -3,7 +3,6 @@
 #define SP_LOG_MODULE "XmpDecoder"
 #include "../SiliconLog.h"
 #include <algorithm>
-#include <chrono>
 #include <cmath>
 #include <cstring>
 #include <fstream>
@@ -255,7 +254,6 @@ void XmpDecoder::closeLocked() {
     isAmigaModule = false;
     readEventType = XMP_READ_EVENT_MOD;
     channelScopeSourceSerial = 0;
-    channelScopeLastReadNs = 0;
     if (channelScopeState) {
         channelScopeState->clear();
     }
@@ -293,17 +291,32 @@ int XmpDecoder::read(float* buffer, int numFrames) {
         buffer[i] = static_cast<float>(in[i]) * kInt32ToFloat;
     }
 
-    channelScopeLastReadNs = std::chrono::duration_cast<std::chrono::nanoseconds>(
-            std::chrono::steady_clock::now().time_since_epoch()
-    ).count();
     if (channelScopeState) {
         const int32_t scopePosB = xmp_get_channel_scope_write_pos(context);
-        captureChannelScopeSnapshotLocked(scopePosA, scopePosB);
+        // Publish in fixed sub-chunks: long worker reads must not
+        // coalesce several content windows into one append. All positions
+        // are modular ring offsets, so subtract with wrap-corrected deltas.
+        constexpr int32_t maxSize = ChannelScopeSharedState::kMaxSamples;
+        const int32_t spanTotal =
+                ((scopePosB - scopePosA) % maxSize + maxSize) % maxSize;
+        int32_t part = scopePosA;
+        int32_t remaining = spanTotal;
+        while (remaining > 0) {
+            const int32_t step = std::min<int32_t>(512, remaining);
+            const int delivered = std::max(1, (int)std::lround(
+                    (double)numFrames * (double)step / (double)spanTotal));
+            captureChannelScopeSnapshotLocked(
+                    part, static_cast<int32_t>((part + step) % maxSize),
+                    delivered);
+            part = static_cast<int32_t>((part + step) % maxSize);
+            remaining -= step;
+        }
     }
+
     return numFrames;
 }
 
-void XmpDecoder::captureChannelScopeSnapshotLocked(int32_t posA, int32_t posB) {
+void XmpDecoder::captureChannelScopeSnapshotLocked(int32_t posA, int32_t posB, int deliveredFrames) {
     if (!channelScopeState || context == nullptr || posA == posB) return;
 
     // The libxmp scope ring matches the consumer kMaxSamples modulo.
@@ -348,6 +361,7 @@ void XmpDecoder::captureChannelScopeSnapshotLocked(int32_t posA, int32_t posB) {
     channelScopeState->publishAppend(
             scopeAppendFlat.data(), totalChannels, posA, appended, vu.data(),
             ++channelScopeSourceSerial);
+    channelScopeState->noteRingScale(appended, deliveredFrames);
 }
 
 void XmpDecoder::seek(double seconds) {

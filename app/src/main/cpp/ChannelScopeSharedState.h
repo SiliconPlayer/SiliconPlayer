@@ -30,6 +30,14 @@ struct ChannelScopeSharedState {
     // decays uncapped across the interval so the window keeps sliding.
     static constexpr int kBufferedAheadEstimateCapFrames = 14000;
 
+    // Absolute published decoder frames (appends only); the scope playhead
+    // lag metric pairs this with the output playhead.
+    std::atomic<uint64_t> pubTotalAppended_{ 0 };
+    // Appended ring units per delivered decoder frame (fixed 100x). Decoders
+    // whose scope rings advance per mixer tick rather than per output frame
+    // publish spans larger than what they returned; the fetch window must
+    // scale its delay by the ratio or every decoder drifts differently.
+    std::atomic<uint32_t> pubRingScaleX100_{ 100 };
     // Accepted (ungated) publishes since construction; feeds cadence metrics.
     uint64_t acceptedPublishCount() const { return acceptedPublishCount_.load(std::memory_order_relaxed); }
 
@@ -66,9 +74,20 @@ struct ChannelScopeSharedState {
         return kCaptureIntervalBaseNs +
                 std::min(std::max(channels, 0), 64) * kCaptureIntervalPerChannelNs;
     }
+    // Absolute count of appended decoder frames since the unit reset;
+    // monotonic across rolling appends whenever a rolling window is valid.
+    uint64_t totalAppendedFrames() const;
+    // EWMA of appended ring units per delivered decoder frame (x100). Appends
+    // report both figures; streaming decoders whose scope rings advance per
+    // mixer tick deliver ring units over half of a delivered frame.
+    void noteRingScale(int ringUnits, int deliveredFrames);
     void getProcessedSamples(int samplesPerChannel, int presentationDelayFrames, std::vector<float>& outFlat);
     std::vector<float> getProcessedSamples(int samplesPerChannel, int presentationDelayFrames = 0);
     void clear();
+
+
+    // Slew the fetch delay toward target, snapping when the correction is
+    // too large to be queue flutter.
 
 private:
     std::vector<float> pubRaw;
@@ -83,6 +102,10 @@ private:
     bool pubRollingValid = false;
     int pubWritePos = 0;
     int pubFilled = 0;
+
+    // Display fetch delay, slewing toward the estimator target so queue
+    // depth flutter cannot shake the window; snaps on large jumps (seek,
+    // appends stop, huge corrections).
 
     std::atomic<uint64_t> acceptedPublishCount_ { 0 };
     std::atomic<bool> captureGateBypass_ { false };

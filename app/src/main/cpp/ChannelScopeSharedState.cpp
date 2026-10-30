@@ -2,6 +2,26 @@
 
 #include <algorithm>
 #include <chrono>
+#include <cmath>
+
+void ChannelScopeSharedState::noteRingScale(int ringUnits, int deliveredFrames) {
+    if (deliveredFrames <= 0 || ringUnits <= 0 ||
+        ringUnits > ChannelScopeSharedState::kMaxSamples) {
+        return;
+    }
+    const int32_t ratio = (static_cast<int32_t>(
+            std::lround(static_cast<double>(ringUnits) / static_cast<double>(deliveredFrames) * 100.0)));
+    // Deterministic standalone EWMA kept lock-free; the publish lock held by
+    // the caller already serializes publishers, so plain ops suffice.
+    const uint32_t prev = pubRingScaleX100_.load(std::memory_order_relaxed);
+    const uint32_t next = static_cast<uint32_t>(
+            (prev * 15 + static_cast<uint32_t>(std::clamp(ratio, 50, 400))) / 16);
+    pubRingScaleX100_.store(next, std::memory_order_relaxed);
+}
+
+uint64_t ChannelScopeSharedState::totalAppendedFrames() const {
+    return pubTotalAppended_.load(std::memory_order_relaxed);
+}
 
 void ChannelScopeSharedState::clear() {
     {
@@ -15,6 +35,7 @@ void ChannelScopeSharedState::clear() {
         pubRollingValid = false;
         pubWritePos = 0;
         pubFilled = 0;
+        pubRingScaleX100_.store(100, std::memory_order_relaxed);
     }
     std::lock_guard<std::mutex> lock(mutex);
     localRaw.clear();
@@ -107,6 +128,7 @@ void ChannelScopeSharedState::publishAppend(
     }
     pubWritePos = (prevWritePos + framesAppended) % kMaxSamples;
     pubFilled = std::min(pubFilled + framesAppended, kMaxSamples);
+    pubTotalAppended_.fetch_add(static_cast<uint64_t>(framesAppended), std::memory_order_relaxed);
     if (vu) {
         pubVuAppend.assign(vu, vu + channels);
     }
@@ -135,9 +157,15 @@ void ChannelScopeSharedState::getProcessedSamples(
             return;
         }
         const int windowSamples = std::min(requestedSamples, capacity);
+        const int ringScaleX100 = static_cast<int>(std::clamp(
+                pubRingScaleX100_.load(std::memory_order_relaxed), 50u, 400u));
+        const int scaledDelay = std::lround(
+                static_cast<double>(presentationDelayFrames) *
+                static_cast<double>(ringScaleX100) / 100.0);
         const int maxDelay = std::max(0,
                 std::min(pubFilled, kMaxSamples) - windowSamples);
-        const int clampedDelay = std::clamp(presentationDelayFrames, 0, maxDelay);
+        const int clampedDelay = std::clamp(scaledDelay, 0, maxDelay);
+
         // Anchor the window end on the modular write position, not the filled
         // count: once the ring saturates, capacity stops advancing while
         // pubWritePos keeps sliding with decodes. In the warm-up phase they
