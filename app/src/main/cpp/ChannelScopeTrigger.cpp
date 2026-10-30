@@ -30,19 +30,6 @@ static void gaussianWindow(float* out, int size, float std) {
     }
 }
 
-// Un-normalized "valid" cross-correlation: out[i] = sum_j data[i+j]*kernel[j]
-static void correlateValid(const float* data, int dataLen,
-                           const float* kernel, int kernelLen,
-                           float* out, int outLen) {
-    for (int i = 0; i < outLen; ++i) {
-        float sum = 0.0f;
-        for (int j = 0; j < kernelLen; ++j) {
-            sum += data[i + j] * kernel[j];
-        }
-        out[i] = sum;
-    }
-}
-
 // ---- Period estimation ------------------------------------------------------
 
 int ChannelScopeTrigger::estimateSignalPeriod(
@@ -255,33 +242,8 @@ int ChannelScopeTrigger::findTriggerForChannel(
         std::copy(state.prevSlopeFinder.begin(), state.prevSlopeFinder.end(), combinedKernel.begin());
     }
 
-    // --- Cross-correlation ---
-    std::vector<float> corr(corrNsamp);
-    const float* searchData = meanRemoved.data() + triggerBegin;
-    const int searchDataLen = kernelSize + triggerDiameter;
-    correlateValid(searchData, searchDataLen, combinedKernel.data(), kernelSize, corr.data(), corrNsamp);
-
-    // --- Buffer quality peaks ---
-    std::vector<float> peaks(corrNsamp, 0.0f);
-    if (corrEnabled) {
-        std::vector<float> bq(corrNsamp);
-        correlateValid(searchData, searchDataLen, state.corrBuffer.data(), kernelSize, bq.data(), corrNsamp);
-        for (int i = 0; i < corrNsamp; ++i) peaks[i] = bq[i] * bufferStrength;
-    }
-
-    // --- Cumulative-sum edge score ---
-    {
-        int cumsumStart = halfKernel - 1;
-        if (cumsumStart >= 0 && cumsumStart + corrNsamp <= searchDataLen) {
-            float cumSum = 0.0f;
-            for (int i = 0; i < corrNsamp; ++i) {
-                cumSum += searchData[cumsumStart + i];
-                peaks[i] += -cumSum * edgeStrength;
-            }
-        }
-    }
-
-    // --- Restrict search radius by period ---
+    // Restrict the correlation to the radius window: find_peak never
+    // scores lags outside it, so skipping them changes nothing.
     constexpr float triggerRadiusPeriods = 1.5f;
     int triggerRadius = (period > 0)
         ? std::min(static_cast<int>(period * triggerRadiusPeriods),
@@ -289,41 +251,122 @@ int ChannelScopeTrigger::findTriggerForChannel(
         : (triggerWidthSamples > 0
             ? std::min(triggerDiameter / 2, triggerWidthSamples / 4)
             : corrNsamp / 2);
+    triggerRadius = std::clamp(triggerRadius, 1, corrNsamp - 1);
 
-    // --- find_peak with local-maxima filtering ---
+    const float* searchData = meanRemoved.data() + triggerBegin;
+    const int searchDataLen = kernelSize + triggerDiameter;
     int mid = corrNsamp / 2;
     int left = std::max(0, mid - triggerRadius);
     int right = std::min(corrNsamp, mid + triggerRadius + 1);
     int windowLen = right - left;
     if (windowLen < 2) return center;
 
-    std::vector<float> wCorr(windowLen);
-    std::vector<float> wPeaks(windowLen);
-    for (int i = 0; i < windowLen; ++i) {
-        wCorr[i] = corr[left + i];
-        wPeaks[i] = peaks[left + i];
+    // Cross-correlation over the window at stride 1: four consecutive lags
+    // per kernel pass share each kernel weight, and every lag keeps a
+    // contiguous dot product, so the loop stays vectorizable.
+    std::vector<float> corr(windowLen);
+    std::vector<float> peaks(windowLen, 0.0f);
+    auto dotLags = [&](const float* kernel) {
+        const int quadEnd = windowLen - windowLen % 4;
+        for (int i = 0; i < quadEnd; i += 4) {
+            const float* d0 = searchData + left + i;
+            const float* d1 = d0 + 1;
+            const float* d2 = d0 + 2;
+            const float* d3 = d0 + 3;
+            float a0 = 0.0f, a1 = 0.0f, a2 = 0.0f, a3 = 0.0f;
+            for (int j = 0; j < kernelSize; ++j) {
+                const float w = kernel[j];
+                a0 += d0[j] * w;
+                a1 += d1[j] * w;
+                a2 += d2[j] * w;
+                a3 += d3[j] * w;
+            }
+            corr[i] = a0;
+            corr[i + 1] = a1;
+            corr[i + 2] = a2;
+            corr[i + 3] = a3;
+        }
+        for (int i = quadEnd; i < windowLen; ++i) {
+            const float* d = searchData + left + i;
+            float sum = 0.0f;
+            for (int j = 0; j < kernelSize; ++j) {
+                sum += d[j] * kernel[j];
+            }
+            corr[i] = sum;
+        }
+    };
+    dotLags(combinedKernel.data());
+
+    if (corrEnabled) {
+        std::vector<float> bqWindow(windowLen);
+        auto dotBufferLags = [&](const float* kernel, float* out) {
+            const int quadEnd = windowLen - windowLen % 4;
+            for (int i = 0; i < quadEnd; i += 4) {
+                const float* d0 = searchData + left + i;
+                float a0 = 0.0f, a1 = 0.0f, a2 = 0.0f, a3 = 0.0f;
+                const float* d1 = d0 + 1;
+                const float* d2 = d0 + 2;
+                const float* d3 = d0 + 3;
+                for (int j = 0; j < kernelSize; ++j) {
+                    const float w = kernel[j];
+                    a0 += d0[j] * w;
+                    a1 += d1[j] * w;
+                    a2 += d2[j] * w;
+                    a3 += d3[j] * w;
+                }
+                out[i] = a0;
+                out[i + 1] = a1;
+                out[i + 2] = a2;
+                out[i + 3] = a3;
+            }
+            for (int i = quadEnd; i < windowLen; ++i) {
+                const float* d = searchData + left + i;
+                float sum = 0.0f;
+                for (int j = 0; j < kernelSize; ++j) {
+                    sum += d[j] * kernel[j];
+                }
+                out[i] = sum;
+            }
+        };
+        dotBufferLags(state.corrBuffer.data(), bqWindow.data());
+        for (int i = 0; i < windowLen; ++i) peaks[i] += bqWindow[i] * bufferStrength;
     }
 
+    // Cumulative-sum edge score, same accumulation as the full-window pass;
+    // only the lags inside the radius window are written out.
+    {
+        const int cumsumStart = halfKernel - 1;
+        if (cumsumStart >= 0 && cumsumStart + corrNsamp <= searchDataLen) {
+            float cumSum = 0.0f;
+            for (int lag = 0; lag < right; ++lag) {
+                cumSum += searchData[cumsumStart + lag];
+                const int windowIdx = lag - left;
+                if (windowIdx >= 0) peaks[windowIdx] += -cumSum * edgeStrength;
+            }
+        }
+    }
+
+    // --- find_peak with local-maxima filtering ---
     float minCorr = std::numeric_limits<float>::max();
     for (int i = 0; i < windowLen; ++i) {
-        if (wCorr[i] < minCorr) minCorr = wCorr[i];
+        if (corr[i] < minCorr) minCorr = corr[i];
     }
 
     // Suppress non-local-maxima of peak score.
     for (int i = 0; i < windowLen - 1; ++i) {
-        if (wPeaks[i] < wPeaks[i + 1]) wCorr[i] = minCorr;
+        if (peaks[i] < peaks[i + 1]) corr[i] = minCorr;
     }
     for (int i = 1; i < windowLen; ++i) {
-        if (wPeaks[i] < wPeaks[i - 1]) wCorr[i] = minCorr;
+        if (peaks[i] < peaks[i - 1]) corr[i] = minCorr;
     }
-    wCorr[0] = minCorr;
-    wCorr[windowLen - 1] = minCorr;
+    corr[0] = minCorr;
+    corr[windowLen - 1] = minCorr;
 
     // Pick best local maximum.
     int bestIdx = windowLen / 2;
     float bestVal = minCorr;
     for (int i = 0; i < windowLen; ++i) {
-        if (wCorr[i] > bestVal) { bestVal = wCorr[i]; bestIdx = i; }
+        if (corr[i] > bestVal) { bestVal = corr[i]; bestIdx = i; }
     }
     int peakOffset = (bestVal <= minCorr) ? mid : (left + bestIdx);
     int triggerIdx = std::clamp(triggerBegin + peakOffset + halfKernel, 0, n - 1);
