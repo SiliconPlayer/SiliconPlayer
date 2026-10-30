@@ -353,9 +353,15 @@ void ChannelScopeRenderer::buildGeometry() {
                             float dy = py[k + 1] - py[k];
                             // Double-wide libm: float sqrt/atan2 resolve past Debian-stable glibc.
                             const float segLen = std::sqrt(static_cast<double>(dx * dx + dy * dy));
-                            if (segLen < 1e-4f) continue;
+                            if (segLen < 1e-4f) {
+                                nx.push_back(0.0f);
+                                ny.push_back(0.0f);
+                                continue;
+                            }
                             dx /= segLen;
                             dy /= segLen;
+                            nx.push_back(dx);
+                            ny.push_back(dy);
                             const float ox = -dy * halfW;
                             const float oy = dx * halfW;
 
@@ -376,16 +382,13 @@ void ChannelScopeRenderer::buildGeometry() {
 
                         // Turn-point discs: cap the joins where consecutive
                         // segment directions differ.
-                        const int segments = 10;
                         for (size_t k = 1; k + 1 < n; ++k) {
-                            float d0x = px[k] - px[k - 1];
-                            float d0y = py[k] - py[k - 1];
-                            float d1x = px[k + 1] - px[k];
-                            float d1y = py[k + 1] - py[k];
-                            const float l0 = std::sqrt(static_cast<double>(d0x * d0x + d0y * d0y));
-                            const float l1 = std::sqrt(static_cast<double>(d1x * d1x + d1y * d1y));
-                            if (l0 < 1e-4f || l1 < 1e-4f) continue;
-                            d0x /= l0; d0y /= l0; d1x /= l1; d1y /= l1;
+                            const float d0x = nx[k - 1];
+                            const float d0y = ny[k - 1];
+                            const float d1x = nx[k];
+                            const float d1y = ny[k];
+                            if ((d0x == 0.0f && d0y == 0.0f) ||
+                                (d1x == 0.0f && d1y == 0.0f)) continue;
                             const float dot = d0x * d1x + d0y * d1y;
                             if (dot > 0.999f) continue;
 
@@ -393,17 +396,24 @@ void ChannelScopeRenderer::buildGeometry() {
                             const float cy = py[k];
                             float prevX = cx - d0y * halfW;
                             float prevY = cy + d0x * halfW;
-                            const float endX = cx - d1y * halfW;
-                            const float endY = cy + d1x * halfW;
-                            float angle0 = std::atan2(static_cast<double>(prevY - cy), static_cast<double>(prevX - cx));
-                            float angle1 = std::atan2(static_cast<double>(endY - cy), static_cast<double>(endX - cx));
-                            float sweep = angle1 - angle0;
-                            if (sweep > static_cast<float>(M_PI)) sweep -= 2.0f * static_cast<float>(M_PI);
-                            if (sweep < -static_cast<float>(M_PI)) sweep += 2.0f * static_cast<float>(M_PI);
+                            const float cross = d0x * d1y - d0y * d1x;
+                            const float sweep = static_cast<float>(
+                                std::atan2(static_cast<double>(cross), static_cast<double>(dot))
+                            );
+                            const int segments = std::max(
+                                1,
+                                static_cast<int>(std::ceil(std::abs(sweep) / (static_cast<float>(M_PI) / 10.0f)))
+                            );
+                            const float angleStep = sweep / segments;
+                            const float cosStep = std::cos(angleStep);
+                            const float sinStep = std::sin(angleStep);
+                            float radialX = -d0y * halfW;
+                            float radialY = d0x * halfW;
                             for (int s = 1; s <= segments; ++s) {
-                                const float a = angle0 + sweep * (static_cast<float>(s) / segments);
-                                const float vx = cx + std::cos(a) * halfW;
-                                const float vy = cy + std::sin(a) * halfW;
+                                const float nextRadialX = radialX * cosStep - radialY * sinStep;
+                                const float nextRadialY = radialX * sinStep + radialY * cosStep;
+                                const float vx = cx + nextRadialX;
+                                const float vy = cy + nextRadialY;
                                 waveformVertices_.push_back(cx); waveformVertices_.push_back(cy);
                                 if (feathered) waveformVertices_.push_back(0.0f);
                                 waveformVertices_.push_back(prevX); waveformVertices_.push_back(prevY);
@@ -412,6 +422,8 @@ void ChannelScopeRenderer::buildGeometry() {
                                 if (feathered) waveformVertices_.push_back(halfW);
                                 prevX = vx;
                                 prevY = vy;
+                                radialX = nextRadialX;
+                                radialY = nextRadialY;
                             }
                         }
                     }
@@ -443,7 +455,7 @@ void ChannelScopeRenderer::buildGeometry() {
             }
 
             // VU meter track and level fill quads (flush with cell boundaries)
-            if (vuEnabled_) {
+                    if (vuEnabled_) {
                 float leftMargin = (col > 0) ? halfGrid : 0.0f;
                 float rightMargin = (col < cols - 1) ? halfGrid : 0.0f;
                 float topMargin = (row > 0) ? halfGrid : 0.0f;
