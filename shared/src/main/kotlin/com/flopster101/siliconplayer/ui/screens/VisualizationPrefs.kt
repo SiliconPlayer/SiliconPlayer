@@ -32,7 +32,7 @@ import com.flopster101.siliconplayer.readChannelScopeVisibleElementSelection
 
 
 
-internal data class ChannelScopePrefs(
+data class ChannelScopePrefs(
     val windowMs: Int,
     val renderBackend: VisualizationRenderBackend,
     val dcRemovalEnabled: Boolean,

@@ -36,6 +36,7 @@ import com.flopster101.siliconplayer.VisualizationVuAnchor
 import com.flopster101.siliconplayer.desktop.DesktopProjectMPresetSets
 import com.flopster101.siliconplayer.platform.AppPreferences
 import com.flopster101.siliconplayer.platform.LocalAppPreferences
+import com.flopster101.siliconplayer.ui.visualization.ScopeTextQuadEmitter
 import com.flopster101.siliconplayer.ui.visualization.channel.ChannelScopeChannelTextState
 import com.flopster101.siliconplayer.ui.visualization.channel.GlChannelScopeTextFrame
 import com.flopster101.siliconplayer.ui.visualization.channel.GlChannelScopeTextPalette
@@ -946,6 +947,8 @@ private class SiliconNativeDesktopRenderThread(
                         h,
                         density,
                         directBuffer,
+                        true,
+                        false,
                         transitionOffsetX,
                         transitionAlpha
                     )

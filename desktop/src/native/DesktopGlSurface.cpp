@@ -3,9 +3,9 @@
 #include <X11/Xutil.h>
 #include "gl/gl_platform.h"
 #include <GL/glx.h>
-#include <cstdio>
 #include <cstdlib>
 #include <cstring>
+#include <cstddef>
 #include <vector>
 #include <algorithm>
 #include "silicon/vis/vis_api.h"
@@ -17,12 +17,27 @@
 #define GL_COLOR_ATTACHMENT0 0x8CE0
 #define GL_FRAMEBUFFER_COMPLETE 0x8CD5
 #endif
+#ifndef GL_PIXEL_PACK_BUFFER
+#define GL_PIXEL_PACK_BUFFER 0x88EB
+#endif
+#ifndef GL_STREAM_READ
+#define GL_STREAM_READ 0x88E1
+#endif
+#ifndef GL_READ_ONLY
+#define GL_READ_ONLY 0x88B8
+#endif
 
 typedef void (*PFNGLGENFRAMEBUFFERSPROC)(GLsizei n, GLuint* framebuffers);
 typedef void (*PFNGLBINDFRAMEBUFFERPROC)(GLenum target, GLuint framebuffer);
 typedef void (*PFNGLFRAMEBUFFERTEXTURE2DPROC)(GLenum target, GLenum attachment, GLenum textarget, GLuint texture, GLint level);
 typedef void (*PFNGLDELETEFRAMEBUFFERSPROC)(GLsizei n, const GLuint* framebuffers);
 typedef GLenum (*PFNGLCHECKFRAMEBUFFERSTATUSPROC)(GLenum target);
+typedef void (*PFNGLGENBUFFERSPROC)(GLsizei n, GLuint* buffers);
+typedef void (*PFNGLDELETEBUFFERSPROC)(GLsizei n, const GLuint* buffers);
+typedef void (*PFNGLBINDBUFFERSPROC)(GLenum target, GLuint buffer);
+typedef void (*PFNGLBUFFERDATAPROC)(GLenum target, std::ptrdiff_t size, const void* data, GLenum usage);
+typedef void* (*PFNGLMAPBUFFERPROC)(GLenum target, GLenum access);
+typedef GLboolean (*PFNGLUNMAPBUFFERPROC)(GLenum target);
 
 namespace {
 
@@ -63,6 +78,11 @@ struct DesktopGlContext {
     int height = 0;
     float density = 1.0f;
     std::vector<uint8_t> readBackBuffer;
+    GLuint pixelPackBuffers[3] = {0, 0, 0};
+    int nextPixelPackBuffer = 0;
+    int pendingPixelPackBuffers[3] = {0, 0, 0};
+    int pendingPixelPackHead = 0;
+    int pendingPixelPackCount = 0;
     ScopeTextOverlay textOverlay;
 
     GLuint snapshotTex = 0;
@@ -81,6 +101,18 @@ struct DesktopGlContext {
     PFNGLFRAMEBUFFERTEXTURE2DPROC glFramebufferTexture2D = nullptr;
     PFNGLDELETEFRAMEBUFFERSPROC glDeleteFramebuffers = nullptr;
     PFNGLCHECKFRAMEBUFFERSTATUSPROC glCheckFramebufferStatus = nullptr;
+    PFNGLGENBUFFERSPROC glGenBuffers = nullptr;
+    PFNGLDELETEBUFFERSPROC glDeleteBuffers = nullptr;
+    PFNGLBINDBUFFERSPROC glBindBuffer = nullptr;
+    PFNGLBUFFERDATAPROC glBufferData = nullptr;
+    PFNGLMAPBUFFERPROC glMapBuffer = nullptr;
+    PFNGLUNMAPBUFFERPROC glUnmapBuffer = nullptr;
+
+    bool supportsAsyncReadback() const {
+        return pixelPackBuffers[0] && pixelPackBuffers[1] && pixelPackBuffers[2] &&
+            glDeleteBuffers && glBindBuffer &&
+            glBufferData && glMapBuffer && glUnmapBuffer;
+    }
 
     bool takeSnapshot() {
         if (width <= 0 || height <= 0 || !colorTex) return false;
@@ -243,10 +275,20 @@ Java_com_flopster101_siliconplayer_ui_visualization_gl_DesktopGlSurface_nativeIn
     ctx->glFramebufferTexture2D = getGlProc<PFNGLFRAMEBUFFERTEXTURE2DPROC>("glFramebufferTexture2D");
     ctx->glDeleteFramebuffers = getGlProc<PFNGLDELETEFRAMEBUFFERSPROC>("glDeleteFramebuffers");
     ctx->glCheckFramebufferStatus = getGlProc<PFNGLCHECKFRAMEBUFFERSTATUSPROC>("glCheckFramebufferStatus");
+    ctx->glGenBuffers = getGlProc<PFNGLGENBUFFERSPROC>("glGenBuffers");
+    ctx->glDeleteBuffers = getGlProc<PFNGLDELETEBUFFERSPROC>("glDeleteBuffers");
+    ctx->glBindBuffer = getGlProc<PFNGLBINDBUFFERSPROC>("glBindBuffer");
+    ctx->glBufferData = getGlProc<PFNGLBUFFERDATAPROC>("glBufferData");
+    ctx->glMapBuffer = getGlProc<PFNGLMAPBUFFERPROC>("glMapBuffer");
+    ctx->glUnmapBuffer = getGlProc<PFNGLUNMAPBUFFERPROC>("glUnmapBuffer");
 
     if (ctx->glGenFramebuffers) {
         ctx->glGenFramebuffers(1, &ctx->fbo);
         glGenTextures(1, &ctx->colorTex);
+    }
+    if (ctx->glGenBuffers && ctx->glDeleteBuffers && ctx->glBindBuffer && ctx->glBufferData &&
+        ctx->glMapBuffer && ctx->glUnmapBuffer) {
+        ctx->glGenBuffers(3, ctx->pixelPackBuffers);
     }
 
     if (visHandle != 0) {
@@ -266,11 +308,17 @@ Java_com_flopster101_siliconplayer_ui_visualization_gl_DesktopGlSurface_nativeRe
     jint height,
     jfloat density,
     jobject outBuffer,
+    jboolean captureOutput,
+    jboolean asyncReadback,
     jfloat transitionOffsetX,
     jfloat transitionAlpha
 ) {
-    if (!hostHandle || !visHandle || width <= 0 || height <= 0 || !outBuffer) return JNI_FALSE;
+    if (!hostHandle || !visHandle || width <= 0 || height <= 0 || (captureOutput && !outBuffer)) return JNI_FALSE;
     auto* ctx = reinterpret_cast<DesktopGlContext*>(hostHandle);
+    auto* outPixels = captureOutput
+        ? static_cast<uint8_t*>(env->GetDirectBufferAddress(outBuffer))
+        : nullptr;
+    if (captureOutput && !outPixels) return JNI_FALSE;
 
     if (!glXMakeCurrent(ctx->glDisplay, ctx->dummyWindow, ctx->glContext)) {
         return JNI_FALSE;
@@ -294,6 +342,17 @@ Java_com_flopster101_siliconplayer_ui_visualization_gl_DesktopGlSurface_nativeRe
             ctx->glBindFramebuffer(GL_FRAMEBUFFER, ctx->fbo);
             ctx->glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, ctx->colorTex, 0);
         }
+        ctx->pendingPixelPackHead = 0;
+        ctx->pendingPixelPackCount = 0;
+        ctx->nextPixelPackBuffer = 0;
+        if (ctx->supportsAsyncReadback()) {
+            const auto byteCount = static_cast<std::ptrdiff_t>(width) * height * 4;
+            for (GLuint buffer : ctx->pixelPackBuffers) {
+                ctx->glBindBuffer(GL_PIXEL_PACK_BUFFER, buffer);
+                ctx->glBufferData(GL_PIXEL_PACK_BUFFER, byteCount, nullptr, GL_STREAM_READ);
+            }
+            ctx->glBindBuffer(GL_PIXEL_PACK_BUFFER, 0);
+        }
 
         silicon_vis_resize(reinterpret_cast<SiliconVisHandle>(visHandle), width, height, density);
         silicon_vis_set_render_target_fbo(reinterpret_cast<SiliconVisHandle>(visHandle), ctx->fbo);
@@ -311,25 +370,51 @@ Java_com_flopster101_siliconplayer_ui_visualization_gl_DesktopGlSurface_nativeRe
     if (transitionAlpha > 0.001f) {
         ctx->drawTransition(static_cast<float>(width), static_cast<float>(height), transitionOffsetX, transitionAlpha);
     }
-
-    uint8_t* outPixels = static_cast<uint8_t*>(env->GetDirectBufferAddress(outBuffer));
-    if (!outPixels) return JNI_FALSE;
-
-    const size_t byteCount = static_cast<size_t>(width) * height * 4;
-    if (ctx->readBackBuffer.size() < byteCount) {
-        ctx->readBackBuffer.resize(byteCount);
-    }
-
-    glReadPixels(0, 0, width, height, GL_RGBA, GL_UNSIGNED_BYTE, ctx->readBackBuffer.data());
-
-    // Flip vertically from OpenGL bottom-left to Skia top-left
     const int stride = width * 4;
-    for (int y = 0; y < height; ++y) {
-        const uint8_t* srcRow = ctx->readBackBuffer.data() + (height - 1 - y) * stride;
-        uint8_t* dstRow = outPixels + y * stride;
-        std::memcpy(dstRow, srcRow, stride);
-    }
+    if (asyncReadback && ctx->supportsAsyncReadback()) {
+        const int writeIndex = ctx->nextPixelPackBuffer;
+        ctx->glBindBuffer(GL_PIXEL_PACK_BUFFER, ctx->pixelPackBuffers[writeIndex]);
+        glReadPixels(0, 0, width, height, GL_RGBA, GL_UNSIGNED_BYTE, nullptr);
+        ctx->glBindBuffer(GL_PIXEL_PACK_BUFFER, 0);
+        const int queueTail = (ctx->pendingPixelPackHead + ctx->pendingPixelPackCount) % 3;
+        ctx->pendingPixelPackBuffers[queueTail] = writeIndex;
+        ++ctx->pendingPixelPackCount;
+        ctx->nextPixelPackBuffer = (writeIndex + 1) % 3;
+        if (!captureOutput) return JNI_TRUE;
 
+        if (ctx->pendingPixelPackCount <= 2) return JNI_FALSE;
+        const int outputIndex = ctx->pendingPixelPackBuffers[ctx->pendingPixelPackHead];
+        ctx->pendingPixelPackHead = (ctx->pendingPixelPackHead + 1) % 3;
+        --ctx->pendingPixelPackCount;
+        ctx->glBindBuffer(GL_PIXEL_PACK_BUFFER, ctx->pixelPackBuffers[outputIndex]);
+        const auto* readPixels = static_cast<const uint8_t*>(
+            ctx->glMapBuffer(GL_PIXEL_PACK_BUFFER, GL_READ_ONLY)
+        );
+        if (!readPixels) {
+            ctx->glBindBuffer(GL_PIXEL_PACK_BUFFER, 0);
+            return JNI_FALSE;
+        }
+
+        for (int y = 0; y < height; ++y) {
+            const uint8_t* srcRow = readPixels + (height - 1 - y) * stride;
+            uint8_t* dstRow = outPixels + y * stride;
+            std::memcpy(dstRow, srcRow, stride);
+        }
+        const GLboolean unmapped = ctx->glUnmapBuffer(GL_PIXEL_PACK_BUFFER);
+        ctx->glBindBuffer(GL_PIXEL_PACK_BUFFER, 0);
+        if (!unmapped) return JNI_FALSE;
+    } else if (captureOutput) {
+        const size_t byteCount = static_cast<size_t>(width) * height * 4;
+        if (ctx->readBackBuffer.size() < byteCount) {
+            ctx->readBackBuffer.resize(byteCount);
+        }
+        glReadPixels(0, 0, width, height, GL_RGBA, GL_UNSIGNED_BYTE, ctx->readBackBuffer.data());
+        for (int y = 0; y < height; ++y) {
+            const uint8_t* srcRow = ctx->readBackBuffer.data() + (height - 1 - y) * stride;
+            uint8_t* dstRow = outPixels + y * stride;
+            std::memcpy(dstRow, srcRow, stride);
+        }
+    }
     return JNI_TRUE;
 }
 
@@ -434,6 +519,10 @@ Java_com_flopster101_siliconplayer_ui_visualization_gl_DesktopGlSurface_nativeDe
     }
     if (ctx->colorTex) {
         glDeleteTextures(1, &ctx->colorTex);
+    }
+    if (ctx->glDeleteBuffers &&
+        (ctx->pixelPackBuffers[0] || ctx->pixelPackBuffers[1] || ctx->pixelPackBuffers[2])) {
+        ctx->glDeleteBuffers(3, ctx->pixelPackBuffers);
     }
 
     glXMakeCurrent(ctx->glDisplay, None, nullptr);

@@ -222,8 +222,22 @@ tasks.withType<JavaExec>().configureEach {
     configureNativePaths(this)
 }
 
+tasks.register<JavaExec>("exportVideo") {
+    group = "application"
+    description = "Export a local song as an H.264 video using desktop visualization rendering."
+    classpath = sourceSets.getByName("main").runtimeClasspath
+    mainClass.set("com.flopster101.siliconplayer.desktop.VideoExportKt")
+    val exportArguments = listOf(
+        "song", "output", "fps", "width", "height", "bitrate", "duration",
+        "visualizer", "antialias", "trigger"
+    )
+        .flatMap { name ->
+            (project.findProperty(name) as? String)?.let { listOf("--$name", it) } ?: emptyList()
+        }
+    args(exportArguments)
+}
+
 tasks.withType<Test>().configureEach {
     dependsOn(buildDesktopNative)
     configureNativePaths(this)
 }
-

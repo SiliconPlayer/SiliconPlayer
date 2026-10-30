@@ -1,4 +1,4 @@
-package com.flopster101.siliconplayer.ui.visualization.gl
+package com.flopster101.siliconplayer.ui.visualization
 
 import com.flopster101.siliconplayer.ui.visualization.channel.ChannelScopeTextMeasurer
 import com.flopster101.siliconplayer.ui.visualization.channel.ChannelScopeTextRun
@@ -8,7 +8,7 @@ import java.nio.ByteOrder
 // JVM mirror of Android's GlTextBatchBuilder quad math. Positioned runs from
 // the shared layout engine become (x, y, u, v, r, g, b, a) triangle vertices
 // the native scope overlay draws with the same text program as Android.
-internal class ScopeTextQuadEmitter(glyphBuffer: ByteBuffer, val baseFontSizePx: Float, val lineHeightPx: Float) {
+class ScopeTextQuadEmitter(glyphBuffer: ByteBuffer, val baseFontSizePx: Float, val lineHeightPx: Float) {
     private data class Glyph(
         val u0: Float,
         val v0: Float,
