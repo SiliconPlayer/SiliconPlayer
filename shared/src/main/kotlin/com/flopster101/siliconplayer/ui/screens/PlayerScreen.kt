@@ -212,7 +212,8 @@ import java.io.File
 import kotlin.math.roundToInt
 import kotlin.math.pow
 import com.flopster101.siliconplayer.PlaybackIo
-import com.flopster101.siliconplayer.readCurrentFormatName
+import com.flopster101.siliconplayer.FormatLabel
+import com.flopster101.siliconplayer.readCurrentFormatLabel
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -1222,18 +1223,21 @@ internal fun PlayerScreen(
             ?.uppercase()
     }
     val fileSizeBytes = file?.length() ?: 0L
-    val formatLabel by produceState<String>(
-        initialValue = file?.name?.let(::inferredPrimaryExtensionForName)?.uppercase() ?: "EMPTY",
+    val extensionLabel = remember(file) {
+        file?.name?.let(::inferredPrimaryExtensionForName)?.uppercase() ?: ""
+    }
+    val formatLabel by produceState<FormatLabel?>(
+        initialValue = null,
         hasTrack,
         decoderName,
         file?.absolutePath
     ) {
         value = if (hasTrack && decoderName != null) {
             withContext(Dispatchers.PlaybackIo) {
-                readCurrentFormatName(decoderName)
-            } ?: file?.name?.let(::inferredPrimaryExtensionForName)?.uppercase() ?: "UNKNOWN"
+                readCurrentFormatLabel(extensionLabel)
+            }
         } else {
-            file?.name?.let(::inferredPrimaryExtensionForName)?.uppercase() ?: "EMPTY"
+            null
         }
     }
     val trackBitrateOrSize by produceState<String?>(
@@ -1264,9 +1268,6 @@ internal fun PlayerScreen(
             fileSizeBytes > 0 -> formatFileSize(fileSizeBytes)
             else -> null
         }
-    }
-    val extensionLabel = remember(file) {
-        file?.name?.let(::inferredPrimaryExtensionForName)?.uppercase() ?: ""
     }
     val trackTechnicalInfo = remember(
         formatLabel,
@@ -1814,8 +1815,7 @@ internal fun PlayerScreen(
                                     layoutScale = landscapeLayoutScale,
                                     titleScaleBoost = landscapeTitleScaleBoost,
                                     supportingScaleBoost = landscapeSupportingScaleBoost,
-                                    fullTechLine = trackTechnicalInfo.fullLine,
-                                    fallbackTechLine = trackTechnicalInfo.fallbackLine,
+                                    techLines = trackTechnicalInfo.lines,
                                     showFavorite = pathOrUrl != null,
                                     favoriteIndicator = {
                                         Box(
@@ -2112,8 +2112,7 @@ internal fun PlayerScreen(
                                         subtuneTitleClickable = subtuneTitleClickable,
                                         onOpenSubtuneSelector = onOpenSubtuneSelector,
                                         layoutScale = portraitLayoutScale,
-                                        fullTechLine = trackTechnicalInfo.fullLine,
-                                        fallbackTechLine = trackTechnicalInfo.fallbackLine,
+                                        techLines = trackTechnicalInfo.lines,
                                         showFavorite = pathOrUrl != null,
                                         favoriteIndicator = {
                                             Box(
@@ -3576,8 +3575,7 @@ private fun PortraitTrackMetadataBlock(
     layoutScale: Float = 1f,
     titleScaleBoost: Float = 0f,
     supportingScaleBoost: Float = 0f,
-    fullTechLine: String? = null,
-    fallbackTechLine: String? = null,
+    techLines: List<String> = emptyList(),
     showFavorite: Boolean = false,
     favoriteIndicator: @Composable () -> Unit = {},
     modifier: Modifier = Modifier
@@ -3776,7 +3774,7 @@ private fun PortraitTrackMetadataBlock(
                         }
                     }
                     AnimatedVisibility(
-                        visible = !fullTechLine.isNullOrBlank(),
+                        visible = techLines.firstOrNull().orEmpty().isNotBlank(),
                         enter = fadeIn(animationSpec = tween(durationMillis = 180)) + expandVertically(
                             animationSpec = tween(durationMillis = 220),
                             expandFrom = Alignment.Top
@@ -3792,28 +3790,18 @@ private fun PortraitTrackMetadataBlock(
                                 val textMeasurer = rememberTextMeasurer()
                                 val density = LocalDensity.current
                                 val maxWidthPx = with(density) { maxWidth.roundToPx().coerceAtLeast(1) }
-                                val fullText = fullTechLine.orEmpty()
-                                val fallbackText = fallbackTechLine.orEmpty()
 
-                                val textToDisplay = remember(fullText, fallbackText, technicalSummaryTextStyle, maxWidthPx) {
-                                    if (fullText.isBlank()) {
-                                        ""
-                                    } else if (fallbackText.isBlank() || fullText == fallbackText) {
-                                        fullText
-                                    } else {
-                                        val measured = textMeasurer.measure(
-                                            text = AnnotatedString(fullText),
+                                val textToDisplay = remember(techLines, technicalSummaryTextStyle, maxWidthPx) {
+                                    val preferred = techLines.dropLast(1).firstOrNull { line ->
+                                        textMeasurer.measure(
+                                            text = AnnotatedString(line),
                                             style = technicalSummaryTextStyle,
                                             maxLines = 1,
                                             softWrap = false,
                                             overflow = TextOverflow.Clip
-                                        )
-                                        if (measured.size.width > maxWidthPx) {
-                                            fallbackText
-                                        } else {
-                                            fullText
-                                        }
+                                        ).size.width <= maxWidthPx
                                     }
+                                    preferred ?: techLines.lastOrNull().orEmpty()
                                 }
 
                                 AnimatedContent(
@@ -5422,13 +5410,14 @@ internal fun formatBitrate(bitrateInBitsPerSecond: Long, isVBR: Boolean): String
     }
 }
 
+// Candidate tech lines, most preferred first. The last one is the file
+// extension, which the caller always falls back to.
 private data class TrackTechnicalInfo(
-    val fullLine: String,
-    val fallbackLine: String
+    val lines: List<String>
 )
 
 private fun buildTrackTechnicalInfo(
-    formatLabel: String,
+    formatLabel: FormatLabel?,
     extensionLabel: String,
     bitrateOrSize: String?,
     sampleRateHz: Int,
@@ -5438,7 +5427,7 @@ private fun buildTrackTechnicalInfo(
     hasTrack: Boolean
 ): TrackTechnicalInfo {
     if (!hasTrack) {
-        return TrackTechnicalInfo(fullLine = "", fallbackLine = "")
+        return TrackTechnicalInfo(lines = emptyList())
     }
 
     val bitrateLabel = bitrateOrSize?.ifBlank { "--" } ?: "--"
@@ -5462,16 +5451,17 @@ private fun buildTrackTechnicalInfo(
         channelsAndDepth
     )
 
-    val validFormat = formatLabel.takeIf { it.isNotBlank() && it != "EMPTY" && it != "UNKNOWN" }
-    val validExt = extensionLabel.takeIf { it.isNotBlank() && it != "EMPTY" && it != "UNKNOWN" }
-        ?: validFormat
-
-    val fullSpecs = (listOfNotNull(validFormat ?: validExt) + specsList).joinToString(" • ")
-    val fallbackSpecs = (listOfNotNull(validExt ?: validFormat) + specsList).joinToString(" • ")
+    val names = listOfNotNull(
+        formatLabel?.full?.takeIf { it.isNotBlank() },
+        formatLabel?.short?.takeIf { it.isNotBlank() },
+        extensionLabel.takeIf { it.isNotBlank() }
+    ).distinct()
+    val specs = specsList.joinToString(" • ")
 
     return TrackTechnicalInfo(
-        fullLine = fullSpecs,
-        fallbackLine = fallbackSpecs
+        lines = names.ifEmpty { listOf("") }.map { name ->
+            if (name.isBlank()) specs else "$name • $specs"
+        }
     )
 }
 
@@ -6015,9 +6005,10 @@ private fun WearPlayerContent(
                     }
 
                     // Technical Info Line (format, channels, samplerate)
-                    if (trackTechnicalInfo.fallbackLine.isNotBlank()) {
+                    val wearTechLine = trackTechnicalInfo.lines.lastOrNull().orEmpty()
+                    if (wearTechLine.isNotBlank()) {
                         Text(
-                            text = trackTechnicalInfo.fallbackLine,
+                            text = wearTechLine,
                             style = MaterialTheme.typography.labelSmall,
                             color = MaterialTheme.colorScheme.outline,
                             maxLines = 1,
