@@ -42,6 +42,9 @@ public:
     VkImage getImage(uint32_t imageIndex) const {
         return (imageIndex < images_.size()) ? images_[imageIndex] : VK_NULL_HANDLE;
     }
+    // Whether presented images may be copied from, i.e. whether a transition
+    // snapshot can be taken before the next frame replaces them.
+    bool supportsTransferSrc() const { return supportsTransferSrc_; }
 
 private:
     bool createSwapchain(uint32_t width, uint32_t height);
@@ -57,6 +60,7 @@ private:
     VkSurfaceFormatKHR format_{};
     VkPresentModeKHR presentMode_ = VK_PRESENT_MODE_FIFO_KHR;
     VkExtent2D extent_{};
+    bool supportsTransferSrc_ = false;
 
     VkSampleCountFlagBits msaaSamples_ = VK_SAMPLE_COUNT_1_BIT;
     VkImage msaaColorImage_ = VK_NULL_HANDLE;

@@ -839,7 +839,8 @@ void SiliconVisVulkanPipeline::releaseTransitionSnapshot() {
 }
 
 bool SiliconVisVulkanPipeline::takeTransitionSnapshot() {
-    if (!initialized_ || !hasRenderedFrame_ || width_ == 0 || height_ == 0 || isSurfaceMode_) return false;
+    if (!initialized_ || !hasRenderedFrame_ || width_ == 0 || height_ == 0) return false;
+    if (isSurfaceMode_ && !swapchain_.supportsTransferSrc()) return false;
 
     const auto& table = VkLoader::table();
     VkDevice device = context_.getDevice();

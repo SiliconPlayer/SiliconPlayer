@@ -180,7 +180,8 @@ bool VkSwapchain::createSwapchain(uint32_t width, uint32_t height) {
     createInfo.imageExtent = extent_;
     createInfo.imageArrayLayers = 1;
     VkImageUsageFlags usage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
-    if (caps.supportedUsageFlags & VK_IMAGE_USAGE_TRANSFER_SRC_BIT) {
+    supportsTransferSrc_ = (caps.supportedUsageFlags & VK_IMAGE_USAGE_TRANSFER_SRC_BIT) != 0;
+    if (supportsTransferSrc_) {
         usage |= VK_IMAGE_USAGE_TRANSFER_SRC_BIT;
     }
     createInfo.imageUsage = usage;
