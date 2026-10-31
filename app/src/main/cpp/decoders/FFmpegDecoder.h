@@ -106,7 +106,9 @@ private:
     std::string copyrightText;
     std::string comment;
     std::string codecName;
+    std::string codecLongName;
     std::string containerName;
+    std::string demuxerName;
     std::string sampleFormatName;
     std::string channelLayoutName;
     std::string encoderName;

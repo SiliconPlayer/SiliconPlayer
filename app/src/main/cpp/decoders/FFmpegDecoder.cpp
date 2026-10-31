@@ -198,6 +198,29 @@ std::vector<std::string> splitExtensionsCsv(const char* csv) {
     return result;
 }
 
+// Containers whose own name says nothing about the audio inside, so the
+// codec name is what the player shows for a file held in one.
+bool preferCodecOverContainer(const std::string& demuxerName) {
+    static const std::initializer_list<const char*> kGenericContainers = {
+            "mov", "matroska", "ogg", "mpegts", "mpeg", "avi", "asf", "rm",
+            "nsv", "nut", "mxf", "wtv", "bink", "swf"
+    };
+    // Some demuxers register a comma-separated list of names.
+    const std::string primaryName = demuxerName.substr(0, demuxerName.find(','));
+    for (const char* container : kGenericContainers) {
+        if (primaryName == container) {
+            return true;
+        }
+    }
+    return false;
+}
+
+// PCM and DSD name a sample layout rather than a format, so the container
+// stays the more useful label for them.
+bool namesSampleLayout(const std::string& codecName) {
+    return codecName.rfind("PCM", 0) == 0 || codecName.rfind("DSD", 0) == 0;
+}
+
 bool parseBoolString(const std::string& value, bool fallback) {
     const std::string normalized = toLowerAscii(trimAscii(value));
     if (normalized == "1" || normalized == "true" || normalized == "yes" || normalized == "on") {
@@ -446,15 +469,19 @@ bool FFmpegDecoder::openLocked(const char* path) {
         int bytesPerSample = av_get_bytes_per_sample(codecContext->sample_fmt);
         sourceBitDepth = bytesPerSample > 0 ? bytesPerSample * 8 : 0;
     }
+    codecLongName = (codec && codec->long_name) ? codec->long_name : "";
     codecName = codec && codec->name ? codec->name : avcodec_get_name(codecParams->codec_id);
-    if (codec && codec->long_name) {
+    if (!codecLongName.empty()) {
         codecName += " (";
-        codecName += codec->long_name;
+        codecName += codecLongName;
         codecName += ")";
     }
     containerName = (formatContext->iformat && formatContext->iformat->long_name)
             ? formatContext->iformat->long_name
             : ((formatContext->iformat && formatContext->iformat->name) ? formatContext->iformat->name : "");
+    demuxerName = (formatContext->iformat && formatContext->iformat->name)
+            ? formatContext->iformat->name
+            : "";
     const char* sampleFmt = av_get_sample_fmt_name(codecContext->sample_fmt);
     sampleFormatName = sampleFmt ? sampleFmt : "";
     char chLayoutBuf[128] = {0};
@@ -626,7 +653,9 @@ void FFmpegDecoder::close() {
     copyrightText.clear();
     comment.clear();
     codecName.clear();
+    codecLongName.clear();
     containerName.clear();
+    demuxerName.clear();
     sampleFormatName.clear();
     channelLayoutName.clear();
     encoderName.clear();
@@ -1543,6 +1572,10 @@ double FFmpegDecoder::getPlaybackPositionSeconds() {
 }
 
 std::string FFmpegDecoder::getFormatLabel() {
+    if (preferCodecOverContainer(demuxerName) && !codecLongName.empty() &&
+        !namesSampleLayout(codecLongName)) {
+        return codecLongName;
+    }
     const std::string container = getContainerName();
     return container.empty() ? getCodecName() : container;
 }
