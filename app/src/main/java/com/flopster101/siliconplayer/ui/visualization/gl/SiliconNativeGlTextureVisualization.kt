@@ -91,15 +91,6 @@ data class SiliconNativeGlFrame(
     val mode: Int, // 1=Bars, 2=Osc, 3=VU, 4=ChannelScope, 5=Starfield, 100=projectM plugin
     val isPlaying: Boolean = true,
     val trackKey: String? = null,
-    val pcm: FloatArray? = null,
-    val pcmFrames: Int = 0,
-    val pcmChannels: Int = 0,
-    val pcmSampleRate: Int = 0,
-    val fft: FloatArray? = null,
-    val vuLevels: FloatArray = floatArrayOf(0f, 0f),
-    val channelHistories: List<FloatArray> = emptyList(),
-    val channelScopeFlatData: FloatArray? = null,
-    val channelScopeSamplesPerChannel: Int = 0,
     val instrumentNamesByIndex: Map<Int, String> = emptyMap(),
     val sampleNamesByIndex: Map<Int, String> = emptyMap(),
     val chipNamesByChannelIndex: Map<Int, String> = emptyMap(),
@@ -208,41 +199,6 @@ data class SiliconNativeGlFrame(
     val starfieldSquarePixels: Boolean = false
 )
 
-data class SiliconNativeGlDynamicData(
-    val pcm: FloatArray? = null,
-    val pcmFrames: Int = 0,
-    val pcmChannels: Int = 0,
-    val pcmSampleRate: Int = 0,
-    val fft: FloatArray? = null,
-    val vuLevels: FloatArray = floatArrayOf(0f, 0f),
-    val channelHistories: List<FloatArray> = emptyList(),
-    val channelScopeFlatData: FloatArray? = null,
-    val channelScopeSamplesPerChannel: Int = 0
-)
-
-interface SiliconNativeGlDataConsumer {
-    fun pushDynamicData(data: SiliconNativeGlDynamicData)
-}
-
-object SiliconNativeGlDataSink {
-    @Volatile
-    private var activeConsumer: SiliconNativeGlDataConsumer? = null
-
-    fun register(consumer: SiliconNativeGlDataConsumer) {
-        activeConsumer = consumer
-    }
-
-    fun unregister(consumer: SiliconNativeGlDataConsumer) {
-        if (activeConsumer === consumer) {
-            activeConsumer = null
-        }
-    }
-
-    fun pushDynamicData(data: SiliconNativeGlDynamicData) {
-        activeConsumer?.pushDynamicData(data)
-    }
-}
-
 @Composable
 fun SiliconNativeGlTextureVisualization(
     frame: SiliconNativeGlFrame,
@@ -288,7 +244,7 @@ fun SiliconNativeGlTextureVisualization(
 private class SiliconNativeGlTextureView(
     context: Context,
     private val density: Float
-) : TextureView(context), TextureView.SurfaceTextureListener, SiliconNativeGlDataConsumer {
+) : TextureView(context), TextureView.SurfaceTextureListener {
     private var renderThread: SiliconNativeTextureRenderThread? = null
     private var latestFrame: SiliconNativeGlFrame? = null
     private var lifecyclePaused: Boolean = false
@@ -297,11 +253,6 @@ private class SiliconNativeGlTextureView(
     init {
         surfaceTextureListener = this
         isOpaque = true
-        SiliconNativeGlDataSink.register(this)
-    }
-
-    override fun pushDynamicData(data: SiliconNativeGlDynamicData) {
-        renderThread?.setDynamicData(data)
     }
 
     fun updateFrame(frame: SiliconNativeGlFrame) {
@@ -319,7 +270,6 @@ private class SiliconNativeGlTextureView(
     }
 
     fun shutdown() {
-        SiliconNativeGlDataSink.unregister(this)
         stopRenderThread()
     }
 
@@ -344,7 +294,6 @@ private class SiliconNativeGlTextureView(
         if (surfaceTexture == null) return
         // One render thread per surface; skip if the previous outlived the join.
         if (!stopRenderThread()) return
-        SiliconNativeGlDataSink.register(this)
         val surface = Surface(surfaceTexture)
         val thread = SiliconNativeTextureRenderThread(
             context = context,
@@ -373,11 +322,6 @@ private class SiliconNativeGlTextureView(
             return false
         }
         return true
-    }
-
-    override fun onAttachedToWindow() {
-        super.onAttachedToWindow()
-        SiliconNativeGlDataSink.register(this)
     }
 
     override fun onDetachedFromWindow() {
@@ -425,7 +369,6 @@ internal class SiliconNativeTextureRenderThread(
     @Volatile
     private var blankFrameOnStop = false
     private var frameData: SiliconNativeGlFrame? = null
-    private var dynamicData: SiliconNativeGlDynamicData? = null
     private var frameSequence: Long = 0L
     private var renderedFrameSequence: Long = -1L
     private var surfaceWidth = initialWidth
@@ -561,13 +504,6 @@ internal class SiliconNativeTextureRenderThread(
         return cachedFrameIntervalNs
     }
 
-    fun setDynamicData(data: SiliconNativeGlDynamicData) {
-        synchronized(lock) {
-            dynamicData = data
-            frameSequence += 1L
-        }
-    }
-
     fun setFrameData(frame: SiliconNativeGlFrame) {
         synchronized(lock) {
             frameData = frame
@@ -577,7 +513,6 @@ internal class SiliconNativeTextureRenderThread(
 
     private data class LoopState(
         val frame: SiliconNativeGlFrame?,
-        val dynamicData: SiliconNativeGlDynamicData?,
         val frameSequence: Long,
         val width: Int,
         val height: Int,
@@ -659,7 +594,6 @@ internal class SiliconNativeTextureRenderThread(
         val state = synchronized(lock) {
             LoopState(
                 frame = frameData,
-                dynamicData = dynamicData,
                 frameSequence = frameSequence,
                 width = surfaceWidth,
                 height = surfaceHeight,
@@ -977,46 +911,7 @@ internal class SiliconNativeTextureRenderThread(
                         }
                     }
 
-                    // 2. Push audio / channels / VU levels
-                    val d = state.dynamicData
-                    val pcm = d?.pcm ?: frame.pcm
-                    val pcmFrames = if (d != null && d.pcm != null) d.pcmFrames else frame.pcmFrames
-                    val pcmChannels = if (d != null && d.pcm != null) d.pcmChannels else frame.pcmChannels
-                    val pcmSampleRate = if (d != null && d.pcm != null) d.pcmSampleRate else frame.pcmSampleRate
-                    val fft = d?.fft ?: frame.fft
-                    val vuLevels = d?.vuLevels ?: frame.vuLevels
-                    val flatData = d?.channelScopeFlatData ?: frame.channelScopeFlatData
-                    val flatSamples = if (d != null && d.channelScopeFlatData != null) d.channelScopeSamplesPerChannel else frame.channelScopeSamplesPerChannel
-                    val channelHistories = if (d != null && d.channelHistories.isNotEmpty()) d.channelHistories else frame.channelHistories
-
-                    pcm?.let {
-                        SiliconVisNativeBridge.nativePushPcm(visHandle, it, pcmFrames, pcmChannels, pcmSampleRate)
-                    }
-                    fft?.let {
-                        SiliconVisNativeBridge.nativePushFft(visHandle, it, it.size)
-                    }
-                    SiliconVisNativeBridge.nativeSetVuLevels(
-                        visHandle,
-                        vuLevels.getOrElse(0) { 0f },
-                        vuLevels.getOrElse(1) { 0f }
-                    )
-
-                    if (flatData != null && flatSamples > 0) {
-                        val channels = flatData.size / flatSamples
-                        SiliconVisNativeBridge.nativePushChannelScopeAllHistories(
-                            visHandle,
-                            channels,
-                            flatSamples,
-                            flatData
-                        )
-                    } else if (channelHistories.isNotEmpty()) {
-                        for (i in channelHistories.indices) {
-                            val hist = channelHistories[i]
-                            SiliconVisNativeBridge.nativePushChannelScopeHistory(visHandle, i, hist, hist.size)
-                        }
-                    }
-
-                    // 3. Set options
+                    // 2. Set options
                     when (frame.mode) {
                         4 -> { // Channel Scope
                             if (localTextSetters.handle != visHandle) {
@@ -1135,7 +1030,7 @@ internal class SiliconNativeTextureRenderThread(
                         }
                     }
 
-                    // 4. Render
+                    // 3. Render
                     // Channel scope renders into a scene texture while track
                     // transitions are on: a track change hands its last frame
                     // to the snapshot by ownership, because copying the

@@ -214,7 +214,7 @@ private class SiliconNativeVkSurfaceView(
     context: Context,
     private val density: Float,
     cornerRadiusPx: Float
-) : SurfaceView(context), SurfaceHolder.Callback, SiliconNativeGlDataConsumer {
+) : SurfaceView(context), SurfaceHolder.Callback {
     private var renderThread: SiliconNativeVkRenderThread? = null
     private var latestFrame: SiliconNativeGlFrame? = null
     private var lifecyclePaused: Boolean = false
@@ -232,7 +232,6 @@ private class SiliconNativeVkSurfaceView(
         holder.setFormat(PixelFormat.TRANSLUCENT)
         holder.addCallback(this)
         updateOutline()
-        SiliconNativeGlDataSink.register(this)
     }
 
     private fun updateOutline() {
@@ -248,10 +247,6 @@ private class SiliconNativeVkSurfaceView(
                 clipToOutline = false
             }
         }
-    }
-
-    override fun pushDynamicData(data: SiliconNativeGlDynamicData) {
-        renderThread?.setDynamicData(data)
     }
 
     fun updateFrame(frame: SiliconNativeGlFrame) {
@@ -324,7 +319,6 @@ private class SiliconNativeVkSurfaceView(
     }
 
     fun shutdown() {
-        SiliconNativeGlDataSink.unregister(this)
         stopRenderThread()
     }
 
@@ -357,7 +351,6 @@ private class SiliconNativeVkSurfaceView(
         if (!holder.surface.isValid) return
         applySurfaceFrameRate(holder)
         if (!stopRenderThread()) return
-        SiliconNativeGlDataSink.register(this)
         if (width <= 1 || height <= 1) {
             SpLog.w("SiliconVisVk", "deferring start until settled size (got ${width}x${height})")
             return
@@ -428,7 +421,6 @@ private class SiliconNativeVkSurfaceView(
 
     override fun onAttachedToWindow() {
         super.onAttachedToWindow()
-        SiliconNativeGlDataSink.register(this)
         Choreographer.getInstance().postFrameCallback(geometryWatchdog)
     }
 
@@ -457,7 +449,6 @@ internal class SiliconNativeVkRenderThread(
     private var running = true
 
     private var frameData: SiliconNativeGlFrame? = null
-    private var dynamicData: SiliconNativeGlDynamicData? = null
     private var frameSequence: Long = 0L
     private var surfaceWidth = initialWidth
     private var surfaceHeight = initialHeight
@@ -524,13 +515,6 @@ internal class SiliconNativeVkRenderThread(
         dimBlue = blue
     }
 
-    fun setDynamicData(data: SiliconNativeGlDynamicData) {
-        synchronized(lock) {
-            dynamicData = data
-            frameSequence += 1L
-        }
-    }
-
     fun setFrameData(frame: SiliconNativeGlFrame) {
         synchronized(lock) {
             frameData = frame
@@ -552,7 +536,6 @@ internal class SiliconNativeVkRenderThread(
 
     private data class LoopState(
         val frame: SiliconNativeGlFrame?,
-        val dynamicData: SiliconNativeGlDynamicData?,
         val frameSequence: Long,
         val width: Int,
         val height: Int,
@@ -665,7 +648,6 @@ internal class SiliconNativeVkRenderThread(
         val state = synchronized(lock) {
             LoopState(
                 frame = frameData,
-                dynamicData = dynamicData,
                 frameSequence = frameSequence,
                 width = surfaceWidth,
                 height = surfaceHeight,
@@ -886,44 +868,6 @@ internal class SiliconNativeVkRenderThread(
                     buf.flip()
                     bmp.recycle()
                     SiliconVisNativeBridge.nativeSetIconPixels(visHandle, buf, sizePx, sizePx)
-                }
-            }
-
-            val d = state.dynamicData
-            val pcm = d?.pcm ?: frame.pcm
-            val pcmFrames = if (d != null && d.pcm != null) d.pcmFrames else frame.pcmFrames
-            val pcmChannels = if (d != null && d.pcm != null) d.pcmChannels else frame.pcmChannels
-            val pcmSampleRate = if (d != null && d.pcm != null) d.pcmSampleRate else frame.pcmSampleRate
-            val fft = d?.fft ?: frame.fft
-            val vuLevels = d?.vuLevels ?: frame.vuLevels
-            val flatData = d?.channelScopeFlatData ?: frame.channelScopeFlatData
-            val flatSamples = if (d != null && d.channelScopeFlatData != null) d.channelScopeSamplesPerChannel else frame.channelScopeSamplesPerChannel
-            val channelHistories = if (d != null && d.channelHistories.isNotEmpty()) d.channelHistories else frame.channelHistories
-
-            pcm?.let {
-                SiliconVisNativeBridge.nativePushPcm(visHandle, it, pcmFrames, pcmChannels, pcmSampleRate)
-            }
-            fft?.let {
-                SiliconVisNativeBridge.nativePushFft(visHandle, it, it.size)
-            }
-            SiliconVisNativeBridge.nativeSetVuLevels(
-                visHandle,
-                vuLevels.getOrElse(0) { 0f },
-                vuLevels.getOrElse(1) { 0f }
-            )
-
-            if (flatData != null && flatSamples > 0) {
-                val channels = flatData.size / flatSamples
-                SiliconVisNativeBridge.nativePushChannelScopeAllHistories(
-                    visHandle,
-                    channels,
-                    flatSamples,
-                    flatData
-                )
-            } else if (channelHistories.isNotEmpty()) {
-                for (i in channelHistories.indices) {
-                    val hist = channelHistories[i]
-                    SiliconVisNativeBridge.nativePushChannelScopeHistory(visHandle, i, hist, hist.size)
                 }
             }
 

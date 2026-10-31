@@ -1715,7 +1715,6 @@ internal fun AlbumArtPlaceholder(
         VisualizationMode.ProjectM -> true
     }
     val emptyFloatArray = remember { FloatArray(0) }
-    val emptyHistories = remember { emptyList<FloatArray>() }
 
     // The engine's channel-scope queue ceiling is keyed on a 750 ms pull-demand
     // window, so a scope that stops pulling (paused, or idle between tracks)
@@ -1749,7 +1748,6 @@ internal fun AlbumArtPlaceholder(
             var lastPollIntervalNs = 0L
             var localBarsSmoothed = FloatArray(0)
             var localVuSmoothed = FloatArray(0)
-            var localChannelScopeFlatBuffer = FloatArray(0)
             val localChannelScopeTriggerStates = mutableListOf<ChannelScopeTriggerState>()
             while (true) {
                 coroutineContext.ensureActive()
@@ -1837,35 +1835,6 @@ internal fun AlbumArtPlaceholder(
                         }
                     }
                 }
-
-                val chHistories = snapshot.channelScopeHistories
-                val chCount = chHistories?.size ?: 0
-                val samplesPerCh = if (chCount > 0) chHistories!![0].size else 0
-                val flatBuffer = if (chCount > 0 && samplesPerCh > 0) {
-                    val neededSize = chCount * samplesPerCh
-                    if (localChannelScopeFlatBuffer.size != neededSize) {
-                        localChannelScopeFlatBuffer = FloatArray(neededSize)
-                    }
-                    for (ch in 0 until chCount) {
-                        val src = chHistories!![ch]
-                        System.arraycopy(src, 0, localChannelScopeFlatBuffer, ch * samplesPerCh, samplesPerCh.coerceAtMost(src.size))
-                    }
-                    localChannelScopeFlatBuffer
-                } else null
-
-                com.flopster101.siliconplayer.ui.visualization.gl.SiliconNativeGlDataSink.pushDynamicData(
-                    com.flopster101.siliconplayer.ui.visualization.gl.SiliconNativeGlDynamicData(
-                        pcm = snapshot.waveLeft,
-                        pcmFrames = snapshot.waveLeft?.size ?: 0,
-                        pcmChannels = snapshot.channelCount ?: 2,
-                        pcmSampleRate = sampleRateHz,
-                        fft = smoothedBars ?: snapshot.bars,
-                        vuLevels = smoothedVu ?: snapshot.vu ?: floatArrayOf(0f, 0f),
-                        channelHistories = chHistories ?: emptyList(),
-                        channelScopeFlatData = flatBuffer,
-                        channelScopeSamplesPerChannel = samplesPerCh
-                    )
-                )
 
                 val sourceSignature = snapshotSourceSignature(
                     mode = visualizationMode,
@@ -2391,7 +2360,6 @@ internal fun AlbumArtPlaceholder(
                     vuColorModeNoArtwork = vuColorModeNoArtwork,
                     vuColorModeWithArtwork = vuColorModeWithArtwork,
                     vuCustomColorArgb = vuCustomColorArgb,
-                    channelScopeHistories = if (isGlBackendActive) emptyHistories else channelScopeState.channelHistories,
                     channelScopeInstrumentNamesByIndex = channelScopeState.instrumentNamesByIndex,
                     channelScopeSampleNamesByIndex = channelScopeState.sampleNamesByIndex,
                     channelScopeChipNamesByChannelIndex = channelScopeState.chipNamesByChannelIndex,

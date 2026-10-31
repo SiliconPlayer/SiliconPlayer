@@ -158,7 +158,7 @@ private class SiliconNativeGlSurfaceView(
     context: Context,
     private val density: Float,
     cornerRadiusPx: Float
-) : SurfaceView(context), SurfaceHolder.Callback, SiliconNativeGlDataConsumer {
+) : SurfaceView(context), SurfaceHolder.Callback {
     private var renderThread: SiliconNativeTextureRenderThread? = null
     private var latestFrame: SiliconNativeGlFrame? = null
     private var lifecyclePaused: Boolean = false
@@ -178,11 +178,6 @@ private class SiliconNativeGlSurfaceView(
         // Translucent keeps the pause fade compositing instead of flashing black.
         holder.setFormat(PixelFormat.TRANSLUCENT)
         holder.addCallback(this)
-        SiliconNativeGlDataSink.register(this)
-    }
-
-    override fun pushDynamicData(data: SiliconNativeGlDynamicData) {
-        renderThread?.setDynamicData(data)
     }
 
     fun updateFrame(frame: SiliconNativeGlFrame) {
@@ -263,7 +258,6 @@ private class SiliconNativeGlSurfaceView(
     }
 
     fun shutdown() {
-        SiliconNativeGlDataSink.unregister(this)
         // Blank the surface before it dies: a released layer can linger a
         // frame in the compositor, and a transparent last buffer leaves
         // nothing to flash.
@@ -298,7 +292,6 @@ private class SiliconNativeGlSurfaceView(
         applySurfaceFrameRate(holder)
         // One render thread per surface; skip if the previous outlived the join.
         if (!stopRenderThread()) return
-        SiliconNativeGlDataSink.register(this)
         val thread = SiliconNativeTextureRenderThread(
             context = context,
             outputSurface = holder.surface,
@@ -362,7 +355,6 @@ private class SiliconNativeGlSurfaceView(
 
     override fun onAttachedToWindow() {
         super.onAttachedToWindow()
-        SiliconNativeGlDataSink.register(this)
         Choreographer.getInstance().postFrameCallback(geometryWatchdog)
     }
 

@@ -64,7 +64,7 @@ fun SiliconNativeVkTextureVisualization(
 private class SiliconNativeVkTextureView(
     context: Context,
     private val density: Float
-) : TextureView(context), TextureView.SurfaceTextureListener, SiliconNativeGlDataConsumer {
+) : TextureView(context), TextureView.SurfaceTextureListener {
     private var renderThread: SiliconNativeVkRenderThread? = null
     private var latestFrame: SiliconNativeGlFrame? = null
     private var lifecyclePaused: Boolean = false
@@ -74,11 +74,6 @@ private class SiliconNativeVkTextureView(
     init {
         surfaceTextureListener = this
         isOpaque = true
-        SiliconNativeGlDataSink.register(this)
-    }
-
-    override fun pushDynamicData(data: SiliconNativeGlDynamicData) {
-        renderThread?.setDynamicData(data)
     }
 
     fun updateFrame(frame: SiliconNativeGlFrame) {
@@ -96,7 +91,6 @@ private class SiliconNativeVkTextureView(
     }
 
     fun shutdown() {
-        SiliconNativeGlDataSink.unregister(this)
         stopRenderThread()
     }
 
@@ -120,7 +114,6 @@ private class SiliconNativeVkTextureView(
     private fun startRenderThread(surfaceTexture: SurfaceTexture?, width: Int, height: Int) {
         if (surfaceTexture == null) return
         if (!stopRenderThread()) return
-        SiliconNativeGlDataSink.register(this)
         val thread = SiliconNativeVkRenderThread(
             context = context,
             outputSurface = Surface(surfaceTexture),
@@ -159,11 +152,6 @@ private class SiliconNativeVkTextureView(
             return false
         }
         return true
-    }
-
-    override fun onAttachedToWindow() {
-        super.onAttachedToWindow()
-        SiliconNativeGlDataSink.register(this)
     }
 
     override fun onDetachedFromWindow() {

@@ -118,7 +118,6 @@ fun BasicVisualizationOverlay(
     vuColorModeNoArtwork: VisualizationOscColorMode,
     vuColorModeWithArtwork: VisualizationOscColorMode,
     vuCustomColorArgb: Int,
-    channelScopeHistories: List<FloatArray>,
     channelScopeInstrumentNamesByIndex: Map<Int, String>,
     channelScopeSampleNamesByIndex: Map<Int, String>,
     channelScopeChipNamesByChannelIndex: Map<Int, String>,
@@ -377,7 +376,6 @@ fun BasicVisualizationOverlay(
                     val nativeFrame = baseNativeFrame.copy(
                         mode = 1,
                         surfaceColorArgb = if (barOverlayArtwork) surfaceVariantColor.toArgb() else barBackgroundColor.toArgb(),
-                        fft = bars,
                         barCount = barCount,
                         barSmoothingPercent = barSmoothingPercent,
                         barStartColorArgb = barColor.toArgb(),
@@ -410,10 +408,6 @@ fun BasicVisualizationOverlay(
                     }
                     val nativeFrame = baseNativeFrame.copy(
                         mode = 2,
-                        pcm = waveformLeft,
-                        pcmFrames = waveformLeft.size,
-                        pcmChannels = if (isStereo) 2 else 1,
-                        pcmSampleRate = 48000,
                         oscStereo = isStereo,
                         oscWindowMs = oscWindowMs,
                         oscTriggerMode = oscTriggerMode,
@@ -448,11 +442,6 @@ fun BasicVisualizationOverlay(
                     }
                     val nativeFrame = baseNativeFrame.copy(
                         mode = 3,
-                        vuLevels = floatArrayOf(vuLevels.getOrElse(0) { 0f }, vuLevels.getOrElse(1) { 0f }),
-                        pcm = waveformLeft,
-                        pcmFrames = waveformLeft.size,
-                        pcmChannels = if (channelCount > 1) 2 else 1,
-                        pcmSampleRate = 48000,
                         vuStereo = channelCount > 1,
                         vuMetersAnchor = when (vuAnchor) {
                             VisualizationVuAnchor.Top -> 0
@@ -491,23 +480,9 @@ fun BasicVisualizationOverlay(
                     VisualizationChannelScopeTextAnchor.BottomRight -> 5
                 }
                 val vuAnchorInt = if (channelScopeTextVuAnchor == VisualizationVuAnchor.Top) 0 else 1
-                val chCount = channelScopeHistories.size
-                val samplesPerCh = if (chCount > 0) channelScopeHistories[0].size else 0
-                val flatBuffer = if (chCount > 0 && samplesPerCh > 0) {
-                    FloatArray(chCount * samplesPerCh).also { flat ->
-                        for (ch in 0 until chCount) {
-                            val src = channelScopeHistories[ch]
-                            System.arraycopy(src, 0, flat, ch * samplesPerCh, samplesPerCh.coerceAtMost(src.size))
-                        }
-                    }
-                } else null
-
                 val nativeFrame = baseNativeFrame.copy(
                     mode = 4,
                     surfaceColorArgb = channelScopeBackgroundColorArgb,
-                    channelHistories = channelScopeHistories,
-                    channelScopeFlatData = flatBuffer,
-                    channelScopeSamplesPerChannel = samplesPerCh,
                     instrumentNamesByIndex = channelScopeInstrumentNamesByIndex,
                     sampleNamesByIndex = channelScopeSampleNamesByIndex,
                     chipNamesByChannelIndex = channelScopeChipNamesByChannelIndex,
