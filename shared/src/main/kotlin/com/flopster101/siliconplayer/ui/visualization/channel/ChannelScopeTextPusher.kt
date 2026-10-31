@@ -56,7 +56,6 @@ class ChannelScopeTextPusher(private val setters: ChannelScopeTextSetters) {
             this.enabled = enabled
             setters.setTextEnabled(enabled)
         }
-        if (!enabled) return
         if (fields != this.fields) {
             this.fields = fields
             setters.setTextFields(fields)
