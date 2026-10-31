@@ -175,6 +175,22 @@ void ChannelScopeRenderer::setTextStates(const SiliconVisChannelTextState* state
     textStates_.assign(states, states + count);
 }
 
+void ChannelScopeRenderer::setChannelNames(const char* newlineSeparatedNames) {
+    channelNames_.clear();
+    if (!newlineSeparatedNames) return;
+    const std::string joined(newlineSeparatedNames);
+    size_t start = 0;
+    while (true) {
+        const size_t end = joined.find('\n', start);
+        if (end == std::string::npos) {
+            channelNames_.push_back(joined.substr(start));
+            return;
+        }
+        channelNames_.push_back(joined.substr(start, end - start));
+        start = end + 1;
+    }
+}
+
 void ChannelScopeRenderer::setTextQuads(const float* quads, int32_t vertexCount) {
     if (!quads || vertexCount <= 0) {
         externalTextVertexCount_ = 0;
@@ -587,8 +603,11 @@ void ChannelScopeRenderer::buildTextGeometry() {
                 cursorX += bulletW + itemSpacing;
             };
 
-            // 1. Channel label "Ch X"
-            std::string chStr = "Ch " + std::to_string(ch + 1);
+            // 1. Channel label
+            const std::string chStr =
+                (ch < static_cast<int>(channelNames_.size()) && !channelNames_[ch].empty())
+                    ? channelNames_[ch]
+                    : "Ch " + std::to_string(ch + 1);
             if (cursorX < maxRight) {
                 gl::Color4f c = gl::argbToColor4f(palette_.channelArgb);
                 float dw = textBatcher_.addText(fontAtlas_, chStr, cursorX, originY, scale, c.r, c.g, c.b, c.a, shadowEnabled_, 0, 0, 0, shadowA, shadowOffset, maxRight - cursorX);

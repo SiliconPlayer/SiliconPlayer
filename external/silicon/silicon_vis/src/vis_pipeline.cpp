@@ -247,6 +247,10 @@ void SiliconVisPipeline::setChannelScopeTextStates(const SiliconVisChannelTextSt
     channelScope_.setTextStates(states, count);
 }
 
+void SiliconVisPipeline::setChannelScopeChannelNames(const char* newlineSeparatedNames) {
+    channelScope_.setChannelNames(newlineSeparatedNames);
+}
+
 void SiliconVisPipeline::setTextQuads(const float* quads, int32_t vertexCount) {
     channelScope_.setTextQuads(quads, vertexCount);
 }

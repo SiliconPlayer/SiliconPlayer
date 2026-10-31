@@ -459,6 +459,7 @@ internal class SiliconNativeTextureRenderThread(
     private var localChannelCount = 0
     private var localChannelTextStates = emptyList<com.flopster101.siliconplayer.ui.visualization.channel.ChannelScopeChannelTextState>()
     private var localLastTextPollNs = 0L
+    private var localChannelNamesPayload = ""
     private var pausedFrameRendered = false
     private var lastTickNs = 0L
     private var projectMAttached = false
@@ -1024,6 +1025,11 @@ internal class SiliconNativeTextureRenderThread(
                     // 3. Set options
                     when (frame.mode) {
                         4 -> { // Channel Scope
+                            val namesPayload = channelScopeChannelNamesPayload(frame.chipNamesByChannelIndex)
+                            if (namesPayload != localChannelNamesPayload) {
+                                localChannelNamesPayload = namesPayload
+                                SiliconVisNativeBridge.nativeSetChannelScopeChannelNames(visHandle, namesPayload)
+                            }
                             SiliconVisNativeBridge.nativeSetChannelScopeOptions(
                                 handle = visHandle,
                                 layout = frame.channelLayout,

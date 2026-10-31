@@ -1,7 +1,6 @@
 package com.flopster101.siliconplayer
 
 import com.flopster101.siliconplayer.ui.visualization.channel.ChannelScopeChannelTextState
-import com.flopster101.siliconplayer.ui.visualization.channel.ChannelScopeNameMaps
 import com.flopster101.siliconplayer.ui.visualization.channel.ChannelScopeNameSource
 import com.flopster101.siliconplayer.ui.visualization.channel.ChannelScopeTextMeasurer
 import com.flopster101.siliconplayer.ui.visualization.channel.GlChannelScopeTextFrame
@@ -132,7 +131,10 @@ class ChannelScopeTextLayoutTest {
         assertEquals("Pulse 1", maps.chipNamesByChannelIndex[0])
         assertEquals("Pulse 2", maps.chipNamesByChannelIndex[1])
         assertEquals("Triangle", maps.chipNamesByChannelIndex[2])
-        val empty = loadChannelScopeNameMaps("Nope", source)
-        assertEquals(ChannelScopeNameMaps(), empty)
+        // Row labels come from the decoder regardless of the named maps.
+        val unnamed = loadChannelScopeNameMaps("Nope", source)
+        assertEquals("Pulse 1", unnamed.chipNamesByChannelIndex[0])
+        assertTrue(unnamed.instrumentNamesByIndex.isEmpty())
+        assertTrue(unnamed.sampleNamesByIndex.isEmpty())
     }
 }

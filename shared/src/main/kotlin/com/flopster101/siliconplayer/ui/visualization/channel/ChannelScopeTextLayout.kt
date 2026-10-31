@@ -611,16 +611,11 @@ data class ChannelScopeNameMaps(
 )
 
 fun loadChannelScopeNameMaps(pluginName: String?, source: ChannelScopeNameSource): ChannelScopeNameMaps {
-    // Chip voice names come from the decoder itself: any channel-scope core
-    // currently reporting toggle names gets them as row labels.
-    val chipNamesByChannelIndex =
-        if (com.flopster101.siliconplayer.supportsChannelScopeVisualization(pluginName)) {
-            source.decoderToggleChannelNames()
-                .mapIndexed { index, name -> index to name }
-                .toMap()
-        } else {
-            emptyMap()
-        }
+    // Chip voice names come from the decoder itself: any core currently
+    // reporting toggle names gets them as row labels.
+    val chipNamesByChannelIndex = source.decoderToggleChannelNames()
+        .mapIndexedNotNull { index, name -> index.takeIf { name.isNotBlank() }?.let { index to name } }
+        .toMap()
     return when (pluginName) {
         com.flopster101.siliconplayer.DecoderNames.LIB_OPEN_MPT -> ChannelScopeNameMaps(
             instrumentNamesByIndex = parseChannelScopeIndexedNames(source.openMptInstrumentNames()),

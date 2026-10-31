@@ -102,6 +102,8 @@ object SiliconVisNativeBridge {
         waveformClipping: Boolean = true
     )
 
+    external fun nativeSetChannelScopeChannelNames(handle: Long, names: String)
+
     external fun nativeSetOscilloscopeOptions(
         handle: Long,
         stereo: Boolean,
@@ -175,4 +177,17 @@ object SiliconVisNativeBridge {
     external fun nativeReleaseTransitionSnapshotVulkan(handle: Long)
     external fun nativeSetTransitionVulkan(handle: Long, offsetX: Float, alpha: Float)
     external fun nativeSetTextQuads(handle: Long, buffer: java.nio.FloatBuffer?, vertexCount: Int)
+}
+
+/**
+ * Native row tags are newline separated and positional, so gaps must stay as
+ * empty entries rather than being compacted away.
+ */
+internal fun channelScopeChannelNamesPayload(chipNamesByChannelIndex: Map<Int, String>): String {
+    if (chipNamesByChannelIndex.isEmpty()) return ""
+    val lastIndex = chipNamesByChannelIndex.keys.max()
+    if (lastIndex < 0) return ""
+    return (0..lastIndex).joinToString("\n") { index ->
+        chipNamesByChannelIndex[index].orEmpty().replace('\n', ' ').replace('\r', ' ')
+    }
 }

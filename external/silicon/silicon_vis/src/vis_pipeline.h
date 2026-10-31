@@ -73,6 +73,7 @@ public:
     void pushChannelScopeHistory(int32_t channel, const float* history, int32_t sampleCount);
     void pushChannelScopeAllHistories(int32_t channelCount, int32_t samplesPerChannel, const float* flatData);
     void setChannelScopeTextStates(const SiliconVisChannelTextState* states, int32_t count);
+    void setChannelScopeChannelNames(const char* newlineSeparatedNames);
     void setTextQuads(const float* quads, int32_t vertexCount);
 
     // Options

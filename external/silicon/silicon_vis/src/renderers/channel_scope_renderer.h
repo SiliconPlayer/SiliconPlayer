@@ -74,6 +74,7 @@ public:
         int32_t triggerWidthSamples = 0
     );
     void setTextStates(const SiliconVisChannelTextState* states, int32_t count);
+    void setChannelNames(const char* newlineSeparatedNames);
     void setTextQuads(const float* quads, int32_t vertexCount);
 
     gl::GlFontAtlas& getFontAtlas() { return fontAtlas_; }
@@ -122,6 +123,7 @@ private:
 
     std::vector<std::vector<float>> channelHistories_;
     std::vector<SiliconVisChannelTextState> textStates_;
+    std::vector<std::string> channelNames_;
 
     gl::GlFlatColorRenderer flatRenderer_;
     gl::GlWaveLineRenderer waveRenderer_;

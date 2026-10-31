@@ -480,6 +480,7 @@ internal class SiliconNativeVkRenderThread(
     private val textRenderer = GlChannelScopeTextRenderer(context, isGl = false)
     private var localChannelCount = 0
     private var localChannelTextStates = emptyList<com.flopster101.siliconplayer.ui.visualization.channel.ChannelScopeChannelTextState>()
+    private var localChannelNamesPayload = ""
     private var localLastTextPollNs = 0L
     private var pausedFrameRendered = false
     private var lastTickNs = 0L
@@ -968,6 +969,11 @@ internal class SiliconNativeVkRenderThread(
                     )
                 }
                 4 -> {
+                    val namesPayload = channelScopeChannelNamesPayload(frame.chipNamesByChannelIndex)
+                    if (namesPayload != localChannelNamesPayload) {
+                        localChannelNamesPayload = namesPayload
+                        SiliconVisNativeBridge.nativeSetChannelScopeChannelNames(visHandle, namesPayload)
+                    }
                     SiliconVisNativeBridge.nativeSetChannelScopeOptions(
                         handle = visHandle,
                         layout = frame.channelLayout,

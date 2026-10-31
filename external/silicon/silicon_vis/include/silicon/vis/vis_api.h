@@ -91,6 +91,9 @@ SILICON_VIS_API void silicon_vis_set_vu_levels(SiliconVisHandle handle, float le
 SILICON_VIS_API void silicon_vis_push_channel_scope_history(SiliconVisHandle handle, int32_t channel, const float* history, int32_t sampleCount);
 SILICON_VIS_API void silicon_vis_push_channel_scope_all_histories(SiliconVisHandle handle, int32_t channelCount, int32_t samplesPerChannel, const float* flatData);
 SILICON_VIS_API void silicon_vis_set_channel_scope_text_states(SiliconVisHandle handle, const SiliconVisChannelTextState* states, int32_t channelCount);
+// Newline separated per-channel labels used for the row tag. Missing or empty
+// entries fall back to "Ch N".
+SILICON_VIS_API void silicon_vis_set_channel_scope_channel_names(SiliconVisHandle handle, const char* newlineSeparatedNames);
 SILICON_VIS_API void silicon_vis_set_text_quads(SiliconVisHandle handle, const float* quads, int32_t vertexCount);
 
 // Options & Parameters

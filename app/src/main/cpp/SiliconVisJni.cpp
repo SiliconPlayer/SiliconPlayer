@@ -1089,6 +1089,19 @@ Java_com_flopster101_siliconplayer_ui_visualization_gl_SiliconVisNativeBridge_na
 }
 
 JNIEXPORT void JNICALL
+Java_com_flopster101_siliconplayer_ui_visualization_gl_SiliconVisNativeBridge_nativeSetChannelScopeChannelNames(
+    JNIEnv* env,
+    jobject /* thiz */,
+    jlong handle,
+    jstring names
+) {
+    if (!handle) return;
+    const char* utf = names ? env->GetStringUTFChars(names, nullptr) : nullptr;
+    silicon_vis_set_channel_scope_channel_names(reinterpret_cast<SiliconVisHandle>(handle), utf);
+    if (utf) env->ReleaseStringUTFChars(names, utf);
+}
+
+JNIEXPORT void JNICALL
 Java_com_flopster101_siliconplayer_ui_visualization_gl_SiliconVisNativeBridge_nativeSetTextQuads(
     JNIEnv* env,
     jobject /* thiz */,
