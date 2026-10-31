@@ -69,6 +69,72 @@ std::string bcdToString(uint16_t bcdValue) {
     return started ? out.str() : "0";
 }
 
+// Channel roles for chips whose layout is fixed. Every entry is guarded by the
+// channel count libvgm reports, so a wrong table can never mislabel a channel.
+std::string channelDescriptorForChip(uint8_t type, int channelCount, int channel) {
+    switch (type) {
+        case DEVID_SN76496:
+            if (channelCount == 4) {
+                return channel < 3 ? ("Sqr " + std::to_string(channel + 1)) : "Noise";
+            }
+            break;
+        case DEVID_YM2612:
+            if (channelCount == 6) return "FM " + std::to_string(channel + 1);
+            if (channelCount == 7) {
+                return channel < 6 ? ("FM " + std::to_string(channel + 1)) : "DAC";
+            }
+            break;
+        case DEVID_YM2151:
+            if (channelCount == 8) return "FM " + std::to_string(channel + 1);
+            break;
+        case DEVID_YM2203:
+            if (channelCount == 6) {
+                return channel < 3
+                        ? ("FM " + std::to_string(channel + 1))
+                        : ("SSG " + std::to_string(channel - 2));
+            }
+            break;
+        case DEVID_YM3812:
+        case DEVID_YM3526:
+            if (channelCount == 9) return "FM " + std::to_string(channel + 1);
+            break;
+        case DEVID_YMF262:
+            if (channelCount == 18) return "FM " + std::to_string(channel + 1);
+            break;
+        case DEVID_AY8910:
+            if (channelCount == 3) return "Tone " + std::to_string(channel + 1);
+            break;
+        case DEVID_NES_APU: {
+            static const char* kChannelNames[5] = {"Pulse 1", "Pulse 2", "Tri", "Noise", "DPCM"};
+            if (channelCount == 5) return kChannelNames[channel];
+            break;
+        }
+        case DEVID_GB_DMG: {
+            static const char* kChannelNames[4] = {"Sqr 1", "Sqr 2", "Wave", "Noise"};
+            if (channelCount == 4) return kChannelNames[channel];
+            break;
+        }
+        case DEVID_C6280:
+            if (channelCount == 6) return "Wave " + std::to_string(channel + 1);
+            break;
+        case DEVID_SAA1099:
+            if (channelCount == 6) return "Sqr " + std::to_string(channel + 1);
+            break;
+        case DEVID_K051649:
+            if (channelCount == 5) return "Wave " + std::to_string(channel + 1);
+            break;
+        case DEVID_RF5C68:
+            if (channelCount == 8) return "PCM " + std::to_string(channel + 1);
+            break;
+        case DEVID_QSOUND:
+            if (channelCount == 16) return "PCM " + std::to_string(channel + 1);
+            break;
+        default:
+            break;
+    }
+    return "Ch " + std::to_string(channel + 1);
+}
+
 std::string fallbackChipName(uint8_t type) {
     switch (type) {
         case DEVID_SN76496: return "SN76496";
@@ -780,11 +846,21 @@ void VGMDecoder::rebuildToggleChannelsLocked(VGMPlayer* vgmPlayer) {
         return;
     }
 
+    std::unordered_map<uint8_t, int> typeCount;
+    std::unordered_map<uint8_t, int> typeInstance;
+    for (const auto& deviceInfo : deviceInfos) {
+        if (deviceInfo.parentIdx != std::numeric_limits<uint32_t>::max()) {
+            continue;
+        }
+        ++typeCount[deviceInfo.type];
+    }
+
     std::vector<ToggleChipEntry> nextEntries;
     for (const auto& deviceInfo : deviceInfos) {
         if (deviceInfo.parentIdx != std::numeric_limits<uint32_t>::max()) {
             continue; // Skip linked devices; expose only top-level chips in UI.
         }
+        const int instance = ++typeInstance[deviceInfo.type];
         const char* declName = (deviceInfo.devDecl && deviceInfo.devDecl->name)
                 ? deviceInfo.devDecl->name(deviceInfo.devCfg)
                 : nullptr;
@@ -809,7 +885,11 @@ void VGMDecoder::rebuildToggleChannelsLocked(VGMPlayer* vgmPlayer) {
                 entry.muteTargetId = deviceInfo.id;
             }
             entry.channelBit = static_cast<uint8_t>(channel);
-            entry.name = chipName + " #" + std::to_string(channel + 1);
+            const auto countIt = typeCount.find(deviceInfo.type);
+            entry.name = (countIt != typeCount.end() && countIt->second > 1)
+                    ? chipName + " #" + std::to_string(instance)
+                    : chipName;
+            entry.name += " " + channelDescriptorForChip(deviceInfo.type, channelCount, channel);
             entry.muted = false;
             for (const auto& previous : previousEntries) {
                 if (previous.name == entry.name &&

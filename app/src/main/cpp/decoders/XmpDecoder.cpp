@@ -169,7 +169,19 @@ bool XmpDecoder::open(const char* path) {
 
     toggleChannelNames.clear();
     toggleChannelMuted.assign(static_cast<size_t>(std::max(0, moduleChannels)), false);
+    const bool amigaLayout = isAmigaModule && moduleChannels > 0 && (moduleChannels % 4) == 0;
+    int leftIndex = 0;
+    int rightIndex = 0;
     for (int channel = 0; channel < moduleChannels; ++channel) {
+        if (amigaLayout) {
+            const int mod4 = channel & 3;
+            if (mod4 == 0 || mod4 == 3) {
+                toggleChannelNames.push_back("Paula L" + std::to_string(++leftIndex));
+            } else {
+                toggleChannelNames.push_back("Paula R" + std::to_string(++rightIndex));
+            }
+            continue;
+        }
         toggleChannelNames.push_back("Ch " + std::to_string(channel + 1));
     }
 

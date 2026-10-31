@@ -859,7 +859,21 @@ void LibOpenMPTDecoder::rebuildToggleChannelsLocked() {
         return;
     }
 
+    std::vector<std::string> moduleChannelNames;
+    if (module) {
+        try {
+            moduleChannelNames = module->get_channel_names();
+        } catch (...) {
+            moduleChannelNames.clear();
+        }
+    }
+
     for (int channel = 0; channel < totalChannels; ++channel) {
+        const size_t index = static_cast<size_t>(channel);
+        if (index < moduleChannelNames.size() && !moduleChannelNames[index].empty()) {
+            toggleChannelNames.push_back(moduleChannelNames[index]);
+            continue;
+        }
         toggleChannelNames.push_back("Ch " + std::to_string(channel + 1));
     }
 }

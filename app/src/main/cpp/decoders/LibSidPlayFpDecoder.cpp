@@ -1733,11 +1733,10 @@ void LibSidPlayFpDecoder::rebuildToggleChannelsLocked() {
     toggleChannelNames.clear();
     toggleChannelNames.reserve(static_cast<size_t>(totalChannels));
 
-    const bool includeChipPrefix = chipCount > 1;
     for (int chip = 0; chip < chipCount; ++chip) {
-        const std::string chipPrefix = includeChipPrefix
-                ? ("SID " + std::to_string(chip + 1) + " ")
-                : "";
+        const std::string chipPrefix = chipCount > 1
+                ? ("SID #" + std::to_string(chip + 1) + " ")
+                : "SID ";
         toggleChannelNames.push_back(chipPrefix + "Voice 1");
         toggleChannelNames.push_back(chipPrefix + "Voice 2");
         toggleChannelNames.push_back(chipPrefix + "Voice 3");

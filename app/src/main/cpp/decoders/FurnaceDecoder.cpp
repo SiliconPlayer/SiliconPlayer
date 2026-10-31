@@ -136,6 +136,57 @@ std::string cleanFurnaceChipName(DivSystem sys, const char* rawSysName) {
     return "Chip";
 }
 
+// Short labels for the channel scope. The long names stay in the track info.
+std::string shortFurnaceChipName(DivSystem sys, const char* rawSysName) {
+    switch (sys) {
+        case DIV_SYSTEM_NES: return "2A03";
+        case DIV_SYSTEM_SNES: return "S-SMP";
+        case DIV_SYSTEM_FDS: return "FDS";
+        case DIV_SYSTEM_SMS: return "SN76489";
+        case DIV_SYSTEM_GB: return "GB";
+        case DIV_SYSTEM_PCE: return "PCE";
+        case DIV_SYSTEM_VRC6: return "VRC6";
+        case DIV_SYSTEM_VRC7: return "VRC7";
+        case DIV_SYSTEM_N163: return "N163";
+        case DIV_SYSTEM_YM2612:
+        case DIV_SYSTEM_YM2612_EXT: return "YM2612";
+        case DIV_SYSTEM_YM2151: return "YM2151";
+        case DIV_SYSTEM_OPLL:
+        case DIV_SYSTEM_OPLL_DRUMS: return "YM2413";
+        case DIV_SYSTEM_AY8910: return "AY8910";
+        case DIV_SYSTEM_SAA1099: return "SAA1099";
+        case DIV_SYSTEM_TIA: return "TIA";
+        case DIV_SYSTEM_VIC20: return "VIC";
+        case DIV_SYSTEM_PET: return "PET";
+        case DIV_SYSTEM_YM2203:
+        case DIV_SYSTEM_YM2203_EXT: return "YM2203";
+        case DIV_SYSTEM_YM2608:
+        case DIV_SYSTEM_YM2608_EXT: return "YM2608";
+        case DIV_SYSTEM_OPL:
+        case DIV_SYSTEM_OPL_DRUMS: return "YM3526";
+        case DIV_SYSTEM_OPL2:
+        case DIV_SYSTEM_OPL2_DRUMS: return "YM3812";
+        case DIV_SYSTEM_OPL3:
+        case DIV_SYSTEM_OPL3_DRUMS: return "YMF262";
+        case DIV_SYSTEM_POKEY: return "POKEY";
+        case DIV_SYSTEM_RF5C68: return "RF5C68";
+        case DIV_SYSTEM_QSOUND: return "QSound";
+        case DIV_SYSTEM_VERA: return "VERA";
+        case DIV_SYSTEM_SOUND_UNIT: return "TSU";
+        default: break;
+    }
+    return cleanFurnaceChipName(sys, rawSysName);
+}
+
+std::string abbreviateFurnaceVoiceName(std::string voiceName) {
+    if (voiceName.rfind("Square", 0) == 0) {
+        voiceName.replace(0, 6, "Sqr");
+    } else if (voiceName == "Triangle") {
+        voiceName = "Tri";
+    }
+    return voiceName;
+}
+
 std::string cleanFurnaceVoiceName(const std::string& rawVoiceName) {
     if (rawVoiceName == "VRC6 Saw" || rawVoiceName == "VS") {
         return "Sawtooth";
@@ -548,7 +599,6 @@ void FurnaceDecoder::syncToggleChannelsLocked() {
     const int channelCount = std::clamp(engine->getTotalChannelCount(), 0, DIV_MAX_CHANS);
     const int systemLen = std::clamp(static_cast<int>(engine->song.systemLen), 0, DIV_MAX_CHIPS);
 
-    int activeChipCount = 0;
     std::unordered_map<int, int> chipTypeCount;
     std::vector<int> chipInstance(static_cast<size_t>(systemLen), 1);
 
@@ -556,7 +606,6 @@ void FurnaceDecoder::syncToggleChannelsLocked() {
         const int chansOnChip = engine->song.systemChans[c];
         const DivSystem sys = engine->song.system[c];
         if (chansOnChip > 0 && sys != DIV_SYSTEM_NULL) {
-            activeChipCount++;
             int count = ++chipTypeCount[static_cast<int>(sys)];
             chipInstance[static_cast<size_t>(c)] = count;
         }
@@ -576,44 +625,30 @@ void FurnaceDecoder::syncToggleChannelsLocked() {
                 voiceName = shortName;
             }
         }
-        voiceName = cleanFurnaceVoiceName(voiceName);
+        voiceName = abbreviateFurnaceVoiceName(cleanFurnaceVoiceName(voiceName));
 
-        const bool isGenericName = isGenericFurnaceVoiceName(voiceName);
-        std::string finalChannelName;
+        int chipIdx = (i < DIV_MAX_CHANS) ? engine->song.dispatchOfChan[i] : 0;
+        if (chipIdx < 0 || chipIdx >= systemLen) chipIdx = 0;
+        const int firstChan = (i < DIV_MAX_CHANS) ? engine->song.dispatchFirstChan[i] : 0;
+        const int chanInChip = std::max(0, i - firstChan);
+        DivSystem sys = (i < DIV_MAX_CHANS) ? engine->song.sysOfChan[i] : DIV_SYSTEM_NULL;
+        if (sys == DIV_SYSTEM_NULL && chipIdx < systemLen) {
+            sys = engine->song.system[chipIdx];
+        }
 
-        if (activeChipCount <= 1) {
-            if (isGenericName) {
-                finalChannelName = "Ch " + std::to_string(i + 1);
-            } else {
-                finalChannelName = voiceName;
-            }
-        } else {
-            int chipIdx = (i < DIV_MAX_CHANS) ? engine->song.dispatchOfChan[i] : 0;
-            if (chipIdx < 0 || chipIdx >= systemLen) chipIdx = 0;
-            int firstChan = (i < DIV_MAX_CHANS) ? engine->song.dispatchFirstChan[i] : 0;
-            int chanInChip = std::max(0, i - firstChan);
-            DivSystem sys = (i < DIV_MAX_CHANS) ? engine->song.sysOfChan[i] : DIV_SYSTEM_NULL;
-            if (sys == DIV_SYSTEM_NULL && chipIdx < systemLen) {
-                sys = engine->song.system[chipIdx];
-            }
-
-            int instance = (chipIdx < static_cast<int>(chipInstance.size()))
+        std::string chipPrefix = shortFurnaceChipName(sys, engine->getSystemName(sys));
+        const auto typeIt = chipTypeCount.find(static_cast<int>(sys));
+        if (typeIt != chipTypeCount.end() && typeIt->second > 1) {
+            const int instance = (chipIdx < static_cast<int>(chipInstance.size()))
                     ? chipInstance[static_cast<size_t>(chipIdx)]
                     : 1;
-            std::string chipName = cleanFurnaceChipName(sys, engine->getSystemName(sys));
-            std::string chipPrefix = chipName + " #" + std::to_string(instance);
-
-            if (isGenericName) {
-                finalChannelName = chipPrefix + " Ch " + std::to_string(chanInChip + 1);
-            } else {
-                if (!voiceName.empty() && voiceName.front() == '(' && voiceName.back() == ')') {
-                    finalChannelName = chipPrefix + " " + voiceName;
-                } else {
-                    finalChannelName = chipPrefix + " (" + voiceName + ")";
-                }
-            }
+            chipPrefix += " #" + std::to_string(instance);
         }
-        nextNames.push_back(finalChannelName);
+
+        const std::string channelName = isGenericFurnaceVoiceName(voiceName)
+                ? ("Ch " + std::to_string(chanInChip + 1))
+                : voiceName;
+        nextNames.push_back(chipPrefix + " " + channelName);
     }
 
     if (nextNames == toggleChannelNames &&

@@ -377,19 +377,14 @@ void CRSIDDecoder::rebuildToggleChannelsLocked() {
         for (int voiceNumber = 0; voiceNumber < kCrsidChannelsPerSid; ++voiceNumber) {
             toggleChannelSidNumbers.push_back(sidNumber);
             toggleChannelVoiceNumbers.push_back(voiceNumber);
-            if (activeSidCount <= 1) {
-                toggleChannelNames.push_back(
-                        voiceNumber < kCrsidVoicesPerSid
-                        ? ("Voice " + std::to_string(voiceNumber + 1))
-                        : "Digi"
-                );
-            } else {
-                toggleChannelNames.push_back(
-                        voiceNumber < kCrsidVoicesPerSid
-                        ? ("SID " + std::to_string(sidNumber) + " Voice " + std::to_string(voiceNumber + 1))
-                        : ("SID " + std::to_string(sidNumber) + " Digi")
-                );
-            }
+            const std::string chipPrefix = activeSidCount > 1
+                    ? ("SID #" + std::to_string(sidNumber) + " ")
+                    : "SID ";
+            toggleChannelNames.push_back(
+                    chipPrefix + (voiceNumber < kCrsidVoicesPerSid
+                    ? ("Voice " + std::to_string(voiceNumber + 1))
+                    : "Digi")
+            );
 
             bool muted = false;
             for (size_t previousIndex = 0; previousIndex < previousMuted.size(); ++previousIndex) {

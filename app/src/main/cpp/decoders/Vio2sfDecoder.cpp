@@ -799,7 +799,7 @@ void Vio2sfDecoder::ensureToggleChannelsLocked() {
     }
     toggleChannelNames.reserve(kNdsVoices);
     for (int i = 0; i < kNdsVoices; ++i) {
-        toggleChannelNames.push_back("Ch " + std::to_string(i + 1));
+        toggleChannelNames.push_back("Voice " + std::to_string(i + 1));
     }
     toggleChannelMuted.assign(toggleChannelNames.size(), false);
 }
