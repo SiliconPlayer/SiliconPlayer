@@ -22,6 +22,9 @@ import java.io.File
 import java.net.HttpURLConnection
 import java.net.URL
 import java.util.Locale
+import java.util.concurrent.FutureTask
+import java.util.concurrent.TimeUnit
+import kotlin.concurrent.thread
 
 private const val ARTWORK_MEMORY_CACHE_MAX_KB = 24 * 1024
 
@@ -160,7 +163,15 @@ internal fun loadArtworkBitmapForSource(
         "http", "https", "smb" -> normalizedRequestUrl
         else -> normalized
     }
-    val isRemote = scheme == "http" || scheme == "https" || scheme == "smb"
+    // A streaming track can report its local cache path as the source, leaving
+    // the request URL as the only remote identity.
+    val remoteScheme = when {
+        scheme == "http" || scheme == "https" || scheme == "smb" -> scheme
+        requestScheme == "http" || requestScheme == "https" || requestScheme == "smb" -> requestScheme
+        else -> null
+    }
+    val remoteId = if (remoteScheme == scheme) normalized else normalizedRequestUrl
+    val isRemote = remoteScheme != null
 
     fun onBitmapLoaded(bitmap: Bitmap): Bitmap {
         cacheArtworkBitmapForSource(displayFile, sourceId, requestUrl, bitmap)
@@ -182,14 +193,26 @@ internal fun loadArtworkBitmapForSource(
         }
     }
 
-    if (isRemote && !normalized.isNullOrBlank()) {
-        if ((scheme == "http" || scheme == "https") && !artworkRequestUrl.isNullOrBlank()) {
+    // Artwork pulled from the remote folder is cached beside the audio, so a
+    // recents entry resolves without reaching the share again.
+    val cacheRoot = File(context.cacheDir, REMOTE_SOURCE_CACHE_DIR)
+
+    fun loadCachedSourceArtwork(cachedSourceId: String?): Bitmap? =
+        cachedSourceArtworkFile(cacheRoot, cachedSourceId)
+            ?.let { decodeScaledBitmapFromFile(it) }
+
+    if (!isRemote) {
+        loadCachedSourceArtwork(displayFile?.absolutePath?.let(::resolveCachedRemoteSourceId))
+            ?.let { return onBitmapLoaded(it) }
+    }
+
+    if (isRemote && !remoteId.isNullOrBlank()) {
+        if ((remoteScheme == "http" || remoteScheme == "https") && !artworkRequestUrl.isNullOrBlank()) {
             loadEmbeddedArtworkFromRemote(artworkRequestUrl)?.let {
                 return onBitmapLoaded(it)
             }
         }
-        val cacheRoot = File(context.cacheDir, REMOTE_SOURCE_CACHE_DIR)
-        findExistingCachedFileForSource(cacheRoot, normalized)?.let { cached ->
+        findExistingCachedFileForSource(cacheRoot, remoteId)?.let { cached ->
             loadEmbeddedArtwork(cached)?.let {
                 return onBitmapLoaded(it)
             }
@@ -199,18 +222,14 @@ internal fun loadArtworkBitmapForSource(
                 }
             }
         }
-        if ((scheme == "http" || scheme == "https") && !artworkRequestUrl.isNullOrBlank()) {
+        loadCachedSourceArtwork(remoteId)?.let { return onBitmapLoaded(it) }
+        if ((remoteScheme == "http" || remoteScheme == "https") && !artworkRequestUrl.isNullOrBlank()) {
             loadFolderArtworkFromHttpSource(artworkRequestUrl)?.let {
                 return onBitmapLoaded(it)
             }
         }
-        if (scheme == "smb" && !artworkRequestUrl.isNullOrBlank()) {
-            loadEmbeddedArtworkFromSmb(artworkRequestUrl)?.let {
-                return onBitmapLoaded(it)
-            }
-        }
-        if (scheme == "smb" && !artworkRequestUrl.isNullOrBlank()) {
-            loadFolderArtworkFromSmb(artworkRequestUrl)?.let {
+        if (remoteScheme == "smb" && !artworkRequestUrl.isNullOrBlank()) {
+            loadSmbArtwork(context, artworkRequestUrl, remoteId)?.let {
                 return onBitmapLoaded(it)
             }
         }
@@ -303,7 +322,31 @@ private fun loadEmbeddedArtworkFromSmb(requestUri: String): Bitmap? {
     }
 }
 
-private fun loadFolderArtworkFromSmb(requestUri: String): Bitmap? {
+// MediaMetadataRetriever walks as much of the share as its extractor decides
+// before it can report "no picture", and nothing here can bound that. Both
+// probes therefore run together: the embedded picture keeps priority, and the
+// adjacent file takes over as soon as the embedded result misses its budget.
+private fun loadSmbArtwork(
+    context: Context,
+    requestUri: String,
+    sourceId: String?
+): Bitmap? {
+    val embedded = FutureTask { loadEmbeddedArtworkFromSmb(requestUri) }
+    val adjacent = FutureTask { loadFolderArtworkFromSmb(context, requestUri, sourceId) }
+    thread(isDaemon = true, name = "smb-embedded-artwork") { embedded.run() }
+    thread(isDaemon = true, name = "smb-adjacent-artwork") { adjacent.run() }
+    embedded.awaitOrNull(SMB_EMBEDDED_ARTWORK_BUDGET_MS)?.let { return it }
+    return adjacent.awaitOrNull(SMB_ADJACENT_ARTWORK_BUDGET_MS)
+}
+
+private fun <T> FutureTask<T>.awaitOrNull(timeoutMs: Long): T? =
+    runCatching { get(timeoutMs, TimeUnit.MILLISECONDS) }.getOrNull()
+
+private fun loadFolderArtworkFromSmb(
+    context: Context,
+    requestUri: String,
+    sourceId: String?
+): Bitmap? {
     val spec = resolveCredentialedSmbSpec(requestUri) ?: return null
     val normalizedPath = normalizeSmbPathForShare(spec.path).orEmpty()
     if (spec.share.isBlank() || normalizedPath.isBlank()) return null
@@ -332,47 +375,17 @@ private fun loadFolderArtworkFromSmb(requestUri: String): Bitmap? {
                 } ?: return@withAppSmbSession null
 
                 val artworkPath = joinSmbRelativePath(parentPath, matchedName)
-                loadBitmapFromDiskShare(share, artworkPath)
+                val bytes = readSmbFileBytes(share, artworkPath)
+                    ?: return@withAppSmbSession null
+                writeCachedSourceArtwork(
+                    sourceCacheRoot = File(context.cacheDir, REMOTE_SOURCE_CACHE_DIR),
+                    sourceId = sourceId,
+                    bytes = bytes
+                )
+                decodeScaledBitmapFromBytes(bytes)
             } finally {
                 runCatching { share.close() }
             }
-        }
-    } catch (_: Throwable) {
-        null
-    }
-}
-
-private fun loadBitmapFromDiskShare(share: DiskShare, remotePath: String): Bitmap? {
-    val normalizedPath = normalizeSmbPathForShare(remotePath).orEmpty()
-    if (normalizedPath.isBlank()) return null
-    return try {
-        val smbFile = share.openFile(
-            normalizedPath,
-            setOf(AccessMask.GENERIC_READ),
-            null,
-            SMB2ShareAccess.ALL,
-            SMB2CreateDisposition.FILE_OPEN,
-            null
-        )
-        try {
-            val input = smbFile.inputStream ?: return null
-            try {
-                val output = ByteArrayOutputStream()
-                val buffer = ByteArray(16 * 1024)
-                var total = 0
-                while (true) {
-                    val read = input.read(buffer)
-                    if (read <= 0) break
-                    total += read
-                    if (total > MAX_REMOTE_ARTWORK_BYTES) return null
-                    output.write(buffer, 0, read)
-                }
-                decodeScaledBitmapFromBytes(output.toByteArray())
-            } finally {
-                runCatching { input.close() }
-            }
-        } finally {
-            runCatching { smbFile.close() }
         }
     } catch (_: Throwable) {
         null
@@ -530,16 +543,8 @@ private fun findFolderArtworkFile(trackFile: File): File? {
     val parent = trackFile.parentFile ?: return null
     if (!parent.isDirectory) return null
 
-    val allowedNames = setOf(
-        "cover.jpg", "cover.jpeg", "cover.png", "cover.webp",
-        "folder.jpg", "folder.jpeg", "folder.png", "folder.webp",
-        "album.jpg", "album.jpeg", "album.png", "album.webp",
-        "front.jpg", "front.jpeg", "front.png", "front.webp",
-        "artwork.jpg", "artwork.jpeg", "artwork.png", "artwork.webp"
-    )
-
     return parent.listFiles()
-        ?.firstOrNull { it.isFile && allowedNames.contains(it.name.lowercase()) }
+        ?.firstOrNull { it.isFile && FOLDER_ARTWORK_FILE_NAMES.contains(it.name.lowercase()) }
 }
 
 private fun decodeScaledBitmapFromBytes(data: ByteArray, maxSize: Int = 1024): Bitmap? {
@@ -580,11 +585,5 @@ private fun calculateInSampleSize(width: Int, height: Int, maxSize: Int): Int {
 }
 
 private const val MAX_REMOTE_ARTWORK_BYTES = 8 * 1024 * 1024
-
-private val FOLDER_ARTWORK_FILE_NAMES = listOf(
-    "cover.jpg", "cover.jpeg", "cover.png", "cover.webp",
-    "folder.jpg", "folder.jpeg", "folder.png", "folder.webp",
-    "album.jpg", "album.jpeg", "album.png", "album.webp",
-    "front.jpg", "front.jpeg", "front.png", "front.webp",
-    "artwork.jpg", "artwork.jpeg", "artwork.png", "artwork.webp"
-)
+private const val SMB_EMBEDDED_ARTWORK_BUDGET_MS = 2_500L
+private const val SMB_ADJACENT_ARTWORK_BUDGET_MS = 2_500L

@@ -1,5 +1,9 @@
 package com.flopster101.siliconplayer
 
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.launch
 import java.io.File
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.atomic.AtomicLong
@@ -26,6 +30,22 @@ internal object SmbAvioBridge {
     private val nextHandleId = AtomicLong(1L)
     private val activeHandles = ConcurrentHashMap<Long, SmbAvioHandle>()
 
+    // Streamed tracks never reach the download path, so the artwork cached
+    // beside downloaded copies has to be gathered here instead.
+    private val artworkScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+
+    private fun cacheAdjacentArtwork(cacheDir: File, spec: SmbSourceSpec, requestUri: String) {
+        artworkScope.launch {
+            runCatching {
+                val sourceCacheRoot = File(cacheDir, REMOTE_SOURCE_CACHE_DIR)
+                if (cachedSourceArtworkFile(sourceCacheRoot, requestUri) != null) return@runCatching
+                readSmbFolderArtworkBytes(spec)?.let { bytes ->
+                    writeCachedSourceArtwork(sourceCacheRoot, requestUri, bytes)
+                }
+            }
+        }
+    }
+
     fun openHandle(requestUri: String, cacheDir: File): Long {
         val spec = resolveCredentialedSmbSpec(requestUri)
             ?: throw IllegalArgumentException("Invalid SMB AVIO request URI")
@@ -37,6 +57,7 @@ internal object SmbAvioBridge {
             throw IllegalArgumentException("SMB AVIO request URI must point to a file inside the share")
         }
 
+        cacheAdjacentArtwork(cacheDir, spec, requestUri)
         val handleId = nextHandleId.getAndIncrement().coerceAtLeast(1L)
         activeHandles[handleId] = SmbAvioHandle(
             cache = ProgressiveRandomAccessCache(

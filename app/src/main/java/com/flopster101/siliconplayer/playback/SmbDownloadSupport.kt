@@ -44,9 +44,19 @@ internal suspend fun downloadSmbSourceToCache(
         }
     }
 
+    suspend fun cacheAdjacentArtwork() {
+        if (cachedSourceArtworkFile(cacheRoot, sourceId) != null) return
+        runCatching {
+            readSmbFolderArtworkBytes(credentialedSpec)?.let { bytes ->
+                writeCachedSourceArtwork(cacheRoot, sourceId, bytes)
+            }
+        }
+    }
+
     findExistingCachedFileForSource(cacheRoot, sourceId)?.let { existing ->
         existing.setLastModified(System.currentTimeMillis())
         rememberSourceForCachedFile(cacheRoot, existing.name, sourceId)
+        cacheAdjacentArtwork()
         return@withContext RemoteDownloadResult(file = existing)
     }
 
@@ -175,6 +185,7 @@ internal suspend fun downloadSmbSourceToCache(
             temp.delete()
         }
         rememberSourceForCachedFile(cacheRoot, target.name, sourceId)
+        cacheAdjacentArtwork()
         RemoteDownloadResult(file = target)
     } catch (_: CancellationException) {
         RemoteDownloadResult(file = null, errorMessage = "Cancelled", cancelled = true)

@@ -374,7 +374,7 @@ private fun findFolderArtworkNearTrack(trackFile: File): File? {
     if (!parent.isDirectory) return null
     return parent.listFiles()
         ?.firstOrNull { file ->
-            file.isFile && file.name.lowercase(Locale.ROOT) in RECENT_FOLDER_ARTWORK_NAMES
+            file.isFile && file.name.lowercase(Locale.ROOT) in FOLDER_ARTWORK_FILE_NAMES
         }
 }
 
@@ -421,11 +421,3 @@ private fun scaleBitmapForRecentThumb(bitmap: Bitmap, maxSize: Int): Bitmap {
     val targetHeight = (srcHeight * scale).toInt().coerceAtLeast(1)
     return Bitmap.createScaledBitmap(bitmap, targetWidth, targetHeight, true)
 }
-
-private val RECENT_FOLDER_ARTWORK_NAMES = setOf(
-    "cover.jpg", "cover.jpeg", "cover.png", "cover.webp",
-    "folder.jpg", "folder.jpeg", "folder.png", "folder.webp",
-    "album.jpg", "album.jpeg", "album.png", "album.webp",
-    "front.jpg", "front.jpeg", "front.png", "front.webp",
-    "artwork.jpg", "artwork.jpeg", "artwork.png", "artwork.webp"
-)

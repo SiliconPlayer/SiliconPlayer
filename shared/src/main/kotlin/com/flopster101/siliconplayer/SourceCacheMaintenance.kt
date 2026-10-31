@@ -91,8 +91,8 @@ private fun isCacheDataFileName(name: String): Boolean {
 
 private fun isCacheDataFile(file: File): Boolean = file.isFile && isCacheDataFileName(file.name)
 
-private fun deleteCompanionFiles(file: File): Long {
-    var bytes = 0L
+private fun deleteCompanionFiles(cacheRoot: File, sourceId: String?, file: File): Long {
+    var bytes = sourceId?.let { deleteCachedSourceArtwork(cacheRoot, it) } ?: 0L
     val chunks = File(file.absolutePath + ".chunks")
     if (chunks.exists()) {
         bytes += chunks.length().coerceAtLeast(0L)
@@ -163,13 +163,14 @@ internal fun enforceRemoteCacheLimits(
     var freedBytes = 0L
 
     entries.sortBy { it.lastModified() }
+    val sourceIndex = loadSourceCacheIndex(cacheRoot)
     val deletedNames = mutableSetOf<String>()
     for (file in entries) {
         if (totalCount <= normalizedMaxTracks && totalBytes <= normalizedMaxBytes) break
         if (protected.contains(file.absolutePath)) continue
         val size = file.length().coerceAtLeast(0L)
         if (file.delete()) {
-            val companionFreed = deleteCompanionFiles(file)
+            val companionFreed = deleteCompanionFiles(cacheRoot, sourceIndex[file.name], file)
             deletedFiles++
             freedBytes += size + companionFreed
             totalCount--
@@ -233,6 +234,7 @@ internal fun deleteSpecificRemoteCacheFiles(
     var skippedFiles = 0
     var missingFiles = 0
     var freedBytes = 0L
+    val sourceIndex = loadSourceCacheIndex(cacheRoot)
     val deletedNames = mutableSetOf<String>()
     absolutePaths.forEach { absolutePath ->
         val file = File(absolutePath)
@@ -250,7 +252,7 @@ internal fun deleteSpecificRemoteCacheFiles(
         }
         val size = file.length().coerceAtLeast(0L)
         if (file.delete()) {
-            val companionFreed = deleteCompanionFiles(file)
+            val companionFreed = deleteCompanionFiles(cacheRoot, sourceIndex[file.name], file)
             deletedFiles++
             freedBytes += size + companionFreed
             deletedNames.add(file.name)
