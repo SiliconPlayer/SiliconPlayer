@@ -1083,6 +1083,9 @@ std::vector<std::string> AudioEngine::getDecoderToggleChannelNames() {
     std::unique_lock<std::mutex> lock(decoderMutex, std::try_to_lock);
     if (lock.owns_lock() && decoder) {
         std::vector<std::string> names = decoder->getToggleChannelNames();
+        // A decoder reports names only once its file is loaded, so an empty
+        // answer is "ask again", not "this core has none".
+        if (names.empty()) return names;
         std::lock_guard<std::mutex> cacheLock(toggleChannelNamesCacheMutex);
         toggleChannelNamesCache = names;
         toggleChannelNamesCacheSerial = serial;
