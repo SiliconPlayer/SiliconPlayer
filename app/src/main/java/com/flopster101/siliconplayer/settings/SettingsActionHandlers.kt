@@ -805,6 +805,7 @@ internal fun clearAllSettingsAction(
     ayflyChipType: Int,
     ayflyMixType: Int,
     ayflyIntFreq: Int,
+    ayflyStereoSeparationPercent: Int,
     vio2sfInterpolationQuality: Int,
     sc68SamplingRateHz: Int,
     sc68Asid: Int,
@@ -975,6 +976,7 @@ internal fun clearAllSettingsAction(
     onAyflyChipTypeChanged: (Int) -> Unit,
     onAyflyMixTypeChanged: (Int) -> Unit,
     onAyflyIntFreqChanged: (Int) -> Unit,
+    onAyflyStereoSeparationPercentChanged: (Int) -> Unit,
 ) {
     val pluginSnapshot = mapOf(
         CorePreferenceKeys.CORE_RATE_FFMPEG to ffmpegCoreSampleRateHz,
@@ -1002,6 +1004,7 @@ internal fun clearAllSettingsAction(
         CorePreferenceKeys.AYFLY_CHIP_TYPE to ayflyChipType,
         CorePreferenceKeys.AYFLY_MIX_TYPE to ayflyMixType,
         CorePreferenceKeys.AYFLY_INT_FREQ to ayflyIntFreq,
+        CorePreferenceKeys.AYFLY_STEREO_SEPARATION_PERCENT to ayflyStereoSeparationPercent,
         CorePreferenceKeys.CORE_RATE_SC68 to sc68SamplingRateHz,
         CorePreferenceKeys.SC68_ASID to sc68Asid,
         CorePreferenceKeys.SC68_DEFAULT_TIME_SECONDS to sc68DefaultTimeSeconds,
@@ -1138,6 +1141,7 @@ internal fun clearAllSettingsAction(
     onAyflyChipTypeChanged(AyflyDefaults.chipType)
     onAyflyMixTypeChanged(AyflyDefaults.mixType)
     onAyflyIntFreqChanged(AyflyDefaults.intFreq)
+    onAyflyStereoSeparationPercentChanged(AyflyDefaults.stereoSeparationPercent)
     onSc68SamplingRateHzChanged(Sc68Defaults.coreSampleRateHz)
     onSc68AsidChanged(Sc68Defaults.asid)
     onSc68DefaultTimeSecondsChanged(Sc68Defaults.defaultTimeSeconds)
@@ -1237,6 +1241,7 @@ internal fun clearAllPluginSettingsAction(
     actions.onAyflyChipTypeChanged(AyflyDefaults.chipType)
     actions.onAyflyMixTypeChanged(AyflyDefaults.mixType)
     actions.onAyflyIntFreqChanged(AyflyDefaults.intFreq)
+    actions.onAyflyStereoSeparationPercentChanged(AyflyDefaults.stereoSeparationPercent)
     actions.onLazyUsf2UseHleAudioChanged(LazyUsf2Defaults.useHleAudio)
     actions.onVio2sfInterpolationQualityChanged(Vio2sfDefaults.interpolationQuality)
     actions.onSc68SamplingRateHzChanged(Sc68Defaults.coreSampleRateHz)
@@ -1477,7 +1482,8 @@ internal fun resetPluginSettingsAction(
             AyflyOptionKeys.OVERSAMPLE,
             AyflyOptionKeys.CHIP_TYPE,
             AyflyOptionKeys.MIX_TYPE,
-            AyflyOptionKeys.INT_FREQ
+            AyflyOptionKeys.INT_FREQ,
+            AyflyOptionKeys.STEREO_SEPARATION
         )
 
         DecoderNames.VIO2_SF -> listOf(
@@ -1670,12 +1676,14 @@ internal fun resetPluginSettingsAction(
             actions.onAyflyChipTypeChanged(AyflyDefaults.chipType)
             actions.onAyflyMixTypeChanged(AyflyDefaults.mixType)
             actions.onAyflyIntFreqChanged(AyflyDefaults.intFreq)
+            actions.onAyflyStereoSeparationPercentChanged(AyflyDefaults.stereoSeparationPercent)
             prefs.edit()
                 .remove(CorePreferenceKeys.CORE_RATE_AYFLY)
                 .remove(CorePreferenceKeys.AYFLY_OVERSAMPLE)
                 .remove(CorePreferenceKeys.AYFLY_CHIP_TYPE)
                 .remove(CorePreferenceKeys.AYFLY_MIX_TYPE)
                 .remove(CorePreferenceKeys.AYFLY_INT_FREQ)
+                .remove(CorePreferenceKeys.AYFLY_STEREO_SEPARATION_PERCENT)
                 .apply()
         }
 

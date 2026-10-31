@@ -237,6 +237,7 @@ internal fun rememberDesktopSettings(
             ayflyChipType = prefs.getInt(CorePreferenceKeys.AYFLY_CHIP_TYPE, AyflyDefaults.chipType),
             ayflyMixType = prefs.getInt(CorePreferenceKeys.AYFLY_MIX_TYPE, AyflyDefaults.mixType),
             ayflyIntFreq = prefs.getInt(CorePreferenceKeys.AYFLY_INT_FREQ, AyflyDefaults.intFreq),
+            ayflyStereoSeparationPercent = prefs.getInt(CorePreferenceKeys.AYFLY_STEREO_SEPARATION_PERCENT, AyflyDefaults.stereoSeparationPercent),
             lazyUsf2UseHleAudio = prefs.getBoolean(CorePreferenceKeys.LAZYUSF2_USE_HLE_AUDIO, LazyUsf2Defaults.useHleAudio),
             vio2sfInterpolationQuality = prefs.getInt(CorePreferenceKeys.VIO2SF_INTERPOLATION_QUALITY, Vio2sfDefaults.interpolationQuality),
             sc68SamplingRateHz = prefs.getInt(CorePreferenceKeys.CORE_RATE_SC68, Sc68Defaults.coreSampleRateHz),
@@ -569,6 +570,7 @@ internal fun rememberDesktopSettings(
                 onAyflyChipTypeChanged = { putInt(CorePreferenceKeys.AYFLY_CHIP_TYPE, it) },
                 onAyflyMixTypeChanged = { putInt(CorePreferenceKeys.AYFLY_MIX_TYPE, it) },
                 onAyflyIntFreqChanged = { putInt(CorePreferenceKeys.AYFLY_INT_FREQ, it) },
+                onAyflyStereoSeparationPercentChanged = { putInt(CorePreferenceKeys.AYFLY_STEREO_SEPARATION_PERCENT, it) },
                 onLazyUsf2UseHleAudioChanged = { putBool(CorePreferenceKeys.LAZYUSF2_USE_HLE_AUDIO, it) },
                 onVio2sfInterpolationQualityChanged = { putInt(CorePreferenceKeys.VIO2SF_INTERPOLATION_QUALITY, it) },
                 onSc68SamplingRateHzChanged = { putInt(CorePreferenceKeys.CORE_RATE_SC68, it) },
@@ -1285,13 +1287,15 @@ private val DesktopCoreDecoderResets: Map<String, DesktopCoreDecoderReset> = map
             CorePreferenceKeys.AYFLY_OVERSAMPLE,
             CorePreferenceKeys.AYFLY_CHIP_TYPE,
             CorePreferenceKeys.AYFLY_MIX_TYPE,
-            CorePreferenceKeys.AYFLY_INT_FREQ
+            CorePreferenceKeys.AYFLY_INT_FREQ,
+            CorePreferenceKeys.AYFLY_STEREO_SEPARATION_PERCENT
         ),
         optionNames = listOf(
             AyflyOptionKeys.OVERSAMPLE,
             AyflyOptionKeys.CHIP_TYPE,
             AyflyOptionKeys.MIX_TYPE,
-            AyflyOptionKeys.INT_FREQ
+            AyflyOptionKeys.INT_FREQ,
+            AyflyOptionKeys.STEREO_SEPARATION
         ),
         reset = { a ->
             a.onAyflyCoreSampleRateHzChanged(0)
@@ -1299,6 +1303,7 @@ private val DesktopCoreDecoderResets: Map<String, DesktopCoreDecoderReset> = map
             a.onAyflyChipTypeChanged(0)
             a.onAyflyMixTypeChanged(0)
             a.onAyflyIntFreqChanged(0)
+            a.onAyflyStereoSeparationPercentChanged(AyflyDefaults.stereoSeparationPercent)
         }
     ),
     DecoderNames.VIO2_SF to DesktopCoreDecoderReset(

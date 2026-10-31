@@ -110,6 +110,7 @@ internal fun clearAllSettingsFromMainAction(
         ayflyChipType = pluginCoreState.ayflyChipType,
         ayflyMixType = pluginCoreState.ayflyMixType,
         ayflyIntFreq = pluginCoreState.ayflyIntFreq,
+        ayflyStereoSeparationPercent = pluginCoreState.ayflyStereoSeparationPercent,
         vio2sfInterpolationQuality = pluginCoreState.vio2sfInterpolationQuality,
         sc68SamplingRateHz = pluginCoreState.sc68SamplingRateHz,
         sc68Asid = pluginCoreState.sc68Asid,
@@ -280,6 +281,7 @@ internal fun clearAllSettingsFromMainAction(
         onAyflyChipTypeChanged = pluginCoreActions.onAyflyChipTypeChanged,
         onAyflyMixTypeChanged = pluginCoreActions.onAyflyMixTypeChanged,
         onAyflyIntFreqChanged = pluginCoreActions.onAyflyIntFreqChanged,
+        onAyflyStereoSeparationPercentChanged = pluginCoreActions.onAyflyStereoSeparationPercentChanged,
     )
 }
 

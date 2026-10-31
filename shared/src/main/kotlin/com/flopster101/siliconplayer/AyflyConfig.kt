@@ -5,6 +5,7 @@ internal object AyflyOptionKeys {
     const val CHIP_TYPE = "ayfly.chip_type"
     const val MIX_TYPE = "ayfly.mix_type"
     const val INT_FREQ = "ayfly.int_freq"
+    const val STEREO_SEPARATION = "ayfly.stereo_separation"
 }
 
 internal object AyflyConfig {

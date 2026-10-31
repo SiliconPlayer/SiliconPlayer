@@ -34,6 +34,7 @@ internal fun AppNavigationCoreEffects(
     ayflyChipType: Int,
     ayflyMixType: Int,
     ayflyIntFreq: Int,
+    ayflyStereoSeparationPercent: Int,
     lazyUsf2UseHleAudio: Boolean,
     vio2sfInterpolationQuality: Int,
     sc68SamplingRateHz: Int,
@@ -285,6 +286,18 @@ internal fun AppNavigationCoreEffects(
             optionValue = normalized.toString(),
             policy = CoreOptionApplyPolicy.Live,
             optionLabel = "Interrupt frequency"
+        )
+    }
+
+    LaunchedEffect(ayflyStereoSeparationPercent) {
+        val normalized = ayflyStereoSeparationPercent.coerceIn(0, 100)
+        prefs.edit().putInt(CorePreferenceKeys.AYFLY_STEREO_SEPARATION_PERCENT, normalized).apply()
+        applyCoreOptionWithPolicy(
+            coreName = DecoderNames.AYFLY,
+            optionName = AyflyOptionKeys.STEREO_SEPARATION,
+            optionValue = normalized.toString(),
+            policy = CoreOptionApplyPolicy.Live,
+            optionLabel = "Stereo separation"
         )
     }
 
@@ -1204,6 +1217,7 @@ internal fun AppNavigationCoreEffectsFromSettingsStates(
         ayflyChipType = settingsStates.ayflyChipType.intValue,
         ayflyMixType = settingsStates.ayflyMixType.intValue,
         ayflyIntFreq = settingsStates.ayflyIntFreq.intValue,
+        ayflyStereoSeparationPercent = settingsStates.ayflyStereoSeparationPercent.intValue,
         lazyUsf2UseHleAudio = settingsStates.lazyUsf2UseHleAudio.value,
         vio2sfInterpolationQuality = settingsStates.vio2sfInterpolationQuality.intValue,
         sc68SamplingRateHz = settingsStates.sc68SamplingRateHz.intValue,

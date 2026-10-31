@@ -41,6 +41,7 @@ internal data class AppNavigationSettingsStates(
     val ayflyChipType: MutableIntState,
     val ayflyMixType: MutableIntState,
     val ayflyIntFreq: MutableIntState,
+    val ayflyStereoSeparationPercent: MutableIntState,
     val lazyUsf2UseHleAudio: MutableState<Boolean>,
     val vio2sfInterpolationQuality: MutableIntState,
     val sc68SamplingRateHz: MutableIntState,
@@ -249,6 +250,9 @@ internal fun rememberAppNavigationSettingsStates(
     }
     val ayflyIntFreq = remember {
         mutableIntStateOf(prefs.getInt(CorePreferenceKeys.AYFLY_INT_FREQ, AyflyDefaults.intFreq))
+    }
+    val ayflyStereoSeparationPercent = remember {
+        mutableIntStateOf(prefs.getInt(CorePreferenceKeys.AYFLY_STEREO_SEPARATION_PERCENT, AyflyDefaults.stereoSeparationPercent))
     }
     val lazyUsf2UseHleAudio = remember {
         mutableStateOf(prefs.getBoolean(CorePreferenceKeys.LAZYUSF2_USE_HLE_AUDIO, LazyUsf2Defaults.useHleAudio))
@@ -718,6 +722,7 @@ internal fun rememberAppNavigationSettingsStates(
         ayflyChipType = ayflyChipType,
         ayflyMixType = ayflyMixType,
         ayflyIntFreq = ayflyIntFreq,
+        ayflyStereoSeparationPercent = ayflyStereoSeparationPercent,
         lazyUsf2UseHleAudio = lazyUsf2UseHleAudio,
         vio2sfInterpolationQuality = vio2sfInterpolationQuality,
         sc68SamplingRateHz = sc68SamplingRateHz,

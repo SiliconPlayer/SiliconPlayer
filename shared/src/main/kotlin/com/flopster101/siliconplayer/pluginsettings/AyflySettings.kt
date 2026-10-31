@@ -3,15 +3,18 @@ package com.flopster101.siliconplayer.pluginsettings
 import androidx.compose.runtime.Composable
 import com.flopster101.siliconplayer.AyflyConfig
 import com.flopster101.siliconplayer.CoreChoiceSelectorCard
+import com.flopster101.siliconplayer.CoreDialogSliderCard
 
 internal class AyflySettings(
     private val oversample: Int,
     private val chipType: Int,
     private val mixType: Int,
+    private val stereoSeparationPercent: Int,
     private val intFreq: Int,
     private val onOversampleChanged: (Int) -> Unit,
     private val onChipTypeChanged: (Int) -> Unit,
     private val onMixTypeChanged: (Int) -> Unit,
+    private val onStereoSeparationPercentChanged: (Int) -> Unit,
     private val onIntFreqChanged: (Int) -> Unit
 ) : PluginSettings {
 
@@ -35,6 +38,18 @@ internal class AyflySettings(
                     selectedValue = mixType,
                     options = AyflyConfig.mixChoices,
                     onSelected = onMixTypeChanged
+                )
+            }
+            spacer()
+            custom {
+                CoreDialogSliderCard(
+                    title = "Stereo separation",
+                    description = "How far the chip channels sit apart. 0% mixes them to mono, 100% keeps each channel on one side only.",
+                    value = stereoSeparationPercent,
+                    valueRange = 0..100,
+                    step = 1,
+                    valueLabel = { "$it%" },
+                    onValueChanged = onStereoSeparationPercentChanged
                 )
             }
             spacer()

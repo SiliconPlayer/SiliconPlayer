@@ -85,11 +85,13 @@ private:
     std::vector<std::string> subsongTitles;
     std::vector<double> subsongDurations;
     // Core options; -1 (chip/mix) and 0 (int freq) mean auto: keep the
-    // song/library value. tickRate converts tick-based times to seconds.
+    // song/library value, and 67 (stereo separation) the library's own mix
+    // tables. tickRate converts tick-based times to seconds.
     int oversample = 1;
     int chipType = -1;
     int mixType = -1;
     int intFreqHz = 0;
+    int separationPercent = 67;
     double tickRate = 50.0;
 
     std::vector<std::string> toggleChannelNames;

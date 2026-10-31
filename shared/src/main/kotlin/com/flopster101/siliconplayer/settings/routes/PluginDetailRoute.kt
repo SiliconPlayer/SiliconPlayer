@@ -70,6 +70,7 @@ internal data class PluginDetailRouteState(
     val ayflyChipType: Int,
     val ayflyMixType: Int,
     val ayflyIntFreq: Int,
+    val ayflyStereoSeparationPercent: Int,
     val openMptStereoSeparationPercent: Int,
     val openMptStereoSeparationAmigaPercent: Int,
     val openMptInterpolationFilterLength: Int,
@@ -166,6 +167,7 @@ internal data class PluginDetailRouteActions(
     val onAyflyChipTypeChanged: (Int) -> Unit,
     val onAyflyMixTypeChanged: (Int) -> Unit,
     val onAyflyIntFreqChanged: (Int) -> Unit,
+    val onAyflyStereoSeparationPercentChanged: (Int) -> Unit,
     val onOpenMptStereoSeparationPercentChanged: (Int) -> Unit,
     val onOpenMptStereoSeparationAmigaPercentChanged: (Int) -> Unit,
     val onOpenMptInterpolationFilterLengthChanged: (Int) -> Unit,
@@ -499,10 +501,12 @@ internal fun PluginDetailRouteContent(
             oversample = state.ayflyOversample,
             chipType = state.ayflyChipType,
             mixType = state.ayflyMixType,
+            stereoSeparationPercent = state.ayflyStereoSeparationPercent,
             intFreq = state.ayflyIntFreq,
             onOversampleChanged = actions.onAyflyOversampleChanged,
             onChipTypeChanged = actions.onAyflyChipTypeChanged,
             onMixTypeChanged = actions.onAyflyMixTypeChanged,
+            onStereoSeparationPercentChanged = actions.onAyflyStereoSeparationPercentChanged,
             onIntFreqChanged = actions.onAyflyIntFreqChanged
         )
 

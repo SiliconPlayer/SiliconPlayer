@@ -104,6 +104,7 @@ object CorePreferenceKeys {
     const val AYFLY_CHIP_TYPE = "ayfly_chip_type"
     const val AYFLY_MIX_TYPE = "ayfly_mix_type"
     const val AYFLY_INT_FREQ = "ayfly_int_freq"
+    const val AYFLY_STEREO_SEPARATION_PERCENT = "ayfly_stereo_separation_percent"
     fun vgmPlayChipCoreKey(chipKey: String) = "vgmplay_chip_core_$chipKey"
 }
 
@@ -200,6 +201,7 @@ object AyflyDefaults {
     const val chipType = -1 // -1 Auto, 0 AY-3-8910, 1 YM2149
     const val mixType = -1 // -1 Auto, 0 ABC .. 5 CBA
     const val intFreq = 0 // 0 Auto (follows the library value, 50 Hz)
+    const val stereoSeparationPercent = 67 // the library's own mix tables
 }
 
 object HivelyTrackerDefaults {

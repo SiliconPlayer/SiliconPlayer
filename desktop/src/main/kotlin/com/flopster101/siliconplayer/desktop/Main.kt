@@ -4024,6 +4024,8 @@ private fun pushDesktopCorePrefToNative(
             opt(DecoderNames.AYFLY, AyflyOptionKeys.MIX_TYPE, prefs.getInt(key, 0).coerceIn(-1, 5).toString(), CoreOptionApplyPolicy.Live, "Stereo mix order")
         CorePreferenceKeys.AYFLY_INT_FREQ ->
             opt(DecoderNames.AYFLY, AyflyOptionKeys.INT_FREQ, prefs.getInt(key, 0).coerceIn(0, 1000).toString(), CoreOptionApplyPolicy.Live, "Interrupt frequency")
+        CorePreferenceKeys.AYFLY_STEREO_SEPARATION_PERCENT ->
+            opt(DecoderNames.AYFLY, AyflyOptionKeys.STEREO_SEPARATION, prefs.getInt(key, 67).coerceIn(0, 100).toString(), CoreOptionApplyPolicy.Live, "Stereo separation")
         CorePreferenceKeys.ADPLUG_OPL_ENGINE ->
             opt(DecoderNames.AD_PLUG, AdPlugOptionKeys.OPL_ENGINE, prefs.getInt(key, 0).coerceIn(0, 3).toString(), CoreOptionApplyPolicy.RequiresPlaybackRestart, "Adlib core")
         CorePreferenceKeys.LAZYUSF2_USE_HLE_AUDIO ->

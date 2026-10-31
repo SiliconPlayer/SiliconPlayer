@@ -232,7 +232,8 @@ private val KnownCoreSettings: Map<String, List<TypedPrefValue>> = mapOf(
         intV(CorePreferenceKeys.AYFLY_OVERSAMPLE, AyflyDefaults.oversample),
         intV(CorePreferenceKeys.AYFLY_CHIP_TYPE, AyflyDefaults.chipType),
         intV(CorePreferenceKeys.AYFLY_MIX_TYPE, AyflyDefaults.mixType),
-        intV(CorePreferenceKeys.AYFLY_INT_FREQ, AyflyDefaults.intFreq)
+        intV(CorePreferenceKeys.AYFLY_INT_FREQ, AyflyDefaults.intFreq),
+        intV(CorePreferenceKeys.AYFLY_STEREO_SEPARATION_PERCENT, AyflyDefaults.stereoSeparationPercent)
     ),
     DecoderNames.VIO2_SF to listOf(
         intV(CorePreferenceKeys.VIO2SF_INTERPOLATION_QUALITY, Vio2sfDefaults.interpolationQuality)

@@ -434,6 +434,11 @@ void AyflyDecoder::applyOptionsLocked() {
     ay_setoversample(song, static_cast<unsigned long>(oversample));
     if (chipType >= 0) ay_setchiptype(song, static_cast<unsigned char>(chipType));
     if (mixType >= 0) ay_setmixtype(song, static_cast<AYMixTypes>(mixType));
+    // The chip mixes with crossfeed, the complement of the separation the
+    // player shows: 100% is every channel on one side only.
+    const float crossfeed = static_cast<float>(100 - separationPercent) / 100.0f;
+    ay_setcrossfeed(song, crossfeed);
+    if (ay_ists(song)) ay_setcrossfeed(song, crossfeed, 1);
     if (intFreqHz > 0) ay_setintfreq(song, static_cast<float>(intFreqHz));
     refreshTickRateLocked();
     applyToggleChannelMutesLocked(); // seeks reinit chip state
@@ -457,6 +462,8 @@ void AyflyDecoder::setOption(const char* name, const char* value) {
         mixType = std::clamp(parseIntString(value, -1), -1, 5);
     } else if (key == "ayfly.int_freq") {
         intFreqHz = std::clamp(parseIntString(value, 0), 0, 1000);
+    } else if (key == "ayfly.stereo_separation") {
+        separationPercent = std::clamp(parseIntString(value, 67), 0, 100);
     } else {
         return;
     }
