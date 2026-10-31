@@ -713,6 +713,7 @@ ChannelScopeRenderer::TextFields ChannelScopeRenderer::buildTextFields(
 
 void ChannelScopeRenderer::buildTextGeometry() {
     textBatcher_.clear();
+    if (!textEnabled_) return;
 
     int channels = static_cast<int>(channelHistories_.size());
     if (channels <= 0 || widthPx_ <= 0 || heightPx_ <= 0) return;
@@ -875,7 +876,6 @@ void ChannelScopeRenderer::buildTextGeometry() {
 }
 
 void ChannelScopeRenderer::drawText() {
-    if (!textEnabled_) return;
     buildTextGeometry();
     if (textBatcher_.getVertexCount() > 0) {
         textProgram_.draw(
