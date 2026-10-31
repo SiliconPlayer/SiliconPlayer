@@ -74,6 +74,18 @@ public:
     void pushChannelScopeAllHistories(int32_t channelCount, int32_t samplesPerChannel, const float* flatData);
     void setChannelScopeTextStates(const SiliconVisChannelTextState* states, int32_t count);
     void setChannelScopeChannelNames(const char* newlineSeparatedNames);
+    void setChannelScopeIdentifierNames(const char* instruments, const char* samples);
+    void setChannelScopeTextEnabled(bool enabled);
+    void setChannelScopeTextFields(
+        bool showChannel,
+        bool showNote,
+        bool showVolume,
+        bool showEffectPrimary,
+        bool showEffectSecondary,
+        bool showChip,
+        bool showInstrument,
+        bool showSample,
+        int32_t noteFormat);
     void setTextQuads(const float* quads, int32_t vertexCount);
 
     // Options

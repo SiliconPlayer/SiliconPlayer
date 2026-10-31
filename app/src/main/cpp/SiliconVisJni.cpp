@@ -1102,6 +1102,121 @@ Java_com_flopster101_siliconplayer_ui_visualization_gl_SiliconVisNativeBridge_na
 }
 
 JNIEXPORT void JNICALL
+Java_com_flopster101_siliconplayer_ui_visualization_gl_SiliconVisNativeBridge_nativeSetChannelScopeIdentifierNames(
+    JNIEnv* env,
+    jobject /* thiz */,
+    jlong handle,
+    jstring instruments,
+    jstring samples
+) {
+    if (!handle) return;
+    const char* instrumentUtf = instruments ? env->GetStringUTFChars(instruments, nullptr) : nullptr;
+    const char* sampleUtf = samples ? env->GetStringUTFChars(samples, nullptr) : nullptr;
+    silicon_vis_set_channel_scope_identifier_names(
+        reinterpret_cast<SiliconVisHandle>(handle),
+        instrumentUtf,
+        sampleUtf
+    );
+    if (instrumentUtf) env->ReleaseStringUTFChars(instruments, instrumentUtf);
+    if (sampleUtf) env->ReleaseStringUTFChars(samples, sampleUtf);
+}
+
+JNIEXPORT void JNICALL
+Java_com_flopster101_siliconplayer_ui_visualization_gl_SiliconVisNativeBridge_nativeSetChannelScopeTextFields(
+    JNIEnv* /* env */,
+    jobject /* thiz */,
+    jlong handle,
+    jboolean showChannel,
+    jboolean showNote,
+    jboolean showVolume,
+    jboolean showEffectPrimary,
+    jboolean showEffectSecondary,
+    jboolean showChip,
+    jboolean showInstrument,
+    jboolean showSample,
+    jint noteFormat
+) {
+    if (!handle) return;
+    silicon_vis_set_channel_scope_text_fields(
+        reinterpret_cast<SiliconVisHandle>(handle),
+        showChannel == JNI_TRUE,
+        showNote == JNI_TRUE,
+        showVolume == JNI_TRUE,
+        showEffectPrimary == JNI_TRUE,
+        showEffectSecondary == JNI_TRUE,
+        showChip == JNI_TRUE,
+        showInstrument == JNI_TRUE,
+        showSample == JNI_TRUE,
+        noteFormat
+    );
+}
+
+JNIEXPORT void JNICALL
+Java_com_flopster101_siliconplayer_ui_visualization_gl_SiliconVisNativeBridge_nativeSetChannelScopeTextEnabled(
+    JNIEnv* /* env */,
+    jobject /* thiz */,
+    jlong handle,
+    jboolean enabled
+) {
+    if (!handle) return;
+    silicon_vis_set_channel_scope_text_enabled(
+        reinterpret_cast<SiliconVisHandle>(handle),
+        enabled == JNI_TRUE
+    );
+}
+
+JNIEXPORT void JNICALL
+Java_com_flopster101_siliconplayer_ui_visualization_gl_SiliconVisNativeBridge_nativeSetChannelScopeTextStates(
+    JNIEnv* env,
+    jobject /* thiz */,
+    jlong handle,
+    jintArray flatStates
+) {
+    if (!handle) return;
+    if (!flatStates) {
+        silicon_vis_set_channel_scope_text_states(
+            reinterpret_cast<SiliconVisHandle>(handle),
+            nullptr,
+            0
+        );
+        return;
+    }
+    constexpr jsize kStride = 10;
+    const jsize length = env->GetArrayLength(flatStates);
+    const jsize channelCount = length / kStride;
+    if (channelCount <= 0) {
+        silicon_vis_set_channel_scope_text_states(
+            reinterpret_cast<SiliconVisHandle>(handle),
+            nullptr,
+            0
+        );
+        return;
+    }
+    std::vector<jint> flat(static_cast<size_t>(channelCount) * kStride);
+    env->GetIntArrayRegion(flatStates, 0, static_cast<jsize>(flat.size()), flat.data());
+    std::vector<SiliconVisChannelTextState> states(static_cast<size_t>(channelCount));
+    for (jsize channel = 0; channel < channelCount; ++channel) {
+        const jint* row = flat.data() + (channel * kStride);
+        SiliconVisChannelTextState& state = states[static_cast<size_t>(channel)];
+        state.channelIndex = row[0];
+        state.note = row[1];
+        state.volume = row[2];
+        state.effectPrimaryLetterAscii = row[3];
+        state.effectPrimaryParam = static_cast<int16_t>(row[4]);
+        state.effectSecondaryLetterAscii = row[5];
+        state.effectSecondaryParam = static_cast<int16_t>(row[6]);
+        state.instrumentIndex = row[7];
+        state.sampleIndex = row[8];
+        state.flags = static_cast<uint32_t>(row[9]);
+    }
+    silicon_vis_set_channel_scope_text_states(
+        reinterpret_cast<SiliconVisHandle>(handle),
+        states.data(),
+        channelCount
+    );
+}
+
+JNIEXPORT void JNICALL
 Java_com_flopster101_siliconplayer_ui_visualization_gl_SiliconVisNativeBridge_nativeSetTextQuads(
     JNIEnv* env,
     jobject /* thiz */,

@@ -251,6 +251,38 @@ void SiliconVisPipeline::setChannelScopeChannelNames(const char* newlineSeparate
     channelScope_.setChannelNames(newlineSeparatedNames);
 }
 
+void SiliconVisPipeline::setChannelScopeTextEnabled(bool enabled) {
+    channelScope_.setTextEnabled(enabled);
+}
+
+void SiliconVisPipeline::setChannelScopeIdentifierNames(const char* instruments, const char* samples) {
+    channelScope_.setIdentifierNames(instruments, samples);
+}
+
+void SiliconVisPipeline::setChannelScopeTextFields(
+    bool showChannel,
+    bool showNote,
+    bool showVolume,
+    bool showEffectPrimary,
+    bool showEffectSecondary,
+    bool showChip,
+    bool showInstrument,
+    bool showSample,
+    int32_t noteFormat
+) {
+    channelScope_.setTextFields(
+        showChannel,
+        showNote,
+        showVolume,
+        showEffectPrimary,
+        showEffectSecondary,
+        showChip,
+        showInstrument,
+        showSample,
+        noteFormat
+    );
+}
+
 void SiliconVisPipeline::setTextQuads(const float* quads, int32_t vertexCount) {
     channelScope_.setTextQuads(quads, vertexCount);
 }

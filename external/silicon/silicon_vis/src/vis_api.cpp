@@ -274,6 +274,45 @@ void silicon_vis_set_channel_scope_channel_names(SiliconVisHandle handle, const 
     pipeline->setChannelScopeChannelNames(newlineSeparatedNames);
 }
 
+void silicon_vis_set_channel_scope_identifier_names(SiliconVisHandle handle, const char* newlineSeparatedInstruments, const char* newlineSeparatedSamples) {
+    if (!handle) return;
+    auto* pipeline = static_cast<SiliconVisPipeline*>(handle);
+    pipeline->setChannelScopeIdentifierNames(newlineSeparatedInstruments, newlineSeparatedSamples);
+}
+
+void silicon_vis_set_channel_scope_text_fields(
+    SiliconVisHandle handle,
+    bool showChannel,
+    bool showNote,
+    bool showVolume,
+    bool showEffectPrimary,
+    bool showEffectSecondary,
+    bool showChip,
+    bool showInstrument,
+    bool showSample,
+    int32_t noteFormat
+) {
+    if (!handle) return;
+    auto* pipeline = static_cast<SiliconVisPipeline*>(handle);
+    pipeline->setChannelScopeTextFields(
+        showChannel,
+        showNote,
+        showVolume,
+        showEffectPrimary,
+        showEffectSecondary,
+        showChip,
+        showInstrument,
+        showSample,
+        noteFormat
+    );
+}
+
+void silicon_vis_set_channel_scope_text_enabled(SiliconVisHandle handle, bool enabled) {
+    if (!handle) return;
+    auto* pipeline = static_cast<SiliconVisPipeline*>(handle);
+    pipeline->setChannelScopeTextEnabled(enabled);
+}
+
 void silicon_vis_set_text_quads(SiliconVisHandle handle, const float* quads, int32_t vertexCount) {
     if (!handle) return;
     auto* pipeline = static_cast<SiliconVisPipeline*>(handle);

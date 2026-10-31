@@ -94,6 +94,25 @@ SILICON_VIS_API void silicon_vis_set_channel_scope_text_states(SiliconVisHandle 
 // Newline separated per-channel labels used for the row tag. Missing or empty
 // entries fall back to "Ch N".
 SILICON_VIS_API void silicon_vis_set_channel_scope_channel_names(SiliconVisHandle handle, const char* newlineSeparatedNames);
+
+// Positional, newline separated names for the instrument/sample slots. Index 0
+// is unused because tracker identifiers are 1-based.
+SILICON_VIS_API void silicon_vis_set_channel_scope_identifier_names(SiliconVisHandle handle, const char* newlineSeparatedInstruments, const char* newlineSeparatedSamples);
+
+// Which label slots a row shows; the auto-size search uses the same set.
+SILICON_VIS_API void silicon_vis_set_channel_scope_text_fields(
+    SiliconVisHandle handle,
+    bool showChannel,
+    bool showNote,
+    bool showVolume,
+    bool showEffectPrimary,
+    bool showEffectSecondary,
+    bool showChip,
+    bool showInstrument,
+    bool showSample,
+    int32_t noteFormat);
+SILICON_VIS_API void silicon_vis_set_channel_scope_text_enabled(SiliconVisHandle handle, bool enabled);
+
 SILICON_VIS_API void silicon_vis_set_text_quads(SiliconVisHandle handle, const float* quads, int32_t vertexCount);
 
 // Options & Parameters

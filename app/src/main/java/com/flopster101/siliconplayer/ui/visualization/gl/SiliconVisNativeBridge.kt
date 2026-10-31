@@ -104,6 +104,29 @@ object SiliconVisNativeBridge {
 
     external fun nativeSetChannelScopeChannelNames(handle: Long, names: String)
 
+    external fun nativeSetChannelScopeIdentifierNames(
+        handle: Long,
+        instrumentNames: String,
+        sampleNames: String
+    )
+
+    external fun nativeSetChannelScopeTextFields(
+        handle: Long,
+        showChannel: Boolean,
+        showNote: Boolean,
+        showVolume: Boolean,
+        showEffectPrimary: Boolean,
+        showEffectSecondary: Boolean,
+        showChip: Boolean,
+        showInstrument: Boolean,
+        showSample: Boolean,
+        noteFormat: Int
+    )
+
+    external fun nativeSetChannelScopeTextStates(handle: Long, flatStates: IntArray)
+
+    external fun nativeSetChannelScopeTextEnabled(handle: Long, enabled: Boolean)
+
     external fun nativeSetOscilloscopeOptions(
         handle: Long,
         stereo: Boolean,
@@ -179,11 +202,8 @@ object SiliconVisNativeBridge {
     external fun nativeSetTextQuads(handle: Long, buffer: java.nio.FloatBuffer?, vertexCount: Int)
 }
 
-/**
- * Native row tags are newline separated and positional, so gaps must stay as
- * empty entries rather than being compacted away.
- */
-internal fun channelScopeChannelNamesPayload(chipNamesByChannelIndex: Map<Int, String>): String {
+// Native label slots are positional, so index gaps stay as empty entries.
+internal fun channelScopeIndexedNamesPayload(chipNamesByChannelIndex: Map<Int, String>): String {
     if (chipNamesByChannelIndex.isEmpty()) return ""
     val lastIndex = chipNamesByChannelIndex.keys.max()
     if (lastIndex < 0) return ""
@@ -191,3 +211,8 @@ internal fun channelScopeChannelNamesPayload(chipNamesByChannelIndex: Map<Int, S
         chipNamesByChannelIndex[index].orEmpty().replace('\n', ' ').replace('\r', ' ')
     }
 }
+
+// Native note naming: 0 = American, 1 = International.
+internal fun noteNameFormatNativeValue(
+    format: com.flopster101.siliconplayer.VisualizationNoteNameFormat
+): Int = if (format == com.flopster101.siliconplayer.VisualizationNoteNameFormat.International) 1 else 0

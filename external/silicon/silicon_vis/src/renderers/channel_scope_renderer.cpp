@@ -3,7 +3,10 @@
 #include "vk/vk_dispatch.h"
 #include <cmath>
 #include <algorithm>
+#include <cstdio>
 #include <cstring>
+#include <string>
+#include <vector>
 
 namespace silicon::vis {
 
@@ -11,6 +14,71 @@ namespace {
 constexpr float kWaveCrtSoftnessPx = 0.75f;
 constexpr float kWaveCrtColumnOverlapPx = 0.5f;
 constexpr float kWaveFastSoftnessPx = 1.0f;
+
+// Text slots are sized from the 8sp reference size, matching the layout
+// metrics the settings previews quote.
+constexpr float kChannelSlotDp = 26.0f;
+constexpr float kNoteSlotDp = 24.0f;
+constexpr float kVolumeSlotDp = 30.0f;
+constexpr float kEffectSlotDp = 20.0f;
+constexpr float kChipEstimateDp = 60.0f;
+constexpr float kIdentifierEstimateDp = 28.0f;
+constexpr float kIdentifierBothEstimateDp = 48.0f;
+constexpr float kSeparatorEstimateDp = 8.0f;
+constexpr int32_t kAmigaLeftFlag = 1 << 1;
+constexpr int32_t kAmigaRightFlag = 1 << 2;
+
+const char* const kNoteNames[12] = {
+    "C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"
+};
+const char* const kInternationalNoteNames[12] = {
+    "Do", "Do#", "Re", "Re#", "Mi", "Fa", "Fa#", "Sol", "Sol#", "La", "La#", "Si"
+};
+
+std::string formatNoteName(int32_t note, int32_t format) {
+    if (note <= 0) return {};
+    const int32_t index = (note - 1) % 12;
+    const int32_t octave = (note - 1) / 12;
+    const char* name = format == 1 ? kInternationalNoteNames[index] : kNoteNames[index];
+    return std::string(name) + std::to_string(octave);
+}
+
+std::string formatVolume(int32_t volume) {
+    char buffer[8];
+    std::snprintf(buffer, sizeof(buffer), "V%03d", std::clamp(volume, 0, 999));
+    return buffer;
+}
+
+std::string formatEffect(int32_t letterAscii, int32_t param) {
+    if (letterAscii <= 0 || param < 0) return "---";
+    const int32_t clampedParam = std::clamp(param, 0, 255);
+    char buffer[8];
+    if (letterAscii >= 0x100) {
+        std::snprintf(buffer, sizeof(buffer), "%02X%02X", letterAscii & 0xFF, clampedParam);
+    } else {
+        std::snprintf(buffer, sizeof(buffer), "%c%02X", static_cast<char>(letterAscii), clampedParam);
+    }
+    return buffer;
+}
+
+std::string truncateToWidth(
+    const gl::GlFontAtlas& atlas,
+    const std::string& text,
+    float maxWidthPx,
+    float scale
+) {
+    if (maxWidthPx <= 0.0f) return {};
+    if (atlas.measureTextWidth(text, scale) <= maxWidthPx) return text;
+    const std::string ellipsis = "\xE2\x80\xA6";
+    const float ellipsisWidth = atlas.measureTextWidth(ellipsis, scale);
+    if (ellipsisWidth > maxWidthPx) return {};
+    const float availableForChars = maxWidthPx - ellipsisWidth;
+    for (size_t length = text.size(); length > 0; --length) {
+        const std::string candidate = text.substr(0, length - 1);
+        if (atlas.measureTextWidth(candidate, scale) <= availableForChars) return candidate + ellipsis;
+    }
+    return {};
+}
 }
 
 ChannelScopeRenderer::ChannelScopeRenderer() {
@@ -173,22 +241,6 @@ void ChannelScopeRenderer::setTextStates(const SiliconVisChannelTextState* state
         return;
     }
     textStates_.assign(states, states + count);
-}
-
-void ChannelScopeRenderer::setChannelNames(const char* newlineSeparatedNames) {
-    channelNames_.clear();
-    if (!newlineSeparatedNames) return;
-    const std::string joined(newlineSeparatedNames);
-    size_t start = 0;
-    while (true) {
-        const size_t end = joined.find('\n', start);
-        if (end == std::string::npos) {
-            channelNames_.push_back(joined.substr(start));
-            return;
-        }
-        channelNames_.push_back(joined.substr(start, end - start));
-        start = end + 1;
-    }
 }
 
 void ChannelScopeRenderer::setTextQuads(const float* quads, int32_t vertexCount) {
@@ -534,6 +586,141 @@ void ChannelScopeRenderer::drawVuBars() {
     }
 }
 
+
+std::vector<std::string> ChannelScopeRenderer::splitNewlineSeparated(const char* text) {
+    std::vector<std::string> parts;
+    if (!text) return parts;
+    const std::string joined(text);
+    size_t start = 0;
+    while (true) {
+        const size_t end = joined.find('\n', start);
+        if (end == std::string::npos) {
+            parts.push_back(joined.substr(start));
+            return parts;
+        }
+        parts.push_back(joined.substr(start, end - start));
+        start = end + 1;
+    }
+}
+
+void ChannelScopeRenderer::setChannelNames(const char* newlineSeparatedNames) {
+    channelNames_ = splitNewlineSeparated(newlineSeparatedNames);
+}
+
+void ChannelScopeRenderer::setIdentifierNames(
+    const char* newlineSeparatedInstruments,
+    const char* newlineSeparatedSamples
+) {
+    instrumentNames_ = splitNewlineSeparated(newlineSeparatedInstruments);
+    sampleNames_ = splitNewlineSeparated(newlineSeparatedSamples);
+}
+
+void ChannelScopeRenderer::setTextFields(
+    bool showChannel,
+    bool showNote,
+    bool showVolume,
+    bool showEffectPrimary,
+    bool showEffectSecondary,
+    bool showChip,
+    bool showInstrument,
+    bool showSample,
+    int32_t noteFormat
+) {
+    showChannel_ = showChannel;
+    showNote_ = showNote;
+    showVolume_ = showVolume;
+    showEffectPrimary_ = showEffectPrimary;
+    showEffectSecondary_ = showEffectSecondary;
+    showChip_ = showChip;
+    showInstrument_ = showInstrument;
+    showSample_ = showSample;
+    noteFormat_ = noteFormat;
+}
+
+int ChannelScopeRenderer::effectSlotCount() const {
+    return (showEffectPrimary_ ? 1 : 0) + (showEffectSecondary_ ? 1 : 0);
+}
+
+std::string ChannelScopeRenderer::lookupChannelName(int32_t channel, const SiliconVisChannelTextState* state) const {
+    const int32_t preferred = state ? state->channelIndex : channel;
+    if (preferred >= 0 && preferred < static_cast<int32_t>(channelNames_.size()) &&
+        !channelNames_[preferred].empty()) {
+        return channelNames_[preferred];
+    }
+    if (channel >= 0 && channel < static_cast<int32_t>(channelNames_.size())) {
+        return channelNames_[channel];
+    }
+    return {};
+}
+
+ChannelScopeRenderer::TextFields ChannelScopeRenderer::buildTextFields(
+    int32_t channel,
+    int32_t sideCounts[2]
+) const {
+    TextFields fields;
+    const SiliconVisChannelTextState* state =
+        channel < static_cast<int32_t>(textStates_.size()) ? &textStates_[channel] : nullptr;
+    const int32_t flags = state ? state->flags : 0;
+
+    if (showChannel_) {
+        fields.channel = lookupChannelName(channel, state);
+        if (fields.channel.empty()) {
+            const bool isLeft = (flags & kAmigaLeftFlag) != 0;
+            const bool isRight = (flags & kAmigaRightFlag) != 0;
+            if (isLeft && ++sideCounts[0] <= 2) {
+                fields.channel = "L" + std::to_string(sideCounts[0]);
+            } else if (isRight && ++sideCounts[1] <= 2) {
+                fields.channel = "R" + std::to_string(sideCounts[1]);
+            } else {
+                fields.channel = "Ch " + std::to_string(channel + 1);
+            }
+        }
+    }
+    if (showChip_) {
+        fields.chip = lookupChannelName(channel, state);
+        if (fields.chip == fields.channel) fields.chip.clear();
+    }
+    if (showNote_) {
+        fields.note = formatNoteName(state ? state->note : -1, noteFormat_);
+        if (fields.note.empty()) fields.note = "--";
+    }
+    if (showVolume_) {
+        fields.volume = formatVolume(state ? state->volume : 0);
+    }
+    if (showEffectPrimary_) {
+        fields.effectPrimary = formatEffect(
+            state ? state->effectPrimaryLetterAscii : 0,
+            state ? state->effectPrimaryParam : -1
+        );
+    }
+    if (showEffectSecondary_) {
+        fields.effectSecondary = formatEffect(
+            state ? state->effectSecondaryLetterAscii : 0,
+            state ? state->effectSecondaryParam : -1
+        );
+    }
+    if ((showInstrument_ || showSample_) && state) {
+        std::string identifier;
+        if (showInstrument_ && state->instrumentIndex > 0) {
+            identifier = "I#" + std::to_string(state->instrumentIndex);
+            const int32_t index = state->instrumentIndex;
+            if (index < static_cast<int32_t>(instrumentNames_.size()) && !instrumentNames_[index].empty()) {
+                identifier += " " + instrumentNames_[index];
+            }
+        }
+        if (showSample_ && state->sampleIndex > 0) {
+            if (!identifier.empty()) identifier += " / ";
+            identifier += "S#" + std::to_string(state->sampleIndex);
+            const int32_t index = state->sampleIndex;
+            if (index < static_cast<int32_t>(sampleNames_.size()) && !sampleNames_[index].empty()) {
+                identifier += " " + sampleNames_[index];
+            }
+        }
+        fields.identifier = identifier;
+    }
+    return fields;
+}
+
 void ChannelScopeRenderer::buildTextGeometry() {
     textBatcher_.clear();
 
@@ -566,13 +753,14 @@ void ChannelScopeRenderer::buildTextGeometry() {
     float scale = effectiveTextPx / fontAtlas_.getBaseFontSizePx();
     float lineHeight = fontAtlas_.getLineHeightPx() * scale;
     float slotScale = static_cast<float>(effectiveSp) / 8.0f;
-    float noteSlotW = 24.0f * slotScale * density_;
-    float volSlotW = 30.0f * slotScale * density_;
-    float effSlotW = 20.0f * slotScale * density_;
+    float noteSlotW = kNoteSlotDp * slotScale * density_;
+    float volSlotW = kVolumeSlotDp * slotScale * density_;
+    float effSlotW = kEffectSlotDp * slotScale * density_;
     float itemSpacing = 2.0f * density_;
 
     const float shadowOffset = std::clamp(scale * 2.8f, 0.75f, 3.0f);
     constexpr float shadowA = 0.50f;
+    int32_t sideCounts[2] = {0, 0};
 
     for (int col = 0; col < cols; ++col) {
         for (int row = 0; row < rows; ++row) {
@@ -593,76 +781,103 @@ void ChannelScopeRenderer::buildTextGeometry() {
 
             float cursorX = cellLeft + padX;
             bool hasPrev = false;
+            float prevTrail = 0.0f;
 
-            auto drawSeparator = [&]() {
+            // Center the dot in the visual gap left by centered slot text.
+            auto drawSeparator = [&](float nextLead) {
                 if (!hasPrev || cursorX >= maxRight) return;
-                float bulletW = fontAtlas_.measureTextWidth("•", scale);
+                float bulletW = fontAtlas_.measureTextWidth("\xE2\x80\xA2", scale);
                 if (cursorX + bulletW + itemSpacing > maxRight) return;
+                float bulletX = cursorX + (nextLead - prevTrail) * 0.5f;
+                float lower = cursorX - itemSpacing;
+                float upper = std::max(lower, cursorX + itemSpacing + nextLead);
+                bulletX = std::clamp(bulletX, lower, upper);
                 gl::Color4f c = gl::argbToColor4f(palette_.separatorArgb);
-                textBatcher_.addText(fontAtlas_, "•", cursorX, originY, scale, c.r, c.g, c.b, c.a, shadowEnabled_, 0, 0, 0, shadowA, shadowOffset, maxRight - cursorX);
+                textBatcher_.addText(fontAtlas_, "\xE2\x80\xA2", bulletX, originY, scale, c.r, c.g, c.b, c.a, shadowEnabled_, 0, 0, 0, shadowA, shadowOffset, maxRight - bulletX);
                 cursorX += bulletW + itemSpacing;
             };
 
+            const TextFields fields = buildTextFields(ch, sideCounts);
+
             // 1. Channel label
-            const std::string chStr =
-                (ch < static_cast<int>(channelNames_.size()) && !channelNames_[ch].empty())
-                    ? channelNames_[ch]
-                    : "Ch " + std::to_string(ch + 1);
-            if (cursorX < maxRight) {
-                gl::Color4f c = gl::argbToColor4f(palette_.channelArgb);
-                float dw = textBatcher_.addText(fontAtlas_, chStr, cursorX, originY, scale, c.r, c.g, c.b, c.a, shadowEnabled_, 0, 0, 0, shadowA, shadowOffset, maxRight - cursorX);
-                cursorX += dw + itemSpacing;
-                hasPrev = true;
+            if (!fields.channel.empty() && cursorX < maxRight) {
+                const std::string text = truncateToWidth(fontAtlas_, fields.channel, maxRight - cursorX, scale);
+                if (!text.empty()) {
+                    gl::Color4f c = gl::argbToColor4f(palette_.channelArgb);
+                    float dw = textBatcher_.addText(fontAtlas_, text, cursorX, originY, scale, c.r, c.g, c.b, c.a, shadowEnabled_, 0, 0, 0, shadowA, shadowOffset, maxRight - cursorX);
+                    cursorX += dw + itemSpacing;
+                    hasPrev = true;
+                    prevTrail = 0.0f;
+                }
             }
 
-            // 2. Note (centered in noteSlotW)
-            if (ch < static_cast<int>(textStates_.size())) {
-                const auto& st = textStates_[ch];
-                static const char* const kNotes[] = {
-                    "C-", "C#", "D-", "D#", "E-", "F-", "F#", "G-", "G#", "A-", "A#", "B-"
-                };
-                std::string noteStr;
-                if (st.note >= 0 && st.note < 120) {
-                    int noteIdx = st.note % 12;
-                    int oct = st.note / 12;
-                    noteStr = std::string(kNotes[noteIdx]) + std::to_string(oct);
-                } else if (st.note < 0) {
-                    noteStr = "--";
-                } else {
-                    noteStr = "???";
-                }
-                drawSeparator();
+            // 2. Note (centered in its slot)
+            if (!fields.note.empty()) {
+                float lead = (noteSlotW - fontAtlas_.measureTextWidth(fields.note, scale)) * 0.5f;
+                drawSeparator(lead);
                 if (cursorX + noteSlotW <= maxRight) {
                     gl::Color4f c = gl::argbToColor4f(palette_.noteArgb);
-                    float tw = fontAtlas_.measureTextWidth(noteStr, scale);
-                    float tx = cursorX + (noteSlotW - tw) * 0.5f;
-                    textBatcher_.addText(fontAtlas_, noteStr, tx, originY, scale, c.r, c.g, c.b, c.a, shadowEnabled_, 0, 0, 0, shadowA, shadowOffset, maxRight - tx);
+                    textBatcher_.addText(fontAtlas_, fields.note, cursorX + lead, originY, scale, c.r, c.g, c.b, c.a, shadowEnabled_, 0, 0, 0, shadowA, shadowOffset, maxRight - cursorX);
                     cursorX += noteSlotW + itemSpacing;
                     hasPrev = true;
+                    prevTrail = lead;
                 }
+            }
 
-                // 3. Volume
-                if (st.volume >= 0 && cursorX + volSlotW <= maxRight) {
-                    std::string volStr = "v" + std::to_string(st.volume);
+            // 3. Volume
+            if (!fields.volume.empty()) {
+                float lead = (volSlotW - fontAtlas_.measureTextWidth(fields.volume, scale)) * 0.5f;
+                drawSeparator(lead);
+                if (cursorX + volSlotW <= maxRight) {
                     gl::Color4f c = gl::argbToColor4f(palette_.volumeArgb);
-                    float tw = fontAtlas_.measureTextWidth(volStr, scale);
-                    float tx = cursorX + (volSlotW - tw) * 0.5f;
-                    textBatcher_.addText(fontAtlas_, volStr, tx, originY, scale, c.r, c.g, c.b, c.a, shadowEnabled_, 0, 0, 0, shadowA, shadowOffset, maxRight - tx);
+                    textBatcher_.addText(fontAtlas_, fields.volume, cursorX + lead, originY, scale, c.r, c.g, c.b, c.a, shadowEnabled_, 0, 0, 0, shadowA, shadowOffset, maxRight - cursorX);
                     cursorX += volSlotW + itemSpacing;
                     hasPrev = true;
+                    prevTrail = lead;
                 }
+            }
 
-                // 4. Primary Effect
-                if (st.effectPrimaryLetterAscii != 0 && cursorX + effSlotW <= maxRight) {
-                    char effBuf[16];
-                    snprintf(effBuf, sizeof(effBuf), "%c%02X", st.effectPrimaryLetterAscii, st.effectPrimaryParam & 0xFF);
-                    std::string effStr(effBuf);
+            // 4. Effects
+            const std::string* effects[2] = {nullptr, nullptr};
+            int effectCount = 0;
+            if (showEffectPrimary_) effects[effectCount++] = &fields.effectPrimary;
+            if (showEffectSecondary_) effects[effectCount++] = &fields.effectSecondary;
+            for (int i = 0; i < effectCount; ++i) {
+                float lead = (effSlotW - fontAtlas_.measureTextWidth(*effects[i], scale)) * 0.5f;
+                drawSeparator(lead);
+                if (cursorX + effSlotW <= maxRight) {
                     gl::Color4f c = gl::argbToColor4f(palette_.effectArgb);
-                    float tw = fontAtlas_.measureTextWidth(effStr, scale);
-                    float tx = cursorX + (effSlotW - tw) * 0.5f;
-                    textBatcher_.addText(fontAtlas_, effStr, tx, originY, scale, c.r, c.g, c.b, c.a, shadowEnabled_, 0, 0, 0, shadowA, shadowOffset, maxRight - tx);
+                    textBatcher_.addText(fontAtlas_, *effects[i], cursorX + lead, originY, scale, c.r, c.g, c.b, c.a, shadowEnabled_, 0, 0, 0, shadowA, shadowOffset, maxRight - cursorX);
                     cursorX += effSlotW + itemSpacing;
                     hasPrev = true;
+                    prevTrail = lead;
+                }
+            }
+
+            // 5. Chip
+            if (!fields.chip.empty()) {
+                drawSeparator(0.0f);
+                if (maxRight - cursorX > effectiveTextPx / 4.0f) {
+                    const std::string text = truncateToWidth(fontAtlas_, fields.chip, maxRight - cursorX, scale);
+                    if (!text.empty()) {
+                        gl::Color4f c = gl::argbToColor4f(palette_.channelArgb);
+                        float dw = textBatcher_.addText(fontAtlas_, text, cursorX, originY, scale, c.r, c.g, c.b, c.a, shadowEnabled_, 0, 0, 0, shadowA, shadowOffset, maxRight - cursorX);
+                        cursorX += dw + itemSpacing;
+                        hasPrev = true;
+                        prevTrail = 0.0f;
+                    }
+                }
+            }
+
+            // 6. Instrument / sample
+            if (!fields.identifier.empty()) {
+                drawSeparator(0.0f);
+                if (maxRight - cursorX > effectiveTextPx / 4.0f) {
+                    const std::string text = truncateToWidth(fontAtlas_, fields.identifier, maxRight - cursorX, scale);
+                    if (!text.empty()) {
+                        gl::Color4f c = gl::argbToColor4f(palette_.instrumentOrSampleArgb);
+                        textBatcher_.addText(fontAtlas_, text, cursorX, originY, scale, c.r, c.g, c.b, c.a, shadowEnabled_, 0, 0, 0, shadowA, shadowOffset, maxRight - cursorX);
+                    }
                 }
             }
         }
@@ -670,6 +885,7 @@ void ChannelScopeRenderer::buildTextGeometry() {
 }
 
 void ChannelScopeRenderer::drawText() {
+    if (!textEnabled_ && externalTextVertexCount_ <= 0) return;
     if (externalTextVertexCount_ > 0 && !externalTextQuads_.empty()) {
         textProgram_.draw(
             externalTextQuads_.data(),
@@ -702,8 +918,39 @@ int ChannelScopeRenderer::computeAutoTextSizeSp(int selectedSp, int minimumSp, f
 }
 
 float ChannelScopeRenderer::estimateTextWidthDp(int sp, float paddingDp) const {
-    float scale = static_cast<float>(sp) / 8.0f;
-    float width = (26.0f + 24.0f + 30.0f) * scale + (2 * 8.0f * scale) + (2 * 3.0f) + (paddingDp * 2.0f) + 4.0f;
+    const float scale = static_cast<float>(sp) / 8.0f;
+    int fieldCount = 0;
+    float width = 0.0f;
+    if (showChannel_) {
+        width += kChannelSlotDp * scale;
+        fieldCount++;
+    }
+    if (showNote_) {
+        width += kNoteSlotDp * scale;
+        fieldCount++;
+    }
+    if (showVolume_) {
+        width += kVolumeSlotDp * scale;
+        fieldCount++;
+    }
+    const int effects = effectSlotCount();
+    for (int i = 0; i < effects; ++i) {
+        width += kEffectSlotDp * scale;
+        fieldCount++;
+    }
+    if (showChip_) {
+        width += kChipEstimateDp * scale;
+        fieldCount++;
+    }
+    if (showInstrument_ || showSample_) {
+        width += (showInstrument_ && showSample_) ? kIdentifierBothEstimateDp * scale : kIdentifierEstimateDp * scale;
+        fieldCount++;
+    }
+    const int separators = std::max(0, fieldCount - 1);
+    width += static_cast<float>(separators) * (kSeparatorEstimateDp * scale);
+    width += static_cast<float>(separators) * 3.0f;
+    width += paddingDp * 2.0f;
+    width += 4.0f;
     return width;
 }
 
@@ -747,6 +994,8 @@ void ChannelScopeRenderer::render() {
             );
         }
     }
+    // 4. Labels
+    drawText();
 }
 
 void ChannelScopeRenderer::renderVk(

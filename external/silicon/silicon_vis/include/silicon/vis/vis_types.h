@@ -72,9 +72,9 @@ typedef struct SiliconVisChannelTextState {
     int32_t channelIndex;
     int32_t note;
     int32_t volume;
-    uint8_t effectPrimaryLetterAscii;
+    int32_t effectPrimaryLetterAscii;
     int16_t effectPrimaryParam;
-    uint8_t effectSecondaryLetterAscii;
+    int32_t effectSecondaryLetterAscii;
     int16_t effectSecondaryParam;
     int32_t instrumentIndex;
     int32_t sampleIndex;

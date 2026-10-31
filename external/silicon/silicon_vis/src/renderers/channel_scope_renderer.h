@@ -75,6 +75,22 @@ public:
     );
     void setTextStates(const SiliconVisChannelTextState* states, int32_t count);
     void setChannelNames(const char* newlineSeparatedNames);
+    void setIdentifierNames(
+        const char* newlineSeparatedInstruments,
+        const char* newlineSeparatedSamples
+    );
+    void setTextFields(
+        bool showChannel,
+        bool showNote,
+        bool showVolume,
+        bool showEffectPrimary,
+        bool showEffectSecondary,
+        bool showChip,
+        bool showInstrument,
+        bool showSample,
+        int32_t noteFormat
+    );
+    void setTextEnabled(bool enabled) { textEnabled_ = enabled; }
     void setTextQuads(const float* quads, int32_t vertexCount);
 
     gl::GlFontAtlas& getFontAtlas() { return fontAtlas_; }
@@ -86,10 +102,24 @@ private:
     void drawVuBars();
     void drawText();
 
+    struct TextFields {
+        std::string channel;
+        std::string note;
+        std::string volume;
+        std::string effectPrimary;
+        std::string effectSecondary;
+        std::string chip;
+        std::string identifier;
+    };
+
+    static std::vector<std::string> splitNewlineSeparated(const char* text);
+    std::string lookupChannelName(int32_t channel, const SiliconVisChannelTextState* state) const;
+    TextFields buildTextFields(int32_t channel, int32_t sideCounts[2]) const;
+    int effectSlotCount() const;
+
     float updateVuLevel(int channel, const std::vector<float>& history, float deltaSeconds);
     int computeAutoTextSizeSp(int selectedSp, int minimumSp, float cellWidthDp, float paddingDp) const;
     float estimateTextWidthDp(int sp, float paddingDp) const;
-    std::string truncateWithEllipsis(const std::string& text, float maxWidthPx, float scale) const;
 
     int32_t widthPx_ = 0;
     int32_t heightPx_ = 0;
@@ -124,6 +154,18 @@ private:
     std::vector<std::vector<float>> channelHistories_;
     std::vector<SiliconVisChannelTextState> textStates_;
     std::vector<std::string> channelNames_;
+    std::vector<std::string> instrumentNames_;
+    std::vector<std::string> sampleNames_;
+    bool textEnabled_ = false;
+    bool showChannel_ = true;
+    bool showNote_ = true;
+    bool showVolume_ = true;
+    bool showEffectPrimary_ = true;
+    bool showEffectSecondary_ = false;
+    bool showChip_ = false;
+    bool showInstrument_ = false;
+    bool showSample_ = false;
+    int32_t noteFormat_ = 0;
 
     gl::GlFlatColorRenderer flatRenderer_;
     gl::GlWaveLineRenderer waveRenderer_;
