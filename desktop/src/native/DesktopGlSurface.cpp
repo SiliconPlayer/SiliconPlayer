@@ -10,7 +10,6 @@
 #include <algorithm>
 #include "silicon/vis/vis_api.h"
 #include "gl/gl_program.h"
-#include "ScopeTextOverlay.h"
 
 #ifndef GL_FRAMEBUFFER
 #define GL_FRAMEBUFFER 0x8D40
@@ -83,7 +82,6 @@ struct DesktopGlContext {
     int pendingPixelPackBuffers[3] = {0, 0, 0};
     int pendingPixelPackHead = 0;
     int pendingPixelPackCount = 0;
-    ScopeTextOverlay textOverlay;
 
     GLuint snapshotTex = 0;
     int snapshotWidth = 0;
@@ -365,8 +363,6 @@ Java_com_flopster101_siliconplayer_ui_visualization_gl_DesktopGlSurface_nativeRe
 
     silicon_vis_render(reinterpret_cast<SiliconVisHandle>(visHandle));
 
-    ctx->textOverlay.draw(width, height);
-
     if (transitionAlpha > 0.001f) {
         ctx->drawTransition(static_cast<float>(width), static_cast<float>(height), transitionOffsetX, transitionAlpha);
     }
@@ -419,54 +415,6 @@ Java_com_flopster101_siliconplayer_ui_visualization_gl_DesktopGlSurface_nativeRe
 }
 
 JNIEXPORT jboolean JNICALL
-Java_com_flopster101_siliconplayer_ui_visualization_gl_DesktopGlSurface_nativeUploadScopeAtlas(
-    JNIEnv* env,
-    jobject /* thiz */,
-    jlong hostHandle,
-    jobject pixelBuffer,
-    jint width,
-    jint height,
-    jfloat baseFontSizePx,
-    jfloat lineHeightPx,
-    jobject glyphBuffer,
-    jint glyphCount
-) {
-    if (!hostHandle || !pixelBuffer || !glyphBuffer || width <= 0 || height <= 0 || glyphCount <= 0) {
-        return JNI_FALSE;
-    }
-    auto* ctx = reinterpret_cast<DesktopGlContext*>(hostHandle);
-    if (!glXMakeCurrent(ctx->glDisplay, ctx->dummyWindow, ctx->glContext)) {
-        return JNI_FALSE;
-    }
-    const uint8_t* pixels = static_cast<const uint8_t*>(env->GetDirectBufferAddress(pixelBuffer));
-    const void* glyphs = env->GetDirectBufferAddress(glyphBuffer);
-    if (!pixels || !glyphs) return JNI_FALSE;
-    return ctx->textOverlay.uploadAtlas(pixels, width, height, baseFontSizePx, lineHeightPx, glyphs, glyphCount)
-        ? JNI_TRUE
-        : JNI_FALSE;
-}
-
-JNIEXPORT void JNICALL
-Java_com_flopster101_siliconplayer_ui_visualization_gl_DesktopGlSurface_nativeSetScopeTextQuads(
-    JNIEnv* env,
-    jobject /* thiz */,
-    jlong hostHandle,
-    jfloatArray quadArray,
-    jint floatCount
-) {
-    if (!hostHandle) return;
-    auto* ctx = reinterpret_cast<DesktopGlContext*>(hostHandle);
-    if (!quadArray || floatCount <= 0) {
-        ctx->textOverlay.setQuads(nullptr, 0);
-        return;
-    }
-    jfloat* quads = env->GetFloatArrayElements(quadArray, nullptr);
-    if (!quads) return;
-    ctx->textOverlay.setQuads(quads, floatCount);
-    env->ReleaseFloatArrayElements(quadArray, quads, JNI_ABORT);
-}
-
-JNIEXPORT jboolean JNICALL
 Java_com_flopster101_siliconplayer_ui_visualization_gl_DesktopGlSurface_nativeTakeTransitionSnapshot(
     JNIEnv* /* env */,
     jobject /* thiz */,
@@ -508,7 +456,6 @@ Java_com_flopster101_siliconplayer_ui_visualization_gl_DesktopGlSurface_nativeDe
 
     ctx->releaseSnapshot();
     ctx->transitionProgram.release();
-    ctx->textOverlay.release();
 
     if (visHandle != 0) {
         silicon_vis_release_gl(reinterpret_cast<SiliconVisHandle>(visHandle));
