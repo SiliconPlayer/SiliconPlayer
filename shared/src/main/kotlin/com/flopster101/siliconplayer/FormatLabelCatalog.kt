@@ -59,8 +59,56 @@ private val FORMAT_LABELS: Map<String, FormatLabel> = mapOf(
     "GSF" to FormatLabel("GSF", "Game Boy Advance Sound Format"),
     "MINIGSF" to FormatLabel("MiniGSF", "Game Boy Advance Sound Format"),
     "USF" to FormatLabel("USF", "Nintendo 64 Sound Format"),
-    "MINIUSF" to FormatLabel("MiniUSF", "Nintendo 64 Sound Format")
+    "MINIUSF" to FormatLabel("MiniUSF", "Nintendo 64 Sound Format"),
+    // FFmpeg names a bare file by its demuxer and one inside a container by
+    // its codec, so the same format shows up under either spelling.
+    "MP2/3 (MPEG audio layer 2/3)" to FormatLabel("MPEG Audio", "MPEG Audio Layer 2/3"),
+    "MP1 (MPEG audio layer 1)" to FormatLabel("MP1", "MPEG Audio Layer 1"),
+    "MP2 (MPEG audio layer 2)" to FormatLabel("MP2", "MPEG Audio Layer 2"),
+    "MP3 (MPEG audio layer 3)" to FormatLabel("MP3", "MPEG Audio Layer 3"),
+    "raw ADTS AAC (Advanced Audio Coding)" to FormatLabel("AAC", "Advanced Audio Coding"),
+    "AAC (Advanced Audio Coding)" to FormatLabel("AAC", "Advanced Audio Coding"),
+    "raw FLAC" to FormatLabel("FLAC", "Free Lossless Audio Codec"),
+    "FLAC (Free Lossless Audio Codec)" to FormatLabel("FLAC", "Free Lossless Audio Codec"),
+    "ALAC (Apple Lossless Audio Codec)" to FormatLabel("ALAC", "Apple Lossless Audio Codec"),
+    "raw AC-3" to FormatLabel("AC-3", "Dolby Digital (AC-3)"),
+    "ATSC A/52A (AC-3)" to FormatLabel("AC-3", "Dolby Digital (AC-3)"),
+    "raw E-AC-3" to FormatLabel("E-AC-3", "Dolby Digital Plus (E-AC-3)"),
+    "ATSC A/52B (AC-3, E-AC-3)" to FormatLabel("E-AC-3", "Dolby Digital Plus (E-AC-3)"),
+    "raw AC-4" to FormatLabel("AC-4", "Dolby AC-4"),
+    "raw TrueHD" to FormatLabel("TrueHD", "Dolby TrueHD"),
+    "TrueHD" to FormatLabel("TrueHD", "Dolby TrueHD"),
+    "raw MLP" to FormatLabel("MLP", "Meridian Lossless Packing"),
+    "raw DTS" to FormatLabel("DTS", "DTS Coherent Acoustics"),
+    "raw DTS-HD" to FormatLabel("DTS-HD", "DTS-HD"),
+    "DCA (DTS Coherent Acoustics)" to FormatLabel("DTS", "DTS Coherent Acoustics"),
+    "raw SBC (low-complexity subband codec)" to FormatLabel("SBC", "Low Complexity Subband Codec"),
+    "raw TAK" to FormatLabel("TAK", "Tom's Lossless Audio Kompressor"),
+    "TAK (Tom's lossless Audio Kompressor)" to FormatLabel("TAK", "Tom's Lossless Audio Kompressor"),
+    "raw Shorten" to FormatLabel("SHN", "Shorten"),
+    "Shorten" to FormatLabel("SHN", "Shorten"),
+    "TTA (True Audio)" to FormatLabel("TTA", "True Audio"),
+    "QOA (Quite OK Audio)" to FormatLabel("QOA", "Quite OK Audio"),
+    "Cook / Cooker / Gecko (RealAudio G2)" to FormatLabel("Cook", "RealAudio G2"),
+    "WAV / WAVE (Waveform Audio)" to FormatLabel("WAV", "Waveform Audio"),
+    "Audio IFF" to FormatLabel("AIFF", "Audio Interchange File Format"),
+    "Apple CAF (Core Audio Format)" to FormatLabel("CAF", "Core Audio Format"),
+    "Sony Wave64" to FormatLabel("W64", "Sony Wave64"),
+    "3GPP AMR" to FormatLabel("AMR", "Adaptive Multi-Rate"),
+    "DSD Stream File (DSF)" to FormatLabel("DSF", "DSD Stream File"),
+    "Apple HTTP Live Streaming" to FormatLabel("HLS", "HTTP Live Streaming"),
+    "raw MPEG video" to FormatLabel("MPEG", "MPEG Video"),
+    "Sun AU" to FormatLabel("AU", "Sun Audio"),
+    "Asterisk raw pcm" to FormatLabel("SLN", "Asterisk RAW PCM"),
+    "Raw Immersive Audio Model and Formats" to FormatLabel("IAMF", "Immersive Audio Model and Formats"),
+    "Audible AA format files" to FormatLabel("AA", "Audible Audiobook"),
+    "codec2 .c2 demuxer" to FormatLabel("C2", "Codec2"),
+    "NIST SPeech HEader REsources" to FormatLabel("NIST", "NIST Speech Header Resources")
 )
+
+// A core's own casing carries no meaning, so ids are matched without it.
+private val FORMAT_LABELS_BY_ID: Map<String, FormatLabel> =
+    FORMAT_LABELS.mapKeys { (id, _) -> id.uppercase() }
 
 // The System Dolby core still decodes metadata through FFmpeg, so the
 // stream-level format name is the one that reaches the player.
@@ -76,5 +124,5 @@ internal fun readCurrentFormatLabel(extensionLabel: String): FormatLabel? {
 internal fun resolveFormatLabel(formatId: String): FormatLabel? {
     val id = formatId.trim()
     if (id.isEmpty()) return null
-    return FORMAT_LABELS[id.uppercase()] ?: FormatLabel(short = id, full = id)
+    return FORMAT_LABELS_BY_ID[id.uppercase()] ?: FormatLabel(short = id, full = id)
 }
