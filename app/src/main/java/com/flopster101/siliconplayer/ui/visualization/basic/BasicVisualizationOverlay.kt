@@ -52,10 +52,7 @@ import com.flopster101.siliconplayer.VisualizationOscColorMode
 import com.flopster101.siliconplayer.VisualizationRenderBackend
 import com.flopster101.siliconplayer.VisualizationVuAnchor
 import com.flopster101.siliconplayer.ui.visualization.channel.ChannelScopeChannelTextState
-import com.flopster101.siliconplayer.ui.visualization.advanced.ChannelScopeVisualization
 import com.flopster101.siliconplayer.ui.visualization.gl.BarsGlTextureVisualization
-import com.flopster101.siliconplayer.ui.visualization.gl.ChannelScopeGlVisualization
-import com.flopster101.siliconplayer.ui.visualization.gl.ChannelScopeGlTextureVisualization
 import com.flopster101.siliconplayer.ui.visualization.gl.OscilloscopeGlTextureVisualization
 import com.flopster101.siliconplayer.ui.visualization.gl.VuMetersGlTextureVisualization
 import kotlin.math.max
@@ -480,99 +477,99 @@ fun BasicVisualizationOverlay(
             }
 
             VisualizationMode.ChannelScope -> {
-                if (channelScopeRenderBackend == VisualizationRenderBackend.Compose) {
-                    null
-                } else {
-                    val channelScopeContrastMode = if (channelScopeContrastBackdropEnabled) 6 else 0
-                    val paddingPx = with(LocalDensity.current) { channelScopeTextPaddingDp.dp.toPx() }
+                val channelScopeContrastMode = if (channelScopeContrastBackdropEnabled) 6 else 0
+                val paddingPx = with(LocalDensity.current) { channelScopeTextPaddingDp.dp.toPx() }
 
-                    val layoutInt = when (channelScopeLayout) {
-                        VisualizationChannelScopeLayout.BalancedTwoColumn -> 2
-                        VisualizationChannelScopeLayout.ColumnFirst -> 0
-                    }
-                    val anchorInt = when (channelScopeTextAnchor) {
-                        VisualizationChannelScopeTextAnchor.TopLeft -> 0
-                        VisualizationChannelScopeTextAnchor.TopCenter -> 1
-                        VisualizationChannelScopeTextAnchor.TopRight -> 2
-                        VisualizationChannelScopeTextAnchor.BottomLeft -> 3
-                        VisualizationChannelScopeTextAnchor.BottomCenter -> 4
-                        VisualizationChannelScopeTextAnchor.BottomRight -> 5
-                    }
-                    val vuAnchorInt = if (channelScopeTextVuAnchor == VisualizationVuAnchor.Top) 0 else 1
-                    val chCount = channelScopeHistories.size
-                    val samplesPerCh = if (chCount > 0) channelScopeHistories[0].size else 0
-                    val flatBuffer = if (chCount > 0 && samplesPerCh > 0) {
-                        FloatArray(chCount * samplesPerCh).also { flat ->
-                            for (ch in 0 until chCount) {
-                                val src = channelScopeHistories[ch]
-                                System.arraycopy(src, 0, flat, ch * samplesPerCh, samplesPerCh.coerceAtMost(src.size))
-                            }
-                        }
-                    } else null
-
-                    val nativeFrame = baseNativeFrame.copy(
-                        mode = 4,
-                        surfaceColorArgb = channelScopeBackgroundColorArgb,
-                        channelHistories = channelScopeHistories,
-                        channelScopeFlatData = flatBuffer,
-                        channelScopeSamplesPerChannel = samplesPerCh,
-                        channelTextStates = channelScopeTextStates,
-                        instrumentNamesByIndex = channelScopeInstrumentNamesByIndex,
-                        sampleNamesByIndex = channelScopeSampleNamesByIndex,
-                        chipNamesByChannelIndex = channelScopeChipNamesByChannelIndex,
-                        channelLayout = layoutInt,
-                        textAnchor = anchorInt,
-                        vuAnchor = vuAnchorInt,
-                        channelLayoutStrategy = channelScopeLayout,
-                        channelTextAnchor = channelScopeTextAnchor,
-                        channelVuAnchor = channelScopeTextVuAnchor,
-                        channelScopeTextEnabled = channelScopeTextEnabled,
-                        showChannel = channelScopeTextShowChannel,
-                        showNote = channelScopeTextShowNote,
-                        showVolume = channelScopeTextShowVolume,
-                        showEffectPrimary = channelScopeTextShowEffectPrimary,
-                        showEffectSecondary = channelScopeTextShowEffectSecondary,
-                        showChip = channelScopeTextShowChip,
-                        showInstrument = channelScopeTextShowInstrument,
-                        showSample = channelScopeTextShowSample,
-                        vuEnabled = channelScopeTextVuEnabled,
-                        textSizeSp = channelScopeTextSizeSp,
-                        textFont = channelScopeTextFont,
-                        noteFormat = channelScopeTextNoteFormat,
-                        paddingPx = paddingPx,
-                        gridColorArgb = channelScopeGridColor.toArgb(),
-                        gridWidthPx = (channelScopeGridWidthDp * density).coerceAtLeast(1f),
-                        lineColorArgb = channelScopeLineColor.toArgb(),
-                        lineWidthPx = (channelScopeLineWidthDp * density).coerceAtLeast(1f),
-                        vuColorArgb = channelScopeVuColor.toArgb(),
-                        textPalette = com.flopster101.siliconplayer.ui.visualization.channel.GlChannelScopeTextPalette(
-                            channelArgb = channelScopeTextPalette.channel.toArgb(),
-                            noteArgb = channelScopeTextPalette.note.toArgb(),
-                            volumeArgb = channelScopeTextPalette.volume.toArgb(),
-                            effectArgb = channelScopeTextPalette.effect.toArgb(),
-                            instrumentOrSampleArgb = channelScopeTextPalette.instrumentOrSample.toArgb(),
-                            separatorArgb = channelScopeTextPalette.separator.toArgb()
-                        ),
-                        shadowEnabled = channelScopeTextShadowEnabled,
-                        hideWhenOverflow = channelScopeTextHideWhenOverflow,
-                        contrastMode = channelScopeContrastMode,
-                        showArtworkBackground = showArtworkBackground,
-                        channelScopeWindowMs = channelScopeWindowMs,
-                        channelScopeGainPercent = channelScopeGainPercent,
-                        channelScopeDcRemovalEnabled = channelScopeDcRemovalEnabled,
-                        channelScopeWaveformClippingEnabled = channelScopeWaveformClippingEnabled,
-                        channelScopeTriggerMode = channelScopeTriggerModeNative,
-                        channelScopeTriggerAlgorithm = channelScopeTriggerAlgorithmNative,
-                        channelScopeWaveRenderMode = channelScopeWaveRenderModeNative,
-                        channelScopeAntialiasMethod = channelScopeAntialiasMethodNative,
-                        channelScopeTrackTransition = channelScopeTrackTransition
-                    )
-                    NativeVisSpec(
-                        backend = channelScopeRenderBackend,
-                        frame = nativeFrame,
-                        cornerRadiusDp = channelScopeCornerRadiusDp
-                    )
+                val layoutInt = when (channelScopeLayout) {
+                    VisualizationChannelScopeLayout.BalancedTwoColumn -> 2
+                    VisualizationChannelScopeLayout.ColumnFirst -> 0
                 }
+                val anchorInt = when (channelScopeTextAnchor) {
+                    VisualizationChannelScopeTextAnchor.TopLeft -> 0
+                    VisualizationChannelScopeTextAnchor.TopCenter -> 1
+                    VisualizationChannelScopeTextAnchor.TopRight -> 2
+                    VisualizationChannelScopeTextAnchor.BottomLeft -> 3
+                    VisualizationChannelScopeTextAnchor.BottomCenter -> 4
+                    VisualizationChannelScopeTextAnchor.BottomRight -> 5
+                }
+                val vuAnchorInt = if (channelScopeTextVuAnchor == VisualizationVuAnchor.Top) 0 else 1
+                val chCount = channelScopeHistories.size
+                val samplesPerCh = if (chCount > 0) channelScopeHistories[0].size else 0
+                val flatBuffer = if (chCount > 0 && samplesPerCh > 0) {
+                    FloatArray(chCount * samplesPerCh).also { flat ->
+                        for (ch in 0 until chCount) {
+                            val src = channelScopeHistories[ch]
+                            System.arraycopy(src, 0, flat, ch * samplesPerCh, samplesPerCh.coerceAtMost(src.size))
+                        }
+                    }
+                } else null
+
+                val nativeFrame = baseNativeFrame.copy(
+                    mode = 4,
+                    surfaceColorArgb = channelScopeBackgroundColorArgb,
+                    channelHistories = channelScopeHistories,
+                    channelScopeFlatData = flatBuffer,
+                    channelScopeSamplesPerChannel = samplesPerCh,
+                    channelTextStates = channelScopeTextStates,
+                    instrumentNamesByIndex = channelScopeInstrumentNamesByIndex,
+                    sampleNamesByIndex = channelScopeSampleNamesByIndex,
+                    chipNamesByChannelIndex = channelScopeChipNamesByChannelIndex,
+                    channelLayout = layoutInt,
+                    textAnchor = anchorInt,
+                    vuAnchor = vuAnchorInt,
+                    channelLayoutStrategy = channelScopeLayout,
+                    channelTextAnchor = channelScopeTextAnchor,
+                    channelVuAnchor = channelScopeTextVuAnchor,
+                    channelScopeTextEnabled = channelScopeTextEnabled,
+                    showChannel = channelScopeTextShowChannel,
+                    showNote = channelScopeTextShowNote,
+                    showVolume = channelScopeTextShowVolume,
+                    showEffectPrimary = channelScopeTextShowEffectPrimary,
+                    showEffectSecondary = channelScopeTextShowEffectSecondary,
+                    showChip = channelScopeTextShowChip,
+                    showInstrument = channelScopeTextShowInstrument,
+                    showSample = channelScopeTextShowSample,
+                    vuEnabled = channelScopeTextVuEnabled,
+                    textSizeSp = channelScopeTextSizeSp,
+                    textFont = channelScopeTextFont,
+                    noteFormat = channelScopeTextNoteFormat,
+                    paddingPx = paddingPx,
+                    gridColorArgb = channelScopeGridColor.toArgb(),
+                    gridWidthPx = (channelScopeGridWidthDp * density).coerceAtLeast(1f),
+                    lineColorArgb = channelScopeLineColor.toArgb(),
+                    lineWidthPx = (channelScopeLineWidthDp * density).coerceAtLeast(1f),
+                    vuColorArgb = channelScopeVuColor.toArgb(),
+                    textPalette = com.flopster101.siliconplayer.ui.visualization.channel.GlChannelScopeTextPalette(
+                        channelArgb = channelScopeTextPalette.channel.toArgb(),
+                        noteArgb = channelScopeTextPalette.note.toArgb(),
+                        volumeArgb = channelScopeTextPalette.volume.toArgb(),
+                        effectArgb = channelScopeTextPalette.effect.toArgb(),
+                        instrumentOrSampleArgb = channelScopeTextPalette.instrumentOrSample.toArgb(),
+                        separatorArgb = channelScopeTextPalette.separator.toArgb()
+                    ),
+                    shadowEnabled = channelScopeTextShadowEnabled,
+                    hideWhenOverflow = channelScopeTextHideWhenOverflow,
+                    contrastMode = channelScopeContrastMode,
+                    showArtworkBackground = showArtworkBackground,
+                    channelScopeWindowMs = channelScopeWindowMs,
+                    channelScopeGainPercent = channelScopeGainPercent,
+                    channelScopeDcRemovalEnabled = channelScopeDcRemovalEnabled,
+                    channelScopeWaveformClippingEnabled = channelScopeWaveformClippingEnabled,
+                    channelScopeTriggerMode = channelScopeTriggerModeNative,
+                    channelScopeTriggerAlgorithm = channelScopeTriggerAlgorithmNative,
+                    channelScopeWaveRenderMode = channelScopeWaveRenderModeNative,
+                    channelScopeAntialiasMethod = channelScopeAntialiasMethodNative,
+                    channelScopeTrackTransition = channelScopeTrackTransition
+                )
+                NativeVisSpec(
+                    backend = if (channelScopeRenderBackend == VisualizationRenderBackend.Compose) {
+                        VisualizationRenderBackend.OpenGlSurface
+                    } else {
+                        channelScopeRenderBackend
+                    },
+                    frame = nativeFrame,
+                    cornerRadiusDp = channelScopeCornerRadiusDp
+                )
             }
 
             VisualizationMode.ProjectM -> {
@@ -738,177 +735,10 @@ fun BasicVisualizationOverlay(
                 }
             }
 
-            VisualizationMode.ChannelScope -> {
-                val isGlBackend = channelScopeRenderBackend == VisualizationRenderBackend.OpenGlTexture ||
-                        channelScopeRenderBackend == VisualizationRenderBackend.OpenGlSurface ||
-                        channelScopeRenderBackend == VisualizationRenderBackend.VulkanSurface
-
-                // Track-change transition (Compose backend): the previous
-                // song's layout stays held and slides/fades out while the new
-                // one already plays live underneath.
-                val scopeTransitionAnim = remember { Animatable(1f) }
-                var scopeTransitionSnapshot by remember {
-                    mutableStateOf<ChannelScopeComposeSnapshot?>(null)
-                }
-                var lastScopeTrackKey by remember { mutableStateOf(trackKey) }
-                if (!isGlBackend && trackKey != lastScopeTrackKey) {
-                    val hadTrack = !lastScopeTrackKey.isNullOrEmpty()
-                    lastScopeTrackKey = trackKey
-                    scopeTransitionSnapshot = if (
-                        channelScopeTrackTransition != 0 &&
-                        hadTrack &&
-                        !trackKey.isNullOrEmpty() &&
-                        channelScopeHistories.isNotEmpty()
-                    ) {
-                        ChannelScopeComposeSnapshot(
-                            histories = channelScopeHistories,
-                            triggerIndices = channelScopeTriggerIndices,
-                            textStates = channelScopeTextStates,
-                            instrumentNames = channelScopeInstrumentNamesByIndex,
-                            sampleNames = channelScopeSampleNamesByIndex,
-                            chipNames = channelScopeChipNamesByChannelIndex,
-                            layout = channelScopeLayout
-                        )
-                    } else {
-                        null
-                    }
-                }
-                LaunchedEffect(scopeTransitionSnapshot) {
-                    if (scopeTransitionSnapshot != null) {
-                        scopeTransitionAnim.snapTo(0f)
-                        scopeTransitionAnim.animateTo(
-                            1f,
-                            animationSpec = tween(750, easing = LinearOutSlowInEasing)
-                        )
-                        scopeTransitionSnapshot = null
-                    }
-                }
-                if (channelScopeRenderBackend == VisualizationRenderBackend.Compose) {
-                    ChannelScopeVisualization(
-                        channelHistories = channelScopeHistories,
-                        lineColor = channelScopeLineColor,
-                        gridColor = channelScopeGridColor,
-                        lineWidthPx = (channelScopeLineWidthDp * density).coerceAtLeast(1f),
-                        gridWidthPx = (channelScopeGridWidthDp * density).coerceAtLeast(1f),
-                        showVerticalGrid = channelScopeVerticalGridEnabled,
-                        showCenterLine = channelScopeCenterLineEnabled,
-                        triggerModeNative = channelScopeTriggerModeNative,
-                        triggerIndices = channelScopeTriggerIndices,
-                        layoutStrategy = channelScopeLayout,
-                        waveformClippingEnabled = channelScopeWaveformClippingEnabled,
-                        outerCornerRadiusPx = channelScopeCornerRadiusPx,
-                        modifier = Modifier.fillMaxSize()
-                    )
-                }
-                val needComposeOverlay = !isGlBackend && (channelScopeTextEnabled || channelScopeTextVuEnabled) && channelScopeHistories.isNotEmpty()
-                if (needComposeOverlay) {
-                    ChannelScopeTextOverlay(
-                        channelHistories = channelScopeHistories,
-                        channelTextStates = channelScopeTextStates,
-                        instrumentNamesByIndex = channelScopeInstrumentNamesByIndex,
-                        sampleNamesByIndex = channelScopeSampleNamesByIndex,
-                        chipNamesByChannelIndex = channelScopeChipNamesByChannelIndex,
-                        layoutStrategy = channelScopeLayout,
-                        anchor = channelScopeTextAnchor,
-                        paddingDp = channelScopeTextPaddingDp,
-                        textSizeSp = channelScopeTextSizeSp,
-                        hideWhenOverflow = channelScopeTextHideWhenOverflow,
-                        textShadowEnabled = channelScopeTextShadowEnabled,
-                        textFont = channelScopeTextFont,
-                        noteFormat = channelScopeTextNoteFormat,
-                        showChannel = channelScopeTextEnabled && channelScopeTextShowChannel,
-                        showNote = channelScopeTextEnabled && channelScopeTextShowNote,
-                        showVolume = channelScopeTextEnabled && channelScopeTextShowVolume,
-                        showEffectPrimary = channelScopeTextEnabled && channelScopeTextShowEffectPrimary,
-                        showEffectSecondary = channelScopeTextEnabled && channelScopeTextShowEffectSecondary,
-                        showChip = channelScopeTextEnabled && channelScopeTextShowChip,
-                        showInstrument = channelScopeTextEnabled && channelScopeTextShowInstrument,
-                        showSample = channelScopeTextEnabled && channelScopeTextShowSample,
-                        vuEnabled = channelScopeTextVuEnabled,
-                        vuAnchor = channelScopeTextVuAnchor,
-                        vuColor = channelScopeVuColor,
-                        vuInsetPx = (channelScopeGridWidthDp * density).coerceAtLeast(1f),
-                        textPalette = channelScopeTextPalette,
-                        modifier = Modifier.fillMaxSize()
-                    )
-                }
-                val heldScopeSnapshot = if (isGlBackend) null else scopeTransitionSnapshot
-                if (heldScopeSnapshot != null) {
-                    val transitionP = scopeTransitionAnim.value
-                    Box(
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .graphicsLayer {
-                                alpha = 1f - transitionP
-                                if (channelScopeTrackTransition == 1) {
-                                    translationX = -transitionP * size.width
-                                }
-                            }
-                    ) {
-                        ChannelScopeVisualization(
-                            channelHistories = heldScopeSnapshot.histories,
-                            lineColor = channelScopeLineColor,
-                            gridColor = channelScopeGridColor,
-                            lineWidthPx = (channelScopeLineWidthDp * density).coerceAtLeast(1f),
-                            gridWidthPx = (channelScopeGridWidthDp * density).coerceAtLeast(1f),
-                            showVerticalGrid = channelScopeVerticalGridEnabled,
-                            showCenterLine = channelScopeCenterLineEnabled,
-                            triggerModeNative = channelScopeTriggerModeNative,
-                            triggerIndices = heldScopeSnapshot.triggerIndices,
-                            layoutStrategy = heldScopeSnapshot.layout,
-                            waveformClippingEnabled = channelScopeWaveformClippingEnabled,
-                            outerCornerRadiusPx = channelScopeCornerRadiusPx,
-                            modifier = Modifier.fillMaxSize()
-                        )
-                        if (channelScopeTextEnabled || channelScopeTextVuEnabled) {
-                            ChannelScopeTextOverlay(
-                                channelHistories = heldScopeSnapshot.histories,
-                                channelTextStates = heldScopeSnapshot.textStates,
-                                instrumentNamesByIndex = heldScopeSnapshot.instrumentNames,
-                                sampleNamesByIndex = heldScopeSnapshot.sampleNames,
-                                chipNamesByChannelIndex = heldScopeSnapshot.chipNames,
-                                layoutStrategy = heldScopeSnapshot.layout,
-                                anchor = channelScopeTextAnchor,
-                                paddingDp = channelScopeTextPaddingDp,
-                                textSizeSp = channelScopeTextSizeSp,
-                                hideWhenOverflow = channelScopeTextHideWhenOverflow,
-                                textShadowEnabled = channelScopeTextShadowEnabled,
-                                textFont = channelScopeTextFont,
-                                noteFormat = channelScopeTextNoteFormat,
-                                showChannel = channelScopeTextEnabled && channelScopeTextShowChannel,
-                                showNote = channelScopeTextEnabled && channelScopeTextShowNote,
-                                showVolume = channelScopeTextEnabled && channelScopeTextShowVolume,
-                                showEffectPrimary = channelScopeTextEnabled && channelScopeTextShowEffectPrimary,
-                                showEffectSecondary = channelScopeTextEnabled && channelScopeTextShowEffectSecondary,
-                                showChip = channelScopeTextEnabled && channelScopeTextShowChip,
-                                showInstrument = channelScopeTextEnabled && channelScopeTextShowInstrument,
-                                showSample = channelScopeTextEnabled && channelScopeTextShowSample,
-                                vuEnabled = channelScopeTextVuEnabled,
-                                vuAnchor = channelScopeTextVuAnchor,
-                                vuColor = channelScopeVuColor,
-                                vuInsetPx = (channelScopeGridWidthDp * density).coerceAtLeast(1f),
-                                textPalette = channelScopeTextPalette,
-                                modifier = Modifier.fillMaxSize()
-                            )
-                        }
-                    }
-                }
-            }
-
             else -> Unit
         }
     }
 }
-
-private class ChannelScopeComposeSnapshot(
-    val histories: List<FloatArray>,
-    val triggerIndices: IntArray,
-    val textStates: List<ChannelScopeChannelTextState>,
-    val instrumentNames: Map<Int, String>,
-    val sampleNames: Map<Int, String>,
-    val chipNames: Map<Int, String>,
-    val layout: VisualizationChannelScopeLayout
-)
 
 private data class ChannelScopeTextPalette(
     val channel: Color,
@@ -970,582 +800,6 @@ private fun resolveChannelScopeVuColor(
         VisualizationChannelScopeTextColorMode.OpenMptInspired -> Color(0xFF8AE234)
         VisualizationChannelScopeTextColorMode.White -> Color.White
         VisualizationChannelScopeTextColorMode.Custom -> customColor
-    }
-}
-
-@Composable
-private fun ChannelScopeTextOverlay(
-    channelHistories: List<FloatArray>,
-    channelTextStates: List<ChannelScopeChannelTextState>,
-    instrumentNamesByIndex: Map<Int, String>,
-    sampleNamesByIndex: Map<Int, String>,
-    chipNamesByChannelIndex: Map<Int, String>,
-    layoutStrategy: VisualizationChannelScopeLayout,
-    anchor: VisualizationChannelScopeTextAnchor,
-    paddingDp: Int,
-    textSizeSp: Int,
-    hideWhenOverflow: Boolean,
-    textShadowEnabled: Boolean,
-    textFont: VisualizationChannelScopeTextFont,
-    noteFormat: VisualizationNoteNameFormat,
-    showChannel: Boolean,
-    showNote: Boolean,
-    showVolume: Boolean,
-    showEffectPrimary: Boolean,
-    showEffectSecondary: Boolean,
-    showChip: Boolean,
-    showInstrument: Boolean,
-    showSample: Boolean,
-    vuEnabled: Boolean,
-    vuAnchor: VisualizationVuAnchor,
-    vuColor: Color,
-    vuInsetPx: Float,
-    textPalette: ChannelScopeTextPalette,
-    modifier: Modifier = Modifier
-) {
-    if (channelHistories.isEmpty()) return
-    val channels = channelHistories.size
-    val (columns, rows) = resolveChannelScopeTextGrid(channels, layoutStrategy)
-    val sideCounts = IntArray(2)
-    BoxWithConstraints(modifier = modifier.fillMaxSize()) {
-        val safeCols = columns.coerceAtLeast(1)
-        val safeRows = rows.coerceAtLeast(1)
-        val cellWidth = maxWidth / safeCols
-        val cellHeight = maxHeight / safeRows
-        val vuStripHeightDp = with(LocalDensity.current) {
-            floor(2.dp.toPx()).coerceAtLeast(1f).toDp()
-        }
-        val selectedTextSizeSp = textSizeSp.coerceIn(6, 32)
-        val textFontFamily = remember(textFont) { resolveChannelScopeTextFontFamily(textFont) }
-        val minimumAutoTextSizeSp = (selectedTextSizeSp - 6).coerceAtLeast(6)
-        val effectiveTextSizeSp = computeAutoChannelScopeTextSizeSp(
-            selectedTextSizeSp = selectedTextSizeSp,
-            minimumTextSizeSp = minimumAutoTextSizeSp,
-            cellWidthDp = cellWidth.value,
-            paddingDp = paddingDp.toFloat(),
-            showChannel = showChannel,
-            showNote = showNote,
-            showVolume = showVolume,
-            effectSlotCount = listOf(showEffectPrimary, showEffectSecondary).count { it },
-            showChip = showChip,
-            showInstrument = showInstrument,
-            showSample = showSample
-        )
-        val canRenderAtEffectiveSize = estimateChannelScopeTextWidthDp(
-            sp = effectiveTextSizeSp,
-            paddingDp = paddingDp.toFloat(),
-            showChannel = showChannel,
-            showNote = showNote,
-            showVolume = showVolume,
-            effectSlotCount = listOf(showEffectPrimary, showEffectSecondary).count { it },
-            showChip = showChip,
-            showInstrument = showInstrument,
-            showSample = showSample
-        ) <= cellWidth.value
-        val showText = !hideWhenOverflow || canRenderAtEffectiveSize
-        for (col in 0 until columns) {
-            for (row in 0 until rows) {
-                val channel = (col * rows) + row
-                val content = if (channel < channels) {
-                    buildChannelScopeTextFields(
-                        channel = channel,
-                        state = channelTextStates.getOrNull(channel),
-                        instrumentNamesByIndex = instrumentNamesByIndex,
-                        sampleNamesByIndex = sampleNamesByIndex,
-                        chipNamesByChannelIndex = chipNamesByChannelIndex,
-                        noteFormat = noteFormat,
-                        showChannel = showChannel,
-                        showNote = showNote,
-                        showVolume = showVolume,
-                        showEffectPrimary = showEffectPrimary,
-                        showEffectSecondary = showEffectSecondary,
-                        showChip = showChip,
-                        showInstrument = showInstrument,
-                        showSample = showSample,
-                        sideCounts = sideCounts
-                    )
-                } else {
-                    ChannelScopeTextFields(
-                        channel = null,
-                        note = null,
-                        volume = null,
-                        effects = emptyList(),
-                        chip = null,
-                        instrumentOrSample = null
-                    )
-                }
-                val hasContent =
-                        content.channel != null ||
-                        content.note != null ||
-                        content.volume != null ||
-                        content.effects.isNotEmpty() ||
-                        content.instrumentOrSample != null
-                Box(
-                    modifier = Modifier
-                        .offset(x = cellWidth * col, y = cellHeight * row)
-                        .size(cellWidth, cellHeight),
-                    contentAlignment = resolveTextAlignment(anchor)
-                ) {
-                    val vuLevel = if (channel < channels) {
-                        computeChannelScopeVuLevel(channelHistories[channel])
-                    } else {
-                        0f
-                    }
-                    if (vuEnabled) {
-                        val meterTrackColor = vuColor.copy(alpha = 0.25f)
-                        Canvas(modifier = Modifier.fillMaxSize()) {
-                            val h = vuStripHeightDp.toPx().coerceAtLeast(1f)
-                            val inset = vuInsetPx.coerceAtLeast(1f)
-                            val usableWidth = (size.width - (inset * 2f)).coerceAtLeast(0f)
-                            val y = if (vuAnchor == VisualizationVuAnchor.Top) {
-                                inset
-                            } else {
-                                (size.height - h - inset).coerceAtLeast(0f)
-                            }
-                            drawRect(
-                                color = meterTrackColor,
-                                topLeft = Offset(inset, y),
-                                size = androidx.compose.ui.geometry.Size(usableWidth, h)
-                            )
-                            drawRect(
-                                color = vuColor,
-                                topLeft = Offset(inset, y),
-                                size = androidx.compose.ui.geometry.Size(usableWidth * vuLevel.coerceIn(0f, 1f), h)
-                            )
-                        }
-                    }
-                    if (showText && hasContent) {
-                        val scale = effectiveTextSizeSp.toFloat() / 8f
-                        val noteSlot = (24f * scale).dp
-                        val volumeSlot = (30f * scale).dp
-                        val effectSlot = (20f * scale).dp
-                        val textStyle = MaterialTheme.typography.labelSmall.copy(
-                            fontSize = effectiveTextSizeSp.sp,
-                            lineHeight = effectiveTextSizeSp.sp,
-                            fontFamily = textFontFamily,
-                            shadow = if (textShadowEnabled) {
-                                Shadow(
-                                    color = Color.Black.copy(alpha = 0.62f),
-                                    offset = Offset(0f, 1.25f),
-                                    blurRadius = 2.4f
-                                )
-                            } else {
-                                null
-                            },
-                            platformStyle = PlatformTextStyle(includeFontPadding = false)
-                        )
-                        Row(
-                            modifier = Modifier
-                                .padding(paddingDp.dp)
-                                .widthIn(max = cellWidth),
-                            horizontalArrangement = Arrangement.spacedBy(2.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            var hasPrevious = false
-                            if (content.channel != null) {
-                                Text(
-                                    text = content.channel,
-                                    color = textPalette.channel,
-                                    style = textStyle,
-                                    maxLines = 1,
-                                    overflow = TextOverflow.Clip
-                                )
-                                hasPrevious = true
-                            }
-                            if (content.note != null) {
-                                if (hasPrevious) Text("•", color = textPalette.separator, style = textStyle)
-                                Box(modifier = Modifier.width(noteSlot), contentAlignment = Alignment.Center) {
-                                    Text(
-                                        text = content.note,
-                                        color = textPalette.note,
-                                        style = textStyle,
-                                        textAlign = TextAlign.Center,
-                                        maxLines = 1,
-                                        overflow = TextOverflow.Clip
-                                    )
-                                }
-                                hasPrevious = true
-                            }
-                            if (content.volume != null) {
-                                if (hasPrevious) Text("•", color = textPalette.separator, style = textStyle)
-                                Box(modifier = Modifier.width(volumeSlot), contentAlignment = Alignment.Center) {
-                                    Text(
-                                        text = content.volume,
-                                        color = textPalette.volume,
-                                        style = textStyle,
-                                        textAlign = TextAlign.Center,
-                                        maxLines = 1,
-                                        overflow = TextOverflow.Clip
-                                    )
-                                }
-                                hasPrevious = true
-                            }
-                            content.effects.forEach { effect ->
-                                if (hasPrevious) Text("•", color = textPalette.separator, style = textStyle)
-                                Box(modifier = Modifier.width(effectSlot), contentAlignment = Alignment.Center) {
-                                    Text(
-                                        text = effect,
-                                        color = textPalette.effect,
-                                        style = textStyle,
-                                        textAlign = TextAlign.Center,
-                                        maxLines = 1,
-                                        overflow = TextOverflow.Clip
-                                    )
-                                }
-                                hasPrevious = true
-                            }
-                            if (content.chip != null) {
-                                if (hasPrevious) Text("•", color = textPalette.separator, style = textStyle)
-                                Text(
-                                    text = content.chip,
-                                    color = textPalette.instrumentOrSample,
-                                    style = textStyle,
-                                    maxLines = 1,
-                                    overflow = TextOverflow.Ellipsis,
-                                    modifier = Modifier.padding(start = 2.dp)
-                                )
-                                hasPrevious = true
-                            }
-                            if (content.instrumentOrSample != null) {
-                                if (hasPrevious) Text("•", color = textPalette.separator, style = textStyle)
-                                Text(
-                                    text = content.instrumentOrSample,
-                                    color = textPalette.instrumentOrSample,
-                                    style = textStyle,
-                                    maxLines = 1,
-                                    overflow = TextOverflow.Ellipsis,
-                                    modifier = Modifier.padding(start = 2.dp)
-                                )
-                            }
-                        }
-                    }
-                }
-            }
-        }
-    }
-}
-
-private fun computeChannelScopeVuLevel(history: FloatArray): Float {
-    if (history.isEmpty()) return 0f
-    var peak = 0f
-    var i = 0
-    val step = max(1, history.size / 64)
-    while (i < history.size) {
-        val sample = kotlin.math.abs(history[i])
-        if (sample > peak) peak = sample
-        i += step
-    }
-    return peak.coerceIn(0f, 1f)
-}
-
-private fun resolveChannelScopeTextFontFamily(font: VisualizationChannelScopeTextFont): FontFamily {
-    return when (font) {
-        VisualizationChannelScopeTextFont.System -> FontFamily.Default
-        VisualizationChannelScopeTextFont.RaccoonSerif -> FontFamily(Font(R.font.raccoon_serif_base))
-        VisualizationChannelScopeTextFont.RaccoonMono -> FontFamily(Font(R.font.raccoon_serif_mono))
-        VisualizationChannelScopeTextFont.RetroCuteMono -> FontFamily(Font(R.font.retro_pixel_cute_mono))
-        VisualizationChannelScopeTextFont.RetroThick -> FontFamily(Font(R.font.retro_pixel_thick))
-    }
-}
-
-private fun resolveTextAlignment(anchor: VisualizationChannelScopeTextAnchor): Alignment {
-    return when (anchor) {
-        VisualizationChannelScopeTextAnchor.TopLeft -> Alignment.TopStart
-        VisualizationChannelScopeTextAnchor.TopCenter -> Alignment.TopCenter
-        VisualizationChannelScopeTextAnchor.TopRight -> Alignment.TopEnd
-        VisualizationChannelScopeTextAnchor.BottomRight -> Alignment.BottomEnd
-        VisualizationChannelScopeTextAnchor.BottomCenter -> Alignment.BottomCenter
-        VisualizationChannelScopeTextAnchor.BottomLeft -> Alignment.BottomStart
-    }
-}
-
-private data class ChannelScopeTextFields(
-    val channel: String?,
-    val note: String?,
-    val volume: String?,
-    val effects: List<String>,
-    val chip: String?,
-    val instrumentOrSample: String?
-)
-
-private fun buildChannelScopeTextFields(
-    channel: Int,
-    state: ChannelScopeChannelTextState?,
-    instrumentNamesByIndex: Map<Int, String>,
-    sampleNamesByIndex: Map<Int, String>,
-    chipNamesByChannelIndex: Map<Int, String>,
-    noteFormat: VisualizationNoteNameFormat,
-    showChannel: Boolean,
-    showNote: Boolean,
-    showVolume: Boolean,
-    showEffectPrimary: Boolean,
-    showEffectSecondary: Boolean,
-    showChip: Boolean,
-    showInstrument: Boolean,
-    showSample: Boolean,
-    sideCounts: IntArray
-): ChannelScopeTextFields {
-    val effects = ArrayList<String>(2)
-    if (showEffectPrimary) {
-        effects += formatEffect(
-            effectLetterAscii = state?.effectPrimaryLetterAscii ?: 0,
-            effectParam = state?.effectPrimaryParam ?: -1
-        )
-    }
-    if (showEffectSecondary) {
-        effects += formatEffect(
-            effectLetterAscii = state?.effectSecondaryLetterAscii ?: 0,
-            effectParam = state?.effectSecondaryParam ?: -1
-        )
-    }
-    val channelLabel = if (showChannel) {
-        resolveChannelLabel(
-            channel = channel,
-            state = state,
-            sideCounts = sideCounts,
-            channelNamesByChannelIndex = chipNamesByChannelIndex
-        )
-    } else {
-        null
-    }
-    val chipLabel = if (showChip) {
-        formatChipName(
-            channel = channel,
-            state = state,
-            chipNamesByChannelIndex = chipNamesByChannelIndex
-        )
-    } else {
-        null
-    }
-    return ChannelScopeTextFields(
-        channel = channelLabel,
-        note = if (showNote) (formatNoteName(state?.note ?: -1, noteFormat) ?: "--") else null,
-        volume = if (showVolume) formatVolume(state?.volume ?: 0) else null,
-        effects = effects,
-        chip = chipLabel?.takeUnless { it == channelLabel },
-        instrumentOrSample = if (showInstrument || showSample) {
-            formatInstrumentOrSample(
-                state = state,
-                instrumentNamesByIndex = instrumentNamesByIndex,
-                sampleNamesByIndex = sampleNamesByIndex,
-                showInstrument = showInstrument,
-                showSample = showSample
-            )
-        } else {
-            null
-        }
-    )
-}
-
-private fun resolveChannelLabel(
-    channel: Int,
-    state: ChannelScopeChannelTextState?,
-    sideCounts: IntArray,
-    channelNamesByChannelIndex: Map<Int, String>
-): String {
-    val preferredIndex = state?.channelIndex ?: channel
-    val explicitName = channelNamesByChannelIndex[preferredIndex]
-        ?: channelNamesByChannelIndex[channel]
-    if (!explicitName.isNullOrBlank()) {
-        return explicitName
-    }
-    val flags = state?.flags ?: 0
-    val isLeft = (flags and NativeBridge.CHANNEL_SCOPE_TEXT_FLAG_AMIGA_LEFT) != 0
-    val isRight = (flags and NativeBridge.CHANNEL_SCOPE_TEXT_FLAG_AMIGA_RIGHT) != 0
-    if (isLeft) {
-        sideCounts[0] = sideCounts[0] + 1
-        return if (sideCounts[0] <= 2) "L${sideCounts[0]}" else "Ch ${channel + 1}"
-    }
-    if (isRight) {
-        sideCounts[1] = sideCounts[1] + 1
-        return if (sideCounts[1] <= 2) "R${sideCounts[1]}" else "Ch ${channel + 1}"
-    }
-    return "Ch ${channel + 1}"
-}
-
-private fun formatNoteName(note: Int, format: VisualizationNoteNameFormat): String? {
-    if (note <= 0) return null
-    val idx = (note - 1) % 12
-    val octave = (note - 1) / 12
-    val names = if (format == VisualizationNoteNameFormat.International) {
-        arrayOf("Do", "Do#", "Re", "Re#", "Mi", "Fa", "Fa#", "Sol", "Sol#", "La", "La#", "Si")
-    } else {
-        arrayOf("C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B")
-    }
-    return "${names[idx]}$octave"
-}
-
-private fun formatVolume(volume: Int): String {
-    return "V" + volume.coerceIn(0, 999).toString().padStart(3, '0')
-}
-
-private fun formatEffect(effectLetterAscii: Int, effectParam: Int): String {
-    if (effectLetterAscii <= 0 || effectParam < 0) return "---"
-    if (effectLetterAscii >= 0x100) {
-        val effectCodeHex = (effectLetterAscii and 0xFF).toString(16).uppercase().padStart(2, '0')
-        val paramHex = effectParam.coerceIn(0, 255).toString(16).uppercase().padStart(2, '0')
-        return effectCodeHex + paramHex
-    }
-    val effectChar = effectLetterAscii.toChar()
-    val paramHex = effectParam.coerceIn(0, 255).toString(16).uppercase().padStart(2, '0')
-    return "$effectChar$paramHex"
-}
-
-private fun formatInstrumentOrSample(
-    state: ChannelScopeChannelTextState?,
-    instrumentNamesByIndex: Map<Int, String>,
-    sampleNamesByIndex: Map<Int, String>,
-    showInstrument: Boolean,
-    showSample: Boolean
-): String? {
-    if (state == null) return null
-    val parts = ArrayList<String>(2)
-    if (showInstrument && state.instrumentIndex > 0) {
-        val name = instrumentNamesByIndex[state.instrumentIndex].orEmpty()
-        parts += if (name.isNotBlank()) {
-            "I#${state.instrumentIndex} $name"
-        } else {
-            "I#${state.instrumentIndex}"
-        }
-    }
-    if (showSample && state.sampleIndex > 0) {
-        val name = sampleNamesByIndex[state.sampleIndex].orEmpty()
-        parts += if (name.isNotBlank()) {
-            "S#${state.sampleIndex} $name"
-        } else {
-            "S#${state.sampleIndex}"
-        }
-    }
-    return parts.takeIf { it.isNotEmpty() }?.joinToString(" / ")
-}
-
-private fun formatChipName(
-    channel: Int,
-    state: ChannelScopeChannelTextState?,
-    chipNamesByChannelIndex: Map<Int, String>
-): String? {
-    val preferredIndex = state?.channelIndex ?: channel
-    val name = chipNamesByChannelIndex[preferredIndex]
-        ?: chipNamesByChannelIndex[channel]
-        ?: return null
-    return name.takeIf { it.isNotBlank() }
-}
-
-private fun computeAutoChannelScopeTextSizeSp(
-    selectedTextSizeSp: Int,
-    minimumTextSizeSp: Int,
-    cellWidthDp: Float,
-    paddingDp: Float,
-    showChannel: Boolean,
-    showNote: Boolean,
-    showVolume: Boolean,
-    effectSlotCount: Int,
-    showChip: Boolean,
-    showInstrument: Boolean,
-    showSample: Boolean
-): Int {
-    val selected = selectedTextSizeSp.coerceIn(6, 32)
-    val minimum = minimumTextSizeSp.coerceAtMost(selected).coerceAtLeast(6)
-    val availableWidth = cellWidthDp.coerceAtLeast(0f)
-    if (
-        estimateChannelScopeTextWidthDp(
-            sp = selected,
-            paddingDp = paddingDp,
-            showChannel = showChannel,
-            showNote = showNote,
-            showVolume = showVolume,
-            effectSlotCount = effectSlotCount,
-            showChip = showChip,
-            showInstrument = showInstrument,
-            showSample = showSample
-        ) <= availableWidth
-    ) {
-        return selected
-    }
-    var size = selected
-    while (
-        size > minimum &&
-            estimateChannelScopeTextWidthDp(
-                sp = size,
-                paddingDp = paddingDp,
-                showChannel = showChannel,
-                showNote = showNote,
-                showVolume = showVolume,
-                effectSlotCount = effectSlotCount,
-                showChip = showChip,
-                showInstrument = showInstrument,
-                showSample = showSample
-            ) > availableWidth
-    ) {
-        size--
-    }
-    return size
-}
-
-private fun estimateChannelScopeTextWidthDp(
-    sp: Int,
-    paddingDp: Float,
-    showChannel: Boolean,
-    showNote: Boolean,
-    showVolume: Boolean,
-    effectSlotCount: Int,
-    showChip: Boolean,
-    showInstrument: Boolean,
-    showSample: Boolean
-): Float {
-    val scale = sp.toFloat() / 8f
-    var fieldCount = 0
-    var width = 0f
-    if (showChannel) {
-        width += 26f * scale
-        fieldCount++
-    }
-    if (showNote) {
-        width += 24f * scale
-        fieldCount++
-    }
-    if (showVolume) {
-        width += 30f * scale
-        fieldCount++
-    }
-    repeat(effectSlotCount.coerceAtLeast(0)) {
-        width += 20f * scale
-        fieldCount++
-    }
-    if (showChip) {
-        width += 60f * scale
-        fieldCount++
-    }
-    if (showInstrument || showSample) {
-        // Reserve a larger leading slot so autoscale triggers sooner on dense layouts.
-        width += if (showInstrument && showSample) 48f * scale else 28f * scale
-        fieldCount++
-    }
-    val separators = (fieldCount - 1).coerceAtLeast(0)
-    width += separators * (8f * scale) // Bullet glyph width estimate (conservative)
-    width += separators * 3f // Row spacing estimate
-    width += paddingDp * 2f
-    width += 4f // safety margin
-    return width
-}
-
-private fun resolveChannelScopeTextGrid(
-    channels: Int,
-    strategy: VisualizationChannelScopeLayout
-): Pair<Int, Int> {
-    if (channels <= 1) return 1 to 1
-    return when (strategy) {
-        VisualizationChannelScopeLayout.ColumnFirst -> {
-            val targetRowsPerColumn = 7
-            val columns = if (channels <= 4) 1 else ceil(channels / targetRowsPerColumn.toDouble()).toInt().coerceAtLeast(2)
-            val rows = ceil(channels / columns.toDouble()).toInt().coerceAtLeast(1)
-            columns to rows
-        }
-        VisualizationChannelScopeLayout.BalancedTwoColumn -> {
-            val columns = ceil(kotlin.math.sqrt(channels.toDouble())).toInt().coerceAtLeast(1)
-            val rows = ceil(channels / columns.toDouble()).toInt().coerceAtLeast(1)
-            columns to rows
-        }
     }
 }
 

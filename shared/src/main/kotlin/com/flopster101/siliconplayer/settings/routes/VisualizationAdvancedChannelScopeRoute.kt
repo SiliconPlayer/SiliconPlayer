@@ -141,7 +141,7 @@ internal fun VisualizationAdvancedChannelScopeRouteContent(
                                         AppDefaults.Visualization.ChannelScope.renderBackend.storageValue
                                     ),
                                     AppDefaults.Visualization.ChannelScope.renderBackend
-                                )
+                                ).forChannelScope()
                             )
                         }
                         var scopeDcRemovalEnabled by remember {
@@ -594,7 +594,7 @@ internal fun VisualizationAdvancedChannelScopeRouteContent(
                                     AppDefaults.Visualization.ChannelScope.renderBackend.storageValue
                                 ),
                                 AppDefaults.Visualization.ChannelScope.renderBackend
-                            )
+                            ).forChannelScope()
                             scopeDcRemovalEnabled = prefs.getBoolean(
                                 scopeDcRemovalEnabledKey,
                                 AppDefaults.Visualization.ChannelScope.dcRemovalEnabled
@@ -1197,14 +1197,16 @@ internal fun VisualizationAdvancedChannelScopeRouteContent(
                             SettingsSingleChoiceDialog(
                                 title = "Renderer backend",
                                 selectedValue = scopeRenderBackend,
-                                options = VisualizationRenderBackend.entries.map { backend ->
-                                    ChoiceDialogOption(
-                                        value = backend,
-                                        label = backend.label,
-                                        enabled = supportsVulkanRendering() || (backend != VisualizationRenderBackend.VulkanTexture &&
-                                            backend != VisualizationRenderBackend.VulkanSurface)
-                                    )
-                                },
+                                options = VisualizationRenderBackend.entries
+                                    .filter { it != VisualizationRenderBackend.Compose }
+                                    .map { backend ->
+                                        ChoiceDialogOption(
+                                            value = backend,
+                                            label = backend.label,
+                                            enabled = supportsVulkanRendering() || (backend != VisualizationRenderBackend.VulkanTexture &&
+                                                backend != VisualizationRenderBackend.VulkanSurface)
+                                        )
+                                    },
                                 onSelected = { backend ->
                                     scopeRenderBackend = backend
                                     prefs.edit().putString(scopeRenderBackendKey, backend.storageValue).apply()
@@ -1636,3 +1638,7 @@ internal fun VisualizationAdvancedChannelScopeRouteContent(
                             )
                         }
 }
+
+// The scope renders through silicon_vis only; legacy Compose values fall back.
+private fun VisualizationRenderBackend.forChannelScope(): VisualizationRenderBackend =
+    if (this == VisualizationRenderBackend.Compose) VisualizationRenderBackend.OpenGlSurface else this
