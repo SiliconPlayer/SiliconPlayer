@@ -93,6 +93,7 @@ public:
     double getSubtuneDurationSeconds(int index);
     int getDecoderRenderSampleRateHz() const;
     int getOutputStreamSampleRateHz() const;
+    std::string getCurrentFormatLabel();
     std::string getOpenMptModuleTypeLong();
     std::string getOpenMptTracker();
     std::string getOpenMptSongMessage();

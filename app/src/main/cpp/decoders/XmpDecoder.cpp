@@ -503,6 +503,10 @@ void XmpDecoder::clearToggleChannelMutes() {
     }
 }
 
+std::string XmpDecoder::getFormatLabel() {
+    return getCoreStringInfo("moduleTypeLong");
+}
+
 std::string XmpDecoder::getCoreStringInfo(const char* name) {
     if (name == nullptr) return "";
     std::lock_guard<std::mutex> lock(decodeMutex);

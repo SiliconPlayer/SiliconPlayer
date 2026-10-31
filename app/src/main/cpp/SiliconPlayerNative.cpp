@@ -1108,6 +1108,12 @@ Java_com_flopster101_siliconplayer_MainActivity_getOutputStreamSampleRateHz(JNIE
 }
 
 extern "C" JNIEXPORT jstring JNICALL
+Java_com_flopster101_siliconplayer_NativeBridge_getCurrentFormatLabel(JNIEnv* env, jobject) {
+    if (audioEngine == nullptr) return toJString(env, "");
+    return toJString(env, audioEngine->getCurrentFormatLabel());
+}
+
+extern "C" JNIEXPORT jstring JNICALL
 Java_com_flopster101_siliconplayer_NativeBridge_getOpenMptModuleTypeLong(JNIEnv* env, jobject) {
     if (audioEngine == nullptr) {
         return toJString(env, "");

@@ -70,6 +70,7 @@ public:
     double getPlaybackPositionSeconds() override;
     TimelineMode getTimelineMode() const override { return TimelineMode::ContinuousLinear; }
     std::string getCoreStringInfo(const char* name) override;
+    std::string getFormatLabel() override;
     int getCoreIntInfo(const char* name, int fallback = 0) override;
     int64_t getCoreInt64Info(const char* name, int64_t fallback = 0) override;
     std::shared_ptr<ChannelScopeSharedState> getChannelScopeSharedState() const override { return channelScopeState; }

@@ -85,6 +85,7 @@ public:
     TimelineMode getTimelineMode() const override { return TimelineMode::Discontinuous; }
     std::shared_ptr<ChannelScopeSharedState> getChannelScopeSharedState() const override { return channelScopeState; }
     std::string getCoreStringInfo(const char* name) override;
+    std::string getFormatLabel() override;
     int getCoreIntInfo(const char* name, int fallback = 0) override;
 
     const char* getName() const override { return "libsidplayfp"; }

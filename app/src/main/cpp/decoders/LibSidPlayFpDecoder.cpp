@@ -1682,6 +1682,10 @@ std::string LibSidPlayFpDecoder::getSidCommentSummary() {
     return sidCommentSummary;
 }
 
+std::string LibSidPlayFpDecoder::getFormatLabel() {
+    return getSidFormatName();
+}
+
 std::string LibSidPlayFpDecoder::getCoreStringInfo(const char* name) {
     if (name == nullptr) return "";
     if (std::strcmp(name, "sidFormatName") == 0) return getSidFormatName();

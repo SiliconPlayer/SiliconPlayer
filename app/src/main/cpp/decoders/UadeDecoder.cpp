@@ -1085,6 +1085,11 @@ int64_t UadeDecoder::getSubsongBytes() const {
     return subsongBytes;
 }
 
+std::string UadeDecoder::getFormatLabel() {
+    const std::string detected = getDetectedFormatName();
+    return detected.empty() ? getFormatName() : detected;
+}
+
 std::string UadeDecoder::getCoreStringInfo(const char* name) {
     if (name == nullptr) return "";
     const std::string key(name);

@@ -72,6 +72,7 @@ public:
     void setOption(const char* name, const char* value) override;
     int getOptionApplyPolicy(const char* name) const override;
     std::string getCoreStringInfo(const char* name) override;
+    std::string getFormatLabel() override;
     int getCoreIntInfo(const char* name, int fallback = 0) override;
     std::vector<float> getCoreFloatVectorInfo(const char* name) override;
 

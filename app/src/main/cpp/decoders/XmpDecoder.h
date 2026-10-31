@@ -50,6 +50,7 @@ public:
     bool getToggleChannelMuted(int channelIndex) const override;
     void clearToggleChannelMutes() override;
     std::string getCoreStringInfo(const char* name) override;
+    std::string getFormatLabel() override;
     int getCoreIntInfo(const char* name, int fallback) override;
     std::shared_ptr<ChannelScopeSharedState> getChannelScopeSharedState() const override {
         return channelScopeState;

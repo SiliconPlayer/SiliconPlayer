@@ -748,6 +748,10 @@ std::string CRSIDDecoder::getSidCommentSummary() {
     return sidCommentSummary;
 }
 
+std::string CRSIDDecoder::getFormatLabel() {
+    return getSidFormatName();
+}
+
 std::string CRSIDDecoder::getCoreStringInfo(const char* name) {
     if (name == nullptr) return "";
     if (std::strcmp(name, "sidFormatName") == 0) return getSidFormatName();

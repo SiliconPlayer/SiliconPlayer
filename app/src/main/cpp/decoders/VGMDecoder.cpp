@@ -549,6 +549,11 @@ bool VGMDecoder::hasLoopPoint() {
     return songHasLoopPoint;
 }
 
+std::string VGMDecoder::getFormatLabel() {
+    const std::string system = getSystemName();
+    return system.empty() ? std::string() : "VGM (" + system + ")";
+}
+
 std::string VGMDecoder::getCoreStringInfo(const char* name) {
     if (name == nullptr) return "";
     if (std::strcmp(name, "gameName") == 0) return getGameName();

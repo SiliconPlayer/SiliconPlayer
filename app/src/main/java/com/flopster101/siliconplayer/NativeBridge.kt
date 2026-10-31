@@ -417,6 +417,7 @@ object NativeBridge {
     external fun getSubtuneDurationSeconds(index: Int): Double
     external fun getDecoderRenderSampleRateHz(): Int
     external fun getOutputStreamSampleRateHz(): Int
+    external fun getCurrentFormatLabel(): String
     external fun getOpenMptModuleTypeLong(): String
     external fun getOpenMptTracker(): String
     external fun getOpenMptSongMessage(): String

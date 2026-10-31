@@ -451,6 +451,12 @@ int AudioEngine::getOutputStreamSampleRateHz() const {
     return streamSampleRate;
 }
 
+std::string AudioEngine::getCurrentFormatLabel() {
+    std::unique_lock<std::mutex> lock(decoderMutex, std::try_to_lock);
+    if (!lock.owns_lock() || !decoder) return "";
+    return decoder->getFormatLabel();
+}
+
 std::string AudioEngine::getOpenMptModuleTypeLong() {
     std::unique_lock<std::mutex> lock(decoderMutex, std::try_to_lock);
     if (!lock.owns_lock() || !decoder) return "";

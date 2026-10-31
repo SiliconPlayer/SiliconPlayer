@@ -1621,6 +1621,10 @@ AudioDecoder::TimelineMode GmeDecoder::getTimelineMode() const {
     return TimelineMode::Discontinuous;
 }
 
+std::string GmeDecoder::getFormatLabel() {
+    return getSystemName();
+}
+
 std::string GmeDecoder::getCoreStringInfo(const char* name) {
     if (name == nullptr) return "";
     if (std::strcmp(name, "systemName") == 0) return getSystemName();

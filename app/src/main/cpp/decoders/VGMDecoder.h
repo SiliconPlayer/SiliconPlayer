@@ -64,6 +64,7 @@ public:
     std::shared_ptr<ChannelScopeSharedState> getChannelScopeSharedState() const override;
     std::vector<int32_t> getChannelScopeTextState(int maxChannels) override;
     std::string getCoreStringInfo(const char* name) override;
+    std::string getFormatLabel() override;
     int getCoreIntInfo(const char* name, int fallback) override;
 
     // Framework

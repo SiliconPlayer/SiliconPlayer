@@ -1542,6 +1542,11 @@ double FFmpegDecoder::getPlaybackPositionSeconds() {
     return 0.0;
 }
 
+std::string FFmpegDecoder::getFormatLabel() {
+    const std::string container = getContainerName();
+    return container.empty() ? getCodecName() : container;
+}
+
 std::string FFmpegDecoder::getCoreStringInfo(const char* name) {
     if (name == nullptr) return "";
     const std::string key(name);

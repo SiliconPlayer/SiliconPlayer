@@ -115,6 +115,10 @@ public:
     virtual bool getToggleChannelMuted(int /*channelIndex*/) const { return false; }
     virtual void clearToggleChannelMutes() {}
     virtual std::string getCoreStringInfo(const char* /*name*/) { return ""; }
+    // Player-facing format name (e.g. "ProTracker MOD (M.K.)"). Cores whose
+    // detected name lives outside getCoreStringInfo() override this; cores
+    // with nothing to report return "" and the app-side table fills the gap.
+    virtual std::string getFormatLabel() { return getCoreStringInfo("formatName"); }
     virtual int getCoreIntInfo(const char* /*name*/, int fallback = 0) { return fallback; }
     virtual int64_t getCoreInt64Info(const char* /*name*/, int64_t fallback = 0) { return fallback; }
     virtual float getCoreFloatInfo(const char* /*name*/, float fallback = 0.0f) { return fallback; }

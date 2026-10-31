@@ -522,6 +522,10 @@ std::string LibOpenMPTDecoder::getModuleTypeLong() {
     return moduleTypeLong;
 }
 
+std::string LibOpenMPTDecoder::getFormatLabel() {
+    return getModuleTypeLong();
+}
+
 std::string LibOpenMPTDecoder::getTracker() {
     std::lock_guard<std::mutex> lock(decodeMutex);
     return tracker;
