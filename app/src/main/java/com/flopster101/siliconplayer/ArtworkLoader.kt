@@ -4,27 +4,18 @@ import com.flopster101.siliconplayer.data.findExistingCachedFileForSource
 import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
-import android.media.MediaDataSource
 import android.media.MediaMetadataRetriever
 import android.net.Uri
 import android.util.LruCache
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.asImageBitmap
-import com.hierynomus.msdtyp.AccessMask
 import com.hierynomus.msfscc.fileinformation.FileDirectoryInformation
-import com.hierynomus.msfscc.fileinformation.FileStandardInformation
-import com.hierynomus.mssmb2.SMB2CreateDisposition
-import com.hierynomus.mssmb2.SMB2ShareAccess
 import com.hierynomus.smbj.share.DiskShare
-import com.hierynomus.smbj.share.File as SmbFile
 import java.io.ByteArrayOutputStream
 import java.io.File
 import java.net.HttpURLConnection
 import java.net.URL
 import java.util.Locale
-import java.util.concurrent.FutureTask
-import java.util.concurrent.TimeUnit
-import kotlin.concurrent.thread
 
 private const val ARTWORK_MEMORY_CACHE_MAX_KB = 24 * 1024
 
@@ -207,11 +198,6 @@ internal fun loadArtworkBitmapForSource(
     }
 
     if (isRemote && !remoteId.isNullOrBlank()) {
-        if ((remoteScheme == "http" || remoteScheme == "https") && !artworkRequestUrl.isNullOrBlank()) {
-            loadEmbeddedArtworkFromRemote(artworkRequestUrl)?.let {
-                return onBitmapLoaded(it)
-            }
-        }
         findExistingCachedFileForSource(cacheRoot, remoteId)?.let { cached ->
             loadEmbeddedArtwork(cached)?.let {
                 return onBitmapLoaded(it)
@@ -222,14 +208,17 @@ internal fun loadArtworkBitmapForSource(
                 }
             }
         }
+        loadEmbeddedArtworkViaDecoder(artworkRequestUrl)?.let {
+            return onBitmapLoaded(it)
+        }
         loadCachedSourceArtwork(remoteId)?.let { return onBitmapLoaded(it) }
-        if ((remoteScheme == "http" || remoteScheme == "https") && !artworkRequestUrl.isNullOrBlank()) {
-            loadFolderArtworkFromHttpSource(artworkRequestUrl)?.let {
+        if (remoteScheme == "smb" && !artworkRequestUrl.isNullOrBlank()) {
+            loadFolderArtworkFromSmb(context, artworkRequestUrl, remoteId)?.let {
                 return onBitmapLoaded(it)
             }
         }
-        if (remoteScheme == "smb" && !artworkRequestUrl.isNullOrBlank()) {
-            loadSmbArtwork(context, artworkRequestUrl, remoteId)?.let {
+        if ((remoteScheme == "http" || remoteScheme == "https") && !artworkRequestUrl.isNullOrBlank()) {
+            loadFolderArtworkFromHttpSource(artworkRequestUrl)?.let {
                 return onBitmapLoaded(it)
             }
         }
@@ -254,34 +243,11 @@ private fun loadEmbeddedArtwork(file: File): Bitmap? {
     }
 }
 
-private fun loadEmbeddedArtworkFromRemote(url: String): Bitmap? {
-    val headers = mutableMapOf(
-        "User-Agent" to "SiliconPlayer/1.0 (Android)",
-        "Icy-MetaData" to "1"
-    )
-    parseHttpSourceSpecFromInput(url)?.let { spec ->
-        httpBasicAuthorizationHeader(
-            username = spec.username,
-            password = spec.password
-        )?.let { authHeader ->
-            headers["Authorization"] = authHeader
-        }
-    }
-    synchronized(MediaMetadataRetrieverGlobalLock) {
-        val retriever = MediaMetadataRetriever()
-        return try {
-            retriever.setDataSource(
-                url,
-                headers
-            )
-            val embedded = retriever.embeddedPicture ?: return null
-            decodeScaledBitmapFromBytes(embedded)
-        } catch (_: Exception) {
-            null
-        } finally {
-            retriever.release()
-        }
-    }
+// The decoder reads the cover out of the container header, so a remote probe
+// never walks the body the way MediaMetadataRetriever does.
+private fun loadEmbeddedArtworkViaDecoder(requestUri: String?): Bitmap? {
+    if (requestUri.isNullOrBlank()) return null
+    return NativeBridge.probeArtwork(requestUri)?.let { decodeScaledBitmapFromBytes(it) }
 }
 
 private fun loadFolderArtworkFromHttpSource(sourceId: String): Bitmap? {
@@ -298,49 +264,6 @@ private fun loadFolderArtworkFromHttpSource(sourceId: String): Bitmap? {
         loadBitmapFromHttpUrl(buildHttpRequestUri(artworkSpec))
     }
 }
-
-private fun loadEmbeddedArtworkFromSmb(requestUri: String): Bitmap? {
-    val spec = resolveCredentialedSmbSpec(requestUri) ?: return null
-    val remotePath = normalizeSmbPathForShare(spec.path).orEmpty()
-    if (spec.share.isBlank() || remotePath.isBlank()) return null
-    return withOpenedSmbFile(spec, remotePath) { _, smbFile, sizeBytes ->
-        if (sizeBytes <= 0L) return@withOpenedSmbFile null
-        val dataSource = SmbRetrieverDataSource(smbFile, sizeBytes)
-        synchronized(MediaMetadataRetrieverGlobalLock) {
-            val retriever = MediaMetadataRetriever()
-            try {
-                retriever.setDataSource(dataSource)
-                val embedded = retriever.embeddedPicture ?: return@withOpenedSmbFile null
-                decodeScaledBitmapFromBytes(embedded)
-            } catch (_: Throwable) {
-                null
-            } finally {
-                retriever.release()
-                dataSource.close()
-            }
-        }
-    }
-}
-
-// MediaMetadataRetriever walks as much of the share as its extractor decides
-// before it can report "no picture", and nothing here can bound that. Both
-// probes therefore run together: the embedded picture keeps priority, and the
-// adjacent file takes over as soon as the embedded result misses its budget.
-private fun loadSmbArtwork(
-    context: Context,
-    requestUri: String,
-    sourceId: String?
-): Bitmap? {
-    val embedded = FutureTask { loadEmbeddedArtworkFromSmb(requestUri) }
-    val adjacent = FutureTask { loadFolderArtworkFromSmb(context, requestUri, sourceId) }
-    thread(isDaemon = true, name = "smb-embedded-artwork") { embedded.run() }
-    thread(isDaemon = true, name = "smb-adjacent-artwork") { adjacent.run() }
-    embedded.awaitOrNull(SMB_EMBEDDED_ARTWORK_BUDGET_MS)?.let { return it }
-    return adjacent.awaitOrNull(SMB_ADJACENT_ARTWORK_BUDGET_MS)
-}
-
-private fun <T> FutureTask<T>.awaitOrNull(timeoutMs: Long): T? =
-    runCatching { get(timeoutMs, TimeUnit.MILLISECONDS) }.getOrNull()
 
 private fun loadFolderArtworkFromSmb(
     context: Context,
@@ -389,113 +312,6 @@ private fun loadFolderArtworkFromSmb(
         }
     } catch (_: Throwable) {
         null
-    }
-}
-
-private inline fun <T> withOpenedSmbFile(
-    spec: SmbSourceSpec,
-    remotePath: String,
-    block: (DiskShare, SmbFile, Long) -> T
-): T? {
-    return try {
-        withAppSmbSession(spec) { session ->
-            val share = session.connectShare(spec.share)
-            if (share !is DiskShare) {
-                runCatching { share.close() }
-                return@withAppSmbSession null
-            }
-            try {
-                val smbFile = share.openFile(
-                    remotePath,
-                    setOf(AccessMask.GENERIC_READ),
-                    null,
-                    SMB2ShareAccess.ALL,
-                    SMB2CreateDisposition.FILE_OPEN,
-                    null
-                )
-                try {
-                    val sizeBytes = runCatching {
-                        smbFile.getFileInformation(FileStandardInformation::class.java)
-                            .getEndOfFile()
-                            .coerceAtLeast(0L)
-                    }.getOrDefault(0L)
-                    block(share, smbFile, sizeBytes)
-                } finally {
-                    runCatching { smbFile.close() }
-                }
-            } finally {
-                runCatching { share.close() }
-            }
-        }
-    } catch (_: Throwable) {
-        null
-    }
-}
-
-private class SmbRetrieverDataSource(
-    private val smbFile: SmbFile,
-    private val sizeBytes: Long
-) : MediaDataSource() {
-    @Volatile
-    private var closed = false
-
-    private val bufferLock = Any()
-    private val buffer = ByteArray(512 * 1024)
-    private var bufferStart: Long = -1L
-    private var bufferLength: Int = 0
-
-    override fun readAt(position: Long, dest: ByteArray, offset: Int, size: Int): Int {
-        if (closed || position < 0L || offset !in 0..dest.size || size <= 0) return -1
-        if (position >= sizeBytes) return -1
-        val maxReadable = (dest.size - offset).coerceAtLeast(0)
-        val requestedSize = size.coerceAtMost(maxReadable).toLong().coerceAtMost(sizeBytes - position).toInt()
-        if (requestedSize <= 0) return -1
-
-        synchronized(bufferLock) {
-            if (closed) return -1
-            if (bufferStart >= 0L && position >= bufferStart && position + requestedSize <= bufferStart + bufferLength) {
-                val bufferOffset = (position - bufferStart).toInt()
-                System.arraycopy(buffer, bufferOffset, dest, offset, requestedSize)
-                return requestedSize
-            }
-
-            if (requestedSize > buffer.size) {
-                return try {
-                    val read = smbFile.read(dest, position, offset, requestedSize)
-                    if (read <= 0) -1 else read
-                } catch (_: Throwable) {
-                    -1
-                }
-            }
-
-            val toRead = buffer.size.toLong().coerceAtMost(sizeBytes - position).toInt()
-            val read = try {
-                smbFile.read(buffer, position, 0, toRead)
-            } catch (_: Throwable) {
-                -1
-            }
-            if (read <= 0) {
-                bufferStart = -1L
-                bufferLength = 0
-                return -1
-            }
-            bufferStart = position
-            bufferLength = read
-
-            val copyCount = requestedSize.coerceAtMost(read)
-            System.arraycopy(buffer, 0, dest, offset, copyCount)
-            return copyCount
-        }
-    }
-
-    override fun getSize(): Long = sizeBytes
-
-    override fun close() {
-        closed = true
-        synchronized(bufferLock) {
-            bufferStart = -1L
-            bufferLength = 0
-        }
     }
 }
 
@@ -585,5 +401,3 @@ private fun calculateInSampleSize(width: Int, height: Int, maxSize: Int): Int {
 }
 
 private const val MAX_REMOTE_ARTWORK_BYTES = 8 * 1024 * 1024
-private const val SMB_EMBEDDED_ARTWORK_BUDGET_MS = 2_500L
-private const val SMB_ADJACENT_ARTWORK_BUDGET_MS = 2_500L

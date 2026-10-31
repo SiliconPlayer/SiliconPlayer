@@ -38,6 +38,7 @@ public:
     int getDisplayChannelCount() override;
     int getChannelCount() override;
     std::string getTitle() override;
+    std::vector<uint8_t> getArtworkBytes() override;
     std::string getArtist() override;
     std::string getComposer() override;
     std::string getGenre() override;

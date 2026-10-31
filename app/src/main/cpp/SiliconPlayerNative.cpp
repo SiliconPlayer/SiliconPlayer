@@ -3644,3 +3644,41 @@ Java_com_flopster101_siliconplayer_NativeBridge_probeTrackMetadata(
     }
     return result;
 }
+
+// Embedded cover art comes from the container header, so probing a remote file
+// reads only that much and never the body.
+extern "C" JNIEXPORT jbyteArray JNICALL
+Java_com_flopster101_siliconplayer_NativeBridge_probeTrackArtwork(
+        JNIEnv* env, jobject, jstring pathStr) {
+    if (pathStr == nullptr) {
+        return nullptr;
+    }
+    const char* path = env->GetStringUTFChars(pathStr, nullptr);
+    if (path == nullptr) {
+        return nullptr;
+    }
+
+    std::vector<uint8_t> artwork;
+    auto decoder = DecoderRegistry::getInstance().createDecoderByName("FFmpeg");
+    if (decoder && decoder->open(path)) {
+        artwork = decoder->getArtworkBytes();
+        decoder->close();
+    }
+    env->ReleaseStringUTFChars(pathStr, path);
+
+    constexpr size_t kMaxArtworkBytes = 8 * 1024 * 1024;
+    if (artwork.empty() || artwork.size() > kMaxArtworkBytes) {
+        return nullptr;
+    }
+    jbyteArray result = env->NewByteArray(static_cast<jsize>(artwork.size()));
+    if (result == nullptr) {
+        return nullptr;
+    }
+    env->SetByteArrayRegion(
+            result,
+            0,
+            static_cast<jsize>(artwork.size()),
+            reinterpret_cast<const jbyte*>(artwork.data())
+    );
+    return result;
+}

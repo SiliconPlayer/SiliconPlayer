@@ -1383,6 +1383,24 @@ std::string FFmpegDecoder::getTitle() {
     return title;
 }
 
+std::vector<uint8_t> FFmpegDecoder::getArtworkBytes() {
+    if (formatContext == nullptr) {
+        return {};
+    }
+    for (unsigned int i = 0; i < formatContext->nb_streams; ++i) {
+        AVStream* stream = formatContext->streams[i];
+        if (stream == nullptr || !(stream->disposition & AV_DISPOSITION_ATTACHED_PIC)) {
+            continue;
+        }
+        const AVPacket& picture = stream->attached_pic;
+        if (picture.data == nullptr || picture.size <= 0) {
+            continue;
+        }
+        return std::vector<uint8_t>(picture.data, picture.data + picture.size);
+    }
+    return {};
+}
+
 std::string FFmpegDecoder::getArtist() {
     std::lock_guard<std::mutex> lock(decodeMutex);
     return artist;

@@ -61,6 +61,8 @@ public:
     virtual std::string getSubtuneArtist(int /*index*/) { return ""; }
     virtual double getSubtuneDurationSeconds(int /*index*/) { return 0.0; }
     virtual std::string getTitle() = 0;
+    // Embedded cover art as stored in the container, empty when absent.
+    virtual std::vector<uint8_t> getArtworkBytes() { return {}; }
     virtual std::string getArtist() = 0;
     virtual std::string getComposer() { return ""; }
     virtual std::string getGenre() { return ""; }

@@ -367,6 +367,12 @@ object NativeBridge {
         val durationSeconds = result.getOrNull(3)?.toDoubleOrNull()?.takeIf { it.isFinite() && it > 0.0 }
         return TrackMetadataProbeResult(title, artist, album, durationSeconds)
     }
+
+    external fun probeTrackArtwork(path: String): ByteArray?
+
+    fun probeArtwork(path: String): ByteArray? =
+        runCatching { probeTrackArtwork(path) }.getOrNull()
+
     external fun setLooping(enabled: Boolean)
     external fun setRepeatMode(mode: Int)
     external fun getTrackTitle(): String
