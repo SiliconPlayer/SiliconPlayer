@@ -10,6 +10,8 @@ import com.flopster101.siliconplayer.VisualizationVuAnchor
 import com.flopster101.siliconplayer.platform.AppPreferences
 import com.flopster101.siliconplayer.ui.screens.ChannelScopePrefs
 import com.flopster101.siliconplayer.ui.visualization.OffscreenVisualizationBridge
+import com.flopster101.siliconplayer.ui.visualization.channel.ChannelScopeTextSetters
+import com.flopster101.siliconplayer.ui.visualization.gl.DesktopChannelScopeTextSetters
 import com.flopster101.siliconplayer.ui.visualization.gl.SiliconVisNativeBridge
 
 internal object DesktopOffscreenVisualizationBridge : OffscreenVisualizationBridge {
@@ -109,6 +111,9 @@ internal object DesktopOffscreenVisualizationBridge : OffscreenVisualizationBrid
 
     override fun getChannelScopeTextState(maxChannels: Int): IntArray =
         NativeBridge.getChannelScopeTextState(maxChannels)
+
+    override fun channelScopeTextSetters(visualizerHandle: Long): ChannelScopeTextSetters =
+        DesktopChannelScopeTextSetters().also { it.handle = visualizerHandle }
 
     override fun destroyVisualizer(visualizerHandle: Long) {
         SiliconVisNativeBridge.nativeDestroy(visualizerHandle)

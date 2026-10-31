@@ -43,7 +43,8 @@ import com.flopster101.siliconplayer.VisualizationChannelScopeTextAnchor
 import com.flopster101.siliconplayer.VisualizationChannelScopeTextFont
 import com.flopster101.siliconplayer.VisualizationNoteNameFormat
 import com.flopster101.siliconplayer.VisualizationVuAnchor
-import com.flopster101.siliconplayer.ui.visualization.channel.ChannelScopeChannelTextState
+import com.flopster101.siliconplayer.ui.visualization.channel.ChannelScopeTextFields
+import com.flopster101.siliconplayer.ui.visualization.channel.ChannelScopeTextPusher
 import com.flopster101.siliconplayer.ui.visualization.channel.GlChannelScopeTextPalette
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
@@ -99,7 +100,6 @@ data class SiliconNativeGlFrame(
     val channelHistories: List<FloatArray> = emptyList(),
     val channelScopeFlatData: FloatArray? = null,
     val channelScopeSamplesPerChannel: Int = 0,
-    val channelTextStates: List<ChannelScopeChannelTextState> = emptyList(),
     val instrumentNamesByIndex: Map<Int, String> = emptyMap(),
     val sampleNamesByIndex: Map<Int, String> = emptyMap(),
     val chipNamesByChannelIndex: Map<Int, String> = emptyMap(),
@@ -217,8 +217,7 @@ data class SiliconNativeGlDynamicData(
     val vuLevels: FloatArray = floatArrayOf(0f, 0f),
     val channelHistories: List<FloatArray> = emptyList(),
     val channelScopeFlatData: FloatArray? = null,
-    val channelScopeSamplesPerChannel: Int = 0,
-    val channelTextStates: List<ChannelScopeChannelTextState> = emptyList()
+    val channelScopeSamplesPerChannel: Int = 0
 )
 
 interface SiliconNativeGlDataConsumer {
@@ -453,13 +452,9 @@ internal class SiliconNativeTextureRenderThread(
     private var artworkDirectBuffer: ByteBuffer? = null
 
     // Per-tick render state (render thread only).
-    private var localChannelTextStateBuffer = IntArray(0)
     private var localLastTextPollNs = 0L
-    private var localChannelNamesPayload = ""
-    private var localIdentifierNamesPayload = ""
-    private var localSampleNamesPayload = ""
-    private var localTextFieldsPayload: List<Any>? = null
-    private var localTextEnabled = false
+    private val localTextSetters = AndroidChannelScopeTextSetters()
+    private val localTextPusher = ChannelScopeTextPusher(localTextSetters)
     private var pausedFrameRendered = false
     private var lastTickNs = 0L
     private var projectMAttached = false
@@ -993,7 +988,6 @@ internal class SiliconNativeTextureRenderThread(
                     val flatData = d?.channelScopeFlatData ?: frame.channelScopeFlatData
                     val flatSamples = if (d != null && d.channelScopeFlatData != null) d.channelScopeSamplesPerChannel else frame.channelScopeSamplesPerChannel
                     val channelHistories = if (d != null && d.channelHistories.isNotEmpty()) d.channelHistories else frame.channelHistories
-                    val channelTextStates = if (d != null && d.channelTextStates.isNotEmpty()) d.channelTextStates else frame.channelTextStates
 
                     pcm?.let {
                         SiliconVisNativeBridge.nativePushPcm(visHandle, it, pcmFrames, pcmChannels, pcmSampleRate)
@@ -1025,39 +1019,13 @@ internal class SiliconNativeTextureRenderThread(
                     // 3. Set options
                     when (frame.mode) {
                         4 -> { // Channel Scope
-                            val namesPayload = channelScopeIndexedNamesPayload(frame.chipNamesByChannelIndex)
-                            if (namesPayload != localChannelNamesPayload) {
-                                localChannelNamesPayload = namesPayload
-                                SiliconVisNativeBridge.nativeSetChannelScopeChannelNames(visHandle, namesPayload)
+                            if (localTextSetters.handle != visHandle) {
+                                localTextSetters.handle = visHandle
+                                localTextPusher.reset()
                             }
-                            val identifiersPayload = channelScopeIndexedNamesPayload(frame.instrumentNamesByIndex)
-                            val samplesPayload = channelScopeIndexedNamesPayload(frame.sampleNamesByIndex)
-                            if (identifiersPayload != localIdentifierNamesPayload ||
-                                samplesPayload != localSampleNamesPayload
-                            ) {
-                                localIdentifierNamesPayload = identifiersPayload
-                                localSampleNamesPayload = samplesPayload
-                                SiliconVisNativeBridge.nativeSetChannelScopeIdentifierNames(
-                                    visHandle,
-                                    identifiersPayload,
-                                    samplesPayload
-                                )
-                            }
-                            val fieldsPayload = listOf(
-                                frame.showChannel,
-                                frame.showNote,
-                                frame.showVolume,
-                                frame.showEffectPrimary,
-                                frame.showEffectSecondary,
-                                frame.showChip,
-                                frame.showInstrument,
-                                frame.showSample,
-                                frame.noteFormat
-                            )
-                            if (fieldsPayload != localTextFieldsPayload) {
-                                localTextFieldsPayload = fieldsPayload
-                                SiliconVisNativeBridge.nativeSetChannelScopeTextFields(
-                                    handle = visHandle,
+                            localTextPusher.pushText(
+                                enabled = frame.channelScopeTextEnabled,
+                                fields = ChannelScopeTextFields(
                                     showChannel = frame.showChannel,
                                     showNote = frame.showNote,
                                     showVolume = frame.showVolume,
@@ -1066,16 +1034,12 @@ internal class SiliconNativeTextureRenderThread(
                                     showChip = frame.showChip,
                                     showInstrument = frame.showInstrument,
                                     showSample = frame.showSample,
-                                    noteFormat = noteNameFormatNativeValue(frame.noteFormat)
-                                )
-                            }
-                            if (frame.channelScopeTextEnabled != localTextEnabled) {
-                                localTextEnabled = frame.channelScopeTextEnabled
-                                SiliconVisNativeBridge.nativeSetChannelScopeTextEnabled(
-                                    visHandle,
-                                    frame.channelScopeTextEnabled
-                                )
-                            }
+                                    noteFormat = frame.noteFormat
+                                ),
+                                channelNamesByIndex = frame.chipNamesByChannelIndex,
+                                instrumentNamesByIndex = frame.instrumentNamesByIndex,
+                                sampleNamesByIndex = frame.sampleNamesByIndex
+                            )
                             SiliconVisNativeBridge.nativeSetChannelScopeOptions(
                                 handle = visHandle,
                                 layout = frame.channelLayout,
@@ -1189,11 +1153,7 @@ internal class SiliconNativeTextureRenderThread(
                         val textNowNs = System.nanoTime()
                         if (textNowNs - localLastTextPollNs >= 20_000_000L) {
                             localLastTextPollNs = textNowNs
-                            val rawText = com.flopster101.siliconplayer.NativeBridge.getChannelScopeTextState(64)
-                            if (!rawText.contentEquals(localChannelTextStateBuffer)) {
-                                localChannelTextStateBuffer = rawText
-                                SiliconVisNativeBridge.nativeSetChannelScopeTextStates(visHandle, rawText)
-                            }
+                            localTextPusher.pushStates(com.flopster101.siliconplayer.NativeBridge.getChannelScopeTextState(64))
                         }
                     }
                     if (sceneActive) sceneTarget.bind()

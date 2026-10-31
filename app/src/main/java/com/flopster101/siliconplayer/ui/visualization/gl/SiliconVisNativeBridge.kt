@@ -199,20 +199,4 @@ object SiliconVisNativeBridge {
     external fun nativeTakeTransitionSnapshotVulkan(handle: Long): Boolean
     external fun nativeReleaseTransitionSnapshotVulkan(handle: Long)
     external fun nativeSetTransitionVulkan(handle: Long, offsetX: Float, alpha: Float)
-    external fun nativeSetTextQuads(handle: Long, buffer: java.nio.FloatBuffer?, vertexCount: Int)
 }
-
-// Native label slots are positional, so index gaps stay as empty entries.
-internal fun channelScopeIndexedNamesPayload(chipNamesByChannelIndex: Map<Int, String>): String {
-    if (chipNamesByChannelIndex.isEmpty()) return ""
-    val lastIndex = chipNamesByChannelIndex.keys.max()
-    if (lastIndex < 0) return ""
-    return (0..lastIndex).joinToString("\n") { index ->
-        chipNamesByChannelIndex[index].orEmpty().replace('\n', ' ').replace('\r', ' ')
-    }
-}
-
-// Native note naming: 0 = American, 1 = International.
-internal fun noteNameFormatNativeValue(
-    format: com.flopster101.siliconplayer.VisualizationNoteNameFormat
-): Int = if (format == com.flopster101.siliconplayer.VisualizationNoteNameFormat.International) 1 else 0

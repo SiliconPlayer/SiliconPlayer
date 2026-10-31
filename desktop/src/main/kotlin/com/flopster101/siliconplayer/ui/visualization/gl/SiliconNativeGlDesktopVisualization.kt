@@ -36,12 +36,9 @@ import com.flopster101.siliconplayer.VisualizationVuAnchor
 import com.flopster101.siliconplayer.desktop.DesktopProjectMPresetSets
 import com.flopster101.siliconplayer.platform.AppPreferences
 import com.flopster101.siliconplayer.platform.LocalAppPreferences
-import com.flopster101.siliconplayer.ui.visualization.ScopeTextQuadEmitter
-import com.flopster101.siliconplayer.ui.visualization.channel.ChannelScopeChannelTextState
-import com.flopster101.siliconplayer.ui.visualization.channel.GlChannelScopeTextFrame
+import com.flopster101.siliconplayer.ui.visualization.channel.ChannelScopeTextFields
+import com.flopster101.siliconplayer.ui.visualization.channel.ChannelScopeTextPusher
 import com.flopster101.siliconplayer.ui.visualization.channel.GlChannelScopeTextPalette
-import com.flopster101.siliconplayer.ui.visualization.channel.layoutChannelScopeText
-import com.flopster101.siliconplayer.ui.visualization.channel.parseChannelScopeTextStates
 import java.awt.Font
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
@@ -218,7 +215,6 @@ private class SiliconNativeDesktopRenderThread(
 
         var hostHandle = 0L
         var vulkanActive = false
-        var scopeTextFloatBuffer: java.nio.FloatBuffer? = null
 
         var lastFrameTimeNs = System.nanoTime()
         var fpsFrameCount = 0
@@ -230,12 +226,10 @@ private class SiliconNativeDesktopRenderThread(
         var lastPlaceholderIcon: ImageBitmap? = null
         var lastTextFontKey = ""
         var lastScopeFontKey = ""
-        var scopeEmitter: ScopeTextQuadEmitter? = null
-        var lastScopeFrame: GlChannelScopeTextFrame? = null
-        var lastScopeStates: List<ChannelScopeChannelTextState> = emptyList()
+        val scopeTextSetters = DesktopChannelScopeTextSetters()
+        val scopeTextPusher = ChannelScopeTextPusher(scopeTextSetters)
+        var scopeTextStates: IntArray = IntArray(0)
         var lastScopePollNs = 0L
-        var lastScopeW = 0
-        var lastScopeH = 0
 
         var projectMAttached = false
         var projectMSawStopped = false
@@ -298,36 +292,30 @@ private class SiliconNativeDesktopRenderThread(
                         hostHandle = 0L
                         lastTextFontKey = ""
                         lastScopeFontKey = ""
-                        lastScopeFrame = null
                     }
                     if (!vulkanActive) {
                         vulkanActive = SiliconVisNativeBridge.nativeInitVulkan(visHandle, w, h, null)
                         if (vulkanActive) {
                             lastTextFontKey = ""
                             lastScopeFontKey = ""
-                            lastScopeFrame = null
                         }
                     }
                     if (!vulkanActive && hostHandle == 0L) {
                         hostHandle = DesktopGlSurface.nativeInit(visHandle)
                         lastTextFontKey = ""
                         lastScopeFontKey = ""
-                        lastScopeFrame = null
                     }
                 } else {
                     if (vulkanActive) {
-                        try { SiliconVisNativeBridge.nativeSetTextQuads(visHandle, null, 0) } catch (_: Throwable) {}
                         SiliconVisNativeBridge.nativeReleaseVulkan(visHandle)
                         vulkanActive = false
                         lastTextFontKey = ""
                         lastScopeFontKey = ""
-                        lastScopeFrame = null
                     }
                     if (hostHandle == 0L) {
                         hostHandle = DesktopGlSurface.nativeInit(visHandle)
                         lastTextFontKey = ""
                         lastScopeFontKey = ""
-                        lastScopeFrame = null
                     }
                 }
 
@@ -749,78 +737,35 @@ private class SiliconNativeDesktopRenderThread(
                         }
                     }
 
-                    if (frame.mode == 4 && frame.channelScopeTextEnabled) {
+                    if (frame.mode == 4) {
                         val overlayKey = "scope_" + frame.textFont.storageValue
                         if (overlayKey != lastScopeFontKey) {
                             lastScopeFontKey = overlayKey
-                            scopeEmitter = try {
-                                val resourcePath = scopeFontResourcePath(frame.textFont)
+                            try {
                                 val uploadData = DesktopGlFontAtlas.createAtlasUploadData(
                                     fontName = Font.SANS_SERIF,
-                                    fontResourcePath = resourcePath,
+                                    fontResourcePath = scopeFontResourcePath(frame.textFont),
                                     baseFontSizePx = 32f
                                 )
-                                val uploaded = if (hostHandle != 0L) {
-                                    DesktopGlSurface.nativeUploadScopeAtlas(
-                                        hostHandle,
-                                        uploadData.pixelBuffer,
-                                        uploadData.width,
-                                        uploadData.height,
-                                        uploadData.baseFontSizePx,
-                                        uploadData.lineHeightPx,
-                                        uploadData.glyphBuffer,
-                                        uploadData.glyphCount
-                                    )
-                                } else if (vulkanActive) {
-                                    SiliconVisNativeBridge.nativeSetFontAtlas(
-                                        visHandle,
-                                        uploadData.pixelBuffer,
-                                        uploadData.width,
-                                        uploadData.height,
-                                        uploadData.baseFontSizePx,
-                                        uploadData.lineHeightPx,
-                                        uploadData.glyphBuffer,
-                                        uploadData.glyphCount
-                                    )
-                                    true
-                                } else {
-                                    false
-                                }
-                                if (uploaded) {
-                                    ScopeTextQuadEmitter(uploadData.glyphBuffer, uploadData.baseFontSizePx, uploadData.lineHeightPx)
-                                } else {
-                                    null
-                                }
-                            } catch (_: Throwable) {
-                                null
-                            }
-                            lastScopeFrame = null
+                                SiliconVisNativeBridge.nativeSetFontAtlas(
+                                    handle = visHandle,
+                                    byteBuffer = uploadData.pixelBuffer,
+                                    width = uploadData.width,
+                                    height = uploadData.height,
+                                    baseFontSizePx = uploadData.baseFontSizePx,
+                                    lineHeightPx = uploadData.lineHeightPx,
+                                    glyphBuffer = uploadData.glyphBuffer,
+                                    glyphCount = uploadData.glyphCount
+                                )
+                            } catch (_: Throwable) {}
                         }
-                        val nowNs = System.nanoTime()
-                        if (textCaps != 0 && nowNs - lastScopePollNs >= 20_000_000L) {
-                            lastScopePollNs = nowNs
-                            val raw = runCatching { NativeBridge.getChannelScopeTextState(64) }.getOrDefault(IntArray(0))
-                            // Hold the last good states through empty polls; clearing here
-                            // blinked the labels whenever the engine had no fresh row ready.
-                            if (raw.isNotEmpty()) lastScopeStates = parseChannelScopeTextStates(raw)
+                        if (scopeTextSetters.handle != visHandle) {
+                            scopeTextSetters.handle = visHandle
+                            scopeTextPusher.reset()
                         }
-                        val emitter = scopeEmitter
-                        if (emitter != null && lastScopeStates.isNotEmpty()) {
-                            val candidate = GlChannelScopeTextFrame(
-                                channelCount = lastScopeStates.size,
-                                channelTextStates = lastScopeStates,
-                                instrumentNamesByIndex = frame.instrumentNamesByIndex,
-                                sampleNamesByIndex = frame.sampleNamesByIndex,
-                                chipNamesByChannelIndex = frame.chipNamesByChannelIndex,
-                                layoutStrategy = frame.channelLayoutStrategy,
-                                anchor = frame.channelTextAnchor,
-                                paddingPx = frame.paddingPx,
-                                textSizeSp = frame.textSizeSp,
-                                density = density,
-                                hideWhenOverflow = frame.hideWhenOverflow,
-                                textShadowEnabled = frame.shadowEnabled,
-                                textFont = frame.textFont,
-                                noteFormat = frame.noteFormat,
+                        scopeTextPusher.pushText(
+                            enabled = frame.channelScopeTextEnabled,
+                            fields = ChannelScopeTextFields(
                                 showChannel = frame.showChannel,
                                 showNote = frame.showNote,
                                 showVolume = frame.showVolume,
@@ -829,58 +774,20 @@ private class SiliconNativeDesktopRenderThread(
                                 showChip = frame.showChip,
                                 showInstrument = frame.showInstrument,
                                 showSample = frame.showSample,
-                                palette = frame.textPalette
-                            )
-                            if (candidate != lastScopeFrame || w != lastScopeW || h != lastScopeH) {
-                                lastScopeFrame = candidate
-                                lastScopeW = w
-                                lastScopeH = h
-                                val layout = layoutChannelScopeText(candidate, w.toFloat(), h.toFloat(), emitter.measurer)
-                                val quads = if (layout == null) {
-                                    FloatArray(0)
-                                } else {
-                                    emitter.emitRuns(layout.runs, layout.textSizePx, layout.shadowEnabled)
-                                }
-                                if (vulkanActive) {
-                                    if (quads.isNotEmpty()) {
-                                        val vertexCount = quads.size / 8
-                                        var fBuf = scopeTextFloatBuffer
-                                        if (fBuf == null || fBuf.capacity() < quads.size) {
-                                            fBuf = ByteBuffer.allocateDirect(quads.size * 4).order(ByteOrder.nativeOrder()).asFloatBuffer()
-                                            scopeTextFloatBuffer = fBuf
-                                        }
-                                        fBuf.clear()
-                                        fBuf.put(quads)
-                                        fBuf.flip()
-                                        SiliconVisNativeBridge.nativeSetTextQuads(visHandle, fBuf, vertexCount)
-                                    } else {
-                                        SiliconVisNativeBridge.nativeSetTextQuads(visHandle, null, 0)
-                                    }
-                                } else if (hostHandle != 0L) {
-                                    try {
-                                        DesktopGlSurface.nativeSetScopeTextQuads(hostHandle, quads, quads.size)
-                                    } catch (_: Throwable) {}
-                                }
-                            }
-                        } else if (lastScopeFrame != null) {
-                            lastScopeFrame = null
-                            if (vulkanActive) {
-                                SiliconVisNativeBridge.nativeSetTextQuads(visHandle, null, 0)
-                            } else if (hostHandle != 0L) {
-                                try {
-                                    DesktopGlSurface.nativeSetScopeTextQuads(hostHandle, null, 0)
-                                } catch (_: Throwable) {}
-                            }
+                                noteFormat = frame.noteFormat
+                            ),
+                            channelNamesByIndex = frame.chipNamesByChannelIndex,
+                            instrumentNamesByIndex = frame.instrumentNamesByIndex,
+                            sampleNamesByIndex = frame.sampleNamesByIndex
+                        )
+                        val nowNs = System.nanoTime()
+                        if (frame.channelScopeTextEnabled && textCaps != 0 && nowNs - lastScopePollNs >= 20_000_000L) {
+                            lastScopePollNs = nowNs
+                            val raw = runCatching { NativeBridge.getChannelScopeTextState(64) }.getOrDefault(IntArray(0))
+                            // Empty polls keep the previous rows so the labels stop blinking.
+                            if (raw.isNotEmpty()) scopeTextStates = raw
                         }
-                    } else if (lastScopeFrame != null) {
-                        lastScopeFrame = null
-                        if (vulkanActive) {
-                            SiliconVisNativeBridge.nativeSetTextQuads(visHandle, null, 0)
-                        } else if (hostHandle != 0L) {
-                            try {
-                                DesktopGlSurface.nativeSetScopeTextQuads(hostHandle, null, 0)
-                            } catch (_: Throwable) {}
-                        }
+                        if (scopeTextStates.isNotEmpty()) scopeTextPusher.pushStates(scopeTextStates)
                     }
                 }
 
@@ -1021,9 +928,6 @@ private class SiliconNativeDesktopRenderThread(
                 } catch (_: Throwable) {}
             }
             if (vulkanActive) {
-                try {
-                    SiliconVisNativeBridge.nativeSetTextQuads(visHandle, null, 0)
-                } catch (_: Throwable) {}
                 try {
                     SiliconVisNativeBridge.nativeReleaseTransitionSnapshotVulkan(visHandle)
                 } catch (_: Throwable) {}

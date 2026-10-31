@@ -3,7 +3,6 @@ package com.flopster101.siliconplayer.ui.visualization.gl
 import com.flopster101.siliconplayer.NativeBridge
 import com.flopster101.siliconplayer.VisualizationChannelScopeTextFont
 import com.flopster101.siliconplayer.ui.visualization.OffscreenVisualizationSurface
-import com.flopster101.siliconplayer.ui.visualization.ScopeTextQuadEmitter
 import java.awt.Font
 import java.nio.ByteBuffer
 
@@ -28,17 +27,6 @@ object DesktopGlSurface : OffscreenVisualizationSurface {
     external fun nativeDestroy(hostHandle: Long, visHandle: Long)
     external fun nativeTakeTransitionSnapshot(hostHandle: Long): Boolean
     external fun nativeReleaseTransitionSnapshot(hostHandle: Long)
-    external fun nativeUploadScopeAtlas(
-        hostHandle: Long,
-        pixelBuffer: ByteBuffer,
-        width: Int,
-        height: Int,
-        baseFontSizePx: Float,
-        lineHeightPx: Float,
-        glyphBuffer: ByteBuffer,
-        glyphCount: Int
-    ): Boolean
-    external fun nativeSetScopeTextQuads(hostHandle: Long, quadArray: FloatArray?, floatCount: Int)
 
     override fun initialize(visualizerHandle: Long): Long = nativeInit(visualizerHandle)
 
@@ -59,27 +47,11 @@ object DesktopGlSurface : OffscreenVisualizationSurface {
         nativeDestroy(surfaceHandle, visualizerHandle)
     }
 
-    override fun uploadTextAtlas(
+    override fun prepareTextAtlas(
         surfaceHandle: Long,
-        pixels: ByteBuffer,
-        width: Int,
-        height: Int,
-        baseFontSizePx: Float,
-        lineHeightPx: Float,
-        glyphs: ByteBuffer,
-        glyphCount: Int
-    ): Boolean = nativeUploadScopeAtlas(
-        surfaceHandle, pixels, width, height, baseFontSizePx, lineHeightPx, glyphs, glyphCount
-    )
-
-    override fun setTextQuads(surfaceHandle: Long, quads: FloatArray?) {
-        nativeSetScopeTextQuads(surfaceHandle, quads, quads?.size ?: 0)
-    }
-
-    override fun createTextEmitter(
-        surfaceHandle: Long,
+        visualizerHandle: Long,
         font: VisualizationChannelScopeTextFont
-    ): ScopeTextQuadEmitter? {
+    ): Boolean {
         val resourcePath = when (font) {
             VisualizationChannelScopeTextFont.System -> null
             VisualizationChannelScopeTextFont.RaccoonSerif -> "/fonts/scope/raccoon_serif_base.ttf"
@@ -92,11 +64,16 @@ object DesktopGlSurface : OffscreenVisualizationSurface {
             fontResourcePath = resourcePath,
             baseFontSizePx = 32f
         )
-        if (!uploadTextAtlas(
-                surfaceHandle, atlas.pixelBuffer, atlas.width, atlas.height,
-                atlas.baseFontSizePx, atlas.lineHeightPx, atlas.glyphBuffer, atlas.glyphCount
-            )
-        ) return null
-        return ScopeTextQuadEmitter(atlas.glyphBuffer, atlas.baseFontSizePx, atlas.lineHeightPx)
+        SiliconVisNativeBridge.nativeSetFontAtlas(
+            handle = visualizerHandle,
+            byteBuffer = atlas.pixelBuffer,
+            width = atlas.width,
+            height = atlas.height,
+            baseFontSizePx = atlas.baseFontSizePx,
+            lineHeightPx = atlas.lineHeightPx,
+            glyphBuffer = atlas.glyphBuffer,
+            glyphCount = atlas.glyphCount
+        )
+        return true
     }
 }

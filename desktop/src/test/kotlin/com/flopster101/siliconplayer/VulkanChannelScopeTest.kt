@@ -61,7 +61,7 @@ class VulkanChannelScopeTest {
     }
 
     @Test
-    fun testVulkanChannelScopeWithTextQuads() {
+    fun testVulkanChannelScopeWithLabels() {
         if (!SiliconVisNativeBridge.nativeVulkanIsSupported()) {
             println("Vulkan not supported on this platform, skipping.")
             return
@@ -76,27 +76,28 @@ class VulkanChannelScopeTest {
         assertTrue("Vulkan pipeline initialization failed", initOk)
 
         SiliconVisNativeBridge.nativeSetMode(handle, 4)
-
-        val quads = floatArrayOf(
-            10f, 10f, 0f, 0f, 1f, 1f, 1f, 1f,
-            50f, 10f, 1f, 0f, 1f, 1f, 1f, 1f,
-            10f, 30f, 0f, 1f, 1f, 1f, 1f, 1f,
-            10f, 30f, 0f, 1f, 1f, 1f, 1f, 1f,
-            50f, 10f, 1f, 0f, 1f, 1f, 1f, 1f,
-            50f, 30f, 1f, 1f, 1f, 1f, 1f, 1f
+        SiliconVisNativeBridge.nativeSetChannelScopeChannelNames(handle, "Pulse 1\nPulse 2")
+        SiliconVisNativeBridge.nativeSetChannelScopeTextFields(
+            handle = handle,
+            showChannel = true,
+            showNote = true,
+            showVolume = true,
+            showEffectPrimary = false,
+            showEffectSecondary = false,
+            showChip = true,
+            showInstrument = false,
+            showSample = false,
+            noteFormat = 0
         )
-        val textBuf = ByteBuffer.allocateDirect(quads.size * 4).order(ByteOrder.nativeOrder()).asFloatBuffer()
-        textBuf.put(quads).flip()
-
-        SiliconVisNativeBridge.nativeSetTextQuads(handle, textBuf, 6)
+        SiliconVisNativeBridge.nativeSetChannelScopeTextEnabled(handle, true)
         SiliconVisNativeBridge.nativeRenderVulkan(handle)
 
         val bufferSize = width * height * 4
         val readbackBuffer = ByteBuffer.allocateDirect(bufferSize).order(ByteOrder.nativeOrder())
         val readbackOk = SiliconVisNativeBridge.nativeReadbackVulkan(handle, readbackBuffer)
-        assertTrue("Expected successful readback with text quads", readbackOk)
+        assertTrue("Expected successful readback with scope labels", readbackOk)
 
-        SiliconVisNativeBridge.nativeSetTextQuads(handle, null, 0)
+        SiliconVisNativeBridge.nativeSetChannelScopeTextEnabled(handle, false)
         SiliconVisNativeBridge.nativeReleaseVulkan(handle)
         SiliconVisNativeBridge.nativeDestroy(handle)
     }

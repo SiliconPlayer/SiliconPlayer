@@ -41,6 +41,8 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import com.flopster101.siliconplayer.LocalPlayerOverlayVisibility
 import com.flopster101.siliconplayer.NativeBridge
+import com.flopster101.siliconplayer.ui.visualization.channel.ChannelScopeTextFields
+import com.flopster101.siliconplayer.ui.visualization.channel.ChannelScopeTextPusher
 import com.flopster101.siliconplayer.AppPreferenceKeys
 import com.flopster101.siliconplayer.VisualizationOscFpsMode
 import com.flopster101.siliconplayer.supportsVulkanRendering
@@ -475,12 +477,8 @@ internal class SiliconNativeVkRenderThread(
     private var lastTextFontKey: String? = null
     private var iconDirectBuffer: ByteBuffer? = null
     private var artworkDirectBuffer: ByteBuffer? = null
-    private var localChannelTextStateBuffer = IntArray(0)
-    private var localChannelNamesPayload = ""
-    private var localIdentifierNamesPayload = ""
-    private var localSampleNamesPayload = ""
-    private var localTextFieldsPayload: List<Any>? = null
-    private var localTextEnabled = false
+    private val localTextSetters = AndroidChannelScopeTextSetters()
+    private val localTextPusher = ChannelScopeTextPusher(localTextSetters)
     private var localLastTextPollNs = 0L
     private var pausedFrameRendered = false
     private var lastTickNs = 0L
@@ -968,39 +966,13 @@ internal class SiliconNativeVkRenderThread(
                     )
                 }
                 4 -> {
-                    val namesPayload = channelScopeIndexedNamesPayload(frame.chipNamesByChannelIndex)
-                    if (namesPayload != localChannelNamesPayload) {
-                        localChannelNamesPayload = namesPayload
-                        SiliconVisNativeBridge.nativeSetChannelScopeChannelNames(visHandle, namesPayload)
+                    if (localTextSetters.handle != visHandle) {
+                        localTextSetters.handle = visHandle
+                        localTextPusher.reset()
                     }
-                    val identifiersPayload = channelScopeIndexedNamesPayload(frame.instrumentNamesByIndex)
-                    val samplesPayload = channelScopeIndexedNamesPayload(frame.sampleNamesByIndex)
-                    if (identifiersPayload != localIdentifierNamesPayload ||
-                        samplesPayload != localSampleNamesPayload
-                    ) {
-                        localIdentifierNamesPayload = identifiersPayload
-                        localSampleNamesPayload = samplesPayload
-                        SiliconVisNativeBridge.nativeSetChannelScopeIdentifierNames(
-                            visHandle,
-                            identifiersPayload,
-                            samplesPayload
-                        )
-                    }
-                    val fieldsPayload = listOf(
-                        frame.showChannel,
-                        frame.showNote,
-                        frame.showVolume,
-                        frame.showEffectPrimary,
-                        frame.showEffectSecondary,
-                        frame.showChip,
-                        frame.showInstrument,
-                        frame.showSample,
-                        frame.noteFormat
-                    )
-                    if (fieldsPayload != localTextFieldsPayload) {
-                        localTextFieldsPayload = fieldsPayload
-                        SiliconVisNativeBridge.nativeSetChannelScopeTextFields(
-                            handle = visHandle,
+                    localTextPusher.pushText(
+                        enabled = frame.channelScopeTextEnabled,
+                        fields = ChannelScopeTextFields(
                             showChannel = frame.showChannel,
                             showNote = frame.showNote,
                             showVolume = frame.showVolume,
@@ -1009,16 +981,12 @@ internal class SiliconNativeVkRenderThread(
                             showChip = frame.showChip,
                             showInstrument = frame.showInstrument,
                             showSample = frame.showSample,
-                            noteFormat = noteNameFormatNativeValue(frame.noteFormat)
-                        )
-                    }
-                    if (frame.channelScopeTextEnabled != localTextEnabled) {
-                        localTextEnabled = frame.channelScopeTextEnabled
-                        SiliconVisNativeBridge.nativeSetChannelScopeTextEnabled(
-                            visHandle,
-                            frame.channelScopeTextEnabled
-                        )
-                    }
+                            noteFormat = frame.noteFormat
+                        ),
+                        channelNamesByIndex = frame.chipNamesByChannelIndex,
+                        instrumentNamesByIndex = frame.instrumentNamesByIndex,
+                        sampleNamesByIndex = frame.sampleNamesByIndex
+                    )
                     SiliconVisNativeBridge.nativeSetChannelScopeOptions(
                         handle = visHandle,
                         layout = frame.channelLayout,
@@ -1122,11 +1090,7 @@ internal class SiliconNativeVkRenderThread(
                 val textNowNs = System.nanoTime()
                 if (textNowNs - localLastTextPollNs >= 20_000_000L) {
                     localLastTextPollNs = textNowNs
-                    val rawText = NativeBridge.getChannelScopeTextState(64)
-                    if (!rawText.contentEquals(localChannelTextStateBuffer)) {
-                        localChannelTextStateBuffer = rawText
-                        SiliconVisNativeBridge.nativeSetChannelScopeTextStates(visHandle, rawText)
-                    }
+                    localTextPusher.pushStates(NativeBridge.getChannelScopeTextState(64))
                 }
             }
             if (!SiliconVisNativeBridge.nativeRenderVulkan(visHandle)) {

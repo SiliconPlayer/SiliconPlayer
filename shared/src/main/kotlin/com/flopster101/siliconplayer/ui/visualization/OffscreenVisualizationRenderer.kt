@@ -13,11 +13,10 @@ import com.flopster101.siliconplayer.platform.AppPreferences
 import com.flopster101.siliconplayer.ui.screens.ChannelScopePrefs
 import com.flopster101.siliconplayer.ui.screens.ChannelScopePrefsSupport
 import com.flopster101.siliconplayer.ui.visualization.channel.ChannelScopeNameSource
-import com.flopster101.siliconplayer.ui.visualization.channel.GlChannelScopeTextFrame
-import com.flopster101.siliconplayer.ui.visualization.channel.GlChannelScopeTextPalette
-import com.flopster101.siliconplayer.ui.visualization.channel.layoutChannelScopeText
+import com.flopster101.siliconplayer.ui.visualization.channel.ChannelScopeTextFields
+import com.flopster101.siliconplayer.ui.visualization.channel.ChannelScopeTextPusher
+import com.flopster101.siliconplayer.ui.visualization.channel.ChannelScopeTextSetters
 import com.flopster101.siliconplayer.ui.visualization.channel.loadChannelScopeNameMaps
-import com.flopster101.siliconplayer.ui.visualization.channel.parseChannelScopeTextStates
 import java.nio.ByteBuffer
 
 class OffscreenVisualizationRenderer(
@@ -44,7 +43,7 @@ class OffscreenVisualizationRenderer(
     }
     private var visualizerHandle = 0L
     private var surfaceHandle = 0L
-    private var textEmitter: ScopeTextQuadEmitter? = null
+    private var textPusher: ChannelScopeTextPusher? = null
 
     init {
         try {
@@ -56,8 +55,10 @@ class OffscreenVisualizationRenderer(
             surfaceHandle = surface.initialize(visualizerHandle)
             check(surfaceHandle != 0L) { "Could not initialize an offscreen visualization surface." }
             if (mode == VisualizationMode.ChannelScope && channelScopePrefs.textEnabled) {
-                textEmitter = surface.createTextEmitter(surfaceHandle, channelScopePrefs.textFont)
-                check(textEmitter != null) { "Could not create the visualization text renderer." }
+                check(surface.prepareTextAtlas(surfaceHandle, visualizerHandle, channelScopePrefs.textFont)) {
+                    "Could not prepare the visualization text atlas."
+                }
+                textPusher = ChannelScopeTextPusher(bridge.channelScopeTextSetters(visualizerHandle))
             }
         } catch (error: Throwable) {
             close()
@@ -86,59 +87,38 @@ class OffscreenVisualizationRenderer(
     }
 
     private fun updateChannelScopeText() {
-        if (!channelScopePrefs.textEnabled || textEmitter == null) {
-            surface.setTextQuads(surfaceHandle, null)
-            return
-        }
-        val states = parseChannelScopeTextStates(bridge.getChannelScopeTextState(64))
-        if (states.isEmpty()) {
-            surface.setTextQuads(surfaceHandle, null)
-            return
-        }
+        val pusher = textPusher ?: return
         val capabilities = channelScopeTextCapabilities(decoderName)
-        val frame = GlChannelScopeTextFrame(
-            channelCount = states.size,
-            channelTextStates = states,
+        pusher.pushText(
+            enabled = channelScopePrefs.textEnabled,
+            fields = ChannelScopeTextFields(
+                showChannel = channelScopePrefs.textShowChannel,
+                showNote = channelScopePrefs.textShowNote && capabilities and ChannelScopeTextCapability.NOTE != 0,
+                showVolume = isChannelScopeVisibleElementEnabled(
+                    channelScopePrefs.textVisibleElementSelection, decoderName, ChannelScopeVisibleElementId.Volume
+                ),
+                showEffectPrimary = isChannelScopeVisibleElementEnabled(
+                    channelScopePrefs.textVisibleElementSelection, decoderName, ChannelScopeVisibleElementId.EffectPrimary
+                ),
+                showEffectSecondary = isChannelScopeVisibleElementEnabled(
+                    channelScopePrefs.textVisibleElementSelection, decoderName, ChannelScopeVisibleElementId.EffectSecondary
+                ),
+                showChip = isChannelScopeVisibleElementEnabled(
+                    channelScopePrefs.textVisibleElementSelection, decoderName, ChannelScopeVisibleElementId.Chip
+                ),
+                showInstrument = isChannelScopeVisibleElementEnabled(
+                    channelScopePrefs.textVisibleElementSelection, decoderName, ChannelScopeVisibleElementId.Instrument
+                ),
+                showSample = isChannelScopeVisibleElementEnabled(
+                    channelScopePrefs.textVisibleElementSelection, decoderName, ChannelScopeVisibleElementId.Sample
+                ),
+                noteFormat = channelScopePrefs.textNoteFormat
+            ),
+            channelNamesByIndex = nameMaps.chipNamesByChannelIndex,
             instrumentNamesByIndex = nameMaps.instrumentNamesByIndex,
-            sampleNamesByIndex = nameMaps.sampleNamesByIndex,
-            chipNamesByChannelIndex = nameMaps.chipNamesByChannelIndex,
-            layoutStrategy = channelScopePrefs.layout,
-            anchor = channelScopePrefs.textAnchor,
-            paddingPx = channelScopePrefs.textPaddingDp * density,
-            textSizeSp = channelScopePrefs.textSizeSp,
-            density = density,
-            hideWhenOverflow = channelScopePrefs.textHideWhenOverflow,
-            textShadowEnabled = channelScopePrefs.textShadowEnabled,
-            textFont = channelScopePrefs.textFont,
-            noteFormat = channelScopePrefs.textNoteFormat,
-            showChannel = channelScopePrefs.textShowChannel,
-            showNote = channelScopePrefs.textShowNote && capabilities and ChannelScopeTextCapability.NOTE != 0,
-            showVolume = isChannelScopeVisibleElementEnabled(
-                channelScopePrefs.textVisibleElementSelection, decoderName, ChannelScopeVisibleElementId.Volume
-            ),
-            showEffectPrimary = isChannelScopeVisibleElementEnabled(
-                channelScopePrefs.textVisibleElementSelection, decoderName, ChannelScopeVisibleElementId.EffectPrimary
-            ),
-            showEffectSecondary = isChannelScopeVisibleElementEnabled(
-                channelScopePrefs.textVisibleElementSelection, decoderName, ChannelScopeVisibleElementId.EffectSecondary
-            ),
-            showChip = isChannelScopeVisibleElementEnabled(
-                channelScopePrefs.textVisibleElementSelection, decoderName, ChannelScopeVisibleElementId.Chip
-            ),
-            showInstrument = isChannelScopeVisibleElementEnabled(
-                channelScopePrefs.textVisibleElementSelection, decoderName, ChannelScopeVisibleElementId.Instrument
-            ),
-            showSample = isChannelScopeVisibleElementEnabled(
-                channelScopePrefs.textVisibleElementSelection, decoderName, ChannelScopeVisibleElementId.Sample
-            ),
-            palette = textPalette(
-                channelScopePrefs.textColorMode, channelScopePrefs.customTextColorArgb
-            )
+            sampleNamesByIndex = nameMaps.sampleNamesByIndex
         )
-        val emitter = textEmitter ?: return
-        val layout = layoutChannelScopeText(frame, width.toFloat(), height.toFloat(), emitter.measurer)
-        val quads = layout?.let { emitter.emitRuns(it.runs, it.textSizePx, it.shadowEnabled) }
-        surface.setTextQuads(surfaceHandle, quads)
+        if (channelScopePrefs.textEnabled) pusher.pushStates(bridge.getChannelScopeTextState(64))
     }
 }
 
@@ -168,22 +148,11 @@ interface OffscreenVisualizationSurface {
     ): Boolean
 
     fun close(surfaceHandle: Long, visualizerHandle: Long)
-    fun uploadTextAtlas(
+    fun prepareTextAtlas(
         surfaceHandle: Long,
-        pixels: ByteBuffer,
-        width: Int,
-        height: Int,
-        baseFontSizePx: Float,
-        lineHeightPx: Float,
-        glyphs: ByteBuffer,
-        glyphCount: Int
-    ): Boolean
-
-    fun setTextQuads(surfaceHandle: Long, quads: FloatArray?)
-    fun createTextEmitter(
-        surfaceHandle: Long,
+        visualizerHandle: Long,
         font: VisualizationChannelScopeTextFont
-    ): ScopeTextQuadEmitter?
+    ): Boolean
 }
 
 interface OffscreenVisualizationBridge {
@@ -199,23 +168,6 @@ interface OffscreenVisualizationBridge {
     )
 
     fun getChannelScopeTextState(maxChannels: Int): IntArray
+    fun channelScopeTextSetters(visualizerHandle: Long): ChannelScopeTextSetters
     fun destroyVisualizer(visualizerHandle: Long)
-}
-
-private fun textPalette(
-    mode: com.flopster101.siliconplayer.VisualizationChannelScopeTextColorMode,
-    custom: Int
-): GlChannelScopeTextPalette = when (mode) {
-    com.flopster101.siliconplayer.VisualizationChannelScopeTextColorMode.White -> GlChannelScopeTextPalette(
-        0xFFFFFFFF.toInt(), 0xFFFFFFFF.toInt(), 0xFFFFFFFF.toInt(),
-        0xFFFFFFFF.toInt(), 0xFFFFFFFF.toInt(), 0xFFFFFFFF.toInt()
-    )
-    com.flopster101.siliconplayer.VisualizationChannelScopeTextColorMode.Custom -> GlChannelScopeTextPalette(
-        custom, custom, custom, custom, custom, custom
-    )
-    com.flopster101.siliconplayer.VisualizationChannelScopeTextColorMode.Monet -> GlChannelScopeTextPalette(
-        0xFFFFFFFF.toInt(), 0xFFFFFFFF.toInt(), 0xFFFFFFFF.toInt(),
-        0xFFFFFFFF.toInt(), 0xFFFFFFFF.toInt(), 0xFFFFFFFF.toInt()
-    )
-    com.flopster101.siliconplayer.VisualizationChannelScopeTextColorMode.OpenMptInspired -> GlChannelScopeTextPalette()
 }

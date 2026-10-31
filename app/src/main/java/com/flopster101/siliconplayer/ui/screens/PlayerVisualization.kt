@@ -103,10 +103,8 @@ import com.flopster101.siliconplayer.ui.visualization.VisualizationDebugOverlay
 import com.flopster101.siliconplayer.ui.visualization.artworkNeedsBlurFill
 import com.flopster101.siliconplayer.ui.visualization.basic.BasicVisualizationOverlay
 import com.flopster101.siliconplayer.ui.visualization.blurThumbPixels
-import com.flopster101.siliconplayer.ui.visualization.channel.ChannelScopeChannelTextState
 import com.flopster101.siliconplayer.ui.visualization.channel.ChannelScopeNameSource
 import com.flopster101.siliconplayer.ui.visualization.channel.loadChannelScopeNameMaps
-import com.flopster101.siliconplayer.ui.visualization.channel.parseChannelScopeTextStates
 import com.flopster101.siliconplayer.ui.visualization.gl.SiliconVisNativeBridge
 import java.io.File
 import java.util.concurrent.Executors
@@ -673,7 +671,6 @@ private fun snapshotSourceSignature(
                     triggerIndices = snapshot.channelScopeTriggerIndices
                 )
             )
-            hash = mixSignature(hash, sampledIntArraySignature(snapshot.channelScopeTextRaw, maxSamples = 32))
             hash
         }
         VisualizationMode.Starfield -> null
@@ -797,8 +794,7 @@ private data class VisualizationSnapshot(
     val channelCount: Int? = null,
     val channelScopeHistories: List<FloatArray>? = null,
     val channelScopeTriggerIndices: IntArray? = null,
-    val channelScopeLastChannelCount: Int? = null,
-    val channelScopeTextRaw: IntArray? = null
+    val channelScopeLastChannelCount: Int? = null
 )
 
 private fun resolveChannelScopeGridForSnapshot(
@@ -855,27 +851,6 @@ private fun remapChannelScopeTriggersForDisplay(
     }
 }
 
-private fun remapChannelScopeTextRawForDisplay(
-    flat: IntArray,
-    layout: VisualizationChannelScopeLayout
-): IntArray {
-    val stride = NativeBridge.CHANNEL_SCOPE_TEXT_STATE_STRIDE
-    if (stride <= 0 || flat.isEmpty()) return flat
-    val channels = flat.size / stride
-    if (channels <= 1) return flat
-    val permutation = buildScopeDisplayGridPermutation(channels, layout)
-    val reordered = IntArray(channels * stride)
-    for (displayIndex in 0 until channels) {
-        val sourceChannel = permutation[displayIndex]
-        val sourceBase = sourceChannel * stride
-        val destBase = displayIndex * stride
-        for (offset in 0 until stride) {
-            reordered[destBase + offset] = flat.getOrElse(sourceBase + offset) { -1 }
-        }
-    }
-    return reordered
-}
-
 private fun readVisualizationSnapshot(
     visualizationMode: VisualizationMode,
     decoderName: String?,
@@ -888,8 +863,7 @@ private fun readVisualizationSnapshot(
     channelScopeTriggerAlgorithmNative: Int,
     channelScopeLayout: VisualizationChannelScopeLayout,
     channelScopeTriggerStates: MutableList<ChannelScopeTriggerState>,
-    sampleRateHz: Int,
-    shouldPollChannelScopeText: Boolean
+    sampleRateHz: Int
 ): VisualizationSnapshot? {
     if (NativeBridge.isSeekInProgress()) {
         return null
@@ -1014,28 +988,10 @@ private fun readVisualizationSnapshot(
                     triggerIndices
                 }
                 val lastChannelCount = histories.size.coerceIn(1, 64)
-                val scopeChannels = if (nativeSamples > 0) {
-                    (channelScopesFlat.size / nativeSamples).coerceIn(1, 64)
-                } else {
-                    NativeBridge.getVisualizationChannelCount().coerceAtLeast(1).coerceIn(1, 64)
-                }
                 VisualizationSnapshot(
                     channelScopeHistories = displayHistories,
                     channelScopeTriggerIndices = displayTriggerIndices,
-                    channelScopeLastChannelCount = lastChannelCount,
-                    channelScopeTextRaw = if (shouldPollChannelScopeText) {
-                        val raw = NativeBridge.getChannelScopeTextState(scopeChannels)
-                        if (shouldRemapForDisplay) {
-                            remapChannelScopeTextRawForDisplay(
-                                flat = raw,
-                                layout = channelScopeLayout
-                            )
-                        } else {
-                            raw
-                        }
-                    } else {
-                        null
-                    }
+                    channelScopeLastChannelCount = lastChannelCount
                 )
             }
         }
@@ -1479,7 +1435,6 @@ private fun findCorrelationTriggerIndex(
 
 private data class ChannelScopeVisualState(
     val channelHistories: List<FloatArray>,
-    val channelTextStates: List<ChannelScopeChannelTextState>,
     val instrumentNamesByIndex: Map<Int, String>,
     val sampleNamesByIndex: Map<Int, String>,
     val chipNamesByChannelIndex: Map<Int, String>,
@@ -1659,9 +1614,6 @@ internal fun AlbumArtPlaceholder(
     var visChannelScopeHistories by remember { mutableStateOf<List<FloatArray>>(emptyList()) }
     var visChannelScopeLastChannelCount by remember { mutableIntStateOf(1) }
     var visChannelScopeTriggerIndices by remember { mutableStateOf(IntArray(0)) }
-    var visChannelScopeTextStates by remember { mutableStateOf<List<ChannelScopeChannelTextState>>(emptyList()) }
-    var visChannelScopeTextRawCache by remember { mutableStateOf(IntArray(0)) }
-    var visChannelScopeLastTextPollNs by remember { mutableStateOf(0L) }
     var visChannelScopeInstrumentNamesByIndex by remember { mutableStateOf<Map<Int, String>>(emptyMap()) }
     var visChannelScopeSampleNamesByIndex by remember { mutableStateOf<Map<Int, String>>(emptyMap()) }
     var visChannelScopeChipNamesByChannelIndex by remember { mutableStateOf<Map<Int, String>>(emptyMap()) }
@@ -1776,7 +1728,6 @@ internal fun AlbumArtPlaceholder(
     }
     val emptyFloatArray = remember { FloatArray(0) }
     val emptyHistories = remember { emptyList<FloatArray>() }
-    val emptyTextStates = remember { emptyList<ChannelScopeChannelTextState>() }
 
     // The engine's channel-scope queue ceiling is keyed on a 750 ms pull-demand
     // window, so a scope that stops pulling (paused, or idle between tracks)
@@ -1808,12 +1759,9 @@ internal fun AlbumArtPlaceholder(
         withContext(visualizationUpdateDispatcher) {
             var nextFrameTickNs = 0L
             var lastPollIntervalNs = 0L
-            var localChannelScopeLastTextPollNs = 0L
             var localBarsSmoothed = FloatArray(0)
             var localVuSmoothed = FloatArray(0)
             var localChannelScopeFlatBuffer = FloatArray(0)
-            var localChannelScopeTextRawCache = IntArray(0)
-            var localChannelScopeTextStates = emptyList<ChannelScopeChannelTextState>()
             val localChannelScopeTriggerStates = mutableListOf<ChannelScopeTriggerState>()
             while (true) {
                 coroutineContext.ensureActive()
@@ -1844,10 +1792,6 @@ internal fun AlbumArtPlaceholder(
                     continue
                 }
                 val frameStartNs = System.nanoTime()
-                val textPollIntervalNs = 20_000_000L
-                val shouldPollText =
-                    localChannelScopeLastTextPollNs == 0L ||
-                        frameStartNs - localChannelScopeLastTextPollNs >= textPollIntervalNs
                 val snapshot = readVisualizationSnapshot(
                     visualizationMode = visualizationMode,
                     decoderName = decoderName,
@@ -1860,8 +1804,7 @@ internal fun AlbumArtPlaceholder(
                     channelScopeTriggerAlgorithmNative = channelScopePrefs.triggerAlgorithmNative,
                     channelScopeLayout = channelScopePrefs.layout,
                     channelScopeTriggerStates = localChannelScopeTriggerStates,
-                    sampleRateHz = sampleRateHz,
-                    shouldPollChannelScopeText = shouldPollText
+                    sampleRateHz = sampleRateHz
                 )
                 if (snapshot == null) {
                     val nowNs = System.nanoTime()
@@ -1871,9 +1814,6 @@ internal fun AlbumArtPlaceholder(
                     continue
                 }
                 val frameEndNs = System.nanoTime()
-                if (snapshot.channelScopeTextRaw != null) {
-                    localChannelScopeLastTextPollNs = frameStartNs
-                }
 
                 val smoothedBars = snapshot.bars?.let { rawBars ->
                     if (rawBars.isEmpty()) rawBars
@@ -1910,13 +1850,6 @@ internal fun AlbumArtPlaceholder(
                     }
                 }
 
-                snapshot.channelScopeTextRaw?.let { rawText ->
-                    if (!rawText.contentEquals(localChannelScopeTextRawCache)) {
-                        localChannelScopeTextRawCache = rawText.copyOf()
-                        localChannelScopeTextStates = parseChannelScopeTextStates(rawText)
-                    }
-                }
-
                 val chHistories = snapshot.channelScopeHistories
                 val chCount = chHistories?.size ?: 0
                 val samplesPerCh = if (chCount > 0) chHistories!![0].size else 0
@@ -1942,8 +1875,7 @@ internal fun AlbumArtPlaceholder(
                         vuLevels = smoothedVu ?: snapshot.vu ?: floatArrayOf(0f, 0f),
                         channelHistories = chHistories ?: emptyList(),
                         channelScopeFlatData = flatBuffer,
-                        channelScopeSamplesPerChannel = samplesPerCh,
-                        channelTextStates = localChannelScopeTextStates
+                        channelScopeSamplesPerChannel = samplesPerCh
                     )
                 )
 
@@ -2040,10 +1972,6 @@ internal fun AlbumArtPlaceholder(
                             visChannelScopeTriggerIndices = it
                         }
                         snapshot.channelScopeLastChannelCount?.let { visChannelScopeLastChannelCount = it }
-                        if (snapshot.channelScopeTextRaw != null) {
-                            visChannelScopeTextStates = localChannelScopeTextStates
-                            visChannelScopeLastTextPollNs = frameStartNs
-                        }
                     }
                 }
 
@@ -2077,14 +2005,10 @@ internal fun AlbumArtPlaceholder(
         if (visualizationMode != VisualizationMode.ChannelScope) {
             visChannelScopeHistories = emptyList()
             visChannelScopeTriggerIndices = IntArray(0)
-            visChannelScopeTextStates = emptyList()
-            visChannelScopeTextRawCache = IntArray(0)
-            visChannelScopeLastTextPollNs = 0L
         }
     }
     val channelScopeState = ChannelScopeVisualState(
         channelHistories = visChannelScopeHistories,
-        channelTextStates = visChannelScopeTextStates,
         instrumentNamesByIndex = visChannelScopeInstrumentNamesByIndex,
         sampleNamesByIndex = visChannelScopeSampleNamesByIndex,
         chipNamesByChannelIndex = visChannelScopeChipNamesByChannelIndex,
@@ -2480,7 +2404,6 @@ internal fun AlbumArtPlaceholder(
                     vuColorModeWithArtwork = vuColorModeWithArtwork,
                     vuCustomColorArgb = vuCustomColorArgb,
                     channelScopeHistories = if (isGlBackendActive) emptyHistories else channelScopeState.channelHistories,
-                    channelScopeTextStates = if (isGlBackendActive) emptyTextStates else channelScopeState.channelTextStates,
                     channelScopeInstrumentNamesByIndex = channelScopeState.instrumentNamesByIndex,
                     channelScopeSampleNamesByIndex = channelScopeState.sampleNamesByIndex,
                     channelScopeChipNamesByChannelIndex = channelScopeState.chipNamesByChannelIndex,

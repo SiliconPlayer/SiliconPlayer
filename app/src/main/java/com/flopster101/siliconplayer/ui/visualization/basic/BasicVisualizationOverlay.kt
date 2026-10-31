@@ -51,7 +51,6 @@ import com.flopster101.siliconplayer.VisualizationNoteNameFormat
 import com.flopster101.siliconplayer.VisualizationOscColorMode
 import com.flopster101.siliconplayer.VisualizationRenderBackend
 import com.flopster101.siliconplayer.VisualizationVuAnchor
-import com.flopster101.siliconplayer.ui.visualization.channel.ChannelScopeChannelTextState
 import com.flopster101.siliconplayer.ui.visualization.gl.BarsGlTextureVisualization
 import com.flopster101.siliconplayer.ui.visualization.gl.OscilloscopeGlTextureVisualization
 import com.flopster101.siliconplayer.ui.visualization.gl.VuMetersGlTextureVisualization
@@ -120,7 +119,6 @@ fun BasicVisualizationOverlay(
     vuColorModeWithArtwork: VisualizationOscColorMode,
     vuCustomColorArgb: Int,
     channelScopeHistories: List<FloatArray>,
-    channelScopeTextStates: List<ChannelScopeChannelTextState>,
     channelScopeInstrumentNamesByIndex: Map<Int, String>,
     channelScopeSampleNamesByIndex: Map<Int, String>,
     channelScopeChipNamesByChannelIndex: Map<Int, String>,
@@ -510,7 +508,6 @@ fun BasicVisualizationOverlay(
                     channelHistories = channelScopeHistories,
                     channelScopeFlatData = flatBuffer,
                     channelScopeSamplesPerChannel = samplesPerCh,
-                    channelTextStates = channelScopeTextStates,
                     instrumentNamesByIndex = channelScopeInstrumentNamesByIndex,
                     sampleNamesByIndex = channelScopeSampleNamesByIndex,
                     chipNamesByChannelIndex = channelScopeChipNamesByChannelIndex,

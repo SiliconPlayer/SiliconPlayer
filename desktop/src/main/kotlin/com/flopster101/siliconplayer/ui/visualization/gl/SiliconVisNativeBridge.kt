@@ -178,5 +178,26 @@ object SiliconVisNativeBridge {
     external fun nativeTakeTransitionSnapshotVulkan(handle: Long): Boolean
     external fun nativeReleaseTransitionSnapshotVulkan(handle: Long)
     external fun nativeSetTransitionVulkan(handle: Long, offsetX: Float, alpha: Float)
-    external fun nativeSetTextQuads(handle: Long, buffer: java.nio.FloatBuffer?, vertexCount: Int)
+    external fun nativeSetChannelScopeChannelNames(handle: Long, names: String)
+    external fun nativeSetChannelScopeIdentifierNames(
+        handle: Long,
+        instrumentNames: String,
+        sampleNames: String
+    )
+
+    external fun nativeSetChannelScopeTextFields(
+        handle: Long,
+        showChannel: Boolean,
+        showNote: Boolean,
+        showVolume: Boolean,
+        showEffectPrimary: Boolean,
+        showEffectSecondary: Boolean,
+        showChip: Boolean,
+        showInstrument: Boolean,
+        showSample: Boolean,
+        noteFormat: Int
+    )
+
+    external fun nativeSetChannelScopeTextStates(handle: Long, flatStates: IntArray)
+    external fun nativeSetChannelScopeTextEnabled(handle: Long, enabled: Boolean)
 }
