@@ -40,33 +40,6 @@ typedef GLboolean (*PFNGLUNMAPBUFFERPROC)(GLenum target);
 
 namespace {
 
-static const char* TRANSITION_VERT_SHADER =
-    "attribute vec2 aPosition;\n"
-    "attribute vec2 aTexCoord;\n"
-    "uniform vec2 uResolution;\n"
-    "uniform float uOffsetX;\n"
-    "varying vec2 vTexCoord;\n"
-    "void main() {\n"
-    "    vTexCoord = aTexCoord;\n"
-    "    vec2 pos = aPosition + vec2(uOffsetX, 0.0);\n"
-    "    vec2 zeroToOne = pos / uResolution;\n"
-    "    vec2 zeroToTwo = zeroToOne * 2.0;\n"
-    "    vec2 clipSpace = zeroToTwo - 1.0;\n"
-    "    gl_Position = vec4(clipSpace.x, -clipSpace.y, 0.0, 1.0);\n"
-    "}\n";
-
-static const char* TRANSITION_FRAG_SHADER =
-    "#ifdef GL_ES\n"
-    "precision mediump float;\n"
-    "#endif\n"
-    "varying vec2 vTexCoord;\n"
-    "uniform sampler2D uSampler;\n"
-    "uniform float uAlpha;\n"
-    "void main() {\n"
-    "    vec4 tex = texture2D(uSampler, vTexCoord);\n"
-    "    gl_FragColor = vec4(tex.rgb, tex.a * uAlpha);\n"
-    "}\n";
-
 struct DesktopGlContext {
     Display* glDisplay = nullptr;
     Window dummyWindow = 0;
@@ -82,17 +55,6 @@ struct DesktopGlContext {
     int pendingPixelPackBuffers[3] = {0, 0, 0};
     int pendingPixelPackHead = 0;
     int pendingPixelPackCount = 0;
-
-    GLuint snapshotTex = 0;
-    int snapshotWidth = 0;
-    int snapshotHeight = 0;
-    silicon::vis::gl::GlProgram transitionProgram;
-    GLint transitionResLoc = -1;
-    GLint transitionOffsetLoc = -1;
-    GLint transitionAlphaLoc = -1;
-    GLint transitionSamplerLoc = -1;
-    GLint transitionPosLoc = -1;
-    GLint transitionCoordLoc = -1;
 
     PFNGLGENFRAMEBUFFERSPROC glGenFramebuffers = nullptr;
     PFNGLBINDFRAMEBUFFERPROC glBindFramebuffer = nullptr;
@@ -112,92 +74,6 @@ struct DesktopGlContext {
             glBufferData && glMapBuffer && glUnmapBuffer;
     }
 
-    bool takeSnapshot() {
-        if (width <= 0 || height <= 0 || !colorTex) return false;
-        if (snapshotTex == 0) {
-            glGenTextures(1, &snapshotTex);
-        }
-        std::swap(colorTex, snapshotTex);
-        snapshotWidth = width;
-        snapshotHeight = height;
-
-        glBindTexture(GL_TEXTURE_2D, colorTex);
-        glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, width, height, 0, GL_RGBA, GL_UNSIGNED_BYTE, nullptr);
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
-        glBindTexture(GL_TEXTURE_2D, 0);
-
-        if (glBindFramebuffer && glFramebufferTexture2D) {
-            glBindFramebuffer(GL_FRAMEBUFFER, fbo);
-            glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, colorTex, 0);
-        }
-        return true;
-    }
-
-    void releaseSnapshot() {
-        if (snapshotTex != 0) {
-            glDeleteTextures(1, &snapshotTex);
-            snapshotTex = 0;
-        }
-        snapshotWidth = 0;
-        snapshotHeight = 0;
-    }
-
-    void drawTransition(float surfaceWidth, float surfaceHeight, float offsetXPx, float alpha) {
-        if (snapshotTex == 0 || snapshotWidth != static_cast<int>(surfaceWidth) || snapshotHeight != static_cast<int>(surfaceHeight) || alpha <= 0.001f) {
-            return;
-        }
-        if (!transitionProgram.isReady()) {
-            if (!transitionProgram.compileAndLink(TRANSITION_VERT_SHADER, TRANSITION_FRAG_SHADER)) {
-                return;
-            }
-            transitionResLoc = transitionProgram.getUniformLoc("uResolution");
-            transitionOffsetLoc = transitionProgram.getUniformLoc("uOffsetX");
-            transitionAlphaLoc = transitionProgram.getUniformLoc("uAlpha");
-            transitionSamplerLoc = transitionProgram.getUniformLoc("uSampler");
-            transitionPosLoc = transitionProgram.getAttribLoc("aPosition");
-            transitionCoordLoc = transitionProgram.getAttribLoc("aTexCoord");
-        }
-
-        const float w = surfaceWidth;
-        const float h = surfaceHeight;
-        const float verts[] = {
-            // x, y, u, v
-            0.0f, 0.0f, 0.0f, 1.0f,
-            w,    0.0f, 1.0f, 1.0f,
-            0.0f, h,    0.0f, 0.0f,
-            w,    0.0f, 1.0f, 1.0f,
-            w,    h,    1.0f, 0.0f,
-            0.0f, h,    0.0f, 0.0f
-        };
-
-        transitionProgram.use();
-        glUniform2f(transitionResLoc, w, h);
-        glUniform1f(transitionOffsetLoc, offsetXPx);
-        glUniform1f(transitionAlphaLoc, std::clamp(alpha, 0.0f, 1.0f));
-        glUniform1i(transitionSamplerLoc, 0);
-
-        glActiveTexture(GL_TEXTURE0);
-        glBindTexture(GL_TEXTURE_2D, snapshotTex);
-
-        glEnable(GL_BLEND);
-        glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-
-        glEnableVertexAttribArray(transitionPosLoc);
-        glVertexAttribPointer(transitionPosLoc, 2, GL_FLOAT, GL_FALSE, 4 * sizeof(float), verts);
-
-        glEnableVertexAttribArray(transitionCoordLoc);
-        glVertexAttribPointer(transitionCoordLoc, 2, GL_FLOAT, GL_FALSE, 4 * sizeof(float), verts + 2);
-
-        glDrawArrays(GL_TRIANGLES, 0, 6);
-
-        glDisableVertexAttribArray(transitionPosLoc);
-        glDisableVertexAttribArray(transitionCoordLoc);
-        glBindTexture(GL_TEXTURE_2D, 0);
-        glDisable(GL_BLEND);
-    }
 };
 
 template <typename T>
@@ -307,9 +183,7 @@ Java_com_flopster101_siliconplayer_ui_visualization_gl_DesktopGlSurface_nativeRe
     jfloat density,
     jobject outBuffer,
     jboolean captureOutput,
-    jboolean asyncReadback,
-    jfloat transitionOffsetX,
-    jfloat transitionAlpha
+    jboolean asyncReadback
 ) {
     if (!hostHandle || !visHandle || width <= 0 || height <= 0 || (captureOutput && !outBuffer)) return JNI_FALSE;
     auto* ctx = reinterpret_cast<DesktopGlContext*>(hostHandle);
@@ -323,7 +197,6 @@ Java_com_flopster101_siliconplayer_ui_visualization_gl_DesktopGlSurface_nativeRe
     }
 
     if (ctx->width != width || ctx->height != height || ctx->density != density) {
-        ctx->releaseSnapshot();
         ctx->width = width;
         ctx->height = height;
         ctx->density = density;
@@ -362,10 +235,7 @@ Java_com_flopster101_siliconplayer_ui_visualization_gl_DesktopGlSurface_nativeRe
     glViewport(0, 0, width, height);
 
     silicon_vis_render(reinterpret_cast<SiliconVisHandle>(visHandle));
-
-    if (transitionAlpha > 0.001f) {
-        ctx->drawTransition(static_cast<float>(width), static_cast<float>(height), transitionOffsetX, transitionAlpha);
-    }
+    silicon_vis_draw_transition(reinterpret_cast<SiliconVisHandle>(visHandle));
     const int stride = width * 4;
     if (asyncReadback && ctx->supportsAsyncReadback()) {
         const int writeIndex = ctx->nextPixelPackBuffer;
@@ -414,34 +284,6 @@ Java_com_flopster101_siliconplayer_ui_visualization_gl_DesktopGlSurface_nativeRe
     return JNI_TRUE;
 }
 
-JNIEXPORT jboolean JNICALL
-Java_com_flopster101_siliconplayer_ui_visualization_gl_DesktopGlSurface_nativeTakeTransitionSnapshot(
-    JNIEnv* /* env */,
-    jobject /* thiz */,
-    jlong hostHandle
-) {
-    if (!hostHandle) return JNI_FALSE;
-    auto* ctx = reinterpret_cast<DesktopGlContext*>(hostHandle);
-    if (!glXMakeCurrent(ctx->glDisplay, ctx->dummyWindow, ctx->glContext)) {
-        return JNI_FALSE;
-    }
-    return ctx->takeSnapshot() ? JNI_TRUE : JNI_FALSE;
-}
-
-JNIEXPORT void JNICALL
-Java_com_flopster101_siliconplayer_ui_visualization_gl_DesktopGlSurface_nativeReleaseTransitionSnapshot(
-    JNIEnv* /* env */,
-    jobject /* thiz */,
-    jlong hostHandle
-) {
-    if (!hostHandle) return;
-    auto* ctx = reinterpret_cast<DesktopGlContext*>(hostHandle);
-    if (!glXMakeCurrent(ctx->glDisplay, ctx->dummyWindow, ctx->glContext)) {
-        return;
-    }
-    ctx->releaseSnapshot();
-}
-
 JNIEXPORT void JNICALL
 Java_com_flopster101_siliconplayer_ui_visualization_gl_DesktopGlSurface_nativeDestroy(
     JNIEnv* /* env */,
@@ -453,9 +295,6 @@ Java_com_flopster101_siliconplayer_ui_visualization_gl_DesktopGlSurface_nativeDe
     auto* ctx = reinterpret_cast<DesktopGlContext*>(hostHandle);
 
     glXMakeCurrent(ctx->glDisplay, ctx->dummyWindow, ctx->glContext);
-
-    ctx->releaseSnapshot();
-    ctx->transitionProgram.release();
 
     if (visHandle != 0) {
         silicon_vis_release_gl(reinterpret_cast<SiliconVisHandle>(visHandle));

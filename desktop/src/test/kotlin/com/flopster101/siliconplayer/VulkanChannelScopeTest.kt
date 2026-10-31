@@ -196,13 +196,13 @@ class VulkanChannelScopeTest {
         SiliconVisNativeBridge.nativeRenderVulkan(handle)
 
         // Take transition snapshot of frame 1
-        val snapshotOk = SiliconVisNativeBridge.nativeTakeTransitionSnapshotVulkan(handle)
+        val snapshotOk = SiliconVisNativeBridge.nativeTakeTransitionSnapshot(handle)
         assertTrue("Expected successful transition snapshot capture", snapshotOk)
 
         // Render frame 2 with transition active (50% slide & fade)
         val channel1 = FloatArray(sampleCount) { i -> sin(i * 0.10).toFloat() * 0.8f }
         SiliconVisNativeBridge.nativePushChannelScopeHistory(handle, 1, channel1, sampleCount)
-        SiliconVisNativeBridge.nativeSetTransitionVulkan(handle, -40.0f, 0.5f)
+        SiliconVisNativeBridge.nativeSetTransition(handle, -40.0f, 0.5f)
         SiliconVisNativeBridge.nativeRenderVulkan(handle)
 
         val bufferSize = width * height * 4
@@ -221,7 +221,7 @@ class VulkanChannelScopeTest {
         assertTrue("Expected non-zero pixels in transition composite frame", nonZeroBytes > 0)
 
         // Release snapshot
-        SiliconVisNativeBridge.nativeReleaseTransitionSnapshotVulkan(handle)
+        SiliconVisNativeBridge.nativeReleaseTransitionSnapshot(handle)
         SiliconVisNativeBridge.nativeReleaseVulkan(handle)
         SiliconVisNativeBridge.nativeDestroy(handle)
     }

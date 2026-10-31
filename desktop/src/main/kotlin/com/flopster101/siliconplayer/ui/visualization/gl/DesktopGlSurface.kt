@@ -20,13 +20,9 @@ object DesktopGlSurface : OffscreenVisualizationSurface {
         density: Float,
         pixelBuffer: ByteBuffer,
         captureOutput: Boolean,
-        asyncReadback: Boolean,
-        transitionOffsetX: Float = 0f,
-        transitionAlpha: Float = 0f
+        asyncReadback: Boolean
     ): Boolean
     external fun nativeDestroy(hostHandle: Long, visHandle: Long)
-    external fun nativeTakeTransitionSnapshot(hostHandle: Long): Boolean
-    external fun nativeReleaseTransitionSnapshot(hostHandle: Long)
 
     override fun initialize(visualizerHandle: Long): Long = nativeInit(visualizerHandle)
 

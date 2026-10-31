@@ -286,7 +286,11 @@ private class SiliconNativeDesktopRenderThread(
                         if (transitionActive || transitionPending) {
                             transitionActive = false
                             transitionPending = false
-                            try { DesktopGlSurface.nativeReleaseTransitionSnapshot(hostHandle) } catch (_: Throwable) {}
+                            if (visHandle != 0L) {
+                                try {
+                                    SiliconVisNativeBridge.nativeReleaseTransitionSnapshot(visHandle)
+                                } catch (_: Throwable) {}
+                            }
                         }
                         DesktopGlSurface.nativeDestroy(hostHandle, visHandle)
                         hostHandle = 0L
@@ -337,13 +341,9 @@ private class SiliconNativeDesktopRenderThread(
                         transitionActive = false
                         transitionPending = false
                         capturedSerial = dataSerial
-                        if (vulkanActive && visHandle != 0L) {
+                        if (visHandle != 0L) {
                             try {
-                                SiliconVisNativeBridge.nativeReleaseTransitionSnapshotVulkan(visHandle)
-                            } catch (_: Throwable) {}
-                        } else if (hostHandle != 0L) {
-                            try {
-                                DesktopGlSurface.nativeReleaseTransitionSnapshot(hostHandle)
+                                SiliconVisNativeBridge.nativeReleaseTransitionSnapshot(visHandle)
                             } catch (_: Throwable) {}
                         }
                     }
@@ -407,13 +407,9 @@ private class SiliconNativeDesktopRenderThread(
                             transitionPendingSinceNs = trackDetectNowNs
                             pendingDataSerial = capturedSerial
                             forceRenderUntilNs = trackDetectNowNs + 1_600_000_000L
-                            if (vulkanActive && visHandle != 0L) {
+                            if (visHandle != 0L) {
                                 try {
-                                    SiliconVisNativeBridge.nativeTakeTransitionSnapshotVulkan(visHandle)
-                                } catch (_: Throwable) {}
-                            } else if (hostHandle != 0L) {
-                                try {
-                                    DesktopGlSurface.nativeTakeTransitionSnapshot(hostHandle)
+                                    SiliconVisNativeBridge.nativeTakeTransitionSnapshot(visHandle)
                                 } catch (_: Throwable) {}
                             }
                         }
@@ -426,13 +422,9 @@ private class SiliconNativeDesktopRenderThread(
                             transitionStartNs = trackDetectNowNs
                         } else if (trackDetectNowNs - transitionPendingSinceNs > 250_000_000L) {
                             transitionPending = false
-                            if (vulkanActive && visHandle != 0L) {
+                            if (visHandle != 0L) {
                                 try {
-                                    SiliconVisNativeBridge.nativeReleaseTransitionSnapshotVulkan(visHandle)
-                                } catch (_: Throwable) {}
-                            } else if (hostHandle != 0L) {
-                                try {
-                                    DesktopGlSurface.nativeReleaseTransitionSnapshot(hostHandle)
+                                    SiliconVisNativeBridge.nativeReleaseTransitionSnapshot(visHandle)
                                 } catch (_: Throwable) {}
                             }
                             capturedSerial = dataSerial
@@ -799,13 +791,9 @@ private class SiliconNativeDesktopRenderThread(
                         if (p >= 1f) {
                             transitionActive = false
                             capturedSerial = dataSerial
-                            if (vulkanActive && visHandle != 0L) {
+                            if (visHandle != 0L) {
                                 try {
-                                    SiliconVisNativeBridge.nativeReleaseTransitionSnapshotVulkan(visHandle)
-                                } catch (_: Throwable) {}
-                            } else if (hostHandle != 0L) {
-                                try {
-                                    DesktopGlSurface.nativeReleaseTransitionSnapshot(hostHandle)
+                                    SiliconVisNativeBridge.nativeReleaseTransitionSnapshot(visHandle)
                                 } catch (_: Throwable) {}
                             }
                         } else {
@@ -830,23 +818,24 @@ private class SiliconNativeDesktopRenderThread(
                     transitionActive = false
                     transitionPending = false
                     capturedSerial = dataSerial
-                    if (vulkanActive && visHandle != 0L) {
+                    if (visHandle != 0L) {
                         try {
-                            SiliconVisNativeBridge.nativeReleaseTransitionSnapshotVulkan(visHandle)
-                        } catch (_: Throwable) {}
-                    } else if (hostHandle != 0L) {
-                        try {
-                            DesktopGlSurface.nativeReleaseTransitionSnapshot(hostHandle)
+                            SiliconVisNativeBridge.nativeReleaseTransitionSnapshot(visHandle)
                         } catch (_: Throwable) {}
                     }
                 }
 
                 directBuffer.clear()
                 val ok = if (vulkanActive) {
-                    SiliconVisNativeBridge.nativeSetTransitionVulkan(visHandle, transitionOffsetX, transitionAlpha)
+                    SiliconVisNativeBridge.nativeSetTransition(visHandle, transitionOffsetX, transitionAlpha)
                     SiliconVisNativeBridge.nativeRenderVulkan(visHandle)
                     SiliconVisNativeBridge.nativeReadbackVulkan(visHandle, directBuffer)
                 } else if (hostHandle != 0L) {
+                    SiliconVisNativeBridge.nativeSetTransition(
+                        visHandle,
+                        transitionOffsetX,
+                        transitionAlpha
+                    )
                     DesktopGlSurface.nativeRenderFrame(
                         hostHandle,
                         visHandle,
@@ -855,9 +844,7 @@ private class SiliconNativeDesktopRenderThread(
                         density,
                         directBuffer,
                         true,
-                        false,
-                        transitionOffsetX,
-                        transitionAlpha
+                        false
                     )
                 } else {
                     false
@@ -929,7 +916,7 @@ private class SiliconNativeDesktopRenderThread(
             }
             if (vulkanActive) {
                 try {
-                    SiliconVisNativeBridge.nativeReleaseTransitionSnapshotVulkan(visHandle)
+                    SiliconVisNativeBridge.nativeReleaseTransitionSnapshot(visHandle)
                 } catch (_: Throwable) {}
                 try {
                     SiliconVisNativeBridge.nativeReleaseVulkan(visHandle)
@@ -937,9 +924,6 @@ private class SiliconNativeDesktopRenderThread(
                 vulkanActive = false
             }
             if (hostHandle != 0L) {
-                try {
-                    DesktopGlSurface.nativeReleaseTransitionSnapshot(hostHandle)
-                } catch (_: Throwable) {}
                 DesktopGlSurface.nativeDestroy(hostHandle, visHandle)
                 hostHandle = 0L
             }
