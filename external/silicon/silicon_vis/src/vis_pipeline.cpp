@@ -41,6 +41,7 @@ bool SiliconVisPipeline::initGl() {
 void SiliconVisPipeline::releaseGl() {
     if (!glInitialized_) return;
     releaseMsaaTarget();
+    transitionOverlay_.release();
     artworkRenderer_.release();
     channelScope_.releaseGl();
     oscilloscope_.releaseGl();
@@ -784,20 +785,30 @@ bool SiliconVisPipeline::renderStarfieldVulkan() {
     return !vulkanPipeline_->consumeSurfaceLost();
 }
 
-bool SiliconVisPipeline::takeTransitionSnapshotVulkan() {
-    if (!vulkanPipeline_) return false;
-    return vulkanPipeline_->takeTransitionSnapshot();
+bool SiliconVisPipeline::takeTransitionSnapshot() {
+    if (vulkanPipeline_) {
+        return vulkanPipeline_->takeTransitionSnapshot();
+    }
+    return transitionOverlay_.takeSnapshot(static_cast<uint32_t>(targetFbo_), widthPx_, heightPx_);
 }
 
-void SiliconVisPipeline::releaseTransitionSnapshotVulkan() {
+void SiliconVisPipeline::releaseTransitionSnapshot() {
     if (vulkanPipeline_) {
         vulkanPipeline_->releaseTransitionSnapshot();
+        return;
     }
+    transitionOverlay_.clearSnapshot();
 }
 
-void SiliconVisPipeline::setTransitionVulkan(float offsetX, float alpha) {
+void SiliconVisPipeline::setTransition(float offsetX, float alpha) {
     transitionOffsetX_ = offsetX;
     transitionAlpha_ = alpha;
+}
+
+void SiliconVisPipeline::drawTransition() {
+    // Vulkan draws it inside its own frame, where the target is the swapchain.
+    if (vulkanPipeline_ || transitionAlpha_ <= 0.001f) return;
+    transitionOverlay_.draw(widthPx_, heightPx_, transitionOffsetX_, transitionAlpha_);
 }
 
 } // namespace silicon::vis

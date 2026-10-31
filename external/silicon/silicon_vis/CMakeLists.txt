@@ -12,6 +12,7 @@ set(SILICON_VIS_SOURCES
     src/gl/gl_primitives.cpp
     src/gl/gl_font_atlas.cpp
     src/gl/gl_artwork_renderer.cpp
+    src/gl/gl_transition_overlay.cpp
     src/renderers/channel_scope_renderer.cpp
     src/renderers/oscilloscope_renderer.cpp
     src/renderers/bars_renderer.cpp

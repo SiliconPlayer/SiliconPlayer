@@ -48,9 +48,10 @@ SILICON_VIS_API void silicon_vis_resize_vulkan(SiliconVisHandle handle, uint32_t
 SILICON_VIS_API void silicon_vis_release_vulkan(SiliconVisHandle handle);
 SILICON_VIS_API bool silicon_vis_render_vulkan(SiliconVisHandle handle);
 SILICON_VIS_API bool silicon_vis_readback_vulkan(SiliconVisHandle handle, void* outRgbaBuffer, size_t bufferSize);
-SILICON_VIS_API bool silicon_vis_take_transition_snapshot_vulkan(SiliconVisHandle handle);
-SILICON_VIS_API void silicon_vis_release_transition_snapshot_vulkan(SiliconVisHandle handle);
-SILICON_VIS_API void silicon_vis_set_transition_vulkan(SiliconVisHandle handle, float offsetX, float alpha);
+SILICON_VIS_API bool silicon_vis_take_transition_snapshot(SiliconVisHandle handle);
+SILICON_VIS_API void silicon_vis_release_transition_snapshot(SiliconVisHandle handle);
+SILICON_VIS_API void silicon_vis_set_transition(SiliconVisHandle handle, float offsetX, float alpha);
+SILICON_VIS_API void silicon_vis_draw_transition(SiliconVisHandle handle);
 
 // Mode selection
 SILICON_VIS_API void silicon_vis_set_mode(SiliconVisHandle handle, SiliconVisMode mode);

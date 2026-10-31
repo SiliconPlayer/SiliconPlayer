@@ -107,22 +107,28 @@ bool silicon_vis_readback_vulkan(SiliconVisHandle handle, void* outRgbaBuffer, s
     return pipeline->readbackVulkan(outRgbaBuffer, bufferSize);
 }
 
-bool silicon_vis_take_transition_snapshot_vulkan(SiliconVisHandle handle) {
+bool silicon_vis_take_transition_snapshot(SiliconVisHandle handle) {
     if (!handle) return false;
     auto* pipeline = static_cast<SiliconVisPipeline*>(handle);
-    return pipeline->takeTransitionSnapshotVulkan();
+    return pipeline->takeTransitionSnapshot();
 }
 
-void silicon_vis_release_transition_snapshot_vulkan(SiliconVisHandle handle) {
+void silicon_vis_release_transition_snapshot(SiliconVisHandle handle) {
     if (!handle) return;
     auto* pipeline = static_cast<SiliconVisPipeline*>(handle);
-    pipeline->releaseTransitionSnapshotVulkan();
+    pipeline->releaseTransitionSnapshot();
 }
 
-void silicon_vis_set_transition_vulkan(SiliconVisHandle handle, float offsetX, float alpha) {
+void silicon_vis_set_transition(SiliconVisHandle handle, float offsetX, float alpha) {
     if (!handle) return;
     auto* pipeline = static_cast<SiliconVisPipeline*>(handle);
-    pipeline->setTransitionVulkan(offsetX, alpha);
+    pipeline->setTransition(offsetX, alpha);
+}
+
+void silicon_vis_draw_transition(SiliconVisHandle handle) {
+    if (!handle) return;
+    auto* pipeline = static_cast<SiliconVisPipeline*>(handle);
+    pipeline->drawTransition();
 }
 
 void silicon_vis_set_mode(SiliconVisHandle handle, SiliconVisMode mode) {

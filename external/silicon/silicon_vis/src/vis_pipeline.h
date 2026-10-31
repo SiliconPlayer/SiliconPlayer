@@ -4,6 +4,7 @@
 #include "silicon/vis/IVisualizerRenderer.h"
 #include "silicon/vis/IVisualizationAudioProvider.h"
 #include "gl/gl_artwork_renderer.h"
+#include "gl/gl_transition_overlay.h"
 #include "gl/gl_platform.h"
 #include "renderers/channel_scope_renderer.h"
 #include "renderers/oscilloscope_renderer.h"
@@ -106,9 +107,14 @@ public:
     bool renderVulkan();
     bool readbackVulkan(void* outRgbaBuffer, size_t bufferSize);
     bool isVulkanReady() const;
-    bool takeTransitionSnapshotVulkan();
-    void releaseTransitionSnapshotVulkan();
-    void setTransitionVulkan(float offsetX, float alpha);
+    // Snapshot of the last presented frame, shared by both backends: the host
+    // arms it when the decoder swaps and feeds the slide/fade alpha after.
+    bool takeTransitionSnapshot();
+    void releaseTransitionSnapshot();
+    void setTransition(float offsetX, float alpha);
+    // Draws the snapshot into the bound framebuffer: the host calls this once
+    // its own compositing is done, so the fade is not blended twice.
+    void drawTransition();
 
 private:
     IVisualizerRenderer* getActiveRenderer();
@@ -125,6 +131,7 @@ private:
     GLuint targetFbo_ = 0;
     float transitionOffsetX_ = 0.0f;
     float transitionAlpha_ = 0.0f;
+    gl::GlTransitionOverlay transitionOverlay_;
 
     // Multisampled offscreen target every mode resolves through when
     // the GPU offers multisampling; falls back to direct rendering.
