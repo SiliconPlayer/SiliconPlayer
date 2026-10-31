@@ -86,7 +86,6 @@ public:
         bool showInstrument,
         bool showSample,
         int32_t noteFormat);
-    void setTextQuads(const float* quads, int32_t vertexCount);
 
     // Options
     ChannelScopeRenderer& getChannelScopeRenderer() { return channelScope_; }

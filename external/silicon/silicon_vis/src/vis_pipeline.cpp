@@ -283,10 +283,6 @@ void SiliconVisPipeline::setChannelScopeTextFields(
     );
 }
 
-void SiliconVisPipeline::setTextQuads(const float* quads, int32_t vertexCount) {
-    channelScope_.setTextQuads(quads, vertexCount);
-}
-
 IVisualizerRenderer* SiliconVisPipeline::getActiveRenderer() {
     switch (currentMode_) {
         case SILICON_VIS_MODE_CHANNEL_SCOPE:

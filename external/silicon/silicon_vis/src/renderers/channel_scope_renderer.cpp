@@ -243,16 +243,6 @@ void ChannelScopeRenderer::setTextStates(const SiliconVisChannelTextState* state
     textStates_.assign(states, states + count);
 }
 
-void ChannelScopeRenderer::setTextQuads(const float* quads, int32_t vertexCount) {
-    if (!quads || vertexCount <= 0) {
-        externalTextVertexCount_ = 0;
-        externalTextQuads_.clear();
-        return;
-    }
-    externalTextQuads_.assign(quads, quads + (vertexCount * 8));
-    externalTextVertexCount_ = vertexCount;
-}
-
 void ChannelScopeRenderer::resolveGrid(int channelCount, int& outCols, int& outRows) const {
     if (channelCount <= 0) { outCols = 1; outRows = 1; return; }
     switch (layout_) {
@@ -885,17 +875,7 @@ void ChannelScopeRenderer::buildTextGeometry() {
 }
 
 void ChannelScopeRenderer::drawText() {
-    if (!textEnabled_ && externalTextVertexCount_ <= 0) return;
-    if (externalTextVertexCount_ > 0 && !externalTextQuads_.empty()) {
-        textProgram_.draw(
-            externalTextQuads_.data(),
-            externalTextVertexCount_,
-            fontAtlas_,
-            static_cast<float>(widthPx_),
-            static_cast<float>(heightPx_)
-        );
-        return;
-    }
+    if (!textEnabled_) return;
     buildTextGeometry();
     if (textBatcher_.getVertexCount() > 0) {
         textProgram_.draw(
@@ -1017,7 +997,7 @@ void ChannelScopeRenderer::renderVk(
     std::memcpy(&fontDesc, &fontDescriptorSet, sizeof(VkDescriptorSet));
 
     buildGeometry();
-    if (fontDesc != VK_NULL_HANDLE && externalTextVertexCount_ <= 0) {
+    if (fontDesc != VK_NULL_HANDLE) {
         buildTextGeometry();
     }
 
@@ -1081,16 +1061,7 @@ void ChannelScopeRenderer::renderVk(
 
     // 5. Text
     if (fontDesc != VK_NULL_HANDLE) {
-        if (externalTextVertexCount_ > 0 && !externalTextQuads_.empty()) {
-            size_t sizeBytes = externalTextVertexCount_ * 8 * sizeof(float);
-            size_t offset = dynBuffer->allocate(externalTextQuads_.data(), sizeBytes);
-            if (offset != static_cast<size_t>(-1)) {
-                prims->bindText(cmd, width, height, fontDesc);
-                VkDeviceSize bufOffset = static_cast<VkDeviceSize>(offset);
-                table.vkCmdBindVertexBuffers(cmd, 0, 1, &buffer, &bufOffset);
-                table.vkCmdDraw(cmd, static_cast<uint32_t>(externalTextVertexCount_), 1, 0, 0);
-            }
-        } else if (textBatcher_.getVertexCount() > 0) {
+        if (textBatcher_.getVertexCount() > 0) {
             size_t sizeBytes = textBatcher_.getVertexCount() * 8 * sizeof(float);
             size_t offset = dynBuffer->allocate(textBatcher_.getBufferData(), sizeBytes);
             if (offset != static_cast<size_t>(-1)) {

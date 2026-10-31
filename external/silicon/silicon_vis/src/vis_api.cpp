@@ -313,12 +313,6 @@ void silicon_vis_set_channel_scope_text_enabled(SiliconVisHandle handle, bool en
     pipeline->setChannelScopeTextEnabled(enabled);
 }
 
-void silicon_vis_set_text_quads(SiliconVisHandle handle, const float* quads, int32_t vertexCount) {
-    if (!handle) return;
-    auto* pipeline = static_cast<SiliconVisPipeline*>(handle);
-    pipeline->setTextQuads(quads, vertexCount);
-}
-
 void silicon_vis_set_channel_scope_options(
     SiliconVisHandle handle,
     SiliconVisChannelLayout layout,

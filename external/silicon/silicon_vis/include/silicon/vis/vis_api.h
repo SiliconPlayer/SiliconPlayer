@@ -113,8 +113,6 @@ SILICON_VIS_API void silicon_vis_set_channel_scope_text_fields(
     int32_t noteFormat);
 SILICON_VIS_API void silicon_vis_set_channel_scope_text_enabled(SiliconVisHandle handle, bool enabled);
 
-SILICON_VIS_API void silicon_vis_set_text_quads(SiliconVisHandle handle, const float* quads, int32_t vertexCount);
-
 // Options & Parameters
 SILICON_VIS_API void silicon_vis_set_channel_scope_options(
     SiliconVisHandle handle,

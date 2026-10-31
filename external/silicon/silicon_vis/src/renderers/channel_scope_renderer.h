@@ -91,7 +91,6 @@ public:
         int32_t noteFormat
     );
     void setTextEnabled(bool enabled) { textEnabled_ = enabled; }
-    void setTextQuads(const float* quads, int32_t vertexCount);
 
     gl::GlFontAtlas& getFontAtlas() { return fontAtlas_; }
 
@@ -177,8 +176,6 @@ private:
     std::vector<float> waveformVertices_;
     std::vector<float> vuTrackVertices_;
     std::vector<float> vuFillVertices_;
-    std::vector<float> externalTextQuads_;
-    int32_t externalTextVertexCount_ = 0;
 };
 
 } // namespace silicon::vis
