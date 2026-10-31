@@ -39,6 +39,7 @@ public:
     int getFixedSampleRateHz() const override;
     double getPlaybackPositionSeconds() override;
     std::string getCoreStringInfo(const char* name) override;
+    std::string getFormatLabel() override;
     void setOption(const char* name, const char* value) override;
     std::vector<std::string> getToggleChannelNames() override;
     std::vector<uint8_t> getToggleChannelAvailability() override;

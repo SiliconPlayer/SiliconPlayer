@@ -475,6 +475,11 @@ void NezplugppDecoder::parseSongFormatLocked(const uint8_t* data, size_t size) {
     }
 }
 
+std::string NezplugppDecoder::getFormatLabel() {
+    std::lock_guard<std::mutex> lock(decodeMutex);
+    return formatName;
+}
+
 std::string NezplugppDecoder::getCoreStringInfo(const char* name) {
     std::lock_guard<std::mutex> lock(decodeMutex);
     if (!isOpen || name == nullptr) return "";

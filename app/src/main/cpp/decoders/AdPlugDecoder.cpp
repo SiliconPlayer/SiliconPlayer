@@ -851,6 +851,14 @@ AudioDecoder::TimelineMode AdPlugDecoder::getTimelineMode() const {
     return TimelineMode::ContinuousLinear;
 }
 
+std::string AdPlugDecoder::getFormatLabel() {
+    std::lock_guard<std::mutex> lock(decodeMutex);
+    const std::size_t dot = sourcePath.find_last_of('.');
+    if (dot == std::string::npos) return "";
+    const CPlayerDesc* format = CAdPlug::players.lookup_extension(sourcePath.substr(dot + 1));
+    return format ? format->filetype : "";
+}
+
 std::string AdPlugDecoder::getCoreStringInfo(const char* name) {
     if (name == nullptr) return "";
     if (std::strcmp(name, "description") == 0) return getDescription();

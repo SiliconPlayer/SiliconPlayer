@@ -61,6 +61,7 @@ public:
     double getPlaybackPositionSeconds() override;
     TimelineMode getTimelineMode() const override;
     std::string getCoreStringInfo(const char* name) override;
+    std::string getFormatLabel() override;
     int getCoreIntInfo(const char* name, int fallback) override;
 
     std::shared_ptr<ChannelScopeSharedState> getChannelScopeSharedState() const override;
