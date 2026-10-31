@@ -750,8 +750,14 @@ void ChannelScopeRenderer::buildTextGeometry() {
     float itemSpacing = 2.0f * density_;
 
     const float shadowOffset = std::clamp(scale * 2.8f, 0.75f, 3.0f);
-    constexpr float shadowA = 0.50f;
+    const float shadowA = 0.50f * alpha_;
     int32_t sideCounts[2] = {0, 0};
+
+    auto textColor = [this](uint32_t argb) {
+        gl::Color4f c = gl::argbToColor4f(argb);
+        c.a *= alpha_;
+        return c;
+    };
 
     for (int col = 0; col < cols; ++col) {
         for (int row = 0; row < rows; ++row) {
@@ -783,7 +789,7 @@ void ChannelScopeRenderer::buildTextGeometry() {
                 float lower = cursorX - itemSpacing;
                 float upper = std::max(lower, cursorX + itemSpacing + nextLead);
                 bulletX = std::clamp(bulletX, lower, upper);
-                gl::Color4f c = gl::argbToColor4f(palette_.separatorArgb);
+                gl::Color4f c = textColor(palette_.separatorArgb);
                 textBatcher_.addText(fontAtlas_, "\xE2\x80\xA2", bulletX, originY, scale, c.r, c.g, c.b, c.a, shadowEnabled_, 0, 0, 0, shadowA, shadowOffset, maxRight - bulletX);
                 cursorX += bulletW + itemSpacing;
             };
@@ -794,7 +800,7 @@ void ChannelScopeRenderer::buildTextGeometry() {
             if (!fields.channel.empty() && cursorX < maxRight) {
                 const std::string text = truncateToWidth(fontAtlas_, fields.channel, maxRight - cursorX, scale);
                 if (!text.empty()) {
-                    gl::Color4f c = gl::argbToColor4f(palette_.channelArgb);
+                    gl::Color4f c = textColor(palette_.channelArgb);
                     float dw = textBatcher_.addText(fontAtlas_, text, cursorX, originY, scale, c.r, c.g, c.b, c.a, shadowEnabled_, 0, 0, 0, shadowA, shadowOffset, maxRight - cursorX);
                     cursorX += dw + itemSpacing;
                     hasPrev = true;
@@ -807,7 +813,7 @@ void ChannelScopeRenderer::buildTextGeometry() {
                 float lead = (noteSlotW - fontAtlas_.measureTextWidth(fields.note, scale)) * 0.5f;
                 drawSeparator(lead);
                 if (cursorX + noteSlotW <= maxRight) {
-                    gl::Color4f c = gl::argbToColor4f(palette_.noteArgb);
+                    gl::Color4f c = textColor(palette_.noteArgb);
                     textBatcher_.addText(fontAtlas_, fields.note, cursorX + lead, originY, scale, c.r, c.g, c.b, c.a, shadowEnabled_, 0, 0, 0, shadowA, shadowOffset, maxRight - cursorX);
                     cursorX += noteSlotW + itemSpacing;
                     hasPrev = true;
@@ -820,7 +826,7 @@ void ChannelScopeRenderer::buildTextGeometry() {
                 float lead = (volSlotW - fontAtlas_.measureTextWidth(fields.volume, scale)) * 0.5f;
                 drawSeparator(lead);
                 if (cursorX + volSlotW <= maxRight) {
-                    gl::Color4f c = gl::argbToColor4f(palette_.volumeArgb);
+                    gl::Color4f c = textColor(palette_.volumeArgb);
                     textBatcher_.addText(fontAtlas_, fields.volume, cursorX + lead, originY, scale, c.r, c.g, c.b, c.a, shadowEnabled_, 0, 0, 0, shadowA, shadowOffset, maxRight - cursorX);
                     cursorX += volSlotW + itemSpacing;
                     hasPrev = true;
@@ -837,7 +843,7 @@ void ChannelScopeRenderer::buildTextGeometry() {
                 float lead = (effSlotW - fontAtlas_.measureTextWidth(*effects[i], scale)) * 0.5f;
                 drawSeparator(lead);
                 if (cursorX + effSlotW <= maxRight) {
-                    gl::Color4f c = gl::argbToColor4f(palette_.effectArgb);
+                    gl::Color4f c = textColor(palette_.effectArgb);
                     textBatcher_.addText(fontAtlas_, *effects[i], cursorX + lead, originY, scale, c.r, c.g, c.b, c.a, shadowEnabled_, 0, 0, 0, shadowA, shadowOffset, maxRight - cursorX);
                     cursorX += effSlotW + itemSpacing;
                     hasPrev = true;
@@ -851,7 +857,7 @@ void ChannelScopeRenderer::buildTextGeometry() {
                 if (maxRight - cursorX > effectiveTextPx / 4.0f) {
                     const std::string text = truncateToWidth(fontAtlas_, fields.chip, maxRight - cursorX, scale);
                     if (!text.empty()) {
-                        gl::Color4f c = gl::argbToColor4f(palette_.channelArgb);
+                        gl::Color4f c = textColor(palette_.channelArgb);
                         float dw = textBatcher_.addText(fontAtlas_, text, cursorX, originY, scale, c.r, c.g, c.b, c.a, shadowEnabled_, 0, 0, 0, shadowA, shadowOffset, maxRight - cursorX);
                         cursorX += dw + itemSpacing;
                         hasPrev = true;
@@ -866,7 +872,7 @@ void ChannelScopeRenderer::buildTextGeometry() {
                 if (maxRight - cursorX > effectiveTextPx / 4.0f) {
                     const std::string text = truncateToWidth(fontAtlas_, fields.identifier, maxRight - cursorX, scale);
                     if (!text.empty()) {
-                        gl::Color4f c = gl::argbToColor4f(palette_.instrumentOrSampleArgb);
+                        gl::Color4f c = textColor(palette_.instrumentOrSampleArgb);
                         textBatcher_.addText(fontAtlas_, text, cursorX, originY, scale, c.r, c.g, c.b, c.a, shadowEnabled_, 0, 0, 0, shadowA, shadowOffset, maxRight - cursorX);
                     }
                 }
@@ -1003,13 +1009,19 @@ void ChannelScopeRenderer::renderVk(
 
     VkBuffer buffer = dynBuffer->getBuffer();
 
+    auto withAlpha = [this](uint32_t argb) {
+        const float a = ((argb >> 24) & 0xFF) / 255.0f * alpha_;
+        const uint32_t ai = static_cast<uint32_t>(std::clamp(a, 0.0f, 1.0f) * 255.0f);
+        return (argb & 0x00FFFFFF) | (ai << 24);
+    };
+
     // 1. VU Tracks
     if (vuEnabled_ && !vuTrackVertices_.empty()) {
         size_t sizeBytes = vuTrackVertices_.size() * sizeof(float);
         size_t offset = dynBuffer->allocate(vuTrackVertices_.data(), sizeBytes);
         if (offset != static_cast<size_t>(-1)) {
             uint32_t trackColor = (vuColorArgb_ & 0x00FFFFFF) | 0x40000000;
-            prims->bindFlatTriangles(cmd, width, height, trackColor);
+            prims->bindFlatTriangles(cmd, width, height, withAlpha(trackColor));
             VkDeviceSize bufOffset = static_cast<VkDeviceSize>(offset);
             table.vkCmdBindVertexBuffers(cmd, 0, 1, &buffer, &bufOffset);
             table.vkCmdDraw(cmd, static_cast<uint32_t>(vuTrackVertices_.size() / 2), 1, 0, 0);
@@ -1021,7 +1033,7 @@ void ChannelScopeRenderer::renderVk(
         size_t sizeBytes = vuFillVertices_.size() * sizeof(float);
         size_t offset = dynBuffer->allocate(vuFillVertices_.data(), sizeBytes);
         if (offset != static_cast<size_t>(-1)) {
-            prims->bindFlatTriangles(cmd, width, height, vuColorArgb_);
+            prims->bindFlatTriangles(cmd, width, height, withAlpha(vuColorArgb_));
             VkDeviceSize bufOffset = static_cast<VkDeviceSize>(offset);
             table.vkCmdBindVertexBuffers(cmd, 0, 1, &buffer, &bufOffset);
             table.vkCmdDraw(cmd, static_cast<uint32_t>(vuFillVertices_.size() / 2), 1, 0, 0);
@@ -1033,7 +1045,7 @@ void ChannelScopeRenderer::renderVk(
         size_t sizeBytes = gridVertices_.size() * sizeof(float);
         size_t offset = dynBuffer->allocate(gridVertices_.data(), sizeBytes);
         if (offset != static_cast<size_t>(-1)) {
-            prims->bindFlatLines(cmd, width, height, gridColorArgb_, gridWidthPx_);
+            prims->bindFlatLines(cmd, width, height, withAlpha(gridColorArgb_), gridWidthPx_);
             VkDeviceSize bufOffset = static_cast<VkDeviceSize>(offset);
             table.vkCmdBindVertexBuffers(cmd, 0, 1, &buffer, &bufOffset);
             table.vkCmdDraw(cmd, static_cast<uint32_t>(gridVertices_.size() / 2), 1, 0, 0);
@@ -1048,12 +1060,12 @@ void ChannelScopeRenderer::renderVk(
             VkDeviceSize bufOffset = static_cast<VkDeviceSize>(offset);
             table.vkCmdBindVertexBuffers(cmd, 0, 1, &buffer, &bufOffset);
             if (waveRenderMode_ == 0 || (waveRenderMode_ == 1 && !fastLinesEnabled_)) {
-                prims->bindFlatTriangles(cmd, width, height, lineColorArgb_);
+                prims->bindFlatTriangles(cmd, width, height, withAlpha(lineColorArgb_));
                 table.vkCmdDraw(cmd, static_cast<uint32_t>(waveformVertices_.size() / 2), 1, 0, 0);
             } else {
                 float halfWidth = lineWidthPx_ * 0.5f;
                 float softness = (waveRenderMode_ == 2) ? kWaveCrtSoftnessPx : kWaveFastSoftnessPx;
-                prims->bindWaveLines(cmd, width, height, lineColorArgb_, halfWidth, softness);
+                prims->bindWaveLines(cmd, width, height, withAlpha(lineColorArgb_), halfWidth, softness);
                 table.vkCmdDraw(cmd, static_cast<uint32_t>(waveformVertices_.size() / 3), 1, 0, 0);
             }
         }

@@ -664,6 +664,7 @@ bool SiliconVisPipeline::renderVulkan() {
             starfield_.resize(widthPx_, heightPx_, density_);
             starfield_.setMaxPointSizePx(vulkanPipeline_->getStarfield().getMaxPointSize());
         }
+        channelScope_.setAlpha(visualAlpha_);
         channelScope_.renderVk(
             cmd,
             &vulkanPipeline_->getPipelines(),

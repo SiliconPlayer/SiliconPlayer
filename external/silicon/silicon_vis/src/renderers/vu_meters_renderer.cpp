@@ -154,12 +154,16 @@ void VuMetersRenderer::buildLabels() {
     float textHeight = fontAtlas_.getLineHeightPx() * scale;
 
     gl::Color4f c = gl::argbToColor4f(labelColorArgb_);
+    c.a *= alpha_;
 
     for (int idx = 0; idx < rows; ++idx) {
         float y = topY + (idx * (rowHeightPx + rowGapPx));
         float textY = y + (rowHeightPx - textHeight) * 0.5f;
         std::string label = (rows > 1) ? ((idx == 0) ? "Left" : "Right") : "Mono";
-        textBatcher_.addText(fontAtlas_, label, horizontalPadPx, textY, scale, c.r, c.g, c.b, c.a, true);
+        textBatcher_.addText(
+            fontAtlas_, label, horizontalPadPx, textY, scale, c.r, c.g, c.b, c.a,
+            true, 0.0f, 0.0f, 0.0f, 0.50f * alpha_
+        );
     }
 }
 

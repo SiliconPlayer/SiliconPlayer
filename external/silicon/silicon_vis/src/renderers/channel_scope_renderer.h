@@ -23,6 +23,12 @@ public:
     void render() override;
     void releaseGl() override;
 
+    void setAlpha(float alpha) override {
+        alpha_ = alpha;
+        flatRenderer_.setAlpha(alpha);
+        waveRenderer_.setAlpha(alpha);
+    }
+
     void renderVk(
         void* cmdBuffer,
         void* pipelines,
@@ -147,6 +153,7 @@ private:
     ChannelScopeTrigger triggerEngine_;
     int32_t waveRenderMode_ = 1;
     bool fastLinesEnabled_ = false;
+    float alpha_ = 1.0f;
     std::chrono::steady_clock::time_point lastVuUpdate_{};
     std::vector<float> vuLevels_;
 
