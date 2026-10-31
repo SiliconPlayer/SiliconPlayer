@@ -83,7 +83,7 @@ import org.jetbrains.skia.ColorType
 import org.jetbrains.skia.ImageInfo
 import com.flopster101.siliconplayer.ui.visualization.VisualizationDebugOverlay
 import com.flopster101.siliconplayer.ui.visualization.channel.GlChannelScopeTextPalette
-import com.flopster101.siliconplayer.ui.visualization.channel.loadChannelScopeNameMaps
+import com.flopster101.siliconplayer.ui.visualization.channel.loadChannelScopeNameMapsWhenReady
 import com.flopster101.siliconplayer.ui.visualization.gl.SiliconNativeGlDesktopVisualization
 import com.flopster101.siliconplayer.ui.visualization.gl.SiliconNativeGlFrame
 import com.flopster101.siliconplayer.ui.visualization.gl.SiliconVisNativeBridge
@@ -233,9 +233,9 @@ internal fun AlbumArtPlaceholder(
         if (!isPlaying && scopeNameMaps != ChannelScopeNameMaps()) {
             return@LaunchedEffect
         }
-        scopeNameMaps = runCatching {
-            loadChannelScopeNameMaps(pluginNameForCoreName(decoderName), DesktopChannelScopeNameSource)
-        }.getOrDefault(ChannelScopeNameMaps())
+        runCatching {
+            loadChannelScopeNameMapsWhenReady(pluginNameForCoreName(decoderName), DesktopChannelScopeNameSource)
+        }.getOrNull()?.let { scopeNameMaps = it }
     }
     var hasStartedPlaybackForTrack by remember { mutableStateOf(false) }
     LaunchedEffect(isPlaying) {

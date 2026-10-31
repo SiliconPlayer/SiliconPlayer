@@ -1,5 +1,7 @@
 package com.flopster101.siliconplayer.ui.visualization.channel
 
+import kotlinx.coroutines.delay
+
 data class GlChannelScopeTextPalette(
     val channelArgb: Int = 0xFFCCCCCC.toInt(),
     val noteArgb: Int = 0xFF80D8FF.toInt(),
@@ -117,4 +119,21 @@ fun loadChannelScopeNameMaps(pluginName: String?, source: ChannelScopeNameSource
             chipNamesByChannelIndex = chipNamesByChannelIndex
         )
     }
+}
+
+private const val CHANNEL_SCOPE_NAME_RETRY_COUNT = 40
+private const val CHANNEL_SCOPE_NAME_RETRY_DELAY_MS = 250L
+
+// Names only exist once the decoder is open and its mutex is free, so keep
+// asking until they arrive instead of pinning generic labels.
+suspend fun loadChannelScopeNameMapsWhenReady(
+    pluginName: String?,
+    source: ChannelScopeNameSource
+): ChannelScopeNameMaps? {
+    repeat(CHANNEL_SCOPE_NAME_RETRY_COUNT) { attempt ->
+        val maps = loadChannelScopeNameMaps(pluginName, source)
+        if (maps.chipNamesByChannelIndex.isNotEmpty()) return maps
+        if (attempt < CHANNEL_SCOPE_NAME_RETRY_COUNT - 1) delay(CHANNEL_SCOPE_NAME_RETRY_DELAY_MS)
+    }
+    return null
 }
