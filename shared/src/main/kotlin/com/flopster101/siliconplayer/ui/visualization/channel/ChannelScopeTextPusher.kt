@@ -84,6 +84,9 @@ class ChannelScopeTextPusher(private val setters: ChannelScopeTextSetters) {
     }
 
     fun pushStates(states: IntArray) {
+        // The engine answers empty while the decoder is busy, so an empty poll
+        // means "ask again" rather than "every channel lost its values".
+        if (states.isEmpty()) return
         if (states.contentEquals(this.states)) return
         this.states = states
         setters.setTextStates(states)
