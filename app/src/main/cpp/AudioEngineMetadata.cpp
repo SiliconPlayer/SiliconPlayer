@@ -1079,9 +1079,21 @@ std::vector<int32_t> AudioEngine::getChannelScopeTextState(int maxChannels) {
 }
 
 std::vector<std::string> AudioEngine::getDecoderToggleChannelNames() {
+    const uint64_t serial = decoderSerial.load(std::memory_order_relaxed);
     std::unique_lock<std::mutex> lock(decoderMutex, std::try_to_lock);
-    if (!lock.owns_lock() || !decoder) return {};
-    return decoder->getToggleChannelNames();
+    if (lock.owns_lock() && decoder) {
+        std::vector<std::string> names = decoder->getToggleChannelNames();
+        std::lock_guard<std::mutex> cacheLock(toggleChannelNamesCacheMutex);
+        toggleChannelNamesCache = names;
+        toggleChannelNamesCacheSerial = serial;
+        toggleChannelNamesCacheValid = true;
+        return names;
+    }
+    std::lock_guard<std::mutex> cacheLock(toggleChannelNamesCacheMutex);
+    if (toggleChannelNamesCacheValid && toggleChannelNamesCacheSerial == serial) {
+        return toggleChannelNamesCache;
+    }
+    return {};
 }
 
 std::vector<uint8_t> AudioEngine::getDecoderToggleChannelAvailability() {

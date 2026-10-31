@@ -182,6 +182,11 @@ bool DecoderRegistry::supportsDecoderFeature(const std::string& name, const std:
         // so a fresh instance probes support with no file open.
         std::unique_ptr<AudioDecoder> probe = createDecoderByName(name);
         supported = probe && probe->getChannelScopeSharedState() != nullptr;
+        if (!supported) {
+            // Probing dlopens a decoder plugin, which can fail transiently, so a
+            // miss must stay re-probeable instead of sticking for the session.
+            return false;
+        }
     }
     featureSupportCache[name][feature] = supported;
     return supported;

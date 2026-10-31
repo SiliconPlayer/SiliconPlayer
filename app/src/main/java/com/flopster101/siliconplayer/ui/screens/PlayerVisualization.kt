@@ -123,6 +123,9 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
+private const val CHANNEL_SCOPE_NAME_RETRY_COUNT = 40
+private const val CHANNEL_SCOPE_NAME_RETRY_DELAY_MS = 250L
+
 private data class AlbumArtCrossfadeState(
     val trackKey: String?,
     val artwork: ImageBitmap?,
@@ -1707,16 +1710,23 @@ internal fun AlbumArtPlaceholder(
             visChannelScopeChipNamesByChannelIndex = emptyMap()
             return@LaunchedEffect
         }
-        if (!isPlaying && (visChannelScopeInstrumentNamesByIndex.isNotEmpty() ||
-            visChannelScopeSampleNamesByIndex.isNotEmpty() ||
-            visChannelScopeChipNamesByChannelIndex.isNotEmpty())
-        ) {
-            return@LaunchedEffect
+        // Names only exist once the decoder is open and its mutex is free, so
+        // keep asking until they arrive instead of pinning generic labels.
+        repeat(CHANNEL_SCOPE_NAME_RETRY_COUNT) { attempt ->
+            val nameMaps = loadChannelScopeNameMaps(
+                pluginNameForCoreName(decoderName),
+                AndroidChannelScopeNameSource
+            )
+            if (nameMaps.chipNamesByChannelIndex.isNotEmpty()) {
+                visChannelScopeInstrumentNamesByIndex = nameMaps.instrumentNamesByIndex
+                visChannelScopeSampleNamesByIndex = nameMaps.sampleNamesByIndex
+                visChannelScopeChipNamesByChannelIndex = nameMaps.chipNamesByChannelIndex
+                return@LaunchedEffect
+            }
+            if (attempt < CHANNEL_SCOPE_NAME_RETRY_COUNT - 1) {
+                delay(CHANNEL_SCOPE_NAME_RETRY_DELAY_MS)
+            }
         }
-        val nameMaps = loadChannelScopeNameMaps(pluginNameForCoreName(decoderName), AndroidChannelScopeNameSource)
-        visChannelScopeInstrumentNamesByIndex = nameMaps.instrumentNamesByIndex
-        visChannelScopeSampleNamesByIndex = nameMaps.sampleNamesByIndex
-        visChannelScopeChipNamesByChannelIndex = nameMaps.chipNamesByChannelIndex
     }
     LaunchedEffect(
         visualizationMode,

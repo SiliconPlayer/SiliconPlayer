@@ -740,6 +740,12 @@ private:
     mutable int scopeStateCacheDecoderRate = 0;
     mutable uint64_t scopeStateCacheSerial = 0;
     mutable bool scopeStateCacheValid = false;
+    // Same idea for the toggle channel list: a contended decoder mutex would
+    // otherwise hand the UI an empty list, which sticks for the whole track.
+    mutable std::mutex toggleChannelNamesCacheMutex;
+    mutable std::vector<std::string> toggleChannelNamesCache;
+    mutable uint64_t toggleChannelNamesCacheSerial = 0;
+    mutable bool toggleChannelNamesCacheValid = false;
     std::thread seekWorkerThread;
     std::mutex seekWorkerMutex;
     std::condition_variable seekWorkerCv;
