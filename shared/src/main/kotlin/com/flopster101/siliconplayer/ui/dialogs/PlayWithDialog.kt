@@ -2,15 +2,14 @@ package com.flopster101.siliconplayer.ui.dialogs
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
-import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -176,7 +175,7 @@ internal fun PlayWithDialog(
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .height(240.dp)
+                        .heightIn(max = 240.dp)
                         .clip(RoundedCornerShape(14.dp))
                         .background(MaterialTheme.colorScheme.surfaceContainerLow)
                 ) {
@@ -192,13 +191,8 @@ internal fun PlayWithDialog(
                     } else {
                         LazyColumn(
                             state = listState,
-                            verticalArrangement = if (rows.size <= 7) {
-                                Arrangement.Center
-                            } else {
-                                Arrangement.Top
-                            },
                             modifier = Modifier
-                                .fillMaxSize()
+                                .fillMaxWidth()
                                 .onSizeChangedDeferred { listViewportHeightPx = it.height.toFloat() }
                                 .padding(start = 8.dp, top = 6.dp, bottom = 6.dp, end = 18.dp)
                         ) {
