@@ -72,18 +72,24 @@ internal fun SettingsScaffoldShell(
 ) {
     val isWatch = LocalIsWatchDevice.current
     val isRound = LocalIsRoundScreen.current
-    val scrollBehavior = TopAppBarDefaults.exitUntilCollapsedScrollBehavior()
+    val windowInfo = LocalWindowSizeInfo.current
+    // Two pane: the bar is compact and pinned, so only the pane scrolls and the
+    // sidebar list beside it stays put.
+    val isTwoPane = route != SettingsRoute.Root &&
+            windowInfo.screenWidthDp >= SETTINGS_TWO_PANE_MIN_WIDTH.value
+    val scrollBehavior = if (isTwoPane) {
+        TopAppBarDefaults.pinnedScrollBehavior()
+    } else {
+        TopAppBarDefaults.exitUntilCollapsedScrollBehavior()
+    }
 
     val titleContent: @Composable () -> Unit = {
-        val windowInfo = LocalWindowSizeInfo.current
-        val isTwoPaneTopBar = route != SettingsRoute.Root &&
-                windowInfo.screenWidthDp >= SETTINGS_TWO_PANE_MIN_WIDTH.value
         // Single column: the cap centers the page, so title indents to its left
         // edge. Two pane: the list, divider and padding fix where the (still
         // 640 dp capped and centered) route column starts.
         val titleColumnIndent = if (isWatch) {
             0.dp
-        } else if (isTwoPaneTopBar) {
+        } else if (isTwoPane) {
             val paneLead = SETTINGS_TWO_PANE_LIST_WIDTH + 8.dp + 1.dp + 8.dp + 8.dp
             val remaining = windowInfo.screenWidthDp.dp - paneLead
             paneLead + ((remaining - 640.dp).coerceAtLeast(0.dp) / 2)
@@ -253,6 +259,15 @@ internal fun SettingsScaffoldShell(
                         actionsContent()
                     }
                 }
+            } else if (isTwoPane) {
+                TopAppBar(
+                    title = titleContent,
+                    navigationIcon = navigationIconContent,
+                    actions = actionsContent,
+                    colors = TopAppBarDefaults.topAppBarColors(
+                        containerColor = MaterialTheme.colorScheme.background
+                    )
+                )
             } else {
                 LargeTopAppBar(
                     title = titleContent,
