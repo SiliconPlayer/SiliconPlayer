@@ -409,11 +409,12 @@ internal class SiliconNativeTextureRenderThread(
     // transition (the snapshot still holds the previous song's last frame).
     private var lastRenderedTrackKey: String? = null
     private var forceRenderUntilNs = 0L
-    private val transitionSnapshot = GlTransitionSnapshot()
     private val sceneTarget = GlSceneTarget()
     private val sceneBlitter = GlTextureBlitter()
     private var transitionActive = false
     private var transitionStartNs = 0L
+    private var transitionOffsetX = 0f
+    private var transitionAlpha = 0f
     // Pending = holding the old song's frame until the new song's data shows.
     private var transitionPending = false
     private var transitionPendingSinceNs = 0L
@@ -698,12 +699,11 @@ internal class SiliconNativeTextureRenderThread(
                     pendingDataSerial = capturedSerial
                     forceRenderUntilNs = trackDetectNowNs + 1_600_000_000L
                     // The scene texture holds the old song's last frame; the
-                    // snapshot takes it and the scene gets a fresh texture.
-                    transitionSnapshot.adopt(
-                        sceneTarget.takeTexture(),
-                        sceneTarget.widthPx,
-                        sceneTarget.heightPx
-                    )
+                    // renderer keeps it as the snapshot it slides/fades out.
+                    if (visHandle != 0L) {
+                        SiliconVisNativeBridge.nativeSetRenderTargetFbo(visHandle, sceneTarget.fboId)
+                        SiliconVisNativeBridge.nativeTakeTransitionSnapshot(visHandle)
+                    }
                 }
             }
             if (transitionPending) {
@@ -718,7 +718,9 @@ internal class SiliconNativeTextureRenderThread(
                     // out: as a full-alpha overlay it would hold the frame
                     // until new data appears, i.e. until the next play.
                     transitionPending = false
-                    transitionSnapshot.release()
+                    if (visHandle != 0L) {
+                        SiliconVisNativeBridge.nativeReleaseTransitionSnapshot(visHandle)
+                    }
                     capturedSerial = dataSerial
                 }
             }
@@ -1030,12 +1032,61 @@ internal class SiliconNativeTextureRenderThread(
                         }
                     }
 
+                    // Channel-scope track transition: the renderer keeps the
+                    // previous song's last frame and slides or fades it out over
+                    // the live one, so only the animation state lives here.
+                    if (frame.mode == 4 && frame.channelScopeTrackTransition != 0) {
+                        if (transitionActive) {
+                            val p = ((System.nanoTime() - transitionStartNs) / 750_000_000f).coerceIn(0f, 1f)
+                            if (p >= 1f) {
+                                transitionActive = false
+                                // Snapshot consumed: it belongs to the old decoder
+                                // generation.
+                                capturedSerial = dataSerial
+                                SiliconVisNativeBridge.nativeReleaseTransitionSnapshot(visHandle)
+                            } else {
+                                val eased = p * p * (3f - 2f * p)
+                                transitionOffsetX = if (frame.channelScopeTrackTransition == 1) {
+                                    -eased * state.width.toFloat()
+                                } else {
+                                    0f
+                                }
+                                transitionAlpha = 1f - eased
+                            }
+                        } else if (transitionPending) {
+                            // Hold the previous song's last frame until the new
+                            // song's channels show up.
+                            transitionAlpha = 1f
+                        } else {
+                            transitionOffsetX = 0f
+                            transitionAlpha = 0f
+                            // Steady state: the scene texture already holds the
+                            // last frame, so only the decoder-generation tag
+                            // needs tracking. Skip tagging while no track is
+                            // loaded: teardown would arm a blank transition right
+                            // before a playlist/folder wrap.
+                            if (frameTrackKey != null) {
+                                capturedSerial = dataSerial
+                                scopeSceneHasLiveData = dataChannelsAlive
+                            }
+                        }
+                    } else {
+                        transitionOffsetX = 0f
+                        transitionAlpha = 0f
+                        if (transitionActive || transitionPending) {
+                            // Leaving the scope mid-animation cancels to an instant snap.
+                            transitionActive = false
+                            transitionPending = false
+                            capturedSerial = dataSerial
+                            SiliconVisNativeBridge.nativeReleaseTransitionSnapshot(visHandle)
+                        }
+                    }
+
                     // 3. Render
-                    // Channel scope renders into a scene texture while track
-                    // transitions are on: a track change hands its last frame
-                    // to the snapshot by ownership, because copying the
-                    // default framebuffer every frame leaks GPU memory on
-                    // ANGLE/Vulkan.
+                    // Channel scope resolves into a scene texture while track
+                    // transitions are on, so the renderer snapshots a defined
+                    // buffer instead of the window surface it has already
+                    // swapped.
                     val drawStartNs = System.nanoTime()
                     val sceneActive = frame.mode == 4 &&
                         frame.channelScopeTrackTransition != 0 &&
@@ -1043,6 +1094,11 @@ internal class SiliconNativeTextureRenderThread(
                     SiliconVisNativeBridge.nativeSetRenderTargetFbo(
                         visHandle,
                         if (sceneActive) sceneTarget.fboId else 0
+                    )
+                    SiliconVisNativeBridge.nativeSetTransition(
+                        visHandle,
+                        transitionOffsetX,
+                        transitionAlpha
                     )
                     if (frame.mode == 4 && frame.channelScopeTextEnabled && textCaps != 0) {
                         val textNowNs = System.nanoTime()
@@ -1057,69 +1113,13 @@ internal class SiliconNativeTextureRenderThread(
                     if (sceneActive) {
                         GLES20.glBindFramebuffer(GLES20.GL_FRAMEBUFFER, 0)
                         sceneBlitter.draw(sceneTarget.textureId, state.width, state.height, 0f, 1f)
+                        // After the scene blit, so the fade is not blended twice.
+                        SiliconVisNativeBridge.nativeDrawTransition(visHandle)
                     }
 
                     val drawEndNs = System.nanoTime()
                     val frameMs = ((drawEndNs - drawStartNs) / 1_000_000L).toInt().coerceAtLeast(0)
                     latestFrameMs = frameMs
-                }
-
-                // Channel-scope track transition: on track change the scene
-                // target's texture becomes the previous song's snapshot, which
-                // song's layout slides/fades out over the live new one.
-                if (frame.mode == 4 && frame.channelScopeTrackTransition != 0) {
-                    if (transitionActive) {
-                        if (
-                            transitionSnapshot.widthPx != state.width ||
-                            transitionSnapshot.heightPx != state.height
-                        ) {
-                            transitionActive = false
-                            capturedSerial = dataSerial
-                        } else {
-                            val p = ((System.nanoTime() - transitionStartNs) / 750_000_000f).coerceIn(0f, 1f)
-                            if (p >= 1f) {
-                                transitionActive = false
-                                // Snapshot consumed: it belongs to the old
-                                // decoder generation.
-                                capturedSerial = dataSerial
-                            } else {
-                                val eased = p * p * (3f - 2f * p)
-                                val offsetX = if (frame.channelScopeTrackTransition == 1) {
-                                    -eased * state.width.toFloat()
-                                } else {
-                                    0f
-                                }
-                                transitionSnapshot.draw(state.width, state.height, offsetX, 1f - eased)
-                            }
-                        }
-                    } else if (transitionPending) {
-                        // Hold the previous song's last frame until the new
-                        // song's channels show up.
-                        if (
-                            transitionSnapshot.widthPx == state.width &&
-                            transitionSnapshot.heightPx == state.height
-                        ) {
-                            transitionSnapshot.draw(state.width, state.height, 0f, 1f)
-                        } else {
-                            transitionPending = false
-                            capturedSerial = dataSerial
-                        }
-                    } else {
-                        // Steady state: the scene texture already holds the
-                        // last frame, so only the decoder-generation tag
-                        // needs tracking. Skip tagging while no track is
-                        // loaded: teardown would arm a blank transition right
-                        // before a playlist/folder wrap.
-                        if (frameTrackKey != null) {
-                            capturedSerial = dataSerial
-                            scopeSceneHasLiveData = dataChannelsAlive
-                        }
-                    }
-                } else if (transitionActive || transitionPending) {
-                    // Leaving the scope mid-animation cancels to an instant snap.
-                    transitionActive = false
-                    transitionPending = false
-                    capturedSerial = dataSerial
                 }
 
                 if (clipCornerRadiusPx > 0f) {
@@ -1230,7 +1230,6 @@ internal class SiliconNativeTextureRenderThread(
     }
 
     private fun releaseEgl() {
-        transitionSnapshot.release()
         sceneTarget.release()
         sceneBlitter.release()
         if (eglDisplay != EGL14.EGL_NO_DISPLAY) {

@@ -602,7 +602,7 @@ internal class SiliconNativeVkRenderThread(
             runCatching { visPrefs.unregisterOnSharedPreferenceChangeListener(fpsModeListener) }
             if (visHandle != 0L) {
                 try {
-                    SiliconVisNativeBridge.nativeReleaseTransitionSnapshotVulkan(visHandle)
+                    SiliconVisNativeBridge.nativeReleaseTransitionSnapshot(visHandle)
                 } catch (_: Throwable) {}
                 SiliconVisNativeBridge.nativeReleaseVulkan(visHandle)
                 VisualizerVkWarmCache.put(visHandle)
@@ -665,7 +665,7 @@ internal class SiliconNativeVkRenderThread(
             transitionPending = false
             if (visHandle != 0L) {
                 try {
-                    SiliconVisNativeBridge.nativeReleaseTransitionSnapshotVulkan(visHandle)
+                    SiliconVisNativeBridge.nativeReleaseTransitionSnapshot(visHandle)
                 } catch (_: Throwable) {}
             }
         }
@@ -716,7 +716,7 @@ internal class SiliconNativeVkRenderThread(
                     forceRenderUntilNs = trackDetectNowNs + 1_600_000_000L
                     if (visHandle != 0L) {
                         try {
-                            SiliconVisNativeBridge.nativeTakeTransitionSnapshotVulkan(visHandle)
+                            SiliconVisNativeBridge.nativeTakeTransitionSnapshot(visHandle)
                         } catch (_: Throwable) {}
                     }
                 }
@@ -731,7 +731,7 @@ internal class SiliconNativeVkRenderThread(
                     transitionPending = false
                     if (visHandle != 0L) {
                         try {
-                            SiliconVisNativeBridge.nativeReleaseTransitionSnapshotVulkan(visHandle)
+                            SiliconVisNativeBridge.nativeReleaseTransitionSnapshot(visHandle)
                         } catch (_: Throwable) {}
                     }
                     capturedSerial = dataSerial
@@ -998,7 +998,7 @@ internal class SiliconNativeVkRenderThread(
                         transitionActive = false
                         capturedSerial = dataSerial
                         try {
-                            SiliconVisNativeBridge.nativeReleaseTransitionSnapshotVulkan(visHandle)
+                            SiliconVisNativeBridge.nativeReleaseTransitionSnapshot(visHandle)
                         } catch (_: Throwable) {}
                     } else {
                         val eased = p * p * (3f - 2f * p)
@@ -1023,11 +1023,11 @@ internal class SiliconNativeVkRenderThread(
                 transitionPending = false
                 capturedSerial = dataSerial
                 try {
-                    SiliconVisNativeBridge.nativeReleaseTransitionSnapshotVulkan(visHandle)
+                    SiliconVisNativeBridge.nativeReleaseTransitionSnapshot(visHandle)
                 } catch (_: Throwable) {}
             }
 
-            SiliconVisNativeBridge.nativeSetTransitionVulkan(visHandle, transitionOffsetX, transitionAlpha)
+            SiliconVisNativeBridge.nativeSetTransition(visHandle, transitionOffsetX, transitionAlpha)
 
             val drawStartNs = System.nanoTime()
             if (frame.mode == 4 && frame.channelScopeTextEnabled && textCaps != 0) {

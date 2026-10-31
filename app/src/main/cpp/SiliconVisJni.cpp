@@ -1057,27 +1057,27 @@ Java_com_flopster101_siliconplayer_ui_visualization_gl_SiliconVisNativeBridge_na
 }
 
 JNIEXPORT jboolean JNICALL
-Java_com_flopster101_siliconplayer_ui_visualization_gl_SiliconVisNativeBridge_nativeTakeTransitionSnapshotVulkan(
+Java_com_flopster101_siliconplayer_ui_visualization_gl_SiliconVisNativeBridge_nativeTakeTransitionSnapshot(
     JNIEnv* /* env */,
     jobject /* thiz */,
     jlong handle
 ) {
     if (!handle) return JNI_FALSE;
-    return silicon_vis_take_transition_snapshot_vulkan(reinterpret_cast<SiliconVisHandle>(handle)) ? JNI_TRUE : JNI_FALSE;
+    return silicon_vis_take_transition_snapshot(reinterpret_cast<SiliconVisHandle>(handle)) ? JNI_TRUE : JNI_FALSE;
 }
 
 JNIEXPORT void JNICALL
-Java_com_flopster101_siliconplayer_ui_visualization_gl_SiliconVisNativeBridge_nativeReleaseTransitionSnapshotVulkan(
+Java_com_flopster101_siliconplayer_ui_visualization_gl_SiliconVisNativeBridge_nativeReleaseTransitionSnapshot(
     JNIEnv* /* env */,
     jobject /* thiz */,
     jlong handle
 ) {
     if (!handle) return;
-    silicon_vis_release_transition_snapshot_vulkan(reinterpret_cast<SiliconVisHandle>(handle));
+    silicon_vis_release_transition_snapshot(reinterpret_cast<SiliconVisHandle>(handle));
 }
 
 JNIEXPORT void JNICALL
-Java_com_flopster101_siliconplayer_ui_visualization_gl_SiliconVisNativeBridge_nativeSetTransitionVulkan(
+Java_com_flopster101_siliconplayer_ui_visualization_gl_SiliconVisNativeBridge_nativeSetTransition(
     JNIEnv* /* env */,
     jobject /* thiz */,
     jlong handle,
@@ -1085,7 +1085,17 @@ Java_com_flopster101_siliconplayer_ui_visualization_gl_SiliconVisNativeBridge_na
     jfloat alpha
 ) {
     if (!handle) return;
-    silicon_vis_set_transition_vulkan(reinterpret_cast<SiliconVisHandle>(handle), offsetX, alpha);
+    silicon_vis_set_transition(reinterpret_cast<SiliconVisHandle>(handle), offsetX, alpha);
+}
+
+JNIEXPORT void JNICALL
+Java_com_flopster101_siliconplayer_ui_visualization_gl_SiliconVisNativeBridge_nativeDrawTransition(
+    JNIEnv* /* env */,
+    jobject /* thiz */,
+    jlong handle
+) {
+    if (!handle) return;
+    silicon_vis_draw_transition(reinterpret_cast<SiliconVisHandle>(handle));
 }
 
 JNIEXPORT void JNICALL
