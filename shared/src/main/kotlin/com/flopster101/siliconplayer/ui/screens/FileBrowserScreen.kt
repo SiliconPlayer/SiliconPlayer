@@ -2893,6 +2893,16 @@ fun FileItemRow(
             onDismiss = { showPlayWith = false }
         )
     }
+    // Unsupported entries only appear when "Show unsupported files" is on;
+    // their default action is choosing a core, not playing a known format.
+    val isUnsupportedPlayWithTarget = !item.isDirectory &&
+        item.kind == FileItem.Kind.UnsupportedFile &&
+        browserPreviewKindForName(item.name) == null
+    val primaryClickAction: () -> Unit = if (isUnsupportedPlayWithTarget) {
+        { showPlayWith = true }
+    } else {
+        onClick
+    }
     // Cache per-row derived values that depend only on the FileItem identity.
     // Without these `remember`s, every row recomposition (e.g. when scroll
     // start/stop flips allowThumbnailPreviewLoads) re-ran filename parsing,
@@ -3022,7 +3032,7 @@ fun FileItemRow(
             .ctrlClickToSelect(onCtrlClick)
             .shiftClickToSelect(onShiftClick)
             .combinedClickable(
-                onClick = onClick,
+                onClick = primaryClickAction,
                 onLongClick = onLongClick
             )
             .focusable()
@@ -3263,13 +3273,21 @@ fun FileItemRow(
                     DropdownMenuItem(
                         text = {
                             Text(
-                                text = if (item.isDirectory) "Open" else "Play",
+                                text = when {
+                                    item.isDirectory -> "Open"
+                                    isUnsupportedPlayWithTarget -> "Play with..."
+                                    else -> "Play"
+                                },
                                 style = MaterialTheme.typography.bodyLarge
                             )
                         },
                         leadingIcon = {
                             Icon(
-                                imageVector = if (item.isDirectory) Icons.Default.FolderOpen else Icons.Default.PlayArrow,
+                                imageVector = when {
+                                    item.isDirectory -> Icons.Default.FolderOpen
+                                    isUnsupportedPlayWithTarget -> Icons.Default.Tune
+                                    else -> Icons.Default.PlayArrow
+                                },
                                 contentDescription = null,
                                 modifier = Modifier.size(22.dp)
                             )
@@ -3281,10 +3299,15 @@ fun FileItemRow(
                         ),
                         onClick = {
                             menuExpanded = false
-                            onClick()
+                            if (isUnsupportedPlayWithTarget) {
+                                showPlayWith = true
+                            } else {
+                                onClick()
+                            }
                         }
                     )
                     if (!item.isDirectory &&
+                        !isUnsupportedPlayWithTarget &&
                         (item.kind == FileItem.Kind.AudioFile || isSupportedPlaylistFileName(item.name))
                     ) {
                         DropdownMenuItem(

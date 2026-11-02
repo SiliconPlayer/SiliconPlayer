@@ -2226,6 +2226,15 @@ private fun SmbEntryRow(
             onDismiss = { showPlayWith = false }
         )
     }
+    // Unsupported entries only appear when "Show unsupported files" is on;
+    // their default action is choosing a core, not playing a known format.
+    val isUnsupportedPlayWithTarget =
+        visualKind == BrowserRemoteEntryVisualKind.UnsupportedFile
+    val primaryClickAction: () -> Unit = if (isUnsupportedPlayWithTarget) {
+        { showPlayWith = true }
+    } else {
+        onClick
+    }
     val selectionShape = if (isWatch) {
         RoundedCornerShape(14.dp)
     } else {
@@ -2252,7 +2261,7 @@ private fun SmbEntryRow(
             .ctrlClickToSelect(onCtrlClick)
             .shiftClickToSelect(onShiftClick)
             .combinedClickable(
-                onClick = onClick,
+                onClick = primaryClickAction,
                 onLongClick = onLongClick
             )
             .padding(horizontal = if (isWatch) 10.dp else 16.dp, vertical = if (isWatch) 6.dp else 10.dp),
@@ -2362,13 +2371,21 @@ private fun SmbEntryRow(
                     DropdownMenuItem(
                         text = {
                             Text(
-                                text = if (treatAsContainer) "Open" else "Play",
+                                text = when {
+                                    treatAsContainer -> "Open"
+                                    isUnsupportedPlayWithTarget -> "Play with..."
+                                    else -> "Play"
+                                },
                                 style = MaterialTheme.typography.bodyLarge
                             )
                         },
                         leadingIcon = {
                             Icon(
-                                imageVector = if (treatAsContainer) Icons.Default.FolderOpen else Icons.Default.PlayArrow,
+                                imageVector = when {
+                                    treatAsContainer -> Icons.Default.FolderOpen
+                                    isUnsupportedPlayWithTarget -> Icons.Default.Tune
+                                    else -> Icons.Default.PlayArrow
+                                },
                                 contentDescription = null,
                                 modifier = Modifier.size(22.dp)
                             )
@@ -2380,10 +2397,16 @@ private fun SmbEntryRow(
                         ),
                         onClick = {
                             menuExpanded = false
-                            onClick()
+                            if (isUnsupportedPlayWithTarget) {
+                                showPlayWith = true
+                            } else {
+                                onClick()
+                            }
                         }
                     )
-                    if (!treatAsContainer && !isSupportedPlaylistFileName(entry.name)) {
+                    if (!treatAsContainer && !isUnsupportedPlayWithTarget &&
+                        !isSupportedPlaylistFileName(entry.name)
+                    ) {
                         DropdownMenuItem(
                             text = {
                                 Text(
