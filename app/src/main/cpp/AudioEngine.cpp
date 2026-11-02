@@ -22,11 +22,14 @@ namespace {
 
     const std::vector<std::string>& getStaticOpenMptExtensions() {
         static const std::vector<std::string> extensions = {
-                "669", "amf", "ams", "c67", "dbm", "digi", "dmf", "dsm", "dtm",
-                "far", "gdm", "ice", "imf", "it", "j2b", "m15", "mdl", "med",
-                "mms", "mod", "mt2", "mtm", "nst", "okt", "plm", "psm", "pt36",
-                "s3m", "sfx", "sfx2", "st26", "stk", "stm", "stp", "symmod",
-                "ult", "umx", "wow", "xm"
+                "667", "669", "amf", "ams", "c67", "cba", "dbm", "digi", "dmf",
+                "dsm", "dsym", "dtm", "etx", "far", "fc", "fc13", "fc14", "fmt",
+                "fst", "ftm", "gdm", "gmc", "gt2", "gtk", "ice", "imf", "ims",
+                "it", "j2b", "m15", "mdl", "med", "mmcmp", "mms", "mo3", "mod",
+                "mptm", "mt2", "mtm", "mus", "nru", "nst", "okt", "oxm", "plm",
+                "ppm", "psm", "pt36", "ptm", "puma", "rtm", "s3m", "sfx", "sfx2",
+                "smod", "st26", "stk", "stm", "stp", "stx", "symmod", "tcb",
+                "ult", "umx", "unic", "wow", "xm", "xmf", "xpk"
         };
         return extensions;
     }
@@ -35,9 +38,9 @@ namespace {
         static const std::vector<std::string> extensions = {
                 "669", "amf", "dbm", "digi", "dtm", "far", "fnk", "gdm",
                 "ice", "imf", "it", "j2b", "liq", "m15", "mdl", "med",
-                "mgt", "mod", "mtm", "okt", "psm", "ptm", "rtm", "s3m",
-                "sfx", "stim", "stm", "stx", "ult", "umx", "wow", "xm",
-                "xmf"
+                "mgt", "mod", "mptm", "mtm", "okt", "psm", "ptm", "rtm",
+                "s3m", "sfx", "stim", "stm", "stx", "ult", "umx", "wow",
+                "xm", "xmf"
         };
         return extensions;
     }
