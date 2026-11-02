@@ -612,7 +612,7 @@ namespace {
                     "dnm", "0cc", "ftm", "dnft"
             }, []() {
                 return DecoderPluginLoader::getInstance().createDecoder("libsiliconplayer_libdnfamitracker_decoder.so");
-            }, 15, std::move(dnfamitrackerStaticInfo));
+            }, 9, std::move(dnfamitrackerStaticInfo));
         }
     };
 
