@@ -13,7 +13,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
@@ -50,6 +49,7 @@ import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import com.flopster101.siliconplayer.ui.theme.Radius
 import com.flopster101.siliconplayer.TrackTextInputActive
 import com.flopster101.siliconplayer.WatchDialogContainer
 import com.flopster101.siliconplayer.adaptiveDialogModifier
@@ -220,9 +220,9 @@ fun ColorPickerDialog(
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(32.dp)
-                    .clip(RoundedCornerShape(10.dp))
+                    .clip(Radius.Compact)
                     .background(previewColor)
-                    .border(1.dp, MaterialTheme.colorScheme.outlineVariant, RoundedCornerShape(10.dp))
+                    .border(1.dp, MaterialTheme.colorScheme.outlineVariant, Radius.Compact)
             )
             OutlinedTextField(
                 value = hexText,
@@ -300,7 +300,7 @@ fun ColorPickerDialog(
                     onDismiss()
                 },
                 modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(14.dp)
+                shape = Radius.Control
             ) {
                 Text("Save")
             }
@@ -325,9 +325,9 @@ fun ColorPickerDialog(
                         modifier = Modifier
                             .fillMaxWidth()
                             .height(44.dp)
-                            .clip(RoundedCornerShape(12.dp))
+                            .clip(Radius.ControlCompact)
                             .background(previewColor)
-                            .border(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.6f), RoundedCornerShape(12.dp))
+                            .border(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.6f), Radius.ControlCompact)
                     )
 
                     OutlinedTextField(

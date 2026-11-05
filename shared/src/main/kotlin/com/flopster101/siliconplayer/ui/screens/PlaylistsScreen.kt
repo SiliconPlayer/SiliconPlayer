@@ -1,5 +1,6 @@
 package com.flopster101.siliconplayer.ui.screens
 
+import com.flopster101.siliconplayer.ui.theme.Radius
 import com.flopster101.siliconplayer.PlaylistEntrySortMode
 import com.flopster101.siliconplayer.PlaylistSortMode
 import com.flopster101.siliconplayer.formatSourceIdForDisplay
@@ -1764,14 +1765,14 @@ internal fun PlaylistsScreen(
                                             Surface(
                                                 modifier = Modifier
                                                     .weight(1f)
-                                                    .clip(RoundedCornerShape(12.dp))
+                                                    .clip(Radius.ControlCompact)
                                                     .clickable {
                                                         selectedTabIndex = index
                                                         coroutineScope.launch {
                                                             pagerState.animateScrollToPage(index)
                                                         }
                                                     },
-                                                shape = RoundedCornerShape(12.dp),
+                                                shape = Radius.ControlCompact,
                                                 color = if (isSelected) MaterialTheme.colorScheme.primaryContainer
                                                 else MaterialTheme.colorScheme.surfaceContainerHigh
                                             ) {
@@ -2190,7 +2191,7 @@ internal fun PlaylistsScreen(
                                             }
                                         ) {
                                             Surface(
-                                                shape = RoundedCornerShape(8.dp),
+                                                shape = Radius.Small,
                                                 color = MaterialTheme.colorScheme.surfaceContainerHigh,
                                                 tonalElevation = 3.dp,
                                                 shadowElevation = 3.dp,
@@ -2251,7 +2252,7 @@ internal fun PlaylistsScreen(
                                             }
                                         ) {
                                             Surface(
-                                                shape = RoundedCornerShape(8.dp),
+                                                shape = Radius.Small,
                                                 color = MaterialTheme.colorScheme.surfaceContainerHigh,
                                                 tonalElevation = 3.dp,
                                                 shadowElevation = 3.dp,
@@ -2308,7 +2309,7 @@ internal fun PlaylistsScreen(
                                             }
                                         ) {
                                             Surface(
-                                                shape = RoundedCornerShape(8.dp),
+                                                shape = Radius.Small,
                                                 color = MaterialTheme.colorScheme.surfaceContainerHigh,
                                                 tonalElevation = 3.dp,
                                                 shadowElevation = 3.dp,
@@ -2397,7 +2398,7 @@ internal fun PlaylistsScreen(
                     },
                     colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error),
                     modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(14.dp)
+                    shape = Radius.Control
                 ) {
                     Text("Delete all")
                 }
@@ -2450,7 +2451,7 @@ internal fun PlaylistsScreen(
                     },
                     colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error),
                     modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(14.dp)
+                    shape = Radius.Control
                 ) {
                     Text("Clear all")
                 }
@@ -2506,7 +2507,7 @@ internal fun PlaylistsScreen(
                     },
                     colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error),
                     modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(14.dp)
+                    shape = Radius.Control
                 ) {
                     Text("Remove")
                 }
@@ -2566,7 +2567,7 @@ internal fun PlaylistsScreen(
                     },
                     colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error),
                     modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(14.dp)
+                    shape = Radius.Control
                 ) {
                     Text("Remove")
                 }
@@ -2631,7 +2632,7 @@ internal fun PlaylistsScreen(
                         action()
                     },
                     modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(14.dp)
+                    shape = Radius.Control
                 ) {
                     Text("Add anyway")
                 }
@@ -2644,7 +2645,7 @@ internal fun PlaylistsScreen(
                             action()
                         },
                         modifier = Modifier.fillMaxWidth(),
-                        shape = RoundedCornerShape(14.dp)
+                        shape = Radius.Control
                     ) {
                         Text("Skip duplicates")
                     }
@@ -2843,7 +2844,7 @@ internal fun PlaylistsScreen(
                     },
                     colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error),
                     modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(14.dp)
+                    shape = Radius.Control
                 ) {
                     Text("Delete")
                 }
@@ -3416,7 +3417,7 @@ private fun PlaylistsLibraryTabPage(
                     modifier = Modifier
                         .fillMaxWidth()
                         .padding(bottom = 6.dp),
-                    shape = RoundedCornerShape(12.dp),
+                    shape = Radius.ControlCompact,
                     color = MaterialTheme.colorScheme.surfaceContainerLow
                 ) {
                     Row(
@@ -3925,7 +3926,7 @@ private fun LibraryScanProgressRow(
     Row(
         modifier = modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(14.dp))
+            .clip(Radius.Control)
             .background(MaterialTheme.colorScheme.surfaceContainerLow)
             .padding(horizontal = 10.dp, vertical = 8.dp),
         horizontalArrangement = Arrangement.spacedBy(10.dp),
@@ -4395,7 +4396,7 @@ private fun LibraryTrackListRow(
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(12.dp))
+            .clip(Radius.ControlCompact)
             .contextMenuSecondaryClick(actions?.let { { menuExpanded = true } })
             .combinedClickable(
                 onClick = onClick,
@@ -4420,7 +4421,7 @@ private fun LibraryTrackListRow(
                 Box(
                     modifier = Modifier
                         .fillMaxSize()
-                        .clip(RoundedCornerShape(8.dp))
+                        .clip(Radius.Small)
                 ) {
                     AlbumArtworkBox(artworkPath = artworkPath)
                 }
@@ -4708,7 +4709,7 @@ private fun LibraryArtistDetailPage(
                                     Row(
                                         modifier = Modifier
                                             .fillMaxWidth()
-                                            .clip(RoundedCornerShape(8.dp))
+                                            .clip(Radius.Small)
                                             .clickable(
                                                 enabled = groupAlbum != null,
                                                 onClick = { groupAlbum?.let(onOpenAlbum) }
@@ -4789,7 +4790,7 @@ private fun LibraryAlbumCompactRow(
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(14.dp))
+            .clip(Radius.Control)
             .background(MaterialTheme.colorScheme.surfaceContainerLow)
             .clickable(onClick = onClick)
             .padding(horizontal = 10.dp, vertical = 8.dp),
@@ -4798,7 +4799,7 @@ private fun LibraryAlbumCompactRow(
     ) {
         Surface(
             modifier = Modifier.size(34.dp),
-            shape = RoundedCornerShape(10.dp),
+            shape = Radius.Compact,
             color = MaterialTheme.colorScheme.surfaceContainerHighest
         ) {
             AlbumArtworkBox(artworkPath = album.artworkPath)
@@ -4842,7 +4843,7 @@ private fun LibraryArtistCompactRow(
                     Modifier
                 } else {
                     Modifier
-                        .clip(RoundedCornerShape(14.dp))
+                        .clip(Radius.Control)
                         .background(MaterialTheme.colorScheme.surfaceContainerLow)
                 }
             )
@@ -4864,7 +4865,7 @@ private fun LibraryArtistCompactRow(
         }
         Surface(
             modifier = Modifier.size(34.dp),
-            shape = RoundedCornerShape(10.dp),
+            shape = Radius.Compact,
             color = MaterialTheme.colorScheme.surfaceContainerHighest
         ) {
             AlbumArtworkBox(artworkPath = artist.artworkPath)
@@ -4976,7 +4977,7 @@ private fun AlbumLibraryListRow(
                     Modifier
                 } else {
                     Modifier
-                        .clip(RoundedCornerShape(14.dp))
+                        .clip(Radius.Control)
                         .background(MaterialTheme.colorScheme.surfaceContainerLow)
                 }
             )
@@ -4998,7 +4999,7 @@ private fun AlbumLibraryListRow(
         }
         Surface(
             modifier = Modifier.size(46.dp),
-            shape = RoundedCornerShape(10.dp),
+            shape = Radius.Compact,
             color = MaterialTheme.colorScheme.surfaceContainerHighest
         ) {
             AlbumArtworkBox(artworkPath = album.artworkPath)
@@ -5036,7 +5037,7 @@ private fun ArtistLibraryRow(
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(14.dp))
+            .clip(Radius.Control)
             .background(MaterialTheme.colorScheme.surfaceContainerLow)
             .contextMenuSecondaryClick { menuExpanded = true }
             .combinedClickable(
@@ -5054,7 +5055,7 @@ private fun ArtistLibraryRow(
         )
         Surface(
             modifier = Modifier.size(46.dp),
-            shape = RoundedCornerShape(10.dp),
+            shape = Radius.Compact,
             color = MaterialTheme.colorScheme.surfaceContainerHighest
         ) {
             AlbumArtworkBox(artworkPath = artist.artworkPath)
@@ -5087,7 +5088,7 @@ private fun LibraryPlaceholderRow(
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .clip(RoundedCornerShape(14.dp))
+                .clip(Radius.Control)
                 .background(MaterialTheme.colorScheme.surfaceContainerLow)
                 .padding(horizontal = 10.dp, vertical = 8.dp),
             horizontalArrangement = Arrangement.spacedBy(10.dp),
@@ -5095,7 +5096,7 @@ private fun LibraryPlaceholderRow(
         ) {
             Surface(
                 modifier = Modifier.size(34.dp),
-                shape = RoundedCornerShape(10.dp),
+                shape = Radius.Compact,
                 color = MaterialTheme.colorScheme.surfaceContainerHighest
             ) {
                 Box(
@@ -5139,7 +5140,7 @@ private fun LibraryPlaceholderRow(
         ) {
             Surface(
                 modifier = Modifier.size(54.dp),
-                shape = RoundedCornerShape(12.dp),
+                shape = Radius.ControlCompact,
                 color = MaterialTheme.colorScheme.surfaceContainerHighest
             ) {
                 Box(
@@ -5383,7 +5384,7 @@ private fun LazyListScope.playlistDetailContent(
                     Spacer(modifier = Modifier.height(8.dp))
                     FilledTonalButton(
                         onClick = onAddClick,
-                        shape = RoundedCornerShape(18.dp)
+                        shape = Radius.ControlRoomy
                     ) {
                         Icon(
                             imageVector = Icons.Default.Add,
@@ -5514,7 +5515,7 @@ private fun WearPlaylistHeroHeader(
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .clip(RoundedCornerShape(14.dp))
+                .clip(Radius.Control)
                 .background(MaterialTheme.colorScheme.surfaceContainerLow)
                 .clickable(onClick = onBack)
                 .padding(horizontal = 12.dp, vertical = 8.dp),
@@ -5640,7 +5641,7 @@ private fun WearPlaylistHeroHeader(
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .clip(RoundedCornerShape(14.dp))
+                        .clip(Radius.Control)
                         .background(
                             if (isSelected) MaterialTheme.colorScheme.primaryContainer
                             else MaterialTheme.colorScheme.surfaceContainerLow
@@ -5692,7 +5693,7 @@ private fun WearPlaylistHeroHeader(
                         onTogglePinPlaylist()
                     },
                     modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(14.dp)
+                    shape = Radius.Control
                 ) {
                     Text(if (isPlaylistPinned) "Unpin from top" else "Pin to top")
                 }
@@ -5704,7 +5705,7 @@ private fun WearPlaylistHeroHeader(
                         onToggleHomePin()
                     },
                     modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(14.dp)
+                    shape = Radius.Control
                 ) {
                     Text(if (isHomePinned) "Unpin from home" else "Pin to home")
                 }
@@ -5716,7 +5717,7 @@ private fun WearPlaylistHeroHeader(
                         onRenamePlaylist()
                     },
                     modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(14.dp)
+                    shape = Radius.Control
                 ) {
                     Text("Rename playlist")
                 }
@@ -5728,7 +5729,7 @@ private fun WearPlaylistHeroHeader(
                         onExportPlaylist()
                     },
                     modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(14.dp)
+                    shape = Radius.Control
                 ) {
                     Text("Export to file")
                 }
@@ -5740,7 +5741,7 @@ private fun WearPlaylistHeroHeader(
                         onSharePlaylist()
                     },
                     modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(14.dp)
+                    shape = Radius.Control
                 ) {
                     Text("Share playlist")
                 }
@@ -5752,7 +5753,7 @@ private fun WearPlaylistHeroHeader(
                         onDuplicatePlaylist()
                     },
                     modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(14.dp)
+                    shape = Radius.Control
                 ) {
                     Text("Duplicate playlist")
                 }
@@ -5764,7 +5765,7 @@ private fun WearPlaylistHeroHeader(
                         onRefreshPlaylistMetadata()
                     },
                     modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(14.dp)
+                    shape = Radius.Control
                 ) {
                     Text("Refresh metadata")
                 }
@@ -5776,7 +5777,7 @@ private fun WearPlaylistHeroHeader(
                         onChangeCover()
                     },
                     modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(14.dp)
+                    shape = Radius.Control
                 ) {
                     Text("Change cover…")
                 }
@@ -5789,7 +5790,7 @@ private fun WearPlaylistHeroHeader(
                     },
                     colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error),
                     modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(14.dp)
+                    shape = Radius.Control
                 ) {
                     Text("Delete playlist")
                 }
@@ -5802,7 +5803,7 @@ private fun WearPlaylistHeroHeader(
                     },
                     colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error),
                     modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(14.dp)
+                    shape = Radius.Control
                 ) {
                     Text("Delete all entries")
                 }
@@ -6299,7 +6300,7 @@ private fun PlaylistActionPill(
     containerColor: androidx.compose.ui.graphics.Color = MaterialTheme.colorScheme.surfaceContainerHigh,
     contentColor: androidx.compose.ui.graphics.Color = MaterialTheme.colorScheme.onSurface
 ) {
-    val pillShape = RoundedCornerShape(18.dp)
+    val pillShape = Radius.ControlRoomy
     Surface(
         modifier = Modifier
             .clip(pillShape)
@@ -6343,7 +6344,7 @@ private fun PlaylistSelectionFloatingBar(
         modifier = modifier.padding(bottom = bottomPadding + 16.dp)
     ) {
         Surface(
-            shape = RoundedCornerShape(24.dp),
+            shape = Radius.Dialog,
             color = MaterialTheme.colorScheme.surfaceContainerHighest,
             shadowElevation = 6.dp,
             border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
@@ -6361,7 +6362,7 @@ private fun PlaylistSelectionFloatingBar(
                 if (onRefreshMetadata != null) {
                     androidx.compose.material3.FilledTonalButton(
                         onClick = onRefreshMetadata,
-                        shape = RoundedCornerShape(16.dp),
+                        shape = Radius.Card,
                         contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp)
                     ) {
                         Icon(
@@ -6379,7 +6380,7 @@ private fun PlaylistSelectionFloatingBar(
                         containerColor = MaterialTheme.colorScheme.errorContainer,
                         contentColor = MaterialTheme.colorScheme.onErrorContainer
                     ),
-                    shape = RoundedCornerShape(16.dp),
+                    shape = Radius.Card,
                     contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp)
                 ) {
                     Icon(
@@ -6542,7 +6543,7 @@ internal fun PlaylistCoverCustomizerDialog(
                     onPickImage()
                 },
                 modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(14.dp)
+                shape = Radius.Control
             ) {
                 Text(if (playlist.customArtworkUri != null) "Change image" else "Choose image")
             }
@@ -6550,14 +6551,14 @@ internal fun PlaylistCoverCustomizerDialog(
                 FilledTonalButton(
                     onClick = onRotateImage,
                     modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(14.dp)
+                    shape = Radius.Control
                 ) {
                     Text("Rotate image")
                 }
                 FilledTonalButton(
                     onClick = onRemoveImage,
                     modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(14.dp)
+                    shape = Radius.Control
                 ) {
                     Text("Remove image")
                 }
@@ -6611,7 +6612,7 @@ internal fun PlaylistCoverCustomizerDialog(
                     customArtworkUri = playlist.customArtworkUri,
                     iconTintArgb = playlist.iconTintArgb,
                     modifier = Modifier.size(130.dp),
-                    shape = RoundedCornerShape(16.dp),
+                    shape = Radius.Card,
                     iconSize = 48.dp,
                     autoMosaicEnabled = autoMosaicEnabled && playlist.autoGenerateCover,
                     coverGenerationMode = coverGenerationMode,
@@ -6625,7 +6626,7 @@ internal fun PlaylistCoverCustomizerDialog(
                 ) {
                     FilledTonalButton(
                         onClick = onPickImage,
-                        shape = RoundedCornerShape(12.dp)
+                        shape = Radius.ControlCompact
                     ) {
                         Icon(
                             imageVector = Icons.Default.Image,
@@ -6638,7 +6639,7 @@ internal fun PlaylistCoverCustomizerDialog(
                     if (playlist.customArtworkUri != null) {
                         OutlinedIconButton(
                             onClick = onRotateImage,
-                            shape = RoundedCornerShape(12.dp)
+                            shape = Radius.ControlCompact
                         ) {
                             Icon(
                                 imageVector = Icons.Default.RotateRight,
@@ -6648,7 +6649,7 @@ internal fun PlaylistCoverCustomizerDialog(
                         }
                         OutlinedIconButton(
                             onClick = onRemoveImage,
-                            shape = RoundedCornerShape(12.dp)
+                            shape = Radius.ControlCompact
                         ) {
                             Icon(
                                 imageVector = Icons.Default.Delete,
@@ -6663,7 +6664,7 @@ internal fun PlaylistCoverCustomizerDialog(
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .clip(RoundedCornerShape(12.dp))
+                        .clip(Radius.ControlCompact)
                         .clickable { onToggleAutoGenerateCover(!playlist.autoGenerateCover) }
                         .padding(horizontal = 4.dp, vertical = 6.dp),
                     verticalAlignment = Alignment.CenterVertically,
@@ -7114,7 +7115,7 @@ private fun FavoritesCollectionRow(
                 entries = favorites,
                 heroIcon = Icons.Default.Star,
                 modifier = Modifier.size(if (isWatch) 34.dp else 56.dp),
-                shape = RoundedCornerShape(if (isWatch) 10.dp else 12.dp),
+                shape = if (isWatch) Radius.Small else Radius.ControlCompact,
                 iconSize = if (isWatch) 18.dp else 30.dp,
                 autoMosaicEnabled = autoMosaicEnabled,
                 coverGenerationMode = coverGenerationMode
@@ -7226,7 +7227,7 @@ private fun PlaylistTrackRow(
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .clip(RoundedCornerShape(14.dp))
+                .clip(Radius.Control)
                 .background(
                     when {
                         isActive -> MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.45f)
@@ -7313,7 +7314,7 @@ private fun PlaylistTrackRow(
                         onPlay()
                     },
                     modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(14.dp)
+                    shape = Radius.Control
                 ) {
                     Row(
                         horizontalArrangement = Arrangement.spacedBy(8.dp),
@@ -7334,7 +7335,7 @@ private fun PlaylistTrackRow(
                             onPlayAsCached()
                         },
                         modifier = Modifier.fillMaxWidth(),
-                        shape = RoundedCornerShape(14.dp)
+                        shape = Radius.Control
                     ) {
                         Text("Play as cached")
                     }
@@ -7346,7 +7347,7 @@ private fun PlaylistTrackRow(
                             onOpenInfo()
                         },
                         modifier = Modifier.fillMaxWidth(),
-                        shape = RoundedCornerShape(14.dp)
+                        shape = Radius.Control
                     ) {
                         Row(
                             horizontalArrangement = Arrangement.spacedBy(8.dp),
@@ -7368,7 +7369,7 @@ private fun PlaylistTrackRow(
                             onOpenLocation()
                         },
                         modifier = Modifier.fillMaxWidth(),
-                        shape = RoundedCornerShape(14.dp)
+                        shape = Radius.Control
                     ) {
                         Row(
                             horizontalArrangement = Arrangement.spacedBy(8.dp),
@@ -7389,7 +7390,7 @@ private fun PlaylistTrackRow(
                         onRefreshMetadata()
                     },
                     modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(14.dp)
+                    shape = Radius.Control
                 ) {
                     Row(
                         horizontalArrangement = Arrangement.spacedBy(8.dp),
@@ -7411,7 +7412,7 @@ private fun PlaylistTrackRow(
                                 onMoveUp()
                             },
                             modifier = Modifier.fillMaxWidth(),
-                            shape = RoundedCornerShape(14.dp)
+                            shape = Radius.Control
                         ) {
                             Row(
                                 horizontalArrangement = Arrangement.spacedBy(8.dp),
@@ -7433,7 +7434,7 @@ private fun PlaylistTrackRow(
                                 onMoveDown()
                             },
                             modifier = Modifier.fillMaxWidth(),
-                            shape = RoundedCornerShape(14.dp)
+                            shape = Radius.Control
                         ) {
                             Row(
                                 horizontalArrangement = Arrangement.spacedBy(8.dp),
@@ -7457,7 +7458,7 @@ private fun PlaylistTrackRow(
                         },
                         colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error),
                         modifier = Modifier.fillMaxWidth(),
-                        shape = RoundedCornerShape(14.dp)
+                        shape = Radius.Control
                     ) {
                         Row(
                             horizontalArrangement = Arrangement.spacedBy(8.dp),
@@ -7507,7 +7508,7 @@ private fun PlaylistTrackRow(
                         scaleX = draggedScale
                         scaleY = draggedScale
                     }
-                    .clip(RoundedCornerShape(14.dp))
+                    .clip(Radius.Control)
                     .background(rowHighlightColor)
                     .contextMenuSecondaryClick { menuExpanded = true }
                     .ctrlClickToSelect(onCtrlClick)
@@ -7983,7 +7984,7 @@ private fun PlaylistTrackArtworkChip(
     ) {
         Surface(
             modifier = Modifier.fillMaxSize(),
-            shape = RoundedCornerShape(10.dp),
+            shape = Radius.Compact,
             color = if (isActive) {
                 MaterialTheme.colorScheme.secondaryContainer
             } else {
@@ -8095,7 +8096,7 @@ private fun PlaylistCollectionRow(
                 iconTintArgb = playlist.iconTintArgb,
                 heroIcon = Icons.Default.LibraryMusic,
                 modifier = Modifier.size(if (isWatch) 34.dp else 56.dp),
-                shape = RoundedCornerShape(if (isWatch) 10.dp else 12.dp),
+                shape = if (isWatch) Radius.Small else Radius.ControlCompact,
                 iconSize = if (isWatch) 18.dp else 30.dp,
                 autoMosaicEnabled = autoMosaicEnabled && playlist.autoGenerateCover,
                 coverGenerationMode = coverGenerationMode
@@ -8201,7 +8202,7 @@ private fun PlaylistLibraryFlatRow(
         Row(
             modifier = modifier
                 .fillMaxWidth()
-                .clip(RoundedCornerShape(14.dp))
+                .clip(Radius.Control)
                 .background(MaterialTheme.colorScheme.surfaceContainerLow)
                 .combinedClickable(
                     onClick = onClick,
@@ -8219,7 +8220,7 @@ private fun PlaylistLibraryFlatRow(
                 } else {
                     Surface(
                         modifier = Modifier.size(34.dp),
-                        shape = RoundedCornerShape(10.dp),
+                        shape = Radius.Compact,
                         color = iconContainerColor
                     ) {
                         Box(
@@ -8290,7 +8291,7 @@ private fun PlaylistLibraryFlatRow(
                             onChangeCover()
                         },
                         modifier = Modifier.fillMaxWidth(),
-                        shape = RoundedCornerShape(14.dp)
+                        shape = Radius.Control
                     ) {
                         Text("Change cover…")
                     }
@@ -8302,7 +8303,7 @@ private fun PlaylistLibraryFlatRow(
                             onTogglePin()
                         },
                         modifier = Modifier.fillMaxWidth(),
-                        shape = RoundedCornerShape(14.dp)
+                        shape = Radius.Control
                     ) {
                         Text(if (isPinned) "Unpin from top" else "Pin to top")
                     }
@@ -8314,7 +8315,7 @@ private fun PlaylistLibraryFlatRow(
                             onToggleHomePin()
                         },
                         modifier = Modifier.fillMaxWidth(),
-                        shape = RoundedCornerShape(14.dp)
+                        shape = Radius.Control
                     ) {
                         Text(if (isHomePinned) "Unpin from home" else "Pin to home")
                     }
@@ -8326,7 +8327,7 @@ private fun PlaylistLibraryFlatRow(
                             onRename()
                         },
                         modifier = Modifier.fillMaxWidth(),
-                        shape = RoundedCornerShape(14.dp)
+                        shape = Radius.Control
                     ) {
                         Text("Rename")
                     }
@@ -8338,7 +8339,7 @@ private fun PlaylistLibraryFlatRow(
                             onDuplicate()
                         },
                         modifier = Modifier.fillMaxWidth(),
-                        shape = RoundedCornerShape(14.dp)
+                        shape = Radius.Control
                     ) {
                         Text("Duplicate")
                     }
@@ -8350,7 +8351,7 @@ private fun PlaylistLibraryFlatRow(
                             onExport()
                         },
                         modifier = Modifier.fillMaxWidth(),
-                        shape = RoundedCornerShape(14.dp)
+                        shape = Radius.Control
                     ) {
                         Text("Export")
                     }
@@ -8362,7 +8363,7 @@ private fun PlaylistLibraryFlatRow(
                             onShare()
                         },
                         modifier = Modifier.fillMaxWidth(),
-                        shape = RoundedCornerShape(14.dp)
+                        shape = Radius.Control
                     ) {
                         Text("Share")
                     }
@@ -8374,7 +8375,7 @@ private fun PlaylistLibraryFlatRow(
                             onRefreshMetadata()
                         },
                         modifier = Modifier.fillMaxWidth(),
-                        shape = RoundedCornerShape(14.dp)
+                        shape = Radius.Control
                     ) {
                         Text("Refresh metadata")
                     }
@@ -8386,7 +8387,7 @@ private fun PlaylistLibraryFlatRow(
                             onMoveToFolder()
                         },
                         modifier = Modifier.fillMaxWidth(),
-                        shape = RoundedCornerShape(14.dp)
+                        shape = Radius.Control
                     ) {
                         Text("Move to folder…")
                     }
@@ -8399,7 +8400,7 @@ private fun PlaylistLibraryFlatRow(
                         },
                         colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error),
                         modifier = Modifier.fillMaxWidth(),
-                        shape = RoundedCornerShape(14.dp)
+                        shape = Radius.Control
                     ) {
                         Text("Delete")
                     }
@@ -8415,7 +8416,7 @@ private fun PlaylistLibraryFlatRow(
     } else {
         Row(
             modifier = modifier
-                .let { if (isDragged) it.background(MaterialTheme.colorScheme.surfaceContainerHigh, shape = RoundedCornerShape(12.dp)) else it }
+                .let { if (isDragged) it.background(MaterialTheme.colorScheme.surfaceContainerHigh, shape = Radius.ControlCompact) else it }
                 .contextMenuSecondaryClick { menuExpanded = true }
                 .clickable(onClick = onClick)
                 .padding(start = 6.dp, top = 10.dp, end = 2.dp, bottom = 10.dp),
@@ -8428,7 +8429,7 @@ private fun PlaylistLibraryFlatRow(
                 } else {
                     Surface(
                         modifier = Modifier.size(56.dp),
-                        shape = RoundedCornerShape(12.dp),
+                        shape = Radius.ControlCompact,
                         color = iconContainerColor
                     ) {
                         Box(

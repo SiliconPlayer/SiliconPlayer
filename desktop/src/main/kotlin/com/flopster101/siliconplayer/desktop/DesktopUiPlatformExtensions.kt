@@ -3,7 +3,6 @@ package com.flopster101.siliconplayer
 import androidx.compose.foundation.ScrollState
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
@@ -17,6 +16,7 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.DialogProperties
+import com.flopster101.siliconplayer.ui.theme.Radius
 import com.flopster101.siliconplayer.platform.AudioOutputRouteInfo
 import com.flopster101.siliconplayer.platform.LocalWindowSizeInfo
 import java.io.File
@@ -105,7 +105,7 @@ internal fun VerticalScrollbarTrack(
         Box(
             modifier = Modifier
                 .fillMaxSize()
-                .clip(RoundedCornerShape(999.dp))
+                .clip(Radius.Pill)
                 .background(trackColor)
         )
         Box(
@@ -113,7 +113,7 @@ internal fun VerticalScrollbarTrack(
                 .fillMaxWidth()
                 .height(thumbHeight)
                 .offset(y = thumbOffset)
-                .clip(RoundedCornerShape(999.dp))
+                .clip(Radius.Pill)
                 .background(thumbColor)
         )
     }

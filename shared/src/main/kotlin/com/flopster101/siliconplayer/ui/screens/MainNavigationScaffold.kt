@@ -20,7 +20,6 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.focusable
 import androidx.compose.ui.draw.clip
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.Link
@@ -46,6 +45,7 @@ import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import com.flopster101.siliconplayer.ui.theme.Radius
 import com.flopster101.siliconplayer.platform.LocalIsWatchDevice
 import com.flopster101.siliconplayer.platform.LocalIsRoundScreen
 
@@ -286,7 +286,7 @@ private fun MainTopBarPlayerTitle(
         text = "Silicon Player",
         fontWeight = FontWeight.Bold,
         modifier = Modifier
-            .clip(RoundedCornerShape(999.dp))
+            .clip(Radius.Pill)
             .clickable(onClick = onClick)
             .focusable()
             .padding(horizontal = 8.dp, vertical = 4.dp)

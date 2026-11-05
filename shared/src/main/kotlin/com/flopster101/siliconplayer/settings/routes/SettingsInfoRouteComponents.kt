@@ -12,7 +12,6 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.GraphicEq
 import androidx.compose.material.icons.filled.Link
@@ -31,6 +30,7 @@ import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.graphics.ColorFilter
+import com.flopster101.siliconplayer.ui.theme.Radius
 import com.flopster101.siliconplayer.platform.LocalAppVersionInfo
 import com.flopster101.siliconplayer.ui.icons.AboutAppIconColor
 import com.flopster101.siliconplayer.ui.icons.AboutAppIconMonochrome
@@ -58,7 +58,7 @@ internal fun AboutSettingsBody(
 
         androidx.compose.material3.ElevatedCard(
             modifier = Modifier.fillMaxWidth(),
-            shape = RoundedCornerShape(24.dp)
+            shape = Radius.Dialog
         ) {
             Row(
                 modifier = Modifier
@@ -86,7 +86,7 @@ internal fun AboutSettingsBody(
 
         androidx.compose.material3.ElevatedCard(
             modifier = Modifier.fillMaxWidth(),
-            shape = RoundedCornerShape(16.dp)
+            shape = Radius.Card
         ) {
             Column(modifier = Modifier.padding(16.dp)) {
                 Text(
@@ -172,7 +172,7 @@ private fun AboutActionButton(
 ) {
     FilledTonalButton(
         onClick = onClick,
-        shape = RoundedCornerShape(14.dp),
+        shape = Radius.Control,
         contentPadding = PaddingValues(horizontal = 14.dp, vertical = 8.dp)
     ) {
         Icon(

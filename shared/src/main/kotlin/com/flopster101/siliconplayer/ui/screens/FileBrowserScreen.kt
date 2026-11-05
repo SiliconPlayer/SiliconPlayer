@@ -1,5 +1,6 @@
 package com.flopster101.siliconplayer.ui.screens
 
+import com.flopster101.siliconplayer.ui.theme.Radius
 import com.flopster101.siliconplayer.StoredPlaylist
 import com.flopster101.siliconplayer.inferredDisplayTitleForName
 import com.flopster101.siliconplayer.isSupportedPlaylistFileName
@@ -41,7 +42,6 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -1694,7 +1694,7 @@ internal fun FileBrowserScreen(
                             item(key = "storage_app_home") {
                                 ElevatedCard(
                                     modifier = Modifier.fillMaxWidth(),
-                                    shape = if (isWatch) RoundedCornerShape(16.dp) else CardDefaults.elevatedShape,
+                                    shape = if (isWatch) Radius.Card else CardDefaults.elevatedShape,
                                     onClick = exitBrowser
                                 ) {
                                     Row(
@@ -1731,7 +1731,7 @@ internal fun FileBrowserScreen(
                         items(storageLocations) { location ->
                             ElevatedCard(
                                 modifier = Modifier.fillMaxWidth(),
-                                shape = if (isWatch) RoundedCornerShape(16.dp) else CardDefaults.elevatedShape,
+                                shape = if (isWatch) Radius.Card else CardDefaults.elevatedShape,
                                 onClick = { openLocation(location) }
                             ) {
                                 Row(
@@ -2025,7 +2025,7 @@ internal fun FileBrowserScreen(
                             Row(
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .clip(RoundedCornerShape(14.dp))
+                                    .clip(Radius.Control)
                                     .background(MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.5f))
                                     .clickable {
                                         selectorExpanded = false
@@ -2060,7 +2060,7 @@ internal fun FileBrowserScreen(
                         Row(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .clip(RoundedCornerShape(14.dp))
+                                .clip(Radius.Control)
                                 .background(MaterialTheme.colorScheme.surfaceContainerLow)
                                 .clickable {
                                     selectorExpanded = false
@@ -2096,7 +2096,7 @@ internal fun FileBrowserScreen(
                         Row(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .clip(RoundedCornerShape(14.dp))
+                                .clip(Radius.Control)
                                 .background(MaterialTheme.colorScheme.surfaceContainerLow)
                                 .clickable {
                                     selectorExpanded = false
@@ -2169,7 +2169,7 @@ internal fun FileBrowserScreen(
                         Row(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .clip(RoundedCornerShape(14.dp))
+                                .clip(Radius.Control)
                                 .background(MaterialTheme.colorScheme.surfaceContainerLow)
                                 .clickable {
                                     val folderPath = resolveCurrentFolderPathForActions()
@@ -2219,7 +2219,7 @@ internal fun FileBrowserScreen(
                         Row(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .clip(RoundedCornerShape(14.dp))
+                                .clip(Radius.Control)
                                 .background(MaterialTheme.colorScheme.surfaceContainerLow)
                                 .clickable {
                                     showCurrentFolderInfoDialog()
@@ -2298,7 +2298,7 @@ internal fun FileBrowserScreen(
                             Row(
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .clip(RoundedCornerShape(14.dp))
+                                    .clip(Radius.Control)
                                     .background(MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.7f))
                                     .clickable {
                                         watchActionTargetItem = null
@@ -2326,7 +2326,7 @@ internal fun FileBrowserScreen(
                         Row(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .clip(RoundedCornerShape(14.dp))
+                                .clip(Radius.Control)
                                 .background(MaterialTheme.colorScheme.surfaceContainerLow)
                                 .clickable {
                                     val recentEntry = RecentPathEntry(
@@ -2373,7 +2373,7 @@ internal fun FileBrowserScreen(
                         Row(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .clip(RoundedCornerShape(14.dp))
+                                .clip(Radius.Control)
                                 .background(MaterialTheme.colorScheme.surfaceContainerLow)
                                 .clickable {
                                     browserInfoFields = buildBrowserInfoFields(
@@ -2414,7 +2414,7 @@ internal fun FileBrowserScreen(
                             Row(
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .clip(RoundedCornerShape(14.dp))
+                                    .clip(Radius.Control)
                                     .background(MaterialTheme.colorScheme.surfaceContainerLow)
                                     .clickable {
                                         pendingDeleteFilePaths = listOf(targetItem.file.absolutePath)
@@ -2512,7 +2512,7 @@ internal fun FileBrowserScreen(
                     onClick = { performDelete() },
                     colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error),
                     modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(14.dp)
+                    shape = Radius.Control
                 ) {
                     Text("Delete")
                 }
@@ -2585,7 +2585,7 @@ internal fun FileBrowserScreen(
                 Button(
                     onClick = onContinue,
                     modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(14.dp)
+                    shape = Radius.Control
                 ) {
                     Text("Continue")
                 }
@@ -2631,11 +2631,11 @@ private fun ParentDirectoryItemRow(
 ) {
     val iconBoxSize = if (isWatch) 32.dp else FILE_ICON_BOX_SIZE
     val iconGlyphSize = if (isWatch) 16.dp else FILE_ICON_GLYPH_SIZE
-    val chipCorner = if (isWatch) 8.dp else 11.dp
+    val chipShape = Radius.chip(isWatch)
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(if (isWatch) 14.dp else 0.dp))
+            .clip(Radius.row(isWatch))
             .background(
                 if (isWatch) MaterialTheme.colorScheme.surfaceContainerLow
                 else MaterialTheme.colorScheme.surface.copy(alpha = 0f)
@@ -2664,7 +2664,7 @@ private fun ParentDirectoryItemRow(
                     .fillMaxSize()
                     .background(
                         color = MaterialTheme.colorScheme.primaryContainer,
-                        shape = RoundedCornerShape(chipCorner)
+                        shape = chipShape
                     ),
                 contentAlignment = Alignment.Center
             ) {
@@ -2878,7 +2878,7 @@ fun FileItemRow(
     val isWatch = LocalIsWatchDevice.current
     val iconBoxSize = if (isWatch) 32.dp else FILE_ICON_BOX_SIZE
     val iconGlyphSize = if (isWatch) 16.dp else FILE_ICON_GLYPH_SIZE
-    val chipCorner = if (isWatch) 8.dp else 11.dp
+    val chipShape = Radius.chip(isWatch)
     var showPlayWith by remember { mutableStateOf(false) }
     val playWithPrefs = LocalAppPreferences.current
     val thumbnailLoader = LocalArtworkThumbnailLoader.current
@@ -2908,13 +2908,7 @@ fun FileItemRow(
     // start/stop flips allowThumbnailPreviewLoads) re-ran filename parsing,
     // MimeTypeMap lookups and shape allocation across every visible row.
     val selectionShape = remember(hasSelectedAbove, hasSelectedBelow, isWatch) {
-        val cornerRadius = if (isWatch) 14.dp else 18.dp
-        RoundedCornerShape(
-            topStart = if (hasSelectedAbove && !isWatch) 0.dp else cornerRadius,
-            topEnd = if (hasSelectedAbove && !isWatch) 0.dp else cornerRadius,
-            bottomStart = if (hasSelectedBelow && !isWatch) 0.dp else cornerRadius,
-            bottomEnd = if (hasSelectedBelow && !isWatch) 0.dp else cornerRadius
-        )
+        Radius.selection(isWatch, hasSelectedAbove, hasSelectedBelow)
     }
     val isVideoFile = remember(item.file.absolutePath, item.isDirectory) {
         !item.isDirectory && isLikelyVideoFile(item.file)
@@ -3044,7 +3038,6 @@ fun FileItemRow(
     ) {
         val isCurrentlyPlaying = isPlaying || isPlayingPlaylist
         val showIconChipBackground = item.isDirectory || showFileIconChipBackground
-        val chipShape = RoundedCornerShape(chipCorner)
         val chipContainerColor = if (item.isDirectory) {
             MaterialTheme.colorScheme.primaryContainer
         } else {

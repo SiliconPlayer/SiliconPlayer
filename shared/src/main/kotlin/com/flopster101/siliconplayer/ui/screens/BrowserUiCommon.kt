@@ -1,5 +1,6 @@
 package com.flopster101.siliconplayer.ui.screens
 
+import com.flopster101.siliconplayer.ui.theme.Radius
 import com.flopster101.siliconplayer.onGloballyPositionedDeferred
 import com.flopster101.siliconplayer.onSizeChangedDeferred
 import java.net.URLConnection
@@ -53,7 +54,6 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.rememberLazyListState
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.Image
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AudioFile
@@ -589,7 +589,7 @@ internal fun BrowserInfoDialog(
             Button(
                 onClick = onDismiss,
                 modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(14.dp)
+                shape = Radius.Control
             ) {
                 Text("Close")
             }
@@ -691,7 +691,7 @@ internal fun BrowserTextPreviewDialog(
             Surface(
                 modifier = Modifier.fillMaxWidth(),
                 color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.42f),
-                shape = RoundedCornerShape(12.dp)
+                shape = Radius.ControlCompact
             ) {
                 SelectionContainer {
                     Text(
@@ -711,7 +711,7 @@ internal fun BrowserTextPreviewDialog(
                     clipboardManager.setText(AnnotatedString(textContent))
                 },
                 modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(14.dp)
+                shape = Radius.Control
             ) {
                 Text("Copy all")
             }
@@ -745,7 +745,7 @@ internal fun BrowserTextPreviewDialog(
                             .verticalScroll(contentScrollState)
                             .padding(end = 10.dp),
                         color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.42f),
-                        shape = RoundedCornerShape(12.dp)
+                        shape = Radius.ControlCompact
                     ) {
                         SelectionContainer {
                             Text(
@@ -839,7 +839,7 @@ internal fun BrowserImagePreviewDialog(
                 modifier = Modifier
                     .fillMaxWidth()
                     .aspectRatio(imageAspectRatio)
-                    .clip(RoundedCornerShape(12.dp))
+                    .clip(Radius.ControlCompact)
                     .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.42f)),
                 contentAlignment = Alignment.Center
             ) {
@@ -886,7 +886,7 @@ internal fun BrowserImagePreviewDialog(
             Button(
                 onClick = onDismiss,
                 modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(14.dp)
+                shape = Radius.Control
             ) {
                 Text("Close")
             }
@@ -901,7 +901,7 @@ internal fun BrowserImagePreviewDialog(
                         .fillMaxWidth()
                         .aspectRatio(imageAspectRatio)
                         .heightIn(min = 180.dp, max = 420.dp)
-                        .clip(RoundedCornerShape(12.dp))
+                        .clip(Radius.ControlCompact)
                         .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.42f)),
                     contentAlignment = Alignment.Center
                 ) {
@@ -1001,7 +1001,7 @@ internal fun BrowserExportConflictDialog(
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .clip(RoundedCornerShape(14.dp))
+                    .clip(Radius.Control)
                     .background(MaterialTheme.colorScheme.surfaceContainerLow)
                     .clickable { state.onApplyToAllChange(!state.applyToAll) }
                     .padding(horizontal = 10.dp, vertical = 6.dp),
@@ -1023,7 +1023,7 @@ internal fun BrowserExportConflictDialog(
                     state.onResolve(ExportConflictAction.Overwrite, state.applyToAll)
                 },
                 modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(14.dp)
+                shape = Radius.Control
             ) {
                 Text("Overwrite")
             }
@@ -1032,7 +1032,7 @@ internal fun BrowserExportConflictDialog(
                     state.onResolve(ExportConflictAction.Skip, state.applyToAll)
                 },
                 modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(14.dp)
+                shape = Radius.Control
             ) {
                 Text("Skip")
             }
@@ -1183,7 +1183,7 @@ internal fun BrowserRemoteExportProgressDialog(
             Button(
                 onClick = onCancel,
                 modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(14.dp)
+                shape = Radius.Control
             ) {
                 Text("Cancel")
             }
@@ -1483,7 +1483,7 @@ internal fun BrowserLoadingCard(
                         .size(40.dp)
                         .background(
                             color = MaterialTheme.colorScheme.primaryContainer,
-                            shape = RoundedCornerShape(12.dp)
+                            shape = Radius.ControlCompact
                         ),
                     contentAlignment = Alignment.Center
                 ) {
@@ -1520,7 +1520,7 @@ internal fun BrowserLoadingCard(
                     .height(108.dp)
                     .background(
                         color = MaterialTheme.colorScheme.surfaceContainerHigh,
-                        shape = RoundedCornerShape(12.dp)
+                        shape = Radius.ControlCompact
                     )
                     .padding(horizontal = 10.dp, vertical = 8.dp)
             ) {
@@ -1643,7 +1643,7 @@ internal fun BrowserToolbarSelectorLabel(
     Row(
         modifier = modifier
             .then(focusModifier)
-            .clip(RoundedCornerShape(8.dp))
+            .clip(Radius.Small)
             .tvKeyLongPress(if (enabled) onLongClick else null)
             .contextMenuSecondaryClick(if (enabled) onLongClick else null)
             .combinedClickable(
@@ -2055,7 +2055,7 @@ internal fun BrowserParentDirectoryRow(
     isWatch: Boolean = false,
     onClick: () -> Unit
 ) {
-    val rowShape = if (isWatch) RoundedCornerShape(14.dp) else RoundedCornerShape(0.dp)
+    val rowShape = Radius.row(isWatch)
     val rowBackground = if (isWatch) MaterialTheme.colorScheme.surfaceContainerLow else MaterialTheme.colorScheme.surface.copy(alpha = 0f)
     Row(
         modifier = Modifier
@@ -2075,7 +2075,7 @@ internal fun BrowserParentDirectoryRow(
                     .fillMaxSize()
                     .background(
                         color = MaterialTheme.colorScheme.primaryContainer,
-                        shape = RoundedCornerShape(if (isWatch) 14.dp else 11.dp)
+                        shape = Radius.chip(isWatch, wide = true)
                     ),
                 contentAlignment = Alignment.Center
             ) {

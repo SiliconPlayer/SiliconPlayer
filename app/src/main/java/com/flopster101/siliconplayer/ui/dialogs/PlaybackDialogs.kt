@@ -21,7 +21,6 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.rememberLazyListState
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Checkbox
@@ -60,6 +59,7 @@ import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import com.flopster101.siliconplayer.ui.theme.Radius
 import com.flopster101.siliconplayer.HttpSourceSpec
 import com.flopster101.siliconplayer.PlaylistTrackEntry
 import com.flopster101.siliconplayer.RemoteLoadPhase
@@ -103,7 +103,7 @@ internal fun ManualSmbAuthenticationDialog(
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .clip(RoundedCornerShape(12.dp))
+                        .clip(Radius.ControlCompact)
                         .background(MaterialTheme.colorScheme.errorContainer)
                         .padding(horizontal = 10.dp, vertical = 8.dp),
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
@@ -134,7 +134,7 @@ internal fun ManualSmbAuthenticationDialog(
                 modifier = Modifier.fillMaxWidth(),
                 singleLine = true,
                 label = { Text("Username") },
-                shape = RoundedCornerShape(14.dp)
+                shape = Radius.Control
             )
             OutlinedTextField(
                 value = password,
@@ -155,14 +155,14 @@ internal fun ManualSmbAuthenticationDialog(
                         )
                     }
                 },
-                shape = RoundedCornerShape(14.dp)
+                shape = Radius.Control
             )
             Spacer(modifier = Modifier.height(4.dp))
             Button(
                 onClick = onConfirm,
                 enabled = hasCredentials,
                 modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(14.dp)
+                shape = Radius.Control
             ) {
                 Text("Continue")
             }
@@ -185,7 +185,7 @@ internal fun ManualSmbAuthenticationDialog(
                         Row(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .clip(RoundedCornerShape(12.dp))
+                                .clip(Radius.ControlCompact)
                                 .background(MaterialTheme.colorScheme.errorContainer)
                                 .padding(horizontal = 12.dp, vertical = 10.dp),
                             horizontalArrangement = Arrangement.spacedBy(10.dp),
@@ -298,7 +298,7 @@ internal fun ManualHttpAuthenticationDialog(
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .clip(RoundedCornerShape(12.dp))
+                        .clip(Radius.ControlCompact)
                         .background(MaterialTheme.colorScheme.errorContainer)
                         .padding(horizontal = 10.dp, vertical = 8.dp),
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
@@ -329,7 +329,7 @@ internal fun ManualHttpAuthenticationDialog(
                 modifier = Modifier.fillMaxWidth(),
                 singleLine = true,
                 label = { Text("Username") },
-                shape = RoundedCornerShape(14.dp)
+                shape = Radius.Control
             )
             OutlinedTextField(
                 value = password,
@@ -350,14 +350,14 @@ internal fun ManualHttpAuthenticationDialog(
                         )
                     }
                 },
-                shape = RoundedCornerShape(14.dp)
+                shape = Radius.Control
             )
             Spacer(modifier = Modifier.height(4.dp))
             Button(
                 onClick = onConfirm,
                 enabled = hasCredentials,
                 modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(14.dp)
+                shape = Radius.Control
             ) {
                 Text("Continue")
             }
@@ -380,7 +380,7 @@ internal fun ManualHttpAuthenticationDialog(
                         Row(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .clip(RoundedCornerShape(12.dp))
+                                .clip(Radius.ControlCompact)
                                 .background(MaterialTheme.colorScheme.errorContainer)
                                 .padding(horizontal = 12.dp, vertical = 10.dp),
                             horizontalArrangement = Arrangement.spacedBy(10.dp),
@@ -529,7 +529,7 @@ internal fun RemoteLoadProgressDialog(
             Button(
                 onClick = onCancel,
                 modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(14.dp)
+                shape = Radius.Control
             ) {
                 Text("Cancel")
             }
@@ -570,7 +570,7 @@ internal fun SoxExperimentalDialog(
             Button(
                 onClick = onDismiss,
                 modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(14.dp)
+                shape = Radius.Control
             ) {
                 Text("OK")
             }
@@ -621,7 +621,7 @@ internal fun SubtuneSelectorDialog(
                                 onSelectSubtune(entry.index)
                                 onDismiss()
                             },
-                        shape = RoundedCornerShape(14.dp),
+                        shape = Radius.Control,
                         color = if (isCurrent) {
                             MaterialTheme.colorScheme.primaryContainer
                         } else {
@@ -661,7 +661,7 @@ internal fun SubtuneSelectorDialog(
             Button(
                 onClick = onDismiss,
                 modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(14.dp)
+                shape = Radius.Control
             ) {
                 Text("Close")
             }

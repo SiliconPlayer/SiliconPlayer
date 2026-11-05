@@ -14,7 +14,6 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.VolumeUp
 import androidx.compose.material.icons.filled.AudioFile
@@ -43,6 +42,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import com.flopster101.siliconplayer.ui.theme.Radius
 import com.flopster101.siliconplayer.ui.icons.FileGameIcon
 import com.flopster101.siliconplayer.ui.icons.FileTrackedIcon
 import com.flopster101.siliconplayer.ui.icons.PlaceholderTrackerChipIcon
@@ -166,7 +166,7 @@ internal fun AndroidBitPerfectSection(params: BitPerfectSectionParams) {
 
         Card(
             modifier = Modifier.fillMaxWidth(),
-            shape = RoundedCornerShape(16.dp),
+            shape = Radius.Card,
             colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow),
             border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f))
         ) {
@@ -245,7 +245,7 @@ internal fun AndroidBitPerfectSection(params: BitPerfectSectionParams) {
                         supportedRates.forEach { rate ->
                             val isActive = rate == params.effectiveOutputRateHz
                             Surface(
-                                shape = RoundedCornerShape(8.dp),
+                                shape = Radius.Small,
                                 color = if (isActive) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceContainerHigh,
                                 border = androidx.compose.foundation.BorderStroke(
                                     1.dp,
@@ -295,7 +295,7 @@ internal fun AndroidBitPerfectSection(params: BitPerfectSectionParams) {
                             }
                             FilledTonalButton(
                                 onClick = { showVolumeModeDialog = true },
-                                shape = RoundedCornerShape(12.dp),
+                                shape = Radius.ControlCompact,
                                 contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp)
                             ) {
                                 Text(

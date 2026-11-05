@@ -29,6 +29,7 @@ import androidx.compose.ui.window.application
 import androidx.compose.ui.window.rememberWindowState
 import androidx.compose.material.icons.filled.Folder
 import androidx.compose.material.icons.filled.InsertDriveFile
+import com.flopster101.siliconplayer.ui.theme.Radius
 import com.flopster101.siliconplayer.DomainStoreDirs
 import com.flopster101.siliconplayer.HomeScreen
 import com.flopster101.siliconplayer.HomePinnedEntry
@@ -240,7 +241,6 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.onSizeChanged
@@ -320,7 +320,7 @@ private fun ToastOverlay(
                         exit = fadeOut() + slideOutVertically { it / 2 }
                     ) {
                         Surface(
-                            shape = RoundedCornerShape(8.dp),
+                            shape = Radius.Small,
                             color = MaterialTheme.colorScheme.surfaceContainerHigh,
                             contentColor = MaterialTheme.colorScheme.onSurfaceVariant,
                             shadowElevation = 8.dp

@@ -1,7 +1,6 @@
 package com.flopster101.siliconplayer.ui.visualization
 
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -9,6 +8,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
+import com.flopster101.siliconplayer.ui.theme.Radius
 import com.flopster101.siliconplayer.VisualizationMode
 import com.flopster101.siliconplayer.VisualizationRenderBackend
 
@@ -36,7 +36,7 @@ fun VisualizationDebugOverlay(
     }
     Surface(
         modifier = modifier.padding(start = 10.dp, top = 10.dp),
-        shape = RoundedCornerShape(10.dp),
+        shape = Radius.Compact,
         color = Color.Black.copy(alpha = 0.22f)
     ) {
         Text(

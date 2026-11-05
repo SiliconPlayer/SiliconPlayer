@@ -20,7 +20,6 @@ import androidx.compose.foundation.basicMarquee
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
@@ -32,6 +31,7 @@ import androidx.compose.material.icons.filled.LibraryMusic
 import androidx.compose.material.icons.filled.Link
 import androidx.compose.material.icons.filled.MusicNote
 import androidx.compose.material.icons.filled.Search
+import com.flopster101.siliconplayer.ui.theme.Radius
 import com.flopster101.siliconplayer.TrackTextInputActive
 import com.flopster101.siliconplayer.ui.icons.FileGameIcon
 import com.flopster101.siliconplayer.ui.icons.FileTrackedIcon
@@ -301,7 +301,7 @@ private fun SourceOptionRow(
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(12.dp))
+            .clip(Radius.ControlCompact)
             .clickable(enabled = enabled, onClick = onClick)
             .padding(horizontal = 8.dp, vertical = 10.dp),
         horizontalArrangement = Arrangement.spacedBy(16.dp),
@@ -309,7 +309,7 @@ private fun SourceOptionRow(
     ) {
         Surface(
             modifier = Modifier.size(48.dp),
-            shape = RoundedCornerShape(12.dp),
+            shape = Radius.ControlCompact,
             color = MaterialTheme.colorScheme.surfaceContainerHigh.copy(alpha = if (enabled) 1f else 0.5f)
         ) {
             Box(contentAlignment = Alignment.Center) {
@@ -530,7 +530,7 @@ private fun AddFromLibraryPickerSheetContent(
                     }
                 }
             } else null,
-            shape = RoundedCornerShape(24.dp),
+            shape = Radius.Dialog,
             keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
             modifier = Modifier
                 .fillMaxWidth()
@@ -607,7 +607,7 @@ private fun LibraryTrackPickerRow(
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(8.dp))
+            .clip(Radius.Small)
             .clickable(onClick = onToggle)
             .padding(vertical = 6.dp, horizontal = 4.dp),
         horizontalArrangement = Arrangement.spacedBy(12.dp),
@@ -615,7 +615,7 @@ private fun LibraryTrackPickerRow(
     ) {
         Surface(
             modifier = Modifier.size(42.dp),
-            shape = RoundedCornerShape(8.dp),
+            shape = Radius.Small,
             color = MaterialTheme.colorScheme.surfaceContainerHigh
         ) {
             Box(contentAlignment = Alignment.Center) {
@@ -1221,7 +1221,7 @@ private fun SmbShareRow(
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(8.dp))
+            .clip(Radius.Small)
             .clickable(onClick = onClick)
             .padding(vertical = 6.dp, horizontal = 4.dp),
         horizontalArrangement = Arrangement.spacedBy(12.dp),
@@ -1229,7 +1229,7 @@ private fun SmbShareRow(
     ) {
         Surface(
             modifier = Modifier.size(42.dp),
-            shape = RoundedCornerShape(8.dp),
+            shape = Radius.Small,
             color = MaterialTheme.colorScheme.surfaceContainerHigh
         ) {
             Box(contentAlignment = Alignment.Center) {
@@ -1265,7 +1265,7 @@ private fun SmbDirectoryRow(
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(8.dp))
+            .clip(Radius.Small)
             .clickable(onClick = onClick)
             .padding(vertical = 6.dp, horizontal = 4.dp),
         horizontalArrangement = Arrangement.spacedBy(12.dp),
@@ -1273,7 +1273,7 @@ private fun SmbDirectoryRow(
     ) {
         Surface(
             modifier = Modifier.size(42.dp),
-            shape = RoundedCornerShape(8.dp),
+            shape = Radius.Small,
             color = MaterialTheme.colorScheme.surfaceContainerHigh
         ) {
             Box(contentAlignment = Alignment.Center) {
@@ -1310,7 +1310,7 @@ private fun SmbFileRow(
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(8.dp))
+            .clip(Radius.Small)
             .clickable(onClick = onToggle)
             .padding(vertical = 6.dp, horizontal = 4.dp),
         horizontalArrangement = Arrangement.spacedBy(12.dp),
@@ -1318,7 +1318,7 @@ private fun SmbFileRow(
     ) {
         Surface(
             modifier = Modifier.size(42.dp),
-            shape = RoundedCornerShape(8.dp),
+            shape = Radius.Small,
             color = MaterialTheme.colorScheme.surfaceContainerHigh
         ) {
             Box(contentAlignment = Alignment.Center) {
@@ -1362,7 +1362,7 @@ private fun NetworkFolderRow(
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(8.dp))
+            .clip(Radius.Small)
             .clickable(onClick = onClick)
             .padding(vertical = 6.dp, horizontal = 4.dp),
         horizontalArrangement = Arrangement.spacedBy(12.dp),
@@ -1370,7 +1370,7 @@ private fun NetworkFolderRow(
     ) {
         Surface(
             modifier = Modifier.size(42.dp),
-            shape = RoundedCornerShape(8.dp),
+            shape = Radius.Small,
             color = MaterialTheme.colorScheme.surfaceContainerHigh
         ) {
             Box(contentAlignment = Alignment.Center) {
@@ -1412,7 +1412,7 @@ private fun NetworkSmbNodeRow(
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(8.dp))
+            .clip(Radius.Small)
             .clickable(onClick = onClick)
             .padding(vertical = 6.dp, horizontal = 4.dp),
         horizontalArrangement = Arrangement.spacedBy(12.dp),
@@ -1420,7 +1420,7 @@ private fun NetworkSmbNodeRow(
     ) {
         Surface(
             modifier = Modifier.size(42.dp),
-            shape = RoundedCornerShape(8.dp),
+            shape = Radius.Small,
             color = MaterialTheme.colorScheme.surfaceContainerHigh
         ) {
             Box(contentAlignment = Alignment.Center) {
@@ -1471,7 +1471,7 @@ private fun NetworkStreamNodeRow(
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(8.dp))
+            .clip(Radius.Small)
             .clickable(onClick = onToggle)
             .padding(vertical = 6.dp, horizontal = 4.dp),
         horizontalArrangement = Arrangement.spacedBy(12.dp),
@@ -1479,7 +1479,7 @@ private fun NetworkStreamNodeRow(
     ) {
         Surface(
             modifier = Modifier.size(42.dp),
-            shape = RoundedCornerShape(8.dp),
+            shape = Radius.Small,
             color = MaterialTheme.colorScheme.surfaceContainerHigh
         ) {
             Box(contentAlignment = Alignment.Center) {

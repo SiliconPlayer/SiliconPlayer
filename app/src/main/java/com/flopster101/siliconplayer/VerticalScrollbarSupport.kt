@@ -23,7 +23,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
-import androidx.compose.foundation.shape.RoundedCornerShape
+import com.flopster101.siliconplayer.ui.theme.Radius
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.ui.input.pointer.pointerInteropFilter
 import androidx.compose.ui.layout.onSizeChanged
@@ -45,7 +45,7 @@ internal fun VerticalScrollbarTrack(
     onDragFractionChanged: ((Float) -> Unit)? = null,
     onDragActiveChanged: ((Boolean) -> Unit)? = null
 ) {
-    val shape = RoundedCornerShape(999.dp)
+    val shape = Radius.Pill
     var activePointerId by remember { mutableIntStateOf(-1) }
     var dragAnchorFromThumbTop by remember { mutableFloatStateOf(Float.NaN) }
     var measuredTrackHeightPx by remember { mutableFloatStateOf(1f) }

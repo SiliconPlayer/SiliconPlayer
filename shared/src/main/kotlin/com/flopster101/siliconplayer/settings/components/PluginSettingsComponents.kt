@@ -1,5 +1,6 @@
 package com.flopster101.siliconplayer
 
+import com.flopster101.siliconplayer.ui.theme.Radius
 import com.flopster101.siliconplayer.onGloballyPositionedDeferred
 import com.flopster101.siliconplayer.platform.LocalIsWatchDevice
 import androidx.compose.animation.core.Animatable
@@ -21,9 +22,7 @@ import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.foundation.layout.height
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.DragIndicator
 import androidx.compose.material.icons.filled.MusicNote
@@ -139,7 +138,7 @@ internal fun PluginListItemCard(
                     Spacer(modifier = Modifier.width(if (isWatch) 6.dp else 8.dp))
                     Surface(
                         color = MaterialTheme.colorScheme.primaryContainer,
-                        shape = RoundedCornerShape(4.dp)
+                        shape = Radius.Inner
                     ) {
                         Text(
                             text = if (isWatch) "$priority" else "Priority: $priority",

@@ -9,7 +9,6 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -19,6 +18,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
+import com.flopster101.siliconplayer.ui.theme.Radius
 import com.flopster101.siliconplayer.VisualizationVuAnchor
 import kotlin.math.log10
 import kotlin.math.pow
@@ -76,7 +76,7 @@ fun VuMetersVisualization(
                         modifier = Modifier
                             .height(10.dp)
                             .weight(1f)
-                            .clip(RoundedCornerShape(50)),
+                            .clip(Radius.Pill),
                         color = vuColor,
                         trackColor = vuBackgroundColor
                     )

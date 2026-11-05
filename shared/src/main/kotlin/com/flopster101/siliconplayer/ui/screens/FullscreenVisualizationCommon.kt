@@ -22,7 +22,6 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowLeft
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
@@ -67,6 +66,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.flopster101.siliconplayer.ui.theme.Radius
 import com.flopster101.siliconplayer.RepeatMode
 import com.flopster101.siliconplayer.SubtuneTransportState
 import com.flopster101.siliconplayer.VisualizationFullscreenMode
@@ -271,7 +271,7 @@ internal fun FullscreenTransportControls(
                     Surface(
                         color = Color.White,
                         contentColor = Color.Black,
-                        shape = RoundedCornerShape(percent = 50),
+                        shape = Radius.Pill,
                         modifier = Modifier
                             .align(Alignment.Center)
                             .offset(x = 8.dp, y = (-8).dp)
@@ -356,7 +356,7 @@ internal fun FullscreenVisualizerSwitcher(
         Surface(
             color = FullscreenScrim,
             contentColor = Color.White,
-            shape = RoundedCornerShape(percent = 50),
+            shape = Radius.Pill,
             modifier = modifier
         ) {
             Row(
@@ -381,7 +381,7 @@ internal fun FullscreenVisualizerSwitcher(
                     horizontalArrangement = Arrangement.spacedBy(6.dp),
                     verticalAlignment = Alignment.CenterVertically,
                     modifier = Modifier
-                        .clip(RoundedCornerShape(percent = 50))
+                        .clip(Radius.Pill)
                         .combinedClickable(
                             onClick = {
                                 onInteraction()
@@ -746,7 +746,7 @@ internal fun FullscreenTrackTicker(
         modifier = modifier
     ) {
         Surface(
-            shape = RoundedCornerShape(12.dp),
+            shape = Radius.ControlCompact,
             color = Color.Black.copy(alpha = 0.45f),
             contentColor = Color.White
         ) {
@@ -780,7 +780,7 @@ internal fun FullscreenTrackTicker(
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         if (!formatLabel.isNullOrBlank()) {
                             Surface(
-                                shape = RoundedCornerShape(6.dp),
+                                shape = Radius.Tiny,
                                 color = Color.White.copy(alpha = 0.16f),
                                 contentColor = Color.White
                             ) {

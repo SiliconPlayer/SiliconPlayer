@@ -1,5 +1,6 @@
 package com.flopster101.siliconplayer
 
+import com.flopster101.siliconplayer.ui.theme.Radius
 import com.flopster101.siliconplayer.platform.PlatformBackHandler
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.combinedClickable
@@ -12,7 +13,6 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Close
@@ -167,7 +167,7 @@ internal fun CacheManagerSettingsRouteContent(
             val isSelected = selectedPaths.contains(entry.absolutePath)
             val sourceLine = entry.sourceId ?: "Source: unknown"
             Surface(
-                shape = RoundedCornerShape(16.dp),
+                shape = Radius.Card,
                 color = if (isSelected) {
                     MaterialTheme.colorScheme.primaryContainer
                 } else {

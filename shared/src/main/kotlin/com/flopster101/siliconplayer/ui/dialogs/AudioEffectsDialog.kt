@@ -1,5 +1,6 @@
 package com.flopster101.siliconplayer.ui.dialogs
 
+import com.flopster101.siliconplayer.ui.theme.Radius
 import com.flopster101.siliconplayer.TrackTextInputActive
 import com.flopster101.siliconplayer.onGloballyPositionedDeferred
 import com.flopster101.siliconplayer.onSizeChangedDeferred
@@ -33,7 +34,6 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalDensity
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -212,7 +212,7 @@ fun AudioEffectsDialog(
             Button(
                 onClick = onConfirm,
                 modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(14.dp)
+                shape = Radius.Control
             ) {
                 Text("OK")
             }
@@ -227,7 +227,7 @@ fun AudioEffectsDialog(
                     }
                 },
                 modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(14.dp)
+                shape = Radius.Control
             ) {
                 Text("Reset")
             }
@@ -357,7 +357,7 @@ fun AudioEffectsDialog(
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .clip(RoundedCornerShape(10.dp))
+                            .clip(Radius.Compact)
                             .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f))
                             .padding(horizontal = 10.dp, vertical = 7.dp),
                         horizontalArrangement = Arrangement.spacedBy(8.dp),
@@ -502,7 +502,7 @@ fun AudioEffectsDialog(
                         pendingResetTarget = null
                     },
                     modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(14.dp)
+                    shape = Radius.Control
                 ) {
                     Text("Reset")
                 }
@@ -581,7 +581,7 @@ private fun EffectsVolumeSliderRow(
                 onClick = { onValueChange((valueDb - 1f).coerceIn(-20f, 20f)) },
                 enabled = enabled && valueDb > -20f,
                 modifier = Modifier.size(32.dp),
-                shape = RoundedCornerShape(8.dp)
+                shape = Radius.Small
             ) {
                 Icon(
                     imageVector = Icons.Default.Remove,
@@ -607,7 +607,7 @@ private fun EffectsVolumeSliderRow(
                 onClick = { onValueChange((valueDb + 1f).coerceIn(-20f, 20f)) },
                 enabled = enabled && valueDb < 20f,
                 modifier = Modifier.size(32.dp),
-                shape = RoundedCornerShape(8.dp)
+                shape = Radius.Small
             ) {
                 Icon(
                     imageVector = Icons.Default.Add,
@@ -796,7 +796,7 @@ private fun DspTabContent(
                 Column(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .clip(RoundedCornerShape(12.dp))
+                        .clip(Radius.ControlCompact)
                         .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.25f))
                 ) {
                     Row(
@@ -841,7 +841,7 @@ private fun DspTabContent(
                             Row(
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .clip(RoundedCornerShape(10.dp))
+                                    .clip(Radius.Compact)
                                     .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f))
                                     .padding(horizontal = 10.dp, vertical = 7.dp),
                                 horizontalArrangement = Arrangement.spacedBy(8.dp),
@@ -1032,7 +1032,7 @@ private fun DspReverbPresetDropdownRow(
                 readOnly = true,
                 enabled = enabled,
                 textStyle = MaterialTheme.typography.bodySmall,
-                shape = RoundedCornerShape(14.dp),
+                shape = Radius.Control,
                 trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded && enabled) },
                 colors = ExposedDropdownMenuDefaults.outlinedTextFieldColors(),
                 modifier = Modifier
@@ -1043,7 +1043,7 @@ private fun DspReverbPresetDropdownRow(
                 expanded = expanded && enabled,
                 onDismissRequest = { expanded = false },
                 modifier = Modifier
-                    .clip(RoundedCornerShape(14.dp))
+                    .clip(Radius.Control)
                     .background(MaterialTheme.colorScheme.surfaceContainerHigh)
             ) {
                 reverbPresetNames.forEachIndexed { index, name ->

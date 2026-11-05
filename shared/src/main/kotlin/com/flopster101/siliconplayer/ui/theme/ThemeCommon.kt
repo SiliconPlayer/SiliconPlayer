@@ -1,7 +1,6 @@
 package com.flopster101.siliconplayer.ui.theme
 
 import androidx.compose.foundation.isSystemInDarkTheme
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.ColorScheme
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Shapes
@@ -10,7 +9,6 @@ import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.unit.dp
 
 val IconDarkColorScheme = darkColorScheme(
     primary = Color(0xFFBAC4FF),
@@ -75,11 +73,11 @@ val IconLightColorScheme = lightColorScheme(
 )
 
 val SiliconPlayerShapes = Shapes(
-    extraSmall = RoundedCornerShape(16.dp),
-    small = RoundedCornerShape(16.dp),
-    medium = RoundedCornerShape(20.dp),
-    large = RoundedCornerShape(24.dp),
-    extraLarge = RoundedCornerShape(28.dp)
+    extraSmall = Radius.Card,
+    small = Radius.Card,
+    medium = Radius.Panel,
+    large = Radius.Dialog,
+    extraLarge = Radius.Sheet
 )
 
 @Composable

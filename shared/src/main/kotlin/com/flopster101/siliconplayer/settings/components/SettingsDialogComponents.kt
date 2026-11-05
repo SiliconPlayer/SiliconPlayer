@@ -1,5 +1,6 @@
 package com.flopster101.siliconplayer
 
+import com.flopster101.siliconplayer.ui.theme.Radius
 import com.flopster101.siliconplayer.TrackTextInputActive
 import com.flopster101.siliconplayer.onGloballyPositionedDeferred
 import com.flopster101.siliconplayer.onSizeChangedDeferred
@@ -21,7 +22,6 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
@@ -105,7 +105,7 @@ internal fun SettingsTextInputDialog(
                 keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(
                     keyboardType = keyboardType
                 ),
-                shape = RoundedCornerShape(14.dp),
+                shape = Radius.Control,
                 modifier = Modifier.fillMaxWidth()
             )
             Spacer(modifier = Modifier.height(4.dp))
@@ -116,7 +116,7 @@ internal fun SettingsTextInputDialog(
                     }
                 },
                 modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(14.dp)
+                shape = Radius.Control
             ) {
                 Text(confirmLabel)
             }
@@ -208,7 +208,7 @@ internal fun SettingsPriorityPickerDialog(
                     onDismiss()
                 },
                 modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(14.dp)
+                shape = Radius.Control
             ) {
                 Text("Apply")
             }
@@ -311,14 +311,14 @@ internal fun SettingsSearchableMultiSelectDialog(
                 OutlinedButton(
                     onClick = { pendingSelected = options.map { it.value }.toSet() },
                     modifier = Modifier.weight(1f),
-                    shape = RoundedCornerShape(12.dp)
+                    shape = Radius.ControlCompact
                 ) {
                     Text("All", style = MaterialTheme.typography.labelMedium)
                 }
                 OutlinedButton(
                     onClick = { pendingSelected = emptySet() },
                     modifier = Modifier.weight(1f),
-                    shape = RoundedCornerShape(12.dp)
+                    shape = Radius.ControlCompact
                 ) {
                     Text("None", style = MaterialTheme.typography.labelMedium)
                 }
@@ -328,7 +328,7 @@ internal fun SettingsSearchableMultiSelectDialog(
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .clip(RoundedCornerShape(12.dp))
+                        .clip(Radius.ControlCompact)
                         .clickable {
                             pendingSelected = if (checked) pendingSelected - option.value else pendingSelected + option.value
                         }
@@ -352,7 +352,7 @@ internal fun SettingsSearchableMultiSelectDialog(
                     onDismiss()
                 },
                 modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(14.dp)
+                shape = Radius.Control
             ) {
                 Text("Apply")
             }
@@ -388,7 +388,7 @@ internal fun SettingsSearchableMultiSelectDialog(
                             }
                         },
                         singleLine = true,
-                        shape = RoundedCornerShape(28.dp)
+                        shape = Radius.Sheet
                     )
                     Spacer(modifier = Modifier.height(8.dp))
                     Row(
@@ -616,14 +616,14 @@ internal fun <T> SettingsGroupedToggleDialog(
                     OutlinedButton(
                         onClick = { pendingSelected = selectAllValues },
                         modifier = Modifier.weight(1f),
-                        shape = RoundedCornerShape(12.dp)
+                        shape = Radius.ControlCompact
                     ) {
                         Text("All", style = MaterialTheme.typography.labelMedium)
                     }
                     OutlinedButton(
                         onClick = { pendingSelected = emptySet() },
                         modifier = Modifier.weight(1f),
-                        shape = RoundedCornerShape(12.dp)
+                        shape = Radius.ControlCompact
                     ) {
                         Text("None", style = MaterialTheme.typography.labelMedium)
                     }
@@ -668,7 +668,7 @@ internal fun <T> SettingsGroupedToggleDialog(
                             Row(
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .clip(RoundedCornerShape(12.dp))
+                                    .clip(Radius.ControlCompact)
                                     .clickable {
                                         pendingSelected = if (checked) pendingSelected - optionValue else pendingSelected + optionValue
                                     }
@@ -695,7 +695,7 @@ internal fun <T> SettingsGroupedToggleDialog(
                     onDismiss()
                 },
                 modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(14.dp)
+                shape = Radius.Control
             ) {
                 Text("Apply")
             }
@@ -762,7 +762,7 @@ internal fun CacheSizeLimitDialog(
                 label = { Text("Max size (${unit.label})") },
                 placeholder = { Text("1.00") },
                 modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(14.dp)
+                shape = Radius.Control
             )
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -772,7 +772,7 @@ internal fun CacheSizeLimitDialog(
                     Row(
                         modifier = Modifier
                             .weight(1f)
-                            .clip(RoundedCornerShape(10.dp))
+                            .clip(Radius.Compact)
                             .clickable {
                                 if (candidate != unit) {
                                     val parsed = input.trim().replace(',', '.').toDoubleOrNull()
@@ -829,7 +829,7 @@ internal fun CacheSizeLimitDialog(
                     }
                 },
                 modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(14.dp)
+                shape = Radius.Control
             ) {
                 Text("Save")
             }
@@ -860,7 +860,7 @@ internal fun CacheSizeLimitDialog(
                         CacheSizeUnit.values().forEach { candidate ->
                             Row(
                                 modifier = Modifier
-                                    .clip(RoundedCornerShape(10.dp))
+                                    .clip(Radius.Compact)
                                     .clickable {
                                         if (candidate != unit) {
                                             val parsed = input.trim().replace(',', '.').toDoubleOrNull()
@@ -997,7 +997,7 @@ internal fun SteppedIntSliderDialog(
                         },
                         enabled = value > min,
                         modifier = Modifier.width(48.dp),
-                        shape = RoundedCornerShape(12.dp)
+                        shape = Radius.ControlCompact
                     ) {
                         Icon(
                             imageVector = Icons.Default.Remove,
@@ -1021,7 +1021,7 @@ internal fun SteppedIntSliderDialog(
                         },
                         enabled = value < max,
                         modifier = Modifier.width(48.dp),
-                        shape = RoundedCornerShape(12.dp)
+                        shape = Radius.ControlCompact
                     ) {
                         Icon(
                             imageVector = Icons.Default.Add,
@@ -1044,7 +1044,7 @@ internal fun SteppedIntSliderDialog(
                     onDismiss()
                 },
                 modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(14.dp)
+                shape = Radius.Control
             ) {
                 Text(confirmLabel)
             }
@@ -1189,7 +1189,7 @@ internal fun SettingsSwitchSliderDialog(
                         },
                         enabled = !checked && sliderValue > valueRange.first,
                         modifier = Modifier.width(48.dp),
-                        shape = RoundedCornerShape(12.dp)
+                        shape = Radius.ControlCompact
                     ) {
                         Icon(
                             imageVector = Icons.Default.Remove,
@@ -1214,7 +1214,7 @@ internal fun SettingsSwitchSliderDialog(
                         },
                         enabled = !checked && sliderValue < valueRange.last,
                         modifier = Modifier.width(48.dp),
-                        shape = RoundedCornerShape(12.dp)
+                        shape = Radius.ControlCompact
                     ) {
                         Icon(
                             imageVector = Icons.Default.Add,
@@ -1230,7 +1230,7 @@ internal fun SettingsSwitchSliderDialog(
                     onDismiss()
                 },
                 modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(14.dp)
+                shape = Radius.Control
             ) {
                 Text(confirmLabel)
             }

@@ -1,5 +1,6 @@
 package com.flopster101.siliconplayer.ui.screens
 
+import com.flopster101.siliconplayer.ui.theme.Radius
 import com.flopster101.siliconplayer.TrackTextInputActive
 import com.flopster101.siliconplayer.onGloballyPositionedDeferred
 import com.flopster101.siliconplayer.onSizeChangedDeferred
@@ -22,7 +23,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Checkbox
@@ -91,7 +91,7 @@ internal fun NetworkCreateFolderDialog(
                 modifier = Modifier.fillMaxWidth(),
                 singleLine = true,
                 label = { RequiredFieldLabel("Folder name") },
-                shape = RoundedCornerShape(14.dp),
+                shape = Radius.Control,
                 colors = networkDialogTextFieldColors()
             )
             Spacer(modifier = Modifier.height(4.dp))
@@ -99,7 +99,7 @@ internal fun NetworkCreateFolderDialog(
                 enabled = folderName.trim().isNotEmpty(),
                 onClick = onConfirm,
                 modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(14.dp)
+                shape = Radius.Control
             ) {
                 Text(confirmText)
             }
@@ -173,7 +173,7 @@ internal fun NetworkRemoteSourceDialog(
                 modifier = Modifier.fillMaxWidth(),
                 singleLine = true,
                 label = { Text("Name (optional)") },
-                shape = RoundedCornerShape(14.dp),
+                shape = Radius.Control,
                 colors = networkDialogTextFieldColors()
             )
             OutlinedTextField(
@@ -182,7 +182,7 @@ internal fun NetworkRemoteSourceDialog(
                 modifier = Modifier.fillMaxWidth(),
                 singleLine = true,
                 label = { RequiredFieldLabel("URL or path") },
-                shape = RoundedCornerShape(14.dp),
+                shape = Radius.Control,
                 colors = networkDialogTextFieldColors()
             )
             Spacer(modifier = Modifier.height(4.dp))
@@ -190,7 +190,7 @@ internal fun NetworkRemoteSourceDialog(
                 enabled = sourcePath.trim().isNotEmpty(),
                 onClick = onConfirm,
                 modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(14.dp)
+                shape = Radius.Control
             ) {
                 Text(confirmText)
             }
@@ -284,7 +284,7 @@ internal fun NetworkSmbSourceDialog(
                 modifier = Modifier.fillMaxWidth(),
                 singleLine = true,
                 label = { Text("Name (optional)") },
-                shape = RoundedCornerShape(14.dp),
+                shape = Radius.Control,
                 colors = networkDialogTextFieldColors()
             )
             OutlinedTextField(
@@ -293,7 +293,7 @@ internal fun NetworkSmbSourceDialog(
                 modifier = Modifier.fillMaxWidth(),
                 singleLine = true,
                 label = { RequiredFieldLabel("Host") },
-                shape = RoundedCornerShape(14.dp),
+                shape = Radius.Control,
                 colors = networkDialogTextFieldColors()
             )
             OutlinedTextField(
@@ -302,7 +302,7 @@ internal fun NetworkSmbSourceDialog(
                 modifier = Modifier.fillMaxWidth(),
                 singleLine = true,
                 label = { Text("Share (optional)") },
-                shape = RoundedCornerShape(14.dp),
+                shape = Radius.Control,
                 colors = networkDialogTextFieldColors()
             )
             OutlinedTextField(
@@ -311,7 +311,7 @@ internal fun NetworkSmbSourceDialog(
                 modifier = Modifier.fillMaxWidth(),
                 singleLine = true,
                 label = { Text("Path inside share (optional)") },
-                shape = RoundedCornerShape(14.dp),
+                shape = Radius.Control,
                 colors = networkDialogTextFieldColors()
             )
             OutlinedTextField(
@@ -320,7 +320,7 @@ internal fun NetworkSmbSourceDialog(
                 modifier = Modifier.fillMaxWidth(),
                 singleLine = true,
                 label = { Text("Username (optional)") },
-                shape = RoundedCornerShape(14.dp),
+                shape = Radius.Control,
                 colors = networkDialogTextFieldColors()
             )
             OutlinedTextField(
@@ -350,7 +350,7 @@ internal fun NetworkSmbSourceDialog(
                         )
                     }
                 },
-                shape = RoundedCornerShape(14.dp),
+                shape = Radius.Control,
                 colors = networkDialogTextFieldColors()
             )
             Spacer(modifier = Modifier.height(4.dp))
@@ -358,14 +358,14 @@ internal fun NetworkSmbSourceDialog(
                 enabled = host.trim().isNotEmpty(),
                 onClick = onConfirm,
                 modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(14.dp)
+                shape = Radius.Control
             ) {
                 Text(confirmText)
             }
             FilledTonalButton(
                 onClick = onScanHosts,
                 modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(14.dp)
+                shape = Radius.Control
             ) {
                 Text("Scan local network")
             }
@@ -537,9 +537,9 @@ internal fun NetworkHostScanDialog(
                 Surface(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .clip(RoundedCornerShape(14.dp))
+                        .clip(Radius.Control)
                         .clickable { onSelect(entry) },
-                    shape = RoundedCornerShape(14.dp),
+                    shape = Radius.Control,
                     color = MaterialTheme.colorScheme.surfaceContainerLow
                 ) {
                     Column(
@@ -564,7 +564,7 @@ internal fun NetworkHostScanDialog(
             Button(
                 onClick = onRefresh,
                 modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(14.dp)
+                shape = Radius.Control
             ) {
                 Text("Refresh")
             }
@@ -686,7 +686,7 @@ internal fun NetworkHttpSourceDialog(
                 modifier = Modifier.fillMaxWidth(),
                 singleLine = true,
                 label = { Text("Name (optional)") },
-                shape = RoundedCornerShape(14.dp),
+                shape = Radius.Control,
                 colors = networkDialogTextFieldColors()
             )
             OutlinedTextField(
@@ -695,7 +695,7 @@ internal fun NetworkHttpSourceDialog(
                 modifier = Modifier.fillMaxWidth(),
                 singleLine = true,
                 label = { RequiredFieldLabel("Server URL") },
-                shape = RoundedCornerShape(14.dp),
+                shape = Radius.Control,
                 colors = networkDialogTextFieldColors()
             )
             OutlinedTextField(
@@ -704,7 +704,7 @@ internal fun NetworkHttpSourceDialog(
                 modifier = Modifier.fillMaxWidth(),
                 singleLine = true,
                 label = { Text("Username (optional)") },
-                shape = RoundedCornerShape(14.dp),
+                shape = Radius.Control,
                 colors = networkDialogTextFieldColors()
             )
             OutlinedTextField(
@@ -734,13 +734,13 @@ internal fun NetworkHttpSourceDialog(
                         )
                     }
                 },
-                shape = RoundedCornerShape(14.dp),
+                shape = Radius.Control,
                 colors = networkDialogTextFieldColors()
             )
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .clip(RoundedCornerShape(14.dp))
+                    .clip(Radius.Control)
                     .background(MaterialTheme.colorScheme.surfaceContainerLow)
                     .clickable { onTreatAsRootChange(!treatAsRoot) }
                     .padding(horizontal = 10.dp, vertical = 6.dp),
@@ -770,7 +770,7 @@ internal fun NetworkHttpSourceDialog(
                 enabled = isUrlValid,
                 onClick = onConfirm,
                 modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(14.dp)
+                shape = Radius.Control
             ) {
                 Text(confirmText)
             }

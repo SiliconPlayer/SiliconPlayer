@@ -1,5 +1,6 @@
 package com.flopster101.siliconplayer.ui.screens
 
+import com.flopster101.siliconplayer.ui.theme.Radius
 import com.flopster101.siliconplayer.platform.PlatformBackHandler
 import com.flopster101.siliconplayer.platform.LocalToastHandler
 import com.flopster101.siliconplayer.platform.LocalIsWatchDevice
@@ -46,7 +47,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
@@ -1751,7 +1751,7 @@ internal fun NetworkBrowserScreen(
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .clip(RoundedCornerShape(14.dp))
+                            .clip(Radius.Control)
                             .background(MaterialTheme.colorScheme.surfaceContainerLow)
                             .clickable { navigateUpOneFolder() }
                             .padding(horizontal = 10.dp, vertical = 8.dp),
@@ -1762,7 +1762,7 @@ internal fun NetworkBrowserScreen(
                                 .size(32.dp)
                                 .background(
                                     color = MaterialTheme.colorScheme.primaryContainer,
-                                    shape = RoundedCornerShape(8.dp)
+                                    shape = Radius.Small
                                 ),
                             contentAlignment = Alignment.Center
                         ) {
@@ -1792,7 +1792,7 @@ internal fun NetworkBrowserScreen(
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .clip(RoundedCornerShape(14.dp))
+                        .clip(Radius.Control)
                         .background(MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.5f))
                         .clickable { showAddMenu = true }
                         .padding(horizontal = 10.dp, vertical = 8.dp),
@@ -1803,7 +1803,7 @@ internal fun NetworkBrowserScreen(
                             .size(32.dp)
                             .background(
                                 color = MaterialTheme.colorScheme.primary,
-                                shape = RoundedCornerShape(8.dp)
+                                shape = Radius.Small
                             ),
                         contentAlignment = Alignment.Center
                     ) {
@@ -1983,16 +1983,7 @@ internal fun NetworkBrowserScreen(
                                     } else {
                                         false
                                     }
-                                    val selectionShape = if (isWatch) {
-                                        RoundedCornerShape(14.dp)
-                                    } else {
-                                        RoundedCornerShape(
-                                            topStart = if (hasSelectedAbove) 0.dp else 18.dp,
-                                            topEnd = if (hasSelectedAbove) 0.dp else 18.dp,
-                                            bottomStart = if (hasSelectedBelow) 0.dp else 18.dp,
-                                            bottomEnd = if (hasSelectedBelow) 0.dp else 18.dp
-                                        )
-                                    }
+                                    val selectionShape = Radius.selection(isWatch, hasSelectedAbove, hasSelectedBelow)
                                     val rowContainerColor by animateColorAsState(
                                         targetValue = if (isSelected) {
                                             MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.65f)
@@ -2085,7 +2076,7 @@ internal fun NetworkBrowserScreen(
                                             verticalAlignment = Alignment.CenterVertically
                                         ) {
                                             val isFolder = entry.type == NetworkNodeType.Folder
-                                            val chipShape = RoundedCornerShape(if (isWatch) 8.dp else 11.dp)
+                                            val chipShape = Radius.chip(isWatch)
                                             val chipContainerColor = if (isFolder || isSmbFolderLikeSource || isHttpFolderLikeSource) {
                                                 MaterialTheme.colorScheme.primaryContainer
                                             } else {
@@ -2492,7 +2483,7 @@ internal fun NetworkBrowserScreen(
                         Row(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .clip(RoundedCornerShape(14.dp))
+                                .clip(Radius.Control)
                                 .background(MaterialTheme.colorScheme.surfaceContainerLow)
                                 .clickable {
                                     showAddMenu = false
@@ -2527,7 +2518,7 @@ internal fun NetworkBrowserScreen(
                         Row(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .clip(RoundedCornerShape(14.dp))
+                                .clip(Radius.Control)
                                 .background(MaterialTheme.colorScheme.surfaceContainerLow)
                                 .clickable {
                                     showAddMenu = false
@@ -2568,7 +2559,7 @@ internal fun NetworkBrowserScreen(
                         Row(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .clip(RoundedCornerShape(14.dp))
+                                .clip(Radius.Control)
                                 .background(MaterialTheme.colorScheme.surfaceContainerLow)
                                 .clickable {
                                     showAddMenu = false
@@ -2608,7 +2599,7 @@ internal fun NetworkBrowserScreen(
                         Row(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .clip(RoundedCornerShape(14.dp))
+                                .clip(Radius.Control)
                                 .background(MaterialTheme.colorScheme.surfaceContainerLow)
                                 .clickable {
                                     showAddMenu = false
@@ -2686,7 +2677,7 @@ internal fun NetworkBrowserScreen(
                         Row(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .clip(RoundedCornerShape(14.dp))
+                                .clip(Radius.Control)
                                 .background(MaterialTheme.colorScheme.surfaceContainerLow)
                                 .clickable {
                                     watchActionTargetNode = null
@@ -2709,7 +2700,7 @@ internal fun NetworkBrowserScreen(
                         Row(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .clip(RoundedCornerShape(14.dp))
+                                .clip(Radius.Control)
                                 .background(MaterialTheme.colorScheme.surfaceContainerLow)
                                 .clickable {
                                     watchActionTargetNode = null
@@ -2733,7 +2724,7 @@ internal fun NetworkBrowserScreen(
                             Row(
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .clip(RoundedCornerShape(14.dp))
+                                    .clip(Radius.Control)
                                     .background(MaterialTheme.colorScheme.surfaceContainerLow)
                                     .clickable {
                                         watchActionTargetNode = null
@@ -2760,7 +2751,7 @@ internal fun NetworkBrowserScreen(
                         Row(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .clip(RoundedCornerShape(14.dp))
+                                .clip(Radius.Control)
                                 .background(MaterialTheme.colorScheme.surfaceContainerLow)
                                 .clickable {
                                     watchActionTargetNode = null
@@ -2783,7 +2774,7 @@ internal fun NetworkBrowserScreen(
                         Row(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .clip(RoundedCornerShape(14.dp))
+                                .clip(Radius.Control)
                                 .background(MaterialTheme.colorScheme.surfaceContainerLow)
                                 .clickable {
                                     watchActionTargetNode = null
@@ -3006,7 +2997,7 @@ internal fun NetworkBrowserScreen(
                     onClick = performDelete,
                     colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error),
                     modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(14.dp)
+                    shape = Radius.Control
                 ) {
                     Text("Delete")
                 }
@@ -3064,7 +3055,7 @@ internal fun NetworkBrowserScreen(
                 Button(
                     onClick = performRefresh,
                     modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(14.dp)
+                    shape = Radius.Control
                 ) {
                     Text("Refresh")
                 }
@@ -3185,7 +3176,7 @@ internal fun NetworkBrowserScreen(
                 Button(
                     onClick = onContinue,
                     modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(14.dp)
+                    shape = Radius.Control
                 ) {
                     Text("Continue")
                 }
@@ -3311,7 +3302,7 @@ internal fun NetworkBrowserScreen(
                     Button(
                         onClick = { dismissInfoDialog() },
                         modifier = Modifier.fillMaxWidth(),
-                        shape = RoundedCornerShape(14.dp)
+                        shape = Radius.Control
                     ) {
                         Text("Close")
                     }
@@ -3431,7 +3422,7 @@ internal fun NetworkBrowserScreen(
                 Button(
                     onClick = { blockedOperationMessage = null },
                     modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(14.dp)
+                    shape = Radius.Control
                 ) {
                     Text("OK")
                 }

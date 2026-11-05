@@ -17,7 +17,6 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
@@ -59,6 +58,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import com.flopster101.siliconplayer.ui.theme.Radius
 import com.flopster101.siliconplayer.AppDefaults
 import com.flopster101.siliconplayer.AppPreferenceKeys
 import com.flopster101.siliconplayer.ChoiceDialogOption
@@ -394,7 +394,7 @@ private fun StarfieldSheetSliderRow(
                 onClick = { onValueChange((value - step).coerceIn(valueRange)) },
                 enabled = value > valueRange.first,
                 modifier = Modifier.size(32.dp),
-                shape = RoundedCornerShape(8.dp)
+                shape = Radius.Small
             ) {
                 Icon(
                     imageVector = Icons.Default.Remove,
@@ -421,7 +421,7 @@ private fun StarfieldSheetSliderRow(
                 onClick = { onValueChange((value + step).coerceIn(valueRange)) },
                 enabled = value < valueRange.last,
                 modifier = Modifier.size(32.dp),
-                shape = RoundedCornerShape(8.dp)
+                shape = Radius.Small
             ) {
                 Icon(
                     imageVector = Icons.Default.Add,
@@ -593,8 +593,8 @@ private fun ProjectMOptionsContent(
         Card(
             modifier = Modifier
                 .fillMaxWidth()
-                .clip(RoundedCornerShape(20.dp)),
-            shape = RoundedCornerShape(20.dp),
+                .clip(Radius.Panel),
+            shape = Radius.Panel,
             colors = CardDefaults.cardColors(
                 containerColor = MaterialTheme.colorScheme.surfaceContainerLow
             )
@@ -611,7 +611,7 @@ private fun ProjectMOptionsContent(
                         SiliconVisNativeBridge.nativeProjectMPreviousPreset(true)
                     },
                     modifier = Modifier.size(40.dp),
-                    shape = RoundedCornerShape(10.dp)
+                    shape = Radius.Compact
                 ) {
                     Icon(
                         imageVector = Icons.Default.SkipPrevious,
@@ -630,7 +630,7 @@ private fun ProjectMOptionsContent(
                     textAlign = TextAlign.Center,
                     modifier = Modifier
                         .weight(1f)
-                        .clip(RoundedCornerShape(10.dp))
+                        .clip(Radius.Compact)
                         .clickable { showPresetList = true }
                         .padding(horizontal = 6.dp, vertical = 8.dp)
                 )
@@ -640,7 +640,7 @@ private fun ProjectMOptionsContent(
                         SiliconVisNativeBridge.nativeProjectMNextPreset(true)
                     },
                     modifier = Modifier.size(40.dp),
-                    shape = RoundedCornerShape(10.dp)
+                    shape = Radius.Compact
                 ) {
                     Icon(
                         imageVector = Icons.Default.SkipNext,
@@ -803,7 +803,7 @@ private fun ProjectMOptionsContent(
                             }
                         },
                         singleLine = true,
-                        shape = RoundedCornerShape(28.dp)
+                        shape = Radius.Sheet
                     )
                     Spacer(modifier = Modifier.height(12.dp))
                     Text(
@@ -826,7 +826,7 @@ private fun ProjectMOptionsContent(
                                     val isCollapsed = debouncedQuery.isBlank() && collapsedSets.contains(row.setId)
                                     stickyHeader {
                                         Surface(
-                                            shape = RoundedCornerShape(12.dp),
+                                            shape = Radius.ControlCompact,
                                             color = MaterialTheme.colorScheme.surfaceContainerHighest,
                                             tonalElevation = 2.dp,
                                             modifier = Modifier
@@ -872,7 +872,7 @@ private fun ProjectMOptionsContent(
                                             overflow = TextOverflow.Ellipsis,
                                             modifier = Modifier
                                                 .fillMaxWidth()
-                                                .clip(RoundedCornerShape(10.dp))
+                                                .clip(Radius.Compact)
                                                 .clickable {
                                                     SiliconVisNativeBridge.nativeProjectMLoadPreset(key, true)
                                                     onPresetSelected(key)

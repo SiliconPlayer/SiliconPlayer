@@ -26,7 +26,6 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
@@ -40,6 +39,7 @@ import androidx.compose.material.icons.filled.ClearAll
 import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Folder
+import com.flopster101.siliconplayer.ui.theme.Radius
 import com.flopster101.siliconplayer.ui.icons.FolderZipIcon
 import androidx.compose.material.icons.filled.StarBorder
 import androidx.compose.material.icons.filled.LibraryMusic
@@ -114,7 +114,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
 
-private val HomeCardShape = RoundedCornerShape(16.dp)
+private val HomeCardShape = Radius.Card
 // Home recents switch from a single column to a grid on wide screens;
 // desktop and landscape phones share these breakpoints.
 private val HomeGridCellSpacing = 8.dp
@@ -140,7 +140,6 @@ internal fun <T> splitIntoColumns(items: List<T>, columnCount: Int): List<List<P
         slice
     }
 }
-private val HomeRecentIconChipShape = RoundedCornerShape(11.dp)
 private val HomeRecentIconChipSize = 38.dp
 private val HomeRecentIconGlyphSize = 26.dp
 private const val HOME_RECENTS_INSERT_ANIM_DURATION_MS = 360
@@ -1946,7 +1945,7 @@ internal fun HomeScreen(
                         pendingPinEvictionCandidate = null
                     },
                     modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(14.dp)
+                    shape = Radius.Control
                 ) {
                     Text("Continue")
                 }
@@ -2042,7 +2041,7 @@ internal fun HomeScreen(
                 Button(
                     onClick = onConfirmClear,
                     modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(14.dp)
+                    shape = Radius.Control
                 ) {
                     Text("Clear all")
                 }
@@ -2239,7 +2238,7 @@ private fun RecentIconChip(
                 .fillMaxSize()
                 .background(
                     color = MaterialTheme.colorScheme.primaryContainer,
-                    shape = HomeRecentIconChipShape
+                    shape = Radius.Chip
                 ),
             contentAlignment = Alignment.Center
         ) {
@@ -2282,7 +2281,7 @@ private fun RecentTrackArtworkChip(
         Box(
             modifier = Modifier
                 .fillMaxSize()
-                .clip(HomeRecentIconChipShape)
+                .clip(Radius.Chip)
                 .background(MaterialTheme.colorScheme.secondaryContainer),
             contentAlignment = Alignment.Center
         ) {
@@ -2696,7 +2695,7 @@ internal fun WearHomeScreen(
             color = MaterialTheme.colorScheme.onSurface,
             textAlign = TextAlign.Center,
             modifier = Modifier
-                .clip(RoundedCornerShape(999.dp))
+                .clip(Radius.Pill)
                 .clickable(onClick = onOpenPlayerSurface)
                 .padding(horizontal = 8.dp, vertical = 2.dp)
         )
@@ -2808,7 +2807,7 @@ internal fun WearHomeScreen(
                 modifier = Modifier
                     .weight(1f)
                     .height(40.dp),
-                shape = RoundedCornerShape(20.dp),
+                shape = Radius.Panel,
                 color = MaterialTheme.colorScheme.surfaceContainerHigh,
                 contentColor = MaterialTheme.colorScheme.onSurface
             ) {
@@ -2836,7 +2835,7 @@ internal fun WearHomeScreen(
                 modifier = Modifier
                     .weight(1f)
                     .height(40.dp),
-                shape = RoundedCornerShape(20.dp),
+                shape = Radius.Panel,
                 color = MaterialTheme.colorScheme.surfaceContainerHigh,
                 contentColor = MaterialTheme.colorScheme.onSurface
             ) {
@@ -2894,7 +2893,7 @@ internal fun WearHomeScreen(
                     }
                 },
                 modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(14.dp)
+                shape = Radius.Control
             ) {
                 Text(if (isPlaylistPinned) "Open playlist" else "Open location")
             }
@@ -2909,7 +2908,7 @@ internal fun WearHomeScreen(
                     }
                 },
                 modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(14.dp)
+                shape = Radius.Control
             ) {
                 Text(if (isPlaylistPinned) "Unpin playlist" else if (pinned.isFolder) "Unpin folder" else "Unpin file")
             }
@@ -2920,7 +2919,7 @@ internal fun WearHomeScreen(
                         onPinnedFileAction(pinned, SourceEntryAction.ShareFile)
                     },
                     modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(14.dp)
+                    shape = Radius.Control
                 ) {
                     Text("Share file")
                 }
@@ -2936,7 +2935,7 @@ internal fun WearHomeScreen(
                     }
                 },
                 modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(14.dp)
+                shape = Radius.Control
             ) {
                 Text(if (pinned.isFolder) "Copy path" else "Copy URL/path")
             }
@@ -2964,7 +2963,7 @@ internal fun WearHomeScreen(
                     onRecentFolderAction(folder, FolderEntryAction.OpenInBrowser)
                 },
                 modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(14.dp)
+                shape = Radius.Control
             ) {
                 Text("Open location")
             }
@@ -2975,7 +2974,7 @@ internal fun WearHomeScreen(
                     requestPinRecentEntry(folder, true)
                 },
                 modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(14.dp)
+                shape = Radius.Control
             ) {
                 Text("Pin folder to home")
             }
@@ -2986,7 +2985,7 @@ internal fun WearHomeScreen(
                     onRecentFolderAction(folder, FolderEntryAction.DeleteFromRecents)
                 },
                 modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(14.dp)
+                shape = Radius.Control
             ) {
                 Text("Delete from recents")
             }
@@ -2997,7 +2996,7 @@ internal fun WearHomeScreen(
                     onRecentFolderAction(folder, FolderEntryAction.CopyPath)
                 },
                 modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(14.dp)
+                shape = Radius.Control
             ) {
                 Text("Copy path")
             }
@@ -3038,7 +3037,7 @@ internal fun WearHomeScreen(
                     onRecentFileAction(file, SourceEntryAction.OpenInBrowser)
                 },
                 modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(14.dp)
+                shape = Radius.Control
             ) {
                 Text("Open location")
             }
@@ -3049,7 +3048,7 @@ internal fun WearHomeScreen(
                     requestPinRecentEntry(file, false)
                 },
                 modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(14.dp)
+                shape = Radius.Control
             ) {
                 Text("Pin file to home")
             }
@@ -3060,7 +3059,7 @@ internal fun WearHomeScreen(
                     onRecentFileAction(file, SourceEntryAction.DeleteFromRecents)
                 },
                 modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(14.dp)
+                shape = Radius.Control
             ) {
                 Text("Delete from recents")
             }
@@ -3072,7 +3071,7 @@ internal fun WearHomeScreen(
                         onRecentFileAction(file, SourceEntryAction.ShareFile)
                     },
                     modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(14.dp)
+                    shape = Radius.Control
                 ) {
                     Text("Share file")
                 }
@@ -3084,7 +3083,7 @@ internal fun WearHomeScreen(
                     onRecentFileAction(file, SourceEntryAction.CopySource)
                 },
                 modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(14.dp)
+                shape = Radius.Control
             ) {
                 Text("Copy URL/path")
             }
@@ -3138,7 +3137,7 @@ internal fun WearHomeScreen(
             Button(
                 onClick = onContinue,
                 modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(14.dp)
+                shape = Radius.Control
             ) {
                 Text("Continue")
             }
@@ -3165,7 +3164,7 @@ private fun WearHomeMenuCard(
         modifier = Modifier
             .fillMaxWidth()
             .height(46.dp),
-        shape = RoundedCornerShape(23.dp),
+        shape = Radius.Pill,
         color = containerColor,
         contentColor = contentColor
     ) {
@@ -3205,12 +3204,12 @@ private fun WearHomeItemRow(
         modifier = Modifier
             .fillMaxWidth()
             .height(42.dp)
-            .clip(RoundedCornerShape(21.dp))
+            .clip(Radius.Pill)
             .combinedClickable(
                 onClick = onClick,
                 onLongClick = onLongClick
             ),
-        shape = RoundedCornerShape(21.dp),
+        shape = Radius.Pill,
         color = MaterialTheme.colorScheme.surfaceContainerHigh,
         contentColor = MaterialTheme.colorScheme.onSurface
     ) {

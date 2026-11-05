@@ -1,5 +1,6 @@
 package com.flopster101.siliconplayer
 
+import com.flopster101.siliconplayer.ui.theme.Radius
 import com.flopster101.siliconplayer.platform.LocalIsWatchDevice
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Column
@@ -71,8 +72,8 @@ private class SettingsRowSequencer {
 }
 
 private val LocalSettingsRowSequencer = compositionLocalOf<SettingsRowSequencer?> { null }
-private val SettingsOuterCorner = 20.dp
-private val SettingsInnerCorner = 4.dp
+private val SettingsOuterCorner = Radius.PanelSize
+private val SettingsInnerCorner = Radius.InnerSize
 private val SettingsInterRowSpacing = 2.dp
 private val SettingsSectionLabelStartInset = 8.dp
 private val SettingsSectionTopSpacing = 20.dp

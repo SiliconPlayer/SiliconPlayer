@@ -57,6 +57,7 @@ import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.isSpecified
+import com.flopster101.siliconplayer.ui.theme.Radius
 import com.flopster101.siliconplayer.AppDefaults
 import com.flopster101.siliconplayer.ArtworkSwipePreviewState
 import com.flopster101.siliconplayer.ChannelScopeVisibleElementId
@@ -662,7 +663,7 @@ internal fun AlbumArtPlaceholder(
                 exit = fadeOut(animationSpec = tween(260))
             ) {
                 Surface(
-                    shape = RoundedCornerShape(999.dp),
+                    shape = Radius.Pill,
                     color = MaterialTheme.colorScheme.surface.copy(alpha = 0.62f)
                 ) {
                     Row(

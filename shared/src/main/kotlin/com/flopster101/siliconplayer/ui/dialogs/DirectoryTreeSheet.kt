@@ -13,7 +13,6 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.ExpandMore
@@ -40,6 +39,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
+import com.flopster101.siliconplayer.ui.theme.Radius
 import com.flopster101.siliconplayer.adaptiveDialogModifier
 import com.flopster101.siliconplayer.adaptiveDialogProperties
 import com.flopster101.siliconplayer.platform.LocalIsWatchDevice
@@ -79,7 +79,7 @@ internal fun DirectoryTreeSheet(
         Dialog(onDismissRequest = onDismiss, properties = adaptiveDialogProperties()) {
             Card(
                 modifier = adaptiveDialogModifier().fillMaxHeight(0.7f),
-                shape = RoundedCornerShape(24.dp)
+                shape = Radius.Dialog
             ) {
                 content()
             }
@@ -209,7 +209,7 @@ private fun DirectoryTreeRow(
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(8.dp))
+            .clip(Radius.Small)
             .clickable(onClick = onNavigate)
             .padding(
                 start = (row.depth * 20).dp,
@@ -223,7 +223,7 @@ private fun DirectoryTreeRow(
         Box(
             modifier = Modifier
                 .size(24.dp)
-                .clip(RoundedCornerShape(6.dp))
+                .clip(Radius.Tiny)
                 .clickable(onClick = onToggleExpand),
             contentAlignment = Alignment.Center
         ) {

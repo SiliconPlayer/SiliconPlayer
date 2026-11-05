@@ -27,7 +27,6 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.ScrollState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.SheetState
@@ -77,6 +76,7 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
+import com.flopster101.siliconplayer.ui.theme.Radius
 import com.flopster101.siliconplayer.adaptiveDialogModifier
 import com.flopster101.siliconplayer.adaptiveDialogProperties
 import com.flopster101.siliconplayer.VerticalScrollbarTrack
@@ -123,7 +123,7 @@ internal fun FloatingActionDialog(
     Dialog(onDismissRequest = onDismiss, properties = adaptiveDialogProperties()) {
         Surface(
             modifier = adaptiveDialogModifier(),
-            shape = RoundedCornerShape(28.dp),
+            shape = Radius.Sheet,
             color = MaterialTheme.colorScheme.surfaceContainer
         ) {
             Column(modifier = Modifier.fillMaxWidth()) {
@@ -182,7 +182,7 @@ internal fun FloatingActionDialog(
                         if (dismissText != null) {
                             TextButton(
                                 onClick = onDismiss,
-                                shape = RoundedCornerShape(12.dp)
+                                shape = Radius.ControlCompact
                             ) {
                                 Text(
                                     text = dismissText,
@@ -195,7 +195,7 @@ internal fun FloatingActionDialog(
                             Button(
                                 onClick = onConfirm,
                                 enabled = confirmEnabled,
-                                shape = RoundedCornerShape(12.dp),
+                                shape = Radius.ControlCompact,
                                 colors = ButtonDefaults.buttonColors(
                                     containerColor = MaterialTheme.colorScheme.error,
                                     contentColor = MaterialTheme.colorScheme.onError
@@ -215,7 +215,7 @@ internal fun FloatingActionDialog(
                             FilledTonalButton(
                                 onClick = onConfirm,
                                 enabled = confirmEnabled,
-                                shape = RoundedCornerShape(12.dp)
+                                shape = Radius.ControlCompact
                             ) {
                                 if (confirmIcon != null) {
                                     Icon(
@@ -275,15 +275,15 @@ internal fun DialogSelectableCard(
 
     Card(
         modifier = modifier
-            .clip(RoundedCornerShape(16.dp))
+            .clip(Radius.Card)
             .border(
                 width = if (isSelected) 1.5.dp else 0.dp,
                 color = borderColor,
-                shape = RoundedCornerShape(16.dp)
+                shape = Radius.Card
             )
             .clickable(enabled = isEnabled, onClick = onClick)
             .alpha(if (isEnabled) 1.0f else 0.45f),
-        shape = RoundedCornerShape(16.dp),
+        shape = Radius.Card,
         colors = CardDefaults.cardColors(containerColor = containerColor)
     ) {
         Row(
@@ -350,9 +350,9 @@ internal fun DialogCollapsibleCard(
     Card(
         modifier = modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(20.dp))
+            .clip(Radius.Panel)
             .alpha(if (isEnabled) 1.0f else 0.45f),
-        shape = RoundedCornerShape(20.dp),
+        shape = Radius.Panel,
         colors = CardDefaults.cardColors(
             containerColor = MaterialTheme.colorScheme.surfaceContainerLow
         )
@@ -459,7 +459,7 @@ internal fun DialogIntSliderRow(
                 },
                 enabled = enabled && value > valueRange.first,
                 modifier = Modifier.size(32.dp),
-                shape = RoundedCornerShape(8.dp)
+                shape = Radius.Small
             ) {
                 Icon(
                     imageVector = Icons.Default.Remove,
@@ -501,7 +501,7 @@ internal fun DialogIntSliderRow(
                 },
                 enabled = enabled && value < valueRange.last,
                 modifier = Modifier.size(32.dp),
-                shape = RoundedCornerShape(8.dp)
+                shape = Radius.Small
             ) {
                 Icon(
                     imageVector = Icons.Default.Add,
@@ -532,7 +532,7 @@ internal fun DialogToggleRow(
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(12.dp))
+            .clip(Radius.ControlCompact)
             .clickable(enabled = enabled) { onCheckedChange(!checked) }
             .alpha(if (enabled) 1f else 0.38f)
             .padding(vertical = 4.dp),
@@ -580,7 +580,7 @@ internal fun DialogValuePickerRow(
     Row(
         modifier = modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(12.dp))
+            .clip(Radius.ControlCompact)
             .clickable(enabled = enabled, onClick = onClick)
             .alpha(if (enabled) 1f else 0.38f)
             .padding(vertical = 4.dp),

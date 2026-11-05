@@ -1,5 +1,6 @@
 package com.flopster101.siliconplayer
 
+import com.flopster101.siliconplayer.ui.theme.Radius
 import com.flopster101.siliconplayer.AppPreferenceKeys
 import com.flopster101.siliconplayer.DecoderNames
 import com.flopster101.siliconplayer.isDecoderSupportedOnCurrentPlatform
@@ -99,8 +100,6 @@ internal fun AudioPluginsRouteContent(
     val rowNudgeOffsetPx = remember { mutableStateMapOf<String, Float>() }
     val rowNudgeNonce = remember { mutableStateMapOf<String, Int>() }
     val rowTopPx = remember { mutableStateMapOf<String, Float>() }
-    val pluginRowOuterCorner = 20.dp
-    val pluginRowInnerCorner = 4.dp
     val spacerPx = with(LocalDensity.current) { 2.dp.toPx() }
     val fallbackStepPx = with(LocalDensity.current) { 84.dp.toPx() }
     val edgeOverscrollPx = with(LocalDensity.current) { 14.dp.toPx() }
@@ -120,20 +119,20 @@ internal fun AudioPluginsRouteContent(
         // Without it the last native row closes the group instead.
         val last = if (showPlatformDolbyRow) orderedPluginNames.size else orderedPluginNames.size - 1
         return when {
-            last <= 0 -> RoundedCornerShape(pluginRowOuterCorner)
+            last <= 0 -> RoundedCornerShape(Radius.PanelSize)
             index == 0 -> RoundedCornerShape(
-                topStart = pluginRowOuterCorner,
-                topEnd = pluginRowOuterCorner,
-                bottomStart = pluginRowInnerCorner,
-                bottomEnd = pluginRowInnerCorner
+                topStart = Radius.PanelSize,
+                topEnd = Radius.PanelSize,
+                bottomStart = Radius.InnerSize,
+                bottomEnd = Radius.InnerSize
             )
             index == last -> RoundedCornerShape(
-                topStart = pluginRowInnerCorner,
-                topEnd = pluginRowInnerCorner,
-                bottomStart = pluginRowOuterCorner,
-                bottomEnd = pluginRowOuterCorner
+                topStart = Radius.InnerSize,
+                topEnd = Radius.InnerSize,
+                bottomStart = Radius.PanelSize,
+                bottomEnd = Radius.PanelSize
             )
-            else -> RoundedCornerShape(pluginRowInnerCorner)
+            else -> RoundedCornerShape(Radius.InnerSize)
         }
     }
 

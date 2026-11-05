@@ -1,5 +1,6 @@
 package com.flopster101.siliconplayer.ui.screens
 
+import com.flopster101.siliconplayer.ui.theme.Radius
 import com.flopster101.siliconplayer.NetworkCredentialStore
 import com.flopster101.siliconplayer.StoredPlaylist
 import com.flopster101.siliconplayer.TrackTextInputActive
@@ -45,7 +46,6 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Folder
@@ -1276,7 +1276,7 @@ internal fun SmbFileBrowserScreen(
                             Row(
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .clip(RoundedCornerShape(12.dp))
+                                    .clip(Radius.ControlCompact)
                                     .background(MaterialTheme.colorScheme.errorContainer)
                                     .padding(horizontal = 12.dp, vertical = 10.dp),
                                 horizontalArrangement = Arrangement.spacedBy(10.dp),
@@ -1744,7 +1744,7 @@ internal fun SmbFileBrowserScreen(
                             Row(
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .clip(RoundedCornerShape(14.dp))
+                                    .clip(Radius.Control)
                                     .background(MaterialTheme.colorScheme.surfaceContainerLow)
                                     .clickable {
                                         watchActionTargetEntry = null
@@ -1768,7 +1768,7 @@ internal fun SmbFileBrowserScreen(
                         Row(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .clip(RoundedCornerShape(14.dp))
+                                .clip(Radius.Control)
                                 .background(MaterialTheme.colorScheme.surfaceContainerLow)
                                 .clickable {
                                     watchActionTargetEntry = null
@@ -1794,7 +1794,7 @@ internal fun SmbFileBrowserScreen(
                         Row(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .clip(RoundedCornerShape(14.dp))
+                                .clip(Radius.Control)
                                 .background(MaterialTheme.colorScheme.surfaceContainerLow)
                                 .clickable {
                                     watchActionTargetEntry = null
@@ -1873,7 +1873,7 @@ internal fun SmbFileBrowserScreen(
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .clip(RoundedCornerShape(12.dp))
+                            .clip(Radius.ControlCompact)
                             .background(MaterialTheme.colorScheme.errorContainer)
                             .padding(horizontal = 12.dp, vertical = 10.dp),
                         horizontalArrangement = Arrangement.spacedBy(10.dp),
@@ -1899,7 +1899,7 @@ internal fun SmbFileBrowserScreen(
                     singleLine = true,
                     label = { Text("Username") },
                     modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(14.dp),
+                    shape = Radius.Control,
                     colors = remoteAuthDialogTextFieldColors()
                 )
                 OutlinedTextField(
@@ -1929,14 +1929,14 @@ internal fun SmbFileBrowserScreen(
                         }
                     },
                     modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(14.dp),
+                    shape = Radius.Control,
                     colors = remoteAuthDialogTextFieldColors()
                 )
                 if (allowCredentialRemember) {
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .clip(RoundedCornerShape(14.dp))
+                            .clip(Radius.Control)
                             .background(MaterialTheme.colorScheme.surfaceContainerLow)
                             .clickable { authRememberPassword = !authRememberPassword }
                             .padding(horizontal = 10.dp, vertical = 6.dp),
@@ -1958,7 +1958,7 @@ internal fun SmbFileBrowserScreen(
                     enabled = hasCredentials,
                     onClick = onAuthConfirm,
                     modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(14.dp)
+                    shape = Radius.Control
                 ) {
                     Text("Continue")
                 }
@@ -1987,7 +1987,7 @@ internal fun SmbFileBrowserScreen(
                             Row(
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .clip(RoundedCornerShape(12.dp))
+                                    .clip(Radius.ControlCompact)
                                     .background(MaterialTheme.colorScheme.errorContainer)
                                     .padding(horizontal = 12.dp, vertical = 10.dp),
                                 horizontalArrangement = Arrangement.spacedBy(10.dp),
@@ -2235,16 +2235,7 @@ private fun SmbEntryRow(
     } else {
         onClick
     }
-    val selectionShape = if (isWatch) {
-        RoundedCornerShape(14.dp)
-    } else {
-        RoundedCornerShape(
-            topStart = if (hasSelectedAbove) 0.dp else 18.dp,
-            topEnd = if (hasSelectedAbove) 0.dp else 18.dp,
-            bottomStart = if (hasSelectedBelow) 0.dp else 18.dp,
-            bottomEnd = if (hasSelectedBelow) 0.dp else 18.dp
-        )
-    }
+    val selectionShape = Radius.selection(isWatch, hasSelectedAbove, hasSelectedBelow)
     val rowBackground = if (isWatch) {
         if (isSelected) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceContainerLow
     } else {
@@ -2283,7 +2274,7 @@ private fun SmbEntryRow(
                 .size(if (isWatch) 32.dp else BROWSER_ICON_BOX_SIZE)
                 .background(
                     color = chipContainerColor,
-                    shape = RoundedCornerShape(if (isWatch) 14.dp else 11.dp)
+                    shape = Radius.chip(isWatch, wide = true)
                 ),
             contentAlignment = Alignment.Center
         ) {

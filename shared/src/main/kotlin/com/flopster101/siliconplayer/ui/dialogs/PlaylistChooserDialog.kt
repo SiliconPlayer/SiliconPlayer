@@ -23,7 +23,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
@@ -36,6 +35,7 @@ import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.filled.SwapVert
 import androidx.compose.material.icons.outlined.AddCircle
+import com.flopster101.siliconplayer.ui.theme.Radius
 import com.flopster101.siliconplayer.FAVORITES_PLAYLIST_ID
 import com.flopster101.siliconplayer.PlaylistTrackEntry
 import com.flopster101.siliconplayer.TrackTextInputActive
@@ -263,7 +263,7 @@ private fun AddToPlaylistSheetContent(
                         }
                     }
                 } else null,
-                shape = RoundedCornerShape(24.dp),
+                shape = Radius.Dialog,
                 keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
                 modifier = Modifier.weight(1f)
             )
@@ -490,7 +490,7 @@ private fun ChooserPlaylistRow(
         Row(
         modifier = Modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(12.dp))
+            .clip(Radius.ControlCompact)
             .clickable(onClick = onClick)
             .padding(vertical = 8.dp),
         horizontalArrangement = Arrangement.spacedBy(12.dp),
@@ -502,7 +502,7 @@ private fun ChooserPlaylistRow(
             iconTintArgb = playlist.iconTintArgb,
             heroIcon = if (playlist.id == FAVORITES_PLAYLIST_ID) Icons.Default.Star else Icons.Default.LibraryMusic,
             modifier = Modifier.size(56.dp),
-            shape = RoundedCornerShape(12.dp),
+            shape = Radius.ControlCompact,
             iconSize = 30.dp,
             autoMosaicEnabled = playlist.autoGenerateCover
         )

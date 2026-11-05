@@ -18,7 +18,6 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
@@ -58,6 +57,7 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
+import com.flopster101.siliconplayer.ui.theme.Radius
 import com.flopster101.siliconplayer.StorageDescriptor
 import com.flopster101.siliconplayer.adaptiveDialogModifier
 import com.flopster101.siliconplayer.adaptiveDialogProperties
@@ -122,7 +122,7 @@ internal fun StorageFilePickerDialog(
         Card(
             modifier = adaptiveDialogModifier()
                 .fillMaxHeight(0.85f),
-            shape = RoundedCornerShape(24.dp)
+            shape = Radius.Dialog
         ) {
             StorageFilePickerContent(
                 title = title,
@@ -422,7 +422,7 @@ private fun StoragePickerDirectoryRow(
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(8.dp))
+            .clip(Radius.Small)
             .clickable(onClick = onClick)
             .padding(vertical = 6.dp, horizontal = 4.dp),
         horizontalArrangement = Arrangement.spacedBy(12.dp),
@@ -430,7 +430,7 @@ private fun StoragePickerDirectoryRow(
     ) {
         Surface(
             modifier = Modifier.size(42.dp),
-            shape = RoundedCornerShape(8.dp),
+            shape = Radius.Small,
             color = MaterialTheme.colorScheme.surfaceContainerHigh
         ) {
             Box(contentAlignment = Alignment.Center) {
@@ -469,7 +469,7 @@ private fun StoragePickerFileRow(
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(8.dp))
+            .clip(Radius.Small)
             .clickable(onClick = onClick)
             .padding(vertical = 6.dp, horizontal = 4.dp),
         horizontalArrangement = Arrangement.spacedBy(12.dp),
@@ -477,7 +477,7 @@ private fun StoragePickerFileRow(
     ) {
         Surface(
             modifier = Modifier.size(42.dp),
-            shape = RoundedCornerShape(8.dp),
+            shape = Radius.Small,
             color = MaterialTheme.colorScheme.surfaceContainerHigh
         ) {
             Box(contentAlignment = Alignment.Center) {

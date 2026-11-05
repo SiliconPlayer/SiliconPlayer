@@ -1,5 +1,6 @@
 package com.flopster101.siliconplayer.ui.screens
 
+import com.flopster101.siliconplayer.ui.theme.Radius
 import com.flopster101.siliconplayer.data.sha1Hex
 import com.flopster101.siliconplayer.migrateVisualizationBackendsToVulkan
 import com.flopster101.siliconplayer.onGloballyPositionedDeferred
@@ -752,7 +753,7 @@ private fun CanvasSeekFeedbackOverlay(
                 contentAlignment = alignment
             ) {
                 Surface(
-                    shape = RoundedCornerShape(percent = 50),
+                    shape = Radius.Pill,
                     color = Color.Black.copy(alpha = 0.45f),
                     contentColor = Color.White,
                     modifier = Modifier.padding(horizontal = 24.dp)
@@ -2795,7 +2796,7 @@ private fun PlayerTopBar(
 
                 MaterialTheme(
                     shapes = MaterialTheme.shapes.copy(
-                        extraSmall = RoundedCornerShape(16.dp)
+                        extraSmall = Radius.Card
                     )
                 ) {
                     DropdownMenu(
@@ -3497,7 +3498,7 @@ private fun PlayerTitleWithOptionalSubtuneBadge(
             Row(
                 modifier = Modifier
                     .wrapContentWidth()
-                    .clip(RoundedCornerShape(16.dp))
+                    .clip(Radius.Card)
                     .background(
                         MaterialTheme.colorScheme.primary.copy(alpha = subtuneTitleFlashAlpha)
                     )
@@ -4453,7 +4454,7 @@ private fun TransportControls(
                             Surface(
                                 color = MaterialTheme.colorScheme.primary,
                                 contentColor = MaterialTheme.colorScheme.onPrimary,
-                                shape = RoundedCornerShape(percent = 50),
+                                shape = Radius.Pill,
                                 modifier = Modifier
                                     .align(Alignment.Center)
                                     .offset(
@@ -4775,7 +4776,7 @@ private fun ChannelControlDialog(
             Button(
                 onClick = onDismiss,
                 modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(14.dp)
+                shape = Radius.Control
             ) {
                 Text("Close")
             }
@@ -4890,7 +4891,7 @@ private fun ChannelControlGrid(
                             isActive -> MaterialTheme.colorScheme.onPrimaryContainer
                             else -> MaterialTheme.colorScheme.onSurfaceVariant
                         }
-                        val tileShape = if (pickerStyle) RoundedCornerShape(16.dp) else MaterialTheme.shapes.large
+                        val tileShape = if (pickerStyle) Radius.Card else MaterialTheme.shapes.large
                         val tileModifier = if (pickerStyle) {
                             Modifier
                                 .alpha(if (item.available) 1f else 0.45f)
@@ -5232,7 +5233,7 @@ internal fun LineageStyleSeekBar(
 
     Canvas(
         modifier = modifier
-            .playerFocusHalo(enabled = focusHaloEnabled, shape = RoundedCornerShape(10.dp))
+            .playerFocusHalo(enabled = focusHaloEnabled, shape = Radius.Compact)
             .focusable()
             .then(if (focusRequester != null) Modifier.focusRequester(focusRequester) else Modifier)
             .then(
@@ -5847,7 +5848,7 @@ private fun WearPlayerContent(
                                 style = MaterialTheme.typography.labelMedium.copy(fontFeatureSettings = "tnum"),
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                                 modifier = Modifier
-                                    .clip(RoundedCornerShape(8.dp))
+                                    .clip(Radius.Small)
                                     .clickable { onToggleDurationDisplayMode() }
                                     .padding(horizontal = 8.dp, vertical = 2.dp)
                             )
@@ -6103,7 +6104,7 @@ private fun WearPlayerContent(
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .clip(RoundedCornerShape(14.dp))
+                        .clip(Radius.Control)
                         .background(MaterialTheme.colorScheme.surfaceContainerHigh)
                         .clickable {
                             showMoreMenuDialog = false
@@ -6130,7 +6131,7 @@ private fun WearPlayerContent(
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .clip(RoundedCornerShape(14.dp))
+                        .clip(Radius.Control)
                         .background(MaterialTheme.colorScheme.surfaceContainerHigh)
                         .clickable {
                             showMoreMenuDialog = false

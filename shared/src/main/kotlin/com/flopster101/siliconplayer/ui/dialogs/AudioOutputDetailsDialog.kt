@@ -14,7 +14,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.VolumeUp
@@ -45,6 +44,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
+import com.flopster101.siliconplayer.ui.theme.Radius
 import com.flopster101.siliconplayer.AppPreferenceKeys
 import com.flopster101.siliconplayer.AudioBackendPreference
 import com.flopster101.siliconplayer.AudioBufferPreset
@@ -276,7 +276,7 @@ internal fun AudioOutputDetailsDialog(
                 Button(
                     onClick = onDismiss,
                     modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(14.dp)
+                    shape = Radius.Control
                 ) {
                     Text("Close")
                 }
@@ -309,7 +309,7 @@ internal fun AudioOutputDetailsDialog(
     ) {
         Surface(
             modifier = adaptiveDialogModifier(),
-            shape = RoundedCornerShape(28.dp),
+            shape = Radius.Sheet,
             color = MaterialTheme.colorScheme.surfaceContainer,
             border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f))
         ) {
@@ -326,7 +326,7 @@ internal fun AudioOutputDetailsDialog(
                     Box(
                         modifier = Modifier
                             .size(40.dp)
-                            .clip(RoundedCornerShape(12.dp))
+                            .clip(Radius.ControlCompact)
                             .background(MaterialTheme.colorScheme.primaryContainer),
                         contentAlignment = Alignment.Center
                     ) {
@@ -619,7 +619,7 @@ internal fun AudioOutputDetailsDialog(
                 ) {
                     Button(
                         onClick = onDismiss,
-                        shape = RoundedCornerShape(18.dp)
+                        shape = Radius.ControlRoomy
                     ) {
                         Text(
                             text = "Close",
@@ -646,7 +646,7 @@ private fun SignalChainNodeCard(
 ) {
     Surface(
         modifier = modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(12.dp),
+        shape = Radius.ControlCompact,
         color = MaterialTheme.colorScheme.surfaceContainerLow
     ) {
         Row(
@@ -659,7 +659,7 @@ private fun SignalChainNodeCard(
             Box(
                 modifier = Modifier
                     .size(32.dp)
-                    .clip(RoundedCornerShape(8.dp))
+                    .clip(Radius.Small)
                     .background(iconBackgroundColor),
                 contentAlignment = Alignment.Center
             ) {
@@ -684,7 +684,7 @@ private fun SignalChainNodeCard(
                     Spacer(modifier = Modifier.width(6.dp))
                     Box(
                         modifier = Modifier
-                            .clip(RoundedCornerShape(4.dp))
+                            .clip(Radius.Inner)
                             .background(badgeBackgroundColor)
                             .padding(horizontal = 6.dp, vertical = 1.dp)
                     ) {
@@ -856,7 +856,7 @@ private fun SignalChainConnector(
 
             Surface(
                 modifier = Modifier.padding(start = 40.dp),
-                shape = RoundedCornerShape(6.dp),
+                shape = Radius.Tiny,
                 color = pillBg,
                 border = androidx.compose.foundation.BorderStroke(1.dp, pillBorder)
             ) {

@@ -11,7 +11,6 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Folder
@@ -34,6 +33,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
+import com.flopster101.siliconplayer.ui.theme.Radius
 import com.flopster101.siliconplayer.adaptiveDialogModifier
 import com.flopster101.siliconplayer.adaptiveDialogProperties
 
@@ -75,7 +75,7 @@ internal fun FilePickerChoiceDialog(
     ) {
         Card(
             modifier = adaptiveDialogModifier(),
-            shape = RoundedCornerShape(24.dp)
+            shape = Radius.Dialog
         ) {
             FilePickerChoiceContent(
                 title = title,
@@ -170,9 +170,9 @@ private fun FilePickerOptionCard(
     Surface(
         modifier = Modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(16.dp))
+            .clip(Radius.Card)
             .clickable(onClick = onClick),
-        shape = RoundedCornerShape(16.dp),
+        shape = Radius.Card,
         color = MaterialTheme.colorScheme.surfaceContainerHigh,
         tonalElevation = 1.dp
     ) {
@@ -185,7 +185,7 @@ private fun FilePickerOptionCard(
         ) {
             Surface(
                 modifier = Modifier.size(44.dp),
-                shape = RoundedCornerShape(12.dp),
+                shape = Radius.ControlCompact,
                 color = MaterialTheme.colorScheme.primaryContainer
             ) {
                 Box(contentAlignment = Alignment.Center) {
