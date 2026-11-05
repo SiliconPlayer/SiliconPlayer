@@ -226,13 +226,19 @@ internal object SettingsPortingEngine {
             }
         }
 
-    private fun readTyped(prefs: AppPreferences, type: PrefType, key: String, default: Any): Any? = when (type) {
-        PrefType.Int -> prefs.getInt(key, default as Int)
-        PrefType.Long -> prefs.getLong(key, default as Long)
-        PrefType.Float -> prefs.getFloat(key, default as Float)
-        PrefType.Boolean -> prefs.getBoolean(key, default as Boolean)
-        PrefType.String -> prefs.getString(key, default as? String)
-        PrefType.StringSet -> prefs.getStringSet(key, (default as? Set<*>)?.filterIsInstance<String>()?.toSet())
+    // A value can be stored under an older type, and the typed getter then
+    // throws; skip that key instead of failing the whole export.
+    private fun readTyped(prefs: AppPreferences, type: PrefType, key: String, default: Any): Any? = try {
+        when (type) {
+            PrefType.Int -> prefs.getInt(key, default as Int)
+            PrefType.Long -> prefs.getLong(key, default as Long)
+            PrefType.Float -> prefs.getFloat(key, default as Float)
+            PrefType.Boolean -> prefs.getBoolean(key, default as Boolean)
+            PrefType.String -> prefs.getString(key, default as? String)
+            PrefType.StringSet -> prefs.getStringSet(key, (default as? Set<*>)?.filterIsInstance<String>()?.toSet())
+        }
+    } catch (_: ClassCastException) {
+        null
     }
 
     private fun valuesEqual(a: Any?, b: Any?): Boolean {

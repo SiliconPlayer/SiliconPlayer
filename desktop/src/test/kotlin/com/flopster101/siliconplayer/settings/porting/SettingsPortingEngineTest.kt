@@ -87,6 +87,24 @@ class SettingsPortingEngineTest {
         )
     )
 
+    private val typeMismatchCatalog = listOf(
+        PortingSection(
+            "misc",
+            "Misc",
+            null,
+            listOf(
+                holder(
+                    "misc.mixed",
+                    listOf(
+                        TypedPrefValue("int_key", PrefType.Int, { 5 }),
+                        TypedPrefValue("bool_key", PrefType.Boolean, { false }),
+                        TypedPrefValue("string_key", PrefType.String, { "x" })
+                    )
+                )
+            )
+        )
+    )
+
     private fun selection(vararg ids: String) = PortingSelection(ids.toSet())
 
     @Test
@@ -180,5 +198,42 @@ class SettingsPortingEngineTest {
         val prefs = FakePrefs()
         val preview = SettingsPortingEngine.prepareImport(prefs, catalog, "{ not json", PortingPlatformFamily.Desktop)
         assertTrue(preview is ImportPreview.Unreadable)
+    }
+
+    // Android's SharedPreferences casts the stored object in its typed getters,
+    // so a value left under an older type throws instead of returning the
+    // default. That used to abort the whole export.
+    @Test
+    fun exportSkipsValueStoredWithAnotherType() {
+        val prefs = FakePrefs()
+        prefs.values["int_key"] = true
+        prefs.strings["string_key"] = "changed"
+        val result = SettingsPortingEngine.buildExport(prefs, typeMismatchCatalog, selection("misc.mixed"))
+        assertTrue(result is ExportResult.Ok)
+        val ok = result as ExportResult.Ok
+        assertFalse(ok.text.contains("int_key"))
+        assertTrue(ok.text.contains("string_key"))
+        assertEquals(1, ok.keyCount)
+    }
+
+    @Test
+    fun exportSkipsBooleanValueStoredAsAnotherType() {
+        val prefs = FakePrefs()
+        prefs.values["bool_key"] = 1
+        val result = SettingsPortingEngine.buildExport(prefs, typeMismatchCatalog, selection("misc.mixed"))
+        assertTrue(result is ExportResult.Ok)
+        val ok = result as ExportResult.Ok
+        assertFalse(ok.text.contains("bool_key"))
+        assertEquals(0, ok.keyCount)
+    }
+
+    @Test
+    fun exportSurvivesEveryTypeMismatchAtOnce() {
+        val prefs = FakePrefs()
+        prefs.values["int_key"] = true
+        prefs.values["bool_key"] = 1
+        val result = SettingsPortingEngine.buildExport(prefs, typeMismatchCatalog, selection("misc.mixed"))
+        assertTrue(result is ExportResult.Ok)
+        assertEquals(0, (result as ExportResult.Ok).keyCount)
     }
 }
