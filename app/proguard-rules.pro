@@ -11,6 +11,12 @@
     native <methods>;
 }
 
+# About metadata is generated per build and read by exact class and method
+# names from AboutCatalog (Class.forName/getMethod). Renaming or stripping
+# them leaves every license row without text on release-like Android builds.
+-keep class com.flopster101.siliconplayer.GeneratedAboutVersions { *; }
+-keep class com.flopster101.siliconplayer.GeneratedLicenseAssets { *; }
+
 # SMBJ/HTTP stack pulls in optional JVM/Jakarta classes that are not available
 # on Android and are not used on our runtime paths. Keep R8 from failing optimized
 # builds on these optional references.
