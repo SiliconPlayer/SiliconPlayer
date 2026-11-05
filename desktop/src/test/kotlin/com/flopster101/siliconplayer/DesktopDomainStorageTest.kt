@@ -232,6 +232,48 @@ class DesktopDomainStorageTest {
     }
 
     @Test
+    fun concurrentPlaylistWritesLeaveAReadableLibrary() {
+        val dir = tempDir()
+        val playlistA = StoredPlaylist(id = "id-a", title = "A", entries = listOf(track("/a.mod", "A")))
+        val playlistB = StoredPlaylist(id = "id-b", title = "B", entries = listOf(track("/b.sid", "B")))
+        val base = PlaylistLibraryState(
+            favorites = emptyList(),
+            playlists = listOf(playlistA, playlistB),
+            folders = emptyList()
+        )
+        writePlaylistLibraryState(dir, base)
+
+        // Both threads rewrite the same playlist, so whichever wins the last
+        // write the result must still be one whole state, never a mix of two.
+        val states = listOf(
+            base.copy(playlists = listOf(playlistA.copy(title = "X"), playlistB)),
+            base.copy(playlists = listOf(playlistA.copy(title = "Y"), playlistB))
+        )
+        val start = java.util.concurrent.CyclicBarrier(2)
+        val errors = java.util.Collections.synchronizedList(mutableListOf<Throwable>())
+        val threads = states.map { state ->
+            Thread {
+                try {
+                    start.await()
+                    writePlaylistLibraryState(dir, state)
+                } catch (t: Throwable) {
+                    errors.add(t)
+                }
+            }.apply { start() }
+        }
+        threads.forEach { it.join() }
+
+        assertTrue("worker threw: $errors", errors.isEmpty())
+        val reloaded = readPlaylistLibraryState(dir)
+        assertEquals(listOf("id-a", "id-b"), reloaded.playlists.map { it.id })
+        assertTrue(
+            "title must be one of the written values, got ${reloaded.playlists.first().title}",
+            reloaded.playlists.first().title in listOf("X", "Y")
+        )
+        assertEquals(listOf("/a.mod"), reloaded.playlists.first().entries.map { it.source })
+    }
+
+    @Test
     fun playlistLibraryMigratesFromLegacyBlob() {
         val dir = tempDir()
         val prefs = FakePrefs()

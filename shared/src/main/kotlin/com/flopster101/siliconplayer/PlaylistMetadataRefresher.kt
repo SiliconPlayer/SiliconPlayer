@@ -141,18 +141,20 @@ internal object PlaylistMetadataRefresher {
         if (tracksToRefresh.isEmpty()) return@withContext Pair(0, 0)
 
         var succeeded = 0
-        var state = playlistLibraryStateProvider()
 
         for (track in tracksToRefresh) {
             val probed = probeTrack(cacheDir, artworkCache, trackProbe, track)
             if (probed != null) {
                 succeeded++
-                state = if (isFavorites) {
+                // Re-read per track. Using the snapshot from before the probe
+                // would revert a favorite toggled while it ran.
+                val state = playlistLibraryStateProvider()
+                val next = if (isFavorites) {
                     updateFavoriteTrack(state, probed)
                 } else {
                     updateStoredPlaylistEntry(state, playlistId, probed)
                 }
-                onPlaylistLibraryStateChanged(state)
+                onPlaylistLibraryStateChanged(next)
             }
         }
         Pair(succeeded, tracksToRefresh.size)

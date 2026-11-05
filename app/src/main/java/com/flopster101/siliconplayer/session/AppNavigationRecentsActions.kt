@@ -23,7 +23,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
 private var recentPlayedMetadataBackfillJob: Job? = null
-private val recentArtworkCacheJobs = mutableMapOf<String, Job>()
+private val recentArtworkCacheJobs = java.util.concurrent.ConcurrentHashMap<String, Job>()
 
 internal fun addRecentFolderEntry(
     current: List<RecentPathEntry>,

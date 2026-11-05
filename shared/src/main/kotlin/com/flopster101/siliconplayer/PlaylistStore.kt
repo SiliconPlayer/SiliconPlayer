@@ -797,18 +797,26 @@ internal fun readPlaylistLibraryState(
     firstParsableJson(readCandidateTexts(File(dir, PLAYLIST_INDEX_FILE_NAME)), isObject = true)?.let { raw ->
         clearLegacyDomainKey(legacyPrefs, legacyKey)
         val state = decodeIndexedPlaylistLibraryState(dir, configDir, raw)
-        playlistLibraryWriteCache[dir.absolutePath] = state
+        // Not under the same lock as the writer, a read could put a stale
+        // snapshot back over what the writer just stored.
+        synchronized(playlistLibraryWriteCache) {
+            playlistLibraryWriteCache[dir.absolutePath] = state
+        }
         return state
     }
     if (legacyPrefs != null && legacyPrefs.contains(legacyKey)) {
         val migrated = decodePlaylistLibraryState(legacyPrefs.getString(legacyKey, null))
         writePlaylistLibraryStateFresh(dir, configDir, migrated)
-        playlistLibraryWriteCache[dir.absolutePath] = migrated
+        synchronized(playlistLibraryWriteCache) {
+            playlistLibraryWriteCache[dir.absolutePath] = migrated
+        }
         clearLegacyDomainKey(legacyPrefs, legacyKey)
         return migrated
     }
     val empty = emptyPlaylistLibraryState()
-    playlistLibraryWriteCache[dir.absolutePath] = empty
+    synchronized(playlistLibraryWriteCache) {
+        playlistLibraryWriteCache[dir.absolutePath] = empty
+    }
     return empty
 }
 
@@ -817,15 +825,24 @@ internal fun writePlaylistLibraryState(
     state: PlaylistLibraryState
 ) {
     val dir = playlistLibraryDir(configDir)
-    val previous = playlistLibraryWriteCache[dir.absolutePath]
-    if (previous == null) {
-        writePlaylistLibraryStateFresh(dir, configDir, state)
-    } else {
+    // The refresher writes from IO and the UI writes from main. Both would diff
+    // against the same snapshot and one change would be lost.
+    synchronized(playlistLibraryWriteCache) {
+        val previous = playlistLibraryWriteCache[dir.absolutePath]
+        if (previous == null) {
+            writePlaylistLibraryStateFresh(dir, configDir, state)
+            playlistLibraryWriteCache[dir.absolutePath] = state
+            return
+        }
+        var allWritesSucceeded = true
         val previousById = previous.playlists.associateBy { it.id }
         val nextIds = state.playlists.map { it.id }.toSet()
         for (playlist in state.playlists) {
             if (previousById[playlist.id] != playlist) {
-                writeTextAtomic(File(dir, playlistFileName(playlist.id)), writeStoredPlaylistToJson(playlist))
+                allWritesSucceeded = writeTextAtomic(
+                    File(dir, playlistFileName(playlist.id)),
+                    writeStoredPlaylistToJson(playlist)
+                ) && allWritesSucceeded
             }
         }
         for (id in previousById.keys) {
@@ -839,16 +856,23 @@ internal fun writePlaylistLibraryState(
         if (previous.playlists.map { it.id } != state.playlists.map { it.id } ||
             previous.folders != state.folders
         ) {
-            writeTextAtomic(File(dir, PLAYLIST_INDEX_FILE_NAME), encodePlaylistLibraryIndex(state))
+            allWritesSucceeded = writeTextAtomic(
+                File(dir, PLAYLIST_INDEX_FILE_NAME),
+                encodePlaylistLibraryIndex(state)
+            ) && allWritesSucceeded
         }
         if (previous.favorites != state.favorites) {
-            writeTextAtomic(
+            allWritesSucceeded = writeTextAtomic(
                 File(configDir, PLAYLIST_FAVORITES_FILE_NAME),
                 encodePlaylistTrackEntries(state.favorites)
-            )
+            ) && allWritesSucceeded
+        }
+        // A stale snapshot makes the next diff see no change, so a failed write
+        // would never be retried.
+        if (allWritesSucceeded) {
+            playlistLibraryWriteCache[dir.absolutePath] = state
         }
     }
-    playlistLibraryWriteCache[dir.absolutePath] = state
 }
 
 private fun writePlaylistLibraryStateFresh(

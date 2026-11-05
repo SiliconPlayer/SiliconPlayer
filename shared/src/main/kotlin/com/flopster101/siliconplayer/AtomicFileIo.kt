@@ -24,8 +24,9 @@ internal fun sanitizeDomainFileName(name: String): String {
     return sanitized.ifBlank { "unnamed" }
 }
 
-internal fun writeTextAtomic(file: File, text: String) {
-    try {
+// False means nothing reached the disk.
+internal fun writeTextAtomic(file: File, text: String): Boolean {
+    return try {
         file.parentFile?.mkdirs()
         val tmp = File(file.parentFile, "${file.name}.tmp")
         tmp.writeText(text)
@@ -40,7 +41,10 @@ internal fun writeTextAtomic(file: File, text: String) {
             tmp.copyTo(file, overwrite = true)
             runCatching { tmp.delete() }
         }
-    } catch (_: Throwable) {}
+        true
+    } catch (_: Throwable) {
+        false
+    }
 }
 
 // Process-wide config-dir handle for per-domain files, set once at startup

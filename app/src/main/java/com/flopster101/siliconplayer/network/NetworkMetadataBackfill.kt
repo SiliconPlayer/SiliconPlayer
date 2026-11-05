@@ -12,7 +12,7 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
-private val pendingNetworkMetadataJobs = LinkedHashMap<String, Job>()
+private val pendingNetworkMetadataJobs = java.util.concurrent.ConcurrentHashMap<String, Job>()
 
 internal fun cancelPendingNetworkSourceMetadataBackfillJobs() {
     val jobs = pendingNetworkMetadataJobs.values.toList()
