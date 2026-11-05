@@ -77,20 +77,6 @@ import java.util.Locale
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
-private val artworkFallbackVideoExtensions = setOf(
-    "3g2", "3gp", "asf", "avi", "divx", "f4v", "flv", "m2ts", "m2v", "m4v",
-    "mkv", "mov", "mp4", "mpeg", "mpg", "mts", "ogm", "ogv", "rm", "rmvb",
-    "ts", "vob", "webm", "wmv"
-)
-
-private fun isLikelyVideoExtension(extension: String): Boolean {
-    if (extension.isBlank()) {
-        return false
-    }
-    val normalized = extension.lowercase(Locale.ROOT)
-    return normalized in artworkFallbackVideoExtensions
-}
-
 internal fun resolveMiniPlayerTitle(sanitizedTitle: String, file: File?): String {
     return sanitizedTitle.ifBlank { file?.name?.let(::inferredDisplayTitleForName) ?: "No track loaded" }
 }

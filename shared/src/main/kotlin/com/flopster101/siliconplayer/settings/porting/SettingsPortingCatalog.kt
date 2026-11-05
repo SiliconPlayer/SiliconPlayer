@@ -2,7 +2,6 @@ package com.flopster101.siliconplayer.settings.porting
 
 import com.flopster101.siliconplayer.AppDefaults
 import com.flopster101.siliconplayer.AppPreferenceKeys
-import com.flopster101.siliconplayer.AudioResamplerPreference
 import com.flopster101.siliconplayer.GmeDefaults
 import com.flopster101.siliconplayer.NativeBridge
 import com.flopster101.siliconplayer.PlaylistSortMode
@@ -17,16 +16,6 @@ import com.flopster101.siliconplayer.VisualizationMode
 import com.flopster101.siliconplayer.isAvailableOnCurrentPlatform
 import com.flopster101.siliconplayer.platform.AppPreferences
 import com.flopster101.siliconplayer.usb.DirectUacVolumeMode
-
-private fun generalAudioKeys(): List<TypedPrefValue> = listOf(
-    boolV(AppPreferenceKeys.AUDIO_DUCKING, true),
-    boolV(AppPreferenceKeys.AUDIO_FOCUS_INTERRUPT, true),
-    boolV(AppPreferenceKeys.AUDIO_FORCE_MONO, false),
-    stringV(AppPreferenceKeys.AUDIO_LOOKAHEAD_CLIPPER_MODE, AppDefaults.AudioProcessing.lookaheadClipperMode.storageValue),
-    stringV(AppPreferenceKeys.AUDIO_MULTI_CHANNEL_OUTPUT_MODE, AppDefaults.OutputPipeline.multiChannelOutputMode.storageValue),
-    boolV(AppPreferenceKeys.AUDIO_OUTPUT_LIMITER_ENABLED, AppDefaults.AudioProcessing.outputLimiterEnabled),
-    stringV(AppPreferenceKeys.AUDIO_RESAMPLER_PREFERENCE, AudioResamplerPreference.BuiltIn.storageValue)
-)
 
 private fun generalVolumeKeys(): List<TypedPrefValue> = listOf(
     floatV(AppPreferenceKeys.AUDIO_MASTER_VOLUME_DB, 0f)

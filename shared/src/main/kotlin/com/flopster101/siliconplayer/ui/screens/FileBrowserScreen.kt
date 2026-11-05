@@ -148,7 +148,6 @@ import java.util.Locale
 import java.util.zip.ZipFile
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.ensureActive
@@ -170,8 +169,6 @@ private const val LOCAL_BROWSER_THUMBNAIL_PREVIEW_MAX_ITEMS = 180
 private const val LOCAL_BROWSER_THUMBNAIL_PREVIEW_CONSTRAINED_MAX_ITEMS = 72
 private val FILE_ICON_BOX_SIZE = 38.dp
 private val FILE_ICON_GLYPH_SIZE = 26.dp
-@OptIn(ExperimentalCoroutinesApi::class)
-private val LOCAL_BROWSER_THUMBNAIL_LOADER_DISPATCHER = Dispatchers.IO.limitedParallelism(1)
 private val FALLBACK_VIDEO_EXTENSIONS = setOf(
     "3g2", "3gp", "asf", "avi", "divx", "f4v", "flv", "m2ts", "m2v", "m4v",
     "mkv", "mov", "mp4", "mpeg", "mpg", "mts", "ogm", "ogv", "rm", "rmvb",
@@ -2968,7 +2965,7 @@ fun FileItemRow(
             folderSummaryCache[item.file.absolutePath] ?: "Loading..."
         } else {
             val format = inferredPrimaryExtensionForName(item.file.name)?.uppercase(Locale.ROOT) ?: "UNKNOWN"
-            "$format • ${formatFileSizeHumanReadable(item.size)}"
+            "$format • ${formatFileSize(item.size)}"
         },
         key1 = item.file.absolutePath,
         key2 = item.kind,
@@ -2976,7 +2973,7 @@ fun FileItemRow(
     ) {
         if (item.isArchive) {
             value = withContext(Dispatchers.IO) {
-                "ZIP archive • ${formatFileSizeHumanReadable(item.size)}"
+                "ZIP archive • ${formatFileSize(item.size)}"
             }
             return@produceState
         }
@@ -2996,7 +2993,7 @@ fun FileItemRow(
         }
         value = withContext(Dispatchers.IO) {
             val format = inferredPrimaryExtensionForName(item.file.name)?.uppercase(Locale.ROOT) ?: "UNKNOWN"
-            "$format • ${formatFileSizeHumanReadable(item.size)}"
+            "$format • ${formatFileSize(item.size)}"
         }
     }
     var menuExpanded by remember { mutableStateOf(false) }
@@ -3496,23 +3493,6 @@ private fun isLikelyVideoFile(file: File): Boolean {
     return candidates.any { extension ->
         val mimeType = URLConnection.guessContentTypeFromName("file.$extension")
         mimeType?.startsWith("video/") == true || extension in FALLBACK_VIDEO_EXTENSIONS
-    }
-}
-
-private fun formatFileSizeHumanReadable(bytes: Long): String {
-    val units = arrayOf("B", "KB", "MB", "GB", "TB")
-    var size = bytes.toDouble().coerceAtLeast(0.0)
-    var unitIndex = 0
-
-    while (size >= 1024.0 && unitIndex < units.lastIndex) {
-        size /= 1024.0
-        unitIndex++
-    }
-
-    return if (unitIndex == 0) {
-        String.format(Locale.US, "%.0f %s", size, units[unitIndex])
-    } else {
-        String.format(Locale.US, "%.1f %s", size, units[unitIndex])
     }
 }
 

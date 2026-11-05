@@ -3,7 +3,6 @@ import com.flopster101.siliconplayer.data.findExistingCachedFileForSource
 
 import android.content.Context
 import android.graphics.Bitmap
-import android.graphics.BitmapFactory
 import android.media.MediaMetadataRetriever
 import android.net.Uri
 import android.util.LruCache
@@ -361,43 +360,6 @@ private fun findFolderArtworkFile(trackFile: File): File? {
 
     return parent.listFiles()
         ?.firstOrNull { it.isFile && FOLDER_ARTWORK_FILE_NAMES.contains(it.name.lowercase()) }
-}
-
-private fun decodeScaledBitmapFromBytes(data: ByteArray, maxSize: Int = 1024): Bitmap? {
-    val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
-    BitmapFactory.decodeByteArray(data, 0, data.size, bounds)
-    val sampleSize = calculateInSampleSize(bounds.outWidth, bounds.outHeight, maxSize)
-
-    val options = BitmapFactory.Options().apply {
-        inSampleSize = sampleSize
-        inPreferredConfig = Bitmap.Config.ARGB_8888
-    }
-    return BitmapFactory.decodeByteArray(data, 0, data.size, options)
-}
-
-private fun decodeScaledBitmapFromFile(file: File, maxSize: Int = 1024): Bitmap? {
-    val path = file.absolutePath
-    val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
-    BitmapFactory.decodeFile(path, bounds)
-    val sampleSize = calculateInSampleSize(bounds.outWidth, bounds.outHeight, maxSize)
-
-    val options = BitmapFactory.Options().apply {
-        inSampleSize = sampleSize
-        inPreferredConfig = Bitmap.Config.ARGB_8888
-    }
-    return BitmapFactory.decodeFile(path, options)
-}
-
-private fun calculateInSampleSize(width: Int, height: Int, maxSize: Int): Int {
-    var sampleSize = 1
-    var currentWidth = width
-    var currentHeight = height
-    while (currentWidth > maxSize || currentHeight > maxSize) {
-        currentWidth /= 2
-        currentHeight /= 2
-        sampleSize *= 2
-    }
-    return sampleSize.coerceAtLeast(1)
 }
 
 private const val MAX_REMOTE_ARTWORK_BYTES = 8 * 1024 * 1024

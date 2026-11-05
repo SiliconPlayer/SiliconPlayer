@@ -602,21 +602,6 @@ private fun sampledFloatArraySignature(
     return hash
 }
 
-private fun sampledIntArraySignature(
-    values: IntArray?,
-    maxSamples: Int = 24
-): Long {
-    if (values == null || values.isEmpty()) return 3827332896879027647L
-    var hash = mixSignature(1469598103934665603L, values.size.toLong())
-    val sampleCount = maxSamples.coerceIn(1, values.size)
-    val step = if (sampleCount <= 1) 0f else (values.size - 1).toFloat() / (sampleCount - 1).toFloat()
-    for (i in 0 until sampleCount) {
-        val idx = if (sampleCount <= 1) 0 else (i.toFloat() * step).toInt().coerceIn(0, values.lastIndex)
-        hash = mixSignature(hash, values[idx].toLong())
-    }
-    return hash
-}
-
 private fun sampledChannelScopeSignature(
     histories: List<FloatArray>?,
     triggerIndices: IntArray?
@@ -1122,23 +1107,6 @@ private class ChannelScopeTriggerState {
     var prevPeriod: Int = 0
     // Smoothed data mean for DC removal across frames.
     var prevMean: Float = 0f
-}
-
-private fun computeChannelScopeTriggerIndices(
-    histories: List<FloatArray>,
-    triggerModeNative: Int,
-    states: MutableList<ChannelScopeTriggerState>
-): IntArray {
-    if (histories.isEmpty()) return IntArray(0)
-    while (states.size < histories.size) states.add(ChannelScopeTriggerState())
-    if (states.size > histories.size) states.subList(histories.size, states.size).clear()
-    return IntArray(histories.size) { channel ->
-        findCorrelationTriggerIndex(
-            history = histories[channel],
-            triggerModeNative = triggerModeNative,
-            state = states[channel]
-        )
-    }
 }
 
 /**

@@ -167,23 +167,6 @@ private fun openHttpDirectoryListingConnection(
     throw IllegalStateException("Too many redirects")
 }
 
-private fun parseHttpDirectoryListing(
-    html: String,
-    baseRequestSpec: HttpSourceSpec
-): List<HttpBrowserEntry> {
-    val entriesByKey = LinkedHashMap<String, HttpBrowserEntry>()
-    parseHttpDirectoryListingInto(
-        html = html,
-        baseRequestSpec = baseRequestSpec,
-        entriesByKey = entriesByKey
-    )
-    return entriesByKey.values
-        .sortedWith(
-            compareBy<HttpBrowserEntry> { !it.isDirectory }
-                .thenBy { it.name.lowercase(Locale.ROOT) }
-        )
-}
-
 private suspend fun readHttpDirectoryListingIncremental(
     reader: java.io.Reader,
     baseRequestSpec: HttpSourceSpec,

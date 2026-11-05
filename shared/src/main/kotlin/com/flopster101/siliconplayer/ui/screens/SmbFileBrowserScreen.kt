@@ -2307,9 +2307,9 @@ private fun SmbEntryRow(
                 } else if (entry.isDirectory) {
                     "Folder"
                 } else if (browserArchiveCapabilityForName(entry.name) != BrowserArchiveCapability.None) {
-                    "Archive • ${formatSmbFileSize(entry.sizeBytes)}"
+                    "Archive • ${formatFileSize(entry.sizeBytes)}"
                 } else {
-                    "${inferBrowserFormatLabel(entry.name)} • ${formatSmbFileSize(entry.sizeBytes)}"
+                    "${inferBrowserFormatLabel(entry.name)} • ${formatFileSize(entry.sizeBytes)}"
                 },
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -2573,15 +2573,3 @@ private fun SmbLoadingCard(
         waitingLine = "[00] Waiting for SMB response..."
     )
 }
-
-private fun formatSmbFileSize(bytes: Long): String {
-    val safeBytes = bytes.coerceAtLeast(0L)
-    if (safeBytes < 1024L) return "$safeBytes B"
-    val kb = safeBytes / 1024.0
-    if (kb < 1024.0) return String.format(Locale.ROOT, "%.1f KB", kb)
-    val mb = kb / 1024.0
-    if (mb < 1024.0) return String.format(Locale.ROOT, "%.1f MB", mb)
-    val gb = mb / 1024.0
-    return String.format(Locale.ROOT, "%.1f GB", gb)
-}
-
