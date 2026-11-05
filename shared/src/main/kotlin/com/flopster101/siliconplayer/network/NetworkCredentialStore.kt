@@ -264,9 +264,24 @@ internal object NetworkCredentialStore {
         val file = configDirProvider?.invoke()?.let { File(it, NETWORK_CREDENTIALS_FILE_NAME) }
         if (file != null) {
             writeTextAtomic(file, encodeCredentialsLocked())
+            restrictToOwnerLocked(file)
         } else {
             prefs().edit().putString(AppPreferenceKeys.NETWORK_CREDENTIALS_JSON, encodeCredentialsLocked()).apply()
         }
+    }
+
+    // Temp and backup copies hold the same secrets as the file itself.
+    private fun restrictToOwnerLocked(file: File) {
+        listOf(file, File(file.parentFile, "${file.name}.tmp"), File(file.parentFile, "${file.name}.bak"))
+            .forEach { sibling ->
+                runCatching {
+                    sibling.setReadable(false, false)
+                    sibling.setReadable(true, true)
+                    sibling.setWritable(false, false)
+                    sibling.setWritable(true, true)
+                    sibling.setExecutable(false, false)
+                }
+            }
     }
 
     @Volatile

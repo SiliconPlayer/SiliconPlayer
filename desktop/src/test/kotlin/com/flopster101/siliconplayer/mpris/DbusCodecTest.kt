@@ -153,4 +153,19 @@ class DbusCodecTest {
     fun sessionBusWithoutAnAddressHasNoEndpoints() {
         assertTrue(DbusSessionBus.resolveEndpoints { null }.isEmpty())
     }
+
+    @Test
+    fun oversizedFrameLengthsAreRejected() {
+        // Any local process can send these lengths, so a huge value must not
+        // reach ByteArray and turn into an OOM or a negative size.
+        runCatching { dbusFrameRemainderSize(0xFFFFFFFFL, 0xFFFFFFFFL) }
+            .onSuccess { throw AssertionError("expected DbusException") }
+            .onFailure { assertTrue("got ${it::class.simpleName}", it is DbusException) }
+    }
+
+    @Test
+    fun frameRemainderIncludesAlignmentPadding() {
+        assertEquals(8, dbusFrameRemainderSize(4L, 0L))
+        assertEquals(16, dbusFrameRemainderSize(0L, 8L))
+    }
 }

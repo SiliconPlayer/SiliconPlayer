@@ -14,6 +14,8 @@ import com.flopster101.siliconplayer.library.LibraryTrackEntity
 import com.flopster101.siliconplayer.data.buildArchiveSourceId
 import com.flopster101.siliconplayer.data.parseArchiveSourceId
 
+private const val MAX_PLAYLIST_FILE_BYTES = 4 * 1024 * 1024
+
 
 internal fun LibraryTrackEntity.toPlaylistTrackEntry(): PlaylistTrackEntry {
     val artist = artist.takeUnless { it.isBlank() || it.equals("Unknown artist", ignoreCase = true) }
@@ -525,7 +527,9 @@ private fun parseM3uPlaylist(
 }
 
 private fun readPlaylistLines(file: File): List<String> {
-    val bytes = runCatching { file.readBytes() }.getOrNull() ?: return emptyList()
+    val bytes = runCatching {
+        file.inputStream().use { readBytesAtMost(it, MAX_PLAYLIST_FILE_BYTES) }
+    }.getOrNull() ?: return emptyList()
     val text = decodePlaylistText(bytes)
     return text
         .replace("\uFEFF", "")

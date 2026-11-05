@@ -36,6 +36,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.withContext
 
 private const val PLAYLIST_COVERS_DIR = "playlist_covers"
+private const val MAX_PICKED_PLAYLIST_BYTES = 4 * 1024 * 1024
 private const val MAX_COVER_DIMENSION = 1024
 
 private val IMAGE_FILE_FILTER = FileNameExtensionFilter(
@@ -172,7 +173,10 @@ internal fun rememberDesktopPlaylistPlatformSupport(cacheDir: File): PlaylistPla
                     val source = chooseOpenFile("Import playlist package", PLAYLIST_PACKAGE_FILTER)
                         ?: return@withContext null
                     runCatching {
-                        parsePlaylistPackage(source.readBytes())?.let { imported ->
+                        val packageBytes = source.inputStream().use {
+                            com.flopster101.siliconplayer.readBytesAtMost(it, MAX_PICKED_PLAYLIST_BYTES)
+                        } ?: return@runCatching null
+                        parsePlaylistPackage(packageBytes)?.let { imported ->
                             imported.copy(state = restorePlaylistPackageCovers(imported, coversDir))
                         }
                     }.getOrNull()

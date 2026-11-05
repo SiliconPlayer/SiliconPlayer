@@ -133,8 +133,12 @@ private fun writePortingBytes(context: Context, uri: Uri, data: ByteArray) {
 
 private fun readPortingBytes(context: Context, uri: Uri): ByteArray? =
     runCatching {
-        context.contentResolver.openInputStream(uri)?.use { it.readBytes() }
+        context.contentResolver.openInputStream(uri)?.use {
+            com.flopster101.siliconplayer.readBytesAtMost(it, MAX_PORTING_FILE_BYTES)
+        }
     }.getOrNull()
+
+private const val MAX_PORTING_FILE_BYTES = 4 * 1024 * 1024
 
 private fun queryPortingDisplayName(context: Context, uri: Uri): String? =
     runCatching {

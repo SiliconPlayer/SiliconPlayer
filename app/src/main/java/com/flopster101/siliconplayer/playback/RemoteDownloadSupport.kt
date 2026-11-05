@@ -16,6 +16,9 @@ import java.io.FileOutputStream
 import java.net.HttpURLConnection
 import java.net.URL
 
+// Same cap as an archive entry, so one bad URL cannot fill storage.
+private const val MAX_REMOTE_SOURCE_BYTES = 256_000_000L
+
 internal suspend fun downloadRemoteUrlToCache(
     context: Context,
     url: String,
@@ -105,7 +108,12 @@ internal suspend fun downloadRemoteUrlToCache(
                 if (location.isNullOrBlank()) {
                     return Pair(null, "Redirect missing Location header (HTTP $responseCode)")
                 }
-                currentUrl = URL(URL(currentUrl), location).toString()
+                val nextUrl = URL(URL(currentUrl), location)
+                // A file: or jar: hop would read a local file into the cache.
+                if (nextUrl.protocol !in HTTP_REDIRECT_PROTOCOLS) {
+                    return Pair(null, "Refused redirect to ${nextUrl.protocol}")
+                }
+                currentUrl = nextUrl.toString()
                 return@repeat
             }
             SpLog.d("UrlSource",
@@ -197,6 +205,9 @@ internal suspend fun downloadRemoteUrlToCache(
                         if (read <= 0) break
                         output.write(buffer, 0, read)
                         totalBytes += read
+                        if (totalBytes > MAX_REMOTE_SOURCE_BYTES) {
+                            error("Download exceeded ${MAX_REMOTE_SOURCE_BYTES / 1_000_000} MB limit")
+                        }
                         val now = System.currentTimeMillis()
                         val deltaMs = now - lastSpeedSampleMs
                         if (deltaMs >= 350L) {

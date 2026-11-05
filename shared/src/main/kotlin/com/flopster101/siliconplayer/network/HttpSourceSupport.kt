@@ -70,6 +70,10 @@ internal fun httpBasicAuthorizationHeader(
     return "Basic $encoded"
 }
 
+// Only these schemes may be followed across a redirect. A file: or jar: hop
+// would read a local file into the download cache.
+internal val HTTP_REDIRECT_PROTOCOLS = setOf("http", "https")
+
 internal fun sanitizeHttpUrlForLog(rawUrl: String): String {
     val parsed = parseHttpSourceSpecFromInput(rawUrl) ?: return rawUrl
     return buildHttpDisplayUri(parsed)

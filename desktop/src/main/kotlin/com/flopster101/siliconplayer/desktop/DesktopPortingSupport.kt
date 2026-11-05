@@ -43,7 +43,14 @@ internal fun rememberDesktopPortingFileIo(): PortingFileIo {
                     toastHandler.showToast("Cannot read that settings file")
                     return null
                 }
-                return PortingFileSource(file.name, withContext(Dispatchers.IO) { file.readBytes() })
+                val bytes = withContext(Dispatchers.IO) {
+                    file.inputStream().use { com.flopster101.siliconplayer.readBytesAtMost(it, MAX_PORTING_FILE_BYTES) }
+                }
+                if (bytes == null) {
+                    toastHandler.showToast("That settings file is too large")
+                    return null
+                }
+                return PortingFileSource(file.name, bytes)
             }
 
             override suspend fun shareExport(portingData: PortingShareRequest) {
@@ -63,3 +70,5 @@ internal fun rememberDesktopPortingFileIo(): PortingFileIo {
 private fun toastUnavailable(toastHandler: ToastHandler) {
     toastHandler.showToast("No file picker available (requires XDG desktop portal)")
 }
+
+private const val MAX_PORTING_FILE_BYTES = 4 * 1024 * 1024

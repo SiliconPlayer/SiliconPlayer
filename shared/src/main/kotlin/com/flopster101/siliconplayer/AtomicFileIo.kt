@@ -1,6 +1,7 @@
 package com.flopster101.siliconplayer
 
 import java.io.File
+import java.io.InputStream
 import org.json.JSONArray
 import org.json.JSONObject
 
@@ -52,6 +53,20 @@ internal fun writeTextAtomic(file: File, text: String): Boolean {
 // route through it; when unset they fall back to legacy prefs behavior.
 internal object DomainStoreDirs {
     @Volatile var configDir: File? = null
+}
+
+// Reads at most maxBytes, so a picked or remote file cannot exhaust memory.
+// Returns null when the file is larger than the cap.
+internal fun readBytesAtMost(input: InputStream, maxBytes: Int): ByteArray? {
+    val buffer = ByteArray(maxBytes)
+    var totalRead = 0
+    while (totalRead < maxBytes) {
+        val read = input.read(buffer, totalRead, maxBytes - totalRead)
+        if (read <= 0) break
+        totalRead += read
+    }
+    if (input.read() >= 0) return null
+    return buffer.copyOf(totalRead)
 }
 
 // Deletes a domain file and its backup/tmp siblings, best-effort.

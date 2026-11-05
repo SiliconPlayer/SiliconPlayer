@@ -16,6 +16,7 @@ import com.flopster101.siliconplayer.RemoteLoadPhase
 import com.flopster101.siliconplayer.RemoteLoadUiState
 import com.flopster101.siliconplayer.SmbRemoteExportRequest
 import com.flopster101.siliconplayer.SmbSourceSpec
+import com.flopster101.siliconplayer.HTTP_REDIRECT_PROTOCOLS
 import com.flopster101.siliconplayer.buildHttpRequestUri
 import com.flopster101.siliconplayer.data.findExistingCachedFileForSource
 import com.flopster101.siliconplayer.data.sha1Hex
@@ -59,6 +60,8 @@ internal fun rememberDesktopRemoteSourceExportSupport(cacheDir: File): RemoteSou
         DesktopRemoteSourceExportSupport(cacheDir)
     }
 }
+
+private const val MAX_REMOTE_SOURCE_BYTES = 256_000_000L
 
 private class DesktopRemoteSourceExportSupport(
     private val cacheDir: File
@@ -308,6 +311,9 @@ private class DesktopRemoteSourceExportSupport(
                         if (read <= 0) break
                         output.write(buffer, 0, read)
                         totalBytes += read
+                        if (totalBytes > MAX_REMOTE_SOURCE_BYTES) {
+                            error("Download exceeded ${MAX_REMOTE_SOURCE_BYTES / 1_000_000} MB limit")
+                        }
                         val now = System.currentTimeMillis()
                         val deltaMs = now - lastSpeedSampleMs
                         if (deltaMs >= 350L) {
@@ -394,7 +400,12 @@ private class DesktopRemoteSourceExportSupport(
                 if (location.isNullOrBlank()) {
                     return Pair(null, "Redirect missing Location header (HTTP $responseCode)")
                 }
-                currentUrl = URL(URL(currentUrl), location).toString()
+                val nextUrl = URL(URL(currentUrl), location)
+                // A file: or jar: hop would read a local file into the cache.
+                if (nextUrl.protocol !in HTTP_REDIRECT_PROTOCOLS) {
+                    return Pair(null, "Refused redirect to ${nextUrl.protocol}")
+                }
+                currentUrl = nextUrl.toString()
             } else if (responseCode !in 200..299) {
                 connection.disconnect()
                 return Pair(null, "HTTP $responseCode")

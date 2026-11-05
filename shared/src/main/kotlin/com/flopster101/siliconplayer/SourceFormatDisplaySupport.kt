@@ -55,8 +55,22 @@ internal fun decodePercentEncodedForDisplay(raw: String?): String? {
 
 internal fun sanitizeRemoteLeafName(raw: String?): String? {
     val trimmed = raw?.trim()?.substringAfterLast('/')?.takeIf { it.isNotBlank() } ?: return null
-    return trimmed.replace(Regex("""[\\/:*?"<>|]"""), "_")
+    // A long name fails the write with no message shown.
+    val sanitized = trimmed.replace(Regex("""[\\/:*?"<>|]"""), "_")
+    if (sanitized.length <= MAX_REMOTE_LEAF_NAME_LENGTH) return sanitized
+    val extension = sanitized.substringAfterLast('.', "").take(MAX_REMOTE_LEAF_EXTENSION_LENGTH)
+    val stem = sanitized.dropLast(extension.length + 1)
+        .take(MAX_REMOTE_LEAF_NAME_LENGTH - extension.length - 1)
+        .trimEnd('.', ' ')
+    return when {
+        stem.isBlank() -> sanitized.take(MAX_REMOTE_LEAF_NAME_LENGTH)
+        extension.isBlank() -> stem
+        else -> "$stem.$extension"
+    }
 }
+
+private const val MAX_REMOTE_LEAF_NAME_LENGTH = 120
+private const val MAX_REMOTE_LEAF_EXTENSION_LENGTH = 12
 
 internal fun stripUrlFragment(url: String): String {
     val fragmentIndex = url.indexOf('#')

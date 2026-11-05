@@ -59,6 +59,7 @@ import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.withContext
 
 private const val PLAYLIST_COVERS_DIR = "playlist_covers"
+private const val MAX_PICKED_PLAYLIST_BYTES = 4 * 1024 * 1024
 private const val PLAYLIST_MIME_TYPE = "audio/x-mpegurl"
 
 @Composable
@@ -267,7 +268,11 @@ internal fun rememberAndroidPlaylistPlatformSupport(): PlaylistPlatformSupport {
                 return withContext(Dispatchers.IO) {
                     runCatching {
                         context.contentResolver.openInputStream(uri)?.use { input ->
-                            parsePlaylistPackage(input.readBytes())?.let { imported ->
+                            val packageBytes = com.flopster101.siliconplayer.readBytesAtMost(
+                                input,
+                                MAX_PICKED_PLAYLIST_BYTES
+                            ) ?: return@withContext null
+                            parsePlaylistPackage(packageBytes)?.let { imported ->
                                 imported.copy(
                                     state = restorePlaylistPackageCovers(
                                         imported,
@@ -471,7 +476,9 @@ private fun parsePlaylistDocumentFromUri(
     }
 
     val bytes = runCatching {
-        contentResolver.openInputStream(uri)?.use { it.readBytes() }
+        contentResolver.openInputStream(uri)?.use {
+            com.flopster101.siliconplayer.readBytesAtMost(it, MAX_PICKED_PLAYLIST_BYTES)
+        }
     }.getOrNull() ?: return null
 
     val text = decodePickedPlaylistText(bytes)

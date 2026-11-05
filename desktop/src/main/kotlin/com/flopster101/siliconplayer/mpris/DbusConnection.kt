@@ -22,6 +22,20 @@ internal const val DBUS_REQUEST_NAME_REPLY_EXISTS = 3
 internal const val DBUS_NAME_FLAG_ALLOW_REPLACEMENT = 0x1
 internal const val DBUS_NAME_FLAG_REPLACE_EXISTING = 0x2
 
+// D-Bus caps a message at 128 MB, so anything larger is not a real peer.
+private const val DBUS_MAX_FRAME_BYTES = 128L * 1024 * 1024
+
+// Size of the frame after its fixed header. Both lengths come from the wire and
+// any local process can send them, so they are checked before allocating.
+internal fun dbusFrameRemainderSize(fieldsLength: Long, bodyLength: Long): Int {
+    val declared = fieldsLength + bodyLength
+    if (declared < 0L || declared > DBUS_MAX_FRAME_BYTES) {
+        throw DbusException("frame too large: $declared bytes")
+    }
+    val padding = (8 - ((DBUS_FIXED_HEADER_SIZE + fieldsLength) % 8)) % 8
+    return (declared + padding).toInt()
+}
+
 internal fun nameRequestOwnsName(replyCode: Int): Boolean {
     return replyCode == DBUS_REQUEST_NAME_REPLY_PRIMARY_OWNER ||
         replyCode == DBUS_REQUEST_NAME_REPLY_ALREADY_OWNER
@@ -231,7 +245,9 @@ internal class DbusConnection(
                 }
             }
         } catch (_: IOException) {
-            // The socket closed or the bus dropped us; onClosed reports it.
+            // The socket closed or the bus dropped us, onClosed reports it.
+        } catch (_: DbusException) {
+            // A malformed frame is not recoverable, the stream is out of sync.
         } finally {
             onClosed?.invoke()
         }
@@ -243,8 +259,7 @@ internal class DbusConnection(
         if (fixed[0] != 'l'.code.toByte()) throw DbusException("big-endian frames are not supported")
         val bodyLength = littleEndianUint32(fixed, 4)
         val fieldsLength = littleEndianUint32(fixed, 12)
-        val padding = (8 - ((DBUS_FIXED_HEADER_SIZE + fieldsLength) % 8)) % 8
-        val remaining = ByteArray((fieldsLength + padding + bodyLength).toInt())
+        val remaining = ByteArray(dbusFrameRemainderSize(fieldsLength, bodyLength))
         if (!readFullyInto(channel, remaining, 0, remaining.size)) return null
         return fixed + remaining
     }
