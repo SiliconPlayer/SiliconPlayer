@@ -47,6 +47,16 @@ private enum class SettingsRowRole {
 private class SettingsRowSequencer {
     private var lastRowRoleState: MutableState<SettingsRowRole>? = null
     private var nextRowHasPrevious: Boolean = false
+    private val claimedSections = mutableMapOf<String, Boolean>()
+    private var hasClaimedFirstSection = false
+
+    fun claimFirstSection(text: String): Boolean {
+        claimedSections[text]?.let { return it }
+        val first = !hasClaimedFirstSection
+        hasClaimedFirstSection = true
+        claimedSections[text] = first
+        return first
+    }
 
     fun onSectionBoundary() {
         lastRowRoleState = null
@@ -158,11 +168,14 @@ internal fun SettingsRowSpacer() {
 internal fun SettingsSectionLabel(text: String) {
     val isWatch = LocalIsWatchDevice.current
     val sequencer = LocalSettingsRowSequencer.current
+    val isFirstSection = remember(sequencer) { sequencer?.claimFirstSection(text) ?: true }
     DisposableEffect(sequencer, text) {
         sequencer?.onSectionBoundary()
         onDispose { }
     }
-    Spacer(modifier = Modifier.height(SettingsSectionTopSpacing))
+    if (!isFirstSection) {
+        Spacer(modifier = Modifier.height(SettingsSectionTopSpacing))
+    }
     Text(
         text = text,
         style = if (isWatch) MaterialTheme.typography.labelMedium else LocalSectionLabelStyle.current ?: MaterialTheme.typography.labelLarge,

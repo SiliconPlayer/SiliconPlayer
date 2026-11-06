@@ -7,7 +7,6 @@ import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.core.FastOutLinearInEasing
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.LinearOutSlowInEasing
-import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -42,7 +41,6 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -83,23 +81,6 @@ internal fun SettingsScaffoldShell(
     }
 
     val titleContent: @Composable () -> Unit = {
-        // Single column: the cap centers the page, so title indents to its left
-        // edge. Two pane: the list, divider and padding fix where the (still
-        // 640 dp capped and centered) route column starts.
-        val titleColumnIndent = if (isWatch) {
-            0.dp
-        } else if (isTwoPane) {
-            val paneLead = SETTINGS_TWO_PANE_LIST_WIDTH + 8.dp + 1.dp + 8.dp + 8.dp
-            val remaining = windowInfo.screenWidthDp.dp - paneLead
-            paneLead + ((remaining - 640.dp).coerceAtLeast(0.dp) / 2)
-        } else {
-            (((windowInfo.screenWidthDp.dp - 640.dp) / 2) + 16.dp).coerceAtLeast(16.dp)
-        }
-        val animatedTitleIndent by animateDpAsState(
-            targetValue = titleColumnIndent,
-            animationSpec = tween(durationMillis = 180, easing = FastOutSlowInEasing),
-            label = "settingsTitleColumnIndent"
-        )
         AnimatedContent(
             targetState = route,
             transitionSpec = {
@@ -131,8 +112,7 @@ internal fun SettingsScaffoldShell(
                 )
                 enter togetherWith exit
             },
-            label = "settingsTopBarTitle",
-            modifier = if (isWatch) Modifier else Modifier.padding(start = animatedTitleIndent)
+            label = "settingsTopBarTitle"
         ) { targetRoute ->
             val topTitle = settingsSecondaryTitle(targetRoute, selectedPluginName) ?: "Settings"
             Text(
