@@ -161,10 +161,11 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.LargeTopAppBar
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.MenuDefaults
+import androidx.compose.material3.PrimaryTabRow
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SecondaryTabRow
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Tab
-import androidx.compose.material3.TabRow
 import androidx.compose.material3.Text
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.TextButton
@@ -4532,6 +4533,7 @@ private fun ArtistAlbumYearSectionHeader(
     }
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun LibraryArtistDetailPage(
     artist: String,
@@ -4577,8 +4579,9 @@ private fun LibraryArtistDetailPage(
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
         }
-        TabRow(
+        SecondaryTabRow(
             selectedTabIndex = mode.ordinal,
+            containerColor = MaterialTheme.colorScheme.background,
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(bottom = 6.dp)
@@ -5185,14 +5188,16 @@ private fun LibraryPlaceholderRow(
     }
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun LibraryTabRow(
     selectedTabIndex: Int,
     tabs: List<LibrarySurfaceTab>,
     onTabSelected: (Int) -> Unit
 ) {
-    TabRow(
+    PrimaryTabRow(
         selectedTabIndex = selectedTabIndex,
+        containerColor = MaterialTheme.colorScheme.background,
         modifier = Modifier
             .fillMaxWidth()
             .padding(bottom = 6.dp)
