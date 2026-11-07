@@ -2,11 +2,14 @@ package com.flopster101.siliconplayer
 
 import com.flopster101.siliconplayer.desktop.moveCompletedExport
 import com.flopster101.siliconplayer.desktop.parseAudioExportOptions
+import com.flopster101.siliconplayer.desktop.parseFfmpegArgumentList
+import com.flopster101.siliconplayer.desktop.resolveFfmpegExecutable
 import com.flopster101.siliconplayer.export.AudioExportProgress
 import com.flopster101.siliconplayer.export.AudioExportRenderOptions
 import com.flopster101.siliconplayer.export.AudioExportSampleFormat
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertThrows
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -26,6 +29,8 @@ class AudioExportTest {
         assertEquals(File("out.wav"), options.output)
         assertEquals(48_000, options.renderOptions.sampleRateHz)
         assertEquals(AudioExportSampleFormat.Pcm24, options.renderOptions.sampleFormat)
+        assertNull(options.ffmpegPath)
+        assertTrue(options.ffmpegArguments.isEmpty())
         assertTrue(options.force)
     }
 
@@ -49,6 +54,72 @@ class AudioExportTest {
         assertEquals(EndFadeCurve.EaseOut, options.renderOptions.endFadeCurve)
         assertEquals(true, options.renderOptions.endFadeApplyToAllTracks)
         assertFalse(options.force)
+    }
+
+    @Test
+    fun parsesFfmpegPathAndArgumentList() {
+        val options = parseAudioExportOptions(
+            arrayOf(
+                "--input", "song.sid", "--output", "out.flac",
+                "--ffmpeg", "~/bin/ffmpeg-custom",
+                "--ffmpegArgs", "-c:a flac -metadata \"title=Hello World\" -metadata 'artist=A B' \"\""
+            )
+        )
+
+        assertEquals(File(System.getProperty("user.home"), "bin/ffmpeg-custom"), options.ffmpegPath)
+        assertEquals(
+            listOf("-c:a", "flac", "-metadata", "title=Hello World", "-metadata", "artist=A B", ""),
+            options.ffmpegArguments
+        )
+        assertEquals(
+            listOf("a b", "${'$'}HOME", ";not-a-shell-command"),
+            parseFfmpegArgumentList("a\\ b ${'$'}HOME ;not-a-shell-command")
+        )
+        assertThrows(IllegalArgumentException::class.java) { parseFfmpegArgumentList("-c:a \"flac") }
+    }
+
+    @Test
+    fun resolvesSystemFallbackAndRequiredFfmpeg() {
+        val wav = parseAudioExportOptions(arrayOf("--input", "in.sid", "--output", "out.wav"))
+        assertNull(resolveFfmpegExecutable(wav, wav.output, systemFfmpegAvailable = false))
+        assertEquals("ffmpeg", resolveFfmpegExecutable(wav, wav.output, systemFfmpegAvailable = true))
+
+        val flac = parseAudioExportOptions(arrayOf("--input", "in.sid", "--output", "out.flac"))
+        assertEquals("ffmpeg", resolveFfmpegExecutable(flac, flac.output, systemFfmpegAvailable = true))
+        assertThrows(IllegalArgumentException::class.java) {
+            resolveFfmpegExecutable(flac, flac.output, systemFfmpegAvailable = false)
+        }
+
+        val customWav = parseAudioExportOptions(
+            arrayOf("--input", "in.sid", "--output", "out.wav", "--ffmpegArgs", "-c:a pcm_s16le")
+        )
+        assertThrows(IllegalArgumentException::class.java) {
+            resolveFfmpegExecutable(customWav, customWav.output, systemFfmpegAvailable = false)
+        }
+    }
+
+    @Test
+    fun validatesCustomFfmpegExecutable() {
+        val directory = Files.createTempDirectory("audio-export-ffmpeg-").toFile()
+        try {
+            val executable = File(directory, "ffmpeg custom").apply {
+                writeText("#!/bin/sh\nexit 0\n")
+                setExecutable(true)
+            }
+            val options = parseAudioExportOptions(
+                arrayOf("--input", "in.sid", "--output", "out.wav", "--ffmpeg", executable.absolutePath)
+            )
+            assertEquals(
+                executable.absolutePath,
+                resolveFfmpegExecutable(options, options.output, systemFfmpegAvailable = false)
+            )
+            executable.setExecutable(false)
+            assertThrows(IllegalArgumentException::class.java) {
+                resolveFfmpegExecutable(options, options.output, systemFfmpegAvailable = false)
+            }
+        } finally {
+            directory.deleteRecursively()
+        }
     }
 
     @Test

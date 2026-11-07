@@ -11,6 +11,7 @@ import com.flopster101.siliconplayer.export.AudioExportProgress
 import com.flopster101.siliconplayer.export.AudioExportRenderOptions
 import com.flopster101.siliconplayer.export.AudioExportSampleFormat
 import com.flopster101.siliconplayer.pushStoredCoreOptionsToNative
+import java.io.Closeable
 import java.io.File
 import java.nio.file.AtomicMoveNotSupportedException
 import java.nio.file.Files
@@ -25,11 +26,18 @@ private const val EXPORT_CHANNELS = 2
 private const val EXPORT_CHUNK_FRAMES = 256
 private const val PROGRESS_INTERVAL_NS = 200_000_000L
 
+internal interface AudioExportWriter : Closeable {
+    fun write(samples: FloatArray, frameCount: Int)
+    fun finish()
+}
+
 internal data class AudioExportOptions(
     val input: File,
     val output: File,
     val subtuneIndex: Int?,
     val renderOptions: AudioExportRenderOptions,
+    val ffmpegPath: File?,
+    val ffmpegArguments: List<String>,
     val force: Boolean
 )
 
@@ -80,6 +88,7 @@ internal fun runAudioExport(
     require((outputDir.isDirectory || outputDir.mkdirs()) && outputDir.isDirectory) {
         "Could not create output directory: $outputDir"
     }
+    val ffmpegExecutable = resolveFfmpegExecutable(options, output)
 
     DesktopPaths.install()
     DomainStoreDirs.configDir = DesktopPaths.configDir()
@@ -129,19 +138,37 @@ internal fun runAudioExport(
         check(rawFrameCount <= Long.MAX_VALUE.toDouble()) { "Track is too long to export." }
         val totalFrames = rawFrameCount.toLong()
         check(totalFrames > 0L) { "Track is too short to export." }
-        val bytesPerFrame = EXPORT_CHANNELS * options.renderOptions.sampleFormat.bytesPerSample
-        require(totalFrames <= (0xffffffffL - 64L) / bytesPerFrame) {
-            "Output exceeds the standard WAV size limit; use a shorter duration."
+        if (ffmpegExecutable == null) {
+            val bytesPerFrame = EXPORT_CHANNELS * options.renderOptions.sampleFormat.bytesPerSample
+            require(totalFrames <= (0xffffffffL - 64L) / bytesPerFrame) {
+                "Output exceeds the standard WAV size limit; use a shorter duration."
+            }
+        }
+        val encoderLabel = if (ffmpegExecutable == null) {
+            options.renderOptions.sampleFormat.storageValue
+        } else {
+            "FFmpeg ${output.extension.ifBlank { "unknown" }}"
         }
         println(
             "Exporting ${session.title} with $decoderName " +
                 "(${formatSeconds(durationSeconds)}, ${options.renderOptions.sampleRateHz} Hz, " +
-                "${options.renderOptions.sampleFormat.storageValue}, stereo)"
+                "$encoderLabel, stereo)"
         )
 
-        val temp = File.createTempFile(".siliconplayer-audio-", ".part", outputDir)
+        val tempSuffix = if (ffmpegExecutable == null) ".part" else ".part.${output.extension}"
+        val temp = File.createTempFile(".siliconplayer-audio-", tempSuffix, outputDir)
         temporaryFile.set(temp)
-        WavExportWriter(temp, options.renderOptions.sampleRateHz, options.renderOptions.sampleFormat).use { writer ->
+        val exportWriter = if (ffmpegExecutable == null) {
+            WavExportWriter(temp, options.renderOptions.sampleRateHz, options.renderOptions.sampleFormat)
+        } else {
+            FfmpegExportWriter(
+                file = temp,
+                sampleRateHz = options.renderOptions.sampleRateHz,
+                executable = ffmpegExecutable,
+                arguments = ffmpegOutputArguments(options, output)
+            )
+        }
+        exportWriter.use { writer ->
             var remaining = totalFrames
             var lastProgressNs = 0L
             while (remaining > 0L) {
@@ -174,6 +201,84 @@ internal fun runAudioExport(
         if (!completed) temporaryFile.get()?.delete()
         runCatching { Runtime.getRuntime().removeShutdownHook(shutdownHook) }
     }
+}
+
+internal fun isWavOutput(output: File): Boolean = output.extension.equals("wav", ignoreCase = true)
+
+internal fun resolveFfmpegExecutable(
+    options: AudioExportOptions,
+    output: File,
+    systemFfmpegAvailable: Boolean = isSystemFfmpegAvailable()
+): String? {
+    options.ffmpegPath?.let { executable ->
+        require(executable.isFile && executable.canExecute()) {
+            "FFmpeg executable is not runnable: $executable"
+        }
+        return executable.absolutePath
+    }
+    val required = !isWavOutput(output) || options.ffmpegArguments.isNotEmpty()
+    require(!required || systemFfmpegAvailable) {
+        "FFmpeg is required for this output; install it or use --ffmpeg <path>."
+    }
+    return if (systemFfmpegAvailable) "ffmpeg" else null
+}
+
+private fun isSystemFfmpegAvailable(): Boolean = runCatching {
+    ProcessBuilder("ffmpeg", "-version")
+        .redirectOutput(ProcessBuilder.Redirect.DISCARD)
+        .redirectError(ProcessBuilder.Redirect.DISCARD)
+        .start()
+        .waitFor() == 0
+}.getOrDefault(false)
+
+private fun ffmpegOutputArguments(options: AudioExportOptions, output: File): List<String> = buildList {
+    if (isWavOutput(output)) {
+        add("-c:a")
+        add(
+            when (options.renderOptions.sampleFormat) {
+                AudioExportSampleFormat.Pcm16 -> "pcm_s16le"
+                AudioExportSampleFormat.Pcm24 -> "pcm_s24le"
+                AudioExportSampleFormat.Float32 -> "pcm_f32le"
+            }
+        )
+        add("-rf64")
+        add("auto")
+    }
+    addAll(options.ffmpegArguments)
+}
+
+internal fun parseFfmpegArgumentList(raw: String): List<String> {
+    val arguments = mutableListOf<String>()
+    val current = StringBuilder()
+    var quote: Char? = null
+    var escaped = false
+    var started = false
+    raw.forEach { char ->
+        when {
+            escaped -> {
+                current.append(char)
+                escaped = false
+            }
+            char == '\\' && quote != '\'' -> escaped = true
+            quote != null && char == quote -> quote = null
+            quote != null -> current.append(char)
+            char == '\'' || char == '"' -> {
+                quote = char
+                started = true
+            }
+            char.isWhitespace() -> {
+                if (started || current.isNotEmpty()) {
+                    arguments.add(current.toString())
+                    current.clear()
+                    started = false
+                }
+            }
+            else -> current.append(char)
+        }
+    }
+    require(!escaped && quote == null) { "--ffmpegArgs contains an unterminated quote or escape." }
+    if (started || current.isNotEmpty()) arguments.add(current.toString())
+    return arguments
 }
 
 internal fun moveCompletedExport(temp: File, output: File, force: Boolean) {
@@ -212,7 +317,7 @@ internal fun parseAudioExportOptions(args: Array<String>): AudioExportOptions {
         }
         require(name in setOf(
             "input", "output", "subtune", "sampleRate", "sampleFormat", "duration",
-            "unknownDuration", "fadeMs", "fadeCurve", "fadeAll"
+            "unknownDuration", "fadeMs", "fadeCurve", "fadeAll", "ffmpeg", "ffmpegArgs"
         )) { "Unknown option: --$name" }
         require(index + 1 < args.size) { "Missing value for --$name" }
         require(values.put(name, args[index + 1]) == null) { "Duplicate option: --$name" }
@@ -251,6 +356,8 @@ internal fun parseAudioExportOptions(args: Array<String>): AudioExportOptions {
         input = input,
         output = output,
         subtuneIndex = subtuneIndex,
+        ffmpegPath = values["ffmpeg"]?.let(::expandAudioExportPath),
+        ffmpegArguments = values["ffmpegArgs"]?.let(::parseFfmpegArgumentList).orEmpty(),
         renderOptions = AudioExportRenderOptions(
             sampleRateHz = intValue("sampleRate") ?: 48_000,
             sampleFormat = sampleFormat,
@@ -310,6 +417,8 @@ private fun printAudioExportHelp() {
           -PfadeMs=<0|100..120000>       Export-only fade duration; 0 disables
           -PfadeCurve=<curve>             linear, ease_in, or ease_out
           -PfadeAll=<true|false>          Apply fade to reliable-duration tracks
+          -Pffmpeg=<path>                 Use a specific FFmpeg executable
+          -PffmpegArgs="<arguments>"      Output codec/options, e.g. "-c:a flac"
           -Pforce=true                    Replace an existing output file
         """.trimIndent()
     )

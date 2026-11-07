@@ -1,7 +1,6 @@
 package com.flopster101.siliconplayer.desktop
 
 import com.flopster101.siliconplayer.export.AudioExportSampleFormat
-import java.io.Closeable
 import java.io.File
 import java.io.RandomAccessFile
 import kotlin.math.roundToInt
@@ -10,7 +9,7 @@ internal class WavExportWriter(
     file: File,
     private val sampleRateHz: Int,
     private val sampleFormat: AudioExportSampleFormat
-) : Closeable {
+) : AudioExportWriter {
     var frameCount: Long = 0L
         private set
 
@@ -46,7 +45,7 @@ internal class WavExportWriter(
         }
     }
 
-    fun write(samples: FloatArray, frameCount: Int) {
+    override fun write(samples: FloatArray, frameCount: Int) {
         check(!closed && !finished) { "Cannot write after the WAV writer is finalized." }
         require(frameCount >= 0) { "Frame count must not be negative." }
         require(frameCount <= samples.size / CHANNEL_COUNT) {
@@ -95,7 +94,7 @@ internal class WavExportWriter(
         }
     }
 
-    fun finish() {
+    override fun finish() {
         if (finished) return
         check(!closed) { "Cannot finalize a closed WAV writer." }
         val dataBytes = frameCount * bytesPerFrame
