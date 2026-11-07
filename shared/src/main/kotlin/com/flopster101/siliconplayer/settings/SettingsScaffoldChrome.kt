@@ -4,6 +4,7 @@ import com.flopster101.siliconplayer.platform.LocalIsWatchDevice
 import com.flopster101.siliconplayer.platform.LocalWindowSizeInfo
 import com.flopster101.siliconplayer.platform.LocalIsRoundScreen
 import com.flopster101.siliconplayer.ui.screens.ScrollingTopAppBarTitle
+import com.flopster101.siliconplayer.ui.screens.TopBarNavigationIcon
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.core.FastOutLinearInEasing
 import androidx.compose.animation.core.FastOutSlowInEasing
@@ -125,16 +126,11 @@ internal fun SettingsScaffoldShell(
     }
 
     val navigationIconContent: @Composable () -> Unit = {
-        IconButton(
-            onClick = onBack,
-            modifier = if (isWatch) Modifier.size(32.dp) else Modifier
-        ) {
-            Icon(
-                imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                contentDescription = "Back",
-                modifier = if (isWatch) Modifier.size(18.dp) else Modifier.size(24.dp)
-            )
-        }
+        TopBarNavigationIcon(
+            imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+            contentDescription = "Back",
+            onClick = onBack
+        )
     }
 
     val actionsContent: @Composable RowScope.() -> Unit = {
@@ -241,7 +237,11 @@ internal fun SettingsScaffoldShell(
                 }
             } else if (isTwoPane) {
                 TopAppBar(
-                    title = titleContent,
+                    title = {
+                        Box(modifier = Modifier.padding(start = 8.dp)) {
+                            titleContent()
+                        }
+                    },
                     navigationIcon = navigationIconContent,
                     actions = actionsContent,
                     colors = TopAppBarDefaults.topAppBarColors(
@@ -263,6 +263,8 @@ internal fun SettingsScaffoldShell(
                     ScrollingTopAppBarTitle(
                         scrollBehavior = scrollBehavior,
                         modifier = Modifier.matchParentSize(),
+                        expandedStart = 24.dp,
+                        collapsedStart = 80.dp,
                         title = titleContent
                     )
                 }

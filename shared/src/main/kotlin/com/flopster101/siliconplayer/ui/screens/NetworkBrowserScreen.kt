@@ -1299,7 +1299,13 @@ internal fun NetworkBrowserScreen(
                 LargeTopAppBar(
                     title = {},
                     navigationIcon = {
-                        IconButton(
+                        TopBarNavigationIcon(
+                            imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                            contentDescription = if (currentFolderId != null) {
+                                "Go to parent folder"
+                            } else {
+                                "Go back"
+                            },
                             onClick = {
                                 if (currentFolderId != null) {
                                     navigateUpOneFolder()
@@ -1307,16 +1313,7 @@ internal fun NetworkBrowserScreen(
                                     onExitNetwork()
                                 }
                             }
-                        ) {
-                            Icon(
-                                imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                                contentDescription = if (currentFolderId != null) {
-                                    "Go to parent folder"
-                                } else {
-                                    "Go back"
-                                }
-                            )
-                        }
+                        )
                     },
                     actions = {
                         if (isSelectionMode) {
@@ -1568,6 +1565,8 @@ internal fun NetworkBrowserScreen(
                 ScrollingTopAppBarTitle(
                     scrollBehavior = networkScrollBehavior,
                     modifier = Modifier.matchParentSize(),
+                    expandedStart = 24.dp,
+                    collapsedStart = 80.dp,
                     endPadding = 100.dp,
                     title = { Text("Network") }
                 )

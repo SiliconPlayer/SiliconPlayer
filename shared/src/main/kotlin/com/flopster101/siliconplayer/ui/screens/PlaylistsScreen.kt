@@ -1193,33 +1193,32 @@ internal fun PlaylistsScreen(
                                 label = "librarySearchNavigationIcon"
                             ) { searching ->
                                 if (searching) {
-                                    IconButton(
+                                    TopBarNavigationIcon(
+                                        imageVector = Icons.Default.Close,
+                                        contentDescription = "Close search",
                                         onClick = {
                                             librarySearchActive = false
                                             librarySearchQuery = ""
                                             keyboardController?.hide()
                                         }
-                                    ) {
-                                        Icon(
-                                            imageVector = Icons.Default.Close,
-                                            contentDescription = "Close search"
-                                        )
-                                    }
+                                    )
                                 } else {
-                                    IconButton(
+                                    TopBarNavigationIcon(
+                                        imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                                        contentDescription = "Go back",
                                         onClick = {
                                             if (showingPlaylistDetail) {
                                                 if (destination == PlaylistsSurfaceDestination.Favorites && favoritesEditModeEnabled) {
                                                     favoritesEditModeEnabled = false
                                                     favoritesSelectedEntryIds = emptySet()
                                                     favoritesDraggingEntryId = null
-                                                    return@IconButton
+                                                    return@TopBarNavigationIcon
                                                 }
                                                 if (destination == PlaylistsSurfaceDestination.StoredPlaylist && storedPlaylistEditModeEnabled) {
                                                     storedPlaylistEditModeEnabled = false
                                                     storedPlaylistSelectedEntryIds = emptySet()
                                                     storedPlaylistDraggingEntryId = null
-                                                    return@IconButton
+                                                    return@TopBarNavigationIcon
                                                 }
                                                 favoritesEditModeEnabled = false
                                                 favoritesSelectedEntryIds = emptySet()
@@ -1249,12 +1248,7 @@ internal fun PlaylistsScreen(
                                                 onBack()
                                             }
                                         }
-                                    ) {
-                                        Icon(
-                                            imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                                            contentDescription = "Go back"
-                                        )
-                                    }
+                                    )
                         }
                     }
                 },
@@ -1311,6 +1305,8 @@ internal fun PlaylistsScreen(
                     ScrollingTopAppBarTitle(
                         scrollBehavior = scrollBehavior,
                         modifier = Modifier.matchParentSize(),
+                        expandedStart = 24.dp,
+                        collapsedStart = 80.dp,
                         endPadding = playlistsTopBarEndPadding,
                         title = playlistsTopBarTitle
                     )

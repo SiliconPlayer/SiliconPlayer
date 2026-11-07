@@ -25,6 +25,7 @@ import androidx.compose.ui.unit.lerp as lerpDp
 internal fun ScrollingTopAppBarTitle(
     scrollBehavior: TopAppBarScrollBehavior,
     modifier: Modifier = Modifier,
+    expandedStart: Dp = 16.dp,
     collapsedStart: Dp = 56.dp,
     endPadding: Dp = 64.dp,
     title: @Composable () -> Unit
@@ -36,7 +37,7 @@ internal fun ScrollingTopAppBarTitle(
         fraction
     )
     val bottomCenter = lerpDp(38.dp, 32.dp, fraction)
-    val start = lerpDp(16.dp, collapsedStart, fraction)
+    val start = lerpDp(expandedStart, collapsedStart, fraction)
     Box(
         modifier = modifier.windowInsetsPadding(TopAppBarDefaults.windowInsets)
     ) {
