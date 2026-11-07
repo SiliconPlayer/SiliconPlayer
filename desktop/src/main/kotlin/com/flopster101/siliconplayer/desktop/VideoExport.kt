@@ -1,20 +1,14 @@
 package com.flopster101.siliconplayer.desktop
 
-import com.flopster101.siliconplayer.AppDefaults
 import com.flopster101.siliconplayer.AppPreferenceKeys
 import com.flopster101.siliconplayer.DomainStoreDirs
 import com.flopster101.siliconplayer.GmeDefaults
-import com.flopster101.siliconplayer.LookaheadClipperMode
-import com.flopster101.siliconplayer.MultiChannelOutputMode
 import com.flopster101.siliconplayer.NativeBridge
 import com.flopster101.siliconplayer.VisualizationChannelScopeAntialiasMethod
 import com.flopster101.siliconplayer.VisualizationMode
 import com.flopster101.siliconplayer.VisualizationOscTriggerMode
 import com.flopster101.siliconplayer.isVisualizationModeSupported
 import com.flopster101.siliconplayer.ui.visualization.OffscreenVisualizationRenderer
-import com.flopster101.siliconplayer.audio.applyDspSettingsToNative
-import com.flopster101.siliconplayer.audio.readGlobalDspSettings
-import com.flopster101.siliconplayer.readPluginVolumeForDecoder
 import java.io.BufferedOutputStream
 import java.io.File
 import java.nio.ByteBuffer
@@ -70,34 +64,8 @@ fun main(args: Array<String>) {
     val audioFile = File.createTempFile("siliconplayer-export-", ".f32le")
 
     try {
-        NativeBridge.setMasterGain(prefs.getFloat(AppPreferenceKeys.AUDIO_MASTER_VOLUME_DB, 0f))
-        NativeBridge.setForceMono(
-            prefs.getBoolean(AppPreferenceKeys.AUDIO_FORCE_MONO, false)
-        )
-        NativeBridge.setOutputLimiterEnabled(
-            prefs.getBoolean(
-                AppPreferenceKeys.AUDIO_OUTPUT_LIMITER_ENABLED,
-                AppDefaults.AudioProcessing.outputLimiterEnabled
-            )
-        )
-        NativeBridge.setLookaheadClipperMode(
-            LookaheadClipperMode.fromStorage(
-                prefs.getString(
-                    AppPreferenceKeys.AUDIO_LOOKAHEAD_CLIPPER_MODE,
-                    AppDefaults.AudioProcessing.lookaheadClipperMode.storageValue
-                )
-            ).nativeValue
-        )
-        NativeBridge.setMultiChannelOutputMode(
-            MultiChannelOutputMode.fromStorage(
-                prefs.getString(
-                    AppPreferenceKeys.AUDIO_MULTI_CHANNEL_OUTPUT_MODE,
-                    AppDefaults.OutputPipeline.multiChannelOutputMode.storageValue
-                )
-            ).nativeValue
-        )
-        pushAudioPipelineConfigToNative(prefs)
-        applyDspSettingsToNative(readGlobalDspSettings(prefs))
+        NativeBridge.setOfflineRenderMode(true)
+        applyOfflineAudioPreferencesToNative(prefs)
         check(session.loadFile(options.song, autoStart = false)) {
             "Could not load song: ${options.song}"
         }
@@ -105,12 +73,8 @@ fun main(args: Array<String>) {
         check(isVisualizationModeSupported(options.visualizationMode, decoder)) {
             "$decoder does not support ${options.visualizationMode.label} visualization."
         }
-        val songVolumeStore = DesktopSongVolumeStore.getInstance()
-        val ignoreCoreVolume = songVolumeStore.getSongIgnoreCoreVolume(options.song.absolutePath)
-        NativeBridge.setPluginGain(if (ignoreCoreVolume) 0f else readPluginVolumeForDecoder(prefs, decoder))
-        NativeBridge.setSongGain(songVolumeStore.getSongVolume(options.song.absolutePath) ?: 0f)
+        applyOfflineTrackGainToNative(prefs, options.song.absolutePath, decoder)
         NativeBridge.setRepeatMode(0)
-        NativeBridge.setOfflineRenderMode(true)
 
         val trackDurationSeconds = if (session.hasReliableDuration && session.durationSeconds > 0.0) {
             session.durationSeconds

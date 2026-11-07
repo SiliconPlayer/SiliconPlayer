@@ -619,7 +619,8 @@ namespace {
     static DecoderRegistration registration;
 }
 
-AudioEngine::AudioEngine() {
+AudioEngine::AudioEngine(bool offlineMode) {
+    offlineRenderMode.store(offlineMode, std::memory_order_relaxed);
     updateRenderQueueTuning();
     seekWorkerThread = std::thread([this]() { seekWorkerLoop(); });
     renderWorkerThread = std::thread([this]() { renderWorkerLoop(); });

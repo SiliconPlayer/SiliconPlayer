@@ -32,6 +32,7 @@ import com.flopster101.siliconplayer.audio.readCoreDspSettings
 import com.flopster101.siliconplayer.audio.readCoreIgnoreGlobalDsp
 import com.flopster101.siliconplayer.audio.readGlobalDspSettings
 import com.flopster101.siliconplayer.audio.resolveEffectiveDspSettings
+import com.flopster101.siliconplayer.export.AudioExportRenderOptions
 import com.flopster101.siliconplayer.platform.AppPreferences
 import java.io.File
 import java.util.concurrent.atomic.AtomicLong
@@ -134,6 +135,8 @@ class DesktopPlaybackSession(
     private var stoppedSubtuneIndex: Int? = null
     // Live prefs source for track-open native pushes; attached once host prefs exist.
     var trackOptionsPrefs: AppPreferences? = null
+    var audioExportOptions: AudioExportRenderOptions? = null
+    var persistLoadCrashGuard = true
     // Persisted preferred mode (host-owned); resolved per track into repeatMode.
     var preferredRepeatMode: RepeatMode = RepeatMode.None
     // Queue advance for track-end Playlist/None; returns false when the queue is exhausted.
@@ -173,13 +176,13 @@ class DesktopPlaybackSession(
         if (!autoStart) {
             NativeBridge.stopEngineSyncNative()
         }
+        trackOptionsPrefs?.let { pushStoredTrackOptionsToNative(it, audioExportOptions) }
         val forced = NativeBridge.consumeForcedDecoderOneShot()
         if (forced != null) {
             NativeBridge.loadAudioWithDecoder(file.absolutePath, forced)
         } else {
             NativeBridge.loadAudio(file.absolutePath)
         }
-        trackOptionsPrefs?.let { pushStoredTrackOptionsToNative(it) }
 
         val remoteSourceId = runCatching { resolveCachedRemoteSourceId(file.absolutePath) }.getOrNull()
         currentFile = file
@@ -252,6 +255,7 @@ class DesktopPlaybackSession(
     // is skipped once at the next session restore instead of crash-looping.
     // Mirrors Android NativeBridge.replaceCurrentAudio.
     private fun armLoadCrashGuard(path: String) {
+        if (!persistLoadCrashGuard) return
         runCatching {
             trackOptionsPrefs?.edit()
                 ?.putString(AppPreferenceKeys.SESSION_LOAD_CRASH_GUARD_PATH, path)
@@ -260,6 +264,7 @@ class DesktopPlaybackSession(
     }
 
     private fun clearLoadCrashGuard() {
+        if (!persistLoadCrashGuard) return
         runCatching {
             trackOptionsPrefs?.edit()
                 ?.remove(AppPreferenceKeys.SESSION_LOAD_CRASH_GUARD_PATH)
@@ -283,13 +288,13 @@ class DesktopPlaybackSession(
         if (!autoStart) {
             NativeBridge.stopEngineSyncNative()
         }
+        trackOptionsPrefs?.let { pushStoredTrackOptionsToNative(it, audioExportOptions) }
         val forced = NativeBridge.consumeForcedDecoderOneShot()
         if (forced != null) {
             NativeBridge.loadAudioWithDecoder(source, forced)
         } else {
             NativeBridge.loadAudio(source)
         }
-        trackOptionsPrefs?.let { pushStoredTrackOptionsToNative(it) }
         val resolved = resolveManualSourceInput(source)
         currentFile = resolved?.displayFile ?: File(source)
         currentSource = source
@@ -661,11 +666,20 @@ internal fun pushEndFadeToNative(applyToAll: Boolean, durationMs: Int, curve: En
 }
 
 // Stored player prefs pushed at track-open/startup; fallbacks match desktop settings reads.
-internal fun pushStoredTrackOptionsToNative(prefs: AppPreferences) {
-    pushUnknownTrackDurationToNative(prefs.getInt(AppPreferenceKeys.UNKNOWN_TRACK_DURATION_SECONDS, GmeDefaults.unknownDurationSeconds))
+internal fun pushStoredTrackOptionsToNative(
+    prefs: AppPreferences,
+    exportOptions: AudioExportRenderOptions? = null
+) {
+    pushUnknownTrackDurationToNative(
+        exportOptions?.unknownDurationSeconds
+            ?: prefs.getInt(AppPreferenceKeys.UNKNOWN_TRACK_DURATION_SECONDS, GmeDefaults.unknownDurationSeconds)
+    )
     pushEndFadeToNative(
-        prefs.getBoolean(AppPreferenceKeys.END_FADE_APPLY_TO_ALL_TRACKS, AppDefaults.Player.endFadeApplyToAllTracks),
-        prefs.getInt(AppPreferenceKeys.END_FADE_DURATION_MS, AppDefaults.Player.endFadeDurationMs),
-        EndFadeCurve.fromStorage(prefs.getString(AppPreferenceKeys.END_FADE_CURVE, AppDefaults.Player.endFadeCurve.storageValue))
+        exportOptions?.endFadeApplyToAllTracks
+            ?: prefs.getBoolean(AppPreferenceKeys.END_FADE_APPLY_TO_ALL_TRACKS, AppDefaults.Player.endFadeApplyToAllTracks),
+        exportOptions?.endFadeDurationMs
+            ?: prefs.getInt(AppPreferenceKeys.END_FADE_DURATION_MS, AppDefaults.Player.endFadeDurationMs),
+        exportOptions?.endFadeCurve
+            ?: EndFadeCurve.fromStorage(prefs.getString(AppPreferenceKeys.END_FADE_CURVE, AppDefaults.Player.endFadeCurve.storageValue))
     )
 }

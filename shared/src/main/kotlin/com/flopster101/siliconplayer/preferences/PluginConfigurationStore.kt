@@ -2,7 +2,7 @@ package com.flopster101.siliconplayer
 
 import com.flopster101.siliconplayer.platform.AppPreferences
 
-internal fun loadPluginConfigurations(prefs: AppPreferences) {
+internal fun applyStoredPluginConfigurationsToNative(prefs: AppPreferences) {
     val decoderNames = NativeBridge.getRegisteredDecoderNames()
 
     for (decoderName in decoderNames) {
@@ -21,7 +21,10 @@ internal fun loadPluginConfigurations(prefs: AppPreferences) {
             NativeBridge.setDecoderEnabledExtensions(decoderName, extensions)
         }
     }
+}
 
+internal fun loadPluginConfigurations(prefs: AppPreferences) {
+    applyStoredPluginConfigurationsToNative(prefs)
     normalizeDecoderPriorityValues()
     persistAllPluginConfigurations(prefs)
     pushStoredCoreOptionsToNative(prefs)

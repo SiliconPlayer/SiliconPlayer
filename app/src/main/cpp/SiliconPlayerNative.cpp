@@ -18,6 +18,7 @@
 #include <thread>
 #include <mutex>
 static AudioEngine *audioEngine = nullptr;
+static bool offlineRenderModeRequested = false;
 static std::mutex engineMutex;
 
 AudioEngine* getGlobalAudioEngine() {
@@ -398,7 +399,7 @@ extern "C" JNIEXPORT void JNICALL JNI_OnUnload(JavaVM* vm, void*) {
 static void ensureEngine() {
     std::lock_guard<std::mutex> lock(engineMutex);
     if (audioEngine == nullptr) {
-        audioEngine = new AudioEngine();
+        audioEngine = new AudioEngine(offlineRenderModeRequested);
     }
 }
 
@@ -2997,7 +2998,8 @@ Java_com_flopster101_siliconplayer_NativeBridge_renderOfflineAudioFrames(
 extern "C" JNIEXPORT void JNICALL
 Java_com_flopster101_siliconplayer_NativeBridge_setOfflineRenderMode(
         JNIEnv*, jobject, jboolean enabled) {
-    if (audioEngine) audioEngine->setOfflineRenderMode(enabled == JNI_TRUE);
+    offlineRenderModeRequested = enabled == JNI_TRUE;
+    if (audioEngine) audioEngine->setOfflineRenderMode(offlineRenderModeRequested);
 }
 
 extern "C" JNIEXPORT void JNICALL

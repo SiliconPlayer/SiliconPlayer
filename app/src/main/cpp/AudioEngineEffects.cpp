@@ -302,7 +302,7 @@ void AudioEngine::setEndFadeApplyToAllTracks(bool enabled) {
 }
 
 void AudioEngine::setEndFadeDurationMs(int durationMs) {
-    const int normalized = std::clamp(durationMs, 100, 120000);
+    const int normalized = durationMs <= 0 ? 0 : std::clamp(durationMs, 100, 120000);
     endFadeDurationMs.store(normalized);
 }
 

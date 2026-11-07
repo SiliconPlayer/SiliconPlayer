@@ -26,7 +26,7 @@ namespace siliconplayer::usb {
 
 class AudioEngine : public silicon::vis::IVisualizationAudioProvider {
 public:
-    AudioEngine();
+    explicit AudioEngine(bool offlineMode = false);
     ~AudioEngine();
 
     bool start();

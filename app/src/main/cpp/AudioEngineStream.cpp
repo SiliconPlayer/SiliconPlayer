@@ -293,6 +293,7 @@ void AudioEngine::closeMiniaudioStream() {
 }
 
 void AudioEngine::createStream() {
+    if (offlineRenderMode.load(std::memory_order_relaxed)) return;
     std::lock_guard<std::mutex> lock(deviceMutex);
     createMiniaudioStream();
     // Re-derive the queue tuning now that the negotiated rate is known.

@@ -245,6 +245,25 @@ tasks.register<JavaExec>("exportVideo") {
     args(exportArguments)
 }
 
+tasks.register<JavaExec>("exportAudio") {
+    group = "application"
+    description = "Export a local song as stereo WAV using stored decoder and audio-effect settings."
+    classpath = sourceSets.getByName("main").runtimeClasspath
+    mainClass.set("com.flopster101.siliconplayer.desktop.AudioExportKt")
+    val exportArguments = listOf(
+        "input", "output", "subtune", "sampleRate", "sampleFormat", "duration",
+        "unknownDuration", "fadeMs", "fadeCurve", "fadeAll"
+    )
+        .flatMap { name ->
+            (project.findProperty(name) as? String)?.let { listOf("--$name", it) } ?: emptyList()
+        }
+    val force = (project.findProperty("force") as? String)?.let { raw ->
+        require(raw == "true" || raw == "false") { "-Pforce must be true or false." }
+        if (raw == "true") listOf("--force") else emptyList()
+    }.orEmpty()
+    args(exportArguments + force)
+}
+
 tasks.withType<Test>().configureEach {
     dependsOn(buildDesktopNative)
     configureNativePaths(this)
