@@ -6,6 +6,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.MusicNote
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -239,37 +240,45 @@ internal data class PluginDetailRouteActions(
 @Composable
 internal fun PluginDetailRouteContent(
     state: PluginDetailRouteState,
-    actions: PluginDetailRouteActions
+    actions: PluginDetailRouteActions,
+    onRequestPluginReset: (String) -> Unit
 ) {
     val pluginName = state.selectedPluginName ?: return
-    if (isDecoderSupportedOnCurrentPlatform(DecoderNames.PLATFORM_DOLBY) &&
+    val isPlatformDolby = isDecoderSupportedOnCurrentPlatform(DecoderNames.PLATFORM_DOLBY) &&
         pluginName.equals(DecoderNames.PLATFORM_DOLBY, ignoreCase = true)
-    ) {
-        com.flopster101.siliconplayer.platform.LocalSettingsPlatformContent.current.PlatformDolbyDetailContent()
-        return
-    }
     val coreAboutEntry = remember(pluginName) { AboutCatalog.resolveCoreForPlugin(pluginName) }
     var selectedAboutEntry by remember(pluginName) { mutableStateOf<AboutEntity?>(null) }
     var showCoreCapabilitiesDialog by remember(pluginName) { mutableStateOf(false) }
 
-    PluginDetailScreen(
-        pluginName = pluginName,
-        onPriorityChanged = { priority ->
-            actions.onPluginPriorityChanged(pluginName, priority)
-        },
-        onExtensionsChanged = { extensions ->
-            actions.onPluginExtensionsChanged(pluginName, extensions)
-        }
-    )
+    if (isPlatformDolby) {
+        com.flopster101.siliconplayer.platform.LocalSettingsPlatformContent.current.PlatformDolbyDetailContent()
+    } else {
+        PluginDetailScreen(
+            pluginName = pluginName,
+            onPriorityChanged = { priority ->
+                actions.onPluginPriorityChanged(pluginName, priority)
+            },
+            onExtensionsChanged = { extensions ->
+                actions.onPluginExtensionsChanged(pluginName, extensions)
+            }
+        )
+    }
 
     val selectedCoreCapabilities = remember(pluginName) {
-        NativeBridge.getCoreCapabilities(pluginName)
+        if (isPlatformDolby) {
+            PLAYBACK_CAP_SEEK or
+                PLAYBACK_CAP_RELIABLE_DURATION or
+                PLAYBACK_CAP_LIVE_REPEAT_MODE or
+                PLAYBACK_CAP_ASYNC_DIRECT_SEEK
+        } else {
+            NativeBridge.getCoreCapabilities(pluginName)
+        }
     }
     val selectedCoreRepeatCapabilities = remember(pluginName) {
-        NativeBridge.getCoreRepeatModeCapabilities(pluginName)
+        if (isPlatformDolby) REPEAT_CAP_TRACK else NativeBridge.getCoreRepeatModeCapabilities(pluginName)
     }
     val selectedCoreTimelineMode = remember(pluginName) {
-        NativeBridge.getCoreTimelineMode(pluginName)
+        if (isPlatformDolby) TIMELINE_MODE_CONTINUOUS_LINEAR else NativeBridge.getCoreTimelineMode(pluginName)
     }
     val coreCapabilitySections = remember(
         selectedCoreCapabilities,
@@ -291,7 +300,7 @@ internal fun PluginDetailRouteContent(
         if (!showCoreCapabilitiesDialog) return@LaunchedEffect
         val isEnginePlaying = NativeBridge.isEnginePlaying()
         val currentDecoderName = NativeBridge.getCurrentDecoderName()
-        if (isEnginePlaying && currentDecoderName == pluginName) {
+        if (!isPlatformDolby && isEnginePlaying && currentDecoderName == pluginName) {
             coreCapabilitiesDialogSections = buildCoreCapabilitySections(
                 playbackCapabilities = NativeBridge.getPlaybackCapabilities(),
                 repeatCapabilities = NativeBridge.getRepeatModeCapabilities(),
@@ -587,39 +596,48 @@ internal fun PluginDetailRouteContent(
         )
     }
 
-    SettingsSectionLabel("Generic output options")
-    SampleRateSelectorCard(
-        title = "Render sample rate",
-        description = sampleRateDescription,
-        selectedHz = if (hasFixedRate) fixedSampleRateHz else selectedRateHz,
-        statusText = sampleRateStatus,
-        enabled = supportsConfigurableRate && onSampleRateSelected != null,
-        onSelected = { hz -> onSampleRateSelected?.invoke(hz) }
-    )
+    if (!isPlatformDolby) {
+        SettingsSectionLabel("Generic output options")
+        SampleRateSelectorCard(
+            title = "Render sample rate",
+            description = sampleRateDescription,
+            selectedHz = if (hasFixedRate) fixedSampleRateHz else selectedRateHz,
+            statusText = sampleRateStatus,
+            enabled = supportsConfigurableRate && onSampleRateSelected != null,
+            onSelected = { hz -> onSampleRateSelected?.invoke(hz) }
+        )
+    }
 
-    if (coreAboutEntry != null || coreCapabilitySections.isNotEmpty()) {
-        SettingsSectionLabel("Info")
-        if (coreCapabilitySections.isNotEmpty()) {
-            SettingsItemCard(
-                title = "Core capabilities",
-                description = "Reported seek, repeat, timeline, and output capability flags for this core.",
-                icon = Icons.Default.Info,
-                onClick = { showCoreCapabilitiesDialog = true }
-            )
-            if (coreAboutEntry != null) {
-                SettingsRowSpacer()
-            }
-        }
-
+    SettingsSectionLabel("Info")
+    if (coreCapabilitySections.isNotEmpty()) {
+        SettingsItemCard(
+            title = "Core capabilities",
+            description = "Reported seek, repeat, timeline, and output capability flags for this core.",
+            icon = Icons.Default.Info,
+            onClick = { showCoreCapabilitiesDialog = true }
+        )
         if (coreAboutEntry != null) {
-            SettingsItemCard(
-                title = "About this core",
-                description = "Credits, license info, upstream links, and integration notes.",
-                icon = Icons.Default.Info,
-                onClick = { selectedAboutEntry = coreAboutEntry }
-            )
+            SettingsRowSpacer()
         }
     }
+
+    if (coreAboutEntry != null) {
+        SettingsItemCard(
+            title = "About this core",
+            description = "Credits, license info, upstream links, and integration notes.",
+            icon = Icons.Default.Info,
+            onClick = { selectedAboutEntry = coreAboutEntry }
+        )
+    }
+    if (coreAboutEntry != null || coreCapabilitySections.isNotEmpty()) {
+        SettingsRowSpacer()
+    }
+    SettingsItemCard(
+        title = "Reset core settings",
+        description = "Reset this core's settings to their defaults.",
+        titleColor = MaterialTheme.colorScheme.error,
+        onClick = { onRequestPluginReset(pluginName) }
+    )
 
     selectedAboutEntry?.let { entity ->
         AboutEntityDialog(

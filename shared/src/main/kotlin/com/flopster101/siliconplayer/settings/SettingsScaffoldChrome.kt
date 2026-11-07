@@ -61,7 +61,6 @@ internal fun SettingsScaffoldShell(
     pluginPriorityEditMode: Boolean,
     onBack: () -> Unit,
     onTogglePluginPriorityEditMode: () -> Unit,
-    onRequestPluginReset: (String) -> Unit,
     onResetVisualizationBarsSettings: () -> Unit,
     onResetVisualizationOscilloscopeSettings: () -> Unit,
     onResetVisualizationVuSettings: () -> Unit,
@@ -158,18 +157,6 @@ internal fun SettingsScaffoldShell(
                         modifier = Modifier.size(18.dp)
                     )
                 }
-            }
-        } else if (route == SettingsRoute.PluginDetail && selectedPluginName != null) {
-            IconButton(
-                onClick = { onRequestPluginReset(selectedPluginName) },
-                modifier = Modifier.size(36.dp)
-            ) {
-                Icon(
-                    imageVector = Icons.Default.Restore,
-                    contentDescription = "Reset core settings",
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.size(18.dp)
-                )
             }
         } else if (
             route == SettingsRoute.VisualizationBasicBars ||

@@ -49,7 +49,6 @@ internal fun SettingsScreen(
         pluginPriorityEditMode = pluginPriorityEditMode,
         onBack = actions.onBack,
         onTogglePluginPriorityEditMode = { pluginPriorityEditMode = !pluginPriorityEditMode },
-        onRequestPluginReset = { pluginName -> pendingPluginResetName = pluginName },
         onResetVisualizationBarsSettings = actions.onResetVisualizationBarsSettings,
         onResetVisualizationOscilloscopeSettings = actions.onResetVisualizationOscilloscopeSettings,
         onResetVisualizationVuSettings = actions.onResetVisualizationVuSettings,
@@ -68,7 +67,8 @@ internal fun SettingsScreen(
             },
             onRequestClearPluginSettings = {
                 pendingResetAction = SettingsResetAction.ClearPluginSettings
-            }
+            },
+            onRequestPluginReset = { pluginName -> pendingPluginResetName = pluginName }
         )
     }
 

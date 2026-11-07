@@ -56,7 +56,8 @@ internal fun SettingsRouteContentHost(
     actions: SettingsScreenActions,
     pluginPriorityEditMode: Boolean,
     onRequestClearAllSettings: () -> Unit,
-    onRequestClearPluginSettings: () -> Unit
+    onRequestClearPluginSettings: () -> Unit,
+    onRequestPluginReset: (String) -> Unit
 ) {
     val isWatch = com.flopster101.siliconplayer.platform.LocalIsWatchDevice.current
     val isRound = com.flopster101.siliconplayer.platform.LocalIsRoundScreen.current
@@ -150,7 +151,8 @@ internal fun SettingsRouteContentHost(
                 SettingsRoute.PluginDetail -> {
                     PluginDetailRouteContent(
                         state = state.toPluginDetailRouteState(),
-                        actions = actions.toPluginDetailRouteActions()
+                        actions = actions.toPluginDetailRouteActions(),
+                        onRequestPluginReset = onRequestPluginReset
                     )
                 }
 
