@@ -42,6 +42,15 @@ object Radius {
     val ControlRoomy = RoundedCornerShape(ControlRoomySize)
     /** Settings card outer corner. */
     val Panel = RoundedCornerShape(PanelSize)
+
+    /** One row of a grouped card: big corner on the group ends, inner corner between rows. */
+    fun cardSegment(isFirst: Boolean, isLast: Boolean): Shape = RoundedCornerShape(
+        topStart = if (isFirst) PanelSize else InnerSize,
+        topEnd = if (isFirst) PanelSize else InnerSize,
+        bottomStart = if (isLast) PanelSize else InnerSize,
+        bottomEnd = if (isLast) PanelSize else InnerSize
+    )
+
     /** Modal dialogs and bottom sheets. */
     val Dialog = RoundedCornerShape(24.dp)
     /** Large dialogs and picker sheets. */

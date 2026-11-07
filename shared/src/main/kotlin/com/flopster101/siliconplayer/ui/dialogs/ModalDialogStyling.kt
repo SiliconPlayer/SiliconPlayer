@@ -68,6 +68,7 @@ import kotlinx.coroutines.launch
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.rotate
+import com.flopster101.siliconplayer.GroupedRowCard
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
@@ -347,17 +348,13 @@ internal fun DialogCollapsibleCard(
         label = "dialogCardArrowRotation"
     )
 
-    Card(
+    Column(
         modifier = modifier
             .fillMaxWidth()
-            .clip(Radius.Panel)
             .alpha(if (isEnabled) 1.0f else 0.45f),
-        shape = Radius.Panel,
-        colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surfaceContainerLow
-        )
+        verticalArrangement = Arrangement.spacedBy(2.dp)
     ) {
-        Column(modifier = Modifier.fillMaxWidth()) {
+        GroupedRowCard(isFirst = true, isLast = !isExpanded) {
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -390,20 +387,18 @@ internal fun DialogCollapsibleCard(
                         .rotate(arrowRotation)
                 )
             }
+        }
 
-            AnimatedVisibility(
-                visible = isExpanded,
-                enter = fadeIn(tween(180)) + expandVertically(tween(200)),
-                exit = fadeOut(tween(140)) + shrinkVertically(tween(180))
-            ) {
-                Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(start = 16.dp, end = 16.dp, bottom = 16.dp),
-                    verticalArrangement = Arrangement.spacedBy(14.dp),
-                    content = content
-                )
-            }
+        AnimatedVisibility(
+            visible = isExpanded,
+            enter = fadeIn(tween(180)) + expandVertically(tween(200)),
+            exit = fadeOut(tween(140)) + shrinkVertically(tween(180))
+        ) {
+            Column(
+                modifier = Modifier.fillMaxWidth(),
+                verticalArrangement = Arrangement.spacedBy(2.dp),
+                content = content
+            )
         }
     }
 }

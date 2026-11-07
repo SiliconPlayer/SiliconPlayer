@@ -1,6 +1,7 @@
 package com.flopster101.siliconplayer.ui.dialogs
 
 import com.flopster101.siliconplayer.ui.theme.Radius
+import com.flopster101.siliconplayer.GroupedRowCard
 import com.flopster101.siliconplayer.TrackTextInputActive
 import com.flopster101.siliconplayer.onGloballyPositionedDeferred
 import com.flopster101.siliconplayer.onSizeChangedDeferred
@@ -354,107 +355,137 @@ fun AudioEffectsDialog(
                     isExpanded = dspOptionsExpanded,
                     onToggleExpand = { dspOptionsExpanded = !dspOptionsExpanded }
                 ) {
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clip(Radius.Compact)
-                            .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f))
-                            .padding(horizontal = 10.dp, vertical = 7.dp),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.Info,
-                            contentDescription = null,
-                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                            modifier = Modifier.size(16.dp)
-                        )
-                        Text(
-                            text = "DSP attribution: About -> Libraries -> OpenMPT DSP effects.",
-                            style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
+                    GroupedRowCard(isFirst = false, isLast = false) {
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(16.dp),
+                            verticalArrangement = Arrangement.spacedBy(14.dp)
+                        ) {
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clip(Radius.Compact)
+                                    .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f))
+                                    .padding(horizontal = 10.dp, vertical = 7.dp),
+                                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.Info,
+                                    contentDescription = null,
+                                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    modifier = Modifier.size(16.dp)
+                                )
+                                Text(
+                                    text = "DSP attribution: About -> Libraries -> OpenMPT DSP effects.",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+
+                            DialogToggleRow(
+                                title = "Bass Expansion",
+                                checked = dspBassEnabled,
+                                onCheckedChange = onDspBassEnabledChange
+                            )
+                            DialogIntSliderRow(
+                                title = "Bass Depth",
+                                value = dspBassDepth,
+                                valueRange = 0..4,
+                                enabled = dspBassEnabled,
+                                onValueChange = onDspBassDepthChange
+                            )
+                            DialogIntSliderRow(
+                                title = "Bass Range",
+                                value = dspBassRange,
+                                valueRange = 0..4,
+                                enabled = dspBassEnabled,
+                                onValueChange = onDspBassRangeChange
+                            )
+                        }
                     }
 
-                    DialogToggleRow(
-                        title = "Bass Expansion",
-                        checked = dspBassEnabled,
-                        onCheckedChange = onDspBassEnabledChange
-                    )
-                    DialogIntSliderRow(
-                        title = "Bass Depth",
-                        value = dspBassDepth,
-                        valueRange = 0..4,
-                        enabled = dspBassEnabled,
-                        onValueChange = onDspBassDepthChange
-                    )
-                    DialogIntSliderRow(
-                        title = "Bass Range",
-                        value = dspBassRange,
-                        valueRange = 0..4,
-                        enabled = dspBassEnabled,
-                        onValueChange = onDspBassRangeChange
-                    )
+                    GroupedRowCard(isFirst = false, isLast = false) {
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(16.dp),
+                            verticalArrangement = Arrangement.spacedBy(14.dp)
+                        ) {
+                            DialogToggleRow(
+                                title = "Surround",
+                                checked = dspSurroundEnabled,
+                                onCheckedChange = onDspSurroundEnabledChange
+                            )
+                            DialogIntSliderRow(
+                                title = "Surround Depth",
+                                value = dspSurroundDepth,
+                                valueRange = 1..16,
+                                enabled = dspSurroundEnabled,
+                                onValueChange = onDspSurroundDepthChange
+                            )
+                            DialogIntSliderRow(
+                                title = "Surround Delay",
+                                value = dspSurroundDelayMs,
+                                valueRange = 5..45,
+                                step = 5,
+                                unitLabel = " ms",
+                                enabled = dspSurroundEnabled,
+                                onValueChange = onDspSurroundDelayMsChange
+                            )
+                        }
+                    }
 
-                    HorizontalDivider()
+                    GroupedRowCard(isFirst = false, isLast = false) {
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(16.dp),
+                            verticalArrangement = Arrangement.spacedBy(14.dp)
+                        ) {
+                            DialogToggleRow(
+                                title = "Reverb",
+                                checked = dspReverbEnabled,
+                                onCheckedChange = onDspReverbEnabledChange
+                            )
+                            DialogIntSliderRow(
+                                title = "Reverb Depth",
+                                value = dspReverbDepth,
+                                valueRange = 1..16,
+                                enabled = dspReverbEnabled,
+                                onValueChange = onDspReverbDepthChange
+                            )
+                            DspReverbPresetDropdownRow(
+                                label = "Reverb Preset",
+                                value = dspReverbPreset,
+                                onValueChange = onDspReverbPresetChange,
+                                enabled = dspReverbEnabled
+                            )
+                        }
+                    }
 
-                    DialogToggleRow(
-                        title = "Surround",
-                        checked = dspSurroundEnabled,
-                        onCheckedChange = onDspSurroundEnabledChange
-                    )
-                    DialogIntSliderRow(
-                        title = "Surround Depth",
-                        value = dspSurroundDepth,
-                        valueRange = 1..16,
-                        enabled = dspSurroundEnabled,
-                        onValueChange = onDspSurroundDepthChange
-                    )
-                    DialogIntSliderRow(
-                        title = "Surround Delay",
-                        value = dspSurroundDelayMs,
-                        valueRange = 5..45,
-                        step = 5,
-                        unitLabel = " ms",
-                        enabled = dspSurroundEnabled,
-                        onValueChange = onDspSurroundDelayMsChange
-                    )
-
-                    HorizontalDivider()
-
-                    DialogToggleRow(
-                        title = "Reverb",
-                        checked = dspReverbEnabled,
-                        onCheckedChange = onDspReverbEnabledChange
-                    )
-                    DialogIntSliderRow(
-                        title = "Reverb Depth",
-                        value = dspReverbDepth,
-                        valueRange = 1..16,
-                        enabled = dspReverbEnabled,
-                        onValueChange = onDspReverbDepthChange
-                    )
-                    DspReverbPresetDropdownRow(
-                        label = "Reverb Preset",
-                        value = dspReverbPreset,
-                        onValueChange = onDspReverbPresetChange,
-                        enabled = dspReverbEnabled
-                    )
-
-                    HorizontalDivider()
-
-                    DialogToggleRow(
-                        title = "Bit Crush",
-                        checked = dspBitCrushEnabled,
-                        onCheckedChange = onDspBitCrushEnabledChange
-                    )
-                    DialogIntSliderRow(
-                        title = "Bit Crush Bits",
-                        value = dspBitCrushBits,
-                        valueRange = 1..24,
-                        enabled = dspBitCrushEnabled,
-                        onValueChange = onDspBitCrushBitsChange
-                    )
+                    GroupedRowCard(isFirst = false, isLast = true) {
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(16.dp),
+                            verticalArrangement = Arrangement.spacedBy(14.dp)
+                        ) {
+                            DialogToggleRow(
+                                title = "Bit Crush",
+                                checked = dspBitCrushEnabled,
+                                onCheckedChange = onDspBitCrushEnabledChange
+                            )
+                            DialogIntSliderRow(
+                                title = "Bit Crush Bits",
+                                value = dspBitCrushBits,
+                                valueRange = 1..24,
+                                enabled = dspBitCrushEnabled,
+                                onValueChange = onDspBitCrushBitsChange
+                            )
+                        }
+                    }
                 }
 
                 if (hasActiveCore) {

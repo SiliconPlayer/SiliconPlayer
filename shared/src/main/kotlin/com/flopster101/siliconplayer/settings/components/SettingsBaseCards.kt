@@ -155,6 +155,30 @@ internal fun SettingsRowContainer(
 }
 
 @Composable
+internal fun GroupedRowCard(
+    isFirst: Boolean,
+    isLast: Boolean,
+    enabled: Boolean = true,
+    modifier: Modifier = Modifier,
+    content: @Composable () -> Unit
+) {
+    if (!enabled) {
+        content()
+        return
+    }
+    val shape = Radius.cardSegment(isFirst = isFirst, isLast = isLast)
+    Surface(
+        modifier = modifier
+            .fillMaxWidth()
+            .clip(shape),
+        shape = shape,
+        color = MaterialTheme.colorScheme.surfaceContainerLow
+    ) {
+        content()
+    }
+}
+
+@Composable
 internal fun SettingsRowSpacer() {
     val sequencer = LocalSettingsRowSequencer.current
     DisposableEffect(sequencer) {

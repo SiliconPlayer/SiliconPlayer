@@ -22,7 +22,6 @@ import androidx.compose.material.icons.filled.Headphones
 import androidx.compose.material.icons.filled.Usb
 import androidx.compose.material3.Button
 import androidx.compose.material3.FilledTonalButton
-import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
@@ -37,6 +36,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.Layout
 import androidx.compose.ui.layout.Placeable
@@ -540,42 +540,32 @@ internal fun AudioOutputDetailsDialog(
                             modifier = Modifier.padding(start = 8.dp)
                         )
 
-                        Surface(
-                            modifier = Modifier.fillMaxWidth(),
-                            shape = Radius.ControlCompact,
-                            color = MaterialTheme.colorScheme.surfaceContainerLow
-                        ) {
-                            Column(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(12.dp),
-                                verticalArrangement = Arrangement.spacedBy(10.dp)
-                            ) {
-                                if (
-                                    backendLabel.isNotBlank() &&
-                                    backendLabel != inspector.inactiveBackendLabel &&
-                                    backendLabel != "Unknown"
-                                ) {
-                                    MetricListRow(
-                                        label = "Output API",
-                                        value = backendLabel,
-                                        sub = null
-                                    )
-                                    HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.2f))
-                                }
-                                MetricListRow(
-                                    label = "Audio engine",
-                                    value = "miniaudio",
-                                    sub = null
+                        val showBackend = backendLabel.isNotBlank() &&
+                                backendLabel != inspector.inactiveBackendLabel &&
+                                backendLabel != "Unknown"
+
+                        Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                            if (showBackend) {
+                                MetricCardSegment(
+                                    label = "Output API",
+                                    value = backendLabel,
+                                    sub = null,
+                                    shape = Radius.cardSegment(isFirst = true, isLast = false)
                                 )
-                                if (bufferPeriodMs != null) {
-                                    HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.2f))
-                                    MetricListRow(
-                                        label = "Buffer period",
-                                        value = String.format(Locale.US, "%.1f ms", bufferPeriodMs),
-                                        sub = "$burstFrames frames at ${formatSampleRateForInspector(outputStreamRateHz)}"
-                                    )
-                                }
+                            }
+                            MetricCardSegment(
+                                label = "Audio engine",
+                                value = "miniaudio",
+                                sub = null,
+                                shape = Radius.cardSegment(isFirst = !showBackend, isLast = bufferPeriodMs == null)
+                            )
+                            if (bufferPeriodMs != null) {
+                                MetricCardSegment(
+                                    label = "Buffer period",
+                                    value = String.format(Locale.US, "%.1f ms", bufferPeriodMs),
+                                    sub = "$burstFrames frames at ${formatSampleRateForInspector(outputStreamRateHz)}",
+                                    shape = Radius.cardSegment(isFirst = false, isLast = true)
+                                )
                             }
                         }
                     }
@@ -871,6 +861,27 @@ private fun SignalChainConnector(
                 )
             }
         }
+    }
+}
+
+@Composable
+private fun MetricCardSegment(
+    label: String,
+    value: String,
+    sub: String?,
+    shape: Shape
+) {
+    Surface(
+        modifier = Modifier.fillMaxWidth(),
+        shape = shape,
+        color = MaterialTheme.colorScheme.surfaceContainerLow
+    ) {
+        MetricListRow(
+            label = label,
+            value = value,
+            sub = sub,
+            modifier = Modifier.padding(horizontal = 12.dp, vertical = 12.dp)
+        )
     }
 }
 

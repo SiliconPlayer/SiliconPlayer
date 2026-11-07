@@ -4,6 +4,7 @@ import android.content.Context
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -18,10 +19,7 @@ import androidx.compose.material.icons.filled.AudioFile
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.FilledTonalButton
-import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Slider
@@ -161,17 +159,10 @@ internal fun AndroidBitPerfectSection(params: BitPerfectSectionParams) {
             modifier = Modifier.padding(start = 8.dp)
         )
 
-        Card(
-            modifier = Modifier.fillMaxWidth(),
-            shape = Radius.Card,
-            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow)
-        ) {
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(14.dp),
-                verticalArrangement = Arrangement.spacedBy(12.dp)
-            ) {
+        val showVolumeControls = params.bitPerfectEnabled && isBitPerfectSupported && driverMethod == BitPerfectDriverMethod.DirectUac
+
+        Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+            BitPerfectCardSegment(isFirst = true, isLast = false) {
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceBetween,
@@ -221,9 +212,9 @@ internal fun AndroidBitPerfectSection(params: BitPerfectSectionParams) {
                         enabled = isBitPerfectSupported
                     )
                 }
+            }
 
-                HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.2f))
-
+            BitPerfectCardSegment(isFirst = false, isLast = !showVolumeControls) {
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     Text(
                         text = "Supported Rates ($uacLabel)",
@@ -256,10 +247,10 @@ internal fun AndroidBitPerfectSection(params: BitPerfectSectionParams) {
                         }
                     }
                 }
+            }
 
-                if (params.bitPerfectEnabled && isBitPerfectSupported && driverMethod == BitPerfectDriverMethod.DirectUac) {
-                    HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.2f))
-
+            if (showVolumeControls) {
+                BitPerfectCardSegment(isFirst = false, isLast = true) {
                     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                         Row(
                             modifier = Modifier.fillMaxWidth(),
@@ -464,6 +455,26 @@ internal fun AndroidBitPerfectSection(params: BitPerfectSectionParams) {
                 showVolumeModeDialog = false
             },
             onDismiss = { showVolumeModeDialog = false }
+        )
+    }
+}
+
+@Composable
+private fun BitPerfectCardSegment(
+    isFirst: Boolean,
+    isLast: Boolean,
+    content: @Composable ColumnScope.() -> Unit
+) {
+    Surface(
+        modifier = Modifier.fillMaxWidth(),
+        shape = Radius.cardSegment(isFirst = isFirst, isLast = isLast),
+        color = MaterialTheme.colorScheme.surfaceContainerLow
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(14.dp),
+            content = content
         )
     }
 }
