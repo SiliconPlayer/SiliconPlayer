@@ -5010,11 +5010,6 @@ internal fun PlayerSeekSlider(
                 val thumbX = size.width * ratio
                 drawTrackSegment(0f, thumbX - gap, outer, inner, activeColor)
                 drawTrackSegment(thumbX + gap, size.width, inner, outer, inactiveColor)
-                drawCircle(
-                    color = activeColor,
-                    radius = 2.dp.toPx(),
-                    center = Offset(size.width - outer, size.height / 2f)
-                )
             }
         }
     )
