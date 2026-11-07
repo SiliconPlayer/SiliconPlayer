@@ -263,47 +263,73 @@ fun AudioEffectsDialog(
                     )
                 }
 
-                EffectsVolumeSliderRow(
-                    title = "Master volume",
-                    valueDb = masterVolumeDb,
-                    enabled = true,
-                    onValueChange = onMasterVolumeChange
-                )
-                EffectsVolumeSliderRow(
-                    title = "Core volume",
-                    valueDb = pluginVolumeDb,
-                    enabled = hasActiveCore,
-                    onValueChange = onPluginVolumeChange
-                )
-                EffectsVolumeSliderRow(
-                    title = "Song volume",
-                    valueDb = songVolumeDb,
-                    enabled = hasActiveSong,
-                    onValueChange = onSongVolumeChange
-                )
-
-                DialogToggleRow(
-                    title = "Ignore core volume for this song",
-                    checked = ignoreCoreVolumeForSong,
-                    enabled = hasActiveSong,
-                    onCheckedChange = onIgnoreCoreVolumeForSongChange
-                )
-                DialogToggleRow(
-                    title = "Force mono",
-                    checked = forceMono,
-                    onCheckedChange = onForceMonoChange
-                )
+                Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                    GroupedRowCard(isFirst = true, isLast = false) {
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(16.dp),
+                            verticalArrangement = Arrangement.spacedBy(14.dp)
+                        ) {
+                            EffectsVolumeSliderRow(
+                                title = "Master volume",
+                                valueDb = masterVolumeDb,
+                                enabled = true,
+                                onValueChange = onMasterVolumeChange
+                            )
+                            EffectsVolumeSliderRow(
+                                title = "Core volume",
+                                valueDb = pluginVolumeDb,
+                                enabled = hasActiveCore,
+                                onValueChange = onPluginVolumeChange
+                            )
+                            EffectsVolumeSliderRow(
+                                title = "Song volume",
+                                valueDb = songVolumeDb,
+                                enabled = hasActiveSong,
+                                onValueChange = onSongVolumeChange
+                            )
+                        }
+                    }
+                    GroupedRowCard(isFirst = false, isLast = false) {
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(16.dp)
+                        ) {
+                            DialogToggleRow(
+                                title = "Ignore core volume for this song",
+                                checked = ignoreCoreVolumeForSong,
+                                enabled = hasActiveSong,
+                                onCheckedChange = onIgnoreCoreVolumeForSongChange
+                            )
+                        }
+                    }
+                    GroupedRowCard(isFirst = false, isLast = true) {
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(16.dp)
+                        ) {
+                            DialogToggleRow(
+                                title = "Force mono",
+                                checked = forceMono,
+                                onCheckedChange = onForceMonoChange
+                            )
+                        }
+                    }
+                }
 
                 Text(
                     text = "Core: ${currentCoreName ?: "(none)"}",
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.padding(horizontal = 4.dp)
+                    modifier = Modifier.padding(horizontal = 8.dp)
                 )
             }
 
             // DSP section
-            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     verticalAlignment = Alignment.CenterVertically,
@@ -321,6 +347,8 @@ fun AudioEffectsDialog(
                         }
                     )
                 }
+
+                Spacer(modifier = Modifier.height(4.dp))
 
                 Row(
                     modifier = Modifier.fillMaxWidth(),
@@ -348,42 +376,45 @@ fun AudioEffectsDialog(
                     )
                 }
 
+                Spacer(modifier = Modifier.height(4.dp))
+
                 DialogCollapsibleCard(
                     title = "OpenMPT DSP effects",
                     subtitle = if (dspOptionsExpanded) "Tap to collapse" else "Bass, surround, reverb, bit crush",
                     isEnabled = true,
                     isExpanded = dspOptionsExpanded,
-                    onToggleExpand = { dspOptionsExpanded = !dspOptionsExpanded }
+                    onToggleExpand = { dspOptionsExpanded = !dspOptionsExpanded },
+                    supportingContent = {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clip(Radius.Compact)
+                                .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f))
+                                .padding(horizontal = 10.dp, vertical = 7.dp),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Info,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.size(16.dp)
+                            )
+                            Text(
+                                text = "DSP attribution: About -> Libraries -> OpenMPT DSP effects.",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    }
                 ) {
                     GroupedRowCard(isFirst = false, isLast = false) {
                         Column(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .padding(16.dp),
+                                .padding(start = 16.dp, end = 16.dp, bottom = 8.dp),
                             verticalArrangement = Arrangement.spacedBy(14.dp)
                         ) {
-                            Row(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .clip(Radius.Compact)
-                                    .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f))
-                                    .padding(horizontal = 10.dp, vertical = 7.dp),
-                                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Default.Info,
-                                    contentDescription = null,
-                                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                                    modifier = Modifier.size(16.dp)
-                                )
-                                Text(
-                                    text = "DSP attribution: About -> Libraries -> OpenMPT DSP effects.",
-                                    style = MaterialTheme.typography.labelSmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                                )
-                            }
-
                             DialogToggleRow(
                                 title = "Bass Expansion",
                                 checked = dspBassEnabled,
@@ -410,7 +441,7 @@ fun AudioEffectsDialog(
                         Column(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .padding(16.dp),
+                                .padding(start = 16.dp, end = 16.dp, bottom = 8.dp),
                             verticalArrangement = Arrangement.spacedBy(14.dp)
                         ) {
                             DialogToggleRow(
@@ -441,7 +472,7 @@ fun AudioEffectsDialog(
                         Column(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .padding(16.dp),
+                                .padding(start = 16.dp, end = 16.dp, bottom = 8.dp),
                             verticalArrangement = Arrangement.spacedBy(14.dp)
                         ) {
                             DialogToggleRow(
@@ -465,11 +496,11 @@ fun AudioEffectsDialog(
                         }
                     }
 
-                    GroupedRowCard(isFirst = false, isLast = true) {
+                    GroupedRowCard(isFirst = false, isLast = false) {
                         Column(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .padding(16.dp),
+                                .padding(start = 16.dp, end = 16.dp, bottom = 8.dp),
                             verticalArrangement = Arrangement.spacedBy(14.dp)
                         ) {
                             DialogToggleRow(
@@ -488,19 +519,28 @@ fun AudioEffectsDialog(
                     }
                 }
 
-                if (hasActiveCore) {
-                    DialogToggleRow(
-                        title = "Ignore global settings for this core",
-                        checked = dspIgnoreGlobalForCurrentCore,
-                        onCheckedChange = onDspIgnoreGlobalForCurrentCoreChange
-                    )
+                GroupedRowCard(isFirst = false, isLast = true) {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 16.dp, vertical = 8.dp)
+                    ) {
+                        DialogToggleRow(
+                            title = "Ignore global settings for this core",
+                            checked = dspIgnoreGlobalForCurrentCore,
+                            enabled = hasActiveCore,
+                            onCheckedChange = onDspIgnoreGlobalForCurrentCoreChange
+                        )
+                    }
                 }
+
+                Spacer(modifier = Modifier.height(4.dp))
 
                 Text(
                     text = "Core: ${currentCoreName ?: "(none)"}",
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.padding(horizontal = 4.dp)
+                    modifier = Modifier.padding(horizontal = 8.dp)
                 )
             }
         }

@@ -15,7 +15,6 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
-import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
@@ -339,6 +338,7 @@ internal fun DialogCollapsibleCard(
     isEnabled: Boolean,
     isExpanded: Boolean,
     onToggleExpand: () -> Unit,
+    supportingContent: (@Composable () -> Unit)? = null,
     modifier: Modifier = Modifier,
     content: @Composable ColumnScope.() -> Unit
 ) {
@@ -354,38 +354,52 @@ internal fun DialogCollapsibleCard(
             .alpha(if (isEnabled) 1.0f else 0.45f),
         verticalArrangement = Arrangement.spacedBy(2.dp)
     ) {
-        GroupedRowCard(isFirst = true, isLast = !isExpanded) {
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clickable(enabled = isEnabled, onClick = onToggleExpand)
-                    .padding(horizontal = 16.dp, vertical = 14.dp),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.SpaceBetween
-            ) {
-                Column(modifier = Modifier.weight(1f)) {
-                    Text(
-                        text = title,
-                        style = MaterialTheme.typography.titleSmall,
-                        fontWeight = FontWeight.SemiBold,
-                        color = MaterialTheme.colorScheme.onSurface
-                    )
-                    Text(
-                        text = subtitle,
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        fontSize = 11.sp
+        GroupedRowCard(isFirst = true, isLast = false) {
+            Column(modifier = Modifier.fillMaxWidth()) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable(enabled = isEnabled, onClick = onToggleExpand)
+                        .padding(horizontal = 16.dp, vertical = 14.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = title,
+                            style = MaterialTheme.typography.titleSmall,
+                            fontWeight = FontWeight.SemiBold,
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
+                        Text(
+                            text = subtitle,
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            fontSize = 11.sp
+                        )
+                    }
+
+                    Icon(
+                        imageVector = Icons.Default.KeyboardArrowDown,
+                        contentDescription = if (isExpanded) "Collapse" else "Expand",
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier
+                            .size(22.dp)
+                            .rotate(arrowRotation)
                     )
                 }
 
-                Icon(
-                    imageVector = Icons.Default.KeyboardArrowDown,
-                    contentDescription = if (isExpanded) "Collapse" else "Expand",
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier
-                        .size(22.dp)
-                        .rotate(arrowRotation)
-                )
+                AnimatedVisibility(
+                    visible = isExpanded && supportingContent != null,
+                    enter = fadeIn(tween(180)) + expandVertically(tween(200)),
+                    exit = fadeOut(tween(140)) + shrinkVertically(tween(180))
+                ) {
+                    Box(
+                        modifier = Modifier.padding(start = 16.dp, end = 16.dp, bottom = 14.dp)
+                    ) {
+                        supportingContent?.invoke()
+                    }
+                }
             }
         }
 
@@ -529,16 +543,15 @@ internal fun DialogToggleRow(
             .fillMaxWidth()
             .clip(Radius.ControlCompact)
             .clickable(enabled = enabled) { onCheckedChange(!checked) }
-            .alpha(if (enabled) 1f else 0.38f)
-            .padding(vertical = 4.dp),
+            .alpha(if (enabled) 1f else 0.38f),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(12.dp)
     ) {
         Column(modifier = Modifier.weight(1f)) {
             Text(
                 text = title,
-                style = MaterialTheme.typography.bodySmall,
-                fontWeight = FontWeight.Medium,
+                style = MaterialTheme.typography.titleSmall,
+                fontWeight = FontWeight.SemiBold,
                 color = MaterialTheme.colorScheme.onSurface
             )
             if (subtitle != null) {
@@ -614,10 +627,12 @@ internal fun DialogResetButton(
     onClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    TextButton(
-        onClick = onClick,
-        modifier = modifier,
-        contentPadding = PaddingValues(horizontal = 8.dp, vertical = 2.dp)
+    Row(
+        modifier = modifier
+            .clip(Radius.Small)
+            .clickable(onClick = onClick)
+            .padding(horizontal = 8.dp, vertical = 2.dp),
+        verticalAlignment = Alignment.CenterVertically
     ) {
         Icon(
             imageVector = Icons.Default.Refresh,
