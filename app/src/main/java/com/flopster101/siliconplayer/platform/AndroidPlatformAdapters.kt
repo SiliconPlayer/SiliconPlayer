@@ -32,6 +32,7 @@ import androidx.compose.ui.graphics.asImageBitmap
 import com.flopster101.siliconplayer.AppPreferenceKeys
 import com.flopster101.siliconplayer.DecoderPlatform
 import com.flopster101.siliconplayer.LocalDecoderPlatform
+import com.flopster101.siliconplayer.export.LocalAudioExportPlatformAdapter
 import com.flopster101.siliconplayer.isRoundScreenCompat
 import com.flopster101.siliconplayer.ui.visualization.gl.ProjectMPresetSets
 import java.io.IOException
@@ -474,6 +475,11 @@ fun ProvideAndroidPlatformAdapters(
             exportLauncher.launch(null)
         }
     }
+    val audioExportPlatformAdapter = rememberAndroidAudioExportPlatformAdapter(
+        context = context,
+        prefs = prefs,
+        toastHandler = toastHandler
+    )
 
     val storageLocationsProvider = remember(context) {
         var cachedLocations: List<PlatformStorageLocation>? = null
@@ -537,6 +543,7 @@ fun ProvideAndroidPlatformAdapters(
         LocalLicenseAssetReader provides licenseAssetReader,
         LocalAudioInspectorSupport provides AndroidAudioInspectorSupport,
         LocalToastHandler provides toastHandler,
+        LocalAudioExportPlatformAdapter provides audioExportPlatformAdapter,
         LocalArtworkThumbnailLoader provides artworkThumbnailLoader,
         LocalLibraryRepository provides libraryRepository,
         LocalLibrarySettingsSupport provides librarySettingsSupport,

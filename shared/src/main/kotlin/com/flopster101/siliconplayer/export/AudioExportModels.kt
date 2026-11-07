@@ -24,7 +24,9 @@ data class AudioExportRenderOptions(
     val unknownDurationSeconds: Int? = null,
     val endFadeDurationMs: Int? = null,
     val endFadeCurve: EndFadeCurve? = null,
-    val endFadeApplyToAllTracks: Boolean? = null
+    val endFadeApplyToAllTracks: Boolean? = null,
+    val useActiveGain: Boolean = true,
+    val useActiveEffects: Boolean = true
 ) {
     init {
         require(sampleRateHz in 8_000..192_000) { "Sample rate must be between 8000 and 192000 Hz." }

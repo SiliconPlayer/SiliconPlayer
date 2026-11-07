@@ -31,6 +31,8 @@ internal object AppPreferenceKeys {
     const val AUDIO_PERFORMANCE_MODE = "audio_performance_mode"
     const val AUDIO_BUFFER_PRESET = "audio_buffer_preset"
     const val AUDIO_RESAMPLER_PREFERENCE = "audio_resampler_preference"
+    const val AUDIO_EXPORT_EXTERNAL_FFMPEG = "audio_export_external_ffmpeg"
+    const val AUDIO_EXPORT_EXTERNAL_FFMPEG_NAME = "audio_export_external_ffmpeg_name"
     const val AUDIO_ALLOW_BACKEND_FALLBACK = "audio_allow_backend_fallback"
     const val BIT_PERFECT_USB_AUDIO = "bit_perfect_usb_audio"
     const val PLATFORM_DOLBY_DECODER = "platform_dolby_decoder"

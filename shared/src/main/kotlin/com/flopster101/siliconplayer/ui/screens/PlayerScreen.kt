@@ -80,9 +80,13 @@ import com.flopster101.siliconplayer.StoredPlaylist
 import com.flopster101.siliconplayer.formatTime
 import com.flopster101.siliconplayer.subtuneBadgeText
 import com.flopster101.siliconplayer.ui.dialogs.AddToPlaylistChooserDialog
+import com.flopster101.siliconplayer.ui.dialogs.AudioExportDialog
+import com.flopster101.siliconplayer.export.AudioExportDialogSource
+import com.flopster101.siliconplayer.export.LocalAudioExportPlatformAdapter
 import androidx.compose.material.icons.filled.AudioFile
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Equalizer
+import androidx.compose.material.icons.filled.FileDownload
 import androidx.compose.material.icons.filled.GraphicEq
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.KeyboardArrowDown
@@ -909,6 +913,10 @@ internal fun PlayerScreen(
     var showVisualizationOptionsSheet by remember { mutableStateOf(false) }
     var showChannelControlDialog by remember { mutableStateOf(false) }
     var showAudioOutputDetailsDialog by remember { mutableStateOf(false) }
+    var showAudioExportDialog by remember { mutableStateOf(false) }
+    val audioExportPlatform = LocalAudioExportPlatformAdapter.current
+    val audioExportSourceId = playbackSourceId?.takeIf { it.isNotBlank() } ?: file?.absolutePath
+    val canOpenAudioExport = audioExportPlatform != null && !audioExportSourceId.isNullOrBlank()
     val textInputTracker = LocalTextInputTracker.current
     var showVisualizationModeBadge by remember { mutableStateOf(false) }
     var visualizationModeBadgeText by remember { mutableStateOf(visualizationMode.label) }
@@ -1554,6 +1562,11 @@ internal fun PlayerScreen(
                             onOpenCoreSettings = onOpenCoreSettings,
                             onOpenTrackInfo = { showTrackInfoDialog = true },
                             onOpenAddToPlaylist = { showAddToPlaylistChooser = true },
+                            onOpenAudioExport = if (canOpenAudioExport) {
+                                { showAudioExportDialog = true }
+                            } else {
+                                null
+                            },
                             onOpenAudioEffects = onOpenAudioEffects,
                             onOpenChannelControls = { showChannelControlDialog = true },
                             showAudioOutputRouteChip = showAudioOutputRouteChip,
@@ -2249,6 +2262,22 @@ internal fun PlayerScreen(
             )
         }
     }
+    if (showAudioExportDialog && audioExportPlatform != null && audioExportSourceId != null) {
+        AudioExportDialog(
+            source = AudioExportDialogSource(
+                sourceId = audioExportSourceId,
+                filePath = file?.absolutePath,
+                title = displayTitle,
+                artist = displayArtist,
+                decoderName = pluginNameForCoreName(decoderName) ?: decoderName,
+                subtuneIndex = titleCurrentSubtuneIndex,
+                subtuneCount = titleSubtuneCount,
+                durationSeconds = durationSeconds
+            ),
+            platform = audioExportPlatform,
+            onDismiss = { showAudioExportDialog = false }
+        )
+    }
     if (showTrackInfoDialog) {
         TrackInfoDialog(
             file = file,
@@ -2283,7 +2312,8 @@ internal fun PlayerScreen(
             !showVisualizationPickerDialog &&
             !showChannelControlDialog &&
             !showAudioOutputDetailsDialog &&
-            !showAddToPlaylistChooser
+            !showAddToPlaylistChooser &&
+            !showAudioExportDialog
     ) {
         onBack()
     }
@@ -2607,6 +2637,7 @@ private fun PlayerTopBar(
     onOpenCoreSettings: () -> Unit,
     onOpenTrackInfo: () -> Unit,
     onOpenAddToPlaylist: () -> Unit = {},
+    onOpenAudioExport: (() -> Unit)? = null,
     onOpenAudioEffects: () -> Unit,
     onOpenChannelControls: () -> Unit,
     showAudioOutputRouteChip: Boolean = true,
@@ -2826,6 +2857,33 @@ private fun PlayerTopBar(
                             onOpenAddToPlaylist()
                         }
                     )
+
+                    if (onOpenAudioExport != null) {
+                        DropdownMenuItem(
+                            text = {
+                                Text(
+                                    text = "Export audio...",
+                                    style = MaterialTheme.typography.bodyLarge
+                                )
+                            },
+                            leadingIcon = {
+                                Icon(
+                                    imageVector = Icons.Default.FileDownload,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(22.dp)
+                                )
+                            },
+                            contentPadding = PaddingValues(start = 14.dp, end = 18.dp),
+                            colors = MenuDefaults.itemColors(
+                                textColor = MaterialTheme.colorScheme.onSurface,
+                                leadingIconColor = MaterialTheme.colorScheme.onSurfaceVariant
+                            ),
+                            onClick = {
+                                showMoreMenu = false
+                                onOpenAudioExport.invoke()
+                            }
+                        )
+                    }
 
                     HorizontalDivider(
                         modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),

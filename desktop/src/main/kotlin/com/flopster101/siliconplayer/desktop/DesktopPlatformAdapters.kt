@@ -3,11 +3,18 @@ package com.flopster101.siliconplayer.desktop
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.graphics.toComposeImageBitmap
 import com.flopster101.siliconplayer.DecoderPlatform
 import com.flopster101.siliconplayer.LocalDecoderPlatform
 import com.flopster101.siliconplayer.NativeBridge
+import com.flopster101.siliconplayer.export.AudioExportEncoder
+import com.flopster101.siliconplayer.export.AudioExportPlatformAdapter
+import com.flopster101.siliconplayer.export.AudioExportUiRequest
+import com.flopster101.siliconplayer.export.LocalAudioExportPlatformAdapter
 import com.flopster101.siliconplayer.platform.AppPreferences
 import com.flopster101.siliconplayer.platform.AppVersionInfo
 import com.flopster101.siliconplayer.platform.ArtworkThumbnailLoader
@@ -192,6 +199,53 @@ class DesktopAudioRouteManager(
     override fun formatUsbAudioName(rawName: String): String = rawName
 }
 
+private class DesktopAudioExportPlatformAdapter(
+    private val prefs: AppPreferences,
+    private val toastHandler: ToastHandler
+) : AudioExportPlatformAdapter {
+    override val encoders = listOf(AudioExportEncoder.SystemFfmpeg, AudioExportEncoder.ExternalFfmpeg)
+    override var externalBinaryLocation by mutableStateOf(
+        prefs.getString(com.flopster101.siliconplayer.AppPreferenceKeys.AUDIO_EXPORT_EXTERNAL_FFMPEG, null)
+    )
+        private set
+    override var destinationLocation by mutableStateOf<String?>(null)
+        private set
+    override val externalBinaryLabel: String?
+        get() = externalBinaryLocation?.let(::File)?.name
+    override val externalBinaryActionLabel = "Choose"
+    override val destinationLabel: String?
+        get() = destinationLocation?.let(::File)?.name
+
+    override fun chooseExternalBinary() {
+        val chooser = JFileChooser().apply {
+            fileSelectionMode = JFileChooser.FILES_ONLY
+            dialogTitle = "Choose External FFmpeg"
+        }
+        if (chooser.showOpenDialog(null) != JFileChooser.APPROVE_OPTION) return
+        val path = chooser.selectedFile.absolutePath
+        externalBinaryLocation = path
+        prefs.edit()
+            .putString(com.flopster101.siliconplayer.AppPreferenceKeys.AUDIO_EXPORT_EXTERNAL_FFMPEG, path)
+            .putString(com.flopster101.siliconplayer.AppPreferenceKeys.AUDIO_EXPORT_EXTERNAL_FFMPEG_NAME, null)
+            .apply()
+    }
+
+    override fun chooseDestination(suggestedFileName: String) {
+        val chooser = JFileChooser().apply {
+            fileSelectionMode = JFileChooser.FILES_ONLY
+            dialogTitle = "Export Audio"
+            selectedFile = File(suggestedFileName)
+        }
+        if (chooser.showSaveDialog(null) == JFileChooser.APPROVE_OPTION) {
+            destinationLocation = chooser.selectedFile.absolutePath
+        }
+    }
+
+    override fun startExport(request: AudioExportUiRequest) {
+        toastHandler.showToast("In-app audio export is not connected yet")
+    }
+}
+
 @Composable
 fun ProvideDesktopPlatformAdapters(
     windowWidthDp: Int = 1100,
@@ -297,6 +351,9 @@ fun ProvideDesktopPlatformAdapters(
     com.flopster101.siliconplayer.settings.porting.PortingPlatformInfo.runningPlatform =
         com.flopster101.siliconplayer.settings.porting.PortingPlatformFamily.Desktop
     val portingFileIo = rememberDesktopPortingFileIo()
+    val audioExportPlatformAdapter = remember(prefs, toastHandler) {
+        DesktopAudioExportPlatformAdapter(prefs, toastHandler)
+    }
 
     CompositionLocalProvider(
         com.flopster101.siliconplayer.settings.porting.LocalPortingFileIo provides portingFileIo,
@@ -308,6 +365,7 @@ fun ProvideDesktopPlatformAdapters(
         LocalLicenseAssetReader provides DesktopLicenseAssetReader,
         LocalAudioInspectorSupport provides DesktopAudioInspectorSupport,
         LocalToastHandler provides toastHandler,
+        LocalAudioExportPlatformAdapter provides audioExportPlatformAdapter,
         LocalArtworkThumbnailLoader provides artworkThumbnailLoader,
         LocalDesktopBackDispatcher provides backDispatcher,
         LocalPlatformBackHandler provides { enabled, onBack ->
