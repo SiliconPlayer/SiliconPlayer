@@ -189,7 +189,7 @@ internal fun SettingsRowSpacer() {
 }
 
 @Composable
-internal fun SettingsSectionLabel(text: String) {
+internal fun SettingsSectionLabel(text: String, forceTopSpacing: Boolean = false) {
     val isWatch = LocalIsWatchDevice.current
     val sequencer = LocalSettingsRowSequencer.current
     val isFirstSection = remember(sequencer) { sequencer?.claimFirstSection(text) ?: true }
@@ -197,7 +197,7 @@ internal fun SettingsSectionLabel(text: String) {
         sequencer?.onSectionBoundary()
         onDispose { }
     }
-    if (!isFirstSection) {
+    if (forceTopSpacing || !isFirstSection) {
         Spacer(modifier = Modifier.height(SettingsSectionTopSpacing))
     }
     Text(

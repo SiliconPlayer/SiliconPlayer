@@ -54,7 +54,6 @@ internal fun VisualizationProjectMSetsRouteContent() {
     }
 
     SettingsSectionLabel("Preset packs")
-    SettingsRowSpacer()
     sets.forEachIndexed { index, set ->
         val enabled = enabledIds.contains(set.id)
         val isLastEnabled = enabled && enabledIds.size <= 1

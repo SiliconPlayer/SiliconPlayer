@@ -117,9 +117,7 @@ internal fun AboutSettingsBody(
                 }
             }
         }
-        Spacer(modifier = Modifier.size(8.dp))
-
-        SettingsSectionLabel(text = "Audio cores")
+        SettingsSectionLabel(text = "Audio cores", forceTopSpacing = true)
         coreEntries.forEachIndexed { index, entry ->
             AboutEntityListItemCard(
                 entity = entry,

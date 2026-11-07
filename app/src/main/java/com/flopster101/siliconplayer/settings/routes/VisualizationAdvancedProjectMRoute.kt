@@ -231,10 +231,8 @@ internal fun VisualizationAdvancedProjectMRouteContent(
                 color = MaterialTheme.colorScheme.error,
                 modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp)
             )
-            SettingsRowSpacer()
         }
-        SettingsSectionLabel("Downloads")
-        SettingsRowSpacer()
+        SettingsSectionLabel("Downloads", forceTopSpacing = downloadError != null)
         for ((index, pack) in ProjectMPresetDownloader.PACKS.filter { it.id != "downloaded_textures" }.withIndex()) {
             val isDownloaded = remember(downloadedVersion) { ProjectMPresetDownloader.isDownloaded(context, pack.id) }
             val isDownloading = downloadingId == pack.id
@@ -297,7 +295,6 @@ internal fun VisualizationAdvancedProjectMRouteContent(
             if (index < ProjectMPresetDownloader.PACKS.filter { it.id != "downloaded_textures" }.size - 1) SettingsRowSpacer()
         }
         SettingsSectionLabel("Presets")
-        SettingsRowSpacer()
         SettingsItemCard(
             title = "Configure preset packs",
             description = packsDescription,
@@ -312,7 +309,6 @@ internal fun VisualizationAdvancedProjectMRouteContent(
             onClick = { reindex() }
         )
         SettingsSectionLabel("Playback")
-        SettingsRowSpacer()
         PlayerSettingToggleCard(
             title = "Random preset on start",
             description = "Start with a random preset each time the visualizer opens.",
@@ -323,7 +319,6 @@ internal fun VisualizationAdvancedProjectMRouteContent(
             }
         )
         SettingsSectionLabel("Transitions")
-        SettingsRowSpacer()
         SettingsValuePickerCard(
             title = "Preset duration",
             description = "Time before switching to the next preset.",
@@ -362,7 +357,6 @@ internal fun VisualizationAdvancedProjectMRouteContent(
             }
         )
         SettingsSectionLabel("Rendering")
-        SettingsRowSpacer()
         SettingsValuePickerCard(
             title = "Mesh size",
             description = "Resolution of the warp mesh.",
