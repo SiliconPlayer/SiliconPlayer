@@ -1,9 +1,11 @@
 package com.flopster101.siliconplayer
 
 import com.flopster101.siliconplayer.desktop.WavExportWriter
+import com.flopster101.siliconplayer.export.AudioExportMetadata
 import com.flopster101.siliconplayer.export.AudioExportSampleFormat
 import org.junit.Assert.assertArrayEquals
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertThrows
 import org.junit.Rule
 import org.junit.Test
@@ -65,6 +67,34 @@ class WavExportWriterTest {
             ),
             wav.copyOfRange(44, wav.size)
         )
+    }
+
+    @Test
+    fun writesRiffInfoMetadataWithPadding() {
+        val file = tempFolder.newFile("metadata.wav")
+        WavExportWriter(
+            file,
+            48_000,
+            AudioExportSampleFormat.Pcm16,
+            AudioExportMetadata(title = "Song", artist = "AB", comment = " ")
+        ).use { writer ->
+            writer.write(floatArrayOf(-1.0f, 1.0f, 0.0f, 0.5f), 2)
+        }
+
+        val wav = file.readBytes()
+        assertEquals(90, wav.size)
+        assertEquals(82L, littleEndianUint32(wav, 4))
+        assertAscii("LIST", wav, 52)
+        assertEquals(30L, littleEndianUint32(wav, 56))
+        assertAscii("INFO", wav, 60)
+        assertAscii("INAM", wav, 64)
+        assertEquals(5L, littleEndianUint32(wav, 68))
+        assertEquals("Song", String(wav, 72, 4, Charsets.UTF_8))
+        assertEquals(0, wav[77].toInt())
+        assertAscii("IART", wav, 78)
+        assertEquals(3L, littleEndianUint32(wav, 82))
+        assertEquals("AB", String(wav, 86, 2, Charsets.UTF_8))
+        assertFalse(String(wav, Charsets.US_ASCII).contains("ICMT"))
     }
 
     @Test

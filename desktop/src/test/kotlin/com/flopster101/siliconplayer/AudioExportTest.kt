@@ -1,9 +1,11 @@
 package com.flopster101.siliconplayer
 
+import com.flopster101.siliconplayer.desktop.ffmpegMetadataArguments
 import com.flopster101.siliconplayer.desktop.moveCompletedExport
 import com.flopster101.siliconplayer.desktop.parseAudioExportOptions
 import com.flopster101.siliconplayer.desktop.parseFfmpegArgumentList
 import com.flopster101.siliconplayer.desktop.resolveFfmpegExecutable
+import com.flopster101.siliconplayer.export.AudioExportMetadata
 import com.flopster101.siliconplayer.export.AudioExportProgress
 import com.flopster101.siliconplayer.export.AudioExportRenderOptions
 import com.flopster101.siliconplayer.export.AudioExportSampleFormat
@@ -136,6 +138,37 @@ class AudioExportTest {
         assertThrows(IllegalArgumentException::class.java) {
             parseAudioExportOptions(arrayOf("--input", "in.sid", "--output", "out.wav", "--repeatMode", "track"))
         }
+    }
+
+    @Test
+    fun mapsDecoderMetadataToFfmpegArguments() {
+        val arguments = ffmpegMetadataArguments(
+            AudioExportMetadata(
+                title = "Song",
+                artist = "Artist",
+                album = "Album",
+                composer = "Composer",
+                genre = "Chiptune",
+                date = "2026",
+                copyright = "Copyright",
+                comment = "Comment"
+            )
+        )
+
+        assertEquals(
+            listOf(
+                "-metadata", "title=Song",
+                "-metadata", "artist=Artist",
+                "-metadata", "album=Album",
+                "-metadata", "composer=Composer",
+                "-metadata", "genre=Chiptune",
+                "-metadata", "date=2026",
+                "-metadata", "copyright=Copyright",
+                "-metadata", "comment=Comment"
+            ),
+            arguments
+        )
+        assertTrue(ffmpegMetadataArguments(AudioExportMetadata(title = " ")).isEmpty())
     }
 
     @Test

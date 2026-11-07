@@ -1,5 +1,6 @@
 package com.flopster101.siliconplayer.desktop
 
+import com.flopster101.siliconplayer.export.AudioExportMetadata
 import com.flopster101.siliconplayer.export.AudioExportSampleFormat
 import java.io.File
 import java.io.RandomAccessFile
@@ -8,7 +9,8 @@ import kotlin.math.roundToInt
 internal class WavExportWriter(
     file: File,
     private val sampleRateHz: Int,
-    private val sampleFormat: AudioExportSampleFormat
+    private val sampleFormat: AudioExportSampleFormat,
+    metadata: AudioExportMetadata = AudioExportMetadata()
 ) : AudioExportWriter {
     var frameCount: Long = 0L
         private set
@@ -29,6 +31,21 @@ internal class WavExportWriter(
     }
     private val maxFrameCount = (UINT32_MAX - riffSizeWithoutData) / bytesPerFrame
     private val buffer = ByteArray(16 * 1024)
+    private val infoMetadata = listOfNotNull(
+        riffInfoField("INAM", metadata.title),
+        riffInfoField("IART", metadata.artist),
+        riffInfoField("IPRD", metadata.album),
+        riffInfoField("IMUS", metadata.composer),
+        riffInfoField("IGNR", metadata.genre),
+        riffInfoField("ICRD", metadata.date),
+        riffInfoField("ICOP", metadata.copyright),
+        riffInfoField("ICMT", metadata.comment)
+    )
+    private val infoMetadataSize = if (infoMetadata.isEmpty()) {
+        0L
+    } else {
+        12L + infoMetadata.sumOf { (_, value) -> 8L + value.size + (value.size % 2) }
+    }
     private val output = run {
         require(sampleRateHz > 0) { "Sample rate must be positive." }
         require(byteRate <= UINT32_MAX) { "Sample rate is too high for a WAV byte-rate field." }
@@ -98,8 +115,12 @@ internal class WavExportWriter(
         if (finished) return
         check(!closed) { "Cannot finalize a closed WAV writer." }
         val dataBytes = frameCount * bytesPerFrame
+        val riffSize = riffSizeWithoutData + dataBytes + infoMetadataSize
+        require(riffSize <= UINT32_MAX) { "WAV metadata exceeds standard RIFF size limits." }
+        output.seek(output.length())
+        writeInfoMetadata()
         output.seek(RIFF_SIZE_OFFSET)
-        writeUint32(riffSizeWithoutData + dataBytes)
+        writeUint32(riffSize)
         if (sampleFormat == AudioExportSampleFormat.Float32) {
             output.seek(FACT_SAMPLE_LENGTH_OFFSET)
             writeUint32(frameCount)
@@ -117,6 +138,19 @@ internal class WavExportWriter(
         } finally {
             closed = true
             output.close()
+        }
+    }
+
+    private fun writeInfoMetadata() {
+        if (infoMetadata.isEmpty()) return
+        writeAscii("LIST")
+        writeUint32(infoMetadataSize - 8L)
+        writeAscii("INFO")
+        infoMetadata.forEach { (id, value) ->
+            writeAscii(id)
+            writeUint32(value.size.toLong())
+            output.write(value)
+            if (value.size % 2 != 0) output.write(0)
         }
     }
 
@@ -175,4 +209,9 @@ internal class WavExportWriter(
         const val PCM24_NEGATIVE_FULL_SCALE = 8_388_608.0f
         const val UINT32_MAX = 0xFFFF_FFFFL
     }
+}
+
+private fun riffInfoField(id: String, value: String?): Pair<String, ByteArray>? {
+    val normalized = value?.trim().takeUnless { it.isNullOrEmpty() } ?: return null
+    return id to (normalized + "\u0000").toByteArray(Charsets.UTF_8)
 }

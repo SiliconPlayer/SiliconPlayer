@@ -40,6 +40,17 @@ data class AudioExportRenderOptions(
     }
 }
 
+data class AudioExportMetadata(
+    val title: String? = null,
+    val artist: String? = null,
+    val album: String? = null,
+    val composer: String? = null,
+    val genre: String? = null,
+    val date: String? = null,
+    val copyright: String? = null,
+    val comment: String? = null
+)
+
 data class AudioExportProgress(
     val renderedFrames: Long,
     val totalFrames: Long

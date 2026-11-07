@@ -7,6 +7,7 @@ import com.flopster101.siliconplayer.GmeDefaults
 import com.flopster101.siliconplayer.NativeBridge
 import com.flopster101.siliconplayer.RepeatMode
 import com.flopster101.siliconplayer.applyStoredPluginConfigurationsToNative
+import com.flopster101.siliconplayer.export.AudioExportMetadata
 import com.flopster101.siliconplayer.export.AudioExportProgress
 import com.flopster101.siliconplayer.export.AudioExportRenderOptions
 import com.flopster101.siliconplayer.export.AudioExportSampleFormat
@@ -119,6 +120,7 @@ internal fun runAudioExport(
         }
         val decoderName = session.decoderName ?: error("Could not identify the selected decoder.")
         applyOfflineTrackGainToNative(prefs, input.absolutePath, decoderName)
+        val metadata = readDecoderMetadata(session)
         NativeBridge.setRepeatMode(RepeatMode.None.nativeValue)
 
         val unknownDurationSeconds = options.renderOptions.unknownDurationSeconds
@@ -159,13 +161,18 @@ internal fun runAudioExport(
         val temp = File.createTempFile(".siliconplayer-audio-", tempSuffix, outputDir)
         temporaryFile.set(temp)
         val exportWriter = if (ffmpegExecutable == null) {
-            WavExportWriter(temp, options.renderOptions.sampleRateHz, options.renderOptions.sampleFormat)
+            WavExportWriter(
+                temp,
+                options.renderOptions.sampleRateHz,
+                options.renderOptions.sampleFormat,
+                metadata
+            )
         } else {
             FfmpegExportWriter(
                 file = temp,
                 sampleRateHz = options.renderOptions.sampleRateHz,
                 executable = ffmpegExecutable,
-                arguments = ffmpegOutputArguments(options, output)
+                arguments = ffmpegOutputArguments(options, output, metadata)
             )
         }
         exportWriter.use { writer ->
@@ -231,7 +238,11 @@ private fun isSystemFfmpegAvailable(): Boolean = runCatching {
         .waitFor() == 0
 }.getOrDefault(false)
 
-private fun ffmpegOutputArguments(options: AudioExportOptions, output: File): List<String> = buildList {
+private fun ffmpegOutputArguments(
+    options: AudioExportOptions,
+    output: File,
+    metadata: AudioExportMetadata
+): List<String> = buildList {
     if (isWavOutput(output)) {
         add("-c:a")
         add(
@@ -244,7 +255,45 @@ private fun ffmpegOutputArguments(options: AudioExportOptions, output: File): Li
         add("-rf64")
         add("auto")
     }
+    addAll(ffmpegMetadataArguments(metadata))
     addAll(options.ffmpegArguments)
+}
+
+internal fun ffmpegMetadataArguments(metadata: AudioExportMetadata): List<String> = buildList {
+    fun add(name: String, value: String?) {
+        if (!value.isNullOrBlank()) {
+            add("-metadata")
+            add("$name=$value")
+        }
+    }
+    add("title", metadata.title)
+    add("artist", metadata.artist)
+    add("album", metadata.album)
+    add("composer", metadata.composer)
+    add("genre", metadata.genre)
+    add("date", metadata.date)
+    add("copyright", metadata.copyright)
+    add("comment", metadata.comment)
+}
+
+private fun readDecoderMetadata(session: DesktopPlaybackSession): AudioExportMetadata {
+    val subtuneArtist = if (session.subtuneCount > 1) {
+        NativeBridge.getSubtuneArtist(session.subtuneIndex).trim().takeIf { it.isNotEmpty() }
+    } else {
+        null
+    }
+    return AudioExportMetadata(
+        title = session.title.trim().takeIf { it.isNotEmpty() },
+        artist = subtuneArtist
+            ?: NativeBridge.getTrackArtist().trim().takeIf { it.isNotEmpty() },
+        album = session.album.trim().takeIf { it.isNotEmpty() },
+        composer = NativeBridge.getTrackComposer().trim().takeIf { it.isNotEmpty() },
+        genre = NativeBridge.getTrackGenre().trim().takeIf { it.isNotEmpty() },
+        date = NativeBridge.getTrackDate().trim().takeIf { it.isNotEmpty() }
+            ?: NativeBridge.getTrackYear().trim().takeIf { it.isNotEmpty() },
+        copyright = NativeBridge.getTrackCopyright().trim().takeIf { it.isNotEmpty() },
+        comment = NativeBridge.getTrackComment().trim().takeIf { it.isNotEmpty() }
+    )
 }
 
 internal fun parseFfmpegArgumentList(raw: String): List<String> {
