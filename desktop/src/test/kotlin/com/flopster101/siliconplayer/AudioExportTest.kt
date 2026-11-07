@@ -1,23 +1,23 @@
 package com.flopster101.siliconplayer
 
-import com.flopster101.siliconplayer.desktop.ffmpegMetadataArguments
 import com.flopster101.siliconplayer.desktop.moveCompletedExport
 import com.flopster101.siliconplayer.desktop.parseAudioExportOptions
-import com.flopster101.siliconplayer.desktop.parseFfmpegArgumentList
 import com.flopster101.siliconplayer.desktop.resolveFfmpegExecutable
 import com.flopster101.siliconplayer.export.AudioExportMetadata
 import com.flopster101.siliconplayer.export.AudioExportProgress
 import com.flopster101.siliconplayer.export.AudioExportRenderOptions
 import com.flopster101.siliconplayer.export.AudioExportSampleFormat
+import com.flopster101.siliconplayer.export.ffmpegMetadataArguments
+import com.flopster101.siliconplayer.export.parseFfmpegArgumentList
+import java.io.File
+import java.nio.file.FileAlreadyExistsException
+import java.nio.file.Files
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertThrows
 import org.junit.Assert.assertTrue
 import org.junit.Test
-import java.io.File
-import java.nio.file.FileAlreadyExistsException
-import java.nio.file.Files
 
 class AudioExportTest {
 
@@ -33,6 +33,9 @@ class AudioExportTest {
         assertEquals(AudioExportSampleFormat.Pcm24, options.renderOptions.sampleFormat)
         assertNull(options.ffmpegPath)
         assertTrue(options.ffmpegArguments.isEmpty())
+        assertEquals(1, options.repeatCount)
+        assertTrue(options.renderOptions.useActiveGain)
+        assertTrue(options.renderOptions.useActiveEffects)
         assertTrue(options.force)
     }
 
@@ -137,6 +140,25 @@ class AudioExportTest {
         }
         assertThrows(IllegalArgumentException::class.java) {
             parseAudioExportOptions(arrayOf("--input", "in.sid", "--output", "out.wav", "--repeatMode", "track"))
+        }
+    }
+
+    @Test
+    fun parsesRepeatAndProcessingOverrides() {
+        val options = parseAudioExportOptions(
+            arrayOf(
+                "--input", "song.sid", "--output", "out.flac",
+                "--repeatCount", "2", "--useGain", "false", "--useEffects", "false"
+            )
+        )
+
+        assertEquals(2, options.repeatCount)
+        assertFalse(options.renderOptions.useActiveGain)
+        assertFalse(options.renderOptions.useActiveEffects)
+        assertThrows(IllegalArgumentException::class.java) {
+            parseAudioExportOptions(
+                arrayOf("--input", "song.sid", "--output", "out.flac", "--repeatCount", "0")
+            )
         }
     }
 

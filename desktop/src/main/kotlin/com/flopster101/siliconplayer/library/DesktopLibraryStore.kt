@@ -137,7 +137,9 @@ internal fun defaultMusicScanRoot(): String? {
 
 private fun userDirsMusicDir(): String? {
     val home = System.getProperty("user.home") ?: return null
-    val dirsFile = File(home, ".config/user-dirs.dirs")
+    val configHome = System.getenv("XDG_CONFIG_HOME")?.takeIf { it.isNotBlank() }?.let(::File)
+        ?: File(home, ".config")
+    val dirsFile = File(configHome, "user-dirs.dirs")
     if (!dirsFile.isFile) return null
     val line = runCatching { dirsFile.readLines() }
         .getOrNull()?.firstOrNull { it.trimStart().startsWith("XDG_MUSIC_DIR=") } ?: return null

@@ -728,4 +728,9 @@ object NativeBridge {
     external fun decoderSupportsFeature(decoderName: String, feature: String): Boolean
     external fun getChannelScopeTextCapabilities(decoderName: String): Int
     external fun setUadeRuntimePaths(baseDir: String, uadeCorePath: String)
+
+    external fun setOfflineRenderMode(enabled: Boolean)
+    external fun renderOfflineAudioFrames(samples: FloatArray, frames: Int, sampleRateHz: Int): Boolean
+    external fun stopEngineSyncNative()
+    external fun teardownOutputStream()
 }

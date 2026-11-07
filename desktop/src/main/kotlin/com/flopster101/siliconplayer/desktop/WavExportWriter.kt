@@ -2,6 +2,7 @@ package com.flopster101.siliconplayer.desktop
 
 import com.flopster101.siliconplayer.export.AudioExportMetadata
 import com.flopster101.siliconplayer.export.AudioExportSampleFormat
+import com.flopster101.siliconplayer.export.AudioExportWriter
 import java.io.File
 import java.io.RandomAccessFile
 import kotlin.math.roundToInt

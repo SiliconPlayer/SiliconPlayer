@@ -252,7 +252,8 @@ tasks.register<JavaExec>("exportAudio") {
     mainClass.set("com.flopster101.siliconplayer.desktop.AudioExportKt")
     val exportArguments = listOf(
         "input", "output", "subtune", "sampleRate", "sampleFormat", "duration",
-        "unknownDuration", "fadeMs", "fadeCurve", "fadeAll", "ffmpeg", "ffmpegArgs"
+        "unknownDuration", "fadeMs", "fadeCurve", "fadeAll", "repeatCount", "useGain",
+        "useEffects", "ffmpeg", "ffmpegArgs"
     )
         .flatMap { name ->
             (project.findProperty(name) as? String)?.let { listOf("--$name", it) } ?: emptyList()

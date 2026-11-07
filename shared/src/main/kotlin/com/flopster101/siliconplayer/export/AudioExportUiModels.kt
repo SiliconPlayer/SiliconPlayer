@@ -64,16 +64,26 @@ internal data class AudioExportUiRequest(
     val renderOptions: AudioExportRenderOptions
 )
 
+internal data class AudioExportExecutionState(
+    val running: Boolean = false,
+    val status: String = "",
+    val progress: AudioExportProgress? = null
+)
+
 internal interface AudioExportPlatformAdapter {
+    val executionState: AudioExportExecutionState
     val encoders: List<AudioExportEncoder>
     val externalBinaryLocation: String?
     val externalBinaryLabel: String?
     val externalBinaryActionLabel: String
     val destinationLocation: String?
     val destinationLabel: String?
+    val destinationDescription: String?
     fun chooseExternalBinary()
     fun chooseDestination(suggestedFileName: String)
+    fun resetDestination(suggestedFileName: String)
     fun startExport(request: AudioExportUiRequest)
+    fun cancelExport()
 }
 
 internal val LocalAudioExportPlatformAdapter = staticCompositionLocalOf<AudioExportPlatformAdapter?> { null }

@@ -12,9 +12,13 @@ import com.flopster101.siliconplayer.DecoderPlatform
 import com.flopster101.siliconplayer.LocalDecoderPlatform
 import com.flopster101.siliconplayer.NativeBridge
 import com.flopster101.siliconplayer.export.AudioExportEncoder
+import com.flopster101.siliconplayer.export.AudioExportExecutionState
 import com.flopster101.siliconplayer.export.AudioExportPlatformAdapter
+import com.flopster101.siliconplayer.export.AudioExportProgress
+import com.flopster101.siliconplayer.export.AudioExportRepeatChoice
 import com.flopster101.siliconplayer.export.AudioExportUiRequest
 import com.flopster101.siliconplayer.export.LocalAudioExportPlatformAdapter
+import com.flopster101.siliconplayer.library.defaultMusicScanRoot
 import com.flopster101.siliconplayer.platform.AppPreferences
 import com.flopster101.siliconplayer.platform.AppVersionInfo
 import com.flopster101.siliconplayer.platform.ArtworkThumbnailLoader
@@ -55,7 +59,9 @@ import java.io.File
 import java.util.concurrent.CopyOnWriteArrayList
 import java.util.prefs.Preferences
 import javax.swing.JFileChooser
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
 class DesktopAppPreferences(private val nodeName: String) : AppPreferences {
@@ -206,15 +212,26 @@ private class DesktopAudioExportPlatformAdapter(
     override val encoders = listOf(AudioExportEncoder.SystemFfmpeg, AudioExportEncoder.ExternalFfmpeg)
     override var externalBinaryLocation by mutableStateOf(
         prefs.getString(com.flopster101.siliconplayer.AppPreferenceKeys.AUDIO_EXPORT_EXTERNAL_FFMPEG, null)
+            ?.takeIf { File(it).isFile && File(it).canExecute() }
     )
         private set
     override var destinationLocation by mutableStateOf<String?>(null)
+        private set
+    override var executionState by mutableStateOf(AudioExportExecutionState())
         private set
     override val externalBinaryLabel: String?
         get() = externalBinaryLocation?.let(::File)?.name
     override val externalBinaryActionLabel = "Choose"
     override val destinationLabel: String?
         get() = destinationLocation?.let(::File)?.name
+    override val destinationDescription: String?
+        get() = destinationLocation
+
+    private val scope = CoroutineScope(Dispatchers.IO)
+    @Volatile
+    private var worker: Process? = null
+    @Volatile
+    private var cancelRequested = false
 
     override fun chooseExternalBinary() {
         val chooser = JFileChooser().apply {
@@ -226,7 +243,6 @@ private class DesktopAudioExportPlatformAdapter(
         externalBinaryLocation = path
         prefs.edit()
             .putString(com.flopster101.siliconplayer.AppPreferenceKeys.AUDIO_EXPORT_EXTERNAL_FFMPEG, path)
-            .putString(com.flopster101.siliconplayer.AppPreferenceKeys.AUDIO_EXPORT_EXTERNAL_FFMPEG_NAME, null)
             .apply()
     }
 
@@ -241,9 +257,167 @@ private class DesktopAudioExportPlatformAdapter(
         }
     }
 
-    override fun startExport(request: AudioExportUiRequest) {
-        toastHandler.showToast("In-app audio export is not connected yet")
+    override fun resetDestination(suggestedFileName: String) {
+        val home = System.getProperty("user.home")
+        val directory = defaultMusicScanRoot()?.let(::File)
+            ?: home?.let { File(it, "Music") }
+            ?: DesktopPaths.cacheDir().resolve("Music")
+        directory.mkdirs()
+        destinationLocation = File(directory, suggestedFileName).absolutePath
     }
+
+    override fun startExport(request: AudioExportUiRequest) {
+        if (executionState.running) return
+        val arguments = try {
+            buildDesktopAudioExportArguments(request)
+        } catch (error: IllegalArgumentException) {
+            toastHandler.showToast(error.message ?: "Invalid audio export configuration")
+            return
+        }
+        cancelRequested = false
+        executionState = AudioExportExecutionState(running = true, status = "Starting export…")
+        scope.launch { runExportWorker(arguments, request) }
+    }
+
+    override fun cancelExport() {
+        cancelRequested = true
+        if (executionState.running) {
+            executionState = executionState.copy(status = "Cancelling…")
+        }
+        worker?.destroyForcibly()
+    }
+
+    private fun runExportWorker(arguments: List<String>, request: AudioExportUiRequest) {
+        val errors = mutableListOf<String>()
+        try {
+            val javaHome = System.getProperty("java.home")
+            val executable = File(javaHome, "bin/java").takeIf { it.isFile }?.absolutePath ?: "java"
+            val command = mutableListOf(executable)
+            System.getProperty("java.library.path")?.takeIf { it.isNotBlank() }?.let {
+                command += "-Djava.library.path=$it"
+            }
+            command += listOf("-cp", System.getProperty("java.class.path"), "com.flopster101.siliconplayer.desktop.AudioExportKt")
+            command += arguments
+            val process = ProcessBuilder(command).start()
+            worker = process
+            if (cancelRequested) process.destroyForcibly()
+            val errorThread = Thread {
+                process.errorStream.bufferedReader().useLines { lines ->
+                    lines.filter { it.isNotBlank() }.forEach {
+                        synchronized(errors) {
+                            errors += it
+                            if (errors.size > 8) errors.removeAt(0)
+                        }
+                    }
+                }
+            }.apply { start() }
+            val token = StringBuilder()
+            val reader = process.inputStream.bufferedReader()
+            val buffer = CharArray(1024)
+            while (true) {
+                val count = reader.read(buffer)
+                if (count < 0) break
+                for (index in 0 until count) {
+                    val char = buffer[index]
+                    if (char == '\r' || char == '\n') {
+                        updateWorkerProgress(token.toString(), request)
+                        token.clear()
+                    } else {
+                        token.append(char)
+                    }
+                }
+            }
+            updateWorkerProgress(token.toString(), request)
+            val exitCode = process.waitFor()
+            errorThread.join()
+            when {
+                cancelRequested -> toastHandler.showToast("Audio export cancelled")
+                exitCode == 0 -> toastHandler.showToast("Exported ${File(request.destinationLocation).name}")
+                else -> {
+                    val detail = synchronized(errors) { errors.lastOrNull() }
+                    toastHandler.showToast(detail ?: "Audio export failed with exit code $exitCode")
+                }
+            }
+        } catch (error: Exception) {
+            if (!cancelRequested) {
+                toastHandler.showToast(error.message ?: "Audio export failed")
+            }
+        } finally {
+            worker = null
+            executionState = AudioExportExecutionState()
+        }
+    }
+
+    private fun updateWorkerProgress(token: String, request: AudioExportUiRequest) {
+        val match = Regex("Exported\\s+([0-9.]+)%").find(token) ?: return
+        val fraction = match.groupValues[1].toDoubleOrNull()?.div(100.0)?.coerceIn(0.0, 1.0) ?: return
+        val totalSeconds = (
+            request.renderOptions.durationCapSeconds ?: request.source.durationSeconds
+        ).coerceAtLeast(0.0) * if (request.repeatChoice == AudioExportRepeatChoice.TrackTwice) 2 else 1
+        val totalFrames = (totalSeconds * request.renderOptions.sampleRateHz).toLong()
+        executionState = executionState.copy(
+            status = "Encoding audio",
+            progress = if (totalFrames > 0L) {
+                AudioExportProgress(
+                    renderedFrames = (totalFrames * fraction).toLong(),
+                    totalFrames = totalFrames,
+                    sampleRateHz = request.renderOptions.sampleRateHz
+                )
+            } else {
+                null
+            }
+        )
+    }
+}
+
+internal fun buildDesktopAudioExportArguments(request: AudioExportUiRequest): List<String> = buildList {
+    require(request.encoder != AudioExportEncoder.MediaCodec) { "MediaCodec is unavailable on desktop." }
+    val input = request.source.filePath?.let(::File)?.takeIf { it.isFile }
+    requireNotNull(input) { "The current track has no readable local file." }
+    add("--input")
+    add(input.absolutePath)
+    add("--output")
+    add(request.destinationLocation)
+    if (request.source.subtuneCount > 1) {
+        add("--subtune")
+        add((request.source.subtuneIndex + 1).toString())
+    }
+    add("--sampleRate")
+    add(request.renderOptions.sampleRateHz.toString())
+    add("--sampleFormat")
+    add(request.renderOptions.sampleFormat.storageValue)
+    request.renderOptions.durationCapSeconds?.let {
+        add("--duration")
+        add(it.toString())
+    }
+    request.renderOptions.unknownDurationSeconds?.let {
+        add("--unknownDuration")
+        add(it.toString())
+    }
+    request.renderOptions.endFadeDurationMs?.let {
+        add("--fadeMs")
+        add(it.toString())
+    }
+    request.renderOptions.endFadeCurve?.let {
+        add("--fadeCurve")
+        add(it.storageValue)
+    }
+    request.renderOptions.endFadeApplyToAllTracks?.let {
+        add("--fadeAll")
+        add(it.toString())
+    }
+    add("--repeatCount")
+    add(if (request.repeatChoice == AudioExportRepeatChoice.TrackTwice) "2" else "1")
+    add("--useGain")
+    add(request.renderOptions.useActiveGain.toString())
+    add("--useEffects")
+    add(request.renderOptions.useActiveEffects.toString())
+    if (request.encoder == AudioExportEncoder.ExternalFfmpeg) {
+        add("--ffmpeg")
+        add(requireNotNull(request.externalBinaryLocation) { "Import an external FFmpeg binary first." })
+    }
+    add("--ffmpegArgs")
+    add(request.ffmpegArguments)
 }
 
 @Composable

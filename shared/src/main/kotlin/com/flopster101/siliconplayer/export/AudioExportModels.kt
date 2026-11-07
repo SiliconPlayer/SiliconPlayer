@@ -55,8 +55,15 @@ data class AudioExportMetadata(
 
 data class AudioExportProgress(
     val renderedFrames: Long,
-    val totalFrames: Long
+    val totalFrames: Long,
+    val sampleRateHz: Int = 48_000
 ) {
+    val renderedSeconds: Double
+        get() = renderedFrames.toDouble() / sampleRateHz.toDouble()
+
+    val totalSeconds: Double
+        get() = totalFrames.toDouble() / sampleRateHz.toDouble()
+
     val fraction: Double
         get() = if (totalFrames > 0L) {
             (renderedFrames.toDouble() / totalFrames.toDouble()).coerceIn(0.0, 1.0)

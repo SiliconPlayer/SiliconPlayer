@@ -6,12 +6,19 @@ import com.flopster101.siliconplayer.LookaheadClipperMode
 import com.flopster101.siliconplayer.MultiChannelOutputMode
 import com.flopster101.siliconplayer.NativeBridge
 import com.flopster101.siliconplayer.audio.applyDspSettingsToNative
+import com.flopster101.siliconplayer.audio.defaultDspSettings
 import com.flopster101.siliconplayer.audio.readGlobalDspSettings
 import com.flopster101.siliconplayer.platform.AppPreferences
 import com.flopster101.siliconplayer.readPluginVolumeForDecoder
 
-internal fun applyOfflineAudioPreferencesToNative(prefs: AppPreferences) {
-    NativeBridge.setMasterGain(prefs.getFloat(AppPreferenceKeys.AUDIO_MASTER_VOLUME_DB, 0f))
+internal fun applyOfflineAudioPreferencesToNative(
+    prefs: AppPreferences,
+    useActiveGain: Boolean = true,
+    useActiveEffects: Boolean = true
+) {
+    NativeBridge.setMasterGain(
+        if (useActiveGain) prefs.getFloat(AppPreferenceKeys.AUDIO_MASTER_VOLUME_DB, 0f) else 0f
+    )
     NativeBridge.setForceMono(prefs.getBoolean(AppPreferenceKeys.AUDIO_FORCE_MONO, false))
     NativeBridge.setOutputLimiterEnabled(
         prefs.getBoolean(
@@ -36,16 +43,23 @@ internal fun applyOfflineAudioPreferencesToNative(prefs: AppPreferences) {
         ).nativeValue
     )
     pushAudioPipelineConfigToNative(prefs)
-    applyDspSettingsToNative(readGlobalDspSettings(prefs))
+    applyDspSettingsToNative(
+        if (useActiveEffects) readGlobalDspSettings(prefs) else defaultDspSettings()
+    )
 }
 
 internal fun applyOfflineTrackGainToNative(
     prefs: AppPreferences,
     sourcePath: String,
-    decoderName: String
+    decoderName: String,
+    useActiveGain: Boolean = true
 ) {
     val songVolumeStore = DesktopSongVolumeStore.getInstance()
     val ignoreCoreVolume = songVolumeStore.getSongIgnoreCoreVolume(sourcePath)
-    NativeBridge.setPluginGain(if (ignoreCoreVolume) 0f else readPluginVolumeForDecoder(prefs, decoderName))
-    NativeBridge.setSongGain(songVolumeStore.getSongVolume(sourcePath) ?: 0f)
+    NativeBridge.setPluginGain(
+        if (useActiveGain && !ignoreCoreVolume) readPluginVolumeForDecoder(prefs, decoderName) else 0f
+    )
+    NativeBridge.setSongGain(
+        if (useActiveGain) songVolumeStore.getSongVolume(sourcePath) ?: 0f else 0f
+    )
 }

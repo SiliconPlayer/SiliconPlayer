@@ -11,8 +11,11 @@ import com.flopster101.siliconplayer.export.AudioExportMetadata
 import com.flopster101.siliconplayer.export.AudioExportProgress
 import com.flopster101.siliconplayer.export.AudioExportRenderOptions
 import com.flopster101.siliconplayer.export.AudioExportSampleFormat
+import com.flopster101.siliconplayer.export.AudioExportWriter
+import com.flopster101.siliconplayer.export.FfmpegExportWriter
+import com.flopster101.siliconplayer.export.ffmpegMetadataArguments
+import com.flopster101.siliconplayer.export.parseFfmpegArgumentList
 import com.flopster101.siliconplayer.pushStoredCoreOptionsToNative
-import java.io.Closeable
 import java.io.File
 import java.nio.file.AtomicMoveNotSupportedException
 import java.nio.file.Files
@@ -27,15 +30,11 @@ private const val EXPORT_CHANNELS = 2
 private const val EXPORT_CHUNK_FRAMES = 256
 private const val PROGRESS_INTERVAL_NS = 200_000_000L
 
-internal interface AudioExportWriter : Closeable {
-    fun write(samples: FloatArray, frameCount: Int)
-    fun finish()
-}
-
 internal data class AudioExportOptions(
     val input: File,
     val output: File,
     val subtuneIndex: Int?,
+    val repeatCount: Int = 1,
     val renderOptions: AudioExportRenderOptions,
     val ffmpegPath: File?,
     val ffmpegArguments: List<String>,
@@ -94,9 +93,9 @@ internal fun runAudioExport(
     DesktopPaths.install()
     DomainStoreDirs.configDir = DesktopPaths.configDir()
     val prefs = DesktopPreferencesProvider().getPreferences(AppPreferenceKeys.PREFS_NAME)
+    require(options.repeatCount in 1..8) { "Repeat count must be between 1 and 8." }
     val session = DesktopPlaybackSession().apply {
         trackOptionsPrefs = prefs
-        audioExportOptions = options.renderOptions
         persistLoadCrashGuard = false
     }
     val temporaryFile = AtomicReference<File?>(null)
@@ -109,19 +108,35 @@ internal fun runAudioExport(
         applyStoredPluginConfigurationsToNative(prefs)
         pushStoredCoreOptionsToNative(prefs)
         pushStoredDesktopCorePreferencesToNative(prefs)
-        applyOfflineAudioPreferencesToNative(prefs)
-        check(session.loadFile(input, autoStart = false, initialSubtuneIndex = options.subtuneIndex)) {
-            "Could not load input: $input"
-        }
-        if (options.subtuneIndex != null) {
-            check(session.subtuneIndex == options.subtuneIndex) {
-                "Subtune ${options.subtuneIndex + 1} is not available; input has ${session.subtuneCount} subtunes."
+        applyOfflineAudioPreferencesToNative(
+            prefs,
+            useActiveGain = options.renderOptions.useActiveGain,
+            useActiveEffects = options.renderOptions.useActiveEffects
+        )
+        fun loadPass(finalPass: Boolean): String {
+            session.audioExportOptions = options.renderOptions.copy(
+                endFadeDurationMs = if (finalPass) options.renderOptions.endFadeDurationMs else 0
+            )
+            check(session.loadFile(input, autoStart = false, initialSubtuneIndex = options.subtuneIndex)) {
+                "Could not load input: $input"
             }
+            if (options.subtuneIndex != null) {
+                check(session.subtuneIndex == options.subtuneIndex) {
+                    "Subtune ${options.subtuneIndex + 1} is not available; input has ${session.subtuneCount} subtunes."
+                }
+            }
+            val decoder = session.decoderName ?: error("Could not identify the selected decoder.")
+            applyOfflineTrackGainToNative(
+                prefs,
+                input.absolutePath,
+                decoder,
+                useActiveGain = options.renderOptions.useActiveGain
+            )
+            NativeBridge.setRepeatMode(RepeatMode.None.nativeValue)
+            return decoder
         }
-        val decoderName = session.decoderName ?: error("Could not identify the selected decoder.")
-        applyOfflineTrackGainToNative(prefs, input.absolutePath, decoderName)
+        val decoderName = loadPass(finalPass = options.repeatCount == 1)
         val metadata = readDecoderMetadata(session)
-        NativeBridge.setRepeatMode(RepeatMode.None.nativeValue)
 
         val unknownDurationSeconds = options.renderOptions.unknownDurationSeconds
             ?: prefs.getInt(AppPreferenceKeys.UNKNOWN_TRACK_DURATION_SECONDS, GmeDefaults.unknownDurationSeconds)
@@ -138,8 +153,10 @@ internal fun runAudioExport(
         }
         val rawFrameCount = ceil(durationSeconds * options.renderOptions.sampleRateHz)
         check(rawFrameCount <= Long.MAX_VALUE.toDouble()) { "Track is too long to export." }
-        val totalFrames = rawFrameCount.toLong()
-        check(totalFrames > 0L) { "Track is too short to export." }
+        val framesPerPass = rawFrameCount.toLong()
+        check(framesPerPass > 0L) { "Track is too short to export." }
+        check(framesPerPass <= Long.MAX_VALUE / options.repeatCount) { "Track is too long to export." }
+        val totalFrames = framesPerPass * options.repeatCount
         if (ffmpegExecutable == null) {
             val bytesPerFrame = EXPORT_CHANNELS * options.renderOptions.sampleFormat.bytesPerSample
             require(totalFrames <= (0xffffffffL - 64L) / bytesPerFrame) {
@@ -177,19 +194,33 @@ internal fun runAudioExport(
         }
         exportWriter.use { writer ->
             var remaining = totalFrames
+            var framesLeftInPass = framesPerPass
+            var currentPass = 1
             var lastProgressNs = 0L
             while (remaining > 0L) {
                 if (Thread.currentThread().isInterrupted) throw CancellationException("Audio export cancelled.")
-                val frames = minOf(EXPORT_CHUNK_FRAMES.toLong(), remaining).toInt()
+                val frames = minOf(EXPORT_CHUNK_FRAMES.toLong(), remaining, framesLeftInPass).toInt()
                 val samples = FloatArray(frames * EXPORT_CHANNELS)
                 check(NativeBridge.renderOfflineAudioFrames(samples, frames, options.renderOptions.sampleRateHz)) {
                     "Offline audio rendering failed at frame ${totalFrames - remaining}."
                 }
                 writer.write(samples, frames)
                 remaining -= frames
+                framesLeftInPass -= frames
+                if (framesLeftInPass == 0L && remaining > 0L) {
+                    currentPass += 1
+                    loadPass(finalPass = currentPass == options.repeatCount)
+                    framesLeftInPass = framesPerPass
+                }
                 val now = System.nanoTime()
                 if (now - lastProgressNs >= PROGRESS_INTERVAL_NS || remaining == 0L) {
-                    onProgress(AudioExportProgress(totalFrames - remaining, totalFrames))
+                    onProgress(
+                        AudioExportProgress(
+                            totalFrames - remaining,
+                            totalFrames,
+                            options.renderOptions.sampleRateHz
+                        )
+                    )
                     lastProgressNs = now
                 }
             }
@@ -259,23 +290,6 @@ private fun ffmpegOutputArguments(
     addAll(options.ffmpegArguments)
 }
 
-internal fun ffmpegMetadataArguments(metadata: AudioExportMetadata): List<String> = buildList {
-    fun add(name: String, value: String?) {
-        if (!value.isNullOrBlank()) {
-            add("-metadata")
-            add("$name=$value")
-        }
-    }
-    add("title", metadata.title)
-    add("artist", metadata.artist)
-    add("album", metadata.album)
-    add("composer", metadata.composer)
-    add("genre", metadata.genre)
-    add("date", metadata.date)
-    add("copyright", metadata.copyright)
-    add("comment", metadata.comment)
-}
-
 private fun readDecoderMetadata(session: DesktopPlaybackSession): AudioExportMetadata {
     val subtuneArtist = if (session.subtuneCount > 1) {
         NativeBridge.getSubtuneArtist(session.subtuneIndex).trim().takeIf { it.isNotEmpty() }
@@ -294,40 +308,6 @@ private fun readDecoderMetadata(session: DesktopPlaybackSession): AudioExportMet
         copyright = NativeBridge.getTrackCopyright().trim().takeIf { it.isNotEmpty() },
         comment = NativeBridge.getTrackComment().trim().takeIf { it.isNotEmpty() }
     )
-}
-
-internal fun parseFfmpegArgumentList(raw: String): List<String> {
-    val arguments = mutableListOf<String>()
-    val current = StringBuilder()
-    var quote: Char? = null
-    var escaped = false
-    var started = false
-    raw.forEach { char ->
-        when {
-            escaped -> {
-                current.append(char)
-                escaped = false
-            }
-            char == '\\' && quote != '\'' -> escaped = true
-            quote != null && char == quote -> quote = null
-            quote != null -> current.append(char)
-            char == '\'' || char == '"' -> {
-                quote = char
-                started = true
-            }
-            char.isWhitespace() -> {
-                if (started || current.isNotEmpty()) {
-                    arguments.add(current.toString())
-                    current.clear()
-                    started = false
-                }
-            }
-            else -> current.append(char)
-        }
-    }
-    require(!escaped && quote == null) { "--ffmpegArgs contains an unterminated quote or escape." }
-    if (started || current.isNotEmpty()) arguments.add(current.toString())
-    return arguments
 }
 
 internal fun moveCompletedExport(temp: File, output: File, force: Boolean) {
@@ -366,7 +346,8 @@ internal fun parseAudioExportOptions(args: Array<String>): AudioExportOptions {
         }
         require(name in setOf(
             "input", "output", "subtune", "sampleRate", "sampleFormat", "duration",
-            "unknownDuration", "fadeMs", "fadeCurve", "fadeAll", "ffmpeg", "ffmpegArgs"
+            "unknownDuration", "fadeMs", "fadeCurve", "fadeAll", "repeatCount",
+            "useGain", "useEffects", "ffmpeg", "ffmpegArgs"
         )) { "Unknown option: --$name" }
         require(index + 1 < args.size) { "Missing value for --$name" }
         require(values.put(name, args[index + 1]) == null) { "Duplicate option: --$name" }
@@ -377,6 +358,10 @@ internal fun parseAudioExportOptions(args: Array<String>): AudioExportOptions {
     }
     fun intValue(name: String): Int? = values[name]?.let { raw ->
         requireNotNull(raw.toIntOrNull()) { "--$name must be an integer." }
+    }
+    fun booleanValue(name: String): Boolean? = values[name]?.let { raw ->
+        require(raw == "true" || raw == "false") { "--$name must be true or false." }
+        raw.toBoolean()
     }
     val input = requiredPath("input")
     val output = requiredPath("output")
@@ -389,10 +374,7 @@ internal fun parseAudioExportOptions(args: Array<String>): AudioExportOptions {
             "--sampleFormat must be pcm16, pcm24, or float32."
         }
     } ?: AudioExportSampleFormat.Pcm24
-    val fadeAll = values["fadeAll"]?.let { raw ->
-        require(raw == "true" || raw == "false") { "--fadeAll must be true or false." }
-        raw.toBoolean()
-    }
+    val fadeAll = booleanValue("fadeAll")
     val fadeCurve = values["fadeCurve"]?.let { raw ->
         requireNotNull(EndFadeCurve.entries.firstOrNull { it.storageValue == raw }) {
             "--fadeCurve must be linear, ease_in, or ease_out."
@@ -405,6 +387,9 @@ internal fun parseAudioExportOptions(args: Array<String>): AudioExportOptions {
         input = input,
         output = output,
         subtuneIndex = subtuneIndex,
+        repeatCount = (intValue("repeatCount") ?: 1).also {
+            require(it in 1..8) { "--repeatCount must be between 1 and 8." }
+        },
         ffmpegPath = values["ffmpeg"]?.let(::expandAudioExportPath),
         ffmpegArguments = values["ffmpegArgs"]?.let(::parseFfmpegArgumentList).orEmpty(),
         renderOptions = AudioExportRenderOptions(
@@ -414,7 +399,9 @@ internal fun parseAudioExportOptions(args: Array<String>): AudioExportOptions {
             unknownDurationSeconds = intValue("unknownDuration"),
             endFadeDurationMs = intValue("fadeMs"),
             endFadeCurve = fadeCurve,
-            endFadeApplyToAllTracks = fadeAll
+            endFadeApplyToAllTracks = fadeAll,
+            useActiveGain = booleanValue("useGain") ?: true,
+            useActiveEffects = booleanValue("useEffects") ?: true
         ),
         force = force
     )
@@ -466,6 +453,9 @@ private fun printAudioExportHelp() {
           -PfadeMs=<0|100..120000>       Export-only fade duration; 0 disables
           -PfadeCurve=<curve>             linear, ease_in, or ease_out
           -PfadeAll=<true|false>          Apply fade to reliable-duration tracks
+          -PrepeatCount=<1..8>            Total whole-track passes (default 1)
+          -PuseGain=<true|false>          Use active master/core/song gain
+          -PuseEffects=<true|false>       Use active DSP effects
           -Pffmpeg=<path>                 Use a specific FFmpeg executable
           -PffmpegArgs="<arguments>"      Output codec/options, e.g. "-c:a flac"
           -Pforce=true                    Replace an existing output file
