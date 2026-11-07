@@ -34,6 +34,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.layout.positionInRoot
 import androidx.compose.ui.unit.dp
 import androidx.compose.foundation.shape.RoundedCornerShape
 
@@ -44,9 +46,29 @@ private enum class SettingsRowRole {
     Bottom
 }
 
+private sealed interface SettingsRowSequenceEntry {
+    val token: Any
+    var top: Float?
+
+    data class Row(
+        override val token: Any,
+        val roleState: MutableState<SettingsRowRole>,
+        override var top: Float? = null
+    ) : SettingsRowSequenceEntry
+
+    data class Spacer(
+        override val token: Any,
+        override var top: Float? = null
+    ) : SettingsRowSequenceEntry
+
+    data class SectionBoundary(
+        override val token: Any,
+        override var top: Float? = null
+    ) : SettingsRowSequenceEntry
+}
+
 private class SettingsRowSequencer {
-    private var lastRowRoleState: MutableState<SettingsRowRole>? = null
-    private var nextRowHasPrevious: Boolean = false
+    private val entries = mutableListOf<SettingsRowSequenceEntry>()
     private val claimedSections = mutableMapOf<String, Boolean>()
     private var hasClaimedFirstSection = false
 
@@ -58,26 +80,67 @@ private class SettingsRowSequencer {
         return first
     }
 
-    fun onSectionBoundary() {
-        lastRowRoleState = null
-        nextRowHasPrevious = false
+    fun onSectionBoundary(token: Any) {
+        addEntry(SettingsRowSequenceEntry.SectionBoundary(token))
     }
 
-    fun onRow(roleState: MutableState<SettingsRowRole>) {
-        roleState.value = if (nextRowHasPrevious) SettingsRowRole.Bottom else SettingsRowRole.Standalone
-        lastRowRoleState = roleState
-        nextRowHasPrevious = false
+    fun onRow(token: Any, roleState: MutableState<SettingsRowRole>) {
+        addEntry(SettingsRowSequenceEntry.Row(token, roleState))
     }
 
-    fun onSpacer() {
-        val last = lastRowRoleState ?: return
-        last.value = when (last.value) {
-            SettingsRowRole.Standalone -> SettingsRowRole.Top
-            SettingsRowRole.Bottom -> SettingsRowRole.Middle
-            SettingsRowRole.Top -> SettingsRowRole.Top
-            SettingsRowRole.Middle -> SettingsRowRole.Middle
+    fun onSpacer(token: Any) {
+        addEntry(SettingsRowSequenceEntry.Spacer(token))
+    }
+
+    fun onPositioned(token: Any, top: Float) {
+        val entry = entries.firstOrNull { it.token === token } ?: return
+        if (entry.top == top) return
+        entry.top = top
+        updateRowRoles()
+    }
+
+    fun onDisposed(token: Any) {
+        if (entries.removeAll { it.token === token }) {
+            updateRowRoles()
         }
-        nextRowHasPrevious = true
+    }
+
+    private fun addEntry(entry: SettingsRowSequenceEntry) {
+        entries.removeAll { it.token === entry.token }
+        entries += entry
+        updateRowRoles()
+    }
+
+    private fun updateRowRoles() {
+        var previousRow: SettingsRowSequenceEntry.Row? = null
+        var hasSpacer = false
+        entries.sortedBy { it.top ?: Float.MAX_VALUE }.forEach { entry ->
+            when (entry) {
+                is SettingsRowSequenceEntry.SectionBoundary -> {
+                    previousRow = null
+                    hasSpacer = false
+                }
+                is SettingsRowSequenceEntry.Spacer -> {
+                    if (previousRow != null) hasSpacer = true
+                }
+                is SettingsRowSequenceEntry.Row -> {
+                    val previous = previousRow
+                    if (previous != null && hasSpacer) {
+                        previous.roleState.value = when (previous.roleState.value) {
+                            SettingsRowRole.Standalone -> SettingsRowRole.Top
+                            SettingsRowRole.Bottom -> SettingsRowRole.Middle
+                            SettingsRowRole.Top -> SettingsRowRole.Top
+                            SettingsRowRole.Middle -> SettingsRowRole.Middle
+                        }
+                        entry.roleState.value = SettingsRowRole.Bottom
+                    } else {
+                        entry.roleState.value = SettingsRowRole.Standalone
+                    }
+                    previousRow = entry
+                    hasSpacer = false
+                }
+            }
+        }
     }
 }
 
@@ -110,10 +173,11 @@ internal fun SettingsRowContainer(
     val isWatch = LocalIsWatchDevice.current
     val outerCorner = if (isWatch) 16.dp else SettingsOuterCorner
     val sequencer = LocalSettingsRowSequencer.current
+    val sequenceToken = remember { Any() }
     val rowRole = remember { mutableStateOf(SettingsRowRole.Standalone) }
     DisposableEffect(sequencer) {
-        sequencer?.onRow(rowRole)
-        onDispose { }
+        sequencer?.onRow(sequenceToken, rowRole)
+        onDispose { sequencer?.onDisposed(sequenceToken) }
     }
     val shape = when (rowRole.value) {
         SettingsRowRole.Standalone -> RoundedCornerShape(outerCorner)
@@ -134,6 +198,9 @@ internal fun SettingsRowContainer(
     Surface(
         modifier = Modifier
             .fillMaxWidth()
+            .onGloballyPositioned { coordinates ->
+                sequencer?.onPositioned(sequenceToken, coordinates.positionInRoot().y)
+            }
             .clip(shape)
             .clickable(enabled = enabled, onClick = onClick),
         shape = shape,
@@ -181,21 +248,29 @@ internal fun GroupedRowCard(
 @Composable
 internal fun SettingsRowSpacer() {
     val sequencer = LocalSettingsRowSequencer.current
+    val sequenceToken = remember { Any() }
     DisposableEffect(sequencer) {
-        sequencer?.onSpacer()
-        onDispose { }
+        sequencer?.onSpacer(sequenceToken)
+        onDispose { sequencer?.onDisposed(sequenceToken) }
     }
-    Spacer(modifier = Modifier.height(SettingsInterRowSpacing))
+    Spacer(
+        modifier = Modifier
+            .height(SettingsInterRowSpacing)
+            .onGloballyPositioned { coordinates ->
+                sequencer?.onPositioned(sequenceToken, coordinates.positionInRoot().y)
+            }
+    )
 }
 
 @Composable
 internal fun SettingsSectionLabel(text: String, forceTopSpacing: Boolean = false) {
     val isWatch = LocalIsWatchDevice.current
     val sequencer = LocalSettingsRowSequencer.current
+    val sequenceToken = remember { Any() }
     val isFirstSection = remember(sequencer) { sequencer?.claimFirstSection(text) ?: true }
     DisposableEffect(sequencer, text) {
-        sequencer?.onSectionBoundary()
-        onDispose { }
+        sequencer?.onSectionBoundary(sequenceToken)
+        onDispose { sequencer?.onDisposed(sequenceToken) }
     }
     if (forceTopSpacing || !isFirstSection) {
         Spacer(modifier = Modifier.height(SettingsSectionTopSpacing))
@@ -204,7 +279,11 @@ internal fun SettingsSectionLabel(text: String, forceTopSpacing: Boolean = false
         text = text,
         style = if (isWatch) MaterialTheme.typography.labelMedium else LocalSectionLabelStyle.current ?: MaterialTheme.typography.labelLarge,
         color = MaterialTheme.colorScheme.onSurfaceVariant,
-        modifier = Modifier.padding(start = SettingsSectionLabelStartInset)
+        modifier = Modifier
+            .padding(start = SettingsSectionLabelStartInset)
+            .onGloballyPositioned { coordinates ->
+                sequencer?.onPositioned(sequenceToken, coordinates.positionInRoot().y)
+            }
     )
     Spacer(modifier = Modifier.height(SettingsSectionBottomSpacing))
 }
