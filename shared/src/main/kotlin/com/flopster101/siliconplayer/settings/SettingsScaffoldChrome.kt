@@ -3,6 +3,7 @@ package com.flopster101.siliconplayer
 import com.flopster101.siliconplayer.platform.LocalIsWatchDevice
 import com.flopster101.siliconplayer.platform.LocalWindowSizeInfo
 import com.flopster101.siliconplayer.platform.LocalIsRoundScreen
+import com.flopster101.siliconplayer.ui.screens.ScrollingTopAppBarTitle
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.core.FastOutLinearInEasing
 import androidx.compose.animation.core.FastOutSlowInEasing
@@ -248,16 +249,23 @@ internal fun SettingsScaffoldShell(
                     )
                 )
             } else {
-                LargeTopAppBar(
-                    title = titleContent,
-                    navigationIcon = navigationIconContent,
-                    actions = actionsContent,
-                    colors = TopAppBarDefaults.largeTopAppBarColors(
-                        containerColor = MaterialTheme.colorScheme.background,
-                        scrolledContainerColor = MaterialTheme.colorScheme.background
-                    ),
-                    scrollBehavior = scrollBehavior
-                )
+                Box {
+                    LargeTopAppBar(
+                        title = {},
+                        navigationIcon = navigationIconContent,
+                        actions = actionsContent,
+                        colors = TopAppBarDefaults.largeTopAppBarColors(
+                            containerColor = MaterialTheme.colorScheme.background,
+                            scrolledContainerColor = MaterialTheme.colorScheme.background
+                        ),
+                        scrollBehavior = scrollBehavior
+                    )
+                    ScrollingTopAppBarTitle(
+                        scrollBehavior = scrollBehavior,
+                        modifier = Modifier.matchParentSize(),
+                        title = titleContent
+                    )
+                }
             }
         },
         content = content

@@ -1295,8 +1295,9 @@ internal fun NetworkBrowserScreen(
             .nestedScroll(networkScrollBehavior.nestedScrollConnection),
         topBar = {
             if (!isWatch) {
+                Box {
                 LargeTopAppBar(
-                    title = { Text("Network") },
+                    title = {},
                     navigationIcon = {
                         IconButton(
                             onClick = {
@@ -1564,6 +1565,13 @@ internal fun NetworkBrowserScreen(
                     ),
                     scrollBehavior = networkScrollBehavior
                 )
+                ScrollingTopAppBarTitle(
+                    scrollBehavior = networkScrollBehavior,
+                    modifier = Modifier.matchParentSize(),
+                    endPadding = 100.dp,
+                    title = { Text("Network") }
+                )
+                }
             }
         },
         floatingActionButton = {

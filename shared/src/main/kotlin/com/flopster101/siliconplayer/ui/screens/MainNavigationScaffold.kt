@@ -15,6 +15,7 @@ import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.LinearOutSlowInEasing
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
@@ -46,6 +47,7 @@ import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.flopster101.siliconplayer.ui.theme.Radius
+import com.flopster101.siliconplayer.ui.screens.ScrollingTopAppBarTitle
 import com.flopster101.siliconplayer.platform.LocalIsWatchDevice
 import com.flopster101.siliconplayer.platform.LocalIsRoundScreen
 
@@ -136,12 +138,9 @@ internal fun MainNavigationScaffold(
                     label = "mainTopBarTypeTransition"
                 ) { showHomeBar ->
                     if (showHomeBar) {
+                        Box {
                         LargeTopAppBar(
-                            title = {
-                                MainTopBarPlayerTitle(
-                                    onClick = onOpenPlayerSurface
-                                )
-                            },
+                            title = {},
                             actions = {
                                 AnimatedVisibility(
                                     visible = true,
@@ -174,6 +173,18 @@ internal fun MainNavigationScaffold(
                             ),
                             scrollBehavior = homeScrollBehavior
                         )
+                        ScrollingTopAppBarTitle(
+                            scrollBehavior = homeScrollBehavior,
+                            modifier = Modifier.matchParentSize(),
+                            collapsedStart = 16.dp,
+                            endPadding = 100.dp,
+                            title = {
+                                MainTopBarPlayerTitle(
+                                    onClick = onOpenPlayerSurface
+                                )
+                            }
+                        )
+                        }
                     } else {
                         TopAppBar(
                             title = {
