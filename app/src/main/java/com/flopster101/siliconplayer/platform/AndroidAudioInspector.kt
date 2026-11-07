@@ -4,8 +4,6 @@ import android.content.Context
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.ExperimentalLayoutApi
-import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -48,7 +46,6 @@ import com.flopster101.siliconplayer.ui.icons.FileTrackedIcon
 import com.flopster101.siliconplayer.ui.icons.PlaceholderTrackerChipIcon
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import com.flopster101.siliconplayer.AppPreferenceKeys
 import com.flopster101.siliconplayer.BitPerfectCoordinator
 import com.flopster101.siliconplayer.BitPerfectDriverMethod
@@ -167,8 +164,7 @@ internal fun AndroidBitPerfectSection(params: BitPerfectSectionParams) {
         Card(
             modifier = Modifier.fillMaxWidth(),
             shape = Radius.Card,
-            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow),
-            border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f))
+            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow)
         ) {
             Column(
                 modifier = Modifier
@@ -236,31 +232,25 @@ internal fun AndroidBitPerfectSection(params: BitPerfectSectionParams) {
                         color = MaterialTheme.colorScheme.onSurface
                     )
 
-                    @OptIn(ExperimentalLayoutApi::class)
-                    FlowRow(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(6.dp),
-                        verticalArrangement = Arrangement.spacedBy(6.dp)
-                    ) {
+                    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                         supportedRates.forEach { rate ->
                             val isActive = rate == params.effectiveOutputRateHz
-                            Surface(
-                                shape = Radius.Small,
-                                color = if (isActive) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceContainerHigh,
-                                border = androidx.compose.foundation.BorderStroke(
-                                    1.dp,
-                                    if (isActive) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f)
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Text(
+                                    text = "•",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.outlineVariant
                                 )
-                            ) {
+                                Spacer(modifier = Modifier.width(6.dp))
                                 Text(
                                     text = formatSampleRateForInspector(rate),
-                                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp),
-                                    style = MaterialTheme.typography.labelMedium.copy(
-                                        fontFeatureSettings = "tnum"
-                                    ),
-                                    fontWeight = if (isActive) FontWeight.Bold else FontWeight.Medium,
-                                    color = if (isActive) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurfaceVariant,
-                                    fontSize = 11.5.sp
+                                    style = MaterialTheme.typography.bodySmall.copy(fontFeatureSettings = "tnum"),
+                                    fontWeight = if (isActive) FontWeight.SemiBold else FontWeight.Normal,
+                                    color = if (isActive) {
+                                        MaterialTheme.colorScheme.primary
+                                    } else {
+                                        MaterialTheme.colorScheme.onSurfaceVariant
+                                    }
                                 )
                             }
                         }

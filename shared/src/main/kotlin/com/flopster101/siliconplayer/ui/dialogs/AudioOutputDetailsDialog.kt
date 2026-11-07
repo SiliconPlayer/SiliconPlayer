@@ -21,6 +21,7 @@ import androidx.compose.material.icons.filled.Bluetooth
 import androidx.compose.material.icons.filled.Headphones
 import androidx.compose.material.icons.filled.Usb
 import androidx.compose.material3.Button
+import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -269,7 +270,7 @@ internal fun AudioOutputDetailsDialog(
                     Text(
                         text = "Resampling: ${formatSampleRateForInspector(effectiveDecoderRate)} -> ${formatSampleRateForInspector(effectiveOutputRate)}",
                         style = MaterialTheme.typography.bodySmall,
-                        color = Color(0xFFFFD54F)
+                        color = MaterialTheme.colorScheme.tertiary
                     )
                 }
                 Spacer(modifier = Modifier.height(4.dp))
@@ -310,8 +311,7 @@ internal fun AudioOutputDetailsDialog(
         Surface(
             modifier = adaptiveDialogModifier(),
             shape = Radius.Sheet,
-            color = MaterialTheme.colorScheme.surfaceContainer,
-            border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f))
+            color = MaterialTheme.colorScheme.surfaceContainer
         ) {
             Column(modifier = Modifier.fillMaxWidth()) {
 
@@ -319,9 +319,9 @@ internal fun AudioOutputDetailsDialog(
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(horizontal = 20.dp, vertical = 16.dp),
+                        .padding(start = 24.dp, end = 24.dp, top = 20.dp, bottom = 6.dp),
                     verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(14.dp)
+                    horizontalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
                     Box(
                         modifier = Modifier
@@ -374,8 +374,8 @@ internal fun AudioOutputDetailsDialog(
                             .fillMaxWidth()
                             .padding(end = 10.dp)
                             .verticalScroll(bodyScrollState)
-                            .padding(horizontal = 18.dp, vertical = 2.dp),
-                        verticalArrangement = Arrangement.spacedBy(14.dp)
+                            .padding(horizontal = 20.dp, vertical = 8.dp),
+                        verticalArrangement = Arrangement.spacedBy(16.dp)
                     ) {
 
                     // Section: Signal Chain Graph
@@ -386,9 +386,7 @@ internal fun AudioOutputDetailsDialog(
                         )
 
                         Column(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(12.dp),
+                            modifier = Modifier.fillMaxWidth(),
                             verticalArrangement = Arrangement.spacedBy(0.dp)
                         ) {
                             // Node 1: Source File
@@ -459,7 +457,7 @@ internal fun AudioOutputDetailsDialog(
 
                                 SignalChainConnector(
                                     label = "Resampling",
-                                    highlightColor = Color(0xFFFFD54F)
+                                    highlightColor = MaterialTheme.colorScheme.tertiary
                                 )
 
                                 SignalChainNodeCard(
@@ -468,14 +466,14 @@ internal fun AudioOutputDetailsDialog(
                                             imageVector = ConversionPathIcon,
                                             contentDescription = null,
                                             modifier = Modifier.size(18.dp),
-                                            tint = Color(0xFFFFD54F)
+                                            tint = MaterialTheme.colorScheme.tertiary
                                         )
                                     },
-                                    iconBackgroundColor = Color(0xFFFFD54F).copy(alpha = 0.15f),
+                                    iconBackgroundColor = MaterialTheme.colorScheme.tertiary.copy(alpha = 0.15f),
                                     title = resamplerTitle,
                                     badgeText = "Resampler",
-                                    badgeColor = Color(0xFFFFD54F),
-                                    badgeBackgroundColor = Color(0xFFFFD54F).copy(alpha = 0.15f),
+                                    badgeColor = MaterialTheme.colorScheme.tertiary,
+                                    badgeBackgroundColor = MaterialTheme.colorScheme.tertiary.copy(alpha = 0.15f),
                                     subtitleItems = listOf(
                                         "${formatSampleRateForInspector(effectiveDecoderRate)} → ${formatSampleRateForInspector(effectiveOutputRate)}",
                                         resamplerEngine
@@ -484,7 +482,7 @@ internal fun AudioOutputDetailsDialog(
                             }
 
                             // Connector to Output Sink
-                            val bitPerfectHighlightColor = Color(0xFF4DD0E1)
+                            val bitPerfectHighlightColor = MaterialTheme.colorScheme.primary
                             SignalChainConnector(
                                 label = if (isBitPerfectActive) "Direct USB" else null,
                                 highlightColor = if (isBitPerfectActive) bitPerfectHighlightColor else null
@@ -542,36 +540,42 @@ internal fun AudioOutputDetailsDialog(
                             modifier = Modifier.padding(start = 8.dp)
                         )
 
-                        Column(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(horizontal = 8.dp),
-                            verticalArrangement = Arrangement.spacedBy(10.dp)
+                        Surface(
+                            modifier = Modifier.fillMaxWidth(),
+                            shape = Radius.ControlCompact,
+                            color = MaterialTheme.colorScheme.surfaceContainerLow
                         ) {
-                            if (
-                                backendLabel.isNotBlank() &&
-                                backendLabel != inspector.inactiveBackendLabel &&
-                                backendLabel != "Unknown"
+                            Column(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(12.dp),
+                                verticalArrangement = Arrangement.spacedBy(10.dp)
                             ) {
+                                if (
+                                    backendLabel.isNotBlank() &&
+                                    backendLabel != inspector.inactiveBackendLabel &&
+                                    backendLabel != "Unknown"
+                                ) {
+                                    MetricListRow(
+                                        label = "Output API",
+                                        value = backendLabel,
+                                        sub = null
+                                    )
+                                    HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.2f))
+                                }
                                 MetricListRow(
-                                    label = "Output API",
-                                    value = backendLabel,
+                                    label = "Audio engine",
+                                    value = "miniaudio",
                                     sub = null
                                 )
-                                HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.2f))
-                            }
-                            MetricListRow(
-                                label = "Audio engine",
-                                value = "miniaudio",
-                                sub = null
-                            )
-                            if (bufferPeriodMs != null) {
-                                HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.2f))
-                                MetricListRow(
-                                    label = "Buffer period",
-                                    value = String.format(Locale.US, "%.1f ms", bufferPeriodMs),
-                                    sub = "$burstFrames frames at ${formatSampleRateForInspector(outputStreamRateHz)}"
-                                )
+                                if (bufferPeriodMs != null) {
+                                    HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.2f))
+                                    MetricListRow(
+                                        label = "Buffer period",
+                                        value = String.format(Locale.US, "%.1f ms", bufferPeriodMs),
+                                        sub = "$burstFrames frames at ${formatSampleRateForInspector(outputStreamRateHz)}"
+                                    )
+                                }
                             }
                         }
                     }
@@ -613,18 +617,17 @@ internal fun AudioOutputDetailsDialog(
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(horizontal = 20.dp, vertical = 12.dp),
+                        .padding(start = 24.dp, end = 24.dp, top = 8.dp, bottom = 18.dp),
                     horizontalArrangement = Arrangement.End,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Button(
+                    FilledTonalButton(
                         onClick = onDismiss,
-                        shape = Radius.ControlRoomy
+                        shape = Radius.ControlCompact
                     ) {
                         Text(
                             text = "Close",
-                            style = MaterialTheme.typography.labelLarge,
-                            fontWeight = FontWeight.Medium
+                            style = MaterialTheme.typography.labelLarge
                         )
                     }
                 }
@@ -652,7 +655,7 @@ private fun SignalChainNodeCard(
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 12.dp, vertical = 10.dp),
+                .padding(horizontal = 12.dp, vertical = 12.dp),
             verticalAlignment = Alignment.Top,
             horizontalArrangement = Arrangement.spacedBy(10.dp)
         ) {
@@ -851,14 +854,12 @@ private fun SignalChainConnector(
         // Optional Centered Pill
         if (!label.isNullOrBlank()) {
             val pillBg = highlightColor?.copy(alpha = 0.12f) ?: MaterialTheme.colorScheme.surfaceContainerHighest
-            val pillBorder = highlightColor?.copy(alpha = 0.35f) ?: MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f)
             val contentColor = highlightColor ?: MaterialTheme.colorScheme.onSurfaceVariant
 
             Surface(
                 modifier = Modifier.padding(start = 40.dp),
                 shape = Radius.Tiny,
-                color = pillBg,
-                border = androidx.compose.foundation.BorderStroke(1.dp, pillBorder)
+                color = pillBg
             ) {
                 Text(
                     text = label,
