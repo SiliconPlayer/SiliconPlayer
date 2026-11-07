@@ -73,7 +73,6 @@ fun RenderPluginSettings(
 
     // Render core options section if it has content
     if (builder.hasCoreOptions()) {
-        Spacer(modifier = Modifier.height(16.dp))
         settingsSectionLabel("Core options")
         builder.getCoreOptionsContent().forEach { content ->
             content()

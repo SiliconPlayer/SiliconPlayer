@@ -765,7 +765,6 @@ internal fun VisualizationBasicRouteContent(
 
     val basicPages = remember { basicVisualizationSettingsPages() }
     SettingsSectionLabel("Basic visualizations")
-    SettingsRowSpacer()
     basicPages.forEachIndexed { index, page ->
         val icon = when (page.mode) {
             VisualizationMode.Bars -> Icons.Default.GraphicEq
@@ -804,7 +803,6 @@ internal fun VisualizationAdvancedRouteContent(
     val advancedPages = remember { advancedVisualizationSettingsPages() }
     val projectMSupported = supportsProjectM()
     SettingsSectionLabel("Advanced visualizations")
-    SettingsRowSpacer()
     advancedPages.forEachIndexed { index, page ->
         val icon = when (page.mode) {
             VisualizationMode.ChannelScope -> Icons.Default.MonitorHeart

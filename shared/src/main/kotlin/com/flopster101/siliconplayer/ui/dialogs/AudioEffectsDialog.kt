@@ -1,6 +1,7 @@
 package com.flopster101.siliconplayer.ui.dialogs
 
 import com.flopster101.siliconplayer.ui.theme.Radius
+import com.flopster101.siliconplayer.GroupedRowCard
 import com.flopster101.siliconplayer.TrackTextInputActive
 import com.flopster101.siliconplayer.onGloballyPositionedDeferred
 import com.flopster101.siliconplayer.onSizeChangedDeferred
@@ -262,47 +263,73 @@ fun AudioEffectsDialog(
                     )
                 }
 
-                EffectsVolumeSliderRow(
-                    title = "Master volume",
-                    valueDb = masterVolumeDb,
-                    enabled = true,
-                    onValueChange = onMasterVolumeChange
-                )
-                EffectsVolumeSliderRow(
-                    title = "Core volume",
-                    valueDb = pluginVolumeDb,
-                    enabled = hasActiveCore,
-                    onValueChange = onPluginVolumeChange
-                )
-                EffectsVolumeSliderRow(
-                    title = "Song volume",
-                    valueDb = songVolumeDb,
-                    enabled = hasActiveSong,
-                    onValueChange = onSongVolumeChange
-                )
-
-                DialogToggleRow(
-                    title = "Ignore core volume for this song",
-                    checked = ignoreCoreVolumeForSong,
-                    enabled = hasActiveSong,
-                    onCheckedChange = onIgnoreCoreVolumeForSongChange
-                )
-                DialogToggleRow(
-                    title = "Force mono",
-                    checked = forceMono,
-                    onCheckedChange = onForceMonoChange
-                )
+                Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                    GroupedRowCard(isFirst = true, isLast = false) {
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(16.dp),
+                            verticalArrangement = Arrangement.spacedBy(14.dp)
+                        ) {
+                            EffectsVolumeSliderRow(
+                                title = "Master volume",
+                                valueDb = masterVolumeDb,
+                                enabled = true,
+                                onValueChange = onMasterVolumeChange
+                            )
+                            EffectsVolumeSliderRow(
+                                title = "Core volume",
+                                valueDb = pluginVolumeDb,
+                                enabled = hasActiveCore,
+                                onValueChange = onPluginVolumeChange
+                            )
+                            EffectsVolumeSliderRow(
+                                title = "Song volume",
+                                valueDb = songVolumeDb,
+                                enabled = hasActiveSong,
+                                onValueChange = onSongVolumeChange
+                            )
+                        }
+                    }
+                    GroupedRowCard(isFirst = false, isLast = false) {
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(16.dp)
+                        ) {
+                            DialogToggleRow(
+                                title = "Ignore core volume for this song",
+                                checked = ignoreCoreVolumeForSong,
+                                enabled = hasActiveSong,
+                                onCheckedChange = onIgnoreCoreVolumeForSongChange
+                            )
+                        }
+                    }
+                    GroupedRowCard(isFirst = false, isLast = true) {
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(16.dp)
+                        ) {
+                            DialogToggleRow(
+                                title = "Force mono",
+                                checked = forceMono,
+                                onCheckedChange = onForceMonoChange
+                            )
+                        }
+                    }
+                }
 
                 Text(
                     text = "Core: ${currentCoreName ?: "(none)"}",
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.padding(horizontal = 4.dp)
+                    modifier = Modifier.padding(horizontal = 8.dp)
                 )
             }
 
             // DSP section
-            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     verticalAlignment = Alignment.CenterVertically,
@@ -320,6 +347,8 @@ fun AudioEffectsDialog(
                         }
                     )
                 }
+
+                Spacer(modifier = Modifier.height(4.dp))
 
                 Row(
                     modifier = Modifier.fillMaxWidth(),
@@ -347,129 +376,171 @@ fun AudioEffectsDialog(
                     )
                 }
 
+                Spacer(modifier = Modifier.height(4.dp))
+
                 DialogCollapsibleCard(
                     title = "OpenMPT DSP effects",
                     subtitle = if (dspOptionsExpanded) "Tap to collapse" else "Bass, surround, reverb, bit crush",
                     isEnabled = true,
                     isExpanded = dspOptionsExpanded,
-                    onToggleExpand = { dspOptionsExpanded = !dspOptionsExpanded }
+                    onToggleExpand = { dspOptionsExpanded = !dspOptionsExpanded },
+                    supportingContent = {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clip(Radius.Compact)
+                                .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f))
+                                .padding(horizontal = 10.dp, vertical = 7.dp),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Info,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.size(16.dp)
+                            )
+                            Text(
+                                text = "DSP attribution: About -> Libraries -> OpenMPT DSP effects.",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    }
                 ) {
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clip(Radius.Compact)
-                            .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f))
-                            .padding(horizontal = 10.dp, vertical = 7.dp),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.Info,
-                            contentDescription = null,
-                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                            modifier = Modifier.size(16.dp)
-                        )
-                        Text(
-                            text = "DSP attribution: About -> Libraries -> OpenMPT DSP effects.",
-                            style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
+                    GroupedRowCard(isFirst = false, isLast = false) {
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(start = 16.dp, end = 16.dp, bottom = 8.dp),
+                            verticalArrangement = Arrangement.spacedBy(14.dp)
+                        ) {
+                            DialogToggleRow(
+                                title = "Bass Expansion",
+                                checked = dspBassEnabled,
+                                onCheckedChange = onDspBassEnabledChange
+                            )
+                            DialogIntSliderRow(
+                                title = "Bass Depth",
+                                value = dspBassDepth,
+                                valueRange = 0..4,
+                                enabled = dspBassEnabled,
+                                onValueChange = onDspBassDepthChange
+                            )
+                            DialogIntSliderRow(
+                                title = "Bass Range",
+                                value = dspBassRange,
+                                valueRange = 0..4,
+                                enabled = dspBassEnabled,
+                                onValueChange = onDspBassRangeChange
+                            )
+                        }
                     }
 
-                    DialogToggleRow(
-                        title = "Bass Expansion",
-                        checked = dspBassEnabled,
-                        onCheckedChange = onDspBassEnabledChange
-                    )
-                    DialogIntSliderRow(
-                        title = "Bass Depth",
-                        value = dspBassDepth,
-                        valueRange = 0..4,
-                        enabled = dspBassEnabled,
-                        onValueChange = onDspBassDepthChange
-                    )
-                    DialogIntSliderRow(
-                        title = "Bass Range",
-                        value = dspBassRange,
-                        valueRange = 0..4,
-                        enabled = dspBassEnabled,
-                        onValueChange = onDspBassRangeChange
-                    )
+                    GroupedRowCard(isFirst = false, isLast = false) {
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(start = 16.dp, end = 16.dp, bottom = 8.dp),
+                            verticalArrangement = Arrangement.spacedBy(14.dp)
+                        ) {
+                            DialogToggleRow(
+                                title = "Surround",
+                                checked = dspSurroundEnabled,
+                                onCheckedChange = onDspSurroundEnabledChange
+                            )
+                            DialogIntSliderRow(
+                                title = "Surround Depth",
+                                value = dspSurroundDepth,
+                                valueRange = 1..16,
+                                enabled = dspSurroundEnabled,
+                                onValueChange = onDspSurroundDepthChange
+                            )
+                            DialogIntSliderRow(
+                                title = "Surround Delay",
+                                value = dspSurroundDelayMs,
+                                valueRange = 5..45,
+                                step = 5,
+                                unitLabel = " ms",
+                                enabled = dspSurroundEnabled,
+                                onValueChange = onDspSurroundDelayMsChange
+                            )
+                        }
+                    }
 
-                    HorizontalDivider()
+                    GroupedRowCard(isFirst = false, isLast = false) {
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(start = 16.dp, end = 16.dp, bottom = 8.dp),
+                            verticalArrangement = Arrangement.spacedBy(14.dp)
+                        ) {
+                            DialogToggleRow(
+                                title = "Reverb",
+                                checked = dspReverbEnabled,
+                                onCheckedChange = onDspReverbEnabledChange
+                            )
+                            DialogIntSliderRow(
+                                title = "Reverb Depth",
+                                value = dspReverbDepth,
+                                valueRange = 1..16,
+                                enabled = dspReverbEnabled,
+                                onValueChange = onDspReverbDepthChange
+                            )
+                            DspReverbPresetDropdownRow(
+                                label = "Reverb Preset",
+                                value = dspReverbPreset,
+                                onValueChange = onDspReverbPresetChange,
+                                enabled = dspReverbEnabled
+                            )
+                        }
+                    }
 
-                    DialogToggleRow(
-                        title = "Surround",
-                        checked = dspSurroundEnabled,
-                        onCheckedChange = onDspSurroundEnabledChange
-                    )
-                    DialogIntSliderRow(
-                        title = "Surround Depth",
-                        value = dspSurroundDepth,
-                        valueRange = 1..16,
-                        enabled = dspSurroundEnabled,
-                        onValueChange = onDspSurroundDepthChange
-                    )
-                    DialogIntSliderRow(
-                        title = "Surround Delay",
-                        value = dspSurroundDelayMs,
-                        valueRange = 5..45,
-                        step = 5,
-                        unitLabel = " ms",
-                        enabled = dspSurroundEnabled,
-                        onValueChange = onDspSurroundDelayMsChange
-                    )
-
-                    HorizontalDivider()
-
-                    DialogToggleRow(
-                        title = "Reverb",
-                        checked = dspReverbEnabled,
-                        onCheckedChange = onDspReverbEnabledChange
-                    )
-                    DialogIntSliderRow(
-                        title = "Reverb Depth",
-                        value = dspReverbDepth,
-                        valueRange = 1..16,
-                        enabled = dspReverbEnabled,
-                        onValueChange = onDspReverbDepthChange
-                    )
-                    DspReverbPresetDropdownRow(
-                        label = "Reverb Preset",
-                        value = dspReverbPreset,
-                        onValueChange = onDspReverbPresetChange,
-                        enabled = dspReverbEnabled
-                    )
-
-                    HorizontalDivider()
-
-                    DialogToggleRow(
-                        title = "Bit Crush",
-                        checked = dspBitCrushEnabled,
-                        onCheckedChange = onDspBitCrushEnabledChange
-                    )
-                    DialogIntSliderRow(
-                        title = "Bit Crush Bits",
-                        value = dspBitCrushBits,
-                        valueRange = 1..24,
-                        enabled = dspBitCrushEnabled,
-                        onValueChange = onDspBitCrushBitsChange
-                    )
+                    GroupedRowCard(isFirst = false, isLast = false) {
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(start = 16.dp, end = 16.dp, bottom = 8.dp),
+                            verticalArrangement = Arrangement.spacedBy(14.dp)
+                        ) {
+                            DialogToggleRow(
+                                title = "Bit Crush",
+                                checked = dspBitCrushEnabled,
+                                onCheckedChange = onDspBitCrushEnabledChange
+                            )
+                            DialogIntSliderRow(
+                                title = "Bit Crush Bits",
+                                value = dspBitCrushBits,
+                                valueRange = 1..24,
+                                enabled = dspBitCrushEnabled,
+                                onValueChange = onDspBitCrushBitsChange
+                            )
+                        }
+                    }
                 }
 
-                if (hasActiveCore) {
-                    DialogToggleRow(
-                        title = "Ignore global settings for this core",
-                        checked = dspIgnoreGlobalForCurrentCore,
-                        onCheckedChange = onDspIgnoreGlobalForCurrentCoreChange
-                    )
+                GroupedRowCard(isFirst = false, isLast = true) {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 16.dp, vertical = 8.dp)
+                    ) {
+                        DialogToggleRow(
+                            title = "Ignore global settings for this core",
+                            checked = dspIgnoreGlobalForCurrentCore,
+                            enabled = hasActiveCore,
+                            onCheckedChange = onDspIgnoreGlobalForCurrentCoreChange
+                        )
+                    }
                 }
+
+                Spacer(modifier = Modifier.height(4.dp))
 
                 Text(
                     text = "Core: ${currentCoreName ?: "(none)"}",
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.padding(horizontal = 4.dp)
+                    modifier = Modifier.padding(horizontal = 8.dp)
                 )
             }
         }

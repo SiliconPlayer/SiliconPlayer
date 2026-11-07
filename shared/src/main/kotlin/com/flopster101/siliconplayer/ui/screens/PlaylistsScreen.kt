@@ -212,6 +212,7 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.text.AnnotatedString
@@ -955,6 +956,10 @@ internal fun PlaylistsScreen(
     val detailCollapseFraction = scrollBehavior.state.collapsedFraction.coerceIn(0f, 1f)
     val showCollapsedDetailSubtitle = detailSubtitle != null &&
         scrollBehavior.state.collapsedFraction >= 0.999f
+    var scanLabelWidthPx by remember { mutableIntStateOf(0) }
+    val scanLabelWidth = with(LocalDensity.current) { scanLabelWidthPx.toDp() }
+    val playlistsTopBarEndPadding = 148.dp +
+        if (!showingPlaylistDetail && librarySyncState.isScanning) scanLabelWidth else 0.dp
     LaunchedEffect(pagerState.currentPage) {
         if (selectedTabIndex != pagerState.currentPage) {
             selectedTabIndex = pagerState.currentPage
@@ -1114,8 +1119,7 @@ internal fun PlaylistsScreen(
                 ),
             topBar = {
                 if (!isWatch) {
-                    LargeTopAppBar(
-                        title = {
+                    val playlistsTopBarTitle: @Composable () -> Unit = {
                             Column(verticalArrangement = Arrangement.spacedBy(0.dp)) {
                                 if (showingPlaylistDetail && detailSubtitle != null) {
                                     val detailTitleAlpha = ((detailCollapseFraction - 0.58f) / 0.42f)
@@ -1175,7 +1179,10 @@ internal fun PlaylistsScreen(
                                     )
                                 }
                             }
-                        },
+                        }
+                    Box {
+                    LargeTopAppBar(
+                        title = {},
                         navigationIcon = {
                             AnimatedContent(
                                 targetState = librarySearchActive && !showingPlaylistDetail,
@@ -1186,33 +1193,32 @@ internal fun PlaylistsScreen(
                                 label = "librarySearchNavigationIcon"
                             ) { searching ->
                                 if (searching) {
-                                    IconButton(
+                                    TopBarNavigationIcon(
+                                        imageVector = Icons.Default.Close,
+                                        contentDescription = "Close search",
                                         onClick = {
                                             librarySearchActive = false
                                             librarySearchQuery = ""
                                             keyboardController?.hide()
                                         }
-                                    ) {
-                                        Icon(
-                                            imageVector = Icons.Default.Close,
-                                            contentDescription = "Close search"
-                                        )
-                                    }
+                                    )
                                 } else {
-                                    IconButton(
+                                    TopBarNavigationIcon(
+                                        imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                                        contentDescription = "Go back",
                                         onClick = {
                                             if (showingPlaylistDetail) {
                                                 if (destination == PlaylistsSurfaceDestination.Favorites && favoritesEditModeEnabled) {
                                                     favoritesEditModeEnabled = false
                                                     favoritesSelectedEntryIds = emptySet()
                                                     favoritesDraggingEntryId = null
-                                                    return@IconButton
+                                                    return@TopBarNavigationIcon
                                                 }
                                                 if (destination == PlaylistsSurfaceDestination.StoredPlaylist && storedPlaylistEditModeEnabled) {
                                                     storedPlaylistEditModeEnabled = false
                                                     storedPlaylistSelectedEntryIds = emptySet()
                                                     storedPlaylistDraggingEntryId = null
-                                                    return@IconButton
+                                                    return@TopBarNavigationIcon
                                                 }
                                                 favoritesEditModeEnabled = false
                                                 favoritesSelectedEntryIds = emptySet()
@@ -1242,12 +1248,7 @@ internal fun PlaylistsScreen(
                                                 onBack()
                                             }
                                         }
-                                    ) {
-                                        Icon(
-                                            imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                                            contentDescription = "Go back"
-                                        )
-                                    }
+                                    )
                         }
                     }
                 },
@@ -1272,7 +1273,9 @@ internal fun PlaylistsScreen(
                                         text = "${librarySyncState.indexedTracks} new",
                                         style = MaterialTheme.typography.labelMedium,
                                         color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                        modifier = Modifier.padding(end = 10.dp)
+                                        modifier = Modifier
+                                            .onSizeChanged { scanLabelWidthPx = it.width }
+                                            .padding(end = 10.dp)
                                     )
                                 }
                                 IconButton(
@@ -1299,6 +1302,15 @@ internal fun PlaylistsScreen(
                         ),
                         scrollBehavior = scrollBehavior
                     )
+                    ScrollingTopAppBarTitle(
+                        scrollBehavior = scrollBehavior,
+                        modifier = Modifier.matchParentSize(),
+                        expandedStart = 24.dp,
+                        collapsedStart = 80.dp,
+                        endPadding = playlistsTopBarEndPadding,
+                        title = playlistsTopBarTitle
+                    )
+                    }
                 }
             }
         ) { innerPadding ->

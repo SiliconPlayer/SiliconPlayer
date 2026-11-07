@@ -66,8 +66,7 @@ internal fun VisualizationTrackTickerRouteContent() {
         )
     }
 
-    SettingsSectionLabel("Per visualizer")
-    SettingsRowSpacer()
+    SettingsSectionLabel("Per visualizer", forceTopSpacing = true)
 
     val perVisualizer = listOf(
         Triple("Bars", AppPreferenceKeys.VISUALIZATION_TICKER_ENABLED_BARS, "visualization_ticker_enabled_bars"),

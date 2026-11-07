@@ -460,17 +460,13 @@ internal fun FullscreenSeekBar(
             color = Color.White.copy(alpha = 0.80f),
             style = MaterialTheme.typography.labelSmall
         )
-        LineageStyleSeekBar(
+        PlayerSeekSlider(
             value = displayPos.toFloat(),
             maxValue = durationSeconds.toFloat(),
             enabled = true,
-            seekInProgress = isSeeking,
-            layoutScale = 0.9f,
             activeColor = Color.White,
             inactiveColor = Color.White.copy(alpha = 0.30f),
             thumbColor = Color.White,
-            forceMonochromeWhite = true,
-            onSeekInteractionChanged = {},
             onValueChange = { v ->
                 isSeeking = true
                 sliderPosition = v.toDouble()
@@ -482,7 +478,6 @@ internal fun FullscreenSeekBar(
             modifier = Modifier
                 .weight(1f)
                 .padding(horizontal = 12.dp)
-                .height(36.dp)
         )
         Text(
             text = formatDurationWithUnknown(durationSeconds, durationReliable),

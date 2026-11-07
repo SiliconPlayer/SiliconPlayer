@@ -1295,10 +1295,17 @@ internal fun NetworkBrowserScreen(
             .nestedScroll(networkScrollBehavior.nestedScrollConnection),
         topBar = {
             if (!isWatch) {
+                Box {
                 LargeTopAppBar(
-                    title = { Text("Network") },
+                    title = {},
                     navigationIcon = {
-                        IconButton(
+                        TopBarNavigationIcon(
+                            imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                            contentDescription = if (currentFolderId != null) {
+                                "Go to parent folder"
+                            } else {
+                                "Go back"
+                            },
                             onClick = {
                                 if (currentFolderId != null) {
                                     navigateUpOneFolder()
@@ -1306,16 +1313,7 @@ internal fun NetworkBrowserScreen(
                                     onExitNetwork()
                                 }
                             }
-                        ) {
-                            Icon(
-                                imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                                contentDescription = if (currentFolderId != null) {
-                                    "Go to parent folder"
-                                } else {
-                                    "Go back"
-                                }
-                            )
-                        }
+                        )
                     },
                     actions = {
                         if (isSelectionMode) {
@@ -1564,6 +1562,15 @@ internal fun NetworkBrowserScreen(
                     ),
                     scrollBehavior = networkScrollBehavior
                 )
+                ScrollingTopAppBarTitle(
+                    scrollBehavior = networkScrollBehavior,
+                    modifier = Modifier.matchParentSize(),
+                    expandedStart = 24.dp,
+                    collapsedStart = 80.dp,
+                    endPadding = 100.dp,
+                    title = { Text("Network") }
+                )
+                }
             }
         },
         floatingActionButton = {

@@ -4,8 +4,7 @@ import android.content.Context
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.ExperimentalLayoutApi
-import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -20,10 +19,7 @@ import androidx.compose.material.icons.filled.AudioFile
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.FilledTonalButton
-import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Slider
@@ -48,7 +44,6 @@ import com.flopster101.siliconplayer.ui.icons.FileTrackedIcon
 import com.flopster101.siliconplayer.ui.icons.PlaceholderTrackerChipIcon
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import com.flopster101.siliconplayer.AppPreferenceKeys
 import com.flopster101.siliconplayer.BitPerfectCoordinator
 import com.flopster101.siliconplayer.BitPerfectDriverMethod
@@ -164,18 +159,10 @@ internal fun AndroidBitPerfectSection(params: BitPerfectSectionParams) {
             modifier = Modifier.padding(start = 8.dp)
         )
 
-        Card(
-            modifier = Modifier.fillMaxWidth(),
-            shape = Radius.Card,
-            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow),
-            border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f))
-        ) {
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(14.dp),
-                verticalArrangement = Arrangement.spacedBy(12.dp)
-            ) {
+        val showVolumeControls = params.bitPerfectEnabled && isBitPerfectSupported && driverMethod == BitPerfectDriverMethod.DirectUac
+
+        Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+            BitPerfectCardSegment(isFirst = true, isLast = false) {
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceBetween,
@@ -225,9 +212,9 @@ internal fun AndroidBitPerfectSection(params: BitPerfectSectionParams) {
                         enabled = isBitPerfectSupported
                     )
                 }
+            }
 
-                HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.2f))
-
+            BitPerfectCardSegment(isFirst = false, isLast = !showVolumeControls) {
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     Text(
                         text = "Supported Rates ($uacLabel)",
@@ -236,40 +223,34 @@ internal fun AndroidBitPerfectSection(params: BitPerfectSectionParams) {
                         color = MaterialTheme.colorScheme.onSurface
                     )
 
-                    @OptIn(ExperimentalLayoutApi::class)
-                    FlowRow(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(6.dp),
-                        verticalArrangement = Arrangement.spacedBy(6.dp)
-                    ) {
+                    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                         supportedRates.forEach { rate ->
                             val isActive = rate == params.effectiveOutputRateHz
-                            Surface(
-                                shape = Radius.Small,
-                                color = if (isActive) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceContainerHigh,
-                                border = androidx.compose.foundation.BorderStroke(
-                                    1.dp,
-                                    if (isActive) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f)
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Text(
+                                    text = "•",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.outlineVariant
                                 )
-                            ) {
+                                Spacer(modifier = Modifier.width(6.dp))
                                 Text(
                                     text = formatSampleRateForInspector(rate),
-                                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp),
-                                    style = MaterialTheme.typography.labelMedium.copy(
-                                        fontFeatureSettings = "tnum"
-                                    ),
-                                    fontWeight = if (isActive) FontWeight.Bold else FontWeight.Medium,
-                                    color = if (isActive) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurfaceVariant,
-                                    fontSize = 11.5.sp
+                                    style = MaterialTheme.typography.bodySmall.copy(fontFeatureSettings = "tnum"),
+                                    fontWeight = if (isActive) FontWeight.SemiBold else FontWeight.Normal,
+                                    color = if (isActive) {
+                                        MaterialTheme.colorScheme.primary
+                                    } else {
+                                        MaterialTheme.colorScheme.onSurfaceVariant
+                                    }
                                 )
                             }
                         }
                     }
                 }
+            }
 
-                if (params.bitPerfectEnabled && isBitPerfectSupported && driverMethod == BitPerfectDriverMethod.DirectUac) {
-                    HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.2f))
-
+            if (showVolumeControls) {
+                BitPerfectCardSegment(isFirst = false, isLast = true) {
                     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                         Row(
                             modifier = Modifier.fillMaxWidth(),
@@ -474,6 +455,26 @@ internal fun AndroidBitPerfectSection(params: BitPerfectSectionParams) {
                 showVolumeModeDialog = false
             },
             onDismiss = { showVolumeModeDialog = false }
+        )
+    }
+}
+
+@Composable
+private fun BitPerfectCardSegment(
+    isFirst: Boolean,
+    isLast: Boolean,
+    content: @Composable ColumnScope.() -> Unit
+) {
+    Surface(
+        modifier = Modifier.fillMaxWidth(),
+        shape = Radius.cardSegment(isFirst = isFirst, isLast = isLast),
+        color = MaterialTheme.colorScheme.surfaceContainerLow
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(14.dp),
+            content = content
         )
     }
 }

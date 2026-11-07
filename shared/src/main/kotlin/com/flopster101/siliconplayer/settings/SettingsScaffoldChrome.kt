@@ -3,11 +3,12 @@ package com.flopster101.siliconplayer
 import com.flopster101.siliconplayer.platform.LocalIsWatchDevice
 import com.flopster101.siliconplayer.platform.LocalWindowSizeInfo
 import com.flopster101.siliconplayer.platform.LocalIsRoundScreen
+import com.flopster101.siliconplayer.ui.screens.ScrollingTopAppBarTitle
+import com.flopster101.siliconplayer.ui.screens.TopBarNavigationIcon
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.core.FastOutLinearInEasing
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.LinearOutSlowInEasing
-import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -42,7 +43,6 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -83,23 +83,6 @@ internal fun SettingsScaffoldShell(
     }
 
     val titleContent: @Composable () -> Unit = {
-        // Single column: the cap centers the page, so title indents to its left
-        // edge. Two pane: the list, divider and padding fix where the (still
-        // 640 dp capped and centered) route column starts.
-        val titleColumnIndent = if (isWatch) {
-            0.dp
-        } else if (isTwoPane) {
-            val paneLead = SETTINGS_TWO_PANE_LIST_WIDTH + 8.dp + 1.dp + 8.dp + 8.dp
-            val remaining = windowInfo.screenWidthDp.dp - paneLead
-            paneLead + ((remaining - 640.dp).coerceAtLeast(0.dp) / 2)
-        } else {
-            (((windowInfo.screenWidthDp.dp - 640.dp) / 2) + 16.dp).coerceAtLeast(16.dp)
-        }
-        val animatedTitleIndent by animateDpAsState(
-            targetValue = titleColumnIndent,
-            animationSpec = tween(durationMillis = 180, easing = FastOutSlowInEasing),
-            label = "settingsTitleColumnIndent"
-        )
         AnimatedContent(
             targetState = route,
             transitionSpec = {
@@ -131,8 +114,7 @@ internal fun SettingsScaffoldShell(
                 )
                 enter togetherWith exit
             },
-            label = "settingsTopBarTitle",
-            modifier = if (isWatch) Modifier else Modifier.padding(start = animatedTitleIndent)
+            label = "settingsTopBarTitle"
         ) { targetRoute ->
             val topTitle = settingsSecondaryTitle(targetRoute, selectedPluginName) ?: "Settings"
             Text(
@@ -144,16 +126,11 @@ internal fun SettingsScaffoldShell(
     }
 
     val navigationIconContent: @Composable () -> Unit = {
-        IconButton(
-            onClick = onBack,
-            modifier = if (isWatch) Modifier.size(32.dp) else Modifier
-        ) {
-            Icon(
-                imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                contentDescription = "Back",
-                modifier = if (isWatch) Modifier.size(18.dp) else Modifier.size(24.dp)
-            )
-        }
+        TopBarNavigationIcon(
+            imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+            contentDescription = "Back",
+            onClick = onBack
+        )
     }
 
     val actionsContent: @Composable RowScope.() -> Unit = {
@@ -260,7 +237,11 @@ internal fun SettingsScaffoldShell(
                 }
             } else if (isTwoPane) {
                 TopAppBar(
-                    title = titleContent,
+                    title = {
+                        Box(modifier = Modifier.padding(start = 8.dp)) {
+                            titleContent()
+                        }
+                    },
                     navigationIcon = navigationIconContent,
                     actions = actionsContent,
                     colors = TopAppBarDefaults.topAppBarColors(
@@ -268,16 +249,25 @@ internal fun SettingsScaffoldShell(
                     )
                 )
             } else {
-                LargeTopAppBar(
-                    title = titleContent,
-                    navigationIcon = navigationIconContent,
-                    actions = actionsContent,
-                    colors = TopAppBarDefaults.largeTopAppBarColors(
-                        containerColor = MaterialTheme.colorScheme.background,
-                        scrolledContainerColor = MaterialTheme.colorScheme.background
-                    ),
-                    scrollBehavior = scrollBehavior
-                )
+                Box {
+                    LargeTopAppBar(
+                        title = {},
+                        navigationIcon = navigationIconContent,
+                        actions = actionsContent,
+                        colors = TopAppBarDefaults.largeTopAppBarColors(
+                            containerColor = MaterialTheme.colorScheme.background,
+                            scrolledContainerColor = MaterialTheme.colorScheme.background
+                        ),
+                        scrollBehavior = scrollBehavior
+                    )
+                    ScrollingTopAppBarTitle(
+                        scrollBehavior = scrollBehavior,
+                        modifier = Modifier.matchParentSize(),
+                        expandedStart = 24.dp,
+                        collapsedStart = 80.dp,
+                        title = titleContent
+                    )
+                }
             }
         },
         content = content

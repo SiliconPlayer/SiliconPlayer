@@ -1,8 +1,6 @@
 package com.flopster101.siliconplayer
 
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Info
@@ -151,7 +149,6 @@ internal fun GeneralAudioRouteContent(
                 onCheckedChange = actions.onAudioDuckingChanged
             )
         }
-        Spacer(modifier = Modifier.height(16.dp))
     }
     SettingsSectionLabel("Audio processing")
     SettingsItemCard(

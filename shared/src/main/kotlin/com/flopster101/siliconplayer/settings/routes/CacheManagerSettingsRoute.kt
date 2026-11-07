@@ -152,9 +152,9 @@ internal fun CacheManagerSettingsRouteContent(
         color = MaterialTheme.colorScheme.onSurfaceVariant,
         modifier = Modifier.padding(start = 8.dp)
     )
-    Spacer(modifier = Modifier.height(12.dp))
 
     if (cachedSourceFiles.isEmpty()) {
+        Spacer(modifier = Modifier.height(12.dp))
         Text(
             text = "No cached files.",
             style = MaterialTheme.typography.bodyMedium,

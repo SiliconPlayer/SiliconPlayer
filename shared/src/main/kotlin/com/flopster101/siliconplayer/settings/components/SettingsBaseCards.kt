@@ -47,6 +47,16 @@ private enum class SettingsRowRole {
 private class SettingsRowSequencer {
     private var lastRowRoleState: MutableState<SettingsRowRole>? = null
     private var nextRowHasPrevious: Boolean = false
+    private val claimedSections = mutableMapOf<String, Boolean>()
+    private var hasClaimedFirstSection = false
+
+    fun claimFirstSection(text: String): Boolean {
+        claimedSections[text]?.let { return it }
+        val first = !hasClaimedFirstSection
+        hasClaimedFirstSection = true
+        claimedSections[text] = first
+        return first
+    }
 
     fun onSectionBoundary() {
         lastRowRoleState = null
@@ -145,6 +155,30 @@ internal fun SettingsRowContainer(
 }
 
 @Composable
+internal fun GroupedRowCard(
+    isFirst: Boolean,
+    isLast: Boolean,
+    enabled: Boolean = true,
+    modifier: Modifier = Modifier,
+    content: @Composable () -> Unit
+) {
+    if (!enabled) {
+        content()
+        return
+    }
+    val shape = Radius.cardSegment(isFirst = isFirst, isLast = isLast)
+    Surface(
+        modifier = modifier
+            .fillMaxWidth()
+            .clip(shape),
+        shape = shape,
+        color = MaterialTheme.colorScheme.surfaceContainerLow
+    ) {
+        content()
+    }
+}
+
+@Composable
 internal fun SettingsRowSpacer() {
     val sequencer = LocalSettingsRowSequencer.current
     DisposableEffect(sequencer) {
@@ -155,14 +189,17 @@ internal fun SettingsRowSpacer() {
 }
 
 @Composable
-internal fun SettingsSectionLabel(text: String) {
+internal fun SettingsSectionLabel(text: String, forceTopSpacing: Boolean = false) {
     val isWatch = LocalIsWatchDevice.current
     val sequencer = LocalSettingsRowSequencer.current
+    val isFirstSection = remember(sequencer) { sequencer?.claimFirstSection(text) ?: true }
     DisposableEffect(sequencer, text) {
         sequencer?.onSectionBoundary()
         onDispose { }
     }
-    Spacer(modifier = Modifier.height(SettingsSectionTopSpacing))
+    if (forceTopSpacing || !isFirstSection) {
+        Spacer(modifier = Modifier.height(SettingsSectionTopSpacing))
+    }
     Text(
         text = text,
         style = if (isWatch) MaterialTheme.typography.labelMedium else LocalSectionLabelStyle.current ?: MaterialTheme.typography.labelLarge,
