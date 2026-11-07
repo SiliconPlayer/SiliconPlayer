@@ -58,7 +58,10 @@ internal fun AboutSettingsBody(
 
         androidx.compose.material3.ElevatedCard(
             modifier = Modifier.fillMaxWidth(),
-            shape = Radius.Dialog
+            shape = Radius.Dialog,
+            elevation = androidx.compose.material3.CardDefaults.elevatedCardElevation(
+                defaultElevation = 0.dp
+            )
         ) {
             Row(
                 modifier = Modifier
@@ -86,7 +89,10 @@ internal fun AboutSettingsBody(
 
         androidx.compose.material3.ElevatedCard(
             modifier = Modifier.fillMaxWidth(),
-            shape = Radius.Card
+            shape = Radius.Card,
+            elevation = androidx.compose.material3.CardDefaults.elevatedCardElevation(
+                defaultElevation = 0.dp
+            )
         ) {
             Column(modifier = Modifier.padding(16.dp)) {
                 Text(
