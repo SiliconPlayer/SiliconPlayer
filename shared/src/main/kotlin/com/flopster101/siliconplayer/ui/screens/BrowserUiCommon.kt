@@ -1657,7 +1657,7 @@ internal fun BrowserToolbarSelectorLabel(
     ) {
         Text(
             text = label,
-            style = MaterialTheme.typography.labelLarge
+            style = MaterialTheme.typography.titleSmall
         )
         Icon(
             imageVector = Icons.Default.KeyboardArrowDown,
@@ -1675,7 +1675,7 @@ internal fun BrowserToolbarSearchButton(
 ) {
     IconButton(
         onClick = onClick,
-        modifier = modifier.size(40.dp)
+        modifier = modifier.size(48.dp)
     ) {
         Icon(
             imageVector = Icons.Default.Search,
@@ -1692,7 +1692,7 @@ internal fun BrowserToolbarRefreshButton(
 ) {
     IconButton(
         onClick = onClick,
-        modifier = modifier.size(40.dp)
+        modifier = modifier.size(48.dp)
     ) {
         Icon(
             imageVector = Icons.Default.Refresh,
@@ -1723,7 +1723,7 @@ internal fun BrowserSelectionToolbarControls(
     ) {
         IconButton(
             onClick = onCancel,
-            modifier = Modifier.size(40.dp)
+            modifier = Modifier.size(48.dp)
         ) {
             Icon(
                 imageVector = Icons.Default.Close,
@@ -1735,7 +1735,7 @@ internal fun BrowserSelectionToolbarControls(
         Box {
             IconButton(
                 onClick = { showSelectionActionsMenu = true },
-                modifier = Modifier.size(40.dp)
+                modifier = Modifier.size(48.dp)
             ) {
                 Icon(
                     imageVector = Icons.Default.MoreVert,
@@ -1808,7 +1808,7 @@ internal fun BrowserSelectionToolbarControls(
         Box {
             IconButton(
                 onClick = { showSelectionToggleMenu = true },
-                modifier = Modifier.size(40.dp)
+                modifier = Modifier.size(48.dp)
             ) {
                 Icon(
                     imageVector = Icons.Default.SelectAll,

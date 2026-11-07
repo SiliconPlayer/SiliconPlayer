@@ -95,6 +95,7 @@ import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -1202,7 +1203,15 @@ internal fun FileBrowserScreen(
         favoriteSourcePaths.toHashSet()
     }
 
+    val toolbarScrollBehavior = TopAppBarDefaults.pinnedScrollBehavior()
+    val toolbarContainerColor = if (toolbarScrollBehavior.state.overlappedFraction > 0f) {
+        MaterialTheme.colorScheme.surfaceContainer
+    } else {
+        MaterialTheme.colorScheme.background
+    }
+
     Scaffold(
+        modifier = Modifier.nestedScroll(toolbarScrollBehavior.nestedScrollConnection),
         topBar = {
             if (!isWatch) {
                 Column {
@@ -1216,8 +1225,9 @@ internal fun FileBrowserScreen(
                             },
                             colors = TopAppBarDefaults.topAppBarColors(
                                 containerColor = MaterialTheme.colorScheme.background,
-                                scrolledContainerColor = MaterialTheme.colorScheme.background
+                                scrolledContainerColor = MaterialTheme.colorScheme.surfaceContainer
                             ),
+                            scrollBehavior = toolbarScrollBehavior,
                             actions = {
                                 onExitBrowser?.let { exitBrowser ->
                                     IconButton(onClick = exitBrowser) {
@@ -1238,7 +1248,7 @@ internal fun FileBrowserScreen(
                             }
                         )
                     }
-                    Surface(color = MaterialTheme.colorScheme.surfaceContainerLow) {
+                    Surface(color = toolbarContainerColor) {
                         Row(
                             modifier = Modifier
                                 .fillMaxWidth()
@@ -1281,6 +1291,9 @@ internal fun FileBrowserScreen(
                                                 currentFolderMenuExpanded = true
                                             }
                                         },
+                                        label = selectedLocation?.typeLabel
+                                            ?: archiveToolbarContext?.sourceTypeLabel
+                                            ?: "File Browser",
                                         modifier = Modifier.padding(start = 6.dp),
                                         enabled = showLocalStorageSelector,
                                         focusRequester = selectorButtonFocusRequester
@@ -1618,7 +1631,6 @@ internal fun FileBrowserScreen(
                         onQueryInputChanged = browserSearchController::onInputChange,
                         onClose = browserSearchController::hide
                     )
-                    HorizontalDivider()
                 }
             }
         }

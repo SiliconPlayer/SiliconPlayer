@@ -69,6 +69,7 @@ import androidx.compose.material3.Checkbox
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ElevatedCard
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -79,6 +80,7 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.TopAppBarDefaults
 import com.flopster101.siliconplayer.WatchDialogContainer
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
@@ -94,6 +96,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.text.style.TextOverflow
@@ -165,7 +168,10 @@ private data class SmbBrowserContentState(
     val pathKey: String
 )
 
-@OptIn(androidx.compose.material.ExperimentalMaterialApi::class)
+@OptIn(
+    androidx.compose.material.ExperimentalMaterialApi::class,
+    ExperimentalMaterial3Api::class
+)
 @Composable
 internal fun SmbFileBrowserScreen(
     sourceSpec: SmbSourceSpec,
@@ -1488,11 +1494,19 @@ internal fun SmbFileBrowserScreen(
         }
     }
 
+    val toolbarScrollBehavior = TopAppBarDefaults.pinnedScrollBehavior()
+    val toolbarContainerColor = if (toolbarScrollBehavior.state.overlappedFraction > 0f) {
+        MaterialTheme.colorScheme.surfaceContainer
+    } else {
+        MaterialTheme.colorScheme.background
+    }
+
     Scaffold(
+        modifier = Modifier.nestedScroll(toolbarScrollBehavior.nestedScrollConnection),
         topBar = {
             if (!isWatch) {
                 Column {
-                    Surface(color = MaterialTheme.colorScheme.surfaceContainerLow) {
+                    Surface(color = toolbarContainerColor) {
                         Row(
                             modifier = Modifier
                                 .fillMaxWidth()
@@ -1638,7 +1652,6 @@ internal fun SmbFileBrowserScreen(
                         onQueryInputChanged = browserSearchController::onInputChange,
                         onClose = browserSearchController::hide
                     )
-                    HorizontalDivider()
                 }
             }
         }
