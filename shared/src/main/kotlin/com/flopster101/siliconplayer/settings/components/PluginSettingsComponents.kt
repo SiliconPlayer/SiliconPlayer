@@ -25,8 +25,6 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.DragIndicator
-import androidx.compose.material.icons.filled.MusicNote
-import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
@@ -253,24 +251,20 @@ internal fun PluginDetailScreen(
                 NativeBridge.setDecoderEnabled(pluginName, enabled)
             }
         )
-
-
-        SettingsSectionLabel("Priority")
-        SettingsItemCard(
-            title = "Core order index: $priority",
+        SettingsRowSpacer()
+        SettingsValuePickerCard(
+            title = "Core order index",
             description = "Priority values are kept sequential and match the core list order. 0 is first.",
-            icon = Icons.Default.Tune,
+            value = "$priority",
             onClick = { showPriorityDialog = true }
         )
-
-
-        SettingsSectionLabel("Handled extensions")
+        SettingsRowSpacer()
         val enabledCount = enabledExtensions.size
         val totalCount = supportedExtensions.size
-        SettingsItemCard(
-            title = "$enabledCount of $totalCount extensions enabled",
+        SettingsValuePickerCard(
+            title = "Extensions enabled",
             description = "Select which file extensions this core should handle.",
-            icon = Icons.Default.MusicNote,
+            value = "$enabledCount of $totalCount",
             onClick = { showExtensionsDialog = true }
         )
     }
