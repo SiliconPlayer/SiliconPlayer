@@ -7,15 +7,20 @@ import android.media.MediaMuxer
 import java.io.File
 import kotlin.math.roundToInt
 
-internal class AndroidMediaCodecAacWriter(
-    file: File,
+internal class AndroidMediaCodecWriter(
+    private val file: File,
     private val sampleRateHz: Int,
-    bitrateKbps: Int
+    private val codecChoice: AudioExportCodec,
+    private val containerChoice: AudioExportContainer,
+    bitrateBps: Int,
+    private val metadata: AudioExportMetadata?
 ) : AudioExportWriter {
     private var codec: MediaCodec? = null
     private var muxer: MediaMuxer? = null
     private val bufferInfo = MediaCodec.BufferInfo()
     private val pcmBuffer = ByteArray(PCM_BUFFER_BYTES)
+    private val outputChannels = if (codecChoice == AudioExportCodec.AmrNb) 1 else CHANNEL_COUNT
+    private val bytesPerFrame = outputChannels * 2
     private var trackIndex = -1
     private var framesQueued = 0L
     private var codecStarted = false
@@ -26,23 +31,37 @@ internal class AndroidMediaCodecAacWriter(
 
     init {
         require(sampleRateHz > 0) { "Sample rate must be positive." }
-        require(bitrateKbps > 0) { "Bitrate must be positive." }
+        require(bitrateBps > 0 || codecChoice == AudioExportCodec.Flac) {
+            "Bitrate must be positive for this codec."
+        }
         try {
-            val newCodec = MediaCodec.createEncoderByType(MediaFormat.MIMETYPE_AUDIO_AAC)
+            val newCodec = createAndroidMediaCodecEncoder(codecChoice)
             codec = newCodec
             val format = MediaFormat.createAudioFormat(
-                MediaFormat.MIMETYPE_AUDIO_AAC,
+                androidMediaCodecMime(codecChoice),
                 sampleRateHz,
-                CHANNEL_COUNT
+                outputChannels
             ).apply {
-                setInteger(
-                    MediaFormat.KEY_AAC_PROFILE,
-                    MediaCodecInfo.CodecProfileLevel.AACObjectLC
-                )
-                setInteger(MediaFormat.KEY_BIT_RATE, bitrateKbps * 1000)
+                if (codecChoice == AudioExportCodec.Aac) {
+                    setInteger(
+                        MediaFormat.KEY_AAC_PROFILE,
+                        MediaCodecInfo.CodecProfileLevel.AACObjectLC
+                    )
+                }
+                if (codecChoice != AudioExportCodec.Flac) {
+                    setInteger(MediaFormat.KEY_BIT_RATE, bitrateBps)
+                }
             }
             newCodec.configure(format, null, null, MediaCodec.CONFIGURE_FLAG_ENCODE)
-            muxer = MediaMuxer(file.absolutePath, MediaMuxer.OutputFormat.MUXER_OUTPUT_MPEG_4)
+            val muxerFormat = when (containerChoice) {
+                AudioExportContainer.ThreeGpp -> MediaMuxer.OutputFormat.MUXER_OUTPUT_3GPP
+                AudioExportContainer.WebM -> {
+                    require(android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O)
+                    MediaMuxer.OutputFormat.MUXER_OUTPUT_WEBM
+                }
+                else -> MediaMuxer.OutputFormat.MUXER_OUTPUT_MPEG_4
+            }
+            muxer = MediaMuxer(file.absolutePath, muxerFormat)
             newCodec.start()
             codecStarted = true
         } catch (error: Exception) {
@@ -64,19 +83,23 @@ internal class AndroidMediaCodecAacWriter(
             val inputIndex = dequeueInputBuffer()
             val inputBuffer = checkNotNull(codec.getInputBuffer(inputIndex))
             val maxFrames = minOf(
-                PCM_BUFFER_BYTES / BYTES_PER_FRAME,
-                inputBuffer.capacity() / BYTES_PER_FRAME
+                PCM_BUFFER_BYTES / bytesPerFrame,
+                inputBuffer.capacity() / bytesPerFrame
             )
             check(maxFrames > 0) { "AAC input buffer is too small for a stereo frame." }
             val chunkFrames = minOf(frameCount - frameOffset, maxFrames)
             val chunkSamples = chunkFrames * CHANNEL_COUNT
-            val chunkBytes = chunkFrames * BYTES_PER_FRAME
-            convertFloatsToPcm16Le(
-                samples,
-                frameOffset * CHANNEL_COUNT,
-                chunkSamples,
-                pcmBuffer
-            )
+            val chunkBytes = chunkFrames * bytesPerFrame
+            if (outputChannels == 1) {
+                convertFloatStereoToMonoPcm16Le(samples, frameOffset, chunkFrames, pcmBuffer)
+            } else {
+                convertFloatsToPcm16Le(
+                    samples,
+                    frameOffset * CHANNEL_COUNT,
+                    chunkSamples,
+                    pcmBuffer
+                )
+            }
             inputBuffer.clear()
             inputBuffer.put(pcmBuffer, 0, chunkBytes)
             codec.queueInputBuffer(
@@ -109,6 +132,14 @@ internal class AndroidMediaCodecAacWriter(
             if (muxerStarted) {
                 muxerStarted = false
                 checkNotNull(muxer).stop()
+            }
+            releaseResources()
+            metadata?.let {
+                if (containerChoice == AudioExportContainer.WebM) {
+                    writeAndroidWebmMetadata(file, it)
+                } else {
+                    writeAndroidMp4Metadata(file, it)
+                }
             }
         } finally {
             finished = true
@@ -195,10 +226,26 @@ internal class AndroidMediaCodecAacWriter(
 
     private companion object {
         const val CHANNEL_COUNT = 2
-        const val BYTES_PER_FRAME = CHANNEL_COUNT * 2
         const val PCM_BUFFER_BYTES = 16 * 1024
         const val DEQUEUE_TIMEOUT_US = 10_000L
         const val MAX_EOS_EMPTY_POLLS = 500
+    }
+}
+
+internal fun convertFloatStereoToMonoPcm16Le(
+    samples: FloatArray,
+    frameOffset: Int,
+    frameCount: Int,
+    output: ByteArray
+) {
+    for (frame in 0 until frameCount) {
+        val sampleIndex = (frameOffset + frame) * 2
+        val mixed = (samples[sampleIndex] + samples[sampleIndex + 1]) * 0.5f
+        val sample = mixed.coerceIn(-1.0f, 1.0f)
+        val scale = if (sample < 0.0f) PCM16_NEGATIVE_FULL_SCALE else PCM16_FULL_SCALE
+        val value = (sample * scale).roundToInt()
+        output[frame * 2] = value.toByte()
+        output[frame * 2 + 1] = (value ushr 8).toByte()
     }
 }
 

@@ -61,7 +61,7 @@ class DesktopAudioExportArgumentsTest {
         encoder = AudioExportEncoder.ExternalFfmpeg,
         container = AudioExportContainer.Flac,
         codec = AudioExportCodec.Flac,
-        bitrateKbps = null,
+        bitrateBps = null,
         ffmpegMode = AudioExportFfmpegMode.Advanced,
         ffmpegArguments = "-c:a flac",
         externalBinaryLocation = "ffmpeg-custom",

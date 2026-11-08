@@ -81,12 +81,15 @@ import com.flopster101.siliconplayer.export.AudioExportRenderOptions
 import com.flopster101.siliconplayer.export.AudioExportRepeatChoice
 import com.flopster101.siliconplayer.export.AudioExportSampleFormat
 import com.flopster101.siliconplayer.export.AudioExportUiRequest
+import com.flopster101.siliconplayer.export.audioExportBitrates
 import com.flopster101.siliconplayer.export.audioExportSubtuneLabel
+import com.flopster101.siliconplayer.export.defaultAudioExportBitrate
 import com.flopster101.siliconplayer.export.easyFfmpegOutputArguments
+import com.flopster101.siliconplayer.export.formatAudioExportBitrate
 import com.flopster101.siliconplayer.export.formatAudioExportSizeEstimate
-import com.flopster101.siliconplayer.export.impliedCodec
-import com.flopster101.siliconplayer.export.impliedContainer
+import com.flopster101.siliconplayer.export.mediaCodecContainer
 import com.flopster101.siliconplayer.export.suggestedAudioExportFileName
+import com.flopster101.siliconplayer.export.supportedAudioExportContainers
 import com.flopster101.siliconplayer.formatTime
 import com.flopster101.siliconplayer.onSizeChangedDeferred
 import com.flopster101.siliconplayer.rememberDialogScrollbarAlpha
@@ -117,12 +120,10 @@ internal fun AudioExportDialog(
     var container by rememberSaveable { mutableStateOf(AudioExportContainer.M4a) }
     var codec by rememberSaveable { mutableStateOf(AudioExportCodec.Aac) }
     var sampleRateHz by rememberSaveable { mutableIntStateOf(48_000) }
-    var bitrateKbps by rememberSaveable { mutableIntStateOf(256) }
+    var bitrateBps by rememberSaveable { mutableIntStateOf(256_000) }
     var ffmpegMode by rememberSaveable { mutableStateOf(AudioExportFfmpegMode.Easy) }
     var ffmpegArguments by rememberSaveable { mutableStateOf("-c:a aac -b:a 256k") }
-    var includeMetadata by rememberSaveable {
-        mutableStateOf(platform.encoders.first() != AudioExportEncoder.MediaCodec)
-    }
+    var includeMetadata by rememberSaveable { mutableStateOf(true) }
     var useActiveGain by rememberSaveable { mutableStateOf(true) }
     var useActiveEffects by rememberSaveable { mutableStateOf(true) }
     var customDuration by rememberSaveable { mutableStateOf(false) }
@@ -138,8 +139,16 @@ internal fun AudioExportDialog(
     val externalBinaryMissing = encoder == AudioExportEncoder.ExternalFfmpeg &&
         platform.externalBinaryLocation == null
     val destinationLocation = platform.destinationLocation
-    val canExport = destinationLocation != null && !externalBinaryMissing && !invalidDuration
     val usesFfmpeg = encoder != AudioExportEncoder.MediaCodec
+    fun containersFor(choice: AudioExportCodec): List<AudioExportContainer> {
+        return supportedAudioExportContainers(choice, encoder).filter {
+            it != AudioExportContainer.WebM || encoder != AudioExportEncoder.MediaCodec ||
+                platform.mediaCodecSupportsWebM
+        }
+    }
+    val canExport = destinationLocation != null && !externalBinaryMissing && !invalidDuration &&
+        (encoder != AudioExportEncoder.MediaCodec || platform.supportedMediaCodecs.contains(codec)) &&
+        container in containersFor(codec)
     val isLossless = codec == AudioExportCodec.Flac || codec == AudioExportCodec.Pcm24
     val suggestedFileName = suggestedAudioExportFileName(source.title, container)
     LaunchedEffect(source.sourceId) {
@@ -150,7 +159,7 @@ internal fun AudioExportDialog(
         container = container,
         codec = codec,
         sampleRateHz = sampleRateHz,
-        bitrateKbps = bitrateKbps
+        bitrateBps = bitrateBps
     )
     val scrollState = rememberScrollState()
     var viewportHeightPx by remember { mutableFloatStateOf(0f) }
@@ -250,9 +259,13 @@ internal fun AudioExportDialog(
                                         encoder = it
                                         platform.resetDestination(suggestedFileName)
                                         if (it == AudioExportEncoder.MediaCodec) {
-                                            container = AudioExportContainer.M4a
-                                            codec = AudioExportCodec.Aac
-                                            includeMetadata = false
+                                            codec = platform.supportedMediaCodecs.minByOrNull { codec ->
+                                                codec.ordinal
+                                            } ?: AudioExportCodec.Aac
+                                            container = codec.mediaCodecContainer()
+                                            bitrateBps = defaultAudioExportBitrate(codec) ?: 256_000
+                                            if (codec == AudioExportCodec.AmrNb) sampleRateHz = 8_000
+                                            if (codec == AudioExportCodec.Opus) sampleRateHz = 48_000
                                         }
                                     }
                                 )
@@ -316,55 +329,56 @@ internal fun AudioExportDialog(
 
                             Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                                 AudioExportDropdown(
-                                    label = "Format",
-                                    value = container,
-                                    values = if (encoder == AudioExportEncoder.MediaCodec) {
-                                        listOf(AudioExportContainer.M4a)
+                                    label = "Codec",
+                                    value = codec,
+                                    values = if (usesFfmpeg) {
+                                        AudioExportCodec.entries
                                     } else {
-                                        AudioExportContainer.entries
+                                        platform.supportedMediaCodecs.sortedBy { it.ordinal }
                                     },
                                     valueLabel = { it.label },
                                     onValueChange = {
-                                        container = it
-                                        codec = it.impliedCodec()
+                                        codec = it
+                                        val containers = containersFor(it)
+                                        if (container !in containers) container = containers.first()
+                                        bitrateBps = defaultAudioExportBitrate(it) ?: 256_000
+                                        if (it == AudioExportCodec.AmrNb) sampleRateHz = 8_000
+                                        if (it == AudioExportCodec.Opus) sampleRateHz = 48_000
                                         platform.resetDestination(suggestedFileName)
                                     },
                                     modifier = Modifier.weight(1f)
                                 )
-                                when {
-                                    !usesFfmpeg || ffmpegMode == AudioExportFfmpegMode.Easy -> {
-                                        if (usesFfmpeg) {
-                                            AudioExportDropdown(
-                                                label = "Codec",
-                                                value = codec,
-                                                values = AudioExportCodec.entries,
-                                                valueLabel = { it.label },
-                                                onValueChange = {
-                                                    codec = it
-                                                    container = it.impliedContainer()
-                                                    platform.resetDestination(suggestedFileName)
-                                                },
-                                                modifier = Modifier.weight(1f)
-                                            )
-                                        }
-                                    }
-                                }
+                                AudioExportDropdown(
+                                    label = "Container",
+                                    value = container,
+                                    values = containersFor(codec),
+                                    valueLabel = { it.label },
+                                    onValueChange = {
+                                        container = it
+                                        platform.resetDestination(suggestedFileName)
+                                    },
+                                    modifier = Modifier.weight(1f)
+                                )
                             }
                             Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                                 if (!isLossless) {
                                     AudioExportDropdown(
                                         label = "Quality",
-                                        value = bitrateKbps,
-                                        values = listOf(128, 192, 256, 320),
-                                        valueLabel = { "$it kbps" },
-                                        onValueChange = { bitrateKbps = it },
+                                        value = bitrateBps,
+                                        values = audioExportBitrates(codec),
+                                        valueLabel = ::formatAudioExportBitrate,
+                                        onValueChange = { bitrateBps = it },
                                         modifier = Modifier.weight(1f)
                                     )
                                 }
                                 AudioExportDropdown(
                                     label = "Sample rate",
                                     value = sampleRateHz,
-                                    values = listOf(44_100, 48_000, 96_000),
+                                    values = when (codec) {
+                                        AudioExportCodec.AmrNb -> listOf(8_000)
+                                        AudioExportCodec.Opus -> listOf(48_000)
+                                        else -> listOf(44_100, 48_000, 96_000)
+                                    },
                                     valueLabel = { "${it / 1000.0} kHz".replace(".0 ", " ") },
                                     onValueChange = { sampleRateHz = it },
                                     modifier = Modifier.weight(1f)
@@ -386,13 +400,8 @@ internal fun AudioExportDialog(
 
                             AudioExportSwitchRow(
                                 title = "Include metadata",
-                                subtitle = if (encoder == AudioExportEncoder.MediaCodec) {
-                                    "Requires FFmpeg output"
-                                } else {
-                                    "Title, artist, album, and other decoder tags"
-                                },
+                                subtitle = "Title, artist, album, and other decoder tags",
                                 checked = includeMetadata,
-                                enabled = encoder != AudioExportEncoder.MediaCodec,
                                 onCheckedChange = { includeMetadata = it }
                             )
                             AudioExportCollapsibleSection(
@@ -570,14 +579,14 @@ internal fun AudioExportDialog(
                                         encoder = encoder,
                                         container = container,
                                         codec = codec,
-                                        bitrateKbps = bitrateKbps.takeUnless { isLossless },
+                                        bitrateBps = bitrateBps.takeUnless { isLossless },
                                         ffmpegMode = ffmpegMode,
                                         ffmpegArguments = if (!usesFfmpeg) {
                                             ""
                                         } else if (ffmpegMode == AudioExportFfmpegMode.Advanced) {
                                             ffmpegArguments
                                         } else {
-                                            easyFfmpegOutputArguments(codec, bitrateKbps.takeUnless { isLossless })
+                                            easyFfmpegOutputArguments(codec, bitrateBps.takeUnless { isLossless })
                                                 .joinToString(" ")
                                         },
                                         externalBinaryLocation = platform.externalBinaryLocation,

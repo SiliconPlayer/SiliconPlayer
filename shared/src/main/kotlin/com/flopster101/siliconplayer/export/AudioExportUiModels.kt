@@ -17,15 +17,19 @@ internal enum class AudioExportFfmpegMode(val label: String) {
 }
 
 internal enum class AudioExportContainer(val label: String, val extension: String) {
-    M4a("AAC · M4A", "m4a"),
+    M4a("M4A", "m4a"),
+    Adts("ADTS", "aac"),
+    WebM("WebM", "webm"),
+    ThreeGpp("3GP", "3gp"),
     Mp3("MP3", "mp3"),
-    Ogg("Opus · Ogg", "ogg"),
+    Ogg("Ogg", "ogg"),
     Flac("FLAC", "flac"),
     Wav("WAV", "wav")
 }
 
 internal enum class AudioExportCodec(val label: String) {
     Aac("AAC"),
+    AmrNb("AMR-NB"),
     Flac("FLAC"),
     Mp3("MP3"),
     Opus("Opus"),
@@ -54,7 +58,7 @@ internal data class AudioExportUiRequest(
     val encoder: AudioExportEncoder,
     val container: AudioExportContainer,
     val codec: AudioExportCodec,
-    val bitrateKbps: Int?,
+    val bitrateBps: Int?,
     val ffmpegMode: AudioExportFfmpegMode,
     val ffmpegArguments: String,
     val externalBinaryLocation: String?,
@@ -73,6 +77,10 @@ internal data class AudioExportExecutionState(
 internal interface AudioExportPlatformAdapter {
     val executionState: AudioExportExecutionState
     val encoders: List<AudioExportEncoder>
+    val supportedMediaCodecs: Set<AudioExportCodec>
+        get() = emptySet()
+    val mediaCodecSupportsWebM: Boolean
+        get() = false
     val externalBinaryLocation: String?
     val externalBinaryLabel: String?
     val externalBinaryActionLabel: String
@@ -89,7 +97,9 @@ internal interface AudioExportPlatformAdapter {
 internal val LocalAudioExportPlatformAdapter = staticCompositionLocalOf<AudioExportPlatformAdapter?> { null }
 
 internal fun AudioExportContainer.impliedCodec(): AudioExportCodec = when (this) {
-    AudioExportContainer.M4a -> AudioExportCodec.Aac
+    AudioExportContainer.M4a, AudioExportContainer.Adts -> AudioExportCodec.Aac
+    AudioExportContainer.WebM -> AudioExportCodec.Opus
+    AudioExportContainer.ThreeGpp -> AudioExportCodec.AmrNb
     AudioExportContainer.Mp3 -> AudioExportCodec.Mp3
     AudioExportContainer.Ogg -> AudioExportCodec.Opus
     AudioExportContainer.Flac -> AudioExportCodec.Flac
@@ -98,6 +108,7 @@ internal fun AudioExportContainer.impliedCodec(): AudioExportCodec = when (this)
 
 internal fun AudioExportCodec.impliedContainer(): AudioExportContainer = when (this) {
     AudioExportCodec.Aac -> AudioExportContainer.M4a
+    AudioExportCodec.AmrNb -> AudioExportContainer.ThreeGpp
     AudioExportCodec.Flac -> AudioExportContainer.Flac
     AudioExportCodec.Mp3 -> AudioExportContainer.Mp3
     AudioExportCodec.Opus -> AudioExportContainer.Ogg
@@ -116,7 +127,7 @@ internal fun formatAudioExportSizeEstimate(
     container: AudioExportContainer,
     codec: AudioExportCodec,
     sampleRateHz: Int,
-    bitrateKbps: Int?
+    bitrateBps: Int?
 ): String {
     if (container == AudioExportContainer.Flac || codec == AudioExportCodec.Flac) {
         return "Lossless · size varies"
@@ -125,13 +136,72 @@ internal fun formatAudioExportSizeEstimate(
     val bytes = if (container == AudioExportContainer.Wav || codec == AudioExportCodec.Pcm24) {
         durationSeconds * sampleRateHz * 6.0
     } else {
-        val bitrate = bitrateKbps ?: return "Size depends on quality"
-        durationSeconds * bitrate * 125.0
+        val bitrate = bitrateBps ?: return "Size depends on quality"
+        durationSeconds * bitrate / 8.0
     }
-    return "≈ ${formatByteCount(bytes.roundToLong())} · stereo"
+    val channels = if (codec == AudioExportCodec.AmrNb) "mono" else "stereo"
+    return "≈ ${formatByteCount(bytes.roundToLong())} · $channels"
 }
 
 internal fun audioExportSubtuneLabel(subtuneIndex: Int, subtuneCount: Int): String? {
     if (subtuneCount <= 1) return null
     return "Subtune ${subtuneIndex + 1} of $subtuneCount"
+}
+
+internal fun supportedAudioExportContainers(
+    codec: AudioExportCodec,
+    encoder: AudioExportEncoder
+): List<AudioExportContainer> {
+    if (encoder == AudioExportEncoder.MediaCodec) {
+        return when (codec) {
+            AudioExportCodec.Aac -> listOf(AudioExportContainer.M4a, AudioExportContainer.ThreeGpp)
+            AudioExportCodec.AmrNb -> listOf(AudioExportContainer.ThreeGpp, AudioExportContainer.M4a)
+            AudioExportCodec.Opus -> listOf(AudioExportContainer.M4a, AudioExportContainer.WebM)
+            AudioExportCodec.Flac -> listOf(AudioExportContainer.M4a)
+            AudioExportCodec.Mp3, AudioExportCodec.Pcm24 -> emptyList()
+        }
+    }
+    return when (codec) {
+        AudioExportCodec.Aac -> listOf(
+            AudioExportContainer.M4a,
+            AudioExportContainer.Adts,
+            AudioExportContainer.ThreeGpp
+        )
+        AudioExportCodec.AmrNb -> listOf(AudioExportContainer.ThreeGpp, AudioExportContainer.M4a)
+        AudioExportCodec.Flac -> listOf(
+            AudioExportContainer.Flac,
+            AudioExportContainer.Ogg,
+            AudioExportContainer.M4a
+        )
+        AudioExportCodec.Mp3 -> listOf(AudioExportContainer.Mp3, AudioExportContainer.M4a)
+        AudioExportCodec.Opus -> listOf(
+            AudioExportContainer.Ogg,
+            AudioExportContainer.WebM,
+            AudioExportContainer.M4a
+        )
+        AudioExportCodec.Pcm24 -> listOf(AudioExportContainer.Wav)
+    }
+}
+
+internal fun AudioExportCodec.mediaCodecContainer(): AudioExportContainer =
+    supportedAudioExportContainers(this, AudioExportEncoder.MediaCodec).first()
+
+internal fun audioExportBitrates(codec: AudioExportCodec): List<Int> = when (codec) {
+    AudioExportCodec.Aac, AudioExportCodec.Opus ->
+        listOf(64_000, 96_000, 128_000, 192_000, 256_000, 320_000, 384_000, 510_000)
+    AudioExportCodec.AmrNb -> listOf(4_750, 5_150, 5_900, 6_700, 7_400, 7_950, 10_200, 12_200)
+    AudioExportCodec.Mp3 -> listOf(64_000, 96_000, 128_000, 192_000, 256_000, 320_000)
+    AudioExportCodec.Flac, AudioExportCodec.Pcm24 -> emptyList()
+}
+
+internal fun defaultAudioExportBitrate(codec: AudioExportCodec): Int? = when (codec) {
+    AudioExportCodec.AmrNb -> 12_200
+    AudioExportCodec.Flac, AudioExportCodec.Pcm24 -> null
+    else -> 256_000
+}
+
+internal fun formatAudioExportBitrate(bitrateBps: Int): String {
+    val kbps = bitrateBps / 1000.0
+    val value = String.format(java.util.Locale.ROOT, "%.2f", kbps).trimEnd('0').trimEnd('.')
+    return "$value kbps"
 }

@@ -2,6 +2,7 @@ package com.flopster101.siliconplayer.platform
 
 import android.content.Context
 import android.net.Uri
+import android.os.Build
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
@@ -18,11 +19,13 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import com.flopster101.siliconplayer.AppPreferenceKeys
 import com.flopster101.siliconplayer.export.AndroidAudioExportService
+import com.flopster101.siliconplayer.export.AudioExportCodec
 import com.flopster101.siliconplayer.export.AudioExportEncoder
 import com.flopster101.siliconplayer.export.AudioExportExecutionState
 import com.flopster101.siliconplayer.export.AudioExportPlatformAdapter
 import com.flopster101.siliconplayer.export.AudioExportProgress
 import com.flopster101.siliconplayer.export.AudioExportUiRequest
+import com.flopster101.siliconplayer.export.detectAndroidMediaCodecEncoders
 import java.io.File
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -49,6 +52,9 @@ internal fun rememberAndroidAudioExportPlatformAdapter(
     var destinationLabelState by remember { mutableStateOf<String?>(null) }
     var destinationDescriptionState by remember { mutableStateOf("Music") }
     var executionStateState by remember { mutableStateOf(AudioExportExecutionState()) }
+    val supportedCodecs = remember {
+        detectAndroidMediaCodecEncoders().ifEmpty { setOf(AudioExportCodec.Aac) }
+    }
     val scope = rememberCoroutineScope()
     val binaryLauncher = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
         if (uri == null) return@rememberLauncherForActivityResult
@@ -82,6 +88,9 @@ internal fun rememberAndroidAudioExportPlatformAdapter(
                 AudioExportEncoder.MediaCodec,
                 AudioExportEncoder.ExternalFfmpeg
             )
+            override val supportedMediaCodecs: Set<AudioExportCodec>
+                get() = supportedCodecs
+            override val mediaCodecSupportsWebM = Build.VERSION.SDK_INT >= Build.VERSION_CODES.O
             override val executionState: AudioExportExecutionState
                 get() = executionStateState
             override val externalBinaryLocation: String?

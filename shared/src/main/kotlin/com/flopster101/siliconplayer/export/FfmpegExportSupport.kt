@@ -51,19 +51,20 @@ internal fun parseFfmpegArgumentList(raw: String): List<String> {
     return arguments
 }
 
-internal fun easyFfmpegOutputArguments(codec: AudioExportCodec, bitrateKbps: Int?): List<String> = buildList {
+internal fun easyFfmpegOutputArguments(codec: AudioExportCodec, bitrateBps: Int?): List<String> = buildList {
     add("-c:a")
     add(
         when (codec) {
             AudioExportCodec.Aac -> "aac"
+            AudioExportCodec.AmrNb -> "amr_nb"
             AudioExportCodec.Flac -> "flac"
             AudioExportCodec.Mp3 -> "libmp3lame"
             AudioExportCodec.Opus -> "libopus"
             AudioExportCodec.Pcm24 -> "pcm_s24le"
         }
     )
-    if (bitrateKbps != null && codec !in listOf(AudioExportCodec.Flac, AudioExportCodec.Pcm24)) {
+    if (bitrateBps != null && codec !in listOf(AudioExportCodec.Flac, AudioExportCodec.Pcm24)) {
         add("-b:a")
-        add("${bitrateKbps}k")
+        add(bitrateBps.toString())
     }
 }

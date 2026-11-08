@@ -43,4 +43,14 @@ class AndroidMediaCodecAacWriterTest {
         assertEquals("Song (2).m4a", result.name)
         assertEquals(1, existing.readBytes().size)
     }
+
+    @Test
+    fun amrNbConversionDownmixesStereoToMono() {
+        val samples = floatArrayOf(-1.0f, 1.0f, 0.5f, 0.5f, -0.5f, 0.0f)
+        val output = ByteArray(6)
+
+        convertFloatStereoToMonoPcm16Le(samples, 0, 3, output)
+
+        assertArrayEquals(byteArrayOf(0, 0, 0, 64, 0, -32), output)
+    }
 }

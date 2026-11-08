@@ -169,10 +169,13 @@ class AndroidAudioExportService : Service() {
             val outputFile = File.createTempFile("audio-export-", ".${request.container.extension}", cacheDir)
             temporary = outputFile
             val writer = when (request.encoder) {
-                AudioExportEncoder.MediaCodec -> AndroidMediaCodecAacWriter(
+                AudioExportEncoder.MediaCodec -> AndroidMediaCodecWriter(
                     file = outputFile,
                     sampleRateHz = request.renderOptions.sampleRateHz,
-                    bitrateKbps = requireNotNull(request.bitrateKbps)
+                    codecChoice = request.codec,
+                    containerChoice = request.container,
+                    bitrateBps = request.bitrateBps ?: 0,
+                    metadata = if (request.includeMetadata) metadata else null
                 )
                 else -> {
                     val executable = when (request.encoder) {
@@ -387,6 +390,9 @@ internal fun uniqueAndroidExportFile(directory: File, fileName: String): File {
 
 private fun androidExportMimeType(container: AudioExportContainer): String = when (container) {
     AudioExportContainer.M4a -> "audio/mp4"
+    AudioExportContainer.Adts -> "audio/aac"
+    AudioExportContainer.WebM -> "audio/webm"
+    AudioExportContainer.ThreeGpp -> "audio/3gpp"
     AudioExportContainer.Mp3 -> "audio/mpeg"
     AudioExportContainer.Ogg -> "audio/ogg"
     AudioExportContainer.Flac -> "audio/flac"
@@ -505,7 +511,7 @@ private fun Intent.putExportRequest(request: AudioExportUiRequest): Intent = app
     putExtra("encoder", request.encoder.name)
     putExtra("container", request.container.name)
     putExtra("codec", request.codec.name)
-    putExtra("bitrate", request.bitrateKbps ?: 0)
+    putExtra("bitrate", request.bitrateBps ?: 0)
     putExtra("ffmpegMode", request.ffmpegMode.name)
     putExtra("ffmpegArguments", request.ffmpegArguments)
     putExtra("externalBinary", request.externalBinaryLocation)
@@ -539,7 +545,7 @@ private fun Intent.readAudioExportRequest(): AudioExportUiRequest {
         encoder = AudioExportEncoder.valueOf(getStringExtra("encoder")!!),
         container = AudioExportContainer.valueOf(getStringExtra("container")!!),
         codec = AudioExportCodec.valueOf(getStringExtra("codec")!!),
-        bitrateKbps = getIntExtra("bitrate", 0).takeIf { it > 0 },
+        bitrateBps = getIntExtra("bitrate", 0).takeIf { it > 0 },
         ffmpegMode = AudioExportFfmpegMode.valueOf(getStringExtra("ffmpegMode")!!),
         ffmpegArguments = getStringExtra("ffmpegArguments").orEmpty(),
         externalBinaryLocation = getStringExtra("externalBinary"),
