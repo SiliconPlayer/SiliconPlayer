@@ -87,7 +87,6 @@ import com.flopster101.siliconplayer.export.defaultAudioExportBitrate
 import com.flopster101.siliconplayer.export.easyFfmpegOutputArguments
 import com.flopster101.siliconplayer.export.formatAudioExportBitrate
 import com.flopster101.siliconplayer.export.formatAudioExportSizeEstimate
-import com.flopster101.siliconplayer.export.mediaCodecContainer
 import com.flopster101.siliconplayer.export.suggestedAudioExportFileName
 import com.flopster101.siliconplayer.export.supportedAudioExportContainers
 import com.flopster101.siliconplayer.formatTime
@@ -262,11 +261,11 @@ internal fun AudioExportDialog(
                                             codec = platform.supportedMediaCodecs.minByOrNull { codec ->
                                                 codec.ordinal
                                             } ?: AudioExportCodec.Aac
-                                            container = codec.mediaCodecContainer()
-                                            bitrateBps = defaultAudioExportBitrate(codec) ?: 256_000
-                                            if (codec == AudioExportCodec.AmrNb) sampleRateHz = 8_000
-                                            if (codec == AudioExportCodec.Opus) sampleRateHz = 48_000
                                         }
+                                        container = containersFor(codec).first()
+                                        bitrateBps = defaultAudioExportBitrate(codec) ?: 256_000
+                                        if (codec == AudioExportCodec.AmrNb) sampleRateHz = 8_000
+                                        if (codec == AudioExportCodec.Opus) sampleRateHz = 48_000
                                     }
                                 )
                                 if (encoder == AudioExportEncoder.ExternalFfmpeg) {
@@ -339,8 +338,7 @@ internal fun AudioExportDialog(
                                     valueLabel = { it.label },
                                     onValueChange = {
                                         codec = it
-                                        val containers = containersFor(it)
-                                        if (container !in containers) container = containers.first()
+                                        container = containersFor(it).first()
                                         bitrateBps = defaultAudioExportBitrate(it) ?: 256_000
                                         if (it == AudioExportCodec.AmrNb) sampleRateHz = 8_000
                                         if (it == AudioExportCodec.Opus) sampleRateHz = 48_000
@@ -400,8 +398,13 @@ internal fun AudioExportDialog(
 
                             AudioExportSwitchRow(
                                 title = "Include metadata",
-                                subtitle = "Title, artist, album, and other decoder tags",
+                                subtitle = if (container == AudioExportContainer.Amr) {
+                                    "Raw AMR does not support metadata"
+                                } else {
+                                    "Title, artist, album, and other decoder tags"
+                                },
                                 checked = includeMetadata,
+                                enabled = container != AudioExportContainer.Amr,
                                 onCheckedChange = { includeMetadata = it }
                             )
                             AudioExportCollapsibleSection(
@@ -591,7 +594,7 @@ internal fun AudioExportDialog(
                                         },
                                         externalBinaryLocation = platform.externalBinaryLocation,
                                         destinationLocation = destination,
-                                        includeMetadata = includeMetadata,
+                                        includeMetadata = includeMetadata && container != AudioExportContainer.Amr,
                                         repeatChoice = repeatChoice,
                                         renderOptions = AudioExportRenderOptions(
                                             sampleRateHz = sampleRateHz,

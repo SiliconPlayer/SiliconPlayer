@@ -9,6 +9,7 @@ import com.flopster101.siliconplayer.export.AudioExportFfmpegMode
 import com.flopster101.siliconplayer.export.AudioExportRenderOptions
 import com.flopster101.siliconplayer.export.AudioExportRepeatChoice
 import com.flopster101.siliconplayer.export.AudioExportUiRequest
+import com.flopster101.siliconplayer.export.easyFfmpegOutputArguments
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertThrows
@@ -35,6 +36,14 @@ class DesktopAudioExportArgumentsTest {
         assertEquals("ffmpeg-custom", arguments.valueAfter("--ffmpeg"))
         assertEquals("-c:a flac", arguments.valueAfter("--ffmpegArgs"))
         assertFalse(arguments.contains("--force"))
+    }
+
+    @Test
+    fun amrEasyModeForcesSupportedMonoSampleRate() {
+        val arguments = easyFfmpegOutputArguments(AudioExportCodec.AmrNb, 12_200)
+        assertEquals("1", arguments.valueAfter("-ac"))
+        assertEquals("8000", arguments.valueAfter("-ar"))
+        assertEquals("12200", arguments.valueAfter("-b:a"))
     }
 
     @Test

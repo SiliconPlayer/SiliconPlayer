@@ -63,6 +63,12 @@ internal fun easyFfmpegOutputArguments(codec: AudioExportCodec, bitrateBps: Int?
             AudioExportCodec.Pcm24 -> "pcm_s24le"
         }
     )
+    if (codec == AudioExportCodec.AmrNb) {
+        add("-ac")
+        add("1")
+        add("-ar")
+        add("8000")
+    }
     if (bitrateBps != null && codec !in listOf(AudioExportCodec.Flac, AudioExportCodec.Pcm24)) {
         add("-b:a")
         add(bitrateBps.toString())

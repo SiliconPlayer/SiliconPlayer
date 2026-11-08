@@ -3,7 +3,6 @@ package com.flopster101.siliconplayer.export
 import android.media.MediaCodec
 import android.media.MediaCodecInfo
 import android.media.MediaFormat
-import android.media.MediaMuxer
 import java.io.File
 import kotlin.math.roundToInt
 
@@ -11,20 +10,19 @@ internal class AndroidMediaCodecWriter(
     private val file: File,
     private val sampleRateHz: Int,
     private val codecChoice: AudioExportCodec,
-    private val containerChoice: AudioExportContainer,
+    containerChoice: AudioExportContainer,
     bitrateBps: Int,
-    private val metadata: AudioExportMetadata?
+    metadata: AudioExportMetadata?
 ) : AudioExportWriter {
     private var codec: MediaCodec? = null
-    private var muxer: MediaMuxer? = null
+    private var sink: AndroidEncodedAudioPacketSink? = null
     private val bufferInfo = MediaCodec.BufferInfo()
     private val pcmBuffer = ByteArray(PCM_BUFFER_BYTES)
     private val outputChannels = if (codecChoice == AudioExportCodec.AmrNb) 1 else CHANNEL_COUNT
     private val bytesPerFrame = outputChannels * 2
-    private var trackIndex = -1
     private var framesQueued = 0L
     private var codecStarted = false
-    private var muxerStarted = false
+    private var formatStarted = false
     private var finished = false
     private var closed = false
     private var resourcesReleased = false
@@ -53,15 +51,13 @@ internal class AndroidMediaCodecWriter(
                 }
             }
             newCodec.configure(format, null, null, MediaCodec.CONFIGURE_FLAG_ENCODE)
-            val muxerFormat = when (containerChoice) {
-                AudioExportContainer.ThreeGpp -> MediaMuxer.OutputFormat.MUXER_OUTPUT_3GPP
-                AudioExportContainer.WebM -> {
-                    require(android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O)
-                    MediaMuxer.OutputFormat.MUXER_OUTPUT_WEBM
-                }
-                else -> MediaMuxer.OutputFormat.MUXER_OUTPUT_MPEG_4
-            }
-            muxer = MediaMuxer(file.absolutePath, muxerFormat)
+            sink = createAndroidEncodedAudioPacketSink(
+                file = file,
+                container = containerChoice,
+                codec = codecChoice,
+                sampleRateHz = sampleRateHz,
+                metadata = metadata
+            )
             newCodec.start()
             codecStarted = true
         } catch (error: Exception) {
@@ -71,7 +67,7 @@ internal class AndroidMediaCodecWriter(
     }
 
     override fun write(samples: FloatArray, frameCount: Int) {
-        check(!closed && !finished) { "Cannot write after the AAC writer is finalized." }
+        check(!closed && !finished) { "Cannot write after the MediaCodec writer is finalized." }
         require(frameCount >= 0) { "Frame count must not be negative." }
         require(frameCount <= samples.size / CHANNEL_COUNT) {
             "Stereo input must contain at least frameCount * 2 samples."
@@ -86,7 +82,7 @@ internal class AndroidMediaCodecWriter(
                 PCM_BUFFER_BYTES / bytesPerFrame,
                 inputBuffer.capacity() / bytesPerFrame
             )
-            check(maxFrames > 0) { "AAC input buffer is too small for a stereo frame." }
+            check(maxFrames > 0) { "MediaCodec input buffer is too small for a stereo frame." }
             val chunkFrames = minOf(frameCount - frameOffset, maxFrames)
             val chunkSamples = chunkFrames * CHANNEL_COUNT
             val chunkBytes = chunkFrames * bytesPerFrame
@@ -117,7 +113,7 @@ internal class AndroidMediaCodecWriter(
 
     override fun finish() {
         if (finished) return
-        check(!closed) { "Cannot finalize a closed AAC writer." }
+        check(!closed) { "Cannot finalize a closed MediaCodec writer." }
         try {
             val codec = checkNotNull(codec)
             val inputIndex = dequeueInputBuffer()
@@ -129,18 +125,8 @@ internal class AndroidMediaCodecWriter(
                 MediaCodec.BUFFER_FLAG_END_OF_STREAM
             )
             drainEncoder(endOfStream = true)
-            if (muxerStarted) {
-                muxerStarted = false
-                checkNotNull(muxer).stop()
-            }
+            sink?.finish(framesQueued)
             releaseResources()
-            metadata?.let {
-                if (containerChoice == AudioExportContainer.WebM) {
-                    writeAndroidWebmMetadata(file, it)
-                } else {
-                    writeAndroidMp4Metadata(file, it)
-                }
-            }
         } finally {
             finished = true
             releaseResources()
@@ -173,15 +159,13 @@ internal class AndroidMediaCodecWriter(
                     if (!endOfStream) return
                     emptyPolls++
                     check(emptyPolls < MAX_EOS_EMPTY_POLLS) {
-                        "Timed out waiting for the AAC encoder to finish."
+                        "Timed out waiting for the MediaCodec encoder to finish."
                     }
                 }
                 outputIndex == MediaCodec.INFO_OUTPUT_FORMAT_CHANGED -> {
-                    check(!muxerStarted) { "AAC output format changed after the muxer started." }
-                    val muxer = checkNotNull(muxer)
-                    trackIndex = muxer.addTrack(codec.outputFormat)
-                    muxer.start()
-                    muxerStarted = true
+                    check(!formatStarted) { "MediaCodec output format changed after the sink started." }
+                    checkNotNull(sink).onFormatChanged(codec.outputFormat)
+                    formatStarted = true
                     emptyPolls = 0
                 }
                 outputIndex == MediaCodec.INFO_OUTPUT_BUFFERS_CHANGED -> emptyPolls = 0
@@ -192,10 +176,10 @@ internal class AndroidMediaCodecWriter(
                         val isCodecConfig =
                             bufferInfo.flags and MediaCodec.BUFFER_FLAG_CODEC_CONFIG != 0
                         if (bufferInfo.size > 0 && !isCodecConfig) {
-                            check(muxerStarted) { "AAC output arrived before the output format." }
+                            check(formatStarted) { "MediaCodec output arrived before the output format." }
                             outputBuffer.position(bufferInfo.offset)
                             outputBuffer.limit(bufferInfo.offset + bufferInfo.size)
-                            checkNotNull(muxer).writeSampleData(trackIndex, outputBuffer, bufferInfo)
+                            checkNotNull(sink).writePacket(outputBuffer, bufferInfo)
                         }
                     } finally {
                         codec.releaseOutputBuffer(outputIndex, false)
@@ -212,11 +196,7 @@ internal class AndroidMediaCodecWriter(
     private fun releaseResources() {
         if (resourcesReleased) return
         resourcesReleased = true
-        if (muxerStarted) {
-            muxerStarted = false
-            runCatching { muxer?.stop() }
-        }
-        runCatching { muxer?.release() }
+        runCatching { sink?.close() }
         if (codecStarted) {
             codecStarted = false
             runCatching { codec?.stop() }

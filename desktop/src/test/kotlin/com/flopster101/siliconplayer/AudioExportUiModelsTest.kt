@@ -98,9 +98,9 @@ class AudioExportUiModelsTest {
     @Test
     fun mediaCodecContainersMatchCodecRequirements() {
         assertEquals(AudioExportContainer.M4a, AudioExportCodec.Aac.mediaCodecContainer())
-        assertEquals(AudioExportContainer.ThreeGpp, AudioExportCodec.AmrNb.mediaCodecContainer())
-        assertEquals(AudioExportContainer.M4a, AudioExportCodec.Opus.mediaCodecContainer())
-        assertEquals(AudioExportContainer.M4a, AudioExportCodec.Flac.mediaCodecContainer())
+        assertEquals(AudioExportContainer.Amr, AudioExportCodec.AmrNb.mediaCodecContainer())
+        assertEquals(AudioExportContainer.Ogg, AudioExportCodec.Opus.mediaCodecContainer())
+        assertEquals(AudioExportContainer.Flac, AudioExportCodec.Flac.mediaCodecContainer())
     }
 
     @Test
@@ -110,7 +110,7 @@ class AudioExportUiModelsTest {
             supportedAudioExportContainers(AudioExportCodec.Aac, AudioExportEncoder.SystemFfmpeg)
         )
         assertEquals(
-            listOf(AudioExportContainer.M4a, AudioExportContainer.ThreeGpp),
+            listOf(AudioExportContainer.M4a, AudioExportContainer.ThreeGpp, AudioExportContainer.Adts),
             supportedAudioExportContainers(AudioExportCodec.Aac, AudioExportEncoder.MediaCodec)
         )
         assertEquals(
@@ -118,7 +118,7 @@ class AudioExportUiModelsTest {
             supportedAudioExportContainers(AudioExportCodec.Opus, AudioExportEncoder.SystemFfmpeg)
         )
         assertEquals(
-            listOf(AudioExportContainer.M4a, AudioExportContainer.WebM),
+            listOf(AudioExportContainer.Ogg, AudioExportContainer.WebM, AudioExportContainer.M4a),
             supportedAudioExportContainers(AudioExportCodec.Opus, AudioExportEncoder.MediaCodec)
         )
         assertEquals(

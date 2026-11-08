@@ -19,6 +19,7 @@ internal enum class AudioExportFfmpegMode(val label: String) {
 internal enum class AudioExportContainer(val label: String, val extension: String) {
     M4a("M4A", "m4a"),
     Adts("ADTS", "aac"),
+    Amr("AMR", "amr"),
     WebM("WebM", "webm"),
     ThreeGpp("3GP", "3gp"),
     Mp3("MP3", "mp3"),
@@ -98,6 +99,7 @@ internal val LocalAudioExportPlatformAdapter = staticCompositionLocalOf<AudioExp
 
 internal fun AudioExportContainer.impliedCodec(): AudioExportCodec = when (this) {
     AudioExportContainer.M4a, AudioExportContainer.Adts -> AudioExportCodec.Aac
+    AudioExportContainer.Amr -> AudioExportCodec.AmrNb
     AudioExportContainer.WebM -> AudioExportCodec.Opus
     AudioExportContainer.ThreeGpp -> AudioExportCodec.AmrNb
     AudioExportContainer.Mp3 -> AudioExportCodec.Mp3
@@ -108,7 +110,7 @@ internal fun AudioExportContainer.impliedCodec(): AudioExportCodec = when (this)
 
 internal fun AudioExportCodec.impliedContainer(): AudioExportContainer = when (this) {
     AudioExportCodec.Aac -> AudioExportContainer.M4a
-    AudioExportCodec.AmrNb -> AudioExportContainer.ThreeGpp
+    AudioExportCodec.AmrNb -> AudioExportContainer.Amr
     AudioExportCodec.Flac -> AudioExportContainer.Flac
     AudioExportCodec.Mp3 -> AudioExportContainer.Mp3
     AudioExportCodec.Opus -> AudioExportContainer.Ogg
@@ -154,10 +156,22 @@ internal fun supportedAudioExportContainers(
 ): List<AudioExportContainer> {
     if (encoder == AudioExportEncoder.MediaCodec) {
         return when (codec) {
-            AudioExportCodec.Aac -> listOf(AudioExportContainer.M4a, AudioExportContainer.ThreeGpp)
-            AudioExportCodec.AmrNb -> listOf(AudioExportContainer.ThreeGpp, AudioExportContainer.M4a)
-            AudioExportCodec.Opus -> listOf(AudioExportContainer.M4a, AudioExportContainer.WebM)
-            AudioExportCodec.Flac -> listOf(AudioExportContainer.M4a)
+            AudioExportCodec.Aac -> listOf(
+                AudioExportContainer.M4a,
+                AudioExportContainer.ThreeGpp,
+                AudioExportContainer.Adts
+            )
+            AudioExportCodec.AmrNb -> listOf(
+                AudioExportContainer.Amr,
+                AudioExportContainer.ThreeGpp,
+                AudioExportContainer.M4a
+            )
+            AudioExportCodec.Opus -> listOf(
+                AudioExportContainer.Ogg,
+                AudioExportContainer.WebM,
+                AudioExportContainer.M4a
+            )
+            AudioExportCodec.Flac -> listOf(AudioExportContainer.Flac, AudioExportContainer.M4a)
             AudioExportCodec.Mp3, AudioExportCodec.Pcm24 -> emptyList()
         }
     }
@@ -167,7 +181,11 @@ internal fun supportedAudioExportContainers(
             AudioExportContainer.Adts,
             AudioExportContainer.ThreeGpp
         )
-        AudioExportCodec.AmrNb -> listOf(AudioExportContainer.ThreeGpp, AudioExportContainer.M4a)
+        AudioExportCodec.AmrNb -> listOf(
+            AudioExportContainer.Amr,
+            AudioExportContainer.ThreeGpp,
+            AudioExportContainer.M4a
+        )
         AudioExportCodec.Flac -> listOf(
             AudioExportContainer.Flac,
             AudioExportContainer.Ogg,

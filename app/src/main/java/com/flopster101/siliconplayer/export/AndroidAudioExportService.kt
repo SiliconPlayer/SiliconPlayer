@@ -391,6 +391,7 @@ internal fun uniqueAndroidExportFile(directory: File, fileName: String): File {
 private fun androidExportMimeType(container: AudioExportContainer): String = when (container) {
     AudioExportContainer.M4a -> "audio/mp4"
     AudioExportContainer.Adts -> "audio/aac"
+    AudioExportContainer.Amr -> "audio/amr"
     AudioExportContainer.WebM -> "audio/webm"
     AudioExportContainer.ThreeGpp -> "audio/3gpp"
     AudioExportContainer.Mp3 -> "audio/mpeg"
